@@ -3,10 +3,8 @@ import queue
 import time 
 import asyncio
 import threading
-import IPython
 import uuid
 import logging
-import inspect
 import json
 
 class Timer:
@@ -85,7 +83,7 @@ class ClientHandler:
                 msg = json.dumps(popped['obj'])
                 await websocket.send(msg)
             except Exception as e:
-                self.logger.error('%s : Cannot convert message to JSON. %s', (inspect.currentframe().f_code.co_name, str(e)) )
+                self.logger.error('Cannot send message. Invalid JSON. %s', (str(e)) )
 
 
     def run(self):
@@ -103,6 +101,17 @@ class ClientHandler:
     def stop(self):
         self.loop.call_soon_threadsafe(self.loop.stop)
         self.thread.join()
+
+    def send(self, conn_id, obj):
+        if not self.txqueue.full():
+            container = {'conn_id' : conn_id, 'obj' : obj}
+            self.txqueue.put(container)
+
+    def available(self):
+        return not self.rxqueue.empty()
+
+    def recv(self):
+        return self.rxqueue.get_nowait()
 
     def make_id(self):
         return str(uuid.uuid4())

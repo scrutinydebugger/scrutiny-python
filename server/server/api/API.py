@@ -8,19 +8,19 @@ class API:
         self.handler.start()
 
     def process(self):
-        while not self.handler.rxqueue.empty():
-            popped = self.handler.rxqueue.get()
+        while self.handler.available():
+            popped = self.handler.recv()
 
             if 'obj' not in popped or 'conn_id' not in popped:
                 continue
 
-            print('RECEIVED : Connection %s - %s' % (popped['conn_id'], popped['obj']))
-            echoed_msg = popped
-            echoed_msg['obj']['your_conn_id'] = popped['conn_id']
-            self.handler.txqueue.put(echoed_msg)
+            conn_id = popped['conn_id']
+            obj = popped['obj']
+
+            print('RECEIVED : Connection %s - %s' % (conn_id, obj))
+            echoed_obj = obj
+            echoed_obj['your_conn_id'] = conn_id
+            self.handler.send(conn_id, echoed_obj)
 
     def close(self):
         self.handler.stop()
-
-
-
