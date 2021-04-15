@@ -1,0 +1,23 @@
+# ninja log v5
+0	237	1618452242683156194	lib/CMakeFiles/libscrutinycpp.dir/src/scrutiny/scrutiny.cpp.o	30e81e5b66bbaaac
+237	292	1618452242735156417	lib/liblibscrutinycpp.so	892943eff45b7f8b
+1	238	1618452294523377949	example/linux/CMakeFiles/linuxapp.dir/src/hello.cpp.o	7d4a74c296f945d5
+238	296	1618452294579378189	example/linux/linuxapp	640c6267d3a62efa
+0	324	1618452388659780374	example/linux/CMakeFiles/linuxapp.dir/src/hello.cpp.o	7d4a74c296f945d5
+324	393	1618452388723780648	example/linux/linuxapp	640c6267d3a62efa
+1	328	1618452633140824299	example/linux/CMakeFiles/linuxapp.dir/src/hello.cpp.o	7d4a74c296f945d5
+328	386	1618452633200824556	example/linux/linuxapp	640c6267d3a62efa
+0	245	1618452688909062257	lib/CMakeFiles/libscrutinycpp.dir/src/scrutiny/scrutiny.cpp.o	7683ae5f35c3949f
+245	297	1618452688961062478	lib/liblibscrutinycpp.so	892943eff45b7f8b
+0	328	1618452688993062615	example/linux/CMakeFiles/linuxapp.dir/src/hello.cpp.o	12d660fa480c335e
+328	389	1618452689053062870	example/linux/linuxapp	640c6267d3a62efa
+0	230	1618453079990729557	lib/CMakeFiles/libscrutinycpp.dir/src/scrutiny/scrutiny.cpp.o	ee8cf37aaf861fe6
+230	279	1618453080038729762	lib/liblibscrutinycpp.so	559aa25abb74545
+1	338	1618453080098730018	example/linux/CMakeFiles/linuxapp.dir/src/hello.cpp.o	31ede54de37d15a4
+338	395	1618453080154730257	example/linux/linuxapp	841d2a6839a16423
+0	59	1618453459589798314	example/linux/linuxapp	9853d7ef50f515ae
+1	204	1618453638760566237	lib/CMakeFiles/libscrutinycpp.dir/src/scrutiny/scrutiny.cpp.o	18242254bdebbc57
+204	252	1618453638808565976	lib/liblibscrutinycpp.so	559aa25abb74545
+1	335	1618453638892565521	example/linux/CMakeFiles/linuxapp.dir/src/hello.cpp.o	c0303868ff41b6db
+335	387	1618453638944565239	example/linux/linuxapp	1232deb922452a8d
+0	50	1618453644124537379	example/linux/linuxapp	d995a718f6fee8af
