@@ -30,7 +30,7 @@ class Timer:
         self.task.cancel()
 
 
-class ClientHandler:
+class WebsocketClientHandler:
     def __init__(self, config):
         self.rxqueue = queue.Queue()
         self.txqueue = queue.Queue()
@@ -72,7 +72,7 @@ class ClientHandler:
 
     async def process_tx_queue(self):
         while not self.txqueue.empty():
-            popped = self.txqueue.get_nowait()
+            popped = self.txqueue.get()
             if 'conn_id' not in popped or 'obj' not in popped:
                 continue
             wsid = popped['conn_id']
@@ -83,8 +83,10 @@ class ClientHandler:
                 msg = json.dumps(popped['obj'])
                 await websocket.send(msg)
             except Exception as e:
-                self.logger.error('Cannot send message. Invalid JSON. %s', (str(e)) )
+                self.logger.error('Cannot send message. Invalid JSON. %s' % str(e) )
 
+    def process(self):
+        pass #nothing to do
 
     def run(self):
         asyncio.set_event_loop(self.loop)
@@ -111,7 +113,10 @@ class ClientHandler:
         return not self.rxqueue.empty()
 
     def recv(self):
-        return self.rxqueue.get_nowait()
+        try:
+            return self.rxqueue.get_nowait()
+        except:
+            pass
 
     def make_id(self):
         return str(uuid.uuid4())

@@ -9,6 +9,7 @@ async def hello():
     uri = "ws://localhost:8765"
     async with websockets.connect(uri) as websocket:
         await websocket.send(json.dumps(obj))
+        print(await websocket.recv())
         time.sleep(5)
         await websocket.send(json.dumps(obj))
         print(await websocket.recv())
