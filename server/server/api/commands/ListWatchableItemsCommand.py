@@ -1,3 +1,0 @@
-
-class ListWatchableItemsCommand(BaseCommand):
-	pass
