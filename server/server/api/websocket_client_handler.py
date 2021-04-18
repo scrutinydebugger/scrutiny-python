@@ -119,5 +119,5 @@ class WebsocketClientHandler:
             pass
 
     def make_id(self):
-        return str(uuid.uuid4())
+        return suuid.uuid4().hex
 

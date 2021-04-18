@@ -32,16 +32,22 @@ class DatastoreEntry:
 
         self.wtype = wtype
         self.display_path = display_path
-        self.entry_id = str(uuid.uuid4())
+        self.entry_id = uuid.uuid4().hex
         self.dirty = False
         self.valid = False
         self.watched = False
         self.dirty_callbacks = []
         self.pending_target_update = None
 
+    def get_type(self):
+        return self.wtype
 
     def get_id(self):
         return self.entry_id
+
+    def get_display_path(self):
+        return self.display_path
+
 
     def set_dirty(self, val=True):
         just_got_dirty = False

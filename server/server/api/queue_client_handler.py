@@ -6,6 +6,7 @@ import threading
 import uuid
 import logging
 import json
+import uuid
 
 class QueueClientHandler:
     def __init__(self, config):
@@ -15,13 +16,19 @@ class QueueClientHandler:
         self.validate_config(config)
 
         self.server_to_client_queue = self.config['server_to_client_queue']
-        self.client_to_server_queue = self.config['client_to_server_queue']
+        self.server_to_client_queue = self.config['server_to_client_queue']
         self.logger = logging.getLogger(self.__class__.__name__)
         self.stop_requested = False
-        self.conn_id = self.__class__.__name__
+        if 'conn_id' in self.config:
+            self.conn_id = self.config['conn_id']
+        else:
+            self.conn_id = uuid.uuid4().hex
+        self.client_to_server_queue = self.config['client_to_server_queue']
         self.started = False
 
     def validate_config(self, config):
+        if not isinstance(config, dict):
+            raise ValueError('Config ust be a dict object')
         required_field = ['server_to_client_queue', 'client_to_server_queue']
         for field  in required_field:
             if field not in config:
@@ -68,6 +75,9 @@ class QueueClientHandler:
         self.thread.join()
 
     def send(self, conn_id, obj):
+        if conn_id != self.conn_id: # Avoid sending a message if the API is confused
+            return
+
         if not self.txqueue.full():
             container = {'conn_id' : conn_id, 'obj' : obj}
             self.txqueue.put(container)
