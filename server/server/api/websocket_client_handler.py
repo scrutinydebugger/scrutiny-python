@@ -51,6 +51,9 @@ class WebsocketClientHandler:
         del self.ws2id_map[websocket]
         del self.id2ws_map[wsid]
 
+    def is_connection_active(self, conn_id):
+        return True if conn_id in self.id2ws_map else False
+            
     #Executed for each websocket
     async def server_routine(self, websocket, path):
         wsid = await self.register(websocket)
@@ -119,5 +122,5 @@ class WebsocketClientHandler:
             pass
 
     def make_id(self):
-        return suuid.uuid4().hex
+        return uuid.uuid4().hex
 

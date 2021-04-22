@@ -14,7 +14,7 @@ class Datastore:
 
         self.entries_list_by_type = {}
         for entry_type in DatastoreEntry.Type:
-            self.entries_list_by_type[entry_type] = []    
+            self.entries_list_by_type[entry_type] = []      
 
     def add_entries_quiet(self, entries):
         for entry in entries:
@@ -41,20 +41,21 @@ class Datastore:
     def get_entry(self, entry_id):
         return self.entries[entry_id]
 
-    def start_watching(self, entry_id, dirty_callback=None, args=None):
+    def start_watching(self, entry_id, callback_owner, callback, args=None):
         entry_id = self.interpret_entry_id(entry_id)
         entry = self.get_entry(entry_id)
         self.watched_entries.add(entry_id)
-        entry.watch(dirty_callback, args)
+        if not entry.has_dirty_callback(callback_owner):
+            entry.register_dirty_callback(owner=callback_owner, callback=callback, args=args)
 
-    def stop_watching(self, entry_id):
+    def stop_watching(self, entry_id, callback_owner):
         entry_id = self.interpret_entry_id(entry_id)
         entry = self.get_entry(entry_id)
         try:
             self.watched_entries.remove(entry_id)
         except:
             pass
-        entry.stop_watching(False)
+        entry.unregister_dirty_callback(callback_owner)
 
     def get_dirty_entries(self):
         entries = []
@@ -84,6 +85,11 @@ class Datastore:
                 val += len(self.entries_list_by_type[entry_type])
 
         return val
+
+    def set_value(self, entry_id, value):
+        entry_id = self.interpret_entry_id(entry_id)
+        entry = self.get_entry(entry_id)
+        entry.set_value(value)
 
     def clear(self):
         self.__init__()

@@ -12,20 +12,27 @@ class TestDataStore(unittest.TestCase):
             entry = DatastoreEntry(DatastoreEntry.Type.eVar, 'path_%d' %i)
             yield entry
 
-    def entry_callback(self, entry, arg):
-        if entry.get_id() not in self.callback_call_history:
-            self.callback_call_history[entry.get_id()] = 0
-        self.callback_call_history[entry.get_id()]+=1
+    def entry_callback(self, owner, args, entry):
+        if owner not in self.callback_call_history:
+            self.callback_call_history[owner] = {}
 
-    def assertCallbackCalled(self, entry_id, n):
+        if entry.get_id() not in self.callback_call_history[owner]:
+            self.callback_call_history[owner][ entry.get_id()] = 0
+
+        self.callback_call_history[owner][entry.get_id()]+=1
+
+    def assertCallbackCalled(self, entry_id, owner, n, msg=None):
         if isinstance(entry_id, DatastoreEntry):
             entry_id = entry_id.get_id()
 
-        if entry_id not in self.callback_call_history:
-            count =0
+        if owner not in self.callback_call_history:
+            count = 0
         else:
-            count = self.callback_call_history[entry_id]
-        self.assertEqual(count, n)
+            if entry_id not in self.callback_call_history[owner]:
+                count = 0
+            else:
+                count = self.callback_call_history[owner][entry_id]
+        self.assertEqual(count, n, msg)
 
     def test_add_get(self):
         n = 4;
@@ -62,7 +69,7 @@ class TestDataStore(unittest.TestCase):
         dirty_entries = ds.get_dirty_entries()
         self.assertEqual(len(dirty_entries), 0)
         for i in range(ntowatch):
-            ds.start_watching(entries[i].get_id())
+            ds.start_watching(entries[i].get_id(), callback_owner=1234, callback=self.entry_callback)
 
         # Check that we don't get dirty entrie that are unwatched
         dirty_entries = ds.get_dirty_entries()
@@ -82,47 +89,60 @@ class TestDataStore(unittest.TestCase):
         entries = list(self.make_dummy_entries(5))
         ds = Datastore()
         ds.add_entries_quiet(entries)
+        owner = 1234
+        owner2 = 4567
         for entry in entries:
-            ds.start_watching(entry.get_id(), self.entry_callback, dict(someParam=entry.get_id()))
+            ds.start_watching(entry.get_id(), callback_owner=owner, callback=self.entry_callback, args=dict(someParam=entry.get_id()))
         
         for entry in entries:
-            self.assertCallbackCalled(entry, 0)
-
+            self.assertCallbackCalled(entry, owner, 0)
+       # import IPython; IPython.embed()
         entries[0].set_dirty()
-        self.assertCallbackCalled(entries[0], 1)
-        self.assertCallbackCalled(entries[1], 0)
-        self.assertCallbackCalled(entries[2], 0)
-        self.assertCallbackCalled(entries[3], 0)
-        self.assertCallbackCalled(entries[4], 0)
-
-        entries[0].set_dirty()
-        self.assertCallbackCalled(entries[0], 1)
-        self.assertCallbackCalled(entries[1], 0)
-        self.assertCallbackCalled(entries[2], 0)
-        self.assertCallbackCalled(entries[3], 0)
-        self.assertCallbackCalled(entries[4], 0)
+        self.assertCallbackCalled(entries[0], owner, 1)
+        self.assertCallbackCalled(entries[1], owner, 0)
+        self.assertCallbackCalled(entries[2], owner, 0)
+        self.assertCallbackCalled(entries[3], owner, 0)
+        self.assertCallbackCalled(entries[4], owner, 0)
 
         entries[0].set_dirty(False)
         entries[0].set_dirty()
-        self.assertCallbackCalled(entries[0], 2)
-        self.assertCallbackCalled(entries[1], 0)
-        self.assertCallbackCalled(entries[2], 0)
-        self.assertCallbackCalled(entries[3], 0)
-        self.assertCallbackCalled(entries[4], 0)
+        self.assertCallbackCalled(entries[0], owner, 2)
+        self.assertCallbackCalled(entries[1], owner, 0)
+        self.assertCallbackCalled(entries[2], owner, 0)
+        self.assertCallbackCalled(entries[3], owner, 0)
+        self.assertCallbackCalled(entries[4], owner, 0)
+
+        entries[0].set_dirty()
+        self.assertCallbackCalled(entries[0], owner, 2)
+        self.assertCallbackCalled(entries[1], owner, 0)
+        self.assertCallbackCalled(entries[2], owner, 0)
+        self.assertCallbackCalled(entries[3], owner, 0)
+        self.assertCallbackCalled(entries[4], owner, 0)
 
         entries[2].set_dirty()
-        self.assertCallbackCalled(entries[0], 2)
-        self.assertCallbackCalled(entries[1], 0)
-        self.assertCallbackCalled(entries[2], 1)
-        self.assertCallbackCalled(entries[3], 0)
-        self.assertCallbackCalled(entries[4], 0)
+        self.assertCallbackCalled(entries[0], owner, 2)
+        self.assertCallbackCalled(entries[1], owner, 0)
+        self.assertCallbackCalled(entries[2], owner, 1)
+        self.assertCallbackCalled(entries[3], owner, 0)
+        self.assertCallbackCalled(entries[4], owner, 0)
 
-        # Add a second callback on entry 3. Should make 2 call on dirty
-        ds.start_watching(entries[3].get_id(), self.entry_callback, dict(someParam=entries[3].get_id()))
+        # Add a second callback on entry 3 with same owner. Should make 1 call on dirty, not 2
+        ds.start_watching(entries[3].get_id(), callback_owner=owner, callback=self.entry_callback, args=dict(someParam=entry.get_id()))
         entries[3].set_dirty()
-        self.assertCallbackCalled(entries[0], 2)
-        self.assertCallbackCalled(entries[1], 0)
-        self.assertCallbackCalled(entries[2], 1)
-        self.assertCallbackCalled(entries[3], 2)
-        self.assertCallbackCalled(entries[4], 0)
+        self.assertCallbackCalled(entries[0], owner, 2)
+        self.assertCallbackCalled(entries[1], owner, 0)
+        self.assertCallbackCalled(entries[2], owner, 1)
+        self.assertCallbackCalled(entries[3], owner, 1)
+        self.assertCallbackCalled(entries[4], owner, 0)
+
+        # Add a 2 callbacks with different owner. Should make 2 calls
+        ds.start_watching(entries[4].get_id(), callback_owner=owner, callback=self.entry_callback, args=dict(someParam=entry.get_id()))
+        ds.start_watching(entries[4].get_id(), callback_owner=owner2, callback=self.entry_callback, args=dict(someParam=entry.get_id()))
+        entries[4].set_dirty()
+        self.assertCallbackCalled(entries[0], owner, 2)
+        self.assertCallbackCalled(entries[1], owner, 0)
+        self.assertCallbackCalled(entries[2], owner, 1)
+        self.assertCallbackCalled(entries[3], owner, 1)
+        self.assertCallbackCalled(entries[4], owner, 1)
+        self.assertCallbackCalled(entries[4], owner2,1)
 

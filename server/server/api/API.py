@@ -1,16 +1,18 @@
 from .websocket_client_handler import WebsocketClientHandler
-from .queue_client_handler import QueueClientHandler
+from .dummy_client_handler import DummyClientHandler
 from ..datastore import Datastore, DatastoreEntry
+from .value_streamer import ValueStreamer
 import logging
-import numbers
+from ..server_tools import Timer
 
 class InvalidRequestException(Exception):
     def __init__(self, req, msg):
-        super().__init__(self.msg)
+        super().__init__(msg)
         self.req = req
 
-
 class API:
+
+    FLUSH_VARS_TIMEOUT = 0.1
     
     entry_type_to_str = {
         DatastoreEntry.Type.eVar : 'var',
@@ -24,28 +26,75 @@ class API:
 
 
     class Command:
-        ECHO = 'echo'
-        GET_WATCHABLE_LIST = 'get_watchable_list'
-        GET_WATCHABLE_COUNT = 'get_watchable_count'
+        class Client2Api:
+            ECHO = 'echo'
+            GET_WATCHABLE_LIST = 'get_watchable_list'
+            GET_WATCHABLE_COUNT = 'get_watchable_count'
+            SUBSCRIBE_WATCHABLE = 'subscribe_watchable'
+            UNSUBSCRIBE_WATCHABLE = 'unsubscribe_watchable'
 
-    class Response:
-        ECHO = 'response_echo'
-        GET_WATCHABLE_LIST = 'response_get_watchable_list'
-        GET_WATCHABLE_COUNT = 'response_get_watchable_count'
-        ERROR = 'error'
+        class Api2Client:
+            ECHO_RESPONSE = 'response_echo'
+            GET_WATCHABLE_LIST_RESPONSE = 'response_get_watchable_list'
+            GET_WATCHABLE_COUNT_RESPONSE = 'response_get_watchable_count'
+            SUBSCRIBE_WATCHABLE_RESPONSE = 'response_subscribe_watchable'
+            UNSUBSCRIBE_WATCHABLE_RESPONSE = 'response_unsubscribe_watchable'
+            WATCHABLE_UPDATE = 'watchable_update'
+            ERROR_RESPONSE = 'error'
+
+    ApiRequestCallbacks = {
+        Command.Client2Api.ECHO                : 'process_echo',
+        Command.Client2Api.GET_WATCHABLE_LIST  : 'process_get_watchable_list',
+        Command.Client2Api.GET_WATCHABLE_COUNT : 'process_get_watchable_count',
+        Command.Client2Api.SUBSCRIBE_WATCHABLE : 'process_subscribe_watchable',
+        Command.Client2Api.UNSUBSCRIBE_WATCHABLE : 'process_unsubscribe_watchable'
+    }
 
     def __init__(self, config, datastore):
         self.validate_config(config)
 
         if config['client_interface_type'] == 'websocket':
             self.handler = WebsocketClientHandler(config['client_interface_config'])
-        elif config['client_interface_type'] == 'queue':
-            self.handler = QueueClientHandler(config['client_interface_config'])
+        elif config['client_interface_type'] == 'dummy':
+            self.handler = DummyClientHandler(config['client_interface_config'])
         else:
             raise NotImplementedError('Unsupported client interface type. %s' , config['client_interface_type'])
 
         self.datastore = datastore
         self.logger = logging.getLogger(self.__class__.__name__)
+        self.connections = set()
+        self.streamer = ValueStreamer()
+
+    def open_connection(self, conn_id):
+        self.connections.add(conn_id)
+        self.streamer.new_connection(conn_id)
+
+    def close_connection(self, conn_id):
+        self.connections.remove(conn_id)
+        self.streamer.clear_connection(conn_id)
+
+    def is_new_connection(self, conn_id):
+        return True if conn_id not in self.connections else False
+
+
+    def stream_all_we_can(self):
+        for conn_id in self.connections:
+            chunk = self.streamer.get_stream_chunk(conn_id)     # get a list of entry to send to this connection
+
+            if len(chunk) == 0:
+                continue
+
+            msg = {
+                'cmd' : self.Command.Api2Client.WATCHABLE_UPDATE,
+                'updates' : [ dict(id=x.get_id(), value=x.get_value()) for x in chunk]
+            }
+
+            self.handler.send(conn_id, msg)
+
+            for entry in chunk:
+                if not self.streamer.is_still_waiting_stream(entry) and not entry.has_callback_pending():
+                    entry.set_dirty(False)
+
 
     def validate_config(self, config):
         if 'client_interface_type' not in config:
@@ -68,16 +117,22 @@ class API:
             conn_id = popped['conn_id']
             obj = popped['obj']
 
+            if self.is_new_connection(conn_id):
+                self.open_connection(conn_id)
+
             try:
                 self.process_request(conn_id, obj)
             except Exception as e:
                 self.logger.error('Cannot process request. %s' % str(e))
                 self.logger.debug('Conn ID: %s \n Data: %s' % (conn_id, str(obj)))
 
-        self.process_tasks()
+        for conn_id in self.connections:
+            if not self.handler.is_connection_active(conn_id):
+                self.close_connection(conn_id)
 
-    def process_tasks(self):
-        pass  # Do nothing for now.  Exist to run background task so that the API doesn't block
+        self.streamer.process()
+        self.stream_all_we_can()
+
 
     def process_request(self, conn_id, req):
         try:
@@ -85,17 +140,14 @@ class API:
                 raise InvalidRequestException(req, 'No command in request')
 
             cmd = req['cmd']
-            if cmd == self.Command.ECHO:
-                self.process_echo(conn_id, req)
-            elif cmd == self.Command.GET_WATCHABLE_LIST:
-                self.process_get_watchable_list(conn_id, req)
-            elif cmd == self.Command.GET_WATCHABLE_COUNT:
-                self.process_get_watchable_count(conn_id, req)
+            if cmd in self.ApiRequestCallbacks:
+                callback = getattr(self, self.ApiRequestCallbacks[cmd])
+                callback.__call__(conn_id, req)
             else:
                 raise InvalidRequestException(req, 'Unsupported command %s' % cmd)
         
         except InvalidRequestException as e:
-            response = self.make_error_response(req, e.message)
+            response = self.make_error_response(req, str(e))
             self.handler.send(conn_id, response)
         except Exception as e:
             response = self.make_error_response(req, 'Internal error')
@@ -104,8 +156,9 @@ class API:
 
 
     def process_echo(self, conn_id, req):
-        self.logger.debug('Processing Echo')
-        response = dict(cmd=self.Response.ECHO, payload=req['payload'])
+        if 'payload' not in req:
+            raise InvalidRequestException(req, 'Missing payload')
+        response = dict(cmd=self.Command.Api2Client.ECHO_RESPONSE, payload=req['payload'])
         self.handler.send(conn_id, response) 
 
 
@@ -148,12 +201,12 @@ class API:
 
                 nVar = min(max_per_response - nAlias, len(variables))
                 var_to_send = variables[0:nVar]
-                variables=varaibles[nVar:]
+                variables=variables[nVar:]
 
                 done = True if len(variables) + len(alias) == 0 else False
 
             response = {
-                'cmd' : self.Response.GET_WATCHABLE_LIST,
+                'cmd' : self.Command.Api2Client.GET_WATCHABLE_LIST_RESPONSE,
                 'qty' : {
                     'var' : len(var_to_send),
                     'alias' : len(alias_to_send)
@@ -170,7 +223,7 @@ class API:
             
     def process_get_watchable_count(self, conn_id, req):
         response = {
-            'cmd' : self.Response.GET_WATCHABLE_COUNT,
+            'cmd' : self.Command.Api2Client.GET_WATCHABLE_COUNT_RESPONSE,
             'qty' : {
                 'var' : 0,
                 'alias' : 0
@@ -180,6 +233,51 @@ class API:
         response['qty']['var'] = self.datastore.get_entries_count(DatastoreEntry.Type.eVar)
         response['qty']['alias'] = self.datastore.get_entries_count(DatastoreEntry.Type.eAlias)
         self.handler.send(conn_id, response) 
+
+    def process_subscribe_watchable(self, conn_id, req):
+        if 'watchables' not in req and not isinstance(req['watchables'], list):
+            raise InvalidRequestException(req, 'Invalid or missing watchables list')
+
+        for watchable in req['watchables']:
+            try:
+                entry = self.datastore.get_entry(watchable)
+            except KeyError as e:
+                raise InvalidRequestException(req, 'Unknown watchable ID : %s' % str(watchable))
+
+        for watchable in req['watchables']:
+            self.datastore.start_watching(watchable, callback_owner=conn_id, callback=self.var_update_callback)
+
+        response = {
+            'cmd' : self.Command.Api2Client.SUBSCRIBE_WATCHABLE_RESPONSE,
+            'watchables' : req['watchables']
+        }
+
+        self.handler.send(conn_id, response)
+
+    def process_unsubscribe_watchable(self, conn_id, req):
+        if 'watchables' not in req and not isinstance(req['watchables'], list):
+            raise InvalidRequestException(req, 'Invalid or missing watchables list')
+        
+
+        for watchable in req['watchables']:
+            try:
+                entry = self.datastore.get_entry(watchable)
+            except KeyError as e:
+                raise InvalidRequestException(req, 'Unknown watchable ID : %s' % str(watchable))
+
+        for watchable in req['watchables']:
+            self.datastore.stop_watching(watchable, callback_owner=conn_id)
+
+        response = {
+            'cmd' : self.Command.Api2Client.SUBSCRIBE_WATCHABLE_RESPONSE,
+            'watchables' : req['watchables']
+        }
+
+        self.handler.send(conn_id, response)        
+
+    def var_update_callback(self, conn_id, datastore_entry):
+        self.streamer.publish(datastore_entry, conn_id)
+        self.stream_all_we_can()
 
 
     def make_datastore_entry_definition(self, entry):
@@ -193,12 +291,12 @@ class API:
         cmd = '<empty>'
         if 'cmd' in req:
             cmd = req['cmd']
-        obj = {
-            'cmd' : self.Response.ERROR,
+        response = {
+            'cmd' : self.Command.Api2Client.ERROR_RESPONSE,
             'request_cmd' : cmd,
             'msg' : msg
         }
-        return obj
+        return response
 
     def is_dict_with_key(self, d, k):
         return  isinstance(d, dict) and k in d 

@@ -2,6 +2,25 @@ import uuid
 from enum import Enum
 import datetime
 
+class Callback:
+    def __init__(self, fn, owner, args=None):
+        if not callable(fn):
+            raise ValueError('callback must be a callable')
+
+        if owner is None:
+            raise ValueError('Invalid owner for callback')
+
+        self.fn = fn
+        self.owner = owner
+        self.args = args
+
+    def __call__(self, *args, **kwargs):
+        if self.args is None:
+            self.fn.__call__(self.owner, *args, **kwargs)
+        else:    
+            self.fn.__call__(self.owner, self.args, *args, **kwargs)
+
+
 class DatastoreEntry:
 
     class Type(Enum):
@@ -34,10 +53,9 @@ class DatastoreEntry:
         self.display_path = display_path
         self.entry_id = uuid.uuid4().hex
         self.dirty = False
-        self.valid = False
-        self.watched = False
-        self.dirty_callbacks = []
+        self.dirty_callbacks = {}
         self.pending_target_update = None
+        self.callback_pending = False
 
     def get_type(self):
         return self.wtype
@@ -54,28 +72,40 @@ class DatastoreEntry:
         if not self.dirty and val == True:
             just_got_dirty = True
         self.dirty = val
-        if just_got_dirty and self.watched:
-            for callback in self.dirty_callbacks:
-                if callable(callback[0]):
-                    if callback[1] is None:
-                        callback[0].__call__(self)
-                    else:
-                        callback[0].__call__(self, callback[1])
-    
+        if just_got_dirty:
+            self.callback_pending = True
+            for owner in self.dirty_callbacks:
+                self.dirty_callbacks[owner](self);
+            self.callback_pending = False
+
+    def has_callback_pending(self):
+        return self.callback_pending 
+
     def is_dirty(self):
         return self.dirty
 
-    def watch(self, dirty_callback=None, args=None):
-        self.watched = True
-        if callable(dirty_callback):
-            self.dirty_callbacks.append( (dirty_callback, args) )
+    def register_dirty_callback(self, owner=None, callback=None,  args=None):
+        thecallback = Callback(fn=callback, owner=owner, args=args)
+        if owner in self.dirty_callbacks:
+            raise ValueError('This owner already has a callback registered')
+        self.dirty_callbacks[owner] = thecallback
 
-    def stop_watching(self):
-        self.watched = False
-        self.dirty_callbacks = []
+    def unregister_dirty_callback(self, owner):
+        if owner in self.dirty_callbacks:
+            del self.dirty_callbacks[owner]
 
-    def is_watched(self):
-        return self.watched
+    def has_dirty_callback(self, owner=None):
+        if owner is None:
+            return (len(self.dirty_callbacks) == 0)
+        else:
+            return (owner in self.dirty_callbacks)
+
+    def set_value(self, value):
+        self.value = value
+        self.set_dirty()
+
+    def get_value(self):
+        return self.value
 
     def update_target_value(self, value):
         self.pending_target_update = self.UpdateTargetRequest(value)
