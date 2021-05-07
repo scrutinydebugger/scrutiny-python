@@ -355,6 +355,19 @@ class TestAPI(unittest.TestCase):
 
         self.assertEqual(len(expected_entries_in_response), 0)
 
+    def assert_valid_value_update_message(self, msg):
+        self.assert_no_error(msg)
+        self.assertIn('cmd', msg)
+        self.assertIn('updates', msg)
+
+        self.assertEqual(msg['cmd'], 'watchable_update')
+        self.assertIsInstance(msg['updates'], list)
+
+        for update in msg['updates']:
+            self.assertIn('id', update)
+            self.assertIn('value', update)
+
+
     def test_subscribe_single_var(self):
         entries = self.make_dummy_entries(10, type=DatastoreEntry.Type.eVar, prefix='var')
         self.datastore.add_entries(entries)
@@ -365,7 +378,7 @@ class TestAPI(unittest.TestCase):
             'watchables' : [subscribed_entry.get_id()]
         }
     
-        self.send_request(req)
+        self.send_request(req, 0)
         response = self.wait_and_load_response()
         self.assert_no_error(response)
 
@@ -382,68 +395,15 @@ class TestAPI(unittest.TestCase):
         self.datastore.set_value(subscribed_entry.get_id(), 1234)
 
         var_update_msg = self.wait_and_load_response(timeout=0.5)
-
-        self.assert_no_error(var_update_msg)
-        self.assertIn('cmd', var_update_msg)
-        self.assertIn('updates', var_update_msg)
-
-        self.assertEqual(var_update_msg['cmd'], 'watchable_update')
-        self.assertIsInstance(var_update_msg['updates'], list)
-
+        self.assert_valid_value_update_message(var_update_msg)
         self.assertEqual(len(var_update_msg['updates']), 1)
 
         update = var_update_msg['updates'][0]
 
-        self.assertIn('id', update)
-        self.assertIn('value', update)
-
         self.assertEqual(update['id'], subscribed_entry.get_id())
         self.assertEqual(update['value'], 1234)
 
-    def test_entry_becomes_clean_after_send(self):
-        entries = self.make_dummy_entries(10, type=DatastoreEntry.Type.eVar, prefix='var')
-        self.datastore.add_entries(entries)
-
-        subscribed_entry = entries[2]
-        req = {
-            'cmd' : 'subscribe_watchable',
-            'watchables' : [subscribed_entry.get_id()]
-        }
-    
-        # Subscribe through conn 0
-        self.send_request(req, 0)
-        response = self.wait_and_load_response(0)
-        self.assert_no_error(response)
-
-        # Subscribe through conn 1
-        self.send_request(req, 1)
-        response = self.wait_and_load_response(1)
-        self.assert_no_error(response)
-
-        self.assertFalse(subscribed_entry.is_dirty())
-
-        self.api.streamer.freeze_connection(self.connections[1].get_id())   # Prevent the data streamer to feed connection #1 to keep the entry dirty until it is sent
-        self.datastore.set_value(subscribed_entry.get_id(), 1111)
-
-        var_update_msg_0 = self.wait_and_load_response(0, timeout=0.5)
-        self.assertIsNone(self.wait_for_response(1, timeout=0.1)) # conn 1 is frozen
-        self.assertIsNone(self.wait_for_response(2, timeout=0.1))  # Conn 2 did not subscribe
-        self.assertTrue(subscribed_entry.is_dirty())
-
-        self.api.streamer.unfreeze_connection(self.connections[1].get_id()) # Unfreeze. The streamer will send the value it held and then the entry should become clean again
-        var_update_msg_1 = self.wait_and_load_response(1, timeout=0.5)
-        self.assertFalse(subscribed_entry.is_dirty())
-
-        self.assert_no_error(var_update_msg_0)
-        self.assert_no_error(var_update_msg_1)
-
-        for msg in [var_update_msg_0, var_update_msg_1]:
-            self.assertEqual(len(msg['updates']), 1)
-            update = msg['updates'][0]
-            self.assertEqual(update['id'], subscribed_entry.get_id())
-            self.assertEqual(update['value'], 1111)
-
-
+    # Make sure that we can unsubscribe correctly to a variable and value update stops
     def test_subscribe_unsubscribe(self):
         entries = self.make_dummy_entries(10, type=DatastoreEntry.Type.eVar, prefix='var')
         self.datastore.add_entries(entries)
@@ -468,4 +428,35 @@ class TestAPI(unittest.TestCase):
         self.assert_no_error(response)
         
         self.datastore.set_value(subscribed_entry.get_id(), 1111)
-        self.assertIsNone(self.wait_for_response(0, timeout=0.2))
+        self.assertIsNone(self.wait_for_response(0, timeout=0.1))
+
+    # Make sure that the streamer send the value update once if many update happens before the value is outputted to the client.
+    def test_do_not_send_duplicate_changes(self):
+        entries = self.make_dummy_entries(10, type=DatastoreEntry.Type.eVar, prefix='var')
+        self.datastore.add_entries(entries)
+
+        subscribed_entry = entries[2]
+        req = {
+            'cmd' : 'subscribe_watchable',
+            'watchables' : [subscribed_entry.get_id()]
+        }
+
+        self.send_request(req, 0)
+        response = self.wait_and_load_response(0)
+        self.assert_no_error(response)
+
+        self.api.streamer.freeze_connection(self.connections[0].get_id())
+        self.datastore.set_value(subscribed_entry.get_id(), 1234)
+        self.datastore.set_value(subscribed_entry.get_id(), 4567)
+        self.api.streamer.unfreeze_connection(self.connections[0].get_id())
+
+        var_update_msg = self.wait_and_load_response(timeout=0.5)
+        self.assert_valid_value_update_message(var_update_msg)
+        self.assertEqual(len(var_update_msg['updates']), 1)     # Only one update
+
+        self.assertEqual(var_update_msg['updates'][0]['id'], subscribed_entry.get_id())
+        self.assertEqual(var_update_msg['updates'][0]['value'], 4567)   # Got latest value
+
+        self.assertIsNone(self.wait_for_response(0, timeout=0.1))   # No more message to send
+
+    

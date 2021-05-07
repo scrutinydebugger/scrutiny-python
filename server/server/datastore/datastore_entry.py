@@ -52,8 +52,7 @@ class DatastoreEntry:
         self.wtype = wtype
         self.display_path = display_path
         self.entry_id = uuid.uuid4().hex
-        self.dirty = False
-        self.dirty_callbacks = {}
+        self.value_change_callback = {}
         self.pending_target_update = None
         self.callback_pending = False
 
@@ -67,42 +66,34 @@ class DatastoreEntry:
         return self.display_path
 
 
-    def set_dirty(self, val=True):
-        just_got_dirty = False
-        if not self.dirty and val == True:
-            just_got_dirty = True
-        self.dirty = val
-        if just_got_dirty:
-            self.callback_pending = True
-            for owner in self.dirty_callbacks:
-                self.dirty_callbacks[owner](self);
-            self.callback_pending = False
+    def execute_value_change_callback(self):
+        self.callback_pending = True
+        for owner in self.value_change_callback:
+            self.value_change_callback[owner](self);
+        self.callback_pending = False
 
     def has_callback_pending(self):
         return self.callback_pending 
 
-    def is_dirty(self):
-        return self.dirty
-
-    def register_dirty_callback(self, owner=None, callback=None,  args=None):
+    def register_value_change_callback(self, owner=None, callback=None,  args=None):
         thecallback = Callback(fn=callback, owner=owner, args=args)
-        if owner in self.dirty_callbacks:
+        if owner in self.value_change_callback:
             raise ValueError('This owner already has a callback registered')
-        self.dirty_callbacks[owner] = thecallback
+        self.value_change_callback[owner] = thecallback
 
-    def unregister_dirty_callback(self, owner):
-        if owner in self.dirty_callbacks:
-            del self.dirty_callbacks[owner]
+    def unregister_value_change_callback(self, owner):
+        if owner in self.value_change_callback:
+            del self.value_change_callback[owner]
 
-    def has_dirty_callback(self, owner=None):
+    def has_value_change_callback(self, owner=None):
         if owner is None:
-            return (len(self.dirty_callbacks) == 0)
+            return (len(self.value_change_callback) == 0)
         else:
-            return (owner in self.dirty_callbacks)
+            return (owner in self.value_change_callback)
 
     def set_value(self, value):
         self.value = value
-        self.set_dirty()
+        self.execute_value_change_callback()
 
     def get_value(self):
         return self.value

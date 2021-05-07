@@ -54,38 +54,8 @@ class TestDataStore(unittest.TestCase):
             self.assertNotIn(entry.get_id(), entry_ids)
             entry_ids[entry.get_id()] = 0
 
-    def test_get_dirty_only_when_watched(self):
-        n = 10
-        ntowatch = 5
-        ndirty = 2
-
-        ds = Datastore()
-        entries = list(self.make_dummy_entries(n))
-        for entry in entries:
-            entry.set_dirty()
-        ds.add_entries_quiet(entries)
-
-        # Check that we get no dirty entry if we don't watch
-        dirty_entries = ds.get_dirty_entries()
-        self.assertEqual(len(dirty_entries), 0)
-        for i in range(ntowatch):
-            ds.start_watching(entries[i].get_id(), callback_owner=1234, callback=self.entry_callback)
-
-        # Check that we don't get dirty entrie that are unwatched
-        dirty_entries = ds.get_dirty_entries()
-        self.assertEqual(len(dirty_entries), ntowatch)
-        
-        for i in range(n):
-            if i>=ndirty:
-                entries[i].set_dirty(False)
-
-        # Check that we get only dirty entries even if we watch more
-        dirty_entries = ds.get_dirty_entries()
-        self.assertEqual(len(dirty_entries), ndirty)
-    
-
     # Make sure all callbacks are called when entry gets dirty
-    def test_callback_on_dirty(self):
+    def test_callback_on_value_change(self):
         entries = list(self.make_dummy_entries(5))
         ds = Datastore()
         ds.add_entries_quiet(entries)
@@ -97,29 +67,21 @@ class TestDataStore(unittest.TestCase):
         for entry in entries:
             self.assertCallbackCalled(entry, owner, 0)
        # import IPython; IPython.embed()
-        entries[0].set_dirty()
+        entries[0].execute_value_change_callback()
         self.assertCallbackCalled(entries[0], owner, 1)
         self.assertCallbackCalled(entries[1], owner, 0)
         self.assertCallbackCalled(entries[2], owner, 0)
         self.assertCallbackCalled(entries[3], owner, 0)
         self.assertCallbackCalled(entries[4], owner, 0)
 
-        entries[0].set_dirty(False)
-        entries[0].set_dirty()
+        entries[0].execute_value_change_callback()
         self.assertCallbackCalled(entries[0], owner, 2)
         self.assertCallbackCalled(entries[1], owner, 0)
         self.assertCallbackCalled(entries[2], owner, 0)
         self.assertCallbackCalled(entries[3], owner, 0)
         self.assertCallbackCalled(entries[4], owner, 0)
 
-        entries[0].set_dirty()
-        self.assertCallbackCalled(entries[0], owner, 2)
-        self.assertCallbackCalled(entries[1], owner, 0)
-        self.assertCallbackCalled(entries[2], owner, 0)
-        self.assertCallbackCalled(entries[3], owner, 0)
-        self.assertCallbackCalled(entries[4], owner, 0)
-
-        entries[2].set_dirty()
+        entries[2].execute_value_change_callback()
         self.assertCallbackCalled(entries[0], owner, 2)
         self.assertCallbackCalled(entries[1], owner, 0)
         self.assertCallbackCalled(entries[2], owner, 1)
@@ -128,7 +90,7 @@ class TestDataStore(unittest.TestCase):
 
         # Add a second callback on entry 3 with same owner. Should make 1 call on dirty, not 2
         ds.start_watching(entries[3].get_id(), callback_owner=owner, callback=self.entry_callback, args=dict(someParam=entry.get_id()))
-        entries[3].set_dirty()
+        entries[3].execute_value_change_callback()
         self.assertCallbackCalled(entries[0], owner, 2)
         self.assertCallbackCalled(entries[1], owner, 0)
         self.assertCallbackCalled(entries[2], owner, 1)
@@ -138,7 +100,7 @@ class TestDataStore(unittest.TestCase):
         # Add a 2 callbacks with different owner. Should make 2 calls
         ds.start_watching(entries[4].get_id(), callback_owner=owner, callback=self.entry_callback, args=dict(someParam=entry.get_id()))
         ds.start_watching(entries[4].get_id(), callback_owner=owner2, callback=self.entry_callback, args=dict(someParam=entry.get_id()))
-        entries[4].set_dirty()
+        entries[4].execute_value_change_callback()
         self.assertCallbackCalled(entries[0], owner, 2)
         self.assertCallbackCalled(entries[1], owner, 0)
         self.assertCallbackCalled(entries[2], owner, 1)

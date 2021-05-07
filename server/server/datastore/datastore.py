@@ -45,8 +45,8 @@ class Datastore:
         entry_id = self.interpret_entry_id(entry_id)
         entry = self.get_entry(entry_id)
         self.watched_entries.add(entry_id)
-        if not entry.has_dirty_callback(callback_owner):
-            entry.register_dirty_callback(owner=callback_owner, callback=callback, args=args)
+        if not entry.has_value_change_callback(callback_owner):
+            entry.register_value_change_callback(owner=callback_owner, callback=callback, args=args)
 
     def stop_watching(self, entry_id, callback_owner):
         entry_id = self.interpret_entry_id(entry_id)
@@ -55,15 +55,7 @@ class Datastore:
             self.watched_entries.remove(entry_id)
         except:
             pass
-        entry.unregister_dirty_callback(callback_owner)
-
-    def get_dirty_entries(self):
-        entries = []
-        for entry_id in self.watched_entries:
-            entry = self.get_entry(entry_id)
-            if entry.is_dirty():
-                entries.append(entry)
-        return entries
+        entry.unregister_value_change_callback(callback_owner)
 
     def get_all_entries(self):
         for entry_id in self.entries:

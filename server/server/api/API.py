@@ -25,6 +25,7 @@ class API:
     }
 
 
+    # List of commands that can be shared with the clients
     class Command:
         class Client2Api:
             ECHO = 'echo'
@@ -42,6 +43,7 @@ class API:
             WATCHABLE_UPDATE = 'watchable_update'
             ERROR_RESPONSE = 'error'
 
+    # The method to call for each command
     ApiRequestCallbacks = {
         Command.Client2Api.ECHO                : 'process_echo',
         Command.Client2Api.GET_WATCHABLE_LIST  : 'process_get_watchable_list',
@@ -62,8 +64,8 @@ class API:
 
         self.datastore = datastore
         self.logger = logging.getLogger(self.__class__.__name__)
-        self.connections = set()
-        self.streamer = ValueStreamer()
+        self.connections = set()            # Keep a list of all clients connections
+        self.streamer = ValueStreamer()     # The value streamer takes cares of publishing values to the client without polling.
 
     def open_connection(self, conn_id):
         self.connections.add(conn_id)
@@ -76,7 +78,7 @@ class API:
     def is_new_connection(self, conn_id):
         return True if conn_id not in self.connections else False
 
-
+    # Extract a chunk of data from the value streamer and send it to the clients.
     def stream_all_we_can(self):
         for conn_id in self.connections:
             chunk = self.streamer.get_stream_chunk(conn_id)     # get a list of entry to send to this connection
@@ -91,10 +93,6 @@ class API:
 
             self.handler.send(conn_id, msg)
 
-            for entry in chunk:
-                if not self.streamer.is_still_waiting_stream(entry) and not entry.has_callback_pending():
-                    entry.set_dirty(False)
-
 
     def validate_config(self, config):
         if 'client_interface_type' not in config:
@@ -103,9 +101,11 @@ class API:
         if 'client_interface_config' not in config:
             raise ValueError('Missing entry in API config : client_interface_config')
 
+    # Launch the client interface handler
     def start_listening(self):
         self.handler.start()
 
+    # to be called periodically
     def process(self):
         self.handler.process()
         while self.handler.available():
@@ -134,6 +134,7 @@ class API:
         self.stream_all_we_can()
 
 
+    # Process a request gotten from the Client Handler
     def process_request(self, conn_id, req):
         try:
             if 'cmd' not in req:
@@ -154,14 +155,14 @@ class API:
             self.handler.send(conn_id, response)
             raise
 
-
+    # === ECHO ====
     def process_echo(self, conn_id, req):
         if 'payload' not in req:
             raise InvalidRequestException(req, 'Missing payload')
         response = dict(cmd=self.Command.Api2Client.ECHO_RESPONSE, payload=req['payload'])
         self.handler.send(conn_id, response) 
 
-
+    #  ===  GET_WATCHABLE_LIST     ===
     def process_get_watchable_list(self, conn_id, req):
         # Improvement : This may be a big response. Generate multi-packet response in a worker thread
         # Not asynchronous by choice 
@@ -220,7 +221,7 @@ class API:
 
             self.handler.send(conn_id, response)
 
-            
+    #  ===  GET_WATCHABLE_COUNT ===
     def process_get_watchable_count(self, conn_id, req):
         response = {
             'cmd' : self.Command.Api2Client.GET_WATCHABLE_COUNT_RESPONSE,
@@ -233,7 +234,8 @@ class API:
         response['qty']['var'] = self.datastore.get_entries_count(DatastoreEntry.Type.eVar)
         response['qty']['alias'] = self.datastore.get_entries_count(DatastoreEntry.Type.eAlias)
         self.handler.send(conn_id, response) 
-
+   
+    #  ===  SUBSCRIBE_WATCHABLE ===
     def process_subscribe_watchable(self, conn_id, req):
         if 'watchables' not in req and not isinstance(req['watchables'], list):
             raise InvalidRequestException(req, 'Invalid or missing watchables list')
@@ -253,7 +255,8 @@ class API:
         }
 
         self.handler.send(conn_id, response)
-
+   
+    #  ===  UNSUBSCRIBE_WATCHABLE ===
     def process_unsubscribe_watchable(self, conn_id, req):
         if 'watchables' not in req and not isinstance(req['watchables'], list):
             raise InvalidRequestException(req, 'Invalid or missing watchables list')
