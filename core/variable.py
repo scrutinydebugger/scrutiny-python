@@ -1,33 +1,15 @@
 from enum import Enum
 
 
-
-
-class DwarfEncoding(Enum):
-    DW_ATE_address         = 0x1
-    DW_ATE_boolean         = 0x2
-    DW_ATE_complex_float   = 0x3
-    DW_ATE_float           = 0x4
-    DW_ATE_signed          = 0x5
-    DW_ATE_signed_char     = 0x6
-    DW_ATE_unsigned        = 0x7
-    DW_ATE_unsigned_char   = 0x8
-    DW_ATE_lo_user         = 0x80
-    DW_ATE_hi_user         = 0xff
-
 class VariableLocation:
-    def __init__(self, data, endianness):
-        if isinstance(data, list):
-            data = bytes(data)
-        if not isinstance(data, bytes):
-            raise ValueError('Data must be bytes, not %s' % (data.__class__.__name__))
+    def __init__(self, address):
+        if not isinstance(address, int):
+            raise ValueError('Address must be a valid integer')
 
-        if len(data) < 1:
-            raise ValueError('Empty data')
-        self.check_endianness(endianness)
+        self.address = address
 
-        self.data = data
-        self.endianness = endianness
+    def get_address(self):
+        return self.address
 
     @classmethod
     def check_endianness(cls, endianness):
@@ -35,24 +17,24 @@ class VariableLocation:
             raise ValueError('Invalid endianness "%s" ' % endianness)
 
     @classmethod
-    def from_int(cls, val, endianness):
-        if not isinstance(val, int):
-            raise ValueError('Value must be a valid integer')
-        cls.check_endianness(endianness)
-        return cls(val.tobytes(endianness), endianness)
-
-    @classmethod
     def from_bytes(cls, data, endianness):
-        return cls(data, endianness)
+        if isinstance(data, list):
+            data = bytes(data)
+        if not isinstance(data, bytes):
+            raise ValueError('Data must be bytes, not %s' % (data.__class__.__name__))
 
-    def decode(self):
-        return int.from_bytes(self.data, byteorder=self.endianness, signed=False)
+        if len(data) < 1:
+            raise ValueError('Empty data')
+
+        cls.check_endianness(endianness)
+        address = int.from_bytes(data, byteorder=endianness, signed=False)
+        return cls(address)
 
     def __str(self):
-        return str(self.decode())
+        return str(self.address)
 
     def __repr__(self):
-        return '<%s - 0x%08X>' % (self.__class__.__name__, self.decode())
+        return '<%s - 0x%08X>' % (self.__class__.__name__, self.address)
 
 class VariableType(Enum):
     sint8 = 0
@@ -66,6 +48,7 @@ class VariableType(Enum):
     float32 = 8
     float64 = 9
     boolean = 10
+    struct = 11
 
 
 class Variable:
@@ -96,7 +79,7 @@ class Variable:
 
     def get_def(self):
         desc = {
-            'location' : self.location.decode(),
+            'location' : self.location.get_address(),
             'type_id' : self.vartype_id
         }
         if self.bitwidth is not None:
@@ -160,3 +143,47 @@ class VariableEnum:
             obj.vals[newkey] = enum_def['values'][k]
         obj.set_id(enum_id)
         return obj
+
+class Struct:
+    class Member:
+        def __init__(self, name, vartype, vartype_id=None,  bitoffset=None, bitwidth=None, substruct=None):
+
+            if not isinstance(vartype, VariableType):
+                raise ValueError('vartype must be an instance of VariableType')
+
+            if bitoffset is not None:
+                if not isinstance(bitoffset, int):
+                    raise ValueError('bitoffset must be an integer value')
+                if bitoffset < 0:
+                    raise ValueError('bitoffset must be a positive integer')
+
+            if bitwidth is not None:
+                if not isinstance(bitwidth, int):
+                    raise ValueError('bitwidth must be an integer value')
+                if bitwidth < 0:
+                    raise ValueError('bitwidth must be a positive integer')
+
+            if substruct is not None:
+                if not isinstance(substruct, Struct):
+                    raise ValueError('substruct must be Struct instance')
+
+            self.name = name
+            self.vartype = vartype
+            self.bitoffset = bitoffset
+            self.bitwidth = bitwidth
+            self.substruct = substruct
+            self.vartype_id = vartype_id
+
+    def __init__(self, name):
+        self.name = name
+        self.members = {}
+
+    def add_member(self, member):
+        if member.name in self.members:
+            raise Exception('Duplicate member %s' % member.name)
+
+        if not isinstance(member, Struct) and not isinstance(member, Struct.Member):
+            raise ValueError('Node must be a member or a substruct')
+
+        self.members[member.name] = member
+       

@@ -54,10 +54,12 @@ class VarDesc:
         return self.content['variables'][fullname]
 
     def get_bitwidth(self, vardef):
-        return None
+        if 'bitwidth' in vardef:
+            return vardef['bitwidth']
 
     def get_bitoffset(self, vardef):
-        return None
+        if 'bitoffset' in vardef:
+            return vardef['bitoffset']
 
     def get_enum(self, vardef):
         if 'enum_id' in vardef:

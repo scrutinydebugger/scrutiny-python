@@ -1,6 +1,23 @@
+#!/usr/bin/env python
+
+"""
+This script parse an ELF file and generate a Scrutiny "Variable Description File" which contains the definition of each 
+variables inside the binary in the Scrutiny format.
+"""
+
+__author__ = "Pier-Yves Lessard"
+__copyright__ = "Copyright 2007, The Cogent Project"
+__credits__ = ["Pier-Yves Lessard"]
+__license__ = "MIT"
+__version__ = "1.0.0"
+__maintainer__ = "Pier-Yves Lessard"
+__status__ = "Development"
+
+
 from elftools.elf.elffile import ELFFile
 import IPython
 import os, sys
+from enum import Enum
 from demangler import GccDemangler
 from icecream import ic
 import logging
@@ -18,14 +35,10 @@ logger = logging.getLogger(os.path.basename(__file__))
 x = 0
 
 die_process_fn = {
-    'DW_TAG_base_type'      : 'die_process_base_type', 
-#    'DW_TAG_typedef'        : 'die_process_typedef', 
-    'DW_TAG_variable'       : 'die_process_variable', 
-    'DW_TAG_enumeration_type'  : 'die_process_enum', 
-    'DW_TAG_enumerator'  : 'die_process_enum_val', 
-    #'DW_TAG_structure_type' : 'die_process_struct_type', 
-    #'DW_TAG_member'         : 'die_process_member', 
-    #'DW_TAG_namespace'      : 'die_process_namespace'
+    'DW_TAG_base_type'          : 'die_process_base_type', 
+    'DW_TAG_variable'           : 'die_process_variable', 
+    'DW_TAG_enumeration_type'   : 'die_process_enum', 
+    'DW_TAG_enumerator'         : 'die_process_enum_val'
 }
 
 
@@ -40,12 +53,25 @@ DWARF_LOC_ADDR_ID = 3
 
 cu_name_map = {}  # maps a CompileUnit object to it's unique display name
 enum_die_map = {}
+struct_die_map = {}
 
 class Context:
     def __init__(self, **kwargs):
         for k in kwargs:
             self.__setattr__(k, kwargs[k])
 
+
+class DwarfEncoding(Enum):
+    DW_ATE_address         = 0x1
+    DW_ATE_boolean         = 0x2
+    DW_ATE_complex_float   = 0x3
+    DW_ATE_float           = 0x4
+    DW_ATE_signed          = 0x5
+    DW_ATE_signed_char     = 0x6
+    DW_ATE_unsigned        = 0x7
+    DW_ATE_unsigned_char   = 0x8
+    DW_ATE_lo_user         = 0x80
+    DW_ATE_hi_user         = 0xff
 
 class BaseTypeMap:
     NEXT_ID = 0
@@ -79,7 +105,6 @@ class BaseTypeMap:
         for pair in self.pair2id_map:
             definition[self.pair2id_map[pair]] = dict(name=pair[0], type=pair[1].name)
         return definition
-
 
     @classmethod
     def next_id(cls):
@@ -234,13 +259,13 @@ def is_external(die):
         return False
 
 def get_core_base_type(encoding, bytesize):
-    if encoding == core.DwarfEncoding.DW_ATE_boolean:
+    if encoding == DwarfEncoding.DW_ATE_boolean:
         if bytesize == 1:
             return core.VariableType.boolean
         else:
             raise NotImplementedError('Boolean with %d bytes' % bytesize)
 
-    elif encoding == core.DwarfEncoding.DW_ATE_float:
+    elif encoding == DwarfEncoding.DW_ATE_float:
         if bytesize == 4:
             return core.VariableType.float32
         elif bytesize == 8:
@@ -248,7 +273,7 @@ def get_core_base_type(encoding, bytesize):
         else:
             raise NotImplementedError('Float with %d bytes' % bytesize)
 
-    elif encoding == core.DwarfEncoding.DW_ATE_signed:
+    elif encoding == DwarfEncoding.DW_ATE_signed:
         if bytesize == 1:
             return core.VariableType.sint8
         elif bytesize == 2:
@@ -260,7 +285,7 @@ def get_core_base_type(encoding, bytesize):
         else:
             raise NotImplementedError('Signed int with %d bytes' % bytesize)
 
-    elif encoding == core.DwarfEncoding.DW_ATE_signed_char:
+    elif encoding == DwarfEncoding.DW_ATE_signed_char:
         if bytesize == 1:
             return core.VariableType.sint8
         elif bytesize == 2:
@@ -272,7 +297,7 @@ def get_core_base_type(encoding, bytesize):
         else:
             raise NotImplementedError('Signed char int with %d bytes' % bytesize)
 
-    elif encoding == core.DwarfEncoding.DW_ATE_unsigned:
+    elif encoding == DwarfEncoding.DW_ATE_unsigned:
         if bytesize == 1:
             return core.VariableType.uint8
         elif bytesize == 2:
@@ -284,7 +309,7 @@ def get_core_base_type(encoding, bytesize):
         else:
             raise NotImplementedError('Unsigned int with %d bytes' % bytesize)
 
-    elif encoding == core.DwarfEncoding.DW_ATE_unsigned_char:
+    elif encoding == DwarfEncoding.DW_ATE_unsigned_char:
         if bytesize == 1:
             return core.VariableType.uint8
         elif bytesize == 2:
@@ -333,7 +358,7 @@ def process_die(die, context):
 # Process die of type "base type". Register the type in the global index and maps it to a known type.
 def die_process_base_type(die, context):
     name = die.attributes['DW_AT_name'].value.decode('ascii')
-    encoding = core.DwarfEncoding(die.attributes['DW_AT_encoding'].value)
+    encoding = DwarfEncoding(die.attributes['DW_AT_encoding'].value)
     bytesize = die.attributes['DW_AT_byte_size'].value
     basetype = get_core_base_type(encoding, bytesize)
     context.basetype_map.register_base_type(die, name, basetype)
@@ -356,6 +381,7 @@ def die_process_enum_val(die, context):
         logger.error('Enumerator without value')
 
 
+## Todo: the fucntion below could probably merge in one "type analyzer" function
 def extract_enum(die, context):
     prevdie = die
     while True:
@@ -379,6 +405,108 @@ def extract_basetype_die(die, context):
         else:
             prevdie = nextdie
 
+def is_type_struct(die, context):
+    prevdie = die
+    while True:
+        refaddr = prevdie.attributes['DW_AT_type'].value + prevdie.cu.cu_offset
+        nextdie = prevdie.dwarfinfo.get_DIE_from_refaddr(refaddr)
+        if nextdie.tag == 'DW_TAG_structure_type':
+            return True
+        elif nextdie.tag == 'DW_TAG_base_type':
+            return False
+        else:
+            prevdie = nextdie
+
+def get_struct_type(die, context):
+    prevdie = die
+    while True:
+        refaddr = prevdie.attributes['DW_AT_type'].value + prevdie.cu.cu_offset
+        nextdie = prevdie.dwarfinfo.get_DIE_from_refaddr(refaddr)
+        if nextdie.tag == 'DW_TAG_structure_type':
+            return nextdie
+        elif nextdie.tag == 'DW_TAG_base_type':
+            raise Exception('Not a structure type')
+        else:
+            prevdie = nextdie
+
+
+def die_process_struct(die, context):
+    if die not in struct_die_map:
+        struct_die_map[die] = get_struct_def(die, context)
+
+def get_struct_def(die, context):
+    if die.tag != 'DW_TAG_structure_type':
+        raise ValueError('DIE must be a structure type')
+
+    struct = core.Struct(get_name(die))
+
+    for child in die.iter_children():
+        if child.tag == 'DW_TAG_structure_type':
+            die_process_struct(child, context)
+        elif child.tag == 'DW_TAG_member':
+            member = get_member_from_die(child, context)
+            struct.add_member(member)
+        else:
+            raise NotImplementedError('DIE below structure type is expected to be a member or a struct.') # In case this happens..
+
+    return struct
+
+def get_member_from_die(die, context):
+    name = get_name(die)
+    if is_type_struct(die, context):
+        struct_die = get_struct_type(die, context)
+        substruct = get_struct_def(struct_die, context) # recursion
+        vartype = core.VariableType.struct
+        vartype_id = None
+    else:
+        basetype_die = extract_basetype_die(die, context)
+        die_process_base_type(basetype_die, context)    # Just in case it is unknown yet
+        vartype_id = context.basetype_map.get_id_from_die(basetype_die)
+        vartype = context.basetype_map.get_type_from_die(basetype_die)
+        substruct = None
+
+    bitoffset = die.attributes['DW_AT_data_member_location'].value * 8   # todo, some CPU may have bigger base word
+    bitwidth = None     #todo 
+
+    return core.Struct.Member(name=name, vartype=vartype, vartype_id=vartype_id, bitoffset = bitoffset, bitwidth=bitwidth, substruct=substruct)
+
+
+def register_struct_var(die, context, location):
+    path_segments = make_varpath(die, context)
+    path_segments.append(get_name(die))
+    struct_die = get_struct_type(die, context)
+    struct = struct_die_map[struct_die]
+    startpoint = core.Struct.Member(struct.name, core.VariableType.struct, bitoffset=None, bitwidth=None, substruct=struct)
+
+    register_member_as_var_recursive(path_segments, context, startpoint, location, offset=0)
+
+def register_member_as_var_recursive(path_segments, context, member, location, offset):
+    if member.vartype == core.VariableType.struct:
+        struct = member.substruct
+        for name in struct.members:
+            member = struct.members[name]
+            new_path_segments = path_segments.copy()
+            if member.vartype == core.VariableType.struct:
+                new_path_segments.append(name)
+                offset += member.bitoffset
+
+            register_member_as_var_recursive(new_path_segments, context, member, location, offset)
+    else:
+        varentry = core.Variable(
+            path_segments   = path_segments, 
+            name            = member.name, 
+            vartype_id      = member.vartype_id, 
+            vartype         = member.vartype, 
+            location        = location, 
+            endianness      = context.endianness, 
+            bitoffset       = offset + member.bitoffset,
+            bitwidth        = None, # todo
+            enum            = None  # todo
+            )
+
+        context.varlist.append(varentry)
+
+
 def get_location(die, context):
     if 'DW_AT_location' in die.attributes:
         dieloc = (die.attributes['DW_AT_location'].value)
@@ -394,7 +522,7 @@ def get_location(die, context):
 
         return core.VariableLocation.from_bytes(dieloc[1:], context.endianness)
 
-def die_process_variable(die,  context, location=None):
+def die_process_variable(die, context, location=None):
     if location is None:
         location = get_location(die, context)
 
@@ -404,17 +532,22 @@ def die_process_variable(die,  context, location=None):
 
     else:
         if location is not None:
-            path_segments = make_varpath(die, context)
-            name = get_name(die)    
+              
+            if is_type_struct(die, context):
+                struct_die = get_struct_type(die, context)
+                die_process_struct(struct_die, context)
+                register_struct_var(die, context, location)
+            else:
+                path_segments = make_varpath(die, context)
+                name = get_name(die)  
+                basetype_die = extract_basetype_die(die, context)
+                enum_obj = extract_enum(die, context)
+                die_process_base_type(basetype_die, context)
+                vartype_id = context.basetype_map.get_id_from_die(basetype_die)
+                vartype = context.basetype_map.get_type_from_die(basetype_die)
 
-            basetype_die = extract_basetype_die(die, context)
-            enum_obj = extract_enum(die, context)
-            die_process_base_type(basetype_die, context)
-            vartype_id = context.basetype_map.get_id_from_die(basetype_die)
-            vartype = context.basetype_map.get_type_from_die(basetype_die)
-
-            varentry = core.Variable(path_segments=path_segments, name=name, vartype_id=vartype_id, vartype=vartype, location=location, endianness=context.endianness, enum=enum_obj)
-            context.varlist.append(varentry)
+                varentry = core.Variable(path_segments=path_segments, name=name, vartype_id=vartype_id, vartype=vartype, location=location, endianness=context.endianness, enum=enum_obj)
+                context.varlist.append(varentry)
 
 def get_varpath_from_hierarchy(die, context):
     segments = []
