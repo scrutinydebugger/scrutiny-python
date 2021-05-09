@@ -21,12 +21,12 @@ class TestLinuxLEx64_Gcc8_3_0(unittest.TestCase):
     def load_var(self, fullname):
         return  self.vardesc.get_var(fullname)
 
-    def assert_vartype(self, fullname, thetype, bitwidth=None, bitoffset=None):
+    def assert_vartype(self, fullname, thetype, bitsize=None, bitoffset=None):
         v = self.load_var(fullname)
         self.assertEqual(thetype, v.get_type())
         
-        if bitwidth is not None:
-           self.assertEqual(v.bitwidth, bitwidth) 
+        if bitsize is not None:
+           self.assertEqual(v.bitsize, bitsize) 
 
         if bitoffset is not None:
            self.assertEqual(v.bitoffset, bitoffset) 
@@ -149,3 +149,9 @@ class TestLinuxLEx64_Gcc8_3_0(unittest.TestCase):
         self.assert_vartype('/global/file1StructBInstance/structBMemberStructA/structAMemberFloat', core.VariableType.float32, bitoffset=64+32)
         self.assert_vartype('/global/file1StructBInstance/structBMemberStructA/structAMemberDouble', core.VariableType.float64, bitoffset=96+32)
         self.assert_vartype('/global/file1StructBInstance/structBMemberStructA/structAMemberBool', core.VariableType.boolean, bitoffset=160+32)
+
+    def test_bitfield(self):
+        self.assert_vartype('/global/file1StructDInstance/bitfieldA', core.VariableType.uint32, bitoffset=0, bitsize=1)
+        self.assert_vartype('/global/file1StructDInstance/bitfieldB', core.VariableType.uint32, bitoffset=1, bitsize=9)
+        self.assert_vartype('/global/file1StructDInstance/bitfieldC', core.VariableType.uint32, bitoffset=10, bitsize=3)
+        self.assert_vartype('/global/file1StructDInstance/bitfieldD', core.VariableType.uint32, bitoffset=16, bitsize=None)

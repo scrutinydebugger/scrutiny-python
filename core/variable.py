@@ -30,11 +30,14 @@ class VariableLocation:
         address = int.from_bytes(data, byteorder=endianness, signed=False)
         return cls(address)
 
+    def copy(self):
+        return VariableLocation(self.get_address())
+
     def __str(self):
-        return str(self.address)
+        return str(self.get_address())
 
     def __repr__(self):
-        return '<%s - 0x%08X>' % (self.__class__.__name__, self.address)
+        return '<%s - 0x%08X>' % (self.__class__.__name__, self.get_address())
 
 class VariableType(Enum):
     sint8 = 0
@@ -50,18 +53,36 @@ class VariableType(Enum):
     boolean = 10
     struct = 11
 
+    def get_size_bit(self):
+        sizemap = {
+            self.__class__.sint8 : 8,
+            self.__class__.uint8 : 8,
+            self.__class__.sint16 : 16,
+            self.__class__.uint16 : 16,
+            self.__class__.sint32 : 32,
+            self.__class__.uint32 : 32,
+            self.__class__.sint64 : 64,
+            self.__class__.uint64 : 64,
+            self.__class__.float32 : 32,
+            self.__class__.float64 : 64,
+            self.__class__.boolean : 8,
+            self.__class__.struct  : None
+        }
+
+        return sizemap[self]
+
 
 class Variable:
-    def __init__(self, name, vartype_id, vartype, path_segments, location, endianness, bitwidth=None, bitoffset=None, enum=None):
+    def __init__(self, name, vartype_id, vartype, path_segments, location, endianness,  bitsize=None, bitoffset=None, enum=None):
         self.name = name
         self.vartype_id = vartype_id
         self.vartype = vartype
         self.path_segments = path_segments
         self.location = location
         self.endianness = endianness
-        self.bitwidth = bitwidth
+        self.bitsize = bitsize
         self.bitoffset = bitoffset
-        self.enum=enum     
+        self.enum=enum   
 
 
     def get_fullname(self):
@@ -77,13 +98,17 @@ class Variable:
     def get_path_segments(self):
         return self.path_segments
 
+    def get_address(self):
+        return self.location.get_address()
+
     def get_def(self):
         desc = {
-            'location' : self.location.get_address(),
+            'addr' : self.get_address(),
             'type_id' : self.vartype_id
         }
-        if self.bitwidth is not None:
-            desc['bitwidth'] = self.bitwidth
+
+        if self.bitsize is not None:
+            desc['bitsize'] = self.bitsize
 
         if self.bitoffset is not None:
             desc['bitoffset'] = self.bitoffset
@@ -146,7 +171,7 @@ class VariableEnum:
 
 class Struct:
     class Member:
-        def __init__(self, name, vartype, vartype_id=None,  bitoffset=None, bitwidth=None, substruct=None):
+        def __init__(self, name, vartype, vartype_id=None, bitoffset=None, bitsize=None, substruct=None):
 
             if not isinstance(vartype, VariableType):
                 raise ValueError('vartype must be an instance of VariableType')
@@ -157,11 +182,11 @@ class Struct:
                 if bitoffset < 0:
                     raise ValueError('bitoffset must be a positive integer')
 
-            if bitwidth is not None:
-                if not isinstance(bitwidth, int):
-                    raise ValueError('bitwidth must be an integer value')
-                if bitwidth < 0:
-                    raise ValueError('bitwidth must be a positive integer')
+            if bitsize is not None:
+                if not isinstance(bitsize, int):
+                    raise ValueError('bitsize must be an integer value')
+                if bitsize < 0:
+                    raise ValueError('bitsize must be a positive integer')                 
 
             if substruct is not None:
                 if not isinstance(substruct, Struct):
@@ -170,7 +195,7 @@ class Struct:
             self.name = name
             self.vartype = vartype
             self.bitoffset = bitoffset
-            self.bitwidth = bitwidth
+            self.bitsize = bitsize
             self.substruct = substruct
             self.vartype_id = vartype_id
 

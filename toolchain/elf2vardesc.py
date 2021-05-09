@@ -465,18 +465,32 @@ def get_member_from_die(die, context):
         vartype = context.basetype_map.get_type_from_die(basetype_die)
         substruct = None
 
-    bitoffset = die.attributes['DW_AT_data_member_location'].value * 8   # todo, some CPU may have bigger base word
-    bitwidth = None     #todo 
+    bitoffset = die.attributes['DW_AT_data_member_location'].value * 8
+    if 'DW_AT_bit_offset' in die.attributes:
+        if 'DW_AT_byte_size' not in die.attributes:
+            raise Exception('Missing DW_AT_byte_size for bitfield %s' % (get_name(die, '')))
+       
+    bitsize = die.attributes['DW_AT_bit_size'].value if 'DW_AT_bit_size' in die.attributes else None
+   
+    #Not sure about this.
+    if context.endianness == 'little':
+        membersize = vartype.get_size_bit()
+        if bitsize is not None :
+            membersize = bitsize
+            bitoffset += (die.attributes['DW_AT_byte_size'].value*8) - die.attributes['DW_AT_bit_offset'].value - membersize
+    elif context.endianness == 'big':
+       bitoffset += die.attributes['DW_AT_bit_offset'].value 
+    else:
+        raise ValueError('Unknown endianness')
 
-    return core.Struct.Member(name=name, vartype=vartype, vartype_id=vartype_id, bitoffset = bitoffset, bitwidth=bitwidth, substruct=substruct)
-
+    return core.Struct.Member(name=name, vartype=vartype, vartype_id=vartype_id, bitoffset = bitoffset, bitsize = bitsize, substruct=substruct)
 
 def register_struct_var(die, context, location):
     path_segments = make_varpath(die, context)
     path_segments.append(get_name(die))
     struct_die = get_struct_type(die, context)
     struct = struct_die_map[struct_die]
-    startpoint = core.Struct.Member(struct.name, core.VariableType.struct, bitoffset=None, bitwidth=None, substruct=struct)
+    startpoint = core.Struct.Member(struct.name, core.VariableType.struct, bitoffset=None, bitsize=None, substruct=struct)
 
     register_member_as_var_recursive(path_segments, context, startpoint, location, offset=0)
 
@@ -500,7 +514,7 @@ def register_member_as_var_recursive(path_segments, context, member, location, o
             location        = location, 
             endianness      = context.endianness, 
             bitoffset       = offset + member.bitoffset,
-            bitwidth        = None, # todo
+            bitsize         = member.bitsize,
             enum            = None  # todo
             )
 
@@ -508,19 +522,25 @@ def register_member_as_var_recursive(path_segments, context, member, location, o
 
 
 def get_location(die, context):
-    if 'DW_AT_location' in die.attributes:
-        dieloc = (die.attributes['DW_AT_location'].value)
-        
-        if not isinstance(dieloc, list):
-            raise ValueError('die location is not a list')
+    try:
+        if 'DW_AT_location' in die.attributes:
+            dieloc = (die.attributes['DW_AT_location'].value)
+            
+            if not isinstance(dieloc, list):
+                raise ValueError('die location is not a list')
 
-        if len(dieloc) < 2:
-            raise ValueError('die location is too small')
+            if len(dieloc) < 1:
+                raise ValueError('die location is too small')
 
-        if dieloc[0] != DWARF_LOC_ADDR_ID:
-            raise ValueError('die location must be of type %s' % DWARF_LOC_ADDR_ID)
+            if dieloc[0] != DWARF_LOC_ADDR_ID:
+                raise ValueError('die location must be an absolute address')
 
-        return core.VariableLocation.from_bytes(dieloc[1:], context.endianness)
+            if len(dieloc) < 2:
+                raise ValueError('die location is too small')
+
+            return core.VariableLocation.from_bytes(dieloc[1:], context.endianness)
+    except:
+        return None        
 
 def die_process_variable(die, context, location=None):
     if location is None:

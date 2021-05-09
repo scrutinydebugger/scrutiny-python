@@ -22,9 +22,9 @@ class VarDesc:
             vartype_id      = self.get_type_id(vardef), 
             vartype         = self.get_type(vardef), 
             path_segments   = segments, 
-            location        = self.get_location(vardef), 
+            location        = self.get_addr(vardef), 
             endianness      = self.endianness, 
-            bitwidth        = self.get_bitwidth(vardef), 
+            bitsize        = self.get_bitsize(vardef), 
             bitoffset       = self.get_bitoffset(vardef), 
             enum            = self.get_enum(vardef)
             )
@@ -45,17 +45,17 @@ class VarDesc:
         typename = self.content['type_map'][type_id]['type']
         return VariableType.__getattr__(typename)
 
-    def get_location(self, vardef):
-        return vardef['location']
+    def get_addr(self, vardef):
+        return vardef['addr']
 
     def get_var_def(self, fullname):
         if fullname not in self.content['variables']:
             raise ValueError('%s not in Variable Decsription File' % fullname)
         return self.content['variables'][fullname]
 
-    def get_bitwidth(self, vardef):
-        if 'bitwidth' in vardef:
-            return vardef['bitwidth']
+    def get_bitsize(self, vardef):
+        if 'bitsize' in vardef:
+            return vardef['bitsize']
 
     def get_bitoffset(self, vardef):
         if 'bitoffset' in vardef:
