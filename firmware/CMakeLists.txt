@@ -6,3 +6,4 @@ set(CMAKE_VERBOSE_MAKEFILE TRUE)
 
 add_subdirectory(lib)
 add_subdirectory(example/linux)
+add_subdirectory(testapp)

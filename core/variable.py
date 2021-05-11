@@ -41,17 +41,31 @@ class VariableLocation:
 
 class VariableType(Enum):
     sint8 = 0
-    uint8 = 1
-    sint16 = 2
-    uint16 = 3
-    sint32 = 4
-    uint32 = 5
-    sint64 = 6
-    uint64 = 7
-    float32 = 8
-    float64 = 9
-    boolean = 10
-    struct = 11
+    sint16 = 1
+    sint32 = 2
+    sint64 = 3
+    sint128 = 4
+    sint256 = 5
+    uint8 = 10
+    uint16 = 11
+    uint32 = 12
+    uint64 = 13
+    uint128 = 14
+    uint256 = 15    
+    float8 = 20
+    float16 = 21
+    float32 = 22
+    float64 = 23
+    float128 = 24
+    float256 = 25
+    cfloat8 = 30
+    cfloat16 = 31
+    cfloat32 = 32
+    cfloat64 = 33
+    cfloat128 = 34
+    cfloat256 = 35
+    boolean = 40
+    struct = 41
 
     def get_size_bit(self):
         sizemap = {

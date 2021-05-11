@@ -1,0 +1,1 @@
+./build/testapp/testapp `python3 get_mem_range.py ./build/testapp/testapp` > testapp_memdump

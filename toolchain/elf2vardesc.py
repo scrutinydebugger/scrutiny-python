@@ -259,68 +259,72 @@ def is_external(die):
         return False
 
 def get_core_base_type(encoding, bytesize):
-    if encoding == DwarfEncoding.DW_ATE_boolean:
-        if bytesize == 1:
-            return core.VariableType.boolean
-        else:
-            raise NotImplementedError('Boolean with %d bytes' % bytesize)
 
-    elif encoding == DwarfEncoding.DW_ATE_float:
-        if bytesize == 4:
-            return core.VariableType.float32
-        elif bytesize == 8:
-            return core.VariableType.float64
-        else:
-            raise NotImplementedError('Float with %d bytes' % bytesize)
+    encoding_map = {
+        DwarfEncoding.DW_ATE_address : {
+        #todo
+        },
+        DwarfEncoding.DW_ATE_boolean : {
+            1 : core.VariableType.boolean
+        },
+        DwarfEncoding.DW_ATE_complex_float : {
+            1 : core.VariableType.cfloat8,
+            2 : core.VariableType.cfloat16,
+            4 : core.VariableType.cfloat32,
+            8 : core.VariableType.cfloat64,
+            16 : core.VariableType.cfloat128,
+            32 : core.VariableType.cfloat256
+        },
+        DwarfEncoding.DW_ATE_float : {
+            1 : core.VariableType.float8,
+            2 : core.VariableType.float16,
+            4 : core.VariableType.float32,
+            8 : core.VariableType.float64,
+            16 : core.VariableType.float128,
+            32 : core.VariableType.float256
 
-    elif encoding == DwarfEncoding.DW_ATE_signed:
-        if bytesize == 1:
-            return core.VariableType.sint8
-        elif bytesize == 2:
-            return core.VariableType.sint16
-        elif bytesize == 4:
-            return core.VariableType.sint32
-        elif bytesize == 8:
-            return core.VariableType.sint64
-        else:
-            raise NotImplementedError('Signed int with %d bytes' % bytesize)
+        },
+        DwarfEncoding.DW_ATE_signed : {
+            1 : core.VariableType.sint8,
+            2 : core.VariableType.sint16,
+            4 : core.VariableType.sint32,
+            8 : core.VariableType.sint64,
+            16 : core.VariableType.sint128,
+            32 : core.VariableType.sint256
+        },
+        DwarfEncoding.DW_ATE_signed_char : {
+            1 : core.VariableType.sint8,
+            2 : core.VariableType.sint16,
+            4 : core.VariableType.sint32,
+            8 : core.VariableType.sint64,
+            16 : core.VariableType.sint128,
+            32 : core.VariableType.sint256
+        },
+        DwarfEncoding.DW_ATE_unsigned : {
+            1 : core.VariableType.uint8,
+            2 : core.VariableType.uint16,
+            4 : core.VariableType.uint32,
+            8 : core.VariableType.uint64,
+            16 : core.VariableType.uint128,
+            32 : core.VariableType.uint256
+        },
+        DwarfEncoding.DW_ATE_unsigned_char : {
+            1 : core.VariableType.uint8,
+            2 : core.VariableType.uint16,
+            4 : core.VariableType.uint32,
+            8 : core.VariableType.uint64,
+            16 : core.VariableType.uint128,
+            32 : core.VariableType.uint256
+        },
+    }
 
-    elif encoding == DwarfEncoding.DW_ATE_signed_char:
-        if bytesize == 1:
-            return core.VariableType.sint8
-        elif bytesize == 2:
-            return core.VariableType.sint16
-        elif bytesize == 4:
-            return core.VariableType.sint32
-        elif bytesize == 8:
-            return core.VariableType.sint64
-        else:
-            raise NotImplementedError('Signed char int with %d bytes' % bytesize)
+    if encoding not in encoding_map:
+        raise ValueError('Unknown encoding %s' % encoding)
 
-    elif encoding == DwarfEncoding.DW_ATE_unsigned:
-        if bytesize == 1:
-            return core.VariableType.uint8
-        elif bytesize == 2:
-            return core.VariableType.uint16
-        elif bytesize == 4:
-            return core.VariableType.uint32
-        elif bytesize == 8:
-            return core.VariableType.uint64
-        else:
-            raise NotImplementedError('Unsigned int with %d bytes' % bytesize)
-
-    elif encoding == DwarfEncoding.DW_ATE_unsigned_char:
-        if bytesize == 1:
-            return core.VariableType.uint8
-        elif bytesize == 2:
-            return core.VariableType.uint16
-        elif bytesize == 4:
-            return core.VariableType.uint32
-        elif bytesize == 8:
-            return core.VariableType.uint64
-        else:
-            raise NotImplementedError('Unsigned char int with %d bytes' % bytesize)
-
+    if bytesize not in encoding_map[encoding]:
+        raise ValueError('Encoding %s with %d bytes' % (encoding, bytesize))
+    
+    return encoding_map[encoding][bytesize]
 
 def process_file(filename):
     varlist = []
