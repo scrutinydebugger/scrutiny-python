@@ -45,6 +45,18 @@ namespace NamespaceInFile2
 void file2func1()
 {
     static int file2func1Var;
+
+    file2StaticChar = -66;
+    file2StaticInt = -8745;
+    file2StaticShort = -9876;
+    file2StaticLong = -12345678;
+    file2StaticUnsignedChar = 12;
+    file2StaticUnsignedInt = 34;
+    file2StaticUnsignedShort = 56;
+    file2StaticUnsignedLong = 78;
+    file2StaticFloat = 2.22222;
+    file2StaticDouble = 3.3333;
+    file2StaticBool = true;
 }
 
 void file2func1(int x)

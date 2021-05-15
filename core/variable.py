@@ -1,5 +1,5 @@
 from enum import Enum
-
+import struct
 
 class VariableLocation:
     def __init__(self, address):
@@ -71,14 +71,34 @@ class VariableType(Enum):
         sizemap = {
             self.__class__.sint8 : 8,
             self.__class__.uint8 : 8,
+            self.__class__.float8 : 8,
+            self.__class__.cfloat8 : 8,
+        
             self.__class__.sint16 : 16,
             self.__class__.uint16 : 16,
+            self.__class__.float16 : 16,
+            self.__class__.cfloat16 : 16,
+
             self.__class__.sint32 : 32,
             self.__class__.uint32 : 32,
+            self.__class__.float32 : 32,
+            self.__class__.cfloat32 : 32,
+
             self.__class__.sint64 : 64,
             self.__class__.uint64 : 64,
-            self.__class__.float32 : 32,
             self.__class__.float64 : 64,
+            self.__class__.cfloat64 : 64,
+
+            self.__class__.sint128 : 128,
+            self.__class__.uint128 : 128,
+            self.__class__.float128 : 128,
+            self.__class__.cfloat128 : 128,
+
+            self.__class__.sint256 : 256,
+            self.__class__.uint256 : 256,
+            self.__class__.float256 : 256,
+            self.__class__.cfloat256 : 256,
+
             self.__class__.boolean : 8,
             self.__class__.struct  : None
         }
@@ -87,17 +107,118 @@ class VariableType(Enum):
 
 
 class Variable:
+
+    class SIntDecoder:
+        str_map = {
+                1 : 'b',
+                2 : 'h',
+                4 : 'l',
+                8 : 'q'
+            }
+
+        def __init__(self, size):
+            if size not in self.str_map:
+                raise NotImplementedError('Does not support signed int of %d bytes', size)
+            self.str = self.str_map[size]
+
+
+        def decode(self, data, endianness):
+            endianness_char = '<' if endianness == 'little' else '>'
+            return struct.unpack(endianness_char+self.str, data)[0]
+
+    class UIntDecoder:
+        str_map = {
+                1 : 'B',
+                2 : 'H',
+                4 : 'L',
+                8 : 'Q'
+            }
+
+        def __init__(self, size):
+            if size not in self.str_map:
+                raise NotImplementedError('Does not support signed int of %d bytes', size)
+            self.str = self.str_map[size]
+
+
+        def decode(self, data, endianness):
+            endianness_char = '<' if endianness == 'little' else '>'
+            return struct.unpack(endianness_char+self.str, data)[0]
+
+    class FloatDecoder:
+        str_map = {
+            4 : 'f',
+            8 : 'd'
+        }
+
+        def __init__(self, size):
+            if size not in self.str_map:
+                raise NotImplementedError('Does not support float of %d bytes', size)
+            self.str = self.str_map[size]
+
+        def decode(self, data, endianness):
+            endianness_char = '<' if endianness == 'little' else '>'
+            return struct.unpack(endianness_char+self.str, data)[0]
+
+    class BoolDecoder:
+        def decode(self, data, endianness):
+            return True if data[0] != 0 else False
+
+    class NotImplementedDecoder:
+        def __init__(self, type_name):
+            self.type_name = type_name
+
+        def decode(self, data, endianness):
+            raise NotImplementedError('Decoding data for type %s is not supported yet' % self.type_name)
+
+    TYPE_TO_DECODER_MAP = {
+            VariableType.sint8 : SIntDecoder(1),
+            VariableType.sint16 : SIntDecoder(2),
+            VariableType.sint32 : SIntDecoder(4),
+            VariableType.sint64 : SIntDecoder(8),
+            VariableType.sint128 : NotImplementedDecoder(VariableType.sint128.name),
+            VariableType.sint256 : NotImplementedDecoder(VariableType.sint256.name),
+
+            VariableType.uint8 : UIntDecoder(1),
+            VariableType.uint16 : UIntDecoder(2),
+            VariableType.uint32 : UIntDecoder(4),
+            VariableType.uint64 : UIntDecoder(8),
+            VariableType.uint128 : NotImplementedDecoder(VariableType.uint128.name),
+            VariableType.uint256 : NotImplementedDecoder(VariableType.uint256.name),
+
+            VariableType.float8 : NotImplementedDecoder(VariableType.float8.name),
+            VariableType.float16 : NotImplementedDecoder(VariableType.float16.name),
+            VariableType.float32 : FloatDecoder(4),
+            VariableType.float64 : FloatDecoder(8),
+            VariableType.float128 : NotImplementedDecoder(VariableType.float128.name),
+            VariableType.float256 : NotImplementedDecoder(VariableType.float256.name),
+
+            VariableType.cfloat8 : NotImplementedDecoder(VariableType.cfloat8.name),
+            VariableType.cfloat16 : NotImplementedDecoder(VariableType.cfloat16.name),
+            VariableType.cfloat32 : NotImplementedDecoder(VariableType.cfloat32.name),
+            VariableType.cfloat64 : NotImplementedDecoder(VariableType.cfloat64.name),
+            VariableType.cfloat128 : NotImplementedDecoder(VariableType.cfloat128.name),
+            VariableType.cfloat256 : NotImplementedDecoder(VariableType.cfloat256.name),
+
+            VariableType.boolean : BoolDecoder(),
+    }
+
+
     def __init__(self, name, vartype_id, vartype, path_segments, location, endianness,  bitsize=None, bitoffset=None, enum=None):
         self.name = name
         self.vartype_id = vartype_id
         self.vartype = vartype
         self.path_segments = path_segments
-        self.location = location
+        if isinstance(location, VariableLocation):
+            self.location = location.copy()
+        else:
+            self.location = VariableLocation(location)
         self.endianness = endianness
         self.bitsize = bitsize
         self.bitoffset = bitoffset
         self.enum=enum   
 
+    def decode(self, data):
+        return self.TYPE_TO_DECODER_MAP[self.vartype].decode(data, self.endianness)
 
     def get_fullname(self):
         if len(self.path_segments) == 0:
@@ -114,6 +235,9 @@ class Variable:
 
     def get_address(self):
         return self.location.get_address()
+
+    def get_size(self):
+        return int(self.vartype.get_size_bit()/8)
 
     def get_def(self):
         desc = {

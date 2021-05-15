@@ -40,6 +40,21 @@ namespace NamespaceInFile1
 int funcInFile1(int a, int b)
 {
 	static long staticLongInFuncFile1 = 10;
+
+
+	file1StaticChar = 99;
+	file1StaticInt = 987654;
+	file1StaticShort = -666;
+	file1StaticLong = -55555;
+	file1StaticUnsignedChar = 44;
+	file1StaticUnsignedInt = 3333;
+	file1StaticUnsignedShort = 22222;
+	file1StaticUnsignedLong = 321321;
+	file1StaticFloat = 1.23456789;
+	file1StaticDouble = 9.87654321;
+	file1StaticBool = true;
+
+
 	return a+b;
 }
 
