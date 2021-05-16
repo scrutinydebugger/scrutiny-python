@@ -114,6 +114,7 @@ void set_global_values()
     file1StructCInstance.structCMemberInt = 888874;
     file1StructCInstance.nestedStructInstance.nestedStructMemberInt = 2298744;
     file1StructCInstance.nestedStructInstance.nestedStructMemberFloat = -147.55;
+    file1StructCInstance.nestedStructInstance.nestedStructInstance2.nestedStructInstance2MemberDouble = 654.654;
 
     file1StructDInstance.bitfieldA = 13;
     file1StructDInstance.bitfieldB = 4100;

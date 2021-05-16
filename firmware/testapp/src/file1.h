@@ -22,6 +22,9 @@ struct StructC
 	struct{
 		int nestedStructMemberInt;
 		float nestedStructMemberFloat;
+		struct {
+			double nestedStructInstance2MemberDouble;
+		}nestedStructInstance2;
 	} nestedStructInstance;
 };
 

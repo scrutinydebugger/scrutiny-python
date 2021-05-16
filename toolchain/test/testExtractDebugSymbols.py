@@ -136,14 +136,14 @@ class TestLinuxLEx64_Gcc8_3_0(unittest.TestCase):
         self.assert_is_enumA('/static/file2.cpp/NamespaceInFile2/staticInstance_enumA')
 
     def test_structA(self):
-        v = self.assert_var('/global/file1StructAInstance/structAMemberInt', core.VariableType.sint32, value_at_loc =  -654)
+        v = self.assert_var('/global/file1StructAInstance/structAMemberInt', core.VariableType.sint32,                              value_at_loc =  -654)
         self.assert_var('/global/file1StructAInstance/structAMemberUInt', core.VariableType.uint32,     addr=v.get_address()+4,     value_at_loc = 258147)
         self.assert_var('/global/file1StructAInstance/structAMemberFloat', core.VariableType.float32,   addr=v.get_address()+8,     value_at_loc = 77.77)
         self.assert_var('/global/file1StructAInstance/structAMemberDouble', core.VariableType.float64,  addr=v.get_address()+12,    value_at_loc = 66.66)
         self.assert_var('/global/file1StructAInstance/structAMemberBool', core.VariableType.boolean,    addr=v.get_address()+20,    value_at_loc = False )
     
     def test_structB(self):
-        v = self.assert_var('/global/file1StructBInstance/structBMemberInt', core.VariableType.sint32, value_at_loc =  55555)
+        v = self.assert_var('/global/file1StructBInstance/structBMemberInt', core.VariableType.sint32,                                                  value_at_loc =  55555)
         self.assert_var('/global/file1StructBInstance/structBMemberStructA/structAMemberInt', core.VariableType.sint32,     addr=v.get_address() + 4,   value_at_loc =  -199999)
         self.assert_var('/global/file1StructBInstance/structBMemberStructA/structAMemberUInt', core.VariableType.uint32,    addr=v.get_address() + 8,   value_at_loc =  33333)
         self.assert_var('/global/file1StructBInstance/structBMemberStructA/structAMemberFloat', core.VariableType.float32,  addr=v.get_address() + 12,  value_at_loc =  33.33)
@@ -151,9 +151,10 @@ class TestLinuxLEx64_Gcc8_3_0(unittest.TestCase):
         self.assert_var('/global/file1StructBInstance/structBMemberStructA/structAMemberBool', core.VariableType.boolean,   addr=v.get_address() + 24,  value_at_loc =  True )
 
     def test_structC(self):
-        v = self.assert_var('/global/file1StructCInstance/structCMemberInt', core.VariableType.sint32, value_at_loc = 888874 )
-        self.assert_var('/global/file1StructCInstance/nestedStructInstance/nestedStructMemberInt', core.VariableType.sint32, addr=v.get_address() + 4, value_at_loc =   2298744 )
-        self.assert_var('/global/file1StructCInstance/nestedStructInstance/nestedStructMemberFloat', core.VariableType.float32, addr=v.get_address() + 8, value_at_loc =   -147.55 )
+        v = self.assert_var('/global/file1StructCInstance/structCMemberInt', core.VariableType.sint32,                                                      value_at_loc = 888874 )
+        self.assert_var('/global/file1StructCInstance/nestedStructInstance/nestedStructMemberInt', core.VariableType.sint32,    addr=v.get_address() + 4,   value_at_loc = 2298744 )
+        self.assert_var('/global/file1StructCInstance/nestedStructInstance/nestedStructMemberFloat', core.VariableType.float32, addr=v.get_address() + 8,   value_at_loc = -147.55 )
+        self.assert_var('/global/file1StructCInstance/nestedStructInstance/nestedStructInstance2/nestedStructInstance2MemberDouble', core.VariableType.float64, addr=v.get_address() + 12,   value_at_loc = 654.654)
 
     def test_structD(self):
         v = self.assert_var('/global/file1StructDInstance/bitfieldA', core.VariableType.uint32, bitoffset=0,    bitsize=4,  value_at_loc = 13)
