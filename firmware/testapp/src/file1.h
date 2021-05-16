@@ -27,10 +27,11 @@ struct StructC
 
 struct StructD
 {
-	unsigned int bitfieldA : 1;
-	unsigned int bitfieldB : 9;
-	unsigned int bitfieldC : 3;
+	unsigned int bitfieldA : 4;
+	unsigned int bitfieldB : 13;
+	unsigned int bitfieldC : 8;
 	unsigned int bitfieldD;
+	unsigned int bitfieldE : 10;
 };
 
 int funcInFile1(int a, int b);

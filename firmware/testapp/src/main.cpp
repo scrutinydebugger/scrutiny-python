@@ -33,6 +33,12 @@ extern float file2GlobalFloat;
 extern double file2GlobalDouble;
 extern bool file2GlobalBool;
 
+extern StructA file1StructAInstance;
+extern StructB file1StructBInstance;
+extern StructC file1StructCInstance;
+extern StructD file1StructDInstance;
+
+
 
 void mainfunc1()
 {
@@ -91,6 +97,29 @@ void set_global_values()
     file2GlobalFloat =  0.1;
     file2GlobalDouble =  0.11111111111111;
     file2GlobalBool =  false;
+
+    file1StructAInstance.structAMemberInt = -654;
+    file1StructAInstance.structAMemberUInt = 258147;
+    file1StructAInstance.structAMemberFloat = 77.77;
+    file1StructAInstance.structAMemberDouble = 66.66;
+    file1StructAInstance.structAMemberBool = false ;
+
+    file1StructBInstance.structBMemberInt = 55555;
+    file1StructBInstance.structBMemberStructA.structAMemberInt = -199999;
+    file1StructBInstance.structBMemberStructA.structAMemberUInt = 33333;
+    file1StructBInstance.structBMemberStructA.structAMemberFloat = 33.33;
+    file1StructBInstance.structBMemberStructA.structAMemberDouble = 22.22;
+    file1StructBInstance.structBMemberStructA.structAMemberBool = true ;
+
+    file1StructCInstance.structCMemberInt = 888874;
+    file1StructCInstance.nestedStructInstance.nestedStructMemberInt = 2298744;
+    file1StructCInstance.nestedStructInstance.nestedStructMemberFloat = -147.55;
+
+    file1StructDInstance.bitfieldA = 13;
+    file1StructDInstance.bitfieldB = 4100;
+    file1StructDInstance.bitfieldC = 222;
+    file1StructDInstance.bitfieldD = 1234567;
+    file1StructDInstance.bitfieldE = 777;
 }
 
 int main(int argc, char* argv[]) 

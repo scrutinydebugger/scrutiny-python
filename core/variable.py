@@ -1,6 +1,14 @@
 from enum import Enum
 import struct
 
+
+MASK_MAP = {}
+for i in range(63):
+    v = 0
+    for j in range(i):
+        v |= (1 << j)
+        MASK_MAP[i] = v
+
 class VariableLocation:
     def __init__(self, address):
         if not isinstance(address, int):
@@ -10,6 +18,9 @@ class VariableLocation:
 
     def get_address(self):
         return self.address
+
+    def add_offset(self, offset):
+        self.address += offset
 
     @classmethod
     def check_endianness(cls, endianness):
@@ -108,7 +119,11 @@ class VariableType(Enum):
 
 class Variable:
 
-    class SIntDecoder:
+    class BaseDecoder:
+        def __init__(self):
+            pass
+
+    class SIntDecoder(BaseDecoder):
         str_map = {
                 1 : 'b',
                 2 : 'h',
@@ -117,6 +132,7 @@ class Variable:
             }
 
         def __init__(self, size):
+            super().__init__()
             if size not in self.str_map:
                 raise NotImplementedError('Does not support signed int of %d bytes', size)
             self.str = self.str_map[size]
@@ -126,7 +142,7 @@ class Variable:
             endianness_char = '<' if endianness == 'little' else '>'
             return struct.unpack(endianness_char+self.str, data)[0]
 
-    class UIntDecoder:
+    class UIntDecoder(BaseDecoder):
         str_map = {
                 1 : 'B',
                 2 : 'H',
@@ -135,22 +151,23 @@ class Variable:
             }
 
         def __init__(self, size):
+            super().__init__()
             if size not in self.str_map:
                 raise NotImplementedError('Does not support signed int of %d bytes', size)
             self.str = self.str_map[size]
-
 
         def decode(self, data, endianness):
             endianness_char = '<' if endianness == 'little' else '>'
             return struct.unpack(endianness_char+self.str, data)[0]
 
-    class FloatDecoder:
+    class FloatDecoder(BaseDecoder):
         str_map = {
             4 : 'f',
             8 : 'd'
         }
 
         def __init__(self, size):
+            super().__init__()
             if size not in self.str_map:
                 raise NotImplementedError('Does not support float of %d bytes', size)
             self.str = self.str_map[size]
@@ -159,8 +176,11 @@ class Variable:
             endianness_char = '<' if endianness == 'little' else '>'
             return struct.unpack(endianness_char+self.str, data)[0]
 
-    class BoolDecoder:
-        def decode(self, data, endianness):
+    class BoolDecoder(BaseDecoder):
+        def __init__(self):
+            super().__init__()
+
+        def decode(self, data, endianness,):
             return True if data[0] != 0 else False
 
     class NotImplementedDecoder:
@@ -203,7 +223,8 @@ class Variable:
     }
 
 
-    def __init__(self, name, vartype_id, vartype, path_segments, location, endianness,  bitsize=None, bitoffset=None, enum=None):
+    def __init__(self, name, vartype_id, vartype, path_segments, location, endianness,  bitsize=None, bitoffset=None, enum=None): 
+
         self.name = name
         self.vartype_id = vartype_id
         self.vartype = vartype
@@ -213,12 +234,22 @@ class Variable:
         else:
             self.location = VariableLocation(location)
         self.endianness = endianness
+
+        if bitoffset is not None and bitsize is None:
+            bitsize = self.vartype.get_size_bit() - bitoffset
+        elif bitoffset is None and bitsize is not None:
+            bitoffset = 0
+        self.bitfield  = False if bitoffset is None and bitsize is None else True
         self.bitsize = bitsize
         self.bitoffset = bitoffset
         self.enum=enum   
 
     def decode(self, data):
-        return self.TYPE_TO_DECODER_MAP[self.vartype].decode(data, self.endianness)
+        decoded = self.TYPE_TO_DECODER_MAP[self.vartype].decode(data, self.endianness)
+        if self.bitfield:
+            decoded >>= self.bitoffset
+            decoded &= MASK_MAP[self.bitsize]
+        return decoded
 
     def get_fullname(self):
         if len(self.path_segments) == 0:
@@ -309,7 +340,7 @@ class VariableEnum:
 
 class Struct:
     class Member:
-        def __init__(self, name, vartype, vartype_id=None, bitoffset=None, bitsize=None, substruct=None):
+        def __init__(self, name, vartype, vartype_id=None, byte_offset=None, bitoffset=None, bitsize=None, substruct=None):
 
             if not isinstance(vartype, VariableType):
                 raise ValueError('vartype must be an instance of VariableType')
@@ -324,7 +355,13 @@ class Struct:
                 if not isinstance(bitsize, int):
                     raise ValueError('bitsize must be an integer value')
                 if bitsize < 0:
-                    raise ValueError('bitsize must be a positive integer')                 
+                    raise ValueError('bitsize must be a positive integer')    
+
+            if byte_offset is not None:
+                if not isinstance(byte_offset, int):
+                    raise ValueError('byte_offset must be an integer value')
+                if byte_offset < 0:
+                    raise ValueError('byte_offset must be a positive integer')                 
 
             if substruct is not None:
                 if not isinstance(substruct, Struct):
@@ -333,6 +370,7 @@ class Struct:
             self.name = name
             self.vartype = vartype
             self.bitoffset = bitoffset
+            self.byte_offset = byte_offset
             self.bitsize = bitsize
             self.substruct = substruct
             self.vartype_id = vartype_id

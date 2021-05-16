@@ -25,7 +25,12 @@ static float file1StaticFloat;
 static double file1StaticDouble;
 static bool file1StaticBool;
 
+static StructA file1StructAStaticInstance;
 
+StructA file1StructAInstance;
+StructB file1StructBInstance;
+StructC file1StructCInstance;
+StructD file1StructDInstance;
 
 namespace NamespaceInFile1
 {
@@ -39,8 +44,7 @@ namespace NamespaceInFile1
 
 int funcInFile1(int a, int b)
 {
-	static long staticLongInFuncFile1 = 10;
-
+	static long staticLongInFuncFile1 = -0x123456789abcdef;
 
 	file1StaticChar = 99;
 	file1StaticInt = 987654;
@@ -54,13 +58,15 @@ int funcInFile1(int a, int b)
 	file1StaticDouble = 9.87654321;
 	file1StaticBool = true;
 
+	file1StructAStaticInstance.structAMemberInt = -789;
+	file1StructAStaticInstance.structAMemberUInt = 147258;
+	file1StructAStaticInstance.structAMemberFloat = 88.88;
+	file1StructAStaticInstance.structAMemberDouble = 99.99;
+	file1StructAStaticInstance.structAMemberBool = true ;
+
 
 	return a+b;
 }
 
 
-StructA file1StructAInstance;
-StructB file1StructBInstance;
-StructC file1StructCInstance;
-StructD file1StructDInstance;
-static StructA file1StructAStaticInstance;
+

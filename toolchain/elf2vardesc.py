@@ -6,7 +6,6 @@ variables inside the binary in the Scrutiny format.
 """
 
 __author__ = "Pier-Yves Lessard"
-__copyright__ = "Copyright 2007, The Cogent Project"
 __credits__ = ["Pier-Yves Lessard"]
 __license__ = "MIT"
 __version__ = "1.0.0"
@@ -73,7 +72,11 @@ class DwarfEncoding(Enum):
     DW_ATE_lo_user         = 0x80
     DW_ATE_hi_user         = 0xff
 
+
 class BaseTypeMap:
+    """
+    Keeps a map of all known base type found in the debug info and links them to a die, unique id or a name.
+    """
     NEXT_ID = 0
     def __init__(self):
         self.pair2id_map = {}
@@ -113,6 +116,9 @@ class BaseTypeMap:
         return next_id
 
 class CuName:
+    """
+    Handles a compile unit name. Useful to build a unique name as small as possible.
+    """
     _class_internal_id = 0
     PATH_JOIN_CHAR = '_'
 
@@ -147,6 +153,7 @@ class CuName:
             i+=1
 
 
+# Builds a dictionary that maps a CompuleUnit object to a unique displayable name
 def make_cu_name_map(dwarfinfo):
     
     fullpath_cu_tuple_list = []
@@ -469,25 +476,28 @@ def get_member_from_die(die, context):
         vartype = context.basetype_map.get_type_from_die(basetype_die)
         substruct = None
 
-    bitoffset = die.attributes['DW_AT_data_member_location'].value * 8
+    byte_offset = die.attributes['DW_AT_data_member_location'].value
     if 'DW_AT_bit_offset' in die.attributes:
         if 'DW_AT_byte_size' not in die.attributes:
             raise Exception('Missing DW_AT_byte_size for bitfield %s' % (get_name(die, '')))
+        if 'DW_AT_bit_size' not in die.attributes:
+            raise Exception('Missing DW_AT_bit_size for bitfield %s' % (get_name(die, '')))
        
     bitsize = die.attributes['DW_AT_bit_size'].value if 'DW_AT_bit_size' in die.attributes else None
-   
+    
     #Not sure about this.
-    if context.endianness == 'little':
-        membersize = vartype.get_size_bit()
-        if bitsize is not None :
-            membersize = bitsize
-            bitoffset += (die.attributes['DW_AT_byte_size'].value*8) - die.attributes['DW_AT_bit_offset'].value - membersize
-    elif context.endianness == 'big':
-       bitoffset += die.attributes['DW_AT_bit_offset'].value 
+    if 'DW_AT_bit_offset' in die.attributes:
+        membersize = die.attributes['DW_AT_byte_size'].value
+        if context.endianness == 'little':
+            bitoffset = (die.attributes['DW_AT_byte_size'].value*8) - die.attributes['DW_AT_bit_offset'].value - bitsize
+        elif context.endianness == 'big':
+           bitoffset = die.attributes['DW_AT_bit_offset'].value 
+        else:
+            raise ValueError('Unknown endianness')
     else:
-        raise ValueError('Unknown endianness')
+        bitoffset = None
 
-    return core.Struct.Member(name=name, vartype=vartype, vartype_id=vartype_id, bitoffset = bitoffset, bitsize = bitsize, substruct=substruct)
+    return core.Struct.Member(name=name, vartype=vartype, vartype_id=vartype_id, byte_offset = byte_offset, bitoffset = bitoffset, bitsize = bitsize, substruct=substruct)
 
 def register_struct_var(die, context, location):
     path_segments = make_varpath(die, context)
@@ -506,10 +516,17 @@ def register_member_as_var_recursive(path_segments, context, member, location, o
             new_path_segments = path_segments.copy()
             if member.vartype == core.VariableType.struct:
                 new_path_segments.append(name)
-                offset += member.bitoffset
+                location = location.copy()
+                location.add_offset(member.byte_offset)
+            
+            elif member.byte_offset is not None:
+                offset += member.byte_offset
 
             register_member_as_var_recursive(new_path_segments, context, member, location, offset)
     else:
+        location = location.copy()
+        location.add_offset(member.byte_offset)
+            
         varentry = core.Variable(
             path_segments   = path_segments, 
             name            = member.name, 
@@ -517,7 +534,7 @@ def register_member_as_var_recursive(path_segments, context, member, location, o
             vartype         = member.vartype, 
             location        = location, 
             endianness      = context.endianness, 
-            bitoffset       = offset + member.bitoffset,
+            bitoffset       = member.bitoffset,
             bitsize         = member.bitsize,
             enum            = None  # todo
             )

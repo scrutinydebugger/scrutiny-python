@@ -25,8 +25,6 @@ static float file2StaticFloat;
 static double file2StaticDouble;
 static bool file2StaticBool;
 
-extern int file1GlobalInt;
-
 
 namespace NamespaceInFile2
 {

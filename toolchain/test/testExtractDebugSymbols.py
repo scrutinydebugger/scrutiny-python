@@ -24,7 +24,7 @@ class TestLinuxLEx64_Gcc8_3_0(unittest.TestCase):
     def load_var(self, fullname):
         return  self.vardesc.get_var(fullname)
 
-    def assert_var(self, fullname, thetype, bitsize=None, bitoffset=None, value_at_loc=None, float_tol=0.00001):
+    def assert_var(self, fullname, thetype, addr = None, bitsize=None, bitoffset=None, value_at_loc=None, float_tol=0.00001):
         v = self.load_var(fullname)
         self.assertEqual(thetype, v.get_type())
         
@@ -34,6 +34,9 @@ class TestLinuxLEx64_Gcc8_3_0(unittest.TestCase):
         if bitoffset is not None:
            self.assertEqual(v.bitoffset, bitoffset) 
 
+        if addr is not None:
+            self.assertEqual(addr, v.get_address())
+
         if value_at_loc is not None:
             data = self.memdump.read(v.get_address(), v.get_size())
             val = v.decode(data)
@@ -41,6 +44,7 @@ class TestLinuxLEx64_Gcc8_3_0(unittest.TestCase):
                 self.assertAlmostEqual(val, value_at_loc, delta=float_tol)
             else:
                 self.assertEqual(val, value_at_loc)
+        return v
 
     def assert_is_enum(self, v):
         self.assertIsNotNone(v.enum)
@@ -112,57 +116,48 @@ class TestLinuxLEx64_Gcc8_3_0(unittest.TestCase):
         self.assert_var('/static/main.cpp/main/staticIntInMainFunc', core.VariableType.sint32)
         self.assert_var('/static/main.cpp/mainfunc1()/mainfunc1Var', core.VariableType.sint32)
         self.assert_var('/static/main.cpp/mainfunc1(int)/mainfunc1Var', core.VariableType.float64)
-        self.assert_var('/static/file1.cpp/funcInFile1(int, int)/staticLongInFuncFile1', core.VariableType.sint64)
+        self.assert_var('/static/file1.cpp/funcInFile1(int, int)/staticLongInFuncFile1', core.VariableType.sint64, value_at_loc = -0x123456789abcdef)
 
     def test_namespace(self):
         self.assert_var('/global/NamespaceInFile1/NamespaceInFile1Nested1/file1GlobalNestedVar1', core.VariableType.uint64)
         self.assert_var('/static/file1.cpp/NamespaceInFile1/NamespaceInFile1Nested1/file1StaticNestedVar1', core.VariableType.uint64)
 
+    def assert_is_enumA(self, fullpath):
+        v = self.assert_var(fullpath, core.VariableType.uint32)
+        self.assert_has_enum(v, 0, 'eVal1')
+        self.assert_has_enum(v, 1, 'eVal2')
+        self.assert_has_enum(v, 100, 'eVal3')
+        self.assert_has_enum(v, 101, 'eVal4')
+
     def test_enum(self):
-        self.assert_var('/global/NamespaceInFile2/instance_enumA', core.VariableType.uint32)
-        v = self.load_var('/global/NamespaceInFile2/instance_enumA')
-        self.assert_has_enum(v, 0, 'eVal1')
-        self.assert_has_enum(v, 1, 'eVal2')
-        self.assert_has_enum(v, 100, 'eVal3')
-        self.assert_has_enum(v, 101, 'eVal4')
+        self.assert_is_enumA('/global/NamespaceInFile2/instance_enumA')
+        self.assert_is_enumA('/global/instance2_enumA')
+        self.assert_is_enumA('/static/file2.cpp/staticInstance2_enumA')
+        self.assert_is_enumA('/static/file2.cpp/NamespaceInFile2/staticInstance_enumA')
 
-        self.assert_var('/global/instance2_enumA', core.VariableType.uint32)
-        v = self.load_var('/global/instance2_enumA')
-        self.assert_has_enum(v, 0, 'eVal1')
-        self.assert_has_enum(v, 1, 'eVal2')
-        self.assert_has_enum(v, 100, 'eVal3')
-        self.assert_has_enum(v, 101, 'eVal4')
+    def test_structA(self):
+        v = self.assert_var('/global/file1StructAInstance/structAMemberInt', core.VariableType.sint32, value_at_loc =  -654)
+        self.assert_var('/global/file1StructAInstance/structAMemberUInt', core.VariableType.uint32,     addr=v.get_address()+4,     value_at_loc = 258147)
+        self.assert_var('/global/file1StructAInstance/structAMemberFloat', core.VariableType.float32,   addr=v.get_address()+8,     value_at_loc = 77.77)
+        self.assert_var('/global/file1StructAInstance/structAMemberDouble', core.VariableType.float64,  addr=v.get_address()+12,    value_at_loc = 66.66)
+        self.assert_var('/global/file1StructAInstance/structAMemberBool', core.VariableType.boolean,    addr=v.get_address()+20,    value_at_loc = False )
+    
+    def test_structB(self):
+        v = self.assert_var('/global/file1StructBInstance/structBMemberInt', core.VariableType.sint32, value_at_loc =  55555)
+        self.assert_var('/global/file1StructBInstance/structBMemberStructA/structAMemberInt', core.VariableType.sint32,     addr=v.get_address() + 4,   value_at_loc =  -199999)
+        self.assert_var('/global/file1StructBInstance/structBMemberStructA/structAMemberUInt', core.VariableType.uint32,    addr=v.get_address() + 8,   value_at_loc =  33333)
+        self.assert_var('/global/file1StructBInstance/structBMemberStructA/structAMemberFloat', core.VariableType.float32,  addr=v.get_address() + 12,  value_at_loc =  33.33)
+        self.assert_var('/global/file1StructBInstance/structBMemberStructA/structAMemberDouble', core.VariableType.float64, addr=v.get_address() + 16,  value_at_loc =  22.22)
+        self.assert_var('/global/file1StructBInstance/structBMemberStructA/structAMemberBool', core.VariableType.boolean,   addr=v.get_address() + 24,  value_at_loc =  True )
 
-        self.assert_var('/static/file2.cpp/staticInstance2_enumA', core.VariableType.uint32)
-        v = self.load_var('/static/file2.cpp/staticInstance2_enumA')
-        self.assert_has_enum(v, 0, 'eVal1')
-        self.assert_has_enum(v, 1, 'eVal2')
-        self.assert_has_enum(v, 100, 'eVal3')
-        self.assert_has_enum(v, 101, 'eVal4')
+    def test_structC(self):
+        v = self.assert_var('/global/file1StructCInstance/structCMemberInt', core.VariableType.sint32, value_at_loc = 888874 )
+        self.assert_var('/global/file1StructCInstance/nestedStructInstance/nestedStructMemberInt', core.VariableType.sint32, addr=v.get_address() + 4, value_at_loc =   2298744 )
+        self.assert_var('/global/file1StructCInstance/nestedStructInstance/nestedStructMemberFloat', core.VariableType.float32, addr=v.get_address() + 8, value_at_loc =   -147.55 )
 
-        self.assert_var('/static/file2.cpp/NamespaceInFile2/staticInstance_enumA', core.VariableType.uint32)
-        v = self.load_var('/static/file2.cpp/NamespaceInFile2/staticInstance_enumA')
-        self.assert_has_enum(v, 0, 'eVal1')
-        self.assert_has_enum(v, 1, 'eVal2')
-        self.assert_has_enum(v, 100, 'eVal3')
-        self.assert_has_enum(v, 101, 'eVal4')
-
-    def test_struct(self):
-        self.assert_var('/global/file1StructAInstance/structAMemberInt', core.VariableType.sint32, bitoffset=0)
-        self.assert_var('/global/file1StructAInstance/structAMemberUInt', core.VariableType.uint32, bitoffset=32)
-        self.assert_var('/global/file1StructAInstance/structAMemberFloat', core.VariableType.float32, bitoffset=64)
-        self.assert_var('/global/file1StructAInstance/structAMemberDouble', core.VariableType.float64, bitoffset=96)
-        self.assert_var('/global/file1StructAInstance/structAMemberBool', core.VariableType.boolean, bitoffset=160)
-
-        self.assert_var('/global/file1StructBInstance/structBMemberInt', core.VariableType.sint32, bitoffset=0)
-        self.assert_var('/global/file1StructBInstance/structBMemberStructA/structAMemberInt', core.VariableType.sint32, bitoffset=0+32)
-        self.assert_var('/global/file1StructBInstance/structBMemberStructA/structAMemberUInt', core.VariableType.uint32, bitoffset=32+32)
-        self.assert_var('/global/file1StructBInstance/structBMemberStructA/structAMemberFloat', core.VariableType.float32, bitoffset=64+32)
-        self.assert_var('/global/file1StructBInstance/structBMemberStructA/structAMemberDouble', core.VariableType.float64, bitoffset=96+32)
-        self.assert_var('/global/file1StructBInstance/structBMemberStructA/structAMemberBool', core.VariableType.boolean, bitoffset=160+32)
-
-    def test_bitfield(self):
-        self.assert_var('/global/file1StructDInstance/bitfieldA', core.VariableType.uint32, bitoffset=0, bitsize=1)
-        self.assert_var('/global/file1StructDInstance/bitfieldB', core.VariableType.uint32, bitoffset=1, bitsize=9)
-        self.assert_var('/global/file1StructDInstance/bitfieldC', core.VariableType.uint32, bitoffset=10, bitsize=3)
-        self.assert_var('/global/file1StructDInstance/bitfieldD', core.VariableType.uint32, bitoffset=16, bitsize=None)
+    def test_structD(self):
+        v = self.assert_var('/global/file1StructDInstance/bitfieldA', core.VariableType.uint32, bitoffset=0,    bitsize=4,  value_at_loc = 13)
+        self.assert_var('/global/file1StructDInstance/bitfieldB', core.VariableType.uint32,     bitoffset=4,    bitsize=13, value_at_loc = 4100,    addr = v.get_address())
+        self.assert_var('/global/file1StructDInstance/bitfieldC', core.VariableType.uint32,     bitoffset=13+4, bitsize=8,  value_at_loc = 222,     addr = v.get_address())
+        self.assert_var('/global/file1StructDInstance/bitfieldD', core.VariableType.uint32,                                 value_at_loc = 1234567, addr = v.get_address() + 4)
+        self.assert_var('/global/file1StructDInstance/bitfieldE', core.VariableType.uint32,     bitoffset=0,    bitsize=10, value_at_loc = 777,     addr = v.get_address() + 8)
