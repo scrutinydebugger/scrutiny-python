@@ -38,3 +38,4 @@ struct StructD
 };
 
 int funcInFile1(int a, int b);
+void file1SetValues();

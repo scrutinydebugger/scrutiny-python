@@ -26,6 +26,8 @@ static double file2StaticDouble;
 static bool file2StaticBool;
 
 
+
+
 namespace NamespaceInFile2
 {
     enum EnumA
@@ -40,9 +42,22 @@ namespace NamespaceInFile2
     static EnumA staticInstance_enumA;
 }
 
-void file2func1()
+NamespaceInFile2::EnumA instance2_enumA;
+static NamespaceInFile2::EnumA staticInstance2_enumA;
+
+void file2SetValues()
 {
-    static int file2func1Var;
+    file2GlobalChar = 20;
+    file2GlobalInt =  2000;
+    file2GlobalShort =  998;
+    file2GlobalLong =  555555;
+    file2GlobalUnsignedChar =  254;
+    file2GlobalUnsignedInt =  123456;
+    file2GlobalUnsignedShort =  12345;
+    file2GlobalUnsignedLong =  1234567;
+    file2GlobalFloat =  0.1;
+    file2GlobalDouble =  0.11111111111111;
+    file2GlobalBool =  false;
 
     file2StaticChar = -66;
     file2StaticInt = -8745;
@@ -55,14 +70,25 @@ void file2func1()
     file2StaticFloat = 2.22222;
     file2StaticDouble = 3.3333;
     file2StaticBool = true;
+
+    NamespaceInFile2::instance_enumA = NamespaceInFile2::eVal2;
+    NamespaceInFile2::staticInstance_enumA = NamespaceInFile2::eVal3;
+    instance2_enumA = NamespaceInFile2::eVal4;
+    staticInstance2_enumA = NamespaceInFile2::eVal1;
+}
+
+void file2func1()
+{
+    static int file2func1Var = -88778877;
+
+    
 }
 
 void file2func1(int x)
 {
-    static double file2func1Var;
+    static double file2func1Var = 963258741.123;
 }
 
-NamespaceInFile2::EnumA instance2_enumA;
-static NamespaceInFile2::EnumA staticInstance2_enumA;
+
 
 
