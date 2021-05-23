@@ -9,7 +9,7 @@ class Datastore:
 
     def __init__(self):
         self.entries = {}
-        self.logger = logging.getLogger(self.__class__.__name__)
+        self.logger = logging.getLogger('scrutiny.'+self.__class__.__name__)
         self.watched_entries = set()
 
         self.entries_list_by_type = {}

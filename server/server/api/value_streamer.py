@@ -4,7 +4,6 @@
 class ValueStreamer:
     def __init__(self):
         self.entry_to_publish = {}
-        #self.watch_per_connection = {}
         self.frozen_connections = set()
 
     def freeze_connection(self, conn_id):
@@ -45,7 +44,7 @@ class ValueStreamer:
         if conn_id not in self.entry_to_publish:
             self.entry_to_publish[conn_id] = set()
 
-    def clean_connection(self, conn_id):
+    def clear_connection(self, conn_id):
         if conn_id in self.entry_to_publish:
             del self.entry_to_publish[conn_id]
 

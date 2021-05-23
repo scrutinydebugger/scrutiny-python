@@ -95,7 +95,7 @@ class WebsocketClientHandler:
         asyncio.set_event_loop(self.loop)
         ws_server = websockets.serve(self.server_routine, self.config['host'], self.config['port'])
 
-        print('Starting %s' % self.config['name'] )
+        self.logger.info('Starting %s' % self.config['name'] )
         self.loop.run_until_complete(ws_server)
         self.loop.run_forever()
 

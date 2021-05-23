@@ -1,9 +1,15 @@
+import os,sys
+import logging
+
+scrutiny_folder = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
+sys.path.append(scrutiny_folder)
+
+from server.datastore import Datastore, DatastoreEntry
+from server.server_tools import Timer
+
 from .websocket_client_handler import WebsocketClientHandler
 from .dummy_client_handler import DummyClientHandler
-from ..datastore import Datastore, DatastoreEntry
 from .value_streamer import ValueStreamer
-import logging
-from ..server_tools import Timer
 
 class InvalidRequestException(Exception):
     def __init__(self, req, msg):
@@ -63,9 +69,10 @@ class API:
             raise NotImplementedError('Unsupported client interface type. %s' , config['client_interface_type'])
 
         self.datastore = datastore
-        self.logger = logging.getLogger(self.__class__.__name__)
+        self.logger = logging.getLogger('scrutiny.'+self.__class__.__name__)
         self.connections = set()            # Keep a list of all clients connections
         self.streamer = ValueStreamer()     # The value streamer takes cares of publishing values to the client without polling.
+        self.req_count = 0
 
     def open_connection(self, conn_id):
         self.connections.add(conn_id)
@@ -118,6 +125,7 @@ class API:
             obj = popped['obj']
 
             if self.is_new_connection(conn_id):
+                self.logger.debug('Opening connection %s' % conn_id)
                 self.open_connection(conn_id)
 
             try:
@@ -126,9 +134,11 @@ class API:
                 self.logger.error('Cannot process request. %s' % str(e))
                 self.logger.debug('Conn ID: %s \n Data: %s' % (conn_id, str(obj)))
 
-        for conn_id in self.connections:
-            if not self.handler.is_connection_active(conn_id):
-                self.close_connection(conn_id)
+        # Close  dead connections
+        conn_to_close = [conn_id for conn_id in self.connections if not self.handler.is_connection_active(conn_id)]
+        for conn_id in conn_to_close:
+            self.logger.debug('Closing connection %s' % conn_id)
+            self.close_connection(conn_id)
 
         self.streamer.process()
         self.stream_all_we_can()
@@ -137,6 +147,9 @@ class API:
     # Process a request gotten from the Client Handler
     def process_request(self, conn_id, req):
         try:
+            self.req_count += 1
+            self.logger.debug('Processing request #%d for connection %s - %s' % ( self.req_count, conn_id, req))
+
             if 'cmd' not in req:
                 raise InvalidRequestException(req, 'No command in request')
 
@@ -148,9 +161,11 @@ class API:
                 raise InvalidRequestException(req, 'Unsupported command %s' % cmd)
         
         except InvalidRequestException as e:
+            self.logger.debug('Invalid request #%d. %s' % (self.req_count, str(e)))
             response = self.make_error_response(req, str(e))
             self.handler.send(conn_id, response)
         except Exception as e:
+            self.logger.error('Unexpected error while processing request #%d - %s' % (self.req_count, str(e)) )
             response = self.make_error_response(req, 'Internal error')
             self.handler.send(conn_id, response)
             raise
