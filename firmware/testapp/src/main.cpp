@@ -6,17 +6,15 @@
 #include <stdlib.h>
 #include <stdint.h>
 
-extern int file2GlobalInt;
-extern StructD file1StructDInstance;
 
 void mainfunc1()
 {
-    static int mainfunc1Var;
+    static int mainfunc1Var = 7777777;
 }
 
 void mainfunc1(int x)
 {
-    static double mainfunc1Var;
+    static double mainfunc1Var = 8888888.88;
 }
 
 void memdump(unsigned long startAddr, unsigned long length)
@@ -40,16 +38,19 @@ void memdump(unsigned long startAddr, unsigned long length)
     }
 }
 
+
 int main(int argc, char* argv[]) 
 {
     int errorcode = 0;
-    static int staticIntInMainFunc=0;
-    file2GlobalInt = 123;
+    static int staticIntInMainFunc = 22222;
 
-    file1StructDInstance.bitfieldA = 1;
-    file1StructDInstance.bitfieldB = 0b100111011;
-    file1StructDInstance.bitfieldC = 0b11;
-    file1StructDInstance.bitfieldD = 0b101001101;
+    file1SetValues();
+    file2SetValues();
+    funcInFile1(1,2);
+    file2func1();
+    file2func1(123);
+    mainfunc1();
+    mainfunc1(123);
 
     if (argc % 2 == 0)
     {
@@ -74,7 +75,6 @@ int main(int argc, char* argv[])
             }
         }
     }
-    
-    
+
     return errorcode;
 }

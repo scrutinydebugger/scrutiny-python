@@ -22,15 +22,20 @@ struct StructC
 	struct{
 		int nestedStructMemberInt;
 		float nestedStructMemberFloat;
+		struct {
+			double nestedStructInstance2MemberDouble;
+		}nestedStructInstance2;
 	} nestedStructInstance;
 };
 
 struct StructD
 {
-	unsigned int bitfieldA : 1;
-	unsigned int bitfieldB : 9;
-	unsigned int bitfieldC : 3;
+	unsigned int bitfieldA : 4;
+	unsigned int bitfieldB : 13;
+	unsigned int bitfieldC : 8;
 	unsigned int bitfieldD;
+	unsigned int bitfieldE : 10;
 };
 
 int funcInFile1(int a, int b);
+void file1SetValues();
