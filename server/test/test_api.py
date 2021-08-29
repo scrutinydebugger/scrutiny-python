@@ -11,13 +11,7 @@ import uuid
 import math
 
 
-
-#TODO
-# - test multiple connections
-# - test subscribe/unsubscribe
-#    - No old dirty sent back
-#    - Other behaviour good
-# - test close connection reconnect
+#todo
 # - Test rate limiter/data streamer
 
 

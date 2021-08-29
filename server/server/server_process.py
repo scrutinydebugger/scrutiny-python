@@ -1,8 +1,11 @@
-import sys
+#!/usr/bin/env python3
+
+import sys, os
 from api import API
 from datastore import Datastore
 import time
 import argparse
+import json
 
 import logging
 
@@ -23,17 +26,17 @@ def str_to_loglevel(s):
 
 
 def parse_cmd_line():
-    options = {
-    }
+    options = {}
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config", default="default_config", help="Configuration file to load")
+    parser.add_argument("--config", default=os.path.join(os.path.dirname(__file__), 'default_config.json'), help="Configuration file to load")
     parser.add_argument("--log", default=logging.ERROR,  type=str_to_loglevel, help="Verbosity level")
     parser.add_argument('--log_websockets', default=logging.ERROR, type=str_to_loglevel, help="Verbosity level of websockets module")
 
     args, unknown = parser.parse_known_args()
 
-    options['config'] = __import__(args.config)
+    with open(args.config, 'r') as f:
+        options['config'] = json.loads(f.read())
     options['log_websockets'] = args.log_websockets
     options['log_level'] = args.log
 
@@ -51,10 +54,8 @@ if __name__ == '__main__':
     options = parse_cmd_line()
     configure_logging(options)
 
-
-
     ds = Datastore()
-    theapi = API(options['config'].APIConfig, ds)
+    theapi = API(options['config']['APIConfig'], ds)
     theapi.start_listening()
 
     try:

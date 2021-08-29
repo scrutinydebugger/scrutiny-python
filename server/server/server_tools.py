@@ -1,18 +1,5 @@
 import time
 
-def has_nested_dict_key(thedict, *args):
-    node = thedict
-
-    try:
-        for arg in args:
-            if not isinstance(node, dict):
-                raise Exception()
-
-            node = node[arg]
-        return True
-    except:
-        return False
-
 class Timer:
     def __init__(self, timeout):
         self.set_timeout(timeout)

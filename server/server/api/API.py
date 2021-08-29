@@ -128,11 +128,7 @@ class API:
                 self.logger.debug('Opening connection %s' % conn_id)
                 self.open_connection(conn_id)
 
-            try:
-                self.process_request(conn_id, obj)
-            except Exception as e:
-                self.logger.error('Cannot process request. %s' % str(e))
-                self.logger.debug('Conn ID: %s \n Data: %s' % (conn_id, str(obj)))
+            self.process_request(conn_id, obj)
 
         # Close  dead connections
         conn_to_close = [conn_id for conn_id in self.connections if not self.handler.is_connection_active(conn_id)]
@@ -148,7 +144,7 @@ class API:
     def process_request(self, conn_id, req):
         try:
             self.req_count += 1
-            self.logger.debug('Processing request #%d for connection %s - %s' % ( self.req_count, conn_id, req))
+            self.logger.debug('[Conn:%s] Processing request #%d - %s' % (conn_id, self.req_count, req))
 
             if 'cmd' not in req:
                 raise InvalidRequestException(req, 'No command in request')
@@ -161,14 +157,13 @@ class API:
                 raise InvalidRequestException(req, 'Unsupported command %s' % cmd)
         
         except InvalidRequestException as e:
-            self.logger.debug('Invalid request #%d. %s' % (self.req_count, str(e)))
+            self.logger.debug('[Conn:%s] Invalid request #%d. %s' % (conn_id, self.req_count, str(e)))
             response = self.make_error_response(req, str(e))
             self.handler.send(conn_id, response)
         except Exception as e:
-            self.logger.error('Unexpected error while processing request #%d - %s' % (self.req_count, str(e)) )
+            self.logger.error('[Conn:%s] Unexpected error while processing request #%d. %s' % (conn_id, self.req_count, str(e)) )
             response = self.make_error_response(req, 'Internal error')
             self.handler.send(conn_id, response)
-            raise
 
     # === ECHO ====
     def process_echo(self, conn_id, req):
