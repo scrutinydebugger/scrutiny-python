@@ -29,8 +29,6 @@ static double file2StaticDouble;
 static bool file2StaticBool;
 static namespaceAFile2::classBFile2 file2ClassBStaticInstance;
 
-
-
 namespace NamespaceInFile2
 {
     enum EnumA

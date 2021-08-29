@@ -6,7 +6,6 @@ variables inside the binary in the Scrutiny format.
 """
 
 __author__ = "Pier-Yves Lessard"
-__copyright__ = "Copyright 2007, The Cogent Project"
 __credits__ = ["Pier-Yves Lessard"]
 __license__ = "MIT"
 __version__ = "1.0.0"
@@ -73,7 +72,11 @@ class DwarfEncoding(Enum):
     DW_ATE_lo_user         = 0x80
     DW_ATE_hi_user         = 0xff
 
+
 class BaseTypeMap:
+    """
+    Keeps a map of all known base type found in the debug info and links them to a die, unique id or a name.
+    """
     NEXT_ID = 0
     def __init__(self):
         self.pair2id_map = {}
@@ -113,6 +116,9 @@ class BaseTypeMap:
         return next_id
 
 class CuName:
+    """
+    Handles a compile unit name. Useful to build a unique name as small as possible.
+    """
     _class_internal_id = 0
     PATH_JOIN_CHAR = '_'
 
@@ -147,6 +153,7 @@ class CuName:
             i+=1
 
 
+# Builds a dictionary that maps a CompuleUnit object to a unique displayable name
 def make_cu_name_map(dwarfinfo):
     
     fullpath_cu_tuple_list = []
@@ -241,10 +248,10 @@ def get_name(die, default=None):
     if 'DW_AT_name' in die.attributes:
         return die.attributes['DW_AT_name'].value.decode('ascii')
     else:
-        if die.tag in defaults_names:
-            return defaults_names[die.tag]
-        elif default is not None:
+        if default is not None:
             return default
+        elif die.tag in defaults_names:
+            return defaults_names[die.tag]
         else:
             raise Exception('Cannot get a name for this die. %s' % die)
 
@@ -434,10 +441,14 @@ def get_struct_type(die, context):
             prevdie = nextdie
 
 
+# When we encounter a struct die, we make a definition that we keep global,
+# this definition includes all submember with their respective offset.
+# each time we will encounter a instance of this struct, we will generate a variable for each sub member
 def die_process_struct(die, context):
     if die not in struct_die_map:
         struct_die_map[die] = get_struct_def(die, context)
 
+# Go down the hierarchy to get the whole struct def in a recursive way
 def get_struct_def(die, context):
     if die.tag != 'DW_TAG_structure_type':
         raise ValueError('DIE must be a structure type')
@@ -455,6 +466,8 @@ def get_struct_def(die, context):
 
     return struct
 
+# Read a member die and generate a core.Struct.Member that we will later on use to register a variable.
+# The struct.Member object contains everything we need to map a 
 def get_member_from_die(die, context):
     name = get_name(die)
     if is_type_struct(die, context):
@@ -469,26 +482,31 @@ def get_member_from_die(die, context):
         vartype = context.basetype_map.get_type_from_die(basetype_die)
         substruct = None
 
-    bitoffset = die.attributes['DW_AT_data_member_location'].value * 8
+    byte_offset = die.attributes['DW_AT_data_member_location'].value
     if 'DW_AT_bit_offset' in die.attributes:
         if 'DW_AT_byte_size' not in die.attributes:
             raise Exception('Missing DW_AT_byte_size for bitfield %s' % (get_name(die, '')))
+        if 'DW_AT_bit_size' not in die.attributes:
+            raise Exception('Missing DW_AT_bit_size for bitfield %s' % (get_name(die, '')))
        
     bitsize = die.attributes['DW_AT_bit_size'].value if 'DW_AT_bit_size' in die.attributes else None
-   
+    
     #Not sure about this.
-    if context.endianness == 'little':
-        membersize = vartype.get_size_bit()
-        if bitsize is not None :
-            membersize = bitsize
-            bitoffset += (die.attributes['DW_AT_byte_size'].value*8) - die.attributes['DW_AT_bit_offset'].value - membersize
-    elif context.endianness == 'big':
-       bitoffset += die.attributes['DW_AT_bit_offset'].value 
+    if 'DW_AT_bit_offset' in die.attributes:
+        membersize = die.attributes['DW_AT_byte_size'].value
+        if context.endianness == 'little':
+            bitoffset = (die.attributes['DW_AT_byte_size'].value*8) - die.attributes['DW_AT_bit_offset'].value - bitsize
+        elif context.endianness == 'big':
+           bitoffset = die.attributes['DW_AT_bit_offset'].value 
+        else:
+            raise ValueError('Unknown endianness')
     else:
-        raise ValueError('Unknown endianness')
+        bitoffset = None
 
-    return core.Struct.Member(name=name, vartype=vartype, vartype_id=vartype_id, bitoffset = bitoffset, bitsize = bitsize, substruct=substruct)
+    return core.Struct.Member(name=name, vartype=vartype, vartype_id=vartype_id, byte_offset = byte_offset, bitoffset = bitoffset, bitsize = bitsize, substruct=substruct)
 
+# We have an instance of a struct. Use the location and go down the structure recursively
+# using the members offsets to find the final address that we will apply to the output var
 def register_struct_var(die, context, location):
     path_segments = make_varpath(die, context)
     path_segments.append(get_name(die))
@@ -496,8 +514,10 @@ def register_struct_var(die, context, location):
     struct = struct_die_map[struct_die]
     startpoint = core.Struct.Member(struct.name, core.VariableType.struct, bitoffset=None, bitsize=None, substruct=struct)
 
+    # Start the recursion
     register_member_as_var_recursive(path_segments, context, startpoint, location, offset=0)
 
+# Recursive function to dig into a structure and register all possible variables.
 def register_member_as_var_recursive(path_segments, context, member, location, offset):
     if member.vartype == core.VariableType.struct:
         struct = member.substruct
@@ -506,10 +526,17 @@ def register_member_as_var_recursive(path_segments, context, member, location, o
             new_path_segments = path_segments.copy()
             if member.vartype == core.VariableType.struct:
                 new_path_segments.append(name)
-                offset += member.bitoffset
+                location = location.copy()  # When we go ina substruct, the member byte_offset is reset to 0
+                location.add_offset(member.byte_offset)
+            
+            elif member.byte_offset is not None:
+                offset = member.byte_offset
 
             register_member_as_var_recursive(new_path_segments, context, member, location, offset)
     else:
+        location = location.copy()
+        location.add_offset(member.byte_offset)
+            
         varentry = core.Variable(
             path_segments   = path_segments, 
             name            = member.name, 
@@ -517,7 +544,7 @@ def register_member_as_var_recursive(path_segments, context, member, location, o
             vartype         = member.vartype, 
             location        = location, 
             endianness      = context.endianness, 
-            bitoffset       = offset + member.bitoffset,
+            bitoffset       = member.bitoffset,
             bitsize         = member.bitsize,
             enum            = None  # todo
             )
@@ -525,6 +552,7 @@ def register_member_as_var_recursive(path_segments, context, member, location, o
         context.varlist.append(varentry)
 
 
+# Try to extract a location from a die.
 def get_location(die, context):
     try:
         if 'DW_AT_location' in die.attributes:
@@ -546,6 +574,8 @@ def get_location(die, context):
     except:
         return None        
 
+# Process a variable die. 
+# Register a variable from it.
 def die_process_variable(die, context, location=None):
     if location is None:
         location = get_location(die, context)

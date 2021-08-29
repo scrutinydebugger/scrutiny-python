@@ -29,3 +29,4 @@ namespace namespaceAFile2
 			ClassBAFile2 nestedClassInstance;
 	};
 }
+
