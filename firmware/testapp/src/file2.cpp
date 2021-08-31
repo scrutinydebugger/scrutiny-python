@@ -92,9 +92,9 @@ void file2SetValues()
     file2ClassBInstance.nestedClassInstance.intInClassBA = -22222;
     file2ClassBInstance.nestedClassInstance.classAInstance.intInClassA = -33333;
     
-    file2ClassBStaticInstance.intInClassB = -11111;
-    file2ClassBStaticInstance.nestedClassInstance.intInClassBA = -22222;
-    file2ClassBStaticInstance.nestedClassInstance.classAInstance.intInClassA = -33333;
+    file2ClassBStaticInstance.intInClassB = -44444;
+    file2ClassBStaticInstance.nestedClassInstance.intInClassBA = -55555;
+    file2ClassBStaticInstance.nestedClassInstance.classAInstance.intInClassA = -66666;
 }
 
 void file2func1()
