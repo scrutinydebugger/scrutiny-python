@@ -1,0 +1,3 @@
+
+class BaseCommand:
+    pass

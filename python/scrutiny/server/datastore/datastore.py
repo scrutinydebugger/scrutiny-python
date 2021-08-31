@@ -1,8 +1,6 @@
 import logging
 from .datastore_entry import DatastoreEntry
 
-import logging
-
 class Datastore:
 
     MAX_ENTRY = 1000000 

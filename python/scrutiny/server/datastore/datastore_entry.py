@@ -1,6 +1,6 @@
 import uuid
 from enum import Enum
-import datetime
+from datetime import datetime
 
 class Callback:
     def __init__(self, fn, owner, args=None):
