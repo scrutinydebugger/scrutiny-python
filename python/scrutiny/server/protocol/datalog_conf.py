@@ -1,4 +1,5 @@
 from enum import Enum
+from scrutiny.core import VariableType
 
 class DatalogConfiguration:
     __slots__ = '_destination', '_sample_rate', '_decimation', '_trigger', 'watches'
@@ -30,13 +31,13 @@ class DatalogConfiguration:
         def __init__(self, address, length, interpret_as):
             self.address = address
             self.length = length
-            self.interpret_as = interpret_as
+            self.interpret_as = VariableType(interpret_as)
             self.type = self.Type.WATCH
 
     class Watch:
-        __slots__ = 'addr', 'length'
-        def __init__(self, addr, length):
-            self.addr = addr
+        __slots__ = 'address', 'length'
+        def __init__(self, address, length):
+            self.address = address
             self.length = length
 
     class Trigger:
@@ -76,8 +77,8 @@ class DatalogConfiguration:
         self.watches = []
         self._trigger = self.Trigger()
 
-    def add_watch(self, addr, length):
-        self.watches.append(self.Watch(addr, length))
+    def add_watch(self, address, length):
+        self.watches.append(self.Watch(address, length))
 
 
 
