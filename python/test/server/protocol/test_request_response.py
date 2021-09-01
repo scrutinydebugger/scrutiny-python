@@ -1,5 +1,6 @@
 import unittest
 from server.protocol import Request, Response
+from server.protocol.datalog_conf import DatalogConfiguration
 
 class TestMessage(unittest.TestCase):
     def test_request(self):

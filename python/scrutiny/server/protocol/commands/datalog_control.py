@@ -9,5 +9,8 @@ class DatalogControl(BaseCommand):
         GetBufferSize = 2
         GetSamplingRates = 3
         ConfigureDatalog = 4
-        ListDatalog = 5
-        ReadDatalog = 6
+        ListRecordings = 5
+        ReadRecordings = 6
+        ArmLog = 7
+        DisarmLog = 8
+        GetLogStatus = 9
