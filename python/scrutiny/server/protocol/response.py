@@ -30,7 +30,7 @@ class Response:
         else:
             self.subfn = subfn
         self.code = self.ResponseCode(code)
-        self.payload = payload
+        self.payload = bytes(payload)
 
     def make_bytes_no_crc(self):
         data = struct.pack('>BBB', self.command_id, self.subfn, self.code.value)

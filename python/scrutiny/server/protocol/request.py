@@ -19,7 +19,7 @@ class Request:
             self.subfn = subfn.value
         else:
             self.subfn = subfn
-        self.payload = payload
+        self.payload = bytes(payload)
 
     def make_bytes_no_crc(self):
         data = struct.pack('>BB', (self.command_id & 0x7F), self.subfn)

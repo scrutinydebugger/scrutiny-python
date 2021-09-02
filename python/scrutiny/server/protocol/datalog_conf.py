@@ -131,3 +131,54 @@ class DatalogConfiguration:
             raise ValueError('trigger must be an instance of DatalogConfiguration.Trigger')
 
         self._trigger = val
+
+class DatalogTarget:
+    class Type(Enum):
+        RAM = 0
+        ROM = 1
+        EXTERNAL = 2
+
+    def __init__(self, target_id, target_type, name):
+        self.target_id = target_id
+        self.target_type = target_type
+        self.name = name
+
+    @property
+    def target_id(self):
+        return self._target_id
+
+    @target_id.setter
+    def target_id(self, val):
+        if not isinstance(val,  int):
+            raise ValueError('Target ID must be an integer')
+
+        if val < 0 or val > 0xFF:
+            raise ValueError('Target ID must be a one byte positive integer')
+            
+        self._target_id = val
+
+
+    @property
+    def target_type(self):
+        return self._target_type
+
+    @target_type.setter
+    def target_type(self, val):
+        if not isinstance(val,  self.Type):
+            raise ValueError('Target type must be an instance of DatalogTarget.Type')
+            
+        self._target_type = val
+
+    @property
+    def name(self):
+        return self._name
+
+    @name.setter
+    def name(self, val):
+        if not isinstance(val, str):
+            raise ValueError('Target name must be an ascii string')
+
+        if len(val.encode('ascii')) > 0xFF:
+            raise ValueError('Target name must be smaller than 255 bytes')
+            
+        self._name = val
