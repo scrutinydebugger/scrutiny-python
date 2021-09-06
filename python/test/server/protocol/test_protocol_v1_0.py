@@ -1,6 +1,7 @@
 import unittest
 from scrutiny.server.protocol import Protocol
-from scrutiny.server.protocol.datalog_conf import DatalogConfiguration, DatalogTarget
+from scrutiny.server.protocol import commands as cmd
+from scrutiny.server.protocol.datalog import *
 from scrutiny.core import VariableType
 import struct
 
@@ -121,8 +122,8 @@ class TestProtocolV1_0(unittest.TestCase):
         self.assertEqual( conf.trigger.operand2.value,  conf2.trigger.operand2.value)
 
 
-    def test_req_datalog_list_records(self):
-        req = self.proto.datalog_get_list_recording()
+    def test_req_datalog_list_recordings(self):
+        req = self.proto.datalog_get_list_recordings()
         self.assert_req_response_bytes(req, [6,5,0,0])
         data = self.proto.parse_request(req)
 
@@ -147,6 +148,25 @@ class TestProtocolV1_0(unittest.TestCase):
         self.assert_req_response_bytes(req, [6,9,0,0])
         data = self.proto.parse_request(req)
 
+
+# ============= Datalog ===============
+
+    def test_req_user_command(self):
+        req = self.proto.user_command(10, bytes([1,2,3]))
+        self.assert_req_response_bytes(req, [7,10,0,3, 1,2,3])
+        self.assertEqual(req.subfn, 10)
+        self.assertEqual(req.payload, bytes([1,2,3]))
+
+# ============= EstablishComm ===============
+
+    def test_req_comm_discover(self):
+        magic = bytes([0x7e, 0x18, 0xfc, 0x68])
+        request_bytes = bytes([2,1,0,0x08]) + magic + struct.pack('>L', 0x12345678)
+        req = self.proto.comm_discover(0x12345678)
+        self.assert_req_response_bytes(req, request_bytes)
+        data = self.proto.parse_request(req)
+        self.assertEqual(data['magic'], magic)
+        self.assertEqual(data['challenge'], 0x12345678)
 
 
 # ============================
@@ -207,9 +227,9 @@ class TestProtocolV1_0(unittest.TestCase):
 
     def test_response_datalog_get_targets(self):
         targets = []
-        targets.append(DatalogTarget(target_id=0, target_type = DatalogTarget.Type.RAM, name='RAM'))
-        targets.append(DatalogTarget(target_id=2, target_type = DatalogTarget.Type.ROM, name='FLASH'))
-        targets.append(DatalogTarget(target_id=5, target_type = DatalogTarget.Type.EXTERNAL, name='SD CARD'))
+        targets.append(DatalogLocation(target_id=0, location_type = DatalogLocation.Type.RAM, name='RAM'))
+        targets.append(DatalogLocation(target_id=2, location_type = DatalogLocation.Type.ROM, name='FLASH'))
+        targets.append(DatalogLocation(target_id=5, location_type = DatalogLocation.Type.EXTERNAL, name='SD CARD'))
 
 
         payload = bytes([0,0,3]) + 'RAM'.encode('ASCII')
@@ -226,15 +246,15 @@ class TestProtocolV1_0(unittest.TestCase):
         
         self.assertEqual(targets[0].target_id, 0)
         self.assertEqual(targets[0].name, 'RAM')
-        self.assertEqual(targets[0].target_type, DatalogTarget.Type.RAM)
+        self.assertEqual(targets[0].location_type, DatalogLocation.Type.RAM)
 
         self.assertEqual(targets[1].target_id, 2)
         self.assertEqual(targets[1].name, 'FLASH')
-        self.assertEqual(targets[1].target_type, DatalogTarget.Type.ROM)
+        self.assertEqual(targets[1].location_type, DatalogLocation.Type.ROM)
 
         self.assertEqual(targets[2].target_id, 5)
         self.assertEqual(targets[2].name, 'SD CARD')
-        self.assertEqual(targets[2].target_type, DatalogTarget.Type.EXTERNAL)
+        self.assertEqual(targets[2].location_type, DatalogLocation.Type.EXTERNAL)
 
     def test_response_datalog_get_buffer_size(self):
         response = self.proto.respond_datalog_get_bufsize(0x12345678)
@@ -252,76 +272,71 @@ class TestProtocolV1_0(unittest.TestCase):
         self.assertAlmostEqual(data['sampling_rates'][1], 1, 5)
         self.assertAlmostEqual(data['sampling_rates'][2], 10, 5)
 
-
-"""
-    def test_response_datalog_configure_log(self):
-        conf = DatalogConfiguration()
-        conf.add_watch(0x1234, 2)
-        conf.add_watch(0x1111, 4)
-        conf.add_watch(0x2222, 4)
-        conf.destination = 0
-        conf.sample_rate = 100000
-        conf.decimation = 5
-        conf.trigger.condition = DatalogConfiguration.TriggerCondition.EQUAL
-        conf.trigger.operand1 = DatalogConfiguration.WatchOperand(address=0x99887766, length=4, interpret_as=VariableType.float32)
-        conf.trigger.operand2 = DatalogConfiguration.ConstOperand(666)
-
-        data = struct.pack('>BfBH', 0, 100000, 5, 3)    # destination, sample rate, decimation, num watch
-        data += struct.pack('>LHLHLH', 0x1234, 2, 0x1111, 4, 0x2222, 4) # watch def
-        data += b'\x00' # condition
-        data += struct.pack('>BLBB',  2, 0x99887766, 4, 22)  # operand type, operand data
-        data += struct.pack('>Bf',  1, 666)  # operand type, operand data
-
-        payload = bytes([6,4]) + struct.pack('>H', len(data)) + data
-        req = self.proto.datalog_configure_log(conf)
-        self.assert_req_response_bytes(req, payload)
-        data = self.proto.parse_response(req)
-
-        conf2 = data['configuration']
-        self.assertEqual(len(conf2.watches), 3)
-        self.assertEqual(conf2.watches[0].address, 0x1234)
-        self.assertEqual(conf2.watches[0].length, 2)
-        self.assertEqual(conf2.watches[1].address, 0x1111)
-        self.assertEqual(conf2.watches[1].length, 4)
-        self.assertEqual(conf2.watches[2].address, 0x2222)
-        self.assertEqual(conf2.watches[2].length, 4)
-
-        self.assertEqual(conf.destination, conf2.destination)
-        self.assertEqual(conf.sample_rate, conf2.sample_rate)
-        self.assertEqual(conf.decimation, conf2.decimation)
-        self.assertEqual( conf.trigger.condition,  conf2.trigger.condition)
-        self.assertIsInstance( conf.trigger.operand1,   DatalogConfiguration.WatchOperand)
-        self.assertEqual( conf.trigger.operand1.address,  conf2.trigger.operand1.address)
-        self.assertEqual( conf.trigger.operand1.length,  conf2.trigger.operand1.length)
-        self.assertEqual( conf.trigger.operand1.interpret_as,  conf2.trigger.operand1.interpret_as)
-        self.assertIsInstance( conf.trigger.operand2,   DatalogConfiguration.ConstOperand)
-        self.assertEqual( conf.trigger.operand2.value,  conf2.trigger.operand2.value)
-
-
-    def test_response_datalog_list_records(self):
-        req = self.proto.datalog_get_list_recording()
-        self.assert_req_response_bytes(req, [6,5,0,0])
-        data = self.proto.parse_response(req)
-
-    def test_response_datalog_read_recording(self):
-        req = self.proto.datalog_read_recording(record_id = 0x1234)
-        self.assert_req_response_bytes(req, [6,6,0,2, 0x12, 0x34])
-        data = self.proto.parse_response(req)
+    def test_response_datalog_arm_log(self):
+        response = self.proto.respond_datalog_arm(record_id = 0x1234)
+        self.assert_req_response_bytes(response, [0x86,7,0,0,2, 0x12, 0x34])
+        data = self.proto.parse_response(response)
         self.assertEqual(data['record_id'], 0x1234)
 
-    def test_response_datalog_arm_log(self):
-        req = self.proto.datalog_arm()
-        self.assert_req_response_bytes(req, [6,7,0,0])
-        data = self.proto.parse_response(req)
-
     def test_response_datalog_disarm_log(self):
-        req = self.proto.datalog_disarm()
-        self.assert_req_response_bytes(req, [6,8,0,0])
-        data = self.proto.parse_response(req)
+        response = self.proto.respond_datalog_disarm()
+        self.assert_req_response_bytes(response, [0x86,8,0,0,0])
+        data = self.proto.parse_response(response)
 
     def test_response_datalog_get_log_status(self):
-        req = self.proto.datalog_status()
-        self.assert_req_response_bytes(req, [6,9,0,0])
-        data = self.proto.parse_response(req)
+        response = self.proto.respond_datalog_status(status=LogStatus.Triggered)
+        self.assert_req_response_bytes(response, [0x86,9,0,0,1,1])
+        data = self.proto.parse_response(response)
+        self.assertEqual(data['status'], LogStatus.Triggered)
 
-"""
+    def test_response_datalog_list_records(self):
+        recordings = []
+        recordings.append(RecordInfo(record_id=0x1234, location_type=DatalogLocation.Type.RAM, size=0x201 ))
+        recordings.append(RecordInfo(record_id=0x4567, location_type=DatalogLocation.Type.ROM, size=0x333 ))
+        response = self.proto.respond_datalog_list_recordings(recordings)
+        self.assert_req_response_bytes(response, [0x86,5,0,0, 10, 0x12, 0x34, 0, 0x02, 0x01, 0x45, 0x67, 1, 0x03, 0x33])
+        data = self.proto.parse_response(response)
+        self.assertEqual(len(data['recordings']), 2)
+        self.assertEqual(data['recordings'][0].record_id, 0x1234)
+        self.assertEqual(data['recordings'][0].location_type, DatalogLocation.Type.RAM)
+        self.assertEqual(data['recordings'][0].size, 0x201)
+        self.assertEqual(data['recordings'][1].record_id, 0x4567)
+        self.assertEqual(data['recordings'][1].location_type, DatalogLocation.Type.ROM)
+        self.assertEqual(data['recordings'][1].size, 0x333)
+
+    def test_response_datalog_read_recording(self):
+        record_data = bytes(range(256))
+        response = self.proto.respond_read_recording(record_id=0x1234, data=record_data)
+        payload = bytes([0x86,6,0,1,2, 0x12, 0x34])+record_data
+        self.assert_req_response_bytes(response, payload)
+        data = self.proto.parse_response(response)
+        self.assertEqual(data['record_id'], 0x1234)
+        self.assertEqual(data['data'], record_data)
+
+    def test_response_datalog_configure_log(self):
+        record_data = bytes(range(256))
+        response = self.proto.respond_configure_log(record_id=0x1234)
+        payload = bytes([0x86,4,0,0,2, 0x12, 0x34])
+        self.assert_req_response_bytes(response, payload)
+        data = self.proto.parse_response(response)
+        self.assertEqual(data['record_id'], 0x1234)
+
+
+# ============= UserCommand ===============
+
+    def test_response_user_cmd(self):
+        response = self.proto.respond_user_command(10, bytes([1,2,3]))
+        self.assert_req_response_bytes(response, [0x87,10,0,0,3,1,2,3])
+        self.assertEqual(response.subfn, 10)
+        self.assertEqual(response.payload, bytes([1,2,3]))
+
+# ============= EstablishComm ===============
+
+    def test_response_comm_discover(self):
+        magic = bytes([0x7e, 0x18, 0xfc, 0x68])
+        response_bytes = bytes([0x82,1,0,0, 8]) + magic + struct.pack('>L', 0x87654321)
+        response = self.proto.respond_comm_discover(0x87654321)
+        self.assert_req_response_bytes(response, response_bytes)
+        data = self.proto.parse_response(response)
+        self.assertEqual(data['magic'], magic)
+        self.assertEqual(data['challenge_echo'], 0x87654321)

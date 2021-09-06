@@ -14,3 +14,4 @@ class DatalogControl(BaseCommand):
         ArmLog = 7
         DisarmLog = 8
         GetLogStatus = 9
+

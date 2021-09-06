@@ -1,7 +1,7 @@
 from .request import Request
 from .response import Response
 from .protocol import Protocol
-from .datalog_conf import DatalogConfiguration
+from .datalog import *
 
 from enum import Enum
 

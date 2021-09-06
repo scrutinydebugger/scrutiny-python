@@ -132,15 +132,15 @@ class DatalogConfiguration:
 
         self._trigger = val
 
-class DatalogTarget:
+class DatalogLocation:
     class Type(Enum):
         RAM = 0
         ROM = 1
         EXTERNAL = 2
 
-    def __init__(self, target_id, target_type, name):
+    def __init__(self, target_id, location_type, name):
         self.target_id = target_id
-        self.target_type = target_type
+        self.location_type = location_type
         self.name = name
 
     @property
@@ -159,15 +159,15 @@ class DatalogTarget:
 
 
     @property
-    def target_type(self):
-        return self._target_type
+    def location_type(self):
+        return self._location_type
 
-    @target_type.setter
-    def target_type(self, val):
+    @location_type.setter
+    def location_type(self, val):
         if not isinstance(val,  self.Type):
             raise ValueError('Target type must be an instance of DatalogTarget.Type')
             
-        self._target_type = val
+        self._location_type = val
 
     @property
     def name(self):
@@ -182,3 +182,59 @@ class DatalogTarget:
             raise ValueError('Target name must be smaller than 255 bytes')
             
         self._name = val
+
+class LogStatus(Enum):
+    Triggered = 1
+    WaitForTrigger = 2
+    Recording = 3
+    Disabled = 4
+
+class RecordInfo:
+    def __init__(self, record_id, location_type, size):
+        self.record_id = record_id
+        self.location_type = location_type
+        self.size = size
+
+    @property
+    def location_type(self):
+        return self._location_type
+
+    @location_type.setter
+    def location_type(self, val):
+        if isinstance(val, int):
+            val = DatalogLocation.Type(val)
+
+        if not isinstance(val,  DatalogLocation.Type):
+            print(val)
+            raise ValueError('location_type must be a valid DatalogLocation.Type')
+            
+        self._location_type = val
+
+    @property
+    def record_id(self):
+        return self._record_id
+
+    @record_id.setter
+    def record_id(self, val):
+        if not isinstance(val, int):
+            raise ValueError('record_id must be an integer')
+
+        if val < 0:
+            raise ValueError('record_id must be a positive integer')
+            
+        self._record_id = val
+
+
+    @property
+    def size(self):
+        return self._size
+
+    @size.setter
+    def size(self, val):
+        if not isinstance(val, int):
+            raise ValueError('size must be an integer')
+
+        if val < 0:
+            raise ValueError('size must be a positive integer')
+            
+        self._size = val

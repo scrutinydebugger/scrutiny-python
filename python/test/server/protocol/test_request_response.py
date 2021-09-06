@@ -1,6 +1,6 @@
 import unittest
-from server.protocol import Request, Response
-from server.protocol.datalog_conf import DatalogConfiguration
+from scrutiny.server.protocol import Request, Response
+from scrutiny.server.protocol.datalog import DatalogConfiguration
 
 class TestMessage(unittest.TestCase):
     def test_request(self):
@@ -48,6 +48,14 @@ class TestMessage(unittest.TestCase):
         self.assertEqual(msg.subfn, msg2.subfn)
         self.assertEqual(msg.code, msg2.code)
         self.assertEqual(msg.payload, msg2.payload)
+
+    def test_response_wrong_length(self):
+        with self.assertRaises(Exception):
+            Response.from_bytes(bytes([0x81, 0, 0, 0, 5, 1,2,3,4]))  # Missing one data bytes
+
+        with self.assertRaises(Exception):
+            Response.from_bytes(bytes([0x81, 0, 0, 0, 5, 1,2,3,4,5,6]))  # One extra byte
+
 
     def test_response_meta(self):
         msg = Response(command = 1, subfn=0x34, code=1, payload=bytes([1,2,3,4]))

@@ -66,7 +66,7 @@ class TestDataStore(unittest.TestCase):
         
         for entry in entries:
             self.assertCallbackCalled(entry, owner, 0)
-       # import IPython; IPython.embed()
+            
         entries[0].execute_value_change_callback()
         self.assertCallbackCalled(entries[0], owner, 1)
         self.assertCallbackCalled(entries[1], owner, 0)

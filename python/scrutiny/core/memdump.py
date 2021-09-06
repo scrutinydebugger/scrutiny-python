@@ -1,7 +1,5 @@
 import re
 from bisect import bisect
-import ipdb
-import IPython
 
 class Memdump:
 
@@ -56,7 +54,6 @@ class Memdump:
         offset = addr-addr_start
 
         if offset + length >  len(self.memchunk[addr_start]):
-            #IPython.embed()
             raise ValueError('Length too long')
 
         return self.memchunk[addr_start][offset:offset+length]

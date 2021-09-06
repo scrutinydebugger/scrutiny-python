@@ -3,7 +3,7 @@ import struct
 from . import commands as cmd
 from . import Request, Response
 from .exceptions import *
-from .datalog_conf import DatalogConfiguration, DatalogTarget
+from .datalog import *
 import logging
 
 class Protocol:
@@ -61,7 +61,7 @@ class Protocol:
 
         return Request(cmd.DatalogControl, cmd.DatalogControl.Subfunction.ConfigureDatalog, data) 
 
-    def datalog_get_list_recording(self):
+    def datalog_get_list_recordings(self):
         return Request(cmd.DatalogControl, cmd.DatalogControl.Subfunction.ListRecordings) 
 
     def datalog_read_recording(self, record_id):
@@ -76,6 +76,13 @@ class Protocol:
     def datalog_status(self):
         return Request(cmd.DatalogControl, cmd.DatalogControl.Subfunction.GetLogStatus) 
 
+    def user_command(self, subfn, data=b''):
+        return Request(cmd.UserCommand, subfn, data) 
+
+    def comm_discover(self, challenge):
+        data = cmd.EstablishComm.MAGIC + struct.pack('>L', challenge)
+        return Request(cmd.EstablishComm, cmd.EstablishComm.Subfunction.Discover, data) 
+
     def parse_request(self, req):
         data = {'valid' : True}
         try:
@@ -89,7 +96,7 @@ class Protocol:
                     (data['address'],) = struct.unpack('>L', req.payload[0:4])
                     data['data'] = req.payload[4:]
 
-            if req.command == cmd.DatalogControl:
+            elif req.command == cmd.DatalogControl:
                 subfn = cmd.DatalogControl.Subfunction(req.subfn)
                 
                 if subfn == cmd.DatalogControl.Subfunction.ReadRecordings:          # DatalogControl - ReadRecordings
@@ -123,6 +130,13 @@ class Protocol:
                     conf.trigger.operand1 = operands[0]
                     conf.trigger.operand2 = operands[1]
                     data['configuration'] = conf
+           
+            elif req.command == cmd.EstablishComm:
+                subfn = cmd.EstablishComm.Subfunction(req.subfn)
+            
+                if subfn == cmd.EstablishComm.Subfunction.Discover:          # EstablishComm - Discover
+                    data['magic'] = req.payload[0:4]
+                    data['challenge'], = struct.unpack('>L', req.payload[4:8])
 
 
         except Exception as e:
@@ -183,10 +197,10 @@ class Protocol:
     def respond_data_get_targets(self, targets):
         data = bytes()
         for target in targets:
-            if not isinstance(target, DatalogTarget):
-                raise ValueError('Target must be an instance of DatalogTarget')
+            if not isinstance(target, DatalogLocation):
+                raise ValueError('Target must be an instance of DatalogLocation')
 
-            data += struct.pack('BBB', target.target_id, target.target_type.value, len(target.name))
+            data += struct.pack('BBB', target.target_id, target.location_type.value, len(target.name))
             data += target.name.encode('ascii')
 
         return Response(cmd.DatalogControl, cmd.DatalogControl.Subfunction.GetAvailableTarget, Response.ResponseCode.OK, data)
@@ -198,7 +212,35 @@ class Protocol:
         data = struct.pack('>'+'f'*len(sampling_rates), *sampling_rates)
         return Response(cmd.DatalogControl, cmd.DatalogControl.Subfunction.GetSamplingRates, Response.ResponseCode.OK, data)
 
+    def respond_datalog_arm(self, record_id):
+        return Response(cmd.DatalogControl, cmd.DatalogControl.Subfunction.ArmLog, Response.ResponseCode.OK, struct.pack('>H', record_id))
 
+    def respond_datalog_disarm(self ):
+        return Response(cmd.DatalogControl, cmd.DatalogControl.Subfunction.DisarmLog, Response.ResponseCode.OK)
+
+    def respond_datalog_status(self, status):
+        status = LogStatus(status)
+        return Response(cmd.DatalogControl, cmd.DatalogControl.Subfunction.GetLogStatus, Response.ResponseCode.OK, struct.pack('B', status.value))
+    
+    def respond_datalog_list_recordings(self, recordings):
+        data = bytes()
+        for record in recordings:
+            data += struct.pack('>HBH', record.record_id, record.location_type.value, record.size)
+        return Response(cmd.DatalogControl, cmd.DatalogControl.Subfunction.ListRecordings, Response.ResponseCode.OK, data)
+
+    def respond_read_recording(self, record_id, data):
+        data = bytes(data)
+        return Response(cmd.DatalogControl, cmd.DatalogControl.Subfunction.ReadRecordings, Response.ResponseCode.OK, struct.pack('>H', record_id) + data)
+
+    def respond_configure_log(self, record_id):
+        return Response(cmd.DatalogControl, cmd.DatalogControl.Subfunction.ConfigureDatalog, Response.ResponseCode.OK, struct.pack('>H', record_id))
+
+    def respond_user_command(self, subfn, data=b''):
+        return Response(cmd.UserCommand, subfn, Response.ResponseCode.OK, data)
+  
+    def respond_comm_discover(self, challenge_echo):
+        resp_data = cmd.EstablishComm.MAGIC+struct.pack('>L', challenge_echo)
+        return Response(cmd.EstablishComm, cmd.EstablishComm.Subfunction.Discover, Response.ResponseCode.OK, resp_data)
 
     def parse_response(self, response):
         data = {'valid' : True}
@@ -239,16 +281,43 @@ class Protocol:
                     while True:
                         if len(response.payload) < pos+1:
                             break
-                        target_id, target_type_num, target_name_len = struct.unpack('BBB', response.payload[pos:pos+3])
-                        target_type = DatalogTarget.Type(target_type_num)
+                        target_id, location_type_num, target_name_len = struct.unpack('BBB', response.payload[pos:pos+3])
+                        location_type = DatalogLocation.Type(location_type_num)
                         pos +=3
                         name = response.payload[pos:pos+target_name_len].decode('ascii')
                         pos += target_name_len
-                        targets.append(DatalogTarget(target_id, target_type, name))
+                        targets.append(DatalogLocation(target_id, location_type, name))
 
                     data['targets'] = targets
                 elif subfn == cmd.DatalogControl.Subfunction.GetBufferSize:
                     data['size'], = struct.unpack('>L', response.payload[0:4])
+
+                elif subfn == cmd.DatalogControl.Subfunction.GetLogStatus:
+                    data['status'] = LogStatus(int(response.payload[0]))
+
+                elif subfn == cmd.DatalogControl.Subfunction.ArmLog:
+                    data['record_id'], = struct.unpack('>H', response.payload)
+
+                elif subfn == cmd.DatalogControl.Subfunction.ConfigureDatalog:
+                    data['record_id'], = struct.unpack('>H', response.payload)
+
+                elif subfn == cmd.DatalogControl.Subfunction.ReadRecordings:
+                    data['record_id'], = struct.unpack('>H', response.payload[0:2])
+                    data['data'] = response.payload[2:]
+
+                elif subfn == cmd.DatalogControl.Subfunction.ListRecordings:
+                    if len(response.payload) % 5 != 0:
+                        raise Exception('Incomplete payload')
+                    nrecords = int(len(response.payload)/5)
+                    data['recordings'] = []
+                    pos=0
+                    for i in range(nrecords):
+                        (record_id, location_type_num, size) = struct.unpack('>HBH', response.payload[pos:pos+5])
+                        location_type = DatalogLocation.Type(location_type_num)
+                        pos+=5
+                        record = RecordInfo(record_id, location_type_num, size)
+                        data['recordings'].append(record)
+                        
                 elif subfn == cmd.DatalogControl.Subfunction.GetSamplingRates:
                     if len(response.payload) % 4 != 0:
                         raise Exception('Incomplete payload')
@@ -256,9 +325,18 @@ class Protocol:
                     nrates = int(len(response.payload)/4)
                     data['sampling_rates'] = list(struct.unpack('>'+'f'*nrates, response.payload))
 
+            elif response.command == cmd.EstablishComm:
+                subfn = cmd.EstablishComm.Subfunction(response.subfn)
+
+                if subfn == cmd.EstablishComm.Subfunction.Discover:
+                    data['magic'] =  response.payload[0:4]
+                    data['challenge_echo'], = struct.unpack('>L', response.payload[4:8])
+
+
         except Exception as e:
             self.logger.error(str(e))
             data['valid'] = False
+            raise
 
         if not data['valid']:
             raise InvalidResponseException(response, 'Could not properly decode response payload.')

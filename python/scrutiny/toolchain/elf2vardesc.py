@@ -355,7 +355,6 @@ def process_file(filename):
 #            die = cu.get_top_DIE()
 #            context = Context(cu=cu, endianness=endianness, demangler=demangler, varlist=varlist, basetype_map=basetype_map)
 #            run_type_recognition_recursive(die, context)
-#        IPython.embed()
 
         for cu in dwarfinfo.iter_CUs():
             die = cu.get_top_DIE()
@@ -406,7 +405,6 @@ def add_member_to_hn2ml_map(hierarchical_name, die, context):
         if attr_name in die.attributes:
             if attr_name in member:
                 if member[attr_name] != die.attributes[attr_name]:
-                    #IPython.embed()
                     raise Exception('Incompatible definition for type %s' % (hierarchical_name))
             else:
                 member[attr_name] = die.attributes[attr_name]
@@ -481,11 +479,8 @@ def extract_basetype_die(die, context):
 def is_type_struct_or_class(die, context):
     prevdie = die
     while True:
-        try:
-            refaddr = prevdie.attributes['DW_AT_type'].value + prevdie.cu.cu_offset
-            nextdie = prevdie.dwarfinfo.get_DIE_from_refaddr(refaddr)
-        except:
-            IPython.embed()
+        refaddr = prevdie.attributes['DW_AT_type'].value + prevdie.cu.cu_offset
+        nextdie = prevdie.dwarfinfo.get_DIE_from_refaddr(refaddr)
                 
         if nextdie.tag in [ 'DW_TAG_structure_type', 'DW_TAG_class_type']:
             return True
