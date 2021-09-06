@@ -43,7 +43,6 @@ class Memdump:
                         self.sorted_keys.insert(x, addr)
 
 
-
     def read(self, addr, length):
         
         x = bisect(self.sorted_keys, addr)

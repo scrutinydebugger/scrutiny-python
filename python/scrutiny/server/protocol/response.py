@@ -13,7 +13,7 @@ class Response:
         UnsupportedFeature = 2
         Overflow = 3
         Busy = 4
-        DataNotAvailable = 5
+        FailureToProceed = 5
 
     def __init__(self, command, subfn, code, payload=b''):
         

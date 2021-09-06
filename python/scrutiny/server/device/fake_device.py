@@ -3,12 +3,12 @@ import logging
 import time
 import struct
 
-from scrutiny.server.protocol import Request, Response
+from scrutiny.server.protocol import Request, Response, Protocol
 import scrutiny.server.protocol.commands as cmd
-from scrutiny.core.memdump import Memdump
+
 
 class FakeDevice:
-    def __init__(self, to_device_queue, to_server_queue, config='unittest'):
+    def __init__(self, to_device_queue, to_server_queue, data_source, software_id=None):
         self.to_device_queue = to_device_queue
         self.to_server_queue = to_server_queue
         self.logger = logging.getLogger(__class__.__name__)
@@ -17,19 +17,13 @@ class FakeDevice:
             cmd.GetInfo         : self.process_get_info,
             cmd.MemoryControl   : self.process_memory_control
         }
-        self.config = config
-        self.memory = self.make_memory()
-
-    def make_memory(self):
-        if self.config == 'unittest':
-            memory = Memdump()
-            memory.write(0, bytes(range(256)))
-            memory.write(1000, bytes(range(256)))
-            memory.write(2000, bytes(range(256)))
-        else:
-            raise NotImplementedError('Cannot make memory for this config')
-
-        return memory
+        self.data_source = data_source
+        if software_id is None:
+            software_id = 'fakeSoftwareId'.encode('ascii')
+        elif not isinstance(software_id, bytes):
+            raise ValueError('software_id must be a bytes object')
+        self.software_id = software_id    
+        self.protocol = Protocol(1,0)
 
     
     def run(self):
@@ -60,38 +54,67 @@ class FakeDevice:
         if request.command in self.request_to_fn_map:
             return self.request_to_fn_map[request.command](request)
         else:
-            raise NotImplementedError('This device does not support this command')
+            return Response(request.Command, request.subfn, Response.ResponseCode.InvalidRequest)
 
     def get_software_id(self):
-        if self.config == 'unittest':
-            return 'fakeDeviceSoftware'
-        raise NotImplementedError('No software ID for config %s' % self.config)
+        return self.software_id
 
     def process_get_info(self, req):
         response =  None
+        code = Response.ResponseCode.OK
         self.logger.info("Processing GetInfo request")
-        subfn = cmd.GetInfo.Subfunction(req.subfn)
-        if subfn == cmd.GetInfo.Subfunction.GetProtocolVersion:
-            data = bytes([1,0])
-        elif subfn == cmd.GetInfo.Subfunction.GetSoftwareId:
-            data = self.get_software_id().encode('ascii')
-        elif subfn == cmd.GetInfo.Subfunction.GetSupportedFeatures:
-            data = bytes([0xF0])
-        else:
-            raise NotImplementedError('Unsuported subfunction %d' % subfn.value)
+        try:
+            subfn = cmd.GetInfo.Subfunction(req.subfn)
+        except Exception as e:
+            self.logger.debug(str(e))
+            return Response(req.command, req.subfn, Response.ResponseCode.InvalidRequest)
 
-        response = Response(cmd.GetInfo, subfn, Response.ResponseCode.OK, data)
+        if subfn == cmd.GetInfo.Subfunction.GetProtocolVersion:
+            response = self.protocol.respond_protocol_version()
+        elif subfn == cmd.GetInfo.Subfunction.GetSoftwareId:
+            response = self.protocol.respond_software_id(self.get_software_id())
+        elif subfn == cmd.GetInfo.Subfunction.GetSupportedFeatures:
+            response =  self.protocol.respond_supported_features(memory_read = True, memory_write = True, datalog_acquire = True, user_command = True)
+        else:
+            code = Response.ResponseCode.InvalidRequest
+
+        if response is None:
+            response = Response(req.command, req.subfn, code)
+
         return response
+        
 
     def process_memory_control(self, req):
         response =  None
         self.logger.info("Processing MemoryControl request")
-        subfn = cmd.MemoryControl.Subfunction(req.subfn)
+        code = Response.ResponseCode.OK
 
-        addr, length = struct.unpack('>LH', req.payload)    # Todo, abstract that
+        try:
+            req_data = self.protocol.parse_request(req)
+            subfn = cmd.MemoryControl.Subfunction(req.subfn)
+        except Exception as e:
+            self.logger.debug(str(e))
+            return Response(req.command, req.subfn, Response.ResponseCode.InvalidRequest)
 
         if subfn == cmd.MemoryControl.Subfunction.Read:
-            data = self.memory.read(addr, length)
+            try:
+                data = self.data_source.read(req_data['address'], req_data['length'])
+                response = self.protocol.respond_read_memory_block(req_data['address'], data)
+            except Exception as e:
+                code = Response.ResponseCode.FailureToProceed;
+                self.logger.debug(str(e))
+       
+        elif subfn == cmd.MemoryControl.Subfunction.Write:
+            try:
+                self.data_source.write(req_data['address'], req_data['data'])
+                response = self.protocol.respond_write_memory_block(req_data['address'], len(req_data['data']))
+            except Exception as e:
+                self.logger.debug(str(e))
+                code =  Response.ResponseCode.FailureToProceed;
+        else:
+            code = Response.ResponseCode.InvalidRequest
+    
+        if response is None:
+            response = Response(req.command, req.subfn, code)
 
-        response = Response(cmd.MemoryControl, subfn, Response.ResponseCode.OK, data)
         return response
