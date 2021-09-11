@@ -23,7 +23,7 @@ class Timer:
             return 0
 
     def is_timed_out(self):
-        if self.is_stopped():
+        if self.is_stopped() or self.timeout is None:
             return False
         else:
             return self.elapsed() > self.timeout or self.timeout == 0

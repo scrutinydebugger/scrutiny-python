@@ -5,6 +5,7 @@ import struct
 
 from scrutiny.server.protocol import Request, Response, Protocol
 import scrutiny.server.protocol.commands as cmd
+from scrutiny.server.server_tools import Timer
 
 
 class FakeDevice:
@@ -15,7 +16,8 @@ class FakeDevice:
         self.stop_requested = False
         self.request_to_fn_map = {
             cmd.GetInfo         : self.process_get_info,
-            cmd.MemoryControl   : self.process_memory_control
+            cmd.MemoryControl   : self.process_memory_control,
+            cmd.Heartbeat       : self.process_heartbeat
         }
         self.data_source = data_source
         if software_id is None:
@@ -24,6 +26,8 @@ class FakeDevice:
             raise ValueError('software_id must be a bytes object')
         self.software_id = software_id    
         self.protocol = Protocol(1,0)
+        self.comm_timer = Timer(None)   # Default never timeout
+        self.comm_established = False
 
     
     def run(self):
@@ -40,6 +44,9 @@ class FakeDevice:
                 except Exception as e:
                     self.logger.error(str(e))
 
+            if self.comm_timer.is_stopped() or self.comm_timer.is_timed_out():
+                self.comm_established = False
+
             time.sleep(0.01)
 
     def start(self):
@@ -51,13 +58,31 @@ class FakeDevice:
         self.thread.join()
 
     def process_request(self, request):
+        if self.comm_established == False:
+            if request.command != cmd.EstablishComm:
+                return None
+
         if request.command in self.request_to_fn_map:
             return self.request_to_fn_map[request.command](request)
         else:
-            return Response(request.Command, request.subfn, Response.ResponseCode.InvalidRequest)
+            return Response(request.command, request.subfn, Response.ResponseCode.InvalidRequest)
 
     def get_software_id(self):
         return self.software_id
+
+
+    def establish_comm(self):
+        self.comm_established = True
+        self.comm_timer.start()
+
+    def break_comm(self):
+        self.comm_established = False
+        self.comm_timer.stop()
+
+    def set_comm_timeout(self, timeout):
+        self.comm_timer.set_timeout(timeout)
+
+#   =====   Requests handlers =======
 
     def process_get_info(self, req):
         response =  None
@@ -114,6 +139,29 @@ class FakeDevice:
         else:
             code = Response.ResponseCode.InvalidRequest
     
+        if response is None:
+            response = Response(req.command, req.subfn, code)
+
+        return response
+
+    def process_heartbeat(self, req):
+        response =  None
+        self.logger.info("Processing Heartbeat request")
+        code = Response.ResponseCode.OK
+
+        try:
+            req_data = self.protocol.parse_request(req)
+            subfn = cmd.Heartbeat.Subfunction(req.subfn)
+        except Exception as e:
+            self.logger.debug(str(e))
+            return Response(req.command, req.subfn, Response.ResponseCode.InvalidRequest)
+
+        if subfn == cmd.Heartbeat.Subfunction.CheckAlive:
+            self.comm_timer.start()
+            response = self.protocol.respond_check_alive(req_data['challenge'])
+        else:
+            code = Response.ResponseCode.InvalidRequest
+
         if response is None:
             response = Response(req.command, req.subfn, code)
 

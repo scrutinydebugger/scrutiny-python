@@ -20,17 +20,27 @@ class TestFakeDevice(unittest.TestCase):
         self.device = FakeDevice(self.s2dq, self.d2sq, data_source)
         self.device.start()
         self.protocol = Protocol(1,0)
+        self.device.establish_comm()
 
     def tearDown(self):
         self.device.stop()
 
     def send_req(self, req, timeout=0.2):
+        no_response = False
         if isinstance(req, Request):
             data = req.to_bytes()
         else:
             data = req
         self.s2dq.put(data)
-        return Response.from_bytes(self.d2sq.get(timeout=timeout))
+        try:
+            response = Response.from_bytes(self.d2sq.get(timeout=timeout))
+            return response
+        except queue.Empty:
+            no_response = True
+
+        if no_response:
+            raise Exception('Did not received a response from the device')  
+
 
     def validate_positive_response(self, request, response):
         self.assertEqual(response.command, request.command)
@@ -101,5 +111,12 @@ class TestMemoryControl(TestFakeDevice):
         data = self.validate_positive_response(req, response)
         self.assertEqual(data['address'], 0x2000)
         self.assertEqual(data['data'], bytes(range(256)))
+
+class TestHeartbeat(TestFakeDevice):
+    def test_check_alive(self):
+        req = self.protocol.check_alive(0x1234)
+        response = self.send_req(req)
+        data = self.validate_positive_response(req, response)
+        self.assertEqual(data['challenge_echo'], 0x1234)
 
 

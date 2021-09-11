@@ -5,5 +5,4 @@ class Heartbeat(BaseCommand):
     _cmd_id = 4
 
     class Subfunction(Enum):
-        Ping = 1
-        Pong = 2
+        CheckAlive = 1

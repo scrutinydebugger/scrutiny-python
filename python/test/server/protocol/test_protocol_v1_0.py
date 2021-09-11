@@ -56,10 +56,11 @@ class TestProtocolV1_0(unittest.TestCase):
 
 # ============= Heartbeat ===============
 
-    def test_req_heartbeat_ping(self):
-        req = self.proto.ping()
-        self.assert_req_response_bytes(req, [4,1,0,0])
+    def test_req_heartbeat_check_alive(self):
+        req = self.proto.check_alive(0x1234)
+        self.assert_req_response_bytes(req, [4,1,0,2, 0x12, 0x34])
         data = self.proto.parse_request(req)
+        self.assertEqual(data['challenge'], 0x1234)
 
 # ============= Datalog ===============
 
@@ -191,13 +192,13 @@ class TestProtocolV1_0(unittest.TestCase):
         self.assertEqual(data['software_id'], 'hello'.encode('ascii'))
 
     def test_response_get_supported_features(self):
-        response = self.proto.respond_supported_features(memory_read=True, memory_write=False, datalog_acquire=True, user_func=True)
+        response = self.proto.respond_supported_features(memory_read=True, memory_write=False, datalog_acquire=True, user_command=True)
         self.assert_req_response_bytes(response, [0x81,3,0,0,1, 0xB0])
         data = self.proto.parse_response(response)
         data['memory_read'] = True
         data['memory_write'] = False
         data['datalog_acquire'] = True
-        data['user_func'] = True
+        data['user_command'] = True
 
 # ============= MemoryControl ===============
 
@@ -217,10 +218,11 @@ class TestProtocolV1_0(unittest.TestCase):
 
 # ============= Heartbeat ===============
 
-    def test_response_heartbeat_pong(self):
-        response = self.proto.pong()
-        self.assert_req_response_bytes(response, [0x84,2,0,0,0])
+    def test_response_heartbeat_check_alive(self):
+        response = self.proto.respond_check_alive(0x1234)
+        self.assert_req_response_bytes(response, [0x84,2,0,0,2, 0x12, 0x34])
         data = self.proto.parse_response(response)
+        self.assertEqual(data['challenge_echo'], 0x1234)
         
 
 # ============= Datalog ===============
