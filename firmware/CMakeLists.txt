@@ -1,9 +1,23 @@
-cmake_minimum_required(VERSION 3.2)
+project(libscrutinycpp)
 
-project(scrutiny)
-set(CMAKE_CXX_STANDARD 11)
-set(CMAKE_VERBOSE_MAKEFILE TRUE)
+add_library(${PROJECT_NAME} SHARED)
+add_library(scrutiny::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
 
-add_subdirectory(lib)
-add_subdirectory(example/linux)
-add_subdirectory(testapp)
+target_include_directories(${PROJECT_NAME}
+    PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+    )
+
+target_sources(${PROJECT_NAME}
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/scrutiny/scrutiny.cpp
+    )
+
+target_compile_options(${PROJECT_NAME}
+    PRIVATE
+        -no-pie
+        -Wall
+        -Wextra
+        -Wpedantic
+        -Werror
+    )
