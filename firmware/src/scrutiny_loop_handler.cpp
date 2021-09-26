@@ -4,7 +4,7 @@
 namespace scrutiny
 {
 
-    LoopHandler::LoopHandler(LoopType type, float frequency):
+    LoopHandler::LoopHandler(LoopType type, float frequency) :
         m_loop_type(type),
         m_frequency(frequency)
     {
@@ -21,4 +21,4 @@ namespace scrutiny
 
     }
 
-};
+}

@@ -3,7 +3,8 @@
 
 #include "scrutiny_setup.h"
 #include "scrutiny_loop_handler.h"
-#include "scrutiny_timebase"
+#include "scrutiny_timebase.h"
+#include <cstdint>
 
 namespace scrutiny
 {
@@ -12,16 +13,16 @@ namespace scrutiny
 
     public:
         void init();
-        loop_id_t add_loop(ScrutinyLoop* loop);
+        loop_id_t add_loop(LoopHandler* loop);
         void process(uint32_t timestep_us);
         void process_loop(loop_id_t loop);
 
     private:
-        ScrutinyLoop* m_loops[SCRUTINY_MAX_LOOP];
+        LoopHandler* m_loop_handlers[SCRUTINY_MAX_LOOP];
         Timebase m_timebase;
-        Protocol m_protocol;
+        //Protocol m_protocol;
 
-    }
-};
+    };
+}
 
 #endif

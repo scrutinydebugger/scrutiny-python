@@ -27,7 +27,6 @@ namespace scrutiny
     protected:
         Version m_version;
         uint8_t _rx_buffer[SCRUTINY_COMM_BUFFER_SIZE] __ALIGNED__
-        
     };
 };
 

@@ -9,6 +9,7 @@ namespace scrutiny
     {
     public:
         Timebase() : m_time_us(0) {}
+
         inline void step(uint32_t timestep_us)  
         { 
             m_time_us += timestep_us;
@@ -18,21 +19,19 @@ namespace scrutiny
             return m_time_us;
         };
 
-        bool is_elpased(uint32_t timestamp, uint32_t timeout_us)
+        bool is_elapsed(uint32_t timestamp, uint32_t timeout_us)
         {
             bool elapsed = false;
-            if (timestamp > m_time_us)
-            {
-                diff = timestamp - m_time_us;
-                if (timestamp - m_time_us >= timeout_us)
-                    elapsed =  true;
-            }
-            else
-            {
+            const uint32_t diff = m_time_us - timestamp;
+            if (diff >= timeout_us)
+                elapsed =  true;
+    
+            return elapsed;
+        }
 
-            }
-            
-            return elapsed
+        void reset(uint32_t val=0)
+        {
+            m_time_us = val;
         }
 
     protected:

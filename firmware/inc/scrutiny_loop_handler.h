@@ -1,7 +1,7 @@
 #ifndef ___SCRUTINY_LOOP_HANDLER_H___
 #define ___SCRUTINY_LOOP_HANDLER_H___
 
-#include "scrutiny_setup.h"
+#include <cstdint>
 
 namespace scrutiny
 {
@@ -25,7 +25,7 @@ namespace scrutiny
         LoopType m_loop_type;
         float m_frequency;
     };
-};
+}
 
 
 #endif //___SCRUTINY_LOOP_HANDLER_H___
