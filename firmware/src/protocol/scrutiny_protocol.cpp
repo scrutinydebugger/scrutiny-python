@@ -12,6 +12,8 @@ namespace scrutiny
         m_version.minor = minor;
         m_timebase = timebase;
 
+        m_active_request.data = m_rx_buffer;
+
         reset();
     }
 
@@ -180,16 +182,8 @@ namespace scrutiny
 
     void Protocol::reset()
     {
-        m_active_request.reset();
-        m_active_request.data = m_rx_buffer;
-        m_rx_state = eRxStateWaitForCommand;
-        m_request_received = false;
-        m_crc_bytes_received = 0;
-        m_length_bytes_received = 0;
-        m_data_bytes_received = 0;
-        m_rx_error = eRxErrorNone;
         std::memset(m_rx_buffer, 0, SCRUTINY_RX_BUFFER_SIZE);
-        m_last_rx_timestamp = 0;
+        reset_rx();
     }
 
     void Protocol::reset_rx()
@@ -201,5 +195,6 @@ namespace scrutiny
         m_length_bytes_received = 0;
         m_data_bytes_received = 0;
         m_rx_error = eRxErrorNone;
+        m_last_rx_timestamp = m_timebase->get_timestamp();
     }
 }

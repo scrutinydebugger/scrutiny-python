@@ -18,7 +18,6 @@ namespace scrutiny
                 command_id = 0;
                 subfunction_id = 0;
                 data_length = 0;
-                data = NULL;
                 valid = false;
             }
 
@@ -38,7 +37,6 @@ namespace scrutiny
                 subfunction_id = 0;
                 response_code = 0;
                 data_length = 0;
-                data = NULL;
                 valid = false;
             }
 
