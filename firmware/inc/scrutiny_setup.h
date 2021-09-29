@@ -7,7 +7,7 @@
 
 
 #define SCRUTINY_MAX_LOOP 16
-#define SCRUTINY_COMM_BUFFER_SIZE 256
+#define SCRUTINY_RX_BUFFER_SIZE 256
 #define SCRUTINY_COMM_TIMEOUT_US 250000 // Reset protocol state machine when no data is received for that amount of time.
 
 namespace scrutiny

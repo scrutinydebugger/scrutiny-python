@@ -26,7 +26,8 @@ add_executable(scrutiny_test
   ${SCRUTINY_SOURCES}
   
   test_timebase.cpp
-  protocol/test_protocol.cpp
+  test_crc.cpp
+  protocol/test_protocol_rx_parsing.cpp
   )
 
 target_link_libraries(

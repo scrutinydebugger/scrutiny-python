@@ -19,7 +19,7 @@ namespace scrutiny
             return m_time_us;
         };
 
-        bool is_elapsed(uint32_t timestamp, uint32_t timeout_us)
+        inline bool is_elapsed(uint32_t timestamp, uint32_t timeout_us)
         {
             bool elapsed = false;
             const uint32_t diff = m_time_us - timestamp;
@@ -29,7 +29,7 @@ namespace scrutiny
             return elapsed;
         }
 
-        void reset(uint32_t val=0)
+        inline void reset(uint32_t val=0)
         {
             m_time_us = val;
         }
