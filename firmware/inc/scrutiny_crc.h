@@ -1,1 +1,1 @@
-uint32_t crc32(const uint8_t *data, uint32_t size);
+uint32_t crc32(const uint8_t *data, const uint32_t size, const uint32_t start_value=0);

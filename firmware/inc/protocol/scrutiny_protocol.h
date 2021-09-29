@@ -77,7 +77,8 @@ namespace scrutiny
         Protocol(uint8_t major, uint8_t minor, Timebase* timebase);
         uint8_t process_data(uint8_t* data, uint32_t len);
         void reset();
-        void process_request(Request* req);
+        void reset_rx();
+        bool check_crc(Request* req);
         
         inline bool request_received() {return m_request_received;}
         inline Request* get_request() {return &m_active_request;}
@@ -97,6 +98,7 @@ namespace scrutiny
         uint8_t m_crc_bytes_received;
         uint8_t m_length_bytes_received;
         uint16_t m_data_bytes_received;
+        uint32_t m_last_rx_timestamp;
 
 
     };

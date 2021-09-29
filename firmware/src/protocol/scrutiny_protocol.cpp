@@ -1,6 +1,8 @@
-#include "protocol/scrutiny_protocol.h"
 #include <cstring>
 #include <iostream>
+
+#include "protocol/scrutiny_protocol.h"
+#include "scrutiny_crc.h"
 
 namespace scrutiny
 {
@@ -17,9 +19,25 @@ namespace scrutiny
     {
         uint32_t i = 0;
 
+        // Handle rx timeouts. Start a new reception if no data for too long
+        if (m_rx_state != eRxStateWaitForCommand && len !=0 )
+        {
+            if (m_timebase->is_elapsed(m_last_rx_timestamp, SCRUTINY_COMM_TIMEOUT_US))
+            {
+                reset_rx();
+            }
+        }
+
+        // Update rx timestamp
+        if (len != 0)
+        {
+            m_last_rx_timestamp = m_timebase->get_timestamp();
+        }
+
+        // Process each bytes
         while (i < len && !m_request_received && m_rx_state != eRxStateError)
         {
-            switch (m_rx_state)
+            switch (m_rx_state) // FSM
             {
                 case eRxStateWaitForCommand:
                 {
@@ -120,8 +138,16 @@ namespace scrutiny
                     else if (m_crc_bytes_received == 3)
                     {
                         m_active_request.crc |= ((uint32_t)data[i]) << 0;
-                        m_rx_state = eRxStateWaitForProcess;
-                        m_request_received = true;
+
+                        if (check_crc(&m_active_request))
+                        {
+                            m_rx_state = eRxStateWaitForProcess;
+                            m_request_received = true;
+                        }
+                        else
+                        {
+                            reset_rx();
+                        }
                     }
 
                     m_crc_bytes_received++;
@@ -138,6 +164,19 @@ namespace scrutiny
         return 0;
     }
 
+    bool Protocol::check_crc(Request* req)
+    {
+        uint32_t crc = 0;
+        uint8_t header_data[4];
+        header_data[0] = req->command_id;
+        header_data[1] = req->subfunction_id;
+        header_data[2] = (req->data_length >> 8) & 0xFF; 
+        header_data[3] = req->data_length & 0xFF;
+        crc = crc32(header_data, sizeof(header_data));
+        crc = crc32(req->data, req->data_length, crc);
+        return (crc == req->crc);
+    }
+
 
     void Protocol::reset()
     {
@@ -150,10 +189,17 @@ namespace scrutiny
         m_data_bytes_received = 0;
         m_rx_error = eRxErrorNone;
         std::memset(m_rx_buffer, 0, SCRUTINY_RX_BUFFER_SIZE);
+        m_last_rx_timestamp = 0;
     }
 
-    void Protocol::process_request(Request* req)
+    void Protocol::reset_rx()
     {
-        
+        m_active_request.reset();
+        m_rx_state = eRxStateWaitForCommand;
+        m_request_received = false;
+        m_crc_bytes_received = 0;
+        m_length_bytes_received = 0;
+        m_data_bytes_received = 0;
+        m_rx_error = eRxErrorNone;
     }
 }

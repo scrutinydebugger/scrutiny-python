@@ -31,8 +31,6 @@ TEST(TestProtocol_V1_0, TestRx_ZeroLen_AllInOne)
   EXPECT_EQ(req->data_length, 0);
   
   EXPECT_EQ(proto.get_rx_error(), scrutiny::Protocol::eRxErrorNone);
-
-  proto.reset();
 }
 
 //=============================================================================
@@ -56,9 +54,6 @@ TEST(TestProtocol_V1_0, TestRx_ZeroLen_BytePerByte)
   EXPECT_EQ(req->data_length, 0);
 
   EXPECT_EQ(proto.get_rx_error(), scrutiny::Protocol::eRxErrorNone);
-
-  proto.reset();
-
 }
 
 //=============================================================================
@@ -81,8 +76,6 @@ TEST(TestProtocol_V1_0, TestRx_NonZeroLen_AllInOne)
   EXPECT_EQ(req->data[2], 0x33);
   
   EXPECT_EQ(proto.get_rx_error(), scrutiny::Protocol::eRxErrorNone);
-
-  proto.reset();
 }
 
 //=============================================================================
@@ -109,8 +102,6 @@ TEST(TestProtocol_V1_0, TestRx_NonZeroLen_BytePerByte)
   EXPECT_EQ(req->data[2], 0x33);
   
   EXPECT_EQ(proto.get_rx_error(), scrutiny::Protocol::eRxErrorNone);
-
-  proto.reset();
 }
 
 //=============================================================================
@@ -122,13 +113,45 @@ TEST(TestProtocol_V1_0, TestRx_Overflow)
   scrutiny::Protocol proto(1,0, &tb);
   uint16_t datalen = SCRUTINY_RX_BUFFER_SIZE + 1;
 
-  uint8_t data[SCRUTINY_RX_BUFFER_SIZE + 8] = {1,2, static_cast<uint8_t>((datalen >> 8) & 0xFF) , static_cast<uint8_t>(datalen & 0xFF)};
+  uint8_t data[SCRUTINY_RX_BUFFER_SIZE+8] = {1,2, static_cast<uint8_t>((datalen >> 8) & 0xFF) , static_cast<uint8_t>(datalen & 0xFF)};
   add_crc(data, SCRUTINY_RX_BUFFER_SIZE+4);
 
   proto.process_data(data, sizeof(data));
 
   ASSERT_FALSE(proto.request_received());
   EXPECT_EQ(proto.get_rx_error(), scrutiny::Protocol::eRxErrorOverflow);
+}
 
-  proto.reset();
+//=============================================================================
+TEST(TestProtocol_V1_0, TestRx_Timeout)
+{
+  scrutiny::Timebase tb;
+  scrutiny::Protocol proto(1,0, &tb);
+
+  uint8_t data[11] = {1,2,0,3, 0x11, 0x22, 0x33};
+  add_crc(data, 7);
+
+  for (uint8_t i=1; i < sizeof(data)-1; i++)
+  {
+    proto.process_data(&data[0], i );
+    ASSERT_FALSE(proto.request_received());
+    tb.step(SCRUTINY_COMM_TIMEOUT_US);
+    proto.process_data(&data[i], sizeof(data)-1 );
+    ASSERT_FALSE(proto.request_received());
+    proto.reset();
+  }
+}
+
+//=============================================================================
+TEST(TestProtocol_V1_0, TestRx_BadCRC)
+{
+  scrutiny::Timebase tb;
+  scrutiny::Protocol proto(1,0, &tb);
+
+  uint8_t data[11] = {1,2,0,3, 0x11, 0x22, 0x33};
+  add_crc(data, 7);
+  data[10] = ~data[10];
+  proto.process_data(data, sizeof(data));
+
+  ASSERT_FALSE(proto.request_received());
 }
