@@ -1,16 +1,7 @@
 #include <gtest/gtest.h>
 
 #include "scrutiny.h"
-
-void add_crc(uint8_t* data, uint16_t data_len)
-{
-  uint32_t crc = scrutiny::crc32(data, data_len);
-  data[data_len] = (crc >> 24) & 0xFF;
-  data[data_len+1] = (crc >> 16) & 0xFF;
-  data[data_len+2] = (crc >> 8) & 0xFF;
-  data[data_len+3] = (crc >> 0) & 0xFF;
-}
-
+#include "scrutiny_test.h"
 
 //=============================================================================
 TEST(TestProtocol_V1_0, TestRx_ZeroLen_AllInOne)
@@ -20,7 +11,7 @@ TEST(TestProtocol_V1_0, TestRx_ZeroLen_AllInOne)
   proto.init(1,0, &tb);
 
   uint8_t data[8] = {1,2,0,0};
-  add_crc(data, 4);
+  scrutiny_test::add_crc(data, 4);
   proto.process_data(data, sizeof(data));
 
   ASSERT_TRUE(proto.request_received());
@@ -40,7 +31,7 @@ TEST(TestProtocol_V1_0, TestRx_ZeroLen_BytePerByte)
   proto.init(1,0, &tb);
 
   uint8_t data[8] = {1,2,0,0};
-  add_crc(data, 4);
+  scrutiny_test::add_crc(data, 4);
 
   for (unsigned int i=0; i<sizeof(data); i++)
   {
@@ -64,7 +55,7 @@ TEST(TestProtocol_V1_0, TestRx_NonZeroLen_AllInOne)
   proto.init(1,0, &tb);
 
   uint8_t data[11] = {1,2,0,3, 0x11, 0x22, 0x33};
-  add_crc(data, 7);
+  scrutiny_test::add_crc(data, 7);
   proto.process_data(data, sizeof(data));
 
   ASSERT_TRUE(proto.request_received());
@@ -87,7 +78,7 @@ TEST(TestProtocol_V1_0, TestRx_NonZeroLen_BytePerByte)
   proto.init(1,0, &tb);
 
   uint8_t data[11] = {1,2,0,3, 0x11, 0x22, 0x33};
-  add_crc(data, 7);
+  scrutiny_test::add_crc(data, 7);
 
   for (unsigned int i=0; i<sizeof(data); i++)
   {
@@ -117,7 +108,7 @@ TEST(TestProtocol_V1_0, TestRx_Overflow)
   uint16_t datalen = SCRUTINY_BUFFER_SIZE + 1;
 
   uint8_t data[SCRUTINY_BUFFER_SIZE+8] = {1,2, static_cast<uint8_t>((datalen >> 8) & 0xFF) , static_cast<uint8_t>(datalen & 0xFF)};
-  add_crc(data, SCRUTINY_BUFFER_SIZE+4);
+  scrutiny_test::add_crc(data, SCRUTINY_BUFFER_SIZE+4);
 
   proto.process_data(data, sizeof(data));
 
@@ -133,7 +124,7 @@ TEST(TestProtocol_V1_0, TestRx_Timeout)
   proto.init(1,0, &tb);
 
   uint8_t data[11] = {1,2,0,3, 0x11, 0x22, 0x33};
-  add_crc(data, 7);
+  scrutiny_test::add_crc(data, 7);
 
   for (uint8_t i=1; i < sizeof(data)-1; i++)
   {
@@ -154,7 +145,7 @@ TEST(TestProtocol_V1_0, TestRx_BadCRC)
   proto.init(1,0, &tb);
 
   uint8_t data[11] = {1,2,0,3, 0x11, 0x22, 0x33};
-  add_crc(data, 7);
+  scrutiny_test::add_crc(data, 7);
   data[10] = ~data[10]; // Force bad CRC
   proto.process_data(data, sizeof(data));
 

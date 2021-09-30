@@ -1,7 +1,7 @@
 #include "scrutiny_main_handler.h"
 #include "scrutiny_software_id.h"
 
-
+#include <iostream>
 
 namespace scrutiny
 {
@@ -36,11 +36,6 @@ void MainHandler::process(uint32_t timestep_us)
     }
 }
 
-void MainHandler::send_response(Protocol::Response* response)
-{
-    //todo
-}
-
 
 void MainHandler::process_request(Protocol::Request *request, Protocol::Response *response)
 {
@@ -52,6 +47,7 @@ void MainHandler::process_request(Protocol::Request *request, Protocol::Response
     response->command_id = request->command_id;
     response->subfunction_id = request->subfunction_id;
     response->response_code = Protocol::eResponseCode_OK;
+    response->valid = true;
 
     switch (request->command_id)
     {
@@ -78,8 +74,6 @@ void MainHandler::process_request(Protocol::Request *request, Protocol::Response
             response->response_code = Protocol::eResponseCode_UnsupportedFeature;
             break;
     }
-
-    m_comm_handler.add_crc(response);
 }
 
 void MainHandler::process_get_info(Protocol::Request *request, Protocol::Response *response)
@@ -91,8 +85,8 @@ void MainHandler::process_get_info(Protocol::Request *request, Protocol::Respons
         case Protocol::GetInfo::eSubfnGetProtocolVersion:
             Protocol::CommHandler::Version version = m_comm_handler.get_version();
             response_data.get_info.get_protocol_version.major = version.major;
-            response_data.get_info.get_protocol_version.minor = version.major;
-            m_comm_handler.encode_response_protocol_version(&response_data, response->data);
+            response_data.get_info.get_protocol_version.minor = version.minor;
+            m_comm_handler.encode_response_protocol_version(&response_data, response);
             break;
 
         case Protocol::GetInfo::eSubfnGetSoftwareId:

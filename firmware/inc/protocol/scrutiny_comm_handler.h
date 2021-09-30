@@ -20,6 +20,12 @@ namespace scrutiny
                 eRxErrorOverflow
             };
 
+            enum TxError
+            {
+                eTxErrorNone,
+                eTxErrorOverflow
+            };
+
             struct Version
             {
                 uint8_t major;
@@ -31,7 +37,10 @@ namespace scrutiny
             void send_response(Response* response);
             void reset();
             Response* prepare_response();
-            
+
+            uint32_t pop_data(uint8_t* buffer, uint32_t len);
+            uint32_t data_to_send();
+
             bool check_crc(Request* req);
             void add_crc(Response* response);
             
@@ -45,7 +54,7 @@ namespace scrutiny
 
 
 
-            void encode_response_protocol_version(ResponseData* response_data, uint8_t* buffer);
+            void encode_response_protocol_version(ResponseData* response_data, Response* response);
 
         protected:
 
@@ -68,6 +77,7 @@ namespace scrutiny
             };
 
             void reset_rx();
+            void reset_tx();
 
             Version m_version;
             Timebase *m_timebase;
@@ -87,6 +97,9 @@ namespace scrutiny
 
             // Transmission
             Response m_active_response;
+            uint32_t m_nbytes_to_send;
+            uint32_t m_nbytes_sent;
+            TxError m_tx_error;
         };
     };
 };

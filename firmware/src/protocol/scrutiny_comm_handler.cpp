@@ -4,6 +4,8 @@
 #include "protocol/scrutiny_comm_handler.h"
 #include "scrutiny_crc.h"
 
+#include <iostream>
+
 namespace scrutiny
 {
 namespace Protocol
@@ -16,8 +18,6 @@ namespace Protocol
 
         m_active_request.data = m_buffer;   // Half duplex comm. Share buffer
         m_active_response.data = m_buffer;  // Half duplex comm. Share buffer
-        m_state = eStateIdle;
-
 
         reset();
     }
@@ -160,6 +160,7 @@ namespace Protocol
 
                         if (check_crc(&m_active_request))
                         {
+                            m_active_request.valid = true;
                             m_rx_state = eRxStateWaitForProcess;
                             m_request_received = true;
                         }
@@ -193,8 +194,121 @@ namespace Protocol
             return; // Half duplex comm. Discard data;
         }
 
+        if (response->data_length > SCRUTINY_BUFFER_SIZE)
+        {
+            m_tx_error = eTxErrorOverflow;
+            return;
+        }
+
+        m_active_response.command_id = response->command_id;
+        m_active_response.subfunction_id = response->subfunction_id;
+        m_active_response.response_code = response->response_code;
+        m_active_response.data_length = response->data_length;
+        m_active_response.data = response->data;
+
+        add_crc(&m_active_response);
+
+        // cmd8 + subfn8 + code8 + len16 + data + crc32
+        m_nbytes_to_send = 1 + 1 + 1 + 2 + m_active_response.data_length + 4;
+
         m_state = eStateTransmitting;
     }
+    
+    uint32_t CommHandler::pop_data(uint8_t* buffer, uint32_t len)
+    {
+        const uint32_t nbytes_to_send = m_nbytes_to_send - m_nbytes_sent;
+        uint32_t i=0;
+        
+        if (len >nbytes_to_send)
+        {
+            len = nbytes_to_send;
+        }
+
+        while (m_nbytes_sent < 5 && i<len)
+        {
+            if (m_nbytes_sent == 0)
+            {
+                buffer[i] = m_active_response.command_id;
+            }
+            else if (m_nbytes_sent == 1)
+            {
+                buffer[i] = m_active_response.subfunction_id;
+            }
+            else if (m_nbytes_sent == 2)
+            {
+                buffer[i] = m_active_response.response_code;
+            }
+            else if (m_nbytes_sent == 3)
+            {
+                buffer[i] = (m_active_response.data_length >> 8) & 0xFF;
+            }
+            else if (m_nbytes_sent == 4)
+            {
+                buffer[i] = m_active_response.data_length & 0xFF;
+            }
+
+            i++;
+            m_nbytes_sent += 1;
+        }
+        
+        int32_t remaining_data_bytes = static_cast<int32_t>(m_active_response.data_length) - (static_cast<int32_t>(m_nbytes_sent) - 5);
+        if (remaining_data_bytes < 0)
+        {
+            remaining_data_bytes = 0;
+        }
+
+        uint32_t data_bytes_to_copy = static_cast<uint32_t>(remaining_data_bytes);
+        if (data_bytes_to_copy > len-i)
+        {
+            data_bytes_to_copy = len-i;
+        }
+
+        std::memcpy(&buffer[i], &m_active_response.data[m_active_response.data_length - remaining_data_bytes], data_bytes_to_copy);
+
+        i += data_bytes_to_copy;
+        m_nbytes_sent += data_bytes_to_copy;
+
+        const uint32_t crc_position = m_active_response.data_length + 5;
+        while (i < len)
+        {
+            if (m_nbytes_sent == crc_position)
+            {
+                buffer[i] = (m_active_response.crc >> 24) & 0xFF;
+            }
+            else if (m_nbytes_sent == crc_position + 1)
+            {
+                buffer[i] = (m_active_response.crc >> 16) & 0xFF;
+            }
+            else if (m_nbytes_sent == crc_position + 2)
+            {
+                buffer[i] = (m_active_response.crc >> 8) & 0xFF;
+            }
+            else if (m_nbytes_sent == crc_position + 3)
+            {
+                buffer[i] = (m_active_response.crc >> 0) & 0xFF;
+            }
+            else
+            {
+                std::cout << "asdasdasdasd" << std::endl;
+                break;  // Should never go here.
+            }
+            m_nbytes_sent++;
+            i++;
+        }
+
+        return i;
+    }
+
+    uint32_t CommHandler::data_to_send()
+    {
+        if (m_state != eStateTransmitting)
+        {
+            return 0;
+        }
+
+        return m_nbytes_to_send - m_nbytes_sent;
+    }
+
 
     bool CommHandler::check_crc(Request* req)
     {
@@ -212,14 +326,27 @@ namespace Protocol
 
     void CommHandler::add_crc(Response* response)
     {
+        if (response->data_length > SCRUTINY_BUFFER_SIZE)
+            return;
 
+        uint8_t header[5];
+        header[0] = response->command_id;
+        header[1] = response->subfunction_id;
+        header[2] = response->response_code;
+        header[3] = (response->data_length >> 8) & 0xFF;
+        header[4] = response->data_length & 0xFF;
+
+        uint32_t crc = scrutiny::crc32(header, sizeof(header));
+        response->crc = scrutiny::crc32(response->data, response->data_length, crc);
     }
 
     void CommHandler::reset()
     {
-        std::memset(m_buffer, 0, SCRUTINY_BUFFER_SIZE);
         m_state = eStateIdle;
+        std::memset(m_buffer, 0, SCRUTINY_BUFFER_SIZE);
+
         reset_rx();
+        reset_tx();
     }
 
     void CommHandler::reset_rx()
@@ -232,13 +359,32 @@ namespace Protocol
         m_data_bytes_received = 0;
         m_rx_error = eRxErrorNone;
         m_last_rx_timestamp = m_timebase->get_timestamp();
+
+        if (m_state == eStateReceiving)
+        {
+            m_state = eStateIdle;
+        }
+    }
+
+    void CommHandler::reset_tx()
+    {
+        m_active_response.reset();
+        m_nbytes_to_send = 0;
+        m_nbytes_sent = 0;
+        m_tx_error = eTxErrorNone;
+
+        if (m_state == eStateTransmitting)
+        {
+            m_state = eStateIdle;
+        }
     }
 
 
-    void CommHandler::encode_response_protocol_version(ResponseData* response_data, uint8_t* buffer)
+    void CommHandler::encode_response_protocol_version(ResponseData* response_data, Response* response)
     {
-        buffer[0] = response_data->get_info.get_protocol_version.major;
-        buffer[1] = response_data->get_info.get_protocol_version.minor;
+        response->data_length = 2;
+        response->data[0] = response_data->get_info.get_protocol_version.major;
+        response->data[1] = response_data->get_info.get_protocol_version.minor;
     }
 
 

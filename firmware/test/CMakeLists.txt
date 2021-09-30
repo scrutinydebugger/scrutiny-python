@@ -16,6 +16,7 @@ FetchContent_MakeAvailable(googletest)
 
 include_directories("../inc/")
 include_directories("../inc/protocol")
+include_directories(".")
 
 enable_testing()
 
@@ -26,9 +27,11 @@ list(TRANSFORM SCRUTINY_SOURCES PREPEND  "../")
 add_executable(scrutiny_test 
   ${SCRUTINY_SOURCES}
   
+  scrutiny_test.cpp
   test_timebase.cpp
   test_crc.cpp
   protocol/test_protocol_rx_parsing.cpp
+  protocol/test_protocol_get_info.cpp
   )
 
 target_link_libraries(

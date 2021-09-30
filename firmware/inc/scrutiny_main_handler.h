@@ -21,7 +21,6 @@ namespace scrutiny
         //loop_id_t add_loop(LoopHandler* loop);
         
         void process(uint32_t timestep_us);
-        void send_response(Protocol::Response* response);
 
         void process_request(Protocol::Request *request, Protocol::Response *response);
         void process_get_info(Protocol::Request *request, Protocol::Response *response);
@@ -30,6 +29,16 @@ namespace scrutiny
         {
             m_comm_handler.process_data(data, len);
         }
+
+        inline uint32_t data_to_send()
+        {
+            return m_comm_handler.data_to_send();
+        }
+
+        inline uint32_t pop_data(uint8_t* buffer, uint32_t len)
+        {
+            return m_comm_handler.pop_data(buffer, len);
+        } 
 
     private:
         //LoopHandler* m_loop_handlers[SCRUTINY_MAX_LOOP];
