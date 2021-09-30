@@ -109,7 +109,7 @@ TEST(TestProtocol_V1_0, TestRx_NonZeroLen_BytePerByte)
 //=============================================================================
 TEST(TestProtocol_V1_0, TestRx_Overflow)
 {
-  ASSERT_LT(SCRUTINY_RX_BUFFER_SIZE, 0xFFFF-1);  // Lengths are 16bits maximum by protocol definition
+  ASSERT_LT(SCRUTINY_BUFFER_SIZE, 0xFFFF-1);  // Lengths are 16bits maximum by protocol definition
 
   scrutiny::Timebase tb;
   scrutiny::Protocol::CommHandler proto;
