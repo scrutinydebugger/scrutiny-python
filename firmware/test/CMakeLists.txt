@@ -32,6 +32,7 @@ add_executable(scrutiny_test
   test_crc.cpp
   protocol/test_protocol_rx_parsing.cpp
   protocol/test_protocol_get_info.cpp
+  protocol/test_protocol_tx_parsing.cpp
   )
 
 target_link_libraries(
