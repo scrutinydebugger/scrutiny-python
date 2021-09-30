@@ -66,17 +66,17 @@ class TestProtocolV1_0(unittest.TestCase):
 
     def test_req_datalog_get_targets(self):
         req = self.proto.datalog_get_targets()
-        self.assert_req_response_bytes(req, [6,1,0,0])
+        self.assert_req_response_bytes(req, [5,1,0,0])
         data = self.proto.parse_request(req)
 
     def test_req_datalog_get_buffer_size(self):
         req = self.proto.datalog_get_bufsize()
-        self.assert_req_response_bytes(req, [6,2,0,0])
+        self.assert_req_response_bytes(req, [5,2,0,0])
         data = self.proto.parse_request(req)
 
     def test_req_datalog_get_sampling_rates(self):
         req = self.proto.datalog_get_sampling_rates()
-        self.assert_req_response_bytes(req, [6,3,0,0])
+        self.assert_req_response_bytes(req, [5,3,0,0])
         data = self.proto.parse_request(req)
 
     def test_req_datalog_configure_log(self):
@@ -97,7 +97,7 @@ class TestProtocolV1_0(unittest.TestCase):
         data += struct.pack('>BLBB',  2, 0x99887766, 4, 22)  # operand type, operand data
         data += struct.pack('>Bf',  1, 666)  # operand type, operand data
 
-        payload = bytes([6,4]) + struct.pack('>H', len(data)) + data
+        payload = bytes([5,4]) + struct.pack('>H', len(data)) + data
         req = self.proto.datalog_configure_log(conf)
         self.assert_req_response_bytes(req, payload)
         data = self.proto.parse_request(req)
@@ -125,7 +125,7 @@ class TestProtocolV1_0(unittest.TestCase):
 
     def test_req_datalog_list_recordings(self):
         req = self.proto.datalog_get_list_recordings()
-        self.assert_req_response_bytes(req, [6,5,0,0])
+        self.assert_req_response_bytes(req, [65,5,0,0])
         data = self.proto.parse_request(req)
 
     def test_req_datalog_read_recording(self):
@@ -136,29 +136,29 @@ class TestProtocolV1_0(unittest.TestCase):
 
     def test_req_datalog_arm_log(self):
         req = self.proto.datalog_arm()
-        self.assert_req_response_bytes(req, [6,7,0,0])
+        self.assert_req_response_bytes(req, [65,7,0,0])
         data = self.proto.parse_request(req)
 
     def test_req_datalog_disarm_log(self):
         req = self.proto.datalog_disarm()
-        self.assert_req_response_bytes(req, [6,8,0,0])
+        self.assert_req_response_bytes(req, [65,8,0,0])
         data = self.proto.parse_request(req)
 
     def test_req_datalog_get_log_status(self):
         req = self.proto.datalog_status()
-        self.assert_req_response_bytes(req, [6,9,0,0])
+        self.assert_req_response_bytes(req, [65,9,0,0])
         data = self.proto.parse_request(req)
 
 
-# ============= Datalog ===============
+# ============= UserCommand ===============
 
     def test_req_user_command(self):
         req = self.proto.user_command(10, bytes([1,2,3]))
-        self.assert_req_response_bytes(req, [7,10,0,3, 1,2,3])
+        self.assert_req_response_bytes(req, [6,10,0,3, 1,2,3])
         self.assertEqual(req.subfn, 10)
         self.assertEqual(req.payload, bytes([1,2,3]))
 
-# ============= EstablishComm ===============
+# ============= CommControl ===============
 
     def test_req_comm_discover(self):
         magic = bytes([0x7e, 0x18, 0xfc, 0x68])
@@ -238,7 +238,7 @@ class TestProtocolV1_0(unittest.TestCase):
         payload += bytes([2,1,5]) + 'FLASH'.encode('ASCII')
         payload += bytes([5,2,7]) + 'SD CARD'.encode('ASCII')
 
-        payload = bytes([0x86,1,0]) + struct.pack('>H', len(payload)) + payload
+        payload = bytes([0x85,1,0]) + struct.pack('>H', len(payload)) + payload
         response = self.proto.respond_data_get_targets(targets)
 
         self.assert_req_response_bytes(response, payload)
@@ -260,13 +260,13 @@ class TestProtocolV1_0(unittest.TestCase):
 
     def test_response_datalog_get_buffer_size(self):
         response = self.proto.respond_datalog_get_bufsize(0x12345678)
-        self.assert_req_response_bytes(response, [0x86,2,0,0,4,0x12,0x34,0x56,0x78])
+        self.assert_req_response_bytes(response, [0x85,2,0,0,4,0x12,0x34,0x56,0x78])
         data = self.proto.parse_response(response)
         self.assertEqual(data['size'], 0x12345678)
 
     def test_response_datalog_get_sampling_rates(self):
         response = self.proto.respond_datalog_get_sampling_rates([0.1,1,10])
-        payload = bytes([0x86,3,0,0,12]) + struct.pack('>fff', 0.1,1,10)
+        payload = bytes([0x85,3,0,0,12]) + struct.pack('>fff', 0.1,1,10)
         self.assert_req_response_bytes(response, payload)
         data = self.proto.parse_response(response)
         self.assertEqual(len(data['sampling_rates']), 3)
@@ -276,18 +276,18 @@ class TestProtocolV1_0(unittest.TestCase):
 
     def test_response_datalog_arm_log(self):
         response = self.proto.respond_datalog_arm(record_id = 0x1234)
-        self.assert_req_response_bytes(response, [0x86,7,0,0,2, 0x12, 0x34])
+        self.assert_req_response_bytes(response, [0x85,7,0,0,2, 0x12, 0x34])
         data = self.proto.parse_response(response)
         self.assertEqual(data['record_id'], 0x1234)
 
     def test_response_datalog_disarm_log(self):
         response = self.proto.respond_datalog_disarm()
-        self.assert_req_response_bytes(response, [0x86,8,0,0,0])
+        self.assert_req_response_bytes(response, [0x85,8,0,0,0])
         data = self.proto.parse_response(response)
 
     def test_response_datalog_get_log_status(self):
         response = self.proto.respond_datalog_status(status=LogStatus.Triggered)
-        self.assert_req_response_bytes(response, [0x86,9,0,0,1,1])
+        self.assert_req_response_bytes(response, [0x85,9,0,0,1,1])
         data = self.proto.parse_response(response)
         self.assertEqual(data['status'], LogStatus.Triggered)
 
@@ -296,7 +296,7 @@ class TestProtocolV1_0(unittest.TestCase):
         recordings.append(RecordInfo(record_id=0x1234, location_type=DatalogLocation.Type.RAM, size=0x201 ))
         recordings.append(RecordInfo(record_id=0x4567, location_type=DatalogLocation.Type.ROM, size=0x333 ))
         response = self.proto.respond_datalog_list_recordings(recordings)
-        self.assert_req_response_bytes(response, [0x86,5,0,0, 10, 0x12, 0x34, 0, 0x02, 0x01, 0x45, 0x67, 1, 0x03, 0x33])
+        self.assert_req_response_bytes(response, [0x85,5,0,0, 10, 0x12, 0x34, 0, 0x02, 0x01, 0x45, 0x67, 1, 0x03, 0x33])
         data = self.proto.parse_response(response)
         self.assertEqual(len(data['recordings']), 2)
         self.assertEqual(data['recordings'][0].record_id, 0x1234)
@@ -309,7 +309,7 @@ class TestProtocolV1_0(unittest.TestCase):
     def test_response_datalog_read_recording(self):
         record_data = bytes(range(256))
         response = self.proto.respond_read_recording(record_id=0x1234, data=record_data)
-        payload = bytes([0x86,6,0,1,2, 0x12, 0x34])+record_data
+        payload = bytes([0x85,6,0,1,2, 0x12, 0x34])+record_data
         self.assert_req_response_bytes(response, payload)
         data = self.proto.parse_response(response)
         self.assertEqual(data['record_id'], 0x1234)
@@ -318,7 +318,7 @@ class TestProtocolV1_0(unittest.TestCase):
     def test_response_datalog_configure_log(self):
         record_data = bytes(range(256))
         response = self.proto.respond_configure_log(record_id=0x1234)
-        payload = bytes([0x86,4,0,0,2, 0x12, 0x34])
+        payload = bytes([0x85,4,0,0,2, 0x12, 0x34])
         self.assert_req_response_bytes(response, payload)
         data = self.proto.parse_response(response)
         self.assertEqual(data['record_id'], 0x1234)
@@ -328,11 +328,11 @@ class TestProtocolV1_0(unittest.TestCase):
 
     def test_response_user_cmd(self):
         response = self.proto.respond_user_command(10, bytes([1,2,3]))
-        self.assert_req_response_bytes(response, [0x87,10,0,0,3,1,2,3])
+        self.assert_req_response_bytes(response, [0x86,10,0,0,3,1,2,3])
         self.assertEqual(response.subfn, 10)
         self.assertEqual(response.payload, bytes([1,2,3]))
 
-# ============= EstablishComm ===============
+# ============= CommControl ===============
 
     def test_response_comm_discover(self):
         magic = bytes([0x7e, 0x18, 0xfc, 0x68])

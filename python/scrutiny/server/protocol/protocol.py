@@ -80,8 +80,8 @@ class Protocol:
         return Request(cmd.UserCommand, subfn, data) 
 
     def comm_discover(self, challenge):
-        data = cmd.EstablishComm.MAGIC + struct.pack('>L', challenge)
-        return Request(cmd.EstablishComm, cmd.EstablishComm.Subfunction.Discover, data) 
+        data = cmd.CommControl.MAGIC + struct.pack('>L', challenge)
+        return Request(cmd.CommControl, cmd.CommControl.Subfunction.Discover, data) 
 
     def parse_request(self, req):
         data = {'valid' : True}
@@ -131,10 +131,10 @@ class Protocol:
                     conf.trigger.operand2 = operands[1]
                     data['configuration'] = conf
            
-            elif req.command == cmd.EstablishComm:
-                subfn = cmd.EstablishComm.Subfunction(req.subfn)
+            elif req.command == cmd.CommControl:
+                subfn = cmd.CommControl.Subfunction(req.subfn)
             
-                if subfn == cmd.EstablishComm.Subfunction.Discover:          # EstablishComm - Discover
+                if subfn == cmd.CommControl.Subfunction.Discover:          # CommControl - Discover
                     data['magic'] = req.payload[0:4]
                     data['challenge'], = struct.unpack('>L', req.payload[4:8])
 
@@ -245,8 +245,8 @@ class Protocol:
         return Response(cmd.UserCommand, subfn, Response.ResponseCode.OK, data)
   
     def respond_comm_discover(self, challenge_echo):
-        resp_data = cmd.EstablishComm.MAGIC+struct.pack('>L', challenge_echo)
-        return Response(cmd.EstablishComm, cmd.EstablishComm.Subfunction.Discover, Response.ResponseCode.OK, resp_data)
+        resp_data = cmd.CommControl.MAGIC+struct.pack('>L', challenge_echo)
+        return Response(cmd.CommControl, cmd.CommControl.Subfunction.Discover, Response.ResponseCode.OK, resp_data)
 
     def parse_response(self, response):
         data = {'valid' : True}
@@ -331,10 +331,10 @@ class Protocol:
                     nrates = int(len(response.payload)/4)
                     data['sampling_rates'] = list(struct.unpack('>'+'f'*nrates, response.payload))
 
-            elif response.command == cmd.EstablishComm:
-                subfn = cmd.EstablishComm.Subfunction(response.subfn)
+            elif response.command == cmd.CommControl:
+                subfn = cmd.CommControl.Subfunction(response.subfn)
 
-                if subfn == cmd.EstablishComm.Subfunction.Discover:
+                if subfn == cmd.CommControl.Subfunction.Discover:
                     data['magic'] =  response.payload[0:4]
                     data['challenge_echo'], = struct.unpack('>L', response.payload[4:8])
 

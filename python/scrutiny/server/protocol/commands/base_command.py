@@ -27,5 +27,5 @@ from .datalog_control import DatalogControl
 from .get_info import GetInfo
 from .heartbeat import Heartbeat
 from .memory_control import MemoryControl
-from .establish_comm import EstablishComm
+from .comm_control import CommControl
 from .user_command import UserCommand

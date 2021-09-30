@@ -1,32 +1,43 @@
 #include <cstring>
 #include <iostream>
 
-#include "protocol/scrutiny_protocol.h"
+#include "protocol/scrutiny_comm_handler.h"
 #include "scrutiny_crc.h"
 
 namespace scrutiny
 {
-    Protocol::Protocol(uint8_t major, uint8_t minor, Timebase* timebase)
+namespace Protocol
+{
+    void CommHandler::init(uint8_t major, uint8_t minor, Timebase* timebase)
     {
         m_version.major = major;
         m_version.minor = minor;
         m_timebase = timebase;
 
-        m_active_request.data = m_rx_buffer;
+        m_active_request.data = m_buffer;   // Half duplex comm. Share buffer
+        m_active_response.data = m_buffer;  // Half duplex comm. Share buffer
+        m_state = eStateIdle;
+
 
         reset();
     }
 
-    uint8_t Protocol::process_data(uint8_t* data, uint32_t len)
+    void CommHandler::process_data(uint8_t* data, uint32_t len)
     {
         uint32_t i = 0;
 
+        if (m_state == eStateTransmitting)
+        {
+            return; // Half duplex comm. Discard data;
+        }
+        
         // Handle rx timeouts. Start a new reception if no data for too long
         if (m_rx_state != eRxStateWaitForCommand && len !=0 )
         {
             if (m_timebase->is_elapsed(m_last_rx_timestamp, SCRUTINY_COMM_TIMEOUT_US))
             {
                 reset_rx();
+                m_state = eStateIdle;
             }
         }
 
@@ -34,6 +45,11 @@ namespace scrutiny
         if (len != 0)
         {
             m_last_rx_timestamp = m_timebase->get_timestamp();
+
+            if (m_state == eStateIdle)
+            {
+                m_state = eStateReceiving;
+            }
         }
 
         // Process each bytes
@@ -100,7 +116,7 @@ namespace scrutiny
 
                 case eRxStateWaitForData:
                 {
-                    if (m_active_request.data_length > SCRUTINY_RX_BUFFER_SIZE)
+                    if (m_active_request.data_length > SCRUTINY_BUFFER_SIZE)
                     {
                         m_rx_error = eRxErrorOverflow;
                         m_rx_state = eRxStateError;
@@ -111,7 +127,7 @@ namespace scrutiny
                     const uint16_t missing_bytes = m_active_request.data_length - m_data_bytes_received;
                     const uint16_t data_bytes_to_read = (available_bytes >= missing_bytes) ? missing_bytes : available_bytes;
 
-                    std::memcpy(&m_rx_buffer[m_data_bytes_received], &data[i], data_bytes_to_read);
+                    std::memcpy(&m_buffer[m_data_bytes_received], &data[i], data_bytes_to_read);
                     m_data_bytes_received += data_bytes_to_read;
                     i += data_bytes_to_read;
 
@@ -140,6 +156,7 @@ namespace scrutiny
                     else if (m_crc_bytes_received == 3)
                     {
                         m_active_request.crc |= ((uint32_t)data[i]) << 0;
+                        m_state = eStateIdle;
 
                         if (check_crc(&m_active_request))
                         {
@@ -161,12 +178,25 @@ namespace scrutiny
                     break;
             }
         }
-
-
-        return 0;
     }
 
-    bool Protocol::check_crc(Request* req)
+    Response* CommHandler::prepare_response()
+    {
+        m_active_response.reset();
+        return &m_active_response;
+    }
+
+    void CommHandler::send_response(Response* response)
+    {
+        if (m_state == eStateReceiving)
+        {
+            return; // Half duplex comm. Discard data;
+        }
+
+        m_state = eStateTransmitting;
+    }
+
+    bool CommHandler::check_crc(Request* req)
     {
         uint32_t crc = 0;
         uint8_t header_data[4];
@@ -180,13 +210,19 @@ namespace scrutiny
     }
 
 
-    void Protocol::reset()
+    void CommHandler::add_crc(Response* response)
     {
-        std::memset(m_rx_buffer, 0, SCRUTINY_RX_BUFFER_SIZE);
+
+    }
+
+    void CommHandler::reset()
+    {
+        std::memset(m_buffer, 0, SCRUTINY_BUFFER_SIZE);
+        m_state = eStateIdle;
         reset_rx();
     }
 
-    void Protocol::reset_rx()
+    void CommHandler::reset_rx()
     {
         m_active_request.reset();
         m_rx_state = eRxStateWaitForCommand;
@@ -197,4 +233,14 @@ namespace scrutiny
         m_rx_error = eRxErrorNone;
         m_last_rx_timestamp = m_timebase->get_timestamp();
     }
-}
+
+
+    void CommHandler::encode_response_protocol_version(ResponseData* response_data, uint8_t* buffer)
+    {
+        buffer[0] = response_data->get_info.get_protocol_version.major;
+        buffer[1] = response_data->get_info.get_protocol_version.minor;
+    }
+
+
+}   // namespace Protocol
+}   // namespace scrutiny

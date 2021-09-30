@@ -2,7 +2,7 @@ from .base_command import BaseCommand
 from enum import Enum
 
 class DatalogControl(BaseCommand):
-    _cmd_id = 6
+    _cmd_id = 5
 
     class Subfunction(Enum):
         GetAvailableTarget = 1

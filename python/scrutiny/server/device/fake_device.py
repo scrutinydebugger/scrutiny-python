@@ -59,7 +59,7 @@ class FakeDevice:
 
     def process_request(self, request):
         if self.comm_established == False:
-            if request.command != cmd.EstablishComm:
+            if request.command != cmd.CommControl:
                 return None
 
         if request.command in self.request_to_fn_map:

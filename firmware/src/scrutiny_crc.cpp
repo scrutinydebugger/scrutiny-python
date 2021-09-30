@@ -1,23 +1,26 @@
 #include <cstdint>
 
-uint32_t crc32(const uint8_t *data, const uint32_t size, const uint32_t start_value)
+namespace scrutiny
 {
-    uint32_t crc = ~start_value;
-    
-    for(size_t i=0; i<size; i++) 
+    uint32_t crc32(const uint8_t *data, const uint32_t size, const uint32_t start_value)
     {
-        uint8_t byte = data[i];
-        for(unsigned int j=0; j<8; j++) 
+        uint32_t crc = ~start_value;
+        
+        for(size_t i=0; i<size; i++) 
         {
-            const unsigned int lsb = (byte^crc) & 1;
-            crc >>= 1;
-            if(lsb) 
+            uint8_t byte = data[i];
+            for(unsigned int j=0; j<8; j++) 
             {
-                crc ^= 0xEDB88320;
+                const unsigned int lsb = (byte^crc) & 1;
+                crc >>= 1;
+                if(lsb) 
+                {
+                    crc ^= 0xEDB88320;
+                }
+                byte >>= 1;
             }
-            byte >>= 1;
         }
+        
+        return ~crc;
     }
-    
-    return ~crc;
 }
