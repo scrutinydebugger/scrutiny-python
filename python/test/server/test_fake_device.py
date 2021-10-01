@@ -112,9 +112,9 @@ class TestMemoryControl(TestFakeDevice):
         self.assertEqual(data['address'], 0x2000)
         self.assertEqual(data['data'], bytes(range(256)))
 
-class TestHeartbeat(TestFakeDevice):
-    def test_check_alive(self):
-        req = self.protocol.check_alive(0x1234)
+class TestCommControl(TestFakeDevice):
+    def test_heartbeat(self):
+        req = self.protocol.comm_heartbeat(0x1234)
         response = self.send_req(req)
         data = self.validate_positive_response(req, response)
         self.assertEqual(data['challenge_echo'], 0x1234)

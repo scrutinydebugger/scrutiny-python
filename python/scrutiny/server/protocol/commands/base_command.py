@@ -25,7 +25,6 @@ class BaseCommand(ABC):
 
 from .datalog_control import DatalogControl
 from .get_info import GetInfo
-from .heartbeat import Heartbeat
 from .memory_control import MemoryControl
 from .comm_control import CommControl
 from .user_command import UserCommand

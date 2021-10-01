@@ -1,6 +1,7 @@
 #ifndef ___SCRUTINY_PROTOCOL_DEFINITION_H___
 #define ___SCRUTINY_PROTOCOL_DEFINITION_H___
 
+#include "scrutiny_software_id.h"
 
 namespace scrutiny
 {
@@ -56,11 +57,6 @@ namespace scrutiny
 
                 struct 
                 {
-                    uint8_t software_id[SOFTWARE_ID_LENGTH] ;
-                } get_software_id;
-
-                struct 
-                {
                     uint8_t major;
                     uint8_t minor;
                 } get_supported_features;
@@ -72,9 +68,8 @@ namespace scrutiny
             eCmdGetInfo         = 0x01,
             eCmdCommControl     = 0x02,
             eCmdMemoryControl   = 0x03,
-            eCmdHeartbeat       = 0x04,
-            eCmdDataLogControl  = 0x05,
-            eCmdUserCommand     = 0x06
+            eCmdDataLogControl  = 0x04,
+            eCmdUserCommand     = 0x05
         };
 
 

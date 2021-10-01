@@ -54,11 +54,20 @@ class TestProtocolV1_0(unittest.TestCase):
         self.assertEqual(data['address'], 0x12345678)
         self.assertEqual(data['data'], bytes([0x11, 0x22, 0x33]))
 
-# ============= Heartbeat ===============
+# ============= CommControl ===============
 
-    def test_req_heartbeat_check_alive(self):
-        req = self.proto.check_alive(0x1234)
-        self.assert_req_response_bytes(req, [4,1,0,2, 0x12, 0x34])
+    def test_req_comm_discover(self):
+        magic = bytes([0x7e, 0x18, 0xfc, 0x68])
+        request_bytes = bytes([2,1,0,0x08]) + magic + struct.pack('>L', 0x12345678)
+        req = self.proto.comm_discover(0x12345678)
+        self.assert_req_response_bytes(req, request_bytes)
+        data = self.proto.parse_request(req)
+        self.assertEqual(data['magic'], magic)
+        self.assertEqual(data['challenge'], 0x12345678)
+
+    def test_req_comm_heartbeat(self):
+        req = self.proto.comm_heartbeat(0x1234)
+        self.assert_req_response_bytes(req, [2,2,0,2, 0x12, 0x34])
         data = self.proto.parse_request(req)
         self.assertEqual(data['challenge'], 0x1234)
 
@@ -125,28 +134,28 @@ class TestProtocolV1_0(unittest.TestCase):
 
     def test_req_datalog_list_recordings(self):
         req = self.proto.datalog_get_list_recordings()
-        self.assert_req_response_bytes(req, [65,5,0,0])
+        self.assert_req_response_bytes(req, [5,5,0,0])
         data = self.proto.parse_request(req)
 
     def test_req_datalog_read_recording(self):
         req = self.proto.datalog_read_recording(record_id = 0x1234)
-        self.assert_req_response_bytes(req, [6,6,0,2, 0x12, 0x34])
+        self.assert_req_response_bytes(req, [5,6,0,2, 0x12, 0x34])
         data = self.proto.parse_request(req)
         self.assertEqual(data['record_id'], 0x1234)
 
     def test_req_datalog_arm_log(self):
         req = self.proto.datalog_arm()
-        self.assert_req_response_bytes(req, [65,7,0,0])
+        self.assert_req_response_bytes(req, [5,7,0,0])
         data = self.proto.parse_request(req)
 
     def test_req_datalog_disarm_log(self):
         req = self.proto.datalog_disarm()
-        self.assert_req_response_bytes(req, [65,8,0,0])
+        self.assert_req_response_bytes(req, [5,8,0,0])
         data = self.proto.parse_request(req)
 
     def test_req_datalog_get_log_status(self):
         req = self.proto.datalog_status()
-        self.assert_req_response_bytes(req, [65,9,0,0])
+        self.assert_req_response_bytes(req, [5,9,0,0])
         data = self.proto.parse_request(req)
 
 
@@ -154,20 +163,10 @@ class TestProtocolV1_0(unittest.TestCase):
 
     def test_req_user_command(self):
         req = self.proto.user_command(10, bytes([1,2,3]))
-        self.assert_req_response_bytes(req, [6,10,0,3, 1,2,3])
+        self.assert_req_response_bytes(req, [4,10,0,3, 1,2,3])
         self.assertEqual(req.subfn, 10)
         self.assertEqual(req.payload, bytes([1,2,3]))
 
-# ============= CommControl ===============
-
-    def test_req_comm_discover(self):
-        magic = bytes([0x7e, 0x18, 0xfc, 0x68])
-        request_bytes = bytes([2,1,0,0x08]) + magic + struct.pack('>L', 0x12345678)
-        req = self.proto.comm_discover(0x12345678)
-        self.assert_req_response_bytes(req, request_bytes)
-        data = self.proto.parse_request(req)
-        self.assertEqual(data['magic'], magic)
-        self.assertEqual(data['challenge'], 0x12345678)
 
 
 # ============================
@@ -216,11 +215,20 @@ class TestProtocolV1_0(unittest.TestCase):
         self.assertEqual(data['address'], 0x12345678)
         self.assertEqual(data['length'], 3)
 
-# ============= Heartbeat ===============
+# ============= CommControl ===============
 
-    def test_response_heartbeat_check_alive(self):
-        response = self.proto.respond_check_alive(0x1234)
-        self.assert_req_response_bytes(response, [0x84,2,0,0,2, 0x12, 0x34])
+    def test_response_comm_discover(self):
+        magic = bytes([0x7e, 0x18, 0xfc, 0x68])
+        response_bytes = bytes([0x82,1,0,0, 8]) + magic + struct.pack('>L', 0x87654321)
+        response = self.proto.respond_comm_discover(0x87654321)
+        self.assert_req_response_bytes(response, response_bytes)
+        data = self.proto.parse_response(response)
+        self.assertEqual(data['magic'], magic)
+        self.assertEqual(data['challenge_echo'], 0x87654321)
+
+    def test_response_comm_heartbeat(self):
+        response = self.proto.respond_comm_heartbeat(0x1234)
+        self.assert_req_response_bytes(response, [0x82,2,0,0,2, 0x12, 0x34])
         data = self.proto.parse_response(response)
         self.assertEqual(data['challenge_echo'], 0x1234)
         
@@ -323,22 +331,11 @@ class TestProtocolV1_0(unittest.TestCase):
         data = self.proto.parse_response(response)
         self.assertEqual(data['record_id'], 0x1234)
 
-
 # ============= UserCommand ===============
 
     def test_response_user_cmd(self):
         response = self.proto.respond_user_command(10, bytes([1,2,3]))
-        self.assert_req_response_bytes(response, [0x86,10,0,0,3,1,2,3])
+        self.assert_req_response_bytes(response, [0x84,10,0,0,3,1,2,3])
         self.assertEqual(response.subfn, 10)
         self.assertEqual(response.payload, bytes([1,2,3]))
 
-# ============= CommControl ===============
-
-    def test_response_comm_discover(self):
-        magic = bytes([0x7e, 0x18, 0xfc, 0x68])
-        response_bytes = bytes([0x82,1,0,0, 8]) + magic + struct.pack('>L', 0x87654321)
-        response = self.proto.respond_comm_discover(0x87654321)
-        self.assert_req_response_bytes(response, response_bytes)
-        data = self.proto.parse_response(response)
-        self.assertEqual(data['magic'], magic)
-        self.assertEqual(data['challenge_echo'], 0x87654321)

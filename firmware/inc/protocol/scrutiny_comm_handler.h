@@ -23,7 +23,8 @@ namespace scrutiny
             enum TxError
             {
                 eTxErrorNone,
-                eTxErrorOverflow
+                eTxErrorOverflow,
+                eTxErrorBusy
             };
 
             struct Version
@@ -34,7 +35,7 @@ namespace scrutiny
             
             void init(uint8_t major, uint8_t minor, Timebase* timebase);
             void process_data(uint8_t* data, uint32_t len);
-            void send_response(Response* response);
+            bool send_response(Response* response);
             void reset();
             Response* prepare_response();
 
@@ -54,7 +55,8 @@ namespace scrutiny
 
 
 
-            void encode_response_protocol_version(ResponseData* response_data, Response* response);
+            void encode_response_protocol_version(const ResponseData* response_data, Response* response);
+            void encode_response_software_id( Response* response);
 
         protected:
 

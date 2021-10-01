@@ -21,7 +21,7 @@ TEST(TestTimebase, CheckTimeouts)
 
    tb.reset();
    timestamp = tb.get_timestamp();
-   EXPECT_EQ(timestamp, 0);
+   EXPECT_EQ(timestamp, 0u);
 
    tb.step(0x7FFFFFFF);
    EXPECT_TRUE(tb.is_elapsed(timestamp, 0x7FFFFFFE));

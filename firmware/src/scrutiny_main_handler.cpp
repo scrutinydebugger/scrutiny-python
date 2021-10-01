@@ -15,6 +15,8 @@ void MainHandler::init(Config* config)
 
 void MainHandler::process(uint32_t timestep_us)
 {
+    m_timebase.step(timestep_us);
+
     if (m_comm_handler.request_received() && !m_processing_request)
     {   
         m_processing_request = true;
@@ -61,9 +63,6 @@ void MainHandler::process_request(Protocol::Request *request, Protocol::Response
         case Protocol::eCmdMemoryControl:
             break;
 
-        case Protocol::eCmdHeartbeat:
-            break;
-
         case Protocol::eCmdDataLogControl:
             break;
 
@@ -90,7 +89,7 @@ void MainHandler::process_get_info(Protocol::Request *request, Protocol::Respons
             break;
 
         case Protocol::GetInfo::eSubfnGetSoftwareId:
-            //software_id
+            m_comm_handler.encode_response_software_id(response);
             break;
 
         case Protocol::GetInfo::eSubfnGetSupportedFeatures:

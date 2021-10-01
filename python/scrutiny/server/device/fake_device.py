@@ -17,7 +17,7 @@ class FakeDevice:
         self.request_to_fn_map = {
             cmd.GetInfo         : self.process_get_info,
             cmd.MemoryControl   : self.process_memory_control,
-            cmd.Heartbeat       : self.process_heartbeat
+            cmd.CommControl     : self.process_comm_control
         }
         self.data_source = data_source
         if software_id is None:
@@ -144,21 +144,21 @@ class FakeDevice:
 
         return response
 
-    def process_heartbeat(self, req):
+    def process_comm_control(self, req):
         response =  None
-        self.logger.info("Processing Heartbeat request")
+        self.logger.info("Processing CommControl request")
         code = Response.ResponseCode.OK
 
         try:
             req_data = self.protocol.parse_request(req)
-            subfn = cmd.Heartbeat.Subfunction(req.subfn)
+            subfn = cmd.CommControl.Subfunction(req.subfn)
         except Exception as e:
             self.logger.debug(str(e))
             return Response(req.command, req.subfn, Response.ResponseCode.InvalidRequest)
 
-        if subfn == cmd.Heartbeat.Subfunction.CheckAlive:
+        if subfn == cmd.CommControl.Subfunction.Heartbeat:
             self.comm_timer.start()
-            response = self.protocol.respond_check_alive(req_data['challenge'])
+            response = self.protocol.respond_comm_heartbeat(req_data['challenge'])
         else:
             code = Response.ResponseCode.InvalidRequest
 

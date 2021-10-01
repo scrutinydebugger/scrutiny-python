@@ -1,9 +1,9 @@
 set(SCRUTINY_SOURCES 
 	src/scrutiny_main_handler.cpp
 	src/scrutiny_loop_handler.cpp
-	src/protocol/scrutiny_comm_handler.cpp
 	src/scrutiny_crc.cpp
 	src/scrutiny_software_id.cpp
+	src/protocol/scrutiny_comm_handler.cpp
 
 	inc/scrutiny.h
 	inc/scrutiny_config.h

@@ -59,7 +59,7 @@ namespace Protocol
             {
                 case eRxStateWaitForCommand:
                 {
-                    m_active_request.command_id = data[i];
+                    m_active_request.command_id = data[i] & 0x7F;
                     m_rx_state = eRxStateWaitForSubfunction;
                     i+=1;
                     break;
@@ -123,7 +123,7 @@ namespace Protocol
                         break;
                     }
 
-                    const uint16_t available_bytes = len-i;
+                    const uint16_t available_bytes = static_cast<uint16_t>(len-i);
                     const uint16_t missing_bytes = m_active_request.data_length - m_data_bytes_received;
                     const uint16_t data_bytes_to_read = (available_bytes >= missing_bytes) ? missing_bytes : available_bytes;
 
@@ -187,20 +187,22 @@ namespace Protocol
         return &m_active_response;
     }
 
-    void CommHandler::send_response(Response* response)
+    bool CommHandler::send_response(Response* response)
     {
-        if (m_state == eStateReceiving)
+        if (m_state != eStateIdle)
         {
-            return; // Half duplex comm. Discard data;
+            m_tx_error = eTxErrorBusy;
+            return false; // Half duplex comm. Discard data;
         }
 
         if (response->data_length > SCRUTINY_BUFFER_SIZE)
         {
+            reset_tx();
             m_tx_error = eTxErrorOverflow;
-            return;
+            return false;
         }
 
-        m_active_response.command_id = response->command_id;
+        m_active_response.command_id = response->command_id | 0x80;
         m_active_response.subfunction_id = response->subfunction_id;
         m_active_response.response_code = response->response_code;
         m_active_response.data_length = response->data_length;
@@ -212,10 +214,16 @@ namespace Protocol
         m_nbytes_to_send = 1 + 1 + 1 + 2 + m_active_response.data_length + 4;
 
         m_state = eStateTransmitting;
+        return true;
     }
     
     uint32_t CommHandler::pop_data(uint8_t* buffer, uint32_t len)
     {
+        if (m_state != eStateTransmitting)
+        {
+            return 0;
+        }
+
         const uint32_t nbytes_to_send = m_nbytes_to_send - m_nbytes_sent;
         uint32_t i=0;
         
@@ -289,11 +297,15 @@ namespace Protocol
             }
             else
             {
-                std::cout << "asdasdasdasd" << std::endl;
                 break;  // Should never go here.
             }
             m_nbytes_sent++;
             i++;
+        }
+
+        if (m_nbytes_sent >= m_nbytes_to_send)
+        {
+            reset_tx();
         }
 
         return i;
@@ -380,11 +392,17 @@ namespace Protocol
     }
 
 
-    void CommHandler::encode_response_protocol_version(ResponseData* response_data, Response* response)
+    void CommHandler::encode_response_protocol_version(const ResponseData* response_data, Response* response)
     {
         response->data_length = 2;
         response->data[0] = response_data->get_info.get_protocol_version.major;
         response->data[1] = response_data->get_info.get_protocol_version.minor;
+    }
+
+    void CommHandler::encode_response_software_id(Response* response)
+    {
+        response->data_length = sizeof(scrutiny::software_id);
+        std::memcpy(response->data, scrutiny::software_id, sizeof(scrutiny::software_id));
     }
 
 

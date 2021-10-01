@@ -29,8 +29,12 @@ class Protocol:
         data = struct.pack('>L', address) + bytes(data)
         return Request(cmd.MemoryControl, cmd.MemoryControl.Subfunction.Write, data)
 
-    def check_alive(self, challenge):
-        return Request(cmd.Heartbeat, cmd.Heartbeat.Subfunction.CheckAlive, struct.pack('>H', challenge))
+    def comm_discover(self, challenge):
+        data = cmd.CommControl.MAGIC + struct.pack('>L', challenge)
+        return Request(cmd.CommControl, cmd.CommControl.Subfunction.Discover, data) 
+
+    def comm_heartbeat(self, challenge):
+        return Request(cmd.CommControl, cmd.CommControl.Subfunction.Heartbeat, struct.pack('>H', challenge))
 
     def datalog_get_targets(self):
         return Request(cmd.DatalogControl, cmd.DatalogControl.Subfunction.GetAvailableTarget) 
@@ -79,9 +83,6 @@ class Protocol:
     def user_command(self, subfn, data=b''):
         return Request(cmd.UserCommand, subfn, data) 
 
-    def comm_discover(self, challenge):
-        data = cmd.CommControl.MAGIC + struct.pack('>L', challenge)
-        return Request(cmd.CommControl, cmd.CommControl.Subfunction.Discover, data) 
 
     def parse_request(self, req):
         data = {'valid' : True}
@@ -137,13 +138,9 @@ class Protocol:
                 if subfn == cmd.CommControl.Subfunction.Discover:          # CommControl - Discover
                     data['magic'] = req.payload[0:4]
                     data['challenge'], = struct.unpack('>L', req.payload[4:8])
-
-            elif req.command == cmd.Heartbeat:
-                subfn = cmd.Heartbeat.Subfunction(req.subfn)
-            
-                if subfn == cmd.Heartbeat.Subfunction.CheckAlive:          # Heartbeat - CheckAlive
+                
+                elif subfn == cmd.CommControl.Subfunction.Heartbeat: 
                     data['challenge'], = struct.unpack('>H', req.payload[0:2])
-
 
         except Exception as e:
             self.logger.error(str(e))
@@ -187,9 +184,13 @@ class Protocol:
             bytes1 |= 0x10
         
         return Response(cmd.GetInfo, cmd.GetInfo.Subfunction.GetSupportedFeatures, Response.ResponseCode.OK, bytes([bytes1]))
+  
+    def respond_comm_discover(self, challenge_echo):
+        resp_data = cmd.CommControl.MAGIC+struct.pack('>L', challenge_echo)
+        return Response(cmd.CommControl, cmd.CommControl.Subfunction.Discover, Response.ResponseCode.OK, resp_data)
 
-    def respond_check_alive(self, challenge_echo):
-        return Response(cmd.Heartbeat, cmd.Heartbeat.Subfunction.CheckAlive, Response.ResponseCode.OK, struct.pack('>H', challenge_echo))
+    def respond_comm_heartbeat(self, challenge_echo):
+        return Response(cmd.CommControl, cmd.CommControl.Subfunction.Heartbeat, Response.ResponseCode.OK, struct.pack('>H', challenge_echo))
 
     def respond_read_memory_block(self, address, memory_data):
         data = struct.pack('>L', address) + bytes(memory_data)
@@ -198,7 +199,6 @@ class Protocol:
     def respond_write_memory_block(self, address, length):
         data = struct.pack('>LH', address, length)
         return Response(cmd.MemoryControl, cmd.MemoryControl.Subfunction.Write, Response.ResponseCode.OK, data)
-
 
     def respond_data_get_targets(self, targets):
         data = bytes()
@@ -243,10 +243,6 @@ class Protocol:
 
     def respond_user_command(self, subfn, data=b''):
         return Response(cmd.UserCommand, subfn, Response.ResponseCode.OK, data)
-  
-    def respond_comm_discover(self, challenge_echo):
-        resp_data = cmd.CommControl.MAGIC+struct.pack('>L', challenge_echo)
-        return Response(cmd.CommControl, cmd.CommControl.Subfunction.Discover, Response.ResponseCode.OK, resp_data)
 
     def parse_response(self, response):
         data = {'valid' : True}
@@ -337,13 +333,8 @@ class Protocol:
                 if subfn == cmd.CommControl.Subfunction.Discover:
                     data['magic'] =  response.payload[0:4]
                     data['challenge_echo'], = struct.unpack('>L', response.payload[4:8])
-
-            elif response.command == cmd.Heartbeat:
-                subfn = cmd.Heartbeat.Subfunction(response.subfn)
-            
-                if subfn == cmd.Heartbeat.Subfunction.CheckAlive:          # Heartbeat - CheckAlive
+                elif subfn == cmd.CommControl.Subfunction.Heartbeat:      
                     data['challenge_echo'], = struct.unpack('>H', response.payload[0:2])
-
 
         except Exception as e:
             self.logger.error(str(e))

@@ -21,24 +21,33 @@ include_directories(".")
 enable_testing()
 
 include("../sources.cmake")
-
 list(TRANSFORM SCRUTINY_SOURCES PREPEND  "../")
 
-add_executable(scrutiny_test 
+set(TARGET_NAME scrutiny_test)
+
+add_executable(${TARGET_NAME}
   ${SCRUTINY_SOURCES}
   
   scrutiny_test.cpp
   test_timebase.cpp
   test_crc.cpp
   protocol/test_protocol_rx_parsing.cpp
-  protocol/test_protocol_get_info.cpp
   protocol/test_protocol_tx_parsing.cpp
+  protocol/test_comm_handler.cpp
+  commands/test_command_get_info.cpp
   )
 
 target_link_libraries(
-  scrutiny_test
+  ${TARGET_NAME}
   gtest_main
 )
 
+if(MSVC)
+  target_compile_options(${TARGET_NAME} PRIVATE /W4 /Od)
+else()
+  target_compile_options(${TARGET_NAME} PRIVATE -Wall -Wextra -Wpedantic)
+endif()
+
+
 include(GoogleTest)
-gtest_discover_tests(scrutiny_test)
+gtest_discover_tests(${TARGET_NAME})
