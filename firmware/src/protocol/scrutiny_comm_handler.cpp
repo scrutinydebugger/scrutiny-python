@@ -13,12 +13,11 @@ namespace Protocol
 
         m_active_request.data = m_buffer;   // Half duplex comm. Share buffer
         m_active_response.data = m_buffer;  // Half duplex comm. Share buffer
-        m_enabled = false;
 
         reset();
     }
 
-    void CommHandler::process_data(uint8_t* data, uint32_t len)
+    void CommHandler::receive_data(uint8_t* data, uint32_t len)
     {
         uint32_t i = 0;
 
@@ -353,6 +352,26 @@ namespace Protocol
         return true;
     }
 
+    void CommHandler::process()
+    {
+        if (m_timebase->is_elapsed(m_heartbeat_timestamp, SCRUTINY_COMM_HEARTBEAT_TMEOUT_US))
+        {
+            reset();    // Disable and reset all internal vars
+        }
+    }
+
+    bool CommHandler::heartbeat(uint8_t rolling_counter)
+    {
+        bool success = false;
+        if (m_enabled && (rolling_counter != m_last_heartbeat_rolling_counter || m_heartbeat_received == false))
+        {
+            m_heartbeat_received = true;
+            m_heartbeat_timestamp = m_timebase->get_timestamp();
+            m_last_heartbeat_rolling_counter = rolling_counter;
+            success = true;
+        }
+        return success;
+    }
     
     uint32_t CommHandler::data_to_send()
     {
@@ -396,7 +415,11 @@ namespace Protocol
     void CommHandler::reset()
     {
         m_state = eStateIdle;
+        m_enabled = false;
+        m_heartbeat_timestamp = m_timebase->get_timestamp();
         std::memset(m_buffer, 0, SCRUTINY_BUFFER_SIZE);
+        m_last_heartbeat_rolling_counter = 0;
+        m_heartbeat_received = false;
 
         reset_rx();
         reset_tx();

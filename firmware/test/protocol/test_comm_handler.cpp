@@ -71,3 +71,27 @@ TEST_F(TestCommHandler, TestConsecutiveSend)
    comm.pop_data(buf, n_to_read);
    ASSERT_EQ(std::memcmp( buf, expected_data, sizeof(expected_data)), 0);
 }
+
+TEST_F(TestCommHandler, TestHeartbeatTimeoutExpire) 
+{
+   comm.set_enabled();
+   ASSERT_TRUE(comm.is_enabled());
+   tb.step(SCRUTINY_COMM_HEARTBEAT_TMEOUT_US-1);
+   comm.process();
+   ASSERT_TRUE(comm.is_enabled());
+   comm.heartbeat(10); // first rolling counter always valid
+   tb.step(SCRUTINY_COMM_HEARTBEAT_TMEOUT_US-1);
+   comm.process();
+   ASSERT_TRUE(comm.is_enabled());
+   tb.step(SCRUTINY_COMM_HEARTBEAT_TMEOUT_US-1);
+   comm.heartbeat(11);
+   comm.process();
+   ASSERT_TRUE(comm.is_enabled());
+   tb.step(SCRUTINY_COMM_HEARTBEAT_TMEOUT_US-1);
+   comm.heartbeat(11);  // Will be ignored since rolling_counter didn't change.
+   comm.process();
+   ASSERT_TRUE(comm.is_enabled());
+   tb.step(1);
+   comm.process();
+   ASSERT_FALSE(comm.is_enabled());
+}

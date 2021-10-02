@@ -32,6 +32,11 @@ namespace scrutiny
                     uint8_t magic[sizeof(CommControl::DISCOVER_MAGIC)];
                     uint8_t challenge_response[4];
                 } discover;
+                struct
+                {
+                    uint8_t rolling_counter;
+                    uint8_t challenge_response[4];
+                } heartbeat;
             } comm_control;
         };
 
@@ -45,6 +50,12 @@ namespace scrutiny
                     uint8_t magic[sizeof(CommControl::DISCOVER_MAGIC)];
                     uint8_t challenge[4];
                 } discover;
+                
+                struct 
+                {
+                    uint8_t rolling_counter;
+                    uint8_t challenge[4];
+                } heartbeat;
             } comm_control;
         };
 
@@ -55,8 +66,10 @@ namespace scrutiny
             ResponseCode encode_response_protocol_version(const ResponseData* response_data, Response* response);
             ResponseCode encode_response_software_id( Response* response);
             ResponseCode encode_response_comm_discover(const ResponseData* response_data, Response* response);
+            ResponseCode encode_response_comm_heartbeat(const ResponseData* response_data, Response* response);
 
-            ResponseCode decode_comm_discover(const Request* request, RequestData* request_data);
+            ResponseCode decode_request_comm_discover(const Request* request, RequestData* request_data);
+            ResponseCode decode_request_comm_heartbeat(const Request* request, RequestData* request_data);
         } ;
     }
 }

@@ -16,6 +16,7 @@ void MainHandler::init()
 void MainHandler::process(uint32_t timestep_us)
 {
     m_timebase.step(timestep_us);
+    m_comm_handler.process();
 
     if (m_comm_handler.request_received() && !m_processing_request)
     {   
@@ -41,7 +42,6 @@ void MainHandler::process(uint32_t timestep_us)
 
 void MainHandler::process_request(Protocol::Request *request, Protocol::Response *response)
 {
-
     Protocol::ResponseCode code = Protocol::eResponseCode_FailureToProceed;
     response->reset();
 
@@ -55,23 +55,29 @@ void MainHandler::process_request(Protocol::Request *request, Protocol::Response
 
     switch (request->command_id)
     {
+        // =============    GetInfo        ============
         case Protocol::eCmdGetInfo:
             code = process_get_info(request, response);
             break;
 
+        // =============    CommControl    ============
         case Protocol::eCmdCommControl:
             code = process_comm_control(request, response);
             break;
 
+        // =============    MemoryControl  ============
         case Protocol::eCmdMemoryControl:
             break;
 
+        // =============    DataLogControl  ===========
         case Protocol::eCmdDataLogControl:
             break;
 
+        // =============    UserCommand     ===========
         case Protocol::eCmdUserCommand:
             break;
 
+        // ============================================
         default:
             response->response_code = Protocol::eResponseCode_UnsupportedFeature;
             break;
@@ -91,19 +97,23 @@ Protocol::ResponseCode MainHandler::process_get_info(Protocol::Request *request,
 
     switch (request->subfunction_id)
     {
+        // ===========  Get Protocol Version     ==========
         case Protocol::GetInfo::eSubfnGetProtocolVersion:
             response_data.get_info.get_protocol_version.major = PROTOCOL_VERSION_MAJOR(ACTUAL_PROTOCOL_VERSION);
             response_data.get_info.get_protocol_version.minor = PROTOCOL_VERSION_MINOR(ACTUAL_PROTOCOL_VERSION);
             code = m_codec.encode_response_protocol_version(&response_data, response);
             break;
 
+        // ===========  Get Software ID          ==========
         case Protocol::GetInfo::eSubfnGetSoftwareId:
             code = m_codec.encode_response_software_id(response);
             break;
 
+        // ===========  Get Supported Features   ==========
         case Protocol::GetInfo::eSubfnGetSupportedFeatures:
             break;
 
+        // =================================
         default:
             response->response_code = Protocol::eResponseCode_UnsupportedFeature;
             break;
@@ -120,8 +130,9 @@ Protocol::ResponseCode MainHandler::process_comm_control(Protocol::Request *requ
 
     switch (request->subfunction_id)
     {
+        // =========== Discover ==========
         case Protocol::CommControl::eSubfnDiscover:
-            code = m_codec.decode_comm_discover(request, &request_data);
+            code = m_codec.decode_request_comm_discover(request, &request_data);
             if (code != Protocol::eResponseCode_OK)
                 break;
 
@@ -134,10 +145,30 @@ Protocol::ResponseCode MainHandler::process_comm_control(Protocol::Request *requ
             code = m_codec.encode_response_comm_discover(&response_data, response);
             break;
 
+        // =========== Heartbeat ==========
         case Protocol::CommControl::eSubfnHeartbeat:
-            response->response_code = Protocol::eResponseCode_UnsupportedFeature;   // todo
+            code = m_codec.decode_request_comm_heartbeat(request, &request_data);
+            if (code != Protocol::eResponseCode_OK)
+                break;
+
+            bool success;
+            success = m_comm_handler.heartbeat(request_data.comm_control.heartbeat.rolling_counter);
+            if (!success)
+            {
+                code = Protocol::eResponseCode_InvalidRequest;
+                break;
+            }
+
+            response_data.comm_control.heartbeat.rolling_counter = request_data.comm_control.heartbeat.rolling_counter;
+            for (uint8_t i=0; i<sizeof(request_data.comm_control.heartbeat.challenge); i++)
+            {
+                response_data.comm_control.heartbeat.challenge_response[i] = ~request_data.comm_control.heartbeat.challenge[i];
+            }
+
+            code = m_codec.encode_response_comm_heartbeat(&response_data, response);
             break;
 
+        // =================================
         default:
             response->response_code = Protocol::eResponseCode_UnsupportedFeature;
             break;

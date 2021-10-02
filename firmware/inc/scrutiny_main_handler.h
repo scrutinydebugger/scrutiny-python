@@ -26,7 +26,7 @@ namespace scrutiny
 
         inline void receive_data(uint8_t* data, uint32_t len) 
         {
-            m_comm_handler.process_data(data, len);
+            m_comm_handler.receive_data(data, len);
         }
 
         inline uint32_t const data_to_send()

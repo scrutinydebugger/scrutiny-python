@@ -18,7 +18,7 @@ namespace scrutiny
         public:
            
             void init(Timebase* timebase);
-            void process_data(uint8_t* data, uint32_t len);
+            void receive_data(uint8_t* data, uint32_t len);
             bool send_response(Response* response);
             void reset();
             Response* prepare_response();
@@ -29,6 +29,8 @@ namespace scrutiny
             bool check_crc(const Request* req);
             void add_crc(Response* response);
             bool check_must_enable();
+            bool heartbeat(uint8_t rolling_counter);
+            void process();           
             
             inline void request_processed() { reset_rx();}
 
@@ -67,6 +69,9 @@ namespace scrutiny
             Timebase *m_timebase;
             State m_state;
             bool m_enabled;
+            uint32_t m_heartbeat_timestamp;
+            uint8_t m_last_heartbeat_rolling_counter;
+            bool m_heartbeat_received;
 
             // Reception
             uint8_t m_buffer[SCRUTINY_BUFFER_SIZE];
