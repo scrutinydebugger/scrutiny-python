@@ -1,9 +1,7 @@
-cmake -S . -B build
-@if not %ERRORLEVEL% == 0 goto ERROR
-cmake --build build
-@if not %ERRORLEVEL% == 0 goto ERROR
+cmake -S . -B build || goto ERROR
+cmake --build build || goto ERROR
 build\Debug\scrutiny_test.exe
-goto END
+@goto END
 
 :ERROR
 @echo Cannot run unit tests

@@ -93,6 +93,17 @@ namespace scrutiny
             };
         };
 
+        namespace CommControl
+        {
+            extern const uint8_t DISCOVER_MAGIC[4];
+
+            enum Subfunction
+            {
+                eSubfnDiscover  = 1,
+                eSubfnHeartbeat = 2
+            };
+        };
+
     }
 }
 

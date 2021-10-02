@@ -4,7 +4,7 @@
 #include "scrutiny_test.h"
 
 
-class TestCommHandler : public ::testing::Test 
+class TestCommHandler : public ScrutinyTest
 {
 protected:
    scrutiny::Timebase tb;
@@ -18,6 +18,7 @@ protected:
    {
       comm.init(&tb);
       response.data = response_buffer;
+      comm.set_enabled();
    }
 };
 
@@ -35,9 +36,9 @@ TEST_F(TestCommHandler, TestConsecutiveSend)
    response.data[2] = 0x33;
    response.valid = true;
    
-   scrutiny_test::add_crc(&response);
+   add_crc(&response);
    uint8_t expected_data[12] = {0x81,2,3,0,3,0x11, 0x22, 0x33};
-   scrutiny_test::add_crc(expected_data, 8);
+   add_crc(expected_data, 8);
 
    bool success;
    EXPECT_FALSE(comm.transmitting());

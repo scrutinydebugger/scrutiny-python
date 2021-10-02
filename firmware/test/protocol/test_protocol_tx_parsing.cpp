@@ -4,7 +4,7 @@
 #include "scrutiny_test.h"
 
 
-class TestTxParsing : public ::testing::Test 
+class TestTxParsing : public ScrutinyTest
 {
 protected:
    scrutiny::Timebase tb;
@@ -18,6 +18,7 @@ protected:
    {
       comm.init(&tb);
       response.data = response_buffer;
+      comm.set_enabled();
    }
 };
 
@@ -33,12 +34,12 @@ TEST_F(TestTxParsing, TestReadAllData)
    response.data[1] = 0x22;
    response.data[2] = 0x33;
    response.valid = true;
-   scrutiny_test::add_crc(&response);
+   add_crc(&response);
 
    comm.send_response(&response);
    
    uint8_t expected_data[12] = {0x81,2,3,0,3,0x11, 0x22, 0x33};
-   scrutiny_test::add_crc(expected_data, 8);
+   add_crc(expected_data, 8);
    
    uint32_t n_to_read = comm.data_to_send();
    ASSERT_GT(n_to_read, 0u);
@@ -64,12 +65,12 @@ TEST_F(TestTxParsing, TestReadBytePerByte)
    response.data[1] = 0x22;
    response.data[2] = 0x33;
    response.valid = true;
-   scrutiny_test::add_crc(&response);
+   add_crc(&response);
 
    comm.send_response(&response);
    
    uint8_t expected_data[12] = {0x81,2,3,0,3,0x11, 0x22, 0x33};
-   scrutiny_test::add_crc(expected_data, 8);
+   add_crc(expected_data, 8);
    
    uint32_t n_to_read = comm.data_to_send();
    ASSERT_GT(n_to_read, 0u);
@@ -98,12 +99,12 @@ TEST_F(TestTxParsing, TestReadByChunk)
    response.data[1] = 0x22;
    response.data[2] = 0x33;
    response.valid = true;
-   scrutiny_test::add_crc(&response);
+   add_crc(&response);
 
    comm.send_response(&response);
    
    uint8_t expected_data[12] = {0x81,2,3,0,3,0x11, 0x22, 0x33};
-   scrutiny_test::add_crc(expected_data, 8);
+   add_crc(expected_data, 8);
    
    uint32_t n_to_read = comm.data_to_send();
    uint8_t chunks[3] = {3,6,3};
@@ -133,12 +134,12 @@ TEST_F(TestTxParsing, TestReadMoreThanAvailable)
    response.data[1] = 0x22;
    response.data[2] = 0x33;
    response.valid = true;
-   scrutiny_test::add_crc(&response);
+   add_crc(&response);
 
    comm.send_response(&response);
    
    uint8_t expected_data[12] = {0x81,2,3,0,3,0x11, 0x22, 0x33};
-   scrutiny_test::add_crc(expected_data, 8);
+   add_crc(expected_data, 8);
    
    uint32_t n_to_read = comm.data_to_send();
    uint32_t nread = comm.pop_data(buf, n_to_read+10);

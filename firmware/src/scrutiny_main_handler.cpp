@@ -1,3 +1,5 @@
+#include <cstring>
+
 #include "scrutiny_main_handler.h"
 #include "scrutiny_software_id.h"
 
@@ -39,6 +41,8 @@ void MainHandler::process(uint32_t timestep_us)
 
 void MainHandler::process_request(Protocol::Request *request, Protocol::Response *response)
 {
+
+    Protocol::ResponseCode code = Protocol::eResponseCode_FailureToProceed;
     response->reset();
 
     if (!request->valid)
@@ -52,10 +56,11 @@ void MainHandler::process_request(Protocol::Request *request, Protocol::Response
     switch (request->command_id)
     {
         case Protocol::eCmdGetInfo:
-            process_get_info(request, response);
+            code = process_get_info(request, response);
             break;
 
         case Protocol::eCmdCommControl:
+            code = process_comm_control(request, response);
             break;
 
         case Protocol::eCmdMemoryControl:
@@ -71,22 +76,29 @@ void MainHandler::process_request(Protocol::Request *request, Protocol::Response
             response->response_code = Protocol::eResponseCode_UnsupportedFeature;
             break;
     }
+
+    response->response_code = static_cast<uint8_t>(code);
+    if (code != Protocol::eResponseCode_OK)
+    {
+        response->data_length = 0;
+    }
 }
 
-void MainHandler::process_get_info(Protocol::Request *request, Protocol::Response *response)
+Protocol::ResponseCode MainHandler::process_get_info(Protocol::Request *request, Protocol::Response *response)
 {
     Protocol::ResponseData response_data;
+    Protocol::ResponseCode code = Protocol::eResponseCode_FailureToProceed;
 
     switch (request->subfunction_id)
     {
         case Protocol::GetInfo::eSubfnGetProtocolVersion:
-            response_data.get_info.get_protocol_version.major = PROTOCOL_MAJOR;
-            response_data.get_info.get_protocol_version.minor = PROTOCOL_MINOR;
-            m_codec.encode_response_protocol_version(&response_data, response);
+            response_data.get_info.get_protocol_version.major = PROTOCOL_VERSION_MAJOR(ACTUAL_PROTOCOL_VERSION);
+            response_data.get_info.get_protocol_version.minor = PROTOCOL_VERSION_MINOR(ACTUAL_PROTOCOL_VERSION);
+            code = m_codec.encode_response_protocol_version(&response_data, response);
             break;
 
         case Protocol::GetInfo::eSubfnGetSoftwareId:
-            m_codec.encode_response_software_id(response);
+            code = m_codec.encode_response_software_id(response);
             break;
 
         case Protocol::GetInfo::eSubfnGetSupportedFeatures:
@@ -96,6 +108,42 @@ void MainHandler::process_get_info(Protocol::Request *request, Protocol::Respons
             response->response_code = Protocol::eResponseCode_UnsupportedFeature;
             break;
     }
+
+    return code;
+}
+
+Protocol::ResponseCode MainHandler::process_comm_control(Protocol::Request *request, Protocol::Response *response)
+{
+    Protocol::ResponseData response_data;
+    Protocol::RequestData request_data;
+    Protocol::ResponseCode code = Protocol::eResponseCode_FailureToProceed;
+
+    switch (request->subfunction_id)
+    {
+        case Protocol::CommControl::eSubfnDiscover:
+            code = m_codec.decode_comm_discover(request, &request_data);
+            if (code != Protocol::eResponseCode_OK)
+                break;
+
+            std::memcpy(response_data.comm_control.discover.magic, Protocol::CommControl::DISCOVER_MAGIC, sizeof(Protocol::CommControl::DISCOVER_MAGIC));
+            for (uint8_t i=0; i<sizeof(request_data.comm_control.discover.challenge); i++)
+            {
+                response_data.comm_control.discover.challenge_response[i] = ~request_data.comm_control.discover.challenge[i];
+            }
+
+            code = m_codec.encode_response_comm_discover(&response_data, response);
+            break;
+
+        case Protocol::CommControl::eSubfnHeartbeat:
+            response->response_code = Protocol::eResponseCode_UnsupportedFeature;   // todo
+            break;
+
+        default:
+            response->response_code = Protocol::eResponseCode_UnsupportedFeature;
+            break;
+    }
+
+    return code;
 }
 
 

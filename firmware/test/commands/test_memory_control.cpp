@@ -2,7 +2,7 @@
 #include "scrutiny.h"
 #include "scrutiny_test.h"
 
-class TestMemoryControl : public ::testing::Test 
+class TestMemoryControl : public ScrutinyTest
 {
 protected:
    scrutiny::Timebase tb;
@@ -13,6 +13,7 @@ protected:
    virtual void SetUp() 
    {
       scrutiny_handler.init();
+      scrutiny_handler.enable_comm();
    }
 };
 

@@ -26,16 +26,20 @@ namespace scrutiny
             uint32_t pop_data(uint8_t* buffer, uint32_t len);
             uint32_t data_to_send();
 
-            bool check_crc(Request* req);
+            bool check_crc(const Request* req);
             void add_crc(Response* response);
+            bool check_must_enable();
             
             inline void request_processed() { reset_rx();}
 
             inline bool request_received() {return m_request_received;}
             inline Request* get_request() {return &m_active_request;}
-            inline RxError get_rx_error() {return m_rx_error;}
-            inline bool transmitting() {return (m_state == eStateTransmitting);}
-            inline bool receiving() {return (m_state == eStateReceiving);}
+            inline RxError get_rx_error() const {return m_rx_error;}
+            inline bool transmitting() const {return (m_state == eStateTransmitting);}
+            inline bool receiving() const {return (m_state == eStateReceiving);}
+
+            inline bool is_enabled() const { return m_enabled;}
+            inline void set_enabled(const bool v=true) { m_enabled=v;}
 
         protected:
 
@@ -62,6 +66,7 @@ namespace scrutiny
 
             Timebase *m_timebase;
             State m_state;
+            bool m_enabled;
 
             // Reception
             uint8_t m_buffer[SCRUTINY_BUFFER_SIZE];

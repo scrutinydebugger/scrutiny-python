@@ -2,7 +2,9 @@
 #include "scrutiny.h"
 #include "scrutiny_test.h"
 
-class TestGetInfo : public ::testing::Test 
+#include <iostream>
+
+class TestGetInfo : public ScrutinyTest
 {
 protected:
    scrutiny::Timebase tb;
@@ -13,7 +15,23 @@ protected:
    virtual void SetUp() 
    {
       scrutiny_handler.init();
+      scrutiny_handler.enable_comm();
    }
+
+   ::testing::AssertionResult BUF_EQUAL( const uint8_t* candidate, const uint8_t* expected, const uint32_t size)
+    {
+        for (uint32_t i=0; i < size; ++i)
+        {
+            if (expected[i] != candidate[i])
+            {
+                return ::testing::AssertionFailure() << "candidate[" << i
+                    << "] (" << static_cast<uint32_t>(candidate[i]) << ") != expected[" << i
+                    << "] (" << static_cast<uint32_t>(expected[i]) << ")";
+            }
+        }
+
+        return ::testing::AssertionSuccess();
+    }
 };
 
 TEST_F(TestGetInfo, TestReadProtocolVersion) 
@@ -21,8 +39,8 @@ TEST_F(TestGetInfo, TestReadProtocolVersion)
    uint8_t request_data[8] = {1,1,0,0};
    uint8_t tx_buffer[32];
    uint8_t expected_response[11] = {0x81,1,0,0,2,1,0};   // Version 1.0
-   scrutiny_test::add_crc(request_data, 4);
-   scrutiny_test::add_crc(expected_response, 7);
+   add_crc(request_data, 4);
+   add_crc(expected_response, 7);
    scrutiny_handler.receive_data(request_data, 8);
    scrutiny_handler.process(0);
    uint32_t n_to_read = scrutiny_handler.data_to_send();
@@ -33,7 +51,7 @@ TEST_F(TestGetInfo, TestReadProtocolVersion)
    uint32_t nread = scrutiny_handler.pop_data(tx_buffer, n_to_read);
    EXPECT_EQ(nread, n_to_read);
 
-   ASSERT_EQ(std::memcmp( tx_buffer, expected_response, sizeof(expected_response)), 0);
+   ASSERT_BUF_EQ(tx_buffer, expected_response, sizeof(expected_response));
 }
 
 
@@ -47,14 +65,14 @@ TEST_F(TestGetInfo, TestReadSoftwareId)
    request_data[2] = (SOFTWARE_ID_LENGTH >> 8) & 0xFF;
    request_data[3] = SOFTWARE_ID_LENGTH & 0xFF;
    std::memcpy(&request_data[4], scrutiny::software_id, SOFTWARE_ID_LENGTH);
-   scrutiny_test::add_crc(request_data, 4+SOFTWARE_ID_LENGTH);
+   add_crc(request_data, 4+SOFTWARE_ID_LENGTH);
    
    // Make expected response
    uint8_t expected_response[9+SOFTWARE_ID_LENGTH] = {0x81,2,0};
    expected_response[3] = (SOFTWARE_ID_LENGTH >> 8) & 0xFF;
    expected_response[4] = SOFTWARE_ID_LENGTH & 0xFF;
    std::memcpy(&expected_response[5], scrutiny::software_id, SOFTWARE_ID_LENGTH);
-   scrutiny_test::add_crc(expected_response, 5+SOFTWARE_ID_LENGTH);
+   add_crc(expected_response, 5+SOFTWARE_ID_LENGTH);
 
    scrutiny_handler.receive_data(request_data, sizeof(request_data));
    scrutiny_handler.process(0);
@@ -66,6 +84,5 @@ TEST_F(TestGetInfo, TestReadSoftwareId)
    
    uint32_t nread = scrutiny_handler.pop_data(tx_buffer, n_to_read);
    EXPECT_EQ(nread, n_to_read);
-
-   ASSERT_EQ(std::memcmp( tx_buffer, expected_response, sizeof(expected_response)), 0);
+   ASSERT_BUF_EQ( tx_buffer, expected_response, sizeof(expected_response));
 }

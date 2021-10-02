@@ -3,7 +3,6 @@
 #include "scrutiny_comm_handler.h"
 #include "scrutiny_crc.h"
 
-
 namespace scrutiny
 {
 namespace Protocol
@@ -14,6 +13,7 @@ namespace Protocol
 
         m_active_request.data = m_buffer;   // Half duplex comm. Share buffer
         m_active_response.data = m_buffer;  // Half duplex comm. Share buffer
+        m_enabled = false;
 
         reset();
     }
@@ -156,9 +156,24 @@ namespace Protocol
 
                         if (check_crc(&m_active_request))
                         {
-                            m_active_request.valid = true;
-                            m_rx_state = eRxStateWaitForProcess;
-                            m_request_received = true;
+                            if (m_enabled == false)
+                            {
+                                if (check_must_enable())    // Check if we received a valid discover message
+                                {
+                                    m_enabled = true;
+                                }
+                            }
+
+                            if (m_enabled)
+                            {
+                                m_active_request.valid = true;
+                                m_rx_state = eRxStateWaitForProcess;
+                                m_request_received = true;
+                            }
+                            else
+                            {
+                                reset_rx();
+                            }
                         }
                         else
                         {
@@ -185,6 +200,11 @@ namespace Protocol
 
     bool CommHandler::send_response(Response* response)
     {
+        if (m_enabled == false)
+        {
+            return false;
+        }
+
         if (m_state != eStateIdle)
         {
             m_tx_error = eTxErrorBusy;
@@ -307,6 +327,33 @@ namespace Protocol
         return i;
     }
 
+    // Check if the last request received is a valid "Comm Discover request". If yes, enable comm (allow responses)
+    bool CommHandler::check_must_enable()
+    {
+        if (m_active_request.command_id != eCmdCommControl)
+        {
+            return false;
+        }
+
+        if (m_active_request.subfunction_id != CommControl::eSubfnDiscover)
+        {
+            return false;
+        }
+
+        if (m_active_request.data_length < sizeof(CommControl::DISCOVER_MAGIC))
+        {   
+            return false;
+        }
+
+        if (std::memcmp(CommControl::DISCOVER_MAGIC, m_active_request.data, sizeof(CommControl::DISCOVER_MAGIC)) != 0)
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    
     uint32_t CommHandler::data_to_send()
     {
         if (m_state != eStateTransmitting)
@@ -317,7 +364,7 @@ namespace Protocol
         return m_nbytes_to_send - m_nbytes_sent;
     }
 
-    bool CommHandler::check_crc(Request* req)
+    bool CommHandler::check_crc(const Request* req)
     {
         uint32_t crc = 0;
         uint8_t header_data[4];

@@ -7,11 +7,18 @@
 
 #include "scrutiny_software_id.h"
 
-#define SCRUTINY_MAX_LOOP 16
-#define SCRUTINY_BUFFER_SIZE 256
-#define SCRUTINY_COMM_TIMEOUT_US 50000 // Reset protocol state machine when no data is received for that amount of time.
-#define PROTOCOL_MAJOR 1
-#define PROTOCOL_MINOR 0
+#define PROTOCOL_VERSION(MAJOR, MINOR) ((((MAJOR) << 8) & 0xFF00) | ((MINOR) & 0xFF))
+#define PROTOCOL_VERSION_MAJOR(v) ((v>>8) & 0xFF)
+#define PROTOCOL_VERSION_MINOR(v) (v & 0xFF)
+
+// ========== Parameters ==========
+#define SCRUTINY_MAX_LOOP 16u
+#define SCRUTINY_BUFFER_SIZE 256u
+#define SCRUTINY_COMM_TIMEOUT_US 50000u // Reset reception state machine when no data is received for that amount of time.
+#define SCRUTINY_COMM_HEARTBEAT_TMEOUT_US 5000000u
+#define ACTUAL_PROTOCOL_VERSION PROTOCOL_VERSION(1u, 0u)
+// ================================
+
 
 namespace scrutiny
 {
@@ -20,17 +27,16 @@ namespace scrutiny
 
 
 // ========================= Sanity check =====================
-#if PROTOCOL_MAJOR == 1
-   #if PROTOCOL_MINOR == 0
-   #else
-   #error Unsupported protocol version
-   #endif   
-#else
+#if ACTUAL_PROTOCOL_VERSION != PROTOCOL_VERSION(1,0)  // Only v1.0 for now.
 #error Unsupported protocol version
 #endif
 
 #if SCRUTINY_BUFFER_SIZE > 0xFFFF
    #error Scrutiny protocol is limited to 16bits data length
+#endif
+
+#if SCRUTINY_BUFFER_SIZE < 32
+   #error Scrutiny protocol buffer size must be at least 32 bytes long
 #endif
 
 #if SCRUTINY_BUFFER_SIZE < SOFTWARE_ID_LENGTH

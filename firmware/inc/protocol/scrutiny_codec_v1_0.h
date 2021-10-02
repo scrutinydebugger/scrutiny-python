@@ -24,14 +24,39 @@ namespace scrutiny
                     uint8_t temp;
                 } get_supported_features;
             } get_info;
+
+            union 
+            {
+                struct
+                {
+                    uint8_t magic[sizeof(CommControl::DISCOVER_MAGIC)];
+                    uint8_t challenge_response[4];
+                } discover;
+            } comm_control;
+        };
+
+
+        union RequestData
+        {
+            union 
+            {
+                struct
+                {
+                    uint8_t magic[sizeof(CommControl::DISCOVER_MAGIC)];
+                    uint8_t challenge[4];
+                } discover;
+            } comm_control;
         };
 
 
         class CodecV1_0
         {
         public:
-            void encode_response_protocol_version(const ResponseData* response_data, Response* response);
-            void encode_response_software_id( Response* response);
+            ResponseCode encode_response_protocol_version(const ResponseData* response_data, Response* response);
+            ResponseCode encode_response_software_id( Response* response);
+            ResponseCode encode_response_comm_discover(const ResponseData* response_data, Response* response);
+
+            ResponseCode decode_comm_discover(const Request* request, RequestData* request_data);
         } ;
     }
 }
