@@ -41,9 +41,9 @@ namespace scrutiny
     private:
         //LoopHandler* m_loop_handlers[SCRUTINY_MAX_LOOP];
         Timebase m_timebase;
-        Protocol::CommHandler<PROTOCOL_MAJOR, PROTOCOL_MINOR> m_comm_handler;
+        Protocol::CommHandler m_comm_handler;
         bool m_processing_request;
-#if (PROTOCOL_MAJOR == 1) && (PROTOCOL_MINOR == 0)
+#if ACTUAL_PROTOCOL_VERSION == PROTOCOL_VERSION(1,0)
         Protocol::CodecV1_0 m_codec;
 #endif
     };

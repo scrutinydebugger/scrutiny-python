@@ -13,7 +13,6 @@ namespace scrutiny
 {
     namespace Protocol
     {
-        template<uint8_t MAJOR, uint8_t MINOR>
         class CommHandler
         {
         public:
@@ -75,7 +74,6 @@ namespace scrutiny
             uint16_t m_data_bytes_received;
             uint32_t m_last_rx_timestamp;
             
-
             // Transmission
             Response m_active_response;
             uint32_t m_nbytes_to_send;

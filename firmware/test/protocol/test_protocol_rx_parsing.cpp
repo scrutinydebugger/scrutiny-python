@@ -7,7 +7,7 @@ class TestRxParsing : public ::testing::Test
 {
 protected:
    scrutiny::Timebase tb;
-   scrutiny::Protocol::CommHandler<1,0> comm;
+   scrutiny::Protocol::CommHandler comm;
 
    TestRxParsing() {}
 

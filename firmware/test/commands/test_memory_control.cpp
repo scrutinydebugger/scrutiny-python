@@ -12,11 +12,7 @@ protected:
 
    virtual void SetUp() 
    {
-      scrutiny::Config config; 
-      config.protocol_major = 1;
-      config.protocol_minor = 0;
-
-      scrutiny_handler.init(&config);
+      scrutiny_handler.init();
    }
 };
 

@@ -4,15 +4,11 @@
 #include "scrutiny_crc.h"
 
 
-
 namespace scrutiny
 {
 namespace Protocol
 {
-    template class CommHandler<PROTOCOL_MAJOR, PROTOCOL_MINOR>;
-
-    template<uint8_t MAJOR, uint8_t MINOR>
-    void CommHandler<MAJOR,MINOR>::init(Timebase* timebase)
+    void CommHandler::init(Timebase* timebase)
     {
         m_timebase = timebase;
 
@@ -22,8 +18,7 @@ namespace Protocol
         reset();
     }
 
-    template<uint8_t MAJOR, uint8_t MINOR>
-    void CommHandler<MAJOR,MINOR>::process_data(uint8_t* data, uint32_t len)
+    void CommHandler::process_data(uint8_t* data, uint32_t len)
     {
         uint32_t i = 0;
 
@@ -182,15 +177,13 @@ namespace Protocol
         }
     }
 
-    template<uint8_t MAJOR, uint8_t MINOR>
-    Response* CommHandler<MAJOR, MINOR>::prepare_response()
+    Response* CommHandler::prepare_response()
     {
         m_active_response.reset();
         return &m_active_response;
     }
 
-    template<uint8_t MAJOR, uint8_t MINOR>
-    bool CommHandler<MAJOR, MINOR>::send_response(Response* response)
+    bool CommHandler::send_response(Response* response)
     {
         if (m_state != eStateIdle)
         {
@@ -220,8 +213,7 @@ namespace Protocol
         return true;
     }
     
-    template<uint8_t MAJOR, uint8_t MINOR>
-    uint32_t CommHandler<MAJOR, MINOR>::pop_data(uint8_t* buffer, uint32_t len)
+    uint32_t CommHandler::pop_data(uint8_t* buffer, uint32_t len)
     {
         if (m_state != eStateTransmitting)
         {
@@ -315,8 +307,7 @@ namespace Protocol
         return i;
     }
 
-    template<uint8_t MAJOR, uint8_t MINOR>
-    uint32_t CommHandler<MAJOR, MINOR>::data_to_send()
+    uint32_t CommHandler::data_to_send()
     {
         if (m_state != eStateTransmitting)
         {
@@ -326,8 +317,7 @@ namespace Protocol
         return m_nbytes_to_send - m_nbytes_sent;
     }
 
-    template<uint8_t MAJOR, uint8_t MINOR>
-    bool CommHandler<MAJOR, MINOR>::check_crc(Request* req)
+    bool CommHandler::check_crc(Request* req)
     {
         uint32_t crc = 0;
         uint8_t header_data[4];
@@ -340,8 +330,7 @@ namespace Protocol
         return (crc == req->crc);
     }
 
-    template<uint8_t MAJOR, uint8_t MINOR>
-    void CommHandler<MAJOR, MINOR>::add_crc(Response* response)
+    void CommHandler::add_crc(Response* response)
     {
         if (response->data_length > SCRUTINY_BUFFER_SIZE)
             return;
@@ -357,8 +346,7 @@ namespace Protocol
         response->crc = scrutiny::crc32(response->data, response->data_length, crc);
     }
 
-    template<uint8_t MAJOR, uint8_t MINOR>
-    void CommHandler<MAJOR, MINOR>::reset()
+    void CommHandler::reset()
     {
         m_state = eStateIdle;
         std::memset(m_buffer, 0, SCRUTINY_BUFFER_SIZE);
@@ -367,8 +355,7 @@ namespace Protocol
         reset_tx();
     }
 
-    template<uint8_t MAJOR, uint8_t MINOR>
-    void CommHandler<MAJOR, MINOR>::reset_rx()
+    void CommHandler::reset_rx()
     {
         m_active_request.reset();
         m_rx_state = eRxStateWaitForCommand;
@@ -385,8 +372,7 @@ namespace Protocol
         }
     }
 
-    template<uint8_t MAJOR, uint8_t MINOR>
-    void CommHandler<MAJOR, MINOR>::reset_tx()
+    void CommHandler::reset_tx()
     {
         m_active_response.reset();
         m_nbytes_to_send = 0;

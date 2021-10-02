@@ -8,7 +8,7 @@ class TestTxParsing : public ::testing::Test
 {
 protected:
    scrutiny::Timebase tb;
-   scrutiny::Protocol::CommHandler<1,0> comm;
+   scrutiny::Protocol::CommHandler comm;
    uint8_t response_buffer[256];
    scrutiny::Protocol::Response response;
 
