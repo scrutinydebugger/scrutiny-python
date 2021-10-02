@@ -1,16 +1,14 @@
 #include "scrutiny_main_handler.h"
 #include "scrutiny_software_id.h"
 
-#include <iostream>
-
 namespace scrutiny
 {
 
 
-void MainHandler::init(Config* config)
+void MainHandler::init()
 {
     m_processing_request = false;
-    m_comm_handler.init(config->protocol_major, config->protocol_minor, &m_timebase);
+    m_comm_handler.init(&m_timebase);
 }
 
 void MainHandler::process(uint32_t timestep_us)
@@ -82,14 +80,13 @@ void MainHandler::process_get_info(Protocol::Request *request, Protocol::Respons
     switch (request->subfunction_id)
     {
         case Protocol::GetInfo::eSubfnGetProtocolVersion:
-            Protocol::CommHandler::Version version = m_comm_handler.get_version();
-            response_data.get_info.get_protocol_version.major = version.major;
-            response_data.get_info.get_protocol_version.minor = version.minor;
-            m_comm_handler.encode_response_protocol_version(&response_data, response);
+            response_data.get_info.get_protocol_version.major = PROTOCOL_MAJOR;
+            response_data.get_info.get_protocol_version.minor = PROTOCOL_MINOR;
+            m_codec.encode_response_protocol_version(&response_data, response);
             break;
 
         case Protocol::GetInfo::eSubfnGetSoftwareId:
-            m_comm_handler.encode_response_software_id(response);
+            m_codec.encode_response_software_id(response);
             break;
 
         case Protocol::GetInfo::eSubfnGetSupportedFeatures:

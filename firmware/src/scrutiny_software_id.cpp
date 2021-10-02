@@ -1,6 +1,5 @@
 #include <cstdint>
 
-#define SCRUTINY_SOFTARE_ID_CPP
 #include "scrutiny_software_id.h"
 
 namespace scrutiny

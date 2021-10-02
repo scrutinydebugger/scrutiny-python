@@ -10,7 +10,8 @@
 #define SCRUTINY_MAX_LOOP 16
 #define SCRUTINY_BUFFER_SIZE 256
 #define SCRUTINY_COMM_TIMEOUT_US 50000 // Reset protocol state machine when no data is received for that amount of time.
-
+#define PROTOCOL_MAJOR 1
+#define PROTOCOL_MINOR 0
 
 namespace scrutiny
 {
@@ -18,8 +19,15 @@ namespace scrutiny
 };
 
 
-
-
+// ========================= Sanity check =====================
+#if PROTOCOL_MAJOR == 1
+   #if PROTOCOL_MINOR == 0
+   #else
+   #error Unsupported protocol version
+   #endif   
+#else
+#error Unsupported protocol version
+#endif
 
 #if SCRUTINY_BUFFER_SIZE > 0xFFFF
    #error Scrutiny protocol is limited to 16bits data length

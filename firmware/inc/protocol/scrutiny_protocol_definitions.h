@@ -1,8 +1,6 @@
 #ifndef ___SCRUTINY_PROTOCOL_DEFINITION_H___
 #define ___SCRUTINY_PROTOCOL_DEFINITION_H___
 
-#include "scrutiny_software_id.h"
-
 namespace scrutiny
 {
     namespace Protocol
@@ -45,24 +43,6 @@ namespace scrutiny
             bool valid;
         };
 
-        union ResponseData
-        {
-            union
-            {
-                struct 
-                {
-                    uint8_t major;
-                    uint8_t minor;
-                } get_protocol_version;
-
-                struct 
-                {
-                    uint8_t major;
-                    uint8_t minor;
-                } get_supported_features;
-            } get_info;
-        };
-
         enum CommandId
         {
             eCmdGetInfo         = 0x01,
@@ -81,6 +61,25 @@ namespace scrutiny
             eResponseCode_Overflow = 3,
             eResponseCode_Busy = 4,
             eResponseCode_FailureToProceed = 5
+        };
+
+        enum RxError
+        {
+            eRxErrorNone,
+            eRxErrorOverflow
+        };
+
+        enum TxError
+        {
+            eTxErrorNone,
+            eTxErrorOverflow,
+            eTxErrorBusy
+        };
+
+        struct Version
+        {
+            uint8_t major;
+            uint8_t minor;
         };
 
 

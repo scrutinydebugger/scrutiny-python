@@ -8,7 +8,7 @@ class TestCommHandler : public ::testing::Test
 {
 protected:
    scrutiny::Timebase tb;
-   scrutiny::Protocol::CommHandler comm;
+   scrutiny::Protocol::CommHandler<1,0> comm;
    uint8_t response_buffer[256];
    scrutiny::Protocol::Response response;
 
@@ -16,7 +16,7 @@ protected:
 
    virtual void SetUp() 
    {
-      comm.init(1,0, &tb);
+      comm.init(&tb);
       response.data = response_buffer;
    }
 };

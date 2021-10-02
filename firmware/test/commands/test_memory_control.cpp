@@ -2,8 +2,6 @@
 #include "scrutiny.h"
 #include "scrutiny_test.h"
 
-#include <iostream>
-
 class TestMemoryControl : public ::testing::Test 
 {
 protected:

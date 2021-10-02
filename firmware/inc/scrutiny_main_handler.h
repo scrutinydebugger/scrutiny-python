@@ -6,9 +6,7 @@
 #include "scrutiny_setup.h"
 #include "scrutiny_loop_handler.h"
 #include "scrutiny_timebase.h"
-#include "protocol/scrutiny_protocol.h"
-#include "scrutiny_config.h"
-
+#include "scrutiny_protocol.h"
 
 namespace scrutiny
 {
@@ -16,7 +14,7 @@ namespace scrutiny
     {
 
     public:
-        void init(Config* config);
+        void init();
         //void process_loop(loop_id_t loop);
         //loop_id_t add_loop(LoopHandler* loop);
         
@@ -43,8 +41,11 @@ namespace scrutiny
     private:
         //LoopHandler* m_loop_handlers[SCRUTINY_MAX_LOOP];
         Timebase m_timebase;
-        Protocol::CommHandler m_comm_handler;
+        Protocol::CommHandler<PROTOCOL_MAJOR, PROTOCOL_MINOR> m_comm_handler;
         bool m_processing_request;
+#if (PROTOCOL_MAJOR == 1) && (PROTOCOL_MINOR == 0)
+        Protocol::CodecV1_0 m_codec;
+#endif
     };
 }
 

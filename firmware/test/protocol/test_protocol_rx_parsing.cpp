@@ -7,13 +7,13 @@ class TestRxParsing : public ::testing::Test
 {
 protected:
    scrutiny::Timebase tb;
-   scrutiny::Protocol::CommHandler comm;
+   scrutiny::Protocol::CommHandler<1,0> comm;
 
    TestRxParsing() {}
 
    virtual void SetUp() 
    {
-      comm.init(1,0, &tb);
+      comm.init(&tb);
    }
 };
 
@@ -30,7 +30,7 @@ TEST_F(TestRxParsing, TestRx_ZeroLen_AllInOne)
   EXPECT_EQ(req->subfunction_id, 2);
   EXPECT_EQ(req->data_length, 0);
   
-  EXPECT_EQ(comm.get_rx_error(), scrutiny::Protocol::CommHandler::eRxErrorNone);
+  EXPECT_EQ(comm.get_rx_error(), scrutiny::Protocol::eRxErrorNone);
 }
 
 //=============================================================================
@@ -50,7 +50,7 @@ TEST_F(TestRxParsing, TestRx_ZeroLen_BytePerByte)
   EXPECT_EQ(req->subfunction_id, 2);
   EXPECT_EQ(req->data_length, 0);
 
-  EXPECT_EQ(comm.get_rx_error(), scrutiny::Protocol::CommHandler::eRxErrorNone);
+  EXPECT_EQ(comm.get_rx_error(), scrutiny::Protocol::eRxErrorNone);
 }
 
 //=============================================================================
@@ -69,7 +69,7 @@ TEST_F(TestRxParsing, TestRx_NonZeroLen_AllInOne)
   EXPECT_EQ(req->data[1], 0x22);
   EXPECT_EQ(req->data[2], 0x33);
   
-  EXPECT_EQ(comm.get_rx_error(), scrutiny::Protocol::CommHandler::eRxErrorNone);
+  EXPECT_EQ(comm.get_rx_error(), scrutiny::Protocol::eRxErrorNone);
 }
 
 //=============================================================================
@@ -92,7 +92,7 @@ TEST_F(TestRxParsing, TestRx_NonZeroLen_BytePerByte)
   EXPECT_EQ(req->data[1], 0x22);
   EXPECT_EQ(req->data[2], 0x33);
   
-  EXPECT_EQ(comm.get_rx_error(), scrutiny::Protocol::CommHandler::eRxErrorNone);
+  EXPECT_EQ(comm.get_rx_error(), scrutiny::Protocol::eRxErrorNone);
 }
 
 //=============================================================================
@@ -108,7 +108,7 @@ TEST_F(TestRxParsing, TestRx_Overflow)
   comm.process_data(data, sizeof(data));
 
   ASSERT_FALSE(comm.request_received());
-  EXPECT_EQ(comm.get_rx_error(), scrutiny::Protocol::CommHandler::eRxErrorOverflow);
+  EXPECT_EQ(comm.get_rx_error(), scrutiny::Protocol::eRxErrorOverflow);
 }
 
 //=============================================================================

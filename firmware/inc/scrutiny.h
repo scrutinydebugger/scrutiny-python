@@ -2,7 +2,6 @@
 #define ___SCRUTINY_H___
 
 #include "scrutiny_setup.h"
-#include "scrutiny_config.h"
 #include "scrutiny_software_id.h"
 #include "scrutiny_timebase.h"
 #include "scrutiny_crc.h"

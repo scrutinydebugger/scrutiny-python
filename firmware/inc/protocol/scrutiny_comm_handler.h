@@ -5,35 +5,20 @@
 
 #include "scrutiny_setup.h"
 #include "scrutiny_timebase.h"
-#include "protocol/scrutiny_protocol_definitions.h"
+#include "scrutiny_protocol.h"
+
+#include "scrutiny_protocol_definitions.h"
 
 namespace scrutiny
 {
     namespace Protocol
     {
+        template<uint8_t MAJOR, uint8_t MINOR>
         class CommHandler
         {
         public:
-            enum RxError
-            {
-                eRxErrorNone,
-                eRxErrorOverflow
-            };
-
-            enum TxError
-            {
-                eTxErrorNone,
-                eTxErrorOverflow,
-                eTxErrorBusy
-            };
-
-            struct Version
-            {
-                uint8_t major;
-                uint8_t minor;
-            };
-            
-            void init(uint8_t major, uint8_t minor, Timebase* timebase);
+           
+            void init(Timebase* timebase);
             void process_data(uint8_t* data, uint32_t len);
             bool send_response(Response* response);
             void reset();
@@ -46,17 +31,12 @@ namespace scrutiny
             void add_crc(Response* response);
             
             inline void request_processed() { reset_rx();}
-            inline Version get_version() { return m_version;}
+
             inline bool request_received() {return m_request_received;}
             inline Request* get_request() {return &m_active_request;}
             inline RxError get_rx_error() {return m_rx_error;}
             inline bool transmitting() {return (m_state == eStateTransmitting);}
             inline bool receiving() {return (m_state == eStateReceiving);}
-
-
-
-            void encode_response_protocol_version(const ResponseData* response_data, Response* response);
-            void encode_response_software_id( Response* response);
 
         protected:
 
@@ -81,7 +61,6 @@ namespace scrutiny
             void reset_rx();
             void reset_tx();
 
-            Version m_version;
             Timebase *m_timebase;
             State m_state;
 
@@ -95,7 +74,7 @@ namespace scrutiny
             uint8_t m_length_bytes_received;
             uint16_t m_data_bytes_received;
             uint32_t m_last_rx_timestamp;
-
+            
 
             // Transmission
             Response m_active_response;
@@ -105,7 +84,6 @@ namespace scrutiny
         };
     };
 };
-
 
 
 

@@ -1,19 +1,19 @@
 #include <cstring>
-#include <iostream>
 
-#include "protocol/scrutiny_comm_handler.h"
+#include "scrutiny_comm_handler.h"
 #include "scrutiny_crc.h"
 
-#include <iostream>
+
 
 namespace scrutiny
 {
 namespace Protocol
 {
-    void CommHandler::init(uint8_t major, uint8_t minor, Timebase* timebase)
+    template class CommHandler<PROTOCOL_MAJOR, PROTOCOL_MINOR>;
+
+    template<uint8_t MAJOR, uint8_t MINOR>
+    void CommHandler<MAJOR,MINOR>::init(Timebase* timebase)
     {
-        m_version.major = major;
-        m_version.minor = minor;
         m_timebase = timebase;
 
         m_active_request.data = m_buffer;   // Half duplex comm. Share buffer
@@ -22,7 +22,8 @@ namespace Protocol
         reset();
     }
 
-    void CommHandler::process_data(uint8_t* data, uint32_t len)
+    template<uint8_t MAJOR, uint8_t MINOR>
+    void CommHandler<MAJOR,MINOR>::process_data(uint8_t* data, uint32_t len)
     {
         uint32_t i = 0;
 
@@ -181,13 +182,15 @@ namespace Protocol
         }
     }
 
-    Response* CommHandler::prepare_response()
+    template<uint8_t MAJOR, uint8_t MINOR>
+    Response* CommHandler<MAJOR, MINOR>::prepare_response()
     {
         m_active_response.reset();
         return &m_active_response;
     }
 
-    bool CommHandler::send_response(Response* response)
+    template<uint8_t MAJOR, uint8_t MINOR>
+    bool CommHandler<MAJOR, MINOR>::send_response(Response* response)
     {
         if (m_state != eStateIdle)
         {
@@ -217,7 +220,8 @@ namespace Protocol
         return true;
     }
     
-    uint32_t CommHandler::pop_data(uint8_t* buffer, uint32_t len)
+    template<uint8_t MAJOR, uint8_t MINOR>
+    uint32_t CommHandler<MAJOR, MINOR>::pop_data(uint8_t* buffer, uint32_t len)
     {
         if (m_state != eStateTransmitting)
         {
@@ -311,7 +315,8 @@ namespace Protocol
         return i;
     }
 
-    uint32_t CommHandler::data_to_send()
+    template<uint8_t MAJOR, uint8_t MINOR>
+    uint32_t CommHandler<MAJOR, MINOR>::data_to_send()
     {
         if (m_state != eStateTransmitting)
         {
@@ -321,8 +326,8 @@ namespace Protocol
         return m_nbytes_to_send - m_nbytes_sent;
     }
 
-
-    bool CommHandler::check_crc(Request* req)
+    template<uint8_t MAJOR, uint8_t MINOR>
+    bool CommHandler<MAJOR, MINOR>::check_crc(Request* req)
     {
         uint32_t crc = 0;
         uint8_t header_data[4];
@@ -335,8 +340,8 @@ namespace Protocol
         return (crc == req->crc);
     }
 
-
-    void CommHandler::add_crc(Response* response)
+    template<uint8_t MAJOR, uint8_t MINOR>
+    void CommHandler<MAJOR, MINOR>::add_crc(Response* response)
     {
         if (response->data_length > SCRUTINY_BUFFER_SIZE)
             return;
@@ -352,7 +357,8 @@ namespace Protocol
         response->crc = scrutiny::crc32(response->data, response->data_length, crc);
     }
 
-    void CommHandler::reset()
+    template<uint8_t MAJOR, uint8_t MINOR>
+    void CommHandler<MAJOR, MINOR>::reset()
     {
         m_state = eStateIdle;
         std::memset(m_buffer, 0, SCRUTINY_BUFFER_SIZE);
@@ -361,7 +367,8 @@ namespace Protocol
         reset_tx();
     }
 
-    void CommHandler::reset_rx()
+    template<uint8_t MAJOR, uint8_t MINOR>
+    void CommHandler<MAJOR, MINOR>::reset_rx()
     {
         m_active_request.reset();
         m_rx_state = eRxStateWaitForCommand;
@@ -378,7 +385,8 @@ namespace Protocol
         }
     }
 
-    void CommHandler::reset_tx()
+    template<uint8_t MAJOR, uint8_t MINOR>
+    void CommHandler<MAJOR, MINOR>::reset_tx()
     {
         m_active_response.reset();
         m_nbytes_to_send = 0;
@@ -390,21 +398,6 @@ namespace Protocol
             m_state = eStateIdle;
         }
     }
-
-
-    void CommHandler::encode_response_protocol_version(const ResponseData* response_data, Response* response)
-    {
-        response->data_length = 2;
-        response->data[0] = response_data->get_info.get_protocol_version.major;
-        response->data[1] = response_data->get_info.get_protocol_version.minor;
-    }
-
-    void CommHandler::encode_response_software_id(Response* response)
-    {
-        response->data_length = sizeof(scrutiny::software_id);
-        std::memcpy(response->data, scrutiny::software_id, sizeof(scrutiny::software_id));
-    }
-
 
 }   // namespace Protocol
 }   // namespace scrutiny
