@@ -122,7 +122,7 @@ TEST_F(TestRxParsing, TestRx_Timeout)
   {
     comm.receive_data(&data[0], i );
     ASSERT_FALSE(comm.request_received());
-    tb.step(SCRUTINY_COMM_TIMEOUT_US);
+    tb.step(SCRUTINY_COMM_RX_TIMEOUT_US);
     comm.receive_data(&data[i], sizeof(data)-1 );
     ASSERT_FALSE(comm.request_received());
     comm.reset();

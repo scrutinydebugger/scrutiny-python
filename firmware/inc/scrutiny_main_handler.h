@@ -47,6 +47,8 @@ namespace scrutiny
 
         inline bool const comm_enabled()  {return m_comm_handler.is_enabled();}
 
+        inline Config* get_config() {return &m_config;}
+
     private:
         //LoopHandler* m_loop_handlers[SCRUTINY_MAX_LOOP];
         Timebase m_timebase;

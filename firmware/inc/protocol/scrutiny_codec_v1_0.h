@@ -36,6 +36,13 @@ namespace scrutiny
                 {
                     uint16_t challenge_response;
                 } heartbeat;
+                struct
+                {
+                    uint16_t data_buffer_size;
+                    uint32_t max_bitrate; 
+                    uint32_t comm_rx_timeout; 
+                    uint32_t heartbeat_timeout; 
+                }get_params;
             } comm_control;
         };
 
@@ -65,6 +72,7 @@ namespace scrutiny
             ResponseCode encode_response_software_id( Response* response);
             ResponseCode encode_response_comm_discover(const ResponseData* response_data, Response* response);
             ResponseCode encode_response_comm_heartbeat(const ResponseData* response_data, Response* response);
+            ResponseCode encode_response_comm_get_params(const ResponseData* response_data, Response* response);
 
             ResponseCode decode_request_comm_discover(const Request* request, RequestData* request_data);
             ResponseCode decode_request_comm_heartbeat(const Request* request, RequestData* request_data);

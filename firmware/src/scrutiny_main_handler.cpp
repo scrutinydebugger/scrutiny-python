@@ -166,6 +166,15 @@ Protocol::ResponseCode MainHandler::process_comm_control(Protocol::Request *requ
             code = m_codec.encode_response_comm_heartbeat(&response_data, response);
             break;
 
+        // =========== GetParams ==========
+        case Protocol::CommControl::eSubfnGetParams:
+            response_data.comm_control.get_params.data_buffer_size = SCRUTINY_BUFFER_SIZE;
+            response_data.comm_control.get_params.max_bitrate = m_config.get_max_bitrate();
+            response_data.comm_control.get_params.comm_rx_timeout = SCRUTINY_COMM_RX_TIMEOUT_US;
+            response_data.comm_control.get_params.heartbeat_timeout = SCRUTINY_COMM_HEARTBEAT_TMEOUT_US;
+            code = m_codec.encode_response_comm_get_params(&response_data, response);
+            break;
+
         // =================================
         default:
             response->response_code = Protocol::eResponseCode_UnsupportedFeature;
