@@ -158,7 +158,7 @@ class FakeDevice:
 
         if subfn == cmd.CommControl.Subfunction.Heartbeat:
             self.comm_timer.start()
-            response = self.protocol.respond_comm_heartbeat(req_data['rolling_counter'], (~req_data['challenge']) & 0xFFFF)
+            response = self.protocol.respond_comm_heartbeat((~req_data['challenge']) & 0xFFFF)
         else:
             code = Response.ResponseCode.InvalidRequest
 

@@ -66,10 +66,9 @@ class TestProtocolV1_0(unittest.TestCase):
         self.assertEqual(data['challenge'], 0x12345678)
 
     def test_req_comm_heartbeat(self):
-        req = self.proto.comm_heartbeat(0xAA, 0x1234)
-        self.assert_req_response_bytes(req, [2,2,0,3, 0xAA, 0x12, 0x34])
+        req = self.proto.comm_heartbeat(0x1234)
+        self.assert_req_response_bytes(req, [2,2,0,2, 0x12, 0x34])
         data = self.proto.parse_request(req)
-        self.assertEqual(data['rolling_counter'], 0xAA)
         self.assertEqual(data['challenge'], 0x1234)
 
 # ============= Datalog ===============
@@ -228,10 +227,9 @@ class TestProtocolV1_0(unittest.TestCase):
         self.assertEqual(data['challenge_response'], 0x87654321)
 
     def test_response_comm_heartbeat(self):
-        response = self.proto.respond_comm_heartbeat(0xAA, 0x1234)
-        self.assert_req_response_bytes(response, [0x82,2,0,0,3,0xAA, 0x12, 0x34])
+        response = self.proto.respond_comm_heartbeat(0x1234)
+        self.assert_req_response_bytes(response, [0x82,2,0,0,2, 0x12, 0x34])
         data = self.proto.parse_response(response)
-        self.assertEqual(data['rolling_counter'], 0xAA)
         self.assertEqual(data['challenge_response'], 0x1234)
         
 

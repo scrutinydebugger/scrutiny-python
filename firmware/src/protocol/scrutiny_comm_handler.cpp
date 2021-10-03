@@ -361,14 +361,14 @@ namespace Protocol
         }
     }
 
-    bool CommHandler::heartbeat(uint8_t rolling_counter)
+    bool CommHandler::heartbeat(uint16_t challenge)
     {
         bool success = false;
-        if (m_enabled && (rolling_counter != m_last_heartbeat_rolling_counter || m_heartbeat_received == false))
+        if (m_enabled && (challenge != m_last_heartbeat_challenge || m_heartbeat_received == false))
         {
             m_heartbeat_received = true;
             m_heartbeat_timestamp = m_timebase->get_timestamp();
-            m_last_heartbeat_rolling_counter = rolling_counter;
+            m_last_heartbeat_challenge = challenge;
             success = true;
         }
         return success;
@@ -419,7 +419,7 @@ namespace Protocol
         m_enabled = false;
         m_heartbeat_timestamp = m_timebase->get_timestamp();
         std::memset(m_buffer, 0, SCRUTINY_BUFFER_SIZE);
-        m_last_heartbeat_rolling_counter = 0;
+        m_last_heartbeat_challenge = 0;
         m_heartbeat_received = false;
 
         reset_rx();

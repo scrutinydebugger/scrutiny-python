@@ -66,9 +66,8 @@ namespace Protocol
 
     ResponseCode CodecV1_0::encode_response_comm_heartbeat(const ResponseData* response_data, Response* response)
     {
-        constexpr uint16_t rolling_counter_size = 1;
         constexpr uint16_t challenge_response_size = sizeof(response_data->comm_control.heartbeat.challenge_response);
-        constexpr uint16_t datalen = rolling_counter_size + challenge_response_size;
+        constexpr uint16_t datalen = challenge_response_size;
 
         if (datalen > SCRUTINY_BUFFER_SIZE)
         {
@@ -76,8 +75,8 @@ namespace Protocol
         }
 
         response->data_length = datalen;
-        response->data[0] = response_data->comm_control.heartbeat.rolling_counter;
-        std::memcpy(&response->data[1], response_data->comm_control.heartbeat.challenge_response, challenge_response_size);
+        response->data[0] =  static_cast<uint8_t>((response_data->comm_control.heartbeat.challenge_response >> 8) & 0xFF);
+        response->data[1] =  static_cast<uint8_t>(response_data->comm_control.heartbeat.challenge_response  & 0xFF);
 
         return eResponseCode_OK;
     }
@@ -104,17 +103,15 @@ namespace Protocol
 
     ResponseCode CodecV1_0::decode_request_comm_heartbeat(const Request* request, RequestData* request_data)
     {
-        constexpr uint16_t rolling_counter_size = 1;
         constexpr uint16_t challenge_size = sizeof(request_data->comm_control.heartbeat.challenge);
-        constexpr uint16_t datalen = rolling_counter_size + challenge_size;
+        constexpr uint16_t datalen = challenge_size;
 
         if (request->data_length != datalen)
         {
             return eResponseCode_InvalidRequest;
         }
 
-        request_data->comm_control.heartbeat.rolling_counter = request->data[0];
-        std::memcpy(request_data->comm_control.heartbeat.challenge, &request->data[1], challenge_size);
+        request_data->comm_control.heartbeat.challenge = ((request->data[0] << 8) | request->data[1]);
 
         return eResponseCode_OK;
     }

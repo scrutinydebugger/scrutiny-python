@@ -29,7 +29,7 @@ namespace scrutiny
             bool check_crc(const Request* req);
             void add_crc(Response* response);
             bool check_must_enable();
-            bool heartbeat(uint8_t rolling_counter);
+            bool heartbeat(uint16_t challenge);
             void process();           
             
             inline void request_processed() { reset_rx();}
@@ -70,7 +70,7 @@ namespace scrutiny
             State m_state;
             bool m_enabled;
             uint32_t m_heartbeat_timestamp;
-            uint8_t m_last_heartbeat_rolling_counter;
+            uint16_t m_last_heartbeat_challenge;
             bool m_heartbeat_received;
 
             // Reception

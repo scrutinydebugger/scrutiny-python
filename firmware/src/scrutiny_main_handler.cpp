@@ -152,19 +152,15 @@ Protocol::ResponseCode MainHandler::process_comm_control(Protocol::Request *requ
                 break;
 
             bool success;
-            success = m_comm_handler.heartbeat(request_data.comm_control.heartbeat.rolling_counter);
+            success = m_comm_handler.heartbeat(request_data.comm_control.heartbeat.challenge);
             if (!success)
             {
                 code = Protocol::eResponseCode_InvalidRequest;
                 break;
             }
 
-            response_data.comm_control.heartbeat.rolling_counter = request_data.comm_control.heartbeat.rolling_counter;
-            for (uint8_t i=0; i<sizeof(request_data.comm_control.heartbeat.challenge); i++)
-            {
-                response_data.comm_control.heartbeat.challenge_response[i] = ~request_data.comm_control.heartbeat.challenge[i];
-            }
-
+            response_data.comm_control.heartbeat.challenge_response = ~request_data.comm_control.heartbeat.challenge;
+            
             code = m_codec.encode_response_comm_heartbeat(&response_data, response);
             break;
 
