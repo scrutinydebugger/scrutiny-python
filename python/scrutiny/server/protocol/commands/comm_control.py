@@ -8,3 +8,4 @@ class CommControl(BaseCommand):
     class Subfunction(Enum):
         Discover = 1
         Heartbeat = 2
+        GetParams = 3
