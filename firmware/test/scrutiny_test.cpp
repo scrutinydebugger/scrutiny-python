@@ -24,6 +24,14 @@ void ScrutinyTest::add_crc(scrutiny::Protocol::Response* response)
     response->crc = scrutiny::crc32(response->data, response->data_length, crc);
 }
 
+void ScrutinyTest::fill_buffer_incremental(uint8_t *buffer, uint32_t length)
+{   
+    for (uint32_t i=0; i<length; i++)
+    {
+        buffer[i] = static_cast<uint8_t>(i & 0xFFu);
+    }
+}
+
 ::testing::AssertionResult ScrutinyTest::COMPARE_BUF( const uint8_t* candidate, const uint8_t* expected, const uint32_t size)
 {
     for (uint32_t i=0; i < size; ++i)

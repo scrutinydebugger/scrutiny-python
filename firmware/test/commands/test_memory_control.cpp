@@ -7,6 +7,7 @@ class TestMemoryControl : public ScrutinyTest
 protected:
    scrutiny::Timebase tb;
    scrutiny::MainHandler scrutiny_handler;
+   scrutiny::config config
 
    TestMemoryControl() {}
 
@@ -18,8 +19,8 @@ protected:
    }
 };
 
-TEST_F(TestMemoryControl, TestRead) 
+TEST_F(TestMemoryControl, TestReadSingleAddress) 
 {
-  
+
 }
 
