@@ -7,19 +7,20 @@ class TestCommControl : public ScrutinyTest
 protected:
    scrutiny::Timebase tb;
    scrutiny::MainHandler scrutiny_handler;
+   scrutiny::Config config;
 
    TestCommControl() {}
 
    virtual void SetUp() 
    {
-      scrutiny::Config config;
+      config.set_max_bitrate(0x12345678);
       scrutiny_handler.init(&config);
    }
 };
 
 TEST_F(TestCommControl, TestDiscover) 
 {
-   ASSERT_EQ(sizeof(scrutiny::Protocol::CommControl::DISCOVER_MAGIC), 4);
+   ASSERT_EQ(sizeof(scrutiny::Protocol::CommControl::DISCOVER_MAGIC), 4u);
    const uint8_t challenge[4] = {0x11, 0x22, 0x33, 0x44};
    const uint8_t challenge_response[4] = {0xEE, 0xDD, 0xCC, 0xBB};
    uint8_t request_data[8+4+4] = {2,1,0,8};
@@ -86,28 +87,32 @@ TEST_F(TestCommControl, TestHeartbeat)
 
 TEST_F(TestCommControl, TestGetParams) 
 {
-   /*
-   const uint8_t challenge[4] = {0x11, 0x22, 0x33, 0x44};
-   const uint8_t challenge_response[4] = {0xEE, 0xDD, 0xCC, 0xBB};
-   uint8_t request_data[8+2+4+2+2] = {2,3,0,10};
-   request_data[4] = (SCRUTINY_BUFFER_SIZE >> 8) & 0xFF;
-   request_data[5] = (SCRUTINY_BUFFER_SIZE) & 0xFF;
-
-   request_data[6] = (SCRUTINY_BUFFER_SIZE) & 0xFF;
-   request_data[7] = (SCRUTINY_BUFFER_SIZE) & 0xFF;
-   request_data[8] = (SCRUTINY_BUFFER_SIZE) & 0xFF;
-   request_data[9] = (SCRUTINY_BUFFER_SIZE) & 0xFF;
+   scrutiny_handler.enable_comm();  // Enable comm without a Discover command
 
    uint8_t tx_buffer[32];
-   uint8_t expected_response[9+2+4+2+2] = {0x82,3,0,0,10}; 
-
+   uint8_t request_data[8] = {2,3,0,0};
    add_crc(request_data, sizeof(request_data)-4);
+
+   uint8_t expected_response[9+2+4+4+4] = {0x82,3,0,0,14}; 
+   uint8_t i = 5;
+   expected_response[i++] = (SCRUTINY_BUFFER_SIZE >> 8) & 0xFF;
+   expected_response[i++] = (SCRUTINY_BUFFER_SIZE) & 0xFF;
+   expected_response[i++] = (config.get_max_bitrate() >> 24) & 0xFF;
+   expected_response[i++] = (config.get_max_bitrate() >> 16) & 0xFF;
+   expected_response[i++] = (config.get_max_bitrate() >> 8) & 0xFF;
+   expected_response[i++] = (config.get_max_bitrate() >> 0) & 0xFF;
+   expected_response[i++] = (SCRUTINY_COMM_HEARTBEAT_TMEOUT_US >> 24) & 0xFF;
+   expected_response[i++] = (SCRUTINY_COMM_HEARTBEAT_TMEOUT_US >> 16) & 0xFF;
+   expected_response[i++] = (SCRUTINY_COMM_HEARTBEAT_TMEOUT_US >> 8) & 0xFF;
+   expected_response[i++] = (SCRUTINY_COMM_HEARTBEAT_TMEOUT_US >> 0) & 0xFF;
+   expected_response[i++] = (SCRUTINY_COMM_RX_TIMEOUT_US >> 24) & 0xFF;
+   expected_response[i++] = (SCRUTINY_COMM_RX_TIMEOUT_US >> 16) & 0xFF;
+   expected_response[i++] = (SCRUTINY_COMM_RX_TIMEOUT_US >> 8) & 0xFF;
+   expected_response[i++] = (SCRUTINY_COMM_RX_TIMEOUT_US >> 0) & 0xFF;
    add_crc(expected_response, sizeof(expected_response)-4);
 
-   EXPECT_FALSE(scrutiny_handler.comm_enabled());
    scrutiny_handler.receive_data(request_data, sizeof(request_data));
    scrutiny_handler.process(0);
-   EXPECT_TRUE(scrutiny_handler.comm_enabled());
    uint32_t n_to_read = scrutiny_handler.data_to_send();
    ASSERT_GT(n_to_read, 0u);
    ASSERT_LT(n_to_read, sizeof(tx_buffer));
@@ -117,5 +122,4 @@ TEST_F(TestCommControl, TestGetParams)
    EXPECT_EQ(nread, n_to_read);
 
    ASSERT_BUF_EQ( tx_buffer, expected_response, sizeof(expected_response));
-   */
 }

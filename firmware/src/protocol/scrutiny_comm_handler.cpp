@@ -29,7 +29,7 @@ namespace Protocol
         // Handle rx timeouts. Start a new reception if no data for too long
         if (m_rx_state != eRxStateWaitForCommand && len !=0 )
         {
-            if (m_timebase->is_elapsed(m_last_rx_timestamp, SCRUTINY_COMM_TIMEOUT_US))
+            if (m_timebase->is_elapsed(m_last_rx_timestamp, SCRUTINY_COMM_RX_TIMEOUT_US))
             {
                 reset_rx();
                 m_state = eStateIdle;

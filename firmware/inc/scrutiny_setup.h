@@ -14,7 +14,7 @@
 // ========== Parameters ==========
 
 #define SCRUTINY_BUFFER_SIZE 256u
-#define SCRUTINY_COMM_TIMEOUT_US 50000u                     // Reset reception state machine when no data is received for that amount of time.
+#define SCRUTINY_COMM_RX_TIMEOUT_US 50000u                     // Reset reception state machine when no data is received for that amount of time.
 #define SCRUTINY_COMM_HEARTBEAT_TMEOUT_US 5000000u
 #define ACTUAL_PROTOCOL_VERSION PROTOCOL_VERSION(1u, 0u)
 

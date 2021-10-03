@@ -32,7 +32,6 @@ namespace scrutiny
         uint32_t m_forbidden_range_count;
         uint32_t m_readonly_range_count;
 
-
     };
 }
 
