@@ -50,6 +50,7 @@ namespace Protocol
         // Process each bytes
         while (i < len && !m_request_received && m_rx_state != eRxStateError)
         {
+            
             switch (m_rx_state) // FSM
             {
                 case eRxStateWaitForCommand:

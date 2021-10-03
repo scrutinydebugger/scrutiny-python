@@ -53,19 +53,19 @@ TEST_F(TestCommControl, TestDiscover)
 TEST_F(TestCommControl, TestHeartbeat) 
 {
    scrutiny_handler.enable_comm();  // Enable comm without a Discover command
-   const uint8_t challenge[4] = {0x11, 0x22, 0x33, 0x44};
-   const uint8_t challenge_response[4] = {0xEE, 0xDD, 0xCC, 0xBB};
-   uint8_t request_data[8+5] = {2,2,0,5};
+   const uint8_t challenge[2] = {0x11, 0x22};
+   const uint8_t challenge_response[2] = {0xEE, 0xDD};
+   uint8_t request_data[8+3] = {2,2,0,3};
    std::memcpy(&request_data[5], challenge, sizeof(challenge));
    
    uint8_t tx_buffer[32];
-   uint8_t expected_response[9+5] = {0x82,2,0,0,5};   // Version 1.0
+   uint8_t expected_response[9+3] = {0x82,2,0,0,3};   // Version 1.0
    std::memcpy(&expected_response[6], challenge_response, sizeof(challenge_response));
 
-   // So we expect to comm to stay enabled after multiple call to heartbeat even if time goes by
+   // So we expect the comm to stay enabled after multiple call to heartbeat even if time goes by
    for (uint8_t i=0; i<4; i++)
    {
-      ASSERT_TRUE(scrutiny_handler.comm_enabled()) << "iteration=" << static_cast<uint32_t>(i);
+      ASSERT_TRUE(scrutiny_handler.comm_enabled())                            << "iteration=" << static_cast<uint32_t>(i);
       request_data[4] = i; // rolling counter
       expected_response[5] = i; // rolling counter
 
@@ -75,12 +75,12 @@ TEST_F(TestCommControl, TestHeartbeat)
       scrutiny_handler.process(SCRUTINY_COMM_HEARTBEAT_TMEOUT_US/2);
 
       uint32_t n_to_read = scrutiny_handler.data_to_send();
-      ASSERT_EQ(n_to_read, sizeof(expected_response)) << "iteration=" << static_cast<uint32_t>(i);
+      ASSERT_EQ(n_to_read, sizeof(expected_response))                         << "iteration=" << static_cast<uint32_t>(i);
       uint32_t nread = scrutiny_handler.pop_data(tx_buffer, n_to_read);
-      EXPECT_EQ(nread, n_to_read) << "iteration=" << static_cast<uint32_t>(i);
+      EXPECT_EQ(nread, n_to_read)                                             << "iteration=" << static_cast<uint32_t>(i);
 
       ASSERT_BUF_EQ( tx_buffer, expected_response, sizeof(expected_response)) << "iteration=" << static_cast<uint32_t>(i);
-      ASSERT_TRUE(scrutiny_handler.comm_enabled()) << "iteration=" << static_cast<uint32_t>(i);
+      ASSERT_TRUE(scrutiny_handler.comm_enabled())                            << "iteration=" << static_cast<uint32_t>(i);
       scrutiny_handler.process(0);
    }
 }

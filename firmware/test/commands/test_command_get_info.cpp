@@ -2,8 +2,6 @@
 #include "scrutiny.h"
 #include "scrutiny_test.h"
 
-#include <iostream>
-
 class TestGetInfo : public ScrutinyTest
 {
 protected:
@@ -17,21 +15,6 @@ protected:
       scrutiny_handler.init();
       scrutiny_handler.enable_comm();
    }
-
-   ::testing::AssertionResult BUF_EQUAL( const uint8_t* candidate, const uint8_t* expected, const uint32_t size)
-    {
-        for (uint32_t i=0; i < size; ++i)
-        {
-            if (expected[i] != candidate[i])
-            {
-                return ::testing::AssertionFailure() << "candidate[" << i
-                    << "] (" << static_cast<uint32_t>(candidate[i]) << ") != expected[" << i
-                    << "] (" << static_cast<uint32_t>(expected[i]) << ")";
-            }
-        }
-
-        return ::testing::AssertionSuccess();
-    }
 };
 
 TEST_F(TestGetInfo, TestReadProtocolVersion) 

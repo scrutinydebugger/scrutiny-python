@@ -33,8 +33,8 @@ class Protocol:
         data = cmd.CommControl.MAGIC + struct.pack('>L', challenge)
         return Request(cmd.CommControl, cmd.CommControl.Subfunction.Discover, data) 
 
-    def comm_heartbeat(self, challenge):
-        return Request(cmd.CommControl, cmd.CommControl.Subfunction.Heartbeat, struct.pack('>H', challenge))
+    def comm_heartbeat(self, rolling_counter, challenge):
+        return Request(cmd.CommControl, cmd.CommControl.Subfunction.Heartbeat, struct.pack('>BH', rolling_counter, challenge))
 
     def datalog_get_targets(self):
         return Request(cmd.DatalogControl, cmd.DatalogControl.Subfunction.GetAvailableTarget) 
@@ -140,7 +140,8 @@ class Protocol:
                     data['challenge'], = struct.unpack('>L', req.payload[4:8])
                 
                 elif subfn == cmd.CommControl.Subfunction.Heartbeat: 
-                    data['challenge'], = struct.unpack('>H', req.payload[0:2])
+                    data['rolling_counter'] = int(req.payload[0])
+                    data['challenge'], = struct.unpack('>H', req.payload[1:3])
 
         except Exception as e:
             self.logger.error(str(e))
@@ -185,12 +186,12 @@ class Protocol:
         
         return Response(cmd.GetInfo, cmd.GetInfo.Subfunction.GetSupportedFeatures, Response.ResponseCode.OK, bytes([bytes1]))
   
-    def respond_comm_discover(self, challenge_echo):
-        resp_data = cmd.CommControl.MAGIC+struct.pack('>L', challenge_echo)
+    def respond_comm_discover(self, challenge_response):
+        resp_data = cmd.CommControl.MAGIC+struct.pack('>L', challenge_response)
         return Response(cmd.CommControl, cmd.CommControl.Subfunction.Discover, Response.ResponseCode.OK, resp_data)
 
-    def respond_comm_heartbeat(self, challenge_echo):
-        return Response(cmd.CommControl, cmd.CommControl.Subfunction.Heartbeat, Response.ResponseCode.OK, struct.pack('>H', challenge_echo))
+    def respond_comm_heartbeat(self, rolling_counter, challenge_response):
+        return Response(cmd.CommControl, cmd.CommControl.Subfunction.Heartbeat, Response.ResponseCode.OK, struct.pack('>BH', rolling_counter, challenge_response))
 
     def respond_read_memory_block(self, address, memory_data):
         data = struct.pack('>L', address) + bytes(memory_data)
@@ -332,9 +333,10 @@ class Protocol:
 
                 if subfn == cmd.CommControl.Subfunction.Discover:
                     data['magic'] =  response.payload[0:4]
-                    data['challenge_echo'], = struct.unpack('>L', response.payload[4:8])
+                    data['challenge_response'], = struct.unpack('>L', response.payload[4:8])
                 elif subfn == cmd.CommControl.Subfunction.Heartbeat:      
-                    data['challenge_echo'], = struct.unpack('>H', response.payload[0:2])
+                    data['rolling_counter'] = int(response.payload[0])
+                    data['challenge_response'], = struct.unpack('>H', response.payload[1:3])
 
         except Exception as e:
             self.logger.error(str(e))

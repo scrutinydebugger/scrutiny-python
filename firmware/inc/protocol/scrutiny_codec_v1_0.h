@@ -35,7 +35,7 @@ namespace scrutiny
                 struct
                 {
                     uint8_t rolling_counter;
-                    uint8_t challenge_response[4];
+                    uint8_t challenge_response[2];
                 } heartbeat;
             } comm_control;
         };
@@ -54,7 +54,7 @@ namespace scrutiny
                 struct 
                 {
                     uint8_t rolling_counter;
-                    uint8_t challenge[4];
+                    uint8_t challenge[2];
                 } heartbeat;
             } comm_control;
         };

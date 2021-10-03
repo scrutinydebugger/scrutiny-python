@@ -114,9 +114,10 @@ class TestMemoryControl(TestFakeDevice):
 
 class TestCommControl(TestFakeDevice):
     def test_heartbeat(self):
-        req = self.protocol.comm_heartbeat(0x1234)
+        req = self.protocol.comm_heartbeat(0xAA, 0x1234)
         response = self.send_req(req)
         data = self.validate_positive_response(req, response)
-        self.assertEqual(data['challenge_echo'], 0x1234)
+        self.assertEqual(data['rolling_counter'], 0xAA)
+        self.assertEqual(data['challenge_response'], 0xEDCB)
 
 
