@@ -239,13 +239,13 @@ class TestProtocolV1_0(unittest.TestCase):
 
 
     def test_response_comm_get_params(self):
-        response = self.proto.respond_comm_heartbeat(max_data_size = 0x1234, max_bitrate = 0x11223344, heartbeat_timeout = 0x9988, rx_timeout = 0x7766);
-        self.assert_req_response_bytes(response, [0x82,3,0,0,10, 0x12, 0x34, 0x11, 0x22, 0x33, 0x44, 0x99, 0x88, 0x77, 0x66]);
+        response = self.proto.respond_comm_get_params(max_data_size = 0x1234, max_bitrate = 0x11223344, heartbeat_timeout = 0x99887766, rx_timeout = 0x98765432);
+        self.assert_req_response_bytes(response, [0x82,3,0,0,14, 0x12, 0x34, 0x11, 0x22, 0x33, 0x44, 0x99, 0x88, 0x77, 0x66, 0x98, 0x76, 0x54, 0x32]);
         data = self.proto.parse_response(response)
         self.assertEqual(data['max_data_size'], 0x1234)
         self.assertEqual(data['max_bitrate'], 0x11223344)
-        self.assertEqual(data['heartbeat_timeout'], 0x9988)
-        self.assertEqual(data['rx_timeout'], 0x7766)
+        self.assertEqual(data['heartbeat_timeout'], 0x99887766)
+        self.assertEqual(data['rx_timeout'], 0x98765432)
         
 
 # ============= Datalog ===============

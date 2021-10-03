@@ -36,6 +36,9 @@ class Protocol:
     def comm_heartbeat(self, challenge):
         return Request(cmd.CommControl, cmd.CommControl.Subfunction.Heartbeat, struct.pack('>H', challenge))
 
+    def comm_get_params(self):
+        return Request(cmd.CommControl, cmd.CommControl.Subfunction.GetParams)
+
     def datalog_get_targets(self):
         return Request(cmd.DatalogControl, cmd.DatalogControl.Subfunction.GetAvailableTarget) 
 
@@ -192,6 +195,10 @@ class Protocol:
     def respond_comm_heartbeat(self, challenge_response):
         return Response(cmd.CommControl, cmd.CommControl.Subfunction.Heartbeat, Response.ResponseCode.OK, struct.pack('>H', challenge_response))
 
+    def respond_comm_get_params(self, max_data_size, max_bitrate, heartbeat_timeout, rx_timeout):
+        data = struct.pack('>HLLL', max_data_size, max_bitrate, heartbeat_timeout, rx_timeout)
+        return Response(cmd.CommControl, cmd.CommControl.Subfunction.GetParams, Response.ResponseCode.OK, data)
+
     def respond_read_memory_block(self, address, memory_data):
         data = struct.pack('>L', address) + bytes(memory_data)
         return Response(cmd.MemoryControl, cmd.MemoryControl.Subfunction.Read, Response.ResponseCode.OK, data)
@@ -335,6 +342,8 @@ class Protocol:
                     data['challenge_response'], = struct.unpack('>L', response.payload[4:8])
                 elif subfn == cmd.CommControl.Subfunction.Heartbeat:      
                     data['challenge_response'], = struct.unpack('>H', response.payload[0:2])
+                elif subfn == cmd.CommControl.Subfunction.GetParams:
+                    data['max_data_size'], data['max_bitrate'], data['heartbeat_timeout'], data['rx_timeout'] = struct.unpack('>HLLL', response.payload[0:14])
 
         except Exception as e:
             self.logger.error(str(e))
