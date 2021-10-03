@@ -7,6 +7,7 @@
 #include "scrutiny_loop_handler.h"
 #include "scrutiny_timebase.h"
 #include "scrutiny_protocol.h"
+#include "scrutiny_config.h"
 
 namespace scrutiny
 {
@@ -14,7 +15,7 @@ namespace scrutiny
     {
 
     public:
-        void init();
+        void init(Config* config);
         //void process_loop(loop_id_t loop);
         //loop_id_t add_loop(LoopHandler* loop);
         
@@ -51,6 +52,7 @@ namespace scrutiny
         Timebase m_timebase;
         Protocol::CommHandler m_comm_handler;
         bool m_processing_request;
+        Config m_config;
 #if ACTUAL_PROTOCOL_VERSION == PROTOCOL_VERSION(1,0)
         Protocol::CodecV1_0 m_codec;
 #endif

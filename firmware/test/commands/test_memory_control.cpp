@@ -12,7 +12,8 @@ protected:
 
    virtual void SetUp() 
    {
-      scrutiny_handler.init();
+      scrutiny::Config config;
+      scrutiny_handler.init(&config);
       scrutiny_handler.enable_comm();
    }
 };

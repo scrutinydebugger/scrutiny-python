@@ -7,10 +7,12 @@ namespace scrutiny
 {
 
 
-void MainHandler::init()
+void MainHandler::init(Config *config)
 {
     m_processing_request = false;
     m_comm_handler.init(&m_timebase);
+
+    m_config.copy_from(config);
 }
 
 void MainHandler::process(uint32_t timestep_us)

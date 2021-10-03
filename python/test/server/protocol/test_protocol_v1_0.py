@@ -71,6 +71,11 @@ class TestProtocolV1_0(unittest.TestCase):
         data = self.proto.parse_request(req)
         self.assertEqual(data['challenge'], 0x1234)
 
+    def test_req_comm_get_params(self):
+        req = self.proto.comm_get_params()
+        self.assert_req_response_bytes(req, [2,3,0,0])
+        data = self.proto.parse_request(req)
+
 # ============= Datalog ===============
 
     def test_req_datalog_get_targets(self):
@@ -231,6 +236,16 @@ class TestProtocolV1_0(unittest.TestCase):
         self.assert_req_response_bytes(response, [0x82,2,0,0,2, 0x12, 0x34])
         data = self.proto.parse_response(response)
         self.assertEqual(data['challenge_response'], 0x1234)
+
+
+    def test_response_comm_get_params(self):
+        response = self.proto.respond_comm_heartbeat(max_data_size = 0x1234, max_bitrate = 0x11223344, heartbeat_timeout = 0x9988, rx_timeout = 0x7766);
+        self.assert_req_response_bytes(response, [0x82,3,0,0,10, 0x12, 0x34, 0x11, 0x22, 0x33, 0x44, 0x99, 0x88, 0x77, 0x66]);
+        data = self.proto.parse_response(response)
+        self.assertEqual(data['max_data_size'], 0x1234)
+        self.assertEqual(data['max_bitrate'], 0x11223344)
+        self.assertEqual(data['heartbeat_timeout'], 0x9988)
+        self.assertEqual(data['rx_timeout'], 0x7766)
         
 
 # ============= Datalog ===============

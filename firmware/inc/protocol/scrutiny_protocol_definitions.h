@@ -100,7 +100,8 @@ namespace scrutiny
             enum Subfunction
             {
                 eSubfnDiscover  = 1,
-                eSubfnHeartbeat = 2
+                eSubfnHeartbeat = 2,
+                eSubfnGetParams = 3
             };
         };
 

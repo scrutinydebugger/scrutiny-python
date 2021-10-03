@@ -12,11 +12,16 @@
 #define PROTOCOL_VERSION_MINOR(v) (v & 0xFF)
 
 // ========== Parameters ==========
-#define SCRUTINY_MAX_LOOP 16u
+
 #define SCRUTINY_BUFFER_SIZE 256u
-#define SCRUTINY_COMM_TIMEOUT_US 50000u // Reset reception state machine when no data is received for that amount of time.
+#define SCRUTINY_COMM_TIMEOUT_US 50000u                     // Reset reception state machine when no data is received for that amount of time.
 #define SCRUTINY_COMM_HEARTBEAT_TMEOUT_US 5000000u
 #define ACTUAL_PROTOCOL_VERSION PROTOCOL_VERSION(1u, 0u)
+
+#define SCRUTINY_FORBIDDEN_ADDRESS_RANGE_COUNT 4
+#define SCRUTINY_READONLY_ADDRESS_RANGE_COUNT  4
+
+#define SCRUTINY_MAX_LOOP 16u
 // ================================
 
 

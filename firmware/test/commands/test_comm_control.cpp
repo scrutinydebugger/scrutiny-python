@@ -12,7 +12,8 @@ protected:
 
    virtual void SetUp() 
    {
-      scrutiny_handler.init();
+      scrutiny::Config config;
+      scrutiny_handler.init(&config);
    }
 };
 
@@ -56,7 +57,7 @@ TEST_F(TestCommControl, TestHeartbeat)
    uint8_t request_data[8+2] = {2,2,0,2};
    
    uint8_t tx_buffer[32];
-   uint8_t expected_response[9+2] = {0x82,2,0,0,2};   // Version 1.0
+   uint8_t expected_response[9+2] = {0x82,2,0,0,2}; 
 
    // So we expect the comm to stay enabled after multiple call to heartbeat even if time goes by
    for (uint16_t challenge=0; challenge<4; challenge++)
@@ -81,4 +82,40 @@ TEST_F(TestCommControl, TestHeartbeat)
       ASSERT_TRUE(scrutiny_handler.comm_enabled())                            << "challenge=" << static_cast<uint32_t>(challenge);
       scrutiny_handler.process(0);
    }
+}
+
+TEST_F(TestCommControl, TestGetParams) 
+{
+   /*
+   const uint8_t challenge[4] = {0x11, 0x22, 0x33, 0x44};
+   const uint8_t challenge_response[4] = {0xEE, 0xDD, 0xCC, 0xBB};
+   uint8_t request_data[8+2+4+2+2] = {2,3,0,10};
+   request_data[4] = (SCRUTINY_BUFFER_SIZE >> 8) & 0xFF;
+   request_data[5] = (SCRUTINY_BUFFER_SIZE) & 0xFF;
+
+   request_data[6] = (SCRUTINY_BUFFER_SIZE) & 0xFF;
+   request_data[7] = (SCRUTINY_BUFFER_SIZE) & 0xFF;
+   request_data[8] = (SCRUTINY_BUFFER_SIZE) & 0xFF;
+   request_data[9] = (SCRUTINY_BUFFER_SIZE) & 0xFF;
+
+   uint8_t tx_buffer[32];
+   uint8_t expected_response[9+2+4+2+2] = {0x82,3,0,0,10}; 
+
+   add_crc(request_data, sizeof(request_data)-4);
+   add_crc(expected_response, sizeof(expected_response)-4);
+
+   EXPECT_FALSE(scrutiny_handler.comm_enabled());
+   scrutiny_handler.receive_data(request_data, sizeof(request_data));
+   scrutiny_handler.process(0);
+   EXPECT_TRUE(scrutiny_handler.comm_enabled());
+   uint32_t n_to_read = scrutiny_handler.data_to_send();
+   ASSERT_GT(n_to_read, 0u);
+   ASSERT_LT(n_to_read, sizeof(tx_buffer));
+   EXPECT_EQ(n_to_read, sizeof(expected_response));
+   
+   uint32_t nread = scrutiny_handler.pop_data(tx_buffer, n_to_read);
+   EXPECT_EQ(nread, n_to_read);
+
+   ASSERT_BUF_EQ( tx_buffer, expected_response, sizeof(expected_response));
+   */
 }
