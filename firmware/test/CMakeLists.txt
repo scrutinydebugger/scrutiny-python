@@ -20,9 +20,6 @@ include("../sources.cmake")
 list(TRANSFORM SCRUTINY_SOURCES PREPEND  "../")
 list(TRANSFORM SCRUTINY_INCLUDE_DIR PREPEND  "../")
 
-message("----${SCRUTINY_INCLUDE_DIR}")
-
-
 include_directories(${SCRUTINY_INCLUDE_DIR})
 include_directories(".")
 
