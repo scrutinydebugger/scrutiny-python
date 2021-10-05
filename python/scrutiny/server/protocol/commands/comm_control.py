@@ -9,3 +9,4 @@ class CommControl(BaseCommand):
         Discover = 1
         Heartbeat = 2
         GetParams = 3
+        Connect = 4

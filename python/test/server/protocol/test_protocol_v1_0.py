@@ -75,14 +75,19 @@ class TestProtocolV1_0(unittest.TestCase):
         self.assertEqual(data['challenge'], 0x12345678)
 
     def test_req_comm_heartbeat(self):
-        req = self.proto.comm_heartbeat(0x1234)
-        self.assert_req_response_bytes(req, [2,2,0,2, 0x12, 0x34])
+        req = self.proto.comm_heartbeat(0x12345678)
+        self.assert_req_response_bytes(req, [2,2,0,4, 0x12, 0x34, 0x56, 0x78])
         data = self.proto.parse_request(req)
-        self.assertEqual(data['challenge'], 0x1234)
+        self.assertEqual(data['session_id'], 0x12345678)
 
     def test_req_comm_get_params(self):
         req = self.proto.comm_get_params()
         self.assert_req_response_bytes(req, [2,3,0,0])
+        data = self.proto.parse_request(req)
+
+    def test_req_comm_connect(self):
+        req = self.proto.comm_connect()
+        self.assert_req_response_bytes(req, [2,4,0,0])
         data = self.proto.parse_request(req)
 
 # ============= Datalog ===============
@@ -263,11 +268,10 @@ class TestProtocolV1_0(unittest.TestCase):
         self.assertEqual(data['challenge_response'], 0x87654321)
 
     def test_response_comm_heartbeat(self):
-        response = self.proto.respond_comm_heartbeat(0x1234)
-        self.assert_req_response_bytes(response, [0x82,2,0,0,2, 0x12, 0x34])
+        response = self.proto.respond_comm_heartbeat(0x12345678)
+        self.assert_req_response_bytes(response, [0x82,2,0,0,4, 0x12, 0x34, 0x56, 0x78])
         data = self.proto.parse_response(response)
-        self.assertEqual(data['challenge_response'], 0x1234)
-
+        self.assertEqual(data['session_id_processed'], 0x12345678)
 
     def test_response_comm_get_params(self):
         response = self.proto.respond_comm_get_params(max_data_size = 0x1234, max_bitrate = 0x11223344, heartbeat_timeout = 0x99887766, rx_timeout = 0x98765432);
@@ -278,6 +282,11 @@ class TestProtocolV1_0(unittest.TestCase):
         self.assertEqual(data['heartbeat_timeout'], 0x99887766)
         self.assertEqual(data['rx_timeout'], 0x98765432)
         
+    def test_response_comm_connect(self):
+        response = self.proto.respond_comm_connect(0x12345678)
+        self.assert_req_response_bytes(response, [0x82,4,0,0,4, 0x12, 0x34, 0x56, 0x78])
+        data = self.proto.parse_response(response)
+        self.assertEqual(data['session_id'], 0x12345678)
 
 # ============= Datalog ===============
 
