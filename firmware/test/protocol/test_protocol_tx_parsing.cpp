@@ -49,7 +49,7 @@ TEST_F(TestTxParsing, TestReadAllData)
    uint32_t nread = comm.pop_data(buf, n_to_read);
    EXPECT_EQ(nread, n_to_read);
 
-   ASSERT_EQ(std::memcmp( buf, expected_data, sizeof(expected_data)), 0);
+   ASSERT_BUF_EQ(buf, expected_data, sizeof(expected_data));
 }
 
 
@@ -84,7 +84,7 @@ TEST_F(TestTxParsing, TestReadBytePerByte)
       EXPECT_EQ(nread, 1u);
    }
 
-   ASSERT_EQ(std::memcmp( buf, expected_data, sizeof(expected_data)), 0);
+   ASSERT_BUF_EQ(buf, expected_data, sizeof(expected_data));
 }
 
 TEST_F(TestTxParsing, TestReadByChunk) 
@@ -119,7 +119,7 @@ TEST_F(TestTxParsing, TestReadByChunk)
       index += chunks[i];
    }
 
-   ASSERT_EQ(std::memcmp( buf, expected_data, sizeof(expected_data)), 0);
+   ASSERT_BUF_EQ(buf, expected_data, sizeof(expected_data));
 }
 
 TEST_F(TestTxParsing, TestReadMoreThanAvailable) 
@@ -145,6 +145,6 @@ TEST_F(TestTxParsing, TestReadMoreThanAvailable)
    uint32_t nread = comm.pop_data(buf, n_to_read+10);
    EXPECT_EQ(nread, n_to_read);
 
-   ASSERT_EQ(std::memcmp( buf, expected_data, sizeof(expected_data)), 0);
+   ASSERT_BUF_EQ(buf, expected_data, sizeof(expected_data));
 }
 

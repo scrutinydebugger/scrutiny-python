@@ -91,7 +91,7 @@ namespace scrutiny
                 eSubfnGetSoftwareId         = 2,
                 eSubfnGetSupportedFeatures  = 3
             };
-        };
+        }
 
         namespace CommControl
         {
@@ -103,7 +103,7 @@ namespace scrutiny
                 eSubfnHeartbeat = 2,
                 eSubfnGetParams = 3
             };
-        };
+        }
 
     }
 }
