@@ -1,4 +1,6 @@
 #include <gtest/gtest.h>
+#include <cstring>
+
 #include "scrutiny.h"
 #include "scrutiny_test.h"
 

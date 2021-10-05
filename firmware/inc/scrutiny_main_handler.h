@@ -30,7 +30,7 @@ namespace scrutiny
             m_comm_handler.receive_data(data, len);
         }
 
-        inline uint32_t const data_to_send()
+        inline uint32_t data_to_send()
         {
             return m_comm_handler.data_to_send();
         }
@@ -45,7 +45,7 @@ namespace scrutiny
             m_comm_handler.set_enabled(v);
         }
 
-        inline bool const comm_enabled()  {return m_comm_handler.is_enabled();}
+        inline bool comm_enabled()  {return m_comm_handler.is_enabled();}
 
         inline Config* get_config() {return &m_config;}
 

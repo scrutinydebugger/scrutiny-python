@@ -6,7 +6,7 @@ namespace scrutiny
     {
         uint32_t crc = ~start_value;
         
-        for(size_t i=0; i<size; i++) 
+        for(uint32_t i=0; i<size; i++) 
         {
             uint8_t byte = data[i];
             for(unsigned int j=0; j<8; j++) 

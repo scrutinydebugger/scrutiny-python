@@ -28,7 +28,7 @@
 namespace scrutiny
 {
     typedef unsigned int loop_id_t;
-};
+}
 
 
 // ========================= Sanity check =====================

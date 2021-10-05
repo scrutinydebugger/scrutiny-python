@@ -4,7 +4,9 @@
 #include "scrutiny_protocol_tools.h"
 #include <cstring>
 
-#pragma warning(disable:4127)
+#if defined(_MSC_VER)
+#pragma warning(disable:4127)   // Get rid of constexpr always true condition warning.
+#endif 
 
 namespace scrutiny
 {
