@@ -1,3 +1,9 @@
+
+set(SCRUTINY_INCLUDE_DIR
+	inc/
+	inc/protocol/
+	)
+
 set(SCRUTINY_SOURCES 
 	src/scrutiny_main_handler.cpp
 	src/scrutiny_loop_handler.cpp
@@ -21,3 +27,4 @@ set(SCRUTINY_SOURCES
 	inc/protocol/scrutiny_protocol_definitions.h
 	inc/protocol/scrutiny_codec_v1_0.h
 	)
+

@@ -14,20 +14,22 @@ FetchContent_Declare(
 set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(googletest)
 
-include_directories("../inc/")
-include_directories("../inc/protocol")
-include_directories(".")
-
 enable_testing()
 
 include("../sources.cmake")
 list(TRANSFORM SCRUTINY_SOURCES PREPEND  "../")
+list(TRANSFORM SCRUTINY_INCLUDE_DIR PREPEND  "../")
+
+message("----${SCRUTINY_INCLUDE_DIR}")
+
+
+include_directories(${SCRUTINY_INCLUDE_DIR})
+include_directories(".")
+
+add_library(scrutiny ${SCRUTINY_SOURCES})
 
 set(TARGET_NAME scrutiny_test)
-
-add_executable(${TARGET_NAME}
-  ${SCRUTINY_SOURCES}
-  
+add_executable(${TARGET_NAME} 
   scrutiny_test.cpp
   test_timebase.cpp
   test_crc.cpp
@@ -40,12 +42,15 @@ add_executable(${TARGET_NAME}
 
 target_link_libraries(
   ${TARGET_NAME}
+  scrutiny
   gtest_main
 )
 
 if(MSVC)
+  target_compile_options(scrutiny PRIVATE /W4 /Od)
   target_compile_options(${TARGET_NAME} PRIVATE /W4 /Od)
 else()
+  target_compile_options(scrutiny PRIVATE -Wall -Wextra -Wpedantic)
   target_compile_options(${TARGET_NAME} PRIVATE -Wall -Wextra -Wpedantic)
 endif()
 
