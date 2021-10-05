@@ -221,6 +221,7 @@ class Protocol:
             address = block[0]
             memory_data = bytes(block[1])
             data += struct.pack('>LH', address, len(memory_data)) + memory_data
+
         return Response(cmd.MemoryControl, cmd.MemoryControl.Subfunction.Read, Response.ResponseCode.OK, data)
 
     def respond_write_memory_block(self, address, length):
