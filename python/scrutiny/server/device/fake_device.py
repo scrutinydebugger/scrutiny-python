@@ -43,6 +43,7 @@ class FakeDevice:
                         self.to_server_queue.put(response.to_bytes())
                 except Exception as e:
                     self.logger.error(str(e))
+                    raise
 
             if self.comm_timer.is_stopped() or self.comm_timer.is_timed_out():
                 self.comm_established = False
@@ -123,8 +124,11 @@ class FakeDevice:
 
         if subfn == cmd.MemoryControl.Subfunction.Read:
             try:
-                data = self.data_source.read(req_data['address'], req_data['length'])
-                response = self.protocol.respond_read_memory_blocks(req_data['address'], data)
+                response_block = []
+                for block in req_data['blocks']:
+                    data = self.data_source.read(block['address'], block['length'])
+                    response_block.append((block['address'], data))
+                response = self.protocol.respond_read_memory_blocks(response_block)
             except Exception as e:
                 code = Response.ResponseCode.FailureToProceed;
                 self.logger.debug(str(e))

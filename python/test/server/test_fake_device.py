@@ -83,19 +83,19 @@ class TestGetInfo(TestFakeDevice):
 
 class TestMemoryControl(TestFakeDevice):
     def test_read_memory(self):
-        req = self.protocol.read_memory_block(0x1000, 256)
+        req = self.protocol.read_single_memory_block(0x1000, 256)
         response = self.send_req(req)
 
         data = self.validate_positive_response(req, response )
-        self.assertEqual(data['address'], 0x1000)
-        self.assertEqual(data['data'], bytes(range(256)))
+        self.assertEqual(data['blocks'][0]['address'], 0x1000)
+        self.assertEqual(data['blocks'][0]['data'], bytes(range(256)))
 
     def test_read_memory_out_of_range(self):
-        req = self.protocol.read_memory_block(0x1000, 257)
+        req = self.protocol.read_single_memory_block(0x1000, 257)
         response = self.send_req(req)
         self.assertEqual(response.code, Response.ResponseCode.FailureToProceed)
 
-        req = self.protocol.read_memory_block(0x2000, 1)
+        req = self.protocol.read_single_memory_block(0x2000, 1)
         response = self.send_req(req)
         self.assertEqual(response.code, Response.ResponseCode.FailureToProceed)
 
@@ -106,11 +106,11 @@ class TestMemoryControl(TestFakeDevice):
         self.assertEqual(data['address'], 0x2000)
         self.assertEqual(data['length'], 256)
 
-        req = self.protocol.read_memory_block(0x2000, 256)
+        req = self.protocol.read_single_memory_block(0x2000, 256)
         response = self.send_req(req)
         data = self.validate_positive_response(req, response)
-        self.assertEqual(data['address'], 0x2000)
-        self.assertEqual(data['data'], bytes(range(256)))
+        self.assertEqual(data['blocks'][0]['address'], 0x2000)
+        self.assertEqual(data['blocks'][0]['data'], bytes(range(256)))
 
 class TestCommControl(TestFakeDevice):
     def test_heartbeat(self):
