@@ -21,8 +21,14 @@ class Protocol:
     def get_supported_features(self):
         return Request(cmd.GetInfo, cmd.GetInfo.Subfunction.GetSupportedFeatures)
 
-    def read_memory_block(self, address, length):
-        data = struct.pack('>LH', address, length)
+    def read_single_memory_block(self, address, length):
+        block_list = [(address, length)]
+        return self.read_memory_blocks(block_list)
+
+    def read_memory_blocks(self, block_list):
+        data = bytes()
+        for block in block_list:
+            data += struct.pack('>LH', block[0], block[1])
         return Request(cmd.MemoryControl, cmd.MemoryControl.Subfunction.Read, data)
 
     def write_memory_block(self, address, data):
@@ -94,7 +100,13 @@ class Protocol:
                 subfn = cmd.MemoryControl.Subfunction(req.subfn)
                 
                 if subfn == cmd.MemoryControl.Subfunction.Read:                     # MemoryControl - Read
-                    (data['address'], data['length']) = struct.unpack('>LH', req.payload[0:6])
+                    if len(req.payload) % 6 !=0:
+                        raise Exception('Request data length is not a multiple of 6 bytes (addres[4] + length[2])')
+                    nblock = int(len(req.payload)/6)
+                    data['blocks']=[]
+                    for i in range(nblock):
+                        (addr, length) = struct.unpack('>LH', req.payload[(i*6+0):(i*6+6)])
+                        data['blocks'].append(dict(address=addr, length=length))
                 
                 elif subfn == cmd.MemoryControl.Subfunction.Write:                  # MemoryControl - Write
                     (data['address'],) = struct.unpack('>L', req.payload[0:4])
@@ -199,8 +211,16 @@ class Protocol:
         data = struct.pack('>HLLL', max_data_size, max_bitrate, heartbeat_timeout, rx_timeout)
         return Response(cmd.CommControl, cmd.CommControl.Subfunction.GetParams, Response.ResponseCode.OK, data)
 
-    def respond_read_memory_block(self, address, memory_data):
-        data = struct.pack('>L', address) + bytes(memory_data)
+    def respond_read_single_memory_block(self, address, data):
+        block_list = [(address, data)]
+        return self.respond_read_memory_blocks(block_list)
+
+    def respond_read_memory_blocks(self, block_list):
+        data = bytes()
+        for block in block_list:
+            address = block[0]
+            memory_data = bytes(block[1])
+            data += struct.pack('>LH', address, len(memory_data)) + memory_data
         return Response(cmd.MemoryControl, cmd.MemoryControl.Subfunction.Read, Response.ResponseCode.OK, data)
 
     def respond_write_memory_block(self, address, length):
@@ -273,10 +293,23 @@ class Protocol:
 
             elif response.command == cmd.MemoryControl:
                 subfn = cmd.MemoryControl.Subfunction(response.subfn)
-
                 if subfn == cmd.MemoryControl.Subfunction.Read:
-                    data['address'], = struct.unpack('>L', response.payload[0:4])
-                    data['data'] =  bytes(response.payload[4:])
+                    data['blocks']=[]
+                    index=0
+                    while True:
+                        if len(response.payload[index:]) < 6:
+                            raise Exception('Incomplete response payload')
+
+                        addr, length = struct.unpack('>LH', response.payload[(index+0):(index+6)])
+                        if len(response.payload[index+6:]) < length:
+                            ipdb.set_trace()
+                            raise Exception('Invalid data length')
+                        memory_data = response.payload[(index+6):(index+6+length)]
+                        data['blocks'].append(dict(address=addr, data=memory_data))
+                        index += 6+length
+
+                        if index == len(response.payload):
+                            break
 
                 elif subfn == cmd.MemoryControl.Subfunction.Write:
                     data['address'], data['length'] = struct.unpack('>LH', response.payload[0:6])

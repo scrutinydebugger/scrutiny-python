@@ -124,7 +124,7 @@ class FakeDevice:
         if subfn == cmd.MemoryControl.Subfunction.Read:
             try:
                 data = self.data_source.read(req_data['address'], req_data['length'])
-                response = self.protocol.respond_read_memory_block(req_data['address'], data)
+                response = self.protocol.respond_read_memory_blocks(req_data['address'], data)
             except Exception as e:
                 code = Response.ResponseCode.FailureToProceed;
                 self.logger.debug(str(e))

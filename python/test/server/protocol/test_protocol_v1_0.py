@@ -1,5 +1,5 @@
 import unittest
-from scrutiny.server.protocol import Protocol
+from scrutiny.server.protocol import Protocol, Response
 from scrutiny.server.protocol import commands as cmd
 from scrutiny.server.protocol.datalog import *
 from scrutiny.core import VariableType
@@ -40,12 +40,21 @@ class TestProtocolV1_0(unittest.TestCase):
 
 # ============= MemoryControl ===============
 
-    def test_req_read_memory_block(self):
-        req = self.proto.read_memory_block(0x12345678, 0x123)
+    def test_req_read_single_memory_block(self):
+        req = self.proto.read_single_memory_block( 0x12345678, 0x123)
         self.assert_req_response_bytes(req, [3,1,0,6, 0x12, 0x34, 0x56, 0x78, 0x1, 0x23])
         data = self.proto.parse_request(req)
-        self.assertEqual(data['address'], 0x12345678)
-        self.assertEqual(data['length'], 0x123)
+        self.assertEqual(data['blocks'][0]['address'], 0x12345678)
+        self.assertEqual(data['blocks'][0]['length'], 0x123)
+
+    def test_req_read_multiple_memory_block(self):
+        req = self.proto.read_memory_blocks( [(0x12345678, 0x123), (0x11223344, 0x456)])
+        self.assert_req_response_bytes(req, [3,1,0,12, 0x12, 0x34, 0x56, 0x78, 0x1, 0x23, 0x11, 0x22, 0x33, 0x44, 0x04, 0x56])
+        data = self.proto.parse_request(req)
+        self.assertEqual(data['blocks'][0]['address'], 0x12345678)
+        self.assertEqual(data['blocks'][0]['length'], 0x123)
+        self.assertEqual(data['blocks'][1]['address'], 0x11223344)
+        self.assertEqual(data['blocks'][1]['length'], 0x456)        
 
     def test_req_write_memory_block(self):
         req = self.proto.write_memory_block(0x12345678, bytes([0x11, 0x22, 0x33]))
@@ -206,12 +215,34 @@ class TestProtocolV1_0(unittest.TestCase):
 
 # ============= MemoryControl ===============
 
-    def test_response_read_memory_block(self):
-        response = self.proto.respond_read_memory_block(0x12345678, bytes([0x11, 0x22, 0x33]))
-        self.assert_req_response_bytes(response, [0x83,1,0,0,7, 0x12, 0x34, 0x56, 0x78, 0x11, 0x22, 0x33])
+    def test_response_read_single_memory_block(self):
+        response = self.proto.respond_read_single_memory_block(0x12345678, bytes([0x11, 0x22, 0x33]))
+        self.assert_req_response_bytes(response, [0x83,1,0,0,9, 0x12, 0x34, 0x56, 0x78, 0x00, 0x03, 0x11, 0x22, 0x33])
         data = self.proto.parse_response(response)
-        self.assertEqual(data['address'], 0x12345678)
-        self.assertEqual(data['data'], bytes([0x11, 0x22, 0x33]))
+        self.assertEqual(data['blocks'][0]['address'], 0x12345678)
+        self.assertEqual(data['blocks'][0]['data'], bytes([0x11, 0x22, 0x33]))
+
+    def test_response_read_multiple_memory_block(self):
+        blocks = []
+        blocks.append( (0x12345678, bytes([0x11, 0x22, 0x33])) )
+        blocks.append( (0x11223344, bytes([0xFF, 0xEE, 0xDD])) )
+        response = self.proto.respond_read_memory_blocks(blocks)
+        self.assert_req_response_bytes(response, [0x83,1,0,0,18, 0x12, 0x34, 0x56, 0x78, 0x00, 0x03, 0x11, 0x22, 0x33, 0x11, 0x22, 0x33, 0x44, 0x00, 0x03, 0xFF, 0xEE, 0xDD])
+        data = self.proto.parse_response(response)
+        self.assertEqual(data['blocks'][0]['address'], 0x12345678)
+        self.assertEqual(data['blocks'][0]['data'], bytes([0x11, 0x22, 0x33]))     
+        self.assertEqual(data['blocks'][1]['address'], 0x11223344)
+        self.assertEqual(data['blocks'][1]['data'], bytes([0xFF, 0xEE, 0xDD]))  
+
+    def test_parse_response_invalid_content(self):
+        response = Response(cmd.MemoryControl, cmd.MemoryControl.Subfunction.Read, Response.ResponseCode.OK)
+        with self.assertRaises(Exception):
+            response.data = bytes([0x12,0x34,0x56,0x78, 0x00, 0x03, 0x11, 0x22])    
+            self.proto.parse_response(response)
+
+        with self.assertRaises(Exception):
+            response.data = bytes([0x12,0x34,0x56,0x78, 0x00, 0x03, 0x11, 0x22, 0x33, 0x44])    
+            self.proto.parse_response(response)
 
     def test_response_write_memory_block(self):
         response = self.proto.respond_write_memory_block(0x12345678, 3)
