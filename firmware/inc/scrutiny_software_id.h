@@ -15,7 +15,7 @@
 
 namespace scrutiny
 {
-    extern const uint8_t software_id[SOFTWARE_ID_LENGTH];
+	extern const uint8_t software_id[SOFTWARE_ID_LENGTH];
 }
 #endif   // ___SCRUTINY_SOFTWARE_ID_H___
 

@@ -6,260 +6,260 @@
 namespace scrutiny
 {
 
-void MainHandler::init(Config *config)
-{
-    m_processing_request = false;
-    m_disconnect_pending = false;
-    m_comm_handler.init(&m_timebase);
+	void MainHandler::init(Config* config)
+	{
+		m_processing_request = false;
+		m_disconnect_pending = false;
+		m_comm_handler.init(&m_timebase);
 
-    m_config.copy_from(config);
-}
+		m_config.copy_from(config);
+	}
 
-void MainHandler::process(uint32_t timestep_us)
-{
-    m_timebase.step(timestep_us);
-    m_comm_handler.process();
+	void MainHandler::process(uint32_t timestep_us)
+	{
+		m_timebase.step(timestep_us);
+		m_comm_handler.process();
 
-    if (m_comm_handler.request_received() && !m_processing_request)
-    {   
-        m_processing_request = true;
-        Protocol::Response *response = m_comm_handler.prepare_response();
-        process_request(m_comm_handler.get_request(), response);
+		if (m_comm_handler.request_received() && !m_processing_request)
+		{
+			m_processing_request = true;
+			Protocol::Response* response = m_comm_handler.prepare_response();
+			process_request(m_comm_handler.get_request(), response);
 
-        if (response->valid)
-        {
-            m_comm_handler.send_response(response);
-        }
-    }
+			if (response->valid)
+			{
+				m_comm_handler.send_response(response);
+			}
+		}
 
-    if (m_processing_request)
-    {
-        if (!m_comm_handler.transmitting())  
-        {
-            m_comm_handler.wait_next_request(); // Allow reception of next request
-            m_processing_request = false;
+		if (m_processing_request)
+		{
+			if (!m_comm_handler.transmitting())
+			{
+				m_comm_handler.wait_next_request(); // Allow reception of next request
+				m_processing_request = false;
 
-            if (m_disconnect_pending)
-            {
-                m_comm_handler.disconnect();
-                m_disconnect_pending = false;
-            }
-        }
-    }
-}
-
-
-void MainHandler::process_request(Protocol::Request *request, Protocol::Response *response)
-{
-    Protocol::ResponseCode code = Protocol::eResponseCode_FailureToProceed;
-    response->reset();
-
-    if (!request->valid)
-        return;
-
-    response->command_id = request->command_id;
-    response->subfunction_id = request->subfunction_id;
-    response->response_code = Protocol::eResponseCode_OK;
-    response->valid = true;
-
-    switch (request->command_id)
-    {
-        // ============= [GetInfo] ============
-        case Protocol::eCmdGetInfo:
-            code = process_get_info(request, response);
-            break;
-
-        // ============= [CommControl] ============
-        case Protocol::eCmdCommControl:
-            code = process_comm_control(request, response);
-            break;
-
-        // ============= [MemoryControl] ============
-        case Protocol::eCmdMemoryControl:
-            break;
-
-        // ============= [DataLogControl] ===========
-        case Protocol::eCmdDataLogControl:
-            break;
-
-        // ============= [UserCommand] ===========
-        case Protocol::eCmdUserCommand:
-            break;
-
-        // ============================================
-        default:
-            response->response_code = Protocol::eResponseCode_UnsupportedFeature;
-            break;
-    }
-
-    response->response_code = static_cast<uint8_t>(code);
-    if (code != Protocol::eResponseCode_OK)
-    {
-        response->data_length = 0;
-    }
-}
+				if (m_disconnect_pending)
+				{
+					m_comm_handler.disconnect();
+					m_disconnect_pending = false;
+				}
+			}
+		}
+	}
 
 
- // ============= [GetInfo] ============
-Protocol::ResponseCode MainHandler::process_get_info(Protocol::Request *request, Protocol::Response *response)
-{
-    Protocol::ResponseData response_data;
-    Protocol::ResponseCode code = Protocol::eResponseCode_FailureToProceed;
+	void MainHandler::process_request(Protocol::Request* request, Protocol::Response* response)
+	{
+		Protocol::ResponseCode code = Protocol::eResponseCode_FailureToProceed;
+		response->reset();
 
-    switch (request->subfunction_id)
-    {
-        // =========== [GetProtocolVersion] ==========
-        case Protocol::GetInfo::eSubfnGetProtocolVersion:
-            response_data.get_info.get_protocol_version.major = PROTOCOL_VERSION_MAJOR(ACTUAL_PROTOCOL_VERSION);
-            response_data.get_info.get_protocol_version.minor = PROTOCOL_VERSION_MINOR(ACTUAL_PROTOCOL_VERSION);
-            code = m_codec.encode_response_protocol_version(&response_data, response);
-            break;
+		if (!request->valid)
+			return;
 
-        // =========== [GetSoftwareID] ==========
-        case Protocol::GetInfo::eSubfnGetSoftwareId:
-            code = m_codec.encode_response_software_id(response);
-            break;
+		response->command_id = request->command_id;
+		response->subfunction_id = request->subfunction_id;
+		response->response_code = Protocol::eResponseCode_OK;
+		response->valid = true;
 
-        // =========== [GetSupportedFeatures] ==========
-        case Protocol::GetInfo::eSubfnGetSupportedFeatures:
-            break;
+		switch (request->command_id)
+		{
+			// ============= [GetInfo] ============
+		case Protocol::eCmdGetInfo:
+			code = process_get_info(request, response);
+			break;
 
-        // =================================
-        default:
-            response->response_code = Protocol::eResponseCode_UnsupportedFeature;
-            break;
-    }
+			// ============= [CommControl] ============
+		case Protocol::eCmdCommControl:
+			code = process_comm_control(request, response);
+			break;
 
-    return code;
-}
+			// ============= [MemoryControl] ============
+		case Protocol::eCmdMemoryControl:
+			break;
 
-// ============= [CommControl] ============
-Protocol::ResponseCode MainHandler::process_comm_control(Protocol::Request *request, Protocol::Response *response)
-{
-    Protocol::ResponseData response_data;
-    Protocol::RequestData request_data;
-    Protocol::ResponseCode code = Protocol::eResponseCode_FailureToProceed;
+			// ============= [DataLogControl] ===========
+		case Protocol::eCmdDataLogControl:
+			break;
 
-    switch (request->subfunction_id)
-    {
-        // =========== [Discover] ==========
-        case Protocol::CommControl::eSubfnDiscover:
-            code = m_codec.decode_request_comm_discover(request, &request_data);
-            if (code != Protocol::eResponseCode_OK)
-                break;
+			// ============= [UserCommand] ===========
+		case Protocol::eCmdUserCommand:
+			break;
 
-            std::memcpy(response_data.comm_control.discover.magic, Protocol::CommControl::DISCOVER_MAGIC, sizeof(Protocol::CommControl::DISCOVER_MAGIC));
-            for (uint8_t i=0; i<sizeof(request_data.comm_control.discover.challenge); i++)
-            {
-                response_data.comm_control.discover.challenge_response[i] = ~request_data.comm_control.discover.challenge[i];
-            }
+			// ============================================
+		default:
+			response->response_code = Protocol::eResponseCode_UnsupportedFeature;
+			break;
+		}
 
-            code = m_codec.encode_response_comm_discover(&response_data, response);
-            break;
-
-        // =========== [Heartbeat] ==========
-        case Protocol::CommControl::eSubfnHeartbeat:
-            code = m_codec.decode_request_comm_heartbeat(request, &request_data);
-            if (code != Protocol::eResponseCode_OK)
-                break;
-
-            if (request_data.comm_control.heartbeat.session_id != m_comm_handler.get_session_id())
-            {
-                code = Protocol::eResponseCode_InvalidRequest;
-                break;
-            }
-
-            bool success;
-            success = m_comm_handler.heartbeat(request_data.comm_control.heartbeat.challenge);
-            if (!success)
-            {
-                code = Protocol::eResponseCode_InvalidRequest;
-                break;
-            }
-
-            response_data.comm_control.heartbeat.session_id = m_comm_handler.get_session_id();
-            response_data.comm_control.heartbeat.challenge_response = ~request_data.comm_control.heartbeat.challenge;
-            
-            code = m_codec.encode_response_comm_heartbeat(&response_data, response);
-            break;
-
-        // =========== [GetParams] ==========
-        case Protocol::CommControl::eSubfnGetParams:
-            response_data.comm_control.get_params.data_buffer_size = SCRUTINY_BUFFER_SIZE;
-            response_data.comm_control.get_params.max_bitrate = m_config.get_max_bitrate();
-            response_data.comm_control.get_params.comm_rx_timeout = SCRUTINY_COMM_RX_TIMEOUT_US;
-            response_data.comm_control.get_params.heartbeat_timeout = SCRUTINY_COMM_HEARTBEAT_TMEOUT_US;
-            code = m_codec.encode_response_comm_get_params(&response_data, response);
-            break;
-        
-        // =========== [Connect] ==========
-        case Protocol::CommControl::eSubfnConnect:
-            code = m_codec.decode_request_comm_connect(request, &request_data);
-            if (code != Protocol::eResponseCode_OK)
-            {
-                break;
-            }
-
-            if (m_comm_handler.is_connected())
-            {
-                code = Protocol::eResponseCode_Busy;
-                break;
-            }
-
-            if (m_comm_handler.connect() == false)
-            {
-                code = Protocol::eResponseCode_FailureToProceed;
-                break;
-            }
-
-            response_data.comm_control.connect.session_id = m_comm_handler.get_session_id();
-            std::memcpy(response_data.comm_control.connect.magic, Protocol::CommControl::CONNECT_MAGIC, sizeof(Protocol::CommControl::CONNECT_MAGIC));
-            code = m_codec.encode_response_comm_connect(&response_data, response);
-            break;
+		response->response_code = static_cast<uint8_t>(code);
+		if (code != Protocol::eResponseCode_OK)
+		{
+			response->data_length = 0;
+		}
+	}
 
 
-        // =========== [Diconnect] ==========
-        case Protocol::CommControl::eSubfnDisconnect:
-            code = m_codec.decode_request_comm_disconnect(request, &request_data);
-            if (code != Protocol::eResponseCode_OK)
-                break;
+	// ============= [GetInfo] ============
+	Protocol::ResponseCode MainHandler::process_get_info(Protocol::Request* request, Protocol::Response* response)
+	{
+		Protocol::ResponseData response_data;
+		Protocol::ResponseCode code = Protocol::eResponseCode_FailureToProceed;
 
-            if (m_comm_handler.is_connected())
-            {
-                if (m_comm_handler.get_session_id() == request_data.comm_control.disconnect.session_id)
-                {
-                    m_disconnect_pending = true;
-                }
-                else
-                {
-                    code = Protocol::eResponseCode_InvalidRequest;
-                    break;
-                }
-            }
-            
-            // empty data
-            code = Protocol::eResponseCode_OK;
-            break;
+		switch (request->subfunction_id)
+		{
+			// =========== [GetProtocolVersion] ==========
+		case Protocol::GetInfo::eSubfnGetProtocolVersion:
+			response_data.get_info.get_protocol_version.major = PROTOCOL_VERSION_MAJOR(ACTUAL_PROTOCOL_VERSION);
+			response_data.get_info.get_protocol_version.minor = PROTOCOL_VERSION_MINOR(ACTUAL_PROTOCOL_VERSION);
+			code = m_codec.encode_response_protocol_version(&response_data, response);
+			break;
 
-        // =================================
-        default:
-            response->response_code = Protocol::eResponseCode_UnsupportedFeature;
-            break;
-    }
+			// =========== [GetSoftwareID] ==========
+		case Protocol::GetInfo::eSubfnGetSoftwareId:
+			code = m_codec.encode_response_software_id(response);
+			break;
 
-    return code;
-}
+			// =========== [GetSupportedFeatures] ==========
+		case Protocol::GetInfo::eSubfnGetSupportedFeatures:
+			break;
+
+			// =================================
+		default:
+			response->response_code = Protocol::eResponseCode_UnsupportedFeature;
+			break;
+		}
+
+		return code;
+	}
+
+	// ============= [CommControl] ============
+	Protocol::ResponseCode MainHandler::process_comm_control(Protocol::Request* request, Protocol::Response* response)
+	{
+		Protocol::ResponseData response_data;
+		Protocol::RequestData request_data;
+		Protocol::ResponseCode code = Protocol::eResponseCode_FailureToProceed;
+
+		switch (request->subfunction_id)
+		{
+			// =========== [Discover] ==========
+		case Protocol::CommControl::eSubfnDiscover:
+			code = m_codec.decode_request_comm_discover(request, &request_data);
+			if (code != Protocol::eResponseCode_OK)
+				break;
+
+			std::memcpy(response_data.comm_control.discover.magic, Protocol::CommControl::DISCOVER_MAGIC, sizeof(Protocol::CommControl::DISCOVER_MAGIC));
+			for (uint8_t i = 0; i < sizeof(request_data.comm_control.discover.challenge); i++)
+			{
+				response_data.comm_control.discover.challenge_response[i] = ~request_data.comm_control.discover.challenge[i];
+			}
+
+			code = m_codec.encode_response_comm_discover(&response_data, response);
+			break;
+
+			// =========== [Heartbeat] ==========
+		case Protocol::CommControl::eSubfnHeartbeat:
+			code = m_codec.decode_request_comm_heartbeat(request, &request_data);
+			if (code != Protocol::eResponseCode_OK)
+				break;
+
+			if (request_data.comm_control.heartbeat.session_id != m_comm_handler.get_session_id())
+			{
+				code = Protocol::eResponseCode_InvalidRequest;
+				break;
+			}
+
+			bool success;
+			success = m_comm_handler.heartbeat(request_data.comm_control.heartbeat.challenge);
+			if (!success)
+			{
+				code = Protocol::eResponseCode_InvalidRequest;
+				break;
+			}
+
+			response_data.comm_control.heartbeat.session_id = m_comm_handler.get_session_id();
+			response_data.comm_control.heartbeat.challenge_response = ~request_data.comm_control.heartbeat.challenge;
+
+			code = m_codec.encode_response_comm_heartbeat(&response_data, response);
+			break;
+
+			// =========== [GetParams] ==========
+		case Protocol::CommControl::eSubfnGetParams:
+			response_data.comm_control.get_params.data_buffer_size = SCRUTINY_BUFFER_SIZE;
+			response_data.comm_control.get_params.max_bitrate = m_config.get_max_bitrate();
+			response_data.comm_control.get_params.comm_rx_timeout = SCRUTINY_COMM_RX_TIMEOUT_US;
+			response_data.comm_control.get_params.heartbeat_timeout = SCRUTINY_COMM_HEARTBEAT_TMEOUT_US;
+			code = m_codec.encode_response_comm_get_params(&response_data, response);
+			break;
+
+			// =========== [Connect] ==========
+		case Protocol::CommControl::eSubfnConnect:
+			code = m_codec.decode_request_comm_connect(request, &request_data);
+			if (code != Protocol::eResponseCode_OK)
+			{
+				break;
+			}
+
+			if (m_comm_handler.is_connected())
+			{
+				code = Protocol::eResponseCode_Busy;
+				break;
+			}
+
+			if (m_comm_handler.connect() == false)
+			{
+				code = Protocol::eResponseCode_FailureToProceed;
+				break;
+			}
+
+			response_data.comm_control.connect.session_id = m_comm_handler.get_session_id();
+			std::memcpy(response_data.comm_control.connect.magic, Protocol::CommControl::CONNECT_MAGIC, sizeof(Protocol::CommControl::CONNECT_MAGIC));
+			code = m_codec.encode_response_comm_connect(&response_data, response);
+			break;
 
 
-/*
-loop_id_t MainHandler::add_loop(LoopHandler* loop)
-{
-    return 0;
-}
+			// =========== [Diconnect] ==========
+		case Protocol::CommControl::eSubfnDisconnect:
+			code = m_codec.decode_request_comm_disconnect(request, &request_data);
+			if (code != Protocol::eResponseCode_OK)
+				break;
 
-void MainHandler::process_loop(loop_id_t loop)
-{
-    
-}
-*/
+			if (m_comm_handler.is_connected())
+			{
+				if (m_comm_handler.get_session_id() == request_data.comm_control.disconnect.session_id)
+				{
+					m_disconnect_pending = true;
+				}
+				else
+				{
+					code = Protocol::eResponseCode_InvalidRequest;
+					break;
+				}
+			}
+
+			// empty data
+			code = Protocol::eResponseCode_OK;
+			break;
+
+			// =================================
+		default:
+			response->response_code = Protocol::eResponseCode_UnsupportedFeature;
+			break;
+		}
+
+		return code;
+	}
+
+
+	/*
+	loop_id_t MainHandler::add_loop(LoopHandler* loop)
+	{
+		return 0;
+	}
+
+	void MainHandler::process_loop(loop_id_t loop)
+	{
+
+	}
+	*/
 }

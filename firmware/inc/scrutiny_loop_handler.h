@@ -5,26 +5,26 @@
 
 namespace scrutiny
 {
-    enum LoopType
-    {
-        FIXED_FREQ,
-        VARIABLE_FREQ
-    };
+	enum LoopType
+	{
+		FIXED_FREQ,
+		VARIABLE_FREQ
+	};
 
 
-    class LoopHandler
-    {
-    public:
-        LoopHandler(LoopType type, float frequency);
-        void init();
-        void process();
+	class LoopHandler
+	{
+	public:
+		LoopHandler(LoopType type, float frequency);
+		void init();
+		void process();
 
-        void rx_bytes(uint8_t *data, uint32_t len);
+		void rx_bytes(uint8_t* data, uint32_t len);
 
-    protected:
-        LoopType m_loop_type;
-        float m_frequency;
-    };
+	protected:
+		LoopType m_loop_type;
+		float m_frequency;
+	};
 }
 
 

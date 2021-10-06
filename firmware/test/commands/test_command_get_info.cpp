@@ -10,8 +10,6 @@ protected:
    scrutiny::Timebase tb;
    scrutiny::MainHandler scrutiny_handler;
 
-   TestGetInfo() {}
-
    virtual void SetUp() 
    {
       scrutiny::Config config;

@@ -11,7 +11,7 @@
 #define PROTOCOL_VERSION_MAJOR(v) ((v>>8) & 0xFF)
 #define PROTOCOL_VERSION_MINOR(v) (v & 0xFF)
 
-// ========== Parameters ==========
+ // ========== Parameters ==========
 
 #define SCRUTINY_BUFFER_SIZE 256u
 #define SCRUTINY_COMM_RX_TIMEOUT_US 50000u                     // Reset reception state machine when no data is received for that amount of time.
@@ -27,7 +27,7 @@
 
 namespace scrutiny
 {
-    typedef unsigned int loop_id_t;
+	typedef unsigned int loop_id_t;
 }
 
 
@@ -37,15 +37,15 @@ namespace scrutiny
 #endif
 
 #if SCRUTINY_BUFFER_SIZE > 0xFFFF
-   #error Scrutiny protocol is limited to 16bits data length
+#error Scrutiny protocol is limited to 16bits data length
 #endif
 
 #if SCRUTINY_BUFFER_SIZE < 32
-   #error Scrutiny protocol buffer size must be at least 32 bytes long
+#error Scrutiny protocol buffer size must be at least 32 bytes long
 #endif
 
 #if SCRUTINY_BUFFER_SIZE < SOFTWARE_ID_LENGTH
-   #error Scrutiny protocol buffer must be bigger than software id
+#error Scrutiny protocol buffer must be bigger than software id
 #endif
 
 #endif  // ___SCRUTINY_H___
