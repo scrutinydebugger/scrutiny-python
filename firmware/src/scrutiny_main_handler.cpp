@@ -6,10 +6,10 @@
 namespace scrutiny
 {
 
-
 void MainHandler::init(Config *config)
 {
     m_processing_request = false;
+    m_disconnect_pending = false;
     m_comm_handler.init(&m_timebase);
 
     m_config.copy_from(config);
@@ -25,6 +25,7 @@ void MainHandler::process(uint32_t timestep_us)
         m_processing_request = true;
         Protocol::Response *response = m_comm_handler.prepare_response();
         process_request(m_comm_handler.get_request(), response);
+
         if (response->valid)
         {
             m_comm_handler.send_response(response);
@@ -35,8 +36,14 @@ void MainHandler::process(uint32_t timestep_us)
     {
         if (!m_comm_handler.transmitting())  
         {
-            m_comm_handler.request_processed(); // Allow reception of next request
+            m_comm_handler.wait_next_request(); // Allow reception of next request
             m_processing_request = false;
+
+            if (m_disconnect_pending)
+            {
+                m_comm_handler.disconnect();
+                m_disconnect_pending = false;
+            }
         }
     }
 }
@@ -57,25 +64,25 @@ void MainHandler::process_request(Protocol::Request *request, Protocol::Response
 
     switch (request->command_id)
     {
-        // =============    GetInfo        ============
+        // ============= [GetInfo] ============
         case Protocol::eCmdGetInfo:
             code = process_get_info(request, response);
             break;
 
-        // =============    CommControl    ============
+        // ============= [CommControl] ============
         case Protocol::eCmdCommControl:
             code = process_comm_control(request, response);
             break;
 
-        // =============    MemoryControl  ============
+        // ============= [MemoryControl] ============
         case Protocol::eCmdMemoryControl:
             break;
 
-        // =============    DataLogControl  ===========
+        // ============= [DataLogControl] ===========
         case Protocol::eCmdDataLogControl:
             break;
 
-        // =============    UserCommand     ===========
+        // ============= [UserCommand] ===========
         case Protocol::eCmdUserCommand:
             break;
 
@@ -92,6 +99,8 @@ void MainHandler::process_request(Protocol::Request *request, Protocol::Response
     }
 }
 
+
+ // ============= [GetInfo] ============
 Protocol::ResponseCode MainHandler::process_get_info(Protocol::Request *request, Protocol::Response *response)
 {
     Protocol::ResponseData response_data;
@@ -99,19 +108,19 @@ Protocol::ResponseCode MainHandler::process_get_info(Protocol::Request *request,
 
     switch (request->subfunction_id)
     {
-        // ===========  Get Protocol Version     ==========
+        // =========== [GetProtocolVersion] ==========
         case Protocol::GetInfo::eSubfnGetProtocolVersion:
             response_data.get_info.get_protocol_version.major = PROTOCOL_VERSION_MAJOR(ACTUAL_PROTOCOL_VERSION);
             response_data.get_info.get_protocol_version.minor = PROTOCOL_VERSION_MINOR(ACTUAL_PROTOCOL_VERSION);
             code = m_codec.encode_response_protocol_version(&response_data, response);
             break;
 
-        // ===========  Get Software ID          ==========
+        // =========== [GetSoftwareID] ==========
         case Protocol::GetInfo::eSubfnGetSoftwareId:
             code = m_codec.encode_response_software_id(response);
             break;
 
-        // ===========  Get Supported Features   ==========
+        // =========== [GetSupportedFeatures] ==========
         case Protocol::GetInfo::eSubfnGetSupportedFeatures:
             break;
 
@@ -124,6 +133,7 @@ Protocol::ResponseCode MainHandler::process_get_info(Protocol::Request *request,
     return code;
 }
 
+// ============= [CommControl] ============
 Protocol::ResponseCode MainHandler::process_comm_control(Protocol::Request *request, Protocol::Response *response)
 {
     Protocol::ResponseData response_data;
@@ -132,7 +142,7 @@ Protocol::ResponseCode MainHandler::process_comm_control(Protocol::Request *requ
 
     switch (request->subfunction_id)
     {
-        // =========== Discover ==========
+        // =========== [Discover] ==========
         case Protocol::CommControl::eSubfnDiscover:
             code = m_codec.decode_request_comm_discover(request, &request_data);
             if (code != Protocol::eResponseCode_OK)
@@ -147,11 +157,17 @@ Protocol::ResponseCode MainHandler::process_comm_control(Protocol::Request *requ
             code = m_codec.encode_response_comm_discover(&response_data, response);
             break;
 
-        // =========== Heartbeat ==========
+        // =========== [Heartbeat] ==========
         case Protocol::CommControl::eSubfnHeartbeat:
             code = m_codec.decode_request_comm_heartbeat(request, &request_data);
             if (code != Protocol::eResponseCode_OK)
                 break;
+
+            if (request_data.comm_control.heartbeat.session_id != m_comm_handler.get_session_id())
+            {
+                code = Protocol::eResponseCode_InvalidRequest;
+                break;
+            }
 
             bool success;
             success = m_comm_handler.heartbeat(request_data.comm_control.heartbeat.challenge);
@@ -161,18 +177,68 @@ Protocol::ResponseCode MainHandler::process_comm_control(Protocol::Request *requ
                 break;
             }
 
+            response_data.comm_control.heartbeat.session_id = m_comm_handler.get_session_id();
             response_data.comm_control.heartbeat.challenge_response = ~request_data.comm_control.heartbeat.challenge;
             
             code = m_codec.encode_response_comm_heartbeat(&response_data, response);
             break;
 
-        // =========== GetParams ==========
+        // =========== [GetParams] ==========
         case Protocol::CommControl::eSubfnGetParams:
             response_data.comm_control.get_params.data_buffer_size = SCRUTINY_BUFFER_SIZE;
             response_data.comm_control.get_params.max_bitrate = m_config.get_max_bitrate();
             response_data.comm_control.get_params.comm_rx_timeout = SCRUTINY_COMM_RX_TIMEOUT_US;
             response_data.comm_control.get_params.heartbeat_timeout = SCRUTINY_COMM_HEARTBEAT_TMEOUT_US;
             code = m_codec.encode_response_comm_get_params(&response_data, response);
+            break;
+        
+        // =========== [Connect] ==========
+        case Protocol::CommControl::eSubfnConnect:
+            code = m_codec.decode_request_comm_connect(request, &request_data);
+            if (code != Protocol::eResponseCode_OK)
+            {
+                break;
+            }
+
+            if (m_comm_handler.is_connected())
+            {
+                code = Protocol::eResponseCode_Busy;
+                break;
+            }
+
+            if (m_comm_handler.connect() == false)
+            {
+                code = Protocol::eResponseCode_FailureToProceed;
+                break;
+            }
+
+            response_data.comm_control.connect.session_id = m_comm_handler.get_session_id();
+            std::memcpy(response_data.comm_control.connect.magic, Protocol::CommControl::CONNECT_MAGIC, sizeof(Protocol::CommControl::CONNECT_MAGIC));
+            code = m_codec.encode_response_comm_connect(&response_data, response);
+            break;
+
+
+        // =========== [Diconnect] ==========
+        case Protocol::CommControl::eSubfnDisconnect:
+            code = m_codec.decode_request_comm_disconnect(request, &request_data);
+            if (code != Protocol::eResponseCode_OK)
+                break;
+
+            if (m_comm_handler.is_connected())
+            {
+                if (m_comm_handler.get_session_id() == request_data.comm_control.disconnect.session_id)
+                {
+                    m_disconnect_pending = true;
+                }
+                else
+                {
+                    code = Protocol::eResponseCode_InvalidRequest;
+                    break;
+                }
+            }
+            
+            // empty data
+            code = Protocol::eResponseCode_OK;
             break;
 
         // =================================

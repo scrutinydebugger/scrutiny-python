@@ -18,7 +18,7 @@ protected:
    {
       comm.init(&tb);
       response.data = response_buffer;
-      comm.set_enabled();
+      comm.connect();
    }
 };
 

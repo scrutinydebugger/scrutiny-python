@@ -162,7 +162,9 @@ class FakeDevice:
 
         if subfn == cmd.CommControl.Subfunction.Heartbeat:
             self.comm_timer.start()
-            response = self.protocol.respond_comm_heartbeat((~req_data['session_id']) & 0xFFFFFFFF)
+            session_id = 0x12345678 # todo : manage session correctly
+            challenge_response = self.protocol.compute_challenge_16bits(req_data['challenge'])
+            response = self.protocol.respond_comm_heartbeat(session_id,  challenge_response)
         else:
             code = Response.ResponseCode.InvalidRequest
 

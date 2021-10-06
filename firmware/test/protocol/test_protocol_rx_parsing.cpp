@@ -14,7 +14,7 @@ protected:
    virtual void SetUp() 
    {
       comm.init(&tb);
-      comm.set_enabled();
+      comm.connect();
    }
 };
 

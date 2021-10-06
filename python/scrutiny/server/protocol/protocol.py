@@ -5,12 +5,20 @@ from . import Request, Response
 from .exceptions import *
 from .datalog import *
 import logging
+import ctypes
 
 class Protocol:
     def __init__(self, version_major=1, version_minor=0):
         self.version_major = version_major
         self.version_minor = version_minor
         self.logger = logging.getLogger('protocol')
+
+
+    def compute_challenge_16bits(self, challenge):
+        return ctypes.c_uint16(~challenge).value
+
+    def compute_challenge_32bits(self, challenge):
+        return ctypes.c_uint32(~challenge).value
 
     def get_protocol_version(self):
         return Request(cmd.GetInfo, cmd.GetInfo.Subfunction.GetProtocolVersion)
@@ -36,17 +44,20 @@ class Protocol:
         return Request(cmd.MemoryControl, cmd.MemoryControl.Subfunction.Write, data)
 
     def comm_discover(self, challenge):
-        data = cmd.CommControl.MAGIC + struct.pack('>L', challenge)
+        data = cmd.CommControl.DISCOVER_MAGIC + struct.pack('>L', challenge)
         return Request(cmd.CommControl, cmd.CommControl.Subfunction.Discover, data) 
 
-    def comm_heartbeat(self, session_id):
-        return Request(cmd.CommControl, cmd.CommControl.Subfunction.Heartbeat, struct.pack('>L', session_id))
-
+    def comm_heartbeat(self, session_id, challenge):
+        return Request(cmd.CommControl, cmd.CommControl.Subfunction.Heartbeat, struct.pack('>LH', session_id, challenge))
+   
     def comm_get_params(self):
         return Request(cmd.CommControl, cmd.CommControl.Subfunction.GetParams)
 
     def comm_connect(self):
-        return Request(cmd.CommControl, cmd.CommControl.Subfunction.Connect)
+        return Request(cmd.CommControl, cmd.CommControl.Subfunction.Connect, cmd.CommControl.CONNECT_MAGIC)
+    
+    def comm_disconnect(self, session_id):
+        return Request(cmd.CommControl, cmd.CommControl.Subfunction.Disconnect, struct.pack('>L', session_id))
 
     def datalog_get_targets(self):
         return Request(cmd.DatalogControl, cmd.DatalogControl.Subfunction.GetAvailableTarget) 
@@ -158,7 +169,10 @@ class Protocol:
                     data['challenge'], = struct.unpack('>L', req.payload[4:8])
                 
                 elif subfn == cmd.CommControl.Subfunction.Heartbeat: 
-                    data['session_id'], = struct.unpack('>L', req.payload[0:4])
+                    data['session_id'], data['challenge'] = struct.unpack('>LH', req.payload[0:8])
+
+                elif subfn == cmd.CommControl.Subfunction.Disconnect: 
+                    data['session_id'] = struct.unpack('>L', req.payload[0:4])
 
         except Exception as e:
             self.logger.error(str(e))
@@ -204,18 +218,22 @@ class Protocol:
         return Response(cmd.GetInfo, cmd.GetInfo.Subfunction.GetSupportedFeatures, Response.ResponseCode.OK, bytes([bytes1]))
   
     def respond_comm_discover(self, challenge_response):
-        resp_data = cmd.CommControl.MAGIC+struct.pack('>L', challenge_response)
+        resp_data = cmd.CommControl.DISCOVER_MAGIC+struct.pack('>L', challenge_response)
         return Response(cmd.CommControl, cmd.CommControl.Subfunction.Discover, Response.ResponseCode.OK, resp_data)
 
-    def respond_comm_heartbeat(self, session_id_processed):
-        return Response(cmd.CommControl, cmd.CommControl.Subfunction.Heartbeat, Response.ResponseCode.OK, struct.pack('>L', session_id_processed))
+    def respond_comm_heartbeat(self, session_id, challenge_response):
+        return Response(cmd.CommControl, cmd.CommControl.Subfunction.Heartbeat, Response.ResponseCode.OK, struct.pack('>LH', session_id, challenge_response))
 
     def respond_comm_get_params(self, max_data_size, max_bitrate, heartbeat_timeout, rx_timeout):
         data = struct.pack('>HLLL', max_data_size, max_bitrate, heartbeat_timeout, rx_timeout)
         return Response(cmd.CommControl, cmd.CommControl.Subfunction.GetParams, Response.ResponseCode.OK, data)
 
     def respond_comm_connect(self, session_id):
-        return Response(cmd.CommControl, cmd.CommControl.Subfunction.Connect, Response.ResponseCode.OK, struct.pack('>L', session_id))
+        resp_data = cmd.CommControl.CONNECT_MAGIC + struct.pack('>L', session_id)
+        return Response(cmd.CommControl, cmd.CommControl.Subfunction.Connect, Response.ResponseCode.OK, resp_data)
+   
+    def respond_comm_disconnect(self):
+        return Response(cmd.CommControl, cmd.CommControl.Subfunction.Disconnect, Response.ResponseCode.OK)
 
     def respond_read_single_memory_block(self, address, data):
         block_list = [(address, data)]
@@ -381,11 +399,13 @@ class Protocol:
                     data['magic'] =  response.payload[0:4]
                     data['challenge_response'], = struct.unpack('>L', response.payload[4:8])
                 elif subfn == cmd.CommControl.Subfunction.Heartbeat:      
-                    data['session_id_processed'], = struct.unpack('>L', response.payload[0:4])
+                    data['session_id'], data['challenge_response'] = struct.unpack('>LH', response.payload[0:6])
                 elif subfn == cmd.CommControl.Subfunction.GetParams:
                     data['max_data_size'], data['max_bitrate'], data['heartbeat_timeout'], data['rx_timeout'] = struct.unpack('>HLLL', response.payload[0:14])
                 elif subfn == cmd.CommControl.Subfunction.Connect:      
-                    data['session_id'], = struct.unpack('>L', response.payload[0:4])
+                    data['magic'] =  response.payload[0:4]
+                    data['session_id'], = struct.unpack('>L', response.payload[4:8])
+
 
         except Exception as e:
             self.logger.error(str(e))

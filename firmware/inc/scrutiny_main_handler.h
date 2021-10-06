@@ -25,27 +25,11 @@ namespace scrutiny
         Protocol::ResponseCode process_get_info(Protocol::Request *request, Protocol::Response *response);
         Protocol::ResponseCode process_comm_control(Protocol::Request *request, Protocol::Response *response);
 
-        inline void receive_data(uint8_t* data, uint32_t len) 
+
+        inline Protocol::CommHandler* comm()
         {
-            m_comm_handler.receive_data(data, len);
+            return &m_comm_handler;
         }
-
-        inline uint32_t data_to_send()
-        {
-            return m_comm_handler.data_to_send();
-        }
-
-        inline uint32_t pop_data(uint8_t* buffer, const uint32_t len)
-        {
-            return m_comm_handler.pop_data(buffer, len);
-        } 
-
-        inline void enable_comm(const bool v=true)
-        {
-            m_comm_handler.set_enabled(v);
-        }
-
-        inline bool comm_enabled()  {return m_comm_handler.is_enabled();}
 
         inline Config* get_config() {return &m_config;}
 
@@ -54,6 +38,7 @@ namespace scrutiny
         Timebase m_timebase;
         Protocol::CommHandler m_comm_handler;
         bool m_processing_request;
+        bool m_disconnect_pending;
         Config m_config;
 #if ACTUAL_PROTOCOL_VERSION == PROTOCOL_VERSION(1,0)
         Protocol::CodecV1_0 m_codec;

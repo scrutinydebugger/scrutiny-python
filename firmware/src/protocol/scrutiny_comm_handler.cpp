@@ -21,6 +21,11 @@ namespace Protocol
     {
         uint32_t i = 0;
 
+        if (m_enabled == false)
+        {
+            return;
+        }
+
         if (m_state == eStateTransmitting)
         {
             return; // Half duplex comm. Discard data;
@@ -156,24 +161,7 @@ namespace Protocol
 
                         if (check_crc(&m_active_request))
                         {
-                            if (m_enabled == false)
-                            {
-                                if (check_must_enable())    // Check if we received a valid discover message
-                                {
-                                    m_enabled = true;
-                                }
-                            }
-
-                            if (m_enabled)
-                            {
-                                m_active_request.valid = true;
-                                m_rx_state = eRxStateWaitForProcess;
-                                m_request_received = true;
-                            }
-                            else
-                            {
-                                reset_rx();
-                            }
+                            process_active_request();
                         }
                         else
                         {
@@ -189,6 +177,33 @@ namespace Protocol
                 default:
                     break;
             }
+        }
+    }
+
+    void CommHandler::process_active_request()
+    {
+        bool must_process = false;
+        if (m_session_active == false)
+        {
+            if (received_discover_request() || received_connect_request())    // Check if we received a valid discover message
+            {
+                must_process = true;
+            }
+        }
+        else
+        {
+            must_process = true;
+        }
+
+        if (must_process)
+        {
+            m_active_request.valid = true;
+            m_rx_state = eRxStateWaitForProcess;
+            m_request_received = true;
+        }
+        else
+        {
+            reset_rx();
         }
     }
 
@@ -327,8 +342,8 @@ namespace Protocol
         return i;
     }
 
-    // Check if the last request received is a valid "Comm Discover request". If yes, enable comm (allow responses)
-    bool CommHandler::check_must_enable()
+    // Check if the last request received is a valid "Comm Discover request".
+    bool CommHandler::received_discover_request()
     {
         if (m_active_request.command_id != eCmdCommControl)
         {
@@ -353,18 +368,42 @@ namespace Protocol
         return true;
     }
 
+    // Check if the last request received is a valid "Comm Discover request".
+    bool CommHandler::received_connect_request()
+    {
+        if (m_active_request.command_id != eCmdCommControl)
+        {
+            return false;
+        }
+
+        if (m_active_request.subfunction_id != CommControl::eSubfnConnect)
+        {
+            return false;
+        }
+
+        return true;
+    }
+
     void CommHandler::process()
     {
-        if (m_timebase->is_elapsed(m_heartbeat_timestamp, SCRUTINY_COMM_HEARTBEAT_TMEOUT_US))
+        if (m_session_active)
         {
-            reset();    // Disable and reset all internal vars
+            if (m_timebase->is_elapsed(m_heartbeat_timestamp, SCRUTINY_COMM_HEARTBEAT_TMEOUT_US))
+            {
+                reset();    // Disable and reset all internal vars
+            }
         }
     }
 
     bool CommHandler::heartbeat(uint16_t challenge)
     {
         bool success = false;
-        if (m_enabled && (challenge != m_last_heartbeat_challenge || m_heartbeat_received == false))
+        if (!m_session_active || !m_enabled)
+        {
+            return false;
+        }
+
+        if ( (challenge != m_last_heartbeat_challenge || m_heartbeat_received == false))
         {
             m_heartbeat_received = true;
             m_heartbeat_timestamp = m_timebase->get_timestamp();
@@ -416,11 +455,13 @@ namespace Protocol
     void CommHandler::reset()
     {
         m_state = eStateIdle;
-        m_enabled = false;
+        m_enabled = true;
         m_heartbeat_timestamp = m_timebase->get_timestamp();
         std::memset(m_buffer, 0, SCRUTINY_BUFFER_SIZE);
         m_last_heartbeat_challenge = 0;
         m_heartbeat_received = false;
+        m_session_id = 0;
+        m_session_active = false; 
 
         reset_rx();
         reset_tx();
@@ -455,6 +496,38 @@ namespace Protocol
             m_state = eStateIdle;
         }
     }
+
+
+    bool CommHandler::connect()
+    {
+        if (!m_enabled)
+        {
+            return false;
+        }
+
+        if (m_session_active)
+        {
+            return false;
+        }
+
+
+        m_session_id = 0x12345678; // todo
+        m_session_active = true;
+        m_heartbeat_received = false;
+        reset_rx();
+
+        return true;
+    }
+
+    void CommHandler::disconnect()
+    {
+        m_session_id = 0;
+        m_session_active = false;
+        m_heartbeat_received = false;
+        reset_rx();
+        reset_tx();
+    }
+
 
 }   // namespace Protocol
 }   // namespace scrutiny

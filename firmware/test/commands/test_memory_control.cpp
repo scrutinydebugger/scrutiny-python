@@ -15,7 +15,7 @@ protected:
    {
       scrutiny::Config config;
       scrutiny_handler.init(&config);
-      scrutiny_handler.enable_comm();
+      scrutiny_handler.force_comm_connect();
    }
 };
 

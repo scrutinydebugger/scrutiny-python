@@ -114,9 +114,10 @@ class TestMemoryControl(TestFakeDevice):
 
 class TestCommControl(TestFakeDevice):
     def test_heartbeat(self):
-        req = self.protocol.comm_heartbeat(0x12345678)
+        req = self.protocol.comm_heartbeat(0x12345678, 0x1122)  #todo : manage session
         response = self.send_req(req)
         data = self.validate_positive_response(req, response)
-        self.assertEqual(data['session_id_processed'], 0xEDCBA987)
+        self.assertEqual(data['session_id'], 0x12345678)
+        self.assertEqual(data['challenge_response'], 0xEEDD)
 
 

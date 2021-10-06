@@ -28,11 +28,13 @@ namespace scrutiny
 
             bool check_crc(const Request* req);
             void add_crc(Response* response);
-            bool check_must_enable();
+
             bool heartbeat(uint16_t challenge);
             void process();           
+            bool connect();
+            void disconnect();
             
-            inline void request_processed() { reset_rx();}
+            inline void wait_next_request() { reset_rx();}
 
             inline bool request_received() {return m_request_received;}
             inline Request* get_request() {return &m_active_request;}
@@ -41,9 +43,16 @@ namespace scrutiny
             inline bool receiving() const {return (m_state == eStateReceiving);}
 
             inline bool is_enabled() const { return m_enabled;}
-            inline void set_enabled(const bool v=true) { m_enabled=v;}
+            inline void enable() { m_enabled=true;}
+            inline void disable() { reset(); m_enabled = false;}
+            inline bool is_connected() {return m_session_active;}
+            inline uint32_t get_session_id() {return m_session_id;}
 
         protected:
+
+            void process_active_request();
+            bool received_discover_request();
+            bool received_connect_request();
 
             enum RxFSMState
             {
@@ -69,6 +78,8 @@ namespace scrutiny
             Timebase *m_timebase;
             State m_state;
             bool m_enabled;
+            uint32_t m_session_id;
+            bool m_session_active;
             uint32_t m_heartbeat_timestamp;
             uint16_t m_last_heartbeat_challenge;
             bool m_heartbeat_received;

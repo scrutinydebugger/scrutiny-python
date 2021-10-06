@@ -96,12 +96,15 @@ namespace scrutiny
         namespace CommControl
         {
             extern const uint8_t DISCOVER_MAGIC[4];
+            extern const uint8_t CONNECT_MAGIC[4];
 
             enum Subfunction
             {
-                eSubfnDiscover  = 1,
-                eSubfnHeartbeat = 2,
-                eSubfnGetParams = 3
+                eSubfnDiscover      = 1,
+                eSubfnHeartbeat     = 2,
+                eSubfnGetParams     = 3,
+                eSubfnConnect       = 4,
+                eSubfnDisconnect    = 5
             };
         }
 
