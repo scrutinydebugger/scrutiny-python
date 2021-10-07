@@ -100,11 +100,11 @@ class TestMemoryControl(TestFakeDevice):
         self.assertEqual(response.code, Response.ResponseCode.FailureToProceed)
 
     def test_write_memory(self):
-        req = self.protocol.write_memory_block(0x2000, bytes(range(256)))
+        req = self.protocol.write_single_memory_block(0x2000, bytes(range(256)))
         response = self.send_req(req)
         data = self.validate_positive_response(req, response)
-        self.assertEqual(data['address'], 0x2000)
-        self.assertEqual(data['length'], 256)
+        self.assertEqual(data['blocks'][0]['address'], 0x2000)
+        self.assertEqual(data['blocks'][0]['length'], 256)
 
         req = self.protocol.read_single_memory_block(0x2000, 256)
         response = self.send_req(req)

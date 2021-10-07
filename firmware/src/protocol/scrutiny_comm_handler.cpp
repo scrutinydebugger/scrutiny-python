@@ -500,6 +500,7 @@ namespace scrutiny
 
 		bool CommHandler::connect()
 		{
+			static uint32_t session_counter=0;	// todo : improve with prng
 			if (!m_enabled)
 			{
 				return false;
@@ -511,7 +512,7 @@ namespace scrutiny
 			}
 
 
-			m_session_id = 0x12345678; // todo
+			m_session_id = session_counter++;
 			m_session_active = true;
 			m_heartbeat_received = false;
 			reset_rx();

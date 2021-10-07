@@ -135,8 +135,11 @@ class FakeDevice:
        
         elif subfn == cmd.MemoryControl.Subfunction.Write:
             try:
-                self.data_source.write(req_data['address'], req_data['data'])
-                response = self.protocol.respond_write_memory_block(req_data['address'], len(req_data['data']))
+                response_block = []
+                for block in req_data['blocks']:
+                    self.data_source.write(block['address'], block['data'])
+                    response_block.append((block['address'], len(block['data'])))
+                response = self.protocol.respond_write_memory_blocks(response_block)
             except Exception as e:
                 self.logger.debug(str(e))
                 code =  Response.ResponseCode.FailureToProceed;

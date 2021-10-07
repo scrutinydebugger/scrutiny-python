@@ -94,3 +94,35 @@ TEST_F(TestCommHandler, TestHeartbeatTimeoutExpire)
 	comm.process();
 	ASSERT_FALSE(comm.is_connected());
 }
+
+TEST_F(TestCommHandler, TestConnectDisconnectBehaviour)
+{
+	uint32_t session_id;
+	ASSERT_FALSE(comm.is_connected());
+	comm.connect();
+	ASSERT_TRUE(comm.is_connected());
+	session_id = comm.get_session_id();
+	comm.disconnect();
+	ASSERT_FALSE(comm.is_connected());
+	comm.connect();
+	ASSERT_NE(comm.get_session_id(), session_id);
+
+	uint8_t dummy_request[8] = { 1,1,0,0 };
+	add_crc(dummy_request, sizeof(dummy_request) - 4);
+	
+	EXPECT_FALSE(comm.request_received());
+	comm.receive_data(dummy_request, sizeof(dummy_request));
+	comm.process();
+	EXPECT_TRUE(comm.request_received());
+	comm.disconnect();
+	EXPECT_FALSE(comm.request_received());
+
+	comm.connect();
+	comm.receive_data(dummy_request, sizeof(dummy_request)-1);
+	comm.process();
+	EXPECT_FALSE(comm.request_received());
+	comm.disconnect();
+	comm.connect();
+	comm.receive_data(&dummy_request[sizeof(dummy_request)-1], 1);
+	EXPECT_FALSE(comm.request_received());
+}

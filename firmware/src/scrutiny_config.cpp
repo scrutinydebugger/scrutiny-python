@@ -49,7 +49,7 @@ namespace scrutiny
 
 	bool Config::add_forbidden_address_range(const uint64_t start, const uint64_t end)
 	{
-		if (m_forbidden_range_count == SCRUTINY_FORBIDDEN_ADDRESS_RANGE_COUNT)
+		if (m_forbidden_range_count >= SCRUTINY_FORBIDDEN_ADDRESS_RANGE_COUNT)
 		{
 			return false;
 		}
@@ -63,7 +63,7 @@ namespace scrutiny
 
 	bool Config::add_readonly_address_range(const uint64_t start, const uint64_t end)
 	{
-		if (m_readonly_range_count == SCRUTINY_READONLY_ADDRESS_RANGE_COUNT)
+		if (m_readonly_range_count >= SCRUTINY_READONLY_ADDRESS_RANGE_COUNT)
 		{
 			return false;
 		}

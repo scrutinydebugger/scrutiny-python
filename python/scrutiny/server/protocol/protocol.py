@@ -8,11 +8,41 @@ import logging
 import ctypes
 
 class Protocol:
-    def __init__(self, version_major=1, version_minor=0):
+
+    class AddressFormat:
+        def __init__(self, nbits):
+            PACK_CHARS = {
+                8 : 'B',
+                16 : 'H',
+                32 : 'L',
+                64 : 'Q'
+            }
+
+            if nbits not in PACK_CHARS:
+                raise ValueError('Unsupported address format %s' % nbits)
+
+            self.nbits = nbits
+            self.nbytes = int(nbits/8)
+            self.pack_char = PACK_CHARS[nbits]
+
+        def get_address_size(self):
+            return self.nbytes
+
+        def get_pack_char(self):
+            return self.pack_char
+
+
+    def __init__(self, version_major=1, version_minor=0, address_size = 32):
         self.version_major = version_major
         self.version_minor = version_minor
         self.logger = logging.getLogger('protocol')
+        self.set_address_size(address_size)    # default 32 bits address
 
+    def set_address_size(self, address_size):
+        self.address_format = self.AddressFormat(address_size)
+
+    def encode_address(self, address):
+        return struct.pack('>%s' % self.address_format.get_pack_char(),  address)
 
     def compute_challenge_16bits(self, challenge):
         return ctypes.c_uint16(~challenge).value
@@ -36,11 +66,21 @@ class Protocol:
     def read_memory_blocks(self, block_list):
         data = bytes()
         for block in block_list:
-            data += struct.pack('>LH', block[0], block[1])
+            addr = block[0]
+            size = block[1]
+            data += self.encode_address(addr) + struct.pack('>H', size)
         return Request(cmd.MemoryControl, cmd.MemoryControl.Subfunction.Read, data)
 
-    def write_memory_block(self, address, data):
-        data = struct.pack('>L', address) + bytes(data)
+    def write_single_memory_block(self, address, data):
+        block_list = [(address, data)]
+        return self.write_memory_blocks(block_list)
+
+    def write_memory_blocks(self, block_list):
+        data = bytes()
+        for block in block_list:
+            addr = block[0]
+            mem_data = block[1]
+            data += self.encode_address(addr) + struct.pack('>H', len(mem_data)) + bytes(mem_data)
         return Request(cmd.MemoryControl, cmd.MemoryControl.Subfunction.Write, data)
 
     def comm_discover(self, challenge):
@@ -114,17 +154,34 @@ class Protocol:
                 subfn = cmd.MemoryControl.Subfunction(req.subfn)
                 
                 if subfn == cmd.MemoryControl.Subfunction.Read:                     # MemoryControl - Read
-                    if len(req.payload) % 6 !=0:
-                        raise Exception('Request data length is not a multiple of 6 bytes (addres[4] + length[2])')
-                    nblock = int(len(req.payload)/6)
+                    block_size = (2 + self.address_format.get_address_size())
+                    if len(req.payload) % block_size  !=0:
+                        raise Exception('Request data length is not a multiple of %d bytes (addres[%d] + length[2])' % (block_size, self.address_format.get_address_size()))
+                    nblock = int(len(req.payload)/block_size)
                     data['blocks']=[]
                     for i in range(nblock):
-                        (addr, length) = struct.unpack('>LH', req.payload[(i*6+0):(i*6+6)])
+                        (addr, length) = struct.unpack('>' + self.address_format.get_pack_char() + 'H', req.payload[(i*block_size+0):(i*block_size+block_size)])
                         data['blocks'].append(dict(address=addr, length=length))
                 
                 elif subfn == cmd.MemoryControl.Subfunction.Write:                  # MemoryControl - Write
-                    (data['address'],) = struct.unpack('>L', req.payload[0:4])
-                    data['data'] = req.payload[4:]
+                    data['blocks'] = []
+                    c = self.address_format.get_pack_char()
+                    address_length_size = 2 + self.address_format.get_address_size()
+                    index = 0
+                    while True:
+                        if len(req.payload) < index + address_length_size:
+                            raise Exception('Invalid request data, missing data')
+
+                        addr, length = struct.unpack('>'+c+'H', req.payload[(index+0):(index+address_length_size)])
+                        if len(req.payload) < index + address_length_size + length:
+                            raise Exception('Data length and encoded length mismatch for address 0x%x' % addr)
+
+                        req_data = req.payload[(index+address_length_size):(index+address_length_size+length)]
+                        data['blocks'].append(dict(address = addr, data = req_data))
+                        index += address_length_size+length
+
+                        if index >= len(req.payload):
+                            break;
 
             elif req.command == cmd.DatalogControl:
                 subfn = cmd.DatalogControl.Subfunction(req.subfn)
@@ -244,12 +301,21 @@ class Protocol:
         for block in block_list:
             address = block[0]
             memory_data = bytes(block[1])
-            data += struct.pack('>LH', address, len(memory_data)) + memory_data
+            data += self.encode_address(address) + struct.pack('>H', len(memory_data)) + memory_data
 
         return Response(cmd.MemoryControl, cmd.MemoryControl.Subfunction.Read, Response.ResponseCode.OK, data)
 
-    def respond_write_memory_block(self, address, length):
-        data = struct.pack('>LH', address, length)
+    def respond_write_single_memory_block(self, address, length):
+        blocks = [(address, length)]
+        return self.respond_write_memory_blocks(blocks)
+
+    def respond_write_memory_blocks(self, blocklist):
+        data = bytes()
+        for block in blocklist:
+            address = block[0]
+            length = block[1]
+            data += self.encode_address(address) + struct.pack('>H', length)
+
         return Response(cmd.MemoryControl, cmd.MemoryControl.Subfunction.Write, Response.ResponseCode.OK, data)
 
     def respond_data_get_targets(self, targets):
@@ -321,23 +387,35 @@ class Protocol:
                 if subfn == cmd.MemoryControl.Subfunction.Read:
                     data['blocks']=[]
                     index=0
+                    addr_size = self.address_format.get_address_size()
                     while True:
-                        if len(response.payload[index:]) < 6:
+                        if len(response.payload[index:]) < addr_size+2:
                             raise Exception('Incomplete response payload')
-
-                        addr, length = struct.unpack('>LH', response.payload[(index+0):(index+6)])
-                        if len(response.payload[index+6:]) < length:
-                            ipdb.set_trace()
+                        c = self.address_format.get_pack_char()
+                        addr, length = struct.unpack('>'+c+'H', response.payload[(index+0):(index+addr_size+2)])
+                        if len(response.payload[(index+addr_size+2):]) < length:
                             raise Exception('Invalid data length')
-                        memory_data = response.payload[(index+6):(index+6+length)]
+                        memory_data = response.payload[(index+addr_size+2):(index+addr_size+2+length)]
                         data['blocks'].append(dict(address=addr, data=memory_data))
-                        index += 6+length
+                        index += addr_size+2+length
 
                         if index == len(response.payload):
                             break
 
                 elif subfn == cmd.MemoryControl.Subfunction.Write:
-                    data['address'], data['length'] = struct.unpack('>LH', response.payload[0:6])
+                    data['blocks'] = []
+                    index=0
+                    addr_size = self.address_format.get_address_size()
+                    while True:
+                        if len(response.payload[index:]) < addr_size+2:
+                            raise Exception('Incomplete response payload')
+                        c = self.address_format.get_pack_char()
+                        addr, length = struct.unpack('>'+c+'H', response.payload[(index+0):(index+addr_size+2)])
+                        data['blocks'].append(dict(address=addr, length=length))
+                        index += addr_size+2
+
+                        if index == len(response.payload):
+                            break
 
             elif response.command == cmd.DatalogControl:
                 subfn = cmd.DatalogControl.Subfunction(response.subfn)
