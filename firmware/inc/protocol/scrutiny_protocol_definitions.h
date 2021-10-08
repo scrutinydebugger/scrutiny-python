@@ -43,6 +43,12 @@ namespace scrutiny
 			bool valid;
 		};
 
+		struct MemoryBlock
+		{
+			uint8_t* start_address;
+			uint16_t length;
+		};
+
 		enum CommandId
 		{
 			eCmdGetInfo = 0x01,
@@ -105,6 +111,15 @@ namespace scrutiny
 				eSubfnGetParams = 3,
 				eSubfnConnect = 4,
 				eSubfnDisconnect = 5
+			};
+		}
+
+		namespace MemoryControl
+		{
+			enum Subfunction
+			{
+				eSubfnRead = 1,
+				eSubfnWrite = 2
 			};
 		}
 

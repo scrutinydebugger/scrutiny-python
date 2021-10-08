@@ -281,8 +281,8 @@ class Protocol:
     def respond_comm_heartbeat(self, session_id, challenge_response):
         return Response(cmd.CommControl, cmd.CommControl.Subfunction.Heartbeat, Response.ResponseCode.OK, struct.pack('>LH', session_id, challenge_response))
 
-    def respond_comm_get_params(self, max_data_size, max_bitrate, heartbeat_timeout, rx_timeout):
-        data = struct.pack('>HLLL', max_data_size, max_bitrate, heartbeat_timeout, rx_timeout)
+    def respond_comm_get_params(self, max_rx_data_size, max_tx_data_size, max_bitrate, heartbeat_timeout, rx_timeout):
+        data = struct.pack('>HHLLL', max_rx_data_size, max_tx_data_size, max_bitrate, heartbeat_timeout, rx_timeout)
         return Response(cmd.CommControl, cmd.CommControl.Subfunction.GetParams, Response.ResponseCode.OK, data)
 
     def respond_comm_connect(self, session_id):
@@ -476,10 +476,18 @@ class Protocol:
                 if subfn == cmd.CommControl.Subfunction.Discover:
                     data['magic'] =  response.payload[0:4]
                     data['challenge_response'], = struct.unpack('>L', response.payload[4:8])
+                
                 elif subfn == cmd.CommControl.Subfunction.Heartbeat:      
                     data['session_id'], data['challenge_response'] = struct.unpack('>LH', response.payload[0:6])
+                
                 elif subfn == cmd.CommControl.Subfunction.GetParams:
-                    data['max_data_size'], data['max_bitrate'], data['heartbeat_timeout'], data['rx_timeout'] = struct.unpack('>HLLL', response.payload[0:14])
+                    (   data['max_rx_data_size'], 
+                        data['max_tx_data_size'], 
+                        data['max_bitrate'], 
+                        data['heartbeat_timeout'], 
+                        data['rx_timeout']
+                        ) = struct.unpack('>HHLLL', response.payload[0:16])
+                
                 elif subfn == cmd.CommControl.Subfunction.Connect:      
                     data['magic'] =  response.payload[0:4]
                     data['session_id'], = struct.unpack('>L', response.payload[4:8])

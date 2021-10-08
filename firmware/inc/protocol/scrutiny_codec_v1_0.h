@@ -9,6 +9,45 @@ namespace scrutiny
 {
 	namespace Protocol
 	{
+		class ReadMemoryBlocksRequestParser
+		{
+		public:
+			ReadMemoryBlocksRequestParser();
+			void init(Request* request);
+			void next(MemoryBlock* memblock);
+			inline bool finished() { return m_finished; };
+			inline bool is_valid() { return !m_invalid; };
+			void reset();
+
+		protected:
+			void validate();
+
+			uint8_t* m_buffer;
+			uint32_t m_bytes_read;
+			uint32_t m_size_limit;
+			bool m_finished;
+			bool m_invalid;
+		};
+
+		class ReadMemoryBlocksResponseEncoder
+		{
+		public:
+			ReadMemoryBlocksResponseEncoder();
+			void init(Response* response);
+			void write(MemoryBlock* memblock);
+			inline bool overflow() { return m_overflow; };
+			void reset();
+
+		protected:
+			void validate();
+
+			uint8_t* m_buffer;
+			Response* m_response;
+			uint32_t m_cursor;
+			uint32_t m_size_limit;
+			bool m_overflow;
+		};
+
 		union ResponseData
 		{
 			union
@@ -39,7 +78,8 @@ namespace scrutiny
 				} heartbeat;
 				struct
 				{
-					uint16_t data_buffer_size;
+					uint16_t data_rx_buffer_size;
+					uint16_t data_tx_buffer_size;
 					uint32_t max_bitrate;
 					uint32_t comm_rx_timeout;
 					uint32_t heartbeat_timeout;
@@ -82,9 +122,13 @@ namespace scrutiny
 		};
 
 
+
+
+
 		class CodecV1_0
 		{
 		public:
+
 			ResponseCode encode_response_protocol_version(const ResponseData* response_data, Response* response);
 			ResponseCode encode_response_software_id(Response* response);
 			ResponseCode encode_response_comm_discover(const ResponseData* response_data, Response* response);
@@ -92,11 +136,22 @@ namespace scrutiny
 			ResponseCode encode_response_comm_get_params(const ResponseData* response_data, Response* response);
 			ResponseCode encode_response_comm_connect(const ResponseData* response_data, Response* response);
 
+
 			ResponseCode decode_request_comm_discover(const Request* request, RequestData* request_data);
 			ResponseCode decode_request_comm_heartbeat(const Request* request, RequestData* request_data);
 			ResponseCode decode_request_comm_connect(const Request* request, RequestData* request_data);
 			ResponseCode decode_request_comm_disconnect(const Request* request, RequestData* request_data);
+
+			ReadMemoryBlocksRequestParser* decode_request_memory_control_read(Request* request);
+			ReadMemoryBlocksResponseEncoder* encode_response_memory_control_read(Response* response);
+
+
+		protected:
+			ReadMemoryBlocksRequestParser m_memory_control_read_request_parser;
+			ReadMemoryBlocksResponseEncoder m_memory_control_read_response_encoder;
 		};
+
+
 	}
 }
 #endif // ___SCRUTINY_CODEC_V1_0___

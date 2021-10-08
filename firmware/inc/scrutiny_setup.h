@@ -13,7 +13,8 @@
 
  // ========== Parameters ==========
 
-#define SCRUTINY_BUFFER_SIZE 256u							// Protocol reception buffer size in bytes. Only data bytes, headers and CRC are not accounted here.
+#define SCRUTINY_RX_BUFFER_SIZE 128u							// Protocol reception buffer size in bytes. Only data bytes, headers and CRC are not accounted here.
+#define SCRUTINY_TX_BUFFER_SIZE 256u						// Protocol transmission buffer size in bytes. Only data bytes, headers and CRC are not accounted here.
 #define SCRUTINY_COMM_RX_TIMEOUT_US 50000u					// Reset reception state machine when no data is received for that amount of time.
 #define SCRUTINY_COMM_HEARTBEAT_TMEOUT_US 5000000u			// Disconnect session if no heartbeat request after this delay
 #define ACTUAL_PROTOCOL_VERSION PROTOCOL_VERSION(1u, 0u)	// Protocol version to use		
@@ -23,7 +24,6 @@
 
 #define SCRUTINY_MAX_LOOP 16u								// Maximum number of independant time domain loops. (for datalogging)
 // ================================
-
 
 namespace scrutiny
 {
@@ -36,16 +36,16 @@ namespace scrutiny
 #error Unsupported protocol version
 #endif
 
-#if SCRUTINY_BUFFER_SIZE > 0xFFFF
+#if SCRUTINY_TX_BUFFER_SIZE > 0xFFFF || SCRUTINY_RX_BUFFER_SIZE > 0xFFFF
 #error Scrutiny protocol is limited to 16bits data length
 #endif
 
-#if SCRUTINY_BUFFER_SIZE < 32
-#error Scrutiny protocol buffer size must be at least 32 bytes long
+#if SCRUTINY_RX_BUFFER_SIZE < 32
+#error Scrutiny protocol RX buffer size must be at least 32 bytes long
 #endif
 
-#if SCRUTINY_BUFFER_SIZE < SOFTWARE_ID_LENGTH
-#error Scrutiny protocol buffer must be bigger than software id
+#if SCRUTINY_TX_BUFFER_SIZE < SOFTWARE_ID_LENGTH
+#error Scrutiny protocol TX buffer must be bigger than software id
 #endif
 
 #if SCRUTINY_READONLY_ADDRESS_RANGE_COUNT < 0

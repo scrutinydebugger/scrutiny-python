@@ -101,11 +101,14 @@ TEST_F(TestCommControl, TestGetParams)
 	uint8_t tx_buffer[32];
 	uint8_t request_data[8] = { 2,3,0,0 };
 	add_crc(request_data, sizeof(request_data) - 4);
+	constexpr uint16_t datalen = 2 + 2 + 4 + 4 + 4;
 
-	uint8_t expected_response[9 + 2 + 4 + 4 + 4] = { 0x82,3,0,0,14 };
+	uint8_t expected_response[9 + datalen] = { 0x82,3,0,0, datalen };
 	uint8_t i = 5;
-	expected_response[i++] = (SCRUTINY_BUFFER_SIZE >> 8) & 0xFF;
-	expected_response[i++] = (SCRUTINY_BUFFER_SIZE) & 0xFF;
+	expected_response[i++] = (SCRUTINY_RX_BUFFER_SIZE >> 8) & 0xFF;
+	expected_response[i++] = (SCRUTINY_RX_BUFFER_SIZE) & 0xFF;
+	expected_response[i++] = (SCRUTINY_TX_BUFFER_SIZE >> 8) & 0xFF;
+	expected_response[i++] = (SCRUTINY_TX_BUFFER_SIZE) & 0xFF;
 	expected_response[i++] = (config.get_max_bitrate() >> 24) & 0xFF;
 	expected_response[i++] = (config.get_max_bitrate() >> 16) & 0xFF;
 	expected_response[i++] = (config.get_max_bitrate() >> 8) & 0xFF;

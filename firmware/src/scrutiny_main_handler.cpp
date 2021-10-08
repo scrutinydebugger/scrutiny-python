@@ -6,6 +6,7 @@
 namespace scrutiny
 {
 
+
 	void MainHandler::init(Config* config)
 	{
 		m_processing_request = false;
@@ -76,6 +77,7 @@ namespace scrutiny
 
 			// ============= [MemoryControl] ============
 		case Protocol::eCmdMemoryControl:
+			code = process_memory_control(request, response);
 			break;
 
 			// ============= [DataLogControl] ===========
@@ -185,7 +187,8 @@ namespace scrutiny
 
 			// =========== [GetParams] ==========
 		case Protocol::CommControl::eSubfnGetParams:
-			response_data.comm_control.get_params.data_buffer_size = SCRUTINY_BUFFER_SIZE;
+			response_data.comm_control.get_params.data_tx_buffer_size = SCRUTINY_TX_BUFFER_SIZE;
+			response_data.comm_control.get_params.data_rx_buffer_size = SCRUTINY_RX_BUFFER_SIZE;
 			response_data.comm_control.get_params.max_bitrate = m_config.get_max_bitrate();
 			response_data.comm_control.get_params.comm_rx_timeout = SCRUTINY_COMM_RX_TIMEOUT_US;
 			response_data.comm_control.get_params.heartbeat_timeout = SCRUTINY_COMM_HEARTBEAT_TMEOUT_US;
@@ -239,6 +242,56 @@ namespace scrutiny
 
 			// empty data
 			code = Protocol::eResponseCode_OK;
+			break;
+
+			// =================================
+		default:
+			response->response_code = Protocol::eResponseCode_UnsupportedFeature;
+			break;
+		}
+
+		return code;
+	}
+
+
+	Protocol::ResponseCode MainHandler::process_memory_control(Protocol::Request* request, Protocol::Response* response)
+	{
+		Protocol::ResponseCode code = Protocol::eResponseCode_FailureToProceed;
+		Protocol::MemoryBlock block;
+
+
+		switch (request->subfunction_id)
+		{
+			// =========== [Read] ==========
+		case Protocol::MemoryControl::eSubfnRead:
+			code = Protocol::eResponseCode_OK;
+			Protocol::ReadMemoryBlocksRequestParser* parser;
+			Protocol::ReadMemoryBlocksResponseEncoder* encoder;
+			parser = m_codec.decode_request_memory_control_read(request);
+			encoder = m_codec.encode_response_memory_control_read(response);
+			if (!parser->is_valid())
+			{
+				code = Protocol::eResponseCode_InvalidRequest;
+				break;
+			}
+
+			while (!parser->finished())
+			{
+				parser->next(&block);
+
+				if (!parser->is_valid())
+				{
+					code = Protocol::eResponseCode_InvalidRequest;
+					break;
+				}
+
+				encoder->write(&block);
+				if (encoder->overflow())
+				{
+					code = Protocol::eResponseCode_Overflow;
+					break;
+				}
+			}
 			break;
 
 			// =================================

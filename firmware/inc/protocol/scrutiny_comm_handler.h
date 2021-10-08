@@ -85,7 +85,8 @@ namespace scrutiny
 			bool m_heartbeat_received;
 
 			// Reception
-			uint8_t m_buffer[SCRUTINY_BUFFER_SIZE];
+			uint8_t m_rx_buffer[SCRUTINY_RX_BUFFER_SIZE];
+			uint8_t m_tx_buffer[SCRUTINY_TX_BUFFER_SIZE];
 			Request m_active_request;
 			RxFSMState m_rx_state;
 			RxError m_rx_error;

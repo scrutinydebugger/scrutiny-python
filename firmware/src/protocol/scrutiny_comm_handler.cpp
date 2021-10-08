@@ -11,8 +11,8 @@ namespace scrutiny
 		{
 			m_timebase = timebase;
 
-			m_active_request.data = m_buffer;   // Half duplex comm. Share buffer
-			m_active_response.data = m_buffer;  // Half duplex comm. Share buffer
+			m_active_request.data = m_rx_buffer;   // Half duplex comm. Share buffer
+			m_active_response.data = m_tx_buffer;  // Half duplex comm. Share buffer
 
 			reset();
 		}
@@ -117,7 +117,7 @@ namespace scrutiny
 
 				case eRxStateWaitForData:
 				{
-					if (m_active_request.data_length > SCRUTINY_BUFFER_SIZE)
+					if (m_active_request.data_length > SCRUTINY_RX_BUFFER_SIZE)
 					{
 						m_rx_error = eRxErrorOverflow;
 						m_rx_state = eRxStateError;
@@ -128,7 +128,7 @@ namespace scrutiny
 					const uint16_t missing_bytes = m_active_request.data_length - m_data_bytes_received;
 					const uint16_t data_bytes_to_read = (available_bytes >= missing_bytes) ? missing_bytes : available_bytes;
 
-					std::memcpy(&m_buffer[m_data_bytes_received], &data[i], data_bytes_to_read);
+					std::memcpy(&m_rx_buffer[m_data_bytes_received], &data[i], data_bytes_to_read);
 					m_data_bytes_received += data_bytes_to_read;
 					i += data_bytes_to_read;
 
@@ -226,7 +226,7 @@ namespace scrutiny
 				return false; // Half duplex comm. Discard data;
 			}
 
-			if (response->data_length > SCRUTINY_BUFFER_SIZE)
+			if (response->data_length > SCRUTINY_TX_BUFFER_SIZE)
 			{
 				reset_tx();
 				m_tx_error = eTxErrorOverflow;
@@ -438,7 +438,7 @@ namespace scrutiny
 
 		void CommHandler::add_crc(Response* response)
 		{
-			if (response->data_length > SCRUTINY_BUFFER_SIZE)
+			if (response->data_length > SCRUTINY_TX_BUFFER_SIZE)
 				return;
 
 			uint8_t header[5];
@@ -457,7 +457,6 @@ namespace scrutiny
 			m_state = eStateIdle;
 			m_enabled = true;
 			m_heartbeat_timestamp = m_timebase->get_timestamp();
-			std::memset(m_buffer, 0, SCRUTINY_BUFFER_SIZE);
 			m_last_heartbeat_challenge = 0;
 			m_heartbeat_received = false;
 			m_session_id = 0;

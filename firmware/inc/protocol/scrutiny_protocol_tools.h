@@ -70,6 +70,10 @@ namespace scrutiny
 			v |= ((static_cast<uint16_t>(buff[0]) << 0) & 0x00FFu);
 			return v;
 		}
+
+		uint8_t decode_address_big_endian(uint8_t* buf, uint64_t* addr);
+		uint8_t encode_address_big_endian(uint8_t* buf, void* ptr);
+		uint8_t encode_address_big_endian(uint8_t* buf, uint64_t addr);
 	}
 }
 

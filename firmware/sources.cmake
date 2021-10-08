@@ -13,6 +13,7 @@ set(SCRUTINY_SOURCES
 	src/protocol/scrutiny_comm_handler.cpp
 	src/protocol/scrutiny_codec_v1_0.cpp
 	src/protocol/scrutiny_protocol_definitions.cpp
+	src/protocol/scrutiny_protocol_tools.cpp
 
 	inc/scrutiny.h
 	inc/scrutiny_crc.h
@@ -26,5 +27,6 @@ set(SCRUTINY_SOURCES
 	inc/protocol/scrutiny_comm_handler.h
 	inc/protocol/scrutiny_protocol_definitions.h
 	inc/protocol/scrutiny_codec_v1_0.h
+	inc/protocol/scrutiny_protocol_tools.h
 	)
 
