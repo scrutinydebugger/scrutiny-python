@@ -19,11 +19,16 @@ namespace scrutiny
 		Config();
 		bool add_forbidden_address_range(const uint64_t start, const uint64_t end);
 		bool add_readonly_address_range(const uint64_t start, const uint64_t end);
+		bool add_forbidden_address_range(void* start, void* end);
+		bool add_readonly_address_range(void* start, void* end);
 		void copy_from(const Config* src);
 		void clear();
 
 		uint32_t get_max_bitrate() const { return m_max_bitrate; }
 		void set_max_bitrate(const uint32_t val) { m_max_bitrate = val; }
+
+		inline AddressRange* forbidden_ranges() { return m_forbidden_address_ranges; }
+		inline AddressRange* readonly_ranges() { return m_readonly_address_ranges; }
 
 	private:
 		uint32_t m_max_bitrate;

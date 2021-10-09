@@ -66,7 +66,8 @@ namespace scrutiny
 			eResponseCode_UnsupportedFeature = 2,
 			eResponseCode_Overflow = 3,
 			eResponseCode_Busy = 4,
-			eResponseCode_FailureToProceed = 5
+			eResponseCode_FailureToProceed = 5,
+			eResponseCode_Forbidden = 6
 		};
 
 		enum RxError

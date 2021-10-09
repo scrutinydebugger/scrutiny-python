@@ -285,6 +285,12 @@ namespace scrutiny
 					break;
 				}
 
+				if (touches_forbidden_region(&block))
+				{
+					code = Protocol::eResponseCode_Forbidden;
+					break;
+				}
+
 				encoder->write(&block);
 				if (encoder->overflow())
 				{
@@ -303,6 +309,33 @@ namespace scrutiny
 		return code;
 	}
 
+
+	bool MainHandler::touches_forbidden_region(Protocol::MemoryBlock* block)
+	{
+		const uint64_t block_start = reinterpret_cast<uint64_t>(block->start_address);
+		const uint64_t block_end = block_start + block->length;
+		for (unsigned int i = 0; i < SCRUTINY_FORBIDDEN_ADDRESS_RANGE_COUNT; i++)
+		{
+			const AddressRange& range = m_config.forbidden_ranges()[i];
+			if (range.set)
+			{
+				if (block_start >= range.start && block_start <= range.end)
+				{
+					return true;
+				}
+
+				if (block_end >= range.start && block_end <= range.end)
+				{
+					return true;
+				}
+			}
+			else
+			{
+				break;
+			}
+		}
+		return false;
+	}
 
 	/*
 	loop_id_t MainHandler::add_loop(LoopHandler* loop)

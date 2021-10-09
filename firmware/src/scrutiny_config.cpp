@@ -47,6 +47,16 @@ namespace scrutiny
 		m_readonly_range_count = 0;
 	}
 
+	bool Config::add_forbidden_address_range(void* start, void* end)
+	{
+		return add_forbidden_address_range(reinterpret_cast<uint64_t>(start), reinterpret_cast<uint64_t>(end));
+	}
+
+	bool Config::add_readonly_address_range(void* start, void* end)
+	{
+		return add_readonly_address_range(reinterpret_cast<uint64_t>(start), reinterpret_cast<uint64_t>(end));
+	}
+
 	bool Config::add_forbidden_address_range(const uint64_t start, const uint64_t end)
 	{
 		if (m_forbidden_range_count >= SCRUTINY_FORBIDDEN_ADDRESS_RANGE_COUNT)
