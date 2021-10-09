@@ -16,6 +16,7 @@ protected:
 	}
 };
 
+// ================================= Read =================================
 /*
 	Read a single memory block and expect a response with a valid content
 */
@@ -242,7 +243,7 @@ TEST_F(TestMemoryControl, TestReadForbiddenAddress)
 
 	constexpr uint8_t datalen = sizeof(void*) + 2;
 	uint8_t request_data[8 + datalen] = {3,1,0, datalen };
-	uint8_t window_size = 4;
+	uint16_t window_size = 4;
 	unsigned int index = 0;
 	for (unsigned int i = 0; i < sizeof(buf) - window_size; i++)
 	{
@@ -272,5 +273,55 @@ TEST_F(TestMemoryControl, TestReadForbiddenAddress)
 		scrutiny_handler.process(0);
 	}
 
+}
 
+
+// ================================= Write =================================
+
+
+/*
+	Read a single memory block and expect a response with a valid content
+*/
+TEST_F(TestMemoryControl, TestWriteSingleAddress)
+{
+	
+	uint8_t buffer[] = { 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a };
+	uint8_t data_to_write[] = { 0x11, 0x22, 0x33, 0x44 };
+	uint8_t expected_output_buffer[] = { 0x11, 0x22, 0x33, 0x44, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a };
+
+	// Building request
+	constexpr uint32_t addr_size = sizeof(std::uintptr_t);
+	constexpr uint16_t datalen_req = addr_size+2+sizeof(data_to_write);
+	uint8_t request_data[8 + datalen_req] = { 3,2,0, datalen_req };
+	unsigned int index = 4;
+	index += encode_addr(&request_data[index], buffer);
+	request_data[index++] = (sizeof(data_to_write) >> 8) & 0xFF;
+	request_data[index++] = (sizeof(data_to_write) >> 0) & 0xFF;
+	std::memcpy(&request_data[index], data_to_write, sizeof(data_to_write));
+	add_crc(request_data, sizeof(request_data) - 4);
+
+	// Building expected response
+	uint8_t tx_buffer[32];
+	constexpr uint16_t datalen_resp = addr_size +2;
+	uint8_t expected_response[9 + datalen_resp] = { 0x83, 2, 0, 0, datalen_resp };
+	index = 5;
+	index += encode_addr(&expected_response[index], buffer);
+	expected_response[index++] = (sizeof(data_to_write) >> 8) & 0xFF;
+	expected_response[index++] = (sizeof(data_to_write) >> 0) & 0xFF;
+	add_crc(expected_response, sizeof(expected_response) - 4);
+
+	// Process
+	scrutiny_handler.comm()->receive_data(request_data, sizeof(request_data));
+	scrutiny_handler.process(0);
+
+	uint32_t n_to_read = scrutiny_handler.comm()->data_to_send();
+	ASSERT_GT(n_to_read, 0u);
+	ASSERT_LT(n_to_read, sizeof(tx_buffer));
+	EXPECT_EQ(n_to_read, sizeof(expected_response));
+
+	uint32_t nread = scrutiny_handler.comm()->pop_data(tx_buffer, n_to_read);
+	EXPECT_EQ(nread, n_to_read);
+
+	ASSERT_BUF_EQ(tx_buffer, expected_response, sizeof(expected_response));
+	ASSERT_BUF_EQ(buffer, expected_output_buffer, sizeof(expected_output_buffer));
 }

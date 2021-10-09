@@ -38,6 +38,7 @@ namespace scrutiny
 	private:
 
 		bool touches_forbidden_region(Protocol::MemoryBlock* block);
+		bool touches_readonly_region(Protocol::MemoryBlock* block);
 
 		//LoopHandler* m_loop_handlers[SCRUTINY_MAX_LOOP];
 		Timebase m_timebase;

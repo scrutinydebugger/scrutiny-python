@@ -262,24 +262,24 @@ namespace scrutiny
 
 		switch (request->subfunction_id)
 		{
-			// =========== [Read] ==========
+		// =========== [Read] ==========
 		case Protocol::MemoryControl::eSubfnRead:
 			code = Protocol::eResponseCode_OK;
-			Protocol::ReadMemoryBlocksRequestParser* parser;
-			Protocol::ReadMemoryBlocksResponseEncoder* encoder;
-			parser = m_codec.decode_request_memory_control_read(request);
-			encoder = m_codec.encode_response_memory_control_read(response);
-			if (!parser->is_valid())
+			Protocol::ReadMemoryBlocksRequestParser* readmem_parser;
+			Protocol::ReadMemoryBlocksResponseEncoder* readmem_encoder;
+			readmem_parser = m_codec.decode_request_memory_control_read(request);
+			readmem_encoder = m_codec.encode_response_memory_control_read(response, m_comm_handler.tx_buffer_size());
+			if (!readmem_parser->is_valid())
 			{
 				code = Protocol::eResponseCode_InvalidRequest;
 				break;
 			}
 
-			while (!parser->finished())
+			while (!readmem_parser->finished())
 			{
-				parser->next(&block);
+				readmem_parser->next(&block);
 
-				if (!parser->is_valid())
+				if (!readmem_parser->is_valid())
 				{
 					code = Protocol::eResponseCode_InvalidRequest;
 					break;
@@ -291,8 +291,8 @@ namespace scrutiny
 					break;
 				}
 
-				encoder->write(&block);
-				if (encoder->overflow())
+				readmem_encoder->write(&block);
+				if (readmem_encoder->overflow())
 				{
 					code = Protocol::eResponseCode_Overflow;
 					break;
@@ -300,6 +300,53 @@ namespace scrutiny
 			}
 			break;
 
+
+			// =========== [Write] ==========
+		case Protocol::MemoryControl::eSubfnWrite:
+			code = Protocol::eResponseCode_OK;
+			Protocol::WriteMemoryBlocksRequestParser* writemem_parser;
+			Protocol::WriteMemoryBlocksResponseEncoder* writemem_encoder;
+			writemem_parser = m_codec.decode_request_memory_control_write(request);
+			writemem_encoder = m_codec.encode_response_memory_control_write(response, m_comm_handler.tx_buffer_size());
+			if (!writemem_parser->is_valid())
+			{
+				code = Protocol::eResponseCode_InvalidRequest;
+				break;
+			}
+
+			while (!writemem_parser->finished())
+			{
+				writemem_parser->next(&block);
+
+				if (!writemem_parser->is_valid())
+				{
+					code = Protocol::eResponseCode_InvalidRequest;
+					break;
+				}
+
+				if (touches_forbidden_region(&block))
+				{
+					code = Protocol::eResponseCode_Forbidden;
+					break;
+				}
+
+				if (touches_readonly_region(&block))
+				{
+					code = Protocol::eResponseCode_Forbidden;
+					break;
+				}
+
+				writemem_encoder->write(&block);
+				if (writemem_encoder->overflow())
+				{
+					code = Protocol::eResponseCode_Overflow;
+					break;
+				}
+
+				// All good, we can write memory.
+				std::memcpy(block.start_address, block.source_data, block.length);
+			}
+			break;
 			// =================================
 		default:
 			response->response_code = Protocol::eResponseCode_UnsupportedFeature;
@@ -317,6 +364,33 @@ namespace scrutiny
 		for (unsigned int i = 0; i < SCRUTINY_FORBIDDEN_ADDRESS_RANGE_COUNT; i++)
 		{
 			const AddressRange& range = m_config.forbidden_ranges()[i];
+			if (range.set)
+			{
+				if (block_start >= range.start && block_start <= range.end)
+				{
+					return true;
+				}
+
+				if (block_end >= range.start && block_end <= range.end)
+				{
+					return true;
+				}
+			}
+			else
+			{
+				break;
+			}
+		}
+		return false;
+	}
+
+	bool MainHandler::touches_readonly_region(Protocol::MemoryBlock* block)
+	{
+		const uint64_t block_start = reinterpret_cast<uint64_t>(block->start_address);
+		const uint64_t block_end = block_start + block->length;
+		for (unsigned int i = 0; i < SCRUTINY_READONLY_ADDRESS_RANGE_COUNT; i++)
+		{
+			const AddressRange& range = m_config.readonly_ranges()[i];
 			if (range.set)
 			{
 				if (block_start >= range.start && block_start <= range.end)

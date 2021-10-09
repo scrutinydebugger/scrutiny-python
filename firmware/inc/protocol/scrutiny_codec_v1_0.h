@@ -33,7 +33,46 @@ namespace scrutiny
 		{
 		public:
 			ReadMemoryBlocksResponseEncoder();
-			void init(Response* response);
+			void init(Response* response, uint32_t max_size);
+			void write(MemoryBlock* memblock);
+			inline bool overflow() { return m_overflow; };
+			void reset();
+
+		protected:
+			void validate();
+
+			uint8_t* m_buffer;
+			Response* m_response;
+			uint32_t m_cursor;
+			uint32_t m_size_limit;
+			bool m_overflow;
+		};
+
+		class WriteMemoryBlocksRequestParser
+		{
+		public:
+			WriteMemoryBlocksRequestParser();
+			void init(Request* request);
+			void next(MemoryBlock* memblock);
+			inline bool finished() { return m_finished; };
+			inline bool is_valid() { return !m_invalid; };
+			void reset();
+
+		protected:
+			void validate();
+
+			uint8_t* m_buffer;
+			uint32_t m_bytes_read;
+			uint32_t m_size_limit;
+			bool m_finished;
+			bool m_invalid;
+		};
+
+		class WriteMemoryBlocksResponseEncoder
+		{
+		public:
+			WriteMemoryBlocksResponseEncoder();
+			void init(Response* response, uint32_t max_size);
 			void write(MemoryBlock* memblock);
 			inline bool overflow() { return m_overflow; };
 			void reset();
@@ -143,12 +182,17 @@ namespace scrutiny
 			ResponseCode decode_request_comm_disconnect(const Request* request, RequestData* request_data);
 
 			ReadMemoryBlocksRequestParser* decode_request_memory_control_read(Request* request);
-			ReadMemoryBlocksResponseEncoder* encode_response_memory_control_read(Response* response);
+			ReadMemoryBlocksResponseEncoder* encode_response_memory_control_read(Response* response, uint32_t max_size);
+
+			WriteMemoryBlocksRequestParser* decode_request_memory_control_write(Request* request);
+			WriteMemoryBlocksResponseEncoder* encode_response_memory_control_write(Response* response, uint32_t max_size);
 
 
 		protected:
 			ReadMemoryBlocksRequestParser m_memory_control_read_request_parser;
 			ReadMemoryBlocksResponseEncoder m_memory_control_read_response_encoder;
+			WriteMemoryBlocksRequestParser m_memory_control_write_request_parser;
+			WriteMemoryBlocksResponseEncoder m_memory_control_write_response_encoder;
 		};
 
 

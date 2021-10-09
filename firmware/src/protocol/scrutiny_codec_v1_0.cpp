@@ -12,6 +12,7 @@ namespace scrutiny
 {
 	namespace Protocol
 	{
+		//==============================================================
 
 		ReadMemoryBlocksRequestParser::ReadMemoryBlocksRequestParser() :
 			m_buffer(NULL),
@@ -94,18 +95,120 @@ namespace scrutiny
 			m_finished = false;
 		}
 
+		//==============================================================
 
-
-
-
-		ReadMemoryBlocksResponseEncoder::ReadMemoryBlocksResponseEncoder()
+		WriteMemoryBlocksRequestParser::WriteMemoryBlocksRequestParser() :
+			m_buffer(NULL),
+			m_bytes_read(0),
+			m_size_limit(0),
+			m_finished(false),
+			m_invalid(false)
 		{
 
 		}
 
-		void ReadMemoryBlocksResponseEncoder::init(Response* response)
+		void WriteMemoryBlocksRequestParser::init(Request* request)
 		{
-			m_size_limit = SCRUTINY_TX_BUFFER_SIZE;	// todo : find a better way to bring this limit down to the codec.
+			m_buffer = request->data;
+			m_size_limit = request->data_length;
+			reset();
+			validate();
+		}
+
+		void WriteMemoryBlocksRequestParser::validate()
+		{
+			constexpr unsigned int addr_size = sizeof(void*);
+			uint32_t cursor = 0;
+			uint16_t length;
+
+			while (true)
+			{
+				if (cursor + addr_size + 2 > m_size_limit)
+				{
+					m_invalid = true;
+					return;
+				}
+
+				cursor += addr_size;
+				length = decode_16_bits_big_endian(&m_buffer[cursor]);
+				cursor += 2;
+				cursor += length;
+				if (cursor > m_size_limit)
+				{
+					m_invalid = true;
+					return;
+				}
+
+				if (cursor == m_size_limit)
+				{
+					break;
+				}
+			}
+		}
+
+		void WriteMemoryBlocksRequestParser::next(MemoryBlock* memblock)
+		{
+			constexpr unsigned int addr_size = sizeof(void*);
+			uint16_t length;
+			uint64_t addr;
+			if (m_finished || m_invalid)
+			{
+				return;
+			}
+
+			if (m_bytes_read + addr_size + 2 > m_size_limit)
+			{
+				m_finished = true;
+				m_invalid = true;
+				return;
+			}
+
+			decode_address_big_endian(&m_buffer[m_bytes_read], &addr);
+			m_bytes_read += addr_size;
+			length = decode_16_bits_big_endian(&m_buffer[m_bytes_read]);
+			m_bytes_read += 2;
+
+			if (m_bytes_read + length > m_size_limit)
+			{
+				m_invalid = true;
+				m_finished = true;
+				return;
+			}
+
+			memblock->start_address = reinterpret_cast<uint8_t*>(addr);
+			memblock->source_data = reinterpret_cast<uint8_t*>(&m_buffer[m_bytes_read]);
+			memblock->length = length;
+			m_bytes_read += length;
+
+			if (m_bytes_read == m_size_limit)
+			{
+				m_finished = true;
+			}
+		}
+
+		void WriteMemoryBlocksRequestParser::reset()
+		{
+			m_bytes_read = 0;
+			m_invalid = false;
+			m_finished = false;
+		}
+
+
+		//==============================================================
+
+		ReadMemoryBlocksResponseEncoder::ReadMemoryBlocksResponseEncoder() : 
+			m_buffer(NULL),
+			m_response(NULL),
+			m_cursor(0),
+			m_size_limit(0),
+			m_overflow(false)
+		{
+
+		}
+
+		void ReadMemoryBlocksResponseEncoder::init(Response* response, uint32_t max_size)
+		{
+			m_size_limit = max_size;
 			m_buffer = response->data;
 			m_response = response;
 			reset();
@@ -137,8 +240,53 @@ namespace scrutiny
 			m_overflow = false;
 		}
 
-
+		//==============================================================
 		
+
+		WriteMemoryBlocksResponseEncoder::WriteMemoryBlocksResponseEncoder() :
+			m_buffer(NULL),
+			m_response(NULL),
+			m_cursor(0),
+			m_size_limit(0),
+			m_overflow(false)
+		{
+
+		}
+
+		void WriteMemoryBlocksResponseEncoder::init(Response* response, uint32_t max_size)
+		{
+			m_size_limit = max_size;
+			m_buffer = response->data;
+			m_response = response;
+			reset();
+		}
+
+		void WriteMemoryBlocksResponseEncoder::write(MemoryBlock* memblock)
+		{
+			constexpr unsigned int addr_size = sizeof(void*);
+
+			if (m_cursor + addr_size + 2 > m_size_limit)
+			{
+				m_overflow = true;
+				return;
+			}
+
+			encode_address_big_endian(&m_buffer[m_cursor], memblock->start_address);
+			m_cursor += addr_size;
+			encode_16_bits_big_endian(memblock->length, &m_buffer[m_cursor]);
+			m_cursor += 2;
+
+			m_response->data_length = static_cast<uint16_t>(m_cursor);
+		}
+
+		void WriteMemoryBlocksResponseEncoder::reset()
+		{
+			m_cursor = 0;
+			m_overflow = false;
+		}
+
+		//==============================================================
+
 
 		// ===== Encoding =====
 		ResponseCode CodecV1_0::encode_response_protocol_version(const ResponseData* response_data, Response* response)
@@ -338,11 +486,25 @@ namespace scrutiny
 			return &m_memory_control_read_request_parser;
 		}
 
-		ReadMemoryBlocksResponseEncoder* CodecV1_0::encode_response_memory_control_read(Response* response)
+		ReadMemoryBlocksResponseEncoder* CodecV1_0::encode_response_memory_control_read(Response* response, uint32_t max_size)
 		{
 			response->data_length = 0;
-			m_memory_control_read_response_encoder.init(response);
+			m_memory_control_read_response_encoder.init(response, max_size);
 			return &m_memory_control_read_response_encoder;
+		}
+
+
+		WriteMemoryBlocksRequestParser* CodecV1_0::decode_request_memory_control_write(Request* request)
+		{
+			m_memory_control_write_request_parser.init(request);
+			return &m_memory_control_write_request_parser;
+		}
+
+		WriteMemoryBlocksResponseEncoder* CodecV1_0::encode_response_memory_control_write(Response* response, uint32_t max_size)
+		{
+			response->data_length = 0;
+			m_memory_control_write_response_encoder.init(response, max_size);
+			return &m_memory_control_write_response_encoder;
 		}
 
 

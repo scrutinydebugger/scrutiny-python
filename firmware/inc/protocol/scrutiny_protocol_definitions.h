@@ -47,6 +47,7 @@ namespace scrutiny
 		{
 			uint8_t* start_address;
 			uint16_t length;
+			uint8_t* source_data;
 		};
 
 		enum CommandId
