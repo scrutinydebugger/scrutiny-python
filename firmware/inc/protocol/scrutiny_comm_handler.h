@@ -47,8 +47,8 @@ namespace scrutiny
 			inline void disable() { reset(); m_enabled = false; }
 			inline bool is_connected() { return m_session_active; }
 			inline uint32_t get_session_id() { return m_session_id; }
-			inline uint32_t rx_buffer_size() { return SCRUTINY_RX_BUFFER_SIZE; }
-			inline uint32_t tx_buffer_size() { return SCRUTINY_TX_BUFFER_SIZE; }
+			inline uint16_t rx_buffer_size() { return SCRUTINY_RX_BUFFER_SIZE; }
+			inline uint16_t tx_buffer_size() { return SCRUTINY_TX_BUFFER_SIZE; }
 
 		protected:
 

@@ -86,6 +86,7 @@ namespace scrutiny
 
 			// ============= [UserCommand] ===========
 		case Protocol::eCmdUserCommand:
+			code = process_user_command(request, response);
 			break;
 
 			// ============================================
@@ -413,6 +414,28 @@ namespace scrutiny
 		}
 		return false;
 	}
+
+	Protocol::ResponseCode MainHandler::process_user_command(Protocol::Request* request, Protocol::Response* response)
+	{
+		Protocol::ResponseCode code = Protocol::eResponseCode_FailureToProceed;
+
+		if (m_config.get_user_command_func() == nullptr)
+		{
+			code = Protocol::eResponseCode_UnsupportedFeature;
+		}
+		else
+		{
+			uint16_t response_data_length = 0;
+			//caling user callback;
+			m_config.get_user_command_func()(request->subfunction_id, request->data, request->data_length, response->data, &response_data_length, m_comm_handler.tx_buffer_size());
+			response->data_length = response_data_length;
+			code = Protocol::eResponseCode_OK;
+		}
+
+
+		return code;
+	}
+
 
 	/*
 	loop_id_t MainHandler::add_loop(LoopHandler* loop)

@@ -23,6 +23,7 @@ set(SCRUTINY_SOURCES
 	inc/scrutiny_software_id.h
 	inc/scrutiny_timebase.h
 	inc/scrutiny_config.h
+	inc/scrutiny_types.h
 	inc/protocol/scrutiny_protocol.h
 	inc/protocol/scrutiny_comm_handler.h
 	inc/protocol/scrutiny_protocol_definitions.h

@@ -25,7 +25,7 @@ namespace scrutiny
 		Protocol::ResponseCode process_get_info(Protocol::Request* request, Protocol::Response* response);
 		Protocol::ResponseCode process_comm_control(Protocol::Request* request, Protocol::Response* response);
 		Protocol::ResponseCode process_memory_control(Protocol::Request* request, Protocol::Response* response);
-
+		Protocol::ResponseCode process_user_command(Protocol::Request* request, Protocol::Response* response);
 
 
 		inline Protocol::CommHandler* comm()

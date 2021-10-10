@@ -36,7 +36,7 @@ add_executable(${TARGET_NAME}
   commands/test_command_get_info.cpp
   commands/test_comm_control.cpp
   commands/test_memory_control.cpp
-  )
+  commands/test_user_command.cpp)
 
 target_link_libraries(
   ${TARGET_NAME}

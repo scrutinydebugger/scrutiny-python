@@ -2,6 +2,7 @@
 #define ___SCRUTINY_CONFIG_H___
 
 #include "scrutiny_setup.h"
+#include "scrutiny_types.h"
 
 namespace scrutiny
 {
@@ -23,6 +24,8 @@ namespace scrutiny
 		bool add_readonly_address_range(void* start, void* end);
 		void copy_from(const Config* src);
 		void clear();
+		inline void set_user_command_func(user_command_callback_t callback) { m_user_command_callback = callback; }
+		inline user_command_callback_t get_user_command_func() { return m_user_command_callback; }
 
 		uint32_t get_max_bitrate() const { return m_max_bitrate; }
 		void set_max_bitrate(const uint32_t val) { m_max_bitrate = val; }
@@ -38,6 +41,7 @@ namespace scrutiny
 		AddressRange m_readonly_address_ranges[SCRUTINY_READONLY_ADDRESS_RANGE_COUNT];
 		uint32_t m_forbidden_range_count;
 		uint32_t m_readonly_range_count;
+		user_command_callback_t m_user_command_callback;
 
 	};
 }
