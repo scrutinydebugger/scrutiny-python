@@ -13,7 +13,7 @@ protected:
 
 	virtual void SetUp()
 	{
-		config.set_max_bitrate(0x12345678);
+		config.max_bitrate = 0x12345678;
 		scrutiny_handler.init(&config);
 	}
 };
@@ -109,10 +109,10 @@ TEST_F(TestCommControl, TestGetParams)
 	expected_response[i++] = (SCRUTINY_RX_BUFFER_SIZE) & 0xFF;
 	expected_response[i++] = (SCRUTINY_TX_BUFFER_SIZE >> 8) & 0xFF;
 	expected_response[i++] = (SCRUTINY_TX_BUFFER_SIZE) & 0xFF;
-	expected_response[i++] = (config.get_max_bitrate() >> 24) & 0xFF;
-	expected_response[i++] = (config.get_max_bitrate() >> 16) & 0xFF;
-	expected_response[i++] = (config.get_max_bitrate() >> 8) & 0xFF;
-	expected_response[i++] = (config.get_max_bitrate() >> 0) & 0xFF;
+	expected_response[i++] = (config.max_bitrate >> 24) & 0xFF;
+	expected_response[i++] = (config.max_bitrate >> 16) & 0xFF;
+	expected_response[i++] = (config.max_bitrate >> 8) & 0xFF;
+	expected_response[i++] = (config.max_bitrate >> 0) & 0xFF;
 	expected_response[i++] = (SCRUTINY_COMM_HEARTBEAT_TMEOUT_US >> 24) & 0xFF;
 	expected_response[i++] = (SCRUTINY_COMM_HEARTBEAT_TMEOUT_US >> 16) & 0xFF;
 	expected_response[i++] = (SCRUTINY_COMM_HEARTBEAT_TMEOUT_US >> 8) & 0xFF;

@@ -11,8 +11,8 @@ namespace scrutiny
 	void Config::copy_from(const Config* src)
 	{
 		clear();
-		m_max_bitrate = src->m_max_bitrate;
-		m_user_command_callback = src->m_user_command_callback;
+		max_bitrate = src->max_bitrate;
+		user_command_callback = src->user_command_callback;
 
 		for (uint32_t i = 0; i < SCRUTINY_FORBIDDEN_ADDRESS_RANGE_COUNT; i++)
 		{
@@ -33,7 +33,7 @@ namespace scrutiny
 
 	void Config::clear()
 	{
-		m_max_bitrate = 0;
+		max_bitrate = 0;
 		for (uint32_t i = 0; i < SCRUTINY_FORBIDDEN_ADDRESS_RANGE_COUNT; i++)
 		{
 			m_forbidden_address_ranges[i].set = false;
@@ -46,7 +46,7 @@ namespace scrutiny
 
 		m_forbidden_range_count = 0;
 		m_readonly_range_count = 0;
-		m_user_command_callback = nullptr;
+		user_command_callback = nullptr;
 	}
 
 	bool Config::add_forbidden_address_range(void* start, void* end)

@@ -190,7 +190,7 @@ namespace scrutiny
 		case Protocol::CommControl::eSubfnGetParams:
 			response_data.comm_control.get_params.data_tx_buffer_size = SCRUTINY_TX_BUFFER_SIZE;
 			response_data.comm_control.get_params.data_rx_buffer_size = SCRUTINY_RX_BUFFER_SIZE;
-			response_data.comm_control.get_params.max_bitrate = m_config.get_max_bitrate();
+			response_data.comm_control.get_params.max_bitrate = m_config.max_bitrate;
 			response_data.comm_control.get_params.comm_rx_timeout = SCRUTINY_COMM_RX_TIMEOUT_US;
 			response_data.comm_control.get_params.heartbeat_timeout = SCRUTINY_COMM_HEARTBEAT_TMEOUT_US;
 			code = m_codec.encode_response_comm_get_params(&response_data, response);
@@ -419,17 +419,17 @@ namespace scrutiny
 	{
 		Protocol::ResponseCode code = Protocol::eResponseCode_FailureToProceed;
 
-		if (m_config.get_user_command_func() == nullptr)
-		{
-			code = Protocol::eResponseCode_UnsupportedFeature;
-		}
-		else
+		if (m_config.is_user_command_callback_set())
 		{
 			uint16_t response_data_length = 0;
 			//caling user callback;
-			m_config.get_user_command_func()(request->subfunction_id, request->data, request->data_length, response->data, &response_data_length, m_comm_handler.tx_buffer_size());
+			m_config.user_command_callback(request->subfunction_id, request->data, request->data_length, response->data, &response_data_length, m_comm_handler.tx_buffer_size());
 			response->data_length = response_data_length;
 			code = Protocol::eResponseCode_OK;
+		}
+		else
+		{
+			code = Protocol::eResponseCode_UnsupportedFeature;
 		}
 
 

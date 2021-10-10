@@ -11,7 +11,6 @@ protected:
 	scrutiny::Timebase tb;
 	scrutiny::MainHandler scrutiny_handler;
 	scrutiny::Config config;
-
 };
 
 
@@ -37,7 +36,7 @@ void my_callback(uint8_t subfunction, uint8_t* request_data, uint16_t request_da
 TEST_F(TestUserCommand, TestCommandCalled)
 {
 	uint8_t tx_buffer[32];
-	config.set_user_command_func(&my_callback);
+	config.user_command_callback = &my_callback;
 	scrutiny_handler.init(&config);
 	scrutiny_handler.comm()->connect();
 
