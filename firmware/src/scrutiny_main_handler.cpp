@@ -424,8 +424,15 @@ namespace scrutiny
 			uint16_t response_data_length = 0;
 			//caling user callback;
 			m_config.user_command_callback(request->subfunction_id, request->data, request->data_length, response->data, &response_data_length, m_comm_handler.tx_buffer_size());
-			response->data_length = response_data_length;
-			code = Protocol::eResponseCode_OK;
+			if (response_data_length > m_comm_handler.tx_buffer_size())
+			{
+				code = Protocol::eResponseCode_Overflow;
+			}
+			else
+			{
+				response->data_length = response_data_length;
+				code = Protocol::eResponseCode_OK;
+			}
 		}
 		else
 		{
