@@ -207,7 +207,6 @@ TEST_F(TestMemoryControl, TestReadAddressOverflow)
 		scrutiny_handler.process(0);
 
 		uint32_t n_to_read = scrutiny_handler.comm()->data_to_send();
-		ASSERT_GT(n_to_read, 0u);
 		ASSERT_LT(n_to_read, sizeof(tx_buffer));
 		scrutiny_handler.comm()->pop_data(tx_buffer, n_to_read);
 
@@ -264,7 +263,6 @@ TEST_F(TestMemoryControl, TestReadForbiddenAddress)
 		scrutiny_handler.process(0);
 
 		uint32_t n_to_read = scrutiny_handler.comm()->data_to_send();
-		ASSERT_GT(n_to_read, 0u);
 		ASSERT_LT(n_to_read, sizeof(tx_buffer));
 		scrutiny_handler.comm()->pop_data(tx_buffer, n_to_read);
 
@@ -317,7 +315,6 @@ TEST_F(TestMemoryControl, TestReadReadonlyAddress)
 		scrutiny_handler.process(0);
 
 		uint32_t n_to_read = scrutiny_handler.comm()->data_to_send();
-		ASSERT_GT(n_to_read, 0u);
 		ASSERT_LT(n_to_read, sizeof(tx_buffer));
 		scrutiny_handler.comm()->pop_data(tx_buffer, n_to_read);
 
@@ -326,7 +323,6 @@ TEST_F(TestMemoryControl, TestReadReadonlyAddress)
 		scrutiny_handler.process(0);
 	}
 }
-
 
 // ================================= Write =================================
 
@@ -378,7 +374,6 @@ TEST_F(TestMemoryControl, TestWriteSingleAddress)
 	ASSERT_BUF_EQ(buffer, expected_output_buffer, sizeof(expected_output_buffer));
 }
 
-
 /*
 	Write 2  memory block in a single request and expect it to be written.
 */
@@ -409,7 +404,7 @@ TEST_F(TestMemoryControl, TestWriteMultipleAddress)
 
 	// Building expected response
 	uint8_t tx_buffer[32];
-	constexpr uint16_t datalen_resp = (addr_size + 2)*2;
+	constexpr uint16_t datalen_resp = (addr_size + 2) * 2;
 	uint8_t expected_response[9 + datalen_resp] = { 0x83, 2, 0, 0, datalen_resp };
 	index = 5;
 	index += encode_addr(&expected_response[index], buffer);
@@ -437,7 +432,6 @@ TEST_F(TestMemoryControl, TestWriteMultipleAddress)
 }
 
 
-
 TEST_F(TestMemoryControl, TestWriteSingleAddress_InvalidDataLength)
 {
 	const scrutiny::Protocol::CommandId cmd = scrutiny::Protocol::eCmdMemoryControl;
@@ -458,7 +452,6 @@ TEST_F(TestMemoryControl, TestWriteSingleAddress_InvalidDataLength)
 	request_data[index++] = ((data_size + 1) >> 0) & 0xFF;
 	add_crc(request_data, sizeof(request_data) - 4);
 
-
 	// Process
 	scrutiny_handler.comm()->receive_data(request_data, sizeof(request_data));
 	scrutiny_handler.process(0);
@@ -473,7 +466,10 @@ TEST_F(TestMemoryControl, TestWriteSingleAddress_InvalidDataLength)
 	ASSERT_TRUE(IS_PROTOCOL_RESPONSE(tx_buffer, cmd, subfn, invalid));
 }
 
-
+/*
+Tries to write to a forbidden address range. Same approach as TestReadForbiddenAddress.
+Expect denial of access
+*/
 TEST_F(TestMemoryControl, TestWriteForbiddenAddress)
 {
 	const scrutiny::Protocol::CommandId cmd = scrutiny::Protocol::eCmdMemoryControl;
@@ -509,7 +505,6 @@ TEST_F(TestMemoryControl, TestWriteForbiddenAddress)
 		scrutiny_handler.process(0);
 
 		uint32_t n_to_read = scrutiny_handler.comm()->data_to_send();
-		ASSERT_GT(n_to_read, 0u);
 		ASSERT_LT(n_to_read, sizeof(tx_buffer));
 		scrutiny_handler.comm()->pop_data(tx_buffer, n_to_read);
 
@@ -525,6 +520,10 @@ TEST_F(TestMemoryControl, TestWriteForbiddenAddress)
 	}
 }
 
+/*
+Tries to write to a readonly address range. Same approach as TestReadForbiddenAddress
+Expect denial of access
+*/
 TEST_F(TestMemoryControl, TestWriteReadOnlyAddress)
 {
 	const scrutiny::Protocol::CommandId cmd = scrutiny::Protocol::eCmdMemoryControl;
@@ -560,11 +559,10 @@ TEST_F(TestMemoryControl, TestWriteReadOnlyAddress)
 		scrutiny_handler.process(0);
 
 		uint32_t n_to_read = scrutiny_handler.comm()->data_to_send();
-		ASSERT_GT(n_to_read, 0u);
 		ASSERT_LT(n_to_read, sizeof(tx_buffer));
 		scrutiny_handler.comm()->pop_data(tx_buffer, n_to_read);
 
-		if (i < 2 || i > 10)	// Sliding window is completely out of forbidden region
+		if (i < 2 || i > 10)	// Sliding window is completely out of readonly region
 		{
 			ASSERT_TRUE(IS_PROTOCOL_RESPONSE(tx_buffer, cmd, subfn, ok)) << "[i=" << static_cast<uint32_t>(i) << "]";
 		}
@@ -574,4 +572,63 @@ TEST_F(TestMemoryControl, TestWriteReadOnlyAddress)
 		}
 		scrutiny_handler.process(0);
 	}
+}
+
+
+/*
+	Test that invalid request are processed as such.
+	We make a valid request with 2 write command. Then we adjust the request length to have partial or extra data.
+	We skip the 2 valid possiblities (1 full wirte command, 2 full write command). All the other shall be returned as invalid.
+*/
+TEST_F(TestMemoryControl, TestWriteMemoryInvalidRequest)
+{
+	const scrutiny::Protocol::CommandId cmd = scrutiny::Protocol::eCmdMemoryControl;
+	const scrutiny::Protocol::MemoryControl::Subfunction subfn = scrutiny::Protocol::MemoryControl::eSubfnWrite;
+	const scrutiny::Protocol::ResponseCode invalid = scrutiny::Protocol::eResponseCode_InvalidRequest;
+
+	constexpr uint32_t addr_size = sizeof(void*);
+	constexpr uint16_t data_to_write_length = 3;
+	constexpr uint32_t datalen = (addr_size + 2 + data_to_write_length) * 2;
+	uint8_t tx_buffer[64];
+
+	uint8_t some_data[] = { 1,2,3,4 };
+
+	uint8_t request_data[8 + datalen+64] = { 3, 2, 0, 0 };	// Add 64 bytes because we will put more data.
+
+	for (uint16_t i =0 ; i < datalen+10; i++)
+	{
+		if (i == datalen || i== datalen/2)
+		{
+			// datalen is for 2 valid request. Half of it is the correct length for a valid write to the first address only
+			continue;
+		}
+		uint32_t index = 4;
+		// First block
+		index += encode_addr(&request_data[index], some_data);
+		request_data[index++] = (data_to_write_length >> 8) & 0xFF;
+		request_data[index++] = (data_to_write_length >> 0) & 0xFF;
+		index += data_to_write_length;
+		// Seond block
+		index += encode_addr(&request_data[index], some_data);
+		request_data[index++] = (data_to_write_length >> 8) & 0xFF;
+		request_data[index++] = (data_to_write_length >> 0) & 0xFF;
+		index += data_to_write_length;
+
+		// Adjust request length to chop data or add extra bytes.
+		request_data[2] = (i >> 8) & 0xFF;
+		request_data[3] = (i >> 0) & 0xFF;
+		add_crc(request_data, 4+i);
+
+		scrutiny_handler.comm()->receive_data(request_data, sizeof(request_data));
+		scrutiny_handler.process(0);
+
+		uint32_t n_to_read = scrutiny_handler.comm()->data_to_send();
+		ASSERT_LT(n_to_read, sizeof(tx_buffer));
+		scrutiny_handler.comm()->pop_data(tx_buffer, n_to_read);
+
+		ASSERT_TRUE(IS_PROTOCOL_RESPONSE(tx_buffer, cmd, subfn, invalid)) << "[i=" << static_cast<uint32_t>(i) << "]";
+
+		scrutiny_handler.process(0);
+	}
+
 }
