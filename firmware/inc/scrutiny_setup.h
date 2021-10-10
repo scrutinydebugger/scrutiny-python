@@ -13,7 +13,7 @@
 
  // ========== Parameters ==========
 
-#define SCRUTINY_RX_BUFFER_SIZE 128u							// Protocol reception buffer size in bytes. Only data bytes, headers and CRC are not accounted here.
+#define SCRUTINY_RX_BUFFER_SIZE 128u						// Protocol reception buffer size in bytes. Only data bytes, headers and CRC are not accounted here.
 #define SCRUTINY_TX_BUFFER_SIZE 256u						// Protocol transmission buffer size in bytes. Only data bytes, headers and CRC are not accounted here.
 #define SCRUTINY_COMM_RX_TIMEOUT_US 50000u					// Reset reception state machine when no data is received for that amount of time.
 #define SCRUTINY_COMM_HEARTBEAT_TMEOUT_US 5000000u			// Disconnect session if no heartbeat request after this delay

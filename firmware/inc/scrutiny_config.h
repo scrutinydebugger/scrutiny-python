@@ -29,6 +29,8 @@ namespace scrutiny
 
 		inline AddressRange* forbidden_ranges() { return m_forbidden_address_ranges; }
 		inline AddressRange* readonly_ranges() { return m_readonly_address_ranges; }
+		inline uint32_t forbidden_ranges_max() { return SCRUTINY_FORBIDDEN_ADDRESS_RANGE_COUNT; }
+		inline uint32_t readonly_ranges_max() { return SCRUTINY_READONLY_ADDRESS_RANGE_COUNT; }
 
 	private:
 		uint32_t m_max_bitrate;

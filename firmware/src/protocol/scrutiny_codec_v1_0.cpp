@@ -18,6 +18,7 @@ namespace scrutiny
 			m_buffer(NULL),
 			m_bytes_read(0),
 			m_size_limit(0),
+			m_required_tx_buffer_size(0),
 			m_finished(false),
 			m_invalid(false)
 		{
@@ -49,6 +50,8 @@ namespace scrutiny
 				cursor += addr_size;
 				length = decode_16_bits_big_endian(&m_buffer[cursor]);
 				cursor += 2;
+
+				m_required_tx_buffer_size += addr_size + 2 + length;
 
 				if (cursor == m_size_limit)
 				{
@@ -93,6 +96,7 @@ namespace scrutiny
 			m_bytes_read = 0;
 			m_invalid = false;
 			m_finished = false;
+			m_required_tx_buffer_size = 0;
 		}
 
 		//==============================================================
@@ -101,6 +105,7 @@ namespace scrutiny
 			m_buffer(NULL),
 			m_bytes_read(0),
 			m_size_limit(0),
+			m_required_tx_buffer_size(0),
 			m_finished(false),
 			m_invalid(false)
 		{
@@ -138,6 +143,8 @@ namespace scrutiny
 					m_invalid = true;
 					return;
 				}
+
+				m_required_tx_buffer_size += addr_size + 2;
 
 				if (cursor == m_size_limit)
 				{
@@ -191,6 +198,7 @@ namespace scrutiny
 			m_bytes_read = 0;
 			m_invalid = false;
 			m_finished = false;
+			m_required_tx_buffer_size = 0;
 		}
 
 

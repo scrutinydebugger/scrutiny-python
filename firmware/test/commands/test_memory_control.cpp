@@ -223,7 +223,13 @@ TEST_F(TestMemoryControl, TestReadAddressOverflow)
 	}
 }
 
+/*
+We try to read a forbidden memory region and expects to be responded with a "Forbidden" response code.
+We define a buffer of 16 bytes. We forbid access to 4 bytes in the middle then try to read a window
+of 4 bytes that start at the beginning of the buffer then slide to the right.
 
+4 accesses won't touch the forbidden region. 8 Will touch it.
+*/
 TEST_F(TestMemoryControl, TestReadForbiddenAddress)
 {
 	const scrutiny::Protocol::CommandId cmd = scrutiny::Protocol::eCmdMemoryControl;
@@ -242,7 +248,7 @@ TEST_F(TestMemoryControl, TestReadForbiddenAddress)
 	scrutiny_handler.comm()->connect();
 
 	constexpr uint8_t datalen = sizeof(void*) + 2;
-	uint8_t request_data[8 + datalen] = {3,1,0, datalen };
+	uint8_t request_data[8 + datalen] = { 3,1,0, datalen };
 	uint16_t window_size = 4;
 	unsigned int index = 0;
 	for (unsigned int i = 0; i < sizeof(buf) - window_size; i++)
@@ -272,7 +278,53 @@ TEST_F(TestMemoryControl, TestReadForbiddenAddress)
 		}
 		scrutiny_handler.process(0);
 	}
+}
 
+/*
+We make sure we can read readonly adress ranges without issues. Same test as TestReadForbiddenAddress, but we expect OK response code.
+*/
+TEST_F(TestMemoryControl, TestReadReadonlyAddress)
+{
+	const scrutiny::Protocol::CommandId cmd = scrutiny::Protocol::eCmdMemoryControl;
+	const scrutiny::Protocol::MemoryControl::Subfunction subfn = scrutiny::Protocol::MemoryControl::eSubfnRead;
+	const scrutiny::Protocol::ResponseCode forbidden = scrutiny::Protocol::eResponseCode_Forbidden;
+	const scrutiny::Protocol::ResponseCode ok = scrutiny::Protocol::eResponseCode_OK;
+
+	uint8_t tx_buffer[32];
+	uint8_t buf[] = { 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f };
+	scrutiny::Config new_config;
+	// indices [6,7,8,9] are forbidden
+	uint64_t start = reinterpret_cast<uint64_t>(buf) + 6;
+	uint64_t end = start + 4;
+	new_config.add_readonly_address_range(start, end);
+	scrutiny_handler.init(&new_config);
+	scrutiny_handler.comm()->connect();
+
+	constexpr uint8_t datalen = sizeof(void*) + 2;
+	uint8_t request_data[8 + datalen] = { 3,1,0, datalen };
+	uint16_t window_size = 4;
+	unsigned int index = 0;
+	for (unsigned int i = 0; i < sizeof(buf) - window_size; i++)
+	{
+		void* read_addr = reinterpret_cast<void*>(reinterpret_cast<std::uintptr_t>(buf) + i);
+		index = 4;
+		index += encode_addr(&request_data[4], read_addr);
+		request_data[index + 0] = static_cast<uint8_t>(window_size >> 8);
+		request_data[index + 1] = static_cast<uint8_t>(window_size >> 0);
+		add_crc(request_data, sizeof(request_data) - 4);
+
+		scrutiny_handler.comm()->receive_data(request_data, sizeof(request_data));
+		scrutiny_handler.process(0);
+
+		uint32_t n_to_read = scrutiny_handler.comm()->data_to_send();
+		ASSERT_GT(n_to_read, 0u);
+		ASSERT_LT(n_to_read, sizeof(tx_buffer));
+		scrutiny_handler.comm()->pop_data(tx_buffer, n_to_read);
+
+		ASSERT_TRUE(IS_PROTOCOL_RESPONSE(tx_buffer, cmd, subfn, ok)) << "[i=" << static_cast<uint32_t>(i) << "]";
+
+		scrutiny_handler.process(0);
+	}
 }
 
 
@@ -280,18 +332,18 @@ TEST_F(TestMemoryControl, TestReadForbiddenAddress)
 
 
 /*
-	Read a single memory block and expect a response with a valid content
+	Write a single memory block and expect it to be written.
 */
 TEST_F(TestMemoryControl, TestWriteSingleAddress)
 {
-	
+
 	uint8_t buffer[] = { 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a };
 	uint8_t data_to_write[] = { 0x11, 0x22, 0x33, 0x44 };
 	uint8_t expected_output_buffer[] = { 0x11, 0x22, 0x33, 0x44, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a };
 
 	// Building request
 	constexpr uint32_t addr_size = sizeof(std::uintptr_t);
-	constexpr uint16_t datalen_req = addr_size+2+sizeof(data_to_write);
+	constexpr uint16_t datalen_req = addr_size + 2 + sizeof(data_to_write);
 	uint8_t request_data[8 + datalen_req] = { 3,2,0, datalen_req };
 	unsigned int index = 4;
 	index += encode_addr(&request_data[index], buffer);
@@ -302,7 +354,7 @@ TEST_F(TestMemoryControl, TestWriteSingleAddress)
 
 	// Building expected response
 	uint8_t tx_buffer[32];
-	constexpr uint16_t datalen_resp = addr_size +2;
+	constexpr uint16_t datalen_resp = addr_size + 2;
 	uint8_t expected_response[9 + datalen_resp] = { 0x83, 2, 0, 0, datalen_resp };
 	index = 5;
 	index += encode_addr(&expected_response[index], buffer);
@@ -324,4 +376,202 @@ TEST_F(TestMemoryControl, TestWriteSingleAddress)
 
 	ASSERT_BUF_EQ(tx_buffer, expected_response, sizeof(expected_response));
 	ASSERT_BUF_EQ(buffer, expected_output_buffer, sizeof(expected_output_buffer));
+}
+
+
+/*
+	Write 2  memory block in a single request and expect it to be written.
+*/
+TEST_F(TestMemoryControl, TestWriteMultipleAddress)
+{
+
+	uint8_t buffer[] = { 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a };
+	uint8_t data_to_write1[] = { 0x11, 0x22, 0x33, 0x44 };
+	uint8_t data_to_write2[] = { 0xAA, 0xBB, 0xCC, 0xDD, 0xEE };
+	uint8_t expected_output_buffer[] = { 0x11, 0x22, 0x33, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0x09, 0x0a };
+
+	// Building request
+	constexpr uint32_t addr_size = sizeof(std::uintptr_t);
+	constexpr uint16_t datalen_req = (addr_size + 2) * 2 + sizeof(data_to_write1) + sizeof(data_to_write2);
+	uint8_t request_data[8 + datalen_req] = { 3,2,0, datalen_req };
+	unsigned int index = 4;
+	index += encode_addr(&request_data[index], buffer);
+	request_data[index++] = (sizeof(data_to_write1) >> 8) & 0xFF;
+	request_data[index++] = (sizeof(data_to_write1) >> 0) & 0xFF;
+	std::memcpy(&request_data[index], data_to_write1, sizeof(data_to_write1));
+	index += sizeof(data_to_write1);
+	index += encode_addr(&request_data[index], &buffer[3]);
+	request_data[index++] = (sizeof(data_to_write2) >> 8) & 0xFF;
+	request_data[index++] = (sizeof(data_to_write2) >> 0) & 0xFF;
+	std::memcpy(&request_data[index], data_to_write2, sizeof(data_to_write2));
+	index += sizeof(data_to_write2);
+	add_crc(request_data, sizeof(request_data) - 4);
+
+	// Building expected response
+	uint8_t tx_buffer[32];
+	constexpr uint16_t datalen_resp = (addr_size + 2)*2;
+	uint8_t expected_response[9 + datalen_resp] = { 0x83, 2, 0, 0, datalen_resp };
+	index = 5;
+	index += encode_addr(&expected_response[index], buffer);
+	expected_response[index++] = (sizeof(data_to_write1) >> 8) & 0xFF;
+	expected_response[index++] = (sizeof(data_to_write1) >> 0) & 0xFF;
+	index += encode_addr(&expected_response[index], &buffer[3]);
+	expected_response[index++] = (sizeof(data_to_write2) >> 8) & 0xFF;
+	expected_response[index++] = (sizeof(data_to_write2) >> 0) & 0xFF;
+	add_crc(expected_response, sizeof(expected_response) - 4);
+
+	// Process
+	scrutiny_handler.comm()->receive_data(request_data, sizeof(request_data));
+	scrutiny_handler.process(0);
+
+	uint32_t n_to_read = scrutiny_handler.comm()->data_to_send();
+	ASSERT_GT(n_to_read, 0u);
+	ASSERT_LT(n_to_read, sizeof(tx_buffer));
+	EXPECT_EQ(n_to_read, sizeof(expected_response));
+
+	uint32_t nread = scrutiny_handler.comm()->pop_data(tx_buffer, n_to_read);
+	EXPECT_EQ(nread, n_to_read);
+
+	ASSERT_BUF_EQ(tx_buffer, expected_response, sizeof(expected_response));
+	ASSERT_BUF_EQ(buffer, expected_output_buffer, sizeof(expected_output_buffer));
+}
+
+
+
+TEST_F(TestMemoryControl, TestWriteSingleAddress_InvalidDataLength)
+{
+	const scrutiny::Protocol::CommandId cmd = scrutiny::Protocol::eCmdMemoryControl;
+	const scrutiny::Protocol::MemoryControl::Subfunction subfn = scrutiny::Protocol::MemoryControl::eSubfnWrite;
+	const scrutiny::Protocol::ResponseCode invalid = scrutiny::Protocol::eResponseCode_InvalidRequest;
+
+	uint8_t buffer[] = { 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a };
+	uint8_t tx_buffer[32];
+
+	// Building request
+	constexpr uint32_t addr_size = sizeof(std::uintptr_t);
+	constexpr uint16_t data_size = 10;
+	constexpr uint16_t datalen_req = addr_size + 2 + data_size;
+	uint8_t request_data[8 + datalen_req] = { 3,2,0, datalen_req };
+	unsigned int index = 4;
+	index += encode_addr(&request_data[index], buffer);
+	request_data[index++] = ((data_size + 1) >> 8) & 0xFF;
+	request_data[index++] = ((data_size + 1) >> 0) & 0xFF;
+	add_crc(request_data, sizeof(request_data) - 4);
+
+
+	// Process
+	scrutiny_handler.comm()->receive_data(request_data, sizeof(request_data));
+	scrutiny_handler.process(0);
+
+	uint32_t n_to_read = scrutiny_handler.comm()->data_to_send();
+	ASSERT_GT(n_to_read, 0u);
+	ASSERT_LT(n_to_read, sizeof(tx_buffer));
+
+	uint32_t nread = scrutiny_handler.comm()->pop_data(tx_buffer, n_to_read);
+	EXPECT_EQ(nread, n_to_read);
+
+	ASSERT_TRUE(IS_PROTOCOL_RESPONSE(tx_buffer, cmd, subfn, invalid));
+}
+
+
+TEST_F(TestMemoryControl, TestWriteForbiddenAddress)
+{
+	const scrutiny::Protocol::CommandId cmd = scrutiny::Protocol::eCmdMemoryControl;
+	const scrutiny::Protocol::MemoryControl::Subfunction subfn = scrutiny::Protocol::MemoryControl::eSubfnWrite;
+	const scrutiny::Protocol::ResponseCode forbidden = scrutiny::Protocol::eResponseCode_Forbidden;
+	const scrutiny::Protocol::ResponseCode ok = scrutiny::Protocol::eResponseCode_OK;
+
+	uint8_t tx_buffer[32];
+	uint8_t buf[] = { 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f };
+	scrutiny::Config new_config;
+	// indices [6,7,8,9] are forbidden
+	uint64_t start = reinterpret_cast<uint64_t>(buf) + 6;
+	uint64_t end = start + 4;
+	new_config.add_forbidden_address_range(start, end);
+	scrutiny_handler.init(&new_config);
+	scrutiny_handler.comm()->connect();
+
+	constexpr uint16_t window_size = 4;
+	constexpr uint8_t datalen = sizeof(void*) + 2 + window_size;
+	uint8_t request_data[8 + datalen] = { 3,2,0, datalen };
+	unsigned int index = 0;
+	for (unsigned int i = 0; i < sizeof(buf) - window_size; i++)
+	{
+		void* write_addr = reinterpret_cast<void*>(reinterpret_cast<std::uintptr_t>(buf) + i);
+		index = 4;
+		index += encode_addr(&request_data[4], write_addr);
+		request_data[index + 0] = static_cast<uint8_t>(window_size >> 8);
+		request_data[index + 1] = static_cast<uint8_t>(window_size >> 0);
+		// We don't care about the data to write here. We just check if it's accepted or refused.
+		add_crc(request_data, sizeof(request_data) - 4);
+
+		scrutiny_handler.comm()->receive_data(request_data, sizeof(request_data));
+		scrutiny_handler.process(0);
+
+		uint32_t n_to_read = scrutiny_handler.comm()->data_to_send();
+		ASSERT_GT(n_to_read, 0u);
+		ASSERT_LT(n_to_read, sizeof(tx_buffer));
+		scrutiny_handler.comm()->pop_data(tx_buffer, n_to_read);
+
+		if (i < 2 || i > 10)	// Sliding window is completely out of forbidden region
+		{
+			ASSERT_TRUE(IS_PROTOCOL_RESPONSE(tx_buffer, cmd, subfn, ok)) << "[i=" << static_cast<uint32_t>(i) << "]";
+		}
+		else // We expect to be refused access to buffer
+		{
+			ASSERT_TRUE(IS_PROTOCOL_RESPONSE(tx_buffer, cmd, subfn, forbidden)) << "[i=" << static_cast<uint32_t>(i) << "]";
+		}
+		scrutiny_handler.process(0);
+	}
+}
+
+TEST_F(TestMemoryControl, TestWriteReadOnlyAddress)
+{
+	const scrutiny::Protocol::CommandId cmd = scrutiny::Protocol::eCmdMemoryControl;
+	const scrutiny::Protocol::MemoryControl::Subfunction subfn = scrutiny::Protocol::MemoryControl::eSubfnWrite;
+	const scrutiny::Protocol::ResponseCode forbidden = scrutiny::Protocol::eResponseCode_Forbidden;
+	const scrutiny::Protocol::ResponseCode ok = scrutiny::Protocol::eResponseCode_OK;
+
+	uint8_t tx_buffer[32];
+	uint8_t buf[] = { 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f };
+	scrutiny::Config new_config;
+	// indices [6,7,8,9] are forbidden
+	uint64_t start = reinterpret_cast<uint64_t>(buf) + 6;
+	uint64_t end = start + 4;
+	new_config.add_readonly_address_range(start, end);
+	scrutiny_handler.init(&new_config);
+	scrutiny_handler.comm()->connect();
+
+	constexpr uint16_t window_size = 4;
+	constexpr uint8_t datalen = sizeof(void*) + 2 + window_size;
+	uint8_t request_data[8 + datalen] = { 3,2,0, datalen };
+	unsigned int index = 0;
+	for (unsigned int i = 0; i < sizeof(buf) - window_size; i++)
+	{
+		void* write_addr = reinterpret_cast<void*>(reinterpret_cast<std::uintptr_t>(buf) + i);
+		index = 4;
+		index += encode_addr(&request_data[4], write_addr);
+		request_data[index + 0] = static_cast<uint8_t>(window_size >> 8);
+		request_data[index + 1] = static_cast<uint8_t>(window_size >> 0);
+		// We don't care about the data to write here. We just check if it's accepted or refused.
+		add_crc(request_data, sizeof(request_data) - 4);
+
+		scrutiny_handler.comm()->receive_data(request_data, sizeof(request_data));
+		scrutiny_handler.process(0);
+
+		uint32_t n_to_read = scrutiny_handler.comm()->data_to_send();
+		ASSERT_GT(n_to_read, 0u);
+		ASSERT_LT(n_to_read, sizeof(tx_buffer));
+		scrutiny_handler.comm()->pop_data(tx_buffer, n_to_read);
+
+		if (i < 2 || i > 10)	// Sliding window is completely out of forbidden region
+		{
+			ASSERT_TRUE(IS_PROTOCOL_RESPONSE(tx_buffer, cmd, subfn, ok)) << "[i=" << static_cast<uint32_t>(i) << "]";
+		}
+		else // We expect to be refused access to buffer
+		{
+			ASSERT_TRUE(IS_PROTOCOL_RESPONSE(tx_buffer, cmd, subfn, forbidden)) << "[i=" << static_cast<uint32_t>(i) << "]";
+		}
+		scrutiny_handler.process(0);
+	}
 }

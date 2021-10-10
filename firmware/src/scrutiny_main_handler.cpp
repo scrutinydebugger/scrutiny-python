@@ -275,6 +275,12 @@ namespace scrutiny
 				break;
 			}
 
+			if (readmem_parser->required_tx_buffer_size() > m_comm_handler.tx_buffer_size())
+			{
+				code = Protocol::eResponseCode_Overflow;
+				break;
+			}
+
 			while (!readmem_parser->finished())
 			{
 				readmem_parser->next(&block);
@@ -292,11 +298,7 @@ namespace scrutiny
 				}
 
 				readmem_encoder->write(&block);
-				if (readmem_encoder->overflow())
-				{
-					code = Protocol::eResponseCode_Overflow;
-					break;
-				}
+				// We don't check overflow here as we rely on the request parser to be right on the required buffer size.
 			}
 			break;
 
@@ -311,6 +313,12 @@ namespace scrutiny
 			if (!writemem_parser->is_valid())
 			{
 				code = Protocol::eResponseCode_InvalidRequest;
+				break;
+			}
+
+			if (writemem_parser->required_tx_buffer_size() > m_comm_handler.tx_buffer_size())
+			{
+				code = Protocol::eResponseCode_Overflow;
 				break;
 			}
 
@@ -337,13 +345,8 @@ namespace scrutiny
 				}
 
 				writemem_encoder->write(&block);
-				if (writemem_encoder->overflow())
-				{
-					code = Protocol::eResponseCode_Overflow;
-					break;
-				}
+				// We don't check overflow here as we rely on the request parser to be right on the required buffer size.
 
-				// All good, we can write memory.
 				std::memcpy(block.start_address, block.source_data, block.length);
 			}
 			break;
@@ -361,7 +364,7 @@ namespace scrutiny
 	{
 		const uint64_t block_start = reinterpret_cast<uint64_t>(block->start_address);
 		const uint64_t block_end = block_start + block->length;
-		for (unsigned int i = 0; i < SCRUTINY_FORBIDDEN_ADDRESS_RANGE_COUNT; i++)
+		for (unsigned int i = 0; i < m_config.forbidden_ranges_max(); i++)
 		{
 			const AddressRange& range = m_config.forbidden_ranges()[i];
 			if (range.set)
@@ -388,7 +391,7 @@ namespace scrutiny
 	{
 		const uint64_t block_start = reinterpret_cast<uint64_t>(block->start_address);
 		const uint64_t block_end = block_start + block->length;
-		for (unsigned int i = 0; i < SCRUTINY_READONLY_ADDRESS_RANGE_COUNT; i++)
+		for (unsigned int i = 0; i < m_config.readonly_ranges_max(); i++)
 		{
 			const AddressRange& range = m_config.readonly_ranges()[i];
 			if (range.set)

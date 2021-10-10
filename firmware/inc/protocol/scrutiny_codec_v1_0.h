@@ -17,6 +17,7 @@ namespace scrutiny
 			void next(MemoryBlock* memblock);
 			inline bool finished() { return m_finished; };
 			inline bool is_valid() { return !m_invalid; };
+			inline uint32_t required_tx_buffer_size() { return m_required_tx_buffer_size; }
 			void reset();
 
 		protected:
@@ -25,6 +26,7 @@ namespace scrutiny
 			uint8_t* m_buffer;
 			uint32_t m_bytes_read;
 			uint32_t m_size_limit;
+			uint32_t m_required_tx_buffer_size;
 			bool m_finished;
 			bool m_invalid;
 		};
@@ -56,6 +58,7 @@ namespace scrutiny
 			void next(MemoryBlock* memblock);
 			inline bool finished() { return m_finished; };
 			inline bool is_valid() { return !m_invalid; };
+			inline uint32_t required_tx_buffer_size() {return m_required_tx_buffer_size;}
 			void reset();
 
 		protected:
@@ -64,6 +67,7 @@ namespace scrutiny
 			uint8_t* m_buffer;
 			uint32_t m_bytes_read;
 			uint32_t m_size_limit;
+			uint32_t m_required_tx_buffer_size;
 			bool m_finished;
 			bool m_invalid;
 		};
