@@ -105,6 +105,20 @@ namespace scrutiny
 				{
 					uint8_t temp;
 				} get_supported_features;
+
+				struct 
+				{
+					uint8_t nbr_readonly_region;
+					uint8_t nbr_forbidden_region;
+				} get_special_memory_region_count;
+
+				struct 
+				{
+					uint8_t region_type;
+					uint8_t region_index;
+					uint64_t start;
+					uint64_t end;
+				} get_special_memory_region_location;
 			} get_info;
 
 			union
@@ -138,6 +152,15 @@ namespace scrutiny
 
 		union RequestData
 		{
+			union
+			{
+				struct 
+				{
+					uint8_t region_type;
+					uint8_t region_index;
+				} get_special_memory_region_location;
+
+			}get_info;
 			union
 			{
 				struct
@@ -174,11 +197,16 @@ namespace scrutiny
 
 			ResponseCode encode_response_protocol_version(const ResponseData* response_data, Response* response);
 			ResponseCode encode_response_software_id(Response* response);
+			ResponseCode encode_response_special_memory_region_count(const ResponseData* response_data, Response* response);
+			ResponseCode encode_response_special_memory_region_location(const ResponseData* response_data, Response* response);
+
 			ResponseCode encode_response_comm_discover(const ResponseData* response_data, Response* response);
 			ResponseCode encode_response_comm_heartbeat(const ResponseData* response_data, Response* response);
 			ResponseCode encode_response_comm_get_params(const ResponseData* response_data, Response* response);
 			ResponseCode encode_response_comm_connect(const ResponseData* response_data, Response* response);
 
+
+			ResponseCode decode_request_get_special_memory_region_location(const Request* request, RequestData* request_data);
 
 			ResponseCode decode_request_comm_discover(const Request* request, RequestData* request_data);
 			ResponseCode decode_request_comm_heartbeat(const Request* request, RequestData* request_data);

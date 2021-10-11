@@ -56,6 +56,18 @@ class TestProtocolV1_0(unittest.TestCase):
         self.assert_req_response_bytes(req, [1,3,0,0])
         data = self.proto.parse_request(req)
 
+    def test_req_get_special_memory_range_count(self):
+        req = self.proto.get_special_memory_region_count()
+        self.assert_req_response_bytes(req, [1,4,0,0])
+        data = self.proto.parse_request(req)
+
+    def test_req_get_special_memory_range_location(self):
+        req = self.proto.get_special_memory_region_location(cmd.GetInfo.MemoryRangeType.Forbidden, 0x12)
+        self.assert_req_response_bytes(req, [1,5,0,2, 1, 0x12])
+        data = self.proto.parse_request(req)
+        self.assertEqual(data['region_type'], cmd.GetInfo.MemoryRangeType.Forbidden)
+        self.assertEqual(data['region_index'], 0x12)        
+
 # ============= MemoryControl ===============
     def test_req_read_single_memory_block_8bits(self):
         self.proto.set_address_size(8)
@@ -403,10 +415,28 @@ class TestProtocolV1_0(unittest.TestCase):
         response = self.proto.respond_supported_features(memory_read=True, memory_write=False, datalog_acquire=True, user_command=True)
         self.assert_req_response_bytes(response, [0x81,3,0,0,1, 0xB0])
         data = self.proto.parse_response(response)
-        data['memory_read'] = True
-        data['memory_write'] = False
-        data['datalog_acquire'] = True
-        data['user_command'] = True
+        self.assertEqual(data['memory_read'],  True)
+        self.assertEqual(data['memory_write'],  False)
+        self.assertEqual(data['datalog_acquire'],  True)
+        self.assertEqual(data['user_command'],  True)
+
+    def test_response_get_special_memory_range_count(self):
+        response = self.proto.respond_special_memory_region_count(readonly=0xAA, forbidden=0x55)
+        self.assert_req_response_bytes(response, [0x81,4,0,0,2, 0xAA,  0x55])
+        data = self.proto.parse_response(response)
+        self.assertEqual(data['nbr_readonly'], 0xAA)
+        self.assertEqual(data['nbr_forbidden'], 0x55)
+
+    def test_response_get_special_memory_range_location(self):
+        self.proto.set_address_size(32)
+        response = self.proto.respond_special_memory_region_location(cmd.GetInfo.MemoryRangeType.Forbidden, 0x12, start=0x11223344, end=0x99887766)
+        self.assert_req_response_bytes(response, [0x81,5,0,0,10, 1, 0x12, 0x11, 0x22, 0x33, 0x44, 0x99, 0x88, 0x77, 0x66])
+        data = self.proto.parse_response(response)
+        self.assertEqual(data['region_type'], cmd.GetInfo.MemoryRangeType.Forbidden)
+        self.assertEqual(data['region_index'], 0x12)            
+        self.assertEqual(data['start'], 0x11223344)            
+        self.assertEqual(data['end'], 0x99887766)            
+
 
 # ============= MemoryControl ===============
 

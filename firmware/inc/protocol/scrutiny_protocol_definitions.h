@@ -97,7 +97,15 @@ namespace scrutiny
 			{
 				eSubfnGetProtocolVersion = 1,
 				eSubfnGetSoftwareId = 2,
-				eSubfnGetSupportedFeatures = 3
+				eSubfnGetSupportedFeatures = 3,
+				eSubfnGetSpecialMemoryRegionCount = 4,
+				eSubfnGetSpecialMemoryLocation = 5
+			};
+
+			enum MemoryRegionType
+			{
+				eMemoryRegionTypeReadOnly = 0,
+				eMemoryRegionTypeForbidden = 1
 			};
 		}
 

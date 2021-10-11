@@ -33,7 +33,7 @@ add_executable(${TARGET_NAME}
   protocol/test_protocol_rx_parsing.cpp
   protocol/test_protocol_tx_parsing.cpp
   protocol/test_comm_handler.cpp
-  commands/test_command_get_info.cpp
+  commands/test_get_info.cpp
   commands/test_comm_control.cpp
   commands/test_memory_control.cpp
   commands/test_user_command.cpp)

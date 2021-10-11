@@ -107,6 +107,7 @@ namespace scrutiny
 	Protocol::ResponseCode MainHandler::process_get_info(Protocol::Request* request, Protocol::Response* response)
 	{
 		Protocol::ResponseData response_data;
+		Protocol::RequestData request_data;
 		Protocol::ResponseCode code = Protocol::eResponseCode_FailureToProceed;
 
 		switch (request->subfunction_id)
@@ -125,6 +126,71 @@ namespace scrutiny
 
 			// =========== [GetSupportedFeatures] ==========
 		case Protocol::GetInfo::eSubfnGetSupportedFeatures:
+			break;
+
+			// =========== [GetSpecialMemoryRegionCount] ==========
+		case Protocol::GetInfo::eSubfnGetSpecialMemoryRegionCount:
+
+			response_data.get_info.get_special_memory_region_count.nbr_readonly_region = m_config.readonly_ranges_count();
+			response_data.get_info.get_special_memory_region_count.nbr_forbidden_region = m_config.forbidden_ranges_count();
+
+			code = m_codec.encode_response_special_memory_region_count(&response_data, response);
+
+			break;
+
+			// =========== [GetSpecialMemoryLocation] ==========
+		case Protocol::GetInfo::eSubfnGetSpecialMemoryLocation:
+
+			code = m_codec.decode_request_get_special_memory_region_location(request, &request_data);
+			if (code != Protocol::eResponseCode_OK)
+			{
+				break;
+			}
+
+			if (request_data.get_info.get_special_memory_region_location.region_type == Protocol::GetInfo::eMemoryRegionTypeReadOnly)
+			{
+				if (request_data.get_info.get_special_memory_region_location.region_index >= m_config.readonly_ranges_count())
+				{
+					code = Protocol::eResponseCode_FailureToProceed;
+					break;
+				}
+
+				if (!m_config.readonly_ranges()[request_data.get_info.get_special_memory_region_location.region_index].set)
+				{
+					code = Protocol::eResponseCode_FailureToProceed;
+					break;
+				}
+
+				response_data.get_info.get_special_memory_region_location.start = m_config.readonly_ranges()[request_data.get_info.get_special_memory_region_location.region_index].start;
+				response_data.get_info.get_special_memory_region_location.end = m_config.readonly_ranges()[request_data.get_info.get_special_memory_region_location.region_index].end;
+			}
+			else if (request_data.get_info.get_special_memory_region_location.region_type == Protocol::GetInfo::eMemoryRegionTypeForbidden)
+			{
+				if (request_data.get_info.get_special_memory_region_location.region_index >= m_config.forbidden_ranges_count())
+				{
+					code = Protocol::eResponseCode_FailureToProceed;
+					break;
+				}
+
+				if (!m_config.forbidden_ranges()[request_data.get_info.get_special_memory_region_location.region_index].set)
+				{
+					code = Protocol::eResponseCode_FailureToProceed;
+					break;
+				}
+
+				response_data.get_info.get_special_memory_region_location.start = m_config.forbidden_ranges()[request_data.get_info.get_special_memory_region_location.region_index].start;
+				response_data.get_info.get_special_memory_region_location.end = m_config.forbidden_ranges()[request_data.get_info.get_special_memory_region_location.region_index].end;
+			}
+			else
+			{
+				code = Protocol::eResponseCode_InvalidRequest;
+				break;
+			}
+
+			response_data.get_info.get_special_memory_region_location.region_type = request_data.get_info.get_special_memory_region_location.region_type;
+			response_data.get_info.get_special_memory_region_location.region_index = request_data.get_info.get_special_memory_region_location.region_index;
+
+			code = m_codec.encode_response_special_memory_region_location(&response_data, response);
 			break;
 
 			// =================================
@@ -263,7 +329,7 @@ namespace scrutiny
 
 		switch (request->subfunction_id)
 		{
-		// =========== [Read] ==========
+			// =========== [Read] ==========
 		case Protocol::MemoryControl::eSubfnRead:
 			code = Protocol::eResponseCode_OK;
 			Protocol::ReadMemoryBlocksRequestParser* readmem_parser;

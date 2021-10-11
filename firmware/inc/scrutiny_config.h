@@ -27,6 +27,8 @@ namespace scrutiny
 
 		inline AddressRange* forbidden_ranges() { return m_forbidden_address_ranges; }
 		inline AddressRange* readonly_ranges() { return m_readonly_address_ranges; }
+		inline uint8_t forbidden_ranges_count() { return m_forbidden_range_count ; }
+		inline uint8_t readonly_ranges_count() { return m_readonly_range_count ; }
 		inline uint32_t forbidden_ranges_max() { return SCRUTINY_FORBIDDEN_ADDRESS_RANGE_COUNT; }
 		inline uint32_t readonly_ranges_max() { return SCRUTINY_READONLY_ADDRESS_RANGE_COUNT; }
 		inline bool is_user_command_callback_set() { return user_command_callback != nullptr; }
@@ -35,8 +37,8 @@ namespace scrutiny
 	private:
 		AddressRange m_forbidden_address_ranges[SCRUTINY_FORBIDDEN_ADDRESS_RANGE_COUNT];
 		AddressRange m_readonly_address_ranges[SCRUTINY_READONLY_ADDRESS_RANGE_COUNT];
-		uint32_t m_forbidden_range_count;
-		uint32_t m_readonly_range_count;
+		uint8_t m_forbidden_range_count;
+		uint8_t m_readonly_range_count;
 
 	};
 }

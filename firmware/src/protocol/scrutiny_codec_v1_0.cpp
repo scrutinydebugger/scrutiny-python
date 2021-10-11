@@ -24,7 +24,7 @@ namespace scrutiny
 		{
 
 		}
-				
+
 		void ReadMemoryBlocksRequestParser::init(Request* request)
 		{
 			m_buffer = request->data;
@@ -41,7 +41,7 @@ namespace scrutiny
 
 			while (true)
 			{
-				if ( cursor + addr_size + 2 > m_size_limit)
+				if (cursor + addr_size + 2 > m_size_limit)
 				{
 					m_invalid = true;
 					return;
@@ -204,7 +204,7 @@ namespace scrutiny
 
 		//==============================================================
 
-		ReadMemoryBlocksResponseEncoder::ReadMemoryBlocksResponseEncoder() : 
+		ReadMemoryBlocksResponseEncoder::ReadMemoryBlocksResponseEncoder() :
 			m_buffer(NULL),
 			m_response(NULL),
 			m_cursor(0),
@@ -249,7 +249,7 @@ namespace scrutiny
 		}
 
 		//==============================================================
-		
+
 
 		WriteMemoryBlocksResponseEncoder::WriteMemoryBlocksResponseEncoder() :
 			m_buffer(NULL),
@@ -324,6 +324,49 @@ namespace scrutiny
 
 			response->data_length = datalen;
 			std::memcpy(response->data, scrutiny::software_id, sizeof(scrutiny::software_id));
+			return eResponseCode_OK;
+		}
+
+		ResponseCode CodecV1_0::encode_response_special_memory_region_count(const ResponseData* response_data, Response* response)
+		{
+			constexpr uint16_t readonly_region_count_size = sizeof(response_data->get_info.get_special_memory_region_count.nbr_readonly_region);
+			constexpr uint16_t forbidden_region_count_size = sizeof(response_data->get_info.get_special_memory_region_count.nbr_forbidden_region);
+			constexpr uint16_t datalen = readonly_region_count_size + forbidden_region_count_size;
+			if (datalen > SCRUTINY_TX_BUFFER_SIZE)
+			{
+				return eResponseCode_FailureToProceed;
+			}
+
+			response->data[0] = response_data->get_info.get_special_memory_region_count.nbr_readonly_region;
+			response->data[1] = response_data->get_info.get_special_memory_region_count.nbr_forbidden_region;
+			response->data_length = 2;
+			return eResponseCode_OK;
+		}
+
+		ResponseCode CodecV1_0::encode_response_special_memory_region_location(const ResponseData* response_data, Response* response)
+		{
+			constexpr unsigned int addr_size = sizeof(void*);
+			constexpr uint16_t region_type_size = sizeof(response_data->get_info.get_special_memory_region_location.region_type);
+			constexpr uint16_t region_index_size = sizeof(response_data->get_info.get_special_memory_region_location.region_index);
+			constexpr uint16_t datalen = region_type_size + region_index_size + 2 * addr_size;
+
+			if (datalen > SCRUTINY_TX_BUFFER_SIZE)
+			{
+				return eResponseCode_FailureToProceed;
+			}
+			response->data[0] = static_cast<uint8_t>(response_data->get_info.get_special_memory_region_location.region_type);
+			response->data[1] = response_data->get_info.get_special_memory_region_location.region_index;
+			encode_address_big_endian(&response->data[2], response_data->get_info.get_special_memory_region_location.start);
+			encode_address_big_endian(&response->data[2 + addr_size], response_data->get_info.get_special_memory_region_location.end);
+			response->data_length = 1 + 1 + addr_size + addr_size;
+
+			return eResponseCode_OK;
+		}
+
+		ResponseCode CodecV1_0::decode_request_get_special_memory_region_location(const Request* request, RequestData* request_data)
+		{
+			request_data->get_info.get_special_memory_region_location.region_type = request->data[0];
+			request_data->get_info.get_special_memory_region_location.region_index = request->data[1];
 			return eResponseCode_OK;
 		}
 

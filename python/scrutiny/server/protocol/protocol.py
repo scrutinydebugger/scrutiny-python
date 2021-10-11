@@ -44,6 +44,9 @@ class Protocol:
     def encode_address(self, address):
         return struct.pack('>%s' % self.address_format.get_pack_char(),  address)
 
+    def decode_address(self, buff):
+        return struct.unpack('>%s' % self.address_format.get_pack_char(),  buff[0:self.address_format.get_address_size()])[0]
+
     def compute_challenge_16bits(self, challenge):
         return ctypes.c_uint16(~challenge).value
 
@@ -58,6 +61,16 @@ class Protocol:
 
     def get_supported_features(self):
         return Request(cmd.GetInfo, cmd.GetInfo.Subfunction.GetSupportedFeatures)
+
+    def get_special_memory_region_count(self):
+        return Request(cmd.GetInfo, cmd.GetInfo.Subfunction.GetSpecialMemoryRegionCount)
+
+    def get_special_memory_region_location(self, region_type, region_index):
+        if isinstance(region_type, cmd.GetInfo.MemoryRangeType):
+            region_type = region_type.value
+        data = struct.pack('BB', region_type, region_index)
+        return Request(cmd.GetInfo, cmd.GetInfo.Subfunction.GetSpecialMemoryRegionLocation, data)
+
 
     def read_single_memory_block(self, address, length):
         block_list = [(address, length)]
@@ -150,7 +163,15 @@ class Protocol:
     def parse_request(self, req):
         data = {'valid' : True}
         try:
-            if req.command == cmd.MemoryControl:
+            if req.command == cmd.GetInfo:
+                subfn = cmd.GetInfo.Subfunction(req.subfn)
+
+                if subfn == cmd.GetInfo.Subfunction.GetSpecialMemoryRegionLocation:
+                    region_type, region_index = struct.unpack('BB', req.payload[0:2])
+                    data['region_type'] = cmd.GetInfo.MemoryRangeType(region_type)
+                    data['region_index'] = region_index
+
+            elif req.command == cmd.MemoryControl:
                 subfn = cmd.MemoryControl.Subfunction(req.subfn)
                 
                 if subfn == cmd.MemoryControl.Subfunction.Read:                     # MemoryControl - Read
@@ -273,6 +294,16 @@ class Protocol:
             bytes1 |= 0x10
         
         return Response(cmd.GetInfo, cmd.GetInfo.Subfunction.GetSupportedFeatures, Response.ResponseCode.OK, bytes([bytes1]))
+
+    def respond_special_memory_region_count(self, readonly, forbidden):
+        return Response(cmd.GetInfo, cmd.GetInfo.Subfunction.GetSpecialMemoryRegionCount, Response.ResponseCode.OK, struct.pack('BB', readonly, forbidden))
+
+    def respond_special_memory_region_location(self, region_type, region_index, start, end):
+        if isinstance(region_type, cmd.GetInfo.MemoryRangeType):
+            region_type = region_type.value
+        data =  struct.pack('BB', region_type, region_index)
+        data += self.encode_address(start) + self.encode_address(end)
+        return Response(cmd.GetInfo, cmd.GetInfo.Subfunction.GetSpecialMemoryRegionLocation, Response.ResponseCode.OK, data)
   
     def respond_comm_discover(self, challenge_response):
         resp_data = cmd.CommControl.DISCOVER_MAGIC+struct.pack('>L', challenge_response)
@@ -381,6 +412,15 @@ class Protocol:
 
                 elif subfn == cmd.GetInfo.Subfunction.GetSoftwareId:
                     data['software_id'] = response.payload
+
+                elif subfn == cmd.GetInfo.Subfunction.GetSpecialMemoryRegionCount:
+                    data['nbr_readonly'], data['nbr_forbidden'] = struct.unpack('BB', response.payload[0:2])
+
+                elif subfn == cmd.GetInfo.Subfunction.GetSpecialMemoryRegionLocation:
+                    data['region_type'] = cmd.GetInfo.MemoryRangeType(response.payload[0])
+                    data['region_index'] = response.payload[1]
+                    data['start'] = self.decode_address(response.payload[2:])
+                    data['end'] = self.decode_address(response.payload[2+self.address_format.get_address_size():])
 
             elif response.command == cmd.MemoryControl:
                 subfn = cmd.MemoryControl.Subfunction(response.subfn)
