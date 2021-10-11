@@ -32,11 +32,19 @@ void my_callback1(const uint8_t subfunction, const uint8_t* request_data, const 
 	*response_data_length = 4;
 }
 
+#if defined(_MSC_VER)
+	#pragma warning(push)
+	#pragma warning(disable:4100)   // Get rid of unused parameter warning.
+#endif 
 
 void my_callback2(const uint8_t subfunction, const uint8_t* request_data, const uint16_t request_data_length, uint8_t* response_data, uint16_t* response_data_length, const uint16_t response_max_data_length)
 {
 	*response_data_length = response_max_data_length+1;
 }
+
+#if defined(_MSC_VER)
+	#pragma warning(pop)
+#endif 
 
 
 TEST_F(TestUserCommand, TestCommandCalled)

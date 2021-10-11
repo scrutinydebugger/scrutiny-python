@@ -73,6 +73,11 @@ void ScrutinyTest::fill_buffer_incremental(uint8_t* buffer, uint32_t length)
 	return ::testing::AssertionSuccess();
 }
 
+#if defined(_MSC_VER)
+	#pragma warning(push)
+	#pragma warning(disable:4293)   // Get rid of shift to big warning.
+#endif 
+
 unsigned int ScrutinyTest::encode_addr(uint8_t* buffer, void* addr)
 {
 	unsigned int i = 0;
@@ -97,6 +102,11 @@ unsigned int ScrutinyTest::encode_addr(uint8_t* buffer, void* addr)
 
 	return i;
 }
+
+#if defined(_MSC_VER)
+	#pragma warning(pop)
+#endif 
+
 
 
 
