@@ -80,32 +80,38 @@ void ScrutinyTest::fill_buffer_incremental(uint8_t* buffer, uint32_t length)
 
 unsigned int ScrutinyTest::encode_addr(uint8_t* buffer, void* addr)
 {
-	unsigned int i = 0;
 	std::uintptr_t ptr = reinterpret_cast<std::uintptr_t>(addr);
-	switch (sizeof(ptr))
+	constexpr unsigned int addr_size = sizeof(ptr);
+
+	unsigned int i = addr_size-1;
+
+	if (addr_size >= 1)
 	{
-	case 8:
-		buffer[i++] = static_cast<uint8_t>((ptr >> 56));
-		buffer[i++] = static_cast<uint8_t>((ptr >> 48));
-		buffer[i++] = static_cast<uint8_t>((ptr >> 40));
-		buffer[i++] = static_cast<uint8_t>((ptr >> 32));
-		// fall through
-	case 4:
-		buffer[i++] = static_cast<uint8_t>((ptr >> 24));
-		buffer[i++] = static_cast<uint8_t>((ptr >> 16));
-		// fall through
-	case 2:
-		buffer[i++] = static_cast<uint8_t>((ptr >> 8));
-		// fall through
-	case 1:
-		buffer[i++] = static_cast<uint8_t>((ptr >> 0));
-		// fall through
-	default:
-		break;
+		buffer[i--] = static_cast<uint8_t>((ptr >> 0) & 0xFF);
 	}
 
-	return i;
+	if (addr_size >= 2)
+	{
+		buffer[i--] = static_cast<uint8_t>((ptr >> 8) & 0xFF);
+	}
+
+	if (addr_size >= 4)
+	{
+		buffer[i--] = static_cast<uint8_t>((ptr >> 16) & 0xFF);
+		buffer[i--] = static_cast<uint8_t>((ptr >> 24) & 0xFF);
+	}
+
+	if (addr_size == 8)
+	{
+		buffer[i--] = static_cast<uint8_t>((ptr >> 32) & 0xFF);
+		buffer[i--] = static_cast<uint8_t>((ptr >> 40) & 0xFF);
+		buffer[i--] = static_cast<uint8_t>((ptr >> 48) & 0xFF);
+		buffer[i--] = static_cast<uint8_t>((ptr >> 56) & 0xFF);
+	}
+
+	return addr_size;
 }
+
 
 #if defined(_MSC_VER)
 	#pragma warning(pop)

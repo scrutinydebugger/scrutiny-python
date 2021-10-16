@@ -9,34 +9,39 @@ namespace scrutiny
 
 		uint8_t decode_address_big_endian(uint8_t* buf, uint64_t* addr)
 		{
-			uint64_t computed_addr = 0;
+			constexpr unsigned int addr_size = sizeof(void*);
+			static_assert(addr_size == 1 || addr_size == 2 || addr_size == 4 || addr_size == 8, "Unsupported address size");
 
+			uint64_t computed_addr = 0;
 			unsigned int i = 0;
-			switch (sizeof(void*))
+
+			if (addr_size >= 8)
 			{
-			case 8:
 				computed_addr |= ((static_cast<uint64_t>(buf[i++]) << 56));
 				computed_addr |= ((static_cast<uint64_t>(buf[i++]) << 48));
 				computed_addr |= ((static_cast<uint64_t>(buf[i++]) << 40));
 				computed_addr |= ((static_cast<uint64_t>(buf[i++]) << 32));
-				// fall through
-			case 4:
-				computed_addr |= ((static_cast<uint64_t>(buf[i++]) << 24));
-				computed_addr |= ((static_cast<uint64_t>(buf[i++]) << 16));
-				// fall through
-			case 2:
-				computed_addr |= ((static_cast<uint64_t>(buf[i++]) << 8));
-				// fall through
-			case 1:
-				computed_addr |= ((static_cast<uint64_t>(buf[i++]) << 0));
-				// fall through
-			default:
-				break;
 			}
 
+			if (addr_size >= 4)
+			{
+				computed_addr |= ((static_cast<uint64_t>(buf[i++]) << 24));
+				computed_addr |= ((static_cast<uint64_t>(buf[i++]) << 16));
+			}
+
+			if (addr_size >= 2)
+			{
+				computed_addr |= ((static_cast<uint64_t>(buf[i++]) << 8));
+			}
+
+			if (addr_size >= 1)
+			{
+				computed_addr |= ((static_cast<uint64_t>(buf[i++]) << 0));
+			}
+			
 			*addr = computed_addr;
 
-			return static_cast<uint8_t>(i);
+			return static_cast<uint8_t>(addr_size);
 		}
 
 		uint8_t encode_address_big_endian(uint8_t* buf, void* ptr)
@@ -44,33 +49,39 @@ namespace scrutiny
 			return encode_address_big_endian(buf, reinterpret_cast<uint64_t>(ptr));
 		}
 
-		uint8_t encode_address_big_endian(uint8_t* buf, uint64_t addr)
+
+		uint8_t encode_address_big_endian(uint8_t* buf, register uint64_t addr)
 		{
-			unsigned int i = 0;
-			switch (sizeof(void*))
+			constexpr unsigned int addr_size = sizeof(void*);
+			static_assert(addr_size == 1 || addr_size == 2 || addr_size == 4 || addr_size == 8, "Unsupported address size");
+
+			unsigned int i = addr_size-1;
+
+			if (addr_size >= 1)
 			{
-			case 8:
-				buf[i++] = static_cast<uint8_t>((addr >> 56) & 0xFF);
-				buf[i++] = static_cast<uint8_t>((addr >> 48) & 0xFF);
-				buf[i++] = static_cast<uint8_t>((addr >> 40) & 0xFF);
-				buf[i++] = static_cast<uint8_t>((addr >> 32) & 0xFF);
-				// fall through
-			case 4:
-				buf[i++] = static_cast<uint8_t>((addr >> 24) & 0xFF);
-				buf[i++] = static_cast<uint8_t>((addr >> 16) & 0xFF);
-				// fall through
-			case 2:
-				buf[i++] = static_cast<uint8_t>((addr >> 8) & 0xFF);
-				// fall through
-			case 1:
-				buf[i++] = static_cast<uint8_t>((addr >> 0) & 0xFF);
-				// fall through
-			default:
-				break;
+				buf[i--] = static_cast<uint8_t>((addr >> 0) & 0xFF);
 			}
 
-			return static_cast<uint8_t>(i);
-		}
+			if (addr_size >= 2)
+			{
+				buf[i--] = static_cast<uint8_t>((addr >> 8) & 0xFF);
+			}
 
+			if (addr_size >= 4)
+			{
+				buf[i--] = static_cast<uint8_t>((addr >> 16) & 0xFF);
+				buf[i--] = static_cast<uint8_t>((addr >> 24) & 0xFF);
+			}
+
+			if (addr_size == 8)
+			{
+				buf[i--] = static_cast<uint8_t>((addr >> 32) & 0xFF);
+				buf[i--] = static_cast<uint8_t>((addr >> 40) & 0xFF);
+				buf[i--] = static_cast<uint8_t>((addr >> 48) & 0xFF);
+				buf[i--] = static_cast<uint8_t>((addr >> 56) & 0xFF);
+			}
+
+			return static_cast<uint8_t>(addr_size);
+		}
 	}
 }
