@@ -6,7 +6,10 @@ namespace scrutiny
 {
 	namespace protocol
 	{
-
+#if defined(_MSC_VER)
+#pragma warning(push)
+#pragma warning(disable:4127)   // Get rid of constexpr always true condition warning.
+#endif 
 		uint8_t decode_address_big_endian(uint8_t* buf, uint64_t* addr)
 		{
 			constexpr unsigned int addr_size = sizeof(void*);
@@ -43,6 +46,9 @@ namespace scrutiny
 
 			return static_cast<uint8_t>(addr_size);
 		}
+#if defined(_MSC_VER)
+#pragma warning(pop)
+#endif		
 
 		uint8_t encode_address_big_endian(uint8_t* buf, void* ptr)
 		{
@@ -50,6 +56,10 @@ namespace scrutiny
 		}
 
 
+#if defined(_MSC_VER)
+#pragma warning(push)
+#pragma warning(disable:4127)   // Get rid of constexpr always true condition warning.
+#endif 
 		uint8_t encode_address_big_endian(uint8_t* buf, register uint64_t addr)
 		{
 			constexpr unsigned int addr_size = sizeof(void*);
@@ -83,5 +93,8 @@ namespace scrutiny
 
 			return static_cast<uint8_t>(addr_size);
 		}
+#if defined(_MSC_VER)
+#pragma warning(pop)
+#endif			
 	}
 }

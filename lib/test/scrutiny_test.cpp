@@ -75,7 +75,7 @@ void ScrutinyTest::fill_buffer_incremental(uint8_t* buffer, uint32_t length)
 
 #if defined(_MSC_VER)
 	#pragma warning(push)
-	#pragma warning(disable:4293)   // Get rid of shift to big warning.
+	#pragma warning(disable:4127)   // Get rid of constexpr always true condition warning.
 #endif 
 
 unsigned int ScrutinyTest::encode_addr(uint8_t* buffer, void* addr)
@@ -111,7 +111,6 @@ unsigned int ScrutinyTest::encode_addr(uint8_t* buffer, void* addr)
 
 	return addr_size;
 }
-
 
 #if defined(_MSC_VER)
 	#pragma warning(pop)
