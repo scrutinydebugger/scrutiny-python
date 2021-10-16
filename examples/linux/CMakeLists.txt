@@ -8,7 +8,7 @@ target_sources(${PROJECT_NAME}
     )
 
 target_link_libraries(${PROJECT_NAME}
-    scrutiny::libscrutinycpp
+    scrutiny-lib
     )
 
 target_compile_options(${PROJECT_NAME}

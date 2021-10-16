@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 #include "scrutiny.h"
 #include "scrutiny_test.h"
+#include <cstring>
 
 class TestMemoryControl : public ScrutinyTest
 {

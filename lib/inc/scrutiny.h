@@ -9,6 +9,4 @@
 #include "scrutiny_protocol.h"
 #include "scrutiny_main_handler.h"
 
-
-
 #endif
