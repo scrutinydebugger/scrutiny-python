@@ -2,10 +2,11 @@
 #include "file1.h"
 #include "file2.h"
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdint.h>
+#include <iostream>
+#include <iomanip>
+#include <cstdint>
 
+using namespace std;
 
 void mainfunc1()
 {
@@ -14,26 +15,27 @@ void mainfunc1()
 
 void mainfunc1(int x)
 {
+    (void)x;
     static double mainfunc1Var = 8888888.88;
 }
 
-void memdump(unsigned long startAddr, unsigned long length)
+void memdump(uint64_t startAddr, uint64_t length)
 {
-    unsigned long addr = startAddr;
+    uint64_t addr = startAddr;
     while (addr < startAddr + length)
     {
-        uint8_t* ptr = (uint8_t*)(addr);
-        printf("0x%08X:    ", addr);
-        int nToPrint = startAddr + length - addr;
+        uint8_t* ptr = reinterpret_cast<uint8_t*>(addr);
+        cout << hex << setw(16) << setfill('0') << addr;
+        uint64_t nToPrint = startAddr + length - addr;
         if (nToPrint > 16)
         {
             nToPrint = 16;
         }
         for (int i=0; i<nToPrint; i++)
         {
-            printf("%02X", ptr[i]);
+            cout << hex << setw(2) << setfill('0') << ptr[i];
         }
-        printf("\n");
+        cout << endl;
         addr += nToPrint;
     }
 }
@@ -61,8 +63,8 @@ int main(int argc, char* argv[])
         for (int i=0; i<(argc-1)/2; i++)
         {
 
-            long startAddr = strtol(argv[i*2+1], NULL, 10);
-            long length = strtol(argv[i*2+2], NULL, 10);
+            uint64_t startAddr = strtoll(argv[i*2+1], NULL, 10);
+            uint64_t length = strtoll(argv[i*2+2], NULL, 10);
 
             if (startAddr > 0 && length > 0)
             {

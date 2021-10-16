@@ -116,8 +116,8 @@ class TestLinuxLEx64_Gcc8_3_0(unittest.TestCase):
         self.assert_var('/static/file1.cpp/funcInFile1(int, int)/staticLongInFuncFile1', core.VariableType.sint64, value_at_loc = -0x123456789abcdef)
 
     def test_namespace(self):
-        self.assert_var('/global/NamespaceInFile1/NamespaceInFile1Nested1/file1GlobalNestedVar1', core.VariableType.uint64, value_at_loc = 11111111111111)
-        self.assert_var('/static/file1.cpp/NamespaceInFile1/NamespaceInFile1Nested1/file1StaticNestedVar1', core.VariableType.uint64, value_at_loc = 78945612345)
+        self.assert_var('/global/NamespaceInFile1/NamespaceInFile1Nested1/file1GlobalNestedVar1', core.VariableType.uint64, value_at_loc = 1111111111)
+        self.assert_var('/static/file1.cpp/NamespaceInFile1/NamespaceInFile1Nested1/file1StaticNestedVar1', core.VariableType.uint64, value_at_loc = 945612345)
 
     def assert_is_enumA(self, fullpath, value_at_loc=None):
         v = self.assert_var(fullpath, core.VariableType.uint32, value_at_loc=value_at_loc)

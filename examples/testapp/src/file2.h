@@ -30,3 +30,4 @@ namespace namespaceAFile2
 	};
 }
 
+#pragma pack(pop)

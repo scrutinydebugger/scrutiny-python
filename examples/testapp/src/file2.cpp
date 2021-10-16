@@ -52,11 +52,11 @@ void file2SetValues()
     file2GlobalInt =  2000;
     file2GlobalShort =  998;
     file2GlobalLong =  555555;
-    file2GlobalUnsignedChar =  254;
-    file2GlobalUnsignedInt =  123456;
-    file2GlobalUnsignedShort =  12345;
-    file2GlobalUnsignedLong =  1234567;
-    file2GlobalFloat =  0.1;
+    file2GlobalUnsignedChar =  254u;
+    file2GlobalUnsignedInt =  123456u;
+    file2GlobalUnsignedShort =  12345u;
+    file2GlobalUnsignedLong =  1234567u;
+    file2GlobalFloat =  0.1f;
     file2GlobalDouble =  0.11111111111111;
     file2GlobalBool =  false;
 
@@ -64,11 +64,11 @@ void file2SetValues()
     file2StaticInt = -8745;
     file2StaticShort = -9876;
     file2StaticLong = -12345678;
-    file2StaticUnsignedChar = 12;
-    file2StaticUnsignedInt = 34;
-    file2StaticUnsignedShort = 56;
-    file2StaticUnsignedLong = 78;
-    file2StaticFloat = 2.22222;
+    file2StaticUnsignedChar = 12u;
+    file2StaticUnsignedInt = 34u;
+    file2StaticUnsignedShort = 56u;
+    file2StaticUnsignedLong = 78u;
+    file2StaticFloat = 2.22222f;
     file2StaticDouble = 3.3333;
     file2StaticBool = true;
 
@@ -83,10 +83,10 @@ void file2SetValues()
     file2GlobalArray1Int5[3] = 4444;
     file2GlobalArray1Int5[4] = 5555;
 
-    file2GlobalArray2x2Float[0][0] = 1.1;
-    file2GlobalArray2x2Float[0][1] = 2.2;
-    file2GlobalArray2x2Float[1][0] = 3.3;
-    file2GlobalArray2x2Float[1][1] = 4.4;
+    file2GlobalArray2x2Float[0][0] = 1.1f;
+    file2GlobalArray2x2Float[0][1] = 2.2f;
+    file2GlobalArray2x2Float[1][0] = 3.3f;
+    file2GlobalArray2x2Float[1][1] = 4.4f;
 
     file2ClassBInstance.intInClassB = -11111;
     file2ClassBInstance.nestedClassInstance.intInClassBA = -22222;
@@ -104,6 +104,7 @@ void file2func1()
 
 void file2func1(int x)
 {
+    (void)x;
     static double file2func1Var = 963258741.123;
 }
 
