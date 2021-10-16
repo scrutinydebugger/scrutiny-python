@@ -1,8 +1,9 @@
-#include "scrutiny_setup.h"
-#include "scrutiny_codec_v1_0.h"
-#include "scrutiny_software_id.h"
-#include "scrutiny_protocol_tools.h"
 #include <cstring>
+
+#include "scrutiny_setup.h"
+#include "scrutiny_software_id.h"
+#include "protocol/scrutiny_codec_v1_0.h"
+#include "protocol/scrutiny_protocol_tools.h"
 
 #if defined(_MSC_VER)
 #pragma warning(disable:4127)   // Get rid of constexpr always true condition warning.
@@ -10,7 +11,7 @@
 
 namespace scrutiny
 {
-	namespace Protocol
+	namespace protocol
 	{
 		//==============================================================
 
@@ -25,7 +26,7 @@ namespace scrutiny
 
 		}
 
-		void ReadMemoryBlocksRequestParser::init(Request* request)
+		void ReadMemoryBlocksRequestParser::init(const Request* request)
 		{
 			m_buffer = request->data;
 			m_size_limit = request->data_length;
@@ -112,7 +113,7 @@ namespace scrutiny
 
 		}
 
-		void WriteMemoryBlocksRequestParser::init(Request* request)
+		void WriteMemoryBlocksRequestParser::init(const Request* request)
 		{
 			m_buffer = request->data;
 			m_size_limit = request->data_length;
@@ -214,7 +215,7 @@ namespace scrutiny
 
 		}
 
-		void ReadMemoryBlocksResponseEncoder::init(Response* response, uint32_t max_size)
+		void ReadMemoryBlocksResponseEncoder::init(Response* response, const uint32_t max_size)
 		{
 			m_size_limit = max_size;
 			m_buffer = response->data;
@@ -297,127 +298,106 @@ namespace scrutiny
 
 
 		// ===== Encoding =====
-		ResponseCode CodecV1_0::encode_response_protocol_version(const ResponseData* response_data, Response* response)
+		ResponseCode CodecV1_0::encode_response_protocol_version(const ResponseData::GetInfo::GetProtocolVersion* response_data, Response* response)
 		{
 			constexpr uint16_t datalen = 2;
 
-			if (datalen > SCRUTINY_TX_BUFFER_SIZE)
-			{
-				return eResponseCode_FailureToProceed;
-			}
+			static_assert(datalen <= SCRUTINY_TX_BUFFER_SIZE, "SCRUTINY_TX_BUFFER_SIZE too small");
 
 			response->data_length = datalen;
-			response->data[0] = response_data->get_info.get_protocol_version.major;
-			response->data[1] = response_data->get_info.get_protocol_version.minor;
+			response->data[0] = response_data->major;
+			response->data[1] = response_data->minor;
 
-			return eResponseCode_OK;
+			return ResponseCode::OK;
 		}
 
 		ResponseCode CodecV1_0::encode_response_software_id(Response* response)
 		{
 			constexpr uint16_t datalen = sizeof(scrutiny::software_id);
 
-			if (datalen > SCRUTINY_TX_BUFFER_SIZE)
-			{
-				return eResponseCode_FailureToProceed;
-			}
+			static_assert(datalen <= SCRUTINY_TX_BUFFER_SIZE, "SCRUTINY_TX_BUFFER_SIZE too small");
 
 			response->data_length = datalen;
 			std::memcpy(response->data, scrutiny::software_id, sizeof(scrutiny::software_id));
-			return eResponseCode_OK;
+			return ResponseCode::OK;
 		}
 
-		ResponseCode CodecV1_0::encode_response_special_memory_region_count(const ResponseData* response_data, Response* response)
+		ResponseCode CodecV1_0::encode_response_special_memory_region_count(const ResponseData::GetInfo::GetSpecialMemoryRegionCount* response_data, Response* response)
 		{
-			constexpr uint16_t readonly_region_count_size = sizeof(response_data->get_info.get_special_memory_region_count.nbr_readonly_region);
-			constexpr uint16_t forbidden_region_count_size = sizeof(response_data->get_info.get_special_memory_region_count.nbr_forbidden_region);
+			constexpr uint16_t readonly_region_count_size = sizeof(ResponseData::GetInfo::GetSpecialMemoryRegionCount::nbr_readonly_region);
+			constexpr uint16_t forbidden_region_count_size = sizeof(ResponseData::GetInfo::GetSpecialMemoryRegionCount::nbr_forbidden_region);
 			constexpr uint16_t datalen = readonly_region_count_size + forbidden_region_count_size;
-			if (datalen > SCRUTINY_TX_BUFFER_SIZE)
-			{
-				return eResponseCode_FailureToProceed;
-			}
+			static_assert(datalen <= SCRUTINY_TX_BUFFER_SIZE, "SCRUTINY_TX_BUFFER_SIZE too small");
 
-			response->data[0] = response_data->get_info.get_special_memory_region_count.nbr_readonly_region;
-			response->data[1] = response_data->get_info.get_special_memory_region_count.nbr_forbidden_region;
+			response->data[0] = response_data->nbr_readonly_region;
+			response->data[1] = response_data->nbr_forbidden_region;
 			response->data_length = 2;
-			return eResponseCode_OK;
+			return ResponseCode::OK;
 		}
 
-		ResponseCode CodecV1_0::encode_response_special_memory_region_location(const ResponseData* response_data, Response* response)
+		ResponseCode CodecV1_0::encode_response_special_memory_region_location(const ResponseData::GetInfo::GetSpecialMemoryRegionLocation* response_data, Response* response)
 		{
 			constexpr unsigned int addr_size = sizeof(void*);
-			constexpr uint16_t region_type_size = sizeof(response_data->get_info.get_special_memory_region_location.region_type);
-			constexpr uint16_t region_index_size = sizeof(response_data->get_info.get_special_memory_region_location.region_index);
+			constexpr uint16_t region_type_size = sizeof(ResponseData::GetInfo::GetSpecialMemoryRegionLocation::region_type);
+			constexpr uint16_t region_index_size = sizeof(ResponseData::GetInfo::GetSpecialMemoryRegionLocation::region_index);
 			constexpr uint16_t datalen = region_type_size + region_index_size + 2 * addr_size;
 
-			if (datalen > SCRUTINY_TX_BUFFER_SIZE)
-			{
-				return eResponseCode_FailureToProceed;
-			}
-			response->data[0] = static_cast<uint8_t>(response_data->get_info.get_special_memory_region_location.region_type);
-			response->data[1] = response_data->get_info.get_special_memory_region_location.region_index;
-			encode_address_big_endian(&response->data[2], response_data->get_info.get_special_memory_region_location.start);
-			encode_address_big_endian(&response->data[2 + addr_size], response_data->get_info.get_special_memory_region_location.end);
+			static_assert(datalen <= SCRUTINY_TX_BUFFER_SIZE, "SCRUTINY_TX_BUFFER_SIZE too small");
+
+			response->data[0] = static_cast<uint8_t>(response_data->region_type);
+			response->data[1] = response_data->region_index;
+			encode_address_big_endian(&response->data[2], response_data->start);
+			encode_address_big_endian(&response->data[2 + addr_size], response_data->end);
 			response->data_length = 1 + 1 + addr_size + addr_size;
 
-			return eResponseCode_OK;
+			return ResponseCode::OK;
 		}
 
-		ResponseCode CodecV1_0::decode_request_get_special_memory_region_location(const Request* request, RequestData* request_data)
+		ResponseCode CodecV1_0::decode_request_get_special_memory_region_location(const Request* request, RequestData::GetInfo::GetSpecialMemoryRegionLocation* request_data)
 		{
-			request_data->get_info.get_special_memory_region_location.region_type = request->data[0];
-			request_data->get_info.get_special_memory_region_location.region_index = request->data[1];
-			return eResponseCode_OK;
+			request_data->region_type = request->data[0];
+			request_data->region_index = request->data[1];
+			return ResponseCode::OK;
 		}
 
-		ResponseCode CodecV1_0::encode_response_comm_discover(const ResponseData* response_data, Response* response)
+		ResponseCode CodecV1_0::encode_response_comm_discover(const ResponseData::CommControl::Discover* response_data, Response* response)
 		{
 			constexpr uint16_t magic_size = sizeof(CommControl::DISCOVER_MAGIC);
-			constexpr uint16_t challenge_response_size = sizeof(response_data->comm_control.discover.challenge_response);
+			constexpr uint16_t challenge_response_size = sizeof(response_data->challenge_response);
 			constexpr uint16_t datalen = magic_size + challenge_response_size;
 
-			if (sizeof(response_data->comm_control.discover.magic) != sizeof(CommControl::DISCOVER_MAGIC))
-			{
-				return eResponseCode_FailureToProceed;
-			}
-
-			if (datalen > SCRUTINY_TX_BUFFER_SIZE)
-			{
-				return eResponseCode_FailureToProceed;
-			}
+			static_assert (sizeof(response_data->magic) == sizeof(CommControl::DISCOVER_MAGIC), "Mismatch between codec definition and protocol constant.");
+			static_assert(datalen <= SCRUTINY_TX_BUFFER_SIZE, "SCRUTINY_TX_BUFFER_SIZE too small");
 
 			response->data_length = datalen;
-			std::memcpy(&response->data[0], response_data->comm_control.discover.magic, magic_size);
-			std::memcpy(&response->data[magic_size], response_data->comm_control.discover.challenge_response, challenge_response_size);
+			std::memcpy(&response->data[0], response_data->magic, magic_size);
+			std::memcpy(&response->data[magic_size], response_data->challenge_response, challenge_response_size);
 
-			return eResponseCode_OK;
+			return ResponseCode::OK;
 		}
 
-		ResponseCode CodecV1_0::encode_response_comm_heartbeat(const ResponseData* response_data, Response* response)
+		ResponseCode CodecV1_0::encode_response_comm_heartbeat(const ResponseData::CommControl::Heartbeat* response_data, Response* response)
 		{
-			constexpr uint16_t session_id_size = sizeof(response_data->comm_control.heartbeat.session_id);
-			constexpr uint16_t challenge_response_size = sizeof(response_data->comm_control.heartbeat.challenge_response);
+			constexpr uint16_t session_id_size = sizeof(response_data->session_id);
+			constexpr uint16_t challenge_response_size = sizeof(response_data->challenge_response);
 			constexpr uint16_t datalen = session_id_size + challenge_response_size;
 
-			if (datalen > SCRUTINY_TX_BUFFER_SIZE)
-			{
-				return eResponseCode_FailureToProceed;
-			}
+			static_assert(datalen <= SCRUTINY_TX_BUFFER_SIZE, "SCRUTINY_TX_BUFFER_SIZE too small");
 
 			response->data_length = datalen;
-			encode_32_bits_big_endian(response_data->comm_control.heartbeat.session_id, &response->data[0]);
-			encode_16_bits_big_endian(response_data->comm_control.heartbeat.challenge_response, &response->data[4]);
+			encode_32_bits_big_endian(response_data->session_id, &response->data[0]);
+			encode_16_bits_big_endian(response_data->challenge_response, &response->data[4]);
 
-			return eResponseCode_OK;
+			return ResponseCode::OK;
 		}
 
-		ResponseCode CodecV1_0::encode_response_comm_get_params(const ResponseData* response_data, Response* response)
+		ResponseCode CodecV1_0::encode_response_comm_get_params(const ResponseData::CommControl::GetParams* response_data, Response* response)
 		{
-			constexpr uint16_t rx_buffer_size_len = sizeof(response_data->comm_control.get_params.data_rx_buffer_size);
-			constexpr uint16_t tx_buffer_size_len = sizeof(response_data->comm_control.get_params.data_tx_buffer_size);
-			constexpr uint16_t max_bitrate_size = sizeof(response_data->comm_control.get_params.max_bitrate);
-			constexpr uint16_t heartbeat_timeout_size = sizeof(response_data->comm_control.get_params.heartbeat_timeout);
-			constexpr uint16_t comm_rx_timeout_size = sizeof(response_data->comm_control.get_params.comm_rx_timeout);
+			constexpr uint16_t rx_buffer_size_len = sizeof(response_data->data_rx_buffer_size);
+			constexpr uint16_t tx_buffer_size_len = sizeof(response_data->data_tx_buffer_size);
+			constexpr uint16_t max_bitrate_size = sizeof(response_data->max_bitrate);
+			constexpr uint16_t heartbeat_timeout_size = sizeof(response_data->heartbeat_timeout);
+			constexpr uint16_t comm_rx_timeout_size = sizeof(response_data->comm_rx_timeout);
 			constexpr uint16_t datalen = rx_buffer_size_len + tx_buffer_size_len + max_bitrate_size + heartbeat_timeout_size + comm_rx_timeout_size;
 
 			constexpr uint16_t rx_buffer_size_pos = 0;
@@ -426,112 +406,102 @@ namespace scrutiny
 			constexpr uint16_t heartbeat_timeout_pos = max_bitrate_pos + max_bitrate_size;
 			constexpr uint16_t comm_rx_timeout_pos = heartbeat_timeout_pos + heartbeat_timeout_size;
 
-			if (datalen > SCRUTINY_TX_BUFFER_SIZE)
-			{
-				return eResponseCode_FailureToProceed;
-			}
+			static_assert(datalen <= SCRUTINY_TX_BUFFER_SIZE, "SCRUTINY_TX_BUFFER_SIZE too small");
 
 			response->data_length = datalen;
 
-			encode_16_bits_big_endian(response_data->comm_control.get_params.data_rx_buffer_size, &response->data[rx_buffer_size_pos]);
-			encode_16_bits_big_endian(response_data->comm_control.get_params.data_tx_buffer_size, &response->data[tx_buffer_size_pos]);
-			encode_32_bits_big_endian(response_data->comm_control.get_params.max_bitrate, &response->data[max_bitrate_pos]);
-			encode_32_bits_big_endian(response_data->comm_control.get_params.heartbeat_timeout, &response->data[heartbeat_timeout_pos]);
-			encode_32_bits_big_endian(response_data->comm_control.get_params.comm_rx_timeout, &response->data[comm_rx_timeout_pos]);
+			encode_16_bits_big_endian(response_data->data_rx_buffer_size, &response->data[rx_buffer_size_pos]);
+			encode_16_bits_big_endian(response_data->data_tx_buffer_size, &response->data[tx_buffer_size_pos]);
+			encode_32_bits_big_endian(response_data->max_bitrate, &response->data[max_bitrate_pos]);
+			encode_32_bits_big_endian(response_data->heartbeat_timeout, &response->data[heartbeat_timeout_pos]);
+			encode_32_bits_big_endian(response_data->comm_rx_timeout, &response->data[comm_rx_timeout_pos]);
 
-			return eResponseCode_OK;
+			return ResponseCode::OK;
 		}
 
-		ResponseCode CodecV1_0::encode_response_comm_connect(const ResponseData* response_data, Response* response)
+		ResponseCode CodecV1_0::encode_response_comm_connect(const ResponseData::CommControl::Connect* response_data, Response* response)
 		{
-			constexpr uint16_t magic_size = sizeof(response_data->comm_control.connect.magic);
-			constexpr uint16_t session_id_size = sizeof(response_data->comm_control.connect.session_id);
+			constexpr uint16_t magic_size = sizeof(response_data->magic);
+			constexpr uint16_t session_id_size = sizeof(response_data->session_id);
 			constexpr uint16_t datalen = magic_size + session_id_size;
 
-			if (sizeof(response_data->comm_control.connect.magic) != sizeof(CommControl::CONNECT_MAGIC))
-			{
-				return eResponseCode_FailureToProceed;
-			}
-
-			if (datalen > SCRUTINY_TX_BUFFER_SIZE)
-			{
-				return eResponseCode_FailureToProceed;
-			}
+			static_assert (sizeof(response_data->magic) == sizeof(CommControl::CONNECT_MAGIC), "Mismatch between codec definition and protocol constant.");
+			static_assert(datalen <= SCRUTINY_TX_BUFFER_SIZE, "SCRUTINY_TX_BUFFER_SIZE too small");
 
 			response->data_length = datalen;
-			std::memcpy(&response->data[0], response_data->comm_control.connect.magic, magic_size);
-			encode_32_bits_big_endian(response_data->comm_control.connect.session_id, &response->data[magic_size]);
+			std::memcpy(&response->data[0], response_data->magic, magic_size);
+			encode_32_bits_big_endian(response_data->session_id, &response->data[magic_size]);
 
-			return eResponseCode_OK;
+			return ResponseCode::OK;
 		}
 
 
 
 		// ===== Decoding =====
-		ResponseCode CodecV1_0::decode_request_comm_discover(const Request* request, RequestData* request_data)
+		ResponseCode CodecV1_0::decode_request_comm_discover(const Request* request, RequestData::CommControl::Discover* request_data)
 		{
 			constexpr uint16_t magic_size = sizeof(CommControl::DISCOVER_MAGIC);
-			constexpr uint16_t challenge_size = sizeof(request_data->comm_control.discover.challenge);
+			constexpr uint16_t challenge_size = sizeof(request_data->challenge);
 			constexpr uint16_t datalen = magic_size + challenge_size;
 
 			if (request->data_length != datalen)
 			{
-				return eResponseCode_InvalidRequest;
+				return ResponseCode::InvalidRequest;
 			}
 
-			std::memcpy(request_data->comm_control.discover.magic, request->data, magic_size);
-			std::memcpy(request_data->comm_control.discover.challenge, &request->data[magic_size], challenge_size);
+			std::memcpy(request_data->magic, request->data, magic_size);
+			std::memcpy(request_data->challenge, &request->data[magic_size], challenge_size);
 
-			return eResponseCode_OK;
+			return ResponseCode::OK;
 		}
 
-		ResponseCode CodecV1_0::decode_request_comm_heartbeat(const Request* request, RequestData* request_data)
+		ResponseCode CodecV1_0::decode_request_comm_heartbeat(const Request* request, RequestData::CommControl::Heartbeat* request_data)
 		{
-			constexpr uint16_t session_id_size = sizeof(request_data->comm_control.heartbeat.session_id);
-			constexpr uint16_t challenge_size = sizeof(request_data->comm_control.heartbeat.challenge);
+			constexpr uint16_t session_id_size = sizeof(request_data->session_id);
+			constexpr uint16_t challenge_size = sizeof(request_data->challenge);
 			constexpr uint16_t datalen = session_id_size + challenge_size;
 
 			if (request->data_length != datalen)
 			{
-				return eResponseCode_InvalidRequest;
+				return ResponseCode::InvalidRequest;
 			}
 
-			request_data->comm_control.heartbeat.session_id = decode_32_bits_big_endian(&request->data[0]);
-			request_data->comm_control.heartbeat.challenge = decode_16_bits_big_endian(&request->data[4]);
+			request_data->session_id = decode_32_bits_big_endian(&request->data[0]);
+			request_data->challenge = decode_16_bits_big_endian(&request->data[4]);
 
-			return eResponseCode_OK;
+			return ResponseCode::OK;
 		}
 
-		ResponseCode CodecV1_0::decode_request_comm_connect(const Request* request, RequestData* request_data)
+		ResponseCode CodecV1_0::decode_request_comm_connect(const Request* request, RequestData::CommControl::Connect* request_data)
 		{
 			constexpr uint16_t magic_size = sizeof(CommControl::DISCOVER_MAGIC);
 			constexpr uint16_t datalen = magic_size;
 
 			if (request->data_length != datalen)
 			{
-				return eResponseCode_InvalidRequest;
+				return ResponseCode::InvalidRequest;
 			}
 
-			std::memcpy(request_data->comm_control.connect.magic, request->data, magic_size);
+			std::memcpy(request_data->magic, request->data, magic_size);
 
-			return eResponseCode_OK;
+			return ResponseCode::OK;
 		}
 
-		ResponseCode CodecV1_0::decode_request_comm_disconnect(const Request* request, RequestData* request_data)
+		ResponseCode CodecV1_0::decode_request_comm_disconnect(const Request* request, RequestData::CommControl::Disconnect* request_data)
 		{
-			constexpr uint16_t session_id_size = sizeof(request_data->comm_control.disconnect.session_id);
+			constexpr uint16_t session_id_size = sizeof(request_data->session_id);
 			constexpr uint16_t datalen = session_id_size;
 
 			if (request->data_length != datalen)
 			{
-				return eResponseCode_InvalidRequest;
+				return ResponseCode::InvalidRequest;
 			}
 
-			request_data->comm_control.disconnect.session_id = decode_32_bits_big_endian(&request->data[0]);
-			return eResponseCode_OK;
+			request_data->session_id = decode_32_bits_big_endian(&request->data[0]);
+			return ResponseCode::OK;
 		}
 
-		ReadMemoryBlocksRequestParser* CodecV1_0::decode_request_memory_control_read(Request* request)
+		ReadMemoryBlocksRequestParser* CodecV1_0::decode_request_memory_control_read(const Request* request)
 		{
 			m_memory_control_read_request_parser.init(request);
 			return &m_memory_control_read_request_parser;
@@ -545,7 +515,7 @@ namespace scrutiny
 		}
 
 
-		WriteMemoryBlocksRequestParser* CodecV1_0::decode_request_memory_control_write(Request* request)
+		WriteMemoryBlocksRequestParser* CodecV1_0::decode_request_memory_control_write(const Request* request)
 		{
 			m_memory_control_write_request_parser.init(request);
 			return &m_memory_control_write_request_parser;
@@ -557,7 +527,5 @@ namespace scrutiny
 			m_memory_control_write_response_encoder.init(response, max_size);
 			return &m_memory_control_write_response_encoder;
 		}
-
-
 	}
 }

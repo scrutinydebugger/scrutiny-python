@@ -7,13 +7,13 @@
 
 namespace scrutiny
 {
-	namespace Protocol
+	namespace protocol
 	{
 		class ReadMemoryBlocksRequestParser
 		{
 		public:
 			ReadMemoryBlocksRequestParser();
-			void init(Request* request);
+			void init(const Request* request);
 			void next(MemoryBlock* memblock);
 			inline bool finished() { return m_finished; };
 			inline bool is_valid() { return !m_invalid; };
@@ -35,14 +35,12 @@ namespace scrutiny
 		{
 		public:
 			ReadMemoryBlocksResponseEncoder();
-			void init(Response* response, uint32_t max_size);
+			void init(Response* response, const uint32_t max_size);
 			void write(MemoryBlock* memblock);
 			inline bool overflow() { return m_overflow; };
 			void reset();
 
 		protected:
-			void validate();
-
 			uint8_t* m_buffer;
 			Response* m_response;
 			uint32_t m_cursor;
@@ -54,11 +52,11 @@ namespace scrutiny
 		{
 		public:
 			WriteMemoryBlocksRequestParser();
-			void init(Request* request);
+			void init(const Request* request);
 			void next(MemoryBlock* memblock);
 			inline bool finished() { return m_finished; };
 			inline bool is_valid() { return !m_invalid; };
-			inline uint32_t required_tx_buffer_size() {return m_required_tx_buffer_size;}
+			inline uint32_t required_tx_buffer_size() { return m_required_tx_buffer_size; }
 			void reset();
 
 		protected:
@@ -82,8 +80,6 @@ namespace scrutiny
 			void reset();
 
 		protected:
-			void validate();
-
 			uint8_t* m_buffer;
 			Response* m_response;
 			uint32_t m_cursor;
@@ -91,134 +87,131 @@ namespace scrutiny
 			bool m_overflow;
 		};
 
-		union ResponseData
+		namespace ResponseData
 		{
-			union
+			namespace GetInfo
 			{
-				struct
+				struct GetProtocolVersion
 				{
 					uint8_t major;
 					uint8_t minor;
-				} get_protocol_version;
+				};
 
-				struct
+				struct GetSupportedFeatures
 				{
 					uint8_t temp;
-				} get_supported_features;
+				};
 
-				struct 
+				struct GetSpecialMemoryRegionCount
 				{
 					uint8_t nbr_readonly_region;
 					uint8_t nbr_forbidden_region;
-				} get_special_memory_region_count;
+				};
 
-				struct 
+				struct GetSpecialMemoryRegionLocation
 				{
 					uint8_t region_type;
 					uint8_t region_index;
 					uint64_t start;
 					uint64_t end;
-				} get_special_memory_region_location;
-			} get_info;
+				};
+			};
 
-			union
+			namespace CommControl
 			{
-				struct
+				struct Discover
 				{
-					uint8_t magic[sizeof(CommControl::DISCOVER_MAGIC)];
+					uint8_t magic[sizeof(protocol::CommControl::DISCOVER_MAGIC)];
 					uint8_t challenge_response[4];
-				} discover;
-				struct
+				};
+				struct Heartbeat
 				{
 					uint32_t session_id;
 					uint16_t challenge_response;
-				} heartbeat;
-				struct
+				};
+				struct GetParams
 				{
 					uint16_t data_rx_buffer_size;
 					uint16_t data_tx_buffer_size;
 					uint32_t max_bitrate;
 					uint32_t comm_rx_timeout;
 					uint32_t heartbeat_timeout;
-				}get_params;
-				struct
+				};
+				struct Connect
 				{
-					uint8_t magic[sizeof(CommControl::CONNECT_MAGIC)];
+					uint8_t magic[sizeof(protocol::CommControl::CONNECT_MAGIC)];
 					uint32_t session_id;
-				} connect;
-			} comm_control;
-		};
+				};
+			};
+		}
 
 
-		union RequestData
+		namespace RequestData
 		{
-			union
+			namespace GetInfo
 			{
-				struct 
+				struct GetSpecialMemoryRegionLocation
 				{
 					uint8_t region_type;
 					uint8_t region_index;
-				} get_special_memory_region_location;
+				};
 
-			}get_info;
-			union
+			};
+
+			namespace CommControl
 			{
-				struct
+				struct Discover
 				{
-					uint8_t magic[sizeof(CommControl::DISCOVER_MAGIC)];
+					uint8_t magic[sizeof(protocol::CommControl::DISCOVER_MAGIC)];
 					uint8_t challenge[4];
-				} discover;
+				};
 
-				struct
+				struct Heartbeat
 				{
 					uint32_t session_id;
 					uint16_t challenge;
-				} heartbeat;
+				};
 
-				struct
+				struct Connect
 				{
-					uint8_t magic[sizeof(CommControl::CONNECT_MAGIC)];
-				} connect;
+					uint8_t magic[sizeof(protocol::CommControl::CONNECT_MAGIC)];
+				};
 
-				struct
+				struct Disconnect
 				{
 					uint32_t session_id;
-				} disconnect;
-			} comm_control;
+				};
+			} ;
 		};
-
-
-
 
 
 		class CodecV1_0
 		{
 		public:
 
-			ResponseCode encode_response_protocol_version(const ResponseData* response_data, Response* response);
+			ResponseCode encode_response_protocol_version(const ResponseData::GetInfo::GetProtocolVersion* response_data, Response* response);
 			ResponseCode encode_response_software_id(Response* response);
-			ResponseCode encode_response_special_memory_region_count(const ResponseData* response_data, Response* response);
-			ResponseCode encode_response_special_memory_region_location(const ResponseData* response_data, Response* response);
+			ResponseCode encode_response_special_memory_region_count(const ResponseData::GetInfo::GetSpecialMemoryRegionCount* response_data, Response* response);
+			ResponseCode encode_response_special_memory_region_location(const ResponseData::GetInfo::GetSpecialMemoryRegionLocation* response_data, Response* response);
 
-			ResponseCode encode_response_comm_discover(const ResponseData* response_data, Response* response);
-			ResponseCode encode_response_comm_heartbeat(const ResponseData* response_data, Response* response);
-			ResponseCode encode_response_comm_get_params(const ResponseData* response_data, Response* response);
-			ResponseCode encode_response_comm_connect(const ResponseData* response_data, Response* response);
+			ResponseCode encode_response_comm_discover(const ResponseData::CommControl::Discover* response_data, Response* response);
+			ResponseCode encode_response_comm_heartbeat(const ResponseData::CommControl::Heartbeat* response_data, Response* response);
+			ResponseCode encode_response_comm_get_params(const ResponseData::CommControl::GetParams* response_data, Response* response);
+			ResponseCode encode_response_comm_connect(const ResponseData::CommControl::Connect* response_data, Response* response);
 
 
-			ResponseCode decode_request_get_special_memory_region_location(const Request* request, RequestData* request_data);
+			ResponseCode decode_request_get_special_memory_region_location(const Request* request, RequestData::GetInfo::GetSpecialMemoryRegionLocation* request_data);
 
-			ResponseCode decode_request_comm_discover(const Request* request, RequestData* request_data);
-			ResponseCode decode_request_comm_heartbeat(const Request* request, RequestData* request_data);
-			ResponseCode decode_request_comm_connect(const Request* request, RequestData* request_data);
-			ResponseCode decode_request_comm_disconnect(const Request* request, RequestData* request_data);
+			ResponseCode decode_request_comm_discover(const Request* request, RequestData::CommControl::Discover* request_data);
+			ResponseCode decode_request_comm_heartbeat(const Request* request, RequestData::CommControl::Heartbeat* request_data);
+			ResponseCode decode_request_comm_connect(const Request* request, RequestData::CommControl::Connect* request_data);
+			ResponseCode decode_request_comm_disconnect(const Request* request, RequestData::CommControl::Disconnect* request_data);
 
-			ReadMemoryBlocksRequestParser* decode_request_memory_control_read(Request* request);
+			ReadMemoryBlocksRequestParser* decode_request_memory_control_read(const Request* request);
 			ReadMemoryBlocksResponseEncoder* encode_response_memory_control_read(Response* response, uint32_t max_size);
 
-			WriteMemoryBlocksRequestParser* decode_request_memory_control_write(Request* request);
+			WriteMemoryBlocksRequestParser* decode_request_memory_control_write(const Request* request);
 			WriteMemoryBlocksResponseEncoder* encode_response_memory_control_write(Response* response, uint32_t max_size);
-
 
 		protected:
 			ReadMemoryBlocksRequestParser m_memory_control_read_request_parser;
@@ -226,8 +219,6 @@ namespace scrutiny
 			WriteMemoryBlocksRequestParser m_memory_control_write_request_parser;
 			WriteMemoryBlocksResponseEncoder m_memory_control_write_response_encoder;
 		};
-
-
 	}
 }
 #endif // ___SCRUTINY_CODEC_V1_0___

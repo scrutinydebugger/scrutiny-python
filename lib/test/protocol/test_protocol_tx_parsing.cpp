@@ -8,9 +8,9 @@ class TestTxParsing : public ScrutinyTest
 {
 protected:
 	scrutiny::Timebase tb;
-	scrutiny::Protocol::CommHandler comm;
+	scrutiny::protocol::CommHandler comm;
 	uint8_t response_buffer[256];
-	scrutiny::Protocol::Response response;
+	scrutiny::protocol::Response response;
 
 	virtual void SetUp()
 	{
@@ -31,7 +31,6 @@ TEST_F(TestTxParsing, TestReadAllData)
 	response.data[0] = 0x11;
 	response.data[1] = 0x22;
 	response.data[2] = 0x33;
-	response.valid = true;
 	add_crc(&response);
 
 	comm.send_response(&response);
@@ -62,7 +61,6 @@ TEST_F(TestTxParsing, TestReadBytePerByte)
 	response.data[0] = 0x11;
 	response.data[1] = 0x22;
 	response.data[2] = 0x33;
-	response.valid = true;
 	add_crc(&response);
 
 	comm.send_response(&response);
@@ -96,7 +94,6 @@ TEST_F(TestTxParsing, TestReadByChunk)
 	response.data[0] = 0x11;
 	response.data[1] = 0x22;
 	response.data[2] = 0x33;
-	response.valid = true;
 	add_crc(&response);
 
 	comm.send_response(&response);
@@ -131,7 +128,6 @@ TEST_F(TestTxParsing, TestReadMoreThanAvailable)
 	response.data[0] = 0x11;
 	response.data[1] = 0x22;
 	response.data[2] = 0x33;
-	response.valid = true;
 	add_crc(&response);
 
 	comm.send_response(&response);

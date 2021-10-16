@@ -11,7 +11,7 @@
 
 namespace scrutiny
 {
-	namespace Protocol
+	namespace protocol
 	{
 		class CommHandler
 		{
@@ -39,8 +39,8 @@ namespace scrutiny
 			inline bool request_received() { return m_request_received; }
 			inline Request* get_request() { return &m_active_request; }
 			inline RxError get_rx_error() const { return m_rx_error; }
-			inline bool transmitting() const { return (m_state == eStateTransmitting); }
-			inline bool receiving() const { return (m_state == eStateReceiving); }
+			inline bool transmitting() const { return (m_state == State::Transmitting); }
+			inline bool receiving() const { return (m_state == State::Receiving); }
 
 			inline bool is_enabled() const { return m_enabled; }
 			inline void enable() { m_enabled = true; }
@@ -56,22 +56,22 @@ namespace scrutiny
 			bool received_discover_request();
 			bool received_connect_request();
 
-			enum RxFSMState
+			enum class RxFSMState
 			{
-				eRxStateWaitForCommand,
-				eRxStateWaitForSubfunction,
-				eRxStateWaitForLength,
-				eRxStateWaitForData,
-				eRxStateWaitForCRC,
-				eRxStateWaitForProcess,
-				eRxStateError
+				WaitForCommand,
+				WaitForSubfunction,
+				WaitForLength,
+				WaitForData,
+				WaitForCRC,
+				WaitForProcess,
+				Error
 			};
 
-			enum State
+			enum class State
 			{
-				eStateIdle,
-				eStateReceiving,
-				eStateTransmitting,
+				Idle,
+				Receiving,
+				Transmitting,
 			};
 
 			void reset_rx();

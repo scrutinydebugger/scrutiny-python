@@ -12,11 +12,11 @@ class ScrutinyTest : public ::testing::Test
 protected:
 
 	void add_crc(uint8_t* data, uint16_t data_len);
-	void add_crc(scrutiny::Protocol::Response* response);
+	void add_crc(scrutiny::protocol::Response* response);
 	void fill_buffer_incremental(uint8_t* buffer, uint32_t length);
 	unsigned int encode_addr(uint8_t* buffer, void* addr);
 
 	::testing::AssertionResult COMPARE_BUF(const uint8_t* candidate, const uint8_t* expected, const uint32_t size);
-	::testing::AssertionResult IS_PROTOCOL_RESPONSE(uint8_t* buffer, scrutiny::Protocol::CommandId cmd, uint8_t subfunction, scrutiny::Protocol::ResponseCode code);
+	::testing::AssertionResult IS_PROTOCOL_RESPONSE(uint8_t* buffer, scrutiny::protocol::CommandId cmd, uint8_t subfunction, scrutiny::protocol::ResponseCode code);
 
 };

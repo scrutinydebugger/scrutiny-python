@@ -3,6 +3,8 @@
 #include "scrutiny_test.h"
 #include <cstring>
 
+#include <cstring>
+
 class TestMemoryControl : public ScrutinyTest
 {
 protected:
@@ -131,14 +133,14 @@ TEST_F(TestMemoryControl, TestReadMultipleAddress)
 TEST_F(TestMemoryControl, TestReadAddressInvalidRequest)
 {
 	constexpr uint32_t addr_size = sizeof(void*);
-	const scrutiny::Protocol::CommandId cmd = scrutiny::Protocol::eCmdMemoryControl;
-	const scrutiny::Protocol::MemoryControl::Subfunction subfn = scrutiny::Protocol::MemoryControl::eSubfnRead;
-	const scrutiny::Protocol::ResponseCode code = scrutiny::Protocol::eResponseCode_InvalidRequest;
+	const scrutiny::protocol::CommandId cmd = scrutiny::protocol::CommandId::MemoryControl;
+	const uint8_t subfn = static_cast<uint8_t>(scrutiny::protocol::MemoryControl::Subfunction::Read);
+	const scrutiny::protocol::ResponseCode code = scrutiny::protocol::ResponseCode::InvalidRequest;
 
 	uint8_t tx_buffer[32];
 
 	// Building request
-	uint8_t request_data[64] = { cmd, subfn };
+	uint8_t request_data[64] = { static_cast<uint8_t>(cmd), subfn };
 	uint16_t length_to_receive;
 	for (unsigned int i = 0; i < 32; i++)
 	{
@@ -170,23 +172,23 @@ TEST_F(TestMemoryControl, TestReadAddressInvalidRequest)
 /*
 	Sends multiple request for 2 blocks of data. The first block will almost fill the transmit buffer.
 	Depending on the size of the second block, we expect either a valid respons or an "overflow" response if we ask
-	for more data than what can fir in the TX buffer.
+	for more data than what can fit in the TX buffer.
 */
 
 TEST_F(TestMemoryControl, TestReadAddressOverflow)
 {
 	constexpr uint32_t addr_size = sizeof(void*);
-	const scrutiny::Protocol::CommandId cmd = scrutiny::Protocol::eCmdMemoryControl;
-	const scrutiny::Protocol::MemoryControl::Subfunction subfn = scrutiny::Protocol::MemoryControl::eSubfnRead;
-	const scrutiny::Protocol::ResponseCode overflow = scrutiny::Protocol::eResponseCode_Overflow;
-	const scrutiny::Protocol::ResponseCode ok = scrutiny::Protocol::eResponseCode_OK;
+	const scrutiny::protocol::CommandId cmd = scrutiny::protocol::CommandId::MemoryControl;
+	const uint8_t subfn = static_cast<uint8_t>(scrutiny::protocol::MemoryControl::Subfunction::Read);
+	const scrutiny::protocol::ResponseCode overflow = scrutiny::protocol::ResponseCode::Overflow;
+	const scrutiny::protocol::ResponseCode ok = scrutiny::protocol::ResponseCode::OK;
 
 	uint8_t tx_buffer[SCRUTINY_TX_BUFFER_SIZE * 2];
 	uint8_t some_buffer[SCRUTINY_TX_BUFFER_SIZE] = { 0 };
 	uint16_t buf1_size = SCRUTINY_TX_BUFFER_SIZE - (addr_size + 2) * 2 - 1;	// We fill all the buffer minus 1 byte.
 
 	// Building request
-	uint8_t request_data[64] = { cmd, subfn, 0, (addr_size + 2) * 2 };
+	uint8_t request_data[64] = { static_cast<uint8_t>(cmd), subfn, 0, (addr_size + 2) * 2 };
 	unsigned int index = 4;
 	index += encode_addr(&request_data[index], &some_buffer);
 	request_data[index++] = static_cast<uint8_t>(buf1_size >> 8);
@@ -232,10 +234,11 @@ of 4 bytes that start at the beginning of the buffer then slide to the right.
 */
 TEST_F(TestMemoryControl, TestReadForbiddenAddress)
 {
-	const scrutiny::Protocol::CommandId cmd = scrutiny::Protocol::eCmdMemoryControl;
-	const scrutiny::Protocol::MemoryControl::Subfunction subfn = scrutiny::Protocol::MemoryControl::eSubfnRead;
-	const scrutiny::Protocol::ResponseCode forbidden = scrutiny::Protocol::eResponseCode_Forbidden;
-	const scrutiny::Protocol::ResponseCode ok = scrutiny::Protocol::eResponseCode_OK;
+	const scrutiny::protocol::CommandId cmd = scrutiny::protocol::CommandId::MemoryControl;
+	const uint8_t subfn = static_cast<uint8_t>(scrutiny::protocol::MemoryControl::Subfunction::Read);
+	const scrutiny::protocol::ResponseCode forbidden = scrutiny::protocol::ResponseCode::
+Forbidden;
+	const scrutiny::protocol::ResponseCode ok = scrutiny::protocol::ResponseCode::OK;
 
 	uint8_t tx_buffer[32];
 	uint8_t buf[] = { 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f };
@@ -284,10 +287,11 @@ We make sure we can read readonly adress ranges without issues. Same test as Tes
 */
 TEST_F(TestMemoryControl, TestReadReadonlyAddress)
 {
-	const scrutiny::Protocol::CommandId cmd = scrutiny::Protocol::eCmdMemoryControl;
-	const scrutiny::Protocol::MemoryControl::Subfunction subfn = scrutiny::Protocol::MemoryControl::eSubfnRead;
-	const scrutiny::Protocol::ResponseCode forbidden = scrutiny::Protocol::eResponseCode_Forbidden;
-	const scrutiny::Protocol::ResponseCode ok = scrutiny::Protocol::eResponseCode_OK;
+	const scrutiny::protocol::CommandId cmd = scrutiny::protocol::CommandId::MemoryControl;
+	const uint8_t subfn = static_cast<uint8_t>(scrutiny::protocol::MemoryControl::Subfunction::Read);
+	const scrutiny::protocol::ResponseCode forbidden = scrutiny::protocol::ResponseCode::
+Forbidden;
+	const scrutiny::protocol::ResponseCode ok = scrutiny::protocol::ResponseCode::OK;
 
 	uint8_t tx_buffer[32];
 	uint8_t buf[] = { 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f };
@@ -435,9 +439,9 @@ TEST_F(TestMemoryControl, TestWriteMultipleAddress)
 
 TEST_F(TestMemoryControl, TestWriteSingleAddress_InvalidDataLength)
 {
-	const scrutiny::Protocol::CommandId cmd = scrutiny::Protocol::eCmdMemoryControl;
-	const scrutiny::Protocol::MemoryControl::Subfunction subfn = scrutiny::Protocol::MemoryControl::eSubfnWrite;
-	const scrutiny::Protocol::ResponseCode invalid = scrutiny::Protocol::eResponseCode_InvalidRequest;
+	const scrutiny::protocol::CommandId cmd = scrutiny::protocol::CommandId::MemoryControl;
+	const uint8_t subfn = static_cast<uint8_t>(scrutiny::protocol::MemoryControl::Subfunction::Write);
+	const scrutiny::protocol::ResponseCode invalid = scrutiny::protocol::ResponseCode::InvalidRequest;
 
 	uint8_t buffer[] = { 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a };
 	uint8_t tx_buffer[32];
@@ -473,10 +477,10 @@ Expect denial of access
 */
 TEST_F(TestMemoryControl, TestWriteForbiddenAddress)
 {
-	const scrutiny::Protocol::CommandId cmd = scrutiny::Protocol::eCmdMemoryControl;
-	const scrutiny::Protocol::MemoryControl::Subfunction subfn = scrutiny::Protocol::MemoryControl::eSubfnWrite;
-	const scrutiny::Protocol::ResponseCode forbidden = scrutiny::Protocol::eResponseCode_Forbidden;
-	const scrutiny::Protocol::ResponseCode ok = scrutiny::Protocol::eResponseCode_OK;
+	const scrutiny::protocol::CommandId cmd = scrutiny::protocol::CommandId::MemoryControl;
+	const uint8_t subfn = static_cast<uint8_t>(scrutiny::protocol::MemoryControl::Subfunction::Write);
+	const scrutiny::protocol::ResponseCode forbidden = scrutiny::protocol::ResponseCode::Forbidden;
+	const scrutiny::protocol::ResponseCode ok = scrutiny::protocol::ResponseCode::OK;
 
 	uint8_t tx_buffer[32];
 	uint8_t buf[] = { 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f };
@@ -527,10 +531,10 @@ Expect denial of access
 */
 TEST_F(TestMemoryControl, TestWriteReadOnlyAddress)
 {
-	const scrutiny::Protocol::CommandId cmd = scrutiny::Protocol::eCmdMemoryControl;
-	const scrutiny::Protocol::MemoryControl::Subfunction subfn = scrutiny::Protocol::MemoryControl::eSubfnWrite;
-	const scrutiny::Protocol::ResponseCode forbidden = scrutiny::Protocol::eResponseCode_Forbidden;
-	const scrutiny::Protocol::ResponseCode ok = scrutiny::Protocol::eResponseCode_OK;
+	const scrutiny::protocol::CommandId cmd = scrutiny::protocol::CommandId::MemoryControl;
+	const uint8_t subfn = static_cast<uint8_t>(scrutiny::protocol::MemoryControl::Subfunction::Write);
+	const scrutiny::protocol::ResponseCode forbidden = scrutiny::protocol::ResponseCode::Forbidden;
+	const scrutiny::protocol::ResponseCode ok = scrutiny::protocol::ResponseCode::OK;
 
 	uint8_t tx_buffer[32];
 	uint8_t buf[] = { 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f };
@@ -583,9 +587,9 @@ TEST_F(TestMemoryControl, TestWriteReadOnlyAddress)
 */
 TEST_F(TestMemoryControl, TestWriteMemoryInvalidRequest)
 {
-	const scrutiny::Protocol::CommandId cmd = scrutiny::Protocol::eCmdMemoryControl;
-	const scrutiny::Protocol::MemoryControl::Subfunction subfn = scrutiny::Protocol::MemoryControl::eSubfnWrite;
-	const scrutiny::Protocol::ResponseCode invalid = scrutiny::Protocol::eResponseCode_InvalidRequest;
+	const scrutiny::protocol::CommandId cmd = scrutiny::protocol::CommandId::MemoryControl;
+	const uint8_t subfn = static_cast<uint8_t>(scrutiny::protocol::MemoryControl::Subfunction::Write);
+	const scrutiny::protocol::ResponseCode invalid = scrutiny::protocol::ResponseCode::InvalidRequest;
 
 	constexpr uint32_t addr_size = sizeof(void*);
 	constexpr uint16_t data_to_write_length = 3;

@@ -5,7 +5,7 @@
 
 namespace scrutiny
 {
-	namespace Protocol
+	namespace protocol
 	{
 		inline void encode_16_bits_big_endian(const uint16_t value, uint8_t* buff)
 		{

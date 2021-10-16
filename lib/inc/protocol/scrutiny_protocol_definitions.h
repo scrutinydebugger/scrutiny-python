@@ -3,7 +3,7 @@
 
 namespace scrutiny
 {
-	namespace Protocol
+	namespace protocol
 	{
 		struct Request
 		{
@@ -12,7 +12,6 @@ namespace scrutiny
 				command_id = 0;
 				subfunction_id = 0;
 				data_length = 0;
-				valid = false;
 			}
 
 			uint8_t command_id;
@@ -20,7 +19,6 @@ namespace scrutiny
 			uint16_t data_length;
 			uint8_t* data;
 			uint32_t crc;
-			bool valid;
 		};
 
 		struct Response
@@ -31,7 +29,6 @@ namespace scrutiny
 				subfunction_id = 0;
 				response_code = 0;
 				data_length = 0;
-				valid = false;
 			}
 
 			uint8_t command_id;
@@ -40,7 +37,6 @@ namespace scrutiny
 			uint16_t data_length;
 			uint8_t* data;
 			uint32_t crc;
-			bool valid;
 		};
 
 		struct MemoryBlock
@@ -50,38 +46,38 @@ namespace scrutiny
 			uint8_t* source_data;
 		};
 
-		enum CommandId
+		enum class CommandId
 		{
-			eCmdGetInfo = 0x01,
-			eCmdCommControl = 0x02,
-			eCmdMemoryControl = 0x03,
-			eCmdDataLogControl = 0x04,
-			eCmdUserCommand = 0x05
+			GetInfo = 0x01,
+			CommControl = 0x02,
+			MemoryControl = 0x03,
+			DataLogControl = 0x04,
+			UserCommand = 0x05
 		};
 
 
-		enum ResponseCode
+		enum class ResponseCode
 		{
-			eResponseCode_OK = 0,
-			eResponseCode_InvalidRequest = 1,
-			eResponseCode_UnsupportedFeature = 2,
-			eResponseCode_Overflow = 3,
-			eResponseCode_Busy = 4,
-			eResponseCode_FailureToProceed = 5,
-			eResponseCode_Forbidden = 6
+			OK = 0,
+			InvalidRequest = 1,
+			UnsupportedFeature = 2,
+			Overflow = 3,
+			Busy = 4,
+			FailureToProceed = 5,
+			Forbidden = 6
 		};
 
-		enum RxError
+		enum class RxError
 		{
-			eRxErrorNone,
-			eRxErrorOverflow
+			None,
+			Overflow
 		};
 
-		enum TxError
+		enum class TxError
 		{
-			eTxErrorNone,
-			eTxErrorOverflow,
-			eTxErrorBusy
+			None,
+			Overflow,
+			Busy
 		};
 
 		struct Version
@@ -93,19 +89,19 @@ namespace scrutiny
 
 		namespace GetInfo
 		{
-			enum Subfunction
+			enum class Subfunction
 			{
-				eSubfnGetProtocolVersion = 1,
-				eSubfnGetSoftwareId = 2,
-				eSubfnGetSupportedFeatures = 3,
-				eSubfnGetSpecialMemoryRegionCount = 4,
-				eSubfnGetSpecialMemoryLocation = 5
+				GetprotocolVersion = 1,
+				GetSoftwareId = 2,
+				GetSupportedFeatures = 3,
+				GetSpecialMemoryRegionCount = 4,
+				GetSpecialMemoryLocation = 5
 			};
 
-			enum MemoryRegionType
+			enum class MemoryRegionType
 			{
-				eMemoryRegionTypeReadOnly = 0,
-				eMemoryRegionTypeForbidden = 1
+				ReadOnly = 0,
+				Forbidden = 1
 			};
 		}
 
@@ -114,22 +110,22 @@ namespace scrutiny
 			extern const uint8_t DISCOVER_MAGIC[4];
 			extern const uint8_t CONNECT_MAGIC[4];
 
-			enum Subfunction
+			enum class Subfunction
 			{
-				eSubfnDiscover = 1,
-				eSubfnHeartbeat = 2,
-				eSubfnGetParams = 3,
-				eSubfnConnect = 4,
-				eSubfnDisconnect = 5
+				Discover = 1,
+				Heartbeat = 2,
+				GetParams = 3,
+				Connect = 4,
+				Disconnect = 5
 			};
 		}
 
 		namespace MemoryControl
 		{
-			enum Subfunction
+			enum class Subfunction
 			{
-				eSubfnRead = 1,
-				eSubfnWrite = 2
+				Read = 1,
+				Write = 2
 			};
 		}
 

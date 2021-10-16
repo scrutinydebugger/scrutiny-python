@@ -1,11 +1,11 @@
 #include <cstring>
 
-#include "scrutiny_comm_handler.h"
+#include "protocol/scrutiny_comm_handler.h"
 #include "scrutiny_crc.h"
 
 namespace scrutiny
 {
-	namespace Protocol
+	namespace protocol
 	{
 		void CommHandler::init(Timebase* timebase)
 		{
@@ -26,18 +26,18 @@ namespace scrutiny
 				return;
 			}
 
-			if (m_state == eStateTransmitting)
+			if (m_state == State::Transmitting)
 			{
 				return; // Half duplex comm. Discard data;
 			}
 
 			// Handle rx timeouts. Start a new reception if no data for too long
-			if (m_rx_state != eRxStateWaitForCommand && len != 0)
-			{
-				if (m_timebase->is_elapsed(m_last_rx_timestamp, SCRUTINY_COMM_RX_TIMEOUT_US))
+			if (m_rx_state != RxFSMState::WaitForCommand && len != 0)
+			{	
+				if (m_timebase->has_expired(m_last_rx_timestamp, SCRUTINY_COMM_RX_TIMEOUT_US))
 				{
 					reset_rx();
-					m_state = eStateIdle;
+					m_state = State::Idle;
 				}
 			}
 
@@ -46,35 +46,35 @@ namespace scrutiny
 			{
 				m_last_rx_timestamp = m_timebase->get_timestamp();
 
-				if (m_state == eStateIdle)
+				if (m_state == State::Idle)
 				{
-					m_state = eStateReceiving;
+					m_state = State::Receiving;
 				}
 			}
 
 			// Process each bytes
-			while (i < len && !m_request_received && m_rx_state != eRxStateError)
+			while (i < len && !m_request_received && m_rx_state != RxFSMState::Error)
 			{
 
 				switch (m_rx_state) // FSM
 				{
-				case eRxStateWaitForCommand:
+				case RxFSMState::WaitForCommand:
 				{
 					m_active_request.command_id = data[i] & 0x7F;
-					m_rx_state = eRxStateWaitForSubfunction;
+					m_rx_state = RxFSMState::WaitForSubfunction;
 					i += 1;
 					break;
 				}
 
-				case eRxStateWaitForSubfunction:
+				case RxFSMState::WaitForSubfunction:
 				{
 					m_active_request.subfunction_id = data[i];
-					m_rx_state = eRxStateWaitForLength;
+					m_rx_state = RxFSMState::WaitForLength;
 					i += 1;
 					break;
 				}
 
-				case eRxStateWaitForLength:
+				case RxFSMState::WaitForLength:
 				{
 					bool next_state = false;
 					if (m_length_bytes_received == 0)
@@ -105,22 +105,22 @@ namespace scrutiny
 					{
 						if (m_active_request.data_length == 0)
 						{
-							m_rx_state = eRxStateWaitForCRC;
+							m_rx_state = RxFSMState::WaitForCRC;
 						}
 						else
 						{
-							m_rx_state = eRxStateWaitForData;
+							m_rx_state = RxFSMState::WaitForData;
 						}
 					}
 					break;
 				}
 
-				case eRxStateWaitForData:
+				case RxFSMState::WaitForData:
 				{
 					if (m_active_request.data_length > SCRUTINY_RX_BUFFER_SIZE)
 					{
-						m_rx_error = eRxErrorOverflow;
-						m_rx_state = eRxStateError;
+						m_rx_error = RxError::Overflow;
+						m_rx_state = RxFSMState::Error;
 						break;
 					}
 
@@ -134,13 +134,13 @@ namespace scrutiny
 
 					if (m_data_bytes_received >= m_active_request.data_length)
 					{
-						m_rx_state = eRxStateWaitForCRC;
+						m_rx_state = RxFSMState::WaitForCRC;
 					}
 
 					break;
 				}
 
-				case eRxStateWaitForCRC:
+				case RxFSMState::WaitForCRC:
 				{
 					if (m_crc_bytes_received == 0)
 					{
@@ -157,7 +157,7 @@ namespace scrutiny
 					else if (m_crc_bytes_received == 3)
 					{
 						m_active_request.crc |= ((uint32_t)data[i]) << 0;
-						m_state = eStateIdle;
+						m_state = State::Idle;
 
 						if (check_crc(&m_active_request))
 						{
@@ -197,8 +197,7 @@ namespace scrutiny
 
 			if (must_process)
 			{
-				m_active_request.valid = true;
-				m_rx_state = eRxStateWaitForProcess;
+				m_rx_state = RxFSMState::WaitForProcess;
 				m_request_received = true;
 			}
 			else
@@ -220,16 +219,16 @@ namespace scrutiny
 				return false;
 			}
 
-			if (m_state != eStateIdle)
+			if (m_state != State::Idle)
 			{
-				m_tx_error = eTxErrorBusy;
+				m_tx_error = TxError::Busy;
 				return false; // Half duplex comm. Discard data;
 			}
 
 			if (response->data_length > SCRUTINY_TX_BUFFER_SIZE)
 			{
 				reset_tx();
-				m_tx_error = eTxErrorOverflow;
+				m_tx_error = TxError::Overflow;
 				return false;
 			}
 
@@ -244,13 +243,13 @@ namespace scrutiny
 			// cmd8 + subfn8 + code8 + len16 + data + crc32
 			m_nbytes_to_send = 1 + 1 + 1 + 2 + m_active_response.data_length + 4;
 
-			m_state = eStateTransmitting;
+			m_state = State::Transmitting;
 			return true;
 		}
 
 		uint32_t CommHandler::pop_data(uint8_t* buffer, uint32_t len)
 		{
-			if (m_state != eStateTransmitting)
+			if (m_state != State::Transmitting)
 			{
 				return 0;
 			}
@@ -345,12 +344,12 @@ namespace scrutiny
 		// Check if the last request received is a valid "Comm Discover request".
 		bool CommHandler::received_discover_request()
 		{
-			if (m_active_request.command_id != eCmdCommControl)
+			if (m_active_request.command_id != static_cast<uint8_t>(CommandId::CommControl))
 			{
 				return false;
 			}
 
-			if (m_active_request.subfunction_id != CommControl::eSubfnDiscover)
+			if (m_active_request.subfunction_id != static_cast<uint8_t>(CommControl::Subfunction::Discover))
 			{
 				return false;
 			}
@@ -371,12 +370,12 @@ namespace scrutiny
 		// Check if the last request received is a valid "Comm Discover request".
 		bool CommHandler::received_connect_request()
 		{
-			if (m_active_request.command_id != eCmdCommControl)
+			if (m_active_request.command_id != static_cast<uint8_t>(CommandId::CommControl))
 			{
 				return false;
 			}
 
-			if (m_active_request.subfunction_id != CommControl::eSubfnConnect)
+			if (m_active_request.subfunction_id != static_cast<uint8_t>(CommControl::Subfunction::Connect))
 			{
 				return false;
 			}
@@ -388,7 +387,7 @@ namespace scrutiny
 		{
 			if (m_session_active)
 			{
-				if (m_timebase->is_elapsed(m_heartbeat_timestamp, SCRUTINY_COMM_HEARTBEAT_TMEOUT_US))
+				if (m_timebase->has_expired(m_heartbeat_timestamp, SCRUTINY_COMM_HEARTBEAT_TMEOUT_US))
 				{
 					reset();    // Disable and reset all internal vars
 				}
@@ -415,7 +414,7 @@ namespace scrutiny
 
 		uint32_t CommHandler::data_to_send()
 		{
-			if (m_state != eStateTransmitting)
+			if (m_state != State::Transmitting)
 			{
 				return 0;
 			}
@@ -454,7 +453,7 @@ namespace scrutiny
 
 		void CommHandler::reset()
 		{
-			m_state = eStateIdle;
+			m_state = State::Idle;
 			m_enabled = true;
 			m_heartbeat_timestamp = m_timebase->get_timestamp();
 			m_last_heartbeat_challenge = 0;
@@ -469,17 +468,17 @@ namespace scrutiny
 		void CommHandler::reset_rx()
 		{
 			m_active_request.reset();
-			m_rx_state = eRxStateWaitForCommand;
+			m_rx_state = RxFSMState::WaitForCommand;
 			m_request_received = false;
 			m_crc_bytes_received = 0;
 			m_length_bytes_received = 0;
 			m_data_bytes_received = 0;
-			m_rx_error = eRxErrorNone;
+			m_rx_error = RxError::None;
 			m_last_rx_timestamp = m_timebase->get_timestamp();
 
-			if (m_state == eStateReceiving)
+			if (m_state == State::Receiving)
 			{
-				m_state = eStateIdle;
+				m_state = State::Idle;
 			}
 		}
 
@@ -488,11 +487,11 @@ namespace scrutiny
 			m_active_response.reset();
 			m_nbytes_to_send = 0;
 			m_nbytes_sent = 0;
-			m_tx_error = eTxErrorNone;
+			m_tx_error = TxError::None;
 
-			if (m_state == eStateTransmitting)
+			if (m_state == State::Transmitting)
 			{
-				m_state = eStateIdle;
+				m_state = State::Idle;
 			}
 		}
 
@@ -529,5 +528,5 @@ namespace scrutiny
 		}
 
 
-	}   // namespace Protocol
+	}   // namespace protocol
 }   // namespace scrutiny

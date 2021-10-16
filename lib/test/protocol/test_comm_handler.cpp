@@ -9,9 +9,9 @@ class TestCommHandler : public ScrutinyTest
 {
 protected:
 	scrutiny::Timebase tb;
-	scrutiny::Protocol::CommHandler comm;
+	scrutiny::protocol::CommHandler comm;
 	uint8_t response_buffer[256];
-	scrutiny::Protocol::Response response;
+	scrutiny::protocol::Response response;
 
 	virtual void SetUp()
 	{
@@ -32,7 +32,6 @@ TEST_F(TestCommHandler, TestConsecutiveSend)
 	response.data[0] = 0x11;
 	response.data[1] = 0x22;
 	response.data[2] = 0x33;
-	response.valid = true;
 
 	add_crc(&response);
 	uint8_t expected_data[12] = { 0x81,2,3,0,3,0x11, 0x22, 0x33 };

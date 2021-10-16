@@ -7,7 +7,7 @@ class TestRxParsing : public ScrutinyTest
 {
 protected:
 	scrutiny::Timebase tb;
-	scrutiny::Protocol::CommHandler comm;
+	scrutiny::protocol::CommHandler comm;
 
 	virtual void SetUp()
 	{
@@ -24,12 +24,12 @@ TEST_F(TestRxParsing, TestRx_ZeroLen_AllInOne)
 	comm.receive_data(data, sizeof(data));
 
 	ASSERT_TRUE(comm.request_received());
-	scrutiny::Protocol::Request* req = comm.get_request();
+	scrutiny::protocol::Request* req = comm.get_request();
 	EXPECT_EQ(req->command_id, 1);
 	EXPECT_EQ(req->subfunction_id, 2);
 	EXPECT_EQ(req->data_length, 0);
 
-	EXPECT_EQ(comm.get_rx_error(), scrutiny::Protocol::eRxErrorNone);
+	EXPECT_EQ(comm.get_rx_error(), scrutiny::protocol::RxError::None);
 }
 
 //=============================================================================
@@ -44,12 +44,12 @@ TEST_F(TestRxParsing, TestRx_ZeroLen_BytePerByte)
 	}
 
 	ASSERT_TRUE(comm.request_received());
-	scrutiny::Protocol::Request* req = comm.get_request();
+	scrutiny::protocol::Request* req = comm.get_request();
 	EXPECT_EQ(req->command_id, 1);
 	EXPECT_EQ(req->subfunction_id, 2);
 	EXPECT_EQ(req->data_length, 0);
 
-	EXPECT_EQ(comm.get_rx_error(), scrutiny::Protocol::eRxErrorNone);
+	EXPECT_EQ(comm.get_rx_error(), scrutiny::protocol::RxError::None);
 }
 
 //=============================================================================
@@ -60,7 +60,7 @@ TEST_F(TestRxParsing, TestRx_NonZeroLen_AllInOne)
 	comm.receive_data(data, sizeof(data));
 
 	ASSERT_TRUE(comm.request_received());
-	scrutiny::Protocol::Request* req = comm.get_request();
+	scrutiny::protocol::Request* req = comm.get_request();
 	EXPECT_EQ(req->command_id, 1);
 	EXPECT_EQ(req->subfunction_id, 2);
 	EXPECT_EQ(req->data_length, 3);
@@ -68,7 +68,7 @@ TEST_F(TestRxParsing, TestRx_NonZeroLen_AllInOne)
 	EXPECT_EQ(req->data[1], 0x22);
 	EXPECT_EQ(req->data[2], 0x33);
 
-	EXPECT_EQ(comm.get_rx_error(), scrutiny::Protocol::eRxErrorNone);
+	EXPECT_EQ(comm.get_rx_error(), scrutiny::protocol::RxError::None);
 }
 
 //=============================================================================
@@ -83,7 +83,7 @@ TEST_F(TestRxParsing, TestRx_NonZeroLen_BytePerByte)
 	}
 
 	ASSERT_TRUE(comm.request_received());
-	scrutiny::Protocol::Request* req = comm.get_request();
+	scrutiny::protocol::Request* req = comm.get_request();
 	EXPECT_EQ(req->command_id, 1);
 	EXPECT_EQ(req->subfunction_id, 2);
 	EXPECT_EQ(req->data_length, 3);
@@ -91,7 +91,7 @@ TEST_F(TestRxParsing, TestRx_NonZeroLen_BytePerByte)
 	EXPECT_EQ(req->data[1], 0x22);
 	EXPECT_EQ(req->data[2], 0x33);
 
-	EXPECT_EQ(comm.get_rx_error(), scrutiny::Protocol::eRxErrorNone);
+	EXPECT_EQ(comm.get_rx_error(), scrutiny::protocol::RxError::None);
 }
 
 //=============================================================================
@@ -107,7 +107,7 @@ TEST_F(TestRxParsing, TestRx_Overflow)
 	comm.receive_data(data, sizeof(data));
 
 	ASSERT_FALSE(comm.request_received());
-	EXPECT_EQ(comm.get_rx_error(), scrutiny::Protocol::eRxErrorOverflow);
+	EXPECT_EQ(comm.get_rx_error(), scrutiny::protocol::RxError::Overflow);
 }
 
 //=============================================================================

@@ -5,7 +5,7 @@
 
 namespace scrutiny
 {
-	enum LoopType
+	enum class LoopType
 	{
 		FIXED_FREQ,
 		VARIABLE_FREQ
@@ -19,7 +19,7 @@ namespace scrutiny
 		void init();
 		void process();
 
-		void rx_bytes(uint8_t* data, uint32_t len);
+		//void rx_bytes(uint8_t* data, uint32_t len);
 
 	protected:
 		LoopType m_loop_type;

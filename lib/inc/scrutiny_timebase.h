@@ -10,23 +10,26 @@ namespace scrutiny
 	public:
 		Timebase() : m_time_us(0) {}
 
-		inline void step(uint32_t timestep_us)
+		inline void step(const uint32_t timestep_us)
 		{
 			m_time_us += timestep_us;
 		}
 
-		inline uint32_t get_timestamp() {
+		inline uint32_t get_timestamp() 
+		{
 			return m_time_us;
 		};
 
-		inline bool is_elapsed(uint32_t timestamp, uint32_t timeout_us)
+		inline bool has_expired(uint32_t timestamp, uint32_t timeout_us)
 		{
-			bool elapsed = false;
+			bool expired = false;
 			const uint32_t diff = m_time_us - timestamp;
 			if (diff >= timeout_us)
-				elapsed = true;
+			{
+				expired = true;
+			}
 
-			return elapsed;
+			return expired;
 		}
 
 		inline void reset(uint32_t val = 0)

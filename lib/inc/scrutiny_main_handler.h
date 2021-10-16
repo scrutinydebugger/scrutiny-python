@@ -6,7 +6,7 @@
 #include "scrutiny_setup.h"
 #include "scrutiny_loop_handler.h"
 #include "scrutiny_timebase.h"
-#include "scrutiny_protocol.h"
+#include "protocol/scrutiny_protocol.h"
 #include "scrutiny_config.h"
 
 namespace scrutiny
@@ -19,16 +19,15 @@ namespace scrutiny
 		//void process_loop(loop_id_t loop);
 		//loop_id_t add_loop(LoopHandler* loop);
 
-		void process(uint32_t timestep_us);
+		void process(const uint32_t timestep_us);
 
-		void process_request(Protocol::Request* request, Protocol::Response* response);
-		Protocol::ResponseCode process_get_info(Protocol::Request* request, Protocol::Response* response);
-		Protocol::ResponseCode process_comm_control(Protocol::Request* request, Protocol::Response* response);
-		Protocol::ResponseCode process_memory_control(Protocol::Request* request, Protocol::Response* response);
-		Protocol::ResponseCode process_user_command(Protocol::Request* request, Protocol::Response* response);
+		void process_request(const protocol::Request* request, protocol::Response* response);
+		protocol::ResponseCode process_get_info(const protocol::Request* request, protocol::Response* response);
+		protocol::ResponseCode process_comm_control(const protocol::Request* request, protocol::Response* response);
+		protocol::ResponseCode process_memory_control(const protocol::Request* request, protocol::Response* response);
+		protocol::ResponseCode process_user_command(const protocol::Request* request, protocol::Response* response);
 
-
-		inline Protocol::CommHandler* comm()
+		inline protocol::CommHandler* comm()
 		{
 			return &m_comm_handler;
 		}
@@ -37,17 +36,17 @@ namespace scrutiny
 
 	private:
 
-		bool touches_forbidden_region(Protocol::MemoryBlock* block);
-		bool touches_readonly_region(Protocol::MemoryBlock* block);
+		bool touches_forbidden_region(const protocol::MemoryBlock* block);
+		bool touches_readonly_region(const protocol::MemoryBlock* block);
 
 		//LoopHandler* m_loop_handlers[SCRUTINY_MAX_LOOP];
 		Timebase m_timebase;
-		Protocol::CommHandler m_comm_handler;
+		protocol::CommHandler m_comm_handler;
 		bool m_processing_request;
 		bool m_disconnect_pending;
 		Config m_config;
-#if ACTUAL_PROTOCOL_VERSION == PROTOCOL_VERSION(1,0)
-		Protocol::CodecV1_0 m_codec;
+#if SCRUTINY_ACTUAL_PROTOCOL_VERSION == SCRUTINY_PROTOCOL_VERSION(1,0)
+		protocol::CodecV1_0 m_codec;
 #endif
 	};
 }

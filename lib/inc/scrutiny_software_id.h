@@ -3,10 +3,10 @@
 
 #include <cstdint>
 
-#define SOFTWARE_ID_LENGTH 32u
+#define SCRUTINY_SOFTWARE_ID_LENGTH 32u
 
 //Randomly generated
-#define SOFTWARE_ID_PLACEHOLDER {                     \
+#define SCRUTINY_SOFTWARE_ID_PLACEHOLDER {            \
     0xA9, 0xDC, 0xC0, 0x65, 0x28, 0xFD, 0x41, 0xFA,   \
     0x7C, 0xE8, 0x63, 0xD6, 0xAA, 0x94, 0xA7, 0x08,   \
     0x62, 0xAF, 0x62, 0x6E, 0x41, 0x71, 0x6B, 0x6E,   \
@@ -15,7 +15,7 @@
 
 namespace scrutiny
 {
-	extern const uint8_t software_id[SOFTWARE_ID_LENGTH];
+	extern const uint8_t software_id[SCRUTINY_SOFTWARE_ID_LENGTH];
 }
 #endif   // ___SCRUTINY_SOFTWARE_ID_H___
 

@@ -18,7 +18,7 @@ protected:
 	}
 };
 
-TEST_F(TestGetInfo, TestReadProtocolVersion)
+TEST_F(TestGetInfo, TestReadprotocolVersion)
 {
 	uint8_t request_data[8] = { 1,1,0,0 };
 	uint8_t tx_buffer[32];
@@ -40,22 +40,22 @@ TEST_F(TestGetInfo, TestReadProtocolVersion)
 
 TEST_F(TestGetInfo, TestReadSoftwareId)
 {
-	EXPECT_EQ(sizeof(scrutiny::software_id), SOFTWARE_ID_LENGTH);
-	uint8_t tx_buffer[SOFTWARE_ID_LENGTH + 32];
+	EXPECT_EQ(sizeof(scrutiny::software_id), SCRUTINY_SOFTWARE_ID_LENGTH);
+	uint8_t tx_buffer[SCRUTINY_SOFTWARE_ID_LENGTH + 32];
 
 	// Make request
-	uint8_t request_data[8 + SOFTWARE_ID_LENGTH] = { 1,2,0,0 };
-	request_data[2] = (SOFTWARE_ID_LENGTH >> 8) & 0xFF;
-	request_data[3] = SOFTWARE_ID_LENGTH & 0xFF;
-	std::memcpy(&request_data[4], scrutiny::software_id, SOFTWARE_ID_LENGTH);
+	uint8_t request_data[8 + SCRUTINY_SOFTWARE_ID_LENGTH] = { 1,2,0,0 };
+	request_data[2] = (SCRUTINY_SOFTWARE_ID_LENGTH >> 8) & 0xFF;
+	request_data[3] = SCRUTINY_SOFTWARE_ID_LENGTH & 0xFF;
+	std::memcpy(&request_data[4], scrutiny::software_id, SCRUTINY_SOFTWARE_ID_LENGTH);
 	add_crc(request_data, sizeof(request_data)-4);
 
 	// Make expected response
-	uint8_t expected_response[9 + SOFTWARE_ID_LENGTH] = { 0x81,2,0 };
-	expected_response[3] = (SOFTWARE_ID_LENGTH >> 8) & 0xFF;
-	expected_response[4] = SOFTWARE_ID_LENGTH & 0xFF;
-	std::memcpy(&expected_response[5], scrutiny::software_id, SOFTWARE_ID_LENGTH);
-	add_crc(expected_response, 5 + SOFTWARE_ID_LENGTH);
+	uint8_t expected_response[9 + SCRUTINY_SOFTWARE_ID_LENGTH] = { 0x81,2,0 };
+	expected_response[3] = (SCRUTINY_SOFTWARE_ID_LENGTH >> 8) & 0xFF;
+	expected_response[4] = SCRUTINY_SOFTWARE_ID_LENGTH & 0xFF;
+	std::memcpy(&expected_response[5], scrutiny::software_id, SCRUTINY_SOFTWARE_ID_LENGTH);
+	add_crc(expected_response, 5 + SCRUTINY_SOFTWARE_ID_LENGTH);
 
 	scrutiny_handler.comm()->receive_data(request_data, sizeof(request_data));
 	scrutiny_handler.process(0);
@@ -169,9 +169,9 @@ TEST_F(TestGetInfo, TestGetSpecialMemoryRegionLocation)
 */
 TEST_F(TestGetInfo, TestGetSpecialMemoryRegionLocation_WrongIndex)
 {
-	const scrutiny::Protocol::CommandId cmd = scrutiny::Protocol::eCmdGetInfo;
-	const scrutiny::Protocol::GetInfo::Subfunction subfn = scrutiny::Protocol::GetInfo::eSubfnGetSpecialMemoryLocation;
-	const scrutiny::Protocol::ResponseCode failure = scrutiny::Protocol::eResponseCode_FailureToProceed;
+	const scrutiny::protocol::CommandId cmd = scrutiny::protocol::CommandId::GetInfo;
+	const uint8_t subfn = static_cast<uint8_t>(scrutiny::protocol::GetInfo::Subfunction::GetSpecialMemoryLocation);
+	const scrutiny::protocol::ResponseCode failure = scrutiny::protocol::ResponseCode::FailureToProceed;
 
 	uint8_t tx_buffer[32];
 	uint8_t* buf[4];

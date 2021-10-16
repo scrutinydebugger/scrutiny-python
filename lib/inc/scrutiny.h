@@ -6,7 +6,8 @@
 #include "scrutiny_software_id.h"
 #include "scrutiny_timebase.h"
 #include "scrutiny_crc.h"
-#include "scrutiny_protocol.h"
 #include "scrutiny_main_handler.h"
+
+#include "protocol/scrutiny_protocol.h"
 
 #endif
