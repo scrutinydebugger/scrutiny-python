@@ -115,7 +115,7 @@ namespace scrutiny
 					uint64_t start;
 					uint64_t end;
 				};
-			};
+			}
 
 			namespace CommControl
 			{
@@ -142,7 +142,7 @@ namespace scrutiny
 					uint8_t magic[sizeof(protocol::CommControl::CONNECT_MAGIC)];
 					uint32_t session_id;
 				};
-			};
+			}
 		}
 
 
@@ -156,7 +156,7 @@ namespace scrutiny
 					uint8_t region_index;
 				};
 
-			};
+			}
 
 			namespace CommControl
 			{
@@ -181,8 +181,8 @@ namespace scrutiny
 				{
 					uint32_t session_id;
 				};
-			} ;
-		};
+			} 
+		}
 
 
 		class CodecV1_0

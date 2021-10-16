@@ -32,20 +32,14 @@ void my_callback1(const uint8_t subfunction, const uint8_t* request_data, const 
 	*response_data_length = 4;
 }
 
-#if defined(_MSC_VER)
-	#pragma warning(push)
-	#pragma warning(disable:4100)   // Get rid of unused parameter warning.
-#endif 
-
 void my_callback2(const uint8_t subfunction, const uint8_t* request_data, const uint16_t request_data_length, uint8_t* response_data, uint16_t* response_data_length, const uint16_t response_max_data_length)
 {
+	(void)subfunction;			// Silence unused parameters warning
+	(void)request_data;			// Silence unused parameters warning
+	(void)request_data_length;	// Silence unused parameters warning
+	(void)response_data;		// Silence unused parameters warning
 	*response_data_length = response_max_data_length+1;
 }
-
-#if defined(_MSC_VER)
-	#pragma warning(pop)
-#endif 
-
 
 TEST_F(TestUserCommand, TestCommandCalled)
 {
@@ -73,8 +67,7 @@ TEST_F(TestUserCommand, TestCommandCalled)
 TEST_F(TestUserCommand, TestResponseOverflow)
 {
 	const scrutiny::protocol::CommandId cmd = scrutiny::protocol::CommandId::UserCommand;
-	const scrutiny::protocol::ResponseCode code = scrutiny::protocol::ResponseCode::
-Overflow;
+	const scrutiny::protocol::ResponseCode code = scrutiny::protocol::ResponseCode::Overflow;
 
 	uint8_t tx_buffer[32];
 	config.user_command_callback = &my_callback2;

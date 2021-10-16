@@ -19,13 +19,17 @@ namespace scrutiny
 				computed_addr |= ((static_cast<uint64_t>(buf[i++]) << 48));
 				computed_addr |= ((static_cast<uint64_t>(buf[i++]) << 40));
 				computed_addr |= ((static_cast<uint64_t>(buf[i++]) << 32));
+				// fall through
 			case 4:
 				computed_addr |= ((static_cast<uint64_t>(buf[i++]) << 24));
 				computed_addr |= ((static_cast<uint64_t>(buf[i++]) << 16));
+				// fall through
 			case 2:
 				computed_addr |= ((static_cast<uint64_t>(buf[i++]) << 8));
+				// fall through
 			case 1:
 				computed_addr |= ((static_cast<uint64_t>(buf[i++]) << 0));
+				// fall through
 			default:
 				break;
 			}
@@ -50,13 +54,17 @@ namespace scrutiny
 				buf[i++] = static_cast<uint8_t>((addr >> 48) & 0xFF);
 				buf[i++] = static_cast<uint8_t>((addr >> 40) & 0xFF);
 				buf[i++] = static_cast<uint8_t>((addr >> 32) & 0xFF);
+				// fall through
 			case 4:
 				buf[i++] = static_cast<uint8_t>((addr >> 24) & 0xFF);
 				buf[i++] = static_cast<uint8_t>((addr >> 16) & 0xFF);
+				// fall through
 			case 2:
 				buf[i++] = static_cast<uint8_t>((addr >> 8) & 0xFF);
+				// fall through
 			case 1:
 				buf[i++] = static_cast<uint8_t>((addr >> 0) & 0xFF);
+				// fall through
 			default:
 				break;
 			}

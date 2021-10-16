@@ -236,8 +236,7 @@ TEST_F(TestMemoryControl, TestReadForbiddenAddress)
 {
 	const scrutiny::protocol::CommandId cmd = scrutiny::protocol::CommandId::MemoryControl;
 	const uint8_t subfn = static_cast<uint8_t>(scrutiny::protocol::MemoryControl::Subfunction::Read);
-	const scrutiny::protocol::ResponseCode forbidden = scrutiny::protocol::ResponseCode::
-Forbidden;
+	const scrutiny::protocol::ResponseCode forbidden = scrutiny::protocol::ResponseCode::Forbidden;
 	const scrutiny::protocol::ResponseCode ok = scrutiny::protocol::ResponseCode::OK;
 
 	uint8_t tx_buffer[32];
@@ -289,14 +288,12 @@ TEST_F(TestMemoryControl, TestReadReadonlyAddress)
 {
 	const scrutiny::protocol::CommandId cmd = scrutiny::protocol::CommandId::MemoryControl;
 	const uint8_t subfn = static_cast<uint8_t>(scrutiny::protocol::MemoryControl::Subfunction::Read);
-	const scrutiny::protocol::ResponseCode forbidden = scrutiny::protocol::ResponseCode::
-Forbidden;
 	const scrutiny::protocol::ResponseCode ok = scrutiny::protocol::ResponseCode::OK;
 
 	uint8_t tx_buffer[32];
 	uint8_t buf[] = { 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f };
 	scrutiny::Config new_config;
-	// indices [6,7,8,9] are forbidden
+	// indices [6,7,8,9] are readonly
 	uint64_t start = reinterpret_cast<uint64_t>(buf) + 6;
 	uint64_t end = start + 4;
 	new_config.add_readonly_address_range(start, end);

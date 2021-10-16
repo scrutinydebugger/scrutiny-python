@@ -89,13 +89,17 @@ unsigned int ScrutinyTest::encode_addr(uint8_t* buffer, void* addr)
 		buffer[i++] = static_cast<uint8_t>((ptr >> 48));
 		buffer[i++] = static_cast<uint8_t>((ptr >> 40));
 		buffer[i++] = static_cast<uint8_t>((ptr >> 32));
+		// fall through
 	case 4:
 		buffer[i++] = static_cast<uint8_t>((ptr >> 24));
 		buffer[i++] = static_cast<uint8_t>((ptr >> 16));
+		// fall through
 	case 2:
 		buffer[i++] = static_cast<uint8_t>((ptr >> 8));
+		// fall through
 	case 1:
 		buffer[i++] = static_cast<uint8_t>((ptr >> 0));
+		// fall through
 	default:
 		break;
 	}

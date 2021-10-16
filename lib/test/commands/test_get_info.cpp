@@ -176,7 +176,6 @@ TEST_F(TestGetInfo, TestGetSpecialMemoryRegionLocation_WrongIndex)
 	uint8_t tx_buffer[32];
 	uint8_t* buf[4];
 	scrutiny::Config new_config;
-	constexpr uint32_t addr_size = sizeof(void*);
 
 	uint64_t start = reinterpret_cast<uint64_t>(buf);
 	uint64_t end = start + 4;
