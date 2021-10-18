@@ -1,10 +1,15 @@
 
 #include "file1.h"
 #include "file2.h"
+#include "argument_parser.h"
+#include "scrutiny.h"
 
 #include <iostream>
 #include <iomanip>
 #include <cstdint>
+#include <chrono>
+#include <thread>
+#include <algorithm>
 
 using namespace std;
 
@@ -19,13 +24,13 @@ void mainfunc1(int x)
     static double mainfunc1Var = 8888888.88;
 }
 
-void memdump(uint64_t startAddr, uint64_t length)
+void memdump(uintptr_t startAddr, uint32_t length)
 {
-    uint64_t addr = startAddr;
+    uintptr_t addr = startAddr;
     while (addr < startAddr + length)
     {
         uint8_t* ptr = reinterpret_cast<uint8_t*>(addr);
-        cout << hex << setw(16) << setfill('0') << addr;
+        cout << hex << setw(16) << setfill('0') << addr << ":\t";
         uint64_t nToPrint = startAddr + length - addr;
         if (nToPrint > 16)
         {
@@ -33,47 +38,101 @@ void memdump(uint64_t startAddr, uint64_t length)
         }
         for (int i=0; i<nToPrint; i++)
         {
-            cout << hex << setw(2) << setfill('0') << ptr[i];
+            cout << hex << setw(2) << setfill('0') << static_cast<uint32_t>(ptr[i]);
         }
         cout << endl;
         addr += nToPrint;
     }
 }
 
-
-int main(int argc, char* argv[]) 
+void init_all_values()
 {
-    int errorcode = 0;
-    static int staticIntInMainFunc = 22222;
-
     file1SetValues();
     file2SetValues();
-    funcInFile1(1,2);
+    funcInFile1(1, 2);
     file2func1();
     file2func1(123);
     mainfunc1();
     mainfunc1(123);
+}
 
-    if (argc % 2 == 0)
+
+int main(int argc, char* argv[]) 
+{
+    static_assert(sizeof(char) == 1, "testapp doesn't spport char bigger than 8 bits (yet)");
+
+    int errorcode = 0;
+    static int staticIntInMainFunc = 22222;
+    init_all_values();
+        
+    scrutiny::MainHandler scrutiny_handler;
+    scrutiny::Config config;
+    config.max_bitrate = 100000;
+    scrutiny_handler.init(&config);
+
+    ArgumentParser parser;
+    parser.parse(argc, argv);
+
+    if (!parser.is_valid())
     {
         errorcode = -1;
     }
     else
     {
-        for (int i=0; i<(argc-1)/2; i++)
+        if (parser.command() == TestAppCommand::Memdump)
         {
-
-            uint64_t startAddr = strtoll(argv[i*2+1], NULL, 10);
-            uint64_t length = strtoll(argv[i*2+2], NULL, 10);
-
-            if (startAddr > 0 && length > 0)
+            MemoryRegion region;
+            while (parser.has_another_memory_region())
             {
-                memdump(startAddr, length);
+                try
+                {
+                    parser.next_memory_region(&region);
+                    memdump(region.start_address, region.length);
+                }
+                catch (...)
+                {
+                    break;
+                }
             }
-            else
+        }
+        else if (parser.command() == TestAppCommand::Pipe)
+        {
+            uint8_t cout_transfer_buf[128];
+            
+            chrono::time_point<chrono::steady_clock> last_timestamp, now_timestamp;
+            last_timestamp = chrono::steady_clock::now();
+            now_timestamp = chrono::steady_clock::now();
+            try
             {
-                errorcode = -1;
-                break;
+                while (true)
+                {
+                    now_timestamp = chrono::steady_clock::now();
+                    uint32_t timestep = static_cast<uint32_t>(chrono::duration_cast<chrono::microseconds>(now_timestamp - last_timestamp).count());
+             
+                    char c;
+                    while (cin.get(c))
+                    {
+                        scrutiny_handler.comm()->receive_data(reinterpret_cast<uint8_t*>(&c), 1);
+                    }
+
+                    uint32_t data_to_send = scrutiny_handler.comm()->data_to_send();
+                    data_to_send = min(data_to_send, static_cast<uint32_t>(sizeof(cout_transfer_buf)));
+
+                    if (data_to_send > 0)
+                    {
+                        scrutiny_handler.comm()->pop_data(cout_transfer_buf, data_to_send);
+                        cout.write(reinterpret_cast<char*>(cout_transfer_buf), data_to_send);
+                        cout.flush();
+                    }
+
+                    scrutiny_handler.process(timestep);
+                    this_thread::sleep_for(chrono::milliseconds(10));
+                    last_timestamp = now_timestamp;
+                }
+            }
+            catch (...)
+            {
+
             }
         }
     }

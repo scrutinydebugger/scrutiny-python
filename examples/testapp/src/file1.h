@@ -1,3 +1,6 @@
+#ifndef ___FILE_1_H___
+#define ___FILE_1_H___
+
 #pragma pack(push,1)
 
 struct StructA
@@ -8,7 +11,6 @@ struct StructA
 	double structAMemberDouble;
 	bool structAMemberBool;
 };
-
 
 struct StructB
 {
@@ -41,3 +43,5 @@ int funcInFile1(int a, int b);
 void file1SetValues();
 
 #pragma pack(pop)
+
+#endif  // ___FILE_1_H___

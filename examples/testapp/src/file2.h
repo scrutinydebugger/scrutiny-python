@@ -1,3 +1,6 @@
+#ifndef ___FILE_2_H___
+#define ___FILE_2_H___
+
 #pragma pack(push,1)
 
 void file2func1();
@@ -31,3 +34,5 @@ namespace namespaceAFile2
 }
 
 #pragma pack(pop)
+
+#endif //  ___FILE_2_H___
