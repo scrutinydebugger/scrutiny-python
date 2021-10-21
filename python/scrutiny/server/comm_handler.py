@@ -5,6 +5,7 @@ from enum import Enum
 from copy import copy
 import logging
 import struct
+from binascii import hexlify
 
 class CommHandler:
     class RxData:
@@ -49,10 +50,12 @@ class CommHandler:
     def process_rx(self):
         if self.waiting_response() and self.response_timer.is_timed_out():
             self.reset_rx()
+            self.timed_out = True
         
         data = self.link.read()
         
         if self.response_available() or not self.waiting_response():
+            self.logger.debug('Received unwanted data: ' + hexlify(data).decode('ascii'))
             return  # Purposely discard data if we are not expecting any
 
         self.rx_data.data_buffer += data
@@ -77,6 +80,12 @@ class CommHandler:
     def response_available(self):
         return (self.received_response is not None)
 
+    def has_timed_out(self):
+        return self.timed_out
+
+    def clear_timeout(self):
+        self.timed_out = False
+
     def get_response(self):
         if self.received_response is None:
             raise Exception('No response to read')
@@ -99,6 +108,7 @@ class CommHandler:
         self.active_request = request
         self.link.write(request.to_bytes())
         self.response_timer.start()
+        self.timed_out = False
 
     def waiting_response(self):
         return (self.active_request is not None)
