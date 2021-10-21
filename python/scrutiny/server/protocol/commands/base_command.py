@@ -28,3 +28,4 @@ from .get_info import GetInfo
 from .memory_control import MemoryControl
 from .comm_control import CommControl
 from .user_command import UserCommand
+from .dummy_command import DummyCommand
