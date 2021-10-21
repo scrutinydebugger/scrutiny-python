@@ -8,8 +8,9 @@
 ArgumentParser::ArgumentParser() :
 	m_valid(false),
 	m_command(TestAppCommand::None),
-	m_region_index(0)
-
+	m_region_index(0),
+	m_argc(0),
+	m_argv(nullptr)
 {
 
 }
@@ -70,6 +71,7 @@ void ArgumentParser::next_memory_region(MemoryRegion* region)
 	{
 		throw Error::Depleted;
 	}
+
 	int base1 = 10;
 	int base2 = 10;
 	std::string start_address(m_argv[m_region_index + region_offset]);

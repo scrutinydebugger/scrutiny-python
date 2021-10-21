@@ -91,6 +91,7 @@ int main(int argc, char* argv[])
                 }
                 catch (...)
                 {
+                    errorcode = -1;
                     break;
                 }
             }

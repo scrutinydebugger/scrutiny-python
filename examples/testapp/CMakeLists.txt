@@ -33,6 +33,7 @@ else()
             -no-pie  
             -gdwarf
             -O0
+            -Wall -Wextra -Wpedantic
         )
 
     target_link_options(${PROJECT_NAME}
