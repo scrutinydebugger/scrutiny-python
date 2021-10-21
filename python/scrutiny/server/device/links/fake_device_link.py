@@ -21,6 +21,3 @@ class FakeDeviceLink
     def read(self, addr, length):
         return self.memdump.read(addr, length)
 
-    def busy(self):
-        return False
-

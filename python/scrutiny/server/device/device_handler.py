@@ -12,6 +12,9 @@ class DeviceHandler:
         if device_type == 'memdump':
             from .links.fake_device_memdump import FakeDeviceMemdump
             self.device = FakeDeviceMemdump(parameters)
+        elif device_type == 'subprocess':
+            from .links.subprocess_link import SubprocessLink
+            self.device = SubprocessLink(parameters)
         else:
             raise ValueError('Unknown device type %s' % device_type)
 
