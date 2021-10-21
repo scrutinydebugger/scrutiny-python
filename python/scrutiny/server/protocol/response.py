@@ -53,7 +53,7 @@ class Response:
         length, = struct.unpack('>H', data[3:5])        
         response.payload = data[5:-4]
         if length != len(response.payload):
-            raise Exception('Length mismatch between real payload length (%d) and encoded length (%d)' % (len(req.payload), length))
+            raise Exception('Length mismatch between real payload length (%d) and encoded length (%d)' % (len(response.payload), length))
         crc = crc32(response.make_bytes_no_crc())
         received_crc, = struct.unpack('>L', data[-4:])
 
