@@ -20,7 +20,6 @@ from .demangler import GccDemangler
 import logging
 import re
 import json
-import jsbeautifier
 
 scrutiny_folder = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.append(scrutiny_folder)
@@ -735,7 +734,7 @@ def build_output_struct(filecontent):
 def elf2vardesc(filename):
     file_content = process_file(filename)
     output_struct = build_output_struct(file_content)
-    return (jsbeautifier.beautify(json.dumps(output_struct)))
+    return json.dumps(output_struct, indent=4)
 
 if __name__ == '__main__':
     print(elf2vardesc(sys.argv[1]))

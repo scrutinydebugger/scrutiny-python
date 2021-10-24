@@ -4,13 +4,29 @@ import os
 
 class VarDesc:
     def __init__(self, file):
-        if os.path.isfile(file):
-            with open(file, 'r') as f:
-                self.content = json.loads(f)
-        else:
-            self.content = json.loads(file)
+        error = None
+        try:
+            if os.path.isfile(file):
+                with open(file, 'r') as f:
+                    self.content = json.loads(f.read())
+            else:
+                self.content = json.loads(file)
 
-        self.endianness = self.content['endianness']
+            if 'endianness' not in self.content:
+                raise Exception('Missing endianness')
+
+            self.endianness = self.content['endianness']
+        except Exception as e:
+            error = e
+
+        if error is not None:
+            raise Exception('Error loading VarDesc (%s) - %s: %s' % (file, type(error).__name__, str(error)))
+
+    def get_json(self):
+        return json.dumps(self.content, indent=4)
+
+    def validate(self):
+        pass
 
 
     def get_var(self, fullname):
@@ -24,7 +40,7 @@ class VarDesc:
             path_segments   = segments, 
             location        = self.get_addr(vardef), 
             endianness      = self.endianness, 
-            bitsize        = self.get_bitsize(vardef), 
+            bitsize         = self.get_bitsize(vardef), 
             bitoffset       = self.get_bitoffset(vardef), 
             enum            = self.get_enum(vardef)
             )
