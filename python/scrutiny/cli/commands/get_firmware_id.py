@@ -37,7 +37,7 @@ class GateFirmwareId(BaseCommand):
             if pos == -1:
                 raise Exception("Binary file does not contains Scrutiny placeholder. Either it is already tagged or the file hasn't been compiled with a full scrutiny-lib")
             
-            self.logger.debug('Found scrutiny placeholder at address 0x%08x' % pos)
+            loggin.debug('Found scrutiny placeholder at address 0x%08x' % pos)
             sha256 = hashlib.sha256()
             while True:
                 data = f.read(self.BUF_SIZE)
@@ -57,7 +57,7 @@ class GateFirmwareId(BaseCommand):
             with open(filename,"rb+") as f:
                 f.seek(pos)
                 f.write(thehash_bin)
-                self.logger.debug('Wrote new hash %s at address 0x%08x' % (thehash, pos))
+                loggin.debug('Wrote new hash %s at address 0x%08x' % (thehash, pos))
 
 
 

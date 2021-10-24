@@ -1,4 +1,4 @@
-import zipfile
+from zipfile import ZipFile
 import os
 import json
 import logging
@@ -20,6 +20,8 @@ class FirmwareInfoFile:
     def __init__(self, file_folder):
         if os.path.isdir(file_folder):
             self.load_from_folder(file_folder)
+        elif os.path.isfile(file_folder):
+            self.load_from_file(file_folder)
         
         self.validate()
 
@@ -40,13 +42,33 @@ class FirmwareInfoFile:
 
         self.vardesc = VarDesc(os.path.join(folder, self.vardesc_filename))
 
+    def load_from_file(self, filename):
+        with ZipFile(filename, mode='r') as fif:
+            with fif.open(self.firmwareid_filename) as f:
+                self.firmwareid = bytes.fromhex(f.read().decode('ascii'))
+
+            with fif.open(self.metadata_filename) as f:
+                self.metadata = json.loads(f.read())
+
+            with fif.open(self.vardesc_filename) as f:
+                self.vardesc = VarDesc(f.read())
+
     def write(self, filename):
-        with zipfile.ZipFile(filename, mode='w') as outzip:
-            outzip.writestr(self.firmwareid_filename, self.firmwareid)
+        with ZipFile(filename, mode='w') as outzip:
+            outzip.writestr(self.firmwareid_filename, self.firmwareid.hex())
             outzip.writestr(self.metadata_filename, json.dumps(self.metadata, indent=4))
             outzip.writestr(self.vardesc_filename, self.vardesc.get_json() )
 
+    def get_firmware_id(self, ascii=True):
+        if ascii:
+            return self.firmwareid.hex()
+        else:
+            return self.firmwareid
+
     def validate(self):
+        if not hasattr(self, 'metadata') or not hasattr(self, 'vardesc') or not hasattr(self, 'firmwareid'):
+            raise Exception('FirmwareInfoFile not loaded correctly')
+
         self.validate_metadata()
         self.validate_firmware_id()
         self.vardesc.validate()

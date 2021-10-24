@@ -2,6 +2,7 @@ from .base_command import BaseCommand
 from .make_firmware_info import MakeFirmwareInfo
 from .get_firmware_id import GateFirmwareId
 from .make_metadata import MakeMetadata
+from .install_firmware_info import InstallFirmwareInfo
 
 def get_all_commands():
     return BaseCommand.__subclasses__()

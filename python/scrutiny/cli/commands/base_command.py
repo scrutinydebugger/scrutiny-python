@@ -21,6 +21,3 @@ class BaseCommand(ABC):
     @classmethod
     def get_prog(cls):
         return 'scrutiny ' + cls.get_name()
-
-    def set_logger(self, logger):
-        self.logger = logger

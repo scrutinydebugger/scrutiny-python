@@ -21,7 +21,6 @@ class CLI:
         self.parser.add_argument('command',  help='Command to execute')
         self.parser.add_argument('--loglevel',  help='Log level to use', default="WARNING", metavar='LEVEL')
         self.parser.add_argument('--logfile',  help='File to write logs', default=None, metavar='FILENAME')
-        self.logger = logging.getLogger(self.__class__.__name__)
 
     def make_command_list_help(self):
         msg = "Here are the possible commands\n\n"
@@ -65,7 +64,6 @@ class CLI:
             for cmd in self.command_list:
                 if cmd.get_name() == args.command:
                     cmd_instance = cmd(command_cargs)
-                    cmd_instance.set_logger(self.logger)
                     cmd_instance.run()
                     break
         except Exception as e:
@@ -73,8 +71,9 @@ class CLI:
             error_stack_strace = traceback.format_exc()
         
         if error is not None:
-            self.logger.error(str(error))
-            self.logger.debug(error_stack_strace)
-            return -1
+            logging.error(str(error))
+            logging.debug(error_stack_strace)
+            return 1
+        return 0
 
 
