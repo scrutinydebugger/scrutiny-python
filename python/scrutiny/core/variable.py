@@ -223,10 +223,9 @@ class Variable:
     }
 
 
-    def __init__(self, name, vartype_id, vartype, path_segments, location, endianness,  bitsize=None, bitoffset=None, enum=None): 
+    def __init__(self, name,  vartype, path_segments, location, endianness,  bitsize=None, bitoffset=None, enum=None): 
 
         self.name = name
-        self.vartype_id = vartype_id
         self.vartype = vartype
         self.path_segments = path_segments
         if isinstance(location, VariableLocation):
@@ -270,40 +269,14 @@ class Variable:
     def get_size(self):
         return int(self.vartype.get_size_bit()/8)
 
-    def get_def(self):
-        desc = {
-            'addr' : self.get_address(),
-            'type_id' : self.vartype_id
-        }
-
-        if self.bitsize is not None:
-            desc['bitsize'] = self.bitsize
-
-        if self.bitoffset is not None:
-            desc['bitoffset'] = self.bitoffset
-
-        if self.enum is not None:
-            desc['enum_id'] = self.enum.get_id()
-
-        return desc
-
-
     def __repr__(self):
         return '<%s - %s (%s) @ %s>' % (self.__class__.__name__, self.get_fullname(), self.vartype, self.location)
 
 class VariableEnum:
-    UNIQUE_ID = 0
 
     def __init__(self, name):
         self.name = name
         self.vals = {}
-        self.unique_id = self.UNIQUE_ID
-        self.UNIQUE_ID+=1
-
-    def set_id(self, unique_id):
-        self.unique_id = unique_id
-        if self.unique_id > self.UNIQUE_ID:
-            self.UNIQUE_ID = self.unique_id+1
 
     def add_value(self, value, name):
         if value in self.vals and self.vals[value] != name:
@@ -315,9 +288,6 @@ class VariableEnum:
             return None
         return self.vals[value]
 
-    def get_id(self):
-        return self.unique_id
-
     def get_def(self):
         obj = {
             'name' : self.name,
@@ -326,7 +296,7 @@ class VariableEnum:
         return obj
 
     @classmethod
-    def from_def(cls, enum_id, enum_def):
+    def from_def(cls, enum_def):
         obj = cls(enum_def['name'])
         obj.vals = {}
         for k in enum_def['values']:
@@ -335,15 +305,15 @@ class VariableEnum:
             else:
                 newkey = k
             obj.vals[newkey] = enum_def['values'][k]
-        obj.set_id(enum_id)
         return obj
 
 class Struct:
     class Member:
-        def __init__(self, name, vartype, vartype_id=None, byte_offset=None, bitoffset=None, bitsize=None, substruct=None):
+        def __init__(self, name, is_substruct=False, original_type_name=None, byte_offset=None, bitoffset=None, bitsize=None, substruct=None):
 
-            if not isinstance(vartype, VariableType):
-                raise ValueError('vartype must be an instance of VariableType')
+            if not is_substruct:
+                if original_type_name is None:
+                    raise ValueError('A typename must be given for non-struct member')
 
             if bitoffset is not None:
                 if not isinstance(bitoffset, int):
@@ -368,12 +338,12 @@ class Struct:
                     raise ValueError('substruct must be Struct instance')
 
             self.name = name
-            self.vartype = vartype
+            self.is_substruct = is_substruct
+            self.original_type_name = original_type_name
             self.bitoffset = bitoffset
             self.byte_offset = byte_offset
             self.bitsize = bitsize
             self.substruct = substruct
-            self.vartype_id = vartype_id
 
     def __init__(self, name):
         self.name = name

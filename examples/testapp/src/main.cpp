@@ -30,7 +30,7 @@ void memdump(uintptr_t startAddr, uint32_t length)
     while (addr < startAddr + length)
     {
         uint8_t* ptr = reinterpret_cast<uint8_t*>(addr);
-        cout << hex << setw(16) << setfill('0') << addr << ":\t";
+        cout << "0x" << hex << setw(16) << setfill('0') << addr << ":\t";
         uint64_t nToPrint = startAddr + length - addr;
         if (nToPrint > 16)
         {

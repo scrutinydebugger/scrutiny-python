@@ -4,17 +4,17 @@ import json
 import logging
 
 import scrutiny.core.firmware_id as firmware_id
-from scrutiny.core.var_desc import VarDesc
+from scrutiny.core.varmap import VarMap
 
 class FirmwareInfoFile:
-    vardesc_filename = 'vardesc.json'
+    varmap_filename = 'varmap.json'
     metadata_filename = 'metadata.json'
     firmwareid_filename = 'firmwareid'
 
     REQUIRED_FILES = [
         firmwareid_filename,
         metadata_filename,
-        vardesc_filename
+        varmap_filename
     ]
 
     def __init__(self, file_folder):
@@ -40,7 +40,7 @@ class FirmwareInfoFile:
         with open(os.path.join(folder, self.firmwareid_filename)) as f:
             self.firmwareid = bytes.fromhex(f.read())
 
-        self.vardesc = VarDesc(os.path.join(folder, self.vardesc_filename))
+        self.varmap = VarMap(os.path.join(folder, self.varmap_filename))
 
     def load_from_file(self, filename):
         with ZipFile(filename, mode='r') as fif:
@@ -50,14 +50,14 @@ class FirmwareInfoFile:
             with fif.open(self.metadata_filename) as f:
                 self.metadata = json.loads(f.read())
 
-            with fif.open(self.vardesc_filename) as f:
-                self.vardesc = VarDesc(f.read())
+            with fif.open(self.varmap_filename) as f:
+                self.varmap = VarMap(f.read())
 
     def write(self, filename):
         with ZipFile(filename, mode='w') as outzip:
             outzip.writestr(self.firmwareid_filename, self.firmwareid.hex())
             outzip.writestr(self.metadata_filename, json.dumps(self.metadata, indent=4))
-            outzip.writestr(self.vardesc_filename, self.vardesc.get_json() )
+            outzip.writestr(self.varmap_filename, self.varmap.get_json() )
 
     def get_firmware_id(self, ascii=True):
         if ascii:
@@ -66,12 +66,12 @@ class FirmwareInfoFile:
             return self.firmwareid
 
     def validate(self):
-        if not hasattr(self, 'metadata') or not hasattr(self, 'vardesc') or not hasattr(self, 'firmwareid'):
+        if not hasattr(self, 'metadata') or not hasattr(self, 'varmap') or not hasattr(self, 'firmwareid'):
             raise Exception('FirmwareInfoFile not loaded correctly')
 
         self.validate_metadata()
         self.validate_firmware_id()
-        self.vardesc.validate()
+        self.varmap.validate()
 
     def validate_firmware_id(self):
         if len(self.firmwareid) != len(firmware_id.PLACEHOLDER):

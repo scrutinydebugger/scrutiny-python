@@ -1,8 +1,9 @@
 import unittest
-from scrutiny.server.device.devicehandler import DeviceHandler
+from scrutiny.server.device.device_handler import DeviceHandler
 from scrutiny.server.datastore import Datastore, DatastoreEntry
 import platform
 
+@unittest.skip("Incomplete")
 class TestDeviceHandler(unittest.TestCase):
 
     def setUp(self):

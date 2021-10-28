@@ -8,9 +8,8 @@ from scrutiny.core.firmware_info_file import FirmwareInfoFile
 
 class InstallFirmwareInfo(BaseCommand):
     _cmd_name_ = 'install-firmware-info'
-    _brief_ = 'Install a Firmware Info file globally for the current user so that it can be loaded automatically upon connection with a device.'
+    _brief_ = 'Install a Firmware Info File globally for the current user so that it can be loaded automatically upon connection with a device.'
     _group_ = 'Server'
-
 
     def __init__(self, args):
         self.args = args
@@ -29,10 +28,3 @@ class InstallFirmwareInfo(BaseCommand):
             logging.warning('A Firmware Information File with the same firmware ID was already installed. Overwriting.')
 
         fif.write(output_file)  # Write the Firmware Information File in storage folder with firmware ID as name
-
-
-        
-    
-
-
-

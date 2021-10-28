@@ -4,6 +4,7 @@ import scrutiny.core.firmware_id as firmware_id
 import hashlib
 import mmap
 import os
+import logging
 
 class GateFirmwareId(BaseCommand):
     _cmd_name_ = 'get-firmware-id'
@@ -37,7 +38,7 @@ class GateFirmwareId(BaseCommand):
             if pos == -1:
                 raise Exception("Binary file does not contains Scrutiny placeholder. Either it is already tagged or the file hasn't been compiled with a full scrutiny-lib")
             
-            loggin.debug('Found scrutiny placeholder at address 0x%08x' % pos)
+            logging.debug('Found scrutiny placeholder at address 0x%08x' % pos)
             sha256 = hashlib.sha256()
             while True:
                 data = f.read(self.BUF_SIZE)
@@ -57,7 +58,7 @@ class GateFirmwareId(BaseCommand):
             with open(filename,"rb+") as f:
                 f.seek(pos)
                 f.write(thehash_bin)
-                loggin.debug('Wrote new hash %s at address 0x%08x' % (thehash, pos))
+                logging.debug('Wrote new hash %s at address 0x%08x' % (thehash, pos))
 
 
 
