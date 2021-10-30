@@ -49,7 +49,7 @@ class GateFirmwareId(BaseCommand):
             thehash_bin = bytes.fromhex(thehash)
 
         if output_file is None:
-            print(thehash, flush=True)
+            print(thehash, flush=True, end='')
         else:
             with open(output_file, 'w') as f:
                 f.write(thehash)
