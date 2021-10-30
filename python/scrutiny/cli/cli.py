@@ -8,8 +8,8 @@ from scrutiny.cli.commands import *
 
 class CLI:
 
-    def __init__(self, args):
-        self.args = args
+    def __init__(self, workdir='.'):
+        self.workdir = workdir
 
         self.command_list = get_all_commands()  # comes from commands module
         self.parser = argparse.ArgumentParser(
@@ -44,13 +44,13 @@ class CLI:
             
         return msg 
 
-    def run(self):
-        if len(self.args) > 0:
-            if self.args[0] in ['-h', '--help']:
+    def run(self, args):
+        if len(args) > 0:
+            if args[0] in ['-h', '--help']:
                 self.parser.print_help()
                 return 0
 
-        args, command_cargs = self.parser.parse_known_args(self.args)
+        args, command_cargs = self.parser.parse_known_args(args)
         if args.command not in [cls.get_name() for cls in self.command_list]:
             self.parser.print_help()
             return -1
@@ -64,8 +64,19 @@ class CLI:
             for cmd in self.command_list:
                 if cmd.get_name() == args.command:
                     cmd_instance = cmd(command_cargs)
-                    cmd_instance.run()
                     break
+
+            current_workdir = os.getcwd()
+            os.chdir(self.workdir)
+            try:
+                cmd_instance.run()  # Existance of cmd_instance is garanteed as per above check of valid name
+            except Exception as e:
+                error = e
+            finally:
+                os.chdir(current_workdir)
+
+            if error is not None:
+                raise error
         except Exception as e:
             error = e
             error_stack_strace = traceback.format_exc()

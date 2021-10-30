@@ -30,7 +30,7 @@ class MakeMetadata(BaseCommand):
         elif os.path.isdir(args.output):
             output_file = os.path.join(args.output, self.DEFAULT_NAME)
         else:
-            output_file = self.DEFAULT_NAME
+            output_file = args.output
 
         try:
             scrutiny_version = scrutiny.__version__

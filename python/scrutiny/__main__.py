@@ -2,7 +2,8 @@
 
 from scrutiny.cli import CLI
 import sys
+import os
 
-cli = CLI(sys.argv[1:])
-code = cli.run()
+cli = CLI(os.getcwd())
+code = cli.run(sys.argv[1:])
 exit(code)
