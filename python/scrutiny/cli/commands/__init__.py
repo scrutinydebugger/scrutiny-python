@@ -3,6 +3,7 @@ from .make_firmware_info import MakeFirmwareInfo
 from .get_firmware_id import GateFirmwareId
 from .make_metadata import MakeMetadata
 from .install_firmware_info import InstallFirmwareInfo
+from .uninstall_firmware_info import UninstallFirmwareInfo
 from .elf2varmap import Elf2VarMap
 
 def get_all_commands():
