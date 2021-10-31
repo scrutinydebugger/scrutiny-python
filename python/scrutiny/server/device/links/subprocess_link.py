@@ -1,6 +1,7 @@
 import subprocess
 import threading
 import queue
+import logging
 
 class SubprocessLink:
 
@@ -12,8 +13,12 @@ class SubprocessLink:
         self.args = parameters['args'] if 'args' in parameters else []
         self.process = None
         self.read_queue = queue.Queue()
+        self.read_thread = None
+        self.logger = logging.getLogger(self.__class__.__name__)
 
     def initialize(self):
+        args = [self.cmd] + self.args
+        self.logger.debug('Starting subprocess with command: "%s"' % ' '.join(args))
         self.process = subprocess.Popen([self.cmd] + self.args, stdout=subprocess.PIPE, stdin=subprocess.PIPE, bufsize=1)
         self.read_thread =  threading.Thread(target=self.read_thread_func)
         self.request_thread_exit = False
@@ -21,11 +26,14 @@ class SubprocessLink:
 
 
     def destroy(self):
+        args = [self.cmd] + self.args
+        self.logger.debug('Stopping subprocess "%s"' % ' '.join(args))
         self.request_thread_exit = True
         if self.process is not None:
             self.process.terminate()
             self.process.wait(0.1)
-        self.read_thread.join()
+        if self.read_thread is not None:
+            self.read_thread.join()
 
     def read(self):
         data = bytes()

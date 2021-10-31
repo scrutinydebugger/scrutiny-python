@@ -70,7 +70,7 @@ class WebsocketClientHandler:
                     self.logger.debug(message)
 
         finally:
-            #tx_sync_timer.cancel()
+            tx_sync_timer.cancel()
             await self.unregister(websocket)
 
 
@@ -95,8 +95,7 @@ class WebsocketClientHandler:
     def run(self):
         asyncio.set_event_loop(self.loop)
         ws_server = websockets.serve(self.server_routine, self.config['host'], self.config['port'])
-
-        self.logger.info('Starting %s' % self.config['name'] )
+        self.logger.info('Starting Websocket listener')
         self.loop.run_until_complete(ws_server)
         self.loop.run_forever()
 

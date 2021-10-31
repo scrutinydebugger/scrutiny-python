@@ -19,7 +19,7 @@ class CLI:
             formatter_class = argparse.RawTextHelpFormatter
             )
         self.parser.add_argument('command',  help='Command to execute')
-        self.parser.add_argument('--loglevel',  help='Log level to use', default="WARNING", metavar='LEVEL')
+        self.parser.add_argument('--loglevel',  help='Log level to use', default="info", metavar='LEVEL')
         self.parser.add_argument('--logfile',  help='File to write logs', default=None, metavar='FILENAME')
 
     def make_command_list_help(self):
@@ -45,6 +45,7 @@ class CLI:
         return msg 
 
     def run(self, args):
+        code = 0
         if len(args) > 0:
             if args[0] in ['-h', '--help']:
                 self.parser.print_help()
@@ -58,7 +59,7 @@ class CLI:
         error = None
         try:
             logging_level = getattr(logging, args.loglevel.upper())
-            format_string = '[%(levelname)s] %(message)s'
+            format_string = '%(levelname)s: %(message)s'
             logging.basicConfig(level=logging_level, filename=args.logfile, format=format_string)
 
             for cmd in self.command_list:
@@ -68,8 +69,11 @@ class CLI:
 
             current_workdir = os.getcwd()
             os.chdir(self.workdir)
+            code = 0
             try:
-                cmd_instance.run()  # Existance of cmd_instance is garanteed as per above check of valid name
+                code = cmd_instance.run()  # Existance of cmd_instance is garanteed as per above check of valid name
+                if code is None:
+                    code = 0
             except Exception as e:
                 error = e
             finally:
@@ -82,9 +86,10 @@ class CLI:
             error_stack_strace = traceback.format_exc()
         
         if error is not None:
+            code = 1
             logging.error(str(error))
             logging.debug(error_stack_strace)
-            return 1
-        return 0
+
+        return code
 
 

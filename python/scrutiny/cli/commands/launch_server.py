@@ -19,11 +19,25 @@ class LaunchServer(BaseCommand):
     def run(self):
         args = self.parser.parse_args(self.args)
 
+        # For server, we will add more details to logging message.
+        format_string = '[%(name)s] %(levelname)s: %(message)s'
+        logging.getLogger().handlers[0].setFormatter(logging.Formatter(format_string))
+
+
         websockets_loggers = ['websockets.server', 'websockets.protocol', 'asyncio']
         logging_level = getattr(logging, args.log_websockets.upper())
         for name in websockets_loggers:
             logger = logging.getLogger(name).setLevel(logging_level)
         
+        success = True
         server = ScrutinyServer(args.config)
-        server.run()
+        try:
+            server.run()
+        except:
+            # The server logs its own error in run. No need to print it twice.
+            # We will return a non-success error code. It will be picked up by the CLI.
+            succes = False
+
+        return 0 if success else 1
+
         

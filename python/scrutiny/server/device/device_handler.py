@@ -16,8 +16,12 @@ class DeviceHandler:
             comm_handler_params['response_timeout'] = self.config['comm_response_timeout']
 
         self.comm_handler = CommHandler(comm_handler_params)
+        self.connected = False
 
     def connect(self):
+        if self.config['link_type'] == 'none':
+            return
+
         if self.config['link_type'] == 'memdump':
             from .links.fake_device_memdump import FakeDeviceMemdump
             device_link = FakeDeviceMemdump(self.config['link_config'])
@@ -28,10 +32,12 @@ class DeviceHandler:
             raise ValueError('Unknown link type %s' % self.config['link_type'])
 
         self.comm_handler.open(device_link)
+        self.connected = True
 
     def disconnect(self):
         if self.comm_handler is not None:
             self.comm_handler.close()
+        self.connected = False
 
     def refresh_vars(self):
         pass

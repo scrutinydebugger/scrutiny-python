@@ -54,7 +54,10 @@ class CommHandler:
         self.reset()
 
     def process(self):
-        self.process_rx()
+        if self.link is None:
+            self.reset()
+        else:
+            self.process_rx()
 
     def process_rx(self):
         if self.waiting_response() and self.response_timer.is_timed_out():
