@@ -82,7 +82,7 @@ class Datastore:
         entry.set_value(value)
 
     def get_watched_entries(self):
-        return watched_entries
+        return self.watched_entries
 
     def clear(self):
         self.__init__()

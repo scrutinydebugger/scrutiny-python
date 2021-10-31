@@ -39,6 +39,7 @@ class WebsocketClientHandler:
         self.logger = logging.getLogger(self.__class__.__name__)
         self.id2ws_map = dict()
         self.ws2id_map = dict()
+        self.tx_sync_timer = None
 
     async def register(self, websocket):
         wsid = self.make_id()
@@ -57,7 +58,7 @@ class WebsocketClientHandler:
     #Executed for each websocket
     async def server_routine(self, websocket, path):
         wsid = await self.register(websocket)
-        tx_sync_timer = Timer(0.1, self.process_tx_queue)
+        self.tx_sync_timer = Timer(0.1, self.process_tx_queue)
 
         try:
             async for message in websocket:
@@ -69,7 +70,7 @@ class WebsocketClientHandler:
                     self.logger.debug(message)
 
         finally:
-            tx_sync_timer.cancel()
+            #tx_sync_timer.cancel()
             await self.unregister(websocket)
 
 
@@ -104,6 +105,7 @@ class WebsocketClientHandler:
         self.thread.start()
 
     def stop(self):
+        # TODO : Fix shutdown sequence. Cancel tasks before closing loop
         self.loop.call_soon_threadsafe(self.loop.stop)
         self.thread.join()
 

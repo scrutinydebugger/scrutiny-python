@@ -1,10 +1,10 @@
 import unittest
 import time
 
-from scrutiny.server.comm_handler import CommHandler
+from scrutiny.server.protocol.comm_handler import CommHandler
 from scrutiny.server.protocol import Request, Response
-from scrutiny.server.device.links.dummy_link import DummyLink
 from scrutiny.server.protocol.commands import DummyCommand
+from scrutiny.server.device.links.dummy_link import DummyLink
 
 class TestCommHandler(unittest.TestCase):
     def setUp(self):
@@ -13,7 +13,11 @@ class TestCommHandler(unittest.TestCase):
         }
 
         self.link = DummyLink()
-        self.comm_handler = CommHandler(self.link, params)
+        self.comm_handler = CommHandler(params)
+        self.comm_handler.open(self.link)
+
+    def tearDown(self):
+        self.comm_handler.close()
 
     def compare_responses(self, response1, response2):
         self.assertEqual(response1.command, response2.command)

@@ -1,39 +1,40 @@
 import copy
+from scrutiny.server.protocol.comm_handler import CommHandler
 
 class DeviceHandler:
+    DEFAULT_COMM_PARAMS = {
+            'response_timeout' : 1.0    # If a response take more than this delay to be received after a request is sent, drop the response.
+        }
 
-    def __init__(self, datastore, firmware_desc):
-        self.device = None
-        self.ds = datastore
-        self.firmware_desc = firmware_desc
-        self.to_update_list = None
+    def __init__(self, config, datastore):
+        self.config = config
+        self.datastore = datastore
 
-    def connect(self, device_type, parameters):
-        if device_type == 'memdump':
+        comm_handler_params = copy.copy(self.DEFAULT_COMM_PARAMS)
+
+        if 'comm_response_timeout' in self.config:
+            comm_handler_params['response_timeout'] = self.config['comm_response_timeout']
+
+        self.comm_handler = CommHandler(comm_handler_params)
+
+    def connect(self):
+        if self.config['link_type'] == 'memdump':
             from .links.fake_device_memdump import FakeDeviceMemdump
-            self.device = FakeDeviceMemdump(parameters)
-        elif device_type == 'subprocess':
+            device_link = FakeDeviceMemdump(self.config['link_config'])
+        elif self.config['link_type'] == 'subprocess':
             from .links.subprocess_link import SubprocessLink
-            self.device = SubprocessLink(parameters)
+            device_link = SubprocessLink(self.config['link_config'])
         else:
-            raise ValueError('Unknown device type %s' % device_type)
+            raise ValueError('Unknown link type %s' % self.config['link_type'])
 
-        self.device.initialize()
+        self.comm_handler.open(device_link)
 
     def disconnect(self):
-        if self.device is not None:
-            self.device.destroy()
-        self.device = None
+        if self.comm_handler is not None:
+            self.comm_handler.close()
 
     def refresh_vars(self):
         pass
 
     def process(self):
-        if to_update_list is None:
-            watched_entries = self.datastore.get_watched_entries()
-            self.to_update_list = list(watched_entries)
-            sort(self.to_update_list, key=lambda entry: entry.get_update_time())
-
-        while len(self.to_update_list) > 0 and not self.device.busy():
-            entry_to_read = self.to_update_list.pop(0)
-            # todos
+        self.comm_handler.process() 

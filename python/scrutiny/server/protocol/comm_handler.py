@@ -26,12 +26,11 @@ class CommHandler:
 
     SUPPORTED_PARAMS = ['response_timeout']
 
-    def __init__(self, link, params={}):
+    def __init__(self, params={}):
         self.active_request = None
         self.received_response = None
         self.to_device_queue = Queue()
-        self.link = link
-
+        self.link = None
         self.params = copy(self.DEFAULT_PARAMS)
         self.params.update(params)
 
@@ -43,6 +42,16 @@ class CommHandler:
         self.rx_data = self.RxData() # Contains the response data while we read it.
         self.logger = logging.getLogger(self.__class__.__name__)
 
+    def open(self, link):
+        self.link = link
+        self.link.initialize()
+        self.reset()
+
+    def close(self):
+        if self.link is not None:
+            self.link.destroy()
+            self.link = None
+        self.reset()
 
     def process(self):
         self.process_rx()
@@ -53,6 +62,10 @@ class CommHandler:
             self.timed_out = True
         
         data = self.link.read()
+        if data is None or len(data) == 0:
+            return
+
+        self.logger.debug('Received : %s' % (hexlify(data).decode('ascii')))
         
         if self.response_available() or not self.waiting_response():
             self.logger.debug('Received unwanted data: ' + hexlify(data).decode('ascii'))
@@ -112,3 +125,7 @@ class CommHandler:
 
     def waiting_response(self):
         return (self.active_request is not None)
+
+    def reset(self):
+        self.reset_rx()
+        self.clear_timeout()
