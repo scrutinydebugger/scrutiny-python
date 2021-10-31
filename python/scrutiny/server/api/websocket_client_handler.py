@@ -39,6 +39,7 @@ class WebsocketClientHandler:
         self.logger = logging.getLogger(self.__class__.__name__)
         self.id2ws_map = dict()
         self.ws2id_map = dict()
+        self.ws_server = None
 
     async def register(self, websocket):
         wsid = self.make_id()
@@ -93,9 +94,10 @@ class WebsocketClientHandler:
 
     def run(self):
         asyncio.set_event_loop(self.loop)
-        ws_server = websockets.serve(self.server_routine, self.config['host'], self.config['port'])
+        self.ws_server = websockets.serve(self.server_routine, self.config['host'], self.config['port'])
+
         self.logger.info('Starting Websocket listener')
-        self.loop.run_until_complete(ws_server)
+        self.loop.run_until_complete(self.ws_server)
         self.loop.run_forever()
 
     def start(self):
@@ -103,10 +105,16 @@ class WebsocketClientHandler:
         self.thread.start()
 
     def stop(self):
-        
-        # TODO : Fix shutdown sequence. Cancel tasks before closing loop
-        self.loop.call_soon_threadsafe(self.loop.stop)
+        self.loop.call_soon_threadsafe(self.stop_from_thread)
         self.thread.join()
+    
+    def stop_from_thread(self):
+        asyncio.ensure_future(self.async_close())
+
+    async def async_close(self):
+        self.ws_server.ws_server.close()
+        await self.ws_server.ws_server.wait_closed()
+        self.loop.stop()
 
     def send(self, conn_id, obj):
         if not self.txqueue.full():
