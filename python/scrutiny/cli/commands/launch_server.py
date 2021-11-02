@@ -20,7 +20,7 @@ class LaunchServer(BaseCommand):
         args = self.parser.parse_args(self.args)
 
         # For server, we will add more details to logging message.
-        format_string = '[%(name)s] %(levelname)s: %(message)s'
+        format_string = '[%(levelname)s] <%(name)s> %(message)s'
         logging.getLogger().handlers[0].setFormatter(logging.Formatter(format_string))
 
 
@@ -34,10 +34,8 @@ class LaunchServer(BaseCommand):
         try:
             server.run()
         except:
-            # The server logs its own error in run. No need to print it twice.
+            # The server logs its own error in run(). No need to print it twice.
             # We will return a non-success error code. It will be picked up by the CLI.
             succes = False
 
         return 0 if success else 1
-
-        

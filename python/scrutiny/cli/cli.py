@@ -59,7 +59,7 @@ class CLI:
         error = None
         try:
             logging_level = getattr(logging, args.loglevel.upper())
-            format_string = '%(levelname)s: %(message)s'
+            format_string = '[%(levelname)s] %(message)s'
             logging.basicConfig(level=logging_level, filename=args.logfile, format=format_string)
 
             for cmd in self.command_list:
