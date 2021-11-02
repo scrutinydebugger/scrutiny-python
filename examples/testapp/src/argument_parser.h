@@ -7,7 +7,8 @@ enum class TestAppCommand
 {
 	None,
 	Memdump,
-	Pipe
+	Pipe,
+	UdpListen
 };
 
 
@@ -31,6 +32,7 @@ public:
 	void parse(int argc, char* argv[]);
 	void next_memory_region(MemoryRegion* region);
 	bool has_another_memory_region();
+	inline uint16_t udp_port() { return m_udp_port;}
 	inline TestAppCommand command() { return m_command; }
 	inline bool is_valid() { return m_valid; }
 
@@ -40,6 +42,7 @@ protected:
 	unsigned int m_region_index;
 	unsigned int m_argc;
 	char** m_argv;
+	uint16_t m_udp_port;
 
 };
 

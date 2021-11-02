@@ -3,6 +3,7 @@
 #include "file2.h"
 #include "argument_parser.h"
 #include "scrutiny.h"
+#include "udp_bridge.h"
 
 #include <iostream>
 #include <iomanip>
@@ -10,6 +11,7 @@
 #include <chrono>
 #include <thread>
 #include <algorithm>
+
 
 using namespace std;
 
@@ -79,6 +81,10 @@ int main(int argc, char* argv[])
     }
     else
     {
+        chrono::time_point<chrono::steady_clock> last_timestamp, now_timestamp;
+        last_timestamp = chrono::steady_clock::now();
+        now_timestamp = chrono::steady_clock::now();
+
         if (parser.command() == TestAppCommand::Memdump)
         {
             MemoryRegion region;
@@ -99,10 +105,6 @@ int main(int argc, char* argv[])
         else if (parser.command() == TestAppCommand::Pipe)
         {
             uint8_t cout_transfer_buf[128];
-            
-            chrono::time_point<chrono::steady_clock> last_timestamp, now_timestamp;
-            last_timestamp = chrono::steady_clock::now();
-            now_timestamp = chrono::steady_clock::now();
             try
             {
                 while (true)
@@ -136,7 +138,45 @@ int main(int argc, char* argv[])
 
             }
         }
+        else if (parser.command() == TestAppCommand::UdpListen)
+        {
+            uint8_t buffer[1024];
+            UdpBridge udp_bridge(parser.udp_port());
+            try
+            {
+                udp_bridge.start();
+                int len_received = 0;
+                while (true)
+                {
+                    len_received = udp_bridge.receive(buffer, sizeof(buffer)); // Non-blocking. Can return 0
+                    now_timestamp = chrono::steady_clock::now();
+                    uint32_t timestep = static_cast<uint32_t>(chrono::duration_cast<chrono::microseconds>(now_timestamp - last_timestamp).count());
+
+                    scrutiny_handler.comm()->receive_data(buffer, len_received);
+
+                    uint32_t data_to_send = scrutiny_handler.comm()->data_to_send();
+                    data_to_send = min(data_to_send, static_cast<uint32_t>(sizeof(buffer)));
+
+                    if (data_to_send > 0)
+                    {
+                        scrutiny_handler.comm()->pop_data(buffer, data_to_send);
+                        udp_bridge.reply(buffer, data_to_send); // Send to last sender.
+                    }
+
+                    scrutiny_handler.process(timestep);
+                    this_thread::sleep_for(chrono::milliseconds(10));
+                    last_timestamp = now_timestamp;
+                }
+            }
+            catch (std::exception e)
+            {
+                cerr << e.what() << endl;
+            }
+
+            udp_bridge.close();
+        }
     }
+
 
     return errorcode;
 }

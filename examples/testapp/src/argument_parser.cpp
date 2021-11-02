@@ -42,6 +42,19 @@ void ArgumentParser::parse(int argc, char* argv[])
 		m_command = TestAppCommand::Pipe;
 		m_valid = true;
 	}
+	else if (cmd == "udp-listen")
+	{
+		m_command = TestAppCommand::UdpListen;
+		if (argc >= 3)
+		{
+			int32_t port = atoi(m_argv[2]);
+			if (port > 0 && port <0x10000)
+			{
+				m_udp_port = static_cast<uint16_t>(port);
+				m_valid = true;
+			}
+		}
+	}
 }
 
 bool ArgumentParser::has_another_memory_region()
