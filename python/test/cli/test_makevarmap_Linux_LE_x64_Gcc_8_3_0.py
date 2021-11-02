@@ -1,15 +1,16 @@
 import unittest
 import subprocess
 import json
-import os,sys
+import os, sys
 
 from scrutiny.core import *
 from scrutiny.core.memdump import Memdump
+from test.artifacts import get_artifact
 
 class TestMakeVarMap_LinuxLEx64_Gcc8_3_0(unittest.TestCase):
 
-    bin_filename = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'files', 'testappDebianLEx64_gcc8_3_0')
-    memdump_filename = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'files', 'testappDebianLEx64_gcc8_3_0.memdump')
+    bin_filename = get_artifact('testappDebianLEx64_gcc8_3_0')
+    memdump_filename = get_artifact('testappDebianLEx64_gcc8_3_0.memdump')
 
     @classmethod
     def setUpClass(cls):

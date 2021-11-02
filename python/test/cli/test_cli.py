@@ -10,6 +10,7 @@ from io import StringIO
 import sys
 from scrutiny.core.varmap import VarMap
 from scrutiny.core.sfi_storage import SFIStorage
+from test.artifacts import get_artifact
 
 from scrutiny.cli import CLI
 
@@ -27,8 +28,6 @@ class RedirectStdout:
 
 class TestCLI(unittest.TestCase):
 
-    def setUp(self):
-        self.test_files_dir = os.path.join(os.path.dirname(__file__), 'files')
 
     # Generate some metadata file from command line in temp folder and make sure its content is good
     def test_make_metadata(self):
@@ -65,8 +64,8 @@ class TestCLI(unittest.TestCase):
     def test_get_firmware_id(self):
         with tempfile.TemporaryDirectory() as tempdirname:
             cli = CLI()
-            demo_bin = os.path.join(self.test_files_dir, 'demobin.elf')
-            with open(os.path.join(self.test_files_dir, 'demobin_firmwareid')) as f:
+            demo_bin = get_artifact('demobin.elf')
+            with open(get_artifact('demobin_firmwareid')) as f:
                 demobin_firmware_id = f.read()
             temp_bin = os.path.join(tempdirname, 'demobin.elf')
             shutil.copyfile(demo_bin, temp_bin)
@@ -100,7 +99,7 @@ class TestCLI(unittest.TestCase):
     # Read a demo firmware binary and make varmap file. We don't check the content, just that it is valid varmap.
     def test_elf2varmap(self):
         cli = CLI()
-        demobin_path = os.path.join(self.test_files_dir, 'demobin.elf')
+        demobin_path = get_artifact('demobin.elf')
 
         with RedirectStdout() as stdout:
             cli.run(['elf2varmap', demobin_path])
@@ -115,12 +114,12 @@ class TestCLI(unittest.TestCase):
     def test_make_sfi_and_install(self):
         with tempfile.TemporaryDirectory() as tempdirname:
             cli = CLI()
-            demo_bin = os.path.join(self.test_files_dir, 'demobin.elf')
+            demo_bin = get_artifact('demobin.elf')
             temp_bin = os.path.join(tempdirname, 'demobin.elf')
             sfi_name = os.path.join(tempdirname, 'myfile.sfi')
             shutil.copyfile(demo_bin, temp_bin)
 
-            with open(os.path.join(self.test_files_dir, 'demobin_firmwareid')) as f:
+            with open(get_artifact('demobin_firmwareid')) as f:
                 demobin_firmware_id = f.read()
 
             cli.run(['make-metadata', '--version', '1.2.3.4', '--project-name', 'testname', '--author', 'unittest', '--output', tempdirname ])

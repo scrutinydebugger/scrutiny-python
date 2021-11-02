@@ -1,5 +1,6 @@
 import copy
 from scrutiny.server.protocol.comm_handler import CommHandler
+from scrutiny.server.protocol import Protocol
 
 class DeviceHandler:
     DEFAULT_COMM_PARAMS = {
@@ -17,6 +18,7 @@ class DeviceHandler:
 
         self.comm_handler = CommHandler(comm_handler_params)
         self.connected = False
+        self.protocol = Protocol(1,0)
 
     def connect(self):
         if self.config['link_type'] == 'none':
@@ -43,4 +45,6 @@ class DeviceHandler:
         pass
 
     def process(self):
+        if not self.comm_handler.waiting_response():
+            self.comm_handler.send_request(self.protocol.comm_discover(0x12345678))
         self.comm_handler.process() 
