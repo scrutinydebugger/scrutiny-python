@@ -40,6 +40,7 @@ class WebsocketClientHandler:
         self.id2ws_map = dict()
         self.ws2id_map = dict()
         self.ws_server = None
+        self.started_event = threading.Event()  # This event synchronise the start of the server
 
     async def register(self, websocket):
         wsid = self.make_id()
@@ -58,7 +59,7 @@ class WebsocketClientHandler:
     #Executed for each websocket
     async def server_routine(self, websocket, path):
         wsid = await self.register(websocket)
-        tx_sync_timer = Timer(0.1, self.process_tx_queue)
+        tx_sync_timer = Timer(0.05, self.process_tx_queue)
 
         try:
             async for message in websocket:
@@ -68,7 +69,6 @@ class WebsocketClientHandler:
                 except Exception as e:
                     self.logger.error('Received malformed JSON. %s' % str(e))
                     self.logger.debug(message)
-
         finally:
             tx_sync_timer.cancel()
             await self.unregister(websocket)
@@ -92,29 +92,39 @@ class WebsocketClientHandler:
     def process(self):
         pass #nothing to do
 
+    # Run in client_handler thread
     def run(self):
         asyncio.set_event_loop(self.loop)
         self.ws_server = websockets.serve(self.server_routine, self.config['host'], self.config['port'])
 
-        self.logger.info('Starting Websocket listener')
+        self.logger.info('Starting websocket listener')
         self.loop.run_until_complete(self.ws_server)
+        self.started_event.set()
         self.loop.run_forever()
 
+    # Called from Main Thread
     def start(self):
+        self.started_event.clear()
         self.thread = threading.Thread(target=self.run)
         self.thread.start()
+        self.started_event.wait()   # Wait for the websocket server to start. Avoid race conditions
 
+    # Called from Main Thread
     def stop(self):
+        self.logger.info('Stopping websocket listener')
         self.loop.call_soon_threadsafe(self.stop_from_thread)
-        self.thread.join()
+        if  self.thread is not None:
+            self.thread.join()
     
+    # Called from client_handler Thread
     def stop_from_thread(self):
         asyncio.ensure_future(self.async_close())
 
     async def async_close(self):
-        self.ws_server.ws_server.close()
+        x = self.ws_server.ws_server.close()
         await self.ws_server.ws_server.wait_closed()
         self.loop.stop()
+        self.logger.info('Websocket listener stopped')
 
     def send(self, conn_id, obj):
         if not self.txqueue.full():
