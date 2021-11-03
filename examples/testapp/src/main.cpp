@@ -173,7 +173,7 @@ int main(int argc, char* argv[])
                         udp_bridge.reply(buffer, data_to_send); // Send to last sender.
 
                         cout << "out: (" << data_to_send << ")\t" ;
-                        for (int i=0; i<data_to_send; i++)
+                        for (unsigned int i=0; i<data_to_send; i++)
                         {
                             cout << hex << setw(2) << setfill('0') << static_cast<uint32_t>(buffer[i]);
                         }
