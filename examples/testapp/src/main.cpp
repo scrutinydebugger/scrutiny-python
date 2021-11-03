@@ -152,6 +152,16 @@ int main(int argc, char* argv[])
                     now_timestamp = chrono::steady_clock::now();
                     uint32_t timestep = static_cast<uint32_t>(chrono::duration_cast<chrono::microseconds>(now_timestamp - last_timestamp).count());
 
+                    if (len_received > 0)
+                    {
+                        cout << "in:  ("<< len_received << ")\t" ;
+                        for (int i=0; i<len_received; i++)
+                        {
+                            cout << hex << setw(2) << setfill('0') << static_cast<uint32_t>(buffer[i]);
+                        }
+                        cout << endl;
+                    }
+
                     scrutiny_handler.comm()->receive_data(buffer, len_received);
 
                     uint32_t data_to_send = scrutiny_handler.comm()->data_to_send();
@@ -161,6 +171,13 @@ int main(int argc, char* argv[])
                     {
                         scrutiny_handler.comm()->pop_data(buffer, data_to_send);
                         udp_bridge.reply(buffer, data_to_send); // Send to last sender.
+
+                        cout << "out: (" << data_to_send << ")\t" ;
+                        for (int i=0; i<data_to_send; i++)
+                        {
+                            cout << hex << setw(2) << setfill('0') << static_cast<uint32_t>(buffer[i]);
+                        }
+                        cout << endl;
                     }
 
                     scrutiny_handler.process(timestep);
@@ -168,12 +185,12 @@ int main(int argc, char* argv[])
                     last_timestamp = now_timestamp;
                 }
             }
-            catch (std::exception e)
+            catch (std::exception const& e)
             {
                 cerr << e.what() << endl;
             }
 
-            udp_bridge.close();
+            udp_bridge.stop();
         }
     }
 
