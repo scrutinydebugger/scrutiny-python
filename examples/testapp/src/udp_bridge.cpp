@@ -3,7 +3,7 @@
 #include <chrono>
 
 #if !defined(_WIN32)
-#include <fcntl.h>
+#include <fcntl.h>  // For non-blocking
 #endif
 
 UdpBridge::UdpBridge(uint16_t port) :
@@ -11,7 +11,7 @@ UdpBridge::UdpBridge(uint16_t port) :
     m_sock(INVALID_SOCKET)
 {
 #if defined(_WIN32)
-    int ret = WSAStartup(MAKEWORD(2, 2), &m_wsa_data);
+    int ret = WSAStartup(MAKEWORD(2, 2), &m_wsa_data);  // Assume one UDP bridge will be running globally. We don't need more really
     if (ret != 0)
     {
         throw_system_error("WSAStartup Failed");
@@ -35,11 +35,9 @@ void UdpBridge::start()
     addr.sin_family = AF_INET;
     addr.sin_addr.s_addr = htonl(INADDR_ANY);
     addr.sin_port = htons(m_port);
-#if defined(_WIN32)
-    ret = bind(m_sock, reinterpret_cast<SOCKADDR*>(&addr), sizeof(addr));
-#else
-    ret = bind(m_sock, reinterpret_cast<sockaddr*>(&addr), sizeof(addr));
-#endif
+
+    ret = bind(m_sock, reinterpret_cast<SOCKADDR*>(&addr), sizeof(addr));   // SOCKADDR = sockaddr for linux
+
     if (ret < 0)
     {
         throw_system_error("Bind failed");
@@ -72,6 +70,7 @@ void UdpBridge::set_nonblocking()
 
 void UdpBridge::throw_system_error(const char* msg)
 {
+    // GETSOCKETERRNO() is a cross-platform macro defined in udp_bridge.h
     throw std::system_error(GETSOCKETERRNO(), std::system_category(), msg);
 }
 
@@ -81,7 +80,7 @@ void UdpBridge::stop()
 {
     if (ISVALIDSOCKET(m_sock))
     {
-        CLOSESOCKET(m_sock);
+        CLOSESOCKET(m_sock);    // CLOSESOCKET() is a cross-platform macro defined in udp_bridge.h
     }
 }
 
@@ -103,11 +102,11 @@ int UdpBridge::receive(uint8_t* buffer, int len, int flags)
     
     if (ret < 0)
     {
-        int errorcode = GETSOCKETERRNO();
+        int errorcode = GETSOCKETERRNO();   // GETSOCKETERRNO() is a cross-platform macro defined in udp_bridge.h
 #if defined(_WIN32)
         if (errorcode == WSAEWOULDBLOCK)
 #else
-        if (errorcode == EWOULDBLOCK || errorcode == EAGAIN)
+        if (errorcode == EWOULDBLOCK || errorcode == EAGAIN)    // Need to check both as per unix manual
 #endif
         {
             ret = 0;

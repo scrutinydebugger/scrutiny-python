@@ -12,17 +12,18 @@
 #endif
 
 
-
 #if defined(_WIN32)
 #define ISVALIDSOCKET(s) ((s) != INVALID_SOCKET)
 #define CLOSESOCKET(s) closesocket(s)
 #define GETSOCKETERRNO() (WSAGetLastError())
 #else
-#define SOCKET int
 #define ISVALIDSOCKET(s) ((s) >= 0)
 #define CLOSESOCKET(s) close(s)
 #define GETSOCKETERRNO() (errno)
 #define INVALID_SOCKET (-1)
+
+typedef int SOCKET;
+typedef sockaddr SOCKADDR;
 #endif
 
 class UdpBridge
@@ -40,15 +41,12 @@ class UdpBridge
     ~UdpBridge();
 
   private:
-
     uint16_t m_port;
-    SOCKET m_sock;
-    
+    SOCKET m_sock;                // SOCKET = int for linux, SOCKET for windows
+    SOCKADDR m_last_packet_addr;  // SOCKADDR = sockaddr for linux, SOCKADDR for windows
+
 #if defined(_WIN32)
-    SOCKADDR m_last_packet_addr;
     WSAData m_wsa_data;
-#else
-    sockaddr m_last_packet_addr;
 #endif
 
 };
