@@ -154,7 +154,7 @@ int main(int argc, char* argv[])
 
                     if (len_received > 0)
                     {
-                        cout << "in:  ("<< len_received << ")\t" ;
+                        cout << "in:  ("<< dec << len_received << ")\t" ;
                         for (int i=0; i<len_received; i++)
                         {
                             cout << hex << setw(2) << setfill('0') << static_cast<uint32_t>(buffer[i]);
@@ -172,7 +172,7 @@ int main(int argc, char* argv[])
                         scrutiny_handler.comm()->pop_data(buffer, data_to_send);
                         udp_bridge.reply(buffer, data_to_send); // Send to last sender.
 
-                        cout << "out: (" << data_to_send << ")\t" ;
+                        cout << "out: (" << dec << data_to_send << ")\t" ;
                         for (unsigned int i=0; i<data_to_send; i++)
                         {
                             cout << hex << setw(2) << setfill('0') << static_cast<uint32_t>(buffer[i]);
