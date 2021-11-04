@@ -10,6 +10,12 @@ UdpBridge::UdpBridge(uint16_t port) :
     m_port(port),
     m_sock(INVALID_SOCKET)
 {
+
+}
+
+
+void UdpBridge::global_init()
+{
 #if defined(_WIN32)
     int ret = WSAStartup(MAKEWORD(2, 2), &m_wsa_data);  // Assume one UDP bridge will be running globally. We don't need more really
     if (ret != 0)
@@ -18,6 +24,15 @@ UdpBridge::UdpBridge(uint16_t port) :
     }
 #endif
 }
+
+void UdpBridge::global_close()
+{
+#if defined(_WIN32)
+    WSACleanup();
+#endif
+}
+
+
 
 void UdpBridge::start()
 {
@@ -82,13 +97,6 @@ void UdpBridge::stop()
     {
         CLOSESOCKET(m_sock);    // CLOSESOCKET() is a cross-platform macro defined in udp_bridge.h
     }
-}
-
-UdpBridge::~UdpBridge()
-{
-#if defined(_WIN32)
-    WSACleanup();
-#endif
 }
 
 int UdpBridge::receive(uint8_t* buffer, int len, int flags)

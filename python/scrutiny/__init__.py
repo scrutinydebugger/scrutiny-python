@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 __name__ = 'scrutiny'
 __version__ = '0.0.1'
 __author__ = 'Pier-Yves Lessard'

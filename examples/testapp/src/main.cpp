@@ -12,18 +12,19 @@
 #include <thread>
 #include <algorithm>
 
-
 using namespace std;
 
 void mainfunc1()
 {
     static int mainfunc1Var = 7777777;
+    (void)mainfunc1Var;
 }
 
 void mainfunc1(int x)
 {
     (void)x;
     static double mainfunc1Var = 8888888.88;
+    (void)mainfunc1Var;
 }
 
 void memdump(uintptr_t startAddr, uint32_t length)
@@ -38,7 +39,7 @@ void memdump(uintptr_t startAddr, uint32_t length)
         {
             nToPrint = 16;
         }
-        for (int i=0; i<nToPrint; i++)
+        for (unsigned int i=0; i<nToPrint; i++)
         {
             cout << hex << setw(2) << setfill('0') << static_cast<uint32_t>(ptr[i]);
         }
@@ -61,10 +62,11 @@ void init_all_values()
 
 int main(int argc, char* argv[]) 
 {
-    static_assert(sizeof(char) == 1, "testapp doesn't spport char bigger than 8 bits (yet)");
+    static_assert(sizeof(char) == 1, "testapp doesn't support char bigger than 8 bits (yet)");
 
     int errorcode = 0;
     static int staticIntInMainFunc = 22222;
+    (void)staticIntInMainFunc;
     init_all_values();
         
     scrutiny::MainHandler scrutiny_handler;
@@ -95,15 +97,21 @@ int main(int argc, char* argv[])
                     parser.next_memory_region(&region);
                     memdump(region.start_address, region.length);
                 }
-                catch (...)
+                catch (std::exception const& e)
                 {
+                    cerr << e.what() << endl;
                     errorcode = -1;
                     break;
                 }
             }
         }
+        // Pipe mode. Read STDIN, write STDOUT.
+        // Meant to be controlled by another process that open the test app as a child process.
         else if (parser.command() == TestAppCommand::Pipe)
         {
+            // Removed that piece of code as I couldn't get the pipe communication to work reliably.
+
+            /*
             uint8_t cout_transfer_buf[128];
             try
             {
@@ -133,13 +141,18 @@ int main(int argc, char* argv[])
                     last_timestamp = now_timestamp;
                 }
             }
-            catch (...)
+            catch (std::exception const& e)
             {
-
+                cerr << e.what() << endl;
             }
+            */
         }
+
+        // Listen on a UDP port, reply to the address of the last sender.
+        
         else if (parser.command() == TestAppCommand::UdpListen)
         {
+            UdpBridge::global_init();
             uint8_t buffer[1024];
             UdpBridge udp_bridge(parser.udp_port());
             try
@@ -191,6 +204,7 @@ int main(int argc, char* argv[])
             }
 
             udp_bridge.stop();
+            UdpBridge::global_close();
         }
     }
 

@@ -100,12 +100,14 @@ void file2SetValues()
 void file2func1()
 {
     static int file2func1Var = -88778877;
+    (void)file2func1Var;
 }
 
 void file2func1(int x)
 {
     (void)x;
     static double file2func1Var = 963258741.123;
+    (void)file2func1Var;
 }
 
 

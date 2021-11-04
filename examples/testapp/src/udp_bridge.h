@@ -31,14 +31,16 @@ class UdpBridge
  public:
     
     UdpBridge(uint16_t port);
+
+    static void global_init();
+    static void global_close();
+
     void start();
     void stop();
     int receive(uint8_t* buffer, int len, int flags = 0);
     void reply(const uint8_t* buffer, int len, int flags = 0);
     void set_nonblocking();
     void throw_system_error(const char* msg);
-
-    ~UdpBridge();
 
   private:
     uint16_t m_port;

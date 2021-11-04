@@ -45,6 +45,7 @@ class DeviceHandler:
         pass
 
     def process(self):
-        if not self.comm_handler.waiting_response():
-            self.comm_handler.send_request(self.protocol.comm_discover(0x12345678))
+        if self.comm_handler.is_open():
+            if not self.comm_handler.waiting_response():
+                self.comm_handler.send_request(self.protocol.comm_discover(0x12345678))
         self.comm_handler.process() 

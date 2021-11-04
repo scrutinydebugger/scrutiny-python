@@ -41,17 +41,23 @@ class CommHandler:
         self.response_timer = Timer(self.params['response_timeout'])
         self.rx_data = self.RxData() # Contains the response data while we read it.
         self.logger = logging.getLogger(self.__class__.__name__)
+        self.opened = False
 
     def open(self, link):
         self.link = link
         self.link.initialize()
         self.reset()
+        self.opened = True
 
     def close(self):
         if self.link is not None:
             self.link.destroy()
             self.link = None
         self.reset()
+        self.opened = False
+
+    def is_open(self):
+        return self.opened
 
     def process(self):
         if self.link is None:
