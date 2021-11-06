@@ -444,6 +444,12 @@ namespace scrutiny
 			}
 
 			std::memcpy(request_data->magic, request->data, magic_size);
+			
+			if (std::memcmp(CommControl::DISCOVER_MAGIC, request_data->magic, magic_size) != 0)
+			{
+				return ResponseCode::InvalidRequest;
+			}
+
 
 			return ResponseCode::OK;
 		}

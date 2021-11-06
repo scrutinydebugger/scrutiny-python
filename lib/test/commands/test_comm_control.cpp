@@ -23,7 +23,7 @@ TEST_F(TestCommControl, TestDiscover)
 {
 	ASSERT_FALSE(scrutiny_handler.comm()->is_connected());   // We should get a Discover response even when not connected.
 	ASSERT_EQ(sizeof(scrutiny::protocol::CommControl::DISCOVER_MAGIC), 4u);
-	uint8_t request_data[8 + 4 ] = { 2,1,0,4};
+	uint8_t request_data[8 + 4] = { 2,1,0,4 };
 	std::memcpy(&request_data[4], scrutiny::protocol::CommControl::DISCOVER_MAGIC, sizeof(scrutiny::protocol::CommControl::DISCOVER_MAGIC));
 
 
@@ -45,6 +45,53 @@ TEST_F(TestCommControl, TestDiscover)
 	EXPECT_EQ(nread, n_to_read);
 
 	ASSERT_BUF_EQ(tx_buffer, expected_response, sizeof(expected_response));
+}
+
+
+TEST_F(TestCommControl, TestDiscoverWrongMagic)
+{
+	ASSERT_EQ(sizeof(scrutiny::protocol::CommControl::DISCOVER_MAGIC), 4u);
+	uint8_t request_data[8 + 4] = { 2,1,0,4 };
+	std::memcpy(&request_data[4], scrutiny::protocol::CommControl::DISCOVER_MAGIC, sizeof(scrutiny::protocol::CommControl::DISCOVER_MAGIC));
+	request_data[4] = ~request_data[4];
+	add_crc(request_data, sizeof(request_data) - 4);
+
+	uint8_t tx_buffer[32];
+
+	scrutiny_handler.comm()->receive_data(request_data, sizeof(request_data));
+	scrutiny_handler.process(0);
+
+	uint32_t n_to_read = scrutiny_handler.comm()->data_to_send();
+	ASSERT_EQ(n_to_read, 0u);	// No data because we are not connected and discover is invalid. We stay silent
+
+}
+
+
+TEST_F(TestCommControl, TestDiscoverWrongMagicWhileConnected)
+{
+	const scrutiny::protocol::CommandId cmd = scrutiny::protocol::CommandId::CommControl;
+	const uint8_t subfn = static_cast<uint8_t>(scrutiny::protocol::CommControl::Subfunction::Discover);
+	const scrutiny::protocol::ResponseCode code = scrutiny::protocol::ResponseCode::InvalidRequest;
+	ASSERT_EQ(sizeof(scrutiny::protocol::CommControl::DISCOVER_MAGIC), 4u);
+
+	scrutiny_handler.comm()->connect();
+	uint8_t request_data[8 + 4] = { 2,1,0,4 };
+	std::memcpy(&request_data[4], scrutiny::protocol::CommControl::DISCOVER_MAGIC, sizeof(scrutiny::protocol::CommControl::DISCOVER_MAGIC));
+	request_data[4] = ~request_data[4];
+	add_crc(request_data, sizeof(request_data) - 4);
+
+	uint8_t tx_buffer[32];
+
+	scrutiny_handler.comm()->receive_data(request_data, sizeof(request_data));
+	scrutiny_handler.process(0);
+
+	uint32_t n_to_read = scrutiny_handler.comm()->data_to_send();
+	ASSERT_GT(n_to_read, 0u);
+	ASSERT_LT(n_to_read, sizeof(tx_buffer));
+	scrutiny_handler.comm()->pop_data(tx_buffer, n_to_read);
+	// Now we expect an InvalidRequest response
+	ASSERT_TRUE(IS_PROTOCOL_RESPONSE(tx_buffer, cmd, subfn, code));
+	scrutiny_handler.process(0);
 }
 
 

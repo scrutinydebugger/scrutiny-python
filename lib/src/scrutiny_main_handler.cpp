@@ -234,11 +234,7 @@ namespace scrutiny
 			if (code != protocol::ResponseCode::OK)
 				break;
 
-			if (std::memcmp(protocol::CommControl::DISCOVER_MAGIC, request_data.discover.magic, sizeof(protocol::CommControl::DISCOVER_MAGIC)) != 0)
-			{
-				code = protocol::ResponseCode::InvalidRequest;
-				break;
-			}
+			// Magic validation is done by the codec.
 
 			code = m_codec.encode_response_comm_discover(response);	
 			break;

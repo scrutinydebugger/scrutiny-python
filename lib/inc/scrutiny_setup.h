@@ -44,8 +44,8 @@ namespace scrutiny
 #error Scrutiny protocol RX buffer size must be at least 32 bytes long
 #endif
 
-#if SCRUTINY_TX_BUFFER_SIZE < 32
-#error Scrutiny protocol TX buffer size must be at least 32 bytes long
+#if SCRUTINY_TX_BUFFER_SIZE < 64
+#error Scrutiny protocol TX buffer size must be at least 64 bytes long
 #endif
 
 #if SCRUTINY_TX_BUFFER_SIZE < SCRUTINY_SOFTWARE_ID_LENGTH
