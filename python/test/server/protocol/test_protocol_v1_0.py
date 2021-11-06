@@ -259,12 +259,11 @@ class TestProtocolV1_0(unittest.TestCase):
 
     def test_req_comm_discover(self):
         magic = bytes([0x7e, 0x18, 0xfc, 0x68])
-        request_bytes = bytes([2,1,0,0x08]) + magic + struct.pack('>L', 0x12345678)
-        req = self.proto.comm_discover(0x12345678)
+        request_bytes = bytes([2,1,0,4]) + magic
+        req = self.proto.comm_discover()
         self.assert_req_response_bytes(req, request_bytes)
         data = self.proto.parse_request(req)
         self.assertEqual(data['magic'], magic)
-        self.assertEqual(data['challenge'], 0x12345678)
 
     def test_req_comm_heartbeat(self):
         req = self.proto.comm_heartbeat(0x12345678, 0x1122)
@@ -632,12 +631,12 @@ class TestProtocolV1_0(unittest.TestCase):
 
     def test_response_comm_discover(self):
         magic = bytes([0x7e, 0x18, 0xfc, 0x68])
-        response_bytes = bytes([0x82,1,0,0, 8]) + magic + struct.pack('>L', 0x87654321)
-        response = self.proto.respond_comm_discover(0x87654321)
+        firmwareid = bytes([0x0, 0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8, 0x9, 0xa, 0xb, 0xc, 0xd, 0xe, 0xf])
+        response_bytes = bytes([0x82,1,0,0, len(firmwareid)]) + firmwareid 
+        response = self.proto.respond_comm_discover(firmwareid)
         self.assert_req_response_bytes(response, response_bytes)
         data = self.proto.parse_response(response)
-        self.assertEqual(data['magic'], magic)
-        self.assertEqual(data['challenge_response'], 0x87654321)
+        self.assertEqual(data['firmware_id'], firmwareid)
 
     def test_response_comm_heartbeat(self):
         response = self.proto.respond_comm_heartbeat(session_id=0x12345678, challenge_response=0x1122)

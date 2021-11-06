@@ -3,7 +3,7 @@
 
 #include <cstdint>
 #include "scrutiny_protocol_definitions.h"
-
+#include "scrutiny_software_id.h"
 
 namespace scrutiny
 {
@@ -119,11 +119,6 @@ namespace scrutiny
 
 			namespace CommControl
 			{
-				struct Discover
-				{
-					uint8_t magic[sizeof(protocol::CommControl::DISCOVER_MAGIC)];
-					uint8_t challenge_response[4];
-				};
 				struct Heartbeat
 				{
 					uint32_t session_id;
@@ -163,7 +158,6 @@ namespace scrutiny
 				struct Discover
 				{
 					uint8_t magic[sizeof(protocol::CommControl::DISCOVER_MAGIC)];
-					uint8_t challenge[4];
 				};
 
 				struct Heartbeat
@@ -194,7 +188,7 @@ namespace scrutiny
 			ResponseCode encode_response_special_memory_region_count(const ResponseData::GetInfo::GetSpecialMemoryRegionCount* response_data, Response* response);
 			ResponseCode encode_response_special_memory_region_location(const ResponseData::GetInfo::GetSpecialMemoryRegionLocation* response_data, Response* response);
 
-			ResponseCode encode_response_comm_discover(const ResponseData::CommControl::Discover* response_data, Response* response);
+			ResponseCode encode_response_comm_discover( Response* response);
 			ResponseCode encode_response_comm_heartbeat(const ResponseData::CommControl::Heartbeat* response_data, Response* response);
 			ResponseCode encode_response_comm_get_params(const ResponseData::CommControl::GetParams* response_data, Response* response);
 			ResponseCode encode_response_comm_connect(const ResponseData::CommControl::Connect* response_data, Response* response);

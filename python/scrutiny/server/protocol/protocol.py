@@ -96,8 +96,8 @@ class Protocol:
             data += self.encode_address(addr) + struct.pack('>H', len(mem_data)) + bytes(mem_data)
         return Request(cmd.MemoryControl, cmd.MemoryControl.Subfunction.Write, data)
 
-    def comm_discover(self, challenge):
-        data = cmd.CommControl.DISCOVER_MAGIC + struct.pack('>L', challenge)
+    def comm_discover(self):
+        data = cmd.CommControl.DISCOVER_MAGIC
         return Request(cmd.CommControl, cmd.CommControl.Subfunction.Discover, data) 
 
     def comm_heartbeat(self, session_id, challenge):
@@ -244,7 +244,6 @@ class Protocol:
             
                 if subfn == cmd.CommControl.Subfunction.Discover:          # CommControl - Discover
                     data['magic'] = req.payload[0:4]
-                    data['challenge'], = struct.unpack('>L', req.payload[4:8])
                 
                 elif subfn == cmd.CommControl.Subfunction.Heartbeat: 
                     data['session_id'], data['challenge'] = struct.unpack('>LH', req.payload[0:8])
@@ -305,8 +304,8 @@ class Protocol:
         data += self.encode_address(start) + self.encode_address(end)
         return Response(cmd.GetInfo, cmd.GetInfo.Subfunction.GetSpecialMemoryRegionLocation, Response.ResponseCode.OK, data)
   
-    def respond_comm_discover(self, challenge_response):
-        resp_data = cmd.CommControl.DISCOVER_MAGIC+struct.pack('>L', challenge_response)
+    def respond_comm_discover(self, firmware_id):
+        resp_data = bytes(firmware_id)
         return Response(cmd.CommControl, cmd.CommControl.Subfunction.Discover, Response.ResponseCode.OK, resp_data)
 
     def respond_comm_heartbeat(self, session_id, challenge_response):
@@ -514,8 +513,7 @@ class Protocol:
                 subfn = cmd.CommControl.Subfunction(response.subfn)
 
                 if subfn == cmd.CommControl.Subfunction.Discover:
-                    data['magic'] =  response.payload[0:4]
-                    data['challenge_response'], = struct.unpack('>L', response.payload[4:8])
+                    data['firmware_id'] =  response.payload[0:16]
                 
                 elif subfn == cmd.CommControl.Subfunction.Heartbeat:      
                     data['session_id'], data['challenge_response'] = struct.unpack('>LH', response.payload[0:6])

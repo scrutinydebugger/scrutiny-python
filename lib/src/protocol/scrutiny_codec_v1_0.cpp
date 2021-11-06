@@ -360,19 +360,14 @@ namespace scrutiny
 			return ResponseCode::OK;
 		}
 
-		ResponseCode CodecV1_0::encode_response_comm_discover(const ResponseData::CommControl::Discover* response_data, Response* response)
+		ResponseCode CodecV1_0::encode_response_comm_discover(Response* response)
 		{
-			constexpr uint16_t magic_size = sizeof(CommControl::DISCOVER_MAGIC);
-			constexpr uint16_t challenge_response_size = sizeof(response_data->challenge_response);
-			constexpr uint16_t datalen = magic_size + challenge_response_size;
+			constexpr uint16_t datalen = sizeof(scrutiny::software_id);
 
-			static_assert (sizeof(response_data->magic) == sizeof(CommControl::DISCOVER_MAGIC), "Mismatch between codec definition and protocol constant.");
 			static_assert(datalen <= SCRUTINY_TX_BUFFER_SIZE, "SCRUTINY_TX_BUFFER_SIZE too small");
 
 			response->data_length = datalen;
-			std::memcpy(&response->data[0], response_data->magic, magic_size);
-			std::memcpy(&response->data[magic_size], response_data->challenge_response, challenge_response_size);
-
+			std::memcpy(response->data, scrutiny::software_id, sizeof(scrutiny::software_id));
 			return ResponseCode::OK;
 		}
 
@@ -441,8 +436,7 @@ namespace scrutiny
 		ResponseCode CodecV1_0::decode_request_comm_discover(const Request* request, RequestData::CommControl::Discover* request_data)
 		{
 			constexpr uint16_t magic_size = sizeof(CommControl::DISCOVER_MAGIC);
-			constexpr uint16_t challenge_size = sizeof(request_data->challenge);
-			constexpr uint16_t datalen = magic_size + challenge_size;
+			constexpr uint16_t datalen = magic_size;
 
 			if (request->data_length != datalen)
 			{
@@ -450,7 +444,6 @@ namespace scrutiny
 			}
 
 			std::memcpy(request_data->magic, request->data, magic_size);
-			std::memcpy(request_data->challenge, &request->data[magic_size], challenge_size);
 
 			return ResponseCode::OK;
 		}

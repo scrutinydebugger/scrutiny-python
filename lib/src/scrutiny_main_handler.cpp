@@ -212,7 +212,6 @@ namespace scrutiny
 		union
 		{
 			protocol::ResponseData::CommControl::Connect connect;
-			protocol::ResponseData::CommControl::Discover discover;
 			protocol::ResponseData::CommControl::GetParams get_params;
 			protocol::ResponseData::CommControl::Heartbeat heartbeat;
 		}response_data;
@@ -235,13 +234,13 @@ namespace scrutiny
 			if (code != protocol::ResponseCode::OK)
 				break;
 
-			std::memcpy(response_data.discover.magic, protocol::CommControl::DISCOVER_MAGIC, sizeof(protocol::CommControl::DISCOVER_MAGIC));
-			for (uint8_t i = 0; i < sizeof(request_data.discover.challenge); i++)
+			if (std::memcmp(protocol::CommControl::DISCOVER_MAGIC, request_data.discover.magic, sizeof(protocol::CommControl::DISCOVER_MAGIC)) != 0)
 			{
-				response_data.discover.challenge_response[i] = ~request_data.discover.challenge[i];
+				code = protocol::ResponseCode::InvalidRequest;
+				break;
 			}
 
-			code = m_codec.encode_response_comm_discover(&response_data.discover, response);
+			code = m_codec.encode_response_comm_discover(response);	
 			break;
 
 			// =========== [Heartbeat] ==========

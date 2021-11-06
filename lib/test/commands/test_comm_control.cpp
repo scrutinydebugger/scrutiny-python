@@ -23,17 +23,13 @@ TEST_F(TestCommControl, TestDiscover)
 {
 	ASSERT_FALSE(scrutiny_handler.comm()->is_connected());   // We should get a Discover response even when not connected.
 	ASSERT_EQ(sizeof(scrutiny::protocol::CommControl::DISCOVER_MAGIC), 4u);
-	const uint8_t challenge[4] = { 0x11, 0x22, 0x33, 0x44 };
-	const uint8_t challenge_response[4] = { 0xEE, 0xDD, 0xCC, 0xBB };
-	uint8_t request_data[8 + 4 + 4] = { 2,1,0,8 };
+	uint8_t request_data[8 + 4 ] = { 2,1,0,4};
 	std::memcpy(&request_data[4], scrutiny::protocol::CommControl::DISCOVER_MAGIC, sizeof(scrutiny::protocol::CommControl::DISCOVER_MAGIC));
-	std::memcpy(&request_data[8], challenge, sizeof(challenge));
 
 
-	uint8_t tx_buffer[32];
-	uint8_t expected_response[9 + 4 + 4] = { 0x82,1,0,0,8 };   // Version 1.0
-	std::memcpy(&expected_response[5], scrutiny::protocol::CommControl::DISCOVER_MAGIC, sizeof(scrutiny::protocol::CommControl::DISCOVER_MAGIC));
-	std::memcpy(&expected_response[9], challenge_response, sizeof(challenge_response));
+	uint8_t tx_buffer[64];
+	uint8_t expected_response[9 + 32] = { 0x82,1,0,0,32 };   // Version 1.0
+	std::memcpy(&expected_response[5], scrutiny::software_id, sizeof(scrutiny::software_id));
 
 	add_crc(request_data, sizeof(request_data) - 4);
 	add_crc(expected_response, sizeof(expected_response) - 4);
