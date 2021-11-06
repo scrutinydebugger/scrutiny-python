@@ -45,9 +45,13 @@ class CommHandler:
 
     def open(self, link):
         self.link = link
-        self.link.initialize()
         self.reset()
-        self.opened = True
+        try:
+            self.link.initialize()
+            self.opened = True
+        except Exception as e:
+            self.logger.error("Cannot connect to device. " + str(e))
+            self.opened = False
 
     def close(self):
         if self.link is not None:
@@ -62,11 +66,14 @@ class CommHandler:
     def process(self):
         if self.link is None:
             self.reset()
-        else:
-            self.process_rx()
+            return
+        
+        self.link.process()
+        self.process_rx()
 
     def process_rx(self):
-        if self.waiting_response() and self.response_timer.is_timed_out():
+        # If we haven't got a response or we know we won't get one. Mark the request as timed out
+        if self.waiting_response() and (self.response_timer.is_timed_out() or not self.link.operational()):
             self.reset_rx()
             self.timed_out = True
         
@@ -128,7 +135,9 @@ class CommHandler:
             raise Exception('Waiting for a response')
 
         self.active_request = request
-        self.link.write(request.to_bytes())
+        data = request.to_bytes()
+        self.logger.debug("Sending : %s" % (hexlify(data).decode('ascii')))
+        self.link.write(data)
         self.response_timer.start()
         self.timed_out = False
 

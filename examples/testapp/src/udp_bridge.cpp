@@ -2,7 +2,9 @@
 #include <thread>
 #include <chrono>
 
-#if !defined(_WIN32)
+#if defined(_WIN32)
+WSAData UdpBridge::wsa_data;
+#else
 #include <fcntl.h>  // For non-blocking
 #endif
 
@@ -17,7 +19,7 @@ UdpBridge::UdpBridge(uint16_t port) :
 void UdpBridge::global_init()
 {
 #if defined(_WIN32)
-    int ret = WSAStartup(MAKEWORD(2, 2), &m_wsa_data);  // Assume one UDP bridge will be running globally. We don't need more really
+    int ret = WSAStartup(MAKEWORD(2, 2), &UdpBridge::wsa_data);  // Assume one UDP bridge will be running globally. We don't need more really
     if (ret != 0)
     {
         throw_system_error("WSAStartup Failed");

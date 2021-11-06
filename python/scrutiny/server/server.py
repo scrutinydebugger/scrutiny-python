@@ -68,7 +68,7 @@ class ScrutinyServer:
             self.close_all()
         except Exception as e:
             self.logger.error(str(e))
-            self.logger.debug(traceback.format_exc())
+            self.logger.debug(''.join(traceback.format_exception(None, e, e.__traceback__)))
             self.close_all()
             raise
 

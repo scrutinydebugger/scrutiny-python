@@ -40,7 +40,7 @@ class UdpBridge
     int receive(uint8_t* buffer, int len, int flags = 0);
     void reply(const uint8_t* buffer, int len, int flags = 0);
     void set_nonblocking();
-    void throw_system_error(const char* msg);
+    static void throw_system_error(const char* msg);
 
   private:
     uint16_t m_port;
@@ -48,7 +48,7 @@ class UdpBridge
     SOCKADDR m_last_packet_addr;  // SOCKADDR = sockaddr for linux, SOCKADDR for windows
 
 #if defined(_WIN32)
-    WSAData m_wsa_data;
+    static WSAData wsa_data;
 #endif
 
 };
