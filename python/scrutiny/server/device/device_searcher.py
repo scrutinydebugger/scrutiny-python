@@ -30,6 +30,10 @@ class DeviceSearcher:
     def get_found_device(self):
         return self.found_device
 
+    def get_found_device_ascii(self):
+        if self.found_device is not None:
+            return binascii.hexlify(self.found_device).decode('ascii')
+
     def process(self):
         if not self.started:
             self.reset()
@@ -56,7 +60,7 @@ class DeviceSearcher:
             self.logger.debug("Response data =%s" % (response_data))
 
             self.found_device_timestamp = time.time()
-            self.found_device = binascii.hexlify(response_data['firmware_id']).decode('ascii')
+            self.found_device = response_data['firmware_id']
 
         self.completed()
 
