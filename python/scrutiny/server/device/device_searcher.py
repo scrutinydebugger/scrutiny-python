@@ -1,5 +1,6 @@
 import time
 import logging
+import binascii
 
 from scrutiny.server.protocol import ResponseCode
 
@@ -26,7 +27,7 @@ class DeviceSearcher:
         self.started = False
         self.found_device = None
 
-    def device_found(self):
+    def get_found_device(self):
         return self.found_device
 
     def process(self):
@@ -35,7 +36,7 @@ class DeviceSearcher:
             return 
 
         if time.time() - self.found_device_timestamp > self.DEVICE_GONE_DELAY:
-            self.found_device = False
+            self.found_device = None
 
         if self.pending == False:
             if self.last_request_timestamp is None or (time.time() - self.last_request_timestamp > self.DISCOVER_INTERVAL):
@@ -48,21 +49,20 @@ class DeviceSearcher:
                 self.pending=True
                 self.last_request_timestamp = time.time()
 
-    def success_callback(self, request, response, params=None):
+    def success_callback(self, request, response, response_data, params=None):
         self.logger.debug("Success callback. Request=%s. Response=%s, Params=%s" % (request, response, params))
 
         if response.code == ResponseCode.OK:
-            data = self.protocol.parse_response(response)
-            self.logger.debug("Response data =%s" % (data))
+            self.logger.debug("Response data =%s" % (response_data))
 
             self.found_device_timestamp = time.time()
-            self.found_device = True
+            self.found_device = binascii.hexlify(response_data['firmware_id']).decode('ascii')
 
         self.completed()
 
     def failure_callback(self, request, params=None):
         self.logger.debug("Failure callback. Request=%s. Params=%s" % (request, params))
-        self.found_device = False
+        self.found_device = None
         self.completed()
 
     def completed(self):

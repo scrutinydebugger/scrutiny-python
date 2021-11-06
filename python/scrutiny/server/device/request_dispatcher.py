@@ -8,12 +8,12 @@ class RequestDispatcher:
         def __init__(self):
             self.completed = False
 
-        def complete(self, success=False, response=None):
+        def complete(self, success=False, response=None, response_data = None):
             try:
                 if success:
-                    if response is None:
+                    if response is None or response_data is None:
                         raise ValueError('Missing response')
-                    self.success_callback(self.request, response, self.success_params)
+                    self.success_callback(self.request, response, response_data, self.success_params)
                 else:
                     self.failure_callback(self.request, self.failure_params)
                 self.completed = True

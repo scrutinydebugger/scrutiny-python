@@ -513,7 +513,7 @@ class Protocol:
                 subfn = cmd.CommControl.Subfunction(response.subfn)
 
                 if subfn == cmd.CommControl.Subfunction.Discover:
-                    data['firmware_id'] =  response.payload[0:16]
+                    data['firmware_id'] =  response.payload[0:32]
                 
                 elif subfn == cmd.CommControl.Subfunction.Heartbeat:      
                     data['session_id'], data['challenge_response'] = struct.unpack('>LH', response.payload[0:6])

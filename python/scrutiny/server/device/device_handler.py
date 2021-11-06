@@ -67,13 +67,13 @@ class DeviceHandler:
     def process(self):
         self.device_searcher.start()
         self.device_searcher.process()
-        if self.device_searcher.device_found():
+        if self.device_searcher.get_found_device() is not None:
             if not self.device_was_found:
-                self.logger.info('Found a device!')
+                self.logger.info('Found a device - %s' % self.device_searcher.get_found_device())
         else:
             if self.device_was_found:
                 self.logger.info('Device is gone')
-        self.device_was_found = self.device_searcher.device_found()
+        self.device_was_found = self.device_searcher.get_found_device() is not None
 
         self.handle_comm()  # Make sure request and response are being exchanged with the device
         self.do_state_machine()
@@ -113,7 +113,14 @@ class DeviceHandler:
             elif self.comm_handler.waiting_response():
                 if self.comm_handler.response_available():
                     response = self.comm_handler.get_response()
-                    self.active_request_record.complete(success=True, response=response)
+                    try:
+                        data = self.protocol.parse_response(response)
+                        self.active_request_record.complete(success=True, response=response, response_data=data)
+                    except Exception as e:
+                        self.logger.error("Invalid response received. %s" % str(e))
+                        self.active_request_record.complete(success=False)
+
+
             else: # should never happen
                 self.comm_handler.reset() 
                 self.active_request_record.complete(success=False)

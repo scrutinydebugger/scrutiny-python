@@ -630,8 +630,7 @@ class TestProtocolV1_0(unittest.TestCase):
 # ============= CommControl ===============
 
     def test_response_comm_discover(self):
-        magic = bytes([0x7e, 0x18, 0xfc, 0x68])
-        firmwareid = bytes([0x0, 0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8, 0x9, 0xa, 0xb, 0xc, 0xd, 0xe, 0xf])
+        firmwareid = bytes(range(32))
         response_bytes = bytes([0x82,1,0,0, len(firmwareid)]) + firmwareid 
         response = self.proto.respond_comm_discover(firmwareid)
         self.assert_req_response_bytes(response, response_bytes)
