@@ -124,7 +124,6 @@ class WebsocketClientHandler:
         x = self.ws_server.ws_server.close()
         await self.ws_server.ws_server.wait_closed()
         self.loop.stop()
-        self.logger.info('Websocket listener stopped')
 
     def send(self, conn_id, obj):
         if not self.txqueue.full():

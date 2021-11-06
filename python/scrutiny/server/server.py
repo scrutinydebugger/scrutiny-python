@@ -59,7 +59,7 @@ class ScrutinyServer:
             self.api = API(self.config['api_config'], ds, self.device_handler)
             
             self.api.start_listening()
-            self.device_handler.connect()
+            self.device_handler.init_comm()
             while True:
                 self.api.process()
                 self.device_handler.process()
@@ -77,6 +77,6 @@ class ScrutinyServer:
             self.api.close()
 
         if self.device_handler is not None:
-            self.device_handler.disconnect()
+            self.device_handler.stop_comm()
 
         self.logger.info('Closing server instance "%s"' % self.server_name)

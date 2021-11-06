@@ -100,6 +100,7 @@ class CommHandler:
 
                 try:
                     self.received_response = Response.from_bytes(self.rx_data.data_buffer)
+                    self.logger.debug("Received Response %s" % self.received_response)
                     self.rx_data.clear()
                     self.response_timer.stop()
                 except Exception as e:
@@ -136,6 +137,7 @@ class CommHandler:
 
         self.active_request = request
         data = request.to_bytes()
+        self.logger.debug("Sending request %s" % request)
         self.logger.debug("Sending : %s" % (hexlify(data).decode('ascii')))
         self.link.write(data)
         self.response_timer.start()

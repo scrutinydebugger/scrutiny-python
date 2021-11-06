@@ -2,31 +2,14 @@ import copy
 import queue
 import time
 import logging
+from enum import Enum
 
 from scrutiny.server.protocol.comm_handler import CommHandler
-from scrutiny.server.protocol import Protocol
+from scrutiny.server.protocol import Protocol, ResponseCode
 
-class RequestRecord:
-    __slots__ = ('request', 'success_callback', 'failure_callback', 'succes_params', 'failure_params')
+from scrutiny.server.device.device_searcher import DeviceSearcher
+from scrutiny.server.device.request_dispatcher import RequestDispatcher
 
-class RequestDispatcher:
-
-    def __init__(self):
-        self.request_queue = queue.Queue()
-
-    def register_request(self, request, success_callback, succes_params, failure_callback, failure_params):
-        record = RequestRecord()
-        record.request = request
-        record.success_callback = success_callback
-        record.succes_params = succes_params
-        record.failure_callback = failure_callback
-        record.failure_params = failure_params
-
-        self.request_queue.put(record)
-
-    def pop(self):
-        if not self.request_queue.empty():
-            return self.request_queue.get()
 
 
 class DeviceHandler:
@@ -34,24 +17,29 @@ class DeviceHandler:
             'response_timeout' : 1.0    # If a response take more than this delay to be received after a request is sent, drop the response.
         }
 
+    class FsmState(Enum):
+        DISCOVERING = 0
+        CONNECTING = 1
+        POLLING_INFO = 2
+
     def __init__(self, config, datastore):
+        self.logger = logging.getLogger(self.__class__.__name__)
         self.config = config
         self.datastore = datastore
         self.dispatcher = RequestDispatcher()
-        self.active_request_record = None
+        self.protocol = Protocol(1,0)
+        self.device_searcher = DeviceSearcher(self.protocol, self.dispatcher)
 
         comm_handler_params = copy.copy(self.DEFAULT_COMM_PARAMS)
-
         if 'comm_response_timeout' in self.config:
             comm_handler_params['response_timeout'] = self.config['comm_response_timeout']
-
         self.comm_handler = CommHandler(comm_handler_params)
-        self.connected = False
-        self.protocol = Protocol(1,0)
-        self.t1 = time.time()
-        self.logger = logging.getLogger(self.__class__.__name__)
 
-    def connect(self):
+       # self.fsm_state = self.FsmState.DISCOVERING
+        self.active_request_record = None
+        self.device_was_found = False
+
+    def init_comm(self):
         if self.config['link_type'] == 'none':
             return
 
@@ -68,63 +56,70 @@ class DeviceHandler:
             raise ValueError('Unknown link type %s' % self.config['link_type'])
 
         self.comm_handler.open(device_link)
-        self.connected = True
 
-    def disconnect(self):
+    def stop_comm(self):
         if self.comm_handler is not None:
             self.comm_handler.close()
-        self.connected = False
 
     def refresh_vars(self):
         pass
 
     def process(self):
+        self.device_searcher.start()
+        self.device_searcher.process()
+        if self.device_searcher.device_found():
+            if not self.device_was_found:
+                self.logger.info('Found a device!')
+        else:
+            if self.device_was_found:
+                self.logger.info('Device is gone')
+        self.device_was_found = self.device_searcher.device_found()
+
         self.handle_comm()  # Make sure request and response are being exchanged with the device
-
-        if time.time() - self.t1 > 0.5:
-            self.dispatcher.register_request(
-                request = self.protocol.comm_discover(0x12345678),
-                success_callback = self.success_test,
-                succes_params = 'SUCCESS!',
-                failure_callback = self.failure_test,
-                failure_params = "FAILURE!!"
-                )
-
-            self.t1 = time.time()
+        self.do_state_machine()
 
 
-    def success_test(self, response, params):
-        self.logger.debug("Success callback. Response=%s, Params=%s" % (response, params))
+    def do_state_machine(self):
+        pass
+       # if self.fsm_state == self.FsmState.DISCOVERING:
+       #     pass
 
-    def failure_test(self, params):
-        self.logger.debug("Failure callback. Params=%s" % (params))
+
+
+       # elif self.fsm_state == self.FsmState.CONNECTING:
+       #     pass
+
+
+
+
         
 
     def handle_comm(self):
-        self.comm_handler.process() 
+        self.comm_handler.process()     # Process reception
 
-        if self.comm_handler.is_open():
-            if self.active_request_record is None:
-                record = self.dispatcher.pop()
-                if record is not None:
-                    self.active_request_record = record
-                    self.comm_handler.send_request(record.request)
-            else:
-                if self.comm_handler.has_timed_out():
-                    self.comm_handler.clear_timeout()
-                    self.active_request_record.failure_callback(self.active_request_record.failure_params)
-                    self.active_request_record = None
-                
-                elif not self.comm_handler.waiting_response(): # Should never happen.
-                    self.comm_handler.reset() 
-                    self.active_request_record.failure_callback(self.active_request_record.failure_params)
-                    self.active_request_record = None
+        if not self.comm_handler.is_open():
+            return
+        
+        if self.active_request_record is None:
+            record = self.dispatcher.next()
+            if record is not None:
+                self.active_request_record = record
+                self.comm_handler.send_request(record.request)
+        else:
+            if self.comm_handler.has_timed_out():
+                self.comm_handler.clear_timeout()
+                self.active_request_record.complete(success=False)
 
-            if self.comm_handler.waiting_response():
+            elif self.comm_handler.waiting_response():
                 if self.comm_handler.response_available():
                     response = self.comm_handler.get_response()
-                    self.active_request_record.success_callback(response, self.active_request_record.succes_params)
-                    self.active_request_record = None
+                    self.active_request_record.complete(success=True, response=response)
+            else: # should never happen
+                self.comm_handler.reset() 
+                self.active_request_record.complete(success=False)
 
-        self.comm_handler.process() 
+            if self.active_request_record.is_completed():
+                self.active_request_record = None
+
+        self.comm_handler.process()  # Process new transmission now.
 
