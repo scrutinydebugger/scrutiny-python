@@ -27,3 +27,9 @@ class DummyLink:
     def emulate_device_write(self, data):
         self.from_device_data += data
 
+    def process(self):
+        pass
+
+    def operational(self):
+        return True
+

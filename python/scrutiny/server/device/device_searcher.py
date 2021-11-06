@@ -42,13 +42,13 @@ class DeviceSearcher:
                 self.logger.debug('Registering a Discover request')
                 self.dispatcher.register_request(
                     request = self.protocol.comm_discover(0x12345678),
-                    success_callback = self.success,
-                    failure_callback = self.failure
+                    success_callback = self.success_callback,
+                    failure_callback = self.failure_callback
                     )
                 self.pending=True
                 self.last_request_timestamp = time.time()
 
-    def success(self, request, response, params=None):
+    def success_callback(self, request, response, params=None):
         self.logger.debug("Success callback. Request=%s. Response=%s, Params=%s" % (request, response, params))
 
         if response.code == ResponseCode.OK:
@@ -60,8 +60,9 @@ class DeviceSearcher:
 
         self.completed()
 
-    def failure(self, request, params=None):
+    def failure_callback(self, request, params=None):
         self.logger.debug("Failure callback. Request=%s. Params=%s" % (request, params))
+        self.found_device = False
         self.completed()
 
     def completed(self):

@@ -1,3 +1,2 @@
 from .device_handler import DeviceHandler
-from .fake_device_data_sources import FakeDeviceMemdumpDataSource
 
