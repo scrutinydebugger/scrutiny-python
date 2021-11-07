@@ -11,6 +11,7 @@ from scrutiny.server.device.device_searcher import DeviceSearcher
 from scrutiny.server.device.request_dispatcher import RequestDispatcher
 from scrutiny.server.device.heartbeat_generator import HeartbeatGenerator
 from scrutiny.core.firmware_id import PLACEHOLDER as DEFAULT_FIRMWARE_ID
+from scrutiny.server.server_tools import Timer
 
 DEFAULT_FIRMWARE_ID_ASCII = binascii.hexlify(DEFAULT_FIRMWARE_ID).decode('ascii')
 
@@ -42,6 +43,7 @@ class DeviceHandler:
         self.heartbeat_generator.set_interval(max(0.5, self.config['heartbeat_timeout'] * 0.75))
         self.comm_broken = False
         self.device_id = None
+        self.reconnect_timer = Timer(1)
 
         self.reset_comm()
 
@@ -58,6 +60,7 @@ class DeviceHandler:
         self.device_searcher.stop()
         self.heartbeat_generator.stop()
         self.session_id = None
+        self.reconnect_timer.stop()
 
     def init_comm(self):
         if self.config['link_type'] == 'none':
@@ -129,9 +132,10 @@ class DeviceHandler:
         elif self.fsm_state == self.FsmState.CONNECTING:
             if state_entry:
                 self.comm_handler.reset()   # Clear any active transmission. Just for safety
-            
+        
             if not self.comm_handler.waiting_response():
-                self.comm_handler.send_request(self.protocol.comm_connect())
+                if self.reconnect_timer.is_stopped() or self.reconnect_timer.is_timed_out():
+                    self.comm_handler.send_request(self.protocol.comm_connect())
 
             if self.comm_handler.has_timed_out():
                 self.comm_broken = True
@@ -144,6 +148,8 @@ class DeviceHandler:
                     self.heartbeat_generator.start()    # This guy will send recurrent heartbeat request. If that request fails (timeout), comme will be reset
                     self.connected = True
                     next_state = self.FsmState.POLLING_INFO
+                else:
+                    self.reconnect_timer.start()
 
         elif self.fsm_state == self.FsmState.POLLING_INFO:
             pass
