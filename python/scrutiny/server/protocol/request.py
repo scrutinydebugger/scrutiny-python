@@ -56,10 +56,11 @@ class Request:
         return req
 
     def __repr__(self):
-        s = '<%s: %s(0x%02X). %d bytes of data >' % (
+        s = '<%s: %s(0x%02X, subfn=%d). %d bytes of data >' % (
             __class__.__name__,
             self.command.__name__,
             self.command_id,
+            self.subfn,
             len(self.payload)
             )
         return s

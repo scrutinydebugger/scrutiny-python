@@ -102,6 +102,9 @@ class Protocol:
 
     def comm_heartbeat(self, session_id, challenge):
         return Request(cmd.CommControl, cmd.CommControl.Subfunction.Heartbeat, struct.pack('>LH', session_id, challenge))
+
+    def heartbeat_expected_challenge_response(self, challenge):
+        return ~challenge & 0xFFFF
    
     def comm_get_params(self):
         return Request(cmd.CommControl, cmd.CommControl.Subfunction.GetParams)

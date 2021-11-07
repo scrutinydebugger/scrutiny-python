@@ -53,12 +53,10 @@ class DeviceSearcher:
                 self.pending=True
                 self.last_request_timestamp = time.time()
 
-    def success_callback(self, request, response, response_data, params=None):
-        self.logger.debug("Success callback. Request=%s. Response=%s, Params=%s" % (request, response, params))
+    def success_callback(self, request, response_code, response_data, params=None):
+        self.logger.debug("Success callback. Request=%s. Response Code=%s, Params=%s" % (request, response_code, params))
 
-        if response.code == ResponseCode.OK:
-            self.logger.debug("Response data =%s" % (response_data))
-
+        if response_code == ResponseCode.OK:
             self.found_device_timestamp = time.time()
             self.found_device = response_data['firmware_id']
 

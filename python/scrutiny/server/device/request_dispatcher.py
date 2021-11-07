@@ -13,7 +13,7 @@ class RequestDispatcher:
             if success:
                 if response is None or response_data is None:
                     raise ValueError('Missing response')
-                self.success_callback(self.request, response, response_data, self.success_params)
+                self.success_callback(self.request, response.code, response_data, self.success_params)
             else:
                 self.failure_callback(self.request, self.failure_params)
 

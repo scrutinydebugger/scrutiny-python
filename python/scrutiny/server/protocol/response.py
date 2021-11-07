@@ -63,10 +63,11 @@ class Response:
         return response
 
     def __repr__(self):
-        s = '<%s: %s(0x%02X) with code %s(0x%02X). %d bytes of data >' % (
+        s = '<%s: %s(0x%02X, subfn=%d) with code %s(0x%02X). %d bytes of data >' % (
             __class__.__name__,
             self.command.__name__,
             self.command_id,
+            self.subfn,
             self.code.name,
             self.code.value,
             len(self.payload)

@@ -9,13 +9,15 @@ from scrutiny.server.protocol.comm_handler import CommHandler
 from scrutiny.server.protocol import Protocol, ResponseCode
 from scrutiny.server.device.device_searcher import DeviceSearcher
 from scrutiny.server.device.request_dispatcher import RequestDispatcher
+from scrutiny.server.device.heartbeat_generator import HeartbeatGenerator
 from scrutiny.core.firmware_id import PLACEHOLDER as DEFAULT_FIRMWARE_ID
 
 DEFAULT_FIRMWARE_ID_ASCII = binascii.hexlify(DEFAULT_FIRMWARE_ID).decode('ascii')
 
 class DeviceHandler:
-    DEFAULT_COMM_PARAMS = {
-            'response_timeout' : 1.0    # If a response take more than this delay to be received after a request is sent, drop the response.
+    DEFAULT_PARAMS = {
+            'response_timeout' : 1.0,    # If a response take more than this delay to be received after a request is sent, drop the response.
+            'heartbeat_timeout' : 4.0
         }
 
     class FsmState(Enum):
@@ -26,16 +28,18 @@ class DeviceHandler:
 
     def __init__(self, config, datastore):
         self.logger = logging.getLogger(self.__class__.__name__)
-        self.config = config
+
+        self.config = copy.copy(self.DEFAULT_PARAMS)
+        self.config.update(config)
         self.datastore = datastore
         self.dispatcher = RequestDispatcher()
         self.protocol = Protocol(1,0)
         self.device_searcher = DeviceSearcher(self.protocol, self.dispatcher)
+        self.heartbeat_generator = HeartbeatGenerator(self.protocol, self.dispatcher)
 
-        comm_handler_params = copy.copy(self.DEFAULT_COMM_PARAMS)
-        if 'comm_response_timeout' in self.config:
-            comm_handler_params['response_timeout'] = self.config['comm_response_timeout']
-        self.comm_handler = CommHandler(comm_handler_params)
+        self.comm_handler = CommHandler(self.config)
+
+        self.heartbeat_generator.set_interval(max(0.5, self.config['heartbeat_timeout'] * 0.75))
         self.comm_broken = False
         self.device_id = None
 
@@ -45,12 +49,15 @@ class DeviceHandler:
         if self.comm_broken and self.device_id is not None:
             self.logger.info('Communication with device stopped. Restarting')
 
+        self.connected = False
         self.fsm_state = self.FsmState.INIT
         self.last_fsm_state = self.FsmState.INIT
         self.active_request_record = None
         self.device_id = None
         self.comm_broken = False
         self.device_searcher.stop()
+        self.heartbeat_generator.stop()
+        self.session_id = None
 
     def init_comm(self):
         if self.config['link_type'] == 'none':
@@ -78,13 +85,20 @@ class DeviceHandler:
         pass
 
     def process(self):
+        self.device_searcher.process()
+        self.heartbeat_generator.process()
+
         self.handle_comm()      # Make sure request and response are being exchanged with the device
         self.do_state_machine()
+        
 
 
     def do_state_machine(self):
         if self.comm_broken:
             self.fsm_state = self.FsmState.INIT
+
+        if self.connected:
+            time.time() - self.heartbeat_generator.last_valid_heartbeat_timestamp() > self.config['heartbeat_timeout']
 
         # ===   FSM  ===
         state_entry = True if self.fsm_state != self.last_fsm_state else False
@@ -97,8 +111,6 @@ class DeviceHandler:
         elif self.fsm_state == self.FsmState.DISCOVERING:
             if state_entry:
                 self.device_searcher.start()
-
-            self.device_searcher.process()
 
             found_device_id = self.device_searcher.get_found_device_ascii()
             if found_device_id is not None:
@@ -115,7 +127,28 @@ class DeviceHandler:
 
         #============= CONNECTING =====================
         elif self.fsm_state == self.FsmState.CONNECTING:
+            if state_entry:
+                self.comm_handler.reset()   # Clear any active transmission. Just for safety
+            
+            if not self.comm_handler.waiting_response():
+                self.comm_handler.send_request(self.protocol.comm_connect())
+
+            if self.comm_handler.has_timed_out():
+                self.comm_broken = True
+            elif self.comm_handler.response_available():
+                response = self.comm_handler.get_response()
+                if response.code == ResponseCode.OK:
+                    self.session_id = self.protocol.parse_response(response)['session_id']
+                    self.logger.debug("Session ID set : 0x%08x" % self.session_id)
+                    self.heartbeat_generator.set_session_id(self.session_id)
+                    self.heartbeat_generator.start()    # This guy will send recurrent heartbeat request. If that request fails (timeout), comme will be reset
+                    self.connected = True
+                    next_state = self.FsmState.POLLING_INFO
+
+        elif self.fsm_state == self.FsmState.POLLING_INFO:
             pass
+
+
 
 
         # ====  FSM END ====
@@ -147,6 +180,7 @@ class DeviceHandler:
             elif self.comm_handler.waiting_response():      # We are still wiating for a resonse
                 if self.comm_handler.response_available():  # We got a response! yay
                     response = self.comm_handler.get_response()
+
                     try:
                         data = self.protocol.parse_response(response)
                         self.active_request_record.complete(success=True, response=response, response_data=data) # Valid response if we get here.

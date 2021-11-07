@@ -24,7 +24,6 @@ class CommHandler:
         'response_timeout' : 1
     }
 
-    SUPPORTED_PARAMS = ['response_timeout']
 
     def __init__(self, params={}):
         self.active_request = None
@@ -33,10 +32,6 @@ class CommHandler:
         self.link = None
         self.params = copy(self.DEFAULT_PARAMS)
         self.params.update(params)
-
-        for param in self.params:
-            if param not in self.SUPPORTED_PARAMS:
-                raise ValueError('Unsupported parameter %s' % param)
 
         self.response_timer = Timer(self.params['response_timeout'])
         self.rx_data = self.RxData() # Contains the response data while we read it.
@@ -103,6 +98,12 @@ class CommHandler:
                     self.logger.debug("Received Response %s" % self.received_response)
                     self.rx_data.clear()
                     self.response_timer.stop()
+
+                    if self.received_response.command != self.active_request.command:
+                        raise Exception("Unexpected Response command ID : %s" % str(self.received_response))
+                    if self.received_response.subfn != self.active_request.subfn:
+                        raise Exception("Unexpected Response Subfunction : %s" % str(self.received_response))
+
                 except Exception as e:
                     self.logger.error("Received malformed message. "  + str(e))
                     self.reset_rx();
