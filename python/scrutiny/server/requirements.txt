@@ -1,0 +1,3 @@
+pyelftools
+appdirs
+websockets

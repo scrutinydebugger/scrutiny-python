@@ -1,0 +1,10 @@
+build
+.vs
+CMakeSettings.json
+Makefile
+_deps
+CMakeFiles
+*.cmake
+CMakeCache.txt
+bin/
+out/
