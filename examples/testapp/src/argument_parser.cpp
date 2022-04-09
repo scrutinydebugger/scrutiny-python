@@ -43,11 +43,6 @@ void ArgumentParser::parse(int argc, char* argv[])
 			m_last_error = "Bad number of arguments";
 		}
 	}
-	else if (cmd == "pipe")
-	{
-		m_command = TestAppCommand::Pipe;
-		m_valid = true;
-	}
 	else if (cmd == "udp-listen")
 	{
 		m_command = TestAppCommand::UdpListen;

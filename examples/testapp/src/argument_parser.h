@@ -8,7 +8,6 @@ enum class TestAppCommand
 {
 	None,
 	Memdump,
-	Pipe,
 	UdpListen
 };
 

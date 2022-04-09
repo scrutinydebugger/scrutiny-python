@@ -106,49 +106,6 @@ int main(int argc, char* argv[])
                 }
             }
         }
-        // Pipe mode. Read STDIN, write STDOUT.
-        // Meant to be controlled by another process that open the test app as a child process.
-        else if (parser.command() == TestAppCommand::Pipe)
-        {
-            // Removed that piece of code as I couldn't get the pipe communication to work reliably.
-
-            /*
-            uint8_t cout_transfer_buf[128];
-            try
-            {
-                while (true)
-                {
-                    now_timestamp = chrono::steady_clock::now();
-                    uint32_t timestep = static_cast<uint32_t>(chrono::duration_cast<chrono::microseconds>(now_timestamp - last_timestamp).count());
-             
-                    char c;
-                    while (cin.get(c))
-                    {
-                        scrutiny_handler.comm()->receive_data(reinterpret_cast<uint8_t*>(&c), 1);
-                    }
-
-                    uint32_t data_to_send = scrutiny_handler.comm()->data_to_send();
-                    data_to_send = min(data_to_send, static_cast<uint32_t>(sizeof(cout_transfer_buf)));
-
-                    if (data_to_send > 0)
-                    {
-                        scrutiny_handler.comm()->pop_data(cout_transfer_buf, data_to_send);
-                        cout.write(reinterpret_cast<char*>(cout_transfer_buf), data_to_send);
-                        cout.flush();
-                    }
-
-                    scrutiny_handler.process(timestep);
-                    this_thread::sleep_for(chrono::milliseconds(10));
-                    last_timestamp = now_timestamp;
-                }
-            }
-            catch (std::exception const& e)
-            {
-                cerr << e.what() << endl;
-            }
-            */
-        }
-
         // Listen on a UDP port, reply to the address of the last sender.
         
         else if (parser.command() == TestAppCommand::UdpListen)
