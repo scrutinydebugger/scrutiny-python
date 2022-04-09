@@ -10,7 +10,8 @@ ArgumentParser::ArgumentParser() :
 	m_command(TestAppCommand::None),
 	m_region_index(0),
 	m_argc(0),
-	m_argv(nullptr)
+	m_argv(nullptr),
+	m_last_error()
 {
 
 }
@@ -22,6 +23,7 @@ void ArgumentParser::parse(int argc, char* argv[])
 	if (argc < 2)
 	{
 		m_valid = false;
+		m_last_error = "Missing command";
 		return;
 	}
 
@@ -35,6 +37,10 @@ void ArgumentParser::parse(int argc, char* argv[])
 		if (argc >= 4 && argc % 2 == 0)
 		{
 			m_valid = true;
+		}
+		else
+		{
+			m_last_error = "Bad number of arguments";
 		}
 	}
 	else if (cmd == "pipe")
@@ -53,7 +59,19 @@ void ArgumentParser::parse(int argc, char* argv[])
 				m_udp_port = static_cast<uint16_t>(port);
 				m_valid = true;
 			}
+			else
+			{
+				m_last_error = "Port not in range 0-65535";
+			}
 		}
+		else
+		{
+			m_last_error = "Missing port";
+		}
+	}
+	else
+	{
+		m_last_error = std::string("Unknown command ") + cmd;
 	}
 }
 

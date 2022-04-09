@@ -79,6 +79,7 @@ int main(int argc, char* argv[])
 
     if (!parser.is_valid())
     {
+        cout << "Invalid usage" << endl << parser.error_message() << endl;
         errorcode = -1;
     }
     else
