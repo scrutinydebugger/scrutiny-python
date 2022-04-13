@@ -1,11 +1,12 @@
 from .base_command import BaseCommand
 from .make_firmware_info import MakeFirmwareInfo
-from .get_firmware_id import GateFirmwareId
+from .get_firmware_id import GetFirmwareId
 from .make_metadata import MakeMetadata
 from .install_firmware_info import InstallFirmwareInfo
 from .uninstall_firmware_info import UninstallFirmwareInfo
 from .elf2varmap import Elf2VarMap
 from .launch_server import LaunchServer
+from .runtest import RunTest
 
 def get_all_commands():
     return BaseCommand.__subclasses__()

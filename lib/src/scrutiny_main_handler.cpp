@@ -129,6 +129,13 @@ namespace scrutiny
 
 			// =========== [GetSupportedFeatures] ==========
 		case protocol::GetInfo::Subfunction::GetSupportedFeatures:
+			// TODO : Make this configurable.  Memory read/write should be disablable. Datalogging available only if configured. User command if a callback is given.
+			response_data.get_supproted_features.memory_read = true;	
+			response_data.get_supproted_features.memory_write = true;
+			response_data.get_supproted_features.datalog_acquire = false;
+			response_data.get_supproted_features.user_command = false;
+
+			code = m_codec.encode_response_supported_features(&response_data.get_supproted_features, response);
 			break;
 
 			// =========== [GetSpecialMemoryRegionCount] ==========
@@ -272,6 +279,7 @@ namespace scrutiny
 			response_data.get_params.max_bitrate = m_config.max_bitrate;
 			response_data.get_params.comm_rx_timeout = SCRUTINY_COMM_RX_TIMEOUT_US;
 			response_data.get_params.heartbeat_timeout = SCRUTINY_COMM_HEARTBEAT_TMEOUT_US;
+			response_data.get_params.address_size = sizeof(void*);
 			code = m_codec.encode_response_comm_get_params(&response_data.get_params, response);
 			break;
 

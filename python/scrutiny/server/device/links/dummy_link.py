@@ -1,6 +1,46 @@
+import threading
+
+class ThreadSafeDummyLink:
+    def __init__(self, config=None):
+        self.initialize()
+        
+    def initialize(self):
+        self.to_device_data = bytes()
+        self.from_device_data = bytes()
+        self.from_device_mutex = threading.Lock()
+        self.to_device_mutex = threading.Lock()
+
+    def destroy(self):
+        self.initialize()
+
+    def write(self, data):
+        with  self.to_device_mutex:
+            self.to_device_data += data
+
+    def read(self):
+        with self.from_device_mutex:
+            data = self.from_device_data
+            self.from_device_data = bytes()
+        return data
+
+    def emulate_device_read(self):
+        with self.to_device_mutex:
+            data = self.to_device_data
+            self.to_device_data = bytes()
+        return data
+
+    def emulate_device_write(self, data):
+        with self.from_device_mutex:
+            self.from_device_data += data
+
+    def process(self):
+        pass
+
+    def operational(self):
+        return True
 
 class DummyLink:
-    def __init__(self):
+    def __init__(self, config=None):
         self.initialize()
 
     def initialize(self):
@@ -32,4 +72,3 @@ class DummyLink:
 
     def operational(self):
         return True
-

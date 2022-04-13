@@ -5,7 +5,7 @@ from scrutiny.server.protocol import ResponseCode
 
 class HeartbeatGenerator:
 
-    def __init__(self, protocol, dispatcher):
+    def __init__(self, protocol, dispatcher, priority=10):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.dispatcher = dispatcher
         self.protocol = protocol
@@ -14,6 +14,7 @@ class HeartbeatGenerator:
         self.last_heartbeat_timestamp = time.time()
         self.challenge = 0
         self.interval = 3
+        self.priority = priority
         self.reset()
 
     def set_interval(self, interval):
@@ -48,7 +49,7 @@ class HeartbeatGenerator:
                     request = self.protocol.comm_heartbeat(session_id=self.session_id, challenge=self.challenge),
                     success_callback = self.success_callback,
                     failure_callback = self.failure_callback,
-                    priority=0
+                    priority=self.priority
                     )
                 self.pending=True
                 self.last_heartbeat_request = time.time()

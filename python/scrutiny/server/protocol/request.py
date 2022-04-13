@@ -56,11 +56,17 @@ class Request:
         return req
 
     def __repr__(self):
-        s = '<%s: %s(0x%02X, subfn=%d). %d bytes of data >' % (
+        try:
+            enum_instance = self.command.Subfunction(self.subfn)
+            subfn_name = '%s(%d)' % (enum_instance.name, enum_instance.value)
+        except:
+            subfn_name = '%d' % self.subfn
+
+        s = '<%s: %s(0x%02X), subfn=%s. %d bytes of data >' % (
             __class__.__name__,
             self.command.__name__,
             self.command_id,
-            self.subfn,
+            subfn_name,
             len(self.payload)
             )
         return s

@@ -21,6 +21,16 @@ class RequestDispatcher:
         def is_completed(self):
             return self.completed
 
+        # Workaround for PriorityQueue that compare the data when priority is equal. bpo-31145
+        def __lt__(self, other):
+            return False
+
+        def __gt__(self, other):
+            return False
+
+        def __eq__(self, other):
+            return True
+
     def __init__(self):
         self.request_queue = queue.PriorityQueue()
 

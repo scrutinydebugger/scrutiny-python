@@ -142,13 +142,16 @@ class TestProtocolV1_0(unittest.TestCase):
         self.assertEqual(data['blocks'][1]['length'], 0x456)  
 
     def test_req_read_single_memory_block_32bits_bad_content(self):
+        self.proto.logger.disabled = True
         self.proto.set_address_size(32)
         request = Request(cmd.MemoryControl, cmd.MemoryControl.Subfunction.Read, [0x12, 0x34, 0x56, 0x78, 0x01])
         with self.assertRaises(Exception):
+            self.proto.logger.disabled = True
             self.proto.parse_request(request)
 
         request = Request(cmd.MemoryControl, cmd.MemoryControl.Subfunction.Read, [0x12, 0x34, 0x56, 0x78, 0x01, 0x23, 0x45])
         with self.assertRaises(Exception):
+            self.proto.logger.disabled = True
             self.proto.parse_request(request)
 
 # ----------
@@ -241,6 +244,7 @@ class TestProtocolV1_0(unittest.TestCase):
         self.assertEqual(data['blocks'][1]['data'], bytes([0x99, 0x88, 0x77, 0x66]))
 
     def test_req_write_single_memory_block_32bits_bad_content(self):
+        self.proto.logger.disabled = True
         self.proto.set_address_size(32)
         request = Request(cmd.MemoryControl, cmd.MemoryControl.Subfunction.Write, [0x12, 0x34, 0x56, 0x78, 0x00, 0x03, 0x11, 0x22])
         with self.assertRaises(Exception):
@@ -524,6 +528,7 @@ class TestProtocolV1_0(unittest.TestCase):
         self.assertEqual(data['blocks'][1]['data'], bytes([0xFF, 0xEE, 0xDD]))  
 
     def test_parse_response_read_memory_block_invalid_content(self):
+        self.proto.logger.disabled = True
         response = Response(cmd.MemoryControl, cmd.MemoryControl.Subfunction.Read, Response.ResponseCode.OK)
         with self.assertRaises(Exception):
             response.data = bytes([0x12,0x34,0x56,0x78, 0x00, 0x03, 0x11, 0x22])    
@@ -645,14 +650,15 @@ class TestProtocolV1_0(unittest.TestCase):
         self.assertEqual(data['challenge_response'], 0x1122)
 
     def test_response_comm_get_params(self):
-        response = self.proto.respond_comm_get_params(max_rx_data_size = 0x1234, max_tx_data_size = 0x4321, max_bitrate = 0x11223344, heartbeat_timeout = 0x99887766, rx_timeout = 0x98765432);
-        self.assert_req_response_bytes(response, [0x82,3,0,0,16, 0x12, 0x34, 0x43, 0x21, 0x11, 0x22, 0x33, 0x44, 0x99, 0x88, 0x77, 0x66, 0x98, 0x76, 0x54, 0x32]);
+        response = self.proto.respond_comm_get_params(max_rx_data_size = 0x1234, max_tx_data_size = 0x4321, max_bitrate_bps = 0x11223344, heartbeat_timeout_us = 0x99887766, rx_timeout_us = 0x98765432, address_size_byte=4);
+        self.assert_req_response_bytes(response, [0x82,3,0,0,17, 0x12, 0x34, 0x43, 0x21, 0x11, 0x22, 0x33, 0x44, 0x99, 0x88, 0x77, 0x66, 0x98, 0x76, 0x54, 0x32, 0x04]);
         data = self.proto.parse_response(response)
         self.assertEqual(data['max_rx_data_size'], 0x1234)
         self.assertEqual(data['max_tx_data_size'], 0x4321)
-        self.assertEqual(data['max_bitrate'], 0x11223344)
-        self.assertEqual(data['heartbeat_timeout'], 0x99887766)
-        self.assertEqual(data['rx_timeout'], 0x98765432)
+        self.assertEqual(data['max_bitrate_bps'], 0x11223344)
+        self.assertEqual(data['heartbeat_timeout_us'], 0x99887766)
+        self.assertEqual(data['rx_timeout_us'], 0x98765432)
+        self.assertEqual(data['address_size_byte'], 4)
         
     def test_response_comm_connect(self):
         magic = bytes([0x82, 0x90, 0x22, 0x66])

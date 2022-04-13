@@ -143,8 +143,9 @@ TEST_F(TestCommControl, TestGetParams)
 {
 	uint8_t tx_buffer[32];
 	uint8_t request_data[8] = { 2,3,0,0 };
+	constexpr uint8_t address_size = sizeof(std::uintptr_t);
 	add_crc(request_data, sizeof(request_data) - 4);
-	constexpr uint16_t datalen = 2 + 2 + 4 + 4 + 4;
+	constexpr uint16_t datalen = 2 + 2 + 4 + 4 + 4 + 1;
 
 	uint8_t expected_response[9 + datalen] = { 0x82,3,0,0, datalen };
 	uint8_t i = 5;
@@ -164,6 +165,7 @@ TEST_F(TestCommControl, TestGetParams)
 	expected_response[i++] = (SCRUTINY_COMM_RX_TIMEOUT_US >> 16) & 0xFF;
 	expected_response[i++] = (SCRUTINY_COMM_RX_TIMEOUT_US >> 8) & 0xFF;
 	expected_response[i++] = (SCRUTINY_COMM_RX_TIMEOUT_US >> 0) & 0xFF;
+	expected_response[i++] = address_size;
 	add_crc(expected_response, sizeof(expected_response) - 4);
 
 	scrutiny_handler.comm()->connect();

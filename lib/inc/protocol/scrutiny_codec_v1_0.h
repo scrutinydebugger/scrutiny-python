@@ -99,7 +99,10 @@ namespace scrutiny
 
 				struct GetSupportedFeatures
 				{
-					uint8_t temp;
+					bool memory_read;
+					bool memory_write;
+					bool datalog_acquire;
+					bool user_command;
 				};
 
 				struct GetSpecialMemoryRegionCount
@@ -131,6 +134,7 @@ namespace scrutiny
 					uint32_t max_bitrate;
 					uint32_t comm_rx_timeout;
 					uint32_t heartbeat_timeout;
+					uint8_t address_size;
 				};
 				struct Connect
 				{
@@ -150,7 +154,6 @@ namespace scrutiny
 					uint8_t region_type;
 					uint8_t region_index;
 				};
-
 			}
 
 			namespace CommControl
@@ -187,6 +190,7 @@ namespace scrutiny
 			ResponseCode encode_response_software_id(Response* response);
 			ResponseCode encode_response_special_memory_region_count(const ResponseData::GetInfo::GetSpecialMemoryRegionCount* response_data, Response* response);
 			ResponseCode encode_response_special_memory_region_location(const ResponseData::GetInfo::GetSpecialMemoryRegionLocation* response_data, Response* response);
+			ResponseCode encode_response_supported_features(const ResponseData::GetInfo::GetSupportedFeatures* response_data, Response* response);
 
 			ResponseCode encode_response_comm_discover( Response* response);
 			ResponseCode encode_response_comm_heartbeat(const ResponseData::CommControl::Heartbeat* response_data, Response* response);

@@ -63,11 +63,17 @@ class Response:
         return response
 
     def __repr__(self):
-        s = '<%s: %s(0x%02X, subfn=%d) with code %s(0x%02X). %d bytes of data >' % (
+        try:
+            enum_instance = self.command.Subfunction(self.subfn);
+            subfn_name = '%s(%d)' % (enum_instance.name, enum_instance.value)
+        except:
+            subfn_name = '%d' % self.subfn
+
+        s = '<%s: %s(0x%02X), subfn=%s with code %s(%d). %d bytes of data >' % (
             __class__.__name__,
             self.command.__name__,
             self.command_id,
-            self.subfn,
+            subfn_name,
             self.code.name,
             self.code.value,
             len(self.payload)

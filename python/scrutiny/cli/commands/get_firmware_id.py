@@ -6,7 +6,7 @@ import mmap
 import os
 import logging
 
-class GateFirmwareId(BaseCommand):
+class GetFirmwareId(BaseCommand):
     _cmd_name_ = 'get-firmware-id'
     _brief_ = 'Extract a unique hash from a binary firmware used for device identification.'
     _group_ = 'Build Toochain'

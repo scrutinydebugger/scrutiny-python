@@ -8,10 +8,11 @@ class DeviceSearcher:
     DISCOVER_INTERVAL = 0.5
     DEVICE_GONE_DELAY = 3
 
-    def __init__(self, protocol, dispatcher):
+    def __init__(self, protocol, dispatcher, priority=10):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.dispatcher = dispatcher
         self.protocol = protocol
+        self.priority = priority
         self.reset()
 
     def start(self):
@@ -48,7 +49,8 @@ class DeviceSearcher:
                 self.dispatcher.register_request(
                     request = self.protocol.comm_discover(),
                     success_callback = self.success_callback,
-                    failure_callback = self.failure_callback
+                    failure_callback = self.failure_callback,
+                    priority = self.priority
                     )
                 self.pending=True
                 self.last_request_timestamp = time.time()
@@ -59,6 +61,9 @@ class DeviceSearcher:
         if response_code == ResponseCode.OK:
             self.found_device_timestamp = time.time()
             self.found_device = response_data['firmware_id']
+        else:
+            self.logger.error('Discover request got Nacked. %s' % response_code)
+            self.found_device = None
 
         self.completed()
 

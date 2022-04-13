@@ -353,12 +353,39 @@ namespace scrutiny
 			return ResponseCode::OK;
 		}
 
+		ResponseCode CodecV1_0::encode_response_supported_features(const ResponseData::GetInfo::GetSupportedFeatures* response_data, Response* response)
+		{
+			constexpr uint16_t datalen = 1;
+
+			static_assert(datalen <= SCRUTINY_TX_BUFFER_SIZE, "SCRUTINY_TX_BUFFER_SIZE too small");
+
+			response->data[0] = 0x00;
+			if (response_data->memory_read)
+				response->data[0] |= 0x80;
+			
+			if (response_data->memory_write)
+				response->data[0] |= 0x40;
+
+			if (response_data->datalog_acquire)
+				response->data[0] |= 0x20;
+
+			if (response_data->user_command)
+				response->data[0] |= 0x10;
+			
+			response->data_length = 1;
+			return ResponseCode::OK;
+		}
+
 		ResponseCode CodecV1_0::decode_request_get_special_memory_region_location(const Request* request, RequestData::GetInfo::GetSpecialMemoryRegionLocation* request_data)
 		{
 			request_data->region_type = request->data[0];
 			request_data->region_index = request->data[1];
 			return ResponseCode::OK;
 		}
+
+
+
+		// ============================ CommunicationControl ============================
 
 		ResponseCode CodecV1_0::encode_response_comm_discover(Response* response)
 		{
@@ -393,13 +420,15 @@ namespace scrutiny
 			constexpr uint16_t max_bitrate_size = sizeof(response_data->max_bitrate);
 			constexpr uint16_t heartbeat_timeout_size = sizeof(response_data->heartbeat_timeout);
 			constexpr uint16_t comm_rx_timeout_size = sizeof(response_data->comm_rx_timeout);
-			constexpr uint16_t datalen = rx_buffer_size_len + tx_buffer_size_len + max_bitrate_size + heartbeat_timeout_size + comm_rx_timeout_size;
+			constexpr uint16_t address_size_size = sizeof(response_data->address_size);
+			constexpr uint16_t datalen = rx_buffer_size_len + tx_buffer_size_len + max_bitrate_size + heartbeat_timeout_size + comm_rx_timeout_size + address_size_size;
 
 			constexpr uint16_t rx_buffer_size_pos = 0;
 			constexpr uint16_t tx_buffer_size_pos = rx_buffer_size_pos + rx_buffer_size_len;
 			constexpr uint16_t max_bitrate_pos = tx_buffer_size_pos + tx_buffer_size_len;
 			constexpr uint16_t heartbeat_timeout_pos = max_bitrate_pos + max_bitrate_size;
 			constexpr uint16_t comm_rx_timeout_pos = heartbeat_timeout_pos + heartbeat_timeout_size;
+			constexpr uint16_t address_size_pos = comm_rx_timeout_pos + comm_rx_timeout_size;
 
 			static_assert(datalen <= SCRUTINY_TX_BUFFER_SIZE, "SCRUTINY_TX_BUFFER_SIZE too small");
 
@@ -410,6 +439,7 @@ namespace scrutiny
 			encode_32_bits_big_endian(response_data->max_bitrate, &response->data[max_bitrate_pos]);
 			encode_32_bits_big_endian(response_data->heartbeat_timeout, &response->data[heartbeat_timeout_pos]);
 			encode_32_bits_big_endian(response_data->comm_rx_timeout, &response->data[comm_rx_timeout_pos]);
+			response->data[address_size_pos] = response_data->address_size;	// Size in bytes
 
 			return ResponseCode::OK;
 		}
@@ -431,8 +461,6 @@ namespace scrutiny
 		}
 
 
-
-		// ===== Decoding =====
 		ResponseCode CodecV1_0::decode_request_comm_discover(const Request* request, RequestData::CommControl::Discover* request_data)
 		{
 			constexpr uint16_t magic_size = sizeof(CommControl::DISCOVER_MAGIC);
@@ -499,6 +527,9 @@ namespace scrutiny
 			request_data->session_id = decode_32_bits_big_endian(&request->data[0]);
 			return ResponseCode::OK;
 		}
+
+
+		// ============================ MemoryControl ============================
 
 		ReadMemoryBlocksRequestParser* CodecV1_0::decode_request_memory_control_read(const Request* request)
 		{
