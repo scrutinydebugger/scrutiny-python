@@ -8,3 +8,4 @@ CMakeFiles
 CMakeCache.txt
 bin/
 out/
+/venv

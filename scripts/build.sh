@@ -13,4 +13,4 @@ cmake -GNinja \
         -DCMAKE_BUILD_TYPE=Release \
         "$APP_ROOT"
 
-nice cmake --build . --target all -- -l$(nproc)
+nice cmake --build . --target all -- -j8

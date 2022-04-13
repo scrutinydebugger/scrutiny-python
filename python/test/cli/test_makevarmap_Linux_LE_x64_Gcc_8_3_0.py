@@ -4,6 +4,7 @@ import json
 import os, sys
 
 from scrutiny.core import *
+from scrutiny.core.bintools.elf_dwarf_var_extractor import ElfDwarfVarExtractor
 from scrutiny.core.memdump import Memdump
 from test.artifacts import get_artifact
 
@@ -14,8 +15,9 @@ class TestMakeVarMap_LinuxLEx64_Gcc8_3_0(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        process = subprocess.Popen('python -m scrutiny elf2varmap %s' % cls.bin_filename, stdout=subprocess.PIPE, stdin=subprocess.PIPE, universal_newlines=True)
-        cls.varmap = VarMap(process.communicate(input='')[0])
+        extractor = ElfDwarfVarExtractor(cls.bin_filename)
+        varmap = extractor.get_varmap()
+        cls.varmap = VarMap(varmap.get_json())
         cls.memdump = Memdump(cls.memdump_filename)
 
     def load_var(self, fullname):
@@ -24,12 +26,12 @@ class TestMakeVarMap_LinuxLEx64_Gcc8_3_0(unittest.TestCase):
     def assert_var(self, fullname, thetype, addr = None, bitsize=None, bitoffset=None, value_at_loc=None, float_tol=0.00001):
         v = self.load_var(fullname)
         self.assertEqual(thetype, v.get_type())
-        
+
         if bitsize is not None:
-           self.assertEqual(v.bitsize, bitsize) 
+           self.assertEqual(v.bitsize, bitsize)
 
         if bitoffset is not None:
-           self.assertEqual(v.bitoffset, bitoffset) 
+           self.assertEqual(v.bitoffset, bitoffset)
 
         if addr is not None:
             self.assertEqual(addr, v.get_address())
@@ -80,7 +82,7 @@ class TestMakeVarMap_LinuxLEx64_Gcc8_3_0(unittest.TestCase):
         self.assert_var('/global/file2GlobalFloat', VariableType.float32, value_at_loc = 0.1)
         self.assert_var('/global/file2GlobalDouble', VariableType.float64, value_at_loc = 0.11111111111111)
         self.assert_var('/global/file2GlobalBool', VariableType.boolean, value_at_loc = False)
-   
+
     def test_file1_static_basic_types(self):
         self.assert_var('/static/file1.cpp/file1StaticChar', VariableType.sint8, value_at_loc = 99)
         self.assert_var('/static/file1.cpp/file1StaticInt', VariableType.sint32, value_at_loc = 987654)
@@ -105,7 +107,7 @@ class TestMakeVarMap_LinuxLEx64_Gcc8_3_0(unittest.TestCase):
         self.assert_var('/static/file2.cpp/file2StaticUnsignedLong', VariableType.uint64, value_at_loc = 78)
         self.assert_var('/static/file2.cpp/file2StaticFloat', VariableType.float32, value_at_loc =  2.22222)
         self.assert_var('/static/file2.cpp/file2StaticDouble', VariableType.float64, value_at_loc =  3.3333)
-        self.assert_var('/static/file2.cpp/file2StaticBool', VariableType.boolean, value_at_loc =  True)        
+        self.assert_var('/static/file2.cpp/file2StaticBool', VariableType.boolean, value_at_loc =  True)
 
     def test_func_static(self):
         self.assert_var('/static/file2.cpp/file2func1()/file2func1Var', VariableType.sint32, value_at_loc = -88778877)
@@ -138,7 +140,7 @@ class TestMakeVarMap_LinuxLEx64_Gcc8_3_0(unittest.TestCase):
         self.assert_var('/global/file1StructAInstance/structAMemberFloat', VariableType.float32,   addr=v.get_address()+8,     value_at_loc = 77.77)
         self.assert_var('/global/file1StructAInstance/structAMemberDouble', VariableType.float64,  addr=v.get_address()+12,    value_at_loc = 66.66)
         self.assert_var('/global/file1StructAInstance/structAMemberBool', VariableType.boolean,    addr=v.get_address()+20,    value_at_loc = False )
-    
+
     def test_structB(self):
         v = self.assert_var('/global/file1StructBInstance/structBMemberInt', VariableType.sint32,                                                  value_at_loc =  55555)
         self.assert_var('/global/file1StructBInstance/structBMemberStructA/structAMemberInt', VariableType.sint32,     addr=v.get_address() + 4,   value_at_loc =  -199999)
@@ -179,7 +181,7 @@ class TestMakeVarMap_LinuxLEx64_Gcc8_3_0(unittest.TestCase):
         self.assert_var('/global/file2ClassBInstance/intInClassB', VariableType.sint32, value_at_loc = -11111)
         self.assert_var('/global/file2ClassBInstance/nestedClassInstance/intInClassBA', VariableType.sint32, value_at_loc = -22222)
         self.assert_var('/global/file2ClassBInstance/nestedClassInstance/classAInstance/intInClassA', VariableType.sint32, value_at_loc = -33333)
-        
+
         self.assert_var('/static/file2.cpp/file2ClassBStaticInstance/intInClassB', VariableType.sint32, value_at_loc = -44444)
         self.assert_var('/static/file2.cpp/file2ClassBStaticInstance/nestedClassInstance/intInClassBA', VariableType.sint32, value_at_loc = -55555)
         self.assert_var('/static/file2.cpp/file2ClassBStaticInstance/nestedClassInstance/classAInstance/intInClassA', VariableType.sint32, value_at_loc = -66666)
