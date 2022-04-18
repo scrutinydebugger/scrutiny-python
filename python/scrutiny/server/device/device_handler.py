@@ -39,12 +39,13 @@ class DeviceHandler:
         'default_protocol_version': '1.0'
     }
 
+    # Low number = Low priority
     class RequestPriority:
-        Disconnect = 0
-        Heatbeat = 1
-        Connect = 2
-        PollInfo = 5
-        Discover = 10
+        Disconnect = 4
+        Connect = 3
+        Heatbeat = 2
+        PollInfo = 1
+        Discover = 0
 
     class ConnectionStatus(Enum):
         UNKNOWN = -1

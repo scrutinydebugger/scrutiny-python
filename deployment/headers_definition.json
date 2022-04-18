@@ -94,7 +94,7 @@
         "docstring": "Emulate a device that is compiled with the C++ lib.\nFor unit testing purpose"
     },
     "python\\scrutiny\\server\\device\\request_dispatcher.py": {
-        "docstring": "Use a PriorityQueue to dispatch Request to the device. Associate each request wil its callback"
+        "docstring": "Use a PriorityQueue to dispatch Request to the device. Associate each request with its callback"
     },
     "python\\scrutiny\\server\\device\\links\\dummy_link.py": {
         "docstring": "Fake communication link with a device. Used by the EmulatedDevice for unit test purpose"

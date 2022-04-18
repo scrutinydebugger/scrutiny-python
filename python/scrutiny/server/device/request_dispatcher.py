@@ -1,5 +1,5 @@
 #    request_dispatcher.py
-#        Use a PriorityQueue to dispatch Request to the device. Associate each request wil
+#        Use a PriorityQueue to dispatch Request to the device. Associate each request wi
 #        its callback
 #
 #   - License : MIT - See LICENSE file.
@@ -7,10 +7,47 @@
 #
 #   Copyright (c) 2021-2022 scrutinydebugger
 
-import queue
+import bisect
 
 
 class RequestDispatcher:
+
+    class RequestQueue:
+        """
+        Non-thread-safe Queue with priority.
+        Replace queue.PriorityQueue simply because I don't like that they compare data and don't want to introduce workarounds or 
+        dataclass from Python 3.7 just for not comparing the data when selecting priority.
+        We will have all the flexibility we need with our own minimalist custom class
+        """
+
+        def __init__(self):
+            self.clear()
+
+        def clear(self):
+            self.data = []
+            self.priorities = []
+
+        def push(self, item, priority=0):
+            index = bisect.bisect_left(self.priorities, priority)
+            self.data.insert(index, item)
+            self.priorities.insert(index, priority)
+
+        def pop(self):
+            if len(self.data) > 0:
+                item = self.data[-1]
+                del self.priorities[-1]
+                del self.data[-1]
+                return item
+
+        def peek(self):
+            if len(self.data) > 0:
+                return self.data[-1]
+
+        def empty(self):
+            return len(self.data) == 0
+
+        def __len__(self):
+            return len(self.data)
 
     class RequestRecord:
         __slots__ = ('request', 'success_callback', 'failure_callback', 'success_params', 'failure_params', 'completed')
@@ -30,18 +67,8 @@ class RequestDispatcher:
         def is_completed(self):
             return self.completed
 
-        # Workaround for PriorityQueue that compare the data when priority is equal. bpo-31145
-        def __lt__(self, other):
-            return False
-
-        def __gt__(self, other):
-            return False
-
-        def __eq__(self, other):
-            return True
-
     def __init__(self):
-        self.request_queue = queue.PriorityQueue()
+        self.request_queue = self.RequestQueue()
 
     def register_request(self, request, success_callback, failure_callback, priority=0, success_params=None, failure_params=None):
         record = self.RequestRecord()
@@ -51,9 +78,7 @@ class RequestDispatcher:
         record.failure_callback = failure_callback
         record.failure_params = failure_params
 
-        self.request_queue.put((priority, record))
+        self.request_queue.push(record, priority)
 
     def next(self):
-        if not self.request_queue.empty():
-            prio, req = self.request_queue.get()
-            return req
+        return self.request_queue.pop()
