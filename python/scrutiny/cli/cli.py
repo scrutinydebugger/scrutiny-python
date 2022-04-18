@@ -74,7 +74,7 @@ class CLI:
 
             for cmd in self.command_list:
                 if cmd.get_name() == args.command:
-                    cmd_instance = cmd(command_cargs, requested_log_level = args.loglevel)
+                    cmd_instance = cmd(command_cargs, requested_log_level=args.loglevel)
                     break
 
             current_workdir = os.getcwd()

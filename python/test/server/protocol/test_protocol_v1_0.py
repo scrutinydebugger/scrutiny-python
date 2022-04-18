@@ -652,7 +652,7 @@ class TestProtocolV1_0(unittest.TestCase):
     def test_response_comm_discover(self):
         firmwareid = bytes(range(32))
         display_name = 'hello'
-        response_bytes = bytes([0x82, 1, 0, 0, len(firmwareid)+len(display_name.encode('utf8'))]) + firmwareid + display_name.encode('utf8')
+        response_bytes = bytes([0x82, 1, 0, 0, len(firmwareid) + len(display_name.encode('utf8'))]) + firmwareid + display_name.encode('utf8')
         response = self.proto.respond_comm_discover(firmwareid, display_name)
         self.assert_req_response_bytes(response, response_bytes)
         data = self.proto.parse_response(response)

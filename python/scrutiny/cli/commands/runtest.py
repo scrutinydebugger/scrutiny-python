@@ -11,6 +11,7 @@ from .base_command import BaseCommand
 import unittest
 import logging
 
+
 class RunTest(BaseCommand):
     _cmd_name_ = 'runtest'
     _brief_ = 'Run unit tests'
@@ -21,7 +22,8 @@ class RunTest(BaseCommand):
         self.parser = argparse.ArgumentParser(prog=self.get_prog())
         self.parser.add_argument('--module', default=None, help='The test module to run. All if not specified')
         self.parser.add_argument('--verbosity', default=2, help='Verbosity level of the unittest module')
-        self.requested_log_level=  requested_log_level
+        self.requested_log_level = requested_log_level
+
     def run(self):
         args = self.parser.parse_args(self.args)
 

@@ -37,7 +37,7 @@ class DeviceSearcher:
         self.found_device_timestamp = time.time()
         self.started = False
         self.found_device = None
-        self.found_device_display_name=''
+        self.found_device_display_name = ''
 
     def get_found_device(self):
         return self.found_device
