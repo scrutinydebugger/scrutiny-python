@@ -22,6 +22,7 @@ protected:
 	virtual void SetUp()
 	{
 		config.max_bitrate = 0x12345678;
+		config.set_display_name("hello");
 		scrutiny_handler.init(&config);
 	}
 };
@@ -29,15 +30,17 @@ protected:
 
 TEST_F(TestCommControl, TestDiscover)
 {
+
 	ASSERT_FALSE(scrutiny_handler.comm()->is_connected());   // We should get a Discover response even when not connected.
 	ASSERT_EQ(sizeof(scrutiny::protocol::CommControl::DISCOVER_MAGIC), 4u);
-	uint8_t request_data[8 + 4] = { 2,1,0,4 };
+	uint8_t request_data[8 + 4] = { 2,1,0,4};
 	std::memcpy(&request_data[4], scrutiny::protocol::CommControl::DISCOVER_MAGIC, sizeof(scrutiny::protocol::CommControl::DISCOVER_MAGIC));
 
 
 	uint8_t tx_buffer[64];
-	uint8_t expected_response[9 + 32] = { 0x82,1,0,0,32 };   // Version 1.0
+	uint8_t expected_response[9 + 32+5] = { 0x82,1,0,0,32+5};   // Version 1.0
 	std::memcpy(&expected_response[5], scrutiny::software_id, sizeof(scrutiny::software_id));
+	std::memcpy(&expected_response[5+sizeof(scrutiny::software_id)], "hello", 5);
 
 	add_crc(request_data, sizeof(request_data) - 4);
 	add_crc(expected_response, sizeof(expected_response) - 4);

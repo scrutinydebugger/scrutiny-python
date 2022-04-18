@@ -7,6 +7,7 @@
 //   Copyright (c) 2021-2022 scrutinydebugger
 
 #include "scrutiny_config.h"
+#include <cstring>
 
 namespace scrutiny
 {
@@ -21,6 +22,7 @@ namespace scrutiny
 		clear();
 		max_bitrate = src->max_bitrate;
 		user_command_callback = src->user_command_callback;
+		set_display_name(src->m_display_name);
 
 		for (uint32_t i = 0; i < SCRUTINY_FORBIDDEN_ADDRESS_RANGE_COUNT; i++)
 		{
@@ -55,6 +57,10 @@ namespace scrutiny
 		m_forbidden_range_count = 0;
 		m_readonly_range_count = 0;
 		user_command_callback = nullptr;
+		for (uint16_t i=0; i<DISPLAY_NAME_MAX_SIZE; i++)
+		{
+			m_display_name[i] = '\0';
+		}
 	}
 
 	bool Config::add_forbidden_address_range(void* start, void* end)
@@ -93,6 +99,11 @@ namespace scrutiny
 		m_readonly_address_ranges[m_readonly_range_count].set = true;
 		m_readonly_range_count++;
 		return true;
+	}
+
+	void Config::set_display_name(const char* name)
+	{
+		strncpy(m_display_name, name, DISPLAY_NAME_MAX_SIZE);
 	}
 
 }

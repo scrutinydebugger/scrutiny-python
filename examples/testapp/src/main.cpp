@@ -72,6 +72,7 @@ int main(int argc, char* argv[])
     scrutiny::MainHandler scrutiny_handler;
     scrutiny::Config config;
     config.max_bitrate = 100000;
+    config.set_display_name("TestApp Executable");
     scrutiny_handler.init(&config);
 
     ArgumentParser parser;

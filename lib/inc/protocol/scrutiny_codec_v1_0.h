@@ -130,6 +130,10 @@ namespace scrutiny
 
 			namespace CommControl
 			{
+				struct Discover
+				{
+					const char* display_name;
+				};
 				struct Heartbeat
 				{
 					uint32_t session_id;
@@ -200,7 +204,7 @@ namespace scrutiny
 			ResponseCode encode_response_special_memory_region_location(const ResponseData::GetInfo::GetSpecialMemoryRegionLocation* response_data, Response* response);
 			ResponseCode encode_response_supported_features(const ResponseData::GetInfo::GetSupportedFeatures* response_data, Response* response);
 
-			ResponseCode encode_response_comm_discover( Response* response);
+			ResponseCode encode_response_comm_discover(Response* response, const ResponseData::CommControl::Discover* response_data);
 			ResponseCode encode_response_comm_heartbeat(const ResponseData::CommControl::Heartbeat* response_data, Response* response);
 			ResponseCode encode_response_comm_get_params(const ResponseData::CommControl::GetParams* response_data, Response* response);
 			ResponseCode encode_response_comm_connect(const ResponseData::CommControl::Connect* response_data, Response* response);

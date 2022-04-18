@@ -245,10 +245,13 @@ class DeviceHandler:
             found_device_id = self.device_searcher.get_found_device_ascii()
             if found_device_id is not None:
                 if self.device_id is None:
-                    self.logger.info('Found a device - %s' % found_device_id)
+                    self.device_display_name = self.device_searcher.get_found_device_display_name()
+                    if not self.device_display_name:
+                        self.device_display_name = 'Anonymous'
                     self.device_id = found_device_id
+                    self.logger.info('Found a device. "%s" (ID: %s)' % (self.device_display_name, self.device_id))
 
-                    if found_device_id == DEFAULT_FIRMWARE_ID_ASCII:
+                    if self.device_id == DEFAULT_FIRMWARE_ID_ASCII:
                         self.logger.warning(
                             "Firmware ID of this device is a default placeholder. Firmware might not have been tagged with a valid ID in the build toolchain.")
 
