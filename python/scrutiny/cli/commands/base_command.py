@@ -1,5 +1,15 @@
+#    base_command.py
+#        Abstract class for all commands. Used to automatically find all available commands
+#        through reflection
+#
+#   - License : MIT - See LICENSE file.
+#   - Project : Scrutiny Debugger (github.com/scrutinydebugger/scrutiny)
+#
+#   Copyright (c) 2021-2022 scrutinydebugger
+
 import argparse
 from abc import ABC
+
 
 class BaseCommand(ABC):
 

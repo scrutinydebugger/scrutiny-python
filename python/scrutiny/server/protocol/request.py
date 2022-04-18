@@ -1,3 +1,11 @@
+#    request.py
+#        Represent a request sent by the server and received by the device
+#
+#   - License : MIT - See LICENSE file.
+#   - Project : Scrutiny Debugger (github.com/scrutinydebugger/scrutiny)
+#
+#   Copyright (c) 2021-2022 scrutinydebugger
+
 import struct
 import inspect
 from enum import Enum
@@ -5,10 +13,11 @@ from enum import Enum
 from .crc32 import crc32
 from .commands.base_command import BaseCommand
 
+
 class Request:
     def __init__(self, command, subfn, payload=b''):
         if inspect.isclass(command) and issubclass(command, BaseCommand):
-            self.command = command 
+            self.command = command
         elif isinstance(command, int):
             self.command = BaseCommand.from_command_id(command)
         else:
@@ -43,7 +52,7 @@ class Request:
             raise Exception('Command MSB indicates this message is a Response.')
 
         req = Request(cmd, subfn)
-        length, = struct.unpack('>H', data[2:4])        
+        length, = struct.unpack('>H', data[2:4])
         req.payload = data[4:-4]
         if length != len(req.payload):
             raise Exception('Length mismatch between real payload length (%d) and encoded length (%d)' % (len(req.payload), length))
@@ -68,10 +77,8 @@ class Request:
             self.command_id,
             subfn_name,
             len(self.payload)
-            )
+        )
         return s
 
     def __str__(self):
         return self.__repr__()
-
-

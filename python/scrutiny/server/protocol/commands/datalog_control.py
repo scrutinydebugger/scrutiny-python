@@ -1,5 +1,14 @@
+#    datalog_control.py
+#        Scrutiny protocol command to trigger and read data logs.
+#
+#   - License : MIT - See LICENSE file.
+#   - Project : Scrutiny Debugger (github.com/scrutinydebugger/scrutiny)
+#
+#   Copyright (c) 2021-2022 scrutinydebugger
+
 from .base_command import BaseCommand
 from enum import Enum
+
 
 class DatalogControl(BaseCommand):
     _cmd_id = 5
@@ -14,4 +23,3 @@ class DatalogControl(BaseCommand):
         ArmLog = 7
         DisarmLog = 8
         GetLogStatus = 9
-

@@ -1,15 +1,23 @@
+#    test_datastore.py
+#        Test the Datastore behaviour
+#
+#   - License : MIT - See LICENSE file.
+#   - Project : Scrutiny Debugger (github.com/scrutinydebugger/scrutiny)
+#
+#   Copyright (c) 2021-2022 scrutinydebugger
+
 import unittest
 
 from scrutiny.server.datastore import Datastore, DatastoreEntry
+
 
 class TestDataStore(unittest.TestCase):
     def setUp(self):
         self.callback_call_history = {}
 
-
     def make_dummy_entries(self, n):
         for i in range(n):
-            entry = DatastoreEntry(DatastoreEntry.Type.eVar, 'path_%d' %i)
+            entry = DatastoreEntry(DatastoreEntry.Type.eVar, 'path_%d' % i)
             yield entry
 
     def entry_callback(self, owner, args, entry):
@@ -17,9 +25,9 @@ class TestDataStore(unittest.TestCase):
             self.callback_call_history[owner] = {}
 
         if entry.get_id() not in self.callback_call_history[owner]:
-            self.callback_call_history[owner][ entry.get_id()] = 0
+            self.callback_call_history[owner][entry.get_id()] = 0
 
-        self.callback_call_history[owner][entry.get_id()]+=1
+        self.callback_call_history[owner][entry.get_id()] += 1
 
     def assertCallbackCalled(self, entry_id, owner, n, msg=None):
         if isinstance(entry_id, DatastoreEntry):
@@ -63,10 +71,10 @@ class TestDataStore(unittest.TestCase):
         owner2 = 4567
         for entry in entries:
             ds.start_watching(entry.get_id(), callback_owner=owner, callback=self.entry_callback, args=dict(someParam=entry.get_id()))
-        
+
         for entry in entries:
             self.assertCallbackCalled(entry, owner, 0)
-            
+
         entries[0].execute_value_change_callback()
         self.assertCallbackCalled(entries[0], owner, 1)
         self.assertCallbackCalled(entries[1], owner, 0)
@@ -106,5 +114,4 @@ class TestDataStore(unittest.TestCase):
         self.assertCallbackCalled(entries[2], owner, 1)
         self.assertCallbackCalled(entries[3], owner, 1)
         self.assertCallbackCalled(entries[4], owner, 1)
-        self.assertCallbackCalled(entries[4], owner2,1)
-
+        self.assertCallbackCalled(entries[4], owner2, 1)

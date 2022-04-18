@@ -1,3 +1,12 @@
+//    scrutiny_config.h
+//        Definition of a run-time configuration of the scrutiny module.
+//        To be filled in startup phase
+//
+//   - License : MIT - See LICENSE file.
+//   - Project : Scrutiny Debugger (github.com/scrutinydebugger/scrutiny)
+//
+//   Copyright (c) 2021-2022 scrutinydebugger
+
 #ifndef ___SCRUTINY_CONFIG_H___
 #define ___SCRUTINY_CONFIG_H___
 

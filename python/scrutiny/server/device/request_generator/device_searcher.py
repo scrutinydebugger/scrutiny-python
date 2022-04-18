@@ -1,8 +1,18 @@
+#    device_searcher.py
+#        Once enbled, generates DISCOVER requests to find a device at the other end of the
+#        communication link.
+#
+#   - License : MIT - See LICENSE file.
+#   - Project : Scrutiny Debugger (github.com/scrutinydebugger/scrutiny)
+#
+#   Copyright (c) 2021-2022 scrutinydebugger
+
 import time
 import logging
 import binascii
 
 from scrutiny.server.protocol import ResponseCode
+
 
 class DeviceSearcher:
     DISCOVER_INTERVAL = 0.5
@@ -38,7 +48,7 @@ class DeviceSearcher:
     def process(self):
         if not self.started:
             self.reset()
-            return 
+            return
 
         if time.time() - self.found_device_timestamp > self.DEVICE_GONE_DELAY:
             self.found_device = None
@@ -47,12 +57,12 @@ class DeviceSearcher:
             if self.last_request_timestamp is None or (time.time() - self.last_request_timestamp > self.DISCOVER_INTERVAL):
                 self.logger.debug('Registering a Discover request')
                 self.dispatcher.register_request(
-                    request = self.protocol.comm_discover(),
-                    success_callback = self.success_callback,
-                    failure_callback = self.failure_callback,
-                    priority = self.priority
-                    )
-                self.pending=True
+                    request=self.protocol.comm_discover(),
+                    success_callback=self.success_callback,
+                    failure_callback=self.failure_callback,
+                    priority=self.priority
+                )
+                self.pending = True
                 self.last_request_timestamp = time.time()
 
     def success_callback(self, request, response_code, response_data, params=None):
@@ -73,4 +83,4 @@ class DeviceSearcher:
         self.completed()
 
     def completed(self):
-        self.pending = False     
+        self.pending = False

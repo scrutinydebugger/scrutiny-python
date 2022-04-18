@@ -1,3 +1,13 @@
+//    scrutiny_test.h
+//        Base class for CPP unit tests.
+//        All test should inherit this class.
+//         Includes bunch of helper for easy testing.
+//
+//   - License : MIT - See LICENSE file.
+//   - Project : Scrutiny Debugger (github.com/scrutinydebugger/scrutiny)
+//
+//   Copyright (c) 2021-2022 scrutinydebugger
+
 #include <gtest/gtest.h>
 #include <cstdlib>
 #include <cstdint>

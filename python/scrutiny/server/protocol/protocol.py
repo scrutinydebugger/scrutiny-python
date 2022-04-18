@@ -1,3 +1,11 @@
+#    protocol.py
+#        Allow encoding and decoding of data based on the Scrutiny Protocol
+#
+#   - License : MIT - See LICENSE file.
+#   - Project : Scrutiny Debugger (github.com/scrutinydebugger/scrutiny)
+#
+#   Copyright (c) 2021-2022 scrutinydebugger
+
 import struct
 
 from . import commands as cmd
@@ -8,22 +16,23 @@ import logging
 import ctypes
 import traceback
 
+
 class Protocol:
 
     class AddressFormat:
         def __init__(self, nbits):
             PACK_CHARS = {
-                8 : 'B',
-                16 : 'H',
-                32 : 'L',
-                64 : 'Q'
+                8: 'B',
+                16: 'H',
+                32: 'L',
+                64: 'Q'
             }
 
             if nbits not in PACK_CHARS:
                 raise ValueError('Unsupported address format %s' % nbits)
 
             self.nbits = nbits
-            self.nbytes = int(nbits/8)
+            self.nbytes = int(nbits / 8)
             self.pack_char = PACK_CHARS[nbits]
 
         def get_address_size(self):
@@ -32,8 +41,7 @@ class Protocol:
         def get_pack_char(self):
             return self.pack_char
 
-
-    def __init__(self, version_major=1, version_minor=0, address_size = 32):
+    def __init__(self, version_major=1, version_minor=0, address_size=32):
         self.version_major = version_major
         self.version_minor = version_minor
         self.logger = logging.getLogger(self.__class__.__name__)
@@ -47,7 +55,7 @@ class Protocol:
             raise ValueError('Version major and minor number must be a valid integer.')
 
         if major == 999 and minor == 123:
-            pass # Special version for unit test
+            pass  # Special version for unit test
 
         elif major != 1 or minor != 0:  # For futur
             raise NotImplementedError('Protocol version %d.%d is not supported' % (major, minor))
@@ -59,10 +67,10 @@ class Protocol:
         self.version_minor = minor
 
     def encode_address(self, address):
-        return struct.pack('>%s' % self.address_format.get_pack_char(),  address)
+        return struct.pack('>%s' % self.address_format.get_pack_char(), address)
 
     def decode_address(self, buff):
-        return struct.unpack('>%s' % self.address_format.get_pack_char(),  buff[0:self.address_format.get_address_size()])[0]
+        return struct.unpack('>%s' % self.address_format.get_pack_char(), buff[0:self.address_format.get_address_size()])[0]
 
     def compute_challenge_16bits(self, challenge):
         return ctypes.c_uint16(~challenge).value
@@ -87,7 +95,6 @@ class Protocol:
             region_type = region_type.value
         data = struct.pack('BB', region_type, region_index)
         return Request(cmd.GetInfo, cmd.GetInfo.Subfunction.GetSpecialMemoryRegionLocation, data)
-
 
     def read_single_memory_block(self, address, length):
         block_list = [(address, length)]
@@ -115,31 +122,31 @@ class Protocol:
 
     def comm_discover(self):
         data = cmd.CommControl.DISCOVER_MAGIC
-        return Request(cmd.CommControl, cmd.CommControl.Subfunction.Discover, data) 
+        return Request(cmd.CommControl, cmd.CommControl.Subfunction.Discover, data)
 
     def comm_heartbeat(self, session_id, challenge):
         return Request(cmd.CommControl, cmd.CommControl.Subfunction.Heartbeat, struct.pack('>LH', session_id, challenge))
 
     def heartbeat_expected_challenge_response(self, challenge):
         return ~challenge & 0xFFFF
-   
+
     def comm_get_params(self):
         return Request(cmd.CommControl, cmd.CommControl.Subfunction.GetParams)
 
     def comm_connect(self):
         return Request(cmd.CommControl, cmd.CommControl.Subfunction.Connect, cmd.CommControl.CONNECT_MAGIC)
-    
+
     def comm_disconnect(self, session_id):
         return Request(cmd.CommControl, cmd.CommControl.Subfunction.Disconnect, struct.pack('>L', session_id))
 
     def datalog_get_targets(self):
-        return Request(cmd.DatalogControl, cmd.DatalogControl.Subfunction.GetAvailableTarget) 
+        return Request(cmd.DatalogControl, cmd.DatalogControl.Subfunction.GetAvailableTarget)
 
     def datalog_get_bufsize(self):
-        return Request(cmd.DatalogControl, cmd.DatalogControl.Subfunction.GetBufferSize) 
+        return Request(cmd.DatalogControl, cmd.DatalogControl.Subfunction.GetBufferSize)
 
     def datalog_get_sampling_rates(self):
-        return Request(cmd.DatalogControl, cmd.DatalogControl.Subfunction.GetSamplingRates) 
+        return Request(cmd.DatalogControl, cmd.DatalogControl.Subfunction.GetSamplingRates)
 
     def datalog_configure_log(self, conf):
         if not isinstance(conf, DatalogConfiguration):
@@ -159,29 +166,28 @@ class Protocol:
             else:
                 raise Exception('Unknown operand type %s' % operand.type)
 
-        return Request(cmd.DatalogControl, cmd.DatalogControl.Subfunction.ConfigureDatalog, data) 
+        return Request(cmd.DatalogControl, cmd.DatalogControl.Subfunction.ConfigureDatalog, data)
 
     def datalog_get_list_recordings(self):
-        return Request(cmd.DatalogControl, cmd.DatalogControl.Subfunction.ListRecordings) 
+        return Request(cmd.DatalogControl, cmd.DatalogControl.Subfunction.ListRecordings)
 
     def datalog_read_recording(self, record_id):
         return Request(cmd.DatalogControl, cmd.DatalogControl.Subfunction.ReadRecordings, struct.pack('>H', record_id))
 
     def datalog_arm(self):
-        return Request(cmd.DatalogControl, cmd.DatalogControl.Subfunction.ArmLog) 
+        return Request(cmd.DatalogControl, cmd.DatalogControl.Subfunction.ArmLog)
 
     def datalog_disarm(self):
-        return Request(cmd.DatalogControl, cmd.DatalogControl.Subfunction.DisarmLog) 
+        return Request(cmd.DatalogControl, cmd.DatalogControl.Subfunction.DisarmLog)
 
     def datalog_status(self):
-        return Request(cmd.DatalogControl, cmd.DatalogControl.Subfunction.GetLogStatus) 
+        return Request(cmd.DatalogControl, cmd.DatalogControl.Subfunction.GetLogStatus)
 
     def user_command(self, subfn, data=b''):
-        return Request(cmd.UserCommand, subfn, data) 
-
+        return Request(cmd.UserCommand, subfn, data)
 
     def parse_request(self, req):
-        data = {'valid' : True}
+        data = {'valid': True}
         try:
             if req.command == cmd.GetInfo:
                 subfn = cmd.GetInfo.Subfunction(req.subfn)
@@ -193,17 +199,19 @@ class Protocol:
 
             elif req.command == cmd.MemoryControl:
                 subfn = cmd.MemoryControl.Subfunction(req.subfn)
-                
+
                 if subfn == cmd.MemoryControl.Subfunction.Read:                     # MemoryControl - Read
                     block_size = (2 + self.address_format.get_address_size())
-                    if len(req.payload) % block_size  !=0:
-                        raise Exception('Request data length is not a multiple of %d bytes (addres[%d] + length[2])' % (block_size, self.address_format.get_address_size()))
-                    nblock = int(len(req.payload)/block_size)
-                    data['blocks']=[]
+                    if len(req.payload) % block_size != 0:
+                        raise Exception(
+                            'Request data length is not a multiple of %d bytes (addres[%d] + length[2])' % (block_size, self.address_format.get_address_size()))
+                    nblock = int(len(req.payload) / block_size)
+                    data['blocks'] = []
                     for i in range(nblock):
-                        (addr, length) = struct.unpack('>' + self.address_format.get_pack_char() + 'H', req.payload[(i*block_size+0):(i*block_size+block_size)])
+                        (addr, length) = struct.unpack('>' + self.address_format.get_pack_char() +
+                                                       'H', req.payload[(i * block_size + 0):(i * block_size + block_size)])
                         data['blocks'].append(dict(address=addr, length=length))
-                
+
                 elif subfn == cmd.MemoryControl.Subfunction.Write:                  # MemoryControl - Write
                     data['blocks'] = []
                     c = self.address_format.get_pack_char()
@@ -213,65 +221,65 @@ class Protocol:
                         if len(req.payload) < index + address_length_size:
                             raise Exception('Invalid request data, missing data')
 
-                        addr, length = struct.unpack('>'+c+'H', req.payload[(index+0):(index+address_length_size)])
+                        addr, length = struct.unpack('>' + c + 'H', req.payload[(index + 0):(index + address_length_size)])
                         if len(req.payload) < index + address_length_size + length:
                             raise Exception('Data length and encoded length mismatch for address 0x%x' % addr)
 
-                        req_data = req.payload[(index+address_length_size):(index+address_length_size+length)]
-                        data['blocks'].append(dict(address = addr, data = req_data))
-                        index += address_length_size+length
+                        req_data = req.payload[(index + address_length_size):(index + address_length_size + length)]
+                        data['blocks'].append(dict(address=addr, data=req_data))
+                        index += address_length_size + length
 
                         if index >= len(req.payload):
                             break;
 
             elif req.command == cmd.DatalogControl:
                 subfn = cmd.DatalogControl.Subfunction(req.subfn)
-                
+
                 if subfn == cmd.DatalogControl.Subfunction.ReadRecordings:          # DatalogControl - ReadRecordings
                     (data['record_id'],) = struct.unpack('>H', req.payload[0:2])
-                
+
                 elif subfn == cmd.DatalogControl.Subfunction.ConfigureDatalog:      # DatalogControl - ConfigureDatalog
                     conf = DatalogConfiguration()
                     (conf.destination, conf.sample_rate, conf.decimation, num_watches) = struct.unpack('>BfBH', req.payload[0:8])
 
                     for i in range(num_watches):
-                        pos = 8+i*6
-                        (addr, length) = struct.unpack('>LH', req.payload[pos:pos+6])
+                        pos = 8 + i * 6
+                        (addr, length) = struct.unpack('>LH', req.payload[pos:pos + 6])
                         conf.add_watch(addr, length)
-                    pos = 8+num_watches*6
-                    condition_num, = struct.unpack('>B', req.payload[pos:pos+1])
+                    pos = 8 + num_watches * 6
+                    condition_num, = struct.unpack('>B', req.payload[pos:pos + 1])
                     conf.trigger.condition = DatalogConfiguration.TriggerCondition(condition_num)
-                    pos +=1
+                    pos += 1
                     operands = []
                     for i in range(2):
-                        operand_type_num, = struct.unpack('B', req.payload[pos:pos+1])
-                        pos +=1
+                        operand_type_num, = struct.unpack('B', req.payload[pos:pos + 1])
+                        pos += 1
                         operand_type = DatalogConfiguration.Operand.Type(operand_type_num)
                         if operand_type == DatalogConfiguration.Operand.Type.CONST:
-                            val, = struct.unpack('>f', req.payload[pos:pos+4])
+                            val, = struct.unpack('>f', req.payload[pos:pos + 4])
                             operands.append(DatalogConfiguration.ConstOperand(val))
-                            pos +=4
+                            pos += 4
                         elif operand_type == DatalogConfiguration.Operand.Type.WATCH:
-                            (address, length, interpret_as) = struct.unpack('>LBB', req.payload[pos:pos+6])
+                            (address, length, interpret_as) = struct.unpack('>LBB', req.payload[pos:pos + 6])
                             operands.append(DatalogConfiguration.WatchOperand(address=address, length=length, interpret_as=interpret_as))
-                            pos +=6
+                            pos += 6
                     conf.trigger.operand1 = operands[0]
                     conf.trigger.operand2 = operands[1]
                     data['configuration'] = conf
-           
+
             elif req.command == cmd.CommControl:
                 subfn = cmd.CommControl.Subfunction(req.subfn)
-            
+
                 if subfn == cmd.CommControl.Subfunction.Discover:          # CommControl - Discover
                     data['magic'] = req.payload[0:4]
 
                 elif subfn == cmd.CommControl.Subfunction.Connect:          # CommControl - Connect
                     data['magic'] = req.payload[0:4]
-                
-                elif subfn == cmd.CommControl.Subfunction.Heartbeat: 
+
+                elif subfn == cmd.CommControl.Subfunction.Heartbeat:
                     data['session_id'], data['challenge'] = struct.unpack('>LH', req.payload[0:8])
 
-                elif subfn == cmd.CommControl.Subfunction.Disconnect: 
+                elif subfn == cmd.CommControl.Subfunction.Disconnect:
                     data['session_id'], = struct.unpack('>L', req.payload[0:4])
 
         except Exception as e:
@@ -308,13 +316,13 @@ class Protocol:
 
         if memory_write:
             bytes1 |= 0x40
-        
+
         if datalog_acquire:
             bytes1 |= 0x20
 
         if user_command:
             bytes1 |= 0x10
-        
+
         return Response(cmd.GetInfo, cmd.GetInfo.Subfunction.GetSupportedFeatures, Response.ResponseCode.OK, bytes([bytes1]))
 
     def respond_special_memory_region_count(self, readonly, forbidden):
@@ -323,10 +331,10 @@ class Protocol:
     def respond_special_memory_region_location(self, region_type, region_index, start, end):
         if isinstance(region_type, cmd.GetInfo.MemoryRangeType):
             region_type = region_type.value
-        data =  struct.pack('BB', region_type, region_index)
+        data = struct.pack('BB', region_type, region_index)
         data += self.encode_address(start) + self.encode_address(end)
         return Response(cmd.GetInfo, cmd.GetInfo.Subfunction.GetSpecialMemoryRegionLocation, Response.ResponseCode.OK, data)
-  
+
     def respond_comm_discover(self, firmware_id):
         resp_data = bytes(firmware_id)
         return Response(cmd.CommControl, cmd.CommControl.Subfunction.Discover, Response.ResponseCode.OK, resp_data)
@@ -341,7 +349,7 @@ class Protocol:
     def respond_comm_connect(self, session_id):
         resp_data = cmd.CommControl.CONNECT_MAGIC + struct.pack('>L', session_id)
         return Response(cmd.CommControl, cmd.CommControl.Subfunction.Connect, Response.ResponseCode.OK, resp_data)
-   
+
     def respond_comm_disconnect(self):
         return Response(cmd.CommControl, cmd.CommControl.Subfunction.Disconnect, Response.ResponseCode.OK)
 
@@ -386,19 +394,19 @@ class Protocol:
         return Response(cmd.DatalogControl, cmd.DatalogControl.Subfunction.GetBufferSize, Response.ResponseCode.OK, struct.pack('>L', size))
 
     def respond_datalog_get_sampling_rates(self, sampling_rates):
-        data = struct.pack('>'+'f'*len(sampling_rates), *sampling_rates)
+        data = struct.pack('>' + 'f' * len(sampling_rates), *sampling_rates)
         return Response(cmd.DatalogControl, cmd.DatalogControl.Subfunction.GetSamplingRates, Response.ResponseCode.OK, data)
 
     def respond_datalog_arm(self, record_id):
         return Response(cmd.DatalogControl, cmd.DatalogControl.Subfunction.ArmLog, Response.ResponseCode.OK, struct.pack('>H', record_id))
 
-    def respond_datalog_disarm(self ):
+    def respond_datalog_disarm(self):
         return Response(cmd.DatalogControl, cmd.DatalogControl.Subfunction.DisarmLog, Response.ResponseCode.OK)
 
     def respond_datalog_status(self, status):
         status = LogStatus(status)
         return Response(cmd.DatalogControl, cmd.DatalogControl.Subfunction.GetLogStatus, Response.ResponseCode.OK, struct.pack('B', status.value))
-    
+
     def respond_datalog_list_recordings(self, recordings):
         data = bytes()
         for record in recordings:
@@ -416,10 +424,10 @@ class Protocol:
         return Response(cmd.UserCommand, subfn, Response.ResponseCode.OK, data)
 
     def parse_response(self, response):
-        data = {'valid' : True}
+        data = {'valid': True}
 
         # For now, all commands have no data in negative response. But it could be different in the future.
-        # So it might be possible in the furture to move this condition and have a response with 
+        # So it might be possible in the furture to move this condition and have a response with
         # a response code different from OK with valid data to decode.
         if response.code == Response.ResponseCode.OK:
             try:
@@ -429,10 +437,10 @@ class Protocol:
                         (data['major'], data['minor']) = struct.unpack('BB', response.payload)
                     elif subfn == cmd.GetInfo.Subfunction.GetSupportedFeatures:
                         (byte1,) = struct.unpack('B', response.payload)
-                        data['memory_read']     = True if (byte1 & 0x80) != 0 else False
-                        data['memory_write']    = True if (byte1 & 0x40) != 0 else False
+                        data['memory_read'] = True if (byte1 & 0x80) != 0 else False
+                        data['memory_write'] = True if (byte1 & 0x40) != 0 else False
                         data['datalog_acquire'] = True if (byte1 & 0x20) != 0 else False
-                        data['user_command']    = True if (byte1 & 0x10) != 0 else False  
+                        data['user_command'] = True if (byte1 & 0x10) != 0 else False
 
                     elif subfn == cmd.GetInfo.Subfunction.GetSoftwareId:
                         data['software_id'] = response.payload
@@ -444,39 +452,39 @@ class Protocol:
                         data['region_type'] = cmd.GetInfo.MemoryRangeType(response.payload[0])
                         data['region_index'] = response.payload[1]
                         data['start'] = self.decode_address(response.payload[2:])
-                        data['end'] = self.decode_address(response.payload[2+self.address_format.get_address_size():])
+                        data['end'] = self.decode_address(response.payload[2 + self.address_format.get_address_size():])
 
                 elif response.command == cmd.MemoryControl:
                     subfn = cmd.MemoryControl.Subfunction(response.subfn)
                     if subfn == cmd.MemoryControl.Subfunction.Read:
                         data['blocks'] = []
-                        index=0
+                        index = 0
                         addr_size = self.address_format.get_address_size()
                         while True:
-                            if len(response.payload[index:]) < addr_size+2:
+                            if len(response.payload[index:]) < addr_size + 2:
                                 raise Exception('Incomplete response payload')
                             c = self.address_format.get_pack_char()
-                            addr, length = struct.unpack('>'+c+'H', response.payload[(index+0):(index+addr_size+2)])
-                            if len(response.payload[(index+addr_size+2):]) < length:
+                            addr, length = struct.unpack('>' + c + 'H', response.payload[(index + 0):(index + addr_size + 2)])
+                            if len(response.payload[(index + addr_size + 2):]) < length:
                                 raise Exception('Invalid data length')
-                            memory_data = response.payload[(index+addr_size+2):(index+addr_size+2+length)]
+                            memory_data = response.payload[(index + addr_size + 2):(index + addr_size + 2 + length)]
                             data['blocks'].append(dict(address=addr, data=memory_data))
-                            index += addr_size+2+length
+                            index += addr_size + 2 + length
 
                             if index == len(response.payload):
                                 break
 
                     elif subfn == cmd.MemoryControl.Subfunction.Write:
                         data['blocks'] = []
-                        index=0
+                        index = 0
                         addr_size = self.address_format.get_address_size()
                         while True:
-                            if len(response.payload[index:]) < addr_size+2:
+                            if len(response.payload[index:]) < addr_size + 2:
                                 raise Exception('Incomplete response payload')
                             c = self.address_format.get_pack_char()
-                            addr, length = struct.unpack('>'+c+'H', response.payload[(index+0):(index+addr_size+2)])
+                            addr, length = struct.unpack('>' + c + 'H', response.payload[(index + 0):(index + addr_size + 2)])
                             data['blocks'].append(dict(address=addr, length=length))
-                            index += addr_size+2
+                            index += addr_size + 2
 
                             if index == len(response.payload):
                                 break
@@ -488,12 +496,12 @@ class Protocol:
                         targets = []
                         pos = 0
                         while True:
-                            if len(response.payload) < pos+1:
+                            if len(response.payload) < pos + 1:
                                 break
-                            target_id, location_type_num, target_name_len = struct.unpack('BBB', response.payload[pos:pos+3])
+                            target_id, location_type_num, target_name_len = struct.unpack('BBB', response.payload[pos:pos + 3])
                             location_type = DatalogLocation.Type(location_type_num)
-                            pos +=3
-                            name = response.payload[pos:pos+target_name_len].decode('ascii')
+                            pos += 3
+                            name = response.payload[pos:pos + target_name_len].decode('ascii')
                             pos += target_name_len
                             targets.append(DatalogLocation(target_id, location_type, name))
 
@@ -517,45 +525,44 @@ class Protocol:
                     elif subfn == cmd.DatalogControl.Subfunction.ListRecordings:
                         if len(response.payload) % 5 != 0:
                             raise Exception('Incomplete payload')
-                        nrecords = int(len(response.payload)/5)
+                        nrecords = int(len(response.payload) / 5)
                         data['recordings'] = []
-                        pos=0
+                        pos = 0
                         for i in range(nrecords):
-                            (record_id, location_type_num, size) = struct.unpack('>HBH', response.payload[pos:pos+5])
+                            (record_id, location_type_num, size) = struct.unpack('>HBH', response.payload[pos:pos + 5])
                             location_type = DatalogLocation.Type(location_type_num)
-                            pos+=5
+                            pos += 5
                             record = RecordInfo(record_id, location_type_num, size)
                             data['recordings'].append(record)
-                            
+
                     elif subfn == cmd.DatalogControl.Subfunction.GetSamplingRates:
                         if len(response.payload) % 4 != 0:
                             raise Exception('Incomplete payload')
 
-                        nrates = int(len(response.payload)/4)
-                        data['sampling_rates'] = list(struct.unpack('>'+'f'*nrates, response.payload))
+                        nrates = int(len(response.payload) / 4)
+                        data['sampling_rates'] = list(struct.unpack('>' + 'f' * nrates, response.payload))
 
                 elif response.command == cmd.CommControl:
                     subfn = cmd.CommControl.Subfunction(response.subfn)
 
                     if subfn == cmd.CommControl.Subfunction.Discover:
-                        data['firmware_id'] =  response.payload[0:32]
-                    
-                    elif subfn == cmd.CommControl.Subfunction.Heartbeat:      
+                        data['firmware_id'] = response.payload[0:32]
+
+                    elif subfn == cmd.CommControl.Subfunction.Heartbeat:
                         data['session_id'], data['challenge_response'] = struct.unpack('>LH', response.payload[0:6])
-                    
+
                     elif subfn == cmd.CommControl.Subfunction.GetParams:
-                        (   data['max_rx_data_size'], 
-                            data['max_tx_data_size'], 
-                            data['max_bitrate_bps'], 
-                            data['heartbeat_timeout_us'], 
+                        (data['max_rx_data_size'],
+                            data['max_tx_data_size'],
+                            data['max_bitrate_bps'],
+                            data['heartbeat_timeout_us'],
                             data['rx_timeout_us'],
                             data['address_size_byte']
-                            ) = struct.unpack('>HHLLLB', response.payload[0:17])
-                    
-                    elif subfn == cmd.CommControl.Subfunction.Connect:      
-                        data['magic'] =  response.payload[0:4]
-                        data['session_id'], = struct.unpack('>L', response.payload[4:8])
+                         ) = struct.unpack('>HHLLLB', response.payload[0:17])
 
+                    elif subfn == cmd.CommControl.Subfunction.Connect:
+                        data['magic'] = response.payload[0:4]
+                        data['session_id'], = struct.unpack('>L', response.payload[4:8])
 
             except Exception as e:
                 self.logger.error(str(e))

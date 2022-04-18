@@ -1,18 +1,29 @@
+#    datastore.py
+#        This class is a container that will hold all the data read from a device (e.g. the
+#        variables).
+#        It's the meeting point of the API (with ValueStreamer) and the DeviceHandler
+#
+#   - License : MIT - See LICENSE file.
+#   - Project : Scrutiny Debugger (github.com/scrutinydebugger/scrutiny)
+#
+#   Copyright (c) 2021-2022 scrutinydebugger
+
 import logging
 from .datastore_entry import DatastoreEntry
 
+
 class Datastore:
 
-    MAX_ENTRY = 1000000 
+    MAX_ENTRY = 1000000
 
     def __init__(self):
         self.entries = {}
-        self.logger = logging.getLogger('scrutiny.'+self.__class__.__name__)
+        self.logger = logging.getLogger('scrutiny.' + self.__class__.__name__)
         self.watched_entries = set()
 
         self.entries_list_by_type = {}
         for entry_type in DatastoreEntry.Type:
-            self.entries_list_by_type[entry_type] = []      
+            self.entries_list_by_type[entry_type] = []
 
     def add_entries_quiet(self, entries):
         for entry in entries:
@@ -24,12 +35,12 @@ class Datastore:
 
     def add_entries(self, entries):
         for entry in entries:
-           self.add_entry(entry)
+            self.add_entry(entry)
 
     def add_entry(self, entry):
         if entry.get_id() in self.entries:
             raise ValueError('Duplicate datastore entry')
-        
+
         if len(self.entries) >= self.MAX_ENTRY:
             raise RuntimeError('Datastore cannot have more than %d entries' % self.MAX_ENTRY)
 

@@ -1,11 +1,20 @@
+#    datalog.py
+#        Defines a datalogging configuration that can be read or write from the device.
+#
+#   - License : MIT - See LICENSE file.
+#   - Project : Scrutiny Debugger (github.com/scrutinydebugger/scrutiny)
+#
+#   Copyright (c) 2021-2022 scrutinydebugger
+
 from enum import Enum
 from scrutiny.core import VariableType
+
 
 class DatalogConfiguration:
     __slots__ = '_destination', '_sample_rate', '_decimation', '_trigger', 'watches'
 
     class TriggerCondition(Enum):
-        EQUAL= 0
+        EQUAL = 0
         LESS_THAN = 1
         GREATER_THAN = 2
         LESS_OR_EQUAL_THAN = 3
@@ -36,6 +45,7 @@ class DatalogConfiguration:
 
     class Watch:
         __slots__ = 'address', 'length'
+
         def __init__(self, address, length):
             self.address = address
             self.length = length
@@ -49,17 +59,17 @@ class DatalogConfiguration:
 
         @condition.setter
         def condition(self, val):
-            if not isinstance(val,  DatalogConfiguration.TriggerCondition):
+            if not isinstance(val, DatalogConfiguration.TriggerCondition):
                 raise ValueError('Trigger condition must be an instance of TriggerCondition')
             self._condition = val
-       
+
         @property
         def operand1(self):
             return self._operand1
 
         @operand1.setter
         def operand1(self, val):
-            if not isinstance(val,  DatalogConfiguration.Operand):
+            if not isinstance(val, DatalogConfiguration.Operand):
                 raise ValueError('operand1 must be an instance of TriggerCondition.Operand')
             self._operand1 = val
 
@@ -69,7 +79,7 @@ class DatalogConfiguration:
 
         @operand2.setter
         def operand2(self, val):
-            if not isinstance(val,  DatalogConfiguration.Operand):
+            if not isinstance(val, DatalogConfiguration.Operand):
                 raise ValueError('operand2 must be an instance of TriggerCondition.Operand')
             self._operand2 = val
 
@@ -79,8 +89,6 @@ class DatalogConfiguration:
 
     def add_watch(self, address, length):
         self.watches.append(self.Watch(address, length))
-
-
 
     @property
     def destination(self):
@@ -120,7 +128,6 @@ class DatalogConfiguration:
 
         self._decimation = val
 
-
     @property
     def trigger(self):
         return self._trigger
@@ -131,6 +138,7 @@ class DatalogConfiguration:
             raise ValueError('trigger must be an instance of DatalogConfiguration.Trigger')
 
         self._trigger = val
+
 
 class DatalogLocation:
     class Type(Enum):
@@ -149,14 +157,13 @@ class DatalogLocation:
 
     @target_id.setter
     def target_id(self, val):
-        if not isinstance(val,  int):
+        if not isinstance(val, int):
             raise ValueError('Target ID must be an integer')
 
         if val < 0 or val > 0xFF:
             raise ValueError('Target ID must be a one byte positive integer')
-            
-        self._target_id = val
 
+        self._target_id = val
 
     @property
     def location_type(self):
@@ -164,9 +171,9 @@ class DatalogLocation:
 
     @location_type.setter
     def location_type(self, val):
-        if not isinstance(val,  self.Type):
+        if not isinstance(val, self.Type):
             raise ValueError('Target type must be an instance of DatalogTarget.Type')
-            
+
         self._location_type = val
 
     @property
@@ -180,14 +187,16 @@ class DatalogLocation:
 
         if len(val.encode('ascii')) > 0xFF:
             raise ValueError('Target name must be smaller than 255 bytes')
-            
+
         self._name = val
+
 
 class LogStatus(Enum):
     Triggered = 1
     WaitForTrigger = 2
     Recording = 3
     Disabled = 4
+
 
 class RecordInfo:
     def __init__(self, record_id, location_type, size):
@@ -204,10 +213,10 @@ class RecordInfo:
         if isinstance(val, int):
             val = DatalogLocation.Type(val)
 
-        if not isinstance(val,  DatalogLocation.Type):
+        if not isinstance(val, DatalogLocation.Type):
             print(val)
             raise ValueError('location_type must be a valid DatalogLocation.Type')
-            
+
         self._location_type = val
 
     @property
@@ -221,9 +230,8 @@ class RecordInfo:
 
         if val < 0:
             raise ValueError('record_id must be a positive integer')
-            
-        self._record_id = val
 
+        self._record_id = val
 
     @property
     def size(self):
@@ -236,5 +244,5 @@ class RecordInfo:
 
         if val < 0:
             raise ValueError('size must be a positive integer')
-            
+
         self._size = val

@@ -1,5 +1,14 @@
+#    comm_control.py
+#        Scrutiny protocol command to manipulate the communication
+#
+#   - License : MIT - See LICENSE file.
+#   - Project : Scrutiny Debugger (github.com/scrutinydebugger/scrutiny)
+#
+#   Copyright (c) 2021-2022 scrutinydebugger
+
 from .base_command import BaseCommand
 from enum import Enum
+
 
 class CommControl(BaseCommand):
     _cmd_id = 2

@@ -1,6 +1,14 @@
+#    dummy_client_handler.py
+#        Stubbed API connector to make API requests in unittests without relying on websockets
+#
+#   - License : MIT - See LICENSE file.
+#   - Project : Scrutiny Debugger (github.com/scrutinydebugger/scrutiny)
+#
+#   Copyright (c) 2021-2022 scrutinydebugger
+
 import websockets
 import queue
-import time 
+import time
 import asyncio
 import threading
 import uuid
@@ -8,8 +16,9 @@ import logging
 import json
 import uuid
 
+
 class DummyConnection:
-    def __init__(self,  conn_id=None):
+    def __init__(self, conn_id=None):
         if conn_id is not None:
             self.conn_id = conn_id
         else:
@@ -49,16 +58,16 @@ class DummyConnection:
                 return self.client_to_server_queue.get()
 
     def from_server_available(self):
-        return  self.opened and not self.server_to_client_queue.empty()
+        return self.opened and not self.server_to_client_queue.empty()
 
     def from_client_available(self):
-        return  self.opened and not self.client_to_server_queue.empty()
+        return self.opened and not self.client_to_server_queue.empty()
 
     def get_id(self):
-        return self.conn_id  
+        return self.conn_id
 
     def __repr__(self):
-     return '<%s - %s>' % (self.__class__.__name__, self.get_id())      
+        return '<%s - %s>' % (self.__class__.__name__, self.get_id())
 
 
 class DummyClientHandler:
@@ -68,7 +77,7 @@ class DummyClientHandler:
         self.config = config
         self.logger = logging.getLogger(self.__class__.__name__)
         self.stop_requested = False
-        
+
         self.validate_config(config)
 
         self.connections = config['connections']
@@ -81,20 +90,20 @@ class DummyClientHandler:
     def validate_config(self, config):
         if not isinstance(config, dict):
             raise ValueError('Config ust be a dict object')
-        
-        required_field = ['connections' ]
-        for field  in required_field:
+
+        required_field = ['connections']
+        for field in required_field:
             if field not in config:
                 raise ValueError('%s : Missing config field : %s' % (self.__class__.__name__, field))
 
         for conn in config['connections']:
-            if not isinstance(conn, DummyConnection ):
+            if not isinstance(conn, DummyConnection):
                 raise ValueError('Connections must be valid DummyConnection instances')
 
     def is_connection_active(self, conn_id):
         active = False
         if conn_id in self.connection_map:
-            active =  self.connection_map[conn_id].is_open()
+            active = self.connection_map[conn_id].is_open()
         return active
 
     def run(self):
@@ -106,9 +115,9 @@ class DummyClientHandler:
                         if msg is not None:
                             try:
                                 obj = json.loads(msg)
-                                self.rxqueue.put(dict(conn_id = conn.get_id(), obj=obj))
+                                self.rxqueue.put(dict(conn_id=conn.get_id(), obj=obj))
                             except Exception as e:
-                                self.logger.error('Received invalid msg.  %s' % str(e) )
+                                self.logger.error('Received invalid msg.  %s' % str(e))
 
                 while not self.txqueue.empty():
                     container = self.txqueue.get()
@@ -119,7 +128,7 @@ class DummyClientHandler:
                             if conn_id in self.connection_map:
                                 self.connection_map[conn_id].write_to_client(msg)
                         except Exception as e:
-                            self.logger.error('Cannot send message.  %s' % str(e) )
+                            self.logger.error('Cannot send message.  %s' % str(e))
 
             except Exception as e:
                 self.logger.error(str(e))
@@ -128,7 +137,7 @@ class DummyClientHandler:
             time.sleep(0.01)
 
     def process(self):
-        pass # nothing to do
+        pass  # nothing to do
 
     def start(self):
         self.thread = threading.Thread(target=self.run)
@@ -141,7 +150,7 @@ class DummyClientHandler:
 
     def send(self, conn_id, obj):
         if not self.txqueue.full():
-            container = {'conn_id' : conn_id, 'obj' : obj}
+            container = {'conn_id': conn_id, 'obj': obj}
             self.txqueue.put(container)
 
     def available(self):
@@ -149,4 +158,3 @@ class DummyClientHandler:
 
     def recv(self):
         return self.rxqueue.get()
-

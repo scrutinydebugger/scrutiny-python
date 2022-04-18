@@ -1,5 +1,14 @@
+#    memdump.py
+#        Provide a tool to manipulate non contiguous chunks of bytes with their addresses.
+#
+#   - License : MIT - See LICENSE file.
+#   - Project : Scrutiny Debugger (github.com/scrutinydebugger/scrutiny)
+#
+#   Copyright (c) 2021-2022 scrutinydebugger
+
 import re
 from bisect import bisect
+
 
 class Memdump:
 
@@ -31,36 +40,35 @@ class Memdump:
 
                     x = bisect(self.sorted_keys, addr)
 
-                    if x > 0: 
-                        start_addr = self.sorted_keys[x-1]
+                    if x > 0:
+                        start_addr = self.sorted_keys[x - 1]
                         if start_addr + len(self.memchunk[start_addr]) == addr:
                             self.memchunk[start_addr] += data
                         else:
                             self.memchunk[addr] = data
-                            self.sorted_keys.insert(x, addr) 
+                            self.sorted_keys.insert(x, addr)
                     else:
                         self.memchunk[addr] = data
                         self.sorted_keys.insert(x, addr)
 
-
     def read(self, addr, length):
-        
+
         x = bisect(self.sorted_keys, addr)
         if x <= 0:
             raise ValueError('Address out of range')
 
-        addr_start = self.sorted_keys[x-1]
-        offset = addr-addr_start
+        addr_start = self.sorted_keys[x - 1]
+        offset = addr - addr_start
 
-        if offset + length >  len(self.memchunk[addr_start]):
+        if offset + length > len(self.memchunk[addr_start]):
             raise ValueError('Length too long')
 
-        return self.memchunk[addr_start][offset:offset+length]
+        return self.memchunk[addr_start][offset:offset + length]
 
     def write(self, addr, data):
         keys = list(self.memchunk.keys())
         x = bisect(self.sorted_keys, addr)
-        self.sorted_keys.insert(x,addr)
+        self.sorted_keys.insert(x, addr)
         self.memchunk[addr] = data
         self.agglomerate(addr)
 
@@ -70,17 +78,17 @@ class Memdump:
             done = True
             keys = self.sorted_keys
             for i in range(len(keys)):
-                if i < len(keys)-1:
-                    if keys[i] + len(self.memchunk[keys[i]]) >= keys[i+1]-1:
+                if i < len(keys) - 1:
+                    if keys[i] + len(self.memchunk[keys[i]]) >= keys[i + 1] - 1:
 
-                        if last_written is None or last_written not in [keys[i], keys[i+1]]:
-                            raise Exception('Data consistency broken in region %x to %x' % (keys[i], keys[i+1]))
+                        if last_written is None or last_written not in [keys[i], keys[i + 1]]:
+                            raise Exception('Data consistency broken in region %x to %x' % (keys[i], keys[i + 1]))
 
-                        new_size = max(keys[i]+len(self.memchunk[keys[i]]), keys[i+1]+len(self.memchunk[keys[i+1]]), )
-                        new_data = b'\x00'*new_size
-                        diff_addr = keys[i+1]-keys[i]
+                        new_size = max(keys[i] + len(self.memchunk[keys[i]]), keys[i + 1] + len(self.memchunk[keys[i + 1]]), )
+                        new_data = b'\x00' * new_size
+                        diff_addr = keys[i + 1] - keys[i]
                         addr1 = keys[i]
-                        addr2 = keys[i+1]
+                        addr2 = keys[i + 1]
                         data1 = self.memchunk[addr1]
                         data2 = self.memchunk[addr2]
                         size1 = len(data1)
@@ -88,15 +96,15 @@ class Memdump:
 
                         if last_written == addr1:
                             new_data = data1
-                            ntoadd = max(0, addr2+size2-addr1-size1)
-                            new_data +=  data2[size2-ntoadd:]
+                            ntoadd = max(0, addr2 + size2 - addr1 - size1)
+                            new_data += data2[size2 - ntoadd:]
                         else:
                             new_data = data2
                             new_data = data1[0: max(0, diff_addr)] + new_data
-                            new_data += data1[diff_addr+size2:]
+                            new_data += data1[diff_addr + size2:]
 
-                        del self.memchunk[keys[i+1]]
-                        del self.sorted_keys[i+1]
+                        del self.memchunk[keys[i + 1]]
+                        del self.sorted_keys[i + 1]
                         self.memchunk[keys[i]] = new_data
                         done = False
                         break

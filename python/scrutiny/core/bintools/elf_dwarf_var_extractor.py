@@ -1,5 +1,15 @@
+#    elf_dwarf_var_extractor.py
+#        Reads a .elf file, extract the DWARF debugging symbols and make a VarMap object out
+#        of it.
+#
+#   - License : MIT - See LICENSE file.
+#   - Project : Scrutiny Debugger (github.com/scrutinydebugger/scrutiny)
+#
+#   Copyright (c) 2021-2022 scrutinydebugger
+
 from elftools.elf.elffile import ELFFile
-import os, sys
+import os
+import sys
 from enum import Enum
 from .demangler import GccDemangler
 import logging
@@ -41,15 +51,16 @@ class CuName:
     def make_unique_numbered_name(self, name_set):
         i = 0
         while True:
-            candidate = 'cu%d_%s'% (i, self.filename)
+            candidate = 'cu%d_%s' % (i, self.filename)
             if candidate not in name_set:
                 return candidate
-            i+=1
+            i += 1
+
 
 class ElfDwarfVarExtractor:
     defaults_names = {
-        'DW_TAG_structure_type' : '<struct>',
-        'DW_TAG_enumeration_type' : '<enum>'
+        'DW_TAG_structure_type': '<struct>',
+        'DW_TAG_enumeration_type': '<enum>'
     }
 
     STATIC = 'static'
@@ -58,25 +69,24 @@ class ElfDwarfVarExtractor:
     DW_OP_ADDR = 3
 
     class DwarfEncoding(Enum):
-        DW_ATE_address         = 0x1
-        DW_ATE_boolean         = 0x2
-        DW_ATE_complex_float   = 0x3
-        DW_ATE_float           = 0x4
-        DW_ATE_signed          = 0x5
-        DW_ATE_signed_char     = 0x6
-        DW_ATE_unsigned        = 0x7
-        DW_ATE_unsigned_char   = 0x8
+        DW_ATE_address = 0x1
+        DW_ATE_boolean = 0x2
+        DW_ATE_complex_float = 0x3
+        DW_ATE_float = 0x4
+        DW_ATE_signed = 0x5
+        DW_ATE_signed_char = 0x6
+        DW_ATE_unsigned = 0x7
+        DW_ATE_unsigned_char = 0x8
         DW_ATE_imaginary_float = 0x9
-        DW_ATE_packed_decimal  = 0xa
-        DW_ATE_numeric_string  = 0xb
-        DW_ATE_edited          = 0xc
-        DW_ATE_signed_fixed    = 0xd
-        DW_ATE_unsigned_fixed  = 0xe   
-        DW_ATE_decimal_float   = 0xf
-        DW_ATE_UTF             = 0x10
-        DW_ATE_lo_user         = 0x80
-        DW_ATE_hi_user         = 0xff
-
+        DW_ATE_packed_decimal = 0xa
+        DW_ATE_numeric_string = 0xb
+        DW_ATE_edited = 0xc
+        DW_ATE_signed_fixed = 0xd
+        DW_ATE_unsigned_fixed = 0xe
+        DW_ATE_decimal_float = 0xf
+        DW_ATE_UTF = 0x10
+        DW_ATE_lo_user = 0x80
+        DW_ATE_hi_user = 0xff
 
     def __init__(self, filename=None):
         self.varmap = VarMap()    # This is what we want to generate.
@@ -96,7 +106,7 @@ class ElfDwarfVarExtractor:
 
     # Builds a dictionary that maps a CompuleUnit object to a unique displayable name
     def make_cu_name_map(self, dwarfinfo):
-        
+
         fullpath_cu_tuple_list = []
         fullpath_set = set()
         for cu in dwarfinfo.iter_CUs():
@@ -115,7 +125,7 @@ class ElfDwarfVarExtractor:
             if fullpath in fullpath_set:
                 raise RuntimeError('Duplicate compile unit name')
             fullpath_set.add(fullpath)
-            fullpath_cu_tuple_list.append( (fullpath, cu) )
+            fullpath_cu_tuple_list.append((fullpath, cu))
 
         displayname_cu_tuple_list = self.make_unique_display_name(fullpath_cu_tuple_list)
 
@@ -132,7 +142,6 @@ class ElfDwarfVarExtractor:
             if display_name not in displayname_map:
                 displayname_map[display_name] = []
             displayname_map[display_name].append(cuname)
-
 
         while True:
             duplicate_names = set()
@@ -165,17 +174,15 @@ class ElfDwarfVarExtractor:
 
         displayname_cu_tuple_list = []
         for displayname in displayname_map:
-            displayname_cu_tuple_list.append(  (displayname, displayname_map[displayname][0].cu)  )
+            displayname_cu_tuple_list.append((displayname, displayname_map[displayname][0].cu))
         return displayname_cu_tuple_list
-            
 
     def get_cu_name(self, die):
-        return self.cu_name_map[die.cu]  
+        return self.cu_name_map[die.cu]
 
     def get_die_at_spec(self, die):
         refaddr = die.attributes['DW_AT_specification'].value + die.cu.cu_offset
         return die.dwarfinfo.get_DIE_from_refaddr(refaddr)
-
 
     def get_name(self, die, default=None):
         if 'DW_AT_name' in die.attributes:
@@ -191,8 +198,8 @@ class ElfDwarfVarExtractor:
     def get_linkage_name(self, die):
         return self.demangler.demangle(die.attributes['DW_AT_linkage_name'].value.decode('ascii'))
 
-
     # Tells if the die is accessible from outside the compile unit. If it is, it's global, otherwise it's static.
+
     def is_external(self, die):
         try:
             return die.attributes['DW_AT_external'].value
@@ -202,74 +209,74 @@ class ElfDwarfVarExtractor:
     def get_core_base_type(self, encoding, bytesize):
 
         encoding_map = {
-            self.DwarfEncoding.DW_ATE_address : {
-            #todo
+            self.DwarfEncoding.DW_ATE_address: {
+                # todo
             },
-            self.DwarfEncoding.DW_ATE_boolean : {
-                1 : VariableType.boolean
+            self.DwarfEncoding.DW_ATE_boolean: {
+                1: VariableType.boolean
             },
-            self.DwarfEncoding.DW_ATE_complex_float : {
-                1 : VariableType.cfloat8,
-                2 : VariableType.cfloat16,
-                4 : VariableType.cfloat32,
-                8 : VariableType.cfloat64,
-                16 : VariableType.cfloat128,
-                32 : VariableType.cfloat256
+            self.DwarfEncoding.DW_ATE_complex_float: {
+                1: VariableType.cfloat8,
+                2: VariableType.cfloat16,
+                4: VariableType.cfloat32,
+                8: VariableType.cfloat64,
+                16: VariableType.cfloat128,
+                32: VariableType.cfloat256
             },
-            self.DwarfEncoding.DW_ATE_float : {
-                1 : VariableType.float8,
-                2 : VariableType.float16,
-                4 : VariableType.float32,
-                8 : VariableType.float64,
-                16 : VariableType.float128,
-                32 : VariableType.float256
+            self.DwarfEncoding.DW_ATE_float: {
+                1: VariableType.float8,
+                2: VariableType.float16,
+                4: VariableType.float32,
+                8: VariableType.float64,
+                16: VariableType.float128,
+                32: VariableType.float256
 
             },
-            self.DwarfEncoding.DW_ATE_signed : {
-                1 : VariableType.sint8,
-                2 : VariableType.sint16,
-                4 : VariableType.sint32,
-                8 : VariableType.sint64,
-                16 : VariableType.sint128,
-                32 : VariableType.sint256
+            self.DwarfEncoding.DW_ATE_signed: {
+                1: VariableType.sint8,
+                2: VariableType.sint16,
+                4: VariableType.sint32,
+                8: VariableType.sint64,
+                16: VariableType.sint128,
+                32: VariableType.sint256
             },
-            self.DwarfEncoding.DW_ATE_signed_char : {
-                1 : VariableType.sint8,
-                2 : VariableType.sint16,
-                4 : VariableType.sint32,
-                8 : VariableType.sint64,
-                16 : VariableType.sint128,
-                32 : VariableType.sint256
+            self.DwarfEncoding.DW_ATE_signed_char: {
+                1: VariableType.sint8,
+                2: VariableType.sint16,
+                4: VariableType.sint32,
+                8: VariableType.sint64,
+                16: VariableType.sint128,
+                32: VariableType.sint256
             },
-            self.DwarfEncoding.DW_ATE_unsigned : {
-                1 : VariableType.uint8,
-                2 : VariableType.uint16,
-                4 : VariableType.uint32,
-                8 : VariableType.uint64,
-                16 : VariableType.uint128,
-                32 : VariableType.uint256
+            self.DwarfEncoding.DW_ATE_unsigned: {
+                1: VariableType.uint8,
+                2: VariableType.uint16,
+                4: VariableType.uint32,
+                8: VariableType.uint64,
+                16: VariableType.uint128,
+                32: VariableType.uint256
             },
-            self.DwarfEncoding.DW_ATE_unsigned_char : {
-                1 : VariableType.uint8,
-                2 : VariableType.uint16,
-                4 : VariableType.uint32,
-                8 : VariableType.uint64,
-                16 : VariableType.uint128,
-                32 : VariableType.uint256
+            self.DwarfEncoding.DW_ATE_unsigned_char: {
+                1: VariableType.uint8,
+                2: VariableType.uint16,
+                4: VariableType.uint32,
+                8: VariableType.uint64,
+                16: VariableType.uint128,
+                32: VariableType.uint256
             },
-            self.DwarfEncoding.DW_ATE_UTF : {
-                1 : VariableType.sint8,
-                2 : VariableType.sint16,
-                4 : VariableType.sint32,
+            self.DwarfEncoding.DW_ATE_UTF: {
+                1: VariableType.sint8,
+                2: VariableType.sint16,
+                4: VariableType.sint32,
             }
         }
 
         if encoding not in encoding_map:
-           raise ValueError('Unknown encoding %s' % encoding)
+            raise ValueError('Unknown encoding %s' % encoding)
 
         if bytesize not in encoding_map[encoding]:
             raise ValueError('Encoding %s with %d bytes' % (encoding, bytesize))
-        
+
         return encoding_map[encoding][bytesize]
 
     def load_from_elf_file(self, filename):
@@ -279,7 +286,7 @@ class ElfDwarfVarExtractor:
 
             if not elffile.has_dwarf_info():
                 raise Exception('File has no DWARF info')
-            
+
             self.dwarfinfo = elffile.get_dwarf_info()
             self.endianness = 'little' if elffile.little_endian else 'big'
 
@@ -293,12 +300,12 @@ class ElfDwarfVarExtractor:
     # Process each die recursively and call the right handler based on the die Tag
     def extract_var_recursive(self, die):
         process_fn = {
-            'DW_TAG_base_type'          : self.die_process_base_type, 
-            'DW_TAG_variable'           : self.die_process_variable, 
-            'DW_TAG_enumeration_type'   : self.die_process_enum, 
-            'DW_TAG_enumerator'         : self.die_process_enum_val
+            'DW_TAG_base_type': self.die_process_base_type,
+            'DW_TAG_variable': self.die_process_variable,
+            'DW_TAG_enumeration_type': self.die_process_enum,
+            'DW_TAG_enumerator': self.die_process_enum_val
         }
-        
+
         if die.tag in process_fn:
             process_fn[die.tag](die)
 
@@ -336,8 +343,8 @@ class ElfDwarfVarExtractor:
         else:
             logging.error('Enumerator without value')
 
+    # Todo: the fucntions below could probably merge in one "type analyzer" function
 
-    ## Todo: the fucntions below could probably merge in one "type analyzer" function
     def extract_enum(self, die):
         prevdie = die
         while True:
@@ -366,12 +373,12 @@ class ElfDwarfVarExtractor:
         while True:
             refaddr = prevdie.attributes['DW_AT_type'].value + prevdie.cu.cu_offset
             nextdie = prevdie.dwarfinfo.get_DIE_from_refaddr(refaddr)
-                    
-            if nextdie.tag in [ 'DW_TAG_structure_type', 'DW_TAG_class_type']:
+
+            if nextdie.tag in ['DW_TAG_structure_type', 'DW_TAG_class_type']:
                 return True
             elif nextdie.tag == 'DW_TAG_base_type':
                 return False
-            
+
             else:
                 prevdie = nextdie
 
@@ -380,49 +387,49 @@ class ElfDwarfVarExtractor:
         while True:
             refaddr = prevdie.attributes['DW_AT_type'].value + prevdie.cu.cu_offset
             nextdie = prevdie.dwarfinfo.get_DIE_from_refaddr(refaddr)
-            if nextdie.tag in [ 'DW_TAG_structure_type', 'DW_TAG_class_type']:
+            if nextdie.tag in ['DW_TAG_structure_type', 'DW_TAG_class_type']:
                 return nextdie
             elif nextdie.tag == 'DW_TAG_base_type':
                 raise Exception('Not a structure type')
             else:
                 prevdie = nextdie
 
-
     # When we encounter a struct die, we make a definition that we keep global,
     # this definition includes all submember with their respective offset.
     # each time we will encounter a instance of this struct, we will generate a variable for each sub member
+
     def die_process_struct(self, die):
         if die not in self.struct_die_map:
             self.struct_die_map[die] = self.get_struct_or_class_def(die)
 
     # Go down the hierarchy to get the whole struct def in a recursive way
     def get_struct_or_class_def(self, die):
-        if die.tag not in [ 'DW_TAG_structure_type', 'DW_TAG_class_type']:
+        if die.tag not in ['DW_TAG_structure_type', 'DW_TAG_class_type']:
             raise ValueError('DIE must be a structure or a class type')
 
         struct = Struct(self.get_name(die))
 
         for child in die.iter_children():
-            if child.tag in [ 'DW_TAG_structure_type', 'DW_TAG_class_type']:
+            if child.tag in ['DW_TAG_structure_type', 'DW_TAG_class_type']:
                 self.die_process_struct(child)
             elif child.tag == 'DW_TAG_member':
                 member = self.get_member_from_die(child)
                 if member is not None:
                     struct.add_member(member)
             elif child.tag == 'DW_TAG_subprogram':
-                pass    #TODO : There's a lot of stuff underneath this.
+                pass  # TODO : There's a lot of stuff underneath this.
             else:
-                raise NotImplementedError('DIE below structure type is expected to be a member or a struct.') # In case this happens..
+                raise NotImplementedError('DIE below structure type is expected to be a member or a struct.')  # In case this happens..
 
         return struct
 
     # Read a member die and generate a Struct.Member that we will later on use to register a variable.
-    # The struct.Member object contains everything we need to map a 
+    # The struct.Member object contains everything we need to map a
     def get_member_from_die(self, die):
         name = self.get_name(die)
         if self.is_type_struct_or_class(die):
             struct_die = self.get_struct_or_class_type(die)
-            substruct = self.get_struct_or_class_def(struct_die) # recursion
+            substruct = self.get_struct_or_class_def(struct_die)  # recursion
             vartype = VariableType.struct
             typename = None
         else:
@@ -432,9 +439,9 @@ class ElfDwarfVarExtractor:
             substruct = None
 
         # We are looking at a forward declared member.
-        if 'DW_AT_declaration' in die.attributes and die.attributes['DW_AT_declaration' ].value == True:
+        if 'DW_AT_declaration' in die.attributes and die.attributes['DW_AT_declaration'].value == True:
             return None
-        
+
         byte_offset = die.attributes['DW_AT_data_member_location'].value
 
         if 'DW_AT_bit_offset' in die.attributes:
@@ -442,30 +449,30 @@ class ElfDwarfVarExtractor:
                 raise Exception('Missing DW_AT_byte_size for bitfield %s' % (self.get_name(die, '')))
             if 'DW_AT_bit_size' not in die.attributes:
                 raise Exception('Missing DW_AT_bit_size for bitfield %s' % (self.get_name(die, '')))
-           
+
         bitsize = die.attributes['DW_AT_bit_size'].value if 'DW_AT_bit_size' in die.attributes else None
-        
+
         # Not sure about this.
         if 'DW_AT_bit_offset' in die.attributes:
             membersize = die.attributes['DW_AT_byte_size'].value
             if self.endianness == 'little':
-                bitoffset = (die.attributes['DW_AT_byte_size'].value*8) - die.attributes['DW_AT_bit_offset'].value - bitsize
+                bitoffset = (die.attributes['DW_AT_byte_size'].value * 8) - die.attributes['DW_AT_bit_offset'].value - bitsize
             elif self.endianness == 'big':
-               bitoffset = die.attributes['DW_AT_bit_offset'].value 
+                bitoffset = die.attributes['DW_AT_bit_offset'].value
             else:
                 raise ValueError('Unknown endianness')
         else:
             bitoffset = None
 
         return Struct.Member(
-            name = name, 
-            is_substruct = True if substruct is not None else False,
-            original_type_name = typename, 
-            byte_offset = byte_offset, 
-            bitoffset = bitoffset, 
-            bitsize = bitsize, 
-            substruct = substruct
-            )
+            name=name,
+            is_substruct=True if substruct is not None else False,
+            original_type_name=typename,
+            byte_offset=byte_offset,
+            bitoffset=bitoffset,
+            bitsize=bitsize,
+            substruct=substruct
+        )
 
     # We have an instance of a struct. Use the location and go down the structure recursively
     # using the members offsets to find the final address that we will apply to the output var
@@ -490,7 +497,7 @@ class ElfDwarfVarExtractor:
                     new_path_segments.append(name)
                     location = location.copy()  # When we go ina substruct, the member byte_offset is reset to 0
                     location.add_offset(member.byte_offset)
-                
+
                 elif member.byte_offset is not None:
                     offset = member.byte_offset
 
@@ -500,24 +507,24 @@ class ElfDwarfVarExtractor:
             location.add_offset(member.byte_offset)
 
             self.varmap.add_variable(
-                path_segments       = path_segments, 
-                name                = member.name,
-                original_type_name  = member.original_type_name,
-                location            = location,
-                bitoffset           = member.bitoffset,
-                bitsize             = member.bitsize,
-                #enum                = member.enum # TODO
-                )
+                path_segments=path_segments,
+                name=member.name,
+                original_type_name=member.original_type_name,
+                location=location,
+                bitoffset=member.bitoffset,
+                bitsize=member.bitsize,
+                # enum                = member.enum # TODO
+            )
 
-            #context.varmap.append(varentry)
-
+            # context.varmap.append(varentry)
 
     # Try to extract a location from a die.
+
     def get_location(self, die):
         try:
             if 'DW_AT_location' in die.attributes:
                 dieloc = (die.attributes['DW_AT_location'].value)
-                
+
                 if not isinstance(dieloc, list):
                     raise ValueError('die location is not a list')
 
@@ -532,9 +539,9 @@ class ElfDwarfVarExtractor:
 
                 return VariableLocation.from_bytes(dieloc[1:], self.endianness)
         except:
-            return None        
+            return None
 
-    # Process a variable die. 
+    # Process a variable die.
     # Register a variable from it.
     def die_process_variable(self, die, location=None):
         #import ipdb
@@ -546,7 +553,7 @@ class ElfDwarfVarExtractor:
             self.die_process_variable(vardie, location)
 
         else:
-            #ipdb.set_trace()
+            # ipdb.set_trace()
             if location is not None:
                 if self.is_type_struct_or_class(die):
                     struct_die = self.get_struct_or_class_type(die)
@@ -554,17 +561,17 @@ class ElfDwarfVarExtractor:
                     self.register_struct_var(die, location)
                 else:
                     path_segments = self.make_varpath(die)
-                    name = self.get_name(die)  
+                    name = self.get_name(die)
                     basetype_die = self.extract_basetype_die(die)
                     enum_obj = self.extract_enum(die)
                     self.die_process_base_type(basetype_die)
                     self.varmap.add_variable(
-                        path_segments = path_segments, 
-                        name = name,
-                        location = location,
-                        original_type_name = self.get_typename_from_die(basetype_die),
-                        enum = enum_obj
-                        )
+                        path_segments=path_segments,
+                        name=name,
+                        location=location,
+                        original_type_name=self.get_typename_from_die(basetype_die),
+                        enum=enum_obj
+                    )
 
     def get_varpath_from_hierarchy(self, die):
         segments = []
@@ -605,7 +612,7 @@ class ElfDwarfVarExtractor:
             segments = self.get_varpath_from_linkage_name(die)
         else:
             segments = self.get_varpath_from_hierarchy(die)
-            
+
         if self.is_external(die):
             segments.insert(0, self.GLOBAL)
         else:

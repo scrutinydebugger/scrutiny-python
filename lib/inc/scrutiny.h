@@ -1,3 +1,11 @@
+//    scrutiny.h
+//        Main .h file to e included in a project
+//
+//   - License : MIT - See LICENSE file.
+//   - Project : Scrutiny Debugger (github.com/scrutinydebugger/scrutiny)
+//
+//   Copyright (c) 2021-2022 scrutinydebugger
+
 #ifndef ___SCRUTINY_H___
 #define ___SCRUTINY_H___
 

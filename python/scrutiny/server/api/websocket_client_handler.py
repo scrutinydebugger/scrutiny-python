@@ -1,11 +1,21 @@
+#    websocket_client_handler.py
+#        Manage the API websocket connections .
+#        This class has a list of all clients and identifiy them by a unique ID
+#
+#   - License : MIT - See LICENSE file.
+#   - Project : Scrutiny Debugger (github.com/scrutinydebugger/scrutiny)
+#
+#   Copyright (c) 2021-2022 scrutinydebugger
+
 import websockets
 import queue
-import time 
+import time
 import asyncio
 import threading
 import uuid
 import logging
 import json
+
 
 class Timer:
     def __init__(self, timeout, callback, *args, **kwargs):
@@ -16,12 +26,12 @@ class Timer:
         self.start()
 
     async def job(self):
-        await asyncio.sleep(self.timeout)   #wait
+        await asyncio.sleep(self.timeout)  # wait
         try:
             await self.callback()
             self.start()
         except:
-            raise e     #fixme:  Exception raised in callback are lost.. some asyncio shenanigan required.
+            raise e  # fixme:  Exception raised in callback are lost.. some asyncio shenanigan required.
 
     def start(self):
         self.task = asyncio.ensure_future(self.job(*self.args, **self.kwargs))
@@ -55,8 +65,8 @@ class WebsocketClientHandler:
 
     def is_connection_active(self, conn_id):
         return True if conn_id in self.id2ws_map else False
-            
-    #Executed for each websocket
+
+    # Executed for each websocket
     async def server_routine(self, websocket, path):
         wsid = await self.register(websocket)
         tx_sync_timer = Timer(0.05, self.process_tx_queue)
@@ -65,14 +75,13 @@ class WebsocketClientHandler:
             async for message in websocket:
                 try:
                     obj = json.loads(message)
-                    self.rxqueue.put({'conn_id' : wsid, 'obj' : obj})
+                    self.rxqueue.put({'conn_id': wsid, 'obj': obj})
                 except Exception as e:
                     self.logger.error('Received malformed JSON. %s' % str(e))
                     self.logger.debug(message)
         finally:
             tx_sync_timer.cancel()
             await self.unregister(websocket)
-
 
     async def process_tx_queue(self):
         while not self.txqueue.empty():
@@ -87,10 +96,10 @@ class WebsocketClientHandler:
                 msg = json.dumps(popped['obj'])
                 await websocket.send(msg)
             except Exception as e:
-                self.logger.error('Cannot send message. Invalid JSON. %s' % str(e) )
+                self.logger.error('Cannot send message. Invalid JSON. %s' % str(e))
 
     def process(self):
-        pass #nothing to do
+        pass  # nothing to do
 
     # Run in client_handler thread
     def run(self):
@@ -113,9 +122,9 @@ class WebsocketClientHandler:
     def stop(self):
         self.logger.info('Stopping websocket listener')
         self.loop.call_soon_threadsafe(self.stop_from_thread)
-        if  self.thread is not None:
+        if self.thread is not None:
             self.thread.join()
-    
+
     # Called from client_handler Thread
     def stop_from_thread(self):
         asyncio.ensure_future(self.async_close())
@@ -127,7 +136,7 @@ class WebsocketClientHandler:
 
     def send(self, conn_id, obj):
         if not self.txqueue.full():
-            container = {'conn_id' : conn_id, 'obj' : obj}
+            container = {'conn_id': conn_id, 'obj': obj}
             self.txqueue.put(container)
 
     def available(self):
@@ -141,4 +150,3 @@ class WebsocketClientHandler:
 
     def make_id(self):
         return uuid.uuid4().hex
-

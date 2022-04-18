@@ -1,3 +1,11 @@
+//    test_comm_control.cpp
+//        Test the behaviour of the embedded module when CommControl commands are received
+//
+//   - License : MIT - See LICENSE file.
+//   - Project : Scrutiny Debugger (github.com/scrutinydebugger/scrutiny)
+//
+//   Copyright (c) 2021-2022 scrutinydebugger
+
 #include <gtest/gtest.h>
 #include <cstring>
 

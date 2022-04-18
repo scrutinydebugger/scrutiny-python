@@ -1,3 +1,11 @@
+//    test_comm_handler.cpp
+//        Test the tranport-ish layer good behaviour at high level.
+//
+//   - License : MIT - See LICENSE file.
+//   - Project : Scrutiny Debugger (github.com/scrutinydebugger/scrutiny)
+//
+//   Copyright (c) 2021-2022 scrutinydebugger
+
 #include <gtest/gtest.h>
 #include <cstring>
 

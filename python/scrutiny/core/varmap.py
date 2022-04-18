@@ -1,7 +1,18 @@
+#    varmap.py
+#        A VarMap list all variables in a firmware file along with their types, address, bit
+#        offset, etc
+#        . I is a simplified version of the DWARF debugging symbols.
+#
+#   - License : MIT - See LICENSE file.
+#   - Project : Scrutiny Debugger (github.com/scrutinydebugger/scrutiny)
+#
+#   Copyright (c) 2021-2022 scrutinydebugger
+
 import json
 import os
 
 from scrutiny.core import Variable, VariableType, VariableEnum
+
 
 class VarMap:
     def __init__(self, file=None):
@@ -31,9 +42,8 @@ class VarMap:
             self.typemap = {}
             self.variables = {}
             self.enums = {}
-            
 
-        self.validate() # Validate only if loaded. Otherwise, we may be building a new varmap file (from CLI)
+        self.validate()  # Validate only if loaded. Otherwise, we may be building a new varmap file (from CLI)
         self.init_all()
 
     def init_all(self):
@@ -41,7 +51,7 @@ class VarMap:
         self.next_enum_id = 0
         self.typename2typeid_map = {}   # Maps the type id of this VarMap to the original name inside the binary.
         self.enums_to_id_map = {}       # Maps a VariableEnum object to it's internal id
-        
+
         # Build typename2typeid_map
         for typeid in self.typemap:
             typeid = int(typeid)
@@ -60,7 +70,6 @@ class VarMap:
             enum = VariableEnum.from_def(self.enums[str(enum_id)])
             self.enums_to_id_map[enum] = enum_id
 
-
     def set_endianness(self, endianness):
         if endianness not in ['little', 'big']:
             raise ValueError('Invalid endianness %s' % endianness)
@@ -73,9 +82,9 @@ class VarMap:
     def get_json(self):
         content = {
             'endianness': self.endianness,
-            'type_map'  : self.typemap,
-            'variables' : self.variables,
-            'enums'     : self.enums,
+            'type_map': self.typemap,
+            'variables': self.variables,
+            'enums': self.enums,
         }
         return json.dumps(content, indent=4)
 
@@ -84,29 +93,28 @@ class VarMap:
 
     def validate_json(self, content):
         required_fields = {
-        'endianness',
-        'type_map',
-        'variables',
-        'enums'
+            'endianness',
+            'type_map',
+            'variables',
+            'enums'
         }
 
         for field in required_fields:
-            if field not in content: 
+            if field not in content:
                 raise Exception('Missing field "%s"' % field)
-
 
     def add_variable(self, path_segments, name, location, original_type_name, bitsize=None, bitoffset=None, enum=None):
         if not self.is_known_type(original_type_name):
             raise ValueError('Cannot add variable of type %s. Type has not been registered yet' % (original_type_name))
 
         fullname = self.make_fullname(path_segments, name)
-        if fullname in self.variables :
+        if fullname in self.variables:
             logging.warning('duplicate entry %s' % fullname)
 
         entry = dict(
-            type_id = self.get_type_id(original_type_name),
-            addr = location.get_address(),
-            )
+            type_id=self.get_type_id(original_type_name),
+            addr=location.get_address(),
+        )
 
         if bitoffset is not None:
             entry['bitoffset'] = bitoffset
@@ -118,13 +126,11 @@ class VarMap:
             if enum not in self.enums_to_id_map:
                 self.enums[self.next_enum_id] = enum.get_def()
                 self.enums_to_id_map[enum] = self.next_enum_id
-                self.next_enum_id +=1
+                self.next_enum_id += 1
 
             entry['enum_id'] = self.enums_to_id_map[enum]
 
         self.variables[fullname] = entry
-
-
 
     def register_base_type(self, original_name, vartype):
         if not isinstance(vartype, VariableType):
@@ -153,25 +159,24 @@ class VarMap:
 
     def get_type_id(self, binary_type_name):
         if binary_type_name not in self.typename2typeid_map:
-            raise Exception('Type name %s does not exist in the Variable Description File' % (binary_type_name) )
+            raise Exception('Type name %s does not exist in the Variable Description File' % (binary_type_name))
 
         return self.typename2typeid_map[binary_type_name]
-
 
     def get_var(self, fullname):
         segments, name = self.make_segments(fullname)
         vardef = self.get_var_def(fullname)
 
         return Variable(
-            name            = name, 
-            vartype         = self.get_type(vardef), 
-            path_segments   = segments, 
-            location        = self.get_addr(vardef), 
-            endianness      = self.endianness, 
-            bitsize         = self.get_bitsize(vardef), 
-            bitoffset       = self.get_bitoffset(vardef), 
-            enum            = self.get_enum(vardef)
-            )
+            name=name,
+            vartype=self.get_type(vardef),
+            path_segments=segments,
+            location=self.get_addr(vardef),
+            endianness=self.endianness,
+            bitsize=self.get_bitsize(vardef),
+            bitoffset=self.get_bitoffset(vardef),
+            enum=self.get_enum(vardef)
+        )
 
     def make_segments(self, fullname):
         pieces = fullname.split('/')
@@ -187,9 +192,9 @@ class VarMap:
         return fullname
 
     def get_type(self, vardef):
-        type_id = str( vardef['type_id'])
+        type_id = str(vardef['type_id'])
         if type_id not in self.typemap:
-            raise AssertionError('Variable %s refer to a type not in type map' % fullname )
+            raise AssertionError('Variable %s refer to a type not in type map' % fullname)
         typename = self.typemap[type_id]['type']
         return VariableType.__getattr__(typename)
 
@@ -216,4 +221,3 @@ class VarMap:
                 raise Exception("Unknown enum_id %s" % enum_id)
             enum_def = self.enums[enum_id]
             return VariableEnum.from_def(enum_def)
-

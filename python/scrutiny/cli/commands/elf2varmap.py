@@ -1,3 +1,12 @@
+#    elf2varmap.py
+#        CLI Command to read and .elf file and generate a Scrutiny VarMap file that will be
+#        included into the Firmware Info File.
+#
+#   - License : MIT - See LICENSE file.
+#   - Project : Scrutiny Debugger (github.com/scrutinydebugger/scrutiny)
+#
+#   Copyright (c) 2021-2022 scrutinydebugger
+
 import argparse
 import os
 import logging
@@ -6,6 +15,7 @@ from .base_command import BaseCommand
 
 from scrutiny.core.bintools.elf_dwarf_var_extractor import ElfDwarfVarExtractor
 
+
 class Elf2VarMap(BaseCommand):
     _cmd_name_ = 'elf2varmap'
     _brief_ = 'Extract the variables definition from an ELF file through DWARF debugging symbols.'
@@ -13,10 +23,9 @@ class Elf2VarMap(BaseCommand):
 
     def __init__(self, args):
         self.args = args
-        self.parser = argparse.ArgumentParser( prog = self.get_prog() )
-        self.parser.add_argument('file',  help='The ELF file to read')
+        self.parser = argparse.ArgumentParser(prog=self.get_prog())
+        self.parser.add_argument('file', help='The ELF file to read')
         self.parser.add_argument('--output', default=None, help='The varmap output file. Will go to STDOUT if not set')
-
 
     def run(self):
         args = self.parser.parse_args(self.args)
@@ -32,6 +41,6 @@ class Elf2VarMap(BaseCommand):
                 output_file = args.output
 
             if os.path.isfile(output_file):
-                logging.warning('File %s already exist. Overwritting' % output_file)    
-            
+                logging.warning('File %s already exist. Overwritting' % output_file)
+
             varmap.write(output_file)

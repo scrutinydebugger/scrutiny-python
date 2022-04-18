@@ -1,7 +1,16 @@
+#    uninstall_firmware_info.py
+#        CLI Command to remove a Firmware Information File from the scrutiny storage
+#
+#   - License : MIT - See LICENSE file.
+#   - Project : Scrutiny Debugger (github.com/scrutinydebugger/scrutiny)
+#
+#   Copyright (c) 2021-2022 scrutinydebugger
+
 import argparse
 
 from .base_command import BaseCommand
 from scrutiny.core.sfi_storage import SFIStorage
+
 
 class UninstallFirmwareInfo(BaseCommand):
     _cmd_name_ = 'uninstall-firmware-info'
@@ -10,9 +19,9 @@ class UninstallFirmwareInfo(BaseCommand):
 
     def __init__(self, args):
         self.args = args
-        self.parser = argparse.ArgumentParser(prog = self.get_prog() )
-        self.parser.add_argument('firmwareid',  help='Firmware ID of the Scrutiny Firmware Info')
-        self.parser.add_argument('--quiet', action="store_true",  help='Do not report error if not installed')
+        self.parser = argparse.ArgumentParser(prog=self.get_prog())
+        self.parser.add_argument('firmwareid', help='Firmware ID of the Scrutiny Firmware Info')
+        self.parser.add_argument('--quiet', action="store_true", help='Do not report error if not installed')
 
     def run(self):
         args = self.parser.parse_args(self.args)
@@ -25,4 +34,3 @@ class UninstallFirmwareInfo(BaseCommand):
         if error is not None:
             if not args.quiet:
                 raise error
-        

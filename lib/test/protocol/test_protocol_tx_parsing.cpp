@@ -1,3 +1,11 @@
+//    test_protocol_tx_parsing.cpp
+//        Make sure Response objects are correctly encoded in bytes
+//
+//   - License : MIT - See LICENSE file.
+//   - Project : Scrutiny Debugger (github.com/scrutinydebugger/scrutiny)
+//
+//   Copyright (c) 2021-2022 scrutinydebugger
+
 #include <gtest/gtest.h>
 
 #include "scrutiny.h"

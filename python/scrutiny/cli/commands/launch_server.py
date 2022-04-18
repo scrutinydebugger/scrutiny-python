@@ -1,8 +1,17 @@
+#    launch_server.py
+#        CLI Command to launch the scrutiny server
+#
+#   - License : MIT - See LICENSE file.
+#   - Project : Scrutiny Debugger (github.com/scrutinydebugger/scrutiny)
+#
+#   Copyright (c) 2021-2022 scrutinydebugger
+
 import argparse
 import logging
 
 from .base_command import BaseCommand
 from scrutiny.server.server import ScrutinyServer
+
 
 class LaunchServer(BaseCommand):
     _cmd_name_ = 'launch-server'
@@ -11,10 +20,9 @@ class LaunchServer(BaseCommand):
 
     def __init__(self, args):
         self.args = args
-        self.parser = argparse.ArgumentParser(prog = self.get_prog() )
-        self.parser.add_argument('--config', default=None,  help='Configuration file used by the server')
+        self.parser = argparse.ArgumentParser(prog=self.get_prog())
+        self.parser.add_argument('--config', default=None, help='Configuration file used by the server')
         self.parser.add_argument('--log_websockets', default='error', metavar='LEVEL', help="Verbosity level of websockets module")
-
 
     def run(self):
         args = self.parser.parse_args(self.args)
@@ -24,12 +32,11 @@ class LaunchServer(BaseCommand):
         time_format = '%Y-%m-%d %H:%M:%S'
         logging.getLogger().handlers[0].setFormatter(logging.Formatter(format_string, time_format))
 
-
         websockets_loggers = ['websockets.server', 'websockets.protocol', 'asyncio']
         logging_level = getattr(logging, args.log_websockets.upper())
         for name in websockets_loggers:
             logger = logging.getLogger(name).setLevel(logging_level)
-        
+
         success = True
         server = ScrutinyServer(args.config)
         try:

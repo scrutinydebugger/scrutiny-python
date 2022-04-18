@@ -1,13 +1,20 @@
+#    setup.py
+#
+#   - License : MIT - See LICENSE file.
+#   - Project : Scrutiny Debugger (github.com/scrutinydebugger/scrutiny)
+#
+#   Copyright (c) 2021-2022 scrutinydebugger
+
 from setuptools import setup, find_packages
+import scrutiny
 
 setup(
-    name='scrutiny',
+    name=scrutiny.__name__,
     description='Scrutiny debug framework',
     url='https://github.com/scrutinydebugger/scrutiny',
-    version='0.0.1',
-    author='Pier-Yves Lessard',
-    author_email='py.lessard@gmail.com',
-    license='MIT',
+    version=scrutiny.__version__,
+    author=scrutiny.__author__,
+    license=scrutiny.__license__,
 
     packages=find_packages(),
     include_package_data=True,  # look for MANIFEST.in for each package

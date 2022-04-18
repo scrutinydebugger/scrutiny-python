@@ -1,3 +1,11 @@
+//    scrutiny_types.h
+//        Aliases on the types used by the Scrutiny project
+//
+//   - License : MIT - See LICENSE file.
+//   - Project : Scrutiny Debugger (github.com/scrutinydebugger/scrutiny)
+//
+//   Copyright (c) 2021-2022 scrutinydebugger
+
 #ifndef ___SCRUTINY_TYPES_H___
 #define ___SCRUTINY_TYPES_H___
 

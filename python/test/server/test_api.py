@@ -1,3 +1,11 @@
+#    test_api.py
+#        Test the client API through a fake handler
+#
+#   - License : MIT - See LICENSE file.
+#   - Project : Scrutiny Debugger (github.com/scrutinydebugger/scrutiny)
+#
+#   Copyright (c) 2021-2022 scrutinydebugger
+
 import unittest
 import queue
 import time
@@ -11,9 +19,8 @@ from scrutiny.server.api.API import API
 from scrutiny.server.datastore import Datastore, DatastoreEntry
 from scrutiny.server.api.dummy_client_handler import DummyConnection
 
-#todo
+# todo
 # - Test rate limiter/data streamer
-
 
 
 class TestAPI(unittest.TestCase):
@@ -24,9 +31,9 @@ class TestAPI(unittest.TestCase):
             conn.open()
 
         config = {
-            'client_interface_type' : 'dummy',
-            'client_interface_config' : {
-                'connections' : self.connections
+            'client_interface_type': 'dummy',
+            'client_interface_config': {
+                'connections': self.connections
             }
         }
 
@@ -37,7 +44,7 @@ class TestAPI(unittest.TestCase):
     def tearDown(self):
         self.api.close()
 
-    def wait_for_response(self, conn_idx=0, timeout = 0.4):
+    def wait_for_response(self, conn_idx=0, timeout=0.4):
         t1 = time.time()
         self.api.process()
         while not self.connections[conn_idx].from_server_available():
@@ -47,7 +54,6 @@ class TestAPI(unittest.TestCase):
             time.sleep(0.01)
 
         return self.connections[conn_idx].read_from_server()
-
 
     def wait_and_load_response(self, conn_idx=0, timeout=0.4):
         json_str = self.wait_for_response(conn_idx=conn_idx, timeout=timeout)
@@ -62,7 +68,6 @@ class TestAPI(unittest.TestCase):
             if 'msg' in response and msg is None:
                 msg = response['msg']
             self.assertNotEqual(response['cmd'], API.Command.Api2Client.ERROR_RESPONSE, msg)
-
 
     def make_dummy_entries(self, n, type=DatastoreEntry.Type.eVar, prefix='path'):
         entries = []
@@ -79,8 +84,8 @@ class TestAPI(unittest.TestCase):
     def test_echo(self):
         payload = self.make_random_string(100)
         req = {
-            'cmd' : 'echo',
-            'payload' : payload
+            'cmd': 'echo',
+            'payload': payload
         }
         self.send_request(req)
         response = self.wait_and_load_response()
@@ -91,14 +96,14 @@ class TestAPI(unittest.TestCase):
     # Fetch count of var/alias. Ensure response is well formatted and accurate
     def test_get_watchable_count(self):
         var_entries = self.make_dummy_entries(3, type=DatastoreEntry.Type.eVar, prefix='var')
-        alias_entries = self.make_dummy_entries(5, type=DatastoreEntry.Type.eAlias,  prefix='alias')
+        alias_entries = self.make_dummy_entries(5, type=DatastoreEntry.Type.eAlias, prefix='alias')
 
         # Add entries in the datastore that we will reread through the API
         self.datastore.add_entries_quiet(var_entries)
         self.datastore.add_entries_quiet(alias_entries)
 
         req = {
-            'cmd' : 'get_watchable_count'
+            'cmd': 'get_watchable_count'
         }
 
         self.send_request(req)
@@ -128,7 +133,7 @@ class TestAPI(unittest.TestCase):
     # Fetch list of var/alias. Ensure response is well formatted, accurate, complete, no duplicates
     def test_get_watchable_list_basic(self):
         var_entries = self.make_dummy_entries(3, type=DatastoreEntry.Type.eVar, prefix='var')
-        alias_entries = self.make_dummy_entries(5, type=DatastoreEntry.Type.eAlias,  prefix='alias')
+        alias_entries = self.make_dummy_entries(5, type=DatastoreEntry.Type.eAlias, prefix='alias')
 
         expected_entries_in_response = {}
         for entry in var_entries:
@@ -140,7 +145,7 @@ class TestAPI(unittest.TestCase):
         self.datastore.add_entries(alias_entries)
 
         req = {
-            'cmd' : 'get_watchable_list'
+            'cmd': 'get_watchable_list'
         }
         self.send_request(req)
         response = self.wait_and_load_response()
@@ -157,7 +162,8 @@ class TestAPI(unittest.TestCase):
         read_id = []
 
         # Put all entries in a single list, paired with the name of the parent key.
-        all_entries_same_level = [('var', entry) for entry in response['content']['var']] + [('alias', entry) for entry in response['content']['alias']]
+        all_entries_same_level = [('var', entry) for entry in response['content']['var']] + [('alias', entry)
+                                                                                             for entry in response['content']['alias']]
 
         for item in all_entries_same_level:
 
@@ -178,7 +184,7 @@ class TestAPI(unittest.TestCase):
                 self.assertEqual('alias', api_entry['type'])
             else:
                 raise NotImplementedError('Test case does not supports entry type : %s' % (entry.get_type()))
-            
+
             self.assertEqual(container, api_entry['type'])
             del expected_entries_in_response[api_entry['id']]
 
@@ -197,7 +203,7 @@ class TestAPI(unittest.TestCase):
     def do_test_get_watchable_list_with_type_filter(self, type_filter):
         self.datastore.clear()
         var_entries = self.make_dummy_entries(3, type=DatastoreEntry.Type.eVar, prefix='var')
-        alias_entries = self.make_dummy_entries(5, type=DatastoreEntry.Type.eAlias,  prefix='alias')
+        alias_entries = self.make_dummy_entries(5, type=DatastoreEntry.Type.eAlias, prefix='alias')
 
         no_filter = True if type_filter is None or type_filter == '' or isinstance(type_filter, list) and len(type_filter) == 0 else False
 
@@ -219,9 +225,9 @@ class TestAPI(unittest.TestCase):
         self.datastore.add_entries(alias_entries)
 
         req = {
-            'cmd' : 'get_watchable_list',
-            'filter' : {
-                'type' : type_filter
+            'cmd': 'get_watchable_list',
+            'filter': {
+                'type': type_filter
             }
         }
         self.send_request(req)
@@ -239,7 +245,8 @@ class TestAPI(unittest.TestCase):
         read_id = []
 
         # Put all entries in a single list, paired with the name of the parent key.
-        all_entries_same_level = [('var', entry) for entry in response['content']['var']] + [('alias', entry) for entry in response['content']['alias']]
+        all_entries_same_level = [('var', entry) for entry in response['content']['var']] + [('alias', entry)
+                                                                                             for entry in response['content']['alias']]
 
         for item in all_entries_same_level:
 
@@ -260,21 +267,21 @@ class TestAPI(unittest.TestCase):
                 self.assertEqual('alias', api_entry['type'])
             else:
                 raise NotImplementedError('Test case does not supports entry type : %s' % (entry.get_type()))
-            
+
             self.assertEqual(container, api_entry['type'])
             del expected_entries_in_response[api_entry['id']]
 
         self.assertEqual(len(expected_entries_in_response), 0)
 
-
-    # Fetch list of var/alias and sets a limit of items per response. 
+    # Fetch list of var/alias and sets a limit of items per response.
     # List should be broken in multiple messages
+
     def test_get_watchable_list_with_item_limit(self):
         nVar = 19
         nAlias = 17
         max_per_response = 10
         var_entries = self.make_dummy_entries(nVar, type=DatastoreEntry.Type.eVar, prefix='var')
-        alias_entries = self.make_dummy_entries(nAlias, type=DatastoreEntry.Type.eAlias,  prefix='alias')
+        alias_entries = self.make_dummy_entries(nAlias, type=DatastoreEntry.Type.eAlias, prefix='alias')
         expected_entries_in_response = {}
 
         for entry in var_entries:
@@ -288,16 +295,16 @@ class TestAPI(unittest.TestCase):
         self.datastore.add_entries(alias_entries)
 
         req = {
-            'cmd' : 'get_watchable_list',
-            'max_per_response' : max_per_response
+            'cmd': 'get_watchable_list',
+            'max_per_response': max_per_response
         }
 
         self.send_request(req)
         responses = []
-        nresponse = math.ceil((nVar+nAlias) / max_per_response)
-        for i in range( nresponse):
+        nresponse = math.ceil((nVar + nAlias) / max_per_response)
+        for i in range(nresponse):
             responses.append(self.wait_and_load_response())
-        
+
         received_vars = []
         received_alias = []
 
@@ -306,10 +313,10 @@ class TestAPI(unittest.TestCase):
             self.assert_no_error(response)
             self.assert_get_watchable_list_response_format(response)
 
-            received_vars +=response['content']['var']
+            received_vars += response['content']['var']
             received_alias += response['content']['alias']
 
-            if i < len(responses)-1:
+            if i < len(responses) - 1:
                 self.assertEqual(response['done'], False)
                 self.assertEqual(response['qty']['var'] + response['qty']['alias'], max_per_response)
                 self.assertEqual(len(response['content']['var']) + len(response['content']['alias']), max_per_response)
@@ -343,7 +350,7 @@ class TestAPI(unittest.TestCase):
                 self.assertEqual('alias', api_entry['type'])
             else:
                 raise NotImplementedError('Test case does not supports entry type : %s' % (entry.get_type()))
-            
+
             self.assertEqual(container, api_entry['type'])
             del expected_entries_in_response[api_entry['id']]
 
@@ -361,17 +368,16 @@ class TestAPI(unittest.TestCase):
             self.assertIn('id', update)
             self.assertIn('value', update)
 
-
     def test_subscribe_single_var(self):
         entries = self.make_dummy_entries(10, type=DatastoreEntry.Type.eVar, prefix='var')
         self.datastore.add_entries(entries)
 
         subscribed_entry = entries[2]
         req = {
-            'cmd' : 'subscribe_watchable',
-            'watchables' : [subscribed_entry.get_id()]
+            'cmd': 'subscribe_watchable',
+            'watchables': [subscribed_entry.get_id()]
         }
-    
+
         self.send_request(req, 0)
         response = self.wait_and_load_response()
         self.assert_no_error(response)
@@ -403,8 +409,8 @@ class TestAPI(unittest.TestCase):
         self.datastore.add_entries(entries)
         subscribed_entry = entries[2]
         subscribe_cmd = {
-            'cmd' : 'subscribe_watchable',
-            'watchables' : [subscribed_entry.get_id()]
+            'cmd': 'subscribe_watchable',
+            'watchables': [subscribed_entry.get_id()]
         }
 
         # Subscribe through conn 0
@@ -413,14 +419,14 @@ class TestAPI(unittest.TestCase):
         self.assert_no_error(response)
 
         unsubscribe_cmd = {
-            'cmd' : 'unsubscribe_watchable',
-            'watchables' : [subscribed_entry.get_id()]
+            'cmd': 'unsubscribe_watchable',
+            'watchables': [subscribed_entry.get_id()]
         }
 
         self.send_request(unsubscribe_cmd, 0)
         response = self.wait_and_load_response(0)
         self.assert_no_error(response)
-        
+
         self.datastore.set_value(subscribed_entry.get_id(), 1111)
         self.assertIsNone(self.wait_for_response(0, timeout=0.1))
 
@@ -431,8 +437,8 @@ class TestAPI(unittest.TestCase):
 
         subscribed_entry = entries[2]
         req = {
-            'cmd' : 'subscribe_watchable',
-            'watchables' : [subscribed_entry.get_id()]
+            'cmd': 'subscribe_watchable',
+            'watchables': [subscribed_entry.get_id()]
         }
 
         self.send_request(req, 0)
@@ -452,5 +458,3 @@ class TestAPI(unittest.TestCase):
         self.assertEqual(var_update_msg['updates'][0]['value'], 4567)   # Got latest value
 
         self.assertIsNone(self.wait_for_response(0, timeout=0.1))   # No more message to send
-
-    

@@ -8,8 +8,10 @@ from .elf2varmap import Elf2VarMap
 from .launch_server import LaunchServer
 from .runtest import RunTest
 
+
 def get_all_commands():
     return BaseCommand.__subclasses__()
+
 
 def get_commands_by_groups():
     commands = get_all_commands()

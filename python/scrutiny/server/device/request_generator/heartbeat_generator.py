@@ -1,7 +1,17 @@
+#    heartbeat_generator.py
+#        Once enabled, generate HEARTBEAT request periodically to keep a connection alive
+#        with a device.
+#
+#   - License : MIT - See LICENSE file.
+#   - Project : Scrutiny Debugger (github.com/scrutinydebugger/scrutiny)
+#
+#   Copyright (c) 2021-2022 scrutinydebugger
+
 import time
 import logging
 
 from scrutiny.server.protocol import ResponseCode
+
 
 class HeartbeatGenerator:
 
@@ -40,18 +50,18 @@ class HeartbeatGenerator:
     def process(self):
         if not self.started:
             self.reset()
-            return 
+            return
 
         if self.pending == False:
             if self.last_heartbeat_request is None or (time.time() - self.last_heartbeat_request > self.interval):
                 self.logger.debug('Registering a Heartbeat request')
                 self.dispatcher.register_request(
-                    request = self.protocol.comm_heartbeat(session_id=self.session_id, challenge=self.challenge),
-                    success_callback = self.success_callback,
-                    failure_callback = self.failure_callback,
+                    request=self.protocol.comm_heartbeat(session_id=self.session_id, challenge=self.challenge),
+                    success_callback=self.success_callback,
+                    failure_callback=self.failure_callback,
                     priority=self.priority
-                    )
-                self.pending=True
+                )
+                self.pending = True
                 self.last_heartbeat_request = time.time()
 
     def success_callback(self, request, response_code, response_data, params=None):
@@ -61,9 +71,10 @@ class HeartbeatGenerator:
         if response_code == ResponseCode.OK:
             if response_data['session_id'] == self.session_id:
                 if response_data['challenge_response'] == expected_challenge_response:
-                    self.last_heartbeat_timestamp  = time.time() 
+                    self.last_heartbeat_timestamp = time.time()
                 else:
-                    self.logger.error('Heartbeat challenge response is not good. Got %s, expected %s' % (response_data['challenge_response'], expected_challenge_response))
+                    self.logger.error('Heartbeat challenge response is not good. Got %s, expected %s' %
+                                      (response_data['challenge_response'], expected_challenge_response))
             else:
                 self.logger.error('Heartbeat session ID echo not good. Got %s, expected %s' % (response_data['session_id'], self.session_id))
         else:
@@ -77,4 +88,4 @@ class HeartbeatGenerator:
 
     def completed(self):
         self.challenge = (self.challenge + 1) & 0xFFFF
-        self.pending = False     
+        self.pending = False

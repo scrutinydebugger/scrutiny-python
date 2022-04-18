@@ -1,3 +1,11 @@
+#    udp_link.py
+#        Connects the CommHandler to a device through UDP
+#
+#   - License : MIT - See LICENSE file.
+#   - Project : Scrutiny Debugger (github.com/scrutinydebugger/scrutiny)
+#
+#   Copyright (c) 2021-2022 scrutinydebugger
+
 import logging
 import socket
 import threading
@@ -5,6 +13,7 @@ import errno
 import traceback
 
 from scrutiny.server.server_tools import Timer
+
 
 class UdpLink:
 
@@ -25,18 +34,17 @@ class UdpLink:
         self.sock = None
         self.bound = False
 
-
     def initialize(self):
         self.logger.debug('Opening UDP Link. Host=%s (%s). Port=%d' % (self.host, self.ip_address, self.port))
         self.init_socket()
-        
+
     def init_socket(self):
         try:
             if self.sock is not None:
                 self.sock.close()
 
             self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            self.sock.bind(('0.0.0.0', 0)) 
+            self.sock.bind(('0.0.0.0', 0))
             self.sock.setblocking(False)
             (addr, port) = self.sock.getsockname()
             self.logger.debug('Socket bound to address=%s and port=%d' % (addr, port))
@@ -44,8 +52,6 @@ class UdpLink:
         except Exception as e:
             self.logger.debug(str(e))
             self.bound = False
-
-
 
     def destroy(self):
         self.logger.debug('Closing UDP Link. Host=%s. Port=%d' % (self.host, self.port))
@@ -67,7 +73,7 @@ class UdpLink:
         try:
             err = None
             data, (ip_address, port) = self.sock.recvfrom(self.BUFSIZE)
-            if ip_address == self.ip_address and port == self.port: # Make sure the datagram comes from our target host
+            if ip_address == self.ip_address and port == self.port:  # Make sure the datagram comes from our target host
                 return data
         except socket.error as e:
             err = e

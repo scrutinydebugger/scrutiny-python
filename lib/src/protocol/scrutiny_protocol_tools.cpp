@@ -1,3 +1,12 @@
+//    scrutiny_protocol_tools.cpp
+//        Some helpers for encoding data in a standardised way.
+//        similar to hton() and ntoh()
+//
+//   - License : MIT - See LICENSE file.
+//   - Project : Scrutiny Debugger (github.com/scrutinydebugger/scrutiny)
+//
+//   Copyright (c) 2021-2022 scrutinydebugger
+
 #include "protocol/scrutiny_protocol_tools.h"
 
 #include <cstdint>

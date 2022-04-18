@@ -1,8 +1,17 @@
+#    session_initializer.py
+#        Once enabled, try to establish a working session with a device.
+#
+#   - License : MIT - See LICENSE file.
+#   - Project : Scrutiny Debugger (github.com/scrutinydebugger/scrutiny)
+#
+#   Copyright (c) 2021-2022 scrutinydebugger
+
 import time
 import logging
 from time import time
 
 from scrutiny.server.protocol import ResponseCode
+
 
 class SessionInitializer:
 
@@ -42,19 +51,18 @@ class SessionInitializer:
 
     def process(self):
         if not self.started or self.error:
-            return 
+            return
         elif not self.connection_pending and self.stop_requested:
             self.reset()
             return
 
-        if not self.connection_pending and (self.last_connect_sent is None or time()-self.last_connect_sent > self.RECONNECT_DELAY):
+        if not self.connection_pending and (self.last_connect_sent is None or time() - self.last_connect_sent > self.RECONNECT_DELAY):
             self.success = False
             self.last_connect_sent = time()
             self.logger.debug('Registering a Connect request')
-            self.dispatcher.register_request(request = self.protocol.comm_connect(),
-                    success_callback = self.success_callback, failure_callback = self.failure_callback, priority = self.priority)
+            self.dispatcher.register_request(request=self.protocol.comm_connect(),
+                                             success_callback=self.success_callback, failure_callback=self.failure_callback, priority=self.priority)
             self.connection_pending = True
-
 
     def success_callback(self, request, response_code, response_data, params=None):
         if response_code == ResponseCode.OK:
@@ -76,6 +84,6 @@ class SessionInitializer:
         self.completed()
 
     def completed(self):
-        self.connection_pending = False  
+        self.connection_pending = False
         if self.stop_requested:
-            self.reset()   
+            self.reset()

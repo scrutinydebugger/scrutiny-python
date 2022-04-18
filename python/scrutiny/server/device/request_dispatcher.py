@@ -1,4 +1,14 @@
+#    request_dispatcher.py
+#        Use a PriorityQueue to dispatch Request to the device. Associate each request wil
+#        its callback
+#
+#   - License : MIT - See LICENSE file.
+#   - Project : Scrutiny Debugger (github.com/scrutinydebugger/scrutiny)
+#
+#   Copyright (c) 2021-2022 scrutinydebugger
+
 import queue
+
 
 class RequestDispatcher:
 
@@ -8,15 +18,14 @@ class RequestDispatcher:
         def __init__(self):
             self.completed = False
 
-        def complete(self, success=False, response=None, response_data = None):
-            self.completed = True # Set to true at beginning so that it is still true if an exception raise in the callback
+        def complete(self, success=False, response=None, response_data=None):
+            self.completed = True  # Set to true at beginning so that it is still true if an exception raise in the callback
             if success:
                 if response is None or response_data is None:
                     raise ValueError('Missing response')
                 self.success_callback(self.request, response.code, response_data, self.success_params)
             else:
                 self.failure_callback(self.request, self.failure_params)
-
 
         def is_completed(self):
             return self.completed
@@ -34,7 +43,7 @@ class RequestDispatcher:
     def __init__(self):
         self.request_queue = queue.PriorityQueue()
 
-    def register_request(self, request, success_callback, failure_callback, priority=0, success_params = None, failure_params=None):
+    def register_request(self, request, success_callback, failure_callback, priority=0, success_params=None, failure_params=None):
         record = self.RequestRecord()
         record.request = request
         record.success_callback = success_callback

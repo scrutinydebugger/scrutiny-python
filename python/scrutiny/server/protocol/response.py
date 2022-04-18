@@ -1,9 +1,18 @@
+#    response.py
+#        Represent a response sent by the device and received by the server
+#
+#   - License : MIT - See LICENSE file.
+#   - Project : Scrutiny Debugger (github.com/scrutinydebugger/scrutiny)
+#
+#   Copyright (c) 2021-2022 scrutinydebugger
+
 import struct
 import inspect
 from enum import Enum
 
 from .crc32 import crc32
 from .commands.base_command import BaseCommand
+
 
 class Response:
 
@@ -16,9 +25,9 @@ class Response:
         FailureToProceed = 5
 
     def __init__(self, command, subfn, code, payload=b''):
-        
+
         if inspect.isclass(command) and issubclass(command, BaseCommand):
-            self.command = command 
+            self.command = command
         elif isinstance(command, int):
             self.command = BaseCommand.from_command_id(command)
         else:
@@ -50,7 +59,7 @@ class Response:
 
         cmd, subfn, code = struct.unpack('>BBB', data[:3])
         response = Response(cmd, subfn, code)
-        length, = struct.unpack('>H', data[3:5])        
+        length, = struct.unpack('>H', data[3:5])
         response.payload = data[5:-4]
         if length != len(response.payload):
             raise Exception('Length mismatch between real payload length (%d) and encoded length (%d)' % (len(response.payload), length))
@@ -77,10 +86,8 @@ class Response:
             self.code.name,
             self.code.value,
             len(self.payload)
-            )
+        )
         return s
 
     def __str__(self):
         return self.__repr__()
-
-

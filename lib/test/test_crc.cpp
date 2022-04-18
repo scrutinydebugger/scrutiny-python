@@ -1,3 +1,11 @@
+//    test_crc.cpp
+//        Test CRC calculation
+//
+//   - License : MIT - See LICENSE file.
+//   - Project : Scrutiny Debugger (github.com/scrutinydebugger/scrutiny)
+//
+//   Copyright (c) 2021-2022 scrutinydebugger
+
 #include <gtest/gtest.h>
 #include <cstdint>
 

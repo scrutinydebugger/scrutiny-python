@@ -1,3 +1,11 @@
+//    scrutiny_main_handler.h
+//        The main scrutiny class to be manipulated by the user
+//
+//   - License : MIT - See LICENSE file.
+//   - Project : Scrutiny Debugger (github.com/scrutinydebugger/scrutiny)
+//
+//   Copyright (c) 2021-2022 scrutinydebugger
+
 #ifndef __SCRUTINY_HANDLER_H__
 #define __SCRUTINY_HANDLER_H__
 

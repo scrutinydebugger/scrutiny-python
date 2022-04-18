@@ -1,10 +1,19 @@
+#    base_command.py
+#        Abstract class for all Scrutiny protocol commands
+#
+#   - License : MIT - See LICENSE file.
+#   - Project : Scrutiny Debugger (github.com/scrutinydebugger/scrutiny)
+#
+#   Copyright (c) 2021-2022 scrutinydebugger
+
 from abc import ABC
-import inspect 
+import inspect
 import sys
 
+
 class BaseCommand(ABC):
-    
-    @classmethod # Returns an instance of the service identified by the service ID (Request)
+
+    @classmethod  # Returns an instance of the service identified by the service ID (Request)
     def from_command_id(cls, given_id):
         given_id &= 0x7F
         for name, obj in inspect.getmembers(sys.modules[__name__]):
@@ -20,7 +29,6 @@ class BaseCommand(ABC):
     @classmethod
     def request_id(cls):
         return cls._cmd_id & 0x7F
-
 
 
 from .datalog_control import DatalogControl

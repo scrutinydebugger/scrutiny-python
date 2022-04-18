@@ -1,9 +1,18 @@
+#    test_dummy_connection.py
+#        Test the FakeConnection used for unit tests
+#
+#   - License : MIT - See LICENSE file.
+#   - Project : Scrutiny Debugger (github.com/scrutinydebugger/scrutiny)
+#
+#   Copyright (c) 2021-2022 scrutinydebugger
+
 import unittest
 import queue
 import json
 import time
 
 from scrutiny.server.api.dummy_client_handler import DummyConnection, DummyClientHandler
+
 
 class TestDummyConnection(unittest.TestCase):
 
@@ -44,14 +53,13 @@ class TestDummyConnection(unittest.TestCase):
             connections.add(conn.get_id())
 
 
-
 class TestDummyConnectionHandler(unittest.TestCase):
     def setUp(self):
 
         self.connections = [DummyConnection(), DummyConnection(), DummyConnection()]
 
         config = {
-            'connections':  self.connections
+            'connections': self.connections
         }
         for conn in self.connections:
             conn.open()
@@ -59,7 +67,7 @@ class TestDummyConnectionHandler(unittest.TestCase):
         self.handler = DummyClientHandler(config)
         self.handler.start()
 
-    def wait_handler_recv(self, timeout = 0.4):
+    def wait_handler_recv(self, timeout=0.4):
         t1 = time.time()
         while not self.handler.available():
             if time.time() - t1 >= timeout:
@@ -71,7 +79,7 @@ class TestDummyConnectionHandler(unittest.TestCase):
         except:
             pass
 
-    def wait_conn_recv_from_server(self, conn, timeout = 0.4):
+    def wait_conn_recv_from_server(self, conn, timeout=0.4):
         t1 = time.time()
         while not conn.from_server_available():
             if time.time() - t1 >= timeout:
@@ -117,5 +125,3 @@ class TestDummyConnectionHandler(unittest.TestCase):
 
     def tearDown(self):
         self.handler.stop()
-
-

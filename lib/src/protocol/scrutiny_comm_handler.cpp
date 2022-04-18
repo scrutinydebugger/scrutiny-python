@@ -1,3 +1,12 @@
+//    scrutiny_comm_handler.cpp
+//        Manage the tranport-ish layer of the communication protocol. Converts Request/Response
+//        to byte stream and validate CRC
+//
+//   - License : MIT - See LICENSE file.
+//   - Project : Scrutiny Debugger (github.com/scrutinydebugger/scrutiny)
+//
+//   Copyright (c) 2021-2022 scrutinydebugger
+
 #include <cstring>
 
 #include "protocol/scrutiny_comm_handler.h"

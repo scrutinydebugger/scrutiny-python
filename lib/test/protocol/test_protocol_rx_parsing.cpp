@@ -1,3 +1,11 @@
+//    test_protocol_rx_parsing.cpp
+//        Make sure reception of request bytes are correctly decoded
+//
+//   - License : MIT - See LICENSE file.
+//   - Project : Scrutiny Debugger (github.com/scrutinydebugger/scrutiny)
+//
+//   Copyright (c) 2021-2022 scrutinydebugger
+
 #include <gtest/gtest.h>
 
 #include "scrutiny.h"

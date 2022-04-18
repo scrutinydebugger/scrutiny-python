@@ -1,3 +1,15 @@
+#    device_handler.py
+#        Manage the communication with the device at high level.
+#        Try to establish a connection, once it succeed, reads the device configuration.
+#        
+#        Will keep the communication ongoing and will request for memory dump based on the
+#        Datastore state
+#
+#   - License : MIT - See LICENSE file.
+#   - Project : Scrutiny Debugger (github.com/scrutinydebugger/scrutiny)
+#
+#   Copyright (c) 2021-2022 scrutinydebugger
+
 import copy
 import queue
 import time
@@ -18,21 +30,21 @@ from scrutiny.server.server_tools import Timer
 
 DEFAULT_FIRMWARE_ID_ASCII = binascii.hexlify(DEFAULT_FIRMWARE_ID).decode('ascii')
 
+
 class DeviceHandler:
     DEFAULT_PARAMS = {
-            'response_timeout' : 1.0,    # If a response take more than this delay to be received after a request is sent, drop the response.
-            'heartbeat_timeout' : 4.0,
-            'default_address_size' : 32,
-            'default_protocol_version' : '1.0'
-        }
+        'response_timeout': 1.0,    # If a response take more than this delay to be received after a request is sent, drop the response.
+        'heartbeat_timeout': 4.0,
+        'default_address_size': 32,
+        'default_protocol_version': '1.0'
+    }
 
     class RequestPriority:
-        Disconnect = 0  
+        Disconnect = 0
         Heatbeat = 1
         Connect = 2
         PollInfo = 5
         Discover = 10
-
 
     class ConnectionStatus(Enum):
         UNKNOWN = -1
@@ -47,7 +59,7 @@ class DeviceHandler:
         CONNECTING = 2
         POLLING_INFO = 3
         READY = 4
-        DISCONNECTING = 5 
+        DISCONNECTING = 5
 
     def __init__(self, config, datastore):
         self.logger = logging.getLogger(self.__class__.__name__)
@@ -62,12 +74,12 @@ class DeviceHandler:
         self.session_initializer = SessionInitializer(self.protocol, self.dispatcher, priority=self.RequestPriority.Connect)
         self.heartbeat_generator = HeartbeatGenerator(self.protocol, self.dispatcher, priority=self.RequestPriority.Heatbeat)
         self.info_poller = InfoPoller(
-            self.protocol, 
-            self.dispatcher, 
-            priority=self.RequestPriority.PollInfo, 
-            protocol_version_callback = self.get_protocol_version_callback, # Called when protocol version is polled
-            comm_param_callback = self.get_comm_params_callback,            # Called when communication params are polled
-            )
+            self.protocol,
+            self.dispatcher,
+            priority=self.RequestPriority.PollInfo,
+            protocol_version_callback=self.get_protocol_version_callback,  # Called when protocol version is polled
+            comm_param_callback=self.get_comm_params_callback,            # Called when communication params are polled
+        )
 
         self.comm_handler = CommHandler(self.config)
 
@@ -86,27 +98,29 @@ class DeviceHandler:
     def get_comm_params_callback(self, partial_device_info):
         # In the POLLING_INFO stage, there is a point where we will have gotten the communication params.
         # This callback is called right after it so we can adapt.
-        # We can raise exception here. 
+        # We can raise exception here.
         # They will be logged by info_poller. info_poller will go to error state. DeviceHandler will notice that and reset communication
 
-        if not isinstance(partial_device_info.address_size_bits, int) :
+        if not isinstance(partial_device_info.address_size_bits, int):
             raise Exception('Address size gotten from device not valid.')
 
-        if partial_device_info.address_size_bits not in [8,16,32,64]:
-            raise Exception("The device have an address size of %d bits. This server only supports 8,16,32,64 bits" % (partial_device_info.address_size_bits)) 
+        if partial_device_info.address_size_bits not in [8, 16, 32, 64]:
+            raise Exception("The device have an address size of %d bits. This server only supports 8,16,32,64 bits" %
+                            (partial_device_info.address_size_bits))
 
-        if not isinstance( partial_device_info.heartbeat_timeout_us, int):
+        if not isinstance(partial_device_info.heartbeat_timeout_us, int):
             raise Exception('Heartbeat timeout gotten from device is invalid')
 
-        self.logger.info('Device has an address size of %d bits. Configuring protocol to encode/decode them accordingly.' % partial_device_info.address_size_bits)
+        self.logger.info('Device has an address size of %d bits. Configuring protocol to encode/decode them accordingly.' %
+                         partial_device_info.address_size_bits)
         self.protocol.set_address_size(partial_device_info.address_size_bits)
 
-        self.heartbeat_generator.set_interval(max(0.5, float(partial_device_info.heartbeat_timeout_us)/1000000.0 * 0.75))
+        self.heartbeat_generator.set_interval(max(0.5, float(partial_device_info.heartbeat_timeout_us) / 1000000.0 * 0.75))
 
     def get_protocol_version_callback(self, major, minor):
         # In the POLLING_INFO stage, there is a point where we will have gotten the communication params.
         # This callback is called right after it so we can adapt.
-        # We can raise exception here. 
+        # We can raise exception here.
         # They will be logged by info_poller. info_poller will go to error state. DeviceHandler will notice that and reset communication
 
         if not isinstance(major, int) or not isinstance(minor, int):
@@ -114,9 +128,9 @@ class DeviceHandler:
 
         self.logger.info('Configuring protocol to V%d.%d' % (major, minor))
         self.protocol.set_version(major, minor)   # This may raise an exception
-        
 
     # Tells the state of our connection with the device.
+
     def get_connection_status(self):
         if self.connected:
             if self.fsm_state == self.FsmState.READY:
@@ -134,7 +148,6 @@ class DeviceHandler:
             return self.ConnectionStatus.DISCONNECTED
 
         return self.ConnectionStatus.UNKNOWN
-
 
     def get_comm_link(self):
         return self.comm_handler.get_link()
@@ -159,7 +172,7 @@ class DeviceHandler:
         self.disconnect_callback = None
         self.disconnect_complete = False
         self.comm_broken_count = 0
-        self.protocol.set_address_size(self.config['default_address_size']) # Set back the protocol to decode addresses of this size.
+        self.protocol.set_address_size(self.config['default_address_size'])  # Set back the protocol to decode addresses of this size.
         (major, minor) = self.config['default_protocol_version'].split('.')
         self.protocol.set_version(int(major), int(minor))
 
@@ -180,7 +193,7 @@ class DeviceHandler:
         else:
             raise ValueError('Unknown link type %s' % self.config['link_type'])
 
-        device_link = link_class(self.config['link_config'])    #instantiate the class
+        device_link = link_class(self.config['link_config'])  # instantiate the class
         self.comm_handler.open(device_link)
         self.reset_comm()
 
@@ -207,7 +220,6 @@ class DeviceHandler:
 
         self.handle_comm()      # Make sure request and response are being exchanged with the device
         self.do_state_machine()
-        
 
     def do_state_machine(self):
         if self.comm_broken:
@@ -225,7 +237,7 @@ class DeviceHandler:
             if self.comm_handler.is_open():
                 next_state = self.FsmState.DISCOVERING
 
-        #============= [DISCOVERING] =====================
+        # ============= [DISCOVERING] =====================
         elif self.fsm_state == self.FsmState.DISCOVERING:
             if state_entry:
                 self.device_searcher.start()
@@ -237,19 +249,19 @@ class DeviceHandler:
                     self.device_id = found_device_id
 
                     if found_device_id == DEFAULT_FIRMWARE_ID_ASCII:
-                        self.logger.warning("Firmware ID of this device is a default placeholder. Firmware might not have been tagged with a valid ID in the build toolchain.")
+                        self.logger.warning(
+                            "Firmware ID of this device is a default placeholder. Firmware might not have been tagged with a valid ID in the build toolchain.")
 
             if self.device_id is not None:
                 self.device_searcher.stop()
                 next_state = self.FsmState.CONNECTING
 
-        #============= [CONNECTING] =====================
+        # ============= [CONNECTING] =====================
         elif self.fsm_state == self.FsmState.CONNECTING:
             # Connection message can be handled synchronously as no request generator is active.
             # In other conditions, we should use the dispatcher and do everything asynchronously.
             if state_entry:
                 self.session_initializer.start()
-
 
             if self.session_initializer.connection_successful():
                 self.session_initializer.stop()
@@ -297,29 +309,28 @@ class DeviceHandler:
 
             if self.disconnection_requested:
                 next_state = self.FsmState.DISCONNECTING
-       
+
        # ========= [DISCONNECTING] ==========
         elif self.fsm_state == self.FsmState.DISCONNECTING:
             if state_entry:
                 self.disconnect_complete = False
-            
+
             if not self.connected:
                 next_state = self.FsmState.INIT
             else:
                 if state_entry:
                     self.dispatcher.register_request(
-                        request = self.protocol.comm_disconnect(self.session_id),
-                        success_callback = self.disconnect_complete_success,
-                        failure_callback = self.disconnect_complete_failure,
+                        request=self.protocol.comm_disconnect(self.session_id),
+                        success_callback=self.disconnect_complete_success,
+                        failure_callback=self.disconnect_complete_failure,
                         priority=self.RequestPriority.Disconnect
                     )
 
             if self.disconnect_complete:
-                next_state != self.FsmState.DISCONNECTING                
+                next_state != self.FsmState.DISCONNECTING
 
         else:
             raise Exception('Unknown FSM state : %s' % self.fsm_state)
-
 
         # ====  FSM END ====
 
@@ -338,13 +349,12 @@ class DeviceHandler:
         if self.disconnect_callback is not None:
             self.disconnect_callback.__call__(False)
 
-
     def handle_comm(self):
         self.comm_handler.process()     # Process reception
 
         if not self.comm_handler.is_open():
             return
-        
+
         if self.active_request_record is None:  # We haven't send a request
             record = self.dispatcher.next()
             if record is not None:              # A new request to send
@@ -363,16 +373,16 @@ class DeviceHandler:
 
                     try:
                         data = self.protocol.parse_response(response)
-                        self.active_request_record.complete(success=True, response=response, response_data=data) # Valid response if we get here.
+                        self.active_request_record.complete(success=True, response=response, response_data=data)  # Valid response if we get here.
                     except Exception as e:                   # Malformed response.
                         self.comm_broken = True
                         self.logger.error("Invalid response received. %s" % str(e))
                         self.logger.debug(traceback.format_exc())
                         self.active_request_record.complete(success=False)
-            
+
             else:   # Comm handler decided to go back to Idle by itself. Most likely a valid message that was not the response of the request.
                 self.comm_broken = True
-                self.comm_handler.reset() 
+                self.comm_handler.reset()
                 self.active_request_record.complete(success=False)
 
             if self.active_request_record is not None:          # double check if None here in case the user shut down communication in a callback
@@ -380,4 +390,3 @@ class DeviceHandler:
                     self.active_request_record = None
 
         self.comm_handler.process()      # Process new transmission now.
-

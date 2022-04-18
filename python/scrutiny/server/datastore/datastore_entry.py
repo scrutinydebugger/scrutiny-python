@@ -1,6 +1,15 @@
+#    datastore_entry.py
+#        A variable entry in the datastore
+#
+#   - License : MIT - See LICENSE file.
+#   - Project : Scrutiny Debugger (github.com/scrutinydebugger/scrutiny)
+#
+#   Copyright (c) 2021-2022 scrutinydebugger
+
 import uuid
 from enum import Enum
 from datetime import datetime
+
 
 class Callback:
     def __init__(self, fn, owner, args=None):
@@ -17,7 +26,7 @@ class Callback:
     def __call__(self, *args, **kwargs):
         if self.args is None:
             self.fn.__call__(self.owner, *args, **kwargs)
-        else:    
+        else:
             self.fn.__call__(self.owner, self.args, *args, **kwargs)
 
 
@@ -42,7 +51,7 @@ class DatastoreEntry:
             return self.completed
 
     def __init__(self, wtype, display_path):
-        
+
         if wtype not in [self.Type.eVar, self.Type.eAlias]:
             raise ValueError('Invalid watchable type')
 
@@ -66,7 +75,6 @@ class DatastoreEntry:
     def get_display_path(self):
         return self.display_path
 
-
     def execute_value_change_callback(self):
         self.callback_pending = True
         for owner in self.value_change_callback:
@@ -74,9 +82,9 @@ class DatastoreEntry:
         self.callback_pending = False
 
     def has_callback_pending(self):
-        return self.callback_pending 
+        return self.callback_pending
 
-    def register_value_change_callback(self, owner=None, callback=None,  args=None):
+    def register_value_change_callback(self, owner=None, callback=None, args=None):
         thecallback = Callback(fn=callback, owner=owner, args=args)
         if owner in self.value_change_callback:
             raise ValueError('This owner already has a callback registered')
@@ -99,7 +107,7 @@ class DatastoreEntry:
 
     def get_update_time(self):
         return self.last_value_update
-        
+
     def get_value(self):
         return self.value
 
@@ -116,9 +124,9 @@ class DatastoreEntry:
             return True
 
     def mark_target_update_request_complete(self):
-         if self.pending_target_update is not None:
+        if self.pending_target_update is not None:
             self.pending_target_update.complete()
-    
+
     def discard_target_update_request(self):
         self.pending_target_update = None
 

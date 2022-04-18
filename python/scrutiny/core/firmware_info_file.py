@@ -1,3 +1,13 @@
+#    firmware_info_file.py
+#        Contains the class that represent a Firmware Information File.
+#        A .fif is a file that holds all the data related to a firmware and is identified
+#        by a unique ID.
+#
+#   - License : MIT - See LICENSE file.
+#   - Project : Scrutiny Debugger (github.com/scrutinydebugger/scrutiny)
+#
+#   Copyright (c) 2021-2022 scrutinydebugger
+
 from zipfile import ZipFile
 import os
 import json
@@ -5,6 +15,7 @@ import logging
 
 import scrutiny.core.firmware_id as firmware_id
 from scrutiny.core.varmap import VarMap
+
 
 class FirmwareInfoFile:
     varmap_filename = 'varmap.json'
@@ -22,7 +33,7 @@ class FirmwareInfoFile:
             self.load_from_folder(file_folder)
         elif os.path.isfile(file_folder):
             self.load_from_file(file_folder)
-        
+
         self.validate()
 
     def load_from_folder(self, folder):
@@ -30,7 +41,7 @@ class FirmwareInfoFile:
             raise Exception("Folder %s does not exist" % folder)
 
         for file in self.REQUIRED_FILES:
-            if not os.path.isfile(os.path.join(folder,file)):
+            if not os.path.isfile(os.path.join(folder, file)):
                 raise Exception('Missing %s' % file)
 
         metadata_file = os.path.join(folder, self.metadata_filename)
@@ -57,7 +68,7 @@ class FirmwareInfoFile:
         with ZipFile(filename, mode='w') as outzip:
             outzip.writestr(self.firmwareid_filename, self.firmwareid.hex())
             outzip.writestr(self.metadata_filename, json.dumps(self.metadata, indent=4))
-            outzip.writestr(self.varmap_filename, self.varmap.get_json() )
+            outzip.writestr(self.varmap_filename, self.varmap.get_json())
 
     def get_firmware_id(self, ascii=True):
         if ascii:
@@ -75,13 +86,14 @@ class FirmwareInfoFile:
 
     def validate_firmware_id(self):
         if len(self.firmwareid) != len(firmware_id.PLACEHOLDER):
-            raise Exception('Firmware ID seems to be the wrong length. Found %d bytes, expected %d bytes' % (len(project_firmware_id), len(firmware_id.PLACEHOLDER)))
+            raise Exception('Firmware ID seems to be the wrong length. Found %d bytes, expected %d bytes' %
+                            (len(project_firmware_id), len(firmware_id.PLACEHOLDER)))
 
     def validate_metadata(self):
         if 'project-name' not in self.metadata or not self.metadata['project-name']:
             logging.warning('No project name defined in %s' % self.metadata_filename)
 
-        if 'version' not in self.metadata or not self.metadata['version'] :
+        if 'version' not in self.metadata or not self.metadata['version']:
             logging.warning('No version defined in %s' % self.metadata_filename)
 
         if 'author' not in self.metadata or not self.metadata['author']:

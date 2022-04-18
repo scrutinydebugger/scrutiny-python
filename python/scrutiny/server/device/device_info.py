@@ -1,3 +1,11 @@
+#    device_info.py
+#        All the information that can be extracted from the device through the Scrutiny protocol
+#
+#   - License : MIT - See LICENSE file.
+#   - Project : Scrutiny Debugger (github.com/scrutinydebugger/scrutiny)
+#
+#   Copyright (c) 2021-2022 scrutinydebugger
+
 class DeviceInfo:
     __slots__ = (
         'max_tx_data_size',
@@ -11,7 +19,7 @@ class DeviceInfo:
         'supported_feature_map',
         'forbidden_memory_regions',
         'readonly_memory_regions'
-        )
+    )
 
     def __init__(self):
         self.clear()
@@ -29,7 +37,7 @@ class DeviceInfo:
             setattr(self, attr, None)
 
     def __str__(self):
-        dict_out  = {}
+        dict_out = {}
         for attr in self.__slots__:
             dict_out[attr] = getattr(self, attr)
         return str(dict_out)

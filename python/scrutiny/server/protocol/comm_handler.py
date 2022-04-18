@@ -1,3 +1,15 @@
+#    comm_handler.py
+#        The CommHandler task is to convert Requests and Response from or to a stream of bytes.
+#        
+#        This class manage send requests, wait for response, indicates if a response timeout
+#        occured and decodes bytes.
+#        It manages the low level part of the communication protocol with the device
+#
+#   - License : MIT - See LICENSE file.
+#   - Project : Scrutiny Debugger (github.com/scrutinydebugger/scrutiny)
+#
+#   Copyright (c) 2021-2022 scrutinydebugger
+
 from queue import Queue
 from scrutiny.server.protocol import Request, Response
 from scrutiny.server.server_tools import Timer
@@ -6,6 +18,7 @@ from copy import copy
 import logging
 import struct
 from binascii import hexlify
+
 
 class CommHandler:
     """
@@ -24,11 +37,9 @@ class CommHandler:
             self.length_bytes_received = 0
             self.data_buffer = bytes()
 
-
     DEFAULT_PARAMS = {
-        'response_timeout' : 1
+        'response_timeout': 1
     }
-
 
     def __init__(self, params={}):
         self.active_request = None      # Contains the request object that has been sent to the device. When None, no request sent and we are standby
@@ -61,7 +72,7 @@ class CommHandler:
     def close(self):
         """
             Close the communication channel with the device
-        """        
+        """
         if self.link is not None:
             self.link.destroy()
             self.link = None
@@ -78,8 +89,8 @@ class CommHandler:
         if self.link is None:
             self.reset()
             return
-        
-        self.link.process() # Process the link handling
+
+        self.link.process()  # Process the link handling
         self.process_rx()   # Treat response reception
 
     def process_rx(self):
@@ -87,32 +98,33 @@ class CommHandler:
         if self.waiting_response() and (self.response_timer.is_timed_out() or not self.link.operational()):
             self.reset_rx()
             self.timed_out = True
-        
+
         data = self.link.read()
         if data is None or len(data) == 0:
             return  # No data, exit.
 
         self.logger.debug('Received : %s' % (hexlify(data).decode('ascii')))
-        
+
         if self.response_available() or not self.waiting_response():
             self.logger.debug('Received unwanted data: ' + hexlify(data).decode('ascii'))
             return  # Purposely discard data if we are not expecting any
 
         self.rx_data.data_buffer += data    # Add data to receive buffer
 
-        if len(self.rx_data.data_buffer) >= 5: # We have a valid command,subcommand, code and length (16btis)
+        if len(self.rx_data.data_buffer) >= 5:  # We have a valid command,subcommand, code and length (16btis)
             if self.rx_data.length is None:
                 self.rx_data.length, = struct.unpack('>H', self.rx_data.data_buffer[3:5])   # Read the data length
 
-        if self.rx_data.length is not None:     #We already received a valid header
+        if self.rx_data.length is not None:  # We already received a valid header
             expected_bytes_count = self.rx_data.length + 9  # payload + header (5 bytes), CRC (4bytes)
             if len(self.rx_data.data_buffer) >= expected_bytes_count:
-                self.rx_data.data_buffer = self.rx_data.data_buffer[0:expected_bytes_count]  #Remove extra bytes
+                self.rx_data.data_buffer = self.rx_data.data_buffer[0:expected_bytes_count]  # Remove extra bytes
 
-                #We have enough data, try to decode the response and validate the CRC.
+                # We have enough data, try to decode the response and validate the CRC.
                 try:
                     self.received_response = Response.from_bytes(self.rx_data.data_buffer)  # CRC validation is done here
-                    self.logger.debug("Received Response %s" % self.received_response)  # Decoding did not raised an exception, we have a valid payload!
+                    # Decoding did not raised an exception, we have a valid payload!
+                    self.logger.debug("Received Response %s" % self.received_response)
                     self.rx_data.clear()        # Empty the receive buffer
                     self.response_timer.stop()  # Timeout timer can be stop
 
@@ -122,9 +134,9 @@ class CommHandler:
                     if self.received_response.subfn != self.active_request.subfn:
                         raise Exception("Unexpected Response subfunction : %s" % str(self.received_response))
 
-                    #Here, everything went fine. The application can now send a new request or read the received response.
+                    # Here, everything went fine. The application can now send a new request or read the received response.
                 except Exception as e:
-                    self.logger.error("Received malformed message. "  + str(e))
+                    self.logger.error("Received malformed message. " + str(e))
                     self.reset_rx()
 
     def response_available(self):
@@ -144,12 +156,12 @@ class CommHandler:
             raise Exception('No response to read')
 
         response = self.received_response   # Make a copy of the response to return before clearing everything
-        self.reset_rx() # Since user read the response, it has been acknowledged. Make sure response_available() return False
+        self.reset_rx()  # Since user read the response, it has been acknowledged. Make sure response_available() return False
 
         return response
 
     def reset_rx(self):
-        # Make sure we can send a new request. 
+        # Make sure we can send a new request.
         # Also clear the received resposne so that response_available() return False
         self.active_request = None
         self.received_response = None

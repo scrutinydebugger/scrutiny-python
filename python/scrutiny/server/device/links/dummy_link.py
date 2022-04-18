@@ -1,9 +1,18 @@
+#    dummy_link.py
+#        Fake communication link with a device. Used by the EmulatedDevice for unit test purpose
+#
+#   - License : MIT - See LICENSE file.
+#   - Project : Scrutiny Debugger (github.com/scrutinydebugger/scrutiny)
+#
+#   Copyright (c) 2021-2022 scrutinydebugger
+
 import threading
+
 
 class ThreadSafeDummyLink:
     def __init__(self, config=None):
         self.initialize()
-        
+
     def initialize(self):
         self.to_device_data = bytes()
         self.from_device_data = bytes()
@@ -14,7 +23,7 @@ class ThreadSafeDummyLink:
         self.initialize()
 
     def write(self, data):
-        with  self.to_device_mutex:
+        with self.to_device_mutex:
             self.to_device_data += data
 
     def read(self):
@@ -38,6 +47,7 @@ class ThreadSafeDummyLink:
 
     def operational(self):
         return True
+
 
 class DummyLink:
     def __init__(self, config=None):

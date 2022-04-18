@@ -1,4 +1,15 @@
-import sys, os
+#    server.py
+#        The scrutiny server. Talk with multiple clients through a websocket API and communicate
+#        with a device through a given communication link (Serial, UDP, etc)
+#        Allow the clients to interract with the device
+#
+#   - License : MIT - See LICENSE file.
+#   - Project : Scrutiny Debugger (github.com/scrutinydebugger/scrutiny)
+#
+#   Copyright (c) 2021-2022 scrutinydebugger
+
+import sys
+import os
 import time
 import json
 import logging
@@ -10,18 +21,18 @@ from scrutiny.server.datastore import Datastore
 from scrutiny.server.device import DeviceHandler
 
 DEFAULT_CONFIG = {
-    'name' : 'Scrutiny Server (Default config)',
-    'api_config' : {
-        'client_interface_type' : 'websocket',
-        'client_interface_config' : {
-            'host' : 'localhost',
-            'port' : 8765            
+    'name': 'Scrutiny Server (Default config)',
+    'api_config': {
+        'client_interface_type': 'websocket',
+        'client_interface_config': {
+            'host': 'localhost',
+            'port': 8765
         }
     },
-    'device_config' : {
-        'comm_response_timeout' : 1.0,
-        'link_type' : 'none',
-        'link_config' : {
+    'device_config': {
+        'comm_response_timeout': 1.0,
+        'link_type': 'none',
+        'link_config': {
         }
     }
 }
@@ -34,7 +45,7 @@ class ScrutinyServer:
         self.config = copy(DEFAULT_CONFIG)
         if config is not None:
             self.logger.debug('Loading user configuration file: "%s"' % config)
-            del self.config['name'] # remove "default config" from name
+            del self.config['name']  # remove "default config" from name
             with open(config) as f:
                 try:
                     user_cfg = json.loads(f.read())
@@ -46,8 +57,8 @@ class ScrutinyServer:
 
         self.theapi = None
         self.device_handler = None
-        self.server_name =  '<Unnamed>' if 'name' not in self.config else self.config['name']
-    
+        self.server_name = '<Unnamed>' if 'name' not in self.config else self.config['name']
+
     def validate_config(self):
         pass
 
@@ -57,7 +68,7 @@ class ScrutinyServer:
         try:
             self.device_handler = DeviceHandler(self.config['device_config'], ds)
             self.api = API(self.config['api_config'], ds, self.device_handler)
-            
+
             self.api.start_listening()
             self.device_handler.init_comm()
             while True:

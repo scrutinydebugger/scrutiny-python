@@ -1,3 +1,11 @@
+//    scrutiny_protocol.h
+//        Main include file for the scrutiny protocol
+//
+//   - License : MIT - See LICENSE file.
+//   - Project : Scrutiny Debugger (github.com/scrutinydebugger/scrutiny)
+//
+//   Copyright (c) 2021-2022 scrutinydebugger
+
 #ifndef ___SCRUTINY_PROTOCOL_H___
 #define ___SCRUTINY_PROTOCOL_H___
 

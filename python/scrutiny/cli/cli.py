@@ -1,3 +1,12 @@
+#    cli.py
+#        Provide the Command Line Interface.
+#        Allow to launch specific functionality by invoking Scrutiny with command line arguments.
+#
+#   - License : MIT - See LICENSE file.
+#   - Project : Scrutiny Debugger (github.com/scrutinydebugger/scrutiny)
+#
+#   Copyright (c) 2021-2022 scrutinydebugger
+
 import os
 import argparse
 import logging
@@ -13,21 +22,21 @@ class CLI:
 
         self.command_list = get_all_commands()  # comes from commands module
         self.parser = argparse.ArgumentParser(
-            prog            = 'scrutiny', 
-            epilog          = self.make_command_list_help(), 
-            add_help        = False,
-            formatter_class = argparse.RawTextHelpFormatter
-            )
-        self.parser.add_argument('command',  help='Command to execute')
-        self.parser.add_argument('--loglevel',  help='Log level to use', default="info", metavar='LEVEL')
-        self.parser.add_argument('--logfile',  help='File to write logs', default=None, metavar='FILENAME')
+            prog='scrutiny',
+            epilog=self.make_command_list_help(),
+            add_help=False,
+            formatter_class=argparse.RawTextHelpFormatter
+        )
+        self.parser.add_argument('command', help='Command to execute')
+        self.parser.add_argument('--loglevel', help='Log level to use', default="info", metavar='LEVEL')
+        self.parser.add_argument('--logfile', help='File to write logs', default=None, metavar='FILENAME')
 
     def make_command_list_help(self):
         msg = "Here are the possible commands\n\n"
         commands = get_commands_by_groups()
         groups = list(commands.keys())
         if '' in groups:
-            groups.remove('') # Put ungrouped commands at the end
+            groups.remove('')  # Put ungrouped commands at the end
             groups.append('')
 
         for group in groups:
@@ -40,9 +49,9 @@ class CLI:
 
             for cmd in commands[group]:
                 padding_length = longest_cmd_name + 4 - len(cmd.get_name())
-                msg += "    - %s:%s%s\n" % (cmd.get_name(), ' '*padding_length, cmd.get_brief())
-            
-        return msg 
+                msg += "    - %s:%s%s\n" % (cmd.get_name(), ' ' * padding_length, cmd.get_brief())
+
+        return msg
 
     def run(self, args):
         code = 0
@@ -84,12 +93,10 @@ class CLI:
         except Exception as e:
             error = e
             error_stack_strace = traceback.format_exc()
-        
+
         if error is not None:
             code = 1
             logging.error(str(error))
             logging.debug(error_stack_strace)
 
         return code
-
-

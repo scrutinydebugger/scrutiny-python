@@ -1,3 +1,11 @@
+//    scrutiny_crc.h
+//        CRC calculation functions
+//
+//   - License : MIT - See LICENSE file.
+//   - Project : Scrutiny Debugger (github.com/scrutinydebugger/scrutiny)
+//
+//   Copyright (c) 2021-2022 scrutinydebugger
+
 #ifndef ___SCRUTINY_CRC_H___
 #define ___SCRUTINY_CRC_H___
 

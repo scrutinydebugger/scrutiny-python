@@ -1,5 +1,11 @@
-# This class controls the flow of value update sent to clients.
-# Rate limiter logic will be here
+#    value_streamer.py
+#        Take the data from the Datastore and sends it to all clients by respecting bitrate
+#        limits and avoiding duplicate date.
+#
+#   - License : MIT - See LICENSE file.
+#   - Project : Scrutiny Debugger (github.com/scrutinydebugger/scrutiny)
+#
+#   Copyright (c) 2021-2022 scrutinydebugger
 
 class ValueStreamer:
     def __init__(self):
@@ -19,7 +25,7 @@ class ValueStreamer:
             pass
 
     def get_stream_chunk(self, conn_id):
-        chunk =[]
+        chunk = []
         if conn_id not in self.entry_to_publish:
             return chunk
 

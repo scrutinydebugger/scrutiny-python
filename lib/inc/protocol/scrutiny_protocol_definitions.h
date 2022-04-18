@@ -1,3 +1,12 @@
+//    scrutiny_protocol_definitions.h
+//        Defines Request/Rsponse objects and commands/subfunctions IDs.
+//        Not version specific
+//
+//   - License : MIT - See LICENSE file.
+//   - Project : Scrutiny Debugger (github.com/scrutinydebugger/scrutiny)
+//
+//   Copyright (c) 2021-2022 scrutinydebugger
+
 #ifndef ___SCRUTINY_PROTOCOL_DEFINITION_H___
 #define ___SCRUTINY_PROTOCOL_DEFINITION_H___
 

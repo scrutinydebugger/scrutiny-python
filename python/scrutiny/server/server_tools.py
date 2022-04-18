@@ -1,4 +1,13 @@
+#    server_tools.py
+#        Some tools used by the server
+#
+#   - License : MIT - See LICENSE file.
+#   - Project : Scrutiny Debugger (github.com/scrutinydebugger/scrutiny)
+#
+#   Copyright (c) 2021-2022 scrutinydebugger
+
 import time
+
 
 class Timer:
     def __init__(self, timeout):

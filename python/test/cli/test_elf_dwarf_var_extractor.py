@@ -1,6 +1,15 @@
+#    test_elf_dwarf_var_extractor.py
+#        Test the extraction of dwarf symbols from a .elf file
+#
+#   - License : MIT - See LICENSE file.
+#   - Project : Scrutiny Debugger (github.com/scrutinydebugger/scrutiny)
+#
+#   Copyright (c) 2021-2022 scrutinydebugger
+
 import unittest
 import os
 import re
+
 
 class TestElf2VarMap(unittest.TestCase):
 
@@ -8,7 +17,7 @@ class TestElf2VarMap(unittest.TestCase):
         from scrutiny.core.bintools.elf_dwarf_var_extractor import ElfDwarfVarExtractor
         unique_name_regex = re.compile(r'cu(\d+)_(.+)')
 
-        a,b,c,d,e,f = object(),object(),object(),object(), object(), object()
+        a, b, c, d, e, f = object(), object(), object(), object(), object(), object()
 
         fullpath_cu_tuple_list = [
             ('/aaa/bbb/ccc', a),
@@ -16,7 +25,7 @@ class TestElf2VarMap(unittest.TestCase):
             ('/aaa/xxx/ccc', c),
             ('/aaa/bbb/ccc/ddd/x', d),
             ('/aaa/bbb/ccc/ddd/x', e),
-            ('/ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc/ddd/x', f) # Name too long
+            ('/ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc/ddd/x', f)  # Name too long
         ]
 
         display_name_cu = ElfDwarfVarExtractor.make_unique_display_name(fullpath_cu_tuple_list)
@@ -36,4 +45,3 @@ class TestElf2VarMap(unittest.TestCase):
             name = objmap[obj]
             self.assertNotIn(name, name_set, 'Duplicate name %s' % name)
             name_set.add(name)
-

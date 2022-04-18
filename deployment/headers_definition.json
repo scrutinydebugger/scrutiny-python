@@ -1,0 +1,300 @@
+{
+    "python\\scrutiny\\__main__.py": {
+        "docstring": "Entry point of the python module. Launch the CLI.",
+        "add_shebang": true
+    },
+    "python\\scrutiny\\cli\\cli.py": {
+        "docstring": "Provide the Command Line Interface.\nAllow to launch specific functionality by invoking Scrutiny with command line arguments."
+    },
+    "python\\scrutiny\\cli\\commands\\base_command.py": {
+        "docstring": "Abstract class for all commands. Used to automatically find all available commands through reflection"
+    },
+    "python\\scrutiny\\cli\\commands\\elf2varmap.py": {
+        "docstring": "CLI Command to read and .elf file and generate a Scrutiny VarMap file that will be included into the Firmware Info File."
+    },
+    "python\\scrutiny\\cli\\commands\\get_firmware_id.py": {
+        "docstring": "CLI Command to generate a unique ID from a .elf file and optionally writes that ID to the file by a search and replace approach so that the device can broadcast its ID once flashed by this firmware."
+    },
+    "python\\scrutiny\\cli\\commands\\install_firmware_info.py": {
+        "docstring": "CLI Command to copy a firmware Information File into the scrutiny storage so it can be automatically loaded by the server upon connection with a device"
+    },
+    "python\\scrutiny\\cli\\commands\\launch_server.py": {
+        "docstring": "CLI Command to launch the scrutiny server"
+    },
+    "python\\scrutiny\\cli\\commands\\make_firmware_info.py": {
+        "docstring": "CLI Command to build and validate a Firmware Information File"
+    },
+    "python\\scrutiny\\cli\\commands\\make_metadata.py": {
+        "docstring": "CLI Command to generate the metadata file that will be included in a Firmware Information File"
+    },
+    "python\\scrutiny\\cli\\commands\\runtest.py": {
+        "docstring": "CLI Command to launch the python unit tests"
+    },
+    "python\\scrutiny\\cli\\commands\\uninstall_firmware_info.py": {
+        "docstring": "CLI Command to remove a Firmware Information File from the scrutiny storage"
+    },
+    "python\\scrutiny\\core\\firmware_id.py": {
+        "docstring": "Holds the defaut firmware ID. Used for detection of untagged firmware"
+    },
+    "python\\scrutiny\\core\\firmware_info_file.py": {
+        "docstring": "Contains the class that represent a Firmware Information File. \nA .fif is a file that holds all the data related to a firmware and is identified by a unique ID."
+    },
+    "python\\scrutiny\\core\\memdump.py": {
+        "docstring": "Provide a tool to manipulate non contiguous chunks of bytes with their addresses."
+    },
+    "python\\scrutiny\\core\\sfi_storage.py": {
+        "docstring": "Manipulate the Scrutiny storage for .fif file"
+    },
+    "python\\scrutiny\\core\\variable.py": {
+        "docstring": "Variable class represent a variable, will be included in VarMap"
+    },
+    "python\\scrutiny\\core\\varmap.py": {
+        "docstring": "A VarMap list all variables in a firmware file along with their types, address, bit offset, etc\n. I is a simplified version of the DWARF debugging symbols."
+    },
+    "python\\scrutiny\\core\\bintools\\demangler.py": {
+        "docstring": "Converts mangled linkage names to readable symbols names"
+    },
+    "python\\scrutiny\\core\\bintools\\elf_dwarf_var_extractor.py": {
+        "docstring": "Reads a .elf file, extract the DWARF debugging symbols and make a VarMap object out of it."
+    },
+    "python\\scrutiny\\core\\bintools\\get_var_memrange.py": {
+        "docstring": "Simple tool to get the memory ranges of the .elf sections that contains the variables. \nUsed to generate Memdumps for unit teting"
+    },
+    "python\\scrutiny\\server\\server.py": {
+        "docstring": "The scrutiny server. Talk with multiple clients through a websocket API and communicate with a device through a given communication link (Serial, UDP, etc)\n Allow the clients to interract with the device"
+    },
+    "python\\scrutiny\\server\\server_tools.py": {
+        "docstring": "Some tools used by the server"
+    },
+    "python\\scrutiny\\server\\api\\API.py": {
+        "docstring": "Manages the websocket API to talk with the multiple clients. Can be a GUI client or a CLI client"
+    },
+    "python\\scrutiny\\server\\api\\dummy_client_handler.py": {
+        "docstring": "Stubbed API connector to make API requests in unittests without relying on websockets"
+    },
+    "python\\scrutiny\\server\\api\\value_streamer.py": {
+        "docstring": "Take the data from the Datastore and sends it to all clients by respecting bitrate limits and avoiding duplicate date."
+    },
+    "python\\scrutiny\\server\\api\\websocket_client_handler.py": {
+        "docstring": "Manage the API websocket connections .\n This class has a list of all clients and identifiy them by a unique ID"
+    },
+    "python\\scrutiny\\server\\datastore\\datastore.py": {
+        "docstring": "This class is a container that will hold all the data read from a device (e.g. the variables).\n It's the meeting point of the API (with ValueStreamer) and the DeviceHandler"
+    },
+    "python\\scrutiny\\server\\datastore\\datastore_entry.py": {
+        "docstring": "A variable entry in the datastore"
+    },
+    "python\\scrutiny\\server\\device\\device_handler.py": {
+        "docstring": "Manage the communication with the device at high level.\n Try to establish a connection, once it succeed, reads the device configuration. \n Will keep the communication ongoing and will request for memory dump based on the Datastore state"
+    },
+    "python\\scrutiny\\server\\device\\device_info.py": {
+        "docstring": "All the information that can be extracted from the device through the Scrutiny protocol"
+    },
+    "python\\scrutiny\\server\\device\\emulated_device.py": {
+        "docstring": "Emulate a device that is compiled with the C++ lib.\nFor unit testing purpose"
+    },
+    "python\\scrutiny\\server\\device\\request_dispatcher.py": {
+        "docstring": "Use a PriorityQueue to dispatch Request to the device. Associate each request wil its callback"
+    },
+    "python\\scrutiny\\server\\device\\links\\dummy_link.py": {
+        "docstring": "Fake communication link with a device. Used by the EmulatedDevice for unit test purpose"
+    },
+    "python\\scrutiny\\server\\device\\links\\udp_link.py": {
+        "docstring": "Connects the CommHandler to a device through UDP"
+    },
+    "python\\scrutiny\\server\\device\\request_generator\\device_searcher.py": {
+        "docstring": "Once enbled, generates DISCOVER requests to find a device at the other end of the communication link."
+    },
+    "python\\scrutiny\\server\\device\\request_generator\\heartbeat_generator.py": {
+        "docstring": "Once enabled, generate HEARTBEAT request periodically to keep a connection alive with a device."
+    },
+    "python\\scrutiny\\server\\device\\request_generator\\info_poller.py": {
+        "docstring": "Once enabled, successively poll all pollable data from a device through the Scrutiny protocol. Also call callbacks method when specific data is read e.g. Protocol version, buffer size, etc"
+    },
+    "python\\scrutiny\\server\\device\\request_generator\\session_initializer.py": {
+        "docstring": "Once enabled, try to establish a working session with a device."
+    },
+    "python\\scrutiny\\server\\protocol\\comm_handler.py": {
+        "docstring": "The CommHandler task is to convert Requests and Response from or to a stream of bytes.\nThis class manage send requests, wait for response, indicates if a response timeout occured and decodes bytes. \nIt manages the low level part of the communication protocol with the device"
+    },
+    "python\\scrutiny\\server\\protocol\\crc32.py": {
+        "docstring": "Compute a CRC32 for protocol validation"
+    },
+    "python\\scrutiny\\server\\protocol\\datalog.py": {
+        "docstring": "Defines a datalogging configuration that can be read or write from the device."
+    },
+    "python\\scrutiny\\server\\protocol\\exceptions.py": {
+        "docstring": "Some exceptions specific to the protocol"
+    },
+    "python\\scrutiny\\server\\protocol\\protocol.py": {
+        "docstring": "Allow encoding and decoding of data based on the Scrutiny Protocol"
+    },
+    "python\\scrutiny\\server\\protocol\\request.py": {
+        "docstring": "Represent a request sent by the server and received by the device"
+    },
+    "python\\scrutiny\\server\\protocol\\response.py": {
+        "docstring": "Represent a response sent by the device and received by the server"
+    },
+    "python\\scrutiny\\server\\protocol\\commands\\base_command.py": {
+        "docstring": "Abstract class for all Scrutiny protocol commands "
+    },
+    "python\\scrutiny\\server\\protocol\\commands\\comm_control.py": {
+        "docstring": "Scrutiny protocol command to manipulate the communication"
+    },
+    "python\\scrutiny\\server\\protocol\\commands\\datalog_control.py": {
+        "docstring": "Scrutiny protocol command to trigger and read data logs."
+    },
+    "python\\scrutiny\\server\\protocol\\commands\\dummy_command.py": {
+        "docstring": "Fake Scrutiny protocol command for unit test purpose"
+    },
+    "python\\scrutiny\\server\\protocol\\commands\\get_info.py": {
+        "docstring": "Scrutiny protocol command to read some specific configuration in the device"
+    },
+    "python\\scrutiny\\server\\protocol\\commands\\memory_control.py": {
+        "docstring": "Scrutiny protocol command to read and wrie memory"
+    },
+    "python\\scrutiny\\server\\protocol\\commands\\user_command.py": {
+        "docstring": "Scrutiny protocol command to launch user defined functions in the device. \n It's a way of leveraging the existing communication protocol for other purpose than Scrutiny debugging."
+    },
+    "python\\test\\cli\\test_cli.py": {
+        "docstring": "Test the Command Line Interface"
+    },
+    "python\\test\\cli\\test_elf_dwarf_var_extractor.py": {
+        "docstring": "Test the extraction of dwarf symbols from a .elf file"
+    },
+    "python\\test\\cli\\test_makevarmap_Linux_LE_x64_Gcc_8_3_0.py": {
+        "docstring": "Test that we can make a valid VarMap out of a known binary."
+    },
+    "python\\test\\core\\test_memdump.py": {
+        "docstring": "Test the Memdump class functionalities"
+    },
+    "python\\test\\server\\test_api.py": {
+        "docstring": "Test the client API through a fake handler"
+    },
+    "python\\test\\server\\test_datastore.py": {
+        "docstring": "Test the Datastore behaviour"
+    },
+    "python\\test\\server\\test_device_handler.py": {
+        "docstring": "Test the DeviceHandler that manage the communication with the device at high level."
+    },
+    "python\\test\\server\\test_dummy_connection.py": {
+        "docstring": "Test the FakeConnection used for unit tests"
+    },
+    "python\\test\\server\\test_value_streamer.py": {
+        "docstring": "Test the ValueStreamer object that reads the datastore and broadcast variables to all clients."
+    },
+    "python\\test\\server\\protocol\\test_comm_handler.py": {
+        "docstring": "Test the CommHandler that manage the communication with the deviec a lower level.\n Converts btyes to Request/Response and flag timeouts"
+    },
+    "python\\test\\server\\protocol\\test_crc.py": {
+        "docstring": "Make sure the CRC32 is working for the protocol"
+    },
+    "python\\test\\server\\protocol\\test_protocol_v1_0.py": {
+        "docstring": "Test the Scrutiny Protocol.\n Validate encoding and decoding of each command."
+    },
+    "python\\test\\server\\protocol\\test_request_response.py": {
+        "docstring": "Test for the protocol Request and Response class.\n Ensure that byte encoding/decoding works properly"
+    },
+    "lib\\inc\\scrutiny.h": {
+        "docstring": "Main .h file to e included in a project"
+    },
+    "lib\\inc\\scrutiny_config.h": {
+        "docstring": "Definition of a run-time configuration of the scrutiny module.\nTo be filled in startup phase"
+    },
+    "lib\\inc\\scrutiny_crc.h": {
+        "docstring": "CRC calculation functions"
+    },
+    "lib\\inc\\scrutiny_loop_handler.h": {
+        "docstring": "LoopHandler definition.\nLoop Handler is to be run in a specific time domain and will make some features available that depends on the execution requency such as embedded datalogging"
+    },
+    "lib\\inc\\scrutiny_main_handler.h": {
+        "docstring": "The main scrutiny class to be manipulated by the user"
+    },
+    "lib\\inc\\scrutiny_setup.h": {
+        "docstring": "Compile-time configuration of embedded Scrutiny module.\nThis configuration is global for the module and should be set once per project"
+    },
+    "lib\\inc\\scrutiny_software_id.h": {
+        "docstring": "Contains the definition of the Scrutiny ID global var used for tagging of firmware."
+    },
+    "lib\\inc\\scrutiny_timebase.h": {
+        "docstring": "Minimalist helper to keep track of time"
+    },
+    "lib\\inc\\scrutiny_types.h": {
+        "docstring": "Aliases on the types used by the Scrutiny project"
+    },
+    "lib\\inc\\protocol\\scrutiny_codec_v1_0.h": {
+        "docstring": "Definitions of encode/decode functions for the scrutiny protocol V1.0"
+    },
+    "lib\\inc\\protocol\\scrutiny_comm_handler.h": {
+        "docstring": "Manage the tranport-ish layer of the communication protocol. Converts Request/Response to byte stream and validate CRC"
+    },
+    "lib\\inc\\protocol\\scrutiny_protocol.h": {
+        "docstring": "Main include file for the scrutiny protocol"
+    },
+    "lib\\inc\\protocol\\scrutiny_protocol_definitions.h": {
+        "docstring": "Defines Request/Rsponse objects and commands/subfunctions IDs.\n Not version specific"
+    },
+    "lib\\inc\\protocol\\scrutiny_protocol_tools.h": {
+        "docstring": "Some helpers for encoding data in a standardised way.\n similar to hton() and ntoh()"
+    },
+    "lib\\src\\scrutiny_config.cpp": {
+        "docstring": "Implementation of the run-time Scrutiny configuration"
+    },
+    "lib\\src\\scrutiny_crc.cpp": {
+        "docstring": "CRC calculation for scrutiny protocol frames"
+    },
+    "lib\\src\\scrutiny_loop_handler.cpp": {
+        "docstring": "LoopHandler implementation.\nLoop Handler is to be run in a specific time domain and will make some features available that depends on the execution requency such as embedded datalogging"
+    },
+    "lib\\src\\scrutiny_main_handler.cpp": {
+        "docstring": "The main scrutiny class to be manipulated by the user."
+    },
+    "lib\\src\\scrutiny_software_id.cpp": {
+        "docstring": "Instanciation of the global ID used for firmware tagging"
+    },
+    "lib\\src\\protocol\\scrutiny_codec_v1_0.cpp": {
+        "docstring": "Encode/Decode functions for the Scrutiny Protocol V1.0"
+    },
+    "lib\\src\\protocol\\scrutiny_comm_handler.cpp": {
+        "docstring": "Manage the tranport-ish layer of the communication protocol. Converts Request/Response to byte stream and validate CRC"
+    },
+    "lib\\src\\protocol\\scrutiny_protocol_definitions.cpp": {
+        "docstring": "Instanciation of protocol definitions such as magic payload."
+    },
+    "lib\\src\\protocol\\scrutiny_protocol_tools.cpp": {
+        "docstring": "Some helpers for encoding data in a standardised way.\n similar to hton() and ntoh()"
+    },
+    "lib\\test\\scrutiny_test.cpp": {
+        "docstring": "Base class for CPP unit tests.\n All test should inherit this class.\n Includes bunch of helper for easy testing."
+    },
+    "lib\\test\\test_crc.cpp": {
+        "docstring": "Test CRC calculation"
+    },
+    "lib\\test\\test_timebase.cpp": {
+        "docstring": "Test our minimalist time tracker"
+    },
+    "lib\\test\\scrutiny_test.h": {
+        "docstring": "Base class for CPP unit tests.\n All test should inherit this class.\n Includes bunch of helper for easy testing."
+    },
+    "lib\\test\\commands\\test_comm_control.cpp": {
+        "docstring": "Test the behaviour of the embedded module when CommControl commands are received"
+    },
+    "lib\\test\\commands\\test_get_info.cpp": {
+        "docstring": "Test the behaviour of the embedded module when GetInfo commands are received"
+    },
+    "lib\\test\\commands\\test_memory_control.cpp": {
+        "docstring": "Test the behaviour of the embedded module when MemoryControl commands are received"
+    },
+    "lib\\test\\commands\\test_user_command.cpp": {
+        "docstring": "Test the behaviour of the embedded module when UserCommand commands are received"
+    },
+    "lib\\test\\protocol\\test_comm_handler.cpp": {
+        "docstring": "Test the tranport-ish layer good behaviour at high level."
+    },
+    "lib\\test\\protocol\\test_protocol_rx_parsing.cpp": {
+        "docstring": "Make sure reception of request bytes are correctly decoded"
+    },
+    "lib\\test\\protocol\\test_protocol_tx_parsing.cpp": {
+        "docstring": "Make sure Response objects are correctly encoded in bytes"
+    }
+}

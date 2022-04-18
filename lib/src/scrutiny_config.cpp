@@ -1,3 +1,11 @@
+//    scrutiny_config.cpp
+//        Implementation of the run-time Scrutiny configuration
+//
+//   - License : MIT - See LICENSE file.
+//   - Project : Scrutiny Debugger (github.com/scrutinydebugger/scrutiny)
+//
+//   Copyright (c) 2021-2022 scrutinydebugger
+
 #include "scrutiny_config.h"
 
 namespace scrutiny

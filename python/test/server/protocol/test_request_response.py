@@ -1,12 +1,22 @@
+#    test_request_response.py
+#        Test for the protocol Request and Response class.
+#        Ensure that byte encoding/decoding works properly
+#
+#   - License : MIT - See LICENSE file.
+#   - Project : Scrutiny Debugger (github.com/scrutinydebugger/scrutiny)
+#
+#   Copyright (c) 2021-2022 scrutinydebugger
+
 import unittest
 from scrutiny.server.protocol import Request, Response
 from scrutiny.server.protocol.datalog import DatalogConfiguration
 
+
 class TestMessage(unittest.TestCase):
     def test_request(self):
-        msg = Request(command = 1, subfn=0x34, payload=bytes([1,2,3,4]))
+        msg = Request(command=1, subfn=0x34, payload=bytes([1, 2, 3, 4]))
         data = msg.to_bytes()
-        self.assertEqual(data[:-4], bytes([1, 0x34, 0, 4, 1,2,3,4]))
+        self.assertEqual(data[:-4], bytes([1, 0x34, 0, 4, 1, 2, 3, 4]))
         msg2 = Request.from_bytes(data)
 
         self.assertEqual(msg.command, msg2.command)
@@ -14,7 +24,7 @@ class TestMessage(unittest.TestCase):
         self.assertEqual(msg.payload, msg2.payload)
 
     def test_request_no_data(self):
-        msg = Request(command = 1, subfn=0x34)
+        msg = Request(command=1, subfn=0x34)
         data = msg.to_bytes()
         self.assertEqual(data[:-4], bytes([1, 0x34, 0, 0]))
         msg2 = Request.from_bytes(data)
@@ -24,14 +34,14 @@ class TestMessage(unittest.TestCase):
         self.assertEqual(msg.payload, msg2.payload)
 
     def test_request_meta(self):
-        msg = Request(command = 1, subfn=0x34, payload=bytes([1,2,3,4]))
+        msg = Request(command=1, subfn=0x34, payload=bytes([1, 2, 3, 4]))
         str(msg)
         msg.__repr__()
 
     def test_response(self):
-        msg = Response(command = 1, subfn=0x34, code=1, payload=bytes([1,2,3,4]))
+        msg = Response(command=1, subfn=0x34, code=1, payload=bytes([1, 2, 3, 4]))
         data = msg.to_bytes()
-        self.assertEqual(data[:-4], bytes([0x81, 0x34, 1, 0, 4, 1,2,3,4]))
+        self.assertEqual(data[:-4], bytes([0x81, 0x34, 1, 0, 4, 1, 2, 3, 4]))
         msg2 = Response.from_bytes(data)
 
         self.assertEqual(msg.command, msg2.command)
@@ -39,7 +49,7 @@ class TestMessage(unittest.TestCase):
         self.assertEqual(msg.payload, msg2.payload)
 
     def test_response_no_data(self):
-        msg = Response(command = 1, subfn=0x34, code=1)
+        msg = Response(command=1, subfn=0x34, code=1)
         data = msg.to_bytes()
         self.assertEqual(data[:-4], bytes([0x81, 0x34, 1, 0, 0]))
         msg2 = Response.from_bytes(data)
@@ -51,13 +61,12 @@ class TestMessage(unittest.TestCase):
 
     def test_response_wrong_length(self):
         with self.assertRaises(Exception):
-            Response.from_bytes(bytes([0x81, 0, 0, 0, 5, 1,2,3,4]))  # Missing one data bytes
+            Response.from_bytes(bytes([0x81, 0, 0, 0, 5, 1, 2, 3, 4]))  # Missing one data bytes
 
         with self.assertRaises(Exception):
-            Response.from_bytes(bytes([0x81, 0, 0, 0, 5, 1,2,3,4,5,6]))  # One extra byte
-
+            Response.from_bytes(bytes([0x81, 0, 0, 0, 5, 1, 2, 3, 4, 5, 6]))  # One extra byte
 
     def test_response_meta(self):
-        msg = Response(command = 1, subfn=0x34, code=1, payload=bytes([1,2,3,4]))
+        msg = Response(command=1, subfn=0x34, code=1, payload=bytes([1, 2, 3, 4]))
         str(msg)
         msg.__repr__()

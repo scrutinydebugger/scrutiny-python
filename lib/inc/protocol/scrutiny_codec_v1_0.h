@@ -1,3 +1,11 @@
+//    scrutiny_codec_v1_0.h
+//        Definitions of encode/decode functions for the scrutiny protocol V1.0
+//
+//   - License : MIT - See LICENSE file.
+//   - Project : Scrutiny Debugger (github.com/scrutinydebugger/scrutiny)
+//
+//   Copyright (c) 2021-2022 scrutinydebugger
+
 #ifndef ___SCRUTINY_CODEC_V1_0___
 #define ___SCRUTINY_CODEC_V1_0___
 
