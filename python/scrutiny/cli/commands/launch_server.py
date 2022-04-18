@@ -18,7 +18,7 @@ class LaunchServer(BaseCommand):
     _brief_ = 'Launch an instance of the server'
     _group_ = 'Server'
 
-    def __init__(self, args):
+    def __init__(self, args, requested_log_level=None):
         self.args = args
         self.parser = argparse.ArgumentParser(prog=self.get_prog())
         self.parser.add_argument('--config', default=None, help='Configuration file used by the server')

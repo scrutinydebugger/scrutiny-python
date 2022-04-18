@@ -17,7 +17,7 @@ class UninstallFirmwareInfo(BaseCommand):
     _brief_ = 'Uninstall a Firmware Info file globally for the current user.'
     _group_ = 'Server'
 
-    def __init__(self, args):
+    def __init__(self, args, requested_log_level=None):
         self.args = args
         self.parser = argparse.ArgumentParser(prog=self.get_prog())
         self.parser.add_argument('firmwareid', help='Firmware ID of the Scrutiny Firmware Info')

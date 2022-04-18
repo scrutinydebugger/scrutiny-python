@@ -28,7 +28,7 @@ class CLI:
             formatter_class=argparse.RawTextHelpFormatter
         )
         self.parser.add_argument('command', help='Command to execute')
-        self.parser.add_argument('--loglevel', help='Log level to use', default="info", metavar='LEVEL')
+        self.parser.add_argument('--loglevel', help='Log level to use', default=None, metavar='LEVEL')
         self.parser.add_argument('--logfile', help='File to write logs', default=None, metavar='FILENAME')
 
     def make_command_list_help(self):
@@ -67,13 +67,14 @@ class CLI:
 
         error = None
         try:
-            logging_level = getattr(logging, args.loglevel.upper())
+            logging_level_str = args.loglevel if args.loglevel else 'info'
+            logging_level = getattr(logging, logging_level_str.upper())
             format_string = '[%(levelname)s] %(message)s'
             logging.basicConfig(level=logging_level, filename=args.logfile, format=format_string)
 
             for cmd in self.command_list:
                 if cmd.get_name() == args.command:
-                    cmd_instance = cmd(command_cargs)
+                    cmd_instance = cmd(command_cargs, requested_log_level = args.loglevel)
                     break
 
             current_workdir = os.getcwd()

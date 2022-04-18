@@ -21,7 +21,7 @@ class Elf2VarMap(BaseCommand):
     _brief_ = 'Extract the variables definition from an ELF file through DWARF debugging symbols.'
     _group_ = 'Build Toochain'
 
-    def __init__(self, args):
+    def __init__(self, args, requested_log_level=None):
         self.args = args
         self.parser = argparse.ArgumentParser(prog=self.get_prog())
         self.parser.add_argument('file', help='The ELF file to read')
