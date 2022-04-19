@@ -60,7 +60,6 @@ class RequestRecord:
     def __init__(self):
         self.completed = False
 
-
     def complete(self, success=False, response=None, response_data=None):
         self.completed = True  # Set to true at beginning so that it is still true if an exception raise in the callback
         if success:
@@ -72,7 +71,6 @@ class RequestRecord:
 
     def is_completed(self):
         return self.completed
-
 
 
 class RequestDispatcher:
@@ -87,7 +85,7 @@ class RequestDispatcher:
     def disable_throttling(self):
         self.throttler.disable()
 
-    def register_request(self, request, success_callback, failure_callback, priority=0, expected_response_size=None, success_params=None, failure_params=None):
+    def register_request(self, request, success_callback, failure_callback, priority=0, success_params=None, failure_params=None):
         record = RequestRecord()
         record.request = request
         record.success_callback = success_callback
@@ -95,10 +93,7 @@ class RequestDispatcher:
         record.failure_callback = failure_callback
         record.failure_params = failure_params
 
-        if expected_response_size is None:
-            expected_response_size = Response.MIN_SIZE
-
-        record.delta_bandwidth = (request.size() + expected_response_size)*8
+        record.delta_bandwidth = (request.size() + request.get_expected_response_size())*8
 
         self.request_queue.push(record, priority)
 

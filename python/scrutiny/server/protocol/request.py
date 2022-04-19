@@ -15,7 +15,7 @@ from .commands.base_command import BaseCommand
 
 
 class Request:
-    def __init__(self, command, subfn, payload=b''):
+    def __init__(self, command, subfn, payload=b'', response_payload_size=0):
         if inspect.isclass(command) and issubclass(command, BaseCommand):
             self.command = command
         elif isinstance(command, int):
@@ -29,6 +29,7 @@ class Request:
         else:
             self.subfn = subfn
         self.payload = bytes(payload)
+        self.response_payload_size = response_payload_size
 
     def make_bytes_no_crc(self):
         data = struct.pack('>BB', (self.command_id & 0x7F), self.subfn)
@@ -41,6 +42,9 @@ class Request:
         data = self.make_bytes_no_crc()
         data += struct.pack('>L', crc32(data))
         return data
+
+    def get_expected_response_size(self):
+        return 9 + self.response_payload_size
 
     def size(self):
         return 8+len(self.payload)

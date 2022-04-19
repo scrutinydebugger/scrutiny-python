@@ -35,8 +35,11 @@ class Protocol:
             self.nbytes = int(nbits / 8)
             self.pack_char = PACK_CHARS[nbits]
 
-        def get_address_size(self):
+        def get_address_size_bytes(self):
             return self.nbytes
+
+        def get_address_size_bits(self):
+            return self.nbits
 
         def get_pack_char(self):
             return self.pack_char
@@ -49,6 +52,12 @@ class Protocol:
 
     def set_address_size(self, address_size):
         self.address_format = self.AddressFormat(address_size)
+
+    def get_address_size_bytes(self):
+        return self.address_format.get_address_size_bytes()
+
+    def get_address_size_bits(self):
+        return self.address_format.get_address_size_bits()
 
     def set_version(self, major, minor):
         if not isinstance(major, int) or not isinstance(minor, int):
@@ -70,7 +79,7 @@ class Protocol:
         return struct.pack('>%s' % self.address_format.get_pack_char(), address)
 
     def decode_address(self, buff):
-        return struct.unpack('>%s' % self.address_format.get_pack_char(), buff[0:self.address_format.get_address_size()])[0]
+        return struct.unpack('>%s' % self.address_format.get_pack_char(), buff[0:self.get_address_size_bytes()])[0]
 
     def compute_challenge_16bits(self, challenge):
         return ctypes.c_uint16(~challenge).value
@@ -79,22 +88,22 @@ class Protocol:
         return ctypes.c_uint32(~challenge).value
 
     def get_protocol_version(self):
-        return Request(cmd.GetInfo, cmd.GetInfo.Subfunction.GetProtocolVersion)
+        return Request(cmd.GetInfo, cmd.GetInfo.Subfunction.GetProtocolVersion, response_payload_size=2)
 
     def get_software_id(self):
-        return Request(cmd.GetInfo, cmd.GetInfo.Subfunction.GetSoftwareId)
+        return Request(cmd.GetInfo, cmd.GetInfo.Subfunction.GetSoftwareId, response_payload_size=32)
 
     def get_supported_features(self):
-        return Request(cmd.GetInfo, cmd.GetInfo.Subfunction.GetSupportedFeatures)
+        return Request(cmd.GetInfo, cmd.GetInfo.Subfunction.GetSupportedFeatures, response_payload_size=1)
 
     def get_special_memory_region_count(self):
-        return Request(cmd.GetInfo, cmd.GetInfo.Subfunction.GetSpecialMemoryRegionCount)
+        return Request(cmd.GetInfo, cmd.GetInfo.Subfunction.GetSpecialMemoryRegionCount, response_payload_size=2)
 
     def get_special_memory_region_location(self, region_type, region_index):
         if isinstance(region_type, cmd.GetInfo.MemoryRangeType):
             region_type = region_type.value
         data = struct.pack('BB', region_type, region_index)
-        return Request(cmd.GetInfo, cmd.GetInfo.Subfunction.GetSpecialMemoryRegionLocation, data)
+        return Request(cmd.GetInfo, cmd.GetInfo.Subfunction.GetSpecialMemoryRegionLocation, data, response_payload_size=2+self.get_address_size_bytes()*2)
 
     def read_single_memory_block(self, address, length):
         block_list = [(address, length)]
@@ -102,11 +111,13 @@ class Protocol:
 
     def read_memory_blocks(self, block_list):
         data = bytes()
+        total_length = 0
         for block in block_list:
             addr = block[0]
             size = block[1]
+            total_length += size
             data += self.encode_address(addr) + struct.pack('>H', size)
-        return Request(cmd.MemoryControl, cmd.MemoryControl.Subfunction.Read, data)
+        return Request(cmd.MemoryControl, cmd.MemoryControl.Subfunction.Read, data, response_payload_size=(self.get_address_size_bytes()+2)*len(block_list)+total_length)
 
     def write_single_memory_block(self, address, data):
         block_list = [(address, data)]
@@ -118,35 +129,35 @@ class Protocol:
             addr = block[0]
             mem_data = block[1]
             data += self.encode_address(addr) + struct.pack('>H', len(mem_data)) + bytes(mem_data)
-        return Request(cmd.MemoryControl, cmd.MemoryControl.Subfunction.Write, data)
+        return Request(cmd.MemoryControl, cmd.MemoryControl.Subfunction.Write, data, response_payload_size=(self.get_address_size_bytes()+2)*len(block_list))
 
     def comm_discover(self):
         data = cmd.CommControl.DISCOVER_MAGIC
-        return Request(cmd.CommControl, cmd.CommControl.Subfunction.Discover, data)
+        return Request(cmd.CommControl, cmd.CommControl.Subfunction.Discover, data, response_payload_size=32) # 32 minimum
 
     def comm_heartbeat(self, session_id, challenge):
-        return Request(cmd.CommControl, cmd.CommControl.Subfunction.Heartbeat, struct.pack('>LH', session_id, challenge))
+        return Request(cmd.CommControl, cmd.CommControl.Subfunction.Heartbeat, struct.pack('>LH', session_id, challenge), response_payload_size=6)
 
     def heartbeat_expected_challenge_response(self, challenge):
         return ~challenge & 0xFFFF
 
     def comm_get_params(self):
-        return Request(cmd.CommControl, cmd.CommControl.Subfunction.GetParams)
+        return Request(cmd.CommControl, cmd.CommControl.Subfunction.GetParams, response_payload_size=2 + 2 + 4 + 4 + 4 + 1) # rx_buffer_size, tx_buffer_size, bitrate, heartbeat_timeout, rx_timeout, address_size
 
     def comm_connect(self):
-        return Request(cmd.CommControl, cmd.CommControl.Subfunction.Connect, cmd.CommControl.CONNECT_MAGIC)
+        return Request(cmd.CommControl, cmd.CommControl.Subfunction.Connect, cmd.CommControl.CONNECT_MAGIC, response_payload_size=4+4) # Magic + Session id
 
     def comm_disconnect(self, session_id):
-        return Request(cmd.CommControl, cmd.CommControl.Subfunction.Disconnect, struct.pack('>L', session_id))
+        return Request(cmd.CommControl, cmd.CommControl.Subfunction.Disconnect, struct.pack('>L', session_id), response_payload_size=0)
 
     def datalog_get_targets(self):
-        return Request(cmd.DatalogControl, cmd.DatalogControl.Subfunction.GetAvailableTarget)
+        return Request(cmd.DatalogControl, cmd.DatalogControl.Subfunction.GetAvailableTarget) # todo : response_payload_size
 
     def datalog_get_bufsize(self):
-        return Request(cmd.DatalogControl, cmd.DatalogControl.Subfunction.GetBufferSize)
+        return Request(cmd.DatalogControl, cmd.DatalogControl.Subfunction.GetBufferSize)    # todo : response_payload_size
 
     def datalog_get_sampling_rates(self):
-        return Request(cmd.DatalogControl, cmd.DatalogControl.Subfunction.GetSamplingRates)
+        return Request(cmd.DatalogControl, cmd.DatalogControl.Subfunction.GetSamplingRates) # todo : response_payload_size
 
     def datalog_configure_log(self, conf):
         if not isinstance(conf, DatalogConfiguration):
@@ -166,25 +177,25 @@ class Protocol:
             else:
                 raise Exception('Unknown operand type %s' % operand.type)
 
-        return Request(cmd.DatalogControl, cmd.DatalogControl.Subfunction.ConfigureDatalog, data)
+        return Request(cmd.DatalogControl, cmd.DatalogControl.Subfunction.ConfigureDatalog, data)   # todo : response_payload_size
 
     def datalog_get_list_recordings(self):
-        return Request(cmd.DatalogControl, cmd.DatalogControl.Subfunction.ListRecordings)
+        return Request(cmd.DatalogControl, cmd.DatalogControl.Subfunction.ListRecordings)   # todo : response_payload_size
 
     def datalog_read_recording(self, record_id):
-        return Request(cmd.DatalogControl, cmd.DatalogControl.Subfunction.ReadRecordings, struct.pack('>H', record_id))
+        return Request(cmd.DatalogControl, cmd.DatalogControl.Subfunction.ReadRecordings, struct.pack('>H', record_id)) # todo : response_payload_size
 
     def datalog_arm(self):
-        return Request(cmd.DatalogControl, cmd.DatalogControl.Subfunction.ArmLog)
+        return Request(cmd.DatalogControl, cmd.DatalogControl.Subfunction.ArmLog)   # todo : response_payload_size
 
     def datalog_disarm(self):
-        return Request(cmd.DatalogControl, cmd.DatalogControl.Subfunction.DisarmLog)
+        return Request(cmd.DatalogControl, cmd.DatalogControl.Subfunction.DisarmLog)    # todo : response_payload_size
 
     def datalog_status(self):
-        return Request(cmd.DatalogControl, cmd.DatalogControl.Subfunction.GetLogStatus)
+        return Request(cmd.DatalogControl, cmd.DatalogControl.Subfunction.GetLogStatus) # todo : response_payload_size
 
     def user_command(self, subfn, data=b''):
-        return Request(cmd.UserCommand, subfn, data)
+        return Request(cmd.UserCommand, subfn, data)    # todo : response_payload_size
 
     def parse_request(self, req):
         data = {'valid': True}
@@ -201,10 +212,10 @@ class Protocol:
                 subfn = cmd.MemoryControl.Subfunction(req.subfn)
 
                 if subfn == cmd.MemoryControl.Subfunction.Read:                     # MemoryControl - Read
-                    block_size = (2 + self.address_format.get_address_size())
+                    block_size = (2 + self.get_address_size_bytes())
                     if len(req.payload) % block_size != 0:
                         raise Exception(
-                            'Request data length is not a multiple of %d bytes (addres[%d] + length[2])' % (block_size, self.address_format.get_address_size()))
+                            'Request data length is not a multiple of %d bytes (addres[%d] + length[2])' % (block_size, self.get_address_size_bytes()))
                     nblock = int(len(req.payload) / block_size)
                     data['blocks'] = []
                     for i in range(nblock):
@@ -215,7 +226,7 @@ class Protocol:
                 elif subfn == cmd.MemoryControl.Subfunction.Write:                  # MemoryControl - Write
                     data['blocks'] = []
                     c = self.address_format.get_pack_char()
-                    address_length_size = 2 + self.address_format.get_address_size()
+                    address_length_size = 2 + self.get_address_size_bytes()
                     index = 0
                     while True:
                         if len(req.payload) < index + address_length_size:
@@ -452,14 +463,14 @@ class Protocol:
                         data['region_type'] = cmd.GetInfo.MemoryRangeType(response.payload[0])
                         data['region_index'] = response.payload[1]
                         data['start'] = self.decode_address(response.payload[2:])
-                        data['end'] = self.decode_address(response.payload[2 + self.address_format.get_address_size():])
+                        data['end'] = self.decode_address(response.payload[2 + self.get_address_size_bytes():])
 
                 elif response.command == cmd.MemoryControl:
                     subfn = cmd.MemoryControl.Subfunction(response.subfn)
                     if subfn == cmd.MemoryControl.Subfunction.Read:
                         data['blocks'] = []
                         index = 0
-                        addr_size = self.address_format.get_address_size()
+                        addr_size = self.get_address_size_bytes()
                         while True:
                             if len(response.payload[index:]) < addr_size + 2:
                                 raise Exception('Incomplete response payload')
@@ -477,7 +488,7 @@ class Protocol:
                     elif subfn == cmd.MemoryControl.Subfunction.Write:
                         data['blocks'] = []
                         index = 0
-                        addr_size = self.address_format.get_address_size()
+                        addr_size = self.get_address_size_bytes()
                         while True:
                             if len(response.payload[index:]) < addr_size + 2:
                                 raise Exception('Incomplete response payload')
