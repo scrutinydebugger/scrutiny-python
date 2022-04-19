@@ -42,6 +42,9 @@ class Request:
         data += struct.pack('>L', crc32(data))
         return data
 
+    def size(self):
+        return 8+len(self.payload)
+
     @classmethod
     def from_bytes(cls, data):
         if len(data) < 8:

@@ -16,6 +16,8 @@ from .commands.base_command import BaseCommand
 
 class Response:
 
+    MIN_SIZE =  9
+
     class ResponseCode(Enum):
         OK = 0
         InvalidRequest = 1
