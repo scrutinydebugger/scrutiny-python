@@ -25,7 +25,7 @@ class GetFirmwareId(BaseCommand):
     DEFAULT_NAME = 'firmwareid'
     BUF_SIZE = 0x10000
 
-    def __init__(self, args):
+    def __init__(self, args, requested_log_level=None):
         self.args = args
         self.parser = argparse.ArgumentParser(prog=self.get_prog())
         self.parser.add_argument('filename', help='The binary fimware to read')

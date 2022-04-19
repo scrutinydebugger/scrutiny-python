@@ -119,7 +119,7 @@ class EmulatedDevice:
         subfunction = cmd.CommControl.Subfunction(req.subfn)
         if subfunction == cmd.CommControl.Subfunction.Discover:
             if data['magic'] == cmd.CommControl.DISCOVER_MAGIC:
-                response = self.protocol.respond_comm_discover(self.firmware_id)
+                response = self.protocol.respond_comm_discover(self.firmware_id, 'EmulatedDevice')
             else:
                 self.logger.error('Received as Discover request with invalid payload')
 

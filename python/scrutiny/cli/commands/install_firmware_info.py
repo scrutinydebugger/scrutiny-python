@@ -18,7 +18,7 @@ class InstallFirmwareInfo(BaseCommand):
     _brief_ = 'Install a Firmware Info file globally for the current user so that it can be loaded automatically upon connection with a device.'
     _group_ = 'Server'
 
-    def __init__(self, args):
+    def __init__(self, args, requested_log_level=None):
         self.args = args
         self.parser = argparse.ArgumentParser(prog=self.get_prog())
         self.parser.add_argument('file', help='Scrutiny Firmware Information (SFI) file to be installed')

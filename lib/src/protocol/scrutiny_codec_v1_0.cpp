@@ -395,14 +395,19 @@ namespace scrutiny
 
 		// ============================ CommunicationControl ============================
 
-		ResponseCode CodecV1_0::encode_response_comm_discover(Response* response)
+		ResponseCode CodecV1_0::encode_response_comm_discover(Response* response, const ResponseData::CommControl::Discover* response_data)
 		{
-			constexpr uint16_t datalen = sizeof(scrutiny::software_id);
+			constexpr uint16_t software_id_size = sizeof(scrutiny::software_id);
+			constexpr uint16_t datalen_max = software_id_size + DISPLAY_NAME_MAX_SIZE;
+			constexpr uint16_t display_name_pos = software_id_size;
 
-			static_assert(datalen <= SCRUTINY_TX_BUFFER_SIZE, "SCRUTINY_TX_BUFFER_SIZE too small");
+			static_assert(datalen_max <= SCRUTINY_TX_BUFFER_SIZE, "SCRUTINY_TX_BUFFER_SIZE too small");
 
-			response->data_length = datalen;
-			std::memcpy(response->data, scrutiny::software_id, sizeof(scrutiny::software_id));
+			const uint16_t display_name_length = strnlen_s(response_data->display_name, DISPLAY_NAME_MAX_SIZE);
+
+			response->data_length = software_id_size + display_name_length;
+			std::memcpy(&response->data[0], scrutiny::software_id, software_id_size);
+			std::memcpy(&response->data[software_id_size], response_data->display_name, display_name_length);
 			return ResponseCode::OK;
 		}
 

@@ -227,6 +227,7 @@ namespace scrutiny
 		union
 		{
 			protocol::ResponseData::CommControl::Connect connect;
+			protocol::ResponseData::CommControl::Discover discover;
 			protocol::ResponseData::CommControl::GetParams get_params;
 			protocol::ResponseData::CommControl::Heartbeat heartbeat;
 		}response_data;
@@ -250,8 +251,8 @@ namespace scrutiny
 				break;
 
 			// Magic validation is done by the codec.
-
-			code = m_codec.encode_response_comm_discover(response);	
+			response_data.discover.display_name = m_config.display_name();
+			code = m_codec.encode_response_comm_discover(response, &response_data.discover);
 			break;
 
 			// =========== [Heartbeat] ==========

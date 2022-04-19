@@ -651,11 +651,13 @@ class TestProtocolV1_0(unittest.TestCase):
 
     def test_response_comm_discover(self):
         firmwareid = bytes(range(32))
-        response_bytes = bytes([0x82, 1, 0, 0, len(firmwareid)]) + firmwareid
-        response = self.proto.respond_comm_discover(firmwareid)
+        display_name = 'hello'
+        response_bytes = bytes([0x82, 1, 0, 0, len(firmwareid) + len(display_name.encode('utf8'))]) + firmwareid + display_name.encode('utf8')
+        response = self.proto.respond_comm_discover(firmwareid, display_name)
         self.assert_req_response_bytes(response, response_bytes)
         data = self.proto.parse_response(response)
         self.assertEqual(data['firmware_id'], firmwareid)
+        self.assertEqual(data['display_name'], display_name)
 
     def test_response_comm_heartbeat(self):
         response = self.proto.respond_comm_heartbeat(session_id=0x12345678, challenge_response=0x1122)

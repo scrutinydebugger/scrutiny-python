@@ -335,8 +335,8 @@ class Protocol:
         data += self.encode_address(start) + self.encode_address(end)
         return Response(cmd.GetInfo, cmd.GetInfo.Subfunction.GetSpecialMemoryRegionLocation, Response.ResponseCode.OK, data)
 
-    def respond_comm_discover(self, firmware_id):
-        resp_data = bytes(firmware_id)
+    def respond_comm_discover(self, firmware_id, display_name):
+        resp_data = bytes(firmware_id) + display_name.encode('utf8')
         return Response(cmd.CommControl, cmd.CommControl.Subfunction.Discover, Response.ResponseCode.OK, resp_data)
 
     def respond_comm_heartbeat(self, session_id, challenge_response):
@@ -547,6 +547,7 @@ class Protocol:
 
                     if subfn == cmd.CommControl.Subfunction.Discover:
                         data['firmware_id'] = response.payload[0:32]
+                        data['display_name'] = response.payload[32:].decode('utf8')
 
                     elif subfn == cmd.CommControl.Subfunction.Heartbeat:
                         data['session_id'], data['challenge_response'] = struct.unpack('>LH', response.payload[0:6])

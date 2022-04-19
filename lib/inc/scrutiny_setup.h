@@ -28,6 +28,7 @@
 #define SCRUTINY_READONLY_ADDRESS_RANGE_COUNT  4u			// Number of memory range that we disallow write access to Scruitny
 
 #define SCRUTINY_MAX_LOOP 16u								// Maximum number of independant time domain loops. (for datalogging)
+#define DISPLAY_NAME_MAX_SIZE 32u							// Size of the buffer containing the instance display name provided on DISCOVER request
 // ================================
 
 namespace scrutiny
