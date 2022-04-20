@@ -267,6 +267,7 @@ class DeviceHandler:
                     if not self.device_display_name:
                         self.device_display_name = 'Anonymous'
                     self.device_id = found_device_id
+
                     self.logger.info('Found a device. "%s" (ID: %s)' % (self.device_display_name, self.device_id))
 
                     if self.device_id == DEFAULT_FIRMWARE_ID_ASCII:
@@ -291,7 +292,7 @@ class DeviceHandler:
                 self.heartbeat_generator.set_session_id(self.session_id)
                 self.heartbeat_generator.start()    # This guy will send recurrent heartbeat request. If that request fails (timeout), comm will be reset
                 self.connected = True
-                self.logger.info('Connected to device %s with session ID 0x%08X' % (self.device_id, self.session_id))
+                self.logger.info('Connected to device "%s" (ID: %s) with session ID 0x%08X' % (self.device_display_name, self.device_id, self.session_id))
                 next_state = self.FsmState.POLLING_INFO
             elif self.session_initializer.is_in_error():
                 self.session_initializer.stop()
@@ -325,7 +326,7 @@ class DeviceHandler:
         # ========= [READY] ==========
         elif self.fsm_state == self.FsmState.READY:
             if state_entry:
-                self.logger.info('Communication with device %s fully ready' % (self.device_id))
+                self.logger.info('Communication with device "%s" (ID: %s) fully ready' % (self.device_display_name, self.device_id))
                 self.logger.debug("Device information : %s" % self.device_info)
 
             if self.disconnection_requested:
