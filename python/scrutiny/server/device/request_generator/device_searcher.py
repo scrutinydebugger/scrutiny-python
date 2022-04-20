@@ -18,7 +18,7 @@ class DeviceSearcher:
     DISCOVER_INTERVAL = 0.5
     DEVICE_GONE_DELAY = 3
 
-    def __init__(self, protocol, dispatcher, priority=10):
+    def __init__(self, protocol, dispatcher, priority=0):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.dispatcher = dispatcher
         self.protocol = protocol
