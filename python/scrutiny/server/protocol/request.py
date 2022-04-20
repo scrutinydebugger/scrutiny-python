@@ -47,7 +47,7 @@ class Request:
         return 9 + self.response_payload_size
 
     def size(self):
-        return 8+len(self.payload)
+        return 8 + len(self.payload)
 
     @classmethod
     def from_bytes(cls, data):

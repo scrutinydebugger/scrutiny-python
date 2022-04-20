@@ -103,7 +103,7 @@ class Protocol:
         if isinstance(region_type, cmd.GetInfo.MemoryRangeType):
             region_type = region_type.value
         data = struct.pack('BB', region_type, region_index)
-        return Request(cmd.GetInfo, cmd.GetInfo.Subfunction.GetSpecialMemoryRegionLocation, data, response_payload_size=2+self.get_address_size_bytes()*2)
+        return Request(cmd.GetInfo, cmd.GetInfo.Subfunction.GetSpecialMemoryRegionLocation, data, response_payload_size=2 + self.get_address_size_bytes() * 2)
 
     def read_single_memory_block(self, address, length):
         block_list = [(address, length)]
@@ -117,7 +117,7 @@ class Protocol:
             size = block[1]
             total_length += size
             data += self.encode_address(addr) + struct.pack('>H', size)
-        return Request(cmd.MemoryControl, cmd.MemoryControl.Subfunction.Read, data, response_payload_size=(self.get_address_size_bytes()+2)*len(block_list)+total_length)
+        return Request(cmd.MemoryControl, cmd.MemoryControl.Subfunction.Read, data, response_payload_size=(self.get_address_size_bytes() + 2) * len(block_list) + total_length)
 
     def write_single_memory_block(self, address, data):
         block_list = [(address, data)]
@@ -129,11 +129,11 @@ class Protocol:
             addr = block[0]
             mem_data = block[1]
             data += self.encode_address(addr) + struct.pack('>H', len(mem_data)) + bytes(mem_data)
-        return Request(cmd.MemoryControl, cmd.MemoryControl.Subfunction.Write, data, response_payload_size=(self.get_address_size_bytes()+2)*len(block_list))
+        return Request(cmd.MemoryControl, cmd.MemoryControl.Subfunction.Write, data, response_payload_size=(self.get_address_size_bytes() + 2) * len(block_list))
 
     def comm_discover(self):
         data = cmd.CommControl.DISCOVER_MAGIC
-        return Request(cmd.CommControl, cmd.CommControl.Subfunction.Discover, data, response_payload_size=32) # 32 minimum
+        return Request(cmd.CommControl, cmd.CommControl.Subfunction.Discover, data, response_payload_size=32)  # 32 minimum
 
     def comm_heartbeat(self, session_id, challenge):
         return Request(cmd.CommControl, cmd.CommControl.Subfunction.Heartbeat, struct.pack('>LH', session_id, challenge), response_payload_size=6)
@@ -142,22 +142,23 @@ class Protocol:
         return ~challenge & 0xFFFF
 
     def comm_get_params(self):
-        return Request(cmd.CommControl, cmd.CommControl.Subfunction.GetParams, response_payload_size=2 + 2 + 4 + 4 + 4 + 1) # rx_buffer_size, tx_buffer_size, bitrate, heartbeat_timeout, rx_timeout, address_size
+        # rx_buffer_size, tx_buffer_size, bitrate, heartbeat_timeout, rx_timeout, address_size
+        return Request(cmd.CommControl, cmd.CommControl.Subfunction.GetParams, response_payload_size=2 + 2 + 4 + 4 + 4 + 1)
 
     def comm_connect(self):
-        return Request(cmd.CommControl, cmd.CommControl.Subfunction.Connect, cmd.CommControl.CONNECT_MAGIC, response_payload_size=4+4) # Magic + Session id
+        return Request(cmd.CommControl, cmd.CommControl.Subfunction.Connect, cmd.CommControl.CONNECT_MAGIC, response_payload_size=4 + 4)  # Magic + Session id
 
     def comm_disconnect(self, session_id):
         return Request(cmd.CommControl, cmd.CommControl.Subfunction.Disconnect, struct.pack('>L', session_id), response_payload_size=0)
 
     def datalog_get_targets(self):
-        return Request(cmd.DatalogControl, cmd.DatalogControl.Subfunction.GetAvailableTarget) # todo : response_payload_size
+        return Request(cmd.DatalogControl, cmd.DatalogControl.Subfunction.GetAvailableTarget)  # todo : response_payload_size
 
     def datalog_get_bufsize(self):
         return Request(cmd.DatalogControl, cmd.DatalogControl.Subfunction.GetBufferSize)    # todo : response_payload_size
 
     def datalog_get_sampling_rates(self):
-        return Request(cmd.DatalogControl, cmd.DatalogControl.Subfunction.GetSamplingRates) # todo : response_payload_size
+        return Request(cmd.DatalogControl, cmd.DatalogControl.Subfunction.GetSamplingRates)  # todo : response_payload_size
 
     def datalog_configure_log(self, conf):
         if not isinstance(conf, DatalogConfiguration):
@@ -183,7 +184,7 @@ class Protocol:
         return Request(cmd.DatalogControl, cmd.DatalogControl.Subfunction.ListRecordings)   # todo : response_payload_size
 
     def datalog_read_recording(self, record_id):
-        return Request(cmd.DatalogControl, cmd.DatalogControl.Subfunction.ReadRecordings, struct.pack('>H', record_id)) # todo : response_payload_size
+        return Request(cmd.DatalogControl, cmd.DatalogControl.Subfunction.ReadRecordings, struct.pack('>H', record_id))  # todo : response_payload_size
 
     def datalog_arm(self):
         return Request(cmd.DatalogControl, cmd.DatalogControl.Subfunction.ArmLog)   # todo : response_payload_size
@@ -192,7 +193,7 @@ class Protocol:
         return Request(cmd.DatalogControl, cmd.DatalogControl.Subfunction.DisarmLog)    # todo : response_payload_size
 
     def datalog_status(self):
-        return Request(cmd.DatalogControl, cmd.DatalogControl.Subfunction.GetLogStatus) # todo : response_payload_size
+        return Request(cmd.DatalogControl, cmd.DatalogControl.Subfunction.GetLogStatus)  # todo : response_payload_size
 
     def user_command(self, subfn, data=b''):
         return Request(cmd.UserCommand, subfn, data)    # todo : response_payload_size

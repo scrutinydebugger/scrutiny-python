@@ -296,5 +296,14 @@
     },
     "lib\\test\\protocol\\test_protocol_tx_parsing.cpp": {
         "docstring": "Make sure Response objects are correctly encoded in bytes"
+    },
+    "python\\setup.py": {
+        "docstring": "Standard installation script"
+    },
+    "python\\test\\server\\test_request_dispatcher.py": {
+        "docstring": "Test the request dispatcher.\nPriorities, throttling, size limits."
+    },
+    "python\\test\\server\\test_server_tools.py": {
+        "docstring": "Test various tools for the Python server application"
     }
 }
