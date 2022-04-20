@@ -9,6 +9,7 @@
 import time
 import math
 
+
 class Timer:
     def __init__(self, timeout):
         self.set_timeout(timeout)
@@ -43,7 +44,7 @@ class Timer:
 
 class Throttler:
 
-    def __init__(self, mean_bitrate = None, window_size_sec = 0.1, time_slot_size =  0.005):
+    def __init__(self, mean_bitrate=0, window_size_sec=0.1, time_slot_size=0.005):
         self.enabled = False
         self.mean_bitrate = mean_bitrate
         self.window_size_sec = window_size_sec
@@ -63,21 +64,21 @@ class Throttler:
         self.enabled = False
 
     def reset(self):
-       self.burst_bitcount = []
-       self.burst_time = []
-       self.bit_total = 0
-       self.window_bit_max = self.mean_bitrate*self.window_size_sec
+        self.burst_bitcount = []
+        self.burst_time = []
+        self.bit_total = 0
+        self.window_bit_max = round(self.mean_bitrate * self.window_size_sec)
 
-    def update(self):
+    def process(self):
         if not self.enabled:
-           self.reset()
-           return 
+            self.reset()
+            return
 
         t = time.time()
 
         while len(self.burst_time) > 0:
             t2 = self.burst_time[0]
-            if t-t2 > self.window_size_sec:
+            if t - t2 > self.window_size_sec:
                 self.burst_time.pop(0)
                 n_to_remove = self.burst_bitcount.pop(0)
                 self.bit_total -= n_to_remove
@@ -93,7 +94,6 @@ class Throttler:
 
         return delta_bandwidth <= self.allowed_bits()
 
-        
     def consume_bandwidth(self, delta_bandwidth):
         if self.enabled:
             t = time.time()

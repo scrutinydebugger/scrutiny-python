@@ -112,10 +112,25 @@ class DeviceHandler:
         if not isinstance(partial_device_info.heartbeat_timeout_us, int):
             raise Exception('Heartbeat timeout gotten from device is invalid')
 
+        if not isinstance(partial_device_info.max_bitrate_bps, int):
+            raise Exception('Max bitrate gotten from device is invalid')
+
+        if not isinstance(partial_device_info.max_tx_data_size, int):
+            raise Exception('Max TX data size gotten from device is invalid')
+
+        if not isinstance(partial_device_info.max_rx_data_size, int):
+            raise Exception('Max RX data size gotten from device is invalid')
+
         self.logger.info('Device has an address size of %d bits. Configuring protocol to encode/decode them accordingly.' %
                          partial_device_info.address_size_bits)
-        self.protocol.set_address_size(partial_device_info.address_size_bits)
 
+        if partial_device_info.max_bitrate_bps > 0:
+            self.logger.info('Device has requested a maximum bitrate of %d bps. Activating throttling.' % partial_device_info.max_bitrate_bps)
+            self.dispatcher.enable_throttling(partial_device_info.max_bitrate_bps)
+
+        # Will do a safety check before emitting a request
+        self.dispatcher.set_size_limits(partial_device_info.max_rx_data_size, partial_device_info.max_tx_data_size)
+        self.protocol.set_address_size(partial_device_info.address_size_bits)
         self.heartbeat_generator.set_interval(max(0.5, float(partial_device_info.heartbeat_timeout_us) / 1000000.0 * 0.75))
 
     def get_protocol_version_callback(self, major, minor):
@@ -176,6 +191,7 @@ class DeviceHandler:
         self.protocol.set_address_size(self.config['default_address_size'])  # Set back the protocol to decode addresses of this size.
         (major, minor) = self.config['default_protocol_version'].split('.')
         self.protocol.set_version(int(major), int(minor))
+        self.dispatcher.disable_throttling()
 
     # Open communication channel based on config
     def init_comm(self):
@@ -218,6 +234,7 @@ class DeviceHandler:
         self.heartbeat_generator.process()
         self.info_poller.process()
         self.session_initializer.process()
+        self.dispatcher.process()
 
         self.handle_comm()      # Make sure request and response are being exchanged with the device
         self.do_state_machine()
