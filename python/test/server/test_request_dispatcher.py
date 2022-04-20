@@ -127,3 +127,20 @@ class TestRequestDispatcher(unittest.TestCase):
         self.assertEqual(len(self.failure_list), 1)
         self.assertEqual(self.failure_list[0]['request'], req2)
         self.assertEqual(self.failure_list[0]['params'], [7,8])
+
+    def test_drops_overflowing_requests(self):
+        dispatcher = RequestDispatcher()        
+        req1 = self.make_dummy_request(payload=self.make_payload(128-8), response_payload_size=256-9)
+        req2 = self.make_dummy_request(payload=self.make_payload(129-8), response_payload_size=256-9)
+        req3 = self.make_dummy_request(payload=self.make_payload(128-8), response_payload_size=257-9)
+        dispatcher.set_size_limits(rx_size_limit = 128, tx_size_limit=256)
+
+        dispatcher.logger.disabled = True
+        dispatcher.register_request(request=req1, success_callback=self.success_callback, failure_callback=self.failure_callback)
+        dispatcher.register_request(request=req2, success_callback=self.success_callback, failure_callback=self.failure_callback)
+        dispatcher.register_request(request=req3, success_callback=self.success_callback, failure_callback=self.failure_callback)
+        dispatcher.logger.disabled = False
+
+        self.assertEqual(dispatcher.next().request, req1)
+        self.assertIsNone(dispatcher.next())
+

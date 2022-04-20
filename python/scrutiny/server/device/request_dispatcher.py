@@ -12,6 +12,7 @@ from scrutiny.server.protocol import Response
 from scrutiny.server.server_tools import Throttler
 from time import time
 import math
+import logging
 
 
 class RequestQueue:
@@ -81,6 +82,7 @@ class RequestDispatcher:
         self.throttler = Throttler()
         self.rx_size_limit = None
         self.tx_size_limit = None
+        self.logger = logging.getLogger(self.__class__.__name__)
 
     def enable_throttling(self, bitrate):
         self.throttler.set_bitrate(bitrate)
