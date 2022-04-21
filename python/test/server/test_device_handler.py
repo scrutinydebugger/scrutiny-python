@@ -16,7 +16,7 @@ from scrutiny.server.protocol.commands import DummyCommand
 from scrutiny.server.protocol import Request, Response
 from test import logger
 
-import signal # For ctrl+c handling
+import signal  # For ctrl+c handling
 
 
 class TestDeviceHandler(unittest.TestCase):
@@ -193,9 +193,8 @@ class TestDeviceHandler(unittest.TestCase):
 
         self.assertTrue(connection_lost)
 
-
     def test_throttling(self):
-        timeout = 3 
+        timeout = 3
         measurement_time = 10
         target_bitrate = 5000
         self.emulated_device.max_bitrate_bps = target_bitrate
@@ -211,12 +210,10 @@ class TestDeviceHandler(unittest.TestCase):
                 self.assertTrue(self.device_handler.is_throttling_enabled())
                 self.assertEqual(self.device_handler.get_throttling_bitrate(), self.emulated_device.max_bitrate_bps)
                 t1 = time()
-                timeout = measurement_time   
+                timeout = measurement_time
 
         self.assertIsNotNone(connect_time)
         measured_bitrate = self.device_handler.get_average_bitrate()
-        logger.info('Measured bitrate = %0.2fkbps. Target = %0.2fkbps' % (measured_bitrate/1000.0, target_bitrate/1000.0))
-        self.assertLess(measured_bitrate, target_bitrate*1.5)
-        self.assertGreater(measured_bitrate, target_bitrate/1.5)
-
-
+        logger.info('Measured bitrate = %0.2fkbps. Target = %0.2fkbps' % (measured_bitrate / 1000.0, target_bitrate / 1000.0))
+        self.assertLess(measured_bitrate, target_bitrate * 1.5)
+        self.assertGreater(measured_bitrate, target_bitrate / 1.5)

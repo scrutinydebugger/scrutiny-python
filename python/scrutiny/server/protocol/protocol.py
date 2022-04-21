@@ -54,7 +54,7 @@ class Protocol:
         self.address_format = self.AddressFormat(nbits=address_size_bits)
 
     def set_address_size_bytes(self, address_size_byte):
-        self.address_format = self.AddressFormat(nbits=address_size_byte*8)
+        self.address_format = self.AddressFormat(nbits=address_size_byte * 8)
 
     def get_address_size_bytes(self):
         return self.address_format.get_address_size_bytes()

@@ -1,4 +1,13 @@
+#    timer.py
+#        Minimalist class to make measurement of time easier.
+#
+#   - License : MIT - See LICENSE file.
+#   - Project : Scrutiny Debugger (github.com/scrutinydebugger/scrutiny)
+#
+#   Copyright (c) 2021-2022 scrutinydebugger
+
 import time
+
 
 class Timer:
     def __init__(self, timeout):

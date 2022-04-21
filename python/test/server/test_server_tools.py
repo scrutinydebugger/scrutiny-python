@@ -40,7 +40,7 @@ class TestThrottler(unittest.TestCase):
             total += x
 
         measured_bitrate = total / dt
-        logger.info('Measured bitrate = %0.2fkbps. Target = %0.2fkbps' % (measured_bitrate/1000.0, bitrate/1000.0))
+        logger.info('Measured bitrate = %0.2fkbps. Target = %0.2fkbps' % (measured_bitrate / 1000.0, bitrate / 1000.0))
         self.assertGreater(measured_bitrate, bitrate * 0.8)
         self.assertLess(measured_bitrate, bitrate * 1.2)
 
@@ -57,4 +57,3 @@ class TestThrottler(unittest.TestCase):
                 buffer_peak = max(buffer_peak, buffer_estimation[-1])
 
         logger.info('Maximum buffer peak = %dbits' % (math.ceil(buffer_peak)))
- 

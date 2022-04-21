@@ -1,5 +1,14 @@
+#    throttler.py
+#        Allow to do some throttling to reduce the transmission speed
+#
+#   - License : MIT - See LICENSE file.
+#   - Project : Scrutiny Debugger (github.com/scrutinydebugger/scrutiny)
+#
+#   Copyright (c) 2021-2022 scrutinydebugger
+
 import time
 import math
+
 
 class Throttler:
 
@@ -38,25 +47,25 @@ class Throttler:
         self.estimated_bitrate_slow = 0
         self.estimated_bitrate_fast = 0
         self.consumed_since_last_estimation = 0
-        
+
     def process(self):
         if not self.enabled:
             self.reset()
             return
 
         t = time.time()
-        dt = t-self.last_process_timestamp
+        dt = t - self.last_process_timestamp
         if dt > self.bitrate_estimation_window:
-            instant_bitrate = self.consumed_since_last_estimation/dt
-            
-            b = min(1, dt/self.fast_tau)
-            a = 1-b
-            self.estimated_bitrate_fast = b*instant_bitrate + a*self.estimated_bitrate_fast
+            instant_bitrate = self.consumed_since_last_estimation / dt
 
-            b = min(1, dt/self.slow_tau)
-            a = 1-b
-            self.estimated_bitrate_slow = b*instant_bitrate + a*self.estimated_bitrate_slow
-            self.consumed_since_last_estimation =0        
+            b = min(1, dt / self.fast_tau)
+            a = 1 - b
+            self.estimated_bitrate_fast = b * instant_bitrate + a * self.estimated_bitrate_fast
+
+            b = min(1, dt / self.slow_tau)
+            a = 1 - b
+            self.estimated_bitrate_slow = b * instant_bitrate + a * self.estimated_bitrate_slow
+            self.consumed_since_last_estimation = 0
             self.last_process_timestamp = t
 
     def get_estimated_bitrate(self):
@@ -69,7 +78,7 @@ class Throttler:
         if not self.enabled:
             return True
 
-        #return self.estimated_bitrate_fast < self.mean_bitrate
+        # return self.estimated_bitrate_fast < self.mean_bitrate
         return max(self.estimated_bitrate_slow, self.estimated_bitrate_fast) < self.mean_bitrate
 
     def possible(self, delta_bandwidth):
@@ -79,7 +88,7 @@ class Throttler:
         if not self.enabled:
             return True
 
-        return self.mean_bitrate > 0 # This was originally designed to prevent burst. It is not dneeded, but we keep the interface
+        return self.mean_bitrate > 0  # This was originally designed to prevent burst. It is not dneeded, but we keep the interface
 
     def consume_bandwidth(self, delta_bandwidth):
         if self.enabled:

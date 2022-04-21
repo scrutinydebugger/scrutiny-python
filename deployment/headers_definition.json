@@ -63,9 +63,6 @@
     "python\\scrutiny\\server\\server.py": {
         "docstring": "The scrutiny server. Talk with multiple clients through a websocket API and communicate with a device through a given communication link (Serial, UDP, etc)\n Allow the clients to interract with the device"
     },
-    "python\\scrutiny\\server\\server_tools.py": {
-        "docstring": "Some tools used by the server"
-    },
     "python\\scrutiny\\server\\api\\API.py": {
         "docstring": "Manages the websocket API to talk with the multiple clients. Can be a GUI client or a CLI client"
     },
@@ -305,5 +302,11 @@
     },
     "python\\test\\server\\test_server_tools.py": {
         "docstring": "Test various tools for the Python server application"
+    },
+    "python\\scrutiny\\server\\tools\\throttler.py": {
+        "docstring": "Allow to do some throttling to reduce the transmission speed"
+    },
+    "python\\scrutiny\\server\\tools\\timer.py": {
+        "docstring": "Minimalist class to make measurement of time easier."
     }
 }

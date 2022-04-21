@@ -269,8 +269,9 @@ class DeviceHandler:
             pass
         elif self.operating_mode == self.OperatingMode.Test_CheckThrottling:
             if self.dispatcher.peek_next() is None:
-                dummy_request = Request(DummyCommand, subfn=1, payload=b'\x00'*32, response_payload_size=32);
-                self.dispatcher.register_request(dummy_request, success_callback=lambda *args, **kwargs: None, failure_callback= self.test_failure_callback)
+                dummy_request = Request(DummyCommand, subfn=1, payload=b'\x00' * 32, response_payload_size=32);
+                self.dispatcher.register_request(dummy_request, success_callback=lambda *args, **
+                                                 kwargs: None, failure_callback=self.test_failure_callback)
 
     def test_failure_callback(self, request, params):
         if self.operating_mode == self.OperatingMode.Test_CheckThrottling:
@@ -330,7 +331,8 @@ class DeviceHandler:
                 self.heartbeat_generator.set_session_id(self.session_id)
                 self.heartbeat_generator.start()    # This guy will send recurrent heartbeat request. If that request fails (timeout), comm will be reset
                 self.connected = True
-                self.logger.info('Connected to device "%s" (ID: %s) with session ID 0x%08X' % (self.device_display_name, self.device_id, self.session_id))
+                self.logger.info('Connected to device "%s" (ID: %s) with session ID 0x%08X' %
+                                 (self.device_display_name, self.device_id, self.session_id))
                 next_state = self.FsmState.POLLING_INFO
             elif self.session_initializer.is_in_error():
                 self.session_initializer.stop()

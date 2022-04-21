@@ -126,8 +126,8 @@ class CommHandler:
         data = self.link.read()
         if data is None or len(data) == 0:
             return  # No data, exit.
-        
-        datasize_bits = len(data)*8
+
+        datasize_bits = len(data) * 8
         self.throttler.consume_bandwidth(datasize_bits)
         self.rx_bitcount += datasize_bits
         self.logger.debug('Received : %s' % (hexlify(data).decode('ascii')))
@@ -168,14 +168,14 @@ class CommHandler:
 
     def process_tx(self, newrequest=False):
         if self.pending_request is not None:
-            approx_delta_bandwidth = (self.pending_request.size() + self.pending_request.get_expected_response_size())* 8;
+            approx_delta_bandwidth = (self.pending_request.size() + self.pending_request.get_expected_response_size()) * 8;
             if self.throttler.allowed(approx_delta_bandwidth):
                 self.active_request = self.pending_request
                 self.pending_request = None
                 data = self.active_request.to_bytes()
                 self.logger.debug("Sending request %s" % self.active_request)
                 self.logger.debug("Sending : %s" % (hexlify(data).decode('ascii')))
-                datasize_bits = len(data)*8
+                datasize_bits = len(data) * 8
                 self.tx_bitcount += datasize_bits
                 self.throttler.consume_bandwidth(datasize_bits)
                 self.link.write(data)
@@ -184,9 +184,9 @@ class CommHandler:
                 self.logger.critical("Throttling doesn't allow to send request. Dropping %s" % self.pending_request)
                 self.pending_request = None
             else:
-                if newrequest: # Not sent right away
+                if newrequest:  # Not sent right away
                     self.logger.debug('Received request to send. Waiting because of throttling. %s' % self.pending_request)
-                
+
     def response_available(self):
         return (self.received_response is not None)
 
@@ -224,8 +224,7 @@ class CommHandler:
         self.pending_request = request
         self.received_response = None
         self.timed_out = False
-        self.process_tx(newrequest = True)
-
+        self.process_tx(newrequest=True)
 
     def waiting_response(self):
         # We are waiting response if a request is active, meaning it has been sent and reponse has not been acknowledge by the application

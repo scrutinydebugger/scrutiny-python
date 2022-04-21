@@ -93,7 +93,7 @@ class EmulatedDevice:
         response = None
         if req.size() > self.max_rx_data_size:
             self.logger.error("Request doesn't fit buffer. Dropping %s" % req)
-            return # drop
+            return  # drop
 
         data = self.protocol.parse_request(req)
         if data['valid'] == False:
@@ -205,7 +205,7 @@ class EmulatedDevice:
         return response
 
     def process_dummy_cmd(self, req, data):
-        return Response(cmd.DummyCommand, subfn=req.subfn, code=ResponseCode.OK, payload=b'\xAA'*32)
+        return Response(cmd.DummyCommand, subfn=req.subfn, code=ResponseCode.OK, payload=b'\xAA' * 32)
 
     def start(self):
         self.logger.debug('Starting thread')
