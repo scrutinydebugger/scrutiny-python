@@ -39,12 +39,13 @@ class DeviceHandler:
         'default_protocol_version': '1.0'
     }
 
+    # Low number = Low priority
     class RequestPriority:
-        Disconnect = 0
-        Heatbeat = 1
-        Connect = 2
-        PollInfo = 5
-        Discover = 10
+        Disconnect = 4
+        Connect = 3
+        Heatbeat = 2
+        PollInfo = 1
+        Discover = 0
 
     class ConnectionStatus(Enum):
         UNKNOWN = -1
@@ -111,10 +112,25 @@ class DeviceHandler:
         if not isinstance(partial_device_info.heartbeat_timeout_us, int):
             raise Exception('Heartbeat timeout gotten from device is invalid')
 
+        if not isinstance(partial_device_info.max_bitrate_bps, int):
+            raise Exception('Max bitrate gotten from device is invalid')
+
+        if not isinstance(partial_device_info.max_tx_data_size, int):
+            raise Exception('Max TX data size gotten from device is invalid')
+
+        if not isinstance(partial_device_info.max_rx_data_size, int):
+            raise Exception('Max RX data size gotten from device is invalid')
+
         self.logger.info('Device has an address size of %d bits. Configuring protocol to encode/decode them accordingly.' %
                          partial_device_info.address_size_bits)
-        self.protocol.set_address_size(partial_device_info.address_size_bits)
 
+        if partial_device_info.max_bitrate_bps > 0:
+            self.logger.info('Device has requested a maximum bitrate of %d bps. Activating throttling.' % partial_device_info.max_bitrate_bps)
+            self.dispatcher.enable_throttling(partial_device_info.max_bitrate_bps)
+
+        # Will do a safety check before emitting a request
+        self.dispatcher.set_size_limits(partial_device_info.max_rx_data_size, partial_device_info.max_tx_data_size)
+        self.protocol.set_address_size(partial_device_info.address_size_bits)
         self.heartbeat_generator.set_interval(max(0.5, float(partial_device_info.heartbeat_timeout_us) / 1000000.0 * 0.75))
 
     def get_protocol_version_callback(self, major, minor):
@@ -175,6 +191,7 @@ class DeviceHandler:
         self.protocol.set_address_size(self.config['default_address_size'])  # Set back the protocol to decode addresses of this size.
         (major, minor) = self.config['default_protocol_version'].split('.')
         self.protocol.set_version(int(major), int(minor))
+        self.dispatcher.disable_throttling()
 
     # Open communication channel based on config
     def init_comm(self):
@@ -217,6 +234,7 @@ class DeviceHandler:
         self.heartbeat_generator.process()
         self.info_poller.process()
         self.session_initializer.process()
+        self.dispatcher.process()
 
         self.handle_comm()      # Make sure request and response are being exchanged with the device
         self.do_state_machine()
@@ -249,6 +267,7 @@ class DeviceHandler:
                     if not self.device_display_name:
                         self.device_display_name = 'Anonymous'
                     self.device_id = found_device_id
+
                     self.logger.info('Found a device. "%s" (ID: %s)' % (self.device_display_name, self.device_id))
 
                     if self.device_id == DEFAULT_FIRMWARE_ID_ASCII:
@@ -273,7 +292,7 @@ class DeviceHandler:
                 self.heartbeat_generator.set_session_id(self.session_id)
                 self.heartbeat_generator.start()    # This guy will send recurrent heartbeat request. If that request fails (timeout), comm will be reset
                 self.connected = True
-                self.logger.info('Connected to device %s with session ID 0x%08X' % (self.device_id, self.session_id))
+                self.logger.info('Connected to device "%s" (ID: %s) with session ID 0x%08X' % (self.device_display_name, self.device_id, self.session_id))
                 next_state = self.FsmState.POLLING_INFO
             elif self.session_initializer.is_in_error():
                 self.session_initializer.stop()
@@ -307,7 +326,7 @@ class DeviceHandler:
         # ========= [READY] ==========
         elif self.fsm_state == self.FsmState.READY:
             if state_entry:
-                self.logger.info('Communication with device %s fully ready' % (self.device_id))
+                self.logger.info('Communication with device "%s" (ID: %s) fully ready' % (self.device_display_name, self.device_id))
                 self.logger.debug("Device information : %s" % self.device_info)
 
             if self.disconnection_requested:

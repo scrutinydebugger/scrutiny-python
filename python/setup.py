@@ -1,4 +1,5 @@
 #    setup.py
+#        Standard installation script
 #
 #   - License : MIT - See LICENSE file.
 #   - Project : Scrutiny Debugger (github.com/scrutinydebugger/scrutiny)
