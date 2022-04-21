@@ -12,7 +12,7 @@ import sys
 import logging
 
 from scrutiny.server.datastore import Datastore, DatastoreEntry
-from scrutiny.server.server_tools import Timer
+from scrutiny.server.tools import Timer
 
 from .websocket_client_handler import WebsocketClientHandler
 from .dummy_client_handler import DummyClientHandler

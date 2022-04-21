@@ -87,24 +87,9 @@ class TestRequestDispatcher(unittest.TestCase):
         dispatcher.register_request(request=req2, success_callback=self.success_callback, failure_callback=self.failure_callback, priority=1)
         dispatcher.register_request(request=req3, success_callback=self.success_callback, failure_callback=self.failure_callback, priority=0)
 
-        self.assertEqual(dispatcher.next().request, req2)
-        self.assertEqual(dispatcher.next().request, req1)
-        self.assertEqual(dispatcher.next().request, req3)
-
-    def test_throttling_basics(self):
-        dispatcher = RequestDispatcher()
-        req1 = self.make_dummy_request(payload=self.make_payload(512), response_payload_size=512)
-        dispatcher.register_request(request=req1, success_callback=self.success_callback, failure_callback=self.failure_callback, priority=0)
-        dispatcher.enable_throttling(1024 * 1024)  # 1Mbit bps
-        allowed_bits_initial = dispatcher.throttler.allowed_bits()
-        record = dispatcher.next()
-        self.assertIsNotNone(record)
-        self.assertEqual(record.request, req1)
-        self.assertLess(dispatcher.throttler.allowed_bits(), allowed_bits_initial)  # Check that less bit is allowed
-        dispatcher.process()
-        time.sleep(0.2)
-        dispatcher.process()
-        self.assertEqual(dispatcher.throttler.allowed_bits(), allowed_bits_initial)  # Check that we are back on our feet
+        self.assertEqual(dispatcher.pop_next().request, req2)
+        self.assertEqual(dispatcher.pop_next().request, req1)
+        self.assertEqual(dispatcher.pop_next().request, req3)
 
     def test_callbacks(self):
         dispatcher = RequestDispatcher()
@@ -116,9 +101,9 @@ class TestRequestDispatcher(unittest.TestCase):
         dispatcher.register_request(request=req2, success_callback=self.success_callback,
                                     failure_callback=self.failure_callback, success_params=[5, 6], failure_params=[7, 8])
 
-        record = dispatcher.next()
+        record = dispatcher.pop_next()
         record.complete(success=True, response=Response(DummyCommand, subfn=0, code=ResponseCode.OK), response_data="data1")
-        record = dispatcher.next()
+        record = dispatcher.pop_next()
         record.complete(success=False)
 
         self.assertEqual(len(self.success_list), 1)
@@ -144,5 +129,5 @@ class TestRequestDispatcher(unittest.TestCase):
         dispatcher.register_request(request=req3, success_callback=self.success_callback, failure_callback=self.failure_callback)
         dispatcher.logger.disabled = False
 
-        self.assertEqual(dispatcher.next().request, req1)
-        self.assertIsNone(dispatcher.next())
+        self.assertEqual(dispatcher.pop_next().request, req1)
+        self.assertIsNone(dispatcher.pop_next())

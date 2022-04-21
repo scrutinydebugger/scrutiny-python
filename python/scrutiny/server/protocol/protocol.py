@@ -44,14 +44,17 @@ class Protocol:
         def get_pack_char(self):
             return self.pack_char
 
-    def __init__(self, version_major=1, version_minor=0, address_size=32):
+    def __init__(self, version_major=1, version_minor=0, address_size_bits=32):
         self.version_major = version_major
         self.version_minor = version_minor
         self.logger = logging.getLogger(self.__class__.__name__)
-        self.set_address_size(address_size)    # default 32 bits address
+        self.set_address_size_bits(address_size_bits)    # default 32 bits address
 
-    def set_address_size(self, address_size):
-        self.address_format = self.AddressFormat(address_size)
+    def set_address_size_bits(self, address_size_bits):
+        self.address_format = self.AddressFormat(nbits=address_size_bits)
+
+    def set_address_size_bytes(self, address_size_byte):
+        self.address_format = self.AddressFormat(nbits=address_size_byte*8)
 
     def get_address_size_bytes(self):
         return self.address_format.get_address_size_bytes()
