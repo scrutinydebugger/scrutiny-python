@@ -22,7 +22,7 @@ protected:
 	virtual void SetUp()
 	{
 		config.max_bitrate = 0x12345678;
-		config.set_display_name("hello");
+		config.set_display_name("helloworld");
 		scrutiny_handler.init(&config);
 	}
 };
@@ -35,12 +35,13 @@ TEST_F(TestCommControl, TestDiscover)
 	ASSERT_EQ(sizeof(scrutiny::protocol::CommControl::DISCOVER_MAGIC), 4u);
 	uint8_t request_data[8 + 4] = { 2,1,0,4};
 	std::memcpy(&request_data[4], scrutiny::protocol::CommControl::DISCOVER_MAGIC, sizeof(scrutiny::protocol::CommControl::DISCOVER_MAGIC));
-
+	std::string display_name = std::string("helloworld");
 
 	uint8_t tx_buffer[64];
-	uint8_t expected_response[9 + 32+5] = { 0x82,1,0,0,32+5};   // Version 1.0
+	uint8_t expected_response[9 + 32+1+10] = { 0x82,1,0,0,32+1+10};   // Version 1.0
 	std::memcpy(&expected_response[5], scrutiny::software_id, sizeof(scrutiny::software_id));
-	std::memcpy(&expected_response[5+sizeof(scrutiny::software_id)], "hello", 5);
+	expected_response[5 + sizeof(scrutiny::software_id)] = display_name.length();
+	std::memcpy(&expected_response[5+sizeof(scrutiny::software_id)+1], display_name.c_str(), display_name.length());
 
 	add_crc(request_data, sizeof(request_data) - 4);
 	add_crc(expected_response, sizeof(expected_response) - 4);

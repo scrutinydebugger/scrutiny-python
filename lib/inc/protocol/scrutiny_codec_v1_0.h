@@ -132,6 +132,7 @@ namespace scrutiny
 			{
 				struct Discover
 				{
+					uint8_t display_name_length;
 					const char* display_name;
 				};
 				struct Heartbeat
