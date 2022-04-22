@@ -83,7 +83,6 @@ class DeviceSearcher:
         if response_code == ResponseCode.OK:
             self.found_device_timestamp = time.time()
             self.found_device = response_data
-            self.found_device_display_name = response_data['display_name']
         else:
             self.logger.error('Discover request got Nacked. %s' % response_code)
             self.found_device = None
