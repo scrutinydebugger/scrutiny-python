@@ -44,6 +44,7 @@ class DeviceSearcher:
     def get_device_firmware_id(self):
         if self.device_found():
             return self.found_device['firmware_id']
+        return None
 
     def get_device_firmware_id_ascii(self):
         if self.device_found():
