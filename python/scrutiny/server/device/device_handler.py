@@ -19,14 +19,15 @@ from enum import Enum
 import traceback
 
 from scrutiny.server.protocol.comm_handler import CommHandler
-from scrutiny.server.protocol import Protocol, ResponseCode
+from scrutiny.server.protocol import Protocol, ResponseCode, Request
+from scrutiny.server.protocol.commands import DummyCommand
 from scrutiny.server.device.request_dispatcher import RequestDispatcher
 from scrutiny.server.device.request_generator.device_searcher import DeviceSearcher
 from scrutiny.server.device.request_generator.heartbeat_generator import HeartbeatGenerator
 from scrutiny.server.device.request_generator.info_poller import InfoPoller
 from scrutiny.server.device.request_generator.session_initializer import SessionInitializer
 from scrutiny.core.firmware_id import PLACEHOLDER as DEFAULT_FIRMWARE_ID
-from scrutiny.server.server_tools import Timer
+from scrutiny.server.tools import Timer
 
 DEFAULT_FIRMWARE_ID_ASCII = binascii.hexlify(DEFAULT_FIRMWARE_ID).decode('ascii')
 
@@ -62,6 +63,10 @@ class DeviceHandler:
         READY = 4
         DISCONNECTING = 5
 
+    class OperatingMode(Enum):
+        Normal = 0
+        Test_CheckThrottling = 1
+
     def __init__(self, config, datastore):
         self.logger = logging.getLogger(self.__class__.__name__)
 
@@ -87,14 +92,27 @@ class DeviceHandler:
         self.heartbeat_generator.set_interval(max(0.5, self.config['heartbeat_timeout'] * 0.75))
         self.comm_broken = False
         self.device_id = None
+        self.operating_mode = self.OperatingMode.Normal
 
         self.reset_comm()
+
+    def set_operating_mode(self, mode):
+        if not isinstance(mode, self.OperatingMode):
+            raise ValueError('mode must be an instance of DeviceHandler.OperatingMode')
+
+        self.operating_mode = mode
 
     def get_device_info(self):
         return copy.copy(self.device_info)
 
     def get_comm_error_count(self):
         return self.comm_broken_count
+
+    def is_throttling_enabled(self):
+        return self.comm_handler.is_throttling_enabled()
+
+    def get_throttling_bitrate(self):
+        return self.comm_handler.get_throttling_bitrate()
 
     def get_comm_params_callback(self, partial_device_info):
         # In the POLLING_INFO stage, there is a point where we will have gotten the communication params.
@@ -126,11 +144,11 @@ class DeviceHandler:
 
         if partial_device_info.max_bitrate_bps > 0:
             self.logger.info('Device has requested a maximum bitrate of %d bps. Activating throttling.' % partial_device_info.max_bitrate_bps)
-            self.dispatcher.enable_throttling(partial_device_info.max_bitrate_bps)
+            self.comm_handler.enable_throttling(partial_device_info.max_bitrate_bps)
 
         # Will do a safety check before emitting a request
         self.dispatcher.set_size_limits(partial_device_info.max_rx_data_size, partial_device_info.max_tx_data_size)
-        self.protocol.set_address_size(partial_device_info.address_size_bits)
+        self.protocol.set_address_size_bits(partial_device_info.address_size_bits)
         self.heartbeat_generator.set_interval(max(0.5, float(partial_device_info.heartbeat_timeout_us) / 1000000.0 * 0.75))
 
     def get_protocol_version_callback(self, major, minor):
@@ -183,15 +201,16 @@ class DeviceHandler:
         self.heartbeat_generator.stop()
         self.info_poller.stop()
         self.session_initializer.stop()
+        self.dispatcher.reset()
         self.session_id = None
         self.disconnection_requested = False
         self.disconnect_callback = None
         self.disconnect_complete = False
         self.comm_broken_count = 0
-        self.protocol.set_address_size(self.config['default_address_size'])  # Set back the protocol to decode addresses of this size.
+        self.protocol.set_address_size_bits(self.config['default_address_size'])  # Set back the protocol to decode addresses of this size.
         (major, minor) = self.config['default_protocol_version'].split('.')
         self.protocol.set_version(int(major), int(minor))
-        self.dispatcher.disable_throttling()
+        self.comm_handler.disable_throttling()
 
     # Open communication channel based on config
     def init_comm(self):
@@ -238,6 +257,26 @@ class DeviceHandler:
 
         self.handle_comm()      # Make sure request and response are being exchanged with the device
         self.do_state_machine()
+
+    def reset_bitrate_monitor(self):
+        self.comm_handler.reset_bitrate_monitor()
+
+    def get_average_bitrate(self):
+        return self.comm_handler.get_average_bitrate()
+
+    def exec_ready_task(self, state_entry=False):
+        if self.operating_mode == self.OperatingMode.Normal:
+            pass
+        elif self.operating_mode == self.OperatingMode.Test_CheckThrottling:
+            if self.dispatcher.peek_next() is None:
+                dummy_request = Request(DummyCommand, subfn=1, payload=b'\x00' * 32, response_payload_size=32);
+                self.dispatcher.register_request(dummy_request, success_callback=lambda *args, **
+                                                 kwargs: None, failure_callback=self.test_failure_callback)
+
+    def test_failure_callback(self, request, params):
+        if self.operating_mode == self.OperatingMode.Test_CheckThrottling:
+            self.logger.error('Dummy Command failed to be achieved. Stopping test')
+            self.comm_broken = True
 
     def do_state_machine(self):
         if self.comm_broken:
@@ -292,7 +331,8 @@ class DeviceHandler:
                 self.heartbeat_generator.set_session_id(self.session_id)
                 self.heartbeat_generator.start()    # This guy will send recurrent heartbeat request. If that request fails (timeout), comm will be reset
                 self.connected = True
-                self.logger.info('Connected to device "%s" (ID: %s) with session ID 0x%08X' % (self.device_display_name, self.device_id, self.session_id))
+                self.logger.info('Connected to device "%s" (ID: %s) with session ID 0x%08X' %
+                                 (self.device_display_name, self.device_id, self.session_id))
                 next_state = self.FsmState.POLLING_INFO
             elif self.session_initializer.is_in_error():
                 self.session_initializer.stop()
@@ -329,8 +369,13 @@ class DeviceHandler:
                 self.logger.info('Communication with device "%s" (ID: %s) fully ready' % (self.device_display_name, self.device_id))
                 self.logger.debug("Device information : %s" % self.device_info)
 
+            self.exec_ready_task(state_entry)
+
             if self.disconnection_requested:
                 next_state = self.FsmState.DISCONNECTING
+
+            if self.dispatcher.is_in_error():
+                next_state = self.FsmState.INIT
 
        # ========= [DISCONNECTING] ==========
         elif self.fsm_state == self.FsmState.DISCONNECTING:
@@ -372,43 +417,48 @@ class DeviceHandler:
             self.disconnect_callback.__call__(False)
 
     def handle_comm(self):
-        self.comm_handler.process()     # Process reception
+        done = False
+        while not done:
+            done = True
+            self.comm_handler.process()     # Process reception
 
-        if not self.comm_handler.is_open():
-            return
+            if not self.comm_handler.is_open():
+                break
 
-        if self.active_request_record is None:  # We haven't send a request
-            record = self.dispatcher.next()
-            if record is not None:              # A new request to send
-                self.active_request_record = record
-                self.comm_handler.send_request(record.request)
-        else:
-            if self.comm_handler.has_timed_out():       # The request we have sent has timed out.. no response
-                self.logger.debug('Request timed out. %s' % self.active_request_record.request)
-                self.comm_broken = True
-                self.comm_handler.clear_timeout()
-                self.active_request_record.complete(success=False)
+            if self.active_request_record is None:  # We haven't send a request
+                record = self.dispatcher.pop_next()
 
-            elif self.comm_handler.waiting_response():      # We are still wiating for a resonse
-                if self.comm_handler.response_available():  # We got a response! yay
-                    response = self.comm_handler.get_response()
+                if record is not None:              # A new request to send
+                    self.active_request_record = record
+                    self.comm_handler.send_request(record.request)
+            else:
+                if self.comm_handler.has_timed_out():       # The request we have sent has timed out.. no response
+                    self.logger.debug('Request timed out. %s' % self.active_request_record.request)
+                    self.comm_broken = True
+                    self.comm_handler.clear_timeout()
+                    self.active_request_record.complete(success=False)
 
-                    try:
-                        data = self.protocol.parse_response(response)
-                        self.active_request_record.complete(success=True, response=response, response_data=data)  # Valid response if we get here.
-                    except Exception as e:                   # Malformed response.
-                        self.comm_broken = True
-                        self.logger.error("Invalid response received. %s" % str(e))
-                        self.logger.debug(traceback.format_exc())
-                        self.active_request_record.complete(success=False)
+                elif self.comm_handler.waiting_response():      # We are still wiating for a resonse
+                    if self.comm_handler.response_available():  # We got a response! yay
+                        response = self.comm_handler.get_response()
 
-            else:   # Comm handler decided to go back to Idle by itself. Most likely a valid message that was not the response of the request.
-                self.comm_broken = True
-                self.comm_handler.reset()
-                self.active_request_record.complete(success=False)
+                        try:
+                            data = self.protocol.parse_response(response)
+                            self.active_request_record.complete(success=True, response=response, response_data=data)  # Valid response if we get here.
+                        except Exception as e:                   # Malformed response.
+                            self.comm_broken = True
+                            self.logger.error("Invalid response received. %s" % str(e))
+                            self.logger.debug(traceback.format_exc())
+                            self.active_request_record.complete(success=False)
 
-            if self.active_request_record is not None:          # double check if None here in case the user shut down communication in a callback
-                if self.active_request_record.is_completed():   # If we have called a callback, then we are done with this request.
-                    self.active_request_record = None
+                else:   # Comm handler decided to go back to Idle by itself. Most likely a valid message that was not the response of the request.
+                    self.comm_broken = True
+                    self.comm_handler.reset()
+                    self.active_request_record.complete(success=False)
 
-        self.comm_handler.process()      # Process new transmission now.
+                if self.active_request_record is not None:          # double check if None here in case the user shut down communication in a callback
+                    if self.active_request_record.is_completed():   # If we have called a callback, then we are done with this request.
+                        self.active_request_record = None
+                        done = False    # There might be another request pending. Send right away
+
+            self.comm_handler.process()      # Process new transmission now.

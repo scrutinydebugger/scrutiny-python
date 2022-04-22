@@ -12,8 +12,11 @@ from scrutiny.server.device.emulated_device import EmulatedDevice
 from scrutiny.server.device import DeviceHandler
 from scrutiny.server.datastore import Datastore
 from time import time, sleep
+from scrutiny.server.protocol.commands import DummyCommand
+from scrutiny.server.protocol import Request, Response
+from test import logger
 
-import signal
+import signal  # For ctrl+c handling
 
 
 class TestDeviceHandler(unittest.TestCase):
@@ -189,3 +192,28 @@ class TestDeviceHandler(unittest.TestCase):
                     break
 
         self.assertTrue(connection_lost)
+
+    def test_throttling(self):
+        timeout = 3
+        measurement_time = 10
+        target_bitrate = 5000
+        self.emulated_device.max_bitrate_bps = target_bitrate
+        self.device_handler.set_operating_mode(DeviceHandler.OperatingMode.Test_CheckThrottling)
+        connect_time = None
+        t1 = time()
+        while time() - t1 < timeout:
+            self.device_handler.process()
+            status = self.device_handler.get_connection_status()
+            if status == DeviceHandler.ConnectionStatus.CONNECTED_READY and connect_time is None:
+                self.device_handler.reset_bitrate_monitor()
+                connect_time = time()
+                self.assertTrue(self.device_handler.is_throttling_enabled())
+                self.assertEqual(self.device_handler.get_throttling_bitrate(), self.emulated_device.max_bitrate_bps)
+                t1 = time()
+                timeout = measurement_time
+
+        self.assertIsNotNone(connect_time)
+        measured_bitrate = self.device_handler.get_average_bitrate()
+        logger.info('Measured bitrate = %0.2fkbps. Target = %0.2fkbps' % (measured_bitrate / 1000.0, target_bitrate / 1000.0))
+        self.assertLess(measured_bitrate, target_bitrate * 1.5)
+        self.assertGreater(measured_bitrate, target_bitrate / 1.5)

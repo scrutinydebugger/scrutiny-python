@@ -12,7 +12,7 @@ import threading
 import errno
 import traceback
 
-from scrutiny.server.server_tools import Timer
+from scrutiny.server.tools import Timer
 
 
 class UdpLink:

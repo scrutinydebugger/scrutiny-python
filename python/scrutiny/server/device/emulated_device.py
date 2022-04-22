@@ -41,8 +41,8 @@ class EmulatedDevice:
         self.thread_started_event = threading.Event()
         self.thread = None
 
-        self.max_rx_data_size = 64        # Rx buffer size max. Server should make sure the request won't overflow
-        self.max_tx_data_size = 64        # Tx buffer size max. Server should make sure the response won't overflow
+        self.max_rx_data_size = 128        # Rx buffer size max. Server should make sure the request won't overflow
+        self.max_tx_data_size = 128        # Tx buffer size max. Server should make sure the response won't overflow
         self.max_bitrate_bps = 100000    # Maximum bitrate supported by the device. Will gently ask the server to not go faster than that
         self.heartbeat_timeout_us = 3000000   # Will destroy session if no heartbeat is received at this rate (microseconds)
         self.rx_timeout_us = 50000     # For byte chunk reassembly (microseconds)
@@ -91,6 +91,10 @@ class EmulatedDevice:
 
     def process_request(self, req):
         response = None
+        if req.size() > self.max_rx_data_size:
+            self.logger.error("Request doesn't fit buffer. Dropping %s" % req)
+            return  # drop
+
         data = self.protocol.parse_request(req)
         if data['valid'] == False:
             self.logger.error('Invalid request data')
@@ -108,6 +112,8 @@ class EmulatedDevice:
             response = self.process_comm_control(req, data)
         elif req.command == cmd.GetInfo:
             response = self.process_get_info(req, data)
+        elif req.command == cmd.DummyCommand:
+            response = self.process_dummy_cmd(req, data)
         else:
             self.logger.error('Unsupported command : %s' % str(req.command.__name__))
 
@@ -197,6 +203,9 @@ class EmulatedDevice:
             self.logger.error('Unsupported subfunction "%s" for command : "%s"' % (subfunction, req.command.__name__))
 
         return response
+
+    def process_dummy_cmd(self, req, data):
+        return Response(cmd.DummyCommand, subfn=req.subfn, code=ResponseCode.OK, payload=b'\xAA' * 32)
 
     def start(self):
         self.logger.debug('Starting thread')

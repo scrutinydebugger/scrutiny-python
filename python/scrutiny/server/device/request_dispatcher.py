@@ -9,7 +9,7 @@
 
 import bisect
 from scrutiny.server.protocol import Response
-from scrutiny.server.server_tools import Throttler
+from scrutiny.server.tools import Throttler
 from time import time
 import math
 import logging
@@ -58,7 +58,7 @@ class RequestQueue:
 
 
 class RequestRecord:
-    __slots__ = ('request', 'success_callback', 'failure_callback', 'success_params', 'failure_params', 'completed', 'delta_bandwidth')
+    __slots__ = ('request', 'success_callback', 'failure_callback', 'success_params', 'failure_params', 'completed', 'approximate_delta_bandwidth')
 
     def __init__(self):
         self.completed = False
@@ -79,37 +79,40 @@ class RequestRecord:
 class RequestDispatcher:
     def __init__(self, queue_size=100):
         self.request_queue = RequestQueue(size=queue_size)  # Will prevent bloating because of throttling
-        self.throttler = Throttler()
+        self.logger = logging.getLogger(self.__class__.__name__)
+        self.reset()
+
+    def reset(self):
         self.rx_size_limit = None
         self.tx_size_limit = None
-        self.logger = logging.getLogger(self.__class__.__name__)
+        self.critical_error = False
+        self.request_queue.clear()
 
-    def enable_throttling(self, bitrate):
-        self.throttler.set_bitrate(bitrate)
-        self.throttler.enable()
-
-    def disable_throttling(self):
-        self.throttler.disable()
+    def is_in_error(self):
+        return self.critical_error
 
     def register_request(self, request, success_callback, failure_callback, priority=0, success_params=None, failure_params=None):
-        if self.rx_size_limit is not None:
-            if request.size() > self.rx_size_limit:  # Should not happens. Request generators should craft their request according to this limit
-                self.logger.critical('Request is bigger than device receive buffer. Dropping %s' % request)
-                return
-
-        if self.tx_size_limit is not None:
-            if request.get_expected_response_size() > self.tx_size_limit:  # Should not happens. Request generators should craft their request according to this limit
-                self.logger.critical('Request expected response size is bigger than device tx buffer. Dropping %s' % request)
-                return
-
         record = RequestRecord()
         record.request = request
         record.success_callback = success_callback
         record.success_params = success_params
         record.failure_callback = failure_callback
         record.failure_params = failure_params
+        record.approximate_delta_bandwidth = (request.size() + request.get_expected_response_size()) * 8
 
-        record.delta_bandwidth = (request.size() + request.get_expected_response_size()) * 8
+        if self.rx_size_limit is not None:
+            if request.size() > self.rx_size_limit:  # Should not happens. Request generators should craft their request according to this limit
+                self.logger.critical('Request is bigger than device receive buffer. Dropping %s' % request)
+                self.critical_error = True
+                record.complete(success=False)
+                return
+
+        if self.tx_size_limit is not None:
+            if request.get_expected_response_size() > self.tx_size_limit:  # Should not happens. Request generators should craft their request according to this limit
+                self.logger.critical('Request expected response size is bigger than device tx buffer. Dropping %s' % request)
+                self.critical_error = True
+                record.complete(success=False)
+                return
 
         self.request_queue.push(record, priority)
 
@@ -118,13 +121,10 @@ class RequestDispatcher:
         self.tx_size_limit = tx_size_limit
 
     def process(self):
-        self.throttler.process()
+        pass    # nothing to do
 
-    def next(self):
-        record = self.request_queue.peek()
-        if record is None:
-            return
+    def peek_next(self):
+        return self.request_queue.peek()
 
-        if self.throttler.allowed(record.delta_bandwidth):
-            self.throttler.consume_bandwidth(record.delta_bandwidth)
-            return self.request_queue.pop()
+    def pop_next(self):
+        return self.request_queue.pop()

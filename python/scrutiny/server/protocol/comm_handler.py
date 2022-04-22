@@ -12,12 +12,14 @@
 
 from queue import Queue
 from scrutiny.server.protocol import Request, Response
-from scrutiny.server.server_tools import Timer
+from scrutiny.server.tools import Timer
 from enum import Enum
 from copy import copy
 import logging
 import struct
 from binascii import hexlify
+import time
+from scrutiny.server.tools import Throttler
 
 
 class CommHandler:
@@ -52,6 +54,26 @@ class CommHandler:
         self.rx_data = self.RxData()    # Contains the response data while we read it.
         self.logger = logging.getLogger(self.__class__.__name__)
         self.opened = False     # True when communication channel is active and working.
+        self.reset_bitrate_monitor()
+        self.throttler = Throttler()
+
+    def enable_throttling(self, bitrate):
+        self.throttler.set_bitrate(bitrate)
+        self.throttler.enable()
+
+    def disable_throttling(self):
+        self.throttler.disable()
+
+    def is_throttling_enabled(self):
+        return self.throttler.is_enabled()
+
+    def get_throttling_bitrate(self):
+        return self.throttler.get_bitrate()
+
+    def reset_bitrate_monitor(self):
+        self.rx_bitcount = 0
+        self.tx_bitcount = 0
+        self.bitcount_time = time.time()
 
     def get_link(self):
         return self.link
@@ -91,7 +113,9 @@ class CommHandler:
             return
 
         self.link.process()  # Process the link handling
+        self.throttler.process()
         self.process_rx()   # Treat response reception
+        self.process_tx()   # Handle throttling
 
     def process_rx(self):
         # If we haven't got a response or we know we won't get one. Mark the request as timed out
@@ -103,6 +127,9 @@ class CommHandler:
         if data is None or len(data) == 0:
             return  # No data, exit.
 
+        datasize_bits = len(data) * 8
+        self.throttler.consume_bandwidth(datasize_bits)
+        self.rx_bitcount += datasize_bits
         self.logger.debug('Received : %s' % (hexlify(data).decode('ascii')))
 
         if self.response_available() or not self.waiting_response():
@@ -139,6 +166,27 @@ class CommHandler:
                     self.logger.error("Received malformed message. " + str(e))
                     self.reset_rx()
 
+    def process_tx(self, newrequest=False):
+        if self.pending_request is not None:
+            approx_delta_bandwidth = (self.pending_request.size() + self.pending_request.get_expected_response_size()) * 8;
+            if self.throttler.allowed(approx_delta_bandwidth):
+                self.active_request = self.pending_request
+                self.pending_request = None
+                data = self.active_request.to_bytes()
+                self.logger.debug("Sending request %s" % self.active_request)
+                self.logger.debug("Sending : %s" % (hexlify(data).decode('ascii')))
+                datasize_bits = len(data) * 8
+                self.tx_bitcount += datasize_bits
+                self.throttler.consume_bandwidth(datasize_bits)
+                self.link.write(data)
+                self.response_timer.start()
+            elif not self.throttler.possible(approx_delta_bandwidth):
+                self.logger.critical("Throttling doesn't allow to send request. Dropping %s" % self.pending_request)
+                self.pending_request = None
+            else:
+                if newrequest:  # Not sent right away
+                    self.logger.debug('Received request to send. Waiting because of throttling. %s' % self.pending_request)
+
     def response_available(self):
         return (self.received_response is not None)
 
@@ -164,27 +212,28 @@ class CommHandler:
         # Make sure we can send a new request.
         # Also clear the received resposne so that response_available() return False
         self.active_request = None
+        self.pending_request = None
         self.received_response = None
         self.response_timer.stop()
         self.rx_data.clear()
 
     def send_request(self, request):
-        if self.active_request is not None:
+        if self.waiting_response():
             raise Exception('Waiting for a response')
 
-        self.active_request = request
+        self.pending_request = request
         self.received_response = None
-        data = request.to_bytes()
-        self.logger.debug("Sending request %s" % request)
-        self.logger.debug("Sending : %s" % (hexlify(data).decode('ascii')))
-        self.link.write(data)
-        self.response_timer.start()
         self.timed_out = False
+        self.process_tx(newrequest=True)
 
     def waiting_response(self):
         # We are waiting response if a request is active, meaning it has been sent and reponse has not been acknowledge by the application
-        return (self.active_request is not None)
+        return (self.active_request is not None or self.pending_request is not None)
 
     def reset(self):
         self.reset_rx()
         self.clear_timeout()
+
+    def get_average_bitrate(self):
+        dt = time.time() - self.bitcount_time
+        return (self.rx_bitcount + self.tx_bitcount) / dt

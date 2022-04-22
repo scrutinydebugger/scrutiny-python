@@ -7,64 +7,31 @@
 #   Copyright (c) 2021-2022 scrutinydebugger
 
 import unittest
-from scrutiny.server.server_tools import Throttler
+from scrutiny.server.tools import Throttler
 import time
+import logging
+import math
+from test import logger
 
 
 class TestThrottler(unittest.TestCase):
-    def test_throttler_behavior(self):
-        throttler = Throttler(mean_bitrate=1024, window_size_sec=1)
-        throttler.enable()
-        throttler.process()
-
-        self.assertEqual(throttler.allowed_bits(), 1024)
-        throttler.consume_bandwidth(1000)
-        self.assertEqual(throttler.allowed_bits(), 24)
-
-        throttler.process()
-        time.sleep(0.4)
-        throttler.process()
-
-        self.assertEqual(throttler.allowed_bits(), 24)
-
-        time.sleep(0.7)
-        throttler.process()
-        self.assertEqual(throttler.allowed_bits(), 1024)
-
-        throttler.consume_bandwidth(1024 * 2)
-        self.assertEqual(throttler.allowed_bits(), 0)
-        time.sleep(0.4)
-        throttler.process()
-        self.assertEqual(throttler.allowed_bits(), 0)
-        time.sleep(0.4)
-        throttler.process()
-        self.assertEqual(throttler.allowed_bits(), 0)
-        time.sleep(0.4)
-        throttler.process()
-        self.assertEqual(throttler.allowed_bits(), 1024)
-
-        self.assertTrue(throttler.allowed(1024))
-        self.assertFalse(throttler.allowed(1025))
-
     def test_throttler_measurement(self):
-        bitrate = 10000
-        window_size_sec = 1
-
-        throttler = Throttler(mean_bitrate=bitrate, window_size_sec=window_size_sec)
+        bitrate = 5000
+        throttler = Throttler()
+        throttler.set_bitrate(bitrate)
         throttler.enable()
 
         runtime = 5
         tstart = time.time()
         time_axis = []
         data_axis = []
-        max_write_chunk = bitrate / 10    #
+        write_chunk = bitrate / 30    # Keep smaller than 60 because of thread resolution of 16ms
         while time.time() - tstart < runtime:
             throttler.process()
-            bitcount = throttler.allowed_bits()
-            bitcount = min(max_write_chunk, bitcount)
-            throttler.consume_bandwidth(bitcount)
-            time_axis.append(time.time())
-            data_axis.append(bitcount)
+            if throttler.allowed(write_chunk):
+                throttler.consume_bandwidth(write_chunk)
+                time_axis.append(time.time())
+                data_axis.append(write_chunk)
             time.sleep(0.001)
 
         dt = time_axis[-1] - time_axis[0]
@@ -73,11 +40,11 @@ class TestThrottler(unittest.TestCase):
             total += x
 
         measured_bitrate = total / dt
+        logger.info('Measured bitrate = %0.2fkbps. Target = %0.2fkbps' % (measured_bitrate / 1000.0, bitrate / 1000.0))
+        self.assertGreater(measured_bitrate, bitrate * 0.8)
+        self.assertLess(measured_bitrate, bitrate * 1.2)
 
-        self.assertGreater(measured_bitrate, bitrate * 0.85)
-        self.assertLess(measured_bitrate, bitrate * 1.15)
-
-        # Now make sure that the buffer wan'T overloaded
+        # Now make sure that the buffer won't be overloaded
         buffer_estimation = []
         buffer_peak = 0
         for i in range(len(data_axis)):
@@ -89,4 +56,4 @@ class TestThrottler(unittest.TestCase):
                 buffer_estimation.append(buffer_estimation[-1] + data_axis[i] - bitrate * dt)
                 buffer_peak = max(buffer_peak, buffer_estimation[-1])
 
-        self.assertLess(buffer_peak, bitrate / window_size_sec)
+        logger.info('Maximum buffer peak = %dbits' % (math.ceil(buffer_peak)))
