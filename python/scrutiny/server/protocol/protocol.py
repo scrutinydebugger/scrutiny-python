@@ -351,7 +351,10 @@ class Protocol:
         return Response(cmd.GetInfo, cmd.GetInfo.Subfunction.GetSpecialMemoryRegionLocation, Response.ResponseCode.OK, data)
 
     def respond_comm_discover(self, firmware_id, display_name):
-        resp_data = bytes(firmware_id) + display_name.encode('utf8')
+        if len(display_name) > 255:
+            raise Exception('Display name too long.')
+
+        resp_data = bytes(firmware_id) + bytes([len(display_name)]) + display_name.encode('utf8')
         return Response(cmd.CommControl, cmd.CommControl.Subfunction.Discover, Response.ResponseCode.OK, resp_data)
 
     def respond_comm_heartbeat(self, session_id, challenge_response):
@@ -561,8 +564,19 @@ class Protocol:
                     subfn = cmd.CommControl.Subfunction(response.subfn)
 
                     if subfn == cmd.CommControl.Subfunction.Discover:
+                        if len(response.payload) < 32:
+                            raise Exception('Missing data in Discover Response. FirmwareID should be 32 bytes long')
+
+                        if len(response.payload) < 33:
+                            raise Exception('Missing display name length')
+
                         data['firmware_id'] = response.payload[0:32]
-                        data['display_name'] = response.payload[32:].decode('utf8')
+                        display_name_length = int(response.payload[32])
+
+                        if len(response.payload) < 33 + display_name_length:
+                            raise Exception('Display name is incomplete according to length provided')
+
+                        data['display_name'] = response.payload[33:33 + display_name_length].decode('utf8')
 
                     elif subfn == cmd.CommControl.Subfunction.Heartbeat:
                         data['session_id'], data['challenge_response'] = struct.unpack('>LH', response.payload[0:6])

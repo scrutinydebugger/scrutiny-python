@@ -31,7 +31,7 @@ class EmulatedDevice:
             raise ValueError('EmulatedDevice expects a DummyLink object')
         self.logger = logging.getLogger(self.__class__.__name__)
         self.link = link    # Preopened link.
-        self.firmware_id = bytes([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15])
+        self.firmware_id = bytes(range(32))
         self.request_history = []
         self.protocol = Protocol(1, 0)
 

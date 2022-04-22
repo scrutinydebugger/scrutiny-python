@@ -398,16 +398,25 @@ namespace scrutiny
 		ResponseCode CodecV1_0::encode_response_comm_discover(Response* response, const ResponseData::CommControl::Discover* response_data)
 		{
 			constexpr uint16_t software_id_size = sizeof(scrutiny::software_id);
-			constexpr uint16_t datalen_max = software_id_size + DISPLAY_NAME_MAX_SIZE;
-			constexpr uint16_t display_name_pos = software_id_size;
+			constexpr uint16_t diaply_name_length_size = sizeof(response_data->display_name_length);
+			constexpr uint16_t firmware_id_pos = 0;
+			constexpr uint16_t display_name_length_pos = firmware_id_pos + software_id_size;
+			constexpr uint16_t display_name_pos = display_name_length_pos + diaply_name_length_size;
 
+			constexpr uint16_t datalen_max = software_id_size + diaply_name_length_size + DISPLAY_NAME_MAX_SIZE;
 			static_assert(datalen_max <= SCRUTINY_TX_BUFFER_SIZE, "SCRUTINY_TX_BUFFER_SIZE too small");
 
 			const uint16_t display_name_length = strnlen_s(response_data->display_name, DISPLAY_NAME_MAX_SIZE);
 
-			response->data_length = software_id_size + display_name_length;
-			std::memcpy(&response->data[0], scrutiny::software_id, software_id_size);
-			std::memcpy(&response->data[software_id_size], response_data->display_name, display_name_length);
+			if (display_name_length > 0xFF)
+			{
+				return ResponseCode::Overflow;
+			}
+
+			response->data_length = software_id_size + diaply_name_length_size + display_name_length;
+			std::memcpy(&response->data[firmware_id_pos], scrutiny::software_id, software_id_size);
+			response->data[display_name_length_pos] = static_cast<uint8_t>(display_name_length);
+			std::memcpy(&response->data[display_name_pos], response_data->display_name, display_name_length);
 			return ResponseCode::OK;
 		}
 

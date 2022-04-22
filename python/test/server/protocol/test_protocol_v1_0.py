@@ -293,6 +293,7 @@ class TestProtocolV1_0(unittest.TestCase):
 
 # ============= CommControl ===============
 
+
     def test_req_comm_discover(self):
         magic = bytes([0x7e, 0x18, 0xfc, 0x68])
         request_bytes = bytes([2, 1, 0, 4]) + magic
@@ -431,7 +432,6 @@ class TestProtocolV1_0(unittest.TestCase):
 
 # ============= UserCommand ===============
 
-
     def test_req_user_command(self):
         req = self.proto.user_command(10, bytes([1, 2, 3]))
         self.assert_req_response_bytes(req, [4, 10, 0, 3, 1, 2, 3])
@@ -445,7 +445,6 @@ class TestProtocolV1_0(unittest.TestCase):
 # ============================
 
 # =============  GetInfo ==============
-
 
     def test_response_get_protocol_version(self):
         response = self.proto.respond_protocol_version(major=2, minor=3)
@@ -490,7 +489,6 @@ class TestProtocolV1_0(unittest.TestCase):
 
 
 # ============= MemoryControl ===============
-
 
     def test_response_read_single_memory_block_8bits(self):
         self.proto.set_address_size_bits(8)
@@ -691,7 +689,8 @@ class TestProtocolV1_0(unittest.TestCase):
     def test_response_comm_discover(self):
         firmwareid = bytes(range(32))
         display_name = 'hello'
-        response_bytes = bytes([0x82, 1, 0, 0, len(firmwareid) + len(display_name.encode('utf8'))]) + firmwareid + display_name.encode('utf8')
+        payload_length = len(firmwareid) + 1 + len(display_name.encode('utf8'))
+        response_bytes = bytes([0x82, 1, 0, 0, payload_length]) + firmwareid + struct.pack('B', len(display_name)) + display_name.encode('utf8')
         response = self.proto.respond_comm_discover(firmwareid, display_name)
         self.assert_req_response_bytes(response, response_bytes)
         data = self.proto.parse_response(response)
