@@ -37,17 +37,25 @@ class DeviceSearcher:
         self.found_device_timestamp = time.time()
         self.started = False
         self.found_device = None
-        self.found_device_display_name = ''
 
-    def get_found_device(self):
-        return self.found_device
+    def device_found(self):
+        return self.found_device is not None
 
-    def get_found_device_ascii(self):
-        if self.found_device is not None:
-            return binascii.hexlify(self.found_device).decode('ascii')
+    def get_device_firmware_id(self):
+        if self.device_found():
+            return self.found_device['firmware_id']
 
-    def get_found_device_display_name(self):
-        return self.found_device_display_name
+    def get_device_firmware_id_ascii(self):
+        if self.device_found():
+            return binascii.hexlify(self.get_device_firmware_id()).decode('ascii')
+
+    def get_device_display_name(self):
+        if self.device_found():
+            return self.found_device['display_name']
+
+    def get_device_protocol_version(self):
+        if self.device_found():
+            return (self.found_device['protocol_major'], self.found_device['protocol_minor'])
 
     def process(self):
         if not self.started:
@@ -74,7 +82,7 @@ class DeviceSearcher:
 
         if response_code == ResponseCode.OK:
             self.found_device_timestamp = time.time()
-            self.found_device = response_data['firmware_id']
+            self.found_device = response_data
             self.found_device_display_name = response_data['display_name']
         else:
             self.logger.error('Discover request got Nacked. %s' % response_code)
