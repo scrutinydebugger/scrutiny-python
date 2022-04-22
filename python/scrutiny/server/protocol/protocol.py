@@ -354,7 +354,7 @@ class Protocol:
         if len(display_name) > 255:
             raise Exception('Display name too long.')
 
-        resp_data = bytes(firmware_id) + bytes([len(display_name)]) + display_name.encode('utf8')
+        resp_data = bytes([self.version_major, self.version_minor]) + bytes(firmware_id) + bytes([len(display_name)]) + display_name.encode('utf8')
         return Response(cmd.CommControl, cmd.CommControl.Subfunction.Discover, Response.ResponseCode.OK, resp_data)
 
     def respond_comm_heartbeat(self, session_id, challenge_response):
@@ -564,19 +564,19 @@ class Protocol:
                     subfn = cmd.CommControl.Subfunction(response.subfn)
 
                     if subfn == cmd.CommControl.Subfunction.Discover:
-                        if len(response.payload) < 32:
-                            raise Exception('Missing data in Discover Response. FirmwareID should be 32 bytes long')
+                        firmware_id_size = 32
+                        if len(response.payload) < 1 + 1 + firmware_id_size + 1:    # proto_maj, proto_min + firmware_id + name_length
+                            raise Exception('Incomplete payload.')
 
-                        if len(response.payload) < 33:
-                            raise Exception('Missing display name length')
-
-                        data['firmware_id'] = response.payload[0:32]
-                        display_name_length = int(response.payload[32])
-
-                        if len(response.payload) < 33 + display_name_length:
+                        data['protocol_major'] = int(response.payload[0])
+                        data['protocol_minor'] = int(response.payload[1])
+                        data['firmware_id'] = response.payload[2:2 + firmware_id_size]
+                        display_name_length = int(response.payload[2 + firmware_id_size])
+                        name_position = 1 + 1 + firmware_id_size + 1
+                        if len(response.payload) < name_position + display_name_length:
                             raise Exception('Display name is incomplete according to length provided')
 
-                        data['display_name'] = response.payload[33:33 + display_name_length].decode('utf8')
+                        data['display_name'] = response.payload[name_position:name_position + display_name_length].decode('utf8')
 
                     elif subfn == cmd.CommControl.Subfunction.Heartbeat:
                         data['session_id'], data['challenge_response'] = struct.unpack('>LH', response.payload[0:6])

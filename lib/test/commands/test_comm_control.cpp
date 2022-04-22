@@ -12,6 +12,9 @@
 #include "scrutiny.h"
 #include "scrutiny_test.h"
 
+#define DISPLAY_NAME "helloworld"
+#define DISPLAY_NAME_LENGTH 10
+
 class TestCommControl : public ScrutinyTest
 {
 protected:
@@ -22,7 +25,7 @@ protected:
 	virtual void SetUp()
 	{
 		config.max_bitrate = 0x12345678;
-		config.set_display_name("helloworld");
+		config.set_display_name(DISPLAY_NAME);
 		scrutiny_handler.init(&config);
 	}
 };
@@ -35,13 +38,19 @@ TEST_F(TestCommControl, TestDiscover)
 	ASSERT_EQ(sizeof(scrutiny::protocol::CommControl::DISCOVER_MAGIC), 4u);
 	uint8_t request_data[8 + 4] = { 2,1,0,4};
 	std::memcpy(&request_data[4], scrutiny::protocol::CommControl::DISCOVER_MAGIC, sizeof(scrutiny::protocol::CommControl::DISCOVER_MAGIC));
-	std::string display_name = std::string("helloworld");
+	std::string display_name = std::string(DISPLAY_NAME);
 
 	uint8_t tx_buffer[64];
-	uint8_t expected_response[9 + 32+1+10] = { 0x82,1,0,0,32+1+10};   // Version 1.0
-	std::memcpy(&expected_response[5], scrutiny::software_id, sizeof(scrutiny::software_id));
-	expected_response[5 + sizeof(scrutiny::software_id)] = display_name.length();
-	std::memcpy(&expected_response[5+sizeof(scrutiny::software_id)+1], display_name.c_str(), display_name.length());
+	//proto_maj, proto_min, magic, name_len, name
+	uint8_t expected_response[9 + 2+32+1+ DISPLAY_NAME_LENGTH] = { 0x82,1,0,0,2+32+1+ DISPLAY_NAME_LENGTH };   // Version 1.0
+
+	uint16_t index = 5;
+	expected_response[index++] = 1;
+	expected_response[index++] = 0;
+	std::memcpy(&expected_response[index], scrutiny::software_id, sizeof(scrutiny::software_id));
+	index += sizeof(scrutiny::software_id);
+	expected_response[index++] = display_name.length();
+	std::memcpy(&expected_response[index], display_name.c_str(), display_name.length());
 
 	add_crc(request_data, sizeof(request_data) - 4);
 	add_crc(expected_response, sizeof(expected_response) - 4);

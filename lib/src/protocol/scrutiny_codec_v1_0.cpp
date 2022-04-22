@@ -398,12 +398,17 @@ namespace scrutiny
 		ResponseCode CodecV1_0::encode_response_comm_discover(Response* response, const ResponseData::CommControl::Discover* response_data)
 		{
 			constexpr uint16_t software_id_size = sizeof(scrutiny::software_id);
-			constexpr uint16_t diaply_name_length_size = sizeof(response_data->display_name_length);
-			constexpr uint16_t firmware_id_pos = 0;
-			constexpr uint16_t display_name_length_pos = firmware_id_pos + software_id_size;
-			constexpr uint16_t display_name_pos = display_name_length_pos + diaply_name_length_size;
+			constexpr uint16_t display_name_length_size = sizeof(response_data->display_name_length);
+			constexpr uint16_t proto_maj_pos = 0;
+			constexpr uint16_t proto_maj_size = 1;
+			constexpr uint16_t proto_min_pos = proto_maj_pos+ proto_maj_size;
+			constexpr uint16_t proto_min_size = 1;
 
-			constexpr uint16_t datalen_max = software_id_size + diaply_name_length_size + DISPLAY_NAME_MAX_SIZE;
+			constexpr uint16_t firmware_id_pos = proto_min_pos+ proto_min_size;
+			constexpr uint16_t display_name_length_pos = firmware_id_pos + software_id_size;
+			constexpr uint16_t display_name_pos = display_name_length_pos + display_name_length_size;
+
+			constexpr uint16_t datalen_max = proto_maj_size + proto_min_size + software_id_size + display_name_length_size + DISPLAY_NAME_MAX_SIZE;
 			static_assert(datalen_max <= SCRUTINY_TX_BUFFER_SIZE, "SCRUTINY_TX_BUFFER_SIZE too small");
 
 			const uint16_t display_name_length = strnlen_s(response_data->display_name, DISPLAY_NAME_MAX_SIZE);
@@ -413,7 +418,9 @@ namespace scrutiny
 				return ResponseCode::Overflow;
 			}
 
-			response->data_length = software_id_size + diaply_name_length_size + display_name_length;
+			response->data_length = proto_maj_size + proto_min_size + software_id_size + display_name_length_size + display_name_length;
+			response->data[proto_maj_pos] = SCRUTINY_PROTOCOL_VERSION_MAJOR(SCRUTINY_ACTUAL_PROTOCOL_VERSION);
+			response->data[proto_min_pos] = SCRUTINY_PROTOCOL_VERSION_MINOR(SCRUTINY_ACTUAL_PROTOCOL_VERSION);
 			std::memcpy(&response->data[firmware_id_pos], scrutiny::software_id, software_id_size);
 			response->data[display_name_length_pos] = static_cast<uint8_t>(display_name_length);
 			std::memcpy(&response->data[display_name_pos], response_data->display_name, display_name_length);
