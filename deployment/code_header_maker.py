@@ -181,10 +181,7 @@ def main():
 
     if os.path.isfile(args.def_file):
         with open(args.def_file, 'r') as f:
-            try:
-                filemap = json.load(f)
-            except:
-                filemap = {}
+            filemap = json.load(f)
     else:
         filemap = {}
     
