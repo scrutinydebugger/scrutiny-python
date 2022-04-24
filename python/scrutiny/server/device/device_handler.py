@@ -273,7 +273,9 @@ class DeviceHandler:
 
     def exec_ready_task(self, state_entry=False):
         if self.operating_mode == self.OperatingMode.Normal:
-            pass
+            if state_entry:
+                self.datastore_updater.start()
+            # Nothing else to do
         elif self.operating_mode == self.OperatingMode.Test_CheckThrottling:
             if self.dispatcher.peek_next() is None:
                 dummy_request = Request(DummyCommand, subfn=1, payload=b'\x00' * 32, response_payload_size=32);
@@ -378,7 +380,6 @@ class DeviceHandler:
             if state_entry:
                 self.logger.info('Communication with device "%s" (ID: %s) fully ready' % (self.device_display_name, self.device_id))
                 self.logger.debug("Device information : %s" % self.device_info)
-                self.datastore_updater.start()
 
             self.exec_ready_task(state_entry)
 
