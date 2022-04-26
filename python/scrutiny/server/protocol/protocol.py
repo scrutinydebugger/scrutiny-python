@@ -16,11 +16,83 @@ import logging
 import ctypes
 import traceback
 
+from typing import Union, List, Tuple, Optional, TypedDict, Type
+
+
+class BlockAddressLength(TypedDict):
+    address: int
+    length: int
+
+
+class BlockAddressData(TypedDict):
+    address: int
+    data: bytes
+
+
+class RequestData(TypedDict, total=False):
+    valid: bool
+    region_type: cmd.GetInfo.MemoryRangeType
+    region_index: int
+    blocks_to_write: List[BlockAddressData]
+    blocks_to_read: List[BlockAddressLength]
+    record_id: int
+    configuration: DatalogConfiguration
+    magic: bytes
+    session_id: int
+    challenge: int
+
+
+class ResponseData(TypedDict, total=False):
+    valid: bool
+    major: int
+    minor: int
+    memory_read: bool
+    memory_write: bool
+    datalog_acquire: bool
+    user_command: bool
+    software_id: bytes
+    nbr_readonly: int
+    nbr_forbidden: int
+    region_type: cmd.GetInfo.MemoryRangeType
+    region_index: int
+    start: int
+    end: int
+    read_blocks: List[BlockAddressData]
+    written_blocks: List[BlockAddressLength]
+    targets: List[DatalogLocation]
+    size: int
+    status: LogStatus
+    record_id: int
+    data: bytes
+    recordings: List[RecordInfo]
+    sampling_rates: List[float]
+    protocol_major: int
+    protocol_minor: int
+    firmware_id: bytes
+    display_name: str
+    session_id: int
+    challenge_response: int
+    max_rx_data_size: int
+    max_tx_data_size: int
+    max_bitrate_bps: int
+    heartbeat_timeout_us: int
+    rx_timeout_us: int
+    address_size_byte: int
+    magic: bytes
+
 
 class Protocol:
+    version_major: int
+    version_minor: int
+    logger: logging.Logger
 
     class AddressFormat:
-        def __init__(self, nbits):
+
+        nbits: int
+        nbytes: int
+        pack_char: str
+
+        def __init__(self, nbits: int):
             PACK_CHARS = {
                 8: 'B',
                 16: 'H',
@@ -35,34 +107,34 @@ class Protocol:
             self.nbytes = int(nbits / 8)
             self.pack_char = PACK_CHARS[nbits]
 
-        def get_address_size_bytes(self):
+        def get_address_size_bytes(self) -> int:
             return self.nbytes
 
-        def get_address_size_bits(self):
+        def get_address_size_bits(self) -> int:
             return self.nbits
 
-        def get_pack_char(self):
+        def get_pack_char(self) -> str:
             return self.pack_char
 
-    def __init__(self, version_major=1, version_minor=0, address_size_bits=32):
+    def __init__(self, version_major: int = 1, version_minor: int = 0, address_size_bits: int = 32):
         self.version_major = version_major
         self.version_minor = version_minor
         self.logger = logging.getLogger(self.__class__.__name__)
         self.set_address_size_bits(address_size_bits)    # default 32 bits address
 
-    def set_address_size_bits(self, address_size_bits):
+    def set_address_size_bits(self, address_size_bits: int) -> None:
         self.address_format = self.AddressFormat(nbits=address_size_bits)
 
-    def set_address_size_bytes(self, address_size_byte):
+    def set_address_size_bytes(self, address_size_byte: int) -> None:
         self.address_format = self.AddressFormat(nbits=address_size_byte * 8)
 
-    def get_address_size_bytes(self):
+    def get_address_size_bytes(self) -> int:
         return self.address_format.get_address_size_bytes()
 
-    def get_address_size_bits(self):
+    def get_address_size_bits(self) -> int:
         return self.address_format.get_address_size_bits()
 
-    def set_version(self, major, minor):
+    def set_version(self, major: int, minor: int) -> None:
         if not isinstance(major, int) or not isinstance(minor, int):
             raise ValueError('Version major and minor number must be a valid integer.')
 
@@ -78,41 +150,41 @@ class Protocol:
         self.version_major = major
         self.version_minor = minor
 
-    def encode_address(self, address):
+    def encode_address(self, address: int) -> bytes:
         return struct.pack('>%s' % self.address_format.get_pack_char(), address)
 
-    def decode_address(self, buff):
+    def decode_address(self, buff: bytes) -> int:
         return struct.unpack('>%s' % self.address_format.get_pack_char(), buff[0:self.get_address_size_bytes()])[0]
 
-    def compute_challenge_16bits(self, challenge):
+    def compute_challenge_16bits(self, challenge: int) -> int:
         return ctypes.c_uint16(~challenge).value
 
-    def compute_challenge_32bits(self, challenge):
+    def compute_challenge_32bits(self, challenge: int) -> int:
         return ctypes.c_uint32(~challenge).value
 
-    def get_protocol_version(self):
+    def get_protocol_version(self) -> Request:
         return Request(cmd.GetInfo, cmd.GetInfo.Subfunction.GetProtocolVersion, response_payload_size=2)
 
-    def get_software_id(self):
+    def get_software_id(self) -> Request:
         return Request(cmd.GetInfo, cmd.GetInfo.Subfunction.GetSoftwareId, response_payload_size=32)
 
-    def get_supported_features(self):
+    def get_supported_features(self) -> Request:
         return Request(cmd.GetInfo, cmd.GetInfo.Subfunction.GetSupportedFeatures, response_payload_size=1)
 
-    def get_special_memory_region_count(self):
+    def get_special_memory_region_count(self) -> Request:
         return Request(cmd.GetInfo, cmd.GetInfo.Subfunction.GetSpecialMemoryRegionCount, response_payload_size=2)
 
-    def get_special_memory_region_location(self, region_type, region_index):
+    def get_special_memory_region_location(self, region_type: Union[int, cmd.GetInfo.MemoryRangeType], region_index: int) -> Request:
         if isinstance(region_type, cmd.GetInfo.MemoryRangeType):
             region_type = region_type.value
         data = struct.pack('BB', region_type, region_index)
         return Request(cmd.GetInfo, cmd.GetInfo.Subfunction.GetSpecialMemoryRegionLocation, data, response_payload_size=2 + self.get_address_size_bytes() * 2)
 
-    def read_single_memory_block(self, address, length):
+    def read_single_memory_block(self, address: int, length: int) -> Request:
         block_list = [(address, length)]
         return self.read_memory_blocks(block_list)
 
-    def read_memory_blocks(self, block_list):
+    def read_memory_blocks(self, block_list) -> Request:
         data = bytes()
         total_length = 0
         for block in block_list:
@@ -122,11 +194,11 @@ class Protocol:
             data += self.encode_address(addr) + struct.pack('>H', size)
         return Request(cmd.MemoryControl, cmd.MemoryControl.Subfunction.Read, data, response_payload_size=(self.get_address_size_bytes() + 2) * len(block_list) + total_length)
 
-    def write_single_memory_block(self, address, data):
+    def write_single_memory_block(self, address: int, data: bytes) -> Request:
         block_list = [(address, data)]
         return self.write_memory_blocks(block_list)
 
-    def write_memory_blocks(self, block_list):
+    def write_memory_blocks(self, block_list: List[Tuple[int, bytes]]) -> Request:
         data = bytes()
         for block in block_list:
             addr = block[0]
@@ -134,36 +206,36 @@ class Protocol:
             data += self.encode_address(addr) + struct.pack('>H', len(mem_data)) + bytes(mem_data)
         return Request(cmd.MemoryControl, cmd.MemoryControl.Subfunction.Write, data, response_payload_size=(self.get_address_size_bytes() + 2) * len(block_list))
 
-    def comm_discover(self):
+    def comm_discover(self) -> Request:
         data = cmd.CommControl.DISCOVER_MAGIC
         return Request(cmd.CommControl, cmd.CommControl.Subfunction.Discover, data, response_payload_size=32)  # 32 minimum
 
-    def comm_heartbeat(self, session_id, challenge):
+    def comm_heartbeat(self, session_id: int, challenge: int) -> Request:
         return Request(cmd.CommControl, cmd.CommControl.Subfunction.Heartbeat, struct.pack('>LH', session_id, challenge), response_payload_size=6)
 
-    def heartbeat_expected_challenge_response(self, challenge):
+    def heartbeat_expected_challenge_response(self, challenge: int) -> int:
         return ~challenge & 0xFFFF
 
-    def comm_get_params(self):
+    def comm_get_params(self) -> Request:
         # rx_buffer_size, tx_buffer_size, bitrate, heartbeat_timeout, rx_timeout, address_size
         return Request(cmd.CommControl, cmd.CommControl.Subfunction.GetParams, response_payload_size=2 + 2 + 4 + 4 + 4 + 1)
 
-    def comm_connect(self):
+    def comm_connect(self) -> Request:
         return Request(cmd.CommControl, cmd.CommControl.Subfunction.Connect, cmd.CommControl.CONNECT_MAGIC, response_payload_size=4 + 4)  # Magic + Session id
 
-    def comm_disconnect(self, session_id):
+    def comm_disconnect(self, session_id: int) -> Request:
         return Request(cmd.CommControl, cmd.CommControl.Subfunction.Disconnect, struct.pack('>L', session_id), response_payload_size=0)
 
-    def datalog_get_targets(self):
+    def datalog_get_targets(self) -> Request:
         return Request(cmd.DatalogControl, cmd.DatalogControl.Subfunction.GetAvailableTarget)  # todo : response_payload_size
 
-    def datalog_get_bufsize(self):
+    def datalog_get_bufsize(self) -> Request:
         return Request(cmd.DatalogControl, cmd.DatalogControl.Subfunction.GetBufferSize)    # todo : response_payload_size
 
-    def datalog_get_sampling_rates(self):
+    def datalog_get_sampling_rates(self) -> Request:
         return Request(cmd.DatalogControl, cmd.DatalogControl.Subfunction.GetSamplingRates)  # todo : response_payload_size
 
-    def datalog_configure_log(self, conf):
+    def datalog_configure_log(self, conf: DatalogConfiguration) -> Request:
         if not isinstance(conf, DatalogConfiguration):
             raise ValueError('Given configuration must be an instance of protocol.DatalogConfiguration')
 
@@ -174,35 +246,37 @@ class Protocol:
         data += struct.pack('B', conf.trigger.condition.value)
 
         for operand in [conf.trigger.operand1, conf.trigger.operand2]:
-            if operand.type == DatalogConfiguration.Operand.Type.CONST:
-                data += struct.pack('>Bf', operand.type.value, operand.value)
-            elif operand.type == DatalogConfiguration.Operand.Type.WATCH:
-                data += struct.pack('>BLBB', operand.type.value, operand.address, operand.length, operand.interpret_as.value)
+            if operand.operand_type == DatalogConfiguration.OperandType.CONST:
+                data += struct.pack('>Bf', operand.operand_type.value, operand.value)
+            elif operand.operand_type == DatalogConfiguration.OperandType.WATCH:
+                data += struct.pack('>BLBB', operand.operand_type.value, operand.address, operand.length, operand.interpret_as.value)
             else:
-                raise Exception('Unknown operand type %s' % operand.type)
+                raise Exception('Unknown operand type %s' % operand.operand_type)
 
         return Request(cmd.DatalogControl, cmd.DatalogControl.Subfunction.ConfigureDatalog, data)   # todo : response_payload_size
 
-    def datalog_get_list_recordings(self):
+    def datalog_get_list_recordings(self) -> Request:
         return Request(cmd.DatalogControl, cmd.DatalogControl.Subfunction.ListRecordings)   # todo : response_payload_size
 
-    def datalog_read_recording(self, record_id):
+    def datalog_read_recording(self, record_id: int) -> Request:
         return Request(cmd.DatalogControl, cmd.DatalogControl.Subfunction.ReadRecordings, struct.pack('>H', record_id))  # todo : response_payload_size
 
-    def datalog_arm(self):
+    def datalog_arm(self) -> Request:
         return Request(cmd.DatalogControl, cmd.DatalogControl.Subfunction.ArmLog)   # todo : response_payload_size
 
-    def datalog_disarm(self):
+    def datalog_disarm(self) -> Request:
         return Request(cmd.DatalogControl, cmd.DatalogControl.Subfunction.DisarmLog)    # todo : response_payload_size
 
-    def datalog_status(self):
+    def datalog_status(self) -> Request:
         return Request(cmd.DatalogControl, cmd.DatalogControl.Subfunction.GetLogStatus)  # todo : response_payload_size
 
-    def user_command(self, subfn, data=b''):
+    def user_command(self, subfn: int, data: bytes = b'') -> Request:
         return Request(cmd.UserCommand, subfn, data)    # todo : response_payload_size
 
-    def parse_request(self, req):
-        data = {'valid': True}
+    def parse_request(self, req: Request) -> RequestData:
+        data: RequestData = {'valid': True}
+        subfn: Enum
+
         try:
             if req.command == cmd.GetInfo:
                 subfn = cmd.GetInfo.Subfunction(req.subfn)
@@ -221,14 +295,14 @@ class Protocol:
                         raise Exception(
                             'Request data length is not a multiple of %d bytes (addres[%d] + length[2])' % (block_size, self.get_address_size_bytes()))
                     nblock = int(len(req.payload) / block_size)
-                    data['blocks'] = []
+                    data['blocks_to_read'] = []
                     for i in range(nblock):
                         (addr, length) = struct.unpack('>' + self.address_format.get_pack_char() +
                                                        'H', req.payload[(i * block_size + 0):(i * block_size + block_size)])
-                        data['blocks'].append(dict(address=addr, length=length))
+                        data['blocks_to_read'].append(dict(address=addr, length=length))
 
                 elif subfn == cmd.MemoryControl.Subfunction.Write:                  # MemoryControl - Write
-                    data['blocks'] = []
+                    data['blocks_to_write'] = []
                     c = self.address_format.get_pack_char()
                     address_length_size = 2 + self.get_address_size_bytes()
                     index = 0
@@ -241,7 +315,7 @@ class Protocol:
                             raise Exception('Data length and encoded length mismatch for address 0x%x' % addr)
 
                         req_data = req.payload[(index + address_length_size):(index + address_length_size + length)]
-                        data['blocks'].append(dict(address=addr, data=req_data))
+                        data['blocks_to_write'].append(dict(address=addr, data=req_data))
                         index += address_length_size + length
 
                         if index >= len(req.payload):
@@ -265,16 +339,16 @@ class Protocol:
                     condition_num, = struct.unpack('>B', req.payload[pos:pos + 1])
                     conf.trigger.condition = DatalogConfiguration.TriggerCondition(condition_num)
                     pos += 1
-                    operands = []
+                    operands: List[DatalogConfiguration.Operand] = []
                     for i in range(2):
                         operand_type_num, = struct.unpack('B', req.payload[pos:pos + 1])
                         pos += 1
-                        operand_type = DatalogConfiguration.Operand.Type(operand_type_num)
-                        if operand_type == DatalogConfiguration.Operand.Type.CONST:
+                        operand_type = DatalogConfiguration.OperandType(operand_type_num)
+                        if operand_type == DatalogConfiguration.OperandType.CONST:
                             val, = struct.unpack('>f', req.payload[pos:pos + 4])
                             operands.append(DatalogConfiguration.ConstOperand(val))
                             pos += 4
-                        elif operand_type == DatalogConfiguration.Operand.Type.WATCH:
+                        elif operand_type == DatalogConfiguration.OperandType.WATCH:
                             (address, length, interpret_as) = struct.unpack('>LBB', req.payload[pos:pos + 6])
                             operands.append(DatalogConfiguration.WatchOperand(address=address, length=length, interpret_as=interpret_as))
                             pos += 6
@@ -309,10 +383,10 @@ class Protocol:
 
 # ======================== Response =================
 
-    def respond_not_ok(self, req, code):
-        return Response(req.Command, req.subfn, Response.ResponseCode(code))
+    def respond_not_ok(self, req: Request, code: Union[int, Enum]) -> Response:
+        return Response(req.command, req.subfn, Response.ResponseCode(code))
 
-    def respond_protocol_version(self, major=None, minor=None):
+    def respond_protocol_version(self, major: Optional[int] = None, minor: Optional[int] = None) -> Response:
         if major is None:
             major = self.version_major
 
@@ -321,10 +395,10 @@ class Protocol:
 
         return Response(cmd.GetInfo, cmd.GetInfo.Subfunction.GetProtocolVersion, Response.ResponseCode.OK, bytes([major, minor]))
 
-    def respond_software_id(self, software_id):
+    def respond_software_id(self, software_id: Union[bytes, List[int], bytearray]) -> Response:
         return Response(cmd.GetInfo, cmd.GetInfo.Subfunction.GetSoftwareId, Response.ResponseCode.OK, bytes(software_id))
 
-    def respond_supported_features(self, memory_read=False, memory_write=False, datalog_acquire=False, user_command=False):
+    def respond_supported_features(self, memory_read: bool = False, memory_write: bool = False, datalog_acquire: bool = False, user_command: bool = False) -> Response:
         bytes1 = 0
         if memory_read:
             bytes1 |= 0x80
@@ -340,42 +414,42 @@ class Protocol:
 
         return Response(cmd.GetInfo, cmd.GetInfo.Subfunction.GetSupportedFeatures, Response.ResponseCode.OK, bytes([bytes1]))
 
-    def respond_special_memory_region_count(self, readonly, forbidden):
+    def respond_special_memory_region_count(self, readonly: int, forbidden: int) -> Response:
         return Response(cmd.GetInfo, cmd.GetInfo.Subfunction.GetSpecialMemoryRegionCount, Response.ResponseCode.OK, struct.pack('BB', readonly, forbidden))
 
-    def respond_special_memory_region_location(self, region_type, region_index, start, end):
+    def respond_special_memory_region_location(self, region_type: Union[cmd.GetInfo.MemoryRangeType, int], region_index: int, start: int, end: int) -> Response:
         if isinstance(region_type, cmd.GetInfo.MemoryRangeType):
             region_type = region_type.value
         data = struct.pack('BB', region_type, region_index)
         data += self.encode_address(start) + self.encode_address(end)
         return Response(cmd.GetInfo, cmd.GetInfo.Subfunction.GetSpecialMemoryRegionLocation, Response.ResponseCode.OK, data)
 
-    def respond_comm_discover(self, firmware_id, display_name):
+    def respond_comm_discover(self, firmware_id: Union[bytes, List[int], bytearray], display_name: str) -> Response:
         if len(display_name) > 255:
             raise Exception('Display name too long.')
 
         resp_data = bytes([self.version_major, self.version_minor]) + bytes(firmware_id) + bytes([len(display_name)]) + display_name.encode('utf8')
         return Response(cmd.CommControl, cmd.CommControl.Subfunction.Discover, Response.ResponseCode.OK, resp_data)
 
-    def respond_comm_heartbeat(self, session_id, challenge_response):
+    def respond_comm_heartbeat(self, session_id: int, challenge_response: int) -> Response:
         return Response(cmd.CommControl, cmd.CommControl.Subfunction.Heartbeat, Response.ResponseCode.OK, struct.pack('>LH', session_id, challenge_response))
 
-    def respond_comm_get_params(self, max_rx_data_size, max_tx_data_size, max_bitrate_bps, heartbeat_timeout_us, rx_timeout_us, address_size_byte):
+    def respond_comm_get_params(self, max_rx_data_size: int, max_tx_data_size: int, max_bitrate_bps: int, heartbeat_timeout_us: int, rx_timeout_us: int, address_size_byte: int) -> Response:
         data = struct.pack('>HHLLLB', max_rx_data_size, max_tx_data_size, max_bitrate_bps, heartbeat_timeout_us, rx_timeout_us, address_size_byte)
         return Response(cmd.CommControl, cmd.CommControl.Subfunction.GetParams, Response.ResponseCode.OK, data)
 
-    def respond_comm_connect(self, session_id):
+    def respond_comm_connect(self, session_id: int) -> Response:
         resp_data = cmd.CommControl.CONNECT_MAGIC + struct.pack('>L', session_id)
         return Response(cmd.CommControl, cmd.CommControl.Subfunction.Connect, Response.ResponseCode.OK, resp_data)
 
-    def respond_comm_disconnect(self):
+    def respond_comm_disconnect(self) -> Response:
         return Response(cmd.CommControl, cmd.CommControl.Subfunction.Disconnect, Response.ResponseCode.OK)
 
-    def respond_read_single_memory_block(self, address, data):
+    def respond_read_single_memory_block(self, address: int, data: bytes) -> Response:
         block_list = [(address, data)]
         return self.respond_read_memory_blocks(block_list)
 
-    def respond_read_memory_blocks(self, block_list):
+    def respond_read_memory_blocks(self, block_list: List[Tuple[int, bytes]]) -> Response:
         data = bytes()
         for block in block_list:
             address = block[0]
@@ -384,11 +458,11 @@ class Protocol:
 
         return Response(cmd.MemoryControl, cmd.MemoryControl.Subfunction.Read, Response.ResponseCode.OK, data)
 
-    def respond_write_single_memory_block(self, address, length):
+    def respond_write_single_memory_block(self, address: int, length: int) -> Response:
         blocks = [(address, length)]
         return self.respond_write_memory_blocks(blocks)
 
-    def respond_write_memory_blocks(self, blocklist):
+    def respond_write_memory_blocks(self, blocklist: List[Tuple[int, int]]) -> Response:
         data = bytes()
         for block in blocklist:
             address = block[0]
@@ -397,7 +471,7 @@ class Protocol:
 
         return Response(cmd.MemoryControl, cmd.MemoryControl.Subfunction.Write, Response.ResponseCode.OK, data)
 
-    def respond_data_get_targets(self, targets):
+    def respond_data_get_targets(self, targets: List[DatalogLocation]) -> Response:
         data = bytes()
         for target in targets:
             if not isinstance(target, DatalogLocation):
@@ -408,41 +482,42 @@ class Protocol:
 
         return Response(cmd.DatalogControl, cmd.DatalogControl.Subfunction.GetAvailableTarget, Response.ResponseCode.OK, data)
 
-    def respond_datalog_get_bufsize(self, size):
+    def respond_datalog_get_bufsize(self, size: int) -> Response:
         return Response(cmd.DatalogControl, cmd.DatalogControl.Subfunction.GetBufferSize, Response.ResponseCode.OK, struct.pack('>L', size))
 
-    def respond_datalog_get_sampling_rates(self, sampling_rates):
+    def respond_datalog_get_sampling_rates(self, sampling_rates: List[float]) -> Response:
         data = struct.pack('>' + 'f' * len(sampling_rates), *sampling_rates)
         return Response(cmd.DatalogControl, cmd.DatalogControl.Subfunction.GetSamplingRates, Response.ResponseCode.OK, data)
 
-    def respond_datalog_arm(self, record_id):
+    def respond_datalog_arm(self, record_id: int) -> Response:
         return Response(cmd.DatalogControl, cmd.DatalogControl.Subfunction.ArmLog, Response.ResponseCode.OK, struct.pack('>H', record_id))
 
-    def respond_datalog_disarm(self):
+    def respond_datalog_disarm(self) -> Response:
         return Response(cmd.DatalogControl, cmd.DatalogControl.Subfunction.DisarmLog, Response.ResponseCode.OK)
 
-    def respond_datalog_status(self, status):
+    def respond_datalog_status(self, status: Union[LogStatus, int]) -> Response:
         status = LogStatus(status)
         return Response(cmd.DatalogControl, cmd.DatalogControl.Subfunction.GetLogStatus, Response.ResponseCode.OK, struct.pack('B', status.value))
 
-    def respond_datalog_list_recordings(self, recordings):
+    def respond_datalog_list_recordings(self, recordings: List[RecordInfo]) -> Response:
         data = bytes()
         for record in recordings:
             data += struct.pack('>HBH', record.record_id, record.location_type.value, record.size)
         return Response(cmd.DatalogControl, cmd.DatalogControl.Subfunction.ListRecordings, Response.ResponseCode.OK, data)
 
-    def respond_read_recording(self, record_id, data):
+    def respond_read_recording(self, record_id: int, data: bytes) -> Response:
         data = bytes(data)
         return Response(cmd.DatalogControl, cmd.DatalogControl.Subfunction.ReadRecordings, Response.ResponseCode.OK, struct.pack('>H', record_id) + data)
 
-    def respond_configure_log(self, record_id):
+    def respond_configure_log(self, record_id: int) -> Response:
         return Response(cmd.DatalogControl, cmd.DatalogControl.Subfunction.ConfigureDatalog, Response.ResponseCode.OK, struct.pack('>H', record_id))
 
-    def respond_user_command(self, subfn, data=b''):
+    def respond_user_command(self, subfn: Union[int, Enum], data: bytes = b'') -> Response:
         return Response(cmd.UserCommand, subfn, Response.ResponseCode.OK, data)
 
-    def parse_response(self, response):
-        data = {'valid': True}
+    def parse_response(self, response: Response) -> ResponseData:
+        data: ResponseData = {'valid': True}
+        subfn: Enum
 
         # For now, all commands have no data in negative response. But it could be different in the future.
         # So it might be possible in the furture to move this condition and have a response with
@@ -475,7 +550,7 @@ class Protocol:
                 elif response.command == cmd.MemoryControl:
                     subfn = cmd.MemoryControl.Subfunction(response.subfn)
                     if subfn == cmd.MemoryControl.Subfunction.Read:
-                        data['blocks'] = []
+                        data['read_blocks'] = []
                         index = 0
                         addr_size = self.get_address_size_bytes()
                         while True:
@@ -486,14 +561,14 @@ class Protocol:
                             if len(response.payload[(index + addr_size + 2):]) < length:
                                 raise Exception('Invalid data length')
                             memory_data = response.payload[(index + addr_size + 2):(index + addr_size + 2 + length)]
-                            data['blocks'].append(dict(address=addr, data=memory_data))
+                            data['read_blocks'].append(dict(address=addr, data=memory_data))
                             index += addr_size + 2 + length
 
                             if index == len(response.payload):
                                 break
 
                     elif subfn == cmd.MemoryControl.Subfunction.Write:
-                        data['blocks'] = []
+                        data['written_blocks'] = []
                         index = 0
                         addr_size = self.get_address_size_bytes()
                         while True:
@@ -501,7 +576,7 @@ class Protocol:
                                 raise Exception('Incomplete response payload')
                             c = self.address_format.get_pack_char()
                             addr, length = struct.unpack('>' + c + 'H', response.payload[(index + 0):(index + addr_size + 2)])
-                            data['blocks'].append(dict(address=addr, length=length))
+                            data['written_blocks'].append(dict(address=addr, length=length))
                             index += addr_size + 2
 
                             if index == len(response.payload):
@@ -517,7 +592,7 @@ class Protocol:
                             if len(response.payload) < pos + 1:
                                 break
                             target_id, location_type_num, target_name_len = struct.unpack('BBB', response.payload[pos:pos + 3])
-                            location_type = DatalogLocation.Type(location_type_num)
+                            location_type = DatalogLocation.LocationType(location_type_num)
                             pos += 3
                             name = response.payload[pos:pos + target_name_len].decode('ascii')
                             pos += target_name_len
@@ -548,7 +623,7 @@ class Protocol:
                         pos = 0
                         for i in range(nrecords):
                             (record_id, location_type_num, size) = struct.unpack('>HBH', response.payload[pos:pos + 5])
-                            location_type = DatalogLocation.Type(location_type_num)
+                            location_type = DatalogLocation.LocationType(location_type_num)
                             pos += 5
                             record = RecordInfo(record_id, location_type_num, size)
                             data['recordings'].append(record)

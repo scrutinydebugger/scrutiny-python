@@ -17,7 +17,7 @@ class TestDataStore(unittest.TestCase):
 
     def make_dummy_entries(self, n):
         for i in range(n):
-            entry = DatastoreEntry(DatastoreEntry.Type.eVar, 'path_%d' % i)
+            entry = DatastoreEntry(DatastoreEntry.EntryType.Var, 'path_%d' % i)
             yield entry
 
     def entry_callback(self, owner, args, entry):

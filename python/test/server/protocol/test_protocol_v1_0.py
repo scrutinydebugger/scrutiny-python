@@ -45,7 +45,7 @@ class TestProtocolV1_0(unittest.TestCase):
         self.assertEqual(self.proto.compute_challenge_32bits(0xEDCBA987), 0x12345678)
 
     def check_expected_payload_size(self, req, size):
-        self.assertEqual(req.get_expected_response_size(), Response.MIN_SIZE + size)
+        self.assertEqual(req.get_expected_response_size(), 9 + size)
 
 # ============================
 #               Request
@@ -90,8 +90,8 @@ class TestProtocolV1_0(unittest.TestCase):
         req = self.proto.read_single_memory_block(0x99, 0x123)
         self.assert_req_response_bytes(req, [3, 1, 0, 3, 0x99, 0x01, 0x23])
         data = self.proto.parse_request(req)
-        self.assertEqual(data['blocks'][0]['address'], 0x99)
-        self.assertEqual(data['blocks'][0]['length'], 0x123)
+        self.assertEqual(data['blocks_to_read'][0]['address'], 0x99)
+        self.assertEqual(data['blocks_to_read'][0]['length'], 0x123)
         self.check_expected_payload_size(req, 1 + 2 + 0x123)    # address+data_Size+data
 
     def test_req_read_multiple_memory_block_8bits(self):
@@ -99,10 +99,10 @@ class TestProtocolV1_0(unittest.TestCase):
         req = self.proto.read_memory_blocks([(0x99, 0x123), (0x88, 0x456)])
         self.assert_req_response_bytes(req, [3, 1, 0, 6, 0x99, 0x1, 0x23, 0x88, 0x04, 0x56])
         data = self.proto.parse_request(req)
-        self.assertEqual(data['blocks'][0]['address'], 0x99)
-        self.assertEqual(data['blocks'][0]['length'], 0x123)
-        self.assertEqual(data['blocks'][1]['address'], 0x88)
-        self.assertEqual(data['blocks'][1]['length'], 0x456)
+        self.assertEqual(data['blocks_to_read'][0]['address'], 0x99)
+        self.assertEqual(data['blocks_to_read'][0]['length'], 0x123)
+        self.assertEqual(data['blocks_to_read'][1]['address'], 0x88)
+        self.assertEqual(data['blocks_to_read'][1]['length'], 0x456)
         self.check_expected_payload_size(req, 1 * 2 + 2 * 2 + 0x123 + 0x456)    # address*2+data_Size*2+data
 
     def test_req_read_single_memory_block_16bits(self):
@@ -110,8 +110,8 @@ class TestProtocolV1_0(unittest.TestCase):
         req = self.proto.read_single_memory_block(0x1234, 0x123)
         self.assert_req_response_bytes(req, [3, 1, 0, 4, 0x12, 0x34, 0x01, 0x23])
         data = self.proto.parse_request(req)
-        self.assertEqual(data['blocks'][0]['address'], 0x1234)
-        self.assertEqual(data['blocks'][0]['length'], 0x123)
+        self.assertEqual(data['blocks_to_read'][0]['address'], 0x1234)
+        self.assertEqual(data['blocks_to_read'][0]['length'], 0x123)
         self.check_expected_payload_size(req, 2 + 2 + 0x123)    # address*2+data_Size*2+data
 
     def test_req_read_multiple_memory_block_16bits(self):
@@ -119,10 +119,10 @@ class TestProtocolV1_0(unittest.TestCase):
         req = self.proto.read_memory_blocks([(0x1234, 0x123), (0x1122, 0x456)])
         self.assert_req_response_bytes(req, [3, 1, 0, 8, 0x12, 0x34, 0x1, 0x23, 0x11, 0x22, 0x04, 0x56])
         data = self.proto.parse_request(req)
-        self.assertEqual(data['blocks'][0]['address'], 0x1234)
-        self.assertEqual(data['blocks'][0]['length'], 0x123)
-        self.assertEqual(data['blocks'][1]['address'], 0x1122)
-        self.assertEqual(data['blocks'][1]['length'], 0x456)
+        self.assertEqual(data['blocks_to_read'][0]['address'], 0x1234)
+        self.assertEqual(data['blocks_to_read'][0]['length'], 0x123)
+        self.assertEqual(data['blocks_to_read'][1]['address'], 0x1122)
+        self.assertEqual(data['blocks_to_read'][1]['length'], 0x456)
         self.check_expected_payload_size(req, 2 * 2 + 2 * 2 + 0x123 + 0x456)    # address*2+data_Size*2+data
 
     def test_req_read_single_memory_block_32bits(self):
@@ -130,8 +130,8 @@ class TestProtocolV1_0(unittest.TestCase):
         req = self.proto.read_single_memory_block(0x12345678, 0x123)
         self.assert_req_response_bytes(req, [3, 1, 0, 6, 0x12, 0x34, 0x56, 0x78, 0x1, 0x23])
         data = self.proto.parse_request(req)
-        self.assertEqual(data['blocks'][0]['address'], 0x12345678)
-        self.assertEqual(data['blocks'][0]['length'], 0x123)
+        self.assertEqual(data['blocks_to_read'][0]['address'], 0x12345678)
+        self.assertEqual(data['blocks_to_read'][0]['length'], 0x123)
         self.check_expected_payload_size(req, 4 + 2 + 0x123)    # address*2+data_Size*2+data
 
     def test_req_read_multiple_memory_block_32bits(self):
@@ -139,10 +139,10 @@ class TestProtocolV1_0(unittest.TestCase):
         req = self.proto.read_memory_blocks([(0x12345678, 0x123), (0x11223344, 0x456)])
         self.assert_req_response_bytes(req, [3, 1, 0, 12, 0x12, 0x34, 0x56, 0x78, 0x1, 0x23, 0x11, 0x22, 0x33, 0x44, 0x04, 0x56])
         data = self.proto.parse_request(req)
-        self.assertEqual(data['blocks'][0]['address'], 0x12345678)
-        self.assertEqual(data['blocks'][0]['length'], 0x123)
-        self.assertEqual(data['blocks'][1]['address'], 0x11223344)
-        self.assertEqual(data['blocks'][1]['length'], 0x456)
+        self.assertEqual(data['blocks_to_read'][0]['address'], 0x12345678)
+        self.assertEqual(data['blocks_to_read'][0]['length'], 0x123)
+        self.assertEqual(data['blocks_to_read'][1]['address'], 0x11223344)
+        self.assertEqual(data['blocks_to_read'][1]['length'], 0x456)
         self.check_expected_payload_size(req, 4 * 2 + 2 * 2 + 0x123 + 0x456)    # address*2+data_Size*2+data
 
     def test_req_read_single_memory_block_64bits(self):
@@ -150,8 +150,8 @@ class TestProtocolV1_0(unittest.TestCase):
         req = self.proto.read_single_memory_block(0x123456789ABCDEF0, 0x123)
         self.assert_req_response_bytes(req, [3, 1, 0, 10, 0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC, 0xDE, 0xF0, 0x1, 0x23])
         data = self.proto.parse_request(req)
-        self.assertEqual(data['blocks'][0]['address'], 0x123456789ABCDEF0)
-        self.assertEqual(data['blocks'][0]['length'], 0x123)
+        self.assertEqual(data['blocks_to_read'][0]['address'], 0x123456789ABCDEF0)
+        self.assertEqual(data['blocks_to_read'][0]['length'], 0x123)
         self.check_expected_payload_size(req, 8 + 2 + 0x123)    # address*2+data_Size*2+data
 
     def test_req_read_multiple_memory_block_64bits(self):
@@ -160,10 +160,10 @@ class TestProtocolV1_0(unittest.TestCase):
         self.assert_req_response_bytes(req, [3, 1, 0, 20, 0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC, 0xDE, 0xF0,
                                        0x1, 0x23, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x04, 0x56])
         data = self.proto.parse_request(req)
-        self.assertEqual(data['blocks'][0]['address'], 0x123456789ABCDEF0)
-        self.assertEqual(data['blocks'][0]['length'], 0x123)
-        self.assertEqual(data['blocks'][1]['address'], 0x1122334455667788)
-        self.assertEqual(data['blocks'][1]['length'], 0x456)
+        self.assertEqual(data['blocks_to_read'][0]['address'], 0x123456789ABCDEF0)
+        self.assertEqual(data['blocks_to_read'][0]['length'], 0x123)
+        self.assertEqual(data['blocks_to_read'][1]['address'], 0x1122334455667788)
+        self.assertEqual(data['blocks_to_read'][1]['length'], 0x456)
         self.check_expected_payload_size(req, 8 * 2 + 2 * 2 + 0x123 + 0x456)    # address*2+data_size*2+data
 
     def test_req_read_single_memory_block_32bits_bad_content(self):
@@ -186,8 +186,8 @@ class TestProtocolV1_0(unittest.TestCase):
         req = self.proto.write_single_memory_block(0x12, bytes([0x11, 0x22, 0x33]))
         self.assert_req_response_bytes(req, [3, 2, 0, 6, 0x12, 0x00, 0x03, 0x11, 0x22, 0x33])
         data = self.proto.parse_request(req)
-        self.assertEqual(data['blocks'][0]['address'], 0x12)
-        self.assertEqual(data['blocks'][0]['data'], bytes([0x11, 0x22, 0x33]))
+        self.assertEqual(data['blocks_to_write'][0]['address'], 0x12)
+        self.assertEqual(data['blocks_to_write'][0]['data'], bytes([0x11, 0x22, 0x33]))
         self.check_expected_payload_size(req, 1 + 2)    # address+data_size
 
     def test_req_write_multiple_memory_block_8bits(self):
@@ -198,10 +198,10 @@ class TestProtocolV1_0(unittest.TestCase):
         req = self.proto.write_memory_blocks(blocks)
         self.assert_req_response_bytes(req, [3, 2, 0, 13, 0x12, 0x00, 0x03, 0x11, 0x22, 0x33, 0x34, 0x00, 0x04, 0x99, 0x88, 0x77, 0x66])
         data = self.proto.parse_request(req)
-        self.assertEqual(data['blocks'][0]['address'], 0x12)
-        self.assertEqual(data['blocks'][0]['data'], bytes([0x11, 0x22, 0x33]))
-        self.assertEqual(data['blocks'][1]['address'], 0x34)
-        self.assertEqual(data['blocks'][1]['data'], bytes([0x99, 0x88, 0x77, 0x66]))
+        self.assertEqual(data['blocks_to_write'][0]['address'], 0x12)
+        self.assertEqual(data['blocks_to_write'][0]['data'], bytes([0x11, 0x22, 0x33]))
+        self.assertEqual(data['blocks_to_write'][1]['address'], 0x34)
+        self.assertEqual(data['blocks_to_write'][1]['data'], bytes([0x99, 0x88, 0x77, 0x66]))
         self.check_expected_payload_size(req, 1 * 2 + 2 * 2)    # address+data_size
 
     def test_req_write_single_memory_block_16bits(self):
@@ -209,8 +209,8 @@ class TestProtocolV1_0(unittest.TestCase):
         req = self.proto.write_single_memory_block(0x1234, bytes([0x11, 0x22, 0x33]))
         self.assert_req_response_bytes(req, [3, 2, 0, 7, 0x12, 0x34, 0x00, 0x03, 0x11, 0x22, 0x33])
         data = self.proto.parse_request(req)
-        self.assertEqual(data['blocks'][0]['address'], 0x1234)
-        self.assertEqual(data['blocks'][0]['data'], bytes([0x11, 0x22, 0x33]))
+        self.assertEqual(data['blocks_to_write'][0]['address'], 0x1234)
+        self.assertEqual(data['blocks_to_write'][0]['data'], bytes([0x11, 0x22, 0x33]))
         self.check_expected_payload_size(req, 2 + 2)    # address+data_size
 
     def test_req_write_multiple_memory_block_16bits(self):
@@ -221,10 +221,10 @@ class TestProtocolV1_0(unittest.TestCase):
         req = self.proto.write_memory_blocks(blocks)
         self.assert_req_response_bytes(req, [3, 2, 0, 15, 0x12, 0x34, 0x00, 0x03, 0x11, 0x22, 0x33, 0x56, 0x78, 0x00, 0x04, 0x99, 0x88, 0x77, 0x66])
         data = self.proto.parse_request(req)
-        self.assertEqual(data['blocks'][0]['address'], 0x1234)
-        self.assertEqual(data['blocks'][0]['data'], bytes([0x11, 0x22, 0x33]))
-        self.assertEqual(data['blocks'][1]['address'], 0x5678)
-        self.assertEqual(data['blocks'][1]['data'], bytes([0x99, 0x88, 0x77, 0x66]))
+        self.assertEqual(data['blocks_to_write'][0]['address'], 0x1234)
+        self.assertEqual(data['blocks_to_write'][0]['data'], bytes([0x11, 0x22, 0x33]))
+        self.assertEqual(data['blocks_to_write'][1]['address'], 0x5678)
+        self.assertEqual(data['blocks_to_write'][1]['data'], bytes([0x99, 0x88, 0x77, 0x66]))
         self.check_expected_payload_size(req, 2 * 2 + 2 * 2)    # address+data_size
 
     def test_req_write_single_memory_block_32bits(self):
@@ -232,8 +232,8 @@ class TestProtocolV1_0(unittest.TestCase):
         req = self.proto.write_single_memory_block(0x12345678, bytes([0x11, 0x22, 0x33]))
         self.assert_req_response_bytes(req, [3, 2, 0, 9, 0x12, 0x34, 0x56, 0x78, 0x00, 0x03, 0x11, 0x22, 0x33])
         data = self.proto.parse_request(req)
-        self.assertEqual(data['blocks'][0]['address'], 0x12345678)
-        self.assertEqual(data['blocks'][0]['data'], bytes([0x11, 0x22, 0x33]))
+        self.assertEqual(data['blocks_to_write'][0]['address'], 0x12345678)
+        self.assertEqual(data['blocks_to_write'][0]['data'], bytes([0x11, 0x22, 0x33]))
         self.check_expected_payload_size(req, 4 + 2)    # address+data_size
 
     def test_req_write_multiple_memory_block_32bits(self):
@@ -245,10 +245,10 @@ class TestProtocolV1_0(unittest.TestCase):
         self.assert_req_response_bytes(req, [3, 2, 0, 19, 0x12, 0x34, 0x56, 0x78, 0x00, 0x03, 0x11, 0x22,
                                        0x33, 0xFF, 0xEE, 0xDD, 0xCC, 0x00, 0x04, 0x99, 0x88, 0x77, 0x66])
         data = self.proto.parse_request(req)
-        self.assertEqual(data['blocks'][0]['address'], 0x12345678)
-        self.assertEqual(data['blocks'][0]['data'], bytes([0x11, 0x22, 0x33]))
-        self.assertEqual(data['blocks'][1]['address'], 0xFFEEDDCC)
-        self.assertEqual(data['blocks'][1]['data'], bytes([0x99, 0x88, 0x77, 0x66]))
+        self.assertEqual(data['blocks_to_write'][0]['address'], 0x12345678)
+        self.assertEqual(data['blocks_to_write'][0]['data'], bytes([0x11, 0x22, 0x33]))
+        self.assertEqual(data['blocks_to_write'][1]['address'], 0xFFEEDDCC)
+        self.assertEqual(data['blocks_to_write'][1]['data'], bytes([0x99, 0x88, 0x77, 0x66]))
         self.check_expected_payload_size(req, 4 * 2 + 2 * 2)    # address+data_size
 
     def test_req_write_single_memory_block_64bits(self):
@@ -256,8 +256,8 @@ class TestProtocolV1_0(unittest.TestCase):
         req = self.proto.write_single_memory_block(0x123456789abcdef0, bytes([0x11, 0x22, 0x33]))
         self.assert_req_response_bytes(req, [3, 2, 0, 13, 0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xde, 0xf0, 0x00, 0x03, 0x11, 0x22, 0x33])
         data = self.proto.parse_request(req)
-        self.assertEqual(data['blocks'][0]['address'], 0x123456789abcdef0)
-        self.assertEqual(data['blocks'][0]['data'], bytes([0x11, 0x22, 0x33]))
+        self.assertEqual(data['blocks_to_write'][0]['address'], 0x123456789abcdef0)
+        self.assertEqual(data['blocks_to_write'][0]['data'], bytes([0x11, 0x22, 0x33]))
         self.check_expected_payload_size(req, 8 + 2)    # address+data_size
 
     def test_req_write_multiple_memory_block_64bits(self):
@@ -269,10 +269,10 @@ class TestProtocolV1_0(unittest.TestCase):
         self.assert_req_response_bytes(req, [3, 2, 0, 27, 0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xde, 0xf0, 0x00, 0x03,
                                        0x11, 0x22, 0x33, 0xFE, 0xDC, 0xBA, 0x98, 0x76, 0x54, 0x32, 0x10, 0x00, 0x04, 0x99, 0x88, 0x77, 0x66])
         data = self.proto.parse_request(req)
-        self.assertEqual(data['blocks'][0]['address'], 0x123456789abcdef0)
-        self.assertEqual(data['blocks'][0]['data'], bytes([0x11, 0x22, 0x33]))
-        self.assertEqual(data['blocks'][1]['address'], 0xfedcba9876543210)
-        self.assertEqual(data['blocks'][1]['data'], bytes([0x99, 0x88, 0x77, 0x66]))
+        self.assertEqual(data['blocks_to_write'][0]['address'], 0x123456789abcdef0)
+        self.assertEqual(data['blocks_to_write'][0]['data'], bytes([0x11, 0x22, 0x33]))
+        self.assertEqual(data['blocks_to_write'][1]['address'], 0xfedcba9876543210)
+        self.assertEqual(data['blocks_to_write'][1]['data'], bytes([0x99, 0x88, 0x77, 0x66]))
         self.check_expected_payload_size(req, 8 * 2 + 2 * 2)    # address+data_size
 
     def test_req_write_single_memory_block_32bits_bad_content(self):
@@ -497,8 +497,8 @@ class TestProtocolV1_0(unittest.TestCase):
         response = self.proto.respond_read_single_memory_block(0x99, bytes([0x11, 0x22, 0x33]))
         self.assert_req_response_bytes(response, [0x83, 1, 0, 0, 6, 0x99, 0x00, 0x03, 0x11, 0x22, 0x33])
         data = self.proto.parse_response(response)
-        self.assertEqual(data['blocks'][0]['address'], 0x99)
-        self.assertEqual(data['blocks'][0]['data'], bytes([0x11, 0x22, 0x33]))
+        self.assertEqual(data['read_blocks'][0]['address'], 0x99)
+        self.assertEqual(data['read_blocks'][0]['data'], bytes([0x11, 0x22, 0x33]))
 
     def test_response_read_multiple_memory_block_8bits(self):
         self.proto.set_address_size_bits(8)
@@ -508,18 +508,18 @@ class TestProtocolV1_0(unittest.TestCase):
         response = self.proto.respond_read_memory_blocks(blocks)
         self.assert_req_response_bytes(response, [0x83, 1, 0, 0, 12, 0x99, 0x00, 0x03, 0x11, 0x22, 0x33, 0x88, 0x00, 0x03, 0xFF, 0xEE, 0xDD])
         data = self.proto.parse_response(response)
-        self.assertEqual(data['blocks'][0]['address'], 0x99)
-        self.assertEqual(data['blocks'][0]['data'], bytes([0x11, 0x22, 0x33]))
-        self.assertEqual(data['blocks'][1]['address'], 0x88)
-        self.assertEqual(data['blocks'][1]['data'], bytes([0xFF, 0xEE, 0xDD]))
+        self.assertEqual(data['read_blocks'][0]['address'], 0x99)
+        self.assertEqual(data['read_blocks'][0]['data'], bytes([0x11, 0x22, 0x33]))
+        self.assertEqual(data['read_blocks'][1]['address'], 0x88)
+        self.assertEqual(data['read_blocks'][1]['data'], bytes([0xFF, 0xEE, 0xDD]))
 
     def test_response_read_single_memory_block_16bits(self):
         self.proto.set_address_size_bits(16)
         response = self.proto.respond_read_single_memory_block(0x8899, bytes([0x11, 0x22, 0x33]))
         self.assert_req_response_bytes(response, [0x83, 1, 0, 0, 7, 0x88, 0x99, 0x00, 0x03, 0x11, 0x22, 0x33])
         data = self.proto.parse_response(response)
-        self.assertEqual(data['blocks'][0]['address'], 0x8899)
-        self.assertEqual(data['blocks'][0]['data'], bytes([0x11, 0x22, 0x33]))
+        self.assertEqual(data['read_blocks'][0]['address'], 0x8899)
+        self.assertEqual(data['read_blocks'][0]['data'], bytes([0x11, 0x22, 0x33]))
 
     def test_response_read_multiple_memory_block_16bits(self):
         self.proto.set_address_size_bits(16)
@@ -530,18 +530,18 @@ class TestProtocolV1_0(unittest.TestCase):
         self.assert_req_response_bytes(response, [0x83, 1, 0, 0, 14, 0x67, 0x89, 0x00, 0x03, 0x11,
                                        0x22, 0x33, 0x98, 0x76, 0x00, 0x03, 0xFF, 0xEE, 0xDD])
         data = self.proto.parse_response(response)
-        self.assertEqual(data['blocks'][0]['address'], 0x6789)
-        self.assertEqual(data['blocks'][0]['data'], bytes([0x11, 0x22, 0x33]))
-        self.assertEqual(data['blocks'][1]['address'], 0x9876)
-        self.assertEqual(data['blocks'][1]['data'], bytes([0xFF, 0xEE, 0xDD]))
+        self.assertEqual(data['read_blocks'][0]['address'], 0x6789)
+        self.assertEqual(data['read_blocks'][0]['data'], bytes([0x11, 0x22, 0x33]))
+        self.assertEqual(data['read_blocks'][1]['address'], 0x9876)
+        self.assertEqual(data['read_blocks'][1]['data'], bytes([0xFF, 0xEE, 0xDD]))
 
     def test_response_read_single_memory_block_32bits(self):
         self.proto.set_address_size_bits(32)
         response = self.proto.respond_read_single_memory_block(0x12345678, bytes([0x11, 0x22, 0x33]))
         self.assert_req_response_bytes(response, [0x83, 1, 0, 0, 9, 0x12, 0x34, 0x56, 0x78, 0x00, 0x03, 0x11, 0x22, 0x33])
         data = self.proto.parse_response(response)
-        self.assertEqual(data['blocks'][0]['address'], 0x12345678)
-        self.assertEqual(data['blocks'][0]['data'], bytes([0x11, 0x22, 0x33]))
+        self.assertEqual(data['read_blocks'][0]['address'], 0x12345678)
+        self.assertEqual(data['read_blocks'][0]['data'], bytes([0x11, 0x22, 0x33]))
 
     def test_response_read_multiple_memory_block_32bits(self):
         self.proto.set_address_size_bits(32)
@@ -552,18 +552,18 @@ class TestProtocolV1_0(unittest.TestCase):
         self.assert_req_response_bytes(response, [0x83, 1, 0, 0, 18, 0x12, 0x34, 0x56, 0x78, 0x00, 0x03,
                                        0x11, 0x22, 0x33, 0x11, 0x22, 0x33, 0x44, 0x00, 0x03, 0xFF, 0xEE, 0xDD])
         data = self.proto.parse_response(response)
-        self.assertEqual(data['blocks'][0]['address'], 0x12345678)
-        self.assertEqual(data['blocks'][0]['data'], bytes([0x11, 0x22, 0x33]))
-        self.assertEqual(data['blocks'][1]['address'], 0x11223344)
-        self.assertEqual(data['blocks'][1]['data'], bytes([0xFF, 0xEE, 0xDD]))
+        self.assertEqual(data['read_blocks'][0]['address'], 0x12345678)
+        self.assertEqual(data['read_blocks'][0]['data'], bytes([0x11, 0x22, 0x33]))
+        self.assertEqual(data['read_blocks'][1]['address'], 0x11223344)
+        self.assertEqual(data['read_blocks'][1]['data'], bytes([0xFF, 0xEE, 0xDD]))
 
     def test_response_read_single_memory_block_64bits(self):
         self.proto.set_address_size_bits(64)
         response = self.proto.respond_read_single_memory_block(0x123456789abcdef0, bytes([0x11, 0x22, 0x33]))
         self.assert_req_response_bytes(response, [0x83, 1, 0, 0, 13, 0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xde, 0xf0, 0x00, 0x03, 0x11, 0x22, 0x33])
         data = self.proto.parse_response(response)
-        self.assertEqual(data['blocks'][0]['address'], 0x123456789abcdef0)
-        self.assertEqual(data['blocks'][0]['data'], bytes([0x11, 0x22, 0x33]))
+        self.assertEqual(data['read_blocks'][0]['address'], 0x123456789abcdef0)
+        self.assertEqual(data['read_blocks'][0]['data'], bytes([0x11, 0x22, 0x33]))
 
     def test_response_read_multiple_memory_block_64bits(self):
         self.proto.set_address_size_bits(64)
@@ -574,10 +574,10 @@ class TestProtocolV1_0(unittest.TestCase):
         self.assert_req_response_bytes(response, [0x83, 1, 0, 0, 26, 0xFE, 0xDC, 0xBA, 0x98, 0x76, 0x54, 0x32, 0x10,
                                        0x00, 0x03, 0x11, 0x22, 0x33, 0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xde, 0xf0, 0x00, 0x03, 0xFF, 0xEE, 0xDD])
         data = self.proto.parse_response(response)
-        self.assertEqual(data['blocks'][0]['address'], 0xFEDCBA9876543210)
-        self.assertEqual(data['blocks'][0]['data'], bytes([0x11, 0x22, 0x33]))
-        self.assertEqual(data['blocks'][1]['address'], 0x123456789abcdef0)
-        self.assertEqual(data['blocks'][1]['data'], bytes([0xFF, 0xEE, 0xDD]))
+        self.assertEqual(data['read_blocks'][0]['address'], 0xFEDCBA9876543210)
+        self.assertEqual(data['read_blocks'][0]['data'], bytes([0x11, 0x22, 0x33]))
+        self.assertEqual(data['read_blocks'][1]['address'], 0x123456789abcdef0)
+        self.assertEqual(data['read_blocks'][1]['data'], bytes([0xFF, 0xEE, 0xDD]))
 
     def test_parse_response_read_memory_block_invalid_content(self):
         self.proto.logger.disabled = True
@@ -595,8 +595,8 @@ class TestProtocolV1_0(unittest.TestCase):
         response = self.proto.respond_write_single_memory_block(0x12, 0x1122)
         self.assert_req_response_bytes(response, [0x83, 2, 0, 0, 3, 0x12, 0x11, 0x22])
         data = self.proto.parse_response(response)
-        self.assertEqual(data['blocks'][0]['address'], 0x12)
-        self.assertEqual(data['blocks'][0]['length'], 0x1122)
+        self.assertEqual(data['written_blocks'][0]['address'], 0x12)
+        self.assertEqual(data['written_blocks'][0]['length'], 0x1122)
 
     def test_response_write_multiple_memory_block_8bits(self):
         self.proto.set_address_size_bits(8)
@@ -606,18 +606,18 @@ class TestProtocolV1_0(unittest.TestCase):
         response = self.proto.respond_write_memory_blocks(blocks)
         self.assert_req_response_bytes(response, [0x83, 2, 0, 0, 6, 0x12, 0x11, 0x22, 0x21, 0x33, 0x44])
         data = self.proto.parse_response(response)
-        self.assertEqual(data['blocks'][0]['address'], 0x12)
-        self.assertEqual(data['blocks'][0]['length'], 0x1122)
-        self.assertEqual(data['blocks'][1]['address'], 0x21)
-        self.assertEqual(data['blocks'][1]['length'], 0x3344)
+        self.assertEqual(data['written_blocks'][0]['address'], 0x12)
+        self.assertEqual(data['written_blocks'][0]['length'], 0x1122)
+        self.assertEqual(data['written_blocks'][1]['address'], 0x21)
+        self.assertEqual(data['written_blocks'][1]['length'], 0x3344)
 
     def test_response_write_single_memory_block_16bits(self):
         self.proto.set_address_size_bits(16)
         response = self.proto.respond_write_single_memory_block(0x1234, 0x1122)
         self.assert_req_response_bytes(response, [0x83, 2, 0, 0, 4, 0x12, 0x34, 0x11, 0x22])
         data = self.proto.parse_response(response)
-        self.assertEqual(data['blocks'][0]['address'], 0x1234)
-        self.assertEqual(data['blocks'][0]['length'], 0x1122)
+        self.assertEqual(data['written_blocks'][0]['address'], 0x1234)
+        self.assertEqual(data['written_blocks'][0]['length'], 0x1122)
 
     def test_response_write_multiple_memory_block_16bits(self):
         self.proto.set_address_size_bits(16)
@@ -627,18 +627,18 @@ class TestProtocolV1_0(unittest.TestCase):
         response = self.proto.respond_write_memory_blocks(blocks)
         self.assert_req_response_bytes(response, [0x83, 2, 0, 0, 8, 0x12, 0x34, 0x11, 0x22, 0x43, 0x21, 0x33, 0x44])
         data = self.proto.parse_response(response)
-        self.assertEqual(data['blocks'][0]['address'], 0x1234)
-        self.assertEqual(data['blocks'][0]['length'], 0x1122)
-        self.assertEqual(data['blocks'][1]['address'], 0x4321)
-        self.assertEqual(data['blocks'][1]['length'], 0x3344)
+        self.assertEqual(data['written_blocks'][0]['address'], 0x1234)
+        self.assertEqual(data['written_blocks'][0]['length'], 0x1122)
+        self.assertEqual(data['written_blocks'][1]['address'], 0x4321)
+        self.assertEqual(data['written_blocks'][1]['length'], 0x3344)
 
     def test_response_write_single_memory_block_32bits(self):
         self.proto.set_address_size_bits(32)
         response = self.proto.respond_write_single_memory_block(0x12345678, 0x1122)
         self.assert_req_response_bytes(response, [0x83, 2, 0, 0, 6, 0x12, 0x34, 0x56, 0x78, 0x11, 0x22])
         data = self.proto.parse_response(response)
-        self.assertEqual(data['blocks'][0]['address'], 0x12345678)
-        self.assertEqual(data['blocks'][0]['length'], 0x1122)
+        self.assertEqual(data['written_blocks'][0]['address'], 0x12345678)
+        self.assertEqual(data['written_blocks'][0]['length'], 0x1122)
 
     def test_response_write_multiple_memory_block_32bits(self):
         self.proto.set_address_size_bits(32)
@@ -648,18 +648,18 @@ class TestProtocolV1_0(unittest.TestCase):
         response = self.proto.respond_write_memory_blocks(blocks)
         self.assert_req_response_bytes(response, [0x83, 2, 0, 0, 12, 0x12, 0x34, 0x56, 0x78, 0x11, 0x22, 0x87, 0x65, 0x43, 0x21, 0x33, 0x44])
         data = self.proto.parse_response(response)
-        self.assertEqual(data['blocks'][0]['address'], 0x12345678)
-        self.assertEqual(data['blocks'][0]['length'], 0x1122)
-        self.assertEqual(data['blocks'][1]['address'], 0x87654321)
-        self.assertEqual(data['blocks'][1]['length'], 0x3344)
+        self.assertEqual(data['written_blocks'][0]['address'], 0x12345678)
+        self.assertEqual(data['written_blocks'][0]['length'], 0x1122)
+        self.assertEqual(data['written_blocks'][1]['address'], 0x87654321)
+        self.assertEqual(data['written_blocks'][1]['length'], 0x3344)
 
     def test_response_write_single_memory_block_64bits(self):
         self.proto.set_address_size_bits(64)
         response = self.proto.respond_write_single_memory_block(0x123456789abcdef0, 0x1122)
         self.assert_req_response_bytes(response, [0x83, 2, 0, 0, 10, 0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xde, 0xf0, 0x11, 0x22])
         data = self.proto.parse_response(response)
-        self.assertEqual(data['blocks'][0]['address'], 0x123456789abcdef0)
-        self.assertEqual(data['blocks'][0]['length'], 0x1122)
+        self.assertEqual(data['written_blocks'][0]['address'], 0x123456789abcdef0)
+        self.assertEqual(data['written_blocks'][0]['length'], 0x1122)
 
     def test_response_write_multiple_memory_block_64bits(self):
         self.proto.set_address_size_bits(64)
@@ -670,10 +670,10 @@ class TestProtocolV1_0(unittest.TestCase):
         self.assert_req_response_bytes(response, [0x83, 2, 0, 0, 20, 0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xde,
                                        0xf0, 0x11, 0x22, 0xfe, 0xdc, 0xba, 0x98, 0x76, 0x54, 0x32, 0x10, 0x33, 0x44])
         data = self.proto.parse_response(response)
-        self.assertEqual(data['blocks'][0]['address'], 0x123456789abcdef0)
-        self.assertEqual(data['blocks'][0]['length'], 0x1122)
-        self.assertEqual(data['blocks'][1]['address'], 0xfedcba9876543210)
-        self.assertEqual(data['blocks'][1]['length'], 0x3344)
+        self.assertEqual(data['written_blocks'][0]['address'], 0x123456789abcdef0)
+        self.assertEqual(data['written_blocks'][0]['length'], 0x1122)
+        self.assertEqual(data['written_blocks'][1]['address'], 0xfedcba9876543210)
+        self.assertEqual(data['written_blocks'][1]['length'], 0x3344)
 
     def test_response_write_single_memory_block_32bits_bad_response(self):
         self.proto.set_address_size_bits(32)
@@ -740,9 +740,9 @@ class TestProtocolV1_0(unittest.TestCase):
 
     def test_response_datalog_get_targets(self):
         targets = []
-        targets.append(DatalogLocation(target_id=0, location_type=DatalogLocation.Type.RAM, name='RAM'))
-        targets.append(DatalogLocation(target_id=2, location_type=DatalogLocation.Type.ROM, name='FLASH'))
-        targets.append(DatalogLocation(target_id=5, location_type=DatalogLocation.Type.EXTERNAL, name='SD CARD'))
+        targets.append(DatalogLocation(target_id=0, location_type=DatalogLocation.LocationType.RAM, name='RAM'))
+        targets.append(DatalogLocation(target_id=2, location_type=DatalogLocation.LocationType.ROM, name='FLASH'))
+        targets.append(DatalogLocation(target_id=5, location_type=DatalogLocation.LocationType.EXTERNAL, name='SD CARD'))
 
         payload = bytes([0, 0, 3]) + 'RAM'.encode('ASCII')
         payload += bytes([2, 1, 5]) + 'FLASH'.encode('ASCII')
@@ -758,15 +758,15 @@ class TestProtocolV1_0(unittest.TestCase):
 
         self.assertEqual(targets[0].target_id, 0)
         self.assertEqual(targets[0].name, 'RAM')
-        self.assertEqual(targets[0].location_type, DatalogLocation.Type.RAM)
+        self.assertEqual(targets[0].location_type, DatalogLocation.LocationType.RAM)
 
         self.assertEqual(targets[1].target_id, 2)
         self.assertEqual(targets[1].name, 'FLASH')
-        self.assertEqual(targets[1].location_type, DatalogLocation.Type.ROM)
+        self.assertEqual(targets[1].location_type, DatalogLocation.LocationType.ROM)
 
         self.assertEqual(targets[2].target_id, 5)
         self.assertEqual(targets[2].name, 'SD CARD')
-        self.assertEqual(targets[2].location_type, DatalogLocation.Type.EXTERNAL)
+        self.assertEqual(targets[2].location_type, DatalogLocation.LocationType.EXTERNAL)
 
     def test_response_datalog_get_buffer_size(self):
         response = self.proto.respond_datalog_get_bufsize(0x12345678)
@@ -803,17 +803,17 @@ class TestProtocolV1_0(unittest.TestCase):
 
     def test_response_datalog_list_records(self):
         recordings = []
-        recordings.append(RecordInfo(record_id=0x1234, location_type=DatalogLocation.Type.RAM, size=0x201))
-        recordings.append(RecordInfo(record_id=0x4567, location_type=DatalogLocation.Type.ROM, size=0x333))
+        recordings.append(RecordInfo(record_id=0x1234, location_type=DatalogLocation.LocationType.RAM, size=0x201))
+        recordings.append(RecordInfo(record_id=0x4567, location_type=DatalogLocation.LocationType.ROM, size=0x333))
         response = self.proto.respond_datalog_list_recordings(recordings)
         self.assert_req_response_bytes(response, [0x85, 5, 0, 0, 10, 0x12, 0x34, 0, 0x02, 0x01, 0x45, 0x67, 1, 0x03, 0x33])
         data = self.proto.parse_response(response)
         self.assertEqual(len(data['recordings']), 2)
         self.assertEqual(data['recordings'][0].record_id, 0x1234)
-        self.assertEqual(data['recordings'][0].location_type, DatalogLocation.Type.RAM)
+        self.assertEqual(data['recordings'][0].location_type, DatalogLocation.LocationType.RAM)
         self.assertEqual(data['recordings'][0].size, 0x201)
         self.assertEqual(data['recordings'][1].record_id, 0x4567)
-        self.assertEqual(data['recordings'][1].location_type, DatalogLocation.Type.ROM)
+        self.assertEqual(data['recordings'][1].location_type, DatalogLocation.LocationType.ROM)
         self.assertEqual(data['recordings'][1].size, 0x333)
 
     def test_response_datalog_read_recording(self):

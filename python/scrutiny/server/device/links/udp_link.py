@@ -13,13 +13,26 @@ import errno
 import traceback
 
 from scrutiny.server.tools import Timer
+from .abstract_link import AbstractLink, LinkConfig
+
+from typing import Optional, Dict
 
 
-class UdpLink:
+class UdpLink(AbstractLink):
 
-    BUFSIZE = 4096
+    port: int
+    host: str
+    ip_address: str
+    logger: logging.Logger
+    sock: Optional[socket.socket]
+    bound: bool
 
-    def __init__(self, parameters):
+    BUFSIZE: int = 4096
+
+    def __init__(self, parameters: LinkConfig):
+        if parameters is None:
+            raise ValueError('Empty configuration')
+
         if 'port' not in parameters:
             raise ValueError('Missing UDP port')
 
@@ -34,11 +47,11 @@ class UdpLink:
         self.sock = None
         self.bound = False
 
-    def initialize(self):
+    def initialize(self) -> None:
         self.logger.debug('Opening UDP Link. Host=%s (%s). Port=%d' % (self.host, self.ip_address, self.port))
         self.init_socket()
 
-    def init_socket(self):
+    def init_socket(self) -> None:
         try:
             if self.sock is not None:
                 self.sock.close()
@@ -53,7 +66,7 @@ class UdpLink:
             self.logger.debug(str(e))
             self.bound = False
 
-    def destroy(self):
+    def destroy(self) -> None:
         self.logger.debug('Closing UDP Link. Host=%s. Port=%d' % (self.host, self.port))
 
         if self.sock is not None:
@@ -61,16 +74,17 @@ class UdpLink:
         self.sock = None
         self.bound = False
 
-    def operational(self):
+    def operational(self) -> bool:
         if self.sock is not None and self.bound == True:
             return True
-        return false
+        return False
 
-    def read(self):
+    def read(self) -> Optional[bytes]:
         if not self.operational():
-            return
+            return None
 
         try:
+            assert self.sock is not None
             err = None
             data, (ip_address, port) = self.sock.recvfrom(self.BUFSIZE)
             if ip_address == self.ip_address and port == self.port:  # Make sure the datagram comes from our target host
@@ -83,11 +97,13 @@ class UdpLink:
         if err:
             self.logger.debug('Socket error : ' + str(err))
 
-    def write(self, data):
+        return None
+
+    def write(self, data: bytes):
         if not self.operational():
             return
-
+        assert self.sock is not None  # for mypy
         self.sock.sendto(data, (self.host, self.port))
 
-    def process(self):
+    def process(self) -> None:
         pass

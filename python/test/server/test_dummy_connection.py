@@ -96,9 +96,9 @@ class TestDummyConnectionHandler(unittest.TestCase):
         self.connections[0].write_to_server(msg)
         container = self.wait_handler_recv()
         self.assertIsNotNone(container)
-        self.assertEqual(container['conn_id'], self.connections[0].get_id())
-        self.assertIn('a', container['obj'])
-        self.assertEqual('b', container['obj']['a'])
+        self.assertEqual(container.conn_id, self.connections[0].get_id())
+        self.assertIn('a', container.obj)
+        self.assertEqual('b', container.obj['a'])
 
         self.assertFalse(self.handler.available())
 
@@ -106,9 +106,9 @@ class TestDummyConnectionHandler(unittest.TestCase):
         self.connections[2].write_to_server(msg)
         container = self.wait_handler_recv()
         self.assertIsNotNone(container)
-        self.assertEqual(container['conn_id'], self.connections[2].get_id())
-        self.assertIn('x', container['obj'])
-        self.assertEqual('y', container['obj']['x'])
+        self.assertEqual(container.conn_id, self.connections[2].get_id())
+        self.assertIn('x', container.obj)
+        self.assertEqual('y', container.obj['x'])
         self.assertFalse(self.handler.available())
 
     def test_server_to_client(self):

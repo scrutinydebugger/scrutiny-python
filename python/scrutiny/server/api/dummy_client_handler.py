@@ -16,8 +16,10 @@ import logging
 import json
 import uuid
 
+from .abstract_client_handler import AbstractClientHandler, ClientHandlerConfig, ClientHandlerMessage
 
-class DummyConnection:
+
+class DummyConnection(AbstractClientHandler):
     def __init__(self, conn_id=None):
         if conn_id is not None:
             self.conn_id = conn_id
@@ -115,7 +117,7 @@ class DummyClientHandler:
                         if msg is not None:
                             try:
                                 obj = json.loads(msg)
-                                self.rxqueue.put(dict(conn_id=conn.get_id(), obj=obj))
+                                self.rxqueue.put(ClientHandlerMessage(conn_id=conn.get_id(), obj=obj))
                             except Exception as e:
                                 self.logger.error('Received invalid msg.  %s' % str(e))
 
@@ -123,8 +125,8 @@ class DummyClientHandler:
                     container = self.txqueue.get()
                     if container is not None:
                         try:
-                            msg = json.dumps(container['obj'])
-                            conn_id = container['conn_id']
+                            msg = json.dumps(container.obj)
+                            conn_id = container.conn_id
                             if conn_id in self.connection_map:
                                 self.connection_map[conn_id].write_to_client(msg)
                         except Exception as e:
@@ -150,7 +152,7 @@ class DummyClientHandler:
 
     def send(self, conn_id, obj):
         if not self.txqueue.full():
-            container = {'conn_id': conn_id, 'obj': obj}
+            container = ClientHandlerMessage(conn_id=conn_id, obj=obj)
             self.txqueue.put(container)
 
     def available(self):

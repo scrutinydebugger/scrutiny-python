@@ -11,14 +11,19 @@ from scrutiny.server.device.links.dummy_link import DummyLink, ThreadSafeDummyLi
 import threading
 import time
 import logging
-from scrutiny.server.protocol import Protocol, Request, Response, ResponseCode
+from scrutiny.server.protocol import Protocol, Request, Response, ResponseCode, RequestData, ResponseData
 import scrutiny.server.protocol.commands as cmd
 import random
 import traceback
 
+from typing import List, Dict, Optional, Union
+
 
 class RequestLogRecord:
     __slots__ = ('request', 'response')
+
+    request: Request
+    response: Response
 
     def __init__(self, request, response):
         self.request = request
@@ -26,6 +31,27 @@ class RequestLogRecord:
 
 
 class EmulatedDevice:
+    logger: logging.Logger
+    link: Union[DummyLink, ThreadSafeDummyLink]
+    firmware_id: bytes
+    request_history: List[RequestLogRecord]
+    protocol: Protocol
+    comm_enabled: bool
+    connected: bool
+    request_shutdown: bool
+    thread_started_event: threading.Event
+    thread: Optional[threading.Thread]
+    max_rx_data_size: int
+    max_tx_data_size: int
+    max_bitrate_bps: int
+    heartbeat_timeout_us: int
+    rx_timeout_us: int
+    address_size_bits: int
+    supported_features: Dict[str, bool]
+    forbidden_regions: List[Dict[str, int]]
+    readonly_regions: List[Dict[str, int]]
+    session_id: Optional[int]
+
     def __init__(self, link):
         if not isinstance(link, DummyLink) and not isinstance(link, ThreadSafeDummyLink):
             raise ValueError('EmulatedDevice expects a DummyLink object')
@@ -48,6 +74,8 @@ class EmulatedDevice:
         self.rx_timeout_us = 50000     # For byte chunk reassembly (microseconds)
         self.address_size_bits = 32
 
+        self.session_id = None
+
         self.supported_features = {
             'memory_read': False,
             'memory_write': False,
@@ -64,7 +92,7 @@ class EmulatedDevice:
             {'start': 0x800, 'end': 0x8FF},
             {'start': 0x900, 'end': 0x9FF}]
 
-    def thread_task(self):
+    def thread_task(self) -> None:
         self.thread_started_event.set()
         while not self.request_shutdown:
             request = None
@@ -89,16 +117,16 @@ class EmulatedDevice:
 
             time.sleep(0.01)
 
-    def process_request(self, req):
+    def process_request(self, req: Request) -> Optional[Response]:
         response = None
         if req.size() > self.max_rx_data_size:
             self.logger.error("Request doesn't fit buffer. Dropping %s" % req)
-            return  # drop
+            return None  # drop
 
         data = self.protocol.parse_request(req)
         if data['valid'] == False:
             self.logger.error('Invalid request data')
-            return
+            return None
 
         if not self.connected:
             # We only respond to DISCOVER and CONNECT request while not session is active
@@ -106,7 +134,7 @@ class EmulatedDevice:
                 req.subfn == cmd.CommControl.Subfunction.Discover.value or req.subfn == cmd.CommControl.Subfunction.Connect.value)
             if not must_process:
                 self.logger.warning('Received a request while no session was active. %s' % req)
-                return
+                return None
 
         if req.command == cmd.CommControl:
             response = self.process_comm_control(req, data)
@@ -120,9 +148,10 @@ class EmulatedDevice:
         return response
 
     # ===== [CommControl] ======
-    def process_comm_control(self, req, data):
+    def process_comm_control(self, req: Request, data: RequestData) -> Optional[Response]:
         response = None
         subfunction = cmd.CommControl.Subfunction(req.subfn)
+        session_id_str = '0x%08X' % self.session_id if self.session_id is not None else 'None'
         if subfunction == cmd.CommControl.Subfunction.Discover:
             if data['magic'] == cmd.CommControl.DISCOVER_MAGIC:
                 response = self.protocol.respond_comm_discover(self.firmware_id, 'EmulatedDevice')
@@ -133,6 +162,7 @@ class EmulatedDevice:
             if data['magic'] == cmd.CommControl.CONNECT_MAGIC:
                 if not self.connected:
                     self.initiate_session()
+                    assert self.session_id is not None  # for mypy
                     response = self.protocol.respond_comm_connect(self.session_id)
                 else:
                     response = Response(cmd.CommControl, subfunction, ResponseCode.Busy)
@@ -144,8 +174,8 @@ class EmulatedDevice:
                 challenge_response = self.protocol.heartbeat_expected_challenge_response(data['challenge'])
                 response = self.protocol.respond_comm_heartbeat(self.session_id, challenge_response)
             else:
-                self.logger.warning('Received a Heartbeat request for session ID 0x%08X, but my active session ID is 0x%08X' %
-                                    (data['session_id'], self.session_id))
+                self.logger.warning('Received a Heartbeat request for session ID 0x%08X, but my active session ID is %s' %
+                                    (data['session_id'], session_id_str))
                 response = Response(cmd.CommControl, subfunction, ResponseCode.InvalidRequest)
 
         elif subfunction == cmd.CommControl.Subfunction.Disconnect:
@@ -153,8 +183,8 @@ class EmulatedDevice:
                 self.destroy_session()
                 response = self.protocol.respond_comm_disconnect()
             else:
-                self.logger.warning('Received a Disconnect request for session ID 0x%08X, but my active session ID is 0x%08X' %
-                                    (data['session_id'], self.session_id))
+                self.logger.warning('Received a Disconnect request for session ID 0x%08X, but my active session ID is %s' %
+                                    (data['session_id'], session_id_str))
                 response = Response(cmd.CommControl, subfunction, ResponseCode.InvalidRequest)
 
         elif subfunction == cmd.CommControl.Subfunction.GetParams:
@@ -173,7 +203,7 @@ class EmulatedDevice:
         return response
 
     # ===== [GetInfo] ======
-    def process_get_info(self, req, data):
+    def process_get_info(self, req: Request, data: RequestData) -> Optional[Response]:
         response = None
         subfunction = cmd.GetInfo.Subfunction(req.subfn)
         if subfunction == cmd.GetInfo.Subfunction.GetProtocolVersion:
@@ -204,10 +234,10 @@ class EmulatedDevice:
 
         return response
 
-    def process_dummy_cmd(self, req, data):
+    def process_dummy_cmd(self, req: Request, data: RequestData):
         return Response(cmd.DummyCommand, subfn=req.subfn, code=ResponseCode.OK, payload=b'\xAA' * 32)
 
-    def start(self):
+    def start(self) -> None:
         self.logger.debug('Starting thread')
         self.request_shutdown = False
         self.thread_started_event.clear()
@@ -216,7 +246,7 @@ class EmulatedDevice:
         self.thread_started_event.wait()
         self.logger.debug('Thread started')
 
-    def stop(self):
+    def stop(self) -> None:
         if self.thread is not None:
             self.logger.debug('Stopping thread')
             self.request_shutdown = True
@@ -224,45 +254,46 @@ class EmulatedDevice:
             self.logger.debug('Thread stopped')
             self.thread = None
 
-    def initiate_session(self):
+    def initiate_session(self) -> None:
         self.session_id = random.randrange(0, 0xFFFFFFFF)
         self.connected = True
         self.logger.info('Initiating session. SessionID = 0x%08x', self.session_id)
 
-    def destroy_session(self):
+    def destroy_session(self) -> None:
         self.logger.info('Destroying session. SessionID = 0x%08x', self.session_id)
         self.session_id = None
         self.connected = False
 
-    def get_firmware_id(self):
+    def get_firmware_id(self) -> bytes:
         return self.firmware_id
 
-    def is_connected(self):
+    def is_connected(self) -> bool:
         return self.connected
 
-    def force_connect(self):
+    def force_connect(self) -> None:
         self.connected = True
 
-    def force_disconnect(self):
+    def force_disconnect(self) -> None:
         self.connected = False
 
-    def disable_comm(self):
+    def disable_comm(self) -> None:
         self.comm_enabled = False
 
-    def enable_comm(self):
+    def enable_comm(self) -> None:
         self.comm_enabled = True
 
-    def clear_request_history(self):
+    def clear_request_history(self) -> None:
         self.request_history = []
 
-    def get_request_history(self):
+    def get_request_history(self) -> List[RequestLogRecord]:
         return self.request_history
 
-    def send(self, response):
+    def send(self, response: Response) -> None:
         if self.comm_enabled:
             self.link.emulate_device_write(response.to_bytes())
 
-    def read(self):
+    def read(self) -> Optional[Request]:
         data = self.link.emulate_device_read()
         if len(data) > 0 and self.comm_enabled:
             return Request.from_bytes(data)
+        return None

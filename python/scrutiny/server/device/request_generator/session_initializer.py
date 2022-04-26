@@ -6,32 +6,46 @@
 #
 #   Copyright (c) 2021-2022 scrutinydebugger
 
-import time
 import logging
 from time import time
 
-from scrutiny.server.protocol import ResponseCode
+from scrutiny.server.protocol import *
+from scrutiny.server.device.request_dispatcher import RequestDispatcher, SuccessCallback, FailureCallback
+
+from typing import Optional, Any
 
 
 class SessionInitializer:
 
-    RECONNECT_DELAY = 1.0
+    logger: logging.Logger
+    dispatcher: RequestDispatcher
+    protocol: Protocol
+    priority: int
+    connection_pending: bool
+    stop_requested: bool
+    started: bool
+    last_connect_sent: Optional[float]
+    success: bool
+    error: bool
+    session_id: Optional[int]
 
-    def __init__(self, protocol, dispatcher, priority):
+    RECONNECT_DELAY: float = 1.0
+
+    def __init__(self, protocol: Protocol, dispatcher: RequestDispatcher, priority: int):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.dispatcher = dispatcher
         self.protocol = protocol
         self.priority = priority
         self.reset()
 
-    def start(self):
+    def start(self) -> None:
         self.started = True
         self.stop_requested = False
 
-    def stop(self):
+    def stop(self) -> None:
         self.stop_requested = True
 
-    def reset(self):
+    def reset(self) -> None:
         self.connection_pending = False
         self.stop_requested = False
         self.started = False
@@ -40,16 +54,16 @@ class SessionInitializer:
         self.error = False
         self.session_id = None
 
-    def connection_successful(self):
+    def connection_successful(self) -> bool:
         return self.success
 
-    def is_in_error(self):
+    def is_in_error(self) -> bool:
         return self.error
 
-    def get_session_id(self):
+    def get_session_id(self) -> Optional[int]:
         return self.session_id
 
-    def process(self):
+    def process(self) -> None:
         if not self.started or self.error:
             return
         elif not self.connection_pending and self.stop_requested:
@@ -61,10 +75,12 @@ class SessionInitializer:
             self.last_connect_sent = time()
             self.logger.debug('Registering a Connect request')
             self.dispatcher.register_request(request=self.protocol.comm_connect(),
-                                             success_callback=self.success_callback, failure_callback=self.failure_callback, priority=self.priority)
+                                             success_callback=SuccessCallback(self.success_callback),
+                                             failure_callback=FailureCallback(self.failure_callback),
+                                             priority=self.priority)
             self.connection_pending = True
 
-    def success_callback(self, request, response_code, response_data, params=None):
+    def success_callback(self, request: Request, response_code: ResponseCode, response_data: ResponseData, params: Any = None) -> None:
         if response_code == ResponseCode.OK:
             if response_data['valid']:
                 self.logger.info('Connection was accepted by device')
@@ -77,13 +93,13 @@ class SessionInitializer:
             self.logger.warning('Connection was refused by device with response code %s' % response_code)
         self.completed()
 
-    def failure_callback(self, request, params=None):
+    def failure_callback(self, request: Request, params: Any = None) -> None:
         self.logger.error('Connection request did not complete')
         self.error = True
 
         self.completed()
 
-    def completed(self):
+    def completed(self) -> None:
         self.connection_pending = False
         if self.stop_requested:
             self.reset()

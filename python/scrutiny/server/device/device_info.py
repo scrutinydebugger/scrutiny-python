@@ -6,6 +6,9 @@
 #
 #   Copyright (c) 2021-2022 scrutinydebugger
 
+from typing import Dict, List
+
+
 class DeviceInfo:
     __slots__ = (
         'max_tx_data_size',
@@ -21,10 +24,22 @@ class DeviceInfo:
         'readonly_memory_regions'
     )
 
+    max_tx_data_size: int
+    max_rx_data_size: int
+    max_bitrate_bps: int
+    rx_timeout_us: int
+    heartbeat_timeout_us: int
+    address_size_bits: int
+    protocol_major: int
+    protocol_minor: int
+    supported_feature_map: Dict[str, bool]
+    forbidden_memory_regions: List[Dict[str, int]]
+    readonly_memory_regions: List[Dict[str, int]]
+
     def __init__(self):
         self.clear()
 
-    def all_ready(self):
+    def all_ready(self) -> bool:
         ready = True
         for attr in self.__slots__:
             if getattr(self, attr) is None:
@@ -32,7 +47,7 @@ class DeviceInfo:
                 break
         return ready
 
-    def clear(self):
+    def clear(self) -> None:
         for attr in self.__slots__:
             setattr(self, attr, None)
 

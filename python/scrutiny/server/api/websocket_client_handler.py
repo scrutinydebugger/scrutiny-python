@@ -16,9 +16,16 @@ import uuid
 import logging
 import json
 
+from .abstract_client_handler import AbstractClientHandler, ClientHandlerConfig, ClientHandlerMessage
+
+from typing import List, Dict, Tuple, Any, Coroutine, Optional
 
 class Timer:
-    def __init__(self, timeout, callback, *args, **kwargs):
+    timeout:float
+    callback:Coroutine
+    args : Tuple[Any,...]
+    kwargs : Dict
+    def __init__(self, timeout:float, callback:Coroutine, *args, **kwargs):
         self.timeout = timeout
         self.callback = callback
         self.args = args
@@ -33,15 +40,26 @@ class Timer:
         except:
             raise e  # fixme:  Exception raised in callback are lost.. some asyncio shenanigan required.
 
-    def start(self):
+    def start(self)->None:
         self.task = asyncio.ensure_future(self.job(*self.args, **self.kwargs))
 
-    def cancel(self):
+    def cancel(self)->None:
         self.task.cancel()
 
 
-class WebsocketClientHandler:
-    def __init__(self, config):
+class WebsocketClientHandler(AbstractClientHandler):
+    
+    rxqueue:queue.Queue
+    txqueue:queue.Queue
+    config: ClientHandlerConfig
+    loop: asyncio.ProactorEventLoop
+    logger:logging.Logger
+    #id2ws_map:Dict[str, websockets.WebSocket]
+    #ws2id_map[websockets.WebSocket, str]
+    #ws_server:Optional[websockets.WebSocketServer]
+    started_event:threading.Event
+
+    def __init__(self, config:ClientHandlerConfig):
         self.rxqueue = queue.Queue()
         self.txqueue = queue.Queue()
         self.config = config
@@ -63,11 +81,11 @@ class WebsocketClientHandler:
         del self.ws2id_map[websocket]
         del self.id2ws_map[wsid]
 
-    def is_connection_active(self, conn_id):
+    def is_connection_active(self, conn_id:str)->bool:
         return True if conn_id in self.id2ws_map else False
 
     # Executed for each websocket
-    async def server_routine(self, websocket, path):
+    async def server_routine(self, websocket, path:str):
         wsid = await self.register(websocket)
         tx_sync_timer = Timer(0.05, self.process_tx_queue)
 
@@ -86,23 +104,22 @@ class WebsocketClientHandler:
     async def process_tx_queue(self):
         while not self.txqueue.empty():
             popped = self.txqueue.get()
-            if 'conn_id' not in popped or 'obj' not in popped:
-                continue
-            wsid = popped['conn_id']
+
+            wsid = popped.conn_id
             if wsid not in self.id2ws_map:
                 continue
             websocket = self.id2ws_map[wsid]
             try:
-                msg = json.dumps(popped['obj'])
+                msg = json.dumps(popped.obj)
                 await websocket.send(msg)
             except Exception as e:
                 self.logger.error('Cannot send message. Invalid JSON. %s' % str(e))
 
-    def process(self):
+    def process(self)->None:
         pass  # nothing to do
 
     # Run in client_handler thread
-    def run(self):
+    def run(self)->None:
         asyncio.set_event_loop(self.loop)
         self.ws_server = websockets.serve(self.server_routine, self.config['host'], self.config['port'])
 
@@ -112,21 +129,21 @@ class WebsocketClientHandler:
         self.loop.run_forever()
 
     # Called from Main Thread
-    def start(self):
+    def start(self)->None:
         self.started_event.clear()
         self.thread = threading.Thread(target=self.run)
         self.thread.start()
         self.started_event.wait()   # Wait for the websocket server to start. Avoid race conditions
 
     # Called from Main Thread
-    def stop(self):
+    def stop(self)->None:
         self.logger.info('Stopping websocket listener')
         self.loop.call_soon_threadsafe(self.stop_from_thread)
         if self.thread is not None:
             self.thread.join()
 
     # Called from client_handler Thread
-    def stop_from_thread(self):
+    def stop_from_thread(self)->None:
         asyncio.ensure_future(self.async_close())
 
     async def async_close(self):
@@ -134,19 +151,18 @@ class WebsocketClientHandler:
         await self.ws_server.ws_server.wait_closed()
         self.loop.stop()
 
-    def send(self, conn_id, obj):
+    def send(self, conn_id:str, obj:Dict):
         if not self.txqueue.full():
-            container = {'conn_id': conn_id, 'obj': obj}
-            self.txqueue.put(container)
+            self.txqueue.put(ClientHandlerMessage(conn_id=conn_id, obj=obj))
 
-    def available(self):
+    def available(self)->bool:
         return not self.rxqueue.empty()
 
-    def recv(self):
+    def recv(self)->Optional[ClientHandlerMessage]:
         try:
             return self.rxqueue.get_nowait()
         except:
             pass
 
-    def make_id(self):
+    def make_id(self)->str:
         return uuid.uuid4().hex
