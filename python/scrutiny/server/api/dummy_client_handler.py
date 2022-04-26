@@ -19,14 +19,15 @@ import uuid
 from .abstract_client_handler import AbstractClientHandler, ClientHandlerConfig, ClientHandlerMessage
 from typing import Optional, Dict, List
 
+
 class DummyConnection:
 
-    conn_id:str
-    client_to_server_queue:queue.Queue
-    server_to_client_queue:queue.Queue
-    opened:bool
+    conn_id: str
+    client_to_server_queue: queue.Queue
+    server_to_client_queue: queue.Queue
+    opened: bool
 
-    def __init__(self, conn_id:Optional[str]=None):
+    def __init__(self, conn_id: Optional[str] = None):
         if conn_id is not None:
             self.conn_id = conn_id
         else:
@@ -36,44 +37,44 @@ class DummyConnection:
         self.server_to_client_queue = queue.Queue()
         self.opened = False
 
-    def open(self)->None:
+    def open(self) -> None:
         self.opened = True
 
-    def close(self)->None:
+    def close(self) -> None:
         self.opened = False
 
-    def is_open(self)->bool:
+    def is_open(self) -> bool:
         return self.opened
 
-    def write_to_client(self, msg:str)->None:
+    def write_to_client(self, msg: str) -> None:
         if self.opened:
             if not self.server_to_client_queue.full():
                 self.server_to_client_queue.put(msg)
 
-    def write_to_server(self, msg:str)->None:
+    def write_to_server(self, msg: str) -> None:
         if self.opened:
             if not self.client_to_server_queue.full():
                 self.client_to_server_queue.put(msg)
 
-    def read_from_server(self)->Optional[str]:
+    def read_from_server(self) -> Optional[str]:
         if self.opened:
             if not self.server_to_client_queue.empty():
                 return self.server_to_client_queue.get()
         return None
 
-    def read_from_client(self)->Optional[str]:
+    def read_from_client(self) -> Optional[str]:
         if self.opened:
             if not self.client_to_server_queue.empty():
                 return self.client_to_server_queue.get()
         return None
 
-    def from_server_available(self)->bool:
+    def from_server_available(self) -> bool:
         return self.opened and not self.server_to_client_queue.empty()
 
-    def from_client_available(self)->bool:
+    def from_client_available(self) -> bool:
         return self.opened and not self.client_to_server_queue.empty()
 
-    def get_id(self)->str:
+    def get_id(self) -> str:
         return self.conn_id
 
     def __repr__(self):
@@ -82,16 +83,16 @@ class DummyConnection:
 
 class DummyClientHandler(AbstractClientHandler):
 
-    rxqueue:queue.Queue
-    txqueue:queue.Queue
-    config:Dict[str,str]
-    logger:logging.Logger
-    stop_requested:bool
-    connections:List[DummyConnection]
-    connection_map:Dict[str, DummyConnection]
-    started:bool
+    rxqueue: queue.Queue
+    txqueue: queue.Queue
+    config: Dict[str, str]
+    logger: logging.Logger
+    stop_requested: bool
+    connections: List[DummyConnection]
+    connection_map: Dict[str, DummyConnection]
+    started: bool
 
-    def __init__(self, config:ClientHandlerConfig):
+    def __init__(self, config: ClientHandlerConfig):
         self.rxqueue = queue.Queue()
         self.txqueue = queue.Queue()
         self.config = config
@@ -102,28 +103,27 @@ class DummyClientHandler(AbstractClientHandler):
         self.connections = []
         self.started = False
 
-    def set_connections(self, connections:List[DummyConnection]):
+    def set_connections(self, connections: List[DummyConnection]):
         self.connections = connections
         for conn in self.connections:
             self.connection_map[conn.get_id()] = conn
 
-
-    def validate_config(self, config:ClientHandlerConfig)->None:
+    def validate_config(self, config: ClientHandlerConfig) -> None:
         if not isinstance(config, dict):
             raise ValueError('Config ust be a dict object')
 
-        required_field:List[str] = []
+        required_field: List[str] = []
         for field in required_field:
             if field not in config:
                 raise ValueError('%s : Missing config field : %s' % (self.__class__.__name__, field))
 
-    def is_connection_active(self, conn_id:str)->bool:
+    def is_connection_active(self, conn_id: str) -> bool:
         active = False
         if conn_id in self.connection_map:
             active = self.connection_map[conn_id].is_open()
         return active
 
-    def run(self)->None:
+    def run(self) -> None:
         while not self.stop_requested:
             try:
                 for conn in self.connections:
@@ -155,24 +155,24 @@ class DummyClientHandler(AbstractClientHandler):
                 raise e
             time.sleep(0.01)
 
-    def process(self)->None:
+    def process(self) -> None:
         pass  # nothing to do
 
-    def start(self)->None:
+    def start(self) -> None:
         self.thread = threading.Thread(target=self.run)
         self.thread.start()
         self.started = True
 
-    def stop(self)->None:
+    def stop(self) -> None:
         self.stop_requested = True
         self.thread.join()
 
-    def send(self, msg:ClientHandlerMessage):
+    def send(self, msg: ClientHandlerMessage):
         if not self.txqueue.full():
             self.txqueue.put(msg)
 
     def available(self):
         return not self.rxqueue.empty()
 
-    def recv(self)->Optional[ClientHandlerMessage]:
+    def recv(self) -> Optional[ClientHandlerMessage]:
         return self.rxqueue.get()

@@ -17,6 +17,7 @@ from scrutiny.server.device.request_dispatcher import RequestDispatcher, Success
 
 from typing import Optional, Tuple, Any
 
+
 class DeviceSearcher:
     logger: logging.Logger
     dispatcher: RequestDispatcher

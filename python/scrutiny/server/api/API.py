@@ -24,13 +24,16 @@ from .abstract_client_handler import AbstractClientHandler, ClientHandlerConfig,
 from scrutiny.core.typehints import GenericCallback
 from typing import Callable, Dict, List, Set, Any
 
+
 class UpdateVarCallback(GenericCallback):
-    callback:Callable[[str, DatastoreEntry], None]
+    callback: Callable[[str, DatastoreEntry], None]
+
 
 class InvalidRequestException(Exception):
     def __init__(self, req, msg):
         super().__init__(msg)
         self.req = req
+
 
 class API:
 
@@ -52,28 +55,28 @@ class API:
             WATCHABLE_UPDATE = 'watchable_update'
             ERROR_RESPONSE = 'error'
 
-    FLUSH_VARS_TIMEOUT:float = 0.1
+    FLUSH_VARS_TIMEOUT: float = 0.1
 
-    entry_type_to_str:Dict[DatastoreEntry.EntryType, str] = {
+    entry_type_to_str: Dict[DatastoreEntry.EntryType, str] = {
         DatastoreEntry.EntryType.Var: 'var',
         DatastoreEntry.EntryType.Alias: 'alias',
     }
 
-    str_to_entry_type:Dict[str, DatastoreEntry.EntryType] = {
+    str_to_entry_type: Dict[str, DatastoreEntry.EntryType] = {
         'var': DatastoreEntry.EntryType.Var,
         'alias': DatastoreEntry.EntryType.Alias
     }
 
-    datastore:Datastore
-    device_handler:DeviceHandler
-    logger:logging.Logger
-    connections:Set[str]
-    streamer:ValueStreamer
-    req_count:int
-    client_handler:AbstractClientHandler
+    datastore: Datastore
+    device_handler: DeviceHandler
+    logger: logging.Logger
+    connections: Set[str]
+    streamer: ValueStreamer
+    req_count: int
+    client_handler: AbstractClientHandler
 
     # The method to call for each command
-    ApiRequestCallbacks:Dict[str,str] = {
+    ApiRequestCallbacks: Dict[str, str] = {
         Command.Client2Api.ECHO: 'process_echo',
         Command.Client2Api.GET_WATCHABLE_LIST: 'process_get_watchable_list',
         Command.Client2Api.GET_WATCHABLE_COUNT: 'process_get_watchable_count',
@@ -81,7 +84,7 @@ class API:
         Command.Client2Api.UNSUBSCRIBE_WATCHABLE: 'process_unsubscribe_watchable'
     }
 
-    def __init__(self, config:Dict, datastore:Datastore, device_handler:DeviceHandler):
+    def __init__(self, config: Dict, datastore: Datastore, device_handler: DeviceHandler):
         self.validate_config(config)
 
         if config['client_interface_type'] == 'websocket':
@@ -98,22 +101,22 @@ class API:
         self.streamer = ValueStreamer()     # The value streamer takes cares of publishing values to the client without polling.
         self.req_count = 0
 
-    def get_client_handler(self)->AbstractClientHandler:
+    def get_client_handler(self) -> AbstractClientHandler:
         return self.client_handler
 
-    def open_connection(self, conn_id:str)->None:
+    def open_connection(self, conn_id: str) -> None:
         self.connections.add(conn_id)
         self.streamer.new_connection(conn_id)
 
-    def close_connection(self, conn_id:str)->None:
+    def close_connection(self, conn_id: str) -> None:
         self.connections.remove(conn_id)
         self.streamer.clear_connection(conn_id)
 
-    def is_new_connection(self, conn_id:str)->bool:
+    def is_new_connection(self, conn_id: str) -> bool:
         return True if conn_id not in self.connections else False
 
     # Extract a chunk of data from the value streamer and send it to the clients.
-    def stream_all_we_can(self)->None:
+    def stream_all_we_can(self) -> None:
         for conn_id in self.connections:
             chunk = self.streamer.get_stream_chunk(conn_id)     # get a list of entry to send to this connection
 
@@ -127,7 +130,7 @@ class API:
 
             self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=msg))
 
-    def validate_config(self, config:Dict[str,str]):
+    def validate_config(self, config: Dict[str, str]):
         if 'client_interface_type' not in config:
             raise ValueError('Missing entry in API config : client_interface_type ')
 
@@ -135,11 +138,11 @@ class API:
             raise ValueError('Missing entry in API config : client_interface_config')
 
     # Launch the client interface handler
-    def start_listening(self)->None:
+    def start_listening(self) -> None:
         self.client_handler.start()
 
     # to be called periodically
-    def process(self)->None:
+    def process(self) -> None:
         self.client_handler.process()
         while self.client_handler.available():
             popped = self.client_handler.recv()
@@ -164,7 +167,7 @@ class API:
 
     # Process a request gotten from the Client Handler
 
-    def process_request(self, conn_id:str, req:Dict[str,Any]):
+    def process_request(self, conn_id: str, req: Dict[str, Any]):
         try:
             self.req_count += 1
             self.logger.debug('[Conn:%s] Processing request #%d - %s' % (conn_id, self.req_count, req))
@@ -189,14 +192,14 @@ class API:
             self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
 
     # === ECHO ====
-    def process_echo(self, conn_id:str, req:Dict[str,Any])->None:
+    def process_echo(self, conn_id: str, req: Dict[str, Any]) -> None:
         if 'payload' not in req:
             raise InvalidRequestException(req, 'Missing payload')
         response = dict(cmd=self.Command.Api2Client.ECHO_RESPONSE, payload=req['payload'])
         self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
 
     #  ===  GET_WATCHABLE_LIST     ===
-    def process_get_watchable_list(self, conn_id:str, req:Dict[str,Any])->None:
+    def process_get_watchable_list(self, conn_id: str, req: Dict[str, Any]) -> None:
         # Improvement : This may be a big response. Generate multi-packet response in a worker thread
         # Not asynchronous by choice
         max_per_response = None
@@ -255,11 +258,11 @@ class API:
             self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
 
     #  ===  GET_WATCHABLE_COUNT ===
-    def process_get_watchable_count(self, conn_id:str, req:Dict[str,Any])->None:
+    def process_get_watchable_count(self, conn_id: str, req: Dict[str, Any]) -> None:
         response = {
             'cmd': self.Command.Api2Client.GET_WATCHABLE_COUNT_RESPONSE,
             'qty': {
-                'var':  self.datastore.get_entries_count(DatastoreEntry.EntryType.Var),
+                'var': self.datastore.get_entries_count(DatastoreEntry.EntryType.Var),
                 'alias': self.datastore.get_entries_count(DatastoreEntry.EntryType.Alias)
             }
         }
@@ -267,7 +270,7 @@ class API:
         self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
 
     #  ===  SUBSCRIBE_WATCHABLE ===
-    def process_subscribe_watchable(self, conn_id:str, req:Dict[str,str])->None:
+    def process_subscribe_watchable(self, conn_id: str, req: Dict[str, str]) -> None:
         if 'watchables' not in req and not isinstance(req['watchables'], list):
             raise InvalidRequestException(req, 'Invalid or missing watchables list')
 
@@ -288,7 +291,7 @@ class API:
         self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
 
     #  ===  UNSUBSCRIBE_WATCHABLE ===
-    def process_unsubscribe_watchable(self, conn_id:str, req:Dict[str,str])->None:
+    def process_unsubscribe_watchable(self, conn_id: str, req: Dict[str, str]) -> None:
         if 'watchables' not in req and not isinstance(req['watchables'], list):
             raise InvalidRequestException(req, 'Invalid or missing watchables list')
 
@@ -308,18 +311,18 @@ class API:
 
         self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
 
-    def var_update_callback(self, conn_id:str, datastore_entry:DatastoreEntry)->None:
+    def var_update_callback(self, conn_id: str, datastore_entry: DatastoreEntry) -> None:
         self.streamer.publish(datastore_entry, conn_id)
         self.stream_all_we_can()
 
-    def make_datastore_entry_definition(self, entry:DatastoreEntry)->Dict[str,str]:
+    def make_datastore_entry_definition(self, entry: DatastoreEntry) -> Dict[str, str]:
         return {
             'id': entry.get_id(),
             'type': self.entry_type_to_str[entry.get_type()],
             'display_path': entry.get_display_path(),
         }
 
-    def make_error_response(self, req:Dict[str,str], msg:str)->Dict[str, Any]:
+    def make_error_response(self, req: Dict[str, str], msg: str) -> Dict[str, Any]:
         cmd = '<empty>'
         if 'cmd' in req:
             cmd = req['cmd']
@@ -330,8 +333,8 @@ class API:
         }
         return response
 
-    def is_dict_with_key(self, d:Dict[Any,Any], k:Any):
+    def is_dict_with_key(self, d: Dict[Any, Any], k: Any):
         return isinstance(d, dict) and k in d
 
-    def close(self)->None:
+    def close(self) -> None:
         self.client_handler.stop()

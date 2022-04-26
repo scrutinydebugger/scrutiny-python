@@ -4,42 +4,43 @@ from dataclasses import dataclass
 
 ClientHandlerConfig = Dict[str, str]
 
+
 @dataclass
 class ClientHandlerMessage:
-    conn_id:str
-    obj:Dict
+    conn_id: str
+    obj: Dict
 
 
 class AbstractClientHandler:
 
     @abstractmethod
-    def __init__(self, config:ClientHandlerConfig):
+    def __init__(self, config: ClientHandlerConfig):
         pass
 
     @abstractmethod
-    def send(self, msg:ClientHandlerMessage)->None:
+    def send(self, msg: ClientHandlerMessage) -> None:
         pass
-    
-    @abstractmethod        
-    def start(self)->None:
+
+    @abstractmethod
+    def start(self) -> None:
         pass
-        
-    @abstractmethod        
-    def stop(self)->None:
+
+    @abstractmethod
+    def stop(self) -> None:
         pass
-    
-    @abstractmethod        
-    def process(self)->None:
+
+    @abstractmethod
+    def process(self) -> None:
         pass
-    
-    @abstractmethod        
-    def available(self)->bool:
+
+    @abstractmethod
+    def available(self) -> bool:
         pass
-    
-    @abstractmethod        
-    def recv(self)->Optional[ClientHandlerMessage]:
+
+    @abstractmethod
+    def recv(self) -> Optional[ClientHandlerMessage]:
         pass
-    
-    @abstractmethod        
-    def is_connection_active(self, conn_id:str)->bool:
+
+    @abstractmethod
+    def is_connection_active(self, conn_id: str) -> bool:
         pass
