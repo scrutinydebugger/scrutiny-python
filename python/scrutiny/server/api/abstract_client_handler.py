@@ -17,7 +17,7 @@ class AbstractClientHandler:
         pass
 
     @abstractmethod
-    def send(self, conn_id:str, msg:Dict)->None:
+    def send(self, msg:ClientHandlerMessage)->None:
         pass
     
     @abstractmethod        

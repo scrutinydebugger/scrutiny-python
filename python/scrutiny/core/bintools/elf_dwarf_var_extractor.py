@@ -544,7 +544,6 @@ class ElfDwarfVarExtractor:
     # Process a variable die.
     # Register a variable from it.
     def die_process_variable(self, die, location=None):
-        #import ipdb
         if location is None:
             location = self.get_location(die)
 
@@ -553,7 +552,6 @@ class ElfDwarfVarExtractor:
             self.die_process_variable(vardie, location)
 
         else:
-            # ipdb.set_trace()
             if location is not None:
                 if self.is_type_struct_or_class(die):
                     struct_die = self.get_struct_or_class_type(die)

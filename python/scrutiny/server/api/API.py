@@ -70,7 +70,7 @@ class API:
     connections:Set[str]
     streamer:ValueStreamer
     req_count:int
-    handler:AbstractClientHandler
+    client_handler:AbstractClientHandler
 
     # The method to call for each command
     ApiRequestCallbacks:Dict[str,str] = {
@@ -85,9 +85,9 @@ class API:
         self.validate_config(config)
 
         if config['client_interface_type'] == 'websocket':
-            self.handler = WebsocketClientHandler(config['client_interface_config'])
+            self.client_handler = WebsocketClientHandler(config['client_interface_config'])
         elif config['client_interface_type'] == 'dummy':
-            self.handler = DummyClientHandler(config['client_interface_config'])
+            self.client_handler = DummyClientHandler(config['client_interface_config'])
         else:
             raise NotImplementedError('Unsupported client interface type. %s', config['client_interface_type'])
 
@@ -97,6 +97,9 @@ class API:
         self.connections = set()            # Keep a list of all clients connections
         self.streamer = ValueStreamer()     # The value streamer takes cares of publishing values to the client without polling.
         self.req_count = 0
+
+    def get_client_handler(self)->AbstractClientHandler:
+        return self.client_handler
 
     def open_connection(self, conn_id:str)->None:
         self.connections.add(conn_id)
@@ -122,7 +125,7 @@ class API:
                 'updates': [dict(id=x.get_id(), value=x.get_value()) for x in chunk]
             }
 
-            self.handler.send(conn_id, msg)
+            self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=msg))
 
     def validate_config(self, config:Dict[str,str]):
         if 'client_interface_type' not in config:
@@ -133,13 +136,13 @@ class API:
 
     # Launch the client interface handler
     def start_listening(self)->None:
-        self.handler.start()
+        self.client_handler.start()
 
     # to be called periodically
     def process(self)->None:
-        self.handler.process()
-        while self.handler.available():
-            popped = self.handler.recv()
+        self.client_handler.process()
+        while self.client_handler.available():
+            popped = self.client_handler.recv()
             assert popped is not None  # make mypy happy
             conn_id = popped.conn_id
             obj = popped.obj
@@ -151,7 +154,7 @@ class API:
             self.process_request(conn_id, obj)
 
         # Close  dead connections
-        conn_to_close = [conn_id for conn_id in self.connections if not self.handler.is_connection_active(conn_id)]
+        conn_to_close = [conn_id for conn_id in self.connections if not self.client_handler.is_connection_active(conn_id)]
         for conn_id in conn_to_close:
             self.logger.debug('Closing connection %s' % conn_id)
             self.close_connection(conn_id)
@@ -179,18 +182,18 @@ class API:
         except InvalidRequestException as e:
             self.logger.debug('[Conn:%s] Invalid request #%d. %s' % (conn_id, self.req_count, str(e)))
             response = self.make_error_response(req, str(e))
-            self.handler.send(conn_id, response)
+            self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
         except Exception as e:
             self.logger.error('[Conn:%s] Unexpected error while processing request #%d. %s' % (conn_id, self.req_count, str(e)))
             response = self.make_error_response(req, 'Internal error')
-            self.handler.send(conn_id, response)
+            self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
 
     # === ECHO ====
     def process_echo(self, conn_id:str, req:Dict[str,Any])->None:
         if 'payload' not in req:
             raise InvalidRequestException(req, 'Missing payload')
         response = dict(cmd=self.Command.Api2Client.ECHO_RESPONSE, payload=req['payload'])
-        self.handler.send(conn_id, response)
+        self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
 
     #  ===  GET_WATCHABLE_LIST     ===
     def process_get_watchable_list(self, conn_id:str, req:Dict[str,Any])->None:
@@ -249,7 +252,7 @@ class API:
                 'done': done
             }
 
-            self.handler.send(conn_id, response)
+            self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
 
     #  ===  GET_WATCHABLE_COUNT ===
     def process_get_watchable_count(self, conn_id:str, req:Dict[str,Any])->None:
@@ -261,7 +264,7 @@ class API:
             }
         }
 
-        self.handler.send(conn_id, response)
+        self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
 
     #  ===  SUBSCRIBE_WATCHABLE ===
     def process_subscribe_watchable(self, conn_id:str, req:Dict[str,str])->None:
@@ -282,7 +285,7 @@ class API:
             'watchables': req['watchables']
         }
 
-        self.handler.send(conn_id, response)
+        self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
 
     #  ===  UNSUBSCRIBE_WATCHABLE ===
     def process_unsubscribe_watchable(self, conn_id:str, req:Dict[str,str])->None:
@@ -303,7 +306,7 @@ class API:
             'watchables': req['watchables']
         }
 
-        self.handler.send(conn_id, response)
+        self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
 
     def var_update_callback(self, conn_id:str, datastore_entry:DatastoreEntry)->None:
         self.streamer.publish(datastore_entry, conn_id)
@@ -331,4 +334,4 @@ class API:
         return isinstance(d, dict) and k in d
 
     def close(self)->None:
-        self.handler.stop()
+        self.client_handler.stop()

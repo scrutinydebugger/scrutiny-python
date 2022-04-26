@@ -17,7 +17,7 @@ import math
 
 from scrutiny.server.api.API import API
 from scrutiny.server.datastore import Datastore, DatastoreEntry
-from scrutiny.server.api.dummy_client_handler import DummyConnection
+from scrutiny.server.api.dummy_client_handler import DummyConnection, DummyClientHandler
 
 # todo
 # - Test rate limiter/data streamer
@@ -33,12 +33,14 @@ class TestAPI(unittest.TestCase):
         config = {
             'client_interface_type': 'dummy',
             'client_interface_config': {
-                'connections': self.connections
             }
         }
 
         self.datastore = Datastore()
         self.api = API(config, self.datastore, None)
+        client_handler = self.api.get_client_handler()
+        assert isinstance(client_handler, DummyClientHandler)
+        client_handler.set_connections(self.connections)
         self.api.start_listening()
 
     def tearDown(self):

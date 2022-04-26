@@ -157,9 +157,9 @@ class WebsocketClientHandler(AbstractClientHandler):
         await self.ws_server.ws_server.wait_closed()
         self.loop.stop()
 
-    def send(self, conn_id:str, obj:Dict):
+    def send(self, msg:ClientHandlerMessage):
         if not self.txqueue.full():
-            self.txqueue.put(ClientHandlerMessage(conn_id=conn_id, obj=obj))
+            self.txqueue.put(msg)
 
     def available(self)->bool:
         return not self.rxqueue.empty()
