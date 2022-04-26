@@ -32,7 +32,6 @@ class InvalidRequestException(Exception):
         super().__init__(msg)
         self.req = req
 
-
 class API:
 
     # List of commands that can be shared with the clients
@@ -141,7 +140,7 @@ class API:
         self.handler.process()
         while self.handler.available():
             popped = self.handler.recv()
-
+            assert popped is not None  # make mypy happy
             conn_id = popped.conn_id
             obj = popped.obj
 
@@ -162,7 +161,7 @@ class API:
 
     # Process a request gotten from the Client Handler
 
-    def process_request(self, conn_id:str, req:Dict[str,str]):
+    def process_request(self, conn_id:str, req:Dict[str,Any]):
         try:
             self.req_count += 1
             self.logger.debug('[Conn:%s] Processing request #%d - %s' % (conn_id, self.req_count, req))
@@ -187,14 +186,14 @@ class API:
             self.handler.send(conn_id, response)
 
     # === ECHO ====
-    def process_echo(self, conn_id:str, req:Dict[str,str])->None:
+    def process_echo(self, conn_id:str, req:Dict[str,Any])->None:
         if 'payload' not in req:
             raise InvalidRequestException(req, 'Missing payload')
         response = dict(cmd=self.Command.Api2Client.ECHO_RESPONSE, payload=req['payload'])
         self.handler.send(conn_id, response)
 
     #  ===  GET_WATCHABLE_LIST     ===
-    def process_get_watchable_list(self, conn_id:str, req:Dict[str,str])->None:
+    def process_get_watchable_list(self, conn_id:str, req:Dict[str,Any])->None:
         # Improvement : This may be a big response. Generate multi-packet response in a worker thread
         # Not asynchronous by choice
         max_per_response = None
@@ -253,17 +252,15 @@ class API:
             self.handler.send(conn_id, response)
 
     #  ===  GET_WATCHABLE_COUNT ===
-    def process_get_watchable_count(self, conn_id:str, req:Dict[str,str])->None:
+    def process_get_watchable_count(self, conn_id:str, req:Dict[str,Any])->None:
         response = {
             'cmd': self.Command.Api2Client.GET_WATCHABLE_COUNT_RESPONSE,
             'qty': {
-                'var': 0,
-                'alias': 0
+                'var':  self.datastore.get_entries_count(DatastoreEntry.EntryType.Var),
+                'alias': self.datastore.get_entries_count(DatastoreEntry.EntryType.Alias)
             }
         }
 
-        response['qty']['var'] = self.datastore.get_entries_count(DatastoreEntry.EntryType.Var)
-        response['qty']['alias'] = self.datastore.get_entries_count(DatastoreEntry.EntryType.Alias)
         self.handler.send(conn_id, response)
 
     #  ===  SUBSCRIBE_WATCHABLE ===
@@ -312,7 +309,7 @@ class API:
         self.streamer.publish(datastore_entry, conn_id)
         self.stream_all_we_can()
 
-    def make_datastore_entry_definition(self, entry:DatastoreEntry)->None:
+    def make_datastore_entry_definition(self, entry:DatastoreEntry)->Dict[str,str]:
         return {
             'id': entry.get_id(),
             'type': self.entry_type_to_str[entry.get_type()],

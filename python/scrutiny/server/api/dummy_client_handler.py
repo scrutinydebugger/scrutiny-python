@@ -19,7 +19,7 @@ import uuid
 from .abstract_client_handler import AbstractClientHandler, ClientHandlerConfig, ClientHandlerMessage
 
 
-class DummyConnection(AbstractClientHandler):
+class DummyConnection:
     def __init__(self, conn_id=None):
         if conn_id is not None:
             self.conn_id = conn_id
@@ -72,7 +72,7 @@ class DummyConnection(AbstractClientHandler):
         return '<%s - %s>' % (self.__class__.__name__, self.get_id())
 
 
-class DummyClientHandler:
+class DummyClientHandler(AbstractClientHandler):
     def __init__(self, config):
         self.rxqueue = queue.Queue()
         self.txqueue = queue.Queue()

@@ -17,17 +17,22 @@ import logging
 import json
 
 from .abstract_client_handler import AbstractClientHandler, ClientHandlerConfig, ClientHandlerMessage
+from scrutiny.core.typehints import GenericCallback
+from typing import List, Dict, Tuple, Any, Coroutine, Optional, Callable
 
-from typing import List, Dict, Tuple, Any, Coroutine, Optional
+WebsocketType = websockets.server.WebSocketServerProtocol
 
 class Timer:
+    class TimerCallback(GenericCallback):
+        callback:Callable[..., Coroutine]
+
     timeout:float
-    callback:Coroutine
-    args : Tuple[Any,...]
-    kwargs : Dict
-    def __init__(self, timeout:float, callback:Coroutine, *args, **kwargs):
+    callback:"TimerCallback"
+    args: Tuple[Any,...]
+    kwargs: Dict
+    def __init__(self, timeout:float, callback:Callable[..., Coroutine], *args, **kwargs):
         self.timeout = timeout
-        self.callback = callback
+        self.callback = Timer.TimerCallback(callback)
         self.args = args
         self.kwargs = kwargs
         self.start()
@@ -52,11 +57,11 @@ class WebsocketClientHandler(AbstractClientHandler):
     rxqueue:queue.Queue
     txqueue:queue.Queue
     config: ClientHandlerConfig
-    loop: asyncio.ProactorEventLoop
+    loop: asyncio.AbstractEventLoop
     logger:logging.Logger
-    #id2ws_map:Dict[str, websockets.WebSocket]
-    #ws2id_map[websockets.WebSocket, str]
-    #ws_server:Optional[websockets.WebSocketServer]
+    id2ws_map:Dict[str, WebsocketType]
+    ws2id_map:Dict[WebsocketType, str]
+    ws_server:Optional[websockets.server.Serve]
     started_event:threading.Event
 
     def __init__(self, config:ClientHandlerConfig):
@@ -70,13 +75,14 @@ class WebsocketClientHandler(AbstractClientHandler):
         self.ws_server = None
         self.started_event = threading.Event()  # This event synchronise the start of the server
 
-    async def register(self, websocket):
+    async def register(self, websocket:WebsocketType):
+        print(websocket)
         wsid = self.make_id()
         self.id2ws_map[wsid] = websocket
         self.ws2id_map[websocket] = wsid
         return wsid
 
-    async def unregister(self, websocket):
+    async def unregister(self, websocket:WebsocketType):
         wsid = self.ws2id_map[websocket]
         del self.ws2id_map[websocket]
         del self.id2ws_map[wsid]
@@ -85,7 +91,7 @@ class WebsocketClientHandler(AbstractClientHandler):
         return True if conn_id in self.id2ws_map else False
 
     # Executed for each websocket
-    async def server_routine(self, websocket, path:str):
+    async def server_routine(self, websocket:WebsocketType, path:str):
         wsid = await self.register(websocket)
         tx_sync_timer = Timer(0.05, self.process_tx_queue)
 
@@ -121,7 +127,7 @@ class WebsocketClientHandler(AbstractClientHandler):
     # Run in client_handler thread
     def run(self)->None:
         asyncio.set_event_loop(self.loop)
-        self.ws_server = websockets.serve(self.server_routine, self.config['host'], self.config['port'])
+        self.ws_server = websockets.serve(self.server_routine, self.config['host'], int(self.config['port']))
 
         self.logger.info('Starting websocket listener')
         self.loop.run_until_complete(self.ws_server)
@@ -163,6 +169,7 @@ class WebsocketClientHandler(AbstractClientHandler):
             return self.rxqueue.get_nowait()
         except:
             pass
+        return None
 
     def make_id(self)->str:
         return uuid.uuid4().hex

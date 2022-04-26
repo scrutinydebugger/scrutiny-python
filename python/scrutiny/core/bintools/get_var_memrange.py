@@ -7,7 +7,7 @@
 #
 #   Copyright (c) 2021-2022 scrutinydebugger
 
-from elftools.elf.elffile import ELFFile
+from elftools.elf.elffile import ELFFile  # type: ignore
 import sys
 
 sections = ['.data', '.bss', '.rodata']

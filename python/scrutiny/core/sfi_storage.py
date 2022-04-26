@@ -6,7 +6,7 @@
 #
 #   Copyright (c) 2021-2022 scrutinydebugger
 
-import appdirs
+import appdirs # type: ignore
 import os
 from scrutiny.core.firmware_info_file import FirmwareInfoFile
 import logging

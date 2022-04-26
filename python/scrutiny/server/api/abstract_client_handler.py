@@ -23,6 +23,10 @@ class AbstractClientHandler:
     @abstractmethod        
     def start(self)->None:
         pass
+        
+    @abstractmethod        
+    def stop(self)->None:
+        pass
     
     @abstractmethod        
     def process(self)->None:
@@ -37,5 +41,5 @@ class AbstractClientHandler:
         pass
     
     @abstractmethod        
-    def is_connection_active(self)->bool:
+    def is_connection_active(self, conn_id:str)->bool:
         pass
