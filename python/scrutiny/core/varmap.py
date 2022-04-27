@@ -13,7 +13,9 @@ import os
 import logging
 
 from scrutiny.core import Variable, VariableType, VariableEnum, VariableLocation
-from typing import Dict, TypedDict, List, Tuple, Optional, Any
+from typing import Dict, TypedDict, List, Tuple, Optional, Any, Union, Literal
+from scrutiny.core.typehints import Endianness
+from scrutiny.core.variable import VariableEnumDef
 
 
 class TypeEntry(TypedDict):
@@ -29,26 +31,20 @@ class VariableEntry(TypedDict, total=False):
     enum_id: int
 
 
-class EnumEntry(TypedDict):
-    name: str
-    vals: Dict[int, str]  # value/name
-
 # TODO : This class requires more work and unit tests
-
-
 class VarMap:
     logger: logging.Logger
-    endianness: str
+    endianness: Endianness
     typemap: Dict[str, TypeEntry]
     variables: Dict[str, VariableEntry]
-    enums: Dict[str, EnumEntry]
+    enums: Dict[str, VariableEnumDef]
 
     next_type_id: int
     next_enum_id: int
     typename2typeid_map: Dict[str, str]      # name to numeric id as string
     enums_to_id_map: Dict[VariableEnum, int]
 
-    def __init__(self, file: str = None):
+    def __init__(self, file: Union[str, bytes] = None):
         self.logger = logging.getLogger(self.__class__.__name__)
         error = None
         if file is not None:
@@ -57,6 +53,8 @@ class VarMap:
                     with open(file, 'r') as f:
                         content = json.loads(f.read())
                 else:
+                    if isinstance(file, bytes):
+                        file = file.decode('utf8')
                     content = json.loads(file)
 
                 self.validate_json(content)
@@ -104,7 +102,7 @@ class VarMap:
             enum = VariableEnum.from_def(self.enums[str(enum_id)])
             self.enums_to_id_map[enum] = enum_id
 
-    def set_endianness(self, endianness: str) -> None:
+    def set_endianness(self, endianness: Endianness) -> None:
         if endianness not in ['little', 'big']:
             raise ValueError('Invalid endianness %s' % endianness)
         self.endianness = endianness
