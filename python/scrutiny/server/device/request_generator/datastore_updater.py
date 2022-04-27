@@ -31,7 +31,7 @@ class DatastoreUpdater:
     request_pending: bool
     started: bool
 
-    def __init__(self, protocol: Protocol, dispatcher: RequestDispatcher, datastore: Datastore, read_priority: int, write_priority: int ):
+    def __init__(self, protocol: Protocol, dispatcher: RequestDispatcher, datastore: Datastore, read_priority: int, write_priority: int):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.dispatcher = dispatcher
         self.protocol = protocol
