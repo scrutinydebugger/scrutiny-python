@@ -10,12 +10,46 @@
 
 import json
 import os
+import logging
 
-from scrutiny.core import Variable, VariableType, VariableEnum
+from scrutiny.core import Variable, VariableType, VariableEnum, VariableLocation
+from typing import Dict, TypedDict, List, Tuple, Optional, Any
+
+
+class TypeEntry(TypedDict):
+    name: str
+    type: str
+
+
+class VariableEntry(TypedDict, total=False):
+    type_id: str  # integer as string because of json format that can't have a dict key as int
+    addr: int
+    bitoffset: int
+    bitsize: int
+    enum_id: int
+
+
+class EnumEntry(TypedDict):
+    name: str
+    vals: Dict[int, str]  # value/name
+
+# TODO : This class requires more work and unit tests
 
 
 class VarMap:
-    def __init__(self, file=None):
+    logger: logging.Logger
+    endianness: str
+    typemap: Dict[str, TypeEntry]
+    variables: Dict[str, VariableEntry]
+    enums: Dict[str, EnumEntry]
+
+    next_type_id: int
+    next_enum_id: int
+    typename2typeid_map: Dict[str, str]      # name to numeric id as string
+    enums_to_id_map: Dict[VariableEnum, int]
+
+    def __init__(self, file: str = None):
+        self.logger = logging.getLogger(self.__class__.__name__)
         error = None
         if file is not None:
             try:
@@ -70,16 +104,16 @@ class VarMap:
             enum = VariableEnum.from_def(self.enums[str(enum_id)])
             self.enums_to_id_map[enum] = enum_id
 
-    def set_endianness(self, endianness):
+    def set_endianness(self, endianness: str) -> None:
         if endianness not in ['little', 'big']:
             raise ValueError('Invalid endianness %s' % endianness)
         self.endianness = endianness
 
-    def write(self, filename):
+    def write(self, filename: str) -> None:
         with open(filename, 'w') as f:
             f.write(self.get_json())
 
-    def get_json(self):
+    def get_json(self) -> str:
         content = {
             'endianness': self.endianness,
             'type_map': self.typemap,
@@ -88,10 +122,10 @@ class VarMap:
         }
         return json.dumps(content, indent=4)
 
-    def validate(self):
+    def validate(self) -> None:
         pass
 
-    def validate_json(self, content):
+    def validate_json(self, content: Dict[str, Any]):
         required_fields = {
             'endianness',
             'type_map',
@@ -103,15 +137,15 @@ class VarMap:
             if field not in content:
                 raise Exception('Missing field "%s"' % field)
 
-    def add_variable(self, path_segments, name, location, original_type_name, bitsize=None, bitoffset=None, enum=None):
+    def add_variable(self, path_segments: List[str], name: str, location: VariableLocation, original_type_name: str, bitsize: Optional[int] = None, bitoffset: Optional[int] = None, enum: Optional[VariableEnum] = None):
         if not self.is_known_type(original_type_name):
             raise ValueError('Cannot add variable of type %s. Type has not been registered yet' % (original_type_name))
 
         fullname = self.make_fullname(path_segments, name)
         if fullname in self.variables:
-            logging.warning('duplicate entry %s' % fullname)
+            self.logger.warning('duplicate entry %s' % fullname)
 
-        entry = dict(
+        entry: VariableEntry = dict(
             type_id=self.get_type_id(original_type_name),
             addr=location.get_address(),
         )
@@ -124,7 +158,7 @@ class VarMap:
 
         if enum is not None:
             if enum not in self.enums_to_id_map:
-                self.enums[self.next_enum_id] = enum.get_def()
+                self.enums[str(self.next_enum_id)] = enum.get_def()
                 self.enums_to_id_map[enum] = self.next_enum_id
                 self.next_enum_id += 1
 
@@ -132,7 +166,7 @@ class VarMap:
 
         self.variables[fullname] = entry
 
-    def register_base_type(self, original_name, vartype):
+    def register_base_type(self, original_name: str, vartype: VariableType) -> None:
         if not isinstance(vartype, VariableType):
             raise ValueError('Given vartype must be an instance of VariableType')
 
@@ -143,27 +177,27 @@ class VarMap:
         else:
             typeid = self.next_type_id
             self.next_type_id += 1
-            self.typename2typeid_map[original_name] = typeid
-            self.typemap[typeid] = dict(name=original_name, type=vartype.name)
+            self.typename2typeid_map[original_name] = str(typeid)
+            self.typemap[str(typeid)] = dict(name=original_name, type=vartype.name)
 
-    def get_vartype_from_binary_name(self, binary_type_name):
+    def get_vartype_from_binary_name(self, binary_type_name: str) -> VariableType:
         typeid = self.typename2typeid_map[binary_type_name]
         vartype_name = self.typemap[typeid]['type']
         return VariableType[vartype_name]    # Enums supports square brackets to get enum from name
 
-    def has_type_id(self, typeid):
+    def has_type_id(self, typeid: int) -> bool:
         return (typeid in self.typemap)
 
-    def is_known_type(self, binary_type_name):
+    def is_known_type(self, binary_type_name: str) -> bool:
         return (binary_type_name in self.typename2typeid_map)
 
-    def get_type_id(self, binary_type_name):
+    def get_type_id(self, binary_type_name: str) -> str:
         if binary_type_name not in self.typename2typeid_map:
             raise Exception('Type name %s does not exist in the Variable Description File' % (binary_type_name))
 
-        return self.typename2typeid_map[binary_type_name]
+        return self.typename2typeid_map[binary_type_name]   # Type is an integer as string
 
-    def get_var(self, fullname):
+    def get_var(self, fullname: str) -> Variable:
         segments, name = self.make_segments(fullname)
         vardef = self.get_var_def(fullname)
 
@@ -178,46 +212,49 @@ class VarMap:
             enum=self.get_enum(vardef)
         )
 
-    def make_segments(self, fullname):
+    def make_segments(self, fullname: str) -> Tuple[List[str], str]:
         pieces = fullname.split('/')
         segments = [segment for segment in pieces[0:-1] if segment]
         name = pieces[-1]
         return (segments, name)
 
-    def make_fullname(self, path_segments, name):
+    def make_fullname(self, path_segments: List[str], name: str) -> str:
         fullname = '/'
         for segment in path_segments:
             fullname += segment + '/'
         fullname += name
         return fullname
 
-    def get_type(self, vardef):
+    def get_type(self, vardef: VariableEntry) -> VariableType:
         type_id = str(vardef['type_id'])
         if type_id not in self.typemap:
-            raise AssertionError('Variable %s refer to a type not in type map' % fullname)
+            raise AssertionError('Type "%s" refer to a type not in type map' % type_id)
         typename = self.typemap[type_id]['type']
-        return VariableType.__getattr__(typename)
+        return VariableType[typename]  # Enums support square brackets
 
-    def get_addr(self, vardef):
+    def get_addr(self, vardef: VariableEntry) -> int:
         return vardef['addr']
 
-    def get_var_def(self, fullname):
+    def get_var_def(self, fullname: str) -> VariableEntry:
         if fullname not in self.variables:
             raise ValueError('%s not in Variable Decsription File' % fullname)
         return self.variables[fullname]
 
-    def get_bitsize(self, vardef):
+    def get_bitsize(self, vardef: VariableEntry) -> Optional[int]:
         if 'bitsize' in vardef:
             return vardef['bitsize']
+        return None
 
-    def get_bitoffset(self, vardef):
+    def get_bitoffset(self, vardef: VariableEntry) -> Optional[int]:
         if 'bitoffset' in vardef:
             return vardef['bitoffset']
+        return None
 
-    def get_enum(self, vardef):
+    def get_enum(self, vardef: VariableEntry) -> Optional[VariableEnum]:
         if 'enum_id' in vardef:
             enum_id = str(vardef['enum_id'])
             if enum_id not in self.enums:
                 raise Exception("Unknown enum_id %s" % enum_id)
             enum_def = self.enums[enum_id]
             return VariableEnum.from_def(enum_def)
+        return None
