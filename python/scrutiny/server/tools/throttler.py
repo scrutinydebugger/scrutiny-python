@@ -14,7 +14,17 @@ class Throttler:
 
     MIN_BITRATE = 100
 
-    def __init__(self, mean_bitrate=0, bitrate_estimation_window=0.1):
+    enabled: bool
+    mean_bitrate: float
+    bitrate_estimation_window: float
+    slow_tau: float
+    fast_tau: float
+    last_process_timestamp: float
+    estimated_bitrate_slow: float
+    estimated_bitrate_fast: float
+    consumed_since_last_estimation: int
+
+    def __init__(self, mean_bitrate: float = 0, bitrate_estimation_window: float = 0.1):
         self.enabled = False
         self.mean_bitrate = mean_bitrate
         self.bitrate_estimation_window = bitrate_estimation_window
@@ -22,33 +32,33 @@ class Throttler:
         self.fast_tau = max(0.05, self.bitrate_estimation_window)
         self.reset()
 
-    def set_bitrate(self, mean_bitrate):
+    def set_bitrate(self, mean_bitrate: float) -> None:
         self.mean_bitrate = mean_bitrate
 
-    def enable(self):
+    def enable(self) -> None:
         if self.mean_bitrate > self.MIN_BITRATE:
             self.enabled = True
             self.reset()
             self.mean_bitrate = float(self.mean_bitrate)
         else:
-            raise ValueError('Throttler requires a bitrate of at least %bps. Actual bitrate is %dbps' % (self.MIN_BITRATE, round(self.mean_bitrate)))
+            raise ValueError('Throttler requires a bitrate of at least %dbps. Actual bitrate is %dbps' % (self.MIN_BITRATE, round(self.mean_bitrate)))
 
-    def disable(self):
+    def disable(self) -> None:
         self.enabled = False
 
-    def is_enabled(self):
+    def is_enabled(self) -> bool:
         return self.enabled
 
-    def get_bitrate(self):
+    def get_bitrate(self) -> float:
         return self.mean_bitrate
 
-    def reset(self):
+    def reset(self) -> None:
         self.last_process_timestamp = time.time()
         self.estimated_bitrate_slow = 0
         self.estimated_bitrate_fast = 0
         self.consumed_since_last_estimation = 0
 
-    def process(self):
+    def process(self) -> None:
         if not self.enabled:
             self.reset()
             return
@@ -68,10 +78,10 @@ class Throttler:
             self.consumed_since_last_estimation = 0
             self.last_process_timestamp = t
 
-    def get_estimated_bitrate(self):
+    def get_estimated_bitrate(self) -> float:
         return self.estimated_bitrate_slow
 
-    def allowed(self, delta_bandwidth):
+    def allowed(self, delta_bandwidth: int) -> bool:
         """
         Tells if it this chunk of data can be sent right now or we should wait
         """
@@ -81,7 +91,7 @@ class Throttler:
         # return self.estimated_bitrate_fast < self.mean_bitrate
         return max(self.estimated_bitrate_slow, self.estimated_bitrate_fast) < self.mean_bitrate
 
-    def possible(self, delta_bandwidth):
+    def possible(self, delta_bandwidth: int) -> bool:
         """
         Tells if it will be ever possible to send this amount of data in one chunk.
         """
@@ -90,6 +100,6 @@ class Throttler:
 
         return self.mean_bitrate > 0  # This was originally designed to prevent burst. It is not dneeded, but we keep the interface
 
-    def consume_bandwidth(self, delta_bandwidth):
+    def consume_bandwidth(self, delta_bandwidth: int) -> None:
         if self.enabled:
             self.consumed_since_last_estimation += delta_bandwidth

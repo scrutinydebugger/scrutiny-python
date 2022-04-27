@@ -16,19 +16,25 @@ import logging
 import scrutiny.core.firmware_id as firmware_id
 from scrutiny.core.varmap import VarMap
 
+from typing import List, Union, Dict, Any
+
 
 class FirmwareInfoFile:
-    varmap_filename = 'varmap.json'
-    metadata_filename = 'metadata.json'
-    firmwareid_filename = 'firmwareid'
+    varmap: VarMap
+    metadata: Dict[Any, Any]
+    firmwareid: bytes
 
-    REQUIRED_FILES = [
+    varmap_filename: str = 'varmap.json'
+    metadata_filename: str = 'metadata.json'
+    firmwareid_filename: str = 'firmwareid'
+
+    REQUIRED_FILES: List[str] = [
         firmwareid_filename,
         metadata_filename,
         varmap_filename
     ]
 
-    def __init__(self, file_folder):
+    def __init__(self, file_folder: str):
         if os.path.isdir(file_folder):
             self.load_from_folder(file_folder)
         elif os.path.isfile(file_folder):
@@ -36,7 +42,7 @@ class FirmwareInfoFile:
 
         self.validate()
 
-    def load_from_folder(self, folder):
+    def load_from_folder(self, folder: str) -> None:
         if not os.path.isdir(folder):
             raise Exception("Folder %s does not exist" % folder)
 
@@ -53,7 +59,7 @@ class FirmwareInfoFile:
 
         self.varmap = VarMap(os.path.join(folder, self.varmap_filename))
 
-    def load_from_file(self, filename):
+    def load_from_file(self, filename: str) -> None:
         with ZipFile(filename, mode='r') as fif:
             with fif.open(self.firmwareid_filename) as f:
                 self.firmwareid = bytes.fromhex(f.read().decode('ascii'))
@@ -64,19 +70,19 @@ class FirmwareInfoFile:
             with fif.open(self.varmap_filename) as f:
                 self.varmap = VarMap(f.read())
 
-    def write(self, filename):
+    def write(self, filename: str) -> None:
         with ZipFile(filename, mode='w') as outzip:
             outzip.writestr(self.firmwareid_filename, self.firmwareid.hex())
             outzip.writestr(self.metadata_filename, json.dumps(self.metadata, indent=4))
             outzip.writestr(self.varmap_filename, self.varmap.get_json())
 
-    def get_firmware_id(self, ascii=True):
+    def get_firmware_id(self, ascii: bool = True) -> Union[bytes, str]:
         if ascii:
             return self.firmwareid.hex()
         else:
             return self.firmwareid
 
-    def validate(self):
+    def validate(self) -> None:
         if not hasattr(self, 'metadata') or not hasattr(self, 'varmap') or not hasattr(self, 'firmwareid'):
             raise Exception('FirmwareInfoFile not loaded correctly')
 
@@ -84,12 +90,12 @@ class FirmwareInfoFile:
         self.validate_firmware_id()
         self.varmap.validate()
 
-    def validate_firmware_id(self):
+    def validate_firmware_id(self) -> None:
         if len(self.firmwareid) != len(firmware_id.PLACEHOLDER):
             raise Exception('Firmware ID seems to be the wrong length. Found %d bytes, expected %d bytes' %
-                            (len(project_firmware_id), len(firmware_id.PLACEHOLDER)))
+                            (len(self.firmwareid), len(firmware_id.PLACEHOLDER)))
 
-    def validate_metadata(self):
+    def validate_metadata(self) -> None:
         if 'project-name' not in self.metadata or not self.metadata['project-name']:
             logging.warning('No project name defined in %s' % self.metadata_filename)
 

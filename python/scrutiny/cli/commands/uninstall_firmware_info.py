@@ -10,6 +10,7 @@ import argparse
 
 from .base_command import BaseCommand
 from scrutiny.core.sfi_storage import SFIStorage
+from typing import Optional, List
 
 
 class UninstallFirmwareInfo(BaseCommand):
@@ -17,13 +18,16 @@ class UninstallFirmwareInfo(BaseCommand):
     _brief_ = 'Uninstall a Firmware Info file globally for the current user.'
     _group_ = 'Server'
 
-    def __init__(self, args, requested_log_level=None):
+    args: List[str]
+    parser: argparse.ArgumentParser
+
+    def __init__(self, args: List[str], requested_log_level: Optional[str] = None):
         self.args = args
         self.parser = argparse.ArgumentParser(prog=self.get_prog())
         self.parser.add_argument('firmwareid', help='Firmware ID of the Scrutiny Firmware Info')
         self.parser.add_argument('--quiet', action="store_true", help='Do not report error if not installed')
 
-    def run(self):
+    def run(self) -> Optional[int]:
         args = self.parser.parse_args(self.args)
         error = None
         try:
@@ -34,3 +38,5 @@ class UninstallFirmwareInfo(BaseCommand):
         if error is not None:
             if not args.quiet:
                 raise error
+
+        return 0

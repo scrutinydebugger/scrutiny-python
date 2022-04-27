@@ -9,6 +9,8 @@
 from enum import Enum
 from scrutiny.core import VariableType
 
+from typing import Union
+
 
 class DatalogConfiguration:
     __slots__ = '_destination', '_sample_rate', '_decimation', '_trigger', 'watches'
@@ -23,42 +25,59 @@ class DatalogConfiguration:
         CHANGE_GREATER = 6
         CHANGE_LESS = 7
 
-    class Operand:
-        class Type(Enum):
-            CONST = 1
-            WATCH = 2
+    class OperandType(Enum):
+        CONST = 1
+        WATCH = 2
 
-        def get_type_id(self):
-            return self.type.value
+    class Operand:
+        operand_type: "DatalogConfiguration.OperandType"
+
+        def get_type_id(self) -> int:
+            return self.operand_type.value
 
     class ConstOperand(Operand):
-        def __init__(self, value):
+        value: float
+        operand_type: "DatalogConfiguration.OperandType"
+
+        def __init__(self, value: float):
             self.value = value
-            self.type = self.Type.CONST
+            self.operand_type = DatalogConfiguration.OperandType.CONST
 
     class WatchOperand(Operand):
-        def __init__(self, address, length, interpret_as):
+        address: int
+        length: int
+        interpret_as: VariableType
+        operand_type: "DatalogConfiguration.OperandType"
+
+        def __init__(self, address: int, length: int, interpret_as: VariableType):
             self.address = address
             self.length = length
             self.interpret_as = VariableType(interpret_as)
-            self.type = self.Type.WATCH
+            self.operand_type = DatalogConfiguration.OperandType.WATCH
 
     class Watch:
         __slots__ = 'address', 'length'
 
-        def __init__(self, address, length):
+        address: int
+        length: int
+
+        def __init__(self, address: int, length: int):
             self.address = address
             self.length = length
 
     class Trigger:
         __slots__ = '_condition', '_operand1', '_operand2'
 
+        _condition: "DatalogConfiguration.TriggerCondition"
+        _operand1: "DatalogConfiguration.Operand"
+        _operand2: "DatalogConfiguration.Operand"
+
         @property
         def condition(self):
             return self._condition
 
         @condition.setter
-        def condition(self, val):
+        def condition(self, val: "DatalogConfiguration.TriggerCondition"):
             if not isinstance(val, DatalogConfiguration.TriggerCondition):
                 raise ValueError('Trigger condition must be an instance of TriggerCondition')
             self._condition = val
@@ -84,6 +103,12 @@ class DatalogConfiguration:
             self._operand2 = val
 
     def __init__(self):
+        watches: self.Watch
+        _trigger: "DatalogConfiguration.Trigger"
+        _destination: int
+        _sample_rate: Union[int, float]
+        _decimation: int
+
         self.watches = []
         self._trigger = self.Trigger()
 
@@ -105,7 +130,7 @@ class DatalogConfiguration:
         return self._sample_rate
 
     @sample_rate.setter
-    def sample_rate(self, val):
+    def sample_rate(self, val: Union[int, float]):
         if not isinstance(val, (int, float)):
             raise ValueError('sample_rate must be a a numeric value')
 
@@ -119,7 +144,7 @@ class DatalogConfiguration:
         return self._decimation
 
     @decimation.setter
-    def decimation(self, val):
+    def decimation(self, val: int):
         if not isinstance(val, int):
             raise ValueError('decimation must be an integer')
 
@@ -133,30 +158,34 @@ class DatalogConfiguration:
         return self._trigger
 
     @trigger.setter
-    def trigger(self, val):
-        if not isinstance(val, self.Trigger):
+    def trigger(self, val: "DatalogConfiguration.Trigger"):
+        if not isinstance(val, DatalogConfiguration.Trigger):
             raise ValueError('trigger must be an instance of DatalogConfiguration.Trigger')
 
         self._trigger = val
 
 
 class DatalogLocation:
-    class Type(Enum):
+    _target_id: int
+    _location_type: "DatalogLocation.LocationType"
+    _name: str
+
+    class LocationType(Enum):
         RAM = 0
         ROM = 1
         EXTERNAL = 2
 
-    def __init__(self, target_id, location_type, name):
+    def __init__(self, target_id: int, location_type: "DatalogLocation.LocationType", name: str):
         self.target_id = target_id
         self.location_type = location_type
         self.name = name
 
     @property
-    def target_id(self):
+    def target_id(self) -> int:
         return self._target_id
 
     @target_id.setter
-    def target_id(self, val):
+    def target_id(self, val) -> None:
         if not isinstance(val, int):
             raise ValueError('Target ID must be an integer')
 
@@ -166,22 +195,22 @@ class DatalogLocation:
         self._target_id = val
 
     @property
-    def location_type(self):
+    def location_type(self) -> "DatalogLocation.LocationType":
         return self._location_type
 
     @location_type.setter
-    def location_type(self, val):
-        if not isinstance(val, self.Type):
-            raise ValueError('Target type must be an instance of DatalogTarget.Type')
+    def location_type(self, val: "DatalogLocation.LocationType"):
+        if not isinstance(val, DatalogLocation.LocationType):
+            raise ValueError('Target type must be an instance of DatalogLocation.LocationType')
 
         self._location_type = val
 
     @property
-    def name(self):
+    def name(self) -> str:
         return self._name
 
     @name.setter
-    def name(self, val):
+    def name(self, val: str) -> None:
         if not isinstance(val, str):
             raise ValueError('Target name must be an ascii string')
 
@@ -199,32 +228,36 @@ class LogStatus(Enum):
 
 
 class RecordInfo:
-    def __init__(self, record_id, location_type, size):
+    _record_id: int
+    _location_type: "DatalogLocation.LocationType"
+    _size: int
+
+    def __init__(self, record_id: int, location_type: "DatalogLocation.LocationType", size: int):
         self.record_id = record_id
         self.location_type = location_type
         self.size = size
 
     @property
-    def location_type(self):
+    def location_type(self) -> "DatalogLocation.LocationType":
         return self._location_type
 
     @location_type.setter
-    def location_type(self, val):
+    def location_type(self, val: "DatalogLocation.LocationType") -> None:
         if isinstance(val, int):
-            val = DatalogLocation.Type(val)
+            val = DatalogLocation.LocationType(val)
 
-        if not isinstance(val, DatalogLocation.Type):
+        if not isinstance(val, DatalogLocation.LocationType):
             print(val)
-            raise ValueError('location_type must be a valid DatalogLocation.Type')
+            raise ValueError('location_type must be a valid DatalogLocation.LocationType')
 
         self._location_type = val
 
     @property
-    def record_id(self):
+    def record_id(self) -> int:
         return self._record_id
 
     @record_id.setter
-    def record_id(self, val):
+    def record_id(self, val: int) -> None:
         if not isinstance(val, int):
             raise ValueError('record_id must be an integer')
 
@@ -234,11 +267,11 @@ class RecordInfo:
         self._record_id = val
 
     @property
-    def size(self):
+    def size(self) -> int:
         return self._size
 
     @size.setter
-    def size(self, val):
+    def size(self, val: int) -> None:
         if not isinstance(val, int):
             raise ValueError('size must be an integer')
 

@@ -1,7 +1,7 @@
 #    device_handler.py
 #        Manage the communication with the device at high level.
 #        Try to establish a connection, once it succeed, reads the device configuration.
-#        
+#
 #        Will keep the communication ongoing and will request for memory dump based on the
 #        Datastore state
 #
@@ -18,23 +18,70 @@ import binascii
 from enum import Enum
 import traceback
 
+from scrutiny.server.protocol import *
 from scrutiny.server.protocol.comm_handler import CommHandler
-from scrutiny.server.protocol import Protocol, ResponseCode, Request
 from scrutiny.server.protocol.commands import DummyCommand
-from scrutiny.server.device.request_dispatcher import RequestDispatcher
+from scrutiny.server.device.request_dispatcher import RequestDispatcher, RequestRecord, SuccessCallback, FailureCallback
 from scrutiny.server.device.request_generator.device_searcher import DeviceSearcher
 from scrutiny.server.device.request_generator.heartbeat_generator import HeartbeatGenerator
-from scrutiny.server.device.request_generator.info_poller import InfoPoller
+from scrutiny.server.device.request_generator.info_poller import InfoPoller, ProtocolVersionCallback, CommParamCallback
 from scrutiny.server.device.request_generator.session_initializer import SessionInitializer
 from scrutiny.server.device.request_generator.datastore_updater import DatastoreUpdater
-from scrutiny.core.firmware_id import PLACEHOLDER as DEFAULT_FIRMWARE_ID
+from scrutiny.server.device.device_info import DeviceInfo
+
 from scrutiny.server.tools import Timer
+from scrutiny.server.datastore import Datastore
+from scrutiny.server.datastore import Datastore
+from scrutiny.server.device.links import AbstractLink
+from scrutiny.core.firmware_id import PLACEHOLDER as DEFAULT_FIRMWARE_ID
+
+
+from typing import TypedDict, Optional, Callable, Type, Any
+from scrutiny.core.typehints import GenericCallback
 
 DEFAULT_FIRMWARE_ID_ASCII = binascii.hexlify(DEFAULT_FIRMWARE_ID).decode('ascii')
 
 
+class DisconnectCallback(GenericCallback):
+    callback: Callable[[bool], None]
+
+
+class DeviceHandlerParams(TypedDict, total=False):
+    response_timeout: float
+    heartbeat_timeout: float
+    default_address_size: int
+    default_protocol_version: str
+    link_type: str
+    link_config: Any
+
+
 class DeviceHandler:
-    DEFAULT_PARAMS = {
+    logger: logging.Logger
+    config: DeviceHandlerParams
+    dispatcher: RequestDispatcher
+    device_searcher: DeviceSearcher
+    session_initializer: SessionInitializer
+    heartbeat_generator: HeartbeatGenerator
+    datastore_updater: DatastoreUpdater
+    info_poller: InfoPoller
+    comm_handler: CommHandler
+    protocol: Protocol
+    datastore: Datastore
+    device_info: Optional[DeviceInfo]
+    comm_broken: bool
+    device_id: Optional[str]
+    operating_mode: "DeviceHandler.OperatingMode"
+    connected: bool
+    fsm_state: "DeviceHandler.FsmState"
+    last_fsm_state: "DeviceHandler.FsmState"
+    active_request_record: Optional[RequestRecord]
+    session_id: Optional[int]
+    disconnection_requested: bool
+    disconnect_callback: Optional[DisconnectCallback]
+    disconnect_complet: bool
+    comm_broken_count: int
+
+    DEFAULT_PARAMS: DeviceHandlerParams = {
         'response_timeout': 1.0,    # If a response take more than this delay to be received after a request is sent, drop the response.
         'heartbeat_timeout': 4.0,
         'default_address_size': 32,
@@ -70,7 +117,7 @@ class DeviceHandler:
         Normal = 0
         Test_CheckThrottling = 1
 
-    def __init__(self, config, datastore):
+    def __init__(self, config: DeviceHandlerParams, datastore: Datastore):
         self.logger = logging.getLogger(self.__class__.__name__)
 
         self.config = copy.copy(self.DEFAULT_PARAMS)
@@ -78,7 +125,7 @@ class DeviceHandler:
         self.datastore = datastore
         self.dispatcher = RequestDispatcher()
         (major, minor) = self.config['default_protocol_version'].split('.')
-        self.protocol = Protocol(major, minor)
+        self.protocol = Protocol(int(major), int(minor))
         self.device_searcher = DeviceSearcher(self.protocol, self.dispatcher, priority=self.RequestPriority.Discover)
         self.session_initializer = SessionInitializer(self.protocol, self.dispatcher, priority=self.RequestPriority.Connect)
         self.heartbeat_generator = HeartbeatGenerator(self.protocol, self.dispatcher, priority=self.RequestPriority.Heatbeat)
@@ -86,9 +133,10 @@ class DeviceHandler:
             self.protocol,
             self.dispatcher,
             priority=self.RequestPriority.PollInfo,
-            protocol_version_callback=self.get_protocol_version_callback,  # Called when protocol version is polled
-            comm_param_callback=self.get_comm_params_callback,            # Called when communication params are polled
+            protocol_version_callback=ProtocolVersionCallback(self.get_protocol_version_callback),  # Called when protocol version is polled
+            comm_param_callback=CommParamCallback(self.get_comm_params_callback),            # Called when communication params are polled
         )
+
         self.datastore_updater = DatastoreUpdater(self.protocol, self.dispatcher, self.datastore,
                                                   read_priority=self.RequestPriority.ReadMemory, write_priority=self.RequestPriority.WriteMemory)
 
@@ -101,25 +149,25 @@ class DeviceHandler:
 
         self.reset_comm()
 
-    def set_operating_mode(self, mode):
+    def set_operating_mode(self, mode: "DeviceHandler.OperatingMode"):
         if not isinstance(mode, self.OperatingMode):
             raise ValueError('mode must be an instance of DeviceHandler.OperatingMode')
 
         self.operating_mode = mode
 
-    def get_device_info(self):
+    def get_device_info(self) -> Optional[DeviceInfo]:
         return copy.copy(self.device_info)
 
-    def get_comm_error_count(self):
+    def get_comm_error_count(self) -> int:
         return self.comm_broken_count
 
-    def is_throttling_enabled(self):
+    def is_throttling_enabled(self) -> bool:
         return self.comm_handler.is_throttling_enabled()
 
-    def get_throttling_bitrate(self):
+    def get_throttling_bitrate(self) -> float:
         return self.comm_handler.get_throttling_bitrate()
 
-    def get_comm_params_callback(self, partial_device_info):
+    def get_comm_params_callback(self, partial_device_info: DeviceInfo):
         # In the POLLING_INFO stage, there is a point where we will have gotten the communication params.
         # This callback is called right after it so we can adapt.
         # We can raise exception here.
@@ -156,7 +204,7 @@ class DeviceHandler:
         self.protocol.set_address_size_bits(partial_device_info.address_size_bits)
         self.heartbeat_generator.set_interval(max(0.5, float(partial_device_info.heartbeat_timeout_us) / 1000000.0 * 0.75))
 
-    def get_protocol_version_callback(self, major, minor):
+    def get_protocol_version_callback(self, major: int, minor: int):
         # In the POLLING_INFO stage, there is a point where we will have gotten the communication params.
         # This callback is called right after it so we can adapt.
         # We can raise exception here.
@@ -170,7 +218,7 @@ class DeviceHandler:
 
     # Tells the state of our connection with the device.
 
-    def get_connection_status(self):
+    def get_connection_status(self) -> "DeviceHandler.ConnectionStatus":
         if self.connected:
             if self.fsm_state == self.FsmState.READY:
                 return self.ConnectionStatus.CONNECTED_READY
@@ -188,11 +236,11 @@ class DeviceHandler:
 
         return self.ConnectionStatus.UNKNOWN
 
-    def get_comm_link(self):
+    def get_comm_link(self) -> Optional[AbstractLink]:
         return self.comm_handler.get_link()
 
     # Set communication state to a fresh start.
-    def reset_comm(self):
+    def reset_comm(self) -> None:
         if self.comm_broken and self.device_id is not None:
             self.logger.info('Communication with device stopped. Searching for a new device')
 
@@ -201,6 +249,7 @@ class DeviceHandler:
         self.last_fsm_state = self.FsmState.INIT
         self.active_request_record = None
         self.device_id = None
+        self.device_info = None
         self.comm_broken = False
         self.device_searcher.stop()
         self.heartbeat_generator.stop()
@@ -219,9 +268,11 @@ class DeviceHandler:
         self.comm_handler.disable_throttling()
 
     # Open communication channel based on config
-    def init_comm(self):
+    def init_comm(self) -> None:
+        link_class: Type[AbstractLink]
+
         if self.config['link_type'] == 'none':
-            return
+            return None
 
         if self.config['link_type'] == 'udp':
             from .links.udp_link import UdpLink
@@ -239,22 +290,22 @@ class DeviceHandler:
         self.comm_handler.open(device_link)
         self.reset_comm()
 
-    def send_disconnect(self, disconnect_callback=None):
+    def send_disconnect(self, disconnect_callback: Optional[DisconnectCallback] = None):
         self.logger.debug('Disconnection requested.')
         self.disconnection_requested = True
         self.disconnect_callback = disconnect_callback
 
     # Stop all communication with the device
-    def stop_comm(self):
+    def stop_comm(self) -> None:
         if self.comm_handler is not None:
             self.comm_handler.close()
         self.reset_comm()
 
-    def refresh_vars(self):
+    def refresh_vars(self) -> None:
         pass
 
     # To be called periodically
-    def process(self):
+    def process(self) -> None:
         self.device_searcher.process()
         self.heartbeat_generator.process()
         self.info_poller.process()
@@ -265,13 +316,13 @@ class DeviceHandler:
         self.handle_comm()      # Make sure request and response are being exchanged with the device
         self.do_state_machine()
 
-    def reset_bitrate_monitor(self):
+    def reset_bitrate_monitor(self) -> None:
         self.comm_handler.reset_bitrate_monitor()
 
-    def get_average_bitrate(self):
+    def get_average_bitrate(self) -> float:
         return self.comm_handler.get_average_bitrate()
 
-    def exec_ready_task(self, state_entry=False):
+    def exec_ready_task(self, state_entry: bool = False) -> None:
         if self.operating_mode == self.OperatingMode.Normal:
             if state_entry:
                 self.datastore_updater.start()
@@ -279,25 +330,22 @@ class DeviceHandler:
         elif self.operating_mode == self.OperatingMode.Test_CheckThrottling:
             if self.dispatcher.peek_next() is None:
                 dummy_request = Request(DummyCommand, subfn=1, payload=b'\x00' * 32, response_payload_size=32);
-                self.dispatcher.register_request(dummy_request, success_callback=lambda *args, **
-                                                 kwargs: None, failure_callback=self.test_failure_callback)
+                self.dispatcher.register_request(dummy_request, success_callback=SuccessCallback(
+                    lambda *args, **kwargs: None), failure_callback=FailureCallback(self.test_failure_callback))
 
-    def test_failure_callback(self, request, params):
+    def test_failure_callback(self, request: Request, params: Any) -> None:
         if self.operating_mode == self.OperatingMode.Test_CheckThrottling:
             self.logger.error('Dummy Command failed to be achieved. Stopping test')
             self.comm_broken = True
 
-    def do_state_machine(self):
+    def do_state_machine(self) -> None:
         if self.comm_broken:
             self.comm_broken_count += 1
             self.fsm_state = self.FsmState.INIT
 
-        if self.connected:
-            time.time() - self.heartbeat_generator.last_valid_heartbeat_timestamp() > self.config['heartbeat_timeout']
-
         # ===   FSM  ===
-        state_entry = True if self.fsm_state != self.last_fsm_state else False
-        next_state = self.fsm_state
+        state_entry: bool = True if self.fsm_state != self.last_fsm_state else False
+        next_state: "DeviceHandler.FsmState" = self.fsm_state
         if self.fsm_state == self.FsmState.INIT:
             self.reset_comm()
             if self.comm_handler.is_open():
@@ -321,9 +369,11 @@ class DeviceHandler:
                         self.logger.warning(
                             "Firmware ID of this device is a default placeholder. Firmware might not have been tagged with a valid ID in the build toolchain.")
 
-                    (major, minor) = self.device_searcher.get_device_protocol_version()
-                    self.logger.info('Configuring protocol to V%d.%d' % (major, minor))
-                    self.protocol.set_version(major, minor)   # This may raise an exception
+                    version = self.device_searcher.get_device_protocol_version()
+                    if version is not None:
+                        (major, minor) = version
+                        self.logger.info('Configuring protocol to V%d.%d' % (major, minor))
+                        self.protocol.set_version(major, minor)   # This may raise an exception
 
             if self.device_id is not None:
                 self.device_searcher.stop()
@@ -339,12 +389,13 @@ class DeviceHandler:
             if self.session_initializer.connection_successful():
                 self.session_initializer.stop()
                 self.session_id = self.session_initializer.get_session_id()
-                self.logger.debug("Session ID set : 0x%08x" % self.session_id)
+                session_id_str = 'None' if self.session_id is None else '0x%08x' % self.session_id
+                self.logger.debug("Session ID set : %s" % session_id_str)
                 self.heartbeat_generator.set_session_id(self.session_id)
                 self.heartbeat_generator.start()    # This guy will send recurrent heartbeat request. If that request fails (timeout), comm will be reset
                 self.connected = True
-                self.logger.info('Connected to device "%s" (ID: %s) with session ID 0x%08X' %
-                                 (self.device_display_name, self.device_id, self.session_id))
+                self.logger.info('Connected to device "%s" (ID: %s) with session ID %s' %
+                                 (self.device_display_name, self.device_id, session_id_str))
                 next_state = self.FsmState.POLLING_INFO
             elif self.session_initializer.is_in_error():
                 self.session_initializer.stop()
@@ -368,7 +419,7 @@ class DeviceHandler:
                 self.device_info = self.info_poller.get_device_info()   # Make a copy if the data fetched by the infoPoller
                 self.info_poller.stop()
 
-                if not self.device_info.all_ready():    # No property should be None
+                if self.device_info is None or not self.device_info.all_ready():    # No property should be None
                     self.logger.error('Data polled from device is incomplete. Restarting communication. %s')
                     self.logger.debug(str(self.device_info))
                     next_state = self.FsmState.INIT
@@ -395,14 +446,14 @@ class DeviceHandler:
             if state_entry:
                 self.disconnect_complete = False
 
-            if not self.connected:
+            if not self.connected or self.session_id is None:
                 next_state = self.FsmState.INIT
             else:
                 if state_entry:
                     self.dispatcher.register_request(
                         request=self.protocol.comm_disconnect(self.session_id),
-                        success_callback=self.disconnect_complete_success,
-                        failure_callback=self.disconnect_complete_failure,
+                        success_callback=SuccessCallback(self.disconnect_complete_success),
+                        failure_callback=FailureCallback(self.disconnect_complete_failure),
                         priority=self.RequestPriority.Disconnect
                     )
 
@@ -419,18 +470,18 @@ class DeviceHandler:
             self.logger.debug('Moving FSM to state %s' % next_state)
         self.fsm_state = next_state
 
-    def disconnect_complete_success(self, request, response_code, response_data, params=None):
+    def disconnect_complete_success(self, request: Request, response_code: ResponseCode, response_data: ResponseData, params: Any = None):
         self.disconnect_complete = True
         if self.disconnect_callback is not None:
             self.disconnect_callback.__call__(True)
 
-    def disconnect_complete_failure(request, params=None):
+    def disconnect_complete_failure(self, request: Request, params: Any = None):
         self.disconnect_complete = True
         if self.disconnect_callback is not None:
             self.disconnect_callback.__call__(False)
 
-    def handle_comm(self):
-        done = False
+    def handle_comm(self) -> None:
+        done: bool = False
         while not done:
             done = True
             self.comm_handler.process()     # Process reception

@@ -8,9 +8,12 @@
 
 from enum import Enum
 import struct
+from abc import ABC, abstractmethod
 
+from typing import Dict, Union, List, Literal, Optional, TypedDict, Any
+from scrutiny.core.typehints import Endianness
 
-MASK_MAP = {}
+MASK_MAP: Dict[int, int] = {}
 for i in range(63):
     v = 0
     for j in range(i):
@@ -19,26 +22,26 @@ for i in range(63):
 
 
 class VariableLocation:
-    def __init__(self, address):
+    def __init__(self, address: int):
         if not isinstance(address, int):
             raise ValueError('Address must be a valid integer')
 
         self.address = address
 
-    def get_address(self):
+    def get_address(self) -> int:
         return self.address
 
-    def add_offset(self, offset):
+    def add_offset(self, offset: int):
         self.address += offset
 
     @classmethod
-    def check_endianness(cls, endianness):
+    def check_endianness(cls, endianness: Endianness):
         if endianness not in ['little', 'big']:
             raise ValueError('Invalid endianness "%s" ' % endianness)
 
     @classmethod
-    def from_bytes(cls, data, endianness):
-        if isinstance(data, list):
+    def from_bytes(cls, data: Union[bytes, List[int], bytearray], endianness: Endianness):
+        if isinstance(data, list) or isinstance(data, bytearray):
             data = bytes(data)
         if not isinstance(data, bytes):
             raise ValueError('Data must be bytes, not %s' % (data.__class__.__name__))
@@ -50,10 +53,10 @@ class VariableLocation:
         address = int.from_bytes(data, byteorder=endianness, signed=False)
         return cls(address)
 
-    def copy(self):
+    def copy(self) -> 'VariableLocation':
         return VariableLocation(self.get_address())
 
-    def __str(self):
+    def __str__(self):
         return str(self.get_address())
 
     def __repr__(self):
@@ -88,8 +91,8 @@ class VariableType(Enum):
     boolean = 40
     struct = 41
 
-    def get_size_bit(self):
-        sizemap = {
+    def get_size_bit(self) -> Optional[int]:
+        sizemap: Dict[VariableType, Optional[int]] = {
             self.__class__.sint8: 8,
             self.__class__.uint8: 8,
             self.__class__.float8: 8,
@@ -127,185 +130,39 @@ class VariableType(Enum):
         return sizemap[self]
 
 
-class Variable:
-
-    class BaseDecoder:
-        def __init__(self):
-            pass
-
-    class SIntDecoder(BaseDecoder):
-        str_map = {
-            1: 'b',
-            2: 'h',
-            4: 'l',
-            8: 'q'
-        }
-
-        def __init__(self, size):
-            super().__init__()
-            if size not in self.str_map:
-                raise NotImplementedError('Does not support signed int of %d bytes', size)
-            self.str = self.str_map[size]
-
-        def decode(self, data, endianness):
-            endianness_char = '<' if endianness == 'little' else '>'
-            return struct.unpack(endianness_char + self.str, data)[0]
-
-    class UIntDecoder(BaseDecoder):
-        str_map = {
-            1: 'B',
-            2: 'H',
-            4: 'L',
-            8: 'Q'
-        }
-
-        def __init__(self, size):
-            super().__init__()
-            if size not in self.str_map:
-                raise NotImplementedError('Does not support signed int of %d bytes', size)
-            self.str = self.str_map[size]
-
-        def decode(self, data, endianness):
-            endianness_char = '<' if endianness == 'little' else '>'
-            return struct.unpack(endianness_char + self.str, data)[0]
-
-    class FloatDecoder(BaseDecoder):
-        str_map = {
-            4: 'f',
-            8: 'd'
-        }
-
-        def __init__(self, size):
-            super().__init__()
-            if size not in self.str_map:
-                raise NotImplementedError('Does not support float of %d bytes', size)
-            self.str = self.str_map[size]
-
-        def decode(self, data, endianness):
-            endianness_char = '<' if endianness == 'little' else '>'
-            return struct.unpack(endianness_char + self.str, data)[0]
-
-    class BoolDecoder(BaseDecoder):
-        def __init__(self):
-            super().__init__()
-
-        def decode(self, data, endianness,):
-            return True if data[0] != 0 else False
-
-    class NotImplementedDecoder:
-        def __init__(self, type_name):
-            self.type_name = type_name
-
-        def decode(self, data, endianness):
-            raise NotImplementedError('Decoding data for type %s is not supported yet' % self.type_name)
-
-    TYPE_TO_DECODER_MAP = {
-        VariableType.sint8: SIntDecoder(1),
-        VariableType.sint16: SIntDecoder(2),
-        VariableType.sint32: SIntDecoder(4),
-        VariableType.sint64: SIntDecoder(8),
-        VariableType.sint128: NotImplementedDecoder(VariableType.sint128.name),
-        VariableType.sint256: NotImplementedDecoder(VariableType.sint256.name),
-
-        VariableType.uint8: UIntDecoder(1),
-        VariableType.uint16: UIntDecoder(2),
-        VariableType.uint32: UIntDecoder(4),
-        VariableType.uint64: UIntDecoder(8),
-        VariableType.uint128: NotImplementedDecoder(VariableType.uint128.name),
-        VariableType.uint256: NotImplementedDecoder(VariableType.uint256.name),
-
-        VariableType.float8: NotImplementedDecoder(VariableType.float8.name),
-        VariableType.float16: NotImplementedDecoder(VariableType.float16.name),
-        VariableType.float32: FloatDecoder(4),
-        VariableType.float64: FloatDecoder(8),
-        VariableType.float128: NotImplementedDecoder(VariableType.float128.name),
-        VariableType.float256: NotImplementedDecoder(VariableType.float256.name),
-
-        VariableType.cfloat8: NotImplementedDecoder(VariableType.cfloat8.name),
-        VariableType.cfloat16: NotImplementedDecoder(VariableType.cfloat16.name),
-        VariableType.cfloat32: NotImplementedDecoder(VariableType.cfloat32.name),
-        VariableType.cfloat64: NotImplementedDecoder(VariableType.cfloat64.name),
-        VariableType.cfloat128: NotImplementedDecoder(VariableType.cfloat128.name),
-        VariableType.cfloat256: NotImplementedDecoder(VariableType.cfloat256.name),
-
-        VariableType.boolean: BoolDecoder(),
-    }
-
-    def __init__(self, name, vartype, path_segments, location, endianness, bitsize=None, bitoffset=None, enum=None):
-
-        self.name = name
-        self.vartype = vartype
-        self.path_segments = path_segments
-        if isinstance(location, VariableLocation):
-            self.location = location.copy()
-        else:
-            self.location = VariableLocation(location)
-        self.endianness = endianness
-
-        if bitoffset is not None and bitsize is None:
-            bitsize = self.vartype.get_size_bit() - bitoffset
-        elif bitoffset is None and bitsize is not None:
-            bitoffset = 0
-        self.bitfield = False if bitoffset is None and bitsize is None else True
-        self.bitsize = bitsize
-        self.bitoffset = bitoffset
-        self.enum = enum
-
-    def decode(self, data):
-        decoded = self.TYPE_TO_DECODER_MAP[self.vartype].decode(data, self.endianness)
-        if self.bitfield:
-            decoded >>= self.bitoffset
-            decoded &= MASK_MAP[self.bitsize]
-        return decoded
-
-    def get_fullname(self):
-        if len(self.path_segments) == 0:
-            path_str = '/'
-        else:
-            path_str = '/' + '/'.join(self.path_segments)
-        return '%s/%s' % (path_str, self.name)
-
-    def get_type(self):
-        return self.vartype
-
-    def get_path_segments(self):
-        return self.path_segments
-
-    def get_address(self):
-        return self.location.get_address()
-
-    def get_size(self):
-        return int(self.vartype.get_size_bit() / 8)
-
-    def __repr__(self):
-        return '<%s - %s (%s) @ %s>' % (self.__class__.__name__, self.get_fullname(), self.vartype, self.location)
+class VariableEnumDef(TypedDict):
+    name: str
+    values: Dict[int, str]
 
 
 class VariableEnum:
 
-    def __init__(self, name):
+    name: str
+    vals: Dict[int, str]
+
+    def __init__(self, name: str):
         self.name = name
         self.vals = {}
 
-    def add_value(self, value, name):
+    def add_value(self, value: int, name: str) -> None:
         if value in self.vals and self.vals[value] != name:
             raise Exception('Duplicate entry for enum %s. %s can either be %s or %s' % (self.name, value, self.vals[value], name))
         self.vals[value] = name
 
-    def get_name(self, value):
+    def get_name(self, value: int) -> str:
         if value not in self.vals:
-            return None
+            raise Exception('%d is not a valid value for enum %s' % (value, self.name))
         return self.vals[value]
 
-    def get_def(self):
-        obj = {
+    def get_def(self) -> VariableEnumDef:
+        obj: VariableEnumDef = {
             'name': self.name,
             'values': self.vals
         }
         return obj
 
     @classmethod
-    def from_def(cls, enum_def):
+    def from_def(cls, enum_def: VariableEnumDef):
         obj = cls(enum_def['name'])
         obj.vals = {}
         for k in enum_def['values']:
@@ -319,7 +176,15 @@ class VariableEnum:
 
 class Struct:
     class Member:
-        def __init__(self, name, is_substruct=False, original_type_name=None, byte_offset=None, bitoffset=None, bitsize=None, substruct=None):
+        name: str
+        is_substruct: bool
+        original_type_name: Optional[str]
+        bitoffset: Optional[int]
+        byte_offset: Optional[int]
+        bitsize: Optional[int]
+        substruct: Optional['Struct']
+
+        def __init__(self, name: str, is_substruct: bool = False, original_type_name: Optional[str] = None, byte_offset: Optional[int] = None, bitoffset: Optional[int] = None, bitsize: Optional[int] = None, substruct: Optional['Struct'] = None):
 
             if not is_substruct:
                 if original_type_name is None:
@@ -355,7 +220,10 @@ class Struct:
             self.bitsize = bitsize
             self.substruct = substruct
 
-    def __init__(self, name):
+    name: str
+    members: Dict[str, Union['Struct', 'Struct.Member']]
+
+    def __init__(self, name: str):
         self.name = name
         self.members = {}
 
@@ -367,3 +235,199 @@ class Struct:
             raise ValueError('Node must be a member or a substruct')
 
         self.members[member.name] = member
+
+
+class Variable:
+
+    class BaseDecoder(ABC):
+        def __init__(self):
+            pass
+
+        @abstractmethod
+        def decode(self, data: Union[bytes, bytearray], endianness: Endianness) -> Union[int, float, bool, None]:
+            pass
+
+    class SIntDecoder(BaseDecoder):
+        str_map = {
+            1: 'b',
+            2: 'h',
+            4: 'l',
+            8: 'q'
+        }
+
+        def __init__(self, size: int):
+            super().__init__()
+            if size not in self.str_map:
+                raise NotImplementedError('Does not support signed int of %d bytes', size)
+            self.str = self.str_map[size]
+
+        def decode(self, data: Union[bytes, bytearray], endianness: Endianness) -> int:
+            endianness_char = '<' if endianness == 'little' else '>'
+            return struct.unpack(endianness_char + self.str, data)[0]
+
+    class UIntDecoder(BaseDecoder):
+        str_map = {
+            1: 'B',
+            2: 'H',
+            4: 'L',
+            8: 'Q'
+        }
+
+        def __init__(self, size):
+            super().__init__()
+            if size not in self.str_map:
+                raise NotImplementedError('Does not support signed int of %d bytes', size)
+            self.str = self.str_map[size]
+
+        def decode(self, data: Union[bytes, bytearray], endianness: Endianness) -> int:
+            endianness_char = '<' if endianness == 'little' else '>'
+            return struct.unpack(endianness_char + self.str, data)[0]
+
+    class FloatDecoder(BaseDecoder):
+        str_map = {
+            4: 'f',
+            8: 'd'
+        }
+
+        def __init__(self, size):
+            super().__init__()
+            if size not in self.str_map:
+                raise NotImplementedError('Does not support float of %d bytes', size)
+            self.str = self.str_map[size]
+
+        def decode(self, data: Union[bytes, bytearray], endianness: Endianness) -> float:
+            endianness_char = '<' if endianness == 'little' else '>'
+            return struct.unpack(endianness_char + self.str, data)[0]
+
+    class BoolDecoder(BaseDecoder):
+        def __init__(self):
+            super().__init__()
+
+        def decode(self, data: Union[bytes, bytearray], endianness: Endianness) -> bool:
+            return True if data[0] != 0 else False
+
+    class NotImplementedDecoder(BaseDecoder):
+        def __init__(self, type_name: str):
+            self.type_name = type_name
+
+        def decode(self, data: Union[bytes, bytearray], endianness: Endianness) -> None:
+            raise NotImplementedError('Decoding data for type %s is not supported yet' % self.type_name)
+
+    name: str
+    vartype: VariableType
+    path_segments: List[str]
+    location: VariableLocation
+    endianness: Endianness
+    bitsize: Optional[int]
+    bitfield: Optional[int]
+    bitoffset: Optional[int]
+    enum: Optional[VariableEnum]
+
+    TYPE_TO_DECODER_MAP: Dict[VariableType, BaseDecoder] = {
+        VariableType.sint8: SIntDecoder(1),
+        VariableType.sint16: SIntDecoder(2),
+        VariableType.sint32: SIntDecoder(4),
+        VariableType.sint64: SIntDecoder(8),
+        VariableType.sint128: NotImplementedDecoder(VariableType.sint128.name),
+        VariableType.sint256: NotImplementedDecoder(VariableType.sint256.name),
+
+        VariableType.uint8: UIntDecoder(1),
+        VariableType.uint16: UIntDecoder(2),
+        VariableType.uint32: UIntDecoder(4),
+        VariableType.uint64: UIntDecoder(8),
+        VariableType.uint128: NotImplementedDecoder(VariableType.uint128.name),
+        VariableType.uint256: NotImplementedDecoder(VariableType.uint256.name),
+
+        VariableType.float8: NotImplementedDecoder(VariableType.float8.name),
+        VariableType.float16: NotImplementedDecoder(VariableType.float16.name),
+        VariableType.float32: FloatDecoder(4),
+        VariableType.float64: FloatDecoder(8),
+        VariableType.float128: NotImplementedDecoder(VariableType.float128.name),
+        VariableType.float256: NotImplementedDecoder(VariableType.float256.name),
+
+        VariableType.cfloat8: NotImplementedDecoder(VariableType.cfloat8.name),
+        VariableType.cfloat16: NotImplementedDecoder(VariableType.cfloat16.name),
+        VariableType.cfloat32: NotImplementedDecoder(VariableType.cfloat32.name),
+        VariableType.cfloat64: NotImplementedDecoder(VariableType.cfloat64.name),
+        VariableType.cfloat128: NotImplementedDecoder(VariableType.cfloat128.name),
+        VariableType.cfloat256: NotImplementedDecoder(VariableType.cfloat256.name),
+
+        VariableType.boolean: BoolDecoder(),
+    }
+
+    def __init__(self, name: str, vartype: VariableType, path_segments: List[str], location: Union[int, VariableLocation], endianness: Endianness, bitsize: Optional[int] = None, bitoffset: Optional[int] = None, enum: Optional[VariableEnum] = None):
+
+        self.name = name
+        self.vartype = vartype
+        self.path_segments = path_segments
+        if isinstance(location, VariableLocation):
+            self.location = location.copy()
+        else:
+            self.location = VariableLocation(location)
+        self.endianness = endianness
+
+        if bitoffset is not None and bitsize is None:
+            var_size = self.vartype.get_size_bit()
+            if var_size is None:
+                raise Exception('Cannot specify bitsize for variable of type %s' % str(VariableType))
+            bitsize = var_size - bitoffset
+        elif bitoffset is None and bitsize is not None:
+            bitoffset = 0
+        self.bitfield = False if bitoffset is None or bitsize is None else True
+        self.bitsize = bitsize
+        self.bitoffset = bitoffset
+        self.enum = enum
+
+    def decode(self, data: Union[bytes, bytearray]) -> Union[int, float, bool, None]:
+        decoded = self.TYPE_TO_DECODER_MAP[self.vartype].decode(data, self.endianness)
+
+        if self.bitfield:
+            # todo improve this with bit array maybe.
+            assert self.bitsize is not None
+            if len(data) > 8:
+                raise NotImplementedError('Does not support bitfield bigger than %dbits' % (8 * 8))
+            initial_len = len(data)
+
+            if self.endianness == 'little':
+                padded_data = bytearray(data + b'\x00' * (8 - initial_len))
+                uint_data = struct.unpack('<q', padded_data)[0]
+                uint_data >>= self.bitoffset
+                uint_data &= MASK_MAP[self.bitsize]
+                data = struct.pack('<q', uint_data)
+                data = data[0:initial_len]
+            else:
+                padded_data = bytearray(b'\x00' * (8 - initial_len) + data)
+                uint_data = struct.unpack('>q', padded_data)[0]
+                uint_data >>= self.bitoffset
+                uint_data &= MASK_MAP[self.bitsize]
+                data = struct.pack('>q', uint_data)
+                data = data[-initial_len:]
+
+        decoded = self.TYPE_TO_DECODER_MAP[self.vartype].decode(data, self.endianness)
+        return decoded
+
+    def get_fullname(self) -> str:
+        if len(self.path_segments) == 0:
+            path_str = '/'
+        else:
+            path_str = '/' + '/'.join(self.path_segments)
+        return '%s/%s' % (path_str, self.name)
+
+    def get_type(self) -> VariableType:
+        return self.vartype
+
+    def get_path_segments(self) -> List[str]:
+        return self.path_segments
+
+    def get_address(self) -> int:
+        return self.location.get_address()
+
+    def get_size(self) -> Optional[int]:
+        size_bit = self.vartype.get_size_bit()
+        if size_bit is None:
+            return size_bit
+        else:
+            return int(size_bit / 8)
+
+    def __repr__(self):
+        return '<%s - %s (%s) @ %s>' % (self.__class__.__name__, self.get_fullname(), self.vartype, self.location)

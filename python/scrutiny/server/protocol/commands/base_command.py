@@ -10,11 +10,15 @@ from abc import ABC
 import inspect
 import sys
 
+from typing import Type
+
 
 class BaseCommand(ABC):
 
+    _cmd_id = -1
+
     @classmethod  # Returns an instance of the service identified by the service ID (Request)
-    def from_command_id(cls, given_id):
+    def from_command_id(cls, given_id: int) -> Type["BaseCommand"]:
         given_id &= 0x7F
         for name, obj in inspect.getmembers(sys.modules[__name__]):
             if hasattr(obj, "__bases__") and cls in obj.__bases__:
@@ -23,11 +27,11 @@ class BaseCommand(ABC):
         raise ValueError('Unknown command ID %s' % given_id)
 
     @classmethod
-    def response_id(cls):
+    def response_id(cls) -> int:
         return cls._cmd_id | 0x80
 
     @classmethod
-    def request_id(cls):
+    def request_id(cls) -> int:
         return cls._cmd_id & 0x7F
 
 

@@ -8,11 +8,18 @@
 
 import uuid
 from enum import Enum
-from datetime import datetime
+import time
+
+from typing import Any, Optional, Dict, Callable
+from scrutiny.core.typehints import GenericCallback
 
 
-class Callback:
-    def __init__(self, fn, owner, args=None):
+class Callback():
+    fn: GenericCallback
+    owner: str
+    args: Any
+
+    def __init__(self, fn: GenericCallback, owner: str, args: Any = None):
         if not callable(fn):
             raise ValueError('callback must be a callable')
 
@@ -32,27 +39,40 @@ class Callback:
 
 class DatastoreEntry:
 
-    class Type(Enum):
-        eVar = 0
-        eAlias = 1
+    class EntryType(Enum):
+        Var = 0
+        Alias = 1
 
     class UpdateTargetRequest:
-        def __init__(self, value):
-            self.value = value;
-            self.request_timestamp = datetime.now()
+        value: Any
+        request_timestamp: float
+        completed: bool
+        complete_timestamp: Optional[float]
+
+        def __init__(self, value: Any):
+            self.value = value
+            self.request_timestamp = time.time()
             self.completed = False
             self.complete_timestamp = None
 
-        def complete(self):
+        def complete(self) -> None:
             self.completed = True
-            self.complete_timestamp = datetime.now()
+            self.complete_timestamp = time.time()
 
-        def is_complete(self):
+        def is_complete(self) -> bool:
             return self.completed
 
-    def __init__(self, wtype, display_path):
+    wtype: "DatastoreEntry.EntryType"
+    display_path: str
+    entry_id: str
+    value_change_callback: Dict[str, Callable[["DatastoreEntry"], Any]]
+    pending_target_update: Optional["DatastoreEntry.UpdateTargetRequest"]
+    callback_pending: bool
+    last_value_update: float
 
-        if wtype not in [self.Type.eVar, self.Type.eAlias]:
+    def __init__(self, wtype: "DatastoreEntry.EntryType", display_path: str):
+
+        if wtype not in [DatastoreEntry.EntryType.Var, DatastoreEntry.EntryType.Alias]:
             raise ValueError('Invalid watchable type')
 
         if not isinstance(display_path, str):
@@ -64,72 +84,73 @@ class DatastoreEntry:
         self.value_change_callback = {}
         self.pending_target_update = None
         self.callback_pending = False
-        self.last_value_update = datetime.now()
+        self.last_value_update = time.time()
 
-    def get_type(self):
+    def get_type(self) -> "DatastoreEntry.EntryType":
         return self.wtype
 
-    def get_id(self):
+    def get_id(self) -> str:
         return self.entry_id
 
-    def get_display_path(self):
+    def get_display_path(self) -> str:
         return self.display_path
 
-    def execute_value_change_callback(self):
+    def execute_value_change_callback(self) -> None:
         self.callback_pending = True
         for owner in self.value_change_callback:
             self.value_change_callback[owner](self);
         self.callback_pending = False
 
-    def has_callback_pending(self):
+    def has_callback_pending(self) -> bool:
         return self.callback_pending
 
-    def register_value_change_callback(self, owner=None, callback=None, args=None):
+    def register_value_change_callback(self, owner: str, callback: GenericCallback, args: Any = None) -> None:
         thecallback = Callback(fn=callback, owner=owner, args=args)
         if owner in self.value_change_callback:
             raise ValueError('This owner already has a callback registered')
         self.value_change_callback[owner] = thecallback
 
-    def unregister_value_change_callback(self, owner):
+    def unregister_value_change_callback(self, owner: Any) -> None:
         if owner in self.value_change_callback:
             del self.value_change_callback[owner]
 
-    def has_value_change_callback(self, owner=None):
+    def has_value_change_callback(self, owner=None) -> bool:
         if owner is None:
             return (len(self.value_change_callback) == 0)
         else:
             return (owner in self.value_change_callback)
 
-    def set_value(self, value):
+    def set_value(self, value: Any) -> None:
         self.value = value
-        self.last_value_update = datetime.now()
+        self.last_value_update = time.time()
         self.execute_value_change_callback()
 
-    def get_update_time(self):
+    def get_update_time(self) -> float:
         return self.last_value_update
 
-    def get_value(self):
+    def get_value(self) -> Any:
         return self.value
 
-    def update_target_value(self, value):
+    def update_target_value(self, value: Any) -> None:
         self.pending_target_update = self.UpdateTargetRequest(value)
 
-    def has_pending_target_update(self):
+    def has_pending_target_update(self) -> bool:
         if self.pending_target_update is None:
             return False
 
-        if self.pending_target_update.is_completed():
+        if self.pending_target_update.is_complete():
             return False
         else:
             return True
 
-    def mark_target_update_request_complete(self):
+    def mark_target_update_request_complete(self) -> None:
         if self.pending_target_update is not None:
             self.pending_target_update.complete()
 
-    def discard_target_update_request(self):
+    def discard_target_update_request(self) -> None:
         self.pending_target_update = None
 
-    def get_pending_target_update_val(self):
+    def get_pending_target_update_val(self) -> Any:
         if self.has_pending_target_update():
+            assert self.pending_target_update is not None  # for mypy
             return self.pending_target_update.value

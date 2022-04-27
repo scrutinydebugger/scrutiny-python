@@ -11,6 +11,7 @@ import queue
 import json
 import time
 
+from scrutiny.server.api.abstract_client_handler import ClientHandlerMessage
 from scrutiny.server.api.dummy_client_handler import DummyConnection, DummyClientHandler
 
 
@@ -59,12 +60,12 @@ class TestDummyConnectionHandler(unittest.TestCase):
         self.connections = [DummyConnection(), DummyConnection(), DummyConnection()]
 
         config = {
-            'connections': self.connections
         }
         for conn in self.connections:
             conn.open()
 
         self.handler = DummyClientHandler(config)
+        self.handler.set_connections(self.connections)
         self.handler.start()
 
     def wait_handler_recv(self, timeout=0.4):
@@ -96,9 +97,9 @@ class TestDummyConnectionHandler(unittest.TestCase):
         self.connections[0].write_to_server(msg)
         container = self.wait_handler_recv()
         self.assertIsNotNone(container)
-        self.assertEqual(container['conn_id'], self.connections[0].get_id())
-        self.assertIn('a', container['obj'])
-        self.assertEqual('b', container['obj']['a'])
+        self.assertEqual(container.conn_id, self.connections[0].get_id())
+        self.assertIn('a', container.obj)
+        self.assertEqual('b', container.obj['a'])
 
         self.assertFalse(self.handler.available())
 
@@ -106,14 +107,14 @@ class TestDummyConnectionHandler(unittest.TestCase):
         self.connections[2].write_to_server(msg)
         container = self.wait_handler_recv()
         self.assertIsNotNone(container)
-        self.assertEqual(container['conn_id'], self.connections[2].get_id())
-        self.assertIn('x', container['obj'])
-        self.assertEqual('y', container['obj']['x'])
+        self.assertEqual(container.conn_id, self.connections[2].get_id())
+        self.assertIn('x', container.obj)
+        self.assertEqual('y', container.obj['x'])
         self.assertFalse(self.handler.available())
 
     def test_server_to_client(self):
         msg = {'a': 'b'}
-        self.handler.send(self.connections[0].get_id(), msg)
+        self.handler.send(ClientHandlerMessage(conn_id=self.connections[0].get_id(), obj=msg))
         msg = self.wait_conn_recv_from_server(self.connections[0])
         self.assertIsNotNone(msg)
         obj = json.loads(msg)

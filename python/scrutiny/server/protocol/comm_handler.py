@@ -20,6 +20,9 @@ import struct
 from binascii import hexlify
 import time
 from scrutiny.server.tools import Throttler
+from scrutiny.server.device.links import AbstractLink
+
+from typing import Union, TypedDict, Optional
 
 
 class CommHandler:
@@ -28,8 +31,16 @@ class CommHandler:
     It exchange bytes with the device and exchanges request/response with the upper layer.
     The link object abstract the communication channel.
     """
+
+    class Params(TypedDict):
+        response_timeout: int
+
     class RxData:
         __slots__ = ('data_buffer', 'length', 'length_bytes_received')
+
+        data_buffer: bytes
+        length: int
+        length_bytes_received: int
 
         def __init__(self):
             self.clear()
@@ -39,9 +50,24 @@ class CommHandler:
             self.length_bytes_received = 0
             self.data_buffer = bytes()
 
-    DEFAULT_PARAMS = {
+    DEFAULT_PARAMS: "CommHandler.Params" = {
         'response_timeout': 1
     }
+
+    active_request: Optional[Request]
+    received_response: Optional[Response]
+    link: Optional[AbstractLink]
+    params: "CommHandler.Params"
+    response_timer: Timer
+    rx_data: "CommHandler.RxData"
+    logger: logging.Logger
+    opened: bool
+    throttler: Throttler
+    rx_bitcount: int
+    tx_bitcount: int
+    bitcount_time: float
+    timed_out: bool
+    pending_request: Optional[Request]
 
     def __init__(self, params={}):
         self.active_request = None      # Contains the request object that has been sent to the device. When None, no request sent and we are standby
@@ -57,28 +83,28 @@ class CommHandler:
         self.reset_bitrate_monitor()
         self.throttler = Throttler()
 
-    def enable_throttling(self, bitrate):
+    def enable_throttling(self, bitrate: float) -> None:
         self.throttler.set_bitrate(bitrate)
         self.throttler.enable()
 
-    def disable_throttling(self):
+    def disable_throttling(self) -> None:
         self.throttler.disable()
 
-    def is_throttling_enabled(self):
+    def is_throttling_enabled(self) -> bool:
         return self.throttler.is_enabled()
 
-    def get_throttling_bitrate(self):
+    def get_throttling_bitrate(self) -> float:
         return self.throttler.get_bitrate()
 
-    def reset_bitrate_monitor(self):
+    def reset_bitrate_monitor(self) -> None:
         self.rx_bitcount = 0
         self.tx_bitcount = 0
         self.bitcount_time = time.time()
 
-    def get_link(self):
+    def get_link(self) -> Optional[AbstractLink]:
         return self.link
 
-    def open(self, link):
+    def open(self, link: AbstractLink) -> None:
         """
             Try to open the communication channel with the device.
         """
@@ -91,7 +117,7 @@ class CommHandler:
             self.logger.error("Cannot connect to device. " + str(e))
             self.opened = False
 
-    def close(self):
+    def close(self) -> None:
         """
             Close the communication channel with the device
         """
@@ -101,10 +127,10 @@ class CommHandler:
         self.reset()
         self.opened = False
 
-    def is_open(self):
+    def is_open(self) -> bool:
         return self.opened
 
-    def process(self):
+    def process(self) -> None:
         """
         To be called periodically
         """
@@ -117,13 +143,17 @@ class CommHandler:
         self.process_rx()   # Treat response reception
         self.process_tx()   # Handle throttling
 
-    def process_rx(self):
+    def process_rx(self) -> None:
+        if self.link is None:
+            self.reset()
+            return
+
         # If we haven't got a response or we know we won't get one. Mark the request as timed out
         if self.waiting_response() and (self.response_timer.is_timed_out() or not self.link.operational()):
             self.reset_rx()
             self.timed_out = True
 
-        data = self.link.read()
+        data: Optional[bytes] = self.link.read()
         if data is None or len(data) == 0:
             return  # No data, exit.
 
@@ -150,23 +180,31 @@ class CommHandler:
                 # We have enough data, try to decode the response and validate the CRC.
                 try:
                     self.received_response = Response.from_bytes(self.rx_data.data_buffer)  # CRC validation is done here
+
                     # Decoding did not raised an exception, we have a valid payload!
                     self.logger.debug("Received Response %s" % self.received_response)
                     self.rx_data.clear()        # Empty the receive buffer
                     self.response_timer.stop()  # Timeout timer can be stop
-
-                    # Validate that the response match the request
-                    if self.received_response.command != self.active_request.command:
-                        raise Exception("Unexpected Response command ID : %s" % str(self.received_response))
-                    if self.received_response.subfn != self.active_request.subfn:
-                        raise Exception("Unexpected Response subfunction : %s" % str(self.received_response))
+                    if self.active_request is not None:  # Just to please mypy
+                        # Validate that the response match the request
+                        if self.received_response.command != self.active_request.command:
+                            raise Exception("Unexpected Response command ID : %s" % str(self.received_response))
+                        if self.received_response.subfn != self.active_request.subfn:
+                            raise Exception("Unexpected Response subfunction : %s" % str(self.received_response))
+                    else:
+                        # Should never happen. waiting_response() is checked above
+                        raise Exception('Got a response while having no request in process')
 
                     # Here, everything went fine. The application can now send a new request or read the received response.
                 except Exception as e:
                     self.logger.error("Received malformed message. " + str(e))
                     self.reset_rx()
 
-    def process_tx(self, newrequest=False):
+    def process_tx(self, newrequest: bool = False) -> None:
+        if self.link is None:
+            self.reset()
+            return
+
         if self.pending_request is not None:
             approx_delta_bandwidth = (self.pending_request.size() + self.pending_request.get_expected_response_size()) * 8;
             if self.throttler.allowed(approx_delta_bandwidth):
@@ -187,16 +225,16 @@ class CommHandler:
                 if newrequest:  # Not sent right away
                     self.logger.debug('Received request to send. Waiting because of throttling. %s' % self.pending_request)
 
-    def response_available(self):
+    def response_available(self) -> bool:
         return (self.received_response is not None)
 
-    def has_timed_out(self):
+    def has_timed_out(self) -> bool:
         return self.timed_out
 
-    def clear_timeout(self):
+    def clear_timeout(self) -> None:
         self.timed_out = False
 
-    def get_response(self):
+    def get_response(self) -> Response:
         """
         Return the response received for the active request
         """
@@ -208,7 +246,7 @@ class CommHandler:
 
         return response
 
-    def reset_rx(self):
+    def reset_rx(self) -> None:
         # Make sure we can send a new request.
         # Also clear the received resposne so that response_available() return False
         self.active_request = None
@@ -217,7 +255,7 @@ class CommHandler:
         self.response_timer.stop()
         self.rx_data.clear()
 
-    def send_request(self, request):
+    def send_request(self, request: Request) -> None:
         if self.waiting_response():
             raise Exception('Waiting for a response')
 
@@ -226,11 +264,11 @@ class CommHandler:
         self.timed_out = False
         self.process_tx(newrequest=True)
 
-    def waiting_response(self):
+    def waiting_response(self) -> bool:
         # We are waiting response if a request is active, meaning it has been sent and reponse has not been acknowledge by the application
         return (self.active_request is not None or self.pending_request is not None)
 
-    def reset(self):
+    def reset(self) -> None:
         self.reset_rx()
         self.clear_timeout()
 

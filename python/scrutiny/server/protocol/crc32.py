@@ -6,7 +6,7 @@
 #
 #   Copyright (c) 2021-2022 scrutinydebugger
 
-def crc32(data):
+def crc32(data: bytes) -> int:
     crc = 0xFFFFFFFF;
     for i in range(len(data)):
         byte = data[i]
@@ -20,5 +20,5 @@ def crc32(data):
     return not32(crc)
 
 
-def not32(n):
+def not32(n: int) -> int:
     return (~n) & 0xFFFFFFFF

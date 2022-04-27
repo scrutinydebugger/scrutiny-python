@@ -13,9 +13,17 @@ from enum import Enum
 from .crc32 import crc32
 from .commands.base_command import BaseCommand
 
+from typing import Union, Type
+
 
 class Request:
-    def __init__(self, command, subfn, payload=b'', response_payload_size=0):
+
+    command: Type[BaseCommand]
+    subfn: Union[int, Enum]
+    payload: bytes
+    response_payload_size: int
+
+    def __init__(self, command: Union[Type[BaseCommand], int], subfn: Union[int, Enum], payload: bytes = b'', response_payload_size: int = 0):
         if inspect.isclass(command) and issubclass(command, BaseCommand):
             self.command = command
         elif isinstance(command, int):
@@ -31,26 +39,26 @@ class Request:
         self.payload = bytes(payload)
         self.response_payload_size = response_payload_size
 
-    def make_bytes_no_crc(self):
+    def make_bytes_no_crc(self) -> bytes:
         data = struct.pack('>BB', (self.command_id & 0x7F), self.subfn)
         data += struct.pack('>H', len(self.payload))
         data += self.payload
 
         return data
 
-    def to_bytes(self):
+    def to_bytes(self) -> bytes:
         data = self.make_bytes_no_crc()
         data += struct.pack('>L', crc32(data))
         return data
 
-    def get_expected_response_size(self):
+    def get_expected_response_size(self) -> int:
         return 9 + self.response_payload_size
 
-    def size(self):
+    def size(self) -> int:
         return 8 + len(self.payload)
 
     @classmethod
-    def from_bytes(cls, data):
+    def from_bytes(cls, data: bytes):
         if len(data) < 8:
             raise Exception('Not enough data in payload')
 

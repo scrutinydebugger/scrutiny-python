@@ -7,25 +7,30 @@
 #
 #   Copyright (c) 2021-2022 scrutinydebugger
 
+from scrutiny.server.datastore import DatastoreEntry
+
+from typing import List
+
+
 class ValueStreamer:
     def __init__(self):
         self.entry_to_publish = {}
         self.frozen_connections = set()
 
-    def freeze_connection(self, conn_id):
+    def freeze_connection(self, conn_id: str) -> None:
         self.frozen_connections.add(conn_id)
 
-    def unfreeze_connection(self, conn_id):
+    def unfreeze_connection(self, conn_id: str) -> None:
         self.frozen_connections.remove(conn_id)
 
-    def publish(self, entry, conn_id):
+    def publish(self, entry: DatastoreEntry, conn_id: str) -> None:
         try:
             self.entry_to_publish[conn_id].add(entry)
         except:
             pass
 
-    def get_stream_chunk(self, conn_id):
-        chunk = []
+    def get_stream_chunk(self, conn_id: str) -> List[DatastoreEntry]:
+        chunk: List[DatastoreEntry] = []
         if conn_id not in self.entry_to_publish:
             return chunk
 
@@ -40,19 +45,19 @@ class ValueStreamer:
 
         return chunk
 
-    def is_still_waiting_stream(self, entry):
+    def is_still_waiting_stream(self, entry: DatastoreEntry) -> bool:
         for conn_id in self.entry_to_publish:
             if entry in self.entry_to_publish[conn_id]:
                 return True
         return False
 
-    def new_connection(self, conn_id):
+    def new_connection(self, conn_id: str) -> None:
         if conn_id not in self.entry_to_publish:
             self.entry_to_publish[conn_id] = set()
 
-    def clear_connection(self, conn_id):
+    def clear_connection(self, conn_id: str) -> None:
         if conn_id in self.entry_to_publish:
             del self.entry_to_publish[conn_id]
 
-    def process(self):
+    def process(self) -> None:
         pass

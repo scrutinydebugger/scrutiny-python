@@ -11,6 +11,7 @@ import logging
 
 from .base_command import BaseCommand
 from scrutiny.server.server import ScrutinyServer
+from typing import Optional, List
 
 
 class LaunchServer(BaseCommand):
@@ -18,13 +19,16 @@ class LaunchServer(BaseCommand):
     _brief_ = 'Launch an instance of the server'
     _group_ = 'Server'
 
-    def __init__(self, args, requested_log_level=None):
+    args: List[str]
+    parser: argparse.ArgumentParser
+
+    def __init__(self, args: List[str], requested_log_level: Optional[str] = None):
         self.args = args
         self.parser = argparse.ArgumentParser(prog=self.get_prog())
         self.parser.add_argument('--config', default=None, help='Configuration file used by the server')
         self.parser.add_argument('--log_websockets', default='error', metavar='LEVEL', help="Verbosity level of websockets module")
 
-    def run(self):
+    def run(self) -> Optional[int]:
         args = self.parser.parse_args(self.args)
 
         # For server, we will add more details to logging message.
@@ -35,7 +39,7 @@ class LaunchServer(BaseCommand):
         websockets_loggers = ['websockets.server', 'websockets.protocol', 'asyncio']
         logging_level = getattr(logging, args.log_websockets.upper())
         for name in websockets_loggers:
-            logger = logging.getLogger(name).setLevel(logging_level)
+            logging.getLogger(name).setLevel(logging_level)
 
         success = True
         server = ScrutinyServer(args.config)
@@ -46,4 +50,4 @@ class LaunchServer(BaseCommand):
             # We will return a non-success error code. It will be picked up by the CLI.
             succes = False
 
-        return 0 if success else 1
+        return 0 if success else -1

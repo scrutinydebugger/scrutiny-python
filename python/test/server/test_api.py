@@ -17,7 +17,7 @@ import math
 
 from scrutiny.server.api.API import API
 from scrutiny.server.datastore import Datastore, DatastoreEntry
-from scrutiny.server.api.dummy_client_handler import DummyConnection
+from scrutiny.server.api.dummy_client_handler import DummyConnection, DummyClientHandler
 
 # todo
 # - Test rate limiter/data streamer
@@ -33,12 +33,14 @@ class TestAPI(unittest.TestCase):
         config = {
             'client_interface_type': 'dummy',
             'client_interface_config': {
-                'connections': self.connections
             }
         }
 
         self.datastore = Datastore()
         self.api = API(config, self.datastore, None)
+        client_handler = self.api.get_client_handler()
+        assert isinstance(client_handler, DummyClientHandler)
+        client_handler.set_connections(self.connections)
         self.api.start_listening()
 
     def tearDown(self):
@@ -69,10 +71,10 @@ class TestAPI(unittest.TestCase):
                 msg = response['msg']
             self.assertNotEqual(response['cmd'], API.Command.Api2Client.ERROR_RESPONSE, msg)
 
-    def make_dummy_entries(self, n, type=DatastoreEntry.Type.eVar, prefix='path'):
+    def make_dummy_entries(self, n, entry_type=DatastoreEntry.EntryType.Var, prefix='path'):
         entries = []
         for i in range(n):
-            entry = DatastoreEntry(type, '%s_%d' % (prefix, i))
+            entry = DatastoreEntry(entry_type, '%s_%d' % (prefix, i))
             entries.append(entry)
         return entries
 
@@ -95,8 +97,8 @@ class TestAPI(unittest.TestCase):
 
     # Fetch count of var/alias. Ensure response is well formatted and accurate
     def test_get_watchable_count(self):
-        var_entries = self.make_dummy_entries(3, type=DatastoreEntry.Type.eVar, prefix='var')
-        alias_entries = self.make_dummy_entries(5, type=DatastoreEntry.Type.eAlias, prefix='alias')
+        var_entries = self.make_dummy_entries(3, entry_type=DatastoreEntry.EntryType.Var, prefix='var')
+        alias_entries = self.make_dummy_entries(5, entry_type=DatastoreEntry.EntryType.Alias, prefix='alias')
 
         # Add entries in the datastore that we will reread through the API
         self.datastore.add_entries_quiet(var_entries)
@@ -132,8 +134,8 @@ class TestAPI(unittest.TestCase):
 
     # Fetch list of var/alias. Ensure response is well formatted, accurate, complete, no duplicates
     def test_get_watchable_list_basic(self):
-        var_entries = self.make_dummy_entries(3, type=DatastoreEntry.Type.eVar, prefix='var')
-        alias_entries = self.make_dummy_entries(5, type=DatastoreEntry.Type.eAlias, prefix='alias')
+        var_entries = self.make_dummy_entries(3, entry_type=DatastoreEntry.EntryType.Var, prefix='var')
+        alias_entries = self.make_dummy_entries(5, entry_type=DatastoreEntry.EntryType.Alias, prefix='alias')
 
         expected_entries_in_response = {}
         for entry in var_entries:
@@ -178,9 +180,9 @@ class TestAPI(unittest.TestCase):
 
             self.assertEqual(entry.get_id(), api_entry['id'])
             self.assertEqual(entry.get_display_path(), api_entry['display_path'])
-            if entry.get_type() == DatastoreEntry.Type.eVar:
+            if entry.get_type() == DatastoreEntry.EntryType.Var:
                 self.assertEqual('var', api_entry['type'])
-            elif entry.get_type() == DatastoreEntry.Type.eAlias:
+            elif entry.get_type() == DatastoreEntry.EntryType.Alias:
                 self.assertEqual('alias', api_entry['type'])
             else:
                 raise NotImplementedError('Test case does not supports entry type : %s' % (entry.get_type()))
@@ -202,8 +204,8 @@ class TestAPI(unittest.TestCase):
     # Fetch list of var/alias and sets a type filter.
     def do_test_get_watchable_list_with_type_filter(self, type_filter):
         self.datastore.clear()
-        var_entries = self.make_dummy_entries(3, type=DatastoreEntry.Type.eVar, prefix='var')
-        alias_entries = self.make_dummy_entries(5, type=DatastoreEntry.Type.eAlias, prefix='alias')
+        var_entries = self.make_dummy_entries(3, entry_type=DatastoreEntry.EntryType.Var, prefix='var')
+        alias_entries = self.make_dummy_entries(5, entry_type=DatastoreEntry.EntryType.Alias, prefix='alias')
 
         no_filter = True if type_filter is None or type_filter == '' or isinstance(type_filter, list) and len(type_filter) == 0 else False
 
@@ -261,9 +263,9 @@ class TestAPI(unittest.TestCase):
 
             self.assertEqual(entry.get_id(), api_entry['id'])
             self.assertEqual(entry.get_display_path(), api_entry['display_path'])
-            if entry.get_type() == DatastoreEntry.Type.eVar:
+            if entry.get_type() == DatastoreEntry.EntryType.Var:
                 self.assertEqual('var', api_entry['type'])
-            elif entry.get_type() == DatastoreEntry.Type.eAlias:
+            elif entry.get_type() == DatastoreEntry.EntryType.Alias:
                 self.assertEqual('alias', api_entry['type'])
             else:
                 raise NotImplementedError('Test case does not supports entry type : %s' % (entry.get_type()))
@@ -280,8 +282,8 @@ class TestAPI(unittest.TestCase):
         nVar = 19
         nAlias = 17
         max_per_response = 10
-        var_entries = self.make_dummy_entries(nVar, type=DatastoreEntry.Type.eVar, prefix='var')
-        alias_entries = self.make_dummy_entries(nAlias, type=DatastoreEntry.Type.eAlias, prefix='alias')
+        var_entries = self.make_dummy_entries(nVar, entry_type=DatastoreEntry.EntryType.Var, prefix='var')
+        alias_entries = self.make_dummy_entries(nAlias, entry_type=DatastoreEntry.EntryType.Alias, prefix='alias')
         expected_entries_in_response = {}
 
         for entry in var_entries:
@@ -344,9 +346,9 @@ class TestAPI(unittest.TestCase):
 
             self.assertEqual(entry.get_id(), api_entry['id'])
             self.assertEqual(entry.get_display_path(), api_entry['display_path'])
-            if entry.get_type() == DatastoreEntry.Type.eVar:
+            if entry.get_type() == DatastoreEntry.EntryType.Var:
                 self.assertEqual('var', api_entry['type'])
-            elif entry.get_type() == DatastoreEntry.Type.eAlias:
+            elif entry.get_type() == DatastoreEntry.EntryType.Alias:
                 self.assertEqual('alias', api_entry['type'])
             else:
                 raise NotImplementedError('Test case does not supports entry type : %s' % (entry.get_type()))
@@ -369,7 +371,7 @@ class TestAPI(unittest.TestCase):
             self.assertIn('value', update)
 
     def test_subscribe_single_var(self):
-        entries = self.make_dummy_entries(10, type=DatastoreEntry.Type.eVar, prefix='var')
+        entries = self.make_dummy_entries(10, entry_type=DatastoreEntry.EntryType.Var, prefix='var')
         self.datastore.add_entries(entries)
 
         subscribed_entry = entries[2]
@@ -405,7 +407,7 @@ class TestAPI(unittest.TestCase):
 
     # Make sure that we can unsubscribe correctly to a variable and value update stops
     def test_subscribe_unsubscribe(self):
-        entries = self.make_dummy_entries(10, type=DatastoreEntry.Type.eVar, prefix='var')
+        entries = self.make_dummy_entries(10, entry_type=DatastoreEntry.EntryType.Var, prefix='var')
         self.datastore.add_entries(entries)
         subscribed_entry = entries[2]
         subscribe_cmd = {
@@ -432,7 +434,7 @@ class TestAPI(unittest.TestCase):
 
     # Make sure that the streamer send the value update once if many update happens before the value is outputted to the client.
     def test_do_not_send_duplicate_changes(self):
-        entries = self.make_dummy_entries(10, type=DatastoreEntry.Type.eVar, prefix='var')
+        entries = self.make_dummy_entries(10, entry_type=DatastoreEntry.EntryType.Var, prefix='var')
         self.datastore.add_entries(entries)
 
         subscribed_entry = entries[2]

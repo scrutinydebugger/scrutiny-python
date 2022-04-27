@@ -11,12 +11,27 @@ import time
 import logging
 import binascii
 
-from scrutiny.server.protocol import ResponseCode
+
+from scrutiny.server.protocol import *
+from scrutiny.server.device.request_dispatcher import RequestDispatcher, SuccessCallback, FailureCallback
+from scrutiny.server.datastore import Datastore
+
+from typing import Any
 
 
 class DatastoreUpdater:
 
-    def __init__(self, protocol, dispatcher, datastore, read_priority, write_priority):
+    logger: logging.Logger
+    dispatcher: RequestDispatcher
+    protocol: Protocol
+    datastore: Datastore
+    read_priority: int
+    write_priority: int
+    stop_requested: bool
+    request_pending: bool
+    started: bool
+
+    def __init__(self, protocol: Protocol, dispatcher: RequestDispatcher, datastore: Datastore, read_priority: int, write_priority: int):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.dispatcher = dispatcher
         self.protocol = protocol
@@ -25,18 +40,18 @@ class DatastoreUpdater:
         self.write_priority = write_priority
         self.reset()
 
-    def start(self):
+    def start(self) -> None:
         self.started = True
 
-    def stop(self):
+    def stop(self) -> None:
         self.stop_requested = True
 
-    def reset(self):
+    def reset(self) -> None:
         self.stop_requested = False
         self.request_pending = False
         self.started = False
 
-    def process(self):
+    def process(self) -> None:
         if not self.started:
             self.reset()
             return
@@ -44,20 +59,21 @@ class DatastoreUpdater:
             self.reset()
             return
 
-    def success_callback(self, request, response_code, response_data, params=None):
+    def success_callback(self, request: Request, response_code: ResponseCode, response_data: ResponseData, params: Any = None):
         self.logger.debug("Success callback. Request=%s. Response Code=%s, Params=%s" % (request, response_code, params))
 
         if response_code == ResponseCode.OK:
-            pass
+            pass  # todo
         else:
-            pass
+            pass  # todo
 
         self.completed()
 
-    def failure_callback(self, request, params=None):
+    def failure_callback(self, request: Request, params: Any = None) -> None:
         self.logger.debug("Failure callback. Request=%s. Params=%s" % (request, params))
-        pass
+        pass    # todo
+
         self.completed()
 
-    def completed(self):
+    def completed(self) -> None:
         self.request_pending = False

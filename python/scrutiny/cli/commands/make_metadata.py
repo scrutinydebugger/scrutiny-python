@@ -14,6 +14,7 @@ import os
 import datetime
 import platform
 import scrutiny
+from typing import Optional, List
 
 
 class MakeMetadata(BaseCommand):
@@ -23,7 +24,10 @@ class MakeMetadata(BaseCommand):
 
     DEFAULT_NAME = 'metadata.json'
 
-    def __init__(self, args, requested_log_level=None):
+    args: List[str]
+    parser: argparse.ArgumentParser
+
+    def __init__(self, args: List[str], requested_log_level: Optional[str] = None):
         self.args = args
         self.parser = argparse.ArgumentParser(prog=self.get_prog())
 
@@ -34,7 +38,7 @@ class MakeMetadata(BaseCommand):
         self.parser.add_argument('--author', default='', help='The author of the project. For display in the GUI only.')
         self.parser.add_argument('--version', default='', help='Version of the project, for display in the GUI only.')
 
-    def run(self):
+    def run(self) -> Optional[int]:
         args = self.parser.parse_args(self.args)
 
         if args.output is None:
@@ -63,3 +67,5 @@ class MakeMetadata(BaseCommand):
 
         with open(output_file, 'w') as f:
             f.write(json.dumps(metadata, indent=4))
+
+        return 0
