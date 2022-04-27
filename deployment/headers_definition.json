@@ -306,10 +306,10 @@
     "python\\scrutiny\\server\\device\\request_generator\\datastore_updater.py": {
         "docstring": "Synchronize the datastore with the device\nPoll for entries that are watched. Write entries marked for write."
     },
-    "python\\scrutiny\\core\\memcontent.py": {
+    "python\\scrutiny\\core\\memory_content.py": {
         "docstring": "Provide a tool to manipulate non contiguous chunks of bytes with their addresses.\nRepresent a partial memory snapshot"
     },
-    "python\\test\\core\\test_memcontent.py": {
-        "docstring": "Test the MemContent class functionalities"
+    "python\\test\\core\\test_memory_content.py": {
+        "docstring": "Test the MemoryContent class functionalities"
     }
 }

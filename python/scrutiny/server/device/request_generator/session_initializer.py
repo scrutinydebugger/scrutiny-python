@@ -17,7 +17,7 @@ class SessionInitializer:
 
     RECONNECT_DELAY = 1.0
 
-    def __init__(self, protocol, dispatcher, priority=0):
+    def __init__(self, protocol, dispatcher, priority):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.dispatcher = dispatcher
         self.protocol = protocol

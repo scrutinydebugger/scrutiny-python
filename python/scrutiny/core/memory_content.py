@@ -1,4 +1,4 @@
-#    memcontent.py
+#    memory_content.py
 #        Provide a tool to manipulate non contiguous chunks of bytes with their addresses.
 #        Represent a partial memory snapshot
 #
@@ -130,9 +130,9 @@ class Cluster:
         return self.read(offset, read_size)
 
 
-class MemContent:
+class MemoryContent:
     """
-    Memcontent creates a representation of a memory content. 
+    MemoryContent creates a representation of a memory content. 
     It keeps many non-contiguous memory chunk with data. 
     Basic operation such as read,write, delete are possible.  
 

@@ -1,5 +1,5 @@
-#    test_memcontent.py
-#        Test the MemContent class functionalities
+#    test_memory_content.py
+#        Test the MemoryContent class functionalities
 #
 #   - License : MIT - See LICENSE file.
 #   - Project : Scrutiny Debugger (github.com/scrutinydebugger/scrutiny)
@@ -7,7 +7,7 @@
 #   Copyright (c) 2021-2022 scrutinydebugger
 
 import unittest
-from scrutiny.core.memcontent import MemContent, Cluster
+from scrutiny.core.memory_content import MemoryContent, Cluster
 import tempfile
 
 
@@ -78,7 +78,7 @@ class TestCluster(unittest.TestCase):
             cluster.extend(101, bytes([1, 2]))  # One extra byte
 
 
-class TestMemContent(unittest.TestCase):
+class TestMemoryContent(unittest.TestCase):
     def assert_clusters(self, clusters, args):
         self.assertEqual(len(clusters), len(args), str(clusters))
 
@@ -87,18 +87,16 @@ class TestMemContent(unittest.TestCase):
             self.assertEqual(clusters[i].size, args[i][1], 'Cluster #%d' % i)
 
     def test_read_write_basic(self):
-        #import ipdb
-        memcontent = MemContent()
+        memcontent = MemoryContent()
         addr = 0x1234
         data = bytes(range(10))
-        # ipdb.set_trace()
         memcontent.write(addr, data)
         data2 = memcontent.read(addr, len(data))
 
         self.assertEqual(data, data2)
 
     def test_read_overflow(self):
-        memcontent = MemContent()
+        memcontent = MemoryContent()
         addr = 0x1234
         data = bytes(range(10))
         memcontent.write(addr, data)
@@ -110,7 +108,7 @@ class TestMemContent(unittest.TestCase):
             memcontent.read(addr + 1, len(data))
 
     def test_merge_write(self):
-        memcontent = MemContent()
+        memcontent = MemoryContent()
         data = bytes(range(10))
         memcontent.write(0x1000, data)
         memcontent.write(0x1005, data)
@@ -118,7 +116,7 @@ class TestMemContent(unittest.TestCase):
         self.assertEqual(data[0:5] + data, data2)
 
     def test_merge_write_limit_low_left(self):
-        memcontent = MemContent()
+        memcontent = MemoryContent()
         data = bytes(range(10))
         memcontent.write(1000, data)
         memcontent.write(990, data)
@@ -126,7 +124,7 @@ class TestMemContent(unittest.TestCase):
         self.assertEqual(data + data, data2)
 
     def test_merge_write_limit_high(self):
-        memcontent = MemContent()
+        memcontent = MemoryContent()
         data = bytes(range(10))
         memcontent.write(990, data)
         memcontent.write(1000, data)
@@ -134,7 +132,7 @@ class TestMemContent(unittest.TestCase):
         self.assertEqual(data + data, data2)
 
     def test_merge_write_middle(self):
-        memcontent = MemContent()
+        memcontent = MemoryContent()
         data1 = bytes(range(30))
         data2 = bytes(range(10))
         memcontent.write(1000, data1)
@@ -143,7 +141,7 @@ class TestMemContent(unittest.TestCase):
         self.assertEqual(data1[0:10] + data2 + data1[20:30], data3)
 
     def test_write_mutiple_overlap(self):
-        memcontent = MemContent()
+        memcontent = MemoryContent()
         data = bytes(range(10))
         memcontent.write(990, data)
         memcontent.write(1000, data)
@@ -157,7 +155,7 @@ class TestMemContent(unittest.TestCase):
         self.assertEqual(data[0:5] + data + data, data2)
 
     def test_cluster_definition(self):
-        memcontent = MemContent()
+        memcontent = MemoryContent()
         data = bytes(range(10))
         memcontent.write(990, data)
         memcontent.write(1000, data)
@@ -173,7 +171,7 @@ class TestMemContent(unittest.TestCase):
     # ==== Deletion Test =======
 
     def delete_test_make_mem(self):
-        memcontent = MemContent()
+        memcontent = MemoryContent()
         data = bytes(range(0x100))
         memcontent.write(0x1000, data)
         memcontent.write(0x2000, data)
@@ -182,9 +180,7 @@ class TestMemContent(unittest.TestCase):
         return memcontent
 
     def test_delete_single_cluster_middle(self):
-        import ipdb
         m = self.delete_test_make_mem()
-        # ipdb.set_trace()
         m.delete(0x2000, 0x100)
         clusters = m.get_cluster_list_no_data()
         self.assert_clusters(clusters, [(0x1000, 0x100), (0x3000, 0x100)])
@@ -354,7 +350,7 @@ class TestMemContent(unittest.TestCase):
         self.assert_clusters(clusters, [(0x1000, 0x100), (0x2000, 0x100), (0x3000, 0x100)])
 
     def test_write_delete_agglomerate_simple(self):
-        m = MemContent()
+        m = MemoryContent()
         m.add_empty(0x1000, 0x100)
         m.delete(0x1080, 1)
         self.assert_clusters(m.get_cluster_list_no_data(), [(0x1000, 0x80), (0x1081, 0x7F)])
@@ -362,7 +358,7 @@ class TestMemContent(unittest.TestCase):
         self.assert_clusters(m.get_cluster_list_no_data(), [(0x1000, 0x100)])
 
     def test_write_delete_agglomerate_complex(self):
-        m = MemContent()
+        m = MemoryContent()
         m.add_empty(0x1000, 0x100)
         m.add_empty(0x1200, 0x100)
         m.add_empty(0x1400, 0x100)  # Will be deleted
@@ -387,7 +383,7 @@ class TestMemContent(unittest.TestCase):
                 f.write('0x00100010: 101112131415161718191a1b1c1d1e\n')
                 f.write('0x00200000: 00112233445566778899')
 
-            memcontent = MemContent(filename=filename)
+            memcontent = MemoryContent(filename=filename)
             self.assert_clusters(memcontent.get_cluster_list_no_data(), [(0x00100000, 31), (0x00200000, 10)])
 
             # ====
@@ -397,7 +393,7 @@ class TestMemContent(unittest.TestCase):
                 f.write('0x00100010: 101112131415161718191a1b1c1d1e\n')
                 f.write('0x00200000: 00112233445566778899\n')   # Added a line feed here
 
-            memcontent = MemContent(filename=filename)
+            memcontent = MemoryContent(filename=filename)
             self.assert_clusters(memcontent.get_cluster_list_no_data(), [(0x00100000, 31), (0x00200000, 10)])
 
     def test_load_memdump_not_in_order(self):
@@ -408,5 +404,5 @@ class TestMemContent(unittest.TestCase):
                 f.write('0x00100000: 000102030405060708090a0b0c0d0e0f\n')
                 f.write('0x00200000: 00112233445566778899')
 
-            memcontent = MemContent(filename=filename)
+            memcontent = MemoryContent(filename=filename)
             self.assert_clusters(memcontent.get_cluster_list_no_data(), [(0x00100000, 31), (0x00200000, 10)])

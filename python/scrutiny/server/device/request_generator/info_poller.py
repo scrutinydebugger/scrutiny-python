@@ -32,7 +32,7 @@ class InfoPoller:
         GetReadOnlyMemoryRegions = 6
         Done = 7
 
-    def __init__(self, protocol, dispatcher, priority=0, protocol_version_callback=None, comm_param_callback=None):
+    def __init__(self, protocol, dispatcher, priority, protocol_version_callback=None, comm_param_callback=None):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.dispatcher = dispatcher
         self.protocol = protocol

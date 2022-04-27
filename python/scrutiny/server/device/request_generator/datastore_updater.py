@@ -16,7 +16,7 @@ from scrutiny.server.protocol import ResponseCode
 
 class DatastoreUpdater:
 
-    def __init__(self, protocol, dispatcher, datastore, read_priority=0, write_priority=0):
+    def __init__(self, protocol, dispatcher, datastore, read_priority, write_priority):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.dispatcher = dispatcher
         self.protocol = protocol
