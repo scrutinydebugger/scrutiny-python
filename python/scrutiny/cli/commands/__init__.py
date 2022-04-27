@@ -8,14 +8,16 @@ from .elf2varmap import Elf2VarMap
 from .launch_server import LaunchServer
 from .runtest import RunTest
 
+from typing import List, Dict, Type
 
-def get_all_commands():
+
+def get_all_commands() -> List[Type[BaseCommand]]:
     return BaseCommand.__subclasses__()
 
 
-def get_commands_by_groups():
+def get_commands_by_groups() -> Dict[str, List[Type[BaseCommand]]]:
     commands = get_all_commands()
-    groups = {}
+    groups: Dict[str, List[Type[BaseCommand]]] = {}
     for cmd in commands:
         if cmd.get_group() not in groups:
             groups[cmd.get_group()] = []

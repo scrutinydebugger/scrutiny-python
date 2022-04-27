@@ -59,7 +59,7 @@ class FirmwareInfoFile:
 
         self.varmap = VarMap(os.path.join(folder, self.varmap_filename))
 
-    def load_from_file(self, filename: str):
+    def load_from_file(self, filename: str) -> None:
         with ZipFile(filename, mode='r') as fif:
             with fif.open(self.firmwareid_filename) as f:
                 self.firmwareid = bytes.fromhex(f.read().decode('ascii'))
@@ -70,7 +70,7 @@ class FirmwareInfoFile:
             with fif.open(self.varmap_filename) as f:
                 self.varmap = VarMap(f.read())
 
-    def write(self, filename: str):
+    def write(self, filename: str) -> None:
         with ZipFile(filename, mode='w') as outzip:
             outzip.writestr(self.firmwareid_filename, self.firmwareid.hex())
             outzip.writestr(self.metadata_filename, json.dumps(self.metadata, indent=4))

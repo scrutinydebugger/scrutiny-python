@@ -12,8 +12,8 @@ import os
 import logging
 
 from .base_command import BaseCommand
-
 from scrutiny.core.bintools.elf_dwarf_var_extractor import ElfDwarfVarExtractor
+from typing import Optional, List
 
 
 class Elf2VarMap(BaseCommand):
@@ -21,13 +21,16 @@ class Elf2VarMap(BaseCommand):
     _brief_ = 'Extract the variables definition from an ELF file through DWARF debugging symbols.'
     _group_ = 'Build Toochain'
 
-    def __init__(self, args, requested_log_level=None):
+    args: List[str]
+    parser: argparse.ArgumentParser
+
+    def __init__(self, args: List[str], requested_log_level: Optional[str] = None):
         self.args = args
         self.parser = argparse.ArgumentParser(prog=self.get_prog())
         self.parser.add_argument('file', help='The ELF file to read')
         self.parser.add_argument('--output', default=None, help='The varmap output file. Will go to STDOUT if not set')
 
-    def run(self):
+    def run(self) -> Optional[int]:
         args = self.parser.parse_args(self.args)
         extractor = ElfDwarfVarExtractor(args.file)
         varmap = extractor.get_varmap()
@@ -44,3 +47,5 @@ class Elf2VarMap(BaseCommand):
                 logging.warning('File %s already exist. Overwritting' % output_file)
 
             varmap.write(output_file)
+
+        return 0

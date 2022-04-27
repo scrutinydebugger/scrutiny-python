@@ -9,7 +9,7 @@
 
 import re
 from bisect import bisect, bisect_left
-from typing import Dict, List, Union
+from typing import Dict, List, Union, Optional
 import copy
 
 
@@ -21,14 +21,14 @@ class Cluster:
 
     start_addr: int
     size: int
-    internal_data: bytearray
+    internal_data: Optional[bytearray]
     has_data: bool
 
     @property
     def data(self):
         return self.read(0, self.size)
 
-    def __init__(self, start_addr, size=0, has_data=True, data=bytearray()):
+    def __init__(self, start_addr: int, size: int = 0, has_data: bool = True, data=bytearray()):
         self.start_addr = start_addr
         self.size = size
         self.has_data = has_data
@@ -48,6 +48,7 @@ class Cluster:
             raise IndexError('Index out of range')
 
         if self.has_data:
+            assert self.internal_data is not None
             data_out = data_out = self.internal_data[offset:offset + size]
             if isinstance(data_out, int):
                 data_out = bytearray([data_out])
@@ -64,11 +65,13 @@ class Cluster:
             raise Exception('Data too long for cluster')
 
         if self.has_data:
+            assert self.internal_data is not None
             self.internal_data[offset:offset + len(data)] = data
 
     def shrink(self, new_size: int):
         self.size = new_size
         if self.has_data:
+            assert self.internal_data is not None
             self.internal_data = self.internal_data[0:new_size]
 
     def extend(self, new_size: int, delta_data: Union[bytearray, bytes] = None) -> None:
@@ -80,6 +83,7 @@ class Cluster:
             raise Exception('Missing data to extend cluster')
 
         if self.has_data:
+            assert self.internal_data is not None
             if delta_data is None:
                 delta_data = b'\x00' * delta_size
 
@@ -93,7 +97,7 @@ class Cluster:
             # Discard data on purpose
 
     def __repr__(self) -> str:
-        if self.has_data:
+        if self.has_data and self.internal_data is not None:
             data_string = '%d bytes of data' % len(self.internal_data)
         else:
             data_string = 'No Data'
@@ -178,7 +182,11 @@ class MemoryContent:
                         data = bytes.fromhex(m.group(2))
                         cluster = Cluster(start_addr=addr, size=len(data), data=data, has_data=True)
                     else:
-                        cluster = Cluster(start_addr=addr, size=len(m.group(2)) / 2, has_data=False)
+                        size = len(m.group(2)) / 2
+                        if size % 2 != 0:
+                            raise Exception('Odd number of character')
+                        size = int(size)
+                        cluster = Cluster(start_addr=addr, size=size, has_data=False)
 
                     self.write_cluster(cluster)
 
@@ -299,7 +307,7 @@ class MemoryContent:
                     self.clusters[cluster_addr].shrink(new_size)
 
                     self.sorted_keys.insert(cluster_to_edit_key + 1, new_chunk_start)
-                    self.clusters[new_chunk_start] = Cluster(start_addr=new_chunk_data, size=new_chunk_size,
+                    self.clusters[new_chunk_start] = Cluster(start_addr=new_chunk_start, size=new_chunk_size,
                                                              data=new_chunk_data, has_data=self.retain_data)
 
     def agglomerate(self, written_key_index: int = None) -> None:

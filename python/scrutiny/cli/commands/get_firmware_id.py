@@ -16,6 +16,8 @@ import mmap
 import os
 import logging
 
+from typing import Optional, List
+
 
 class GetFirmwareId(BaseCommand):
     _cmd_name_ = 'get-firmware-id'
@@ -25,7 +27,10 @@ class GetFirmwareId(BaseCommand):
     DEFAULT_NAME = 'firmwareid'
     BUF_SIZE = 0x10000
 
-    def __init__(self, args, requested_log_level=None):
+    args: List[str]
+    parser: argparse.ArgumentParser
+
+    def __init__(self, args: List[str], requested_log_level: Optional[str] = None):
         self.args = args
         self.parser = argparse.ArgumentParser(prog=self.get_prog())
         self.parser.add_argument('filename', help='The binary fimware to read')
@@ -33,7 +38,7 @@ class GetFirmwareId(BaseCommand):
         self.parser.add_argument('--apply', action='store_true',
                                  help='When set, tag the firmware binary file with the new firmware-id hash by replacing the compiled placeholder.')
 
-    def run(self):
+    def run(self) -> Optional[int]:
         args = self.parser.parse_args(self.args)
         filename = os.path.normpath(args.filename)
 
@@ -72,3 +77,5 @@ class GetFirmwareId(BaseCommand):
                 f.seek(pos)
                 f.write(thehash_bin)
                 logging.debug('Wrote new hash %s at address 0x%08x' % (thehash, pos))
+
+        return 0

@@ -10,6 +10,7 @@ import argparse
 from .base_command import BaseCommand
 import unittest
 import logging
+from typing import Optional, List
 
 
 class RunTest(BaseCommand):
@@ -17,14 +18,18 @@ class RunTest(BaseCommand):
     _brief_ = 'Run unit tests'
     _group_ = 'Development'
 
-    def __init__(self, args, requested_log_level=None):
+    requested_log_level: Optional[str]
+    args: List[str]
+    parser: argparse.ArgumentParser
+
+    def __init__(self, args: List[str], requested_log_level: Optional[str] = None):
         self.args = args
         self.parser = argparse.ArgumentParser(prog=self.get_prog())
         self.parser.add_argument('--module', default=None, help='The test module to run. All if not specified')
         self.parser.add_argument('--verbosity', default=2, help='Verbosity level of the unittest module')
         self.requested_log_level = requested_log_level
 
-    def run(self):
+    def run(self) -> Optional[int]:
         args = self.parser.parse_args(self.args)
 
         format_string = '[%(levelname)s] <%(name)s> %(message)s'
@@ -38,4 +43,6 @@ class RunTest(BaseCommand):
         else:
             suite = loader.loadTestsFromName(args.module)
 
-        unittest.TextTestRunner(verbosity=int(args.verbosity)).run(suite)
+        result = unittest.TextTestRunner(verbosity=int(args.verbosity)).run(suite)
+        success = len(result.errors) == 0 and len(result.failures) == 0
+        return 0 if success else -1
