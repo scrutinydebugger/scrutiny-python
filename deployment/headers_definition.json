@@ -39,9 +39,6 @@
     "python\\scrutiny\\core\\firmware_info_file.py": {
         "docstring": "Contains the class that represent a Firmware Information File. \nA .fif is a file that holds all the data related to a firmware and is identified by a unique ID."
     },
-    "python\\scrutiny\\core\\memdump.py": {
-        "docstring": "Provide a tool to manipulate non contiguous chunks of bytes with their addresses."
-    },
     "python\\scrutiny\\core\\sfi_storage.py": {
         "docstring": "Manipulate the Scrutiny storage for .fif file"
     },
@@ -161,9 +158,6 @@
     },
     "python\\test\\cli\\test_makevarmap_Linux_LE_x64_Gcc_8_3_0.py": {
         "docstring": "Test that we can make a valid VarMap out of a known binary."
-    },
-    "python\\test\\core\\test_memdump.py": {
-        "docstring": "Test the Memdump class functionalities"
     },
     "python\\test\\server\\test_api.py": {
         "docstring": "Test the client API through a fake handler"
@@ -308,5 +302,14 @@
     },
     "python\\scrutiny\\server\\tools\\timer.py": {
         "docstring": "Minimalist class to make measurement of time easier."
+    },
+    "python\\scrutiny\\server\\device\\request_generator\\datastore_updater.py": {
+        "docstring": "Synchronize the datastore with the device\nPoll for entries that are watched. Write entries marked for write."
+    },
+    "python\\scrutiny\\core\\memory_content.py": {
+        "docstring": "Provide a tool to manipulate non contiguous chunks of bytes with their addresses.\nRepresent a partial memory snapshot"
+    },
+    "python\\test\\core\\test_memory_content.py": {
+        "docstring": "Test the MemoryContent class functionalities"
     }
 }

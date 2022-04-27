@@ -14,7 +14,7 @@ import sys
 
 from scrutiny.core import *
 from scrutiny.core.bintools.elf_dwarf_var_extractor import ElfDwarfVarExtractor
-from scrutiny.core.memdump import Memdump
+from scrutiny.core.memory_content import MemoryContent
 from test.artifacts import get_artifact
 
 
@@ -28,7 +28,7 @@ class TestMakeVarMap_LinuxLEx64_Gcc8_3_0(unittest.TestCase):
         extractor = ElfDwarfVarExtractor(cls.bin_filename)
         varmap = extractor.get_varmap()
         cls.varmap = VarMap(varmap.get_json())
-        cls.memdump = Memdump(cls.memdump_filename)
+        cls.memdump = MemoryContent(cls.memdump_filename)
 
     def load_var(self, fullname):
         return self.varmap.get_var(fullname)

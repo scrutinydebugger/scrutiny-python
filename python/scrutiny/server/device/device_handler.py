@@ -1,7 +1,7 @@
 #    device_handler.py
 #        Manage the communication with the device at high level.
 #        Try to establish a connection, once it succeed, reads the device configuration.
-#
+#        
 #        Will keep the communication ongoing and will request for memory dump based on the
 #        Datastore state
 #
@@ -26,6 +26,7 @@ from scrutiny.server.device.request_generator.device_searcher import DeviceSearc
 from scrutiny.server.device.request_generator.heartbeat_generator import HeartbeatGenerator
 from scrutiny.server.device.request_generator.info_poller import InfoPoller
 from scrutiny.server.device.request_generator.session_initializer import SessionInitializer
+from scrutiny.server.device.request_generator.datastore_updater import DatastoreUpdater
 from scrutiny.core.firmware_id import PLACEHOLDER as DEFAULT_FIRMWARE_ID
 from scrutiny.server.tools import Timer
 
@@ -42,9 +43,11 @@ class DeviceHandler:
 
     # Low number = Low priority
     class RequestPriority:
-        Disconnect = 4
-        Connect = 3
-        Heatbeat = 2
+        Disconnect = 6
+        Connect = 5
+        Heatbeat = 4
+        WriteMemory = 3
+        ReadMemory = 2
         PollInfo = 1
         Discover = 0
 
@@ -86,6 +89,8 @@ class DeviceHandler:
             protocol_version_callback=self.get_protocol_version_callback,  # Called when protocol version is polled
             comm_param_callback=self.get_comm_params_callback,            # Called when communication params are polled
         )
+        self.datastore_updater = DatastoreUpdater(self.protocol, self.dispatcher, self.datastore,
+                                                  read_priority=self.RequestPriority.ReadMemory, write_priority=self.RequestPriority.WriteMemory)
 
         self.comm_handler = CommHandler(self.config)
 
@@ -202,6 +207,7 @@ class DeviceHandler:
         self.info_poller.stop()
         self.session_initializer.stop()
         self.dispatcher.reset()
+        self.datastore_updater.stop()
         self.session_id = None
         self.disconnection_requested = False
         self.disconnect_callback = None
@@ -253,6 +259,7 @@ class DeviceHandler:
         self.heartbeat_generator.process()
         self.info_poller.process()
         self.session_initializer.process()
+        self.datastore_updater.process()
         self.dispatcher.process()
 
         self.handle_comm()      # Make sure request and response are being exchanged with the device
@@ -266,7 +273,9 @@ class DeviceHandler:
 
     def exec_ready_task(self, state_entry=False):
         if self.operating_mode == self.OperatingMode.Normal:
-            pass
+            if state_entry:
+                self.datastore_updater.start()
+            # Nothing else to do
         elif self.operating_mode == self.OperatingMode.Test_CheckThrottling:
             if self.dispatcher.peek_next() is None:
                 dummy_request = Request(DummyCommand, subfn=1, payload=b'\x00' * 32, response_payload_size=32);
@@ -375,6 +384,7 @@ class DeviceHandler:
             self.exec_ready_task(state_entry)
 
             if self.disconnection_requested:
+                self.datastore_updater.stop()
                 next_state = self.FsmState.DISCONNECTING
 
             if self.dispatcher.is_in_error():
