@@ -11,7 +11,6 @@ import struct
 from abc import ABC, abstractmethod
 
 from typing import Dict, Union, List, Literal, Optional, TypedDict, Any
-from scrutiny.core.typehints import Endianness
 
 MASK_MAP: Dict[int, int] = {}
 for i in range(63):
@@ -20,6 +19,9 @@ for i in range(63):
         v |= (1 << j)
         MASK_MAP[i] = v
 
+class Endianness(Enum):
+    Little = 0
+    Big = 1
 
 class VariableLocation:
     def __init__(self, address: int):
@@ -36,7 +38,7 @@ class VariableLocation:
 
     @classmethod
     def check_endianness(cls, endianness: Endianness):
-        if endianness not in ['little', 'big']:
+        if endianness not in [Endianness.Little, Endianness.Big]:
             raise ValueError('Invalid endianness "%s" ' % endianness)
 
     @classmethod
@@ -50,7 +52,11 @@ class VariableLocation:
             raise ValueError('Empty data')
 
         cls.check_endianness(endianness)
-        address = int.from_bytes(data, byteorder=endianness, signed=False)
+        byteorder_map:Dict[Endianness, Literal['little', 'big']] = {
+            Endianness.Little : 'little',
+            Endianness.Big : 'big'
+        }
+        address = int.from_bytes(data, byteorder=byteorder_map[endianness], signed=False)
         return cls(address)
 
     def copy(self) -> 'VariableLocation':
@@ -262,7 +268,7 @@ class Variable:
             self.str = self.str_map[size]
 
         def decode(self, data: Union[bytes, bytearray], endianness: Endianness) -> int:
-            endianness_char = '<' if endianness == 'little' else '>'
+            endianness_char = '<' if endianness == Endianness.Little else '>'
             return struct.unpack(endianness_char + self.str, data)[0]
 
     class UIntDecoder(BaseDecoder):
@@ -280,7 +286,7 @@ class Variable:
             self.str = self.str_map[size]
 
         def decode(self, data: Union[bytes, bytearray], endianness: Endianness) -> int:
-            endianness_char = '<' if endianness == 'little' else '>'
+            endianness_char = '<' if endianness == Endianness.Little else '>'
             return struct.unpack(endianness_char + self.str, data)[0]
 
     class FloatDecoder(BaseDecoder):
@@ -296,7 +302,7 @@ class Variable:
             self.str = self.str_map[size]
 
         def decode(self, data: Union[bytes, bytearray], endianness: Endianness) -> float:
-            endianness_char = '<' if endianness == 'little' else '>'
+            endianness_char = '<' if endianness == Endianness.Little else '>'
             return struct.unpack(endianness_char + self.str, data)[0]
 
     class BoolDecoder(BaseDecoder):
@@ -388,7 +394,7 @@ class Variable:
                 raise NotImplementedError('Does not support bitfield bigger than %dbits' % (8 * 8))
             initial_len = len(data)
 
-            if self.endianness == 'little':
+            if self.endianness == Endianness.Little:
                 padded_data = bytearray(data + b'\x00' * (8 - initial_len))
                 uint_data = struct.unpack('<q', padded_data)[0]
                 uint_data >>= self.bitoffset

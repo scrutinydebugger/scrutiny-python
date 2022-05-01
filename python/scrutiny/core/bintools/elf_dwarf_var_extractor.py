@@ -96,7 +96,7 @@ class ElfDwarfVarExtractor:
         self.enum_die_map = {}
         self.struct_die_map = {}
         self.hierarchical_name_2_memberlist_map = {}
-        self.endianness = 'little'
+        self.endianness = Endianness.Little
 
         if filename is not None:
             self.load_from_elf_file(filename)
@@ -288,7 +288,7 @@ class ElfDwarfVarExtractor:
                 raise Exception('File has no DWARF info')
 
             self.dwarfinfo = elffile.get_dwarf_info()
-            self.endianness = 'little' if elffile.little_endian else 'big'
+            self.endianness = Endianness.Little if elffile.little_endian else Endianness.Big
 
             self.make_cu_name_map(self.dwarfinfo)
             self.demangler = GccDemangler()  # todo : adapt according to compile unit producer
@@ -455,9 +455,9 @@ class ElfDwarfVarExtractor:
         # Not sure about this.
         if 'DW_AT_bit_offset' in die.attributes:
             membersize = die.attributes['DW_AT_byte_size'].value
-            if self.endianness == 'little':
+            if self.endianness == Endianness.Little:
                 bitoffset = (die.attributes['DW_AT_byte_size'].value * 8) - die.attributes['DW_AT_bit_offset'].value - bitsize
-            elif self.endianness == 'big':
+            elif self.endianness == Endianness.Big:
                 bitoffset = die.attributes['DW_AT_bit_offset'].value
             else:
                 raise ValueError('Unknown endianness')

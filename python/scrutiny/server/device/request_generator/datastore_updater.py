@@ -10,16 +10,20 @@
 import time
 import logging
 import binascii
-
+import copy
 
 from scrutiny.server.protocol import *
 from scrutiny.server.device.request_dispatcher import RequestDispatcher, SuccessCallback, FailureCallback
-from scrutiny.server.datastore import Datastore
+from scrutiny.server.datastore import Datastore, WatchCallback
+from scrutiny.core.memory_content import MemoryContent
 
-from typing import Any
+from typing import Any, List, Tuple
 
 
 class DatastoreUpdater:
+
+    DEFAULT_MAX_REQUEST_SIZE:int = 1024
+    DEFAULT_MAX_RESPONSE_SIZE:int = 1024
 
     logger: logging.Logger
     dispatcher: RequestDispatcher
@@ -30,6 +34,16 @@ class DatastoreUpdater:
     stop_requested: bool
     request_pending: bool
     started: bool
+    region_to_read : List
+    memcontent : MemoryContent
+    max_request_size:int
+    max_response_size:int
+    region_to_read_list:List[Tuple[int,int]]
+    forbidden_regions:List[Tuple[int,int]]
+    readonly_regions:List[Tuple[int,int]]
+    request_list_valid:bool
+    request_list:List[Request]
+    request_queue:List[Request]
 
     def __init__(self, protocol: Protocol, dispatcher: RequestDispatcher, datastore: Datastore, read_priority: int, write_priority: int):
         self.logger = logging.getLogger(self.__class__.__name__)
@@ -38,7 +52,40 @@ class DatastoreUpdater:
         self.datastore = datastore
         self.read_priority = read_priority
         self.write_priority = write_priority
+        self.memcontent = MemoryContent(retain_data = False)    # Will agglomerate contiguous blocks of data
+        self.datastore.add_watch_callback(WatchCallback(self.the_watch_callback))
+        self.datastore.add_unwatch_callback(WatchCallback(self.the_unwatch_callback))
+        self.max_request_size = self.DEFAULT_MAX_REQUEST_SIZE
+        self.max_response_size = self.DEFAULT_MAX_RESPONSE_SIZE
+        self.region_to_read_list = []
+        self.forbidden_regions = []
+        self.readonly_regions = []
+        self.request_list_valid = False
+        self.request_list = []
+        self.request_queue = []
         self.reset()
+
+    def set_max_request_size(self, max_size:int):
+        self.max_request_size = max_size
+
+    def set_max_response_size(self, max_size:int):
+        self.max_response_size = max_size
+
+    def add_forbidden_region(self, start_addr:int, size:int):
+        self.forbidden_regions.append((start_addr, size))
+
+    def add_readonly_region(self, start_addr:int, size:int):
+        self.readonly_regions.append((start_addr, size))
+
+    def the_watch_callback(self, entry_id:str):
+        entry = self.datastore.get_entry(entry_id)
+        self.memcontent.add_empty(entry.get_address(), entry.get_size())
+        self.request_list_valid = False
+
+    def the_unwatch_callback(self, entry_id:str):
+        entry = self.datastore.get_entry(entry_id)
+        self.memcontent.delete(entry.get_address(), entry.get_size())
+        self.request_list_valid = False
 
     def start(self) -> None:
         self.started = True
@@ -50,6 +97,7 @@ class DatastoreUpdater:
         self.stop_requested = False
         self.request_pending = False
         self.started = False
+        self.region_to_read = []
 
     def process(self) -> None:
         if not self.started:
@@ -58,6 +106,17 @@ class DatastoreUpdater:
         elif self.stop_requested and not self.request_pending:
             self.reset()
             return
+
+        if not self.request_pending:
+            if len(self.request_queue) == 0:
+                
+                if not self.request_list_valid:
+                    self.rebuild_request_list()
+
+                self.request_queue = copy.copy(self.request_list)
+            else:
+                pass
+
 
     def success_callback(self, request: Request, response_code: ResponseCode, response_data: ResponseData, params: Any = None):
         self.logger.debug("Success callback. Request=%s. Response Code=%s, Params=%s" % (request, response_code, params))
@@ -77,3 +136,6 @@ class DatastoreUpdater:
 
     def completed(self) -> None:
         self.request_pending = False
+
+    def rebuild_request_list(self):
+        pass

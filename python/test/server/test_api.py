@@ -18,6 +18,7 @@ import math
 from scrutiny.server.api.API import API
 from scrutiny.server.datastore import Datastore, DatastoreEntry
 from scrutiny.server.api.dummy_client_handler import DummyConnection, DummyClientHandler
+from scrutiny.core.variable import *
 
 # todo
 # - Test rate limiter/data streamer
@@ -72,9 +73,10 @@ class TestAPI(unittest.TestCase):
             self.assertNotEqual(response['cmd'], API.Command.Api2Client.ERROR_RESPONSE, msg)
 
     def make_dummy_entries(self, n, entry_type=DatastoreEntry.EntryType.Var, prefix='path'):
+        dummy_var = Variable('dummy', vartype=VariableType.float32, path_segments=['a','b','c'], location=0x12345678, endianness=Endianness.Little)
         entries = []
         for i in range(n):
-            entry = DatastoreEntry(entry_type, '%s_%d' % (prefix, i))
+            entry = DatastoreEntry(entry_type, '%s_%d' % (prefix, i), variable_def=dummy_var)
             entries.append(entry)
         return entries
 

@@ -65,7 +65,7 @@ class TestMakeVarMap_LinuxLEx64_Gcc8_3_0(unittest.TestCase):
         self.assertEqual(name, valname)
 
     def test_env(self):
-        self.assertEqual(self.varmap.endianness, 'little')
+        self.assertEqual(self.varmap.endianness, Endianness.Little)
 
     def test_file1_globals_basic_types(self):
         self.assert_var('/global/file1GlobalChar', VariableType.sint8, value_at_loc=-10)

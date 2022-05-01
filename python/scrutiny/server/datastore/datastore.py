@@ -12,19 +12,25 @@ import logging
 from .datastore_entry import DatastoreEntry
 from scrutiny.core.typehints import GenericCallback
 
-from typing import Set, List, Dict, Optional, Any, Iterator, Union
+from typing import Set, List, Dict, Optional, Any, Iterator, Union, Callable
 
+class WatchCallback(GenericCallback):
+    callback: Callable[[str], None]
 
 class Datastore:
     logger: logging.Logger
     entries: Dict[str, DatastoreEntry]
     watched_entries: Set[str]
     entries_list_by_type: Dict[DatastoreEntry.EntryType, List[DatastoreEntry]]
+    global_watch_callbacks:List[WatchCallback]
+    global_unwatch_callbacks:List[WatchCallback]
 
     MAX_ENTRY: int = 1000000
 
     def __init__(self):
         self.logger = logging.getLogger('scrutiny.' + self.__class__.__name__)
+        self.global_watch_callbacks = []
+        self.global_unwatch_callbacks = []
         self.clear()
 
     def clear(self) -> None:
@@ -60,12 +66,21 @@ class Datastore:
     def get_entry(self, entry_id: str) -> DatastoreEntry:
         return self.entries[entry_id]
 
+    def add_watch_callback(self, callback:WatchCallback):
+        self.global_watch_callbacks.append(callback)
+
+    def add_unwatch_callback(self, callback:WatchCallback):
+        self.global_unwatch_callbacks.append(callback)
+
     def start_watching(self, entry_id: str, callback_owner: str, callback: GenericCallback, args: Any = None) -> None:
         entry_id = self.interpret_entry_id(entry_id)
         entry = self.get_entry(entry_id)
         self.watched_entries.add(entry_id)
         if not entry.has_value_change_callback(callback_owner):
             entry.register_value_change_callback(owner=callback_owner, callback=callback, args=args)
+
+        for callback in self.global_watch_callbacks:
+            callback(entry_id)
 
     def stop_watching(self, entry_id: str, callback_owner: str) -> None:
         entry_id = self.interpret_entry_id(entry_id)
@@ -75,6 +90,8 @@ class Datastore:
         except:
             pass
         entry.unregister_value_change_callback(callback_owner)
+        for callback in self.global_unwatch_callbacks:
+            callback(entry_id)
 
     def get_all_entries(self) -> Iterator[DatastoreEntry]:
         for entry_id in self.entries:

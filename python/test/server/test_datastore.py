@@ -9,6 +9,7 @@
 import unittest
 
 from scrutiny.server.datastore import Datastore, DatastoreEntry
+from scrutiny.core.variable import *
 
 
 class TestDataStore(unittest.TestCase):
@@ -16,8 +17,9 @@ class TestDataStore(unittest.TestCase):
         self.callback_call_history = {}
 
     def make_dummy_entries(self, n):
+        dummy_var = Variable('dummy', vartype=VariableType.float32, path_segments=['a','b','c'], location=0x12345678, endianness=Endianness.Little)
         for i in range(n):
-            entry = DatastoreEntry(DatastoreEntry.EntryType.Var, 'path_%d' % i)
+            entry = DatastoreEntry(DatastoreEntry.EntryType.Var, 'path_%d' % i, variable_def=dummy_var)
             yield entry
 
     def entry_callback(self, owner, args, entry):
