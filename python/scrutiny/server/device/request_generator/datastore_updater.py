@@ -41,9 +41,9 @@ class DatastoreUpdater:
     region_to_read_list:List[Tuple[int,int]]
     forbidden_regions:List[Tuple[int,int]]
     readonly_regions:List[Tuple[int,int]]
-    request_list_valid:bool
-    request_list:List[Request]
-    request_queue:List[Request]
+    read_request_list_valid:bool
+    read_request_list:List[Request]
+    read_request_queue:List[Request]
 
     def __init__(self, protocol: Protocol, dispatcher: RequestDispatcher, datastore: Datastore, read_priority: int, write_priority: int):
         self.logger = logging.getLogger(self.__class__.__name__)
@@ -55,14 +55,7 @@ class DatastoreUpdater:
         self.memcontent = MemoryContent(retain_data = False)    # Will agglomerate contiguous blocks of data
         self.datastore.add_watch_callback(WatchCallback(self.the_watch_callback))
         self.datastore.add_unwatch_callback(WatchCallback(self.the_unwatch_callback))
-        self.max_request_size = self.DEFAULT_MAX_REQUEST_SIZE
-        self.max_response_size = self.DEFAULT_MAX_RESPONSE_SIZE
-        self.region_to_read_list = []
-        self.forbidden_regions = []
-        self.readonly_regions = []
-        self.request_list_valid = False
-        self.request_list = []
-        self.request_queue = []
+
         self.reset()
 
     def set_max_request_size(self, max_size:int):
@@ -80,12 +73,12 @@ class DatastoreUpdater:
     def the_watch_callback(self, entry_id:str):
         entry = self.datastore.get_entry(entry_id)
         self.memcontent.add_empty(entry.get_address(), entry.get_size())
-        self.request_list_valid = False
+        self.read_request_list_valid = False
 
     def the_unwatch_callback(self, entry_id:str):
         entry = self.datastore.get_entry(entry_id)
         self.memcontent.delete(entry.get_address(), entry.get_size())
-        self.request_list_valid = False
+        self.read_request_list_valid = False
 
     def start(self) -> None:
         self.started = True
@@ -97,7 +90,14 @@ class DatastoreUpdater:
         self.stop_requested = False
         self.request_pending = False
         self.started = False
-        self.region_to_read = []
+
+        self.max_request_size = self.DEFAULT_MAX_REQUEST_SIZE
+        self.max_response_size = self.DEFAULT_MAX_RESPONSE_SIZE
+        self.forbidden_regions = []
+        self.readonly_regions = []
+        self.read_request_list_valid = False
+        self.read_request_list = []
+        self.read_request_queue = []
 
     def process(self) -> None:
         if not self.started:
@@ -108,12 +108,12 @@ class DatastoreUpdater:
             return
 
         if not self.request_pending:
-            if len(self.request_queue) == 0:
+            if len(self.read_request_queue) == 0:
                 
-                if not self.request_list_valid:
-                    self.rebuild_request_list()
+                if not self.read_request_list_valid:
+                    self.rebuild_read_request_list()
 
-                self.request_queue = copy.copy(self.request_list)
+                self.read_request_queue = copy.copy(self.read_request_list)
             else:
                 pass
 
@@ -137,5 +137,13 @@ class DatastoreUpdater:
     def completed(self) -> None:
         self.request_pending = False
 
-    def rebuild_request_list(self):
-        pass
+    # TODO TODO  : Rendu ici!!
+    def rebuild_read_request_list(self):
+        # Extract memcontent clusters
+        # Split by response size then by request size
+        # Generate bunch of request.  
+        # Protocol must be able to provide size given a cluster.
+
+
+        # todo : unittest for callbacks. Add watch, makesure self.memcontent has good clusters.
+        pass    

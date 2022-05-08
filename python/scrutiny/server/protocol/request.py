@@ -17,11 +17,12 @@ from typing import Union, Type
 
 
 class Request:
-
     command: Type[BaseCommand]
     subfn: Union[int, Enum]
     payload: bytes
     response_payload_size: int
+    
+    OVERHEAD_SIZE:int = 8
 
     def __init__(self, command: Union[Type[BaseCommand], int], subfn: Union[int, Enum], payload: bytes = b'', response_payload_size: int = 0):
         if inspect.isclass(command) and issubclass(command, BaseCommand):
