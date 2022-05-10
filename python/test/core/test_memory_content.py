@@ -9,6 +9,7 @@
 import unittest
 from scrutiny.core.memory_content import MemoryContent, Cluster
 import tempfile
+import os
 
 
 class TestCluster(unittest.TestCase):
@@ -376,8 +377,8 @@ class TestMemoryContent(unittest.TestCase):
         self.assert_clusters(m.get_cluster_list_no_data(), [(0x1000, 0x600), (0x1800, 0x180), (0x2000, 0x100)])
 
     def test_load_memdump(self):
-        filename = 'temp'
         with tempfile.TemporaryDirectory() as tempdirname:
+            filename = os.path.join(tempdirname, 'temp')
             with open(filename, 'w') as f:
                 f.write('0x00100000: 000102030405060708090a0b0c0d0e0f\n')
                 f.write('0x00100010: 101112131415161718191a1b1c1d1e\n')
@@ -397,8 +398,8 @@ class TestMemoryContent(unittest.TestCase):
             self.assert_clusters(memcontent.get_cluster_list_no_data(), [(0x00100000, 31), (0x00200000, 10)])
 
     def test_load_memdump_not_in_order(self):
-        filename = 'temp'
         with tempfile.TemporaryDirectory() as tempdirname:
+            filename = os.path.join(tempdirname, 'temp')
             with open(filename, 'w') as f:
                 f.write('0x00100010: 101112131415161718191a1b1c1d1e\n')
                 f.write('0x00100000: 000102030405060708090a0b0c0d0e0f\n')

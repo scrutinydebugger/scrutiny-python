@@ -63,11 +63,11 @@ class TestRequestDispatcher(unittest.TestCase):
     def make_dummy_request(self, subfn=0, payload=b'', response_payload_size=0):
         return Request(DummyCommand, subfn=subfn, payload=payload, response_payload_size=response_payload_size)
 
-    def success_callback(self, request, response_code, response_data, params=None):
+    def success_callback(self, request, response, params=None):
         self.success_list.append({
             'request': request,
-            'response_code': response_code,
-            'response_data': response_data,
+            'response_code': response.code,
+            'response_data': response.payload,
             'params': params
         })
 
@@ -102,14 +102,14 @@ class TestRequestDispatcher(unittest.TestCase):
                                     failure_callback=self.failure_callback, success_params=[5, 6], failure_params=[7, 8])
 
         record = dispatcher.pop_next()
-        record.complete(success=True, response=Response(DummyCommand, subfn=0, code=ResponseCode.OK), response_data="data1")
+        record.complete(success=True, response=Response(DummyCommand, subfn=0, code=ResponseCode.OK, payload=b'data1'))
         record = dispatcher.pop_next()
         record.complete(success=False)
 
         self.assertEqual(len(self.success_list), 1)
         self.assertEqual(self.success_list[0]['request'], req1)
         self.assertEqual(self.success_list[0]['response_code'], ResponseCode.OK)
-        self.assertEqual(self.success_list[0]['response_data'], "data1")
+        self.assertEqual(self.success_list[0]['response_data'], b"data1")
         self.assertEqual(self.success_list[0]['params'], [1, 2])
 
         self.assertEqual(len(self.failure_list), 1)

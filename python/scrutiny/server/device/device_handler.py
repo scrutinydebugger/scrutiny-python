@@ -507,11 +507,10 @@ class DeviceHandler:
                         response = self.comm_handler.get_response()
 
                         try:
-                            data = self.protocol.parse_response(response)
-                            self.active_request_record.complete(success=True, response=response, response_data=data)  # Valid response if we get here.
+                            self.active_request_record.complete(success=True, response=response)
                         except Exception as e:                   # Malformed response.
                             self.comm_broken = True
-                            self.logger.error("Invalid response received. %s" % str(e))
+                            self.logger.error("Error in success callback. %s" % str(e))
                             self.logger.debug(traceback.format_exc())
                             self.active_request_record.complete(success=False)
 

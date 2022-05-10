@@ -236,39 +236,42 @@ class InfoPoller:
         self.last_fsm_state = self.fsm_state
         self.fsm_state = next_state
 
-    def success_callback(self, request: Request, response_code: ResponseCode, response_data: ResponseData, params: Any = None) -> None:
-        self.logger.debug("Success callback. Request=%s. Response Code=%s, Params=%s" % (request, response_code, params))
+    def success_callback(self, request: Request, response: Response, params: Any = None) -> None:
+        self.logger.debug("Success callback. Request=%s. Response Code=%s, Params=%s" % (request, response.code, params))
+
         must_process_response = True
         if self.stop_requested:
             must_process_response = False
 
-        if response_code != ResponseCode.OK:
+        if response.code != ResponseCode.OK:
             self.request_failed = True
             error_message_map = {
-                self.FsmState.GetProtocolVersion: 'Device refused to give protocol version. Response Code = %s' % response_code,
-                self.FsmState.GetCommParams: 'Device refused to give communication params. Response Code = %s' % response_code,
-                self.FsmState.GetSupportedFeatures: 'Device refused to give supported features. Response Code = %s' % response_code,
-                self.FsmState.GetSpecialMemoryRegionCount: 'Device refused to give special region count. Response Code = %s' % response_code,
-                self.FsmState.GetForbiddenMemoryRegions: 'Device refused to give forbidden region list. Response Code = %s' % response_code,
-                self.FsmState.GetReadOnlyMemoryRegions: 'Device refused to give readonly region list. Response Code = %s' % response_code
+                self.FsmState.GetProtocolVersion: 'Device refused to give protocol version. Response Code = %s' % response.code,
+                self.FsmState.GetCommParams: 'Device refused to give communication params. Response Code = %s' % response.code,
+                self.FsmState.GetSupportedFeatures: 'Device refused to give supported features. Response Code = %s' % response.code,
+                self.FsmState.GetSpecialMemoryRegionCount: 'Device refused to give special region count. Response Code = %s' % response.code,
+                self.FsmState.GetForbiddenMemoryRegions: 'Device refused to give forbidden region list. Response Code = %s' % response.code,
+                self.FsmState.GetReadOnlyMemoryRegions: 'Device refused to give readonly region list. Response Code = %s' % response.code
             }
             self.error_message = error_message_map[self.fsm_state] if self.fsm_state in error_message_map else 'Internal error - Request denied. %s - %s' % (
-                str(Request), response_code)
+                str(Request), response.code)
             must_process_response = False
 
-        if response_data['valid'] == False:
-            self.request_failed = True
-            error_message_map = {
-                self.FsmState.GetProtocolVersion: 'Device gave invalid data when polling for protocol version. Response Code = %s' % response_code,
-                self.FsmState.GetCommParams: 'Device gave invalid data when polling for communication params. Response Code = %s' % response_code,
-                self.FsmState.GetSupportedFeatures: 'Device gave invalid data when polling for supported features. Response Code = %s' % response_code,
-                self.FsmState.GetSpecialMemoryRegionCount: 'Device gave invalid data when polling for special region count. Response Code = %s' % response_code,
-                self.FsmState.GetForbiddenMemoryRegions: 'Device gave invalid data when polling for forbidden region list. Response Code = %s' % response_code,
-                self.FsmState.GetReadOnlyMemoryRegions: 'Device gave invalid data when polling for readonly region list. Response Code = %s' % response_code
-            }
-            self.error_message = error_message_map[self.fsm_state] if self.fsm_state in error_message_map else 'Internal error - Invalid response for request %s' % str(
-                Request)
-            must_process_response = False
+        if must_process_response:
+            response_data = self.protocol.parse_response(response)  # It's ok to have the exception go up
+            if response_data['valid'] == False:
+                self.request_failed = True
+                error_message_map = {
+                    self.FsmState.GetProtocolVersion: 'Device gave invalid data when polling for protocol version. Response Code = %s' % response.code,
+                    self.FsmState.GetCommParams: 'Device gave invalid data when polling for communication params. Response Code = %s' % response.code,
+                    self.FsmState.GetSupportedFeatures: 'Device gave invalid data when polling for supported features. Response Code = %s' % response.code,
+                    self.FsmState.GetSpecialMemoryRegionCount: 'Device gave invalid data when polling for special region count. Response Code = %s' % response.code,
+                    self.FsmState.GetForbiddenMemoryRegions: 'Device gave invalid data when polling for forbidden region list. Response Code = %s' % response.code,
+                    self.FsmState.GetReadOnlyMemoryRegions: 'Device gave invalid data when polling for readonly region list. Response Code = %s' % response.code
+                }
+                self.error_message = error_message_map[self.fsm_state] if self.fsm_state in error_message_map else 'Internal error - Invalid response for request %s' % str(
+                    Request)
+                must_process_response = False
 
         if must_process_response:
             if self.fsm_state == self.FsmState.GetProtocolVersion:

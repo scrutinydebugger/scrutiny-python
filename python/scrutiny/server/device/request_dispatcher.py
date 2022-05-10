@@ -89,12 +89,12 @@ class RequestRecord:
     def __init__(self):
         self.completed = False
 
-    def complete(self, success: bool = False, response: Optional[Response] = None, response_data: Optional[ResponseData] = None):
+    def complete(self, success: bool = False, response: Optional[Response] = None):
         self.completed = True  # Set to true at beginning so that it is still true if an exception raise in the callback
         if success:
-            if response is None or response_data is None:
+            if response is None:
                 raise ValueError('Missing response')
-            self.success_callback.__call__(self.request, response.code, response_data, self.success_params)
+            self.success_callback.__call__(self.request, response, self.success_params)
         else:
             self.failure_callback.__call__(self.request, self.failure_params)
 

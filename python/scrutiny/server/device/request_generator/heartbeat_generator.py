@@ -80,21 +80,25 @@ class HeartbeatGenerator:
                 self.pending = True
                 self.last_heartbeat_request = time.time()
 
-    def success_callback(self, request: Request, response_code: ResponseCode, response_data: ResponseData, params: Any = None) -> None:
-        self.logger.debug("Success callback. Request=%s. Response Code=%s, Params=%s" % (request, response_code, params))
+    def success_callback(self, request: Request, response:Response, params: Any = None) -> None:
+        self.logger.debug("Success callback. Request=%s. Response Code=%s, Params=%s" % (request, response.code, params))
+    
         expected_challenge_response = self.protocol.heartbeat_expected_challenge_response(self.challenge)
-
-        if response_code == ResponseCode.OK:
-            if response_data['session_id'] == self.session_id:
-                if response_data['challenge_response'] == expected_challenge_response:
-                    self.last_heartbeat_timestamp = time.time()
+        if response.code == ResponseCode.OK:
+            response_data = self.protocol.parse_response(response)
+            if response_data['valid']:
+                if response_data['session_id'] == self.session_id:
+                    if response_data['challenge_response'] == expected_challenge_response:
+                        self.last_heartbeat_timestamp = time.time()
+                    else:
+                        self.logger.error('Heartbeat challenge response is not good. Got %s, expected %s' %
+                                          (response_data['challenge_response'], expected_challenge_response))
                 else:
-                    self.logger.error('Heartbeat challenge response is not good. Got %s, expected %s' %
-                                      (response_data['challenge_response'], expected_challenge_response))
+                    self.logger.error('Heartbeat session ID echo not good. Got %s, expected %s' % (response_data['session_id'], self.session_id))
             else:
-                self.logger.error('Heartbeat session ID echo not good. Got %s, expected %s' % (response_data['session_id'], self.session_id))
+                self.logger.error('Heartbeat response data is invalid')                    
         else:
-            self.logger.error('Heartbeat request got Nacked. %s' % response_code)
+            self.logger.error('Heartbeat request got Nacked. %s' % response.code)
 
         self.completed()
 
