@@ -69,10 +69,10 @@ class TestDataStore(unittest.TestCase):
         entries = list(self.make_dummy_entries(5))
         ds = Datastore()
         ds.add_entries_quiet(entries)
-        owner = 1234
-        owner2 = 4567
+        owner = 'watcher1'
+        owner2 = 'watcher2'
         for entry in entries:
-            ds.start_watching(entry.get_id(), callback_owner=owner, callback=self.entry_callback, args=dict(someParam=entry.get_id()))
+            ds.start_watching(entry.get_id(), watcher=owner, callback=self.entry_callback, args=dict(someParam=entry.get_id()))
 
         for entry in entries:
             self.assertCallbackCalled(entry, owner, 0)
@@ -99,7 +99,7 @@ class TestDataStore(unittest.TestCase):
         self.assertCallbackCalled(entries[4], owner, 0)
 
         # Add a second callback on entry 3 with same owner. Should make 1 call on dirty, not 2
-        ds.start_watching(entries[3].get_id(), callback_owner=owner, callback=self.entry_callback, args=dict(someParam=entry.get_id()))
+        ds.start_watching(entries[3].get_id(), watcher=owner, callback=self.entry_callback, args=dict(someParam=entry.get_id()))
         entries[3].execute_value_change_callback()
         self.assertCallbackCalled(entries[0], owner, 2)
         self.assertCallbackCalled(entries[1], owner, 0)
@@ -108,8 +108,8 @@ class TestDataStore(unittest.TestCase):
         self.assertCallbackCalled(entries[4], owner, 0)
 
         # Add a 2 callbacks with different owner. Should make 2 calls
-        ds.start_watching(entries[4].get_id(), callback_owner=owner, callback=self.entry_callback, args=dict(someParam=entry.get_id()))
-        ds.start_watching(entries[4].get_id(), callback_owner=owner2, callback=self.entry_callback, args=dict(someParam=entry.get_id()))
+        ds.start_watching(entries[4].get_id(), watcher=owner, callback=self.entry_callback, args=dict(someParam=entry.get_id()))
+        ds.start_watching(entries[4].get_id(), watcher=owner2, callback=self.entry_callback, args=dict(someParam=entry.get_id()))
         entries[4].execute_value_change_callback()
         self.assertCallbackCalled(entries[0], owner, 2)
         self.assertCallbackCalled(entries[1], owner, 0)
@@ -117,3 +117,51 @@ class TestDataStore(unittest.TestCase):
         self.assertCallbackCalled(entries[3], owner, 1)
         self.assertCallbackCalled(entries[4], owner, 1)
         self.assertCallbackCalled(entries[4], owner2, 1)
+
+    # Make sure we manage correctly multiple watchers
+    def test_watch_behavior(self):
+        entries = list(self.make_dummy_entries(4))
+        ds = Datastore()
+        ds.add_entries_quiet(entries)
+
+        for entry in entries:
+            ds.start_watching(entry, watcher='watcher1', callback=lambda:None)
+            ds.start_watching(entry, watcher='watcher2', callback=lambda:None)
+
+        watchers = ds.get_watchers(entries[0])
+        self.assertEqual(watchers, {'watcher1', 'watcher2'})
+
+        watched_entries_id = ds.get_watched_entries_id()
+        self.assertEqual(len(watched_entries_id), len(entries))
+        for entry in entries:
+            self.assertIn(entry.get_id(), watched_entries_id)
+
+        for entry in entries:
+            ds.stop_watching(entry, watcher='watcher2')
+
+
+        watchers = ds.get_watchers(entries[0])
+        self.assertEqual(watchers, {'watcher1'})
+
+        watched_entries_id = ds.get_watched_entries_id()
+        self.assertEqual(len(watched_entries_id), len(entries))
+        for entry in entries:
+            self.assertIn(entry.get_id(), watched_entries_id)
+
+        ds.stop_watching(entries[0], watcher='watcher1')
+        ds.stop_watching(entries[1], watcher='watcher1')
+
+        watchers = ds.get_watchers(entries[0])
+        self.assertEqual(watchers, set())
+
+        watched_entries_id = ds.get_watched_entries_id()
+        self.assertEqual(len(watched_entries_id), 2)
+        self.assertIn(entries[2].get_id(), watched_entries_id)        
+        self.assertIn(entries[3].get_id(), watched_entries_id)        
+
+        ds.stop_watching(entries[2], watcher='watcher1')
+        ds.stop_watching(entries[3], watcher='watcher1')
+
+        watched_entries_id = ds.get_watched_entries_id()
+        self.assertEqual(len(watched_entries_id), 0)
+        

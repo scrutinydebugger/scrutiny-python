@@ -281,7 +281,7 @@ class API:
                 raise InvalidRequestException(req, 'Unknown watchable ID : %s' % str(watchable))
 
         for watchable in req['watchables']:
-            self.datastore.start_watching(watchable, callback_owner=conn_id, callback=UpdateVarCallback(self.var_update_callback))
+            self.datastore.start_watching(watchable, watcher=conn_id, callback=UpdateVarCallback(self.var_update_callback))
 
         response = {
             'cmd': self.Command.Api2Client.SUBSCRIBE_WATCHABLE_RESPONSE,
@@ -302,7 +302,7 @@ class API:
                 raise InvalidRequestException(req, 'Unknown watchable ID : %s' % str(watchable))
 
         for watchable in req['watchables']:
-            self.datastore.stop_watching(watchable, callback_owner=conn_id)
+            self.datastore.stop_watching(watchable, watcher=conn_id)
 
         response = {
             'cmd': self.Command.Api2Client.SUBSCRIBE_WATCHABLE_RESPONSE,

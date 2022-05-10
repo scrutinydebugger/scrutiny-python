@@ -20,10 +20,10 @@ class WatchCallback(GenericCallback):
 class Datastore:
     logger: logging.Logger
     entries: Dict[str, DatastoreEntry]
-    watched_entries: Set[str]
     entries_list_by_type: Dict[DatastoreEntry.EntryType, List[DatastoreEntry]]
     global_watch_callbacks:List[WatchCallback]
     global_unwatch_callbacks:List[WatchCallback]
+    watcher_map:Dict[str, Set[str]]
 
     MAX_ENTRY: int = 1000000
 
@@ -35,7 +35,7 @@ class Datastore:
 
     def clear(self) -> None:
         self.entries = {}
-        self.watched_entries = set()
+        self.watcher_map = {}
 
         self.entries_list_by_type = {}
         for entry_type in DatastoreEntry.EntryType:
@@ -72,24 +72,34 @@ class Datastore:
     def add_unwatch_callback(self, callback:WatchCallback):
         self.global_unwatch_callbacks.append(callback)
 
-    def start_watching(self, entry_id: str, callback_owner: str, callback: GenericCallback, args: Any = None) -> None:
+    def start_watching(self, entry_id: str, watcher: str, callback: GenericCallback, args: Any = None) -> None:
         entry_id = self.interpret_entry_id(entry_id)
         entry = self.get_entry(entry_id)
-        self.watched_entries.add(entry_id)
-        if not entry.has_value_change_callback(callback_owner):
-            entry.register_value_change_callback(owner=callback_owner, callback=callback, args=args)
+        if entry_id not in self.watcher_map:
+            self.watcher_map[entry.get_id()] = set()
+        self.watcher_map[entry_id].add(watcher)
+        if not entry.has_value_change_callback(watcher):
+            entry.register_value_change_callback(owner=watcher, callback=callback, args=args)
 
         for callback in self.global_watch_callbacks:
             callback(entry_id)
 
-    def stop_watching(self, entry_id: str, callback_owner: str) -> None:
+    def stop_watching(self, entry_id: str, watcher: str) -> None:
         entry_id = self.interpret_entry_id(entry_id)
         entry = self.get_entry(entry_id)
+        
         try:
-            self.watched_entries.remove(entry_id)
+            self.watcher_map[entry_id].remove(watcher)
         except:
             pass
-        entry.unregister_value_change_callback(callback_owner)
+
+        try:
+            if len(self.watcher_map[entry_id]) == 0:
+                del self.watcher_map[entry_id]
+        except:
+            pass
+        
+        entry.unregister_value_change_callback(watcher)
         for callback in self.global_unwatch_callbacks:
             callback(entry_id)
 
@@ -119,5 +129,13 @@ class Datastore:
         entry = self.get_entry(entry_id)
         entry.set_value(value)
 
-    def get_watched_entries(self) -> Set[str]:
-        return self.watched_entries
+    def get_watched_entries_id(self) -> Set[str]:
+        return list(self.watcher_map.keys())
+
+    def get_watchers(self, entry_id:Union[DatastoreEntry, str]) -> Set[str]:
+        entry_id = self.interpret_entry_id(entry_id)
+        if entry_id not in self.watcher_map:
+            return set()
+        else:
+            return set(self.watcher_map[entry_id]) # Make a copy
+

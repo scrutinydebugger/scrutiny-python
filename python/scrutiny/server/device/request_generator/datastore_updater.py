@@ -76,9 +76,10 @@ class DatastoreUpdater:
         self.read_request_list_valid = False
 
     def the_unwatch_callback(self, entry_id:str):
-        entry = self.datastore.get_entry(entry_id)
-        self.memcontent.delete(entry.get_address(), entry.get_size())
-        self.read_request_list_valid = False
+        if len(self.datastore.get_watchers(entry_id)) == 0:
+            entry = self.datastore.get_entry(entry_id)
+            self.memcontent.delete(entry.get_address(), entry.get_size())
+            self.read_request_list_valid = False
 
     def start(self) -> None:
         self.started = True
@@ -98,6 +99,9 @@ class DatastoreUpdater:
         self.read_request_list_valid = False
         self.read_request_list = []
         self.read_request_queue = []
+
+    def get_cluster_list(self):
+        return self.memcontent.get_cluster_list_no_data()
 
     def process(self) -> None:
         if not self.started:
@@ -139,7 +143,9 @@ class DatastoreUpdater:
 
     # TODO TODO  : Rendu ici!!
     def rebuild_read_request_list(self):
-        # Extract memcontent clusters
+        self.logger.debug('Rebuilding request list')
+        clusters = self.get_cluster_list()
+        
         # Split by response size then by request size
         # Generate bunch of request.  
         # Protocol must be able to provide size given a cluster.
