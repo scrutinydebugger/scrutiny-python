@@ -232,7 +232,10 @@ class MemoryContent:
         cluster = Cluster(start_addr=addr, size=size, data=data, has_data=self.retain_data)
         self.write_cluster(cluster)
 
-    def get_cluster_list_no_data(self) -> List[Cluster]:
+    def get_cluster_count(self):
+        return len(self.clusters)
+        
+    def get_cluster_list_no_data_by_address(self) -> List[Cluster]:
         """
         Return a list of contiguous memory chunk that have data written.
         Each entry of the list is a Cluster object which have a start address and a length.
@@ -241,6 +244,17 @@ class MemoryContent:
         cluster_list = [Cluster(start_addr=addr, size=len(self.clusters[addr]), has_data=False) for addr in self.clusters]
         cluster_list.sort(key=lambda x: x.start_addr)
         return cluster_list
+
+    def get_cluster_list_no_data_by_size_desc(self) -> List[Cluster]:
+        """
+        Return a list of contiguous memory chunk that have data written.
+        Each entry of the list is a Cluster object which have a start address and a length.
+        Clusters are sorted by size.
+        """
+        cluster_list = [Cluster(start_addr=addr, size=len(self.clusters[addr]), has_data=False) for addr in self.clusters]
+        cluster_list.sort(key=lambda x: x.size, reverse=True)
+        return cluster_list
+
 
     def delete(self, addr: int, size: int) -> None:
         if size <= 0:

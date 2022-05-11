@@ -72,6 +72,7 @@ class DatastoreEntry:
     callback_pending: bool
     last_value_update: float
     variable_def:Variable
+    value:Any
 
     def __init__(self, entry_type: "DatastoreEntry.EntryType", display_path: str, variable_def:Variable):
 
@@ -89,6 +90,7 @@ class DatastoreEntry:
         self.callback_pending = False
         self.last_value_update = time.time()
         self.variable_def = variable_def
+        self.value = 0
 
     def get_type(self) -> "DatastoreEntry.EntryType":
         return self.entry_type
@@ -104,6 +106,9 @@ class DatastoreEntry:
 
     def get_size(self):
         return self.variable_def.get_size()
+
+    def set_value_from_data(self, data):
+        self.set_value(self.variable_def.decode(data))
 
     def execute_value_change_callback(self) -> None:
         self.callback_pending = True

@@ -72,7 +72,7 @@ class Datastore:
     def add_unwatch_callback(self, callback:WatchCallback):
         self.global_unwatch_callbacks.append(callback)
 
-    def start_watching(self, entry_id: str, watcher: str, callback: GenericCallback, args: Any = None) -> None:
+    def start_watching(self, entry_id: Union[DatastoreEntry, str], watcher: str, callback: GenericCallback, args: Any = None) -> None:
         entry_id = self.interpret_entry_id(entry_id)
         entry = self.get_entry(entry_id)
         if entry_id not in self.watcher_map:
@@ -84,7 +84,7 @@ class Datastore:
         for callback in self.global_watch_callbacks:
             callback(entry_id)
 
-    def stop_watching(self, entry_id: str, watcher: str) -> None:
+    def stop_watching(self, entry_id: Union[DatastoreEntry, str], watcher: str) -> None:
         entry_id = self.interpret_entry_id(entry_id)
         entry = self.get_entry(entry_id)
         
