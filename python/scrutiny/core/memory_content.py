@@ -42,10 +42,10 @@ class Cluster:
             raise ValueError('Cannot read a negative size')
 
         if offset < 0:
-            raise IndexError('Index out of range')
+            raise IndexError('Offset cannot be negative %d' % offset)
 
         if offset + size > self.size:
-            raise IndexError('Index out of range')
+            raise IndexError('Index out of range %d to %d' % (offset, offset+size))
 
         if self.has_data:
             assert self.internal_data is not None
@@ -59,7 +59,7 @@ class Cluster:
 
     def write(self, data: Union[bytearray, bytes], offset: int = 0) -> None:
         if offset < 0:
-            raise ValueError('Offset cannot be negative')
+            raise ValueError('Offset cannot be negative %d' % offset)
 
         if self.size - offset < len(data):
             raise Exception('Data too long for cluster')

@@ -138,7 +138,7 @@ class DatastoreUpdater:
         if not self.read_request_pending:
             request, entries_in_request = self.make_next_read_request()
             if request is not None:
-                self.logger.debug('Registering a request for %d entries. %s' % (len(entries_in_request), request))
+                self.logger.debug('Registering a request for %d datastore entries. %s' % (len(entries_in_request), request))
                 self.dispatcher.register_request(
                     request=request,
                     success_callback=SuccessCallback(self.read_success_callback),
@@ -191,7 +191,7 @@ class DatastoreUpdater:
             memcontent.add_empty(candidate_entry.get_address(), candidate_entry.get_size())
             clusters_candidate = memcontent.get_cluster_list_no_data_by_address()
 
-            if len(clusters_candidate) >= max_block_per_request:
+            if len(clusters_candidate) > max_block_per_request:
                 break # No space in request
 
             # Check response size limit
@@ -229,14 +229,13 @@ class DatastoreUpdater:
                     temp_memory = MemoryContent()
                     for block in response_data['read_blocks']:
                         temp_memory.write(block['address'], block['data'])
-    
-                        for entry in self.entries_in_pending_read_request:
-                            raw_data = temp_memory.read(entry.get_address(), entry.get_size())
-                            entry.set_value_from_data(raw_data)
+                            
+                    for entry in self.entries_in_pending_read_request:
+                        raw_data = temp_memory.read(entry.get_address(), entry.get_size())
+                        entry.set_value_from_data(raw_data)
                 except Exception as e:
                     self.logger.critical('Error while writing datastore. %s' % str(e))
                     self.logger.debug(traceback.format_exc())
-
             else:
                 self.logger.error('Response for ReadMemory read request is malformed and must be discared.')                
         else:

@@ -31,6 +31,9 @@ class BlockToRead:
         self.nfloat = nfloat
         self.entries = entries
 
+    def __repr__(self):
+        return '<Block: 0x%08x with %d float>' % (self.address, self.nfloat)
+
 def make_dummy_entries(address, n, vartype=VariableType.float32):
     for i in range(n):
         dummy_var = Variable('dummy', vartype=vartype, path_segments=['a','b','c'], location=address+i*vartype.get_size_bit()//8, endianness=Endianness.Little)
@@ -41,7 +44,6 @@ def d2f(d):
     return struct.unpack('f', struct.pack('f', d))[0]
 
 class TestDataStoreUpdaterBasicReadOperation(unittest.TestCase):
-
     def test_sorted_set(self):
         theset = SortedSet()
         entries = list(make_dummy_entries(1000, 5))
@@ -87,8 +89,8 @@ class TestDataStoreUpdaterBasicReadOperation(unittest.TestCase):
                 self.assertEqual(len(request_data['blocks_to_read']), len(expected_block_list), 'iter=%d'%i)
                 j=0
                 for expected_block in expected_block_list: 
-                    self.assertEqual(request_data['blocks_to_read'][j]['address'], expected_block.address, 'iter=%d'%i)
-                    self.assertEqual(request_data['blocks_to_read'][j]['length'], expected_block.nfloat * 4, 'iter=%d'%i)
+                    self.assertEqual(request_data['blocks_to_read'][j]['address'], expected_block.address, 'iter=%d, block=%d' % (i,j))
+                    self.assertEqual(request_data['blocks_to_read'][j]['length'], expected_block.nfloat * 4, 'iter=%d, block=%d' % (i,j))
                     j+=1
                
                 # Simulate that the response has been received
@@ -108,7 +110,7 @@ class TestDataStoreUpdaterBasicReadOperation(unittest.TestCase):
                     values = data_lut[expected_block]  # Get back our value list
                     for j in range(len(expected_block.entries)):
                         # Let's validate that the datastore is updated
-                        self.assertEqual(expected_block.entries[j].get_value(), values[j], 'iter=%d'%i)
+                        self.assertEqual(expected_block.entries[j].get_value(), values[j], 'iter=%d, block=%d' % (i,j))
 
 
     # Here we have a set of datastore entries that are contiguous in memory.
@@ -141,7 +143,6 @@ class TestDataStoreUpdaterBasicReadOperation(unittest.TestCase):
 
     # Here, we define 3 non-contiguous block of memory and impose a limit on the request size to allow only 2 blocks read per request.
     # We make sure that blocks are completely read.
-    @unittest.skip("Not implemented yet")
     def test_read_request_multiple_blocks_2blocks_per_req(self):
         nfloat1 = 10
         nfloat2 = 20
@@ -153,8 +154,8 @@ class TestDataStoreUpdaterBasicReadOperation(unittest.TestCase):
         entries1 = list(make_dummy_entries(address=address1, n=nfloat1, vartype=VariableType.float32))
         entries2 = list(make_dummy_entries(address=address2, n=nfloat2, vartype=VariableType.float32))
         entries3 = list(make_dummy_entries(address=address3, n=nfloat3, vartype=VariableType.float32))
-        for entry in entries1+entries2+entries3:
-            ds.add_entry(entry)
+        all_entries = entries1+entries2+entries3
+        ds.add_entries(all_entries)
         dispatcher = RequestDispatcher()
         protocol = Protocol(1,0)
         updater = DatastoreUpdater(protocol, dispatcher = dispatcher, datastore=ds, read_priority=0, write_priority=0)
@@ -162,24 +163,27 @@ class TestDataStoreUpdaterBasicReadOperation(unittest.TestCase):
         updater.set_max_response_size(1024)  # Non-limiting here
         updater.start()
 
-        for entry in entries:
+        for entry in all_entries:
             ds.start_watching(entry, 'unittest', GenericCallback(lambda *args, **kwargs:None))
 
         # The expected sequence of block will be : 1,2 - 3,1 - 2,3 - 1,2 - etc
         expected_blocks_sequence = [
             [BlockToRead(address1, nfloat1, entries1), BlockToRead(address2, nfloat2, entries2)],
-            [BlockToRead(address3, nfloat3, entries3), BlockToRead(address1, nfloat1, entries1)],
+            [BlockToRead(address1, nfloat1, entries1), BlockToRead(address3, nfloat3, entries3)],
             [BlockToRead(address2, nfloat2, entries2), BlockToRead(address3, nfloat3, entries3)]                        
             ]
 
-        self.generic_test_read_block_sequence(expected_blocks_sequence, updater, dispatcher, niter=5)
+        self.generic_test_read_block_sequence(expected_blocks_sequence, updater, dispatcher, protocol, niter=5)
 
 
-    @unittest.skip("Not implemented yet")
-    def test_read_request_multiple_blocks_10_items_per_response(self):
+    # Here we make read entries, but response has enough space for only 10 blocks of 1 entry.
+    # Make sure this happens
+    def test_read_request_multiple_blocks_limited_by_response_size(self):
         nfloat = 15
-        address = 0x1000
-        entries = list(make_dummy_entries(address=address, n=nfloat, vartype=VariableType.float32))
+        entries = []
+        for i in range(nfloat): 
+            entries += list(make_dummy_entries(address=i*0x100, n=1, vartype=VariableType.float32))
+        
         ds = Datastore()
         ds.add_entries(entries)
         
@@ -187,20 +191,21 @@ class TestDataStoreUpdaterBasicReadOperation(unittest.TestCase):
         protocol = Protocol(1,0)
         updater = DatastoreUpdater(protocol, dispatcher = dispatcher, datastore=ds, read_priority=0, write_priority=0)
         updater.set_max_request_size(1024)  # Non-limiting here
-        updater.set_max_response_size(Response.OVERHEAD_SIZE + 10 * (protocol.read_memory_response_overhead_size_per_block() + 4))  
+        updater.set_max_response_size(Response.OVERHEAD_SIZE + protocol.read_memory_response_overhead_size_per_block()*10 + 4*10)  
         updater.start()
 
         for entry in entries:
             ds.start_watching(entry, 'unittest', GenericCallback(lambda *args, **kwargs:None))
 
         # The expected sequence of block will be : 1,2 - 3,1 - 2,3 - 1,2 - etc
+        # Sorted by address.
         expected_blocks_sequence = [
-            [BlockToRead(address, 10, entries[0:10])],
-            [BlockToRead(address + 10*4, 5, entries[10:15]), BlockToRead(address, 5, entries[0:5])],
-            [BlockToRead(address + 5*4, 10, entries[5:15])]                        
+            [BlockToRead(i*0x100, 1, entries[i:i+1]) for i in range(10)],
+            [BlockToRead(i*0x100, 1, entries[i:i+1]) for i in range(5)] + [BlockToRead((10+i)*0x100, 1, entries[10+i:10+i+1]) for i in range(5)],
+            [BlockToRead((i+5)*0x100 , 1, entries[5+i:5+i+1]) for i in range(10)]                        
             ]
 
-        self.generic_test_read_block_sequence(expected_blocks_sequence, updater, dispatcher, niter=5)
+        self.generic_test_read_block_sequence(expected_blocks_sequence, updater, dispatcher, protocol, niter=5)
 
 
 
@@ -213,7 +218,7 @@ class TestDataStoreUpdaterComplexReadOperation(unittest.TestCase):
     def setUp(self):
         self.callback_count_map = {}
 
-    def value_change_callback1(self, entry):
+    def value_change_callback1(self, owner, entry):
         if entry not in self.callback_count_map:
             self.callback_count_map[entry] = 0
 
@@ -233,7 +238,7 @@ class TestDataStoreUpdaterComplexReadOperation(unittest.TestCase):
 
         return (low, high)
 
-    @unittest.skip("Not implemented yet")
+    
     def test_read_request_multiple_blocks_complex_pattern(self):
         max_request_size = 128
         max_response_size = 128
@@ -271,25 +276,27 @@ class TestDataStoreUpdaterComplexReadOperation(unittest.TestCase):
             record = dispatcher.pop_next()
             self.assertIsNotNone(record)
             
-            self.assertLessThanOrEqual(record.request.get_size(), max_request_size)
+            self.assertLessEqual(record.request.size(), max_request_size)
             response_block = []
             request_data = protocol.parse_request(record.request)
             self.assertTrue(request_data['valid'])
-
+            
             for block in request_data['blocks_to_read']:
-                response_block.append( (block['address'], b'\x00'*block['size']) ) 
+                response_block.append( (block['address'], b'\x00'*block['length']) ) 
 
-            response = protocol.respond_read_memory_blocks(block_list)
-            self.assertLessThanOrEqual(response.get_size(), max_response_size)
+            response = protocol.respond_read_memory_blocks(response_block)
+            self.assertLessEqual(response.size(), max_response_size)
             record.complete(success=True, response = response)
 
             low, high = self.get_callback_count_min_max()
-            self.assertGreaterThanOrEqual(high, low)    # High should be greater than 1
-            self.assertLessThanOrEqual(high-low, 1)     # High should be equal to low or low+1. This ensure that round robin is working fine
+            self.assertIsNotNone(low)
+            self.assertIsNotNone(high)
+            self.assertGreaterEqual(high, low)    # High should be greater than 1
+            self.assertLessEqual(high-low, 1)     # High should be equal to low or low+1. This ensure that round robin is working fine
 
             if low > 10:
                 break
 
             loop_count+=1
 
-        self.assertLessThan(loop_count, max_loop) # Make sure we haven't exited because nothing happens
+        self.assertLess(loop_count, max_loop) # Make sure we haven't exited because nothing happens
