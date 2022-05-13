@@ -123,7 +123,7 @@ class VarMap:
             endianness_str = 'big'
         else:
             raise Exception('Unknown endianness')
-            
+
         content = {
             'endianness': endianness_str,
             'type_map': self.typemap,

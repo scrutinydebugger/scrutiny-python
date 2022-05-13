@@ -71,10 +71,10 @@ class DatastoreEntry:
     pending_target_update: Optional["DatastoreEntry.UpdateTargetRequest"]
     callback_pending: bool
     last_value_update: float
-    variable_def:Variable
-    value:Any
+    variable_def: Variable
+    value: Any
 
-    def __init__(self, entry_type: "DatastoreEntry.EntryType", display_path: str, variable_def:Variable):
+    def __init__(self, entry_type: "DatastoreEntry.EntryType", display_path: str, variable_def: Variable):
 
         if entry_type not in [DatastoreEntry.EntryType.Var, DatastoreEntry.EntryType.Alias]:
             raise ValueError('Invalid watchable type')

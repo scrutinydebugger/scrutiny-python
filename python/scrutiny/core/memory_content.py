@@ -45,7 +45,7 @@ class Cluster:
             raise IndexError('Offset cannot be negative %d' % offset)
 
         if offset + size > self.size:
-            raise IndexError('Index out of range %d to %d' % (offset, offset+size))
+            raise IndexError('Index out of range %d to %d' % (offset, offset + size))
 
         if self.has_data:
             assert self.internal_data is not None
@@ -234,7 +234,7 @@ class MemoryContent:
 
     def get_cluster_count(self):
         return len(self.clusters)
-        
+
     def get_cluster_list_no_data_by_address(self) -> List[Cluster]:
         """
         Return a list of contiguous memory chunk that have data written.
@@ -254,7 +254,6 @@ class MemoryContent:
         cluster_list = [Cluster(start_addr=addr, size=len(self.clusters[addr]), has_data=False) for addr in self.clusters]
         cluster_list.sort(key=lambda x: x.size, reverse=True)
         return cluster_list
-
 
     def delete(self, addr: int, size: int) -> None:
         if size <= 0:

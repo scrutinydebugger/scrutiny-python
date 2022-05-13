@@ -96,9 +96,9 @@ class DeviceSearcher:
                 self.pending = True
                 self.last_request_timestamp = time.time()
 
-    def success_callback(self, request: Request, response : Response, params: Any = None):
+    def success_callback(self, request: Request, response: Response, params: Any = None):
         self.logger.debug("Success callback. Request=%s. Response Code=%s, Params=%s" % (request, response.code, params))
-        
+
         if response.code == ResponseCode.OK:
             response_data = self.protocol.parse_response(response)
             if response_data['valid']:

@@ -373,7 +373,8 @@ class TestMemoryContent(unittest.TestCase):
         m.add_empty(0x1900, 0x80)
         m.add_empty(0x1500, 0x100)
 
-        self.assert_clusters(m.get_cluster_list_no_data_by_address(), [(0x1000, 0x100), (0x1180, 0x180), (0x1500, 0x100), (0x1800, 0x180), (0x2000, 0x100)])
+        self.assert_clusters(m.get_cluster_list_no_data_by_address(), [(0x1000, 0x100),
+                             (0x1180, 0x180), (0x1500, 0x100), (0x1800, 0x180), (0x2000, 0x100)])
         m.add_empty(0x1000, 0x500)
         self.assert_clusters(m.get_cluster_list_no_data_by_address(), [(0x1000, 0x600), (0x1800, 0x180), (0x2000, 0x100)])
 

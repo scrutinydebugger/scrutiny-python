@@ -19,9 +19,11 @@ for i in range(63):
         v |= (1 << j)
         MASK_MAP[i] = v
 
+
 class Endianness(Enum):
     Little = 0
     Big = 1
+
 
 class VariableLocation:
     def __init__(self, address: int):
@@ -52,9 +54,9 @@ class VariableLocation:
             raise ValueError('Empty data')
 
         cls.check_endianness(endianness)
-        byteorder_map:Dict[Endianness, Literal['little', 'big']] = {
-            Endianness.Little : 'little',
-            Endianness.Big : 'big'
+        byteorder_map: Dict[Endianness, Literal['little', 'big']] = {
+            Endianness.Little: 'little',
+            Endianness.Big: 'big'
         }
         address = int.from_bytes(data, byteorder=byteorder_map[endianness], signed=False)
         return cls(address)

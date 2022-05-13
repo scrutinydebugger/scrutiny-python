@@ -17,7 +17,7 @@ class TestDataStore(unittest.TestCase):
         self.callback_call_history = {}
 
     def make_dummy_entries(self, n):
-        dummy_var = Variable('dummy', vartype=VariableType.float32, path_segments=['a','b','c'], location=0x12345678, endianness=Endianness.Little)
+        dummy_var = Variable('dummy', vartype=VariableType.float32, path_segments=['a', 'b', 'c'], location=0x12345678, endianness=Endianness.Little)
         for i in range(n):
             entry = DatastoreEntry(DatastoreEntry.EntryType.Var, 'path_%d' % i, variable_def=dummy_var)
             yield entry
@@ -125,8 +125,8 @@ class TestDataStore(unittest.TestCase):
         ds.add_entries_quiet(entries)
 
         for entry in entries:
-            ds.start_watching(entry, watcher='watcher1', callback=lambda:None)
-            ds.start_watching(entry, watcher='watcher2', callback=lambda:None)
+            ds.start_watching(entry, watcher='watcher1', callback=lambda: None)
+            ds.start_watching(entry, watcher='watcher2', callback=lambda: None)
 
         watchers = ds.get_watchers(entries[0])
         self.assertEqual(watchers, {'watcher1', 'watcher2'})
@@ -138,7 +138,6 @@ class TestDataStore(unittest.TestCase):
 
         for entry in entries:
             ds.stop_watching(entry, watcher='watcher2')
-
 
         watchers = ds.get_watchers(entries[0])
         self.assertEqual(watchers, {'watcher1'})
@@ -156,12 +155,11 @@ class TestDataStore(unittest.TestCase):
 
         watched_entries_id = ds.get_watched_entries_id()
         self.assertEqual(len(watched_entries_id), 2)
-        self.assertIn(entries[2].get_id(), watched_entries_id)        
-        self.assertIn(entries[3].get_id(), watched_entries_id)        
+        self.assertIn(entries[2].get_id(), watched_entries_id)
+        self.assertIn(entries[3].get_id(), watched_entries_id)
 
         ds.stop_watching(entries[2], watcher='watcher1')
         ds.stop_watching(entries[3], watcher='watcher1')
 
         watched_entries_id = ds.get_watched_entries_id()
         self.assertEqual(len(watched_entries_id), 0)
-        

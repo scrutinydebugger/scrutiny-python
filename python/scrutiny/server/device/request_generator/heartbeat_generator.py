@@ -80,9 +80,9 @@ class HeartbeatGenerator:
                 self.pending = True
                 self.last_heartbeat_request = time.time()
 
-    def success_callback(self, request: Request, response:Response, params: Any = None) -> None:
+    def success_callback(self, request: Request, response: Response, params: Any = None) -> None:
         self.logger.debug("Success callback. Request=%s. Response Code=%s, Params=%s" % (request, response.code, params))
-    
+
         expected_challenge_response = self.protocol.heartbeat_expected_challenge_response(self.challenge)
         if response.code == ResponseCode.OK:
             response_data = self.protocol.parse_response(response)
@@ -96,7 +96,7 @@ class HeartbeatGenerator:
                 else:
                     self.logger.error('Heartbeat session ID echo not good. Got %s, expected %s' % (response_data['session_id'], self.session_id))
             else:
-                self.logger.error('Heartbeat response data is invalid')                    
+                self.logger.error('Heartbeat response data is invalid')
         else:
             self.logger.error('Heartbeat request got Nacked. %s' % response.code)
 

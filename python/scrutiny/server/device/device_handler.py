@@ -1,7 +1,7 @@
 #    device_handler.py
 #        Manage the communication with the device at high level.
 #        Try to establish a connection, once it succeed, reads the device configuration.
-#        
+#
 #        Will keep the communication ongoing and will request for memory dump based on the
 #        Datastore state
 #
@@ -137,7 +137,7 @@ class DeviceHandler:
         )
 
         self.memory_reader = MemoryReader(self.protocol, self.dispatcher, self.datastore,
-                                                  read_priority=self.RequestPriority.ReadMemory, write_priority=self.RequestPriority.WriteMemory)
+                                          read_priority=self.RequestPriority.ReadMemory, write_priority=self.RequestPriority.WriteMemory)
 
         self.comm_handler = CommHandler(self.config)
 

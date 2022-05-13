@@ -14,16 +14,18 @@ from scrutiny.core.typehints import GenericCallback
 
 from typing import Set, List, Dict, Optional, Any, Iterator, Union, Callable
 
+
 class WatchCallback(GenericCallback):
     callback: Callable[[str], None]
+
 
 class Datastore:
     logger: logging.Logger
     entries: Dict[str, DatastoreEntry]
     entries_list_by_type: Dict[DatastoreEntry.EntryType, List[DatastoreEntry]]
-    global_watch_callbacks:List[WatchCallback]
-    global_unwatch_callbacks:List[WatchCallback]
-    watcher_map:Dict[str, Set[str]]
+    global_watch_callbacks: List[WatchCallback]
+    global_unwatch_callbacks: List[WatchCallback]
+    watcher_map: Dict[str, Set[str]]
 
     MAX_ENTRY: int = 1000000
 
@@ -66,10 +68,10 @@ class Datastore:
     def get_entry(self, entry_id: str) -> DatastoreEntry:
         return self.entries[entry_id]
 
-    def add_watch_callback(self, callback:WatchCallback):
+    def add_watch_callback(self, callback: WatchCallback):
         self.global_watch_callbacks.append(callback)
 
-    def add_unwatch_callback(self, callback:WatchCallback):
+    def add_unwatch_callback(self, callback: WatchCallback):
         self.global_unwatch_callbacks.append(callback)
 
     def start_watching(self, entry_id: Union[DatastoreEntry, str], watcher: str, callback: GenericCallback, args: Any = None) -> None:
@@ -87,7 +89,7 @@ class Datastore:
     def stop_watching(self, entry_id: Union[DatastoreEntry, str], watcher: str) -> None:
         entry_id = self.interpret_entry_id(entry_id)
         entry = self.get_entry(entry_id)
-        
+
         try:
             self.watcher_map[entry_id].remove(watcher)
         except:
@@ -98,7 +100,7 @@ class Datastore:
                 del self.watcher_map[entry_id]
         except:
             pass
-        
+
         entry.unregister_value_change_callback(watcher)
         for callback in self.global_unwatch_callbacks:
             callback(entry_id)
@@ -132,10 +134,9 @@ class Datastore:
     def get_watched_entries_id(self) -> Set[str]:
         return set(self.watcher_map.keys())
 
-    def get_watchers(self, entry_id:Union[DatastoreEntry, str]) -> Set[str]:
+    def get_watchers(self, entry_id: Union[DatastoreEntry, str]) -> Set[str]:
         entry_id = self.interpret_entry_id(entry_id)
         if entry_id not in self.watcher_map:
             return set()
         else:
-            return set(self.watcher_map[entry_id]) # Make a copy
-
+            return set(self.watcher_map[entry_id])  # Make a copy

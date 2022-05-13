@@ -22,7 +22,7 @@ class Response:
     code: "ResponseCode"
     payload: bytes
 
-    OVERHEAD_SIZE:int = 9
+    OVERHEAD_SIZE: int = 9
 
     class ResponseCode(Enum):
         OK = 0
