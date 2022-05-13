@@ -1,6 +1,6 @@
-#    datastore_updater.py
+#    memory_reader.py
 #        Synchronize the datastore with the device
-#        Poll for entries that are watched. Write entries marked for write.
+#        Poll for entries that are watched.
 #
 #   - License : MIT - See LICENSE file.
 #   - Project : Scrutiny Debugger (github.com/scrutinydebugger/scrutiny)
@@ -13,12 +13,12 @@ import binascii
 import copy
 import bisect
 import traceback
-from sortedcontainers import SortedSet
+from sortedcontainers import SortedSet # type: ignore
 
 from scrutiny.server.protocol import *
 from scrutiny.server.device.request_dispatcher import RequestDispatcher, SuccessCallback, FailureCallback
 from scrutiny.server.datastore import Datastore, DatastoreEntry, WatchCallback
-from scrutiny.core.memory_content import MemoryContent
+from scrutiny.core.memory_content import MemoryContent, Cluster
 
 from typing import Any, List, Tuple, Optional
 
@@ -51,7 +51,7 @@ class DataStoreEntrySortableByAddress:
         return self.entry.get_address() >= other.entry.get_address()
 
 
-class DatastoreUpdater:
+class MemoryReader:
 
     DEFAULT_MAX_REQUEST_SIZE:int = 1024
     DEFAULT_MAX_RESPONSE_SIZE:int = 1024
@@ -67,7 +67,6 @@ class DatastoreUpdater:
     started: bool
     max_request_size:int
     max_response_size:int
-    region_to_read_list:List[Tuple[int,int]]
     forbidden_regions:List[Tuple[int,int]]
     readonly_regions:List[Tuple[int,int]]
     watched_entries_sorted_by_address:SortedSet
@@ -86,23 +85,23 @@ class DatastoreUpdater:
 
         self.reset()
 
-    def set_max_request_size(self, max_size:int):
+    def set_max_request_size(self, max_size:int) -> None:
         self.max_request_size = max_size
 
-    def set_max_response_size(self, max_size:int):
+    def set_max_response_size(self, max_size:int) -> None:
         self.max_response_size = max_size
 
-    def add_forbidden_region(self, start_addr:int, size:int):
+    def add_forbidden_region(self, start_addr:int, size:int) -> None:
         self.forbidden_regions.append((start_addr, size))
 
-    def add_readonly_region(self, start_addr:int, size:int):
+    def add_readonly_region(self, start_addr:int, size:int) -> None:
         self.readonly_regions.append((start_addr, size))
 
-    def the_watch_callback(self, entry_id:str):
+    def the_watch_callback(self, entry_id:str) -> None:
         entry = self.datastore.get_entry(entry_id)
         self.watched_entries_sorted_by_address.add(DataStoreEntrySortableByAddress(entry))
 
-    def the_unwatch_callback(self, entry_id:str):
+    def the_unwatch_callback(self, entry_id:str) -> None:
         if len(self.datastore.get_watchers(entry_id)) == 0:
             entry = self.datastore.get_entry(entry_id)
             self.watched_entries_sorted_by_address.discard(DataStoreEntrySortableByAddress(entry))
@@ -159,7 +158,7 @@ class DatastoreUpdater:
         skipped_entries_count = 0
         clusters_in_request:List[Cluster] = [] 
 
-        memcontent = MemoryContent(retain_data=False) # We'll use that for agglomeration
+        memory_to_read = MemoryContent(retain_data=False) # We'll use that for agglomeration
         while len(entries_in_request) + skipped_entries_count < len(self.watched_entries_sorted_by_address):
             candidate_entry = self.watched_entries_sorted_by_address[self.read_cursor].entry    # .entry because we use a wrapper for SortedSet
             must_skip = False
@@ -167,16 +166,12 @@ class DatastoreUpdater:
             # Check for forbidden region
             is_in_forbidden_region = False
             for region in self.forbidden_regions:
-                region_start = self.forbidden_regions[0]
-                region_end = region_start + self.forbidden_regions[1]-1
+                region_start = region[0]
+                region_end = region_start + region[1]-1
                 entry_start = candidate_entry.get_address()
                 entry_end = entry_start + candidate_entry.get_size()-1
                 
-                if entry_start >= region_start and entry_start <= region_end:
-                    is_in_forbidden_region = True
-                    break
-
-                if entry_end >= region_start and entry_end <= region_end:
+                if not (entry_end < region_start or entry_start > region_end):
                     is_in_forbidden_region = True
                     break
 
@@ -188,8 +183,8 @@ class DatastoreUpdater:
                 skipped_entries_count +=1
                 continue
             
-            memcontent.add_empty(candidate_entry.get_address(), candidate_entry.get_size())
-            clusters_candidate = memcontent.get_cluster_list_no_data_by_address()
+            memory_to_read.add_empty(candidate_entry.get_address(), candidate_entry.get_size())
+            clusters_candidate = memory_to_read.get_cluster_list_no_data_by_address()
 
             if len(clusters_candidate) > max_block_per_request:
                 break # No space in request
@@ -219,7 +214,7 @@ class DatastoreUpdater:
         return (request, entries_in_request)
 
 
-    def read_success_callback(self, request: Request, response:Response, params: Any = None):
+    def read_success_callback(self, request: Request, response:Response, params: Any = None) -> None:
         self.logger.debug("Success callback. Request=%s. Response Code=%s, Params=%s" % (request, response.code, params))
 
         if response.code == ResponseCode.OK:

@@ -1,5 +1,6 @@
-#    test_datastore_updater.py
-#        Test the Datastore Updater capability to generate requests based on variable subscription
+#    test_memory_reader.py
+#        Make sure the memory_Reader correctly reads the device memory to fills the datastore
+#        entries that are watch
 #
 #   - License : MIT - See LICENSE file.
 #   - Project : Scrutiny Debugger (github.com/scrutinydebugger/scrutiny)
@@ -12,7 +13,7 @@ from dataclasses import dataclass
 from sortedcontainers import SortedSet
 
 from scrutiny.server.datastore import Datastore, DatastoreEntry
-from scrutiny.server.device.request_generator.datastore_updater import DatastoreUpdater, DataStoreEntrySortableByAddress
+from scrutiny.server.device.request_generator.memory_reader import MemoryReader, DataStoreEntrySortableByAddress
 from scrutiny.server.device.request_dispatcher import RequestDispatcher
 from scrutiny.server.protocol import Protocol, Request, Response
 from scrutiny.server.protocol.commands import *
@@ -43,7 +44,7 @@ def make_dummy_entries(address, n, vartype=VariableType.float32):
 def d2f(d):
     return struct.unpack('f', struct.pack('f', d))[0]
 
-class TestDataStoreUpdaterBasicReadOperation(unittest.TestCase):
+class TestMemoryReaderBasicReadOperation(unittest.TestCase):
     def test_sorted_set(self):
         theset = SortedSet()
         entries = list(make_dummy_entries(1000, 5))
@@ -64,10 +65,10 @@ class TestDataStoreUpdaterBasicReadOperation(unittest.TestCase):
         self.assertEqual(len(theset), 0)
 
 
-    def generic_test_read_block_sequence(self, expected_blocks_sequence, updater, dispatcher, protocol, niter=5): 
+    def generic_test_read_block_sequence(self, expected_blocks_sequence, reader, dispatcher, protocol, niter=5): 
         for i in range(niter):
             for expected_block_list in expected_blocks_sequence:
-                updater.process()
+                reader.process()
                 dispatcher.process()
 
                 req_record = dispatcher.pop_next()
@@ -76,7 +77,7 @@ class TestDataStoreUpdaterBasicReadOperation(unittest.TestCase):
                 req = req_record.request # That out request
 
                 # Make sure that nothing happens until this request is completed.
-                updater.process()
+                reader.process()
                 dispatcher.process()
                 self.assertIsNone(dispatcher.pop_next(), 'iter=%d' % i)
 
@@ -104,7 +105,7 @@ class TestDataStoreUpdaterBasicReadOperation(unittest.TestCase):
                 
                 response = protocol.respond_read_memory_blocks(block_list);
                 req_record.complete(success=True, response = response)
-                # By completing the request. Success callback should be called making the datastore updater update the datastore
+                # By completing the request. Success callback should be called making the datastore reader update the datastore
 
                 for expected_block in expected_block_list:
                     values = data_lut[expected_block]  # Get back our value list
@@ -115,7 +116,7 @@ class TestDataStoreUpdaterBasicReadOperation(unittest.TestCase):
 
     # Here we have a set of datastore entries that are contiguous in memory.
     # We read them all in a single block (no limitation) and make sure the values are good.
-    # We expect the datastore updater to keep asking for updates, so we run the sequence 5 times
+    # We expect the datastore reader to keep asking for updates, so we run the sequence 5 times
     def test_read_request_basic_behavior(self):
         nfloat = 100
         address = 0x1000
@@ -126,10 +127,10 @@ class TestDataStoreUpdaterBasicReadOperation(unittest.TestCase):
     
         protocol = Protocol(1,0)
         protocol.set_address_size_bits(32)
-        updater = DatastoreUpdater(protocol, dispatcher = dispatcher, datastore=ds, read_priority=0, write_priority=0)
-        updater.set_max_request_size(1024)  # big enough for all of them
-        updater.set_max_response_size(1024) # big enough for all of them
-        updater.start()
+        reader = MemoryReader(protocol, dispatcher = dispatcher, datastore=ds, read_priority=0, write_priority=0)
+        reader.set_max_request_size(1024)  # big enough for all of them
+        reader.set_max_response_size(1024) # big enough for all of them
+        reader.start()
 
         for entry in entries:
             ds.start_watching(entry, 'unittest', GenericCallback(lambda *args, **kwargs:None))
@@ -138,7 +139,7 @@ class TestDataStoreUpdaterBasicReadOperation(unittest.TestCase):
             [BlockToRead(address, nfloat, entries)]
             ]
 
-        self.generic_test_read_block_sequence(expected_blocks_sequence, updater, dispatcher, protocol, niter=5)
+        self.generic_test_read_block_sequence(expected_blocks_sequence, reader, dispatcher, protocol, niter=5)
 
 
     # Here, we define 3 non-contiguous block of memory and impose a limit on the request size to allow only 2 blocks read per request.
@@ -158,10 +159,10 @@ class TestDataStoreUpdaterBasicReadOperation(unittest.TestCase):
         ds.add_entries(all_entries)
         dispatcher = RequestDispatcher()
         protocol = Protocol(1,0)
-        updater = DatastoreUpdater(protocol, dispatcher = dispatcher, datastore=ds, read_priority=0, write_priority=0)
-        updater.set_max_request_size(Request.OVERHEAD_SIZE + protocol.read_memory_request_size_per_block()*2)  # 2 block per request
-        updater.set_max_response_size(1024)  # Non-limiting here
-        updater.start()
+        reader = MemoryReader(protocol, dispatcher = dispatcher, datastore=ds, read_priority=0, write_priority=0)
+        reader.set_max_request_size(Request.OVERHEAD_SIZE + protocol.read_memory_request_size_per_block()*2)  # 2 block per request
+        reader.set_max_response_size(1024)  # Non-limiting here
+        reader.start()
 
         for entry in all_entries:
             ds.start_watching(entry, 'unittest', GenericCallback(lambda *args, **kwargs:None))
@@ -173,7 +174,7 @@ class TestDataStoreUpdaterBasicReadOperation(unittest.TestCase):
             [BlockToRead(address2, nfloat2, entries2), BlockToRead(address3, nfloat3, entries3)]                        
             ]
 
-        self.generic_test_read_block_sequence(expected_blocks_sequence, updater, dispatcher, protocol, niter=5)
+        self.generic_test_read_block_sequence(expected_blocks_sequence, reader, dispatcher, protocol, niter=5)
 
 
     # Here we make read entries, but response has enough space for only 10 blocks of 1 entry.
@@ -189,10 +190,10 @@ class TestDataStoreUpdaterBasicReadOperation(unittest.TestCase):
         
         dispatcher = RequestDispatcher()
         protocol = Protocol(1,0)
-        updater = DatastoreUpdater(protocol, dispatcher = dispatcher, datastore=ds, read_priority=0, write_priority=0)
-        updater.set_max_request_size(1024)  # Non-limiting here
-        updater.set_max_response_size(Response.OVERHEAD_SIZE + protocol.read_memory_response_overhead_size_per_block()*10 + 4*10)  
-        updater.start()
+        reader = MemoryReader(protocol, dispatcher = dispatcher, datastore=ds, read_priority=0, write_priority=0)
+        reader.set_max_request_size(1024)  # Non-limiting here
+        reader.set_max_response_size(Response.OVERHEAD_SIZE + protocol.read_memory_response_overhead_size_per_block()*10 + 4*10)  
+        reader.start()
 
         for entry in entries:
             ds.start_watching(entry, 'unittest', GenericCallback(lambda *args, **kwargs:None))
@@ -205,11 +206,11 @@ class TestDataStoreUpdaterBasicReadOperation(unittest.TestCase):
             [BlockToRead((i+5)*0x100 , 1, entries[5+i:5+i+1]) for i in range(10)]                        
             ]
 
-        self.generic_test_read_block_sequence(expected_blocks_sequence, updater, dispatcher, protocol, niter=5)
+        self.generic_test_read_block_sequence(expected_blocks_sequence, reader, dispatcher, protocol, niter=5)
 
 
 
-class TestDataStoreUpdaterComplexReadOperation(unittest.TestCase):
+class TestMemoryReaderComplexReadOperation(unittest.TestCase):
     # Here we make a complex pattern of variables tor ead.
     # Diferent types,  different blocks, forbidden regions, request and response size limit.
     # We make sure that all entries are updated in a round robin scheme. 
@@ -258,19 +259,19 @@ class TestDataStoreUpdaterComplexReadOperation(unittest.TestCase):
         
         dispatcher = RequestDispatcher()
         protocol = Protocol(1,0)
-        updater = DatastoreUpdater(protocol=protocol, dispatcher = dispatcher, datastore=ds, read_priority=0, write_priority=0)
-        updater.set_max_request_size(128)
-        updater.set_max_response_size(128)  
-        updater.start()
+        reader = MemoryReader(protocol=protocol, dispatcher = dispatcher, datastore=ds, read_priority=0, write_priority=0)
+        reader.set_max_request_size(128)
+        reader.set_max_response_size(128)  
+        reader.start()
 
         for entry in entries:
             ds.start_watching(entry, 'unittest', GenericCallback(self.value_change_callback1))
 
-        # We process the updater until we do 10 round of updates or something fails
+        # We process the reader until we do 10 round of updates or something fails
         max_loop = 10000
         loop_count = 0
         while loop_count < max_loop:
-            updater.process()
+            reader.process()
             dispatcher.process()
 
             record = dispatcher.pop_next()

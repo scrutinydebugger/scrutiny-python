@@ -110,7 +110,7 @@ class Datastore:
     def get_entries_list_by_type(self, wtype: DatastoreEntry.EntryType) -> List[DatastoreEntry]:
         return self.entries_list_by_type[wtype]
 
-    def interpret_entry_id(self, entry_id: Union[DatastoreEntry, str]):
+    def interpret_entry_id(self, entry_id: Union[DatastoreEntry, str]) -> str:
         if isinstance(entry_id, DatastoreEntry):
             return entry_id.get_id()
         else:
@@ -124,13 +124,13 @@ class Datastore:
 
         return val
 
-    def set_value(self, entry_id: str, value: Any) -> None:
+    def set_value(self, entry_id: Union[DatastoreEntry, str], value: Any) -> None:
         entry_id = self.interpret_entry_id(entry_id)
         entry = self.get_entry(entry_id)
         entry.set_value(value)
 
     def get_watched_entries_id(self) -> Set[str]:
-        return list(self.watcher_map.keys())
+        return set(self.watcher_map.keys())
 
     def get_watchers(self, entry_id:Union[DatastoreEntry, str]) -> Set[str]:
         entry_id = self.interpret_entry_id(entry_id)
