@@ -181,26 +181,25 @@ class MemoryReader:
             # Check if must skip
             if must_skip:
                 skipped_entries_count += 1
-                continue
+            else:
+                memory_to_read.add_empty(candidate_entry.get_address(), candidate_entry.get_size())
+                clusters_candidate = memory_to_read.get_cluster_list_no_data_by_address()
 
-            memory_to_read.add_empty(candidate_entry.get_address(), candidate_entry.get_size())
-            clusters_candidate = memory_to_read.get_cluster_list_no_data_by_address()
+                if len(clusters_candidate) > max_block_per_request:
+                    break  # No space in request
 
-            if len(clusters_candidate) > max_block_per_request:
-                break  # No space in request
+                # Check response size limit
+                response_size = Response.OVERHEAD_SIZE
+                for cluster in clusters_candidate:
+                    response_size += self.protocol.read_memory_response_overhead_size_per_block()
+                    response_size += cluster.size
 
-            # Check response size limit
-            response_size = Response.OVERHEAD_SIZE
-            for cluster in clusters_candidate:
-                response_size += self.protocol.read_memory_response_overhead_size_per_block()
-                response_size += cluster.size
+                if response_size > self.max_response_size:
+                    break   # No space in response
 
-            if response_size > self.max_response_size:
-                break   # No space in response
-
-            # We can fit the data so far..  latch the list of cluster and add the candidate to the entries to be updated
-            clusters_in_request = copy.copy(clusters_candidate)
-            entries_in_request.append(candidate_entry)   # Remember what entries is involved so we can update value once response is received
+                # We can fit the data so far..  latch the list of cluster and add the candidate to the entries to be updated
+                clusters_in_request = copy.copy(clusters_candidate)
+                entries_in_request.append(candidate_entry)   # Remember what entries is involved so we can update value once response is received
 
             self.read_cursor += 1
             if self.read_cursor >= len(self.watched_entries_sorted_by_address):
@@ -214,7 +213,7 @@ class MemoryReader:
         return (request, entries_in_request)
 
     def read_success_callback(self, request: Request, response: Response, params: Any = None) -> None:
-        self.logger.debug("Success callback. Request=%s. Response Code=%s, Params=%s" % (request, response.code, params))
+        self.logger.debug("Success callback. Response=%s, Params=%s" % (response, params))
 
         if response.code == ResponseCode.OK:
             response_data = self.protocol.parse_response(response)

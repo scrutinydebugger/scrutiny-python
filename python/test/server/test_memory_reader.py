@@ -72,6 +72,7 @@ class TestMemoryReaderBasicReadOperation(unittest.TestCase):
     def generic_test_read_block_sequence(self, expected_blocks_sequence, reader, dispatcher, protocol, niter=5):
         for i in range(niter):
             for expected_block_list in expected_blocks_sequence:
+                expected_block_list.sort(key=lambda x:x.address)
                 reader.process()
                 dispatcher.process()
 
@@ -174,7 +175,7 @@ class TestMemoryReaderBasicReadOperation(unittest.TestCase):
         # The expected sequence of block will be : 1,2 - 3,1 - 2,3 - 1,2 - etc
         expected_blocks_sequence = [
             [BlockToRead(address1, nfloat1, entries1), BlockToRead(address2, nfloat2, entries2)],
-            [BlockToRead(address1, nfloat1, entries1), BlockToRead(address3, nfloat3, entries3)],
+            [BlockToRead(address3, nfloat3, entries3), BlockToRead(address1, nfloat1, entries1)],
             [BlockToRead(address2, nfloat2, entries2), BlockToRead(address3, nfloat3, entries3)]
         ]
 
@@ -206,8 +207,7 @@ class TestMemoryReaderBasicReadOperation(unittest.TestCase):
         # Sorted by address.
         expected_blocks_sequence = [
             [BlockToRead(i * 0x100, 1, entries[i:i + 1]) for i in range(10)],
-            [BlockToRead(i * 0x100, 1, entries[i:i + 1]) for i in range(5)] +
-            [BlockToRead((10 + i) * 0x100, 1, entries[10 + i:10 + i + 1]) for i in range(5)],
+            [BlockToRead((10 + i) * 0x100, 1, entries[10 + i:10 + i + 1]) for i in range(5)] + [BlockToRead(i * 0x100, 1, entries[i:i + 1]) for i in range(5)],
             [BlockToRead((i + 5) * 0x100, 1, entries[5 + i:5 + i + 1]) for i in range(10)]
         ]
 
@@ -223,17 +223,24 @@ class TestMemoryReaderComplexReadOperation(unittest.TestCase):
     def setUp(self):
         self.callback_count_map = {}
 
+    def init_count_map(self, all_entries):
+        for entry in all_entries:
+            self.callback_count_map[entry] = 0
+
     def value_change_callback1(self, owner, entry):
         if entry not in self.callback_count_map:
             self.callback_count_map[entry] = 0
 
         self.callback_count_map[entry] += 1
 
-    def get_callback_count_min_max(self):
+    def get_callback_count_min_max(self, exclude_entries=[]):
         low = None
         high = None
 
         for entry in self.callback_count_map:
+            if entry in exclude_entries:
+                continue
+
             v = self.callback_count_map[entry]
             if low is None or v < low:
                 low = v
@@ -246,6 +253,8 @@ class TestMemoryReaderComplexReadOperation(unittest.TestCase):
     def test_read_request_multiple_blocks_complex_pattern(self):
         max_request_size = 128
         max_response_size = 128
+        forbidden_region_start = 0x4101
+        forbidden_region_end = 0x413D
 
         entries = list(make_dummy_entries(address=0x1000, n=1, vartype=VariableType.float32))
         entries += list(make_dummy_entries(address=0x1004, n=2, vartype=VariableType.uint16))
@@ -253,9 +262,15 @@ class TestMemoryReaderComplexReadOperation(unittest.TestCase):
         entries += list(make_dummy_entries(address=0x2100, n=0x100, vartype=VariableType.uint8))
         entries += list(make_dummy_entries(address=0x2200, n=0x100, vartype=VariableType.boolean))
         entries += list(make_dummy_entries(address=0x3000, n=0x100, vartype=VariableType.uint32))
+        entries += list(make_dummy_entries(address=0x4000, n=0x100, vartype=VariableType.uint8))
+        forbidden_entries = list(make_dummy_entries(address=0x4100, n=0x10, vartype=VariableType.uint32))
+        entries += forbidden_entries
+        entries += list(make_dummy_entries(address=0x4140, n=0x10, vartype=VariableType.uint8))
 
         for i in range(0x100):
             entries += list(make_dummy_entries(address=0x10000 + i * 0x10, n=1, vartype=VariableType.uint8))
+
+        self.init_count_map(entries)
 
         ds = Datastore()
         ds.add_entries(entries)
@@ -265,6 +280,7 @@ class TestMemoryReaderComplexReadOperation(unittest.TestCase):
         reader = MemoryReader(protocol=protocol, dispatcher=dispatcher, datastore=ds, read_priority=0, write_priority=0)
         reader.set_max_request_size(128)
         reader.set_max_response_size(128)
+        reader.add_forbidden_region(forbidden_region_start, forbidden_region_end-forbidden_region_start+1)
         reader.start()
 
         for entry in entries:
@@ -286,16 +302,18 @@ class TestMemoryReaderComplexReadOperation(unittest.TestCase):
             self.assertTrue(request_data['valid'])
 
             for block in request_data['blocks_to_read']:
+                in_allowed_region = block['address'] > forbidden_region_end or (block['address'] + block['length'] < forbidden_region_start)
+                self.assertTrue(in_allowed_region)
                 response_block.append((block['address'], b'\x00' * block['length']))
 
             response = protocol.respond_read_memory_blocks(response_block)
             self.assertLessEqual(response.size(), max_response_size)
             record.complete(success=True, response=response)
 
-            low, high = self.get_callback_count_min_max()
+            low, high = self.get_callback_count_min_max(exclude_entries=forbidden_entries)
             self.assertIsNotNone(low)
             self.assertIsNotNone(high)
-            self.assertGreaterEqual(high, low)    # High should be greater than 1
+            self.assertGreaterEqual(high, low)    # High should be greater than low
             self.assertLessEqual(high - low, 1)     # High should be equal to low or low+1. This ensure that round robin is working fine
 
             if low > 10:
@@ -304,3 +322,6 @@ class TestMemoryReaderComplexReadOperation(unittest.TestCase):
             loop_count += 1
 
         self.assertLess(loop_count, max_loop)  # Make sure we haven't exited because nothing happens
+
+        for forbidden_entry in forbidden_entries:
+            self.assertEqual(self.callback_count_map[forbidden_entry], 0)
