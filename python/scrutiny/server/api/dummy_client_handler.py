@@ -110,7 +110,7 @@ class DummyClientHandler(AbstractClientHandler):
 
     def validate_config(self, config: ClientHandlerConfig) -> None:
         if not isinstance(config, dict):
-            raise ValueError('Config ust be a dict object')
+            raise ValueError('Config must be a dict object')
 
         required_field: List[str] = []
         for field in required_field:
