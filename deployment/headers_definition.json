@@ -319,9 +319,12 @@
         "docstring": "Base class for all device communication link (serial, udp, other)"
     },
     "python\\scrutiny\\server\\device\\request_generator\\memory_reader.py": {
-        "docstring": "Synchronize the datastore with the device\nPoll for entries that are watched."
+        "docstring": "Synchronize the datastore with the device\nPoll for entries that are watched and update the datastore with data read from the device. "
     },
     "python\\test\\server\\test_memory_reader.py": {
         "docstring": "Make sure the memory_Reader correctly reads the device memory to fills the datastore entries that are watch"
+    },
+    "python\\scrutiny\\server\\device\\request_generator\\memory_writer.py": {
+        "docstring": "Synchronize the datastore with the device\nPoll for entries that are watched and update the device with value change request coming from the user in the datastore."
     }
 }

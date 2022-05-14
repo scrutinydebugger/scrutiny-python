@@ -10,7 +10,7 @@ from enum import Enum
 import struct
 from abc import ABC, abstractmethod
 
-from typing import Dict, Union, List, Literal, Optional, TypedDict, Any
+from typing import Dict, Union, List, Literal, Optional, TypedDict, Any, Tuple
 
 MASK_MAP: Dict[int, int] = {}
 for i in range(63):
@@ -137,6 +137,12 @@ class VariableType(Enum):
 
         return sizemap[self]
 
+    def get_size_byte(self) -> Optional[int]:
+        bitsize = self.get_size_bit()
+        if bitsize is None:
+            return None
+        else:
+            return int(bitsize /8) 
 
 class VariableEnumDef(TypedDict):
     name: str
@@ -247,7 +253,7 @@ class Struct:
 
 class Variable:
 
-    class BaseDecoder(ABC):
+    class BaseCodec(ABC):
         def __init__(self):
             pass
 
@@ -255,7 +261,11 @@ class Variable:
         def decode(self, data: Union[bytes, bytearray], endianness: Endianness) -> Union[int, float, bool, None]:
             pass
 
-    class SIntDecoder(BaseDecoder):
+        @abstractmethod
+        def encode(self, value: Union[int, float, bool], endianness: Endianness) -> bytes:
+            pass
+
+    class SIntCodec(BaseCodec):
         str_map = {
             1: 'b',
             2: 'h',
@@ -273,7 +283,11 @@ class Variable:
             endianness_char = '<' if endianness == Endianness.Little else '>'
             return struct.unpack(endianness_char + self.str, data)[0]
 
-    class UIntDecoder(BaseDecoder):
+        def encode(self, value: Union[int, float, bool], endianness: Endianness) -> bytes:
+            endianness_char = '<' if endianness == Endianness.Little else '>'
+            return struct.pack(endianness_char + self.str, value)
+
+    class UIntCodec(BaseCodec):
         str_map = {
             1: 'B',
             2: 'H',
@@ -291,7 +305,11 @@ class Variable:
             endianness_char = '<' if endianness == Endianness.Little else '>'
             return struct.unpack(endianness_char + self.str, data)[0]
 
-    class FloatDecoder(BaseDecoder):
+        def encode(self, value: Union[int, float, bool], endianness: Endianness) -> bytes:
+            endianness_char = '<' if endianness == Endianness.Little else '>'
+            return struct.pack(endianness_char + self.str, value)
+
+    class FloatCodec(BaseCodec):
         str_map = {
             4: 'f',
             8: 'd'
@@ -307,19 +325,30 @@ class Variable:
             endianness_char = '<' if endianness == Endianness.Little else '>'
             return struct.unpack(endianness_char + self.str, data)[0]
 
-    class BoolDecoder(BaseDecoder):
+        def encode(self, value: Union[int, float, bool], endianness: Endianness) -> bytes:
+            endianness_char = '<' if endianness == Endianness.Little else '>'
+            return struct.pack(endianness_char + self.str, value)
+
+    class BoolCodec(BaseCodec):
         def __init__(self):
             super().__init__()
 
         def decode(self, data: Union[bytes, bytearray], endianness: Endianness) -> bool:
             return True if data[0] != 0 else False
 
-    class NotImplementedDecoder(BaseDecoder):
+        def encode(self, value: Union[int, float, bool], endianness: Endianness) -> bytes:
+            endianness_char = '<' if endianness == Endianness.Little else '>'
+            return struct.pack(endianness_char + self.str, value)
+
+    class NotImplementedCodec(BaseCodec):
         def __init__(self, type_name: str):
             self.type_name = type_name
 
         def decode(self, data: Union[bytes, bytearray], endianness: Endianness) -> None:
             raise NotImplementedError('Decoding data for type %s is not supported yet' % self.type_name)
+
+        def encode(self, value: Union[int, float, bool], endianness: Endianness) -> bytes:
+            raise NotImplementedError('Encoding data for type %s is not supported yet' % self.type_name)
 
     name: str
     vartype: VariableType
@@ -331,36 +360,36 @@ class Variable:
     bitoffset: Optional[int]
     enum: Optional[VariableEnum]
 
-    TYPE_TO_DECODER_MAP: Dict[VariableType, BaseDecoder] = {
-        VariableType.sint8: SIntDecoder(1),
-        VariableType.sint16: SIntDecoder(2),
-        VariableType.sint32: SIntDecoder(4),
-        VariableType.sint64: SIntDecoder(8),
-        VariableType.sint128: NotImplementedDecoder(VariableType.sint128.name),
-        VariableType.sint256: NotImplementedDecoder(VariableType.sint256.name),
+    TYPE_TO_CODEC_MAP: Dict[VariableType, BaseCodec] = {
+        VariableType.sint8: SIntCodec(1),
+        VariableType.sint16: SIntCodec(2),
+        VariableType.sint32: SIntCodec(4),
+        VariableType.sint64: SIntCodec(8),
+        VariableType.sint128: NotImplementedCodec(VariableType.sint128.name),
+        VariableType.sint256: NotImplementedCodec(VariableType.sint256.name),
 
-        VariableType.uint8: UIntDecoder(1),
-        VariableType.uint16: UIntDecoder(2),
-        VariableType.uint32: UIntDecoder(4),
-        VariableType.uint64: UIntDecoder(8),
-        VariableType.uint128: NotImplementedDecoder(VariableType.uint128.name),
-        VariableType.uint256: NotImplementedDecoder(VariableType.uint256.name),
+        VariableType.uint8: UIntCodec(1),
+        VariableType.uint16: UIntCodec(2),
+        VariableType.uint32: UIntCodec(4),
+        VariableType.uint64: UIntCodec(8),
+        VariableType.uint128: NotImplementedCodec(VariableType.uint128.name),
+        VariableType.uint256: NotImplementedCodec(VariableType.uint256.name),
 
-        VariableType.float8: NotImplementedDecoder(VariableType.float8.name),
-        VariableType.float16: NotImplementedDecoder(VariableType.float16.name),
-        VariableType.float32: FloatDecoder(4),
-        VariableType.float64: FloatDecoder(8),
-        VariableType.float128: NotImplementedDecoder(VariableType.float128.name),
-        VariableType.float256: NotImplementedDecoder(VariableType.float256.name),
+        VariableType.float8: NotImplementedCodec(VariableType.float8.name),
+        VariableType.float16: NotImplementedCodec(VariableType.float16.name),
+        VariableType.float32: FloatCodec(4),
+        VariableType.float64: FloatCodec(8),
+        VariableType.float128: NotImplementedCodec(VariableType.float128.name),
+        VariableType.float256: NotImplementedCodec(VariableType.float256.name),
 
-        VariableType.cfloat8: NotImplementedDecoder(VariableType.cfloat8.name),
-        VariableType.cfloat16: NotImplementedDecoder(VariableType.cfloat16.name),
-        VariableType.cfloat32: NotImplementedDecoder(VariableType.cfloat32.name),
-        VariableType.cfloat64: NotImplementedDecoder(VariableType.cfloat64.name),
-        VariableType.cfloat128: NotImplementedDecoder(VariableType.cfloat128.name),
-        VariableType.cfloat256: NotImplementedDecoder(VariableType.cfloat256.name),
+        VariableType.cfloat8: NotImplementedCodec(VariableType.cfloat8.name),
+        VariableType.cfloat16: NotImplementedCodec(VariableType.cfloat16.name),
+        VariableType.cfloat32: NotImplementedCodec(VariableType.cfloat32.name),
+        VariableType.cfloat64: NotImplementedCodec(VariableType.cfloat64.name),
+        VariableType.cfloat128: NotImplementedCodec(VariableType.cfloat128.name),
+        VariableType.cfloat256: NotImplementedCodec(VariableType.cfloat256.name),
 
-        VariableType.boolean: BoolDecoder(),
+        VariableType.boolean: BoolCodec(),
     }
 
     def __init__(self, name: str, vartype: VariableType, path_segments: List[str], location: Union[int, VariableLocation], endianness: Endianness, bitsize: Optional[int] = None, bitoffset: Optional[int] = None, enum: Optional[VariableEnum] = None):
@@ -387,7 +416,7 @@ class Variable:
         self.enum = enum
 
     def decode(self, data: Union[bytes, bytearray]) -> Union[int, float, bool, None]:
-        decoded = self.TYPE_TO_DECODER_MAP[self.vartype].decode(data, self.endianness)
+        decoded = self.TYPE_TO_CODEC_MAP[self.vartype].decode(data, self.endianness)
 
         if self.bitfield:
             # todo improve this with bit array maybe.
@@ -411,8 +440,14 @@ class Variable:
                 data = struct.pack('>q', uint_data)
                 data = data[-initial_len:]
 
-        decoded = self.TYPE_TO_DECODER_MAP[self.vartype].decode(data, self.endianness)
+        decoded = self.TYPE_TO_CODEC_MAP[self.vartype].decode(data, self.endianness)
         return decoded
+
+    def encode(self, value: Union[int, float, bool]) -> Tuple[bytes, Optional[bytes]]:
+        #todo todo
+        write_mask = None
+        data = b'\x00' * self.vartype.get_size_byte()
+        return data, write_mask
 
     def get_fullname(self) -> str:
         if len(self.path_segments) == 0:

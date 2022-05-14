@@ -1,7 +1,7 @@
 #    device_handler.py
 #        Manage the communication with the device at high level.
 #        Try to establish a connection, once it succeed, reads the device configuration.
-#
+#        
 #        Will keep the communication ongoing and will request for memory dump based on the
 #        Datastore state
 #
@@ -27,6 +27,7 @@ from scrutiny.server.device.request_generator.heartbeat_generator import Heartbe
 from scrutiny.server.device.request_generator.info_poller import InfoPoller, ProtocolVersionCallback, CommParamCallback
 from scrutiny.server.device.request_generator.session_initializer import SessionInitializer
 from scrutiny.server.device.request_generator.memory_reader import MemoryReader
+from scrutiny.server.device.request_generator.memory_writer import MemoryWriter
 from scrutiny.server.device.device_info import DeviceInfo
 
 from scrutiny.server.tools import Timer
@@ -62,6 +63,7 @@ class DeviceHandler:
     session_initializer: SessionInitializer
     heartbeat_generator: HeartbeatGenerator
     memory_reader: MemoryReader
+    memory_writer: MemoryWriter
     info_poller: InfoPoller
     comm_handler: CommHandler
     protocol: Protocol
@@ -137,7 +139,10 @@ class DeviceHandler:
         )
 
         self.memory_reader = MemoryReader(self.protocol, self.dispatcher, self.datastore,
-                                          read_priority=self.RequestPriority.ReadMemory)
+                                          request_priority=self.RequestPriority.ReadMemory)
+
+        self.memory_writer = MemoryWriter(self.protocol, self.dispatcher, self.datastore,
+                                          request_priority=self.RequestPriority.WriteMemory)
 
         self.comm_handler = CommHandler(self.config)
 
@@ -256,6 +261,7 @@ class DeviceHandler:
         self.session_initializer.stop()
         self.dispatcher.reset()
         self.memory_reader.stop()
+        self.memory_writer.stop()
         self.session_id = None
         self.disconnection_requested = False
         self.disconnect_callback = None
@@ -310,6 +316,7 @@ class DeviceHandler:
         self.info_poller.process()
         self.session_initializer.process()
         self.memory_reader.process()
+        self.memory_writer.process()
         self.dispatcher.process()
 
         self.handle_comm()      # Make sure request and response are being exchanged with the device
@@ -325,6 +332,7 @@ class DeviceHandler:
         if self.operating_mode == self.OperatingMode.Normal:
             if state_entry:
                 self.memory_reader.start()
+                self.memory_writer.start()
             # Nothing else to do
         elif self.operating_mode == self.OperatingMode.Test_CheckThrottling:
             if self.dispatcher.peek_next() is None:
@@ -435,6 +443,7 @@ class DeviceHandler:
 
             if self.disconnection_requested:
                 self.memory_reader.stop()
+                self.memory_writer.stop()
                 next_state = self.FsmState.DISCONNECTING
 
             if self.dispatcher.is_in_error():

@@ -12,7 +12,7 @@ import time
 
 from scrutiny.core import Variable
 
-from typing import Any, Optional, Dict, Callable
+from typing import Any, Optional, Dict, Callable, Tuple
 from scrutiny.core.typehints import GenericCallback
 
 
@@ -169,3 +169,16 @@ class DatastoreEntry:
         if self.has_pending_target_update():
             assert self.pending_target_update is not None  # for mypy
             return self.pending_target_update.value
+
+    def encode_value(self, value:Optional[Any]=None) -> Tuple[bytes, Optional[bytes]]:
+        if value is None:
+            value = self.value
+
+        return self.variable_def.encode(value)
+
+    def encode_pending_update_value(self):
+        if not self.has_pending_target_update():
+            raise Exception('Datastore entry has no update request pending')
+
+        return self.encode_value(self.pending_target_update.value)
+
