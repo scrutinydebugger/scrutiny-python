@@ -50,6 +50,7 @@ def d2f(d):
 
 
 class TestMemoryReaderBasicReadOperation(unittest.TestCase):
+    # Make sure that the entries are sortable by address with the thirdparty SortedSet object
     def test_sorted_set(self):
         theset = SortedSet()
         entries = list(make_dummy_entries(1000, 5))
@@ -132,7 +133,7 @@ class TestMemoryReaderBasicReadOperation(unittest.TestCase):
 
         protocol = Protocol(1, 0)
         protocol.set_address_size_bits(32)
-        reader = MemoryReader(protocol, dispatcher=dispatcher, datastore=ds, read_priority=0, write_priority=0)
+        reader = MemoryReader(protocol, dispatcher=dispatcher, datastore=ds, read_priority=0)
         reader.set_max_request_size(1024)  # big enough for all of them
         reader.set_max_response_size(1024)  # big enough for all of them
         reader.start()
@@ -164,7 +165,7 @@ class TestMemoryReaderBasicReadOperation(unittest.TestCase):
         ds.add_entries(all_entries)
         dispatcher = RequestDispatcher()
         protocol = Protocol(1, 0)
-        reader = MemoryReader(protocol, dispatcher=dispatcher, datastore=ds, read_priority=0, write_priority=0)
+        reader = MemoryReader(protocol, dispatcher=dispatcher, datastore=ds, read_priority=0)
         reader.set_max_request_size(Request.OVERHEAD_SIZE + protocol.read_memory_request_size_per_block() * 2)  # 2 block per request
         reader.set_max_response_size(1024)  # Non-limiting here
         reader.start()
@@ -183,7 +184,6 @@ class TestMemoryReaderBasicReadOperation(unittest.TestCase):
 
     # Here we make read entries, but response has enough space for only 10 blocks of 1 entry.
     # Make sure this happens
-
     def test_read_request_multiple_blocks_limited_by_response_size(self):
         nfloat = 15
         entries = []
@@ -195,7 +195,7 @@ class TestMemoryReaderBasicReadOperation(unittest.TestCase):
 
         dispatcher = RequestDispatcher()
         protocol = Protocol(1, 0)
-        reader = MemoryReader(protocol, dispatcher=dispatcher, datastore=ds, read_priority=0, write_priority=0)
+        reader = MemoryReader(protocol, dispatcher=dispatcher, datastore=ds, read_priority=0)
         reader.set_max_request_size(1024)  # Non-limiting here
         reader.set_max_response_size(Response.OVERHEAD_SIZE + protocol.read_memory_response_overhead_size_per_block() * 10 + 4 * 10)
         reader.start()
@@ -212,6 +212,93 @@ class TestMemoryReaderBasicReadOperation(unittest.TestCase):
         ]
 
         self.generic_test_read_block_sequence(expected_blocks_sequence, reader, dispatcher, protocol, niter=5)
+
+
+    # Make sure the maximum request size is always respected
+    def test_request_size_limit(self):
+        entries = []
+        for i in range(20): # different variable size
+            entries += list(make_dummy_entries(address=i * 0x100, n=1, vartype=VariableType.uint64))
+            entries += list(make_dummy_entries(address=i * 0x100+8, n=1, vartype=VariableType.uint32))
+            entries += list(make_dummy_entries(address=i * 0x100+8+4, n=1, vartype=VariableType.uint16))
+            entries += list(make_dummy_entries(address=i * 0x100+8+4+2, n=1, vartype=VariableType.uint8))
+
+        # Setup everything
+        ds = Datastore()
+        ds.add_entries(entries)
+        dispatcher = RequestDispatcher()
+        protocol = Protocol(1, 0)
+        reader = MemoryReader(protocol, dispatcher=dispatcher, datastore=ds, read_priority=0)
+        reader.set_max_request_size(1024)
+        reader.set_max_response_size(1024)
+        reader.start()
+
+        # We need to watch the variable so that they are read
+        for entry in entries:
+            ds.start_watching(entry, 'unittest', callback=GenericCallback(lambda *args, **kwargs: None))
+
+        # try many different possible size
+        for max_request_size in range(32,128):
+            for i in range(20): # repeat multiple time, just to be sure to wrap around the entries.
+                reader.set_max_request_size(max_request_size)
+                reader.process()
+                dispatcher.process()
+
+                record = dispatcher.pop_next()
+                self.assertIsNotNone(record)
+                self.assertLessEqual(record.request.size(), max_request_size)   # That's the main test
+
+                # Respond the request so that we can a new request coming in
+                request_data = protocol.parse_request(record.request)
+                response_block = []
+                for block in request_data['blocks_to_read']:
+                    response_block.append((block['address'], b'\x00' * block['length']))
+
+                response = protocol.respond_read_memory_blocks( response_block )
+                record.complete(success=True, response=response)
+
+
+    # Make sure the maximum response size is always respected
+    def test_response_size_limit(self):
+        entries = []
+        for i in range(20):     # Try different size of variable
+            entries += list(make_dummy_entries(address=i * 0x100, n=1, vartype=VariableType.uint64))
+            entries += list(make_dummy_entries(address=i * 0x100+8, n=1, vartype=VariableType.uint32))
+            entries += list(make_dummy_entries(address=i * 0x100+8+4, n=1, vartype=VariableType.uint16))
+            entries += list(make_dummy_entries(address=i * 0x100+8+4+2, n=1, vartype=VariableType.uint8))
+
+        # Setup everything
+        ds = Datastore()
+        ds.add_entries(entries)
+        dispatcher = RequestDispatcher()
+        protocol = Protocol(1, 0)
+        reader = MemoryReader(protocol, dispatcher=dispatcher, datastore=ds, read_priority=0)
+        reader.set_max_request_size(1024)
+        reader.set_max_response_size(1024)
+        reader.start()
+
+        for entry in entries:
+            ds.start_watching(entry, 'unittest', callback=GenericCallback(lambda *args, **kwargs: None))
+
+        # Try multiple max_size
+        for max_response_size in range(32,128):
+            for i in range(20): # repeat multiple time just tu be sure. Will do all entries and wrap
+                reader.set_max_response_size(max_response_size)
+                reader.process()
+                dispatcher.process()
+
+                record = dispatcher.pop_next()
+                self.assertIsNotNone(record)
+
+                # Respond the request so that we can a new request coming in
+                request_data = protocol.parse_request(record.request)
+                response_block = []
+                for block in request_data['blocks_to_read']:
+                    response_block.append((block['address'], b'\x00' * block['length']))
+
+                response = protocol.respond_read_memory_blocks( response_block )
+                self.assertLessEqual(response.size(), max_response_size)    # That's the main test
+                record.complete(success=True, response=response)
 
 
 class TestMemoryReaderComplexReadOperation(unittest.TestCase):
@@ -256,6 +343,7 @@ class TestMemoryReaderComplexReadOperation(unittest.TestCase):
         forbidden_region_start = 0x4101
         forbidden_region_end = 0x413D
 
+        # Generate a complex patterns of datastore entries
         entries = list(make_dummy_entries(address=0x1000, n=1, vartype=VariableType.float32))
         entries += list(make_dummy_entries(address=0x1004, n=2, vartype=VariableType.uint16))
         entries += list(make_dummy_entries(address=0x2000, n=0x100, vartype=VariableType.sint8))
@@ -270,19 +358,21 @@ class TestMemoryReaderComplexReadOperation(unittest.TestCase):
         for i in range(0x100):
             entries += list(make_dummy_entries(address=0x10000 + i * 0x10, n=1, vartype=VariableType.uint8))
 
+        # This will count the number of time the value is changed in the datastore
         self.init_count_map(entries)
 
+        # Setup everything
         ds = Datastore()
         ds.add_entries(entries)
-
         dispatcher = RequestDispatcher()
         protocol = Protocol(1, 0)
-        reader = MemoryReader(protocol=protocol, dispatcher=dispatcher, datastore=ds, read_priority=0, write_priority=0)
+        reader = MemoryReader(protocol=protocol, dispatcher=dispatcher, datastore=ds, read_priority=0)
         reader.set_max_request_size(128)
         reader.set_max_response_size(128)
         reader.add_forbidden_region(forbidden_region_start, forbidden_region_end-forbidden_region_start+1)
         reader.start()
 
+        # Watch all entries so that they are all read
         for entry in entries:
             ds.start_watching(entry, 'unittest', GenericCallback(self.value_change_callback1))
 
@@ -323,5 +413,6 @@ class TestMemoryReaderComplexReadOperation(unittest.TestCase):
 
         self.assertLess(loop_count, max_loop)  # Make sure we haven't exited because nothing happens
 
+        # Make sure no entries touching the forbidden region is being updated
         for forbidden_entry in forbidden_entries:
             self.assertEqual(self.callback_count_map[forbidden_entry], 0)

@@ -61,7 +61,6 @@ class MemoryReader:
     protocol: Protocol
     datastore: Datastore
     read_priority: int
-    write_priority: int
     stop_requested: bool
     read_request_pending: bool
     started: bool
@@ -73,13 +72,12 @@ class MemoryReader:
     read_cursor: int
     entries_in_pending_read_request: List[DatastoreEntry]
 
-    def __init__(self, protocol: Protocol, dispatcher: RequestDispatcher, datastore: Datastore, read_priority: int, write_priority: int):
+    def __init__(self, protocol: Protocol, dispatcher: RequestDispatcher, datastore: Datastore, read_priority: int):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.dispatcher = dispatcher
         self.protocol = protocol
         self.datastore = datastore
         self.read_priority = read_priority
-        self.write_priority = write_priority
         self.datastore.add_watch_callback(WatchCallback(self.the_watch_callback))
         self.datastore.add_unwatch_callback(WatchCallback(self.the_unwatch_callback))
 
