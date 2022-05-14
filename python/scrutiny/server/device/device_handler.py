@@ -137,7 +137,7 @@ class DeviceHandler:
         )
 
         self.memory_reader = MemoryReader(self.protocol, self.dispatcher, self.datastore,
-                                          read_priority=self.RequestPriority.ReadMemory, write_priority=self.RequestPriority.WriteMemory)
+                                          read_priority=self.RequestPriority.ReadMemory)
 
         self.comm_handler = CommHandler(self.config)
 
