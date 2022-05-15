@@ -706,6 +706,15 @@ class TestProtocolV1_0(unittest.TestCase):
         self.assertEqual(data['written_blocks'][0]['address'], 0x12)
         self.assertEqual(data['written_blocks'][0]['length'], 0x1122)
 
+
+    def test_response_write_single_memory_block_8bits_masked(self):
+        self.proto.set_address_size_bits(8)
+        response = self.proto.respond_write_single_memory_block_masked(0x12, 0x1122)
+        self.assert_req_response_bytes(response, [0x83, 3, 0, 0, 3, 0x12, 0x11, 0x22])
+        data = self.proto.parse_response(response)
+        self.assertEqual(data['written_blocks'][0]['address'], 0x12)
+        self.assertEqual(data['written_blocks'][0]['length'], 0x1122)
+
     def test_response_write_multiple_memory_block_8bits(self):
         self.proto.set_address_size_bits(8)
         blocks = []
@@ -719,10 +728,31 @@ class TestProtocolV1_0(unittest.TestCase):
         self.assertEqual(data['written_blocks'][1]['address'], 0x21)
         self.assertEqual(data['written_blocks'][1]['length'], 0x3344)
 
+    def test_response_write_multiple_memory_block_8bits_masked(self):
+        self.proto.set_address_size_bits(8)
+        blocks = []
+        blocks.append((0x12, 0x1122))
+        blocks.append((0x21, 0x3344))
+        response = self.proto.respond_write_memory_blocks_masked(blocks)
+        self.assert_req_response_bytes(response, [0x83, 3, 0, 0, 6, 0x12, 0x11, 0x22, 0x21, 0x33, 0x44])
+        data = self.proto.parse_response(response)
+        self.assertEqual(data['written_blocks'][0]['address'], 0x12)
+        self.assertEqual(data['written_blocks'][0]['length'], 0x1122)
+        self.assertEqual(data['written_blocks'][1]['address'], 0x21)
+        self.assertEqual(data['written_blocks'][1]['length'], 0x3344)
+
     def test_response_write_single_memory_block_16bits(self):
         self.proto.set_address_size_bits(16)
         response = self.proto.respond_write_single_memory_block(0x1234, 0x1122)
         self.assert_req_response_bytes(response, [0x83, 2, 0, 0, 4, 0x12, 0x34, 0x11, 0x22])
+        data = self.proto.parse_response(response)
+        self.assertEqual(data['written_blocks'][0]['address'], 0x1234)
+        self.assertEqual(data['written_blocks'][0]['length'], 0x1122)
+
+    def test_response_write_single_memory_block_16bits_masked(self):
+        self.proto.set_address_size_bits(16)
+        response = self.proto.respond_write_single_memory_block_masked(0x1234, 0x1122)
+        self.assert_req_response_bytes(response, [0x83, 3, 0, 0, 4, 0x12, 0x34, 0x11, 0x22])
         data = self.proto.parse_response(response)
         self.assertEqual(data['written_blocks'][0]['address'], 0x1234)
         self.assertEqual(data['written_blocks'][0]['length'], 0x1122)
@@ -740,10 +770,31 @@ class TestProtocolV1_0(unittest.TestCase):
         self.assertEqual(data['written_blocks'][1]['address'], 0x4321)
         self.assertEqual(data['written_blocks'][1]['length'], 0x3344)
 
+    def test_response_write_multiple_memory_block_16bits_masked(self):
+        self.proto.set_address_size_bits(16)
+        blocks = []
+        blocks.append((0x1234, 0x1122))
+        blocks.append((0x4321, 0x3344))
+        response = self.proto.respond_write_memory_blocks_masked(blocks)
+        self.assert_req_response_bytes(response, [0x83, 3, 0, 0, 8, 0x12, 0x34, 0x11, 0x22, 0x43, 0x21, 0x33, 0x44])
+        data = self.proto.parse_response(response)
+        self.assertEqual(data['written_blocks'][0]['address'], 0x1234)
+        self.assertEqual(data['written_blocks'][0]['length'], 0x1122)
+        self.assertEqual(data['written_blocks'][1]['address'], 0x4321)
+        self.assertEqual(data['written_blocks'][1]['length'], 0x3344)
+
     def test_response_write_single_memory_block_32bits(self):
         self.proto.set_address_size_bits(32)
         response = self.proto.respond_write_single_memory_block(0x12345678, 0x1122)
         self.assert_req_response_bytes(response, [0x83, 2, 0, 0, 6, 0x12, 0x34, 0x56, 0x78, 0x11, 0x22])
+        data = self.proto.parse_response(response)
+        self.assertEqual(data['written_blocks'][0]['address'], 0x12345678)
+        self.assertEqual(data['written_blocks'][0]['length'], 0x1122)
+
+    def test_response_write_single_memory_block_32bits_masked(self):
+        self.proto.set_address_size_bits(32)
+        response = self.proto.respond_write_single_memory_block_masked(0x12345678, 0x1122)
+        self.assert_req_response_bytes(response, [0x83, 3, 0, 0, 6, 0x12, 0x34, 0x56, 0x78, 0x11, 0x22])
         data = self.proto.parse_response(response)
         self.assertEqual(data['written_blocks'][0]['address'], 0x12345678)
         self.assertEqual(data['written_blocks'][0]['length'], 0x1122)
@@ -761,10 +812,31 @@ class TestProtocolV1_0(unittest.TestCase):
         self.assertEqual(data['written_blocks'][1]['address'], 0x87654321)
         self.assertEqual(data['written_blocks'][1]['length'], 0x3344)
 
+    def test_response_write_multiple_memory_block_32bits_masked(self):
+        self.proto.set_address_size_bits(32)
+        blocks = []
+        blocks.append((0x12345678, 0x1122))
+        blocks.append((0x87654321, 0x3344))
+        response = self.proto.respond_write_memory_blocks_masked(blocks)
+        self.assert_req_response_bytes(response, [0x83, 3, 0, 0, 12, 0x12, 0x34, 0x56, 0x78, 0x11, 0x22, 0x87, 0x65, 0x43, 0x21, 0x33, 0x44])
+        data = self.proto.parse_response(response)
+        self.assertEqual(data['written_blocks'][0]['address'], 0x12345678)
+        self.assertEqual(data['written_blocks'][0]['length'], 0x1122)
+        self.assertEqual(data['written_blocks'][1]['address'], 0x87654321)
+        self.assertEqual(data['written_blocks'][1]['length'], 0x3344)
+
     def test_response_write_single_memory_block_64bits(self):
         self.proto.set_address_size_bits(64)
         response = self.proto.respond_write_single_memory_block(0x123456789abcdef0, 0x1122)
         self.assert_req_response_bytes(response, [0x83, 2, 0, 0, 10, 0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xde, 0xf0, 0x11, 0x22])
+        data = self.proto.parse_response(response)
+        self.assertEqual(data['written_blocks'][0]['address'], 0x123456789abcdef0)
+        self.assertEqual(data['written_blocks'][0]['length'], 0x1122)
+
+    def test_response_write_single_memory_block_64bits_masked(self):
+        self.proto.set_address_size_bits(64)
+        response = self.proto.respond_write_single_memory_block_masked(0x123456789abcdef0, 0x1122)
+        self.assert_req_response_bytes(response, [0x83, 3, 0, 0, 10, 0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xde, 0xf0, 0x11, 0x22])
         data = self.proto.parse_response(response)
         self.assertEqual(data['written_blocks'][0]['address'], 0x123456789abcdef0)
         self.assertEqual(data['written_blocks'][0]['length'], 0x1122)
@@ -776,6 +848,20 @@ class TestProtocolV1_0(unittest.TestCase):
         blocks.append((0xfedcba9876543210, 0x3344))
         response = self.proto.respond_write_memory_blocks(blocks)
         self.assert_req_response_bytes(response, [0x83, 2, 0, 0, 20, 0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xde,
+                                       0xf0, 0x11, 0x22, 0xfe, 0xdc, 0xba, 0x98, 0x76, 0x54, 0x32, 0x10, 0x33, 0x44])
+        data = self.proto.parse_response(response)
+        self.assertEqual(data['written_blocks'][0]['address'], 0x123456789abcdef0)
+        self.assertEqual(data['written_blocks'][0]['length'], 0x1122)
+        self.assertEqual(data['written_blocks'][1]['address'], 0xfedcba9876543210)
+        self.assertEqual(data['written_blocks'][1]['length'], 0x3344)
+
+    def test_response_write_multiple_memory_block_64bits_masked(self):
+        self.proto.set_address_size_bits(64)
+        blocks = []
+        blocks.append((0x123456789abcdef0, 0x1122))
+        blocks.append((0xfedcba9876543210, 0x3344))
+        response = self.proto.respond_write_memory_blocks_masked(blocks)
+        self.assert_req_response_bytes(response, [0x83, 3, 0, 0, 20, 0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xde,
                                        0xf0, 0x11, 0x22, 0xfe, 0xdc, 0xba, 0x98, 0x76, 0x54, 0x32, 0x10, 0x33, 0x44])
         data = self.proto.parse_response(response)
         self.assertEqual(data['written_blocks'][0]['address'], 0x123456789abcdef0)

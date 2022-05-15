@@ -49,6 +49,7 @@ class DatastoreEntry:
         value: Any
         request_timestamp: float
         completed: bool
+        failed: bool
         complete_timestamp: Optional[float]
 
         def __init__(self, value: Any):
@@ -56,13 +57,21 @@ class DatastoreEntry:
             self.request_timestamp = time.time()
             self.completed = False
             self.complete_timestamp = None
+            self.success = False
 
-        def complete(self) -> None:
+        def complete(self, success) -> None:
             self.completed = True
+            self.success = success
             self.complete_timestamp = time.time()
 
         def is_complete(self) -> bool:
             return self.completed
+
+        def is_failed(self):
+            return self.completed and not self.success 
+
+        def is_success(self):
+            return self.completed and self.success 
 
     entry_type: "DatastoreEntry.EntryType"
     display_path: str
@@ -160,7 +169,11 @@ class DatastoreEntry:
 
     def mark_target_update_request_complete(self) -> None:
         if self.pending_target_update is not None:
-            self.pending_target_update.complete()
+            self.pending_target_update.complete(success=True)
+
+    def mark_target_update_request_failed(self) -> None:
+        if self.pending_target_update is not None:
+            self.pending_target_update.complete(success=False)
 
     def discard_target_update_request(self) -> None:
         self.pending_target_update = None

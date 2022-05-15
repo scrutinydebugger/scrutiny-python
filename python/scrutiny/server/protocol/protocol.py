@@ -505,6 +505,11 @@ class Protocol:
         blocks = [(address, length)]
         return self.respond_write_memory_blocks(blocks)
 
+
+    def respond_write_single_memory_block_masked(self, address: int, length: int) -> Response:
+        blocks = [(address, length)]
+        return self.respond_write_memory_blocks_masked(blocks)
+
     def respond_write_memory_blocks(self, blocklist: List[Tuple[int, int]]) -> Response:
         data = bytes()
         for block in blocklist:
@@ -513,6 +518,15 @@ class Protocol:
             data += self.encode_address(address) + struct.pack('>H', length)
 
         return Response(cmd.MemoryControl, cmd.MemoryControl.Subfunction.Write, Response.ResponseCode.OK, data)
+
+    def respond_write_memory_blocks_masked(self, blocklist: List[Tuple[int, int]]) -> Response:
+        data = bytes()
+        for block in blocklist:
+            address = block[0]
+            length = block[1]
+            data += self.encode_address(address) + struct.pack('>H', length)
+
+        return Response(cmd.MemoryControl, cmd.MemoryControl.Subfunction.WriteMasked, Response.ResponseCode.OK, data)
 
     def respond_data_get_targets(self, targets: List[DatalogLocation]) -> Response:
         data = bytes()
@@ -610,7 +624,7 @@ class Protocol:
                             if index == len(response.payload):
                                 break
 
-                    elif subfn == cmd.MemoryControl.Subfunction.Write:
+                    elif subfn == cmd.MemoryControl.Subfunction.Write or subfn == cmd.MemoryControl.Subfunction.WriteMasked :
                         data['written_blocks'] = []
                         index = 0
                         addr_size = self.get_address_size_bytes()

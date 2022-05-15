@@ -41,6 +41,7 @@ class MemoryWriter:
     readonly_regions: List[Tuple[int, int]]
 
     entry_being_updated : Optional[DatastoreEntry]
+    request_of_entry_being_updated : Optional[Request]
     watched_entries : List[str]
     write_cursor : int
 
@@ -84,6 +85,7 @@ class MemoryWriter:
         self.watched_entries = []
         self.write_cursor = 0
         self.entry_being_updated = None
+        self.request_of_entry_being_updated = None
 
     def process(self) -> None:
         if not self.started:
@@ -96,7 +98,7 @@ class MemoryWriter:
         if not self.request_pending:
             request = self.make_next_write_request()
             if request is not None:
-                self.logger.debug('Registering a MemoryWrite request for %d datastore entries. %s' % (len(entries_in_request), request))
+                self.logger.debug('Registering a MemoryWrite request. %s' % (request))
                 self.dispatcher.register_request(
                     request=request,
                     success_callback=SuccessCallback(self.success_callback),
@@ -127,28 +129,55 @@ class MemoryWriter:
             else:
                 encoded_value, write_mask = self.entry_being_updated.encode_pending_update_value() 
                 request = self.protocol.write_single_memory_block(address=self.entry_being_updated.get_address(), data=encoded_value, write_mask=write_mask)
-                
+                self.request_of_entry_being_updated = request
         return request
 
     def success_callback(self, request: Request, response: Response, params: Any = None) -> None:
         self.logger.debug("Success callback. Response=%s, Params=%s" % (response, params))
 
         if response.code == ResponseCode.OK:
-            response_data = self.protocol.parse_response(response)
-            if response_data['valid']:
-                pass # todo
+            if request == self.request_of_entry_being_updated:
+                request_data = self.protocol.parse_request(request)
+                if request_data['valid']:
+                    response_data = self.protocol.parse_response(response)
+                    if response_data['valid'] :
+                        if self.entry_being_updated is not None and self.entry_being_updated.has_pending_target_update():
+                            response_match_request = True
+                            if len(request_data['blocks_to_write']) != 1 or len(response_data['written_blocks']) != 1:
+                                response_match_request = False
+                            else:
+                                if request_data['blocks_to_write'][0]['address'] != response_data['written_blocks'][0]['address']:
+                                    response_match_request = False
+                                
+                                if len(request_data['blocks_to_write'][0]['data']) != response_data['written_blocks'][0]['length']:
+                                    response_match_request = False
+
+                            if response_match_request:
+                                self.entry_being_updated.mark_target_update_request_complete()
+                            else:
+                                self.logger.error('Received a WriteMemory response that does not match the request')
+                        else:
+                            self.logger.warning('Received a WriteMemory response but no datastore entry was being updated.')
+                    else:
+                        self.logger.error('Response for WriteMemory request is malformed and must be discared.')
+                else:
+                    self.logger.error('Request associated with WriteMemory response is malformed. Response must be discared.')
             else:
-                self.logger.error('Response for WriteMemory request is malformed and must be discared.')
+                self.logger.critical('Received a WriteMemory response for the wrong request. This should not happen')
         else:
             self.logger.warning('Response for WriteMemory has been refused with response code %s.' % response.code)
 
-        self.read_completed()
+        self.completed()
 
     def failure_callback(self, request: Request, params: Any = None) -> None:
         self.logger.debug("Failure callback. Request=%s. Params=%s" % (request, params))
         self.logger.error('Failed to get a response for WriteMemory request.')
 
-        self.read_completed()
+        self.entry_being_updated.mark_target_update_request_failed()
 
-    def read_completed(self) -> None:
+        self.completed()
+
+    def completed(self) -> None:
         self.request_pending = False
+        self.entry_being_updated = None
+        self.request_of_entry_being_updated = None

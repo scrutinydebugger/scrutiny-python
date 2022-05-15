@@ -53,6 +53,7 @@ namespace scrutiny
 			uint8_t* start_address;
 			uint16_t length;
 			uint8_t* source_data;
+			uint8_t* mask;
 		};
 
 		enum class CommandId
@@ -134,7 +135,8 @@ namespace scrutiny
 			enum class Subfunction
 			{
 				Read = 1,
-				Write = 2
+				Write = 2,
+				WriteMasked = 3
 			};
 		}
 

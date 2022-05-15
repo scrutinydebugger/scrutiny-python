@@ -121,10 +121,11 @@ namespace scrutiny
 
 		}
 
-		void WriteMemoryBlocksRequestParser::init(const Request* request)
+		void WriteMemoryBlocksRequestParser::init(const Request* request, bool masked_write)
 		{
 			m_buffer = request->data;
 			m_size_limit = request->data_length;
+			m_masked_write = masked_write
 			reset();
 			validate();
 		}
@@ -147,7 +148,12 @@ namespace scrutiny
 				length = decode_16_bits_big_endian(&m_buffer[cursor]);
 				cursor += 2;
 				cursor += length;
-				if (cursor > m_size_limit)
+				if (m_masked_write)
+				{
+					cursor += length;	// With masked write. There is a mask as long as the data it self
+				}
+
+				if (cursor > m_size_limit) // Sum of block length is bigger than request length
 				{
 					m_invalid = true;
 					return;
@@ -155,7 +161,7 @@ namespace scrutiny
 
 				m_required_tx_buffer_size += addr_size + 2;
 
-				if (cursor == m_size_limit)
+				if (cursor == m_size_limit)	// That's the length in the request
 				{
 					break;
 				}
@@ -184,7 +190,8 @@ namespace scrutiny
 			length = decode_16_bits_big_endian(&m_buffer[m_bytes_read]);
 			m_bytes_read += 2;
 
-			if (m_bytes_read + length > m_size_limit)
+			if ((m_bytes_read + length > m_size_limit) || 
+				(m_masked_write && (m_bytes_read + 2*length) > m_size_limit))
 			{
 				m_invalid = true;
 				m_finished = true;
@@ -193,8 +200,17 @@ namespace scrutiny
 
 			memblock->start_address = reinterpret_cast<uint8_t*>(addr);
 			memblock->source_data = reinterpret_cast<uint8_t*>(&m_buffer[m_bytes_read]);
-			memblock->length = length;
 			m_bytes_read += length;
+			if (m_masked_write)
+			{
+				memblock->mask = reinterpret_cast<uint8_t*>(&m_buffer[m_bytes_read]);
+				m_bytes_read += length;
+			}
+			else
+			{
+				memblock->mask = nullptr;
+			}
+			memblock->length = length;
 
 			if (m_bytes_read == m_size_limit)
 			{
@@ -574,9 +590,9 @@ namespace scrutiny
 		}
 
 
-		WriteMemoryBlocksRequestParser* CodecV1_0::decode_request_memory_control_write(const Request* request)
+		WriteMemoryBlocksRequestParser* CodecV1_0::decode_request_memory_control_write(const Request* request, bool masked_write)
 		{
-			m_memory_control_write_request_parser.init(request);
+			m_memory_control_write_request_parser.init(request, masked_write);
 			return &m_memory_control_write_request_parser;
 		}
 

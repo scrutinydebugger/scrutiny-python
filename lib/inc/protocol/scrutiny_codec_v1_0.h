@@ -60,7 +60,7 @@ namespace scrutiny
 		{
 		public:
 			WriteMemoryBlocksRequestParser();
-			void init(const Request* request);
+			void init(const Request* request, bool masked_write);
 			void next(MemoryBlock* memblock);
 			inline bool finished() { return m_finished; };
 			inline bool is_valid() { return !m_invalid; };
@@ -76,7 +76,9 @@ namespace scrutiny
 			uint32_t m_required_tx_buffer_size;
 			bool m_finished;
 			bool m_invalid;
+			bool m_masked_write;
 		};
+
 
 		class WriteMemoryBlocksResponseEncoder
 		{

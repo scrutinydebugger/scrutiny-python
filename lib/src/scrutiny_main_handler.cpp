@@ -401,11 +401,14 @@ namespace scrutiny
 
 
 			// =========== [Write] ==========
-		case protocol::MemoryControl::Subfunction::Write:
+		case protocol::MemoryControl::Subfunction::Write:			// fall through
+		case protocol::MemoryControl::Subfunction::WriteMasked:
+		{
+			bool masked = static_cast<protocol::MemoryControl::Subfunction>(request->subfunction_id) == protocol::MemoryControl::Subfunction::WriteMasked;
 			code = protocol::ResponseCode::OK;
 			protocol::WriteMemoryBlocksRequestParser* writemem_parser;
 			protocol::WriteMemoryBlocksResponseEncoder* writemem_encoder;
-			writemem_parser = m_codec.decode_request_memory_control_write(request);
+			writemem_parser = m_codec.decode_request_memory_control_write(request, masked);
 			writemem_encoder = m_codec.encode_response_memory_control_write(response, m_comm_handler.tx_buffer_size());
 			if (!writemem_parser->is_valid())
 			{
@@ -444,9 +447,24 @@ namespace scrutiny
 				writemem_encoder->write(&block);
 				// We don't check overflow here as we rely on the request parser to be right on the required buffer size.
 
-				std::memcpy(block.start_address, block.source_data, block.length);
+				if (!masked)
+				{
+					std::memcpy(block.start_address, block.source_data, block.length);
+				}
+				else
+				{
+					uint8_t temp;
+					for (uint16_t i=0; i<block.length; i++)
+					{
+						temp = block.start_address[i];
+						temp |= (block.source_data[i] & block.mask[i]); // Bit to 1
+						temp &= (block.source_data[i] | (~block.mask[i])); // Bit to 0
+						block.source_data[i] = temp; 
+					}	
+				}
 			}
 			break;
+		}
 			// =================================
 		default:
 			code = protocol::ResponseCode::UnsupportedFeature;

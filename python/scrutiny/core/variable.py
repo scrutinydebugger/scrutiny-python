@@ -327,6 +327,7 @@ class Variable:
 
         def encode(self, value: Union[int, float, bool], endianness: Endianness) -> bytes:
             endianness_char = '<' if endianness == Endianness.Little else '>'
+
             return struct.pack(endianness_char + self.str, value)
 
     class BoolCodec(BaseCodec):
@@ -444,9 +445,10 @@ class Variable:
         return decoded
 
     def encode(self, value: Union[int, float, bool]) -> Tuple[bytes, Optional[bytes]]:
-        #todo todo
         write_mask = None
-        data = b'\x00' * self.vartype.get_size_byte()
+        data = self.TYPE_TO_CODEC_MAP[self.vartype].encode(value, self.endianness)
+
+        #todo bitfield set write_mask
         return data, write_mask
 
     def get_fullname(self) -> str:

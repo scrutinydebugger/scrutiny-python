@@ -50,9 +50,8 @@ def d2f(d):
 
 
 class TestMemoryReaderBasicReadOperation(unittest.TestCase):
-    """
-    Make sure that the entries are sortable by address with the thirdparty SortedSet object
-    """
+    # Make sure that the entries are sortable by address with the thirdparty SortedSet object
+    
     
     def test_sorted_set(self):
         theset = SortedSet()
@@ -124,11 +123,10 @@ class TestMemoryReaderBasicReadOperation(unittest.TestCase):
 
 
     def test_read_request_basic_behavior(self):
-        """
-        Here we have a set of datastore entries that are contiguous in memory.
-        We read them all in a single block (no limitation) and make sure the values are good.
-        We expect the datastore reader to keep asking for updates, so we run the sequence 5 times
-        """
+        # Here we have a set of datastore entries that are contiguous in memory.
+        # We read them all in a single block (no limitation) and make sure the values are good.
+        # We expect the datastore reader to keep asking for updates, so we run the sequence 5 times
+        
 
         nfloat = 100
         address = 0x1000
@@ -154,10 +152,9 @@ class TestMemoryReaderBasicReadOperation(unittest.TestCase):
         self.generic_test_read_block_sequence(expected_blocks_sequence, reader, dispatcher, protocol, niter=5)
 
     def test_read_request_multiple_blocks_2blocks_per_req(self):
-        """
-        Here, we define 3 non-contiguous block of memory and impose a limit on the request size to allow only 2 blocks read per request.
-        We make sure that blocks are completely read.
-        """
+        # Here, we define 3 non-contiguous block of memory and impose a limit on the request size to allow only 2 blocks read per request.
+        # We make sure that blocks are completely read.
+        
         nfloat1 = 10
         nfloat2 = 20
         nfloat3 = 30
@@ -190,10 +187,9 @@ class TestMemoryReaderBasicReadOperation(unittest.TestCase):
         self.generic_test_read_block_sequence(expected_blocks_sequence, reader, dispatcher, protocol, niter=5)
 
     def test_read_request_multiple_blocks_limited_by_response_size(self):
-        """
-        Here we make read entries, but response has enough space for only 10 blocks of 1 entry.
-        Make sure this happens
-        """
+        # Here we make read entries, but response has enough space for only 10 blocks of 1 entry.
+        # Make sure this happens
+
         nfloat = 15
         entries = []
         for i in range(nfloat):
@@ -224,9 +220,8 @@ class TestMemoryReaderBasicReadOperation(unittest.TestCase):
 
 
     def test_request_size_limit(self):
-        """
-        Make sure the maximum request size is always respected
-        """
+        #Make sure the maximum request size is always respected
+
         entries = []
         for i in range(20): # different variable size
             entries += list(make_dummy_entries(address=i * 0x100, n=1, vartype=VariableType.uint64))
@@ -270,9 +265,8 @@ class TestMemoryReaderBasicReadOperation(unittest.TestCase):
 
 
     def test_response_size_limit(self):
-        """
-        Make sure the maximum response size is always respected
-        """
+        #Make sure the maximum response size is always respected
+        
         entries = []
         for i in range(20):     # Try different size of variable
             entries += list(make_dummy_entries(address=i * 0x100, n=1, vartype=VariableType.uint64))
@@ -315,12 +309,11 @@ class TestMemoryReaderBasicReadOperation(unittest.TestCase):
 
 
 class TestMemoryReaderComplexReadOperation(unittest.TestCase):
-    """
-    Here we make a complex pattern of variables tor ead.
-    Diferent types,  different blocks, forbidden regions, request and response size limit.
-    We make sure that all entries are updated in a round robin scheme.
-    So everyone is updated. Nobody is updated twice unless everybody else us updated.
-    """
+    #Here we make a complex pattern of variables to read.
+    #Different types,  different blocks, forbidden regions, request and response size limit.
+    #We make sure that all entries are updated in a round robin scheme.
+    #So everyone is updated. Nobody is updated twice unless everybody else us updated.
+    
 
     def setUp(self):
         self.callback_count_map = {}
