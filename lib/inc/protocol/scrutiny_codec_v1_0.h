@@ -223,7 +223,7 @@ namespace scrutiny
 			ReadMemoryBlocksRequestParser* decode_request_memory_control_read(const Request* request);
 			ReadMemoryBlocksResponseEncoder* encode_response_memory_control_read(Response* response, uint32_t max_size);
 
-			WriteMemoryBlocksRequestParser* decode_request_memory_control_write(const Request* request);
+			WriteMemoryBlocksRequestParser* decode_request_memory_control_write(const Request* request, const bool masked_wirte);
 			WriteMemoryBlocksResponseEncoder* encode_response_memory_control_write(Response* response, uint32_t max_size);
 
 		protected:

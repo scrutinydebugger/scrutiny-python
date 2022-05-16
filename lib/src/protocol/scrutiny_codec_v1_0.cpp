@@ -125,7 +125,7 @@ namespace scrutiny
 		{
 			m_buffer = request->data;
 			m_size_limit = request->data_length;
-			m_masked_write = masked_write
+			m_masked_write = masked_write;
 			reset();
 			validate();
 		}
@@ -590,7 +590,7 @@ namespace scrutiny
 		}
 
 
-		WriteMemoryBlocksRequestParser* CodecV1_0::decode_request_memory_control_write(const Request* request, bool masked_write)
+		WriteMemoryBlocksRequestParser* CodecV1_0::decode_request_memory_control_write(const Request* request, const bool masked_write)
 		{
 			m_memory_control_write_request_parser.init(request, masked_write);
 			return &m_memory_control_write_request_parser;

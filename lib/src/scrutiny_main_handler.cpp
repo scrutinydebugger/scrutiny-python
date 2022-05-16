@@ -459,7 +459,7 @@ namespace scrutiny
 						temp = block.start_address[i];
 						temp |= (block.source_data[i] & block.mask[i]); // Bit to 1
 						temp &= (block.source_data[i] | (~block.mask[i])); // Bit to 0
-						block.source_data[i] = temp; 
+						block.start_address[i] = temp;
 					}	
 				}
 			}

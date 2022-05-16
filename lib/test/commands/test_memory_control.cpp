@@ -392,7 +392,7 @@ TEST_F(TestMemoryControl, TestWriteSingleAddressMasked)
 {
 
 	uint8_t buffer[] = { 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA };
-	uint8_t data_to_write[] = { 0xFF, 0xFF 0x00, 0x00 };
+	uint8_t data_to_write[] = { 0xFF, 0xFF, 0x00, 0x00 };
 	uint8_t write_mask[] = { 0xF0, 0xAA, 0xF0, 0xAA };
 	uint8_t expected_output_buffer[] = { 0xFA, 0xAA, 0x0A, 0x00 , 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA };
 
@@ -405,8 +405,8 @@ TEST_F(TestMemoryControl, TestWriteSingleAddressMasked)
 	request_data[index++] = (sizeof(data_to_write) >> 8) & 0xFF;
 	request_data[index++] = (sizeof(data_to_write) >> 0) & 0xFF;
 	std::memcpy(&request_data[index], data_to_write, sizeof(data_to_write));
-	index += sizeof(data_to_write)
-	std::memcpy(&request_data[index], data_to_write, sizeof(write_mask));
+	index += sizeof(data_to_write);
+	std::memcpy(&request_data[index], write_mask, sizeof(write_mask));
 	add_crc(request_data, sizeof(request_data) - 4);
 
 	// Building expected response
@@ -503,7 +503,7 @@ TEST_F(TestMemoryControl, TestWriteMultipleAddressMasked)
 	uint8_t write_mask1[] = { 0xFF, 0x00, 0xF0, 0x0F };
 	uint8_t data_to_write2[] = { 0xAA, 0xAA, 0x55, 0x55, 0x0F };
 	uint8_t write_mask2[] = { 0x0F, 0xAA, 0xAA, 0x55, 0xF0 };
-	uint8_t expected_output_buffer[] = { 0x11, 0x55, 0x35, 0x54, 0x0A, 0xFF, 0x55, 0x55 , 0x05, 0x99};
+	uint8_t expected_output_buffer[] = { 0x11, 0x55, 0x35, 0x54, 0x5A, 0xFF, 0x55, 0x55 , 0x05, 0x99};
 
 	// Building request
 	constexpr uint32_t addr_size = sizeof(std::uintptr_t);
@@ -530,7 +530,7 @@ TEST_F(TestMemoryControl, TestWriteMultipleAddressMasked)
 	// Building expected response
 	uint8_t tx_buffer[32];
 	constexpr uint16_t datalen_resp = (addr_size + 2) * 2;
-	uint8_t expected_response[9 + datalen_resp] = { 0x83, 2, 0, 0, datalen_resp };
+	uint8_t expected_response[9 + datalen_resp] = { 0x83, 3, 0, 0, datalen_resp };
 	index = 5;
 	index += encode_addr(&expected_response[index], buffer);
 	expected_response[index++] = (sizeof(data_to_write1) >> 8) & 0xFF;
@@ -593,7 +593,7 @@ TEST_F(TestMemoryControl, TestWriteSingleAddress_InvalidDataLength)
 TEST_F(TestMemoryControl, TestWriteSingleAddressMasked_InvalidDataLength)
 {
 	const scrutiny::protocol::CommandId cmd = scrutiny::protocol::CommandId::MemoryControl;
-	const uint8_t subfn = static_cast<uint8_t>(scrutiny::protocol::MemoryControl::Subfunction::Write);
+	const uint8_t subfn = static_cast<uint8_t>(scrutiny::protocol::MemoryControl::Subfunction::WriteMasked);
 	const scrutiny::protocol::ResponseCode invalid = scrutiny::protocol::ResponseCode::InvalidRequest;
 
 	uint8_t buffer[] = { 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a };
