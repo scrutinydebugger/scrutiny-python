@@ -22,6 +22,8 @@ class Response:
     code: "ResponseCode"
     payload: bytes
 
+    OVERHEAD_SIZE: int = 9
+
     class ResponseCode(Enum):
         OK = 0
         InvalidRequest = 1

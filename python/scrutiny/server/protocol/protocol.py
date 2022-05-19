@@ -180,6 +180,12 @@ class Protocol:
         data = struct.pack('BB', region_type, region_index)
         return Request(cmd.GetInfo, cmd.GetInfo.Subfunction.GetSpecialMemoryRegionLocation, data, response_payload_size=2 + self.get_address_size_bytes() * 2)
 
+    def read_memory_request_size_per_block(self):
+        return self.get_address_size_bytes() + 2  # Address + 16 bits length
+
+    def read_memory_response_overhead_size_per_block(self):
+        return self.get_address_size_bytes() + 2
+
     def read_single_memory_block(self, address: int, length: int) -> Request:
         block_list = [(address, length)]
         return self.read_memory_blocks(block_list)
@@ -382,6 +388,7 @@ class Protocol:
 
 
 # ======================== Response =================
+
 
     def respond_not_ok(self, req: Request, code: Union[int, Enum]) -> Response:
         return Response(req.command, req.subfn, Response.ResponseCode(code))

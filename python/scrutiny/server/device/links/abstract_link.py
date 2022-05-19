@@ -1,3 +1,10 @@
+#    abstract_link.py
+#        Base class for all device communication link (serial, udp, other)
+#
+#   - License : MIT - See LICENSE file.
+#   - Project : Scrutiny Debugger (github.com/scrutinydebugger/scrutiny)
+#
+#   Copyright (c) 2021-2022 scrutinydebugger
 
 from abc import ABC, abstractmethod
 from typing import Optional, Dict

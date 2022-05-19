@@ -42,10 +42,10 @@ class Cluster:
             raise ValueError('Cannot read a negative size')
 
         if offset < 0:
-            raise IndexError('Index out of range')
+            raise IndexError('Offset cannot be negative %d' % offset)
 
         if offset + size > self.size:
-            raise IndexError('Index out of range')
+            raise IndexError('Index out of range %d to %d' % (offset, offset + size))
 
         if self.has_data:
             assert self.internal_data is not None
@@ -59,7 +59,7 @@ class Cluster:
 
     def write(self, data: Union[bytearray, bytes], offset: int = 0) -> None:
         if offset < 0:
-            raise ValueError('Offset cannot be negative')
+            raise ValueError('Offset cannot be negative %d' % offset)
 
         if self.size - offset < len(data):
             raise Exception('Data too long for cluster')
@@ -232,7 +232,10 @@ class MemoryContent:
         cluster = Cluster(start_addr=addr, size=size, data=data, has_data=self.retain_data)
         self.write_cluster(cluster)
 
-    def get_cluster_list_no_data(self) -> List[Cluster]:
+    def get_cluster_count(self):
+        return len(self.clusters)
+
+    def get_cluster_list_no_data_by_address(self) -> List[Cluster]:
         """
         Return a list of contiguous memory chunk that have data written.
         Each entry of the list is a Cluster object which have a start address and a length.
@@ -240,6 +243,16 @@ class MemoryContent:
         """
         cluster_list = [Cluster(start_addr=addr, size=len(self.clusters[addr]), has_data=False) for addr in self.clusters]
         cluster_list.sort(key=lambda x: x.start_addr)
+        return cluster_list
+
+    def get_cluster_list_no_data_by_size_desc(self) -> List[Cluster]:
+        """
+        Return a list of contiguous memory chunk that have data written.
+        Each entry of the list is a Cluster object which have a start address and a length.
+        Clusters are sorted by size.
+        """
+        cluster_list = [Cluster(start_addr=addr, size=len(self.clusters[addr]), has_data=False) for addr in self.clusters]
+        cluster_list.sort(key=lambda x: x.size, reverse=True)
         return cluster_list
 
     def delete(self, addr: int, size: int) -> None:

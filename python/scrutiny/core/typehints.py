@@ -1,4 +1,12 @@
-from typing import Literal
+#    typehints.py
+#        Contains some definition for type hints that are used across all project
+#
+#   - License : MIT - See LICENSE file.
+#   - Project : Scrutiny Debugger (github.com/scrutinydebugger/scrutiny)
+#
+#   Copyright (c) 2021-2022 scrutinydebugger
+
+from typing import Literal, Callable
 
 
 class GenericCallback:
@@ -13,6 +21,3 @@ class GenericCallback:
     def __call__(self, *args, **kwargs):
         assert self.callback is not None
         self.callback(*args, **kwargs)
-
-
-Endianness = Literal['little', 'big']

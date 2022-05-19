@@ -26,11 +26,10 @@ from scrutiny.server.device.request_generator.device_searcher import DeviceSearc
 from scrutiny.server.device.request_generator.heartbeat_generator import HeartbeatGenerator
 from scrutiny.server.device.request_generator.info_poller import InfoPoller, ProtocolVersionCallback, CommParamCallback
 from scrutiny.server.device.request_generator.session_initializer import SessionInitializer
-from scrutiny.server.device.request_generator.datastore_updater import DatastoreUpdater
+from scrutiny.server.device.request_generator.memory_reader import MemoryReader
 from scrutiny.server.device.device_info import DeviceInfo
 
 from scrutiny.server.tools import Timer
-from scrutiny.server.datastore import Datastore
 from scrutiny.server.datastore import Datastore
 from scrutiny.server.device.links import AbstractLink
 from scrutiny.core.firmware_id import PLACEHOLDER as DEFAULT_FIRMWARE_ID
@@ -62,7 +61,7 @@ class DeviceHandler:
     device_searcher: DeviceSearcher
     session_initializer: SessionInitializer
     heartbeat_generator: HeartbeatGenerator
-    datastore_updater: DatastoreUpdater
+    memory_reader: MemoryReader
     info_poller: InfoPoller
     comm_handler: CommHandler
     protocol: Protocol
@@ -137,8 +136,8 @@ class DeviceHandler:
             comm_param_callback=CommParamCallback(self.get_comm_params_callback),            # Called when communication params are polled
         )
 
-        self.datastore_updater = DatastoreUpdater(self.protocol, self.dispatcher, self.datastore,
-                                                  read_priority=self.RequestPriority.ReadMemory, write_priority=self.RequestPriority.WriteMemory)
+        self.memory_reader = MemoryReader(self.protocol, self.dispatcher, self.datastore,
+                                          read_priority=self.RequestPriority.ReadMemory)
 
         self.comm_handler = CommHandler(self.config)
 
@@ -256,7 +255,7 @@ class DeviceHandler:
         self.info_poller.stop()
         self.session_initializer.stop()
         self.dispatcher.reset()
-        self.datastore_updater.stop()
+        self.memory_reader.stop()
         self.session_id = None
         self.disconnection_requested = False
         self.disconnect_callback = None
@@ -310,7 +309,7 @@ class DeviceHandler:
         self.heartbeat_generator.process()
         self.info_poller.process()
         self.session_initializer.process()
-        self.datastore_updater.process()
+        self.memory_reader.process()
         self.dispatcher.process()
 
         self.handle_comm()      # Make sure request and response are being exchanged with the device
@@ -325,7 +324,7 @@ class DeviceHandler:
     def exec_ready_task(self, state_entry: bool = False) -> None:
         if self.operating_mode == self.OperatingMode.Normal:
             if state_entry:
-                self.datastore_updater.start()
+                self.memory_reader.start()
             # Nothing else to do
         elif self.operating_mode == self.OperatingMode.Test_CheckThrottling:
             if self.dispatcher.peek_next() is None:
@@ -435,7 +434,7 @@ class DeviceHandler:
             self.exec_ready_task(state_entry)
 
             if self.disconnection_requested:
-                self.datastore_updater.stop()
+                self.memory_reader.stop()
                 next_state = self.FsmState.DISCONNECTING
 
             if self.dispatcher.is_in_error():
@@ -507,11 +506,10 @@ class DeviceHandler:
                         response = self.comm_handler.get_response()
 
                         try:
-                            data = self.protocol.parse_response(response)
-                            self.active_request_record.complete(success=True, response=response, response_data=data)  # Valid response if we get here.
+                            self.active_request_record.complete(success=True, response=response)
                         except Exception as e:                   # Malformed response.
                             self.comm_broken = True
-                            self.logger.error("Invalid response received. %s" % str(e))
+                            self.logger.error("Error in success callback. %s" % str(e))
                             self.logger.debug(traceback.format_exc())
                             self.active_request_record.complete(success=False)
 

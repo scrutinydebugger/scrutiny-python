@@ -1,5 +1,6 @@
 #    test_memory_content.py
-#        Test the MemoryContent class functionalities
+#        Test the MemoryContent class functionalities. Make sure it correctly wirtes and read
+#        and also agglomerate contiguous clusters
 #
 #   - License : MIT - See LICENSE file.
 #   - Project : Scrutiny Debugger (github.com/scrutinydebugger/scrutiny)
@@ -9,6 +10,7 @@
 import unittest
 from scrutiny.core.memory_content import MemoryContent, Cluster
 import tempfile
+import os
 
 
 class TestCluster(unittest.TestCase):
@@ -164,7 +166,7 @@ class TestMemoryContent(unittest.TestCase):
         memcontent.write(1100, data)
         memcontent.write(995, data)
 
-        clusters = memcontent.get_cluster_list_no_data()  # Clusters should be sorted by address
+        clusters = memcontent.get_cluster_list_no_data_by_address()  # Clusters should be sorted by address
 
         self.assert_clusters(clusters, [(800, 10), (990, 25), (1100, 10)])
 
@@ -182,180 +184,180 @@ class TestMemoryContent(unittest.TestCase):
     def test_delete_single_cluster_middle(self):
         m = self.delete_test_make_mem()
         m.delete(0x2000, 0x100)
-        clusters = m.get_cluster_list_no_data()
+        clusters = m.get_cluster_list_no_data_by_address()
         self.assert_clusters(clusters, [(0x1000, 0x100), (0x3000, 0x100)])
 
         m = self.delete_test_make_mem()
         m.delete(0x2000, 0x100 - 1)
-        clusters = m.get_cluster_list_no_data()
+        clusters = m.get_cluster_list_no_data_by_address()
         self.assert_clusters(clusters, [(0x1000, 0x100), (0x20FF, 1), (0x3000, 0x100)])
 
         m = self.delete_test_make_mem()
         m.delete(0x2000, 0x100 + 1)
-        clusters = m.get_cluster_list_no_data()
+        clusters = m.get_cluster_list_no_data_by_address()
         self.assert_clusters(clusters, [(0x1000, 0x100), (0x3000, 0x100)])
 
         m = self.delete_test_make_mem()
         m.delete(0x2000 + 1, 0x100)
-        clusters = m.get_cluster_list_no_data()
+        clusters = m.get_cluster_list_no_data_by_address()
         self.assert_clusters(clusters, [(0x1000, 0x100), (0x2000, 1), (0x3000, 0x100)])
 
         m = self.delete_test_make_mem()
         m.delete(0x2000 + 1, 0x100 - 1)
-        clusters = m.get_cluster_list_no_data()
+        clusters = m.get_cluster_list_no_data_by_address()
         self.assert_clusters(clusters, [(0x1000, 0x100), (0x2000, 1), (0x3000, 0x100)])
 
         m = self.delete_test_make_mem()
         m.delete(0x2000 + 1, 0x100 - 2)
-        clusters = m.get_cluster_list_no_data()
+        clusters = m.get_cluster_list_no_data_by_address()
         self.assert_clusters(clusters, [(0x1000, 0x100), (0x2000, 1), (0x20FF, 1), (0x3000, 0x100)])
 
         m = self.delete_test_make_mem()
         m.delete(0x2000 - 1, 0x100)
-        clusters = m.get_cluster_list_no_data()
+        clusters = m.get_cluster_list_no_data_by_address()
         self.assert_clusters(clusters, [(0x1000, 0x100), (0x20FF, 1), (0x3000, 0x100)])
 
         m = self.delete_test_make_mem()
         m.delete(0x2000 - 1, 0x100 + 1)
-        clusters = m.get_cluster_list_no_data()
+        clusters = m.get_cluster_list_no_data_by_address()
         self.assert_clusters(clusters, [(0x1000, 0x100), (0x3000, 0x100)])
 
         m = self.delete_test_make_mem()
         m.delete(0x2000 - 1, 0x100 + 2)
-        clusters = m.get_cluster_list_no_data()
+        clusters = m.get_cluster_list_no_data_by_address()
         self.assert_clusters(clusters, [(0x1000, 0x100), (0x3000, 0x100)])
 
     def test_delete_single_cluster_first(self):
         m = self.delete_test_make_mem()
         m.delete(0x1000, 0x100)
-        clusters = m.get_cluster_list_no_data()
+        clusters = m.get_cluster_list_no_data_by_address()
         self.assert_clusters(clusters, [(0x2000, 0x100), (0x3000, 0x100)])
 
         m = self.delete_test_make_mem()
         m.delete(0x1000, 0x100 - 1)
-        clusters = m.get_cluster_list_no_data()
+        clusters = m.get_cluster_list_no_data_by_address()
         self.assert_clusters(clusters, [(0x10FF, 1), (0x2000, 0x100), (0x3000, 0x100)])
 
         m = self.delete_test_make_mem()
         m.delete(0x1000, 0x100 + 1)
-        clusters = m.get_cluster_list_no_data()
+        clusters = m.get_cluster_list_no_data_by_address()
         self.assert_clusters(clusters, [(0x2000, 0x100), (0x3000, 0x100)])
 
         m = self.delete_test_make_mem()
         m.delete(0x1000 + 1, 0x100)
-        clusters = m.get_cluster_list_no_data()
+        clusters = m.get_cluster_list_no_data_by_address()
         self.assert_clusters(clusters, [(0x1000, 1), (0x2000, 0x100), (0x3000, 0x100)])
 
         m = self.delete_test_make_mem()
         m.delete(0x1000 + 1, 0x100 - 1)
-        clusters = m.get_cluster_list_no_data()
+        clusters = m.get_cluster_list_no_data_by_address()
         self.assert_clusters(clusters, [(0x1000, 1), (0x2000, 0x100), (0x3000, 0x100)])
 
         m = self.delete_test_make_mem()
         m.delete(0x1000 + 1, 0x100 - 2)
-        clusters = m.get_cluster_list_no_data()
+        clusters = m.get_cluster_list_no_data_by_address()
         self.assert_clusters(clusters, [(0x1000, 1), (0x10FF, 1), (0x2000, 0x100), (0x3000, 0x100)])
 
         m = self.delete_test_make_mem()
         m.delete(0x1000 - 1, 0x100)
-        clusters = m.get_cluster_list_no_data()
+        clusters = m.get_cluster_list_no_data_by_address()
         self.assert_clusters(clusters, [(0x10FF, 1), (0x2000, 0x100), (0x3000, 0x100)])
 
         m = self.delete_test_make_mem()
         m.delete(0x1000 - 1, 0x100 + 1)
-        clusters = m.get_cluster_list_no_data()
+        clusters = m.get_cluster_list_no_data_by_address()
         self.assert_clusters(clusters, [(0x2000, 0x100), (0x3000, 0x100)])
 
         m = self.delete_test_make_mem()
         m.delete(0x1000 - 1, 0x100 + 2)
-        clusters = m.get_cluster_list_no_data()
+        clusters = m.get_cluster_list_no_data_by_address()
         self.assert_clusters(clusters, [(0x2000, 0x100), (0x3000, 0x100)])
 
     def test_delete_single_cluster_last(self):
         m = self.delete_test_make_mem()
         m.delete(0x3000, 0x100)
-        clusters = m.get_cluster_list_no_data()
+        clusters = m.get_cluster_list_no_data_by_address()
         self.assert_clusters(clusters, [(0x1000, 0x100), (0x2000, 0x100)])
 
         m = self.delete_test_make_mem()
         m.delete(0x3000, 0x100 - 1)
-        clusters = m.get_cluster_list_no_data()
+        clusters = m.get_cluster_list_no_data_by_address()
         self.assert_clusters(clusters, [(0x1000, 0x100), (0x2000, 0x100), (0x30FF, 1)])
 
         m = self.delete_test_make_mem()
         m.delete(0x3000, 0x100 + 1)
-        clusters = m.get_cluster_list_no_data()
+        clusters = m.get_cluster_list_no_data_by_address()
         self.assert_clusters(clusters, [(0x1000, 0x100), (0x2000, 0x100)])
 
         m = self.delete_test_make_mem()
         m.delete(0x3000 + 1, 0x100)
-        clusters = m.get_cluster_list_no_data()
+        clusters = m.get_cluster_list_no_data_by_address()
         self.assert_clusters(clusters, [(0x1000, 0x100), (0x2000, 0x100), (0x3000, 1)])
 
         m = self.delete_test_make_mem()
         m.delete(0x3000 + 1, 0x100 - 1)
-        clusters = m.get_cluster_list_no_data()
+        clusters = m.get_cluster_list_no_data_by_address()
         self.assert_clusters(clusters, [(0x1000, 0x100), (0x2000, 0x100), (0x3000, 1)])
 
         m = self.delete_test_make_mem()
         m.delete(0x3000 + 1, 0x100 - 2)
-        clusters = m.get_cluster_list_no_data()
+        clusters = m.get_cluster_list_no_data_by_address()
         self.assert_clusters(clusters, [(0x1000, 0x100), (0x2000, 0x100), (0x3000, 1), (0x30FF, 1)])
 
         m = self.delete_test_make_mem()
         m.delete(0x3000 - 1, 0x100)
-        clusters = m.get_cluster_list_no_data()
+        clusters = m.get_cluster_list_no_data_by_address()
         self.assert_clusters(clusters, [(0x1000, 0x100), (0x2000, 0x100), (0x30FF, 1)])
 
         m = self.delete_test_make_mem()
         m.delete(0x3000 - 1, 0x100 + 1)
-        clusters = m.get_cluster_list_no_data()
+        clusters = m.get_cluster_list_no_data_by_address()
         self.assert_clusters(clusters, [(0x1000, 0x100), (0x2000, 0x100)])
 
         m = self.delete_test_make_mem()
         m.delete(0x3000 - 1, 0x100 + 2)
-        clusters = m.get_cluster_list_no_data()
+        clusters = m.get_cluster_list_no_data_by_address()
         self.assert_clusters(clusters, [(0x1000, 0x100), (0x2000, 0x100)])
 
     def test_delete_multiple_cluster(self):
         m = self.delete_test_make_mem()
         m.delete(0x2080, 0x1000)
-        clusters = m.get_cluster_list_no_data()
+        clusters = m.get_cluster_list_no_data_by_address()
         self.assert_clusters(clusters, [(0x1000, 0x100), (0x2000, 0x80), (0x3080, 0x80)])
 
         m = self.delete_test_make_mem()
         m.delete(0x2000 - 1, 0x1000 + 2)
-        clusters = m.get_cluster_list_no_data()
+        clusters = m.get_cluster_list_no_data_by_address()
         self.assert_clusters(clusters, [(0x1000, 0x100), (0x3001, 0x100 - 1)])
 
         m = self.delete_test_make_mem()
         m.delete(0x2080, 0x2000)
-        clusters = m.get_cluster_list_no_data()
+        clusters = m.get_cluster_list_no_data_by_address()
         self.assert_clusters(clusters, [(0x1000, 0x100), (0x2000, 0x80)])
 
         m = self.delete_test_make_mem()
         m.delete(0, 0x4000)
-        clusters = m.get_cluster_list_no_data()
+        clusters = m.get_cluster_list_no_data_by_address()
         self.assert_clusters(clusters, [])
 
     def test_delete_out_of_bounds(self):
         m = self.delete_test_make_mem()
         m.delete(0x4000, 0x100)
-        clusters = m.get_cluster_list_no_data()
+        clusters = m.get_cluster_list_no_data_by_address()
         self.assert_clusters(clusters, [(0x1000, 0x100), (0x2000, 0x100), (0x3000, 0x100)])
 
         m = self.delete_test_make_mem()
         m.delete(0, 0x100)
-        clusters = m.get_cluster_list_no_data()
+        clusters = m.get_cluster_list_no_data_by_address()
         self.assert_clusters(clusters, [(0x1000, 0x100), (0x2000, 0x100), (0x3000, 0x100)])
 
     def test_write_delete_agglomerate_simple(self):
         m = MemoryContent()
         m.add_empty(0x1000, 0x100)
         m.delete(0x1080, 1)
-        self.assert_clusters(m.get_cluster_list_no_data(), [(0x1000, 0x80), (0x1081, 0x7F)])
+        self.assert_clusters(m.get_cluster_list_no_data_by_address(), [(0x1000, 0x80), (0x1081, 0x7F)])
         m.add_empty(0x1080, 1)
-        self.assert_clusters(m.get_cluster_list_no_data(), [(0x1000, 0x100)])
+        self.assert_clusters(m.get_cluster_list_no_data_by_address(), [(0x1000, 0x100)])
 
     def test_write_delete_agglomerate_complex(self):
         m = MemoryContent()
@@ -371,20 +373,21 @@ class TestMemoryContent(unittest.TestCase):
         m.add_empty(0x1900, 0x80)
         m.add_empty(0x1500, 0x100)
 
-        self.assert_clusters(m.get_cluster_list_no_data(), [(0x1000, 0x100), (0x1180, 0x180), (0x1500, 0x100), (0x1800, 0x180), (0x2000, 0x100)])
+        self.assert_clusters(m.get_cluster_list_no_data_by_address(), [(0x1000, 0x100),
+                             (0x1180, 0x180), (0x1500, 0x100), (0x1800, 0x180), (0x2000, 0x100)])
         m.add_empty(0x1000, 0x500)
-        self.assert_clusters(m.get_cluster_list_no_data(), [(0x1000, 0x600), (0x1800, 0x180), (0x2000, 0x100)])
+        self.assert_clusters(m.get_cluster_list_no_data_by_address(), [(0x1000, 0x600), (0x1800, 0x180), (0x2000, 0x100)])
 
     def test_load_memdump(self):
-        filename = 'temp'
         with tempfile.TemporaryDirectory() as tempdirname:
+            filename = os.path.join(tempdirname, 'temp')
             with open(filename, 'w') as f:
                 f.write('0x00100000: 000102030405060708090a0b0c0d0e0f\n')
                 f.write('0x00100010: 101112131415161718191a1b1c1d1e\n')
                 f.write('0x00200000: 00112233445566778899')
 
             memcontent = MemoryContent(filename=filename)
-            self.assert_clusters(memcontent.get_cluster_list_no_data(), [(0x00100000, 31), (0x00200000, 10)])
+            self.assert_clusters(memcontent.get_cluster_list_no_data_by_address(), [(0x00100000, 31), (0x00200000, 10)])
 
             # ====
 
@@ -394,15 +397,15 @@ class TestMemoryContent(unittest.TestCase):
                 f.write('0x00200000: 00112233445566778899\n')   # Added a line feed here
 
             memcontent = MemoryContent(filename=filename)
-            self.assert_clusters(memcontent.get_cluster_list_no_data(), [(0x00100000, 31), (0x00200000, 10)])
+            self.assert_clusters(memcontent.get_cluster_list_no_data_by_address(), [(0x00100000, 31), (0x00200000, 10)])
 
     def test_load_memdump_not_in_order(self):
-        filename = 'temp'
         with tempfile.TemporaryDirectory() as tempdirname:
+            filename = os.path.join(tempdirname, 'temp')
             with open(filename, 'w') as f:
                 f.write('0x00100010: 101112131415161718191a1b1c1d1e\n')
                 f.write('0x00100000: 000102030405060708090a0b0c0d0e0f\n')
                 f.write('0x00200000: 00112233445566778899')
 
             memcontent = MemoryContent(filename=filename)
-            self.assert_clusters(memcontent.get_cluster_list_no_data(), [(0x00100000, 31), (0x00200000, 10)])
+            self.assert_clusters(memcontent.get_cluster_list_no_data_by_address(), [(0x00100000, 31), (0x00200000, 10)])

@@ -12,9 +12,8 @@ import json
 import os
 import logging
 
-from scrutiny.core import Variable, VariableType, VariableEnum, VariableLocation
+from scrutiny.core import Variable, VariableType, VariableEnum, VariableLocation, Endianness
 from typing import Dict, TypedDict, List, Tuple, Optional, Any, Union, Literal
-from scrutiny.core.typehints import Endianness
 from scrutiny.core.variable import VariableEnumDef
 
 
@@ -59,7 +58,13 @@ class VarMap:
 
                 self.validate_json(content)
 
-                self.endianness = content['endianness']
+                if content['endianness'].lower().strip() == 'little':
+                    self.endianness = Endianness.Little
+                elif content['endianness'].lower().strip() == 'big':
+                    self.endianness = Endianness.Big
+                else:
+                    raise Exception('Unknown endianness %s' % content['endianness'])
+
                 self.typemap = content['type_map']
                 self.variables = content['variables']
                 self.enums = content['enums']
@@ -70,7 +75,7 @@ class VarMap:
                 raise Exception('Error loading VarMap - %s: %s' % (type(error).__name__, str(error)))
 
         else:
-            self.endianness = 'little'
+            self.endianness = Endianness.Little
             self.typemap = {}
             self.variables = {}
             self.enums = {}
@@ -103,7 +108,7 @@ class VarMap:
             self.enums_to_id_map[enum] = enum_id
 
     def set_endianness(self, endianness: Endianness) -> None:
-        if endianness not in ['little', 'big']:
+        if endianness not in [Endianness.Little, Endianness.Big]:
             raise ValueError('Invalid endianness %s' % endianness)
         self.endianness = endianness
 
@@ -112,8 +117,15 @@ class VarMap:
             f.write(self.get_json())
 
     def get_json(self) -> str:
+        if self.endianness == Endianness.Little:
+            endianness_str = 'little'
+        elif self.endianness == Endianness.Big:
+            endianness_str = 'big'
+        else:
+            raise Exception('Unknown endianness')
+
         content = {
-            'endianness': self.endianness,
+            'endianness': endianness_str,
             'type_map': self.typemap,
             'variables': self.variables,
             'enums': self.enums,

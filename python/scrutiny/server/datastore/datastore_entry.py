@@ -10,6 +10,8 @@ import uuid
 from enum import Enum
 import time
 
+from scrutiny.core import Variable
+
 from typing import Any, Optional, Dict, Callable
 from scrutiny.core.typehints import GenericCallback
 
@@ -62,38 +64,51 @@ class DatastoreEntry:
         def is_complete(self) -> bool:
             return self.completed
 
-    wtype: "DatastoreEntry.EntryType"
+    entry_type: "DatastoreEntry.EntryType"
     display_path: str
     entry_id: str
     value_change_callback: Dict[str, Callable[["DatastoreEntry"], Any]]
     pending_target_update: Optional["DatastoreEntry.UpdateTargetRequest"]
     callback_pending: bool
     last_value_update: float
+    variable_def: Variable
+    value: Any
 
-    def __init__(self, wtype: "DatastoreEntry.EntryType", display_path: str):
+    def __init__(self, entry_type: "DatastoreEntry.EntryType", display_path: str, variable_def: Variable):
 
-        if wtype not in [DatastoreEntry.EntryType.Var, DatastoreEntry.EntryType.Alias]:
+        if entry_type not in [DatastoreEntry.EntryType.Var, DatastoreEntry.EntryType.Alias]:
             raise ValueError('Invalid watchable type')
 
         if not isinstance(display_path, str):
             raise ValueError('Invalid display path')
 
-        self.wtype = wtype
+        self.entry_type = entry_type
         self.display_path = display_path
         self.entry_id = uuid.uuid4().hex
         self.value_change_callback = {}
         self.pending_target_update = None
         self.callback_pending = False
         self.last_value_update = time.time()
+        self.variable_def = variable_def
+        self.value = 0
 
     def get_type(self) -> "DatastoreEntry.EntryType":
-        return self.wtype
+        return self.entry_type
 
     def get_id(self) -> str:
         return self.entry_id
 
     def get_display_path(self) -> str:
         return self.display_path
+
+    def get_address(self):
+        return self.variable_def.get_address()
+
+    def get_size(self):
+        return self.variable_def.get_size()
+
+    def set_value_from_data(self, data):
+        self.set_value(self.variable_def.decode(data))
 
     def execute_value_change_callback(self) -> None:
         self.callback_pending = True

@@ -25,6 +25,7 @@ setup(
         'appdirs',
         'pyelftools',
         'websockets',
+        'sortedcontainers'
     ],
     extras_require={
         'dev': [
