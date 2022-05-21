@@ -1,4 +1,5 @@
 import unittest
+import time
 
 from scrutiny.server.datastore import Datastore, DatastoreEntry
 from scrutiny.server.device.request_generator.memory_writer import MemoryWriter
@@ -25,6 +26,7 @@ def d2f(d):
 
 class TestMemoryWriterBasicReadOperation(unittest.TestCase):
 
+    # Write a single datastore entry. Make sure the request is good.
     def test_simple_write(self):
         nfloat = 1
         address = 0x1000
@@ -74,3 +76,69 @@ class TestMemoryWriterBasicReadOperation(unittest.TestCase):
 
         record.complete(success=True, response=response)
         self.assertFalse(entry_to_write.has_pending_target_update())
+
+
+    # Update multiple entries. Make sure that all entries has been updated.
+    def test_multiple_write(self):
+        ndouble = 100
+        address = 0x1000
+        ds = Datastore()
+        entries = list(make_dummy_entries(address=address, n=ndouble, vartype=VariableType.float64))
+        ds.add_entries(entries)
+        dispatcher = RequestDispatcher()
+
+        protocol = Protocol(1, 0)
+        protocol.set_address_size_bits(32)
+        writer = MemoryWriter(protocol, dispatcher=dispatcher, datastore=ds, request_priority=0)
+        writer.set_max_request_size(1024)  # Will require 4 request
+        writer.set_max_response_size(1024)  # big enough for all of them
+        writer.start()
+
+        for entry in entries:
+            ds.start_watching(entry, 'unittest', GenericCallback(lambda *args, **kwargs: None))
+
+        # Initial check to make sure no request is pending
+        writer.process()
+        dispatcher.process()
+        self.assertIsNone(dispatcher.pop_next())
+        
+        # Request a data write on  all data store entries
+        for i in range(ndouble):
+            entries[i].set_value(0)
+            entries[i].update_target_value(i)    
+
+        for entry in entries:
+            self.assertTrue(entry.has_pending_target_update())  # Make sure the write request is there
+
+        time_start = time.time()
+
+        # Memory writer writes one entry per request. it's a choice
+        for i in range(ndouble):
+            writer.process()
+            dispatcher.process()
+
+            record = dispatcher.pop_next()
+            self.assertIsNotNone(record, 'i=%d' % i)    #Make sure there is something to send
+
+            self.assertEqual(record.request.command, MemoryControl, 'i=%d' % i)
+            self.assertEqual(MemoryControl.Subfunction(record.request.subfn), MemoryControl.Subfunction.Write, 'i=%d' % i)
+
+            request_data = protocol.parse_request(record.request)
+            self.assertTrue(request_data['valid'], 'i=%d' % i)
+
+            # Emulate the device response
+            block_in_response = []  
+            for block in request_data['blocks_to_write']:
+                block_in_response.append( (block['address'], len(block['data'])) )
+                self.assertEqual(len(block['data']), 8)     # float64 = 8 bytes
+
+            response = protocol.respond_write_memory_blocks(block_in_response)
+            record.complete(success=True, response=response)    # This should trigger the datastore write callback
+
+        # Make sure all entries has been updated. We check the update timestamp and the data itself
+        for i in range(ndouble):
+            self.assertFalse(entries[i].has_pending_target_update(), 'i=%d' % i)
+            update_time = entries[i].get_last_update_timestamp()
+            self.assertIsNotNone(update_time, 'i=%d' % i)
+            self.assertGreaterEqual(update_time, time_start, 'i=%d' % i)
+    

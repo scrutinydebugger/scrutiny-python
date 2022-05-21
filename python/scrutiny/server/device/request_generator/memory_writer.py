@@ -153,6 +153,8 @@ class MemoryWriter:
                                     response_match_request = False
 
                             if response_match_request:
+                                newval, mask = self.entry_being_updated.encode_pending_update_value()
+                                self.entry_being_updated.set_value_from_data(newval)
                                 self.entry_being_updated.mark_target_update_request_complete()
                             else:
                                 self.logger.error('Received a WriteMemory response that does not match the request')

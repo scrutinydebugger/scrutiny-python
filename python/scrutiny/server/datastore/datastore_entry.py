@@ -73,6 +73,9 @@ class DatastoreEntry:
         def is_success(self):
             return self.completed and self.success 
 
+        def get_completion_timestamp(self) -> Optional[float]:
+            return self.complete_timestamp
+
     entry_type: "DatastoreEntry.EntryType"
     display_path: str
     entry_id: str
@@ -154,6 +157,13 @@ class DatastoreEntry:
 
     def get_value(self) -> Any:
         return self.value
+
+    def get_last_update_timestamp(self) -> Optional[float]:
+        if self.pending_target_update is None:
+            return None
+
+        return self.pending_target_update.get_completion_timestamp()
+
 
     def update_target_value(self, value: Any) -> None:
         self.pending_target_update = self.UpdateTargetRequest(value)
