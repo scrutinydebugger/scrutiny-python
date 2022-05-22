@@ -82,7 +82,8 @@ class DatastoreEntry:
     value_change_callback: Dict[str, Callable[["DatastoreEntry"], Any]]
     pending_target_update: Optional["DatastoreEntry.UpdateTargetRequest"]
     callback_pending: bool
-    last_value_update: float
+    last_value_update_timestamp: float
+    last_target_update_timestamp : Optional[float]
     variable_def: Variable
     value: Any
 
@@ -100,7 +101,8 @@ class DatastoreEntry:
         self.value_change_callback = {}
         self.pending_target_update = None
         self.callback_pending = False
-        self.last_value_update = time.time()
+        self.last_value_update_timestamp = time.time()
+        self.last_target_update_timestamp = None
         self.variable_def = variable_def
         self.value = 0
 
@@ -149,21 +151,17 @@ class DatastoreEntry:
 
     def set_value(self, value: Any) -> None:
         self.value = value
-        self.last_value_update = time.time()
+        self.last_value_update_timestamp = time.time()
         self.execute_value_change_callback()
 
     def get_update_time(self) -> float:
-        return self.last_value_update
+        return self.last_value_update_timestamp
 
     def get_value(self) -> Any:
         return self.value
 
     def get_last_update_timestamp(self) -> Optional[float]:
-        if self.pending_target_update is None:
-            return None
-
-        return self.pending_target_update.get_completion_timestamp()
-
+        return self.last_target_update_timestamp
 
     def update_target_value(self, value: Any) -> None:
         self.pending_target_update = self.UpdateTargetRequest(value)
@@ -180,6 +178,7 @@ class DatastoreEntry:
     def mark_target_update_request_complete(self) -> None:
         if self.pending_target_update is not None:
             self.pending_target_update.complete(success=True)
+            self.last_target_update_timestamp = self.pending_target_update.get_completion_timestamp()
 
     def mark_target_update_request_failed(self) -> None:
         if self.pending_target_update is not None:

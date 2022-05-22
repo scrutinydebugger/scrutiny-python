@@ -338,8 +338,8 @@ class Variable:
             return True if data[0] != 0 else False
 
         def encode(self, value: Union[int, float, bool], endianness: Endianness) -> bytes:
-            endianness_char = '<' if endianness == Endianness.Little else '>'
-            return struct.pack(endianness_char + self.str, value)
+            v = 1 if value is True else 0
+            return struct.pack('B' , v)
 
     class NotImplementedCodec(BaseCodec):
         def __init__(self, type_name: str):

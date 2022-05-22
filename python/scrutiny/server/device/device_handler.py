@@ -81,6 +81,7 @@ class DeviceHandler:
     disconnect_callback: Optional[DisconnectCallback]
     disconnect_complet: bool
     comm_broken_count: int
+    fully_connected_ready: bool
 
     DEFAULT_PARAMS: DeviceHandlerParams = {
         'response_timeout': 1.0,    # If a response take more than this delay to be received after a request is sent, drop the response.
@@ -224,7 +225,7 @@ class DeviceHandler:
 
     def get_connection_status(self) -> "DeviceHandler.ConnectionStatus":
         if self.connected:
-            if self.fsm_state == self.FsmState.READY:
+            if self.fully_connected_ready:
                 return self.ConnectionStatus.CONNECTED_READY
             else:
                 return self.ConnectionStatus.CONNECTED_NOT_READY
@@ -267,6 +268,7 @@ class DeviceHandler:
         self.disconnect_callback = None
         self.disconnect_complete = False
         self.comm_broken_count = 0
+        self.fully_connected_ready = False
         self.protocol.set_address_size_bits(self.config['default_address_size'])  # Set back the protocol to decode addresses of this size.
         (major, minor) = self.config['default_protocol_version'].split('.')
         self.protocol.set_version(int(major), int(minor))
@@ -441,7 +443,10 @@ class DeviceHandler:
 
             self.exec_ready_task(state_entry)
 
+            self.fully_connected_ready = True
+
             if self.disconnection_requested:
+                self.fully_connected_ready = False
                 self.memory_reader.stop()
                 self.memory_writer.stop()
                 next_state = self.FsmState.DISCONNECTING

@@ -175,7 +175,8 @@ class MemoryWriter:
         self.logger.debug("Failure callback. Request=%s. Params=%s" % (request, params))
         self.logger.error('Failed to get a response for WriteMemory request.')
 
-        self.entry_being_updated.mark_target_update_request_failed()
+        if self.entry_being_updated is not None:
+            self.entry_being_updated.mark_target_update_request_failed()
 
         self.completed()
 

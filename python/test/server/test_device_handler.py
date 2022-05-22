@@ -7,17 +7,21 @@
 #   Copyright (c) 2021-2022 scrutinydebugger
 
 import unittest
+from time import time, sleep
+from test import logger
+import signal  # For ctrl+c handling
 
 from scrutiny.server.device.emulated_device import EmulatedDevice
 from scrutiny.server.device import DeviceHandler
-from scrutiny.server.datastore import Datastore
-from time import time, sleep
+from scrutiny.server.datastore import Datastore, DatastoreEntry
 from scrutiny.server.protocol.commands import DummyCommand
 from scrutiny.server.protocol import Request, Response
-from test import logger
+from scrutiny.core import *
 
-import signal  # For ctrl+c handling
+from scrutiny.core.typehints import GenericCallback
 
+def d2f(d):
+    return struct.unpack('f', struct.pack('f', d))[0]
 
 class TestDeviceHandler(unittest.TestCase):
     def ctrlc_handler(self, signal, frame):
@@ -26,7 +30,7 @@ class TestDeviceHandler(unittest.TestCase):
         raise KeyboardInterrupt
 
     def setUp(self):
-        ds = Datastore()
+        self.datastore = Datastore()
         config = {
             'link_type': 'thread_safe_dummy',
             'link_config': {},
@@ -34,7 +38,7 @@ class TestDeviceHandler(unittest.TestCase):
             'heartbeat_timeout': 2
         }
 
-        self.device_handler = DeviceHandler(config, ds)
+        self.device_handler = DeviceHandler(config, self.datastore)
         self.device_handler.init_comm()
         link = self.device_handler.get_comm_link()
         self.emulated_device = EmulatedDevice(link)
@@ -217,3 +221,100 @@ class TestDeviceHandler(unittest.TestCase):
         logger.info('Measured bitrate = %0.2fkbps. Target = %0.2fkbps' % (measured_bitrate / 1000.0, target_bitrate / 1000.0))
         self.assertLess(measured_bitrate, target_bitrate * 1.5)
         self.assertGreater(measured_bitrate, target_bitrate / 1.5)
+
+
+    # Check that the datastore is correctly synchronized with a fake memory in the emulated device.
+    def test_read_write_variables(self):
+        vfloat32 = DatastoreEntry(DatastoreEntry.EntryType.Var, 'dummy_float32', variable_def=Variable('dummy_float32', vartype=VariableType.float32, path_segments=[], location=0x10000, endianness=Endianness.Little))
+        vint64 = DatastoreEntry(DatastoreEntry.EntryType.Var, 'dummy_sint64', variable_def=Variable('dummy_sint64', vartype=VariableType.sint64, path_segments=[], location=0x10010, endianness=Endianness.Little))
+        vbool = DatastoreEntry(DatastoreEntry.EntryType.Var, 'dummy_bool', variable_def=Variable('dummy_bool', vartype=VariableType.boolean, path_segments=[], location=0x10020, endianness=Endianness.Little))
+        
+        self.datastore.add_entry(vfloat32)
+        self.datastore.add_entry(vint64)
+        self.datastore.add_entry(vbool)
+
+        dummy_callback = GenericCallback(lambda *args, **kwargs: None)
+
+        test_round_to_do = 5
+        setup_timeout = 2
+        hold_timeout = 5
+        t1 = time()
+        connection_successful = False
+        timeout = setup_timeout
+        connection_time = None
+        time_margin = 0.1
+
+        round_completed = 0
+        state = 'init_memory'
+        while time() - t1 < timeout and round_completed < test_round_to_do:
+            self.device_handler.process()
+            status = self.device_handler.get_connection_status()
+            self.assertEqual(self.device_handler.get_comm_error_count(), 0)
+
+            if status == DeviceHandler.ConnectionStatus.CONNECTED_READY:
+                if connection_successful == False:
+                    timeout = hold_timeout
+                    connection_time = time()
+                    connection_successful = True
+
+                    self.datastore.start_watching(vfloat32, watcher='unittest', callback=dummy_callback)
+                    self.datastore.start_watching(vint64, watcher='unittest', callback=dummy_callback)
+                    self.datastore.start_watching(vbool, watcher='unittest', callback=dummy_callback)
+
+                if state == 'init_memory':
+                    self.emulated_device.write_memory(0x10000, struct.pack('<f', 3.1415926))
+                    self.emulated_device.write_memory(0x10010, struct.pack('<q', 0x123456789abcdef))
+                    self.emulated_device.write_memory(0x10020, struct.pack('<b', 1))
+                    init_memory_time = time()
+                    init_memory_done = True
+                    state = 'read_memory'
+
+                elif state == 'read_memory':
+                    value_updated = (vfloat32.get_update_time() > init_memory_time + time_margin) and (vint64.get_update_time() > init_memory_time+time_margin) and (vbool.get_update_time() > init_memory_time+time_margin)
+
+                    if value_updated:
+                        self.assertEqual(vfloat32.get_value(), d2f(3.1415926), 'round=%d' % round_completed)
+                        self.assertEqual(vint64.get_value(), 0x123456789abcdef, 'round=%d' % round_completed)
+                        self.assertEqual(vbool.get_value(), True, 'round=%d' % round_completed)
+                        
+
+                        vfloat32.update_target_value(2.7)
+                        vint64.update_target_value(0x1122334455667788)
+                        vbool.update_target_value(False)
+
+                        write_time = time()
+                        state = 'write_memory'
+
+                    elif time() - init_memory_time > 1:
+                        raise Exception('Value did not update')
+
+                elif state == 'write_memory':
+                    value_updated = True
+                    value_updated = value_updated and (vfloat32.get_last_update_timestamp() is not None) and (vfloat32.get_last_update_timestamp() > write_time) 
+                    value_updated = value_updated and (vint64.get_last_update_timestamp() is not None) and (vint64.get_last_update_timestamp() > write_time) 
+                    value_updated = value_updated and (vbool.get_last_update_timestamp() is not None) and (vbool.get_last_update_timestamp() > write_time) 
+                   
+                    if value_updated:
+                        self.assertEqual(vfloat32.get_value(), d2f(2.7), 'round=%d' % round_completed)
+                        self.assertEqual(vint64.get_value(), 0x1122334455667788, 'round=%d' % round_completed)
+                        self.assertEqual(vbool.get_value(), False, 'round=%d' % round_completed)
+
+                        self.assertEqual(self.emulated_device.read_memory(0x10000, 4), struct.pack('<f', d2f(2.7)))
+                        self.assertEqual(self.emulated_device.read_memory(0x10010, 8), struct.pack('<q', 0x1122334455667788))
+                        self.assertEqual(self.emulated_device.read_memory(0x10020, 1), struct.pack('<b', 0))
+
+                        round_completed += 1
+                        state = 'init_memory'
+
+                    elif time() - write_time > 1:
+                        raise Exception('Value not written')
+
+            # Make sure we don't disconnect
+            if connection_successful:
+                self.assertTrue(status == DeviceHandler.ConnectionStatus.CONNECTED_READY)
+                self.assertTrue(self.emulated_device.is_connected())
+
+            sleep(0.01)
+
+        self.assertTrue(connection_successful)
+        self.assertEqual(round_completed, test_round_to_do) # Check that we made 5 cycles of value

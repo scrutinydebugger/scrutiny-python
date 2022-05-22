@@ -24,9 +24,10 @@ class BlockAddressLength(TypedDict):
     length: int
 
 
-class BlockAddressData(TypedDict):
+class BlockAddressData(TypedDict, total=False):
     address: int
     data: bytes
+    write_mask:Optional[bytes]
 
 
 class RequestData(TypedDict, total=False):
@@ -205,8 +206,8 @@ class Protocol:
             block_list = [(address, data)]
             return self.write_memory_blocks(block_list)
         else:
-            block_list = [(address, data, write_mask)]
-            return self.write_memory_blocks_masked(block_list)
+            block_list_masked = [(address, data, write_mask)]
+            return self.write_memory_blocks_masked(block_list_masked)
 
     def write_memory_blocks(self, block_list: List[Tuple[int, bytes]]) -> Request:
         data = bytes()

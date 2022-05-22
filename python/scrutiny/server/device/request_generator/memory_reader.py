@@ -68,6 +68,7 @@ class MemoryReader:
     max_request_size: int
     max_response_size: int
     forbidden_regions: List[Tuple[int, int]]
+    readonly_regions: List[Tuple[int, int]]
     watched_entries_sorted_by_address: SortedSet
     read_cursor: int
     entries_in_pending_read_request: List[DatastoreEntry]
@@ -128,7 +129,6 @@ class MemoryReader:
         elif self.stop_requested and not self.request_pending:
             self.reset()
             return
-
         if not self.request_pending:
             request, entries_in_request = self.make_next_read_request()
             if request is not None:
