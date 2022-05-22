@@ -1,5 +1,5 @@
-#    uninstall_firmware_info.py
-#        CLI Command to remove a Firmware Information File from the scrutiny storage
+#    uninstall_sfd.py
+#        CLI Command to remove a Scrutiny Firmware Description file from the scrutiny storage
 #
 #   - License : MIT - See LICENSE file.
 #   - Project : Scrutiny Debugger (github.com/scrutinydebugger/scrutiny)
@@ -9,13 +9,13 @@
 import argparse
 
 from .base_command import BaseCommand
-from scrutiny.core.sfi_storage import SFIStorage
+from scrutiny.core.sfd_storage import SFDStorage
 from typing import Optional, List
 
 
-class UninstallFirmwareInfo(BaseCommand):
-    _cmd_name_ = 'uninstall-firmware-info'
-    _brief_ = 'Uninstall a Firmware Info file globally for the current user.'
+class UninstallSFD(BaseCommand):
+    _cmd_name_ = 'uninstall-sfd'
+    _brief_ = 'Uninstall a SFD file (Scruitny Firmware Description) globally for the current user.'
     _group_ = 'Server'
 
     args: List[str]
@@ -31,7 +31,7 @@ class UninstallFirmwareInfo(BaseCommand):
         args = self.parser.parse_args(self.args)
         error = None
         try:
-            SFIStorage.uninstall(args.firmwareid)
+            SFDStorage.uninstall(args.firmwareid)
         except Exception as e:
             error = e
 

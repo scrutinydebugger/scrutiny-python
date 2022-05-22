@@ -1,5 +1,5 @@
-#    sfi_storage.py
-#        Manipulate the Scrutiny storage for .fif file
+#    sfd_storage.py
+#        Manipulate the Scrutiny storage for .sfd files
 #
 #   - License : MIT - See LICENSE file.
 #   - Project : Scrutiny Debugger (github.com/scrutinydebugger/scrutiny)
@@ -8,13 +8,13 @@
 
 import appdirs  # type: ignore
 import os
-from scrutiny.core.firmware_info_file import FirmwareInfoFile
+from scrutiny.core.firmware_description import FirmwareDescription
 import logging
 
 
-class SFIStorage():
+class SFDStorage():
 
-    STORAGE_FOLDER = 'sfi_sotrage'
+    STORAGE_FOLDER = 'sfd_sotrage'
 
     @classmethod
     def get_storage_dir(cls) -> str:
@@ -27,22 +27,22 @@ class SFIStorage():
         if not os.path.isfile(filename):
             raise ValueError('File "%s" does not exist' % (filename))
 
-        sfi = FirmwareInfoFile(filename)
-        firmware_id_ascii = sfi.get_firmware_id(ascii=True)
+        sfd = FirmwareDescription(filename)
+        firmware_id_ascii = sfd.get_firmware_id(ascii=True)
         assert isinstance(firmware_id_ascii, str)
-        output_file = os.path.join(SFIStorage.get_storage_dir(), firmware_id_ascii)
+        output_file = os.path.join(SFDStorage.get_storage_dir(), firmware_id_ascii)
 
         if os.path.isfile(output_file):
-            logging.warning('A Scrutiny Firmware Information  file with the same firmware ID was already installed. Overwriting.')
+            logging.warning('A Scrutiny Firmware Description file with the same firmware ID was already installed. Overwriting.')
 
-        sfi.write(output_file)  # Write the Firmware Information file in storage folder with firmware ID as name
+        sfd.write(output_file)  # Write the Firmware Description file in storage folder with firmware ID as name
 
     @classmethod
     def uninstall(cls, firmwareid: str) -> None:
-        target_file = os.path.join(SFIStorage.get_storage_dir(), firmwareid)
+        target_file = os.path.join(SFDStorage.get_storage_dir(), firmwareid)
 
         if not os.path.isfile(target_file):
-            raise ValueError('SFI file with firmware ID %s not found' % (firmwareid))
+            raise ValueError('SFD file with firmware ID %s not found' % (firmwareid))
 
         os.remove(target_file)
 
@@ -57,6 +57,6 @@ class SFIStorage():
         storage = cls.get_storage_dir()
         filename = os.path.join(storage, firmwareid)
         if not os.path.isfile(filename):
-            raise Exception('Scrutiny Firmware Info with firmware ID %s not installed on this system' % (firmwareid))
+            raise Exception('Scrutiny Firmware description with firmware ID %s not installed on this system' % (firmwareid))
 
-        return FirmwareInfoFile(filename)
+        return FirmwareDescription(filename)

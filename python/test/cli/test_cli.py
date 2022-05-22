@@ -17,7 +17,7 @@ import shutil
 from io import StringIO
 import sys
 from scrutiny.core.varmap import VarMap
-from scrutiny.core.sfi_storage import SFIStorage
+from scrutiny.core.sfd_storage import SFDStorage
 from test.artifacts import get_artifact
 
 from scrutiny.cli import CLI
@@ -116,13 +116,13 @@ class TestCLI(unittest.TestCase):
             cli.run(['elf2varmap', demobin_path, '--output', outputfile])
             VarMap(outputfile)  # make sure the output is loadable. Don't check content, there's another test suite for that
 
-    # Test all commands related to manipulating Scrutiny Firmware Info
-    def test_make_sfi_and_install(self):
+    # Test all commands related to manipulating Scrutiny Firmware Description
+    def test_make_sfd_and_install(self):
         with tempfile.TemporaryDirectory() as tempdirname:
             cli = CLI()
             demo_bin = get_artifact('demobin.elf')
             temp_bin = os.path.join(tempdirname, 'demobin.elf')
-            sfi_name = os.path.join(tempdirname, 'myfile.sfi')
+            sfd_name = os.path.join(tempdirname, 'myfile.sfd')
             shutil.copyfile(demo_bin, temp_bin)
 
             with open(get_artifact('demobin_firmwareid')) as f:
@@ -131,16 +131,16 @@ class TestCLI(unittest.TestCase):
             cli.run(['make-metadata', '--version', '1.2.3.4', '--project-name', 'testname', '--author', 'unittest', '--output', tempdirname])
             cli.run(['get-firmware-id', temp_bin, '--output', tempdirname, '--apply'])
             cli.run(['elf2varmap', temp_bin, '--output', tempdirname])
-            cli.run(['uninstall-firmware-info', demobin_firmware_id, '--quiet'])
-            self.assertFalse(SFIStorage.is_installed(demobin_firmware_id))
+            cli.run(['uninstall-sfd', demobin_firmware_id, '--quiet'])
+            self.assertFalse(SFDStorage.is_installed(demobin_firmware_id))
 
-            cli.run(['make-firmware-info', tempdirname, sfi_name, '--install'])     # install while making
-            self.assertTrue(SFIStorage.is_installed(demobin_firmware_id))
-            cli.run(['uninstall-firmware-info', demobin_firmware_id, '--quiet'])    # uninstall
-            self.assertFalse(SFIStorage.is_installed(demobin_firmware_id))
-            cli.run(['install-firmware-info', sfi_name])                            # install with dedicated command
-            self.assertTrue(SFIStorage.is_installed(demobin_firmware_id))
-            sfi = SFIStorage.get(demobin_firmware_id)
-            self.assertEqual(sfi.get_firmware_id(ascii=True), demobin_firmware_id)  # Load and check id.
+            cli.run(['make-sfd', tempdirname, sfd_name, '--install'])     # install while making
+            self.assertTrue(SFDStorage.is_installed(demobin_firmware_id))
+            cli.run(['uninstall-sfd', demobin_firmware_id, '--quiet'])    # uninstall
+            self.assertFalse(SFDStorage.is_installed(demobin_firmware_id))
+            cli.run(['install-sfd', sfd_name])                            # install with dedicated command
+            self.assertTrue(SFDStorage.is_installed(demobin_firmware_id))
+            sfd = SFDStorage.get(demobin_firmware_id)
+            self.assertEqual(sfd.get_firmware_id(ascii=True), demobin_firmware_id)  # Load and check id.
 
-            cli.run(['uninstall-firmware-info', demobin_firmware_id, '--quiet'])    # cleanup
+            cli.run(['uninstall-sfd', demobin_firmware_id, '--quiet'])    # cleanup

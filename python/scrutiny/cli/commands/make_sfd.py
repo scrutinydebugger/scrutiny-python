@@ -1,5 +1,5 @@
-#    make_firmware_info.py
-#        CLI Command to build and validate a Firmware Information File
+#    make_sfd.py
+#        CLI Command to build and validate a Scrutiny Firmware Description file
 #
 #   - License : MIT - See LICENSE file.
 #   - Project : Scrutiny Debugger (github.com/scrutinydebugger/scrutiny)
@@ -8,14 +8,14 @@
 
 import argparse
 from .base_command import BaseCommand
-from scrutiny.core.firmware_info_file import FirmwareInfoFile
-from scrutiny.core.sfi_storage import SFIStorage
+from scrutiny.core.firmware_description import FirmwareDescription
+from scrutiny.core.sfd_storage import SFDStorage
 from typing import Optional, List
 
 
-class MakeFirmwareInfo(BaseCommand):
-    _cmd_name_ = 'make-firmware-info'
-    _brief_ = 'Generates a Firmware Information File from a given folder containing the required files.'
+class MakeSFD(BaseCommand):
+    _cmd_name_ = 'make-sfd'
+    _brief_ = 'Generates a SFD file (Scrutiny Firmware Description) from a given folder containing the required files.'
     _group_ = 'Build Toochain'
 
     args: List[str]
@@ -30,10 +30,10 @@ class MakeFirmwareInfo(BaseCommand):
 
     def run(self) -> Optional[int]:
         args = self.parser.parse_args(self.args)
-        fif = FirmwareInfoFile(args.folder)
-        fif.write(args.output)
+        sfd = FirmwareDescription(args.folder)
+        sfd.write(args.output)
 
         if args.install:
-            SFIStorage.install(args.output)
+            SFDStorage.install(args.output)
 
         return 0

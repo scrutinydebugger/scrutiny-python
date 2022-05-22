@@ -1,6 +1,6 @@
-#    firmware_info_file.py
-#        Contains the class that represent a Firmware Information File.
-#        A .fif is a file that holds all the data related to a firmware and is identified
+#    firmware_description.py
+#        Contains the class that represent a Scrutiny Firmware Description file.
+#        A .sfd is a file that holds all the data related to a firmware and is identified
 #        by a unique ID.
 #
 #   - License : MIT - See LICENSE file.
@@ -19,7 +19,7 @@ from scrutiny.core.varmap import VarMap
 from typing import List, Union, Dict, Any
 
 
-class FirmwareInfoFile:
+class FirmwareDescription:
     varmap: VarMap
     metadata: Dict[Any, Any]
     firmwareid: bytes
@@ -60,14 +60,14 @@ class FirmwareInfoFile:
         self.varmap = VarMap(os.path.join(folder, self.varmap_filename))
 
     def load_from_file(self, filename: str) -> None:
-        with ZipFile(filename, mode='r') as fif:
-            with fif.open(self.firmwareid_filename) as f:
+        with ZipFile(filename, mode='r') as sfd:
+            with sfd.open(self.firmwareid_filename) as f:
                 self.firmwareid = bytes.fromhex(f.read().decode('ascii'))
 
-            with fif.open(self.metadata_filename) as f:
+            with sfd.open(self.metadata_filename) as f:
                 self.metadata = json.loads(f.read())
 
-            with fif.open(self.varmap_filename) as f:
+            with sfd.open(self.varmap_filename) as f:
                 self.varmap = VarMap(f.read())
 
     def write(self, filename: str) -> None:
@@ -84,7 +84,7 @@ class FirmwareInfoFile:
 
     def validate(self) -> None:
         if not hasattr(self, 'metadata') or not hasattr(self, 'varmap') or not hasattr(self, 'firmwareid'):
-            raise Exception('FirmwareInfoFile not loaded correctly')
+            raise Exception('Firmware Descritpion not loaded correctly')
 
         self.validate_metadata()
         self.validate_firmware_id()

@@ -1,6 +1,6 @@
 #    make_metadata.py
-#        CLI Command to generate the metadata file that will be included in a Firmware Information
-#        File
+#        CLI Command to generate the metadata file that will be included in a Scrutiny Firmware
+#        Description file
 #
 #   - License : MIT - See LICENSE file.
 #   - Project : Scrutiny Debugger (github.com/scrutinydebugger/scrutiny)
@@ -19,7 +19,7 @@ from typing import Optional, List
 
 class MakeMetadata(BaseCommand):
     _cmd_name_ = 'make-metadata'
-    _brief_ = 'Generate a .json file containing the metadatas used inside Firmware Info File'
+    _brief_ = 'Generate a .json file containing the metadatas used inside a SFD (Scrutiny Firmware Description)'
     _group_ = 'Build Toochain'
 
     DEFAULT_NAME = 'metadata.json'

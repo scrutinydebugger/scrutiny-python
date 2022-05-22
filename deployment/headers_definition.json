@@ -15,32 +15,32 @@
     "python\\scrutiny\\cli\\commands\\get_firmware_id.py": {
         "docstring": "CLI Command to generate a unique ID from a .elf file and optionally writes that ID to the file by a search and replace approach so that the device can broadcast its ID once flashed by this firmware."
     },
-    "python\\scrutiny\\cli\\commands\\install_firmware_info.py": {
-        "docstring": "CLI Command to copy a firmware Information File into the scrutiny storage so it can be automatically loaded by the server upon connection with a device"
+    "python\\scrutiny\\cli\\commands\\install_sfd.py": {
+        "docstring": "CLI Command to copy a Scrutiny Firmware Description file into the scrutiny storage so it can be automatically loaded by the server upon connection with a device"
     },
     "python\\scrutiny\\cli\\commands\\launch_server.py": {
         "docstring": "CLI Command to launch the scrutiny server"
     },
-    "python\\scrutiny\\cli\\commands\\make_firmware_info.py": {
-        "docstring": "CLI Command to build and validate a Firmware Information File"
+    "python\\scrutiny\\cli\\commands\\make_sfd.py": {
+        "docstring": "CLI Command to build and validate a Scrutiny Firmware Description file"
     },
     "python\\scrutiny\\cli\\commands\\make_metadata.py": {
-        "docstring": "CLI Command to generate the metadata file that will be included in a Firmware Information File"
+        "docstring": "CLI Command to generate the metadata file that will be included in a Scrutiny Firmware Description file"
     },
     "python\\scrutiny\\cli\\commands\\runtest.py": {
         "docstring": "CLI Command to launch the python unit tests"
     },
-    "python\\scrutiny\\cli\\commands\\uninstall_firmware_info.py": {
-        "docstring": "CLI Command to remove a Firmware Information File from the scrutiny storage"
+    "python\\scrutiny\\cli\\commands\\uninstall_sfd.py": {
+        "docstring": "CLI Command to remove a Scrutiny Firmware Description file from the scrutiny storage"
     },
     "python\\scrutiny\\core\\firmware_id.py": {
         "docstring": "Holds the defaut firmware ID. Used for detection of untagged firmware"
     },
-    "python\\scrutiny\\core\\firmware_info_file.py": {
-        "docstring": "Contains the class that represent a Firmware Information File. \nA .fif is a file that holds all the data related to a firmware and is identified by a unique ID."
+    "python\\scrutiny\\core\\firmware_description.py": {
+        "docstring": "Contains the class that represent a Scrutiny Firmware Description file. \nA .sfd is a file that holds all the data related to a firmware and is identified by a unique ID."
     },
-    "python\\scrutiny\\core\\sfi_storage.py": {
-        "docstring": "Manipulate the Scrutiny storage for .fif file"
+    "python\\scrutiny\\core\\sfd_storage.py": {
+        "docstring": "Manipulate the Scrutiny storage for .sfd files"
     },
     "python\\scrutiny\\core\\variable.py": {
         "docstring": "Variable class represent a variable, will be included in VarMap"
