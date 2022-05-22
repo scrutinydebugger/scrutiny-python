@@ -27,7 +27,7 @@ class BlockAddressLength(TypedDict):
 class BlockAddressData(TypedDict, total=False):
     address: int
     data: bytes
-    write_mask:Optional[bytes]
+    write_mask: Optional[bytes]
 
 
 class RequestData(TypedDict, total=False):
@@ -201,7 +201,7 @@ class Protocol:
             data += self.encode_address(addr) + struct.pack('>H', size)
         return Request(cmd.MemoryControl, cmd.MemoryControl.Subfunction.Read, data, response_payload_size=(self.get_address_size_bytes() + 2) * len(block_list) + total_length)
 
-    def write_single_memory_block(self, address: int, data: bytes, write_mask:Optional[bytes]=None) -> Request:
+    def write_single_memory_block(self, address: int, data: bytes, write_mask: Optional[bytes] = None) -> Request:
         if write_mask is None:
             block_list = [(address, data)]
             return self.write_memory_blocks(block_list)
@@ -353,13 +353,13 @@ class Protocol:
                             raise Exception('Invalid request data, missing data')
 
                         addr, length = struct.unpack('>' + c + 'H', req.payload[(index + 0):(index + address_length_size)])
-                        if len(req.payload) < index + address_length_size + 2*length:   # 2x length because of mask
+                        if len(req.payload) < index + address_length_size + 2 * length:   # 2x length because of mask
                             raise Exception('Data length and encoded length mismatch for address 0x%x' % addr)
 
                         req_data = req.payload[(index + address_length_size):(index + address_length_size + length)]
-                        req_mask = req.payload[(index + address_length_size+length):(index + address_length_size + 2*length)]
+                        req_mask = req.payload[(index + address_length_size + length):(index + address_length_size + 2 * length)]
                         data['blocks_to_write'].append(dict(address=addr, data=req_data, write_mask=req_mask))
-                        index += address_length_size + 2*length
+                        index += address_length_size + 2 * length
 
                         if index >= len(req.payload):
                             break
@@ -425,7 +425,6 @@ class Protocol:
 
 
 # ======================== Response =================
-
 
     def respond_not_ok(self, req: Request, code: Union[int, Enum]) -> Response:
         return Response(req.command, req.subfn, Response.ResponseCode(code))
@@ -505,7 +504,6 @@ class Protocol:
     def respond_write_single_memory_block(self, address: int, length: int) -> Response:
         blocks = [(address, length)]
         return self.respond_write_memory_blocks(blocks)
-
 
     def respond_write_single_memory_block_masked(self, address: int, length: int) -> Response:
         blocks = [(address, length)]
@@ -625,7 +623,7 @@ class Protocol:
                             if index == len(response.payload):
                                 break
 
-                    elif subfn == cmd.MemoryControl.Subfunction.Write or subfn == cmd.MemoryControl.Subfunction.WriteMasked :
+                    elif subfn == cmd.MemoryControl.Subfunction.Write or subfn == cmd.MemoryControl.Subfunction.WriteMasked:
                         data['written_blocks'] = []
                         index = 0
                         addr_size = self.get_address_size_bytes()

@@ -53,7 +53,7 @@ class EmulatedDevice:
     readonly_regions: List[Dict[str, int]]
     session_id: Optional[int]
     memory: MemoryContent
-    memory_lock:threading.Lock
+    memory_lock: threading.Lock
 
     def __init__(self, link):
         if not isinstance(link, DummyLink) and not isinstance(link, ThreadSafeDummyLink):
@@ -242,6 +242,7 @@ class EmulatedDevice:
 
         return response
     # ===== [MemoryControl] ======
+
     def process_memory_control(self, req: Request, data: RequestData) -> Optional[Response]:
         response = None
         subfunction = cmd.MemoryControl.Subfunction(req.subfn)
@@ -249,7 +250,7 @@ class EmulatedDevice:
             response_blocks_read = []
             for block_to_read in data['blocks_to_read']:
                 memdata = self.read_memory(block_to_read['address'], block_to_read['length'])
-                response_blocks_read.append( (block_to_read['address'], memdata) )
+                response_blocks_read.append((block_to_read['address'], memdata))
 
             response = self.protocol.respond_read_memory_blocks(response_blocks_read)
 
@@ -257,11 +258,11 @@ class EmulatedDevice:
             response_blocks_write = []
             for block_to_write in data['blocks_to_write']:
                 self.write_memory(block_to_write['address'], block_to_write['data'])
-                response_blocks_write.append( (block_to_write['address'], len(block_to_write['data'])) )
+                response_blocks_write.append((block_to_write['address'], len(block_to_write['data'])))
 
             response = self.protocol.respond_write_memory_blocks(response_blocks_write)
 
-        #elif subfunction == cmd.MemoryControl.Subfunction.WriteMasked:
+        # elif subfunction == cmd.MemoryControl.Subfunction.WriteMasked:
         #    pass
 
         else:
@@ -333,15 +334,13 @@ class EmulatedDevice:
             return Request.from_bytes(data)
         return None
 
-    def write_memory(self, address:int, data:Union[bytes,bytearray]) -> None:
+    def write_memory(self, address: int, data: Union[bytes, bytearray]) -> None:
         self.memory_lock.acquire()
         self.memory.write(address, data)
         self.memory_lock.release()
 
-    def read_memory(self, address:int, length:int) -> bytes:
+    def read_memory(self, address: int, length: int) -> bytes:
         self.memory_lock.acquire()
         data = self.memory.read(address, length)
         self.memory_lock.release()
         return data
-
-

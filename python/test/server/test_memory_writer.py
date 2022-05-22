@@ -1,3 +1,12 @@
+#    test_memory_writer.py
+#        Test the bridge between the data store and the device memory (datastore to memory
+#        direction only)
+#
+#   - License : MIT - See LICENSE file.
+#   - Project : Scrutiny Debugger (github.com/scrutinydebugger/scrutiny)
+#
+#   Copyright (c) 2021-2022 scrutinydebugger
+
 import unittest
 import time
 
@@ -67,18 +76,18 @@ class TestMemoryWriterBasicReadOperation(unittest.TestCase):
         self.assertEqual(len(request_data['blocks_to_write']), 1)
         self.assertEqual(request_data['blocks_to_write'][0]['address'], 0x1000)
         self.assertEqual(request_data['blocks_to_write'][0]['data'], struct.pack('<f', d2f(3.1415926)))
-        
+
         block_in_response = []
         for block in request_data['blocks_to_write']:
-            block_in_response.append( (block['address'], len(block['data'])) )
+            block_in_response.append((block['address'], len(block['data'])))
 
         response = protocol.respond_write_memory_blocks(block_in_response)
 
         record.complete(success=True, response=response)
         self.assertFalse(entry_to_write.has_pending_target_update())
 
-
     # Update multiple entries. Make sure that all entries has been updated.
+
     def test_multiple_write(self):
         ndouble = 100
         address = 0x1000
@@ -101,11 +110,11 @@ class TestMemoryWriterBasicReadOperation(unittest.TestCase):
         writer.process()
         dispatcher.process()
         self.assertIsNone(dispatcher.pop_next())
-        
+
         # Request a data write on  all data store entries
         for i in range(ndouble):
             entries[i].set_value(0)
-            entries[i].update_target_value(i)    
+            entries[i].update_target_value(i)
 
         for entry in entries:
             self.assertTrue(entry.has_pending_target_update())  # Make sure the write request is there
@@ -118,7 +127,7 @@ class TestMemoryWriterBasicReadOperation(unittest.TestCase):
             dispatcher.process()
 
             record = dispatcher.pop_next()
-            self.assertIsNotNone(record, 'i=%d' % i)    #Make sure there is something to send
+            self.assertIsNotNone(record, 'i=%d' % i)  # Make sure there is something to send
 
             self.assertEqual(record.request.command, MemoryControl, 'i=%d' % i)
             self.assertEqual(MemoryControl.Subfunction(record.request.subfn), MemoryControl.Subfunction.Write, 'i=%d' % i)
@@ -127,9 +136,9 @@ class TestMemoryWriterBasicReadOperation(unittest.TestCase):
             self.assertTrue(request_data['valid'], 'i=%d' % i)
 
             # Emulate the device response
-            block_in_response = []  
+            block_in_response = []
             for block in request_data['blocks_to_write']:
-                block_in_response.append( (block['address'], len(block['data'])) )
+                block_in_response.append((block['address'], len(block['data'])))
                 self.assertEqual(len(block['data']), 8)     # float64 = 8 bytes
 
             response = protocol.respond_write_memory_blocks(block_in_response)
@@ -141,4 +150,3 @@ class TestMemoryWriterBasicReadOperation(unittest.TestCase):
             update_time = entries[i].get_last_update_timestamp()
             self.assertIsNotNone(update_time, 'i=%d' % i)
             self.assertGreaterEqual(update_time, time_start, 'i=%d' % i)
-    

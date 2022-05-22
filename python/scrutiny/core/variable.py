@@ -142,7 +142,8 @@ class VariableType(Enum):
         if bitsize is None:
             return None
         else:
-            return int(bitsize /8) 
+            return int(bitsize / 8)
+
 
 class VariableEnumDef(TypedDict):
     name: str
@@ -339,7 +340,7 @@ class Variable:
 
         def encode(self, value: Union[int, float, bool], endianness: Endianness) -> bytes:
             v = 1 if value is True else 0
-            return struct.pack('B' , v)
+            return struct.pack('B', v)
 
     class NotImplementedCodec(BaseCodec):
         def __init__(self, type_name: str):
@@ -448,7 +449,7 @@ class Variable:
         write_mask = None
         data = self.TYPE_TO_CODEC_MAP[self.vartype].encode(value, self.endianness)
 
-        #todo bitfield set write_mask
+        # todo bitfield set write_mask
         return data, write_mask
 
     def get_fullname(self) -> str:

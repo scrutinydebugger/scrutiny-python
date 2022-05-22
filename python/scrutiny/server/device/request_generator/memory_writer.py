@@ -40,10 +40,10 @@ class MemoryWriter:
     forbidden_regions: List[Tuple[int, int]]
     readonly_regions: List[Tuple[int, int]]
 
-    entry_being_updated : Optional[DatastoreEntry]
-    request_of_entry_being_updated : Optional[Request]
-    watched_entries : List[str]
-    write_cursor : int
+    entry_being_updated: Optional[DatastoreEntry]
+    request_of_entry_being_updated: Optional[Request]
+    watched_entries: List[str]
+    write_cursor: int
 
     def __init__(self, protocol: Protocol, dispatcher: RequestDispatcher, datastore: Datastore, request_priority: int):
         self.logger = logging.getLogger(self.__class__.__name__)
@@ -108,7 +108,7 @@ class MemoryWriter:
                 self.request_pending = True
 
     def make_next_write_request(self) -> Optional[Request]:
-        request:Optional[Request] = None
+        request: Optional[Request] = None
 
         if self.write_cursor >= len(self.watched_entries):
             self.watched_entries = self.datastore.get_watched_entries_id()
@@ -117,7 +117,7 @@ class MemoryWriter:
         if self.entry_being_updated is None:
             while self.write_cursor < len(self.watched_entries):
                 entry = self.datastore.get_entry(self.watched_entries[self.write_cursor])
-                self.write_cursor +=1
+                self.write_cursor += 1
                 if entry.has_pending_target_update():
                     self.entry_being_updated = entry
                     break
@@ -127,8 +127,9 @@ class MemoryWriter:
             if value_to_write is None:
                 self.logger.critical('Value to write is not availble. This should never happen')
             else:
-                encoded_value, write_mask = self.entry_being_updated.encode_pending_update_value() 
-                request = self.protocol.write_single_memory_block(address=self.entry_being_updated.get_address(), data=encoded_value, write_mask=write_mask)
+                encoded_value, write_mask = self.entry_being_updated.encode_pending_update_value()
+                request = self.protocol.write_single_memory_block(
+                    address=self.entry_being_updated.get_address(), data=encoded_value, write_mask=write_mask)
                 self.request_of_entry_being_updated = request
         return request
 
@@ -140,7 +141,7 @@ class MemoryWriter:
                 request_data = self.protocol.parse_request(request)
                 if request_data['valid']:
                     response_data = self.protocol.parse_response(response)
-                    if response_data['valid'] :
+                    if response_data['valid']:
                         if self.entry_being_updated is not None and self.entry_being_updated.has_pending_target_update():
                             response_match_request = True
                             if len(request_data['blocks_to_write']) != 1 or len(response_data['written_blocks']) != 1:
@@ -148,7 +149,7 @@ class MemoryWriter:
                             else:
                                 if request_data['blocks_to_write'][0]['address'] != response_data['written_blocks'][0]['address']:
                                     response_match_request = False
-                                
+
                                 if len(request_data['blocks_to_write'][0]['data']) != response_data['written_blocks'][0]['length']:
                                     response_match_request = False
 

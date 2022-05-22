@@ -326,5 +326,11 @@
     },
     "python\\scrutiny\\server\\device\\request_generator\\memory_writer.py": {
         "docstring": "Synchronize the datastore with the device\nPoll for entries that are watched and update the device with value change request coming from the user in the datastore."
+    },
+    "python\\test\\core\\test_variables.py": {
+        "docstring": "Test the behavior of variable manipulation tools"
+    },
+    "python\\test\\server\\test_memory_writer.py": {
+        "docstring": "Test the bridge between the data store and the device memory (datastore to memory direction only)"
     }
 }

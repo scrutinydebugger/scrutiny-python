@@ -68,10 +68,10 @@ class DatastoreEntry:
             return self.completed
 
         def is_failed(self):
-            return self.completed and not self.success 
+            return self.completed and not self.success
 
         def is_success(self):
-            return self.completed and self.success 
+            return self.completed and self.success
 
         def get_completion_timestamp(self) -> Optional[float]:
             return self.complete_timestamp
@@ -83,7 +83,7 @@ class DatastoreEntry:
     pending_target_update: Optional["DatastoreEntry.UpdateTargetRequest"]
     callback_pending: bool
     last_value_update_timestamp: float
-    last_target_update_timestamp : Optional[float]
+    last_target_update_timestamp: Optional[float]
     variable_def: Variable
     value: Any
 
@@ -192,7 +192,7 @@ class DatastoreEntry:
             assert self.pending_target_update is not None  # for mypy
             return self.pending_target_update.value
 
-    def encode_value(self, value:Optional[Any]=None) -> Tuple[bytes, Optional[bytes]]:
+    def encode_value(self, value: Optional[Any] = None) -> Tuple[bytes, Optional[bytes]]:
         if value is None:
             value = self.value
 
@@ -203,4 +203,3 @@ class DatastoreEntry:
             raise Exception('Datastore entry has no update request pending')
 
         return self.encode_value(self.pending_target_update.value)
-

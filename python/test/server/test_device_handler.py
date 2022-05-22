@@ -20,8 +20,10 @@ from scrutiny.core import *
 
 from scrutiny.core.typehints import GenericCallback
 
+
 def d2f(d):
     return struct.unpack('f', struct.pack('f', d))[0]
+
 
 class TestDeviceHandler(unittest.TestCase):
     def ctrlc_handler(self, signal, frame):
@@ -222,13 +224,16 @@ class TestDeviceHandler(unittest.TestCase):
         self.assertLess(measured_bitrate, target_bitrate * 1.5)
         self.assertGreater(measured_bitrate, target_bitrate / 1.5)
 
-
     # Check that the datastore is correctly synchronized with a fake memory in the emulated device.
+
     def test_read_write_variables(self):
-        vfloat32 = DatastoreEntry(DatastoreEntry.EntryType.Var, 'dummy_float32', variable_def=Variable('dummy_float32', vartype=VariableType.float32, path_segments=[], location=0x10000, endianness=Endianness.Little))
-        vint64 = DatastoreEntry(DatastoreEntry.EntryType.Var, 'dummy_sint64', variable_def=Variable('dummy_sint64', vartype=VariableType.sint64, path_segments=[], location=0x10010, endianness=Endianness.Little))
-        vbool = DatastoreEntry(DatastoreEntry.EntryType.Var, 'dummy_bool', variable_def=Variable('dummy_bool', vartype=VariableType.boolean, path_segments=[], location=0x10020, endianness=Endianness.Little))
-        
+        vfloat32 = DatastoreEntry(DatastoreEntry.EntryType.Var, 'dummy_float32', variable_def=Variable(
+            'dummy_float32', vartype=VariableType.float32, path_segments=[], location=0x10000, endianness=Endianness.Little))
+        vint64 = DatastoreEntry(DatastoreEntry.EntryType.Var, 'dummy_sint64', variable_def=Variable(
+            'dummy_sint64', vartype=VariableType.sint64, path_segments=[], location=0x10010, endianness=Endianness.Little))
+        vbool = DatastoreEntry(DatastoreEntry.EntryType.Var, 'dummy_bool', variable_def=Variable(
+            'dummy_bool', vartype=VariableType.boolean, path_segments=[], location=0x10020, endianness=Endianness.Little))
+
         self.datastore.add_entry(vfloat32)
         self.datastore.add_entry(vint64)
         self.datastore.add_entry(vbool)
@@ -270,13 +275,13 @@ class TestDeviceHandler(unittest.TestCase):
                     state = 'read_memory'
 
                 elif state == 'read_memory':
-                    value_updated = (vfloat32.get_update_time() > init_memory_time + time_margin) and (vint64.get_update_time() > init_memory_time+time_margin) and (vbool.get_update_time() > init_memory_time+time_margin)
+                    value_updated = (vfloat32.get_update_time() > init_memory_time + time_margin) and (vint64.get_update_time() >
+                                                                                                       init_memory_time + time_margin) and (vbool.get_update_time() > init_memory_time + time_margin)
 
                     if value_updated:
                         self.assertEqual(vfloat32.get_value(), d2f(3.1415926), 'round=%d' % round_completed)
                         self.assertEqual(vint64.get_value(), 0x123456789abcdef, 'round=%d' % round_completed)
                         self.assertEqual(vbool.get_value(), True, 'round=%d' % round_completed)
-                        
 
                         vfloat32.update_target_value(2.7)
                         vint64.update_target_value(0x1122334455667788)
@@ -290,10 +295,13 @@ class TestDeviceHandler(unittest.TestCase):
 
                 elif state == 'write_memory':
                     value_updated = True
-                    value_updated = value_updated and (vfloat32.get_last_update_timestamp() is not None) and (vfloat32.get_last_update_timestamp() > write_time) 
-                    value_updated = value_updated and (vint64.get_last_update_timestamp() is not None) and (vint64.get_last_update_timestamp() > write_time) 
-                    value_updated = value_updated and (vbool.get_last_update_timestamp() is not None) and (vbool.get_last_update_timestamp() > write_time) 
-                   
+                    value_updated = value_updated and (vfloat32.get_last_update_timestamp() is not None) and (
+                        vfloat32.get_last_update_timestamp() > write_time)
+                    value_updated = value_updated and (vint64.get_last_update_timestamp() is not None) and (
+                        vint64.get_last_update_timestamp() > write_time)
+                    value_updated = value_updated and (vbool.get_last_update_timestamp() is not None) and (
+                        vbool.get_last_update_timestamp() > write_time)
+
                     if value_updated:
                         self.assertEqual(vfloat32.get_value(), d2f(2.7), 'round=%d' % round_completed)
                         self.assertEqual(vint64.get_value(), 0x1122334455667788, 'round=%d' % round_completed)
@@ -317,4 +325,4 @@ class TestDeviceHandler(unittest.TestCase):
             sleep(0.01)
 
         self.assertTrue(connection_successful)
-        self.assertEqual(round_completed, test_round_to_do) # Check that we made 5 cycles of value
+        self.assertEqual(round_completed, test_round_to_do)  # Check that we made 5 cycles of value

@@ -1,10 +1,20 @@
+#    test_variables.py
+#        Test the behavior of variable manipulation tools
+#
+#   - License : MIT - See LICENSE file.
+#   - Project : Scrutiny Debugger (github.com/scrutinydebugger/scrutiny)
+#
+#   Copyright (c) 2021-2022 scrutinydebugger
+
 import unittest
 import struct
 
 from scrutiny.core import *
 
+
 def d2f(d):
     return struct.unpack('f', struct.pack('f', d))[0]
+
 
 class TestVariables(unittest.TestCase):
     def test_variable_encode_no_bitfield(self):
@@ -57,6 +67,7 @@ class TestVariables(unittest.TestCase):
         self.assertEqual(uint64_le.encode(0x1122334455667788)[0], struct.pack('<Q', 0x1122334455667788))
         self.assertEqual(uint64_be.encode(0xffeeddccbbaa9988)[0], struct.pack('>Q', 0xffeeddccbbaa9988))
 
+        # Booleans
         bool_le = Variable('bool_le', vartype=VariableType.boolean, path_segments=[], location=0, endianness=Endianness.Little)
         bool_be = Variable('bool_be', vartype=VariableType.boolean, path_segments=[], location=0, endianness=Endianness.Little)
 
@@ -64,8 +75,6 @@ class TestVariables(unittest.TestCase):
         self.assertEqual(uint8_be.encode(True)[0], struct.pack('>B', 1))
         self.assertEqual(uint8_le.encode(False)[0], struct.pack('<B', 0))
         self.assertEqual(uint8_be.encode(False)[0], struct.pack('>B', 0))
-
-
 
     def test_variable_decode_no_bitfield(self):
         # Floating point
@@ -117,6 +126,7 @@ class TestVariables(unittest.TestCase):
         self.assertEqual(uint64_le.decode(struct.pack('<Q', 0x1122334455667788)), 0x1122334455667788)
         self.assertEqual(uint64_be.decode(struct.pack('>Q', 0xffeeddccbbaa9988)), 0xffeeddccbbaa9988)
 
+        # Booleans
         bool_le = Variable('bool_le', vartype=VariableType.boolean, path_segments=[], location=0, endianness=Endianness.Little)
         bool_be = Variable('bool_be', vartype=VariableType.boolean, path_segments=[], location=0, endianness=Endianness.Little)
 

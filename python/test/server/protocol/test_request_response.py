@@ -77,14 +77,14 @@ class TestMessage(unittest.TestCase):
         self.assertEqual(Response.OVERHEAD_SIZE, empty_response.size())
         self.assertEqual(Response.OVERHEAD_SIZE, len(empty_response.to_bytes()))
 
-        response_4bytes = Response(command=1, subfn=0x34, code=1, payload=b'\x00'*4)
-        self.assertEqual(Response.OVERHEAD_SIZE+4, response_4bytes.size())
-        self.assertEqual(Response.OVERHEAD_SIZE+4, len(response_4bytes.to_bytes()))
+        response_4bytes = Response(command=1, subfn=0x34, code=1, payload=b'\x00' * 4)
+        self.assertEqual(Response.OVERHEAD_SIZE + 4, response_4bytes.size())
+        self.assertEqual(Response.OVERHEAD_SIZE + 4, len(response_4bytes.to_bytes()))
 
         empty_request = Request(command=1, subfn=0x34)
         self.assertEqual(Request.OVERHEAD_SIZE, empty_request.size())
         self.assertEqual(Request.OVERHEAD_SIZE, len(empty_request.to_bytes()))
 
-        request_4bytes = Request(command=1, subfn=0x34, payload=b'\x00'*4)
-        self.assertEqual(Request.OVERHEAD_SIZE+4, request_4bytes.size())
-        self.assertEqual(Request.OVERHEAD_SIZE+4, len(request_4bytes.to_bytes()))
+        request_4bytes = Request(command=1, subfn=0x34, payload=b'\x00' * 4)
+        self.assertEqual(Request.OVERHEAD_SIZE + 4, request_4bytes.size())
+        self.assertEqual(Request.OVERHEAD_SIZE + 4, len(request_4bytes.to_bytes()))
