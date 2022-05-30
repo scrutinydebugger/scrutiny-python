@@ -10,7 +10,10 @@ import appdirs  # type: ignore
 import os
 from scrutiny.core.firmware_description import FirmwareDescription
 import logging
+import os
+import re
 
+from typing import List
 
 class SFDStorage():
 
@@ -23,7 +26,7 @@ class SFDStorage():
         return folder
 
     @classmethod
-    def install(cls, filename: str) -> None:
+    def install(cls, filename: str) -> FirmwareDescription:
         if not os.path.isfile(filename):
             raise ValueError('File "%s" does not exist' % (filename))
 
@@ -36,9 +39,13 @@ class SFDStorage():
             logging.warning('A Scrutiny Firmware Description file with the same firmware ID was already installed. Overwriting.')
 
         sfd.write(output_file)  # Write the Firmware Description file in storage folder with firmware ID as name
+        return sfd
 
     @classmethod
     def uninstall(cls, firmwareid: str) -> None:
+        if not cls.is_valid_firmware_id(firmwareid):
+            raise ValueError('Invalid firmware ID')
+
         target_file = os.path.join(SFDStorage.get_storage_dir(), firmwareid)
 
         if not os.path.isfile(target_file):
@@ -48,15 +55,47 @@ class SFDStorage():
 
     @classmethod
     def is_installed(cls, firmwareid: str) -> bool:
+        if not cls.is_valid_firmware_id(firmwareid):
+            raise ValueError('Invalid firmware ID')
+
         storage = cls.get_storage_dir()
         filename = os.path.join(storage, firmwareid)
         return os.path.isfile(filename)
 
     @classmethod
-    def get(cls, firmwareid: str):
+    def get(cls, firmwareid: str) -> FirmwareDescription:
+        if not cls.is_valid_firmware_id(firmwareid):
+            raise ValueError('Invalid firmware ID')
+
         storage = cls.get_storage_dir()
         filename = os.path.join(storage, firmwareid)
         if not os.path.isfile(filename):
             raise Exception('Scrutiny Firmware description with firmware ID %s not installed on this system' % (firmwareid))
 
         return FirmwareDescription(filename)
+
+    @classmethod
+    def list(cls) -> List[str]:
+        thelist = []
+        for filename in os.listdir(cls.get_storage_dir()) :   # file name is firmware ID
+            if os.path.isfile(os.path.join(cls.get_storage_dir(), filename)) and cls.is_valid_firmware_id(filename):
+                thelist.append(filename)
+        return thelist
+
+    @classmethod
+    def is_valid_firmware_id(cls, firmware_id:str) -> bool:
+        retval = False
+        try:
+            firmware_id = firmware_id.strip()
+            regex = '[0-9a-fA-F]{%d}' % FirmwareDescription.firmware_id_length()*2
+            if not re.match(regex, firmware_id):
+                raise Exception('regex not match')
+
+            retval = True
+        except:
+            pass
+
+        return retval
+
+
+

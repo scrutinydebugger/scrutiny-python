@@ -142,5 +142,4 @@ class TestCLI(unittest.TestCase):
             self.assertTrue(SFDStorage.is_installed(demobin_firmware_id))
             sfd = SFDStorage.get(demobin_firmware_id)
             self.assertEqual(sfd.get_firmware_id(ascii=True), demobin_firmware_id)  # Load and check id.
-
             cli.run(['uninstall-sfd', demobin_firmware_id, '--quiet'])    # cleanup

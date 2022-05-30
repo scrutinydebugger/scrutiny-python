@@ -15,8 +15,9 @@ import logging
 
 import scrutiny.core.firmware_id as firmware_id
 from scrutiny.core.varmap import VarMap
+from scrutiny.core import Variable
 
-from typing import List, Union, Dict, Any
+from typing import List, Union, Dict, Any, Tuple, Generator
 
 
 class FirmwareDescription:
@@ -91,7 +92,7 @@ class FirmwareDescription:
         self.varmap.validate()
 
     def validate_firmware_id(self) -> None:
-        if len(self.firmwareid) != len(firmware_id.PLACEHOLDER):
+        if len(self.firmwareid) != self.firmware_id_length():
             raise Exception('Firmware ID seems to be the wrong length. Found %d bytes, expected %d bytes' %
                             (len(self.firmwareid), len(firmware_id.PLACEHOLDER)))
 
@@ -104,3 +105,14 @@ class FirmwareDescription:
 
         if 'author' not in self.metadata or not self.metadata['author']:
             logging.warning('No author defined in %s' % self.metadata_filename)
+
+    def get_vars_for_datastore(self) -> Generator[Tuple[str, Variable], None, None]:
+        for fullname, vardef in self.varmap.iterate_vars():
+            yield (fullname, vardef)
+
+    def get_metadata(self):
+        return self.metadata
+
+    @classmethod
+    def firmware_id_length(cls) -> int:
+        return len(firmware_id.PLACEHOLDER)

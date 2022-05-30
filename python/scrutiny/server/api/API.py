@@ -14,6 +14,7 @@ import logging
 from scrutiny.server.datastore import Datastore, DatastoreEntry
 from scrutiny.server.tools import Timer
 from scrutiny.server.device import DeviceHandler
+from scrutiny.server.active_sfd_handler import ActiveSFDHandler
 
 from .websocket_client_handler import WebsocketClientHandler
 from .dummy_client_handler import DummyClientHandler
@@ -22,8 +23,11 @@ from .value_streamer import ValueStreamer
 from .abstract_client_handler import AbstractClientHandler, ClientHandlerConfig, ClientHandlerMessage
 
 from scrutiny.core.typehints import GenericCallback
-from typing import Callable, Dict, List, Set, Any
+from typing import Callable, Dict, List, Set, Any, TypedDict
 
+class APIConfig(TypedDict, total=False):
+    client_interface_type:str
+    client_interface_config:Any
 
 class UpdateVarCallback(GenericCallback):
     callback: Callable[[str, DatastoreEntry], None]
@@ -74,6 +78,7 @@ class API:
     streamer: ValueStreamer
     req_count: int
     client_handler: AbstractClientHandler
+    sfd_handler: ActiveSFDHandler
 
     # The method to call for each command
     ApiRequestCallbacks: Dict[str, str] = {
@@ -84,7 +89,7 @@ class API:
         Command.Client2Api.UNSUBSCRIBE_WATCHABLE: 'process_unsubscribe_watchable'
     }
 
-    def __init__(self, config: Dict, datastore: Datastore, device_handler: DeviceHandler):
+    def __init__(self, config: APIConfig, datastore: Datastore, device_handler: DeviceHandler, sfd_handler:ActiveSFDHandler):
         self.validate_config(config)
 
         if config['client_interface_type'] == 'websocket':
@@ -96,6 +101,7 @@ class API:
 
         self.datastore = datastore
         self.device_handler = device_handler
+        self.sfd_handler = sfd_handler
         self.logger = logging.getLogger('scrutiny.' + self.__class__.__name__)
         self.connections = set()            # Keep a list of all clients connections
         self.streamer = ValueStreamer()     # The value streamer takes cares of publishing values to the client without polling.
@@ -130,7 +136,7 @@ class API:
 
             self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=msg))
 
-    def validate_config(self, config: Dict[str, str]):
+    def validate_config(self, config: APIConfig):
         if 'client_interface_type' not in config:
             raise ValueError('Missing entry in API config : client_interface_type ')
 

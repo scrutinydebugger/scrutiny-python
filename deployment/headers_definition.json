@@ -10,7 +10,7 @@
         "docstring": "Abstract class for all commands. Used to automatically find all available commands through reflection"
     },
     "python\\scrutiny\\cli\\commands\\elf2varmap.py": {
-        "docstring": "CLI Command to read and .elf file and generate a Scrutiny VarMap file that will be included into the Firmware Info File."
+        "docstring": "CLI Command to read and .elf file and generate a Scrutiny VarMap file that will be included into the Firmware Description File."
     },
     "python\\scrutiny\\cli\\commands\\get_firmware_id.py": {
         "docstring": "CLI Command to generate a unique ID from a .elf file and optionally writes that ID to the file by a search and replace approach so that the device can broadcast its ID once flashed by this firmware."
@@ -332,5 +332,14 @@
     },
     "python\\test\\server\\test_memory_writer.py": {
         "docstring": "Test the bridge between the data store and the device memory (datastore to memory direction only)"
+    },
+    "python\\scrutiny\\cli\\commands\\list_sfd.py": {
+        "docstring": "Print a list of all installed Scrutiny Firmware Description files (SFD) installed on this system"
+    },
+    "python\\scrutiny\\server\\active_sfd_handler.py": {
+        "docstring": "Manage the loaded SFD file with which the client will interracts."
+    },
+    "python\\test\\server\\test_active_sfd_handler.py": {
+        "docstring": "Test the ActiveSFDHandler"
     }
 }

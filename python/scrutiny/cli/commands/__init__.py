@@ -4,6 +4,7 @@ from .get_firmware_id import GetFirmwareId
 from .make_metadata import MakeMetadata
 from .install_sfd import InstallSFD
 from .uninstall_sfd import UninstallSFD
+from .list_sfd import ListSFD
 from .elf2varmap import Elf2VarMap
 from .launch_server import LaunchServer
 from .runtest import RunTest

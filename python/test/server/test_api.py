@@ -38,7 +38,7 @@ class TestAPI(unittest.TestCase):
         }
 
         self.datastore = Datastore()
-        self.api = API(config, self.datastore, None)
+        self.api = API(config, self.datastore, device_handler=None, sfd_handler=None)
         client_handler = self.api.get_client_handler()
         assert isinstance(client_handler, DummyClientHandler)
         client_handler.set_connections(self.connections)

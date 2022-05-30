@@ -1,1 +1,1 @@
-from .device_handler import DeviceHandler
+from .device_handler import DeviceHandler, DeviceHandlerConfig

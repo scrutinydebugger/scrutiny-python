@@ -13,7 +13,7 @@ import os
 import logging
 
 from scrutiny.core import Variable, VariableType, VariableEnum, VariableLocation, Endianness
-from typing import Dict, TypedDict, List, Tuple, Optional, Any, Union, Literal
+from typing import Dict, TypedDict, List, Tuple, Optional, Any, Union, Literal, Generator
 from scrutiny.core.variable import VariableEnumDef
 
 
@@ -268,3 +268,7 @@ class VarMap:
             enum_def = self.enums[enum_id]
             return VariableEnum.from_def(enum_def)
         return None
+
+    def iterate_vars(self) -> Generator[Tuple[str, Variable], None, None]:
+        for fullname in self.variables:
+            yield (fullname, self.get_var(fullname))
