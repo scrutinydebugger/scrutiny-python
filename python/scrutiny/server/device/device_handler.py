@@ -1,7 +1,7 @@
 #    device_handler.py
 #        Manage the communication with the device at high level.
 #        Try to establish a connection, once it succeed, reads the device configuration.
-#        
+#
 #        Will keep the communication ongoing and will request for memory dump based on the
 #        Datastore state
 #

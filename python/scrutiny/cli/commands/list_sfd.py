@@ -14,15 +14,16 @@ from scrutiny.core.sfd_storage import SFDStorage
 from typing import Optional, List
 import logging
 import traceback
-import time 
+import time
+
 
 class PrintableSFDEntry:
-    firmware_id:Optional[str]
-    create_time:Optional[int]
-    scrutiny_version:Optional[str]
+    firmware_id: Optional[str]
+    create_time: Optional[int]
+    scrutiny_version: Optional[str]
     project_name: str
     version: str
-    author:str
+    author: str
 
     def __init__(self):
         self.firmware_id = None
@@ -32,10 +33,10 @@ class PrintableSFDEntry:
         self.version = 'No version'
         self.author = 'No author'
 
-
     def __str__(self):
         create_time_str = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(self.create_time))
-        line = '%s %s (%s)\tScrutiny %s \t Created on %s' % (self.project_name, self.version, self.firmware_id, self.scrutiny_version, create_time_str)
+        line = '%s %s (%s)\tScrutiny %s \t Created on %s' % (self.project_name, self.version,
+                                                             self.firmware_id, self.scrutiny_version, create_time_str)
         return line
 
 
@@ -52,7 +53,7 @@ class ListSFD(BaseCommand):
         self.parser = argparse.ArgumentParser(prog=self.get_prog())
 
     def run(self) -> Optional[int]:
-        sfd_list:List[PrintableSFDEntry] = []
+        sfd_list: List[PrintableSFDEntry] = []
         args = self.parser.parse_args(self.args)
         firmware_id_list = SFDStorage.list()
         for firmware_id in firmware_id_list:
@@ -62,8 +63,8 @@ class ListSFD(BaseCommand):
                 entry.firmware_id = firmware_id
                 entry.create_time = metadata['generation_info']['time']
                 entry.scrutiny_version = metadata['generation_info']['scrutiny_version']
-                str(entry) # Make sure it can be rendered. Otherwise exception will be raised
-                
+                str(entry)  # Make sure it can be rendered. Otherwise exception will be raised
+
                 try:
                     entry.project_name = metadata['project_name']
                 except:
@@ -81,12 +82,12 @@ class ListSFD(BaseCommand):
 
                 sfd_list.append(entry)
 
-            except Exception as e:  
+            except Exception as e:
                 logging.warning('Cannot read SFD with firmware ID %s. %s' % (firmware_id, str(e)))
                 logging.debug(traceback.format_exc())
 
         print('Number of valid SFD installed: %d' % len(sfd_list))
-        
+
         sfd_list.sort(key=lambda x: (x.project_name, x.version, x.create_time))
 
         for entry in sfd_list:

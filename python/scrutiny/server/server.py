@@ -22,19 +22,19 @@ from scrutiny.server.device import DeviceHandler, DeviceHandlerConfig
 from scrutiny.server.active_sfd_handler import ActiveSFDHandler
 
 
-
 from typing import TypedDict, Optional
 
+
 class ServerConfig(TypedDict, total=False):
-    name:str
-    autoload_sfd:bool
+    name: str
+    autoload_sfd: bool
     device_config: DeviceHandlerConfig
     api_config: APIConfig
 
 
-DEFAULT_CONFIG:ServerConfig = {
+DEFAULT_CONFIG: ServerConfig = {
     'name': 'Scrutiny Server (Default config)',
-    'autoload_sfd' : True,
+    'autoload_sfd': True,
     'api_config': {
         'client_interface_type': 'websocket',
         'client_interface_config': {
@@ -52,15 +52,15 @@ DEFAULT_CONFIG:ServerConfig = {
 
 
 class ScrutinyServer:
-    server_name:str
+    server_name: str
     logger: logging.Logger
     config: ServerConfig
-    datastore:Datastore
+    datastore: Datastore
     api: API
     device_handler: DeviceHandler
     sfd_handler: ActiveSFDHandler
 
-    def __init__(self, config_filename:str=None):
+    def __init__(self, config_filename: str = None):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.config = copy(DEFAULT_CONFIG)
         if config_filename is not None:
@@ -81,13 +81,12 @@ class ScrutinyServer:
         self.sfd_handler = ActiveSFDHandler(device_handler=self.device_handler, datastore=self.datastore, autoload=self.config['autoload_sfd'])
         self.api = API(self.config['api_config'], datastore=self.datastore, device_handler=self.device_handler, sfd_handler=self.sfd_handler)
 
-
     def validate_config(self) -> None:
         pass
 
     def run(self) -> None:
         self.logger.info('Starting server instance "%s"' % (self.server_name))
-        
+
         try:
             self.api.start_listening()
             self.device_handler.init_comm()

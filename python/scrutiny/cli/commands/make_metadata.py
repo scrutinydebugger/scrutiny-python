@@ -18,6 +18,7 @@ from typing import Optional, List
 
 from scrutiny.core.firmware_description import MetadataType
 
+
 class MakeMetadata(BaseCommand):
     _cmd_name_ = 'make-metadata'
     _brief_ = 'Generate a .json file containing the metadatas used inside a SFD (Scrutiny Firmware Description)'
@@ -54,7 +55,7 @@ class MakeMetadata(BaseCommand):
         except:
             scrutiny_version = '0.0.0'
 
-        metadata:MetadataType = {
+        metadata: MetadataType = {
             'project_name': args.project_name,
             'author': args.author,
             'version': args.version,

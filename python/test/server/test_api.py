@@ -27,9 +27,10 @@ from test.artifacts import get_artifact
 # todo
 # - Test rate limiter/data streamer
 
+
 class StubbedDeviceHandler:
     connection_status: DeviceHandler.ConnectionStatus
-    device_id:str
+    device_id: str
 
     def __init__(self, device_id, connection_status=DeviceHandler.ConnectionStatus.UNKNOWN):
         self.device_id = device_id
@@ -40,6 +41,7 @@ class StubbedDeviceHandler:
 
     def get_device_id(self):
         return self.device_id
+
 
 class TestAPI(unittest.TestCase):
 
@@ -55,7 +57,7 @@ class TestAPI(unittest.TestCase):
         }
 
         self.datastore = Datastore()
-        self.device_handler = StubbedDeviceHandler('0'*64, DeviceHandler.ConnectionStatus.DISCONNECTED)
+        self.device_handler = StubbedDeviceHandler('0' * 64, DeviceHandler.ConnectionStatus.DISCONNECTED)
         self.sfd_handler = ActiveSFDHandler(device_handler=self.device_handler, datastore=self.datastore, autoload=True)
         self.api = API(config, self.datastore, device_handler=self.device_handler, sfd_handler=self.sfd_handler)
         client_handler = self.api.get_client_handler()
@@ -482,8 +484,8 @@ class TestAPI(unittest.TestCase):
 
         self.assertIsNone(self.wait_for_response(0, timeout=0.1))   # No more message to send
 
-
     # Make sure we can read the list of installed SFD
+
     def test_get_sfd_list(self):
         dummy_sfd1_filename = get_artifact('test_sfd_1.sfd')
         dummy_sfd2_filename = get_artifact('test_sfd_2.sfd')
@@ -509,12 +511,11 @@ class TestAPI(unittest.TestCase):
             real_metadata = SFDStorage.get_metadata(installed_firmware_id)
             self.assertEqual(real_metadata, gotten_metadata)
 
-
         SFDStorage.uninstall(sfd1.get_firmware_id())
         SFDStorage.uninstall(sfd2.get_firmware_id())
 
-
     # Check that we can load a SFD through the API and read the actually loaded SFD
+
     def test_load_and_get_loaded_sfd(self):
         dummy_sfd1_filename = get_artifact('test_sfd_1.sfd')
         dummy_sfd2_filename = get_artifact('test_sfd_2.sfd')
@@ -525,7 +526,7 @@ class TestAPI(unittest.TestCase):
         # load #1
         req = {
             'cmd': 'load_sfd',
-            'firmware_id' : sfd1.get_firmware_id()
+            'firmware_id': sfd1.get_firmware_id()
         }
 
         self.send_request(req, 0)
@@ -535,7 +536,6 @@ class TestAPI(unittest.TestCase):
         self.assertIn('success', response)
         self.assertTrue(response['success'])
         self.sfd_handler.process()
-
 
         # Get loaded #1
         req = {
@@ -549,11 +549,10 @@ class TestAPI(unittest.TestCase):
         self.assertIn('firmware_id', response)
         self.assertEqual(response['firmware_id'], sfd1.get_firmware_id())
 
-
         # load #2
         req = {
             'cmd': 'load_sfd',
-            'firmware_id' : sfd2.get_firmware_id()
+            'firmware_id': sfd2.get_firmware_id()
         }
 
         self.send_request(req, 0)
@@ -563,7 +562,6 @@ class TestAPI(unittest.TestCase):
         self.assertIn('success', response)
         self.assertTrue(response['success'])
         self.sfd_handler.process()
-
 
         # Get loaded #2
         req = {
@@ -576,7 +574,6 @@ class TestAPI(unittest.TestCase):
         self.assertEqual(response['cmd'], 'response_get_loaded_sfd')
         self.assertIn('firmware_id', response)
         self.assertEqual(response['firmware_id'], sfd2.get_firmware_id())
-
 
         SFDStorage.uninstall(sfd1.get_firmware_id())
         SFDStorage.uninstall(sfd2.get_firmware_id())

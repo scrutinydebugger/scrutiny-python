@@ -26,9 +26,11 @@ from .abstract_client_handler import AbstractClientHandler, ClientHandlerConfig,
 from scrutiny.core.typehints import GenericCallback
 from typing import Callable, Dict, List, Set, Any, TypedDict
 
+
 class APIConfig(TypedDict, total=False):
-    client_interface_type:str
-    client_interface_config:Any
+    client_interface_type: str
+    client_interface_config: Any
+
 
 class UpdateVarCallback(GenericCallback):
     callback: Callable[[str, DatastoreEntry], None]
@@ -99,7 +101,7 @@ class API:
         Command.Client2Api.GET_LOADED_SFD: 'process_get_loaded_sfd'
     }
 
-    def __init__(self, config: APIConfig, datastore: Datastore, device_handler: DeviceHandler, sfd_handler:ActiveSFDHandler):
+    def __init__(self, config: APIConfig, datastore: Datastore, device_handler: DeviceHandler, sfd_handler: ActiveSFDHandler):
         self.validate_config(config)
 
         if config['client_interface_type'] == 'websocket':
@@ -327,8 +329,7 @@ class API:
 
         self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
 
-
-    def process_get_installed_sfd(self, conn_id:str, req: Dict[str, str]):
+    def process_get_installed_sfd(self, conn_id: str, req: Dict[str, str]):
         firmware_id_list = SFDStorage.list()
         metadata_dict = {}
         for firmware_id in firmware_id_list:
@@ -341,7 +342,7 @@ class API:
 
         self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
 
-    def process_get_loaded_sfd(self, conn_id:str, req: Dict[str, str]):
+    def process_get_loaded_sfd(self, conn_id: str, req: Dict[str, str]):
         sfd = self.sfd_handler.get_loaded_sfd()
 
         response = {
@@ -351,7 +352,7 @@ class API:
 
         self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
 
-    def process_load_sfd(self, conn_id:str, req: Dict[str, str]):
+    def process_load_sfd(self, conn_id: str, req: Dict[str, str]):
         if 'firmware_id' not in req and not isinstance(req['firmware_id'], str):
             raise InvalidRequestException(req, 'Invalid firmware_id')
 
@@ -364,11 +365,10 @@ class API:
 
         response = {
             'cmd': self.Command.Api2Client.LOAD_SFD_RESPONSE,
-            'success' : success
+            'success': success
         }
 
         self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
-
 
     def var_update_callback(self, conn_id: str, datastore_entry: DatastoreEntry) -> None:
         self.streamer.publish(datastore_entry, conn_id)

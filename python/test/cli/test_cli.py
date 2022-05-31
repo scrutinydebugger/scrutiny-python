@@ -144,7 +144,6 @@ class TestCLI(unittest.TestCase):
             self.assertEqual(sfd.get_firmware_id(ascii=True), demobin_firmware_id)  # Load and check id.
             cli.run(['uninstall-sfd', demobin_firmware_id, '--quiet'])    # cleanup
 
-
     def test_list_sfd(self):
         cli = CLI()
         sfd1_filename = get_artifact('test_sfd_1.sfd')

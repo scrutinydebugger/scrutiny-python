@@ -21,17 +21,17 @@ from typing import List, Union, Dict, Any, Tuple, Generator, TypedDict
 
 
 class GenerationInfoType(TypedDict, total=False):
-    time:int
-    python_version:str
-    scrutiny_version:str
-    system_type:str
+    time: int
+    python_version: str
+    scrutiny_version: str
+    system_type: str
+
 
 class MetadataType(TypedDict, total=False):
-    project_name:str
-    author:str
-    version:str
-    generation_info:GenerationInfoType
-
+    project_name: str
+    author: str
+    version: str
+    generation_info: GenerationInfoType
 
 
 class FirmwareDescription:
@@ -77,13 +77,12 @@ class FirmwareDescription:
         self.varmap = VarMap(os.path.join(folder, self.varmap_filename))
 
     @classmethod
-    def read_metadata_from_file(cls, filename:str) -> MetadataType:
+    def read_metadata_from_file(cls, filename: str) -> MetadataType:
         with zipfile.ZipFile(filename, mode='r', compression=cls.COMPRESSION_TYPE) as sfd:
             with sfd.open(cls.metadata_filename) as f:
                 metadata = json.loads(f.read())
 
         return metadata
-
 
     def load_from_file(self, filename: str) -> None:
         with zipfile.ZipFile(filename, mode='r', compression=self.COMPRESSION_TYPE) as sfd:

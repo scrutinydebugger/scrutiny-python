@@ -14,9 +14,10 @@ from scrutiny.server.datastore import Datastore
 from scrutiny.core.sfd_storage import SFDStorage
 from test.artifacts import get_artifact
 
+
 class StubbedDeviceHandler:
     connection_status: DeviceHandler.ConnectionStatus
-    device_id:str
+    device_id: str
 
     def __init__(self, device_id, connection_status=DeviceHandler.ConnectionStatus.UNKNOWN):
         self.device_id = device_id
@@ -27,6 +28,7 @@ class StubbedDeviceHandler:
 
     def get_device_id(self):
         return self.device_id
+
 
 class TestActiveSFDHandler(unittest.TestCase):
 

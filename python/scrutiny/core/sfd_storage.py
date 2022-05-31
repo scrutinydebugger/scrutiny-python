@@ -15,6 +15,7 @@ import re
 
 from typing import List
 
+
 class SFDStorage():
 
     STORAGE_FOLDER = 'sfd_sotrage'
@@ -42,7 +43,7 @@ class SFDStorage():
         return sfd
 
     @classmethod
-    def uninstall(cls, firmwareid: str, ignore_not_exist:bool=False) -> None:
+    def uninstall(cls, firmwareid: str, ignore_not_exist: bool = False) -> None:
         if not cls.is_valid_firmware_id(firmwareid):
             raise ValueError('Invalid firmware ID')
 
@@ -76,7 +77,7 @@ class SFDStorage():
         return FirmwareDescription(filename)
 
     @classmethod
-    def get_metadata(cls, firmwareid:str) -> MetadataType:
+    def get_metadata(cls, firmwareid: str) -> MetadataType:
         storage = cls.get_storage_dir()
         filename = os.path.join(storage, firmwareid)
         return FirmwareDescription.read_metadata_from_file(filename)
@@ -84,17 +85,17 @@ class SFDStorage():
     @classmethod
     def list(cls) -> List[str]:
         thelist = []
-        for filename in os.listdir(cls.get_storage_dir()) :   # file name is firmware ID
+        for filename in os.listdir(cls.get_storage_dir()):   # file name is firmware ID
             if os.path.isfile(os.path.join(cls.get_storage_dir(), filename)) and cls.is_valid_firmware_id(filename):
                 thelist.append(filename)
         return thelist
 
     @classmethod
-    def is_valid_firmware_id(cls, firmware_id:str) -> bool:
+    def is_valid_firmware_id(cls, firmware_id: str) -> bool:
         retval = False
         try:
             firmware_id = firmware_id.strip().lower()
-            regex = '[0-9a-f]{%d}' % FirmwareDescription.firmware_id_length()*2   # Match only check first line, which is good
+            regex = '[0-9a-f]{%d}' % FirmwareDescription.firmware_id_length() * 2   # Match only check first line, which is good
             if not re.match(regex, firmware_id):
                 raise Exception('regex not match')
 
@@ -103,6 +104,3 @@ class SFDStorage():
             pass
 
         return retval
-
-
-

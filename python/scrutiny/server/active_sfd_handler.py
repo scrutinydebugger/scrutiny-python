@@ -17,11 +17,12 @@ from scrutiny.server.datastore import DatastoreEntry
 
 from typing import Optional
 
+
 class ActiveSFDHandler:
 
-    sfd:Optional[FirmwareDescription]
-    device_status:DeviceHandler.ConnectionStatus
-    previous_device_status:DeviceHandler.ConnectionStatus
+    sfd: Optional[FirmwareDescription]
+    device_status: DeviceHandler.ConnectionStatus
+    previous_device_status: DeviceHandler.ConnectionStatus
 
     def __init__(self, device_handler, datastore, autoload=True):
         self.logger = logging.getLogger(self.__class__.__name__)
@@ -64,13 +65,13 @@ class ActiveSFDHandler:
 
         self.previous_device_status = device_status
 
-    def request_load_sfd(self, firmware_id:str) -> None:
+    def request_load_sfd(self, firmware_id: str) -> None:
         if not SFDStorage.is_installed(firmware_id):
-            raise Exception('Firmware ID %s is not installed' % firmware_id )
+            raise Exception('Firmware ID %s is not installed' % firmware_id)
 
         self.requested_firmware_id = firmware_id
 
-    def load_sfd(self, firmware_id:str, verbose=True) -> None:
+    def load_sfd(self, firmware_id: str, verbose=True) -> None:
         self.sfd = None
         self.datastore.clear()
 
@@ -80,7 +81,7 @@ class ActiveSFDHandler:
 
             # populate datastore
             for fullname, vardef in self.sfd.get_vars_for_datastore():
-                entry = DatastoreEntry(entry_type = DatastoreEntry.EntryType.Var, display_path = fullname, variable_def = vardef)
+                entry = DatastoreEntry(entry_type=DatastoreEntry.EntryType.Var, display_path=fullname, variable_def=vardef)
                 try:
                     self.datastore.add_entry(entry)
                 except Exception as e:
@@ -96,4 +97,3 @@ class ActiveSFDHandler:
     def reset_active_sfd(self) -> None:
         self.sfd = None
         self.datastore.clear()
-
