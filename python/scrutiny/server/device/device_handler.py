@@ -221,8 +221,10 @@ class DeviceHandler:
         if not isinstance(major, int) or not isinstance(minor, int):
             raise Exception('Protocol version gotten from device not valid.')
 
-        self.logger.info('Configuring protocol to V%d.%d' % (major, minor))
-        self.protocol.set_version(major, minor)   # This may raise an exception
+        actual_major, actual_minor = self.protocol.get_version()
+
+        if actual_major != major or actual_minor != minor:
+            raise Exception('Device protocol says that its protocol version is V%d.%d, but previously said that it was V%d.%d when discovered. Something is not working properly.' % (major, minor, actual_major, actual_minor))
 
     # Tells the state of our connection with the device.
 

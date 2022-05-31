@@ -151,6 +151,9 @@ class Protocol:
         self.version_major = major
         self.version_minor = minor
 
+    def get_version(self):
+        return (self.version_major, self.version_minor)
+
     def encode_address(self, address: int) -> bytes:
         return struct.pack('>%s' % self.address_format.get_pack_char(), address)
 
