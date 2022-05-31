@@ -55,6 +55,7 @@ class DeviceHandlerConfig(TypedDict, total=False):
     link_config: Any
     max_request_size:int
     max_response_size:int
+    max_bitrate_bps:int
 
 
 class DeviceHandler:
@@ -92,6 +93,7 @@ class DeviceHandler:
         'default_protocol_version': '1.0',
         'max_request_size' : 1024,
         'max_response_size' : 1024,
+        'max_bitrate_bps' : 0
     }
 
     # Low number = Low priority
@@ -207,10 +209,22 @@ class DeviceHandler:
         self.logger.info('Device has an address size of %d bits. Configuring protocol to encode/decode them accordingly.' %
                          partial_device_info.address_size_bits)
 
-        if partial_device_info.max_bitrate_bps > 0:
-            self.logger.info('Device has requested a maximum bitrate of %d bps. Activating throttling.' % partial_device_info.max_bitrate_bps)
-            self.comm_handler.enable_throttling(partial_device_info.max_bitrate_bps)
+        if partial_device_info.max_bitrate_bps > 0 or self.config['max_bitrate_bps'] > 0:
 
+            if partial_device_info.max_bitrate_bps > 0 and self.config['max_bitrate_bps'] > 0:
+                max_bitrate_bps = min(partial_device_info.max_bitrate_bps, self.config['max_bitrate_bps'])
+            else:
+                if partial_device_info.max_bitrate_bps > 0:
+                    max_bitrate_bps = partial_device_info.max_bitrate_bps
+                elif self.config['max_bitrate_bps'] > 0:
+                    max_bitrate_bps = self.config['max_bitrate_bps'] > 0
+                else:
+                    raise Exception('Internal error. Missing case hadnling for throttling')
+
+            self.logger.info('Device has requested a maximum bitrate of %d bps. Activating throttling.' % max_bitrate_bps)
+            self.comm_handler.enable_throttling(max_bitrate_bps)
+        else:
+            self.comm_handler.disable_throttling()
 
         max_request_size = min(self.config['max_request_size'], partial_device_info.max_rx_data_size)
         max_response_size = min(self.config['max_response_size'], partial_device_info.max_tx_data_size)
@@ -287,9 +301,12 @@ class DeviceHandler:
         self.protocol.set_address_size_bits(self.config['default_address_size'])  # Set back the protocol to decode addresses of this size.
         (major, minor) = self.config['default_protocol_version'].split('.')
         self.protocol.set_version(int(major), int(minor))
-        self.comm_handler.disable_throttling()
 
-        
+        if self.config['max_bitrate_bps'] > 0:
+            self.comm_handler.enable_throttling(self.config['max_bitrate_bps'])
+        else:
+            self.comm_handler.disable_throttling()
+
         max_request_size = self.config['max_request_size']
         max_response_size = self.config['max_response_size']
         self.memory_reader.set_size_limits(max_request_size=max_request_size, max_response_size=max_response_size)
