@@ -17,12 +17,29 @@ import math
 
 from scrutiny.server.api.API import API
 from scrutiny.server.datastore import Datastore, DatastoreEntry
+from scrutiny.core.sfd_storage import SFDStorage
 from scrutiny.server.api.dummy_client_handler import DummyConnection, DummyClientHandler
+from scrutiny.server.device.device_handler import DeviceHandler
+from scrutiny.server.active_sfd_handler import ActiveSFDHandler
 from scrutiny.core.variable import *
-
+from scrutiny.core import FirmwareDescription
+from test.artifacts import get_artifact
 # todo
 # - Test rate limiter/data streamer
 
+class StubbedDeviceHandler:
+    connection_status: DeviceHandler.ConnectionStatus
+    device_id:str
+
+    def __init__(self, device_id, connection_status=DeviceHandler.ConnectionStatus.UNKNOWN):
+        self.device_id = device_id
+        self.connection_status = connection_status
+
+    def get_connection_status(self):
+        return self.connection_status
+
+    def get_device_id(self):
+        return self.device_id
 
 class TestAPI(unittest.TestCase):
 
@@ -38,7 +55,9 @@ class TestAPI(unittest.TestCase):
         }
 
         self.datastore = Datastore()
-        self.api = API(config, self.datastore, device_handler=None, sfd_handler=None)
+        self.device_handler = StubbedDeviceHandler('0'*64, DeviceHandler.ConnectionStatus.DISCONNECTED)
+        self.sfd_handler = ActiveSFDHandler(device_handler=self.device_handler, datastore=self.datastore, autoload=True)
+        self.api = API(config, self.datastore, device_handler=self.device_handler, sfd_handler=self.sfd_handler)
         client_handler = self.api.get_client_handler()
         assert isinstance(client_handler, DummyClientHandler)
         client_handler.set_connections(self.connections)
@@ -462,3 +481,102 @@ class TestAPI(unittest.TestCase):
         self.assertEqual(var_update_msg['updates'][0]['value'], 4567)   # Got latest value
 
         self.assertIsNone(self.wait_for_response(0, timeout=0.1))   # No more message to send
+
+
+    # Make sure we can read the list of installed SFD
+    def test_get_sfd_list(self):
+        dummy_sfd1_filename = get_artifact('test_sfd_1.sfd')
+        dummy_sfd2_filename = get_artifact('test_sfd_2.sfd')
+
+        sfd1 = SFDStorage.install(dummy_sfd1_filename, ignore_exist=True)
+        sfd2 = SFDStorage.install(dummy_sfd2_filename, ignore_exist=True)
+
+        req = {
+            'cmd': 'get_installed_sfd'
+        }
+
+        self.send_request(req, 0)
+        response = self.wait_and_load_response(timeout=0.5)
+        self.assertEqual(response['cmd'], 'response_get_installed_sfd')
+        self.assertIn('sfd_list', response)
+
+        installed_list = SFDStorage.list()
+        self.assertEqual(len(installed_list), len(response['sfd_list']))
+
+        for installed_firmware_id in installed_list:
+            self.assertIn(installed_firmware_id, response['sfd_list'])
+            gotten_metadata = response['sfd_list'][installed_firmware_id]
+            real_metadata = SFDStorage.get_metadata(installed_firmware_id)
+            self.assertEqual(real_metadata, gotten_metadata)
+
+
+        SFDStorage.uninstall(sfd1.get_firmware_id())
+        SFDStorage.uninstall(sfd2.get_firmware_id())
+
+
+    # Check that we can load a SFD through the API and read the actually loaded SFD
+    def test_load_and_get_loaded_sfd(self):
+        dummy_sfd1_filename = get_artifact('test_sfd_1.sfd')
+        dummy_sfd2_filename = get_artifact('test_sfd_2.sfd')
+
+        sfd1 = SFDStorage.install(dummy_sfd1_filename, ignore_exist=True)
+        sfd2 = SFDStorage.install(dummy_sfd2_filename, ignore_exist=True)
+
+        # load #1
+        req = {
+            'cmd': 'load_sfd',
+            'firmware_id' : sfd1.get_firmware_id()
+        }
+
+        self.send_request(req, 0)
+        response = self.wait_and_load_response(timeout=0.5)
+
+        self.assertEqual(response['cmd'], 'response_load_sfd')
+        self.assertIn('success', response)
+        self.assertTrue(response['success'])
+        self.sfd_handler.process()
+
+
+        # Get loaded #1
+        req = {
+            'cmd': 'get_loaded_sfd'
+        }
+
+        self.send_request(req, 0)
+        response = self.wait_and_load_response(timeout=0.5)
+
+        self.assertEqual(response['cmd'], 'response_get_loaded_sfd')
+        self.assertIn('firmware_id', response)
+        self.assertEqual(response['firmware_id'], sfd1.get_firmware_id())
+
+
+        # load #2
+        req = {
+            'cmd': 'load_sfd',
+            'firmware_id' : sfd2.get_firmware_id()
+        }
+
+        self.send_request(req, 0)
+        response = self.wait_and_load_response(timeout=0.5)
+
+        self.assertEqual(response['cmd'], 'response_load_sfd')
+        self.assertIn('success', response)
+        self.assertTrue(response['success'])
+        self.sfd_handler.process()
+
+
+        # Get loaded #2
+        req = {
+            'cmd': 'get_loaded_sfd'
+        }
+
+        self.send_request(req, 0)
+        response = self.wait_and_load_response(timeout=0.5)
+
+        self.assertEqual(response['cmd'], 'response_get_loaded_sfd')
+        self.assertIn('firmware_id', response)
+        self.assertEqual(response['firmware_id'], sfd2.get_firmware_id())
+
+
+        SFDStorage.uninstall(sfd1.get_firmware_id())
+        SFDStorage.uninstall(sfd2.get_firmware_id())

@@ -57,16 +57,15 @@ class ListSFD(BaseCommand):
         firmware_id_list = SFDStorage.list()
         for firmware_id in firmware_id_list:
             try:
-                sfd = SFDStorage.get(firmware_id)
-                metadata = sfd.get_metadata()
+                metadata = SFDStorage.get_metadata(firmware_id)
                 entry = PrintableSFDEntry()
                 entry.firmware_id = firmware_id
-                entry.create_time = metadata['generation-info']['time']
-                entry.scrutiny_version = metadata['generation-info']['scrutiny-version']
+                entry.create_time = metadata['generation_info']['time']
+                entry.scrutiny_version = metadata['generation_info']['scrutiny_version']
                 str(entry) # Make sure it can be rendered. Otherwise exception will be raised
                 
                 try:
-                    entry.project_name = metadata['project-name']
+                    entry.project_name = metadata['project_name']
                 except:
                     pass
 

@@ -49,13 +49,13 @@ class TestCLI(unittest.TestCase):
 
         self.assertEqual(metadata['version'], '1.2.3.4')
         self.assertEqual(metadata['author'], 'unittest')
-        self.assertEqual(metadata['project-name'], 'testname')
+        self.assertEqual(metadata['project_name'], 'testname')
 
-        self.assertEqual(metadata['generation-info']['scrutiny-version'], scrutiny.__version__)
-        self.assertEqual(metadata['generation-info']['system-type'], platform.system())
-        self.assertEqual(metadata['generation-info']['python-version'], platform.python_version())
-        self.assertGreater(metadata['generation-info']['time'], datetime.datetime.now().timestamp() - 5)
-        self.assertLess(metadata['generation-info']['time'], datetime.datetime.now().timestamp() + 5)
+        self.assertEqual(metadata['generation_info']['scrutiny_version'], scrutiny.__version__)
+        self.assertEqual(metadata['generation_info']['system_type'], platform.system())
+        self.assertEqual(metadata['generation_info']['python_version'], platform.python_version())
+        self.assertGreater(metadata['generation_info']['time'], datetime.datetime.now().timestamp() - 5)
+        self.assertLess(metadata['generation_info']['time'], datetime.datetime.now().timestamp() + 5)
 
         with tempfile.TemporaryDirectory() as tempdirname:
             cli = CLI(tempdirname)
@@ -66,7 +66,7 @@ class TestCLI(unittest.TestCase):
 
         self.assertEqual(metadata['version'], '1.2.3.4')
         self.assertEqual(metadata['author'], 'unittest')
-        self.assertEqual(metadata['project-name'], 'testname')
+        self.assertEqual(metadata['project_name'], 'testname')
 
     # Extract firmware id from demo binary file and validate the behaviour of the CLI
     def test_get_firmware_id(self):
@@ -143,3 +143,20 @@ class TestCLI(unittest.TestCase):
             sfd = SFDStorage.get(demobin_firmware_id)
             self.assertEqual(sfd.get_firmware_id(ascii=True), demobin_firmware_id)  # Load and check id.
             cli.run(['uninstall-sfd', demobin_firmware_id, '--quiet'])    # cleanup
+
+
+    def test_list_sfd(self):
+        cli = CLI()
+        sfd1_filename = get_artifact('test_sfd_1.sfd')
+        sfd2_filename = get_artifact('test_sfd_2.sfd')
+
+        sfd1 = SFDStorage.install(sfd1_filename, ignore_exist=True)
+        sfd2 = SFDStorage.install(sfd2_filename, ignore_exist=True)
+
+        with RedirectStdout() as stdout:
+            cli.run(['list-sfd'])  # Make sure no exception is raised
+            nbline = stdout.read().count('\n')
+            self.assertGreaterEqual(nbline, 3)  # 2 SFD + total number
+
+        SFDStorage.uninstall(sfd1.get_firmware_id())
+        SFDStorage.uninstall(sfd2.get_firmware_id())

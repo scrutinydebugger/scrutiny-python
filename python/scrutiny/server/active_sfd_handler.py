@@ -8,6 +8,7 @@
 
 import logging
 import enum
+import traceback
 
 from scrutiny.core import FirmwareDescription
 from scrutiny.core.sfd_storage import SFDStorage
@@ -15,8 +16,6 @@ from scrutiny.server.device import DeviceHandler
 from scrutiny.server.datastore import DatastoreEntry
 
 from typing import Optional
-
-
 
 class ActiveSFDHandler:
 
@@ -43,22 +42,23 @@ class ActiveSFDHandler:
     def close(self):
         pass
 
+    # To be called periodically
     def process(self):
         device_status = self.device_handler.get_connection_status()
 
         if self.autoload:
             if device_status != DeviceHandler.ConnectionStatus.CONNECTED_READY:
-                self.reset_active_sfd()
+                self.reset_active_sfd()     # Clear active SFD
             else:
-                if self.sfd is None:
+                if self.sfd is None:    # if none loaded
                     verbose = self.previous_device_status != self.device_status
                     device_id = self.device_handler.get_device_id()
                     if device_id is not None:
-                        self.load_sfd(device_id, verbose=verbose)
+                        self.load_sfd(device_id, verbose=verbose)   # Initiale loading. Will populate the datastore
                     else:
                         self.logger.critical('No device ID available when connected. This should not happen')
 
-        if self.requested_firmware_id is not None:
+        if self.requested_firmware_id is not None:  # If the API requested to load an SFD
             self.load_sfd(self.requested_firmware_id)
             self.requested_firmware_id = None
 
@@ -81,8 +81,11 @@ class ActiveSFDHandler:
             # populate datastore
             for fullname, vardef in self.sfd.get_vars_for_datastore():
                 entry = DatastoreEntry(entry_type = DatastoreEntry.EntryType.Var, display_path = fullname, variable_def = vardef)
-                self.datastore.add_entry(entry)
-
+                try:
+                    self.datastore.add_entry(entry)
+                except Exception as e:
+                    self.logger.warning('Cannot add entry "%s". %s' % (fullname, str(e)))
+                    self.logger.debug(traceback.format_exc())
         else:
             if verbose:
                 self.logger.warning('No SFD file installed for device with firmware ID %s' % firmware_id)
@@ -90,7 +93,7 @@ class ActiveSFDHandler:
     def get_loaded_sfd(self) -> Optional[FirmwareDescription]:
         return self.sfd
 
-    def reset_active_sfd(self):
+    def reset_active_sfd(self) -> None:
         self.sfd = None
         self.datastore.clear()
 

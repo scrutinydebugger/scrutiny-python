@@ -8,7 +8,7 @@
 #
 #   Copyright (c) 2021-2022 scrutinydebugger
 
-from zipfile import ZipFile
+import zipfile
 import os
 import json
 import logging
@@ -17,12 +17,28 @@ import scrutiny.core.firmware_id as firmware_id
 from scrutiny.core.varmap import VarMap
 from scrutiny.core import Variable
 
-from typing import List, Union, Dict, Any, Tuple, Generator
+from typing import List, Union, Dict, Any, Tuple, Generator, TypedDict
+
+
+class GenerationInfoType(TypedDict, total=False):
+    time:int
+    python_version:str
+    scrutiny_version:str
+    system_type:str
+
+class MetadataType(TypedDict, total=False):
+    project_name:str
+    author:str
+    version:str
+    generation_info:GenerationInfoType
+
 
 
 class FirmwareDescription:
+    COMPRESSION_TYPE = zipfile.ZIP_DEFLATED
+
     varmap: VarMap
-    metadata: Dict[Any, Any]
+    metadata: MetadataType
     firmwareid: bytes
 
     varmap_filename: str = 'varmap.json'
@@ -60,8 +76,17 @@ class FirmwareDescription:
 
         self.varmap = VarMap(os.path.join(folder, self.varmap_filename))
 
+    @classmethod
+    def read_metadata_from_file(cls, filename:str) -> MetadataType:
+        with zipfile.ZipFile(filename, mode='r', compression=cls.COMPRESSION_TYPE) as sfd:
+            with sfd.open(cls.metadata_filename) as f:
+                metadata = json.loads(f.read())
+
+        return metadata
+
+
     def load_from_file(self, filename: str) -> None:
-        with ZipFile(filename, mode='r') as sfd:
+        with zipfile.ZipFile(filename, mode='r', compression=self.COMPRESSION_TYPE) as sfd:
             with sfd.open(self.firmwareid_filename) as f:
                 self.firmwareid = bytes.fromhex(f.read().decode('ascii'))
 
@@ -72,7 +97,7 @@ class FirmwareDescription:
                 self.varmap = VarMap(f.read())
 
     def write(self, filename: str) -> None:
-        with ZipFile(filename, mode='w') as outzip:
+        with zipfile.ZipFile(filename, mode='w', compression=self.COMPRESSION_TYPE) as outzip:
             outzip.writestr(self.firmwareid_filename, self.firmwareid.hex())
             outzip.writestr(self.metadata_filename, json.dumps(self.metadata, indent=4))
             outzip.writestr(self.varmap_filename, self.varmap.get_json())
@@ -97,7 +122,7 @@ class FirmwareDescription:
                             (len(self.firmwareid), len(firmware_id.PLACEHOLDER)))
 
     def validate_metadata(self) -> None:
-        if 'project-name' not in self.metadata or not self.metadata['project-name']:
+        if 'project_name' not in self.metadata or not self.metadata['project_name']:
             logging.warning('No project name defined in %s' % self.metadata_filename)
 
         if 'version' not in self.metadata or not self.metadata['version']:

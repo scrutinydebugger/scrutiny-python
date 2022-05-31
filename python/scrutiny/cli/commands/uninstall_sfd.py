@@ -29,14 +29,6 @@ class UninstallSFD(BaseCommand):
 
     def run(self) -> Optional[int]:
         args = self.parser.parse_args(self.args)
-        error = None
-        try:
-            SFDStorage.uninstall(args.firmwareid)
-        except Exception as e:
-            error = e
-
-        if error is not None:
-            if not args.quiet:
-                raise error
+        SFDStorage.uninstall(args.firmwareid, ignore_not_exist=args.quiet)
 
         return 0

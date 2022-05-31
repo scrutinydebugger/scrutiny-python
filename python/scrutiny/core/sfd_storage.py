@@ -8,7 +8,7 @@
 
 import appdirs  # type: ignore
 import os
-from scrutiny.core.firmware_description import FirmwareDescription
+from scrutiny.core.firmware_description import FirmwareDescription, MetadataType
 import logging
 import os
 import re
@@ -26,7 +26,7 @@ class SFDStorage():
         return folder
 
     @classmethod
-    def install(cls, filename: str) -> FirmwareDescription:
+    def install(cls, filename: str, ignore_exist=False) -> FirmwareDescription:
         if not os.path.isfile(filename):
             raise ValueError('File "%s" does not exist' % (filename))
 
@@ -35,23 +35,24 @@ class SFDStorage():
         assert isinstance(firmware_id_ascii, str)
         output_file = os.path.join(SFDStorage.get_storage_dir(), firmware_id_ascii)
 
-        if os.path.isfile(output_file):
+        if os.path.isfile(output_file) and ignore_exist == False:
             logging.warning('A Scrutiny Firmware Description file with the same firmware ID was already installed. Overwriting.')
 
         sfd.write(output_file)  # Write the Firmware Description file in storage folder with firmware ID as name
         return sfd
 
     @classmethod
-    def uninstall(cls, firmwareid: str) -> None:
+    def uninstall(cls, firmwareid: str, ignore_not_exist:bool=False) -> None:
         if not cls.is_valid_firmware_id(firmwareid):
             raise ValueError('Invalid firmware ID')
 
         target_file = os.path.join(SFDStorage.get_storage_dir(), firmwareid)
 
-        if not os.path.isfile(target_file):
-            raise ValueError('SFD file with firmware ID %s not found' % (firmwareid))
-
-        os.remove(target_file)
+        if os.path.isfile(target_file):
+            os.remove(target_file)
+        else:
+            if not ignore_not_exist:
+                raise ValueError('SFD file with firmware ID %s not found' % (firmwareid))
 
     @classmethod
     def is_installed(cls, firmwareid: str) -> bool:
@@ -75,6 +76,12 @@ class SFDStorage():
         return FirmwareDescription(filename)
 
     @classmethod
+    def get_metadata(cls, firmwareid:str) -> MetadataType:
+        storage = cls.get_storage_dir()
+        filename = os.path.join(storage, firmwareid)
+        return FirmwareDescription.read_metadata_from_file(filename)
+
+    @classmethod
     def list(cls) -> List[str]:
         thelist = []
         for filename in os.listdir(cls.get_storage_dir()) :   # file name is firmware ID
@@ -86,8 +93,8 @@ class SFDStorage():
     def is_valid_firmware_id(cls, firmware_id:str) -> bool:
         retval = False
         try:
-            firmware_id = firmware_id.strip()
-            regex = '[0-9a-fA-F]{%d}' % FirmwareDescription.firmware_id_length()*2
+            firmware_id = firmware_id.strip().lower()
+            regex = '[0-9a-f]{%d}' % FirmwareDescription.firmware_id_length()*2   # Match only check first line, which is good
             if not re.match(regex, firmware_id):
                 raise Exception('regex not match')
 

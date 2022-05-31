@@ -16,6 +16,7 @@ import platform
 import scrutiny
 from typing import Optional, List
 
+from scrutiny.core.firmware_description import MetadataType
 
 class MakeMetadata(BaseCommand):
     _cmd_name_ = 'make-metadata'
@@ -53,15 +54,15 @@ class MakeMetadata(BaseCommand):
         except:
             scrutiny_version = '0.0.0'
 
-        metadata = {
-            'project-name': args.project_name,
+        metadata:MetadataType = {
+            'project_name': args.project_name,
             'author': args.author,
             'version': args.version,
-            'generation-info': {
+            'generation_info': {
                 'time': round(datetime.datetime.now().timestamp()),
-                'python-version': platform.python_version(),
-                'scrutiny-version': scrutiny_version,
-                'system-type': platform.system()
+                'python_version': platform.python_version(),
+                'scrutiny_version': scrutiny_version,
+                'system_type': platform.system()
             }
         }
 

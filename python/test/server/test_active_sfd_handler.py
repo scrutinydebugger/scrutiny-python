@@ -32,7 +32,7 @@ class TestActiveSFDHandler(unittest.TestCase):
 
     def setUp(self):
         self.sfd_filename = get_artifact('test_sfd_1.sfd')
-        sfd = SFDStorage.install(self.sfd_filename)
+        sfd = SFDStorage.install(self.sfd_filename, ignore_exist=True)
         self.firmware_id = sfd.get_firmware_id()
 
         self.device_handler = StubbedDeviceHandler(self.firmware_id, DeviceHandler.ConnectionStatus.DISCONNECTED)
@@ -41,6 +41,7 @@ class TestActiveSFDHandler(unittest.TestCase):
     def tearDown(self):
         SFDStorage.uninstall(self.firmware_id)
 
+    # Make sure the SFD is correctly loaded upon connection
     def test_autoload(self):
         self.sfd_handler = ActiveSFDHandler(self.device_handler, self.datastore, autoload=True)
         self.sfd_handler.process()
@@ -61,6 +62,7 @@ class TestActiveSFDHandler(unittest.TestCase):
         self.assertEqual(self.datastore.get_entries_count(), 0)
         self.assertIsNone(self.sfd_handler.get_loaded_sfd())
 
+    # Make sure the SFD is correctly loaded when requested (through API normally)
     def test_manual_load(self):
         self.sfd_handler = ActiveSFDHandler(self.device_handler, self.datastore, autoload=False)
         self.sfd_handler.process()
