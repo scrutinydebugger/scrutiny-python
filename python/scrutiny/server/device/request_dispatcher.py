@@ -150,9 +150,9 @@ class RequestDispatcher:
         self.request_queue.push(record, priority)
         return None
 
-    def set_size_limits(self, rx_size_limit: Optional[int], tx_size_limit: Optional[int]) -> None:
-        self.rx_size_limit = rx_size_limit
-        self.tx_size_limit = tx_size_limit
+    def set_size_limits(self, max_request_size: Optional[int], max_response_size: Optional[int]) -> None:
+        self.rx_size_limit = max_request_size
+        self.tx_size_limit = max_response_size
 
     def process(self) -> None:
         pass    # nothing to do
