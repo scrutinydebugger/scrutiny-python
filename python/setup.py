@@ -25,7 +25,8 @@ setup(
         'appdirs',
         'pyelftools',
         'websockets',
-        'sortedcontainers'
+        'sortedcontainers',
+        'cefpython3'
     ],
     extras_require={
         'dev': [

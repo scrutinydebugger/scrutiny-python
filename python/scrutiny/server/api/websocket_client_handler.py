@@ -17,24 +17,19 @@ import logging
 import json
 
 from .abstract_client_handler import AbstractClientHandler, ClientHandlerConfig, ClientHandlerMessage
-from scrutiny.core.typehints import GenericCallback
 from typing import List, Dict, Tuple, Any, Coroutine, Optional, Callable
 
 WebsocketType = websockets.server.WebSocketServerProtocol
 
 
 class Timer:
-    class TimerCallback(GenericCallback):
-        callback: Callable[..., Coroutine]
-
     timeout: float
-    callback: "TimerCallback"
     args: Tuple[Any, ...]
     kwargs: Dict
 
     def __init__(self, timeout: float, callback: Callable[..., Coroutine], *args, **kwargs):
         self.timeout = timeout
-        self.callback = Timer.TimerCallback(callback)
+        self.callback = callback
         self.args = args
         self.kwargs = kwargs
         self.start()
@@ -42,13 +37,13 @@ class Timer:
     async def job(self):
         await asyncio.sleep(self.timeout)  # wait
         try:
-            await self.callback()
+            await self.callback(*self.args, **self.kwargs)
             self.start()
-        except:
-            raise e  # fixme:  Exception raised in callback are lost.. some asyncio shenanigan required.
+        except Exception as e:
+            raise e 
 
     def start(self) -> None:
-        self.task = asyncio.ensure_future(self.job(*self.args, **self.kwargs))
+        self.task = asyncio.ensure_future(self.job())
 
     def cancel(self) -> None:
         self.task.cancel()
@@ -78,7 +73,6 @@ class WebsocketClientHandler(AbstractClientHandler):
         self.started_event = threading.Event()  # This event synchronise the start of the server
 
     async def register(self, websocket: WebsocketType):
-        print(websocket)
         wsid = self.make_id()
         self.id2ws_map[wsid] = websocket
         self.ws2id_map[websocket] = wsid
@@ -95,16 +89,18 @@ class WebsocketClientHandler(AbstractClientHandler):
     # Executed for each websocket
     async def server_routine(self, websocket: WebsocketType, path: str):
         wsid = await self.register(websocket)
-        tx_sync_timer = Timer(0.05, self.process_tx_queue)
+        tx_sync_timer = Timer(0.05, callback=self.process_tx_queue)
 
         try:
             async for message in websocket:
                 try:
-                    obj = json.loads(message)
-                    self.rxqueue.put({'conn_id': wsid, 'obj': obj})
+                    msg = message if isinstance(message, str) else message.decode('utf8')
+                    #self.logger.debug('Received Conn:%s - %s' % (wsid, msg))
+                    obj = json.loads(msg)
+                    self.rxqueue.put(ClientHandlerMessage(conn_id=wsid, obj=obj))
                 except Exception as e:
                     self.logger.error('Received malformed JSON. %s' % str(e))
-                    self.logger.debug(message)
+                    self.logger.debug(msg)
         finally:
             tx_sync_timer.cancel()
             await self.unregister(websocket)
@@ -115,10 +111,12 @@ class WebsocketClientHandler(AbstractClientHandler):
 
             wsid = popped.conn_id
             if wsid not in self.id2ws_map:
+                self.debug('Conn ID %s not known. Discarding')
                 continue
             websocket = self.id2ws_map[wsid]
             try:
                 msg = json.dumps(popped.obj)
+                #self.logger.debug('Send Conn:%s - %s' % (wsid, msg))
                 await websocket.send(msg)
             except Exception as e:
                 self.logger.error('Cannot send message. Invalid JSON. %s' % str(e))
@@ -131,7 +129,7 @@ class WebsocketClientHandler(AbstractClientHandler):
         asyncio.set_event_loop(self.loop)
         self.ws_server = websockets.serve(self.server_routine, self.config['host'], int(self.config['port']))
 
-        self.logger.info('Starting websocket listener')
+        self.logger.info('Starting websocket listener on %s:%s' % (self.config['host'], self.config['port']))
         self.loop.run_until_complete(self.ws_server)
         self.started_event.set()
         self.loop.run_forever()
@@ -162,6 +160,8 @@ class WebsocketClientHandler(AbstractClientHandler):
     def send(self, msg: ClientHandlerMessage):
         if not self.txqueue.full():
             self.txqueue.put(msg)
+        else:
+            self.logger.critical('Transmit queue full')
 
     def available(self) -> bool:
         return not self.rxqueue.empty()

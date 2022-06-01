@@ -21,9 +21,7 @@ from scrutiny.server.datastore import Datastore
 from scrutiny.server.device import DeviceHandler, DeviceHandlerConfig
 from scrutiny.server.active_sfd_handler import ActiveSFDHandler
 
-
 from typing import TypedDict, Optional
-
 
 class ServerConfig(TypedDict, total=False):
     name: str
