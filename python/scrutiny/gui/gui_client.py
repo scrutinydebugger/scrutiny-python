@@ -7,6 +7,8 @@ from copy import copy
 import json
 from cefpython3 import cefpython as cef # type: ignore
 
+from os import path
+
 from typing import TypedDict
 
 class GUI_ServerConfig(TypedDict, total=False):
@@ -63,9 +65,7 @@ class GUIClient:
             sys.excepthook = cef.ExceptHook  # To shutdown all CEF processes on error
 
             settings = {
-                "debug": False,
-                'default_encoding' : 'utf8',
-                'web_security_disabled' : False
+                "debug": False
             }
 
             cef.Initialize(settings)

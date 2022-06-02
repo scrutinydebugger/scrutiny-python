@@ -5,28 +5,64 @@
         <link rel="stylesheet" href="css/scrutiny-main.css">
         <link rel="stylesheet" href="libs/goldenlayout/goldenlayout-base.css">
         <link rel="stylesheet" href="css/goldenlayout-custom-theme.css">
+
+        <link rel="icon" type="image/scrutiny.icon" href="assets/img/logo-64x64.ico"> <!-- For good browsers. -->
+        <link rel="SHORTCUT ICON" href="assets/img/logo-64x64.ico"/> <!-- For Internet Explorer-->
     </head>
     <body>
         <div id="layout-container"></div>
 
         <div id="menubar">
-            asdadasd <br/>
-            asdasd
+            <div id="menubar_corner_filler"></div>
+            <div class='vertical_separator'></div>
+            <div class="menubar_item">
+                <span class='menubar_label'>File</span>
+            </div>
+            <div class='vertical_separator'></div>
+            <div class="menubar_item">
+                <span class='menubar_label'>Server</span>
+            </div>
+            <div class='vertical_separator'></div>
+            <div class="menubar_item">
+                <span class='menubar_label'>Device</span>
+            </div>
+            <div class='vertical_separator'></div>
+            <div class="menubar_item">
+                <span class='menubar_label'>About</span>
+            </div>
+            <div class='vertical_separator'></div>
         </div>
         <div id="sidemenu">
-            <ul id="widget-list">
-            </ul>
+
+            <div class='horizontal_separator'></div>
+
         </div>
 
-        <div id="statusbar">
-            xxxxxx <br/>
-            xxxx
+        <div id="statusbar"  >
+            <div id="server_status" class='status_bar_item' style='margin-left:20px'>
+                <img src="assets/img/indicator-red.png" width='16px' height='16px' style="display: inline-block" / >
+                Server status: <span id="server_status_label">Disconnected</span>   
+            </div> 
+
+            <div class='vertical_separator'></div>
+
+            <div id="device_status" class='status_bar_item'>
+                <img src="assets/img/indicator-grey.png" width='16px' height='16px' style="display: inline-block" / >
+                Device status: <span id="device_status_label">N/A</span>   
+            </div> 
+
+            <div class='vertical_separator'></div>
+
+            <div id="loaded_firmware" class='status_bar_item'>
+                Loaded firmware: <span id="loaded_firmware_label">-</span>   
+            </div> 
         </div>
 
 
         <script type="text/javascript" src="libs/jquery/jquery.js"></script>
         <script type="text/javascript" src='libs/goldenlayout/goldenlayout.js'></script>
         <script type="text/javascript" src='js/widgets/watch/widget.js'></script>
+        <script type="text/javascript" src='js/widgets/varlist/widget.js'></script>
        
         <script type="text/javascript" src='js/ui.js'></script>
         <script type="text/javascript" src='js/main.js'></script>

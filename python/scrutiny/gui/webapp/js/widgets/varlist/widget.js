@@ -1,18 +1,18 @@
-class WatchWidget {
+class VarListWidget {
     //static name = 'watch';
     //static display_name = 'Watch Window';
     static initialize(container, sate) {
-        container.getElement().html('<h2 style="text-align:center">Watch!</h2>');
+        container.getElement().html('<h2 style="text-align:center">VarList!</h2>');
     }
 
     static name() {
-        return 'watch';
+        return 'varlist';
     }
     static display_name() {
-        return 'Watch Window';
+        return 'Variable List';
     }
 
     static icon_path() {
-        return 'assets/img/eye-96x128.png';
+        return 'assets/img/treelist-96x128.png';
     }
 }
