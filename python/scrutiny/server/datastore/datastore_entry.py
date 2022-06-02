@@ -12,7 +12,7 @@ import time
 
 from scrutiny.core import Variable
 
-from typing import Any, Optional, Dict, Callable
+from typing import Any, Optional, Dict, Callable, Tuple
 from scrutiny.core.typehints import GenericCallback
 
 
@@ -49,6 +49,7 @@ class DatastoreEntry:
         value: Any
         request_timestamp: float
         completed: bool
+        failed: bool
         complete_timestamp: Optional[float]
 
         def __init__(self, value: Any):
@@ -56,13 +57,24 @@ class DatastoreEntry:
             self.request_timestamp = time.time()
             self.completed = False
             self.complete_timestamp = None
+            self.success = False
 
-        def complete(self) -> None:
+        def complete(self, success) -> None:
             self.completed = True
+            self.success = success
             self.complete_timestamp = time.time()
 
         def is_complete(self) -> bool:
             return self.completed
+
+        def is_failed(self):
+            return self.completed and not self.success
+
+        def is_success(self):
+            return self.completed and self.success
+
+        def get_completion_timestamp(self) -> Optional[float]:
+            return self.complete_timestamp
 
     entry_type: "DatastoreEntry.EntryType"
     display_path: str
@@ -70,7 +82,8 @@ class DatastoreEntry:
     value_change_callback: Dict[str, Callable[["DatastoreEntry"], Any]]
     pending_target_update: Optional["DatastoreEntry.UpdateTargetRequest"]
     callback_pending: bool
-    last_value_update: float
+    last_value_update_timestamp: float
+    last_target_update_timestamp: Optional[float]
     variable_def: Variable
     value: Any
 
@@ -88,7 +101,8 @@ class DatastoreEntry:
         self.value_change_callback = {}
         self.pending_target_update = None
         self.callback_pending = False
-        self.last_value_update = time.time()
+        self.last_value_update_timestamp = time.time()
+        self.last_target_update_timestamp = None
         self.variable_def = variable_def
         self.value = 0
 
@@ -137,14 +151,17 @@ class DatastoreEntry:
 
     def set_value(self, value: Any) -> None:
         self.value = value
-        self.last_value_update = time.time()
+        self.last_value_update_timestamp = time.time()
         self.execute_value_change_callback()
 
     def get_update_time(self) -> float:
-        return self.last_value_update
+        return self.last_value_update_timestamp
 
     def get_value(self) -> Any:
         return self.value
+
+    def get_last_update_timestamp(self) -> Optional[float]:
+        return self.last_target_update_timestamp
 
     def update_target_value(self, value: Any) -> None:
         self.pending_target_update = self.UpdateTargetRequest(value)
@@ -160,7 +177,12 @@ class DatastoreEntry:
 
     def mark_target_update_request_complete(self) -> None:
         if self.pending_target_update is not None:
-            self.pending_target_update.complete()
+            self.pending_target_update.complete(success=True)
+            self.last_target_update_timestamp = self.pending_target_update.get_completion_timestamp()
+
+    def mark_target_update_request_failed(self) -> None:
+        if self.pending_target_update is not None:
+            self.pending_target_update.complete(success=False)
 
     def discard_target_update_request(self) -> None:
         self.pending_target_update = None
@@ -169,3 +191,15 @@ class DatastoreEntry:
         if self.has_pending_target_update():
             assert self.pending_target_update is not None  # for mypy
             return self.pending_target_update.value
+
+    def encode_value(self, value: Optional[Any] = None) -> Tuple[bytes, Optional[bytes]]:
+        if value is None:
+            value = self.value
+
+        return self.variable_def.encode(value)
+
+    def encode_pending_update_value(self):
+        if not self.has_pending_target_update():
+            raise Exception('Datastore entry has no update request pending')
+
+        return self.encode_value(self.pending_target_update.value)

@@ -384,6 +384,57 @@ TEST_F(TestMemoryControl, TestWriteSingleAddress)
 	ASSERT_BUF_EQ(buffer, expected_output_buffer, sizeof(expected_output_buffer));
 }
 
+
+/*
+	Write a single memory block and expect it to be written.
+*/
+TEST_F(TestMemoryControl, TestWriteSingleAddressMasked)
+{
+
+	uint8_t buffer[] = { 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA };
+	uint8_t data_to_write[] = { 0xFF, 0xFF, 0x00, 0x00 };
+	uint8_t write_mask[] = { 0xF0, 0xAA, 0xF0, 0xAA };
+	uint8_t expected_output_buffer[] = { 0xFA, 0xAA, 0x0A, 0x00 , 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA };
+
+	// Building request
+	constexpr uint32_t addr_size = sizeof(std::uintptr_t);
+	constexpr uint16_t datalen_req = addr_size + 2 + sizeof(data_to_write) * 2;
+	uint8_t request_data[8 + datalen_req] = { 3,3,0, datalen_req };
+	unsigned int index = 4;
+	index += encode_addr(&request_data[index], buffer);
+	request_data[index++] = (sizeof(data_to_write) >> 8) & 0xFF;
+	request_data[index++] = (sizeof(data_to_write) >> 0) & 0xFF;
+	std::memcpy(&request_data[index], data_to_write, sizeof(data_to_write));
+	index += sizeof(data_to_write);
+	std::memcpy(&request_data[index], write_mask, sizeof(write_mask));
+	add_crc(request_data, sizeof(request_data) - 4);
+
+	// Building expected response
+	uint8_t tx_buffer[32];
+	constexpr uint16_t datalen_resp = addr_size + 2;
+	uint8_t expected_response[9 + datalen_resp] = { 0x83, 3, 0, 0, datalen_resp };
+	index = 5;
+	index += encode_addr(&expected_response[index], buffer);
+	expected_response[index++] = (sizeof(data_to_write) >> 8) & 0xFF;
+	expected_response[index++] = (sizeof(data_to_write) >> 0) & 0xFF;
+	add_crc(expected_response, sizeof(expected_response) - 4);
+
+	// Process
+	scrutiny_handler.comm()->receive_data(request_data, sizeof(request_data));
+	scrutiny_handler.process(0);
+
+	uint32_t n_to_read = scrutiny_handler.comm()->data_to_send();
+	ASSERT_GT(n_to_read, 0u);
+	ASSERT_LT(n_to_read, sizeof(tx_buffer));
+	EXPECT_EQ(n_to_read, sizeof(expected_response));
+
+	uint32_t nread = scrutiny_handler.comm()->pop_data(tx_buffer, n_to_read);
+	EXPECT_EQ(nread, n_to_read);
+
+	ASSERT_BUF_EQ(tx_buffer, expected_response, sizeof(expected_response));
+	ASSERT_BUF_EQ(buffer, expected_output_buffer, sizeof(expected_output_buffer));
+}
+
 /*
 	Write 2  memory block in a single request and expect it to be written.
 */
@@ -441,6 +492,69 @@ TEST_F(TestMemoryControl, TestWriteMultipleAddress)
 	ASSERT_BUF_EQ(buffer, expected_output_buffer, sizeof(expected_output_buffer));
 }
 
+/*
+	Write 2  memory block in a single request and expect it to be written with a mask.
+*/
+TEST_F(TestMemoryControl, TestWriteMultipleAddressMasked)
+{
+
+	uint8_t buffer[] = { 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x99 };
+	uint8_t data_to_write1[] = { 0x11, 0x22, 0x33, 0x44 };
+	uint8_t write_mask1[] = { 0xFF, 0x00, 0xF0, 0x0F };
+	uint8_t data_to_write2[] = { 0xAA, 0xAA, 0x55, 0x55, 0x0F };
+	uint8_t write_mask2[] = { 0x0F, 0xAA, 0xAA, 0x55, 0xF0 };
+	uint8_t expected_output_buffer[] = { 0x11, 0x55, 0x35, 0x54, 0x5A, 0xFF, 0x55, 0x55 , 0x05, 0x99};
+
+	// Building request
+	constexpr uint32_t addr_size = sizeof(std::uintptr_t);
+	constexpr uint16_t datalen_req = (addr_size + 2) * 2 + sizeof(data_to_write1)*2 + sizeof(data_to_write2)*2;
+	uint8_t request_data[8 + datalen_req] = { 3,3,0, datalen_req };
+	unsigned int index = 4;
+	index += encode_addr(&request_data[index], buffer);
+	request_data[index++] = (sizeof(data_to_write1) >> 8) & 0xFF;
+	request_data[index++] = (sizeof(data_to_write1) >> 0) & 0xFF;
+	std::memcpy(&request_data[index], data_to_write1, sizeof(data_to_write1));
+	index += sizeof(data_to_write1);
+	std::memcpy(&request_data[index], write_mask1, sizeof(write_mask1));
+	index += sizeof(write_mask1);
+	
+	index += encode_addr(&request_data[index], &buffer[4]);
+	request_data[index++] = (sizeof(data_to_write2) >> 8) & 0xFF;
+	request_data[index++] = (sizeof(data_to_write2) >> 0) & 0xFF;
+	std::memcpy(&request_data[index], data_to_write2, sizeof(data_to_write2));
+	index += sizeof(data_to_write2);
+	std::memcpy(&request_data[index], write_mask2, sizeof(write_mask2));
+	index += sizeof(write_mask2);
+	add_crc(request_data, sizeof(request_data) - 4);
+
+	// Building expected response
+	uint8_t tx_buffer[32];
+	constexpr uint16_t datalen_resp = (addr_size + 2) * 2;
+	uint8_t expected_response[9 + datalen_resp] = { 0x83, 3, 0, 0, datalen_resp };
+	index = 5;
+	index += encode_addr(&expected_response[index], buffer);
+	expected_response[index++] = (sizeof(data_to_write1) >> 8) & 0xFF;
+	expected_response[index++] = (sizeof(data_to_write1) >> 0) & 0xFF;
+	index += encode_addr(&expected_response[index], &buffer[4]);
+	expected_response[index++] = (sizeof(data_to_write2) >> 8) & 0xFF;
+	expected_response[index++] = (sizeof(data_to_write2) >> 0) & 0xFF;
+	add_crc(expected_response, sizeof(expected_response) - 4);
+
+	// Process
+	scrutiny_handler.comm()->receive_data(request_data, sizeof(request_data));
+	scrutiny_handler.process(0);
+
+	uint32_t n_to_read = scrutiny_handler.comm()->data_to_send();
+	ASSERT_GT(n_to_read, 0u);
+	ASSERT_LT(n_to_read, sizeof(tx_buffer));
+	EXPECT_EQ(n_to_read, sizeof(expected_response));
+
+	uint32_t nread = scrutiny_handler.comm()->pop_data(tx_buffer, n_to_read);
+	EXPECT_EQ(nread, n_to_read);
+
+	ASSERT_BUF_EQ(tx_buffer, expected_response, sizeof(expected_response));
+	ASSERT_BUF_EQ(buffer, expected_output_buffer, sizeof(expected_output_buffer));
+}
 
 TEST_F(TestMemoryControl, TestWriteSingleAddress_InvalidDataLength)
 {
@@ -456,6 +570,40 @@ TEST_F(TestMemoryControl, TestWriteSingleAddress_InvalidDataLength)
 	constexpr uint16_t data_size = 10;
 	constexpr uint16_t datalen_req = addr_size + 2 + data_size;
 	uint8_t request_data[8 + datalen_req] = { 3,2,0, datalen_req };
+	unsigned int index = 4;
+	index += encode_addr(&request_data[index], buffer);
+	request_data[index++] = ((data_size + 1) >> 8) & 0xFF;
+	request_data[index++] = ((data_size + 1) >> 0) & 0xFF;
+	add_crc(request_data, sizeof(request_data) - 4);
+
+	// Process
+	scrutiny_handler.comm()->receive_data(request_data, sizeof(request_data));
+	scrutiny_handler.process(0);
+
+	uint32_t n_to_read = scrutiny_handler.comm()->data_to_send();
+	ASSERT_GT(n_to_read, 0u);
+	ASSERT_LT(n_to_read, sizeof(tx_buffer));
+
+	uint32_t nread = scrutiny_handler.comm()->pop_data(tx_buffer, n_to_read);
+	EXPECT_EQ(nread, n_to_read);
+
+	ASSERT_TRUE(IS_PROTOCOL_RESPONSE(tx_buffer, cmd, subfn, invalid));
+}
+
+TEST_F(TestMemoryControl, TestWriteSingleAddressMasked_InvalidDataLength)
+{
+	const scrutiny::protocol::CommandId cmd = scrutiny::protocol::CommandId::MemoryControl;
+	const uint8_t subfn = static_cast<uint8_t>(scrutiny::protocol::MemoryControl::Subfunction::WriteMasked);
+	const scrutiny::protocol::ResponseCode invalid = scrutiny::protocol::ResponseCode::InvalidRequest;
+
+	uint8_t buffer[] = { 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a };
+	uint8_t tx_buffer[32];
+
+	// Building request
+	constexpr uint32_t addr_size = sizeof(std::uintptr_t);
+	constexpr uint16_t data_size = 10;
+	constexpr uint16_t datalen_req = addr_size + 2 + data_size;
+	uint8_t request_data[8 + datalen_req] = { 3,3,0, datalen_req };
 	unsigned int index = 4;
 	index += encode_addr(&request_data[index], buffer);
 	request_data[index++] = ((data_size + 1) >> 8) & 0xFF;

@@ -1,6 +1,7 @@
 #    memory_reader.py
 #        Synchronize the datastore with the device
-#        Poll for entries that are watched.
+#        Poll for entries that are watched and update the datastore with data read from the
+#        device.
 #
 #   - License : MIT - See LICENSE file.
 #   - Project : Scrutiny Debugger (github.com/scrutinydebugger/scrutiny)
@@ -60,9 +61,9 @@ class MemoryReader:
     dispatcher: RequestDispatcher
     protocol: Protocol
     datastore: Datastore
-    read_priority: int
+    request_priority: int
     stop_requested: bool
-    read_request_pending: bool
+    request_pending: bool
     started: bool
     max_request_size: int
     max_response_size: int
@@ -72,12 +73,12 @@ class MemoryReader:
     read_cursor: int
     entries_in_pending_read_request: List[DatastoreEntry]
 
-    def __init__(self, protocol: Protocol, dispatcher: RequestDispatcher, datastore: Datastore, read_priority: int):
+    def __init__(self, protocol: Protocol, dispatcher: RequestDispatcher, datastore: Datastore, request_priority: int):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.dispatcher = dispatcher
         self.protocol = protocol
         self.datastore = datastore
-        self.read_priority = read_priority
+        self.request_priority = request_priority
         self.datastore.add_watch_callback(WatchCallback(self.the_watch_callback))
         self.datastore.add_unwatch_callback(WatchCallback(self.the_unwatch_callback))
 
@@ -91,9 +92,6 @@ class MemoryReader:
 
     def add_forbidden_region(self, start_addr: int, size: int) -> None:
         self.forbidden_regions.append((start_addr, size))
-
-    def add_readonly_region(self, start_addr: int, size: int) -> None:
-        self.readonly_regions.append((start_addr, size))
 
     def the_watch_callback(self, entry_id: str) -> None:
         entry = self.datastore.get_entry(entry_id)
@@ -112,7 +110,7 @@ class MemoryReader:
 
     def reset(self) -> None:
         self.stop_requested = False
-        self.read_request_pending = False
+        self.request_pending = False
         self.started = False
 
         self.max_request_size = self.DEFAULT_MAX_REQUEST_SIZE
@@ -128,21 +126,20 @@ class MemoryReader:
         if not self.started:
             self.reset()
             return
-        elif self.stop_requested and not self.read_request_pending:
+        elif self.stop_requested and not self.request_pending:
             self.reset()
             return
-
-        if not self.read_request_pending:
+        if not self.request_pending:
             request, entries_in_request = self.make_next_read_request()
             if request is not None:
-                self.logger.debug('Registering a request for %d datastore entries. %s' % (len(entries_in_request), request))
+                self.logger.debug('Registering a MemoryRead request for %d datastore entries. %s' % (len(entries_in_request), request))
                 self.dispatcher.register_request(
                     request=request,
-                    success_callback=SuccessCallback(self.read_success_callback),
-                    failure_callback=FailureCallback(self.read_failure_callback),
-                    priority=self.read_priority
+                    success_callback=SuccessCallback(self.success_callback),
+                    failure_callback=FailureCallback(self.failure_callback),
+                    priority=self.request_priority
                 )
-                self.read_request_pending = True
+                self.request_pending = True
                 self.entries_in_pending_read_request = entries_in_request
 
     def make_next_read_request(self) -> Tuple[Optional[Request], List[DatastoreEntry]]:
@@ -210,7 +207,7 @@ class MemoryReader:
         request = self.protocol.read_memory_blocks(block_list) if len(block_list) > 0 else None
         return (request, entries_in_request)
 
-    def read_success_callback(self, request: Request, response: Response, params: Any = None) -> None:
+    def success_callback(self, request: Request, response: Response, params: Any = None) -> None:
         self.logger.debug("Success callback. Response=%s, Params=%s" % (response, params))
 
         if response.code == ResponseCode.OK:
@@ -234,11 +231,11 @@ class MemoryReader:
 
         self.read_completed()
 
-    def read_failure_callback(self, request: Request, params: Any = None) -> None:
+    def failure_callback(self, request: Request, params: Any = None) -> None:
         self.logger.debug("Failure callback. Request=%s. Params=%s" % (request, params))
         self.logger.error('Failed to get a response for ReadMemory request.')
 
         self.read_completed()
 
     def read_completed(self) -> None:
-        self.read_request_pending = False
+        self.request_pending = False

@@ -24,9 +24,10 @@ class BlockAddressLength(TypedDict):
     length: int
 
 
-class BlockAddressData(TypedDict):
+class BlockAddressData(TypedDict, total=False):
     address: int
     data: bytes
+    write_mask: Optional[bytes]
 
 
 class RequestData(TypedDict, total=False):
@@ -200,9 +201,13 @@ class Protocol:
             data += self.encode_address(addr) + struct.pack('>H', size)
         return Request(cmd.MemoryControl, cmd.MemoryControl.Subfunction.Read, data, response_payload_size=(self.get_address_size_bytes() + 2) * len(block_list) + total_length)
 
-    def write_single_memory_block(self, address: int, data: bytes) -> Request:
-        block_list = [(address, data)]
-        return self.write_memory_blocks(block_list)
+    def write_single_memory_block(self, address: int, data: bytes, write_mask: Optional[bytes] = None) -> Request:
+        if write_mask is None:
+            block_list = [(address, data)]
+            return self.write_memory_blocks(block_list)
+        else:
+            block_list_masked = [(address, data, write_mask)]
+            return self.write_memory_blocks_masked(block_list_masked)
 
     def write_memory_blocks(self, block_list: List[Tuple[int, bytes]]) -> Request:
         data = bytes()
@@ -211,6 +216,17 @@ class Protocol:
             mem_data = block[1]
             data += self.encode_address(addr) + struct.pack('>H', len(mem_data)) + bytes(mem_data)
         return Request(cmd.MemoryControl, cmd.MemoryControl.Subfunction.Write, data, response_payload_size=(self.get_address_size_bytes() + 2) * len(block_list))
+
+    def write_memory_blocks_masked(self, block_list: List[Tuple[int, bytes, bytes]]) -> Request:
+        data = bytes()
+        for block in block_list:
+            addr = block[0]
+            mem_data = block[1]
+            mask = block[2]
+            if len(mem_data) != len(mask):
+                raise Exception('Length of mask must match length of data')
+            data += self.encode_address(addr) + struct.pack('>H', len(mem_data)) + bytes(mem_data) + bytes(mask)
+        return Request(cmd.MemoryControl, cmd.MemoryControl.Subfunction.WriteMasked, data, response_payload_size=(self.get_address_size_bytes() + 2) * len(block_list))
 
     def comm_discover(self) -> Request:
         data = cmd.CommControl.DISCOVER_MAGIC
@@ -325,7 +341,28 @@ class Protocol:
                         index += address_length_size + length
 
                         if index >= len(req.payload):
-                            break;
+                            break
+
+                elif subfn == cmd.MemoryControl.Subfunction.WriteMasked:                  # MemoryControl - WriteMasked
+                    data['blocks_to_write'] = []
+                    c = self.address_format.get_pack_char()
+                    address_length_size = 2 + self.get_address_size_bytes()
+                    index = 0
+                    while True:
+                        if len(req.payload) < index + address_length_size:
+                            raise Exception('Invalid request data, missing data')
+
+                        addr, length = struct.unpack('>' + c + 'H', req.payload[(index + 0):(index + address_length_size)])
+                        if len(req.payload) < index + address_length_size + 2 * length:   # 2x length because of mask
+                            raise Exception('Data length and encoded length mismatch for address 0x%x' % addr)
+
+                        req_data = req.payload[(index + address_length_size):(index + address_length_size + length)]
+                        req_mask = req.payload[(index + address_length_size + length):(index + address_length_size + 2 * length)]
+                        data['blocks_to_write'].append(dict(address=addr, data=req_data, write_mask=req_mask))
+                        index += address_length_size + 2 * length
+
+                        if index >= len(req.payload):
+                            break
 
             elif req.command == cmd.DatalogControl:
                 subfn = cmd.DatalogControl.Subfunction(req.subfn)
@@ -388,7 +425,6 @@ class Protocol:
 
 
 # ======================== Response =================
-
 
     def respond_not_ok(self, req: Request, code: Union[int, Enum]) -> Response:
         return Response(req.command, req.subfn, Response.ResponseCode(code))
@@ -469,6 +505,10 @@ class Protocol:
         blocks = [(address, length)]
         return self.respond_write_memory_blocks(blocks)
 
+    def respond_write_single_memory_block_masked(self, address: int, length: int) -> Response:
+        blocks = [(address, length)]
+        return self.respond_write_memory_blocks_masked(blocks)
+
     def respond_write_memory_blocks(self, blocklist: List[Tuple[int, int]]) -> Response:
         data = bytes()
         for block in blocklist:
@@ -477,6 +517,15 @@ class Protocol:
             data += self.encode_address(address) + struct.pack('>H', length)
 
         return Response(cmd.MemoryControl, cmd.MemoryControl.Subfunction.Write, Response.ResponseCode.OK, data)
+
+    def respond_write_memory_blocks_masked(self, blocklist: List[Tuple[int, int]]) -> Response:
+        data = bytes()
+        for block in blocklist:
+            address = block[0]
+            length = block[1]
+            data += self.encode_address(address) + struct.pack('>H', length)
+
+        return Response(cmd.MemoryControl, cmd.MemoryControl.Subfunction.WriteMasked, Response.ResponseCode.OK, data)
 
     def respond_data_get_targets(self, targets: List[DatalogLocation]) -> Response:
         data = bytes()
@@ -574,7 +623,7 @@ class Protocol:
                             if index == len(response.payload):
                                 break
 
-                    elif subfn == cmd.MemoryControl.Subfunction.Write:
+                    elif subfn == cmd.MemoryControl.Subfunction.Write or subfn == cmd.MemoryControl.Subfunction.WriteMasked:
                         data['written_blocks'] = []
                         index = 0
                         addr_size = self.get_address_size_bytes()

@@ -129,7 +129,7 @@ class TestDataStore(unittest.TestCase):
             ds.start_watching(entry, watcher='watcher2', callback=lambda: None)
 
         watchers = ds.get_watchers(entries[0])
-        self.assertEqual(watchers, {'watcher1', 'watcher2'})
+        self.assertEqual(sorted(watchers), ['watcher1', 'watcher2'])
 
         watched_entries_id = ds.get_watched_entries_id()
         self.assertEqual(len(watched_entries_id), len(entries))
@@ -140,7 +140,7 @@ class TestDataStore(unittest.TestCase):
             ds.stop_watching(entry, watcher='watcher2')
 
         watchers = ds.get_watchers(entries[0])
-        self.assertEqual(watchers, {'watcher1'})
+        self.assertEqual(watchers, ['watcher1'])
 
         watched_entries_id = ds.get_watched_entries_id()
         self.assertEqual(len(watched_entries_id), len(entries))
@@ -151,7 +151,7 @@ class TestDataStore(unittest.TestCase):
         ds.stop_watching(entries[1], watcher='watcher1')
 
         watchers = ds.get_watchers(entries[0])
-        self.assertEqual(watchers, set())
+        self.assertEqual(watchers, [])
 
         watched_entries_id = ds.get_watched_entries_id()
         self.assertEqual(len(watched_entries_id), 2)

@@ -131,12 +131,12 @@ class Datastore:
         entry = self.get_entry(entry_id)
         entry.set_value(value)
 
-    def get_watched_entries_id(self) -> Set[str]:
-        return set(self.watcher_map.keys())
+    def get_watched_entries_id(self) -> List[str]:
+        return list(self.watcher_map.keys())
 
-    def get_watchers(self, entry_id: Union[DatastoreEntry, str]) -> Set[str]:
+    def get_watchers(self, entry_id: Union[DatastoreEntry, str]) -> List[str]:
         entry_id = self.interpret_entry_id(entry_id)
         if entry_id not in self.watcher_map:
-            return set()
+            return list()
         else:
-            return set(self.watcher_map[entry_id])  # Make a copy
+            return list(self.watcher_map[entry_id])  # Make a copy

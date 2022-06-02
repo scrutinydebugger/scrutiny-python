@@ -27,6 +27,7 @@ from scrutiny.server.device.request_generator.heartbeat_generator import Heartbe
 from scrutiny.server.device.request_generator.info_poller import InfoPoller, ProtocolVersionCallback, CommParamCallback
 from scrutiny.server.device.request_generator.session_initializer import SessionInitializer
 from scrutiny.server.device.request_generator.memory_reader import MemoryReader
+from scrutiny.server.device.request_generator.memory_writer import MemoryWriter
 from scrutiny.server.device.device_info import DeviceInfo
 
 from scrutiny.server.tools import Timer
@@ -62,6 +63,7 @@ class DeviceHandler:
     session_initializer: SessionInitializer
     heartbeat_generator: HeartbeatGenerator
     memory_reader: MemoryReader
+    memory_writer: MemoryWriter
     info_poller: InfoPoller
     comm_handler: CommHandler
     protocol: Protocol
@@ -79,6 +81,7 @@ class DeviceHandler:
     disconnect_callback: Optional[DisconnectCallback]
     disconnect_complet: bool
     comm_broken_count: int
+    fully_connected_ready: bool
 
     DEFAULT_PARAMS: DeviceHandlerParams = {
         'response_timeout': 1.0,    # If a response take more than this delay to be received after a request is sent, drop the response.
@@ -137,7 +140,10 @@ class DeviceHandler:
         )
 
         self.memory_reader = MemoryReader(self.protocol, self.dispatcher, self.datastore,
-                                          read_priority=self.RequestPriority.ReadMemory)
+                                          request_priority=self.RequestPriority.ReadMemory)
+
+        self.memory_writer = MemoryWriter(self.protocol, self.dispatcher, self.datastore,
+                                          request_priority=self.RequestPriority.WriteMemory)
 
         self.comm_handler = CommHandler(self.config)
 
@@ -219,7 +225,7 @@ class DeviceHandler:
 
     def get_connection_status(self) -> "DeviceHandler.ConnectionStatus":
         if self.connected:
-            if self.fsm_state == self.FsmState.READY:
+            if self.fully_connected_ready:
                 return self.ConnectionStatus.CONNECTED_READY
             else:
                 return self.ConnectionStatus.CONNECTED_NOT_READY
@@ -256,11 +262,13 @@ class DeviceHandler:
         self.session_initializer.stop()
         self.dispatcher.reset()
         self.memory_reader.stop()
+        self.memory_writer.stop()
         self.session_id = None
         self.disconnection_requested = False
         self.disconnect_callback = None
         self.disconnect_complete = False
         self.comm_broken_count = 0
+        self.fully_connected_ready = False
         self.protocol.set_address_size_bits(self.config['default_address_size'])  # Set back the protocol to decode addresses of this size.
         (major, minor) = self.config['default_protocol_version'].split('.')
         self.protocol.set_version(int(major), int(minor))
@@ -310,6 +318,7 @@ class DeviceHandler:
         self.info_poller.process()
         self.session_initializer.process()
         self.memory_reader.process()
+        self.memory_writer.process()
         self.dispatcher.process()
 
         self.handle_comm()      # Make sure request and response are being exchanged with the device
@@ -325,6 +334,7 @@ class DeviceHandler:
         if self.operating_mode == self.OperatingMode.Normal:
             if state_entry:
                 self.memory_reader.start()
+                self.memory_writer.start()
             # Nothing else to do
         elif self.operating_mode == self.OperatingMode.Test_CheckThrottling:
             if self.dispatcher.peek_next() is None:
@@ -433,8 +443,12 @@ class DeviceHandler:
 
             self.exec_ready_task(state_entry)
 
+            self.fully_connected_ready = True
+
             if self.disconnection_requested:
+                self.fully_connected_ready = False
                 self.memory_reader.stop()
+                self.memory_writer.stop()
                 next_state = self.FsmState.DISCONNECTING
 
             if self.dispatcher.is_in_error():

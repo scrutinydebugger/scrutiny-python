@@ -7,14 +7,15 @@
 #
 #   Copyright (c) 2021-2022 scrutinydebugger
 
-from scrutiny.server.device.links.dummy_link import DummyLink, ThreadSafeDummyLink
 import threading
 import time
 import logging
-from scrutiny.server.protocol import Protocol, Request, Response, ResponseCode, RequestData, ResponseData
-import scrutiny.server.protocol.commands as cmd
 import random
 import traceback
+import scrutiny.server.protocol.commands as cmd
+from scrutiny.server.device.links.dummy_link import DummyLink, ThreadSafeDummyLink
+from scrutiny.server.protocol import Protocol, Request, Response, ResponseCode, RequestData, ResponseData
+from scrutiny.core.memory_content import MemoryContent
 
 from typing import List, Dict, Optional, Union
 
@@ -51,6 +52,8 @@ class EmulatedDevice:
     forbidden_regions: List[Dict[str, int]]
     readonly_regions: List[Dict[str, int]]
     session_id: Optional[int]
+    memory: MemoryContent
+    memory_lock: threading.Lock
 
     def __init__(self, link):
         if not isinstance(link, DummyLink) and not isinstance(link, ThreadSafeDummyLink):
@@ -75,6 +78,8 @@ class EmulatedDevice:
         self.address_size_bits = 32
 
         self.session_id = None
+        self.memory = MemoryContent()
+        self.memory_lock = threading.Lock()
 
         self.supported_features = {
             'memory_read': False,
@@ -85,7 +90,7 @@ class EmulatedDevice:
 
         self.forbidden_regions = [
             {'start': 0x100, 'end': 0x1FF},
-            {'start': 0x1000, 'end': 0x100FF}]
+            {'start': 0x1000, 'end': 0x10FF}]
 
         self.readonly_regions = [
             {'start': 0x200, 'end': 0x2FF},
@@ -140,8 +145,11 @@ class EmulatedDevice:
             response = self.process_comm_control(req, data)
         elif req.command == cmd.GetInfo:
             response = self.process_get_info(req, data)
+        elif req.command == cmd.MemoryControl:
+            response = self.process_memory_control(req, data)
         elif req.command == cmd.DummyCommand:
             response = self.process_dummy_cmd(req, data)
+
         else:
             self.logger.error('Unsupported command : %s' % str(req.command.__name__))
 
@@ -233,6 +241,34 @@ class EmulatedDevice:
             self.logger.error('Unsupported subfunction "%s" for command : "%s"' % (subfunction, req.command.__name__))
 
         return response
+    # ===== [MemoryControl] ======
+
+    def process_memory_control(self, req: Request, data: RequestData) -> Optional[Response]:
+        response = None
+        subfunction = cmd.MemoryControl.Subfunction(req.subfn)
+        if subfunction == cmd.MemoryControl.Subfunction.Read:
+            response_blocks_read = []
+            for block_to_read in data['blocks_to_read']:
+                memdata = self.read_memory(block_to_read['address'], block_to_read['length'])
+                response_blocks_read.append((block_to_read['address'], memdata))
+
+            response = self.protocol.respond_read_memory_blocks(response_blocks_read)
+
+        elif subfunction == cmd.MemoryControl.Subfunction.Write:
+            response_blocks_write = []
+            for block_to_write in data['blocks_to_write']:
+                self.write_memory(block_to_write['address'], block_to_write['data'])
+                response_blocks_write.append((block_to_write['address'], len(block_to_write['data'])))
+
+            response = self.protocol.respond_write_memory_blocks(response_blocks_write)
+
+        # elif subfunction == cmd.MemoryControl.Subfunction.WriteMasked:
+        #    pass
+
+        else:
+            self.logger.error('Unsupported subfunction "%s" for command : "%s"' % (subfunction, req.command.__name__))
+
+        return response
 
     def process_dummy_cmd(self, req: Request, data: RequestData):
         return Response(cmd.DummyCommand, subfn=req.subfn, code=ResponseCode.OK, payload=b'\xAA' * 32)
@@ -297,3 +333,14 @@ class EmulatedDevice:
         if len(data) > 0 and self.comm_enabled:
             return Request.from_bytes(data)
         return None
+
+    def write_memory(self, address: int, data: Union[bytes, bytearray]) -> None:
+        self.memory_lock.acquire()
+        self.memory.write(address, data)
+        self.memory_lock.release()
+
+    def read_memory(self, address: int, length: int) -> bytes:
+        self.memory_lock.acquire()
+        data = self.memory.read(address, length)
+        self.memory_lock.release()
+        return data
