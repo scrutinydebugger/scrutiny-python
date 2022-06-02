@@ -53,6 +53,9 @@ class DeviceHandlerConfig(TypedDict, total=False):
     default_protocol_version: str
     link_type: str
     link_config: Any
+    max_request_size:int
+    max_response_size:int
+    max_bitrate_bps:int
 
 
 class DeviceHandler:
@@ -87,7 +90,10 @@ class DeviceHandler:
         'response_timeout': 1.0,    # If a response take more than this delay to be received after a request is sent, drop the response.
         'heartbeat_timeout': 4.0,
         'default_address_size': 32,
-        'default_protocol_version': '1.0'
+        'default_protocol_version': '1.0',
+        'max_request_size' : 1024,
+        'max_response_size' : 1024,
+        'max_bitrate_bps' : 0
     }
 
     # Low number = Low priority
@@ -203,12 +209,30 @@ class DeviceHandler:
         self.logger.info('Device has an address size of %d bits. Configuring protocol to encode/decode them accordingly.' %
                          partial_device_info.address_size_bits)
 
-        if partial_device_info.max_bitrate_bps > 0:
-            self.logger.info('Device has requested a maximum bitrate of %d bps. Activating throttling.' % partial_device_info.max_bitrate_bps)
-            self.comm_handler.enable_throttling(partial_device_info.max_bitrate_bps)
+        if partial_device_info.max_bitrate_bps > 0 or self.config['max_bitrate_bps'] > 0:
+
+            if partial_device_info.max_bitrate_bps > 0 and self.config['max_bitrate_bps'] > 0:
+                max_bitrate_bps = min(partial_device_info.max_bitrate_bps, self.config['max_bitrate_bps'])
+            else:
+                if partial_device_info.max_bitrate_bps > 0:
+                    max_bitrate_bps = partial_device_info.max_bitrate_bps
+                elif self.config['max_bitrate_bps'] > 0:
+                    max_bitrate_bps = self.config['max_bitrate_bps'] > 0
+                else:
+                    raise Exception('Internal error. Missing case hadnling for throttling')
+
+            self.logger.info('Device has requested a maximum bitrate of %d bps. Activating throttling.' % max_bitrate_bps)
+            self.comm_handler.enable_throttling(max_bitrate_bps)
+        else:
+            self.comm_handler.disable_throttling()
+
+        max_request_size = min(self.config['max_request_size'], partial_device_info.max_rx_data_size)
+        max_response_size = min(self.config['max_response_size'], partial_device_info.max_tx_data_size)
 
         # Will do a safety check before emitting a request
-        self.dispatcher.set_size_limits(partial_device_info.max_rx_data_size, partial_device_info.max_tx_data_size)
+        self.memory_reader.set_size_limits(max_request_size=max_request_size, max_response_size=max_response_size)
+        self.memory_writer.set_size_limits(max_request_size=max_request_size, max_response_size=max_response_size)
+        self.dispatcher.set_size_limits(max_request_size=max_request_size, max_response_size=max_response_size)
         self.protocol.set_address_size_bits(partial_device_info.address_size_bits)
         self.heartbeat_generator.set_interval(max(0.5, float(partial_device_info.heartbeat_timeout_us) / 1000000.0 * 0.75))
 
@@ -221,8 +245,10 @@ class DeviceHandler:
         if not isinstance(major, int) or not isinstance(minor, int):
             raise Exception('Protocol version gotten from device not valid.')
 
-        self.logger.info('Configuring protocol to V%d.%d' % (major, minor))
-        self.protocol.set_version(major, minor)   # This may raise an exception
+        actual_major, actual_minor = self.protocol.get_version()
+
+        if actual_major != major or actual_minor != minor:
+            raise Exception('Device protocol says that its protocol version is V%d.%d, but previously said that it was V%d.%d when discovered. Something is not working properly.' % (major, minor, actual_major, actual_minor))
 
     # Tells the state of our connection with the device.
 
@@ -275,7 +301,17 @@ class DeviceHandler:
         self.protocol.set_address_size_bits(self.config['default_address_size'])  # Set back the protocol to decode addresses of this size.
         (major, minor) = self.config['default_protocol_version'].split('.')
         self.protocol.set_version(int(major), int(minor))
-        self.comm_handler.disable_throttling()
+
+        if self.config['max_bitrate_bps'] > 0:
+            self.comm_handler.enable_throttling(self.config['max_bitrate_bps'])
+        else:
+            self.comm_handler.disable_throttling()
+
+        max_request_size = self.config['max_request_size']
+        max_response_size = self.config['max_response_size']
+        self.memory_reader.set_size_limits(max_request_size=max_request_size, max_response_size=max_response_size)
+        self.memory_writer.set_size_limits(max_request_size=max_request_size, max_response_size=max_response_size)
+        self.dispatcher.set_size_limits(max_request_size=max_request_size, max_response_size=max_response_size)
 
     # Open communication channel based on config
     def init_comm(self) -> None:
