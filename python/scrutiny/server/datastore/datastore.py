@@ -30,7 +30,7 @@ class Datastore:
     MAX_ENTRY: int = 1000000
 
     def __init__(self):
-        self.logger = logging.getLogger('scrutiny.' + self.__class__.__name__)
+        self.logger = logging.getLogger(self.__class__.__name__)
         self.global_watch_callbacks = []
         self.global_unwatch_callbacks = []
         self.clear()
@@ -45,11 +45,13 @@ class Datastore:
 
     def add_entries_quiet(self, entries: List[DatastoreEntry]):
         for entry in entries:
-            try:
-                self.add_entry(entry)
-            except Exception as e:
-                self.logger.debug(str(e))
-                continue
+            self.add_entry_quiet(entry)
+
+    def add_entry_quiet(self, entry: DatastoreEntry):
+        try:
+            self.add_entry(entry)
+        except Exception as e:
+            self.logger.debug(str(e))
 
     def add_entries(self, entries: List[DatastoreEntry]) -> None:
         for entry in entries:

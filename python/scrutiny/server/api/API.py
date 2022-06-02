@@ -14,6 +14,8 @@ import logging
 from scrutiny.server.datastore import Datastore, DatastoreEntry
 from scrutiny.server.tools import Timer
 from scrutiny.server.device import DeviceHandler
+from scrutiny.server.active_sfd_handler import ActiveSFDHandler
+from scrutiny.core.sfd_storage import SFDStorage
 
 from .websocket_client_handler import WebsocketClientHandler
 from .dummy_client_handler import DummyClientHandler
@@ -22,7 +24,12 @@ from .value_streamer import ValueStreamer
 from .abstract_client_handler import AbstractClientHandler, ClientHandlerConfig, ClientHandlerMessage
 
 from scrutiny.core.typehints import GenericCallback
-from typing import Callable, Dict, List, Set, Any
+from typing import Callable, Dict, List, Set, Any, TypedDict
+
+
+class APIConfig(TypedDict, total=False):
+    client_interface_type: str
+    client_interface_config: Any
 
 
 class UpdateVarCallback(GenericCallback):
@@ -45,6 +52,9 @@ class API:
             GET_WATCHABLE_COUNT = 'get_watchable_count'
             SUBSCRIBE_WATCHABLE = 'subscribe_watchable'
             UNSUBSCRIBE_WATCHABLE = 'unsubscribe_watchable'
+            GET_INSTALLED_SFD = 'get_installed_sfd'
+            GET_LOADED_SFD = 'get_loaded_sfd'
+            LOAD_SFD = 'load_sfd'
 
         class Api2Client:
             ECHO_RESPONSE = 'response_echo'
@@ -53,6 +63,9 @@ class API:
             SUBSCRIBE_WATCHABLE_RESPONSE = 'response_subscribe_watchable'
             UNSUBSCRIBE_WATCHABLE_RESPONSE = 'response_unsubscribe_watchable'
             WATCHABLE_UPDATE = 'watchable_update'
+            GET_INSTALLED_SFD_RESPONSE = 'response_get_installed_sfd'
+            LOAD_SFD_RESPONSE = 'response_load_sfd'
+            GET_LOADED_SFD_RESPONSE = 'response_get_loaded_sfd'
             ERROR_RESPONSE = 'error'
 
     FLUSH_VARS_TIMEOUT: float = 0.1
@@ -74,6 +87,7 @@ class API:
     streamer: ValueStreamer
     req_count: int
     client_handler: AbstractClientHandler
+    sfd_handler: ActiveSFDHandler
 
     # The method to call for each command
     ApiRequestCallbacks: Dict[str, str] = {
@@ -81,10 +95,13 @@ class API:
         Command.Client2Api.GET_WATCHABLE_LIST: 'process_get_watchable_list',
         Command.Client2Api.GET_WATCHABLE_COUNT: 'process_get_watchable_count',
         Command.Client2Api.SUBSCRIBE_WATCHABLE: 'process_subscribe_watchable',
-        Command.Client2Api.UNSUBSCRIBE_WATCHABLE: 'process_unsubscribe_watchable'
+        Command.Client2Api.UNSUBSCRIBE_WATCHABLE: 'process_unsubscribe_watchable',
+        Command.Client2Api.GET_INSTALLED_SFD: 'process_get_installed_sfd',
+        Command.Client2Api.LOAD_SFD: 'process_load_sfd',
+        Command.Client2Api.GET_LOADED_SFD: 'process_get_loaded_sfd'
     }
 
-    def __init__(self, config: Dict, datastore: Datastore, device_handler: DeviceHandler):
+    def __init__(self, config: APIConfig, datastore: Datastore, device_handler: DeviceHandler, sfd_handler: ActiveSFDHandler):
         self.validate_config(config)
 
         if config['client_interface_type'] == 'websocket':
@@ -96,6 +113,7 @@ class API:
 
         self.datastore = datastore
         self.device_handler = device_handler
+        self.sfd_handler = sfd_handler
         self.logger = logging.getLogger('scrutiny.' + self.__class__.__name__)
         self.connections = set()            # Keep a list of all clients connections
         self.streamer = ValueStreamer()     # The value streamer takes cares of publishing values to the client without polling.
@@ -130,7 +148,7 @@ class API:
 
             self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=msg))
 
-    def validate_config(self, config: Dict[str, str]):
+    def validate_config(self, config: APIConfig):
         if 'client_interface_type' not in config:
             raise ValueError('Missing entry in API config : client_interface_type ')
 
@@ -307,6 +325,47 @@ class API:
         response = {
             'cmd': self.Command.Api2Client.SUBSCRIBE_WATCHABLE_RESPONSE,
             'watchables': req['watchables']
+        }
+
+        self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
+
+    def process_get_installed_sfd(self, conn_id: str, req: Dict[str, str]):
+        firmware_id_list = SFDStorage.list()
+        metadata_dict = {}
+        for firmware_id in firmware_id_list:
+            metadata_dict[firmware_id] = SFDStorage.get_metadata(firmware_id)
+
+        response = {
+            'cmd': self.Command.Api2Client.GET_INSTALLED_SFD_RESPONSE,
+            'sfd_list': metadata_dict
+        }
+
+        self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
+
+    def process_get_loaded_sfd(self, conn_id: str, req: Dict[str, str]):
+        sfd = self.sfd_handler.get_loaded_sfd()
+
+        response = {
+            'cmd': self.Command.Api2Client.GET_LOADED_SFD_RESPONSE,
+            'firmware_id': sfd.get_firmware_id() if sfd is not None else None
+        }
+
+        self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
+
+    def process_load_sfd(self, conn_id: str, req: Dict[str, str]):
+        if 'firmware_id' not in req and not isinstance(req['firmware_id'], str):
+            raise InvalidRequestException(req, 'Invalid firmware_id')
+
+        success = True
+        try:
+            self.sfd_handler.request_load_sfd(req['firmware_id'])
+        except Exception as e:
+            self.logger.error('Cannot load SFD %s. %s' % (req['firmware_id'], str(e)))
+            success = False
+
+        response = {
+            'cmd': self.Command.Api2Client.LOAD_SFD_RESPONSE,
+            'success': success
         }
 
         self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))

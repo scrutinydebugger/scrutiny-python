@@ -1,6 +1,6 @@
-#    firmware_info_file.py
-#        Contains the class that represent a Firmware Information File.
-#        A .fif is a file that holds all the data related to a firmware and is identified
+#    firmware_description.py
+#        Contains the class that represent a Scrutiny Firmware Description file.
+#        A .sfd is a file that holds all the data related to a firmware and is identified
 #        by a unique ID.
 #
 #   - License : MIT - See LICENSE file.
@@ -8,20 +8,37 @@
 #
 #   Copyright (c) 2021-2022 scrutinydebugger
 
-from zipfile import ZipFile
+import zipfile
 import os
 import json
 import logging
 
 import scrutiny.core.firmware_id as firmware_id
 from scrutiny.core.varmap import VarMap
+from scrutiny.core import Variable
 
-from typing import List, Union, Dict, Any
+from typing import List, Union, Dict, Any, Tuple, Generator, TypedDict
 
 
-class FirmwareInfoFile:
+class GenerationInfoType(TypedDict, total=False):
+    time: int
+    python_version: str
+    scrutiny_version: str
+    system_type: str
+
+
+class MetadataType(TypedDict, total=False):
+    project_name: str
+    author: str
+    version: str
+    generation_info: GenerationInfoType
+
+
+class FirmwareDescription:
+    COMPRESSION_TYPE = zipfile.ZIP_DEFLATED
+
     varmap: VarMap
-    metadata: Dict[Any, Any]
+    metadata: MetadataType
     firmwareid: bytes
 
     varmap_filename: str = 'varmap.json'
@@ -59,19 +76,27 @@ class FirmwareInfoFile:
 
         self.varmap = VarMap(os.path.join(folder, self.varmap_filename))
 
+    @classmethod
+    def read_metadata_from_file(cls, filename: str) -> MetadataType:
+        with zipfile.ZipFile(filename, mode='r', compression=cls.COMPRESSION_TYPE) as sfd:
+            with sfd.open(cls.metadata_filename) as f:
+                metadata = json.loads(f.read())
+
+        return metadata
+
     def load_from_file(self, filename: str) -> None:
-        with ZipFile(filename, mode='r') as fif:
-            with fif.open(self.firmwareid_filename) as f:
+        with zipfile.ZipFile(filename, mode='r', compression=self.COMPRESSION_TYPE) as sfd:
+            with sfd.open(self.firmwareid_filename) as f:
                 self.firmwareid = bytes.fromhex(f.read().decode('ascii'))
 
-            with fif.open(self.metadata_filename) as f:
+            with sfd.open(self.metadata_filename) as f:
                 self.metadata = json.loads(f.read())
 
-            with fif.open(self.varmap_filename) as f:
+            with sfd.open(self.varmap_filename) as f:
                 self.varmap = VarMap(f.read())
 
     def write(self, filename: str) -> None:
-        with ZipFile(filename, mode='w') as outzip:
+        with zipfile.ZipFile(filename, mode='w', compression=self.COMPRESSION_TYPE) as outzip:
             outzip.writestr(self.firmwareid_filename, self.firmwareid.hex())
             outzip.writestr(self.metadata_filename, json.dumps(self.metadata, indent=4))
             outzip.writestr(self.varmap_filename, self.varmap.get_json())
@@ -84,19 +109,19 @@ class FirmwareInfoFile:
 
     def validate(self) -> None:
         if not hasattr(self, 'metadata') or not hasattr(self, 'varmap') or not hasattr(self, 'firmwareid'):
-            raise Exception('FirmwareInfoFile not loaded correctly')
+            raise Exception('Firmware Descritpion not loaded correctly')
 
         self.validate_metadata()
         self.validate_firmware_id()
         self.varmap.validate()
 
     def validate_firmware_id(self) -> None:
-        if len(self.firmwareid) != len(firmware_id.PLACEHOLDER):
+        if len(self.firmwareid) != self.firmware_id_length():
             raise Exception('Firmware ID seems to be the wrong length. Found %d bytes, expected %d bytes' %
                             (len(self.firmwareid), len(firmware_id.PLACEHOLDER)))
 
     def validate_metadata(self) -> None:
-        if 'project-name' not in self.metadata or not self.metadata['project-name']:
+        if 'project_name' not in self.metadata or not self.metadata['project_name']:
             logging.warning('No project name defined in %s' % self.metadata_filename)
 
         if 'version' not in self.metadata or not self.metadata['version']:
@@ -104,3 +129,14 @@ class FirmwareInfoFile:
 
         if 'author' not in self.metadata or not self.metadata['author']:
             logging.warning('No author defined in %s' % self.metadata_filename)
+
+    def get_vars_for_datastore(self) -> Generator[Tuple[str, Variable], None, None]:
+        for fullname, vardef in self.varmap.iterate_vars():
+            yield (fullname, vardef)
+
+    def get_metadata(self):
+        return self.metadata
+
+    @classmethod
+    def firmware_id_length(cls) -> int:
+        return len(firmware_id.PLACEHOLDER)

@@ -46,7 +46,7 @@ class DisconnectCallback(GenericCallback):
     callback: Callable[[bool], None]
 
 
-class DeviceHandlerParams(TypedDict, total=False):
+class DeviceHandlerConfig(TypedDict, total=False):
     response_timeout: float
     heartbeat_timeout: float
     default_address_size: int
@@ -57,7 +57,7 @@ class DeviceHandlerParams(TypedDict, total=False):
 
 class DeviceHandler:
     logger: logging.Logger
-    config: DeviceHandlerParams
+    config: DeviceHandlerConfig
     dispatcher: RequestDispatcher
     device_searcher: DeviceSearcher
     session_initializer: SessionInitializer
@@ -83,7 +83,7 @@ class DeviceHandler:
     comm_broken_count: int
     fully_connected_ready: bool
 
-    DEFAULT_PARAMS: DeviceHandlerParams = {
+    DEFAULT_PARAMS: DeviceHandlerConfig = {
         'response_timeout': 1.0,    # If a response take more than this delay to be received after a request is sent, drop the response.
         'heartbeat_timeout': 4.0,
         'default_address_size': 32,
@@ -119,7 +119,7 @@ class DeviceHandler:
         Normal = 0
         Test_CheckThrottling = 1
 
-    def __init__(self, config: DeviceHandlerParams, datastore: Datastore):
+    def __init__(self, config: DeviceHandlerConfig, datastore: Datastore):
         self.logger = logging.getLogger(self.__class__.__name__)
 
         self.config = copy.copy(self.DEFAULT_PARAMS)
@@ -153,6 +153,9 @@ class DeviceHandler:
         self.operating_mode = self.OperatingMode.Normal
 
         self.reset_comm()
+
+    def get_device_id(self) -> Optional[str]:
+        return self.device_id
 
     def set_operating_mode(self, mode: "DeviceHandler.OperatingMode"):
         if not isinstance(mode, self.OperatingMode):

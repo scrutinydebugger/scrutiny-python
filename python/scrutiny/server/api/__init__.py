@@ -1,1 +1,1 @@
-from .API import API
+from .API import API, APIConfig
