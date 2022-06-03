@@ -28,6 +28,12 @@ DEFAULT_CONFIG: GUIConfig = {
         }
     }
 
+class LoadHandler(object):
+    def OnLoadingStateChange(self, browser, is_loading, **_):
+        if not is_loading:
+            # Loading is complete. DOM is ready.
+           pass
+
 class GUIClient:
     init_ok:bool
 
@@ -67,10 +73,19 @@ class GUIClient:
             settings = {
                 "debug": False
             }
-
+            
             cef.Initialize(settings)
-            cef.CreateBrowserSync(url="file:///%s/index.html" % self.webapp_fullpath, window_title="Scrutiny")
+            browser = cef.CreateBrowserSync(url="file:///%s/index.html" % self.webapp_fullpath, window_title="Scrutiny")
+            self.configure_browser(browser)
+
             cef.MessageLoop()
             cef.Shutdown()
         else:
             self.logger.critical('Cannot start Scrutiny GUI Client. Exiting.')
+
+    def configure_browser(self, browser):
+        browser.SetClientHandler(LoadHandler())
+        bindings = cef.JavascriptBindings(bindToFrames=False, bindToPopups=False)
+        bindings.SetProperty("config_from_python", self.config)
+        browser.SetJavascriptBindings(bindings)
+        

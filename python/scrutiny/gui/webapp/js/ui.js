@@ -6,6 +6,13 @@ class UI {
         this.container = container;
         this.widget_layout = new GoldenLayout(config, container);
 
+        this.indicator_lights = {
+            'red': 'assets/img/indicator-red.png',
+            'yellow': 'assets/img/indicator-yellow.png',
+            'green': 'assets/img/indicator-green.png',
+            'grey': 'assets/img/indicator-grey.png',
+        }
+
     }
 
     init() {
@@ -36,11 +43,11 @@ class UI {
         this.widget_layout.updateSize(this.container.width(), this.container.height());
     }
 
-    register_widget(widget_class) {
+    register_widget(widget_class, server_conn) {
         // Add component to GoldenLayout
         this.widget_layout.registerComponent(widget_class.name(),
             function(container, state) {
-                widget_class.initialize(container, state);
+                widget_class.initialize(container, server_conn);
             });
 
         // Add menu item for drag and drop
@@ -58,7 +65,7 @@ class UI {
 
         div.append(img);
         div.append(label);
-        // element.text(widget_class.display_name())
+
         $('#sidemenu').append(div);
         $('#sidemenu').append($('<div class="horizontal_separator"></div>'));
 
@@ -70,5 +77,43 @@ class UI {
         };
 
         this.widget_layout.createDragSource(div, newItemConfig);
+    }
+
+
+    set_server_status(status) {
+        if (status == ServerStatus.Disconnected) {
+            $('#server_status_label').text('Disconnected');
+            $('#server_status .indicator').attr('src', this.indicator_lights['red'])
+        } else if (status == ServerStatus.Connecting) {
+            $('#server_status_label').text('Connecting');
+            $('#server_status .indicator').attr('src', this.indicator_lights['yellow'])
+        } else if (status == ServerStatus.Connected) {
+            $('#server_status_label').text('Connected');
+            $('#server_status .indicator').attr('src', this.indicator_lights['green'])
+        } else {
+            $('#server_status_label').text('Unknown');
+            $('#server_status .indicator').attr('src', this.indicator_lights['grey'])
+        }
+    }
+
+
+    set_device_status(status) {
+        if (status == DeviceStatus.Disconnected) {
+            $('#device_status_label').text('Disconnected');
+            $('#device_status .indicator').attr('src', this.indicator_lights['red'])
+        } else if (status == DeviceStatus.Connecting) {
+            $('#device_status_label').text('Connecting');
+            $('#device_status .indicator').attr('src', this.indicator_lights['yellow'])
+        } else if (status == DeviceStatus.Connected) {
+            $('#device_status_label').text('Connected');
+            $('#device_status .indicator').attr('src', this.indicator_lights['green'])
+        } else {
+            $('#device_status_label').text('N/A');
+            $('#device_status .indicator').attr('src', this.indicator_lights['grey'])
+        }
+    }
+
+    set_loaded_firmware(name, version, firmware_id) {
+
     }
 }

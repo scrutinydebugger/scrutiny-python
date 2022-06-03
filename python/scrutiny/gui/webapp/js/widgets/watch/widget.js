@@ -1,7 +1,6 @@
 class WatchWidget {
-    //static name = 'watch';
-    //static display_name = 'Watch Window';
-    static initialize(container, sate) {
+
+    static initialize(container, server_conn) {
         container.getElement().html('<h2 style="text-align:center">Watch!</h2>');
     }
 

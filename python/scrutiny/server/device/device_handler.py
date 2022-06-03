@@ -273,6 +273,12 @@ class DeviceHandler:
     def get_comm_link(self) -> Optional[AbstractLink]:
         return self.comm_handler.get_link()
 
+    def get_link_type(self) -> str:
+        if 'link_type' not in self.config:
+            return "none"
+        
+        return self.config['link_type']
+
     # Set communication state to a fresh start.
     def reset_comm(self) -> None:
         if self.comm_broken and self.device_id is not None:

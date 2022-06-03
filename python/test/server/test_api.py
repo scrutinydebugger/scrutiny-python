@@ -21,6 +21,7 @@ from scrutiny.core.sfd_storage import SFDStorage
 from scrutiny.server.api.dummy_client_handler import DummyConnection, DummyClientHandler
 from scrutiny.server.device.device_handler import DeviceHandler
 from scrutiny.server.active_sfd_handler import ActiveSFDHandler
+from scrutiny.server.device.links.dummy_link import DummyLink
 from scrutiny.core.variable import *
 from scrutiny.core import FirmwareDescription
 from test.artifacts import get_artifact
@@ -39,8 +40,17 @@ class StubbedDeviceHandler:
     def get_connection_status(self):
         return self.connection_status
 
+    def set_connection_status(self, connection_status):
+        self.connection_status = connection_status
+
     def get_device_id(self):
         return self.device_id
+
+    def get_link_type(self):
+        return 'dummy'
+
+    def get_comm_link(self):
+        return DummyLink()
 
 
 class TestAPI(unittest.TestCase):
@@ -203,14 +213,7 @@ class TestAPI(unittest.TestCase):
 
             self.assertEqual(entry.get_id(), api_entry['id'])
             self.assertEqual(entry.get_display_path(), api_entry['display_path'])
-            if entry.get_type() == DatastoreEntry.EntryType.Var:
-                self.assertEqual('var', api_entry['type'])
-            elif entry.get_type() == DatastoreEntry.EntryType.Alias:
-                self.assertEqual('alias', api_entry['type'])
-            else:
-                raise NotImplementedError('Test case does not supports entry type : %s' % (entry.get_type()))
-
-            self.assertEqual(container, api_entry['type'])
+          
             del expected_entries_in_response[api_entry['id']]
 
         self.assertEqual(len(expected_entries_in_response), 0)
@@ -286,14 +289,7 @@ class TestAPI(unittest.TestCase):
 
             self.assertEqual(entry.get_id(), api_entry['id'])
             self.assertEqual(entry.get_display_path(), api_entry['display_path'])
-            if entry.get_type() == DatastoreEntry.EntryType.Var:
-                self.assertEqual('var', api_entry['type'])
-            elif entry.get_type() == DatastoreEntry.EntryType.Alias:
-                self.assertEqual('alias', api_entry['type'])
-            else:
-                raise NotImplementedError('Test case does not supports entry type : %s' % (entry.get_type()))
-
-            self.assertEqual(container, api_entry['type'])
+          
             del expected_entries_in_response[api_entry['id']]
 
         self.assertEqual(len(expected_entries_in_response), 0)
@@ -369,14 +365,7 @@ class TestAPI(unittest.TestCase):
 
             self.assertEqual(entry.get_id(), api_entry['id'])
             self.assertEqual(entry.get_display_path(), api_entry['display_path'])
-            if entry.get_type() == DatastoreEntry.EntryType.Var:
-                self.assertEqual('var', api_entry['type'])
-            elif entry.get_type() == DatastoreEntry.EntryType.Alias:
-                self.assertEqual('alias', api_entry['type'])
-            else:
-                raise NotImplementedError('Test case does not supports entry type : %s' % (entry.get_type()))
-
-            self.assertEqual(container, api_entry['type'])
+            
             del expected_entries_in_response[api_entry['id']]
 
         self.assertEqual(len(expected_entries_in_response), 0)
@@ -577,3 +566,34 @@ class TestAPI(unittest.TestCase):
 
         SFDStorage.uninstall(sfd1.get_firmware_id())
         SFDStorage.uninstall(sfd2.get_firmware_id())
+
+
+    def test_get_server_status(self):
+        dummy_sfd1_filename = get_artifact('test_sfd_1.sfd')
+        dummy_sfd2_filename = get_artifact('test_sfd_2.sfd')
+
+        sfd1 = SFDStorage.install(dummy_sfd1_filename, ignore_exist=True)
+        sfd2 = SFDStorage.install(dummy_sfd2_filename, ignore_exist=True)
+
+        self.sfd_handler.request_load_sfd(sfd2.get_firmware_id())
+        self.sfd_handler.process()
+        self.device_handler.set_connection_status(DeviceHandler.ConnectionStatus.CONNECTED_READY)
+
+        req = {
+            'cmd': 'get_server_status'
+        }
+
+        self.send_request(req, 0)
+        response = self.wait_and_load_response(timeout=0.5)
+
+        self.assertEqual(response['cmd'], 'response_get_server_status')
+        self.assertIn('device_status', response)
+        self.assertEqual(response['device_status'], 'connected_ready')
+        self.assertIn('loaded_sfd_firmware_id', response)
+        self.assertEqual(response['loaded_sfd_firmware_id'], sfd2.get_firmware_id())        
+
+        self.assertIn('device_comm_link', response)
+        self.assertIn('type', response['device_comm_link'])
+        self.assertEqual(response['device_comm_link']['type'], 'dummy')
+        self.assertIn('config', response['device_comm_link'])
+        self.assertEqual(response['device_comm_link']['config'], {})

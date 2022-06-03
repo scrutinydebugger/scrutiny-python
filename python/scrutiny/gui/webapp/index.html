@@ -38,26 +38,34 @@
 
         </div>
 
-        <div id="statusbar"  >
-            <div id="server_status" class='status_bar_item' style='margin-left:20px'>
-                <img src="assets/img/indicator-red.png" width='16px' height='16px' style="display: inline-block" / >
-                Server status: <span id="server_status_label">Disconnected</span>   
+        <div id="statusbar">
+            <div id="server_status" class='status_bar_item'>
+                <img class='indicator' src="assets/img/indicator-red.png" width='16px' height='16px' />
+                <span class='status_bar_label'>Server status: 
+                    <span id="server_status_label">---</span>
+                </span>
             </div> 
 
             <div class='vertical_separator'></div>
 
             <div id="device_status" class='status_bar_item'>
-                <img src="assets/img/indicator-grey.png" width='16px' height='16px' style="display: inline-block" / >
-                Device status: <span id="device_status_label">N/A</span>   
+                <img class='indicator' src="assets/img/indicator-grey.png" width='16px' height='16px' />
+                <span class='status_bar_label'>Device status: 
+                    <span id="device_status_label">---</span>
+                </span>
             </div> 
 
             <div class='vertical_separator'></div>
 
             <div id="loaded_firmware" class='status_bar_item'>
-                Loaded firmware: <span id="loaded_firmware_label">-</span>   
+                <span class='status_bar_label'>Loaded firmware: 
+                    <span id="loaded_firmware_label">---</span>
+                </span>
             </div> 
         </div>
 
+
+        <script type="text/javascript" src="js/global_definitions.js"></script>
 
         <script type="text/javascript" src="libs/jquery/jquery.js"></script>
         <script type="text/javascript" src='libs/goldenlayout/goldenlayout.js'></script>
@@ -65,6 +73,7 @@
         <script type="text/javascript" src='js/widgets/varlist/widget.js'></script>
        
         <script type="text/javascript" src='js/ui.js'></script>
+        <script type="text/javascript" src='js/server_connection.js'></script>
         <script type="text/javascript" src='js/main.js'></script>
     </body>
 </html>

@@ -16,6 +16,7 @@ from scrutiny.server.tools import Timer
 from scrutiny.server.device import DeviceHandler
 from scrutiny.server.active_sfd_handler import ActiveSFDHandler
 from scrutiny.core.sfd_storage import SFDStorage
+from scrutiny.core import Variable, VariableType
 
 from .websocket_client_handler import WebsocketClientHandler
 from .dummy_client_handler import DummyClientHandler
@@ -55,6 +56,8 @@ class API:
             GET_INSTALLED_SFD = 'get_installed_sfd'
             GET_LOADED_SFD = 'get_loaded_sfd'
             LOAD_SFD = 'load_sfd'
+            GET_SERVER_STATUS = 'get_server_status'
+            
 
         class Api2Client:
             ECHO_RESPONSE = 'response_echo'
@@ -66,6 +69,7 @@ class API:
             GET_INSTALLED_SFD_RESPONSE = 'response_get_installed_sfd'
             LOAD_SFD_RESPONSE = 'response_load_sfd'
             GET_LOADED_SFD_RESPONSE = 'response_get_loaded_sfd'
+            GET_SERVER_STATUS_RESPONSE = 'response_get_server_status'
             ERROR_RESPONSE = 'error'
 
     FLUSH_VARS_TIMEOUT: float = 0.1
@@ -75,10 +79,49 @@ class API:
         DatastoreEntry.EntryType.Alias: 'alias',
     }
 
+    data_type_to_str : Dict[VariableType, str] = {
+        VariableType.sint8 : 'sint8',
+        VariableType.sint16 : 'sint16',
+        VariableType.sint32 : 'sint32',
+        VariableType.sint64 : 'sint64',
+        VariableType.sint128 : 'sint128',
+        VariableType.sint256 : 'sint256',
+        VariableType.uint8 : 'uint8',
+        VariableType.uint16 : 'uint16',
+        VariableType.uint32 : 'uint32',
+        VariableType.uint64 : 'uint64',
+        VariableType.uint128 : 'uint128',
+        VariableType.uint256 : 'uint256',
+        VariableType.float8 : 'float8',
+        VariableType.float16 : 'float16',
+        VariableType.float32 : 'float32',
+        VariableType.float64 : 'float64',
+        VariableType.float128 : 'float128',
+        VariableType.float256 : 'float256',
+        VariableType.cfloat8 : 'cfloat8',
+        VariableType.cfloat16 : 'cfloat16',
+        VariableType.cfloat32 : 'cfloat32',
+        VariableType.cfloat64 : 'cfloat64',
+        VariableType.cfloat128 : 'cfloat128',
+        VariableType.cfloat256 : 'cfloat256',
+        VariableType.boolean : 'boolean',
+        VariableType.struct : 'struct',
+    }
+
+    device_conn_status_to_str: Dict[DeviceHandler.ConnectionStatus, str] = {
+        DeviceHandler.ConnectionStatus.UNKNOWN : 'unknown',
+        DeviceHandler.ConnectionStatus.DISCONNECTED : 'disconnected',
+        DeviceHandler.ConnectionStatus.CONNECTING : 'connecting',
+        DeviceHandler.ConnectionStatus.CONNECTED_NOT_READY : 'connected',
+        DeviceHandler.ConnectionStatus.CONNECTED_READY : 'connected_ready'
+    }
+
     str_to_entry_type: Dict[str, DatastoreEntry.EntryType] = {
         'var': DatastoreEntry.EntryType.Var,
         'alias': DatastoreEntry.EntryType.Alias
     }
+
+
 
     datastore: Datastore
     device_handler: DeviceHandler
@@ -98,7 +141,8 @@ class API:
         Command.Client2Api.UNSUBSCRIBE_WATCHABLE: 'process_unsubscribe_watchable',
         Command.Client2Api.GET_INSTALLED_SFD: 'process_get_installed_sfd',
         Command.Client2Api.LOAD_SFD: 'process_load_sfd',
-        Command.Client2Api.GET_LOADED_SFD: 'process_get_loaded_sfd'
+        Command.Client2Api.GET_LOADED_SFD: 'process_get_loaded_sfd',
+        Command.Client2Api.GET_SERVER_STATUS: 'process_get_server_status'
     }
 
     def __init__(self, config: APIConfig, datastore: Datastore, device_handler: DeviceHandler, sfd_handler: ActiveSFDHandler):
@@ -267,8 +311,8 @@ class API:
                     'alias': len(alias_to_send)
                 },
                 'content': {
-                    'var': [self.make_datastore_entry_definition(x) for x in var_to_send],
-                    'alias': [self.make_datastore_entry_definition(x) for x in alias_to_send]
+                    'var': [self.make_datastore_entry_definition(x, include_entry_type=False) for x in var_to_send],
+                    'alias': [self.make_datastore_entry_definition(x, include_entry_type=False) for x in alias_to_send]
                 },
                 'done': done
             }
@@ -370,16 +414,50 @@ class API:
 
         self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
 
+
+    def process_get_server_status(self, conn_id: str, req: Dict[str, str]):
+        sfd = self.sfd_handler.get_loaded_sfd()
+        device_link_type = self.device_handler.get_link_type()
+        device_comm_link = self.device_handler.get_comm_link()
+
+        response = {
+            'cmd': self.Command.Api2Client.GET_SERVER_STATUS_RESPONSE,
+            'device_status' : self.device_conn_status_to_str[self.device_handler.get_connection_status()],
+            'loaded_sfd_firmware_id' : sfd.get_firmware_id() if sfd is not None else None,
+            'device_comm_link' : {
+                'type' : device_link_type,
+                'config' : {} if device_comm_link is None else device_comm_link.get_config()     # Possibly null
+            }
+        }
+
+        self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
+
+
     def var_update_callback(self, conn_id: str, datastore_entry: DatastoreEntry) -> None:
         self.streamer.publish(datastore_entry, conn_id)
         self.stream_all_we_can()
 
-    def make_datastore_entry_definition(self, entry: DatastoreEntry) -> Dict[str, str]:
-        return {
+    def make_datastore_entry_definition(self, entry: DatastoreEntry, include_entry_type=False) -> Dict[str, str]:
+        core_variable = entry.get_core_variable()
+        definition =  {
             'id': entry.get_id(),
-            'type': self.entry_type_to_str[entry.get_type()],
             'display_path': entry.get_display_path(),
+            'datatype' : self.data_type_to_str[core_variable.get_type()]
         }
+
+        if include_entry_type:
+            definition['entry_type'] = self.entry_type_to_str[entry.get_type()]
+
+        if core_variable.has_enum():
+            enum = core_variable.get_enum()
+            assert enum is False
+            enum_def = enum.get_def()
+            definition['enum'] = {  # Cherry pick items to avoid sending too much to client
+                'name' : enum_def['name'],
+                'values' : enum_def['values']
+            }
+
+        return definition
 
     def make_error_response(self, req: Dict[str, str], msg: str) -> Dict[str, Any]:
         cmd = '<empty>'

@@ -14,6 +14,8 @@ LinkConfig = Optional[Dict[str, str]]
 
 class AbstractLink(ABC):
 
+    config:LinkConfig
+
     @abstractmethod
     def __init__(self, config: LinkConfig):
         pass
@@ -41,3 +43,7 @@ class AbstractLink(ABC):
     @abstractmethod
     def operational(self) -> bool:
         pass
+
+    @abstractmethod
+    def get_config(self):
+        return self.config
