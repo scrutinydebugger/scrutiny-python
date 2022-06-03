@@ -1,0 +1,11 @@
+//Request
+{
+    "cmd": "ANY"
+}
+
+//Response
+{
+    "cmd": "error",
+    "request_cmd": "ANY",
+    "msg": "Missing parameter foo"
+}

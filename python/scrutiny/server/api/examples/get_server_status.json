@@ -1,0 +1,18 @@
+//Request
+{
+    "cmd": "get_server_status"
+}
+
+//Response
+{
+    "cmd": "response_get_server_status",
+    "device_status": "connected_ready", // unknown, disconnected, connecting, connected, connected_ready
+    "loaded_sfd_firmware_id": "DEADBEEFDEADBEEF00000", // ID or null
+    "device_comm_link": {
+        "type": "udp",
+        "config": { // Variable depending on config
+            "host": "127.0.0.1",
+            "port": 8765
+        }
+    }
+}

@@ -1,0 +1,12 @@
+// Request
+{
+    "cmd": "echo",
+    "payload": "foo"
+}
+
+
+// Response
+{
+    "cmd": "response_echo",
+    "payload": "foo"
+}
