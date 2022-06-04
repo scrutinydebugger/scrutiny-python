@@ -68,7 +68,7 @@ class TestAPI(unittest.TestCase):
 
         self.datastore = Datastore()
         self.device_handler = StubbedDeviceHandler('0' * 64, DeviceHandler.ConnectionStatus.DISCONNECTED)
-        self.sfd_handler = ActiveSFDHandler(device_handler=self.device_handler, datastore=self.datastore, autoload=True)
+        self.sfd_handler = ActiveSFDHandler(device_handler=self.device_handler, datastore=self.datastore, autoload=False)
         self.api = API(config, self.datastore, device_handler=self.device_handler, sfd_handler=self.sfd_handler)
         client_handler = self.api.get_client_handler()
         assert isinstance(client_handler, DummyClientHandler)
@@ -81,10 +81,12 @@ class TestAPI(unittest.TestCase):
     def wait_for_response(self, conn_idx=0, timeout=0.4):
         t1 = time.time()
         self.api.process()
+        self.sfd_handler.process()
         while not self.connections[conn_idx].from_server_available():
             if time.time() - t1 >= timeout:
                 break
             self.api.process()
+            self.sfd_handler.process()
             time.sleep(0.01)
 
         return self.connections[conn_idx].read_from_server()
@@ -519,24 +521,14 @@ class TestAPI(unittest.TestCase):
         }
 
         self.send_request(req, 0)
+
+        # inform status should be trigger by callback
         response = self.wait_and_load_response(timeout=0.5)
 
-        self.assertEqual(response['cmd'], 'response_load_sfd')
-        self.assertIn('success', response)
-        self.assertTrue(response['success'])
-        self.sfd_handler.process()
-
-        # Get loaded #1
-        req = {
-            'cmd': 'get_loaded_sfd'
-        }
-
-        self.send_request(req, 0)
-        response = self.wait_and_load_response(timeout=0.5)
-
-        self.assertEqual(response['cmd'], 'response_get_loaded_sfd')
-        self.assertIn('firmware_id', response)
-        self.assertEqual(response['firmware_id'], sfd1.get_firmware_id())
+        self.assertEqual(response['cmd'], 'inform_server_status')
+        self.assertIn('loaded_sfd', response)
+        self.assertIn('firmware_id', response['loaded_sfd'])
+        self.assertEqual(response['loaded_sfd']['firmware_id'], sfd1.get_firmware_id())        
 
         # load #2
         req = {
@@ -545,32 +537,20 @@ class TestAPI(unittest.TestCase):
         }
 
         self.send_request(req, 0)
+        
+        # inform status should be trigger by callback
         response = self.wait_and_load_response(timeout=0.5)
 
-        self.assertEqual(response['cmd'], 'response_load_sfd')
-        self.assertIn('success', response)
-        self.assertTrue(response['success'])
-        self.sfd_handler.process()
-
-        # Get loaded #2
-        req = {
-            'cmd': 'get_loaded_sfd'
-        }
-
-        self.send_request(req, 0)
-        response = self.wait_and_load_response(timeout=0.5)
-
-        self.assertEqual(response['cmd'], 'response_get_loaded_sfd')
-        self.assertIn('firmware_id', response)
-        self.assertEqual(response['firmware_id'], sfd2.get_firmware_id())
+        self.assertEqual(response['cmd'], 'inform_server_status')
+        self.assertIn('loaded_sfd', response)
+        self.assertIn('firmware_id', response['loaded_sfd'])
+        self.assertEqual(response['loaded_sfd']['firmware_id'], sfd2.get_firmware_id())        
 
         SFDStorage.uninstall(sfd1.get_firmware_id())
         SFDStorage.uninstall(sfd2.get_firmware_id())
 
 
     def test_get_server_status(self):
-        self.sfd_handler.set_autoload(False)
-
         dummy_sfd1_filename = get_artifact('test_sfd_1.sfd')
         dummy_sfd2_filename = get_artifact('test_sfd_2.sfd')
 
@@ -588,15 +568,19 @@ class TestAPI(unittest.TestCase):
         self.send_request(req, 0)
         response = self.wait_and_load_response(timeout=0.5)
 
-        self.assertEqual(response['cmd'], 'response_get_server_status')
+        self.assertEqual(response['cmd'], 'inform_server_status')
         self.assertIn('device_status', response)
         self.assertEqual(response['device_status'], 'connected_ready')
-        self.assertIn('loaded_sfd_firmware_id', response)
-        self.assertEqual(response['loaded_sfd_firmware_id'], sfd2.get_firmware_id())        
+        self.assertIn('loaded_sfd', response)
+        self.assertIn('firmware_id', response['loaded_sfd'])
+        self.assertEqual(response['loaded_sfd']['firmware_id'], sfd2.get_firmware_id())        
+        self.assertIn('metadata', response['loaded_sfd'])
+        self.assertEqual(response['loaded_sfd']['metadata'], sfd2.get_metadata())        
+
 
         self.assertIn('device_comm_link', response)
-        self.assertIn('type', response['device_comm_link'])
-        self.assertEqual(response['device_comm_link']['type'], 'dummy')
+        self.assertIn('link_type', response['device_comm_link'])
+        self.assertEqual(response['device_comm_link']['link_type'], 'dummy')
         self.assertIn('config', response['device_comm_link'])
         self.assertEqual(response['device_comm_link']['config'], {})
 
@@ -613,15 +597,15 @@ class TestAPI(unittest.TestCase):
         self.send_request(req, 0)
         response = self.wait_and_load_response(timeout=0.5)
 
-        self.assertEqual(response['cmd'], 'response_get_server_status')
+        self.assertEqual(response['cmd'], 'inform_server_status')
         self.assertIn('device_status', response)
         self.assertEqual(response['device_status'], 'connected_ready')
-        self.assertIn('loaded_sfd_firmware_id', response)
-        self.assertEqual(response['loaded_sfd_firmware_id'], None)       # We indeed get None here 
-
+        self.assertIn('loaded_sfd', response)
+        self.assertIsNone(response['loaded_sfd'])
+        
         self.assertIn('device_comm_link', response)
-        self.assertIn('type', response['device_comm_link'])
-        self.assertEqual(response['device_comm_link']['type'], 'dummy')
+        self.assertIn('link_type', response['device_comm_link'])
+        self.assertEqual(response['device_comm_link']['link_type'], 'dummy')
         self.assertIn('config', response['device_comm_link'])
         self.assertEqual(response['device_comm_link']['config'], {})
 

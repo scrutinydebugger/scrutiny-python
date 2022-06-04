@@ -70,7 +70,6 @@ class API:
             UNSUBSCRIBE_WATCHABLE_RESPONSE = 'response_unsubscribe_watchable'
             WATCHABLE_UPDATE = 'watchable_update'
             GET_INSTALLED_SFD_RESPONSE = 'response_get_installed_sfd'
-            LOAD_SFD_RESPONSE = 'response_load_sfd'
             GET_LOADED_SFD_RESPONSE = 'response_get_loaded_sfd'
             INFORM_SERVER_STATUS = 'inform_server_status'
             ERROR_RESPONSE = 'error'
@@ -415,38 +414,31 @@ class API:
         if 'firmware_id' not in req and not isinstance(req['firmware_id'], str):
             raise InvalidRequestException(req, 'Invalid firmware_id')
 
-        success = True
         try:
             self.sfd_handler.request_load_sfd(req['firmware_id'])
         except Exception as e:
             self.logger.error('Cannot load SFD %s. %s' % (req['firmware_id'], str(e)))
-            success = False
 
-        response = {
-            'cmd': self.Command.Api2Client.LOAD_SFD_RESPONSE,
-            'success': success
-        }
-
-        self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
+        # Do not send a response. There's a callback on SFD Loading that will notfy everyone.
 
 
     def process_get_server_status(self, conn_id: str, req: Dict[str, str]):
         self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=self.craft_inform_server_status_response()))
 
-    def craft_inform_server_status_response(self) -> S2C_InformServerStatus:
+    def craft_inform_server_status_response(self) -> ApiMsg_S2C_InformServerStatus:
 
         sfd = self.sfd_handler.get_loaded_sfd()
         device_link_type = self.device_handler.get_link_type()
         device_comm_link = self.device_handler.get_comm_link()
 
-        loaded_sfd:Optional[SFDEntry] = None
+        loaded_sfd:Optional[ApiMsgComp_SFDEntry] = None
         if sfd is not None:
             loaded_sfd = {
                 "firmware_id" : str(sfd.get_firmware_id()),
                 "metadata" : sfd.get_metadata()
                 }
 
-        response:S2C_InformServerStatus = {
+        response:ApiMsg_S2C_InformServerStatus = {
             'cmd': self.Command.Api2Client.INFORM_SERVER_STATUS,
             'device_status' : self.device_conn_status_to_str[self.device_handler.get_connection_status()],
             'loaded_sfd' : loaded_sfd,

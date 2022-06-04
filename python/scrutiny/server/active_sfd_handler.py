@@ -35,6 +35,7 @@ class ActiveSFDHandler:
     device_status: DeviceHandler.ConnectionStatus
     previous_device_status: DeviceHandler.ConnectionStatus
     requested_firmware_id: Optional[str]
+    enabled:bool
 
     loaded_callbacks:List[SFDLoadedCallback]
     unloaded_callbacks:List[SFDUnloadedCallback]
@@ -49,6 +50,7 @@ class ActiveSFDHandler:
         self.device_status = DeviceHandler.ConnectionStatus.UNKNOWN
         self.previous_device_status = DeviceHandler.ConnectionStatus.UNKNOWN
         self.requested_firmware_id = None
+        self.enabled = True
 
         self.loaded_callbacks = []
         self.unloaded_callbacks = []
@@ -60,6 +62,9 @@ class ActiveSFDHandler:
 
     def register_sfd_unloaded_callback(self, callback:SFDUnloadedCallback):
         self.unloaded_callbacks.append(callback)
+
+    def set_enabled(self, val:bool):
+        self.enabled = False
 
     def init(self):
         self.reset_active_sfd()
@@ -135,6 +140,7 @@ class ActiveSFDHandler:
         self.sfd = None
         self.datastore.clear()
         if must_call_callback:
+            self.logger.debug('Triggering SFD Unload callback')
             for callback in self.unloaded_callbacks:
                 try:
                     callback.__call__()
