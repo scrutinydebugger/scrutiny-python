@@ -304,6 +304,7 @@ class DeviceHandler:
         self.disconnect_complete = False
         self.comm_broken_count = 0
         self.fully_connected_ready = False
+        self.comm_handler.reset()
         self.protocol.set_address_size_bits(self.config['default_address_size'])  # Set back the protocol to decode addresses of this size.
         (major, minor) = self.config['default_protocol_version'].split('.')
         self.protocol.set_version(int(major), int(minor))
@@ -547,12 +548,15 @@ class DeviceHandler:
             if not self.comm_handler.is_open():
                 break
 
-            if self.active_request_record is None:  # We haven't send a request
-                record = self.dispatcher.pop_next()
+            if self.active_request_record is None :  # We haven't send a request
+                if not self.comm_handler.waiting_response():
+                    record = self.dispatcher.pop_next()
 
-                if record is not None:              # A new request to send
-                    self.active_request_record = record
-                    self.comm_handler.send_request(record.request)
+                    if record is not None:              # A new request to send
+                        self.active_request_record = record
+                        self.comm_handler.send_request(record.request)
+                else:   #Should not happen normally
+                    self.logger.critical('Device handler believes there is no active request but comm handler says there is. This is not supposed to happen')
             else:
                 if self.comm_handler.has_timed_out():       # The request we have sent has timed out.. no response
                     self.logger.debug('Request timed out. %s' % self.active_request_record.request)

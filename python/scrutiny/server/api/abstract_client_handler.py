@@ -10,13 +10,15 @@ from abc import ABC, abstractmethod
 from typing import Dict, Optional
 from dataclasses import dataclass
 
+from .message_definitions import APIMessage
+
 ClientHandlerConfig = Dict[str, str]
 
 
 @dataclass
 class ClientHandlerMessage:
     conn_id: str
-    obj: Dict
+    obj: APIMessage
 
 
 class AbstractClientHandler:

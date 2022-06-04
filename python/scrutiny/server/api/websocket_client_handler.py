@@ -8,6 +8,7 @@
 #   Copyright (c) 2021-2022 scrutinydebugger
 
 import websockets
+import websockets.server
 import queue
 import time
 import asyncio
@@ -58,7 +59,7 @@ class WebsocketClientHandler(AbstractClientHandler):
     logger: logging.Logger
     id2ws_map: Dict[str, WebsocketType]
     ws2id_map: Dict[WebsocketType, str]
-    ws_server: Optional[websockets.server.Serve]
+   # ws_server: Optional[websockets.server.Serve]
     started_event: threading.Event
 
     def __init__(self, config: ClientHandlerConfig):
@@ -153,8 +154,12 @@ class WebsocketClientHandler(AbstractClientHandler):
         asyncio.ensure_future(self.async_close())
 
     async def async_close(self):
-        x = self.ws_server.ws_server.close()
-        await self.ws_server.ws_server.wait_closed()
+        try:
+            self.ws_server.ws_server.close()
+
+            await self.ws_server.ws_server.wait_closed()
+        except:
+            pass
         self.loop.stop()
 
     def send(self, msg: ClientHandlerMessage):

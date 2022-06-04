@@ -14,18 +14,21 @@ import logging
 from scrutiny.server.datastore import Datastore, DatastoreEntry
 from scrutiny.server.tools import Timer
 from scrutiny.server.device import DeviceHandler
-from scrutiny.server.active_sfd_handler import ActiveSFDHandler
+from scrutiny.server.device.links import AbstractLink
+from scrutiny.server.active_sfd_handler import ActiveSFDHandler, SFDLoadedCallback, SFDUnloadedCallback
 from scrutiny.core.sfd_storage import SFDStorage
 from scrutiny.core import Variable, VariableType
+from scrutiny.core.firmware_description import FirmwareDescription
 
 from .websocket_client_handler import WebsocketClientHandler
 from .dummy_client_handler import DummyClientHandler
 from .value_streamer import ValueStreamer
+from .message_definitions import *
 
 from .abstract_client_handler import AbstractClientHandler, ClientHandlerConfig, ClientHandlerMessage
 
 from scrutiny.core.typehints import GenericCallback
-from typing import Callable, Dict, List, Set, Any, TypedDict
+from typing import Callable, Dict, List, Set, Any, TypedDict, cast
 
 
 class APIConfig(TypedDict, total=False):
@@ -69,7 +72,7 @@ class API:
             GET_INSTALLED_SFD_RESPONSE = 'response_get_installed_sfd'
             LOAD_SFD_RESPONSE = 'response_load_sfd'
             GET_LOADED_SFD_RESPONSE = 'response_get_loaded_sfd'
-            GET_SERVER_STATUS_RESPONSE = 'response_get_server_status'
+            INFORM_SERVER_STATUS = 'inform_server_status'
             ERROR_RESPONSE = 'error'
 
     FLUSH_VARS_TIMEOUT: float = 0.1
@@ -163,6 +166,18 @@ class API:
         self.streamer = ValueStreamer()     # The value streamer takes cares of publishing values to the client without polling.
         self.req_count = 0
 
+        self.sfd_handler.register_sfd_loaded_callback(SFDLoadedCallback(self.sfd_loaded_callback))
+        self.sfd_handler.register_sfd_unloaded_callback(SFDUnloadedCallback(self.sfd_unloaded_callback))
+
+
+    def sfd_loaded_callback(self, sfd:FirmwareDescription):
+        for conn_id in self.connections:
+            self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=self.craft_inform_server_status_response()))
+
+    def sfd_unloaded_callback(self):
+        for conn_id in self.connections:
+            self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=self.craft_inform_server_status_response()))
+
     def get_client_handler(self) -> AbstractClientHandler:
         return self.client_handler
 
@@ -229,7 +244,7 @@ class API:
 
     # Process a request gotten from the Client Handler
 
-    def process_request(self, conn_id: str, req: Dict[str, Any]):
+    def process_request(self, conn_id: str, req: APIMessage):
         try:
             self.req_count += 1
             self.logger.debug('[Conn:%s] Processing request #%d - %s' % (conn_id, self.req_count, req))
@@ -254,14 +269,14 @@ class API:
             self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
 
     # === ECHO ====
-    def process_echo(self, conn_id: str, req: Dict[str, Any]) -> None:
+    def process_echo(self, conn_id: str, req: Dict[str, str]) -> None:
         if 'payload' not in req:
             raise InvalidRequestException(req, 'Missing payload')
         response = dict(cmd=self.Command.Api2Client.ECHO_RESPONSE, payload=req['payload'])
         self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
 
     #  ===  GET_WATCHABLE_LIST     ===
-    def process_get_watchable_list(self, conn_id: str, req: Dict[str, Any]) -> None:
+    def process_get_watchable_list(self, conn_id: str, req: Dict) -> None:
         # Improvement : This may be a big response. Generate multi-packet response in a worker thread
         # Not asynchronous by choice
         max_per_response = None
@@ -320,7 +335,7 @@ class API:
             self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
 
     #  ===  GET_WATCHABLE_COUNT ===
-    def process_get_watchable_count(self, conn_id: str, req: Dict[str, Any]) -> None:
+    def process_get_watchable_count(self, conn_id: str, req: Dict[str, str]) -> None:
         response = {
             'cmd': self.Command.Api2Client.GET_WATCHABLE_COUNT_RESPONSE,
             'qty': {
@@ -416,26 +431,38 @@ class API:
 
 
     def process_get_server_status(self, conn_id: str, req: Dict[str, str]):
+        self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=self.craft_inform_server_status_response()))
+
+    def craft_inform_server_status_response(self) -> S2C_InformServerStatus:
+
         sfd = self.sfd_handler.get_loaded_sfd()
         device_link_type = self.device_handler.get_link_type()
         device_comm_link = self.device_handler.get_comm_link()
 
-        response = {
-            'cmd': self.Command.Api2Client.GET_SERVER_STATUS_RESPONSE,
+        loaded_sfd:Optional[SFDEntry] = None
+        if sfd is not None:
+            loaded_sfd = {
+                "firmware_id" : str(sfd.get_firmware_id()),
+                "metadata" : sfd.get_metadata()
+                }
+
+        response:S2C_InformServerStatus = {
+            'cmd': self.Command.Api2Client.INFORM_SERVER_STATUS,
             'device_status' : self.device_conn_status_to_str[self.device_handler.get_connection_status()],
-            'loaded_sfd_firmware_id' : sfd.get_firmware_id() if sfd is not None else None,
+            'loaded_sfd' : loaded_sfd,
             'device_comm_link' : {
-                'type' : device_link_type,
+                'link_type' : device_link_type,
                 'config' : {} if device_comm_link is None else device_comm_link.get_config()     # Possibly null
             }
         }
 
-        self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
+        return response
 
 
     def var_update_callback(self, conn_id: str, datastore_entry: DatastoreEntry) -> None:
         self.streamer.publish(datastore_entry, conn_id)
         self.stream_all_we_can()
+
 
     def make_datastore_entry_definition(self, entry: DatastoreEntry, include_entry_type=False) -> Dict[str, str]:
         core_variable = entry.get_core_variable()
@@ -459,7 +486,7 @@ class API:
 
         return definition
 
-    def make_error_response(self, req: Dict[str, str], msg: str) -> Dict[str, Any]:
+    def make_error_response(self, req: APIMessage, msg: str) -> APIMessage:
         cmd = '<empty>'
         if 'cmd' in req:
             cmd = req['cmd']

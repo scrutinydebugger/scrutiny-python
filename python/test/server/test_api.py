@@ -569,6 +569,8 @@ class TestAPI(unittest.TestCase):
 
 
     def test_get_server_status(self):
+        self.sfd_handler.set_autoload(False)
+
         dummy_sfd1_filename = get_artifact('test_sfd_1.sfd')
         dummy_sfd2_filename = get_artifact('test_sfd_2.sfd')
 
@@ -597,3 +599,31 @@ class TestAPI(unittest.TestCase):
         self.assertEqual(response['device_comm_link']['type'], 'dummy')
         self.assertIn('config', response['device_comm_link'])
         self.assertEqual(response['device_comm_link']['config'], {})
+
+
+        # Redo the test, but with no SFD loaded. We should get None
+        self.sfd_handler.reset_active_sfd()
+        self.sfd_handler.process()
+        self.device_handler.set_connection_status(DeviceHandler.ConnectionStatus.CONNECTED_READY)
+
+        req = {
+            'cmd': 'get_server_status'
+        }
+
+        self.send_request(req, 0)
+        response = self.wait_and_load_response(timeout=0.5)
+
+        self.assertEqual(response['cmd'], 'response_get_server_status')
+        self.assertIn('device_status', response)
+        self.assertEqual(response['device_status'], 'connected_ready')
+        self.assertIn('loaded_sfd_firmware_id', response)
+        self.assertEqual(response['loaded_sfd_firmware_id'], None)       # We indeed get None here 
+
+        self.assertIn('device_comm_link', response)
+        self.assertIn('type', response['device_comm_link'])
+        self.assertEqual(response['device_comm_link']['type'], 'dummy')
+        self.assertIn('config', response['device_comm_link'])
+        self.assertEqual(response['device_comm_link']['config'], {})
+
+        SFDStorage.uninstall(sfd1.get_firmware_id())
+        SFDStorage.uninstall(sfd2.get_firmware_id())

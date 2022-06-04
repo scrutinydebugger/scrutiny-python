@@ -43,8 +43,10 @@ class UdpLink(AbstractLink):
         self.port = int(parameters['port'])
         self.host = parameters['host']
 
-        self.config['host'] = parameters['host']
-        self.config['port'] = int(parameters['port'])
+        self.config = {
+            'host' : parameters['host'],
+            'port' : int(parameters['port'])
+        }
 
         self.ip_address = socket.gethostbyname(self.host)
 

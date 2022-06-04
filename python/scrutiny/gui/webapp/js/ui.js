@@ -113,6 +113,10 @@ class UI {
         }
     }
 
+    set_loaded_sfd_str(str) {
+        $('#loaded_firmware_label').text(str);
+    }
+
     set_loaded_firmware(name, version, firmware_id) {
 
     }
