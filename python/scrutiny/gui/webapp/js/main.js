@@ -16,7 +16,7 @@ function load_config() {
 
     ui = new UI($('#layout-container'));
     ui.init()
-    var config = scrutiny_client_config
+    let config = scrutiny_client_config
     server_conn = new ServerConnection(ui)
     server_conn.start(config['server']['hostname'], config['server']['port'])
 

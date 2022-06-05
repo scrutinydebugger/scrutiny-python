@@ -2,7 +2,7 @@ class ServerConnection {
 
 
     constructor(ui, hostname = '127.0.0.1', port = 8765) {
-        var that = this;
+        let that = this;
         this.update_ui_interval = 500;
         this.reconnect_interval = 500;
         this.connect_timeout = 1500;
@@ -13,8 +13,7 @@ class ServerConnection {
         this.socket = null
         this.server_status = ServerStatus.Disconnected
         this.device_status = DeviceStatus.NA
-        this.loaded_sfd_id = null
-        this.loaded_sfd_display_str = ''
+        this.loaded_sfd = null
 
         this.callback_dict = {}
         this.enable_reconnect = true
@@ -27,15 +26,14 @@ class ServerConnection {
             that.inform_server_status_callback(data)
         })
 
-
+        this.set_disconnected()
         this.update_ui()
     }
 
     set_disconnected() {
         this.server_status = ServerStatus.Disconnected
         this.device_status = DeviceStatus.NA
-        this.loaded_sfd_id = null
-        this.loaded_sfd_display_str = '-'
+        this.loaded_sfd = null
         this.update_ui()
     }
 
@@ -45,7 +43,7 @@ class ServerConnection {
     }
 
     start() {
-        var that = this
+        let that = this
         this.enable_reconnect = true
         this.create_socket()
         this.server_status = ServerStatus.Connecting
@@ -70,7 +68,7 @@ class ServerConnection {
             if (this.socket.readyState == this.socket.OPEN) {
                 try {
                     params['cmd'] = cmd;
-                    var payload = JSON.stringify(params)
+                    let payload = JSON.stringify(params)
                     console.debug('Sending: ' + payload)
                     this.socket.send(payload)
                 } catch (e) {
@@ -81,7 +79,7 @@ class ServerConnection {
     }
 
     create_socket() {
-        var that = this; // Javascript is such a beautiful language
+        let that = this; // Javascript is such a beautiful language
         this.socket = new WebSocket("ws://" + this.hostname + ":" + this.port);
         this.socket.onmessage = function(e) {
             that.on_socket_message_callback(e.data)
@@ -104,7 +102,8 @@ class ServerConnection {
     }
 
     start_get_status_periodic_call() {
-        var that = this;
+        let that = this;
+        this.stop_get_status_periodic_call()
         that.send_request('get_server_status')
         this.get_status_interval_handle = setInterval(function() {
             that.send_request('get_server_status')
@@ -121,7 +120,7 @@ class ServerConnection {
     update_ui() {
         this.ui.set_server_status(this.server_status)
         this.ui.set_device_status(this.device_status)
-        this.ui.set_loaded_sfd_str(this.loaded_sfd_display_str)
+        this.ui.set_loaded_sfd(this.loaded_sfd)
     }
 
     clear_connect_timeout() {
@@ -160,7 +159,7 @@ class ServerConnection {
     }
 
     try_reconnect(delay) {
-        var that = this
+        let that = this
         setTimeout(function() {
             that.create_socket()
         }, delay)
@@ -170,12 +169,12 @@ class ServerConnection {
     on_socket_message_callback(msg) {
         try {
             console.debug('Received: ' + msg)
-            var obj = JSON.parse(msg)
+            let obj = JSON.parse(msg)
 
             // Server is angry. Try to understand why
             if (obj.cmd == "error") {
 
-                var error_message = 'Got an error response from the server for request "' + obj.request_cmd + '".'
+                let error_message = 'Got an error response from the server for request "' + obj.request_cmd + '".'
                 if (obj.hasOwnProperty('msg')) {
                     error_message += obj.msg
                 }
@@ -205,7 +204,7 @@ class ServerConnection {
     // =====
 
     inform_server_status_callback(data) {
-        var device_status_str_to_obj = {
+        let device_status_str_to_obj = {
             'unknown': DeviceStatus.NA,
             'disconnected': DeviceStatus.Disconnected,
             'connecting': DeviceStatus.Connecting,
@@ -222,34 +221,9 @@ class ServerConnection {
             }
 
             try {
-                if (project_name = data['loaded_sfd']['firmware_id'] === null) {
-                    this.loaded_sfd_id = null
-                    this.loaded_sfd_display_str = '-'
-                } else {
-
-                    var project_name = '<Unnamed>'
-                    var project_version = '<No Version>'
-                    var firmware_id_str = '-'
-                    try {
-                        project_name = data['loaded_sfd']['metadata']['project_name']
-                    } catch {}
-
-                    try {
-                        project_version = data['loaded_sfd']['metadata']['version']
-                    } catch {}
-
-                    try {
-                        this.loaded_sfd_id = data['loaded_sfd']['firmware_id']
-                        firmware_id_str = this.loaded_sfd_id
-                    } catch {}
-
-                    this.loaded_sfd_display_str = project_name + ' V' + project_version + ' (ID: ' + firmware_id_str + ')'
-                }
-
-
+                this.loaded_sfd = data['loaded_sfd'];
             } catch (e) {
-                this.loaded_sfd_id = null
-                this.loaded_sfd_display_str = ''
+                this.loaded_sfd = null
                 console.error('[inform_server_status] Cannot read loaded firmware. ' + e)
             }
 

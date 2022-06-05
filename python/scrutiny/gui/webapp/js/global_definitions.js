@@ -1,10 +1,10 @@
-ServerStatus = {
+var ServerStatus = {
     Disconnected: 'disconnected',
     Connecting: 'connecting',
     Connected: 'connected'
 }
 
-DeviceStatus = {
+var DeviceStatus = {
     NA: 'unkown',
     Disconnected: 'disconnected',
     Connecting: 'connecting',
