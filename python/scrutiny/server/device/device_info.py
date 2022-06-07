@@ -11,6 +11,8 @@ from typing import Dict, List
 
 class DeviceInfo:
     __slots__ = (
+        'device_id',
+        'display_name',
         'max_tx_data_size',
         'max_rx_data_size',
         'max_bitrate_bps',
@@ -24,6 +26,8 @@ class DeviceInfo:
         'readonly_memory_regions'
     )
 
+    device_id: str
+    display_name: str
     max_tx_data_size: int
     max_rx_data_size: int
     max_bitrate_bps: int

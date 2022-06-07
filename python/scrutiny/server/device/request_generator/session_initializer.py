@@ -84,18 +84,18 @@ class SessionInitializer:
         if response.code == ResponseCode.OK:
             response_data = self.protocol.parse_response(response)
             if response_data['valid']:
-                self.logger.info('Connection was accepted by device')
+                self.logger.info('The connection request was accepted by the device')
                 self.session_id = response_data['session_id']
                 self.success = True
             else:
-                self.logger.warning('Connection was acknowledged by device but response data was malformed')
+                self.logger.warning('Connection request to the device was acknowledged by the device but response data was malformed')
                 self.error = True
         else:
-            self.logger.warning('Connection was refused by device with response code %s' % response.code)
+            self.logger.warning('Connection request to the device was refused by the device with response code %s' % response.code)
         self.completed()
 
     def failure_callback(self, request: Request, params: Any = None) -> None:
-        self.logger.error('Connection request did not complete')
+        self.logger.error('The connection request to device did not complete')
         self.error = True
 
         self.completed()

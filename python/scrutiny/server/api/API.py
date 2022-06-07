@@ -430,6 +430,7 @@ class API:
         sfd = self.sfd_handler.get_loaded_sfd()
         device_link_type = self.device_handler.get_link_type()
         device_comm_link = self.device_handler.get_comm_link()
+        device_info_input = self.device_handler.get_device_info()
 
         loaded_sfd:Optional[ApiMsgComp_SFDEntry] = None
         if sfd is not None:
@@ -438,9 +439,30 @@ class API:
                 "metadata" : sfd.get_metadata()
                 }
 
+        if device_info_input is not None:
+            device_info = {
+                'device_id' : device_info_input.device_id,
+                'display_name' : device_info_input.display_name,
+                'max_tx_data_size' : device_info_input.max_tx_data_size,
+                'max_rx_data_size' : device_info_input.max_rx_data_size,
+                'max_bitrate_bps' : device_info_input.max_bitrate_bps,
+                'rx_timeout_us' : device_info_input.rx_timeout_us,
+                'heartbeat_timeout_us' : device_info_input.heartbeat_timeout_us,
+                'address_size_bits' : device_info_input.address_size_bits,
+                'protocol_major' : device_info_input.protocol_major,
+                'protocol_minor' : device_info_input.protocol_minor,
+                'supported_feature_map' : device_info_input.supported_feature_map,
+                'forbidden_memory_regions' : device_info_input.forbidden_memory_regions,
+                'readonly_memory_regions' : device_info_input.readonly_memory_regions
+            }
+        else:
+            device_info = None
+
+
         response:ApiMsg_S2C_InformServerStatus = {
             'cmd': self.Command.Api2Client.INFORM_SERVER_STATUS,
             'device_status' : self.device_conn_status_to_str[self.device_handler.get_connection_status()],
+            'device_info' : device_info,
             'loaded_sfd' : loaded_sfd,
             'device_comm_link' : {
                 'link_type' : device_link_type,

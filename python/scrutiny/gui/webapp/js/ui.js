@@ -178,7 +178,7 @@ class UI {
     }
 
 
-    set_device_status(status) {
+    set_device_status(status, device_info) {
         let status_label_text = "";
         let indicator_img = "";
         if (status == DeviceStatus.Disconnected) {

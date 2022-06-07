@@ -14,6 +14,7 @@ class ServerConnection {
         this.server_status = ServerStatus.Disconnected
         this.device_status = DeviceStatus.NA
         this.loaded_sfd = null
+        this.device_info = null
 
         this.callback_dict = {}
         this.enable_reconnect = true
@@ -34,6 +35,7 @@ class ServerConnection {
         this.server_status = ServerStatus.Disconnected
         this.device_status = DeviceStatus.NA
         this.loaded_sfd = null
+        this.device_info = null
         this.update_ui()
     }
 
@@ -119,7 +121,7 @@ class ServerConnection {
 
     update_ui() {
         this.ui.set_server_status(this.server_status)
-        this.ui.set_device_status(this.device_status)
+        this.ui.set_device_status(this.device_status, this.device_info)
         this.ui.set_loaded_sfd(this.loaded_sfd)
     }
 
@@ -227,6 +229,13 @@ class ServerConnection {
                 console.error('[inform_server_status] Cannot read loaded firmware. ' + e)
             }
 
+
+            try {
+                this.device_info = data['device_info'];
+            } catch (e) {
+                this.device_info = null
+                console.error('[inform_server_status] Cannot read device info. ' + e)
+            }
 
         } catch (e) {
             console.error('[inform_server_status] Unexpected error. ' + e)

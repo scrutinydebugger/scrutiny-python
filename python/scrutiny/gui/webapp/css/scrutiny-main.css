@@ -29,7 +29,7 @@ template{
     width: 100%;
     height: 25px;
     overflow: hidden;
-    background-color: #eee;
+    background-color: #f3f3f3;
     color: #000;
 }
 
@@ -74,6 +74,8 @@ template{
     width:80px;
     height: 100%;
     overflow: hidden;
+    background-color: #f3f3f3;
+    color: #000;
 }
 
 #statusbar{
@@ -84,6 +86,7 @@ template{
     width: 100%;
     overflow: hidden;
     padding: 0;
+    background-color: #f3f3f3;
 }
 
 
@@ -110,7 +113,7 @@ template{
 #statusbar .vertical_separator{
     display: inline-block;
     width: 0px;
-    border-left: thin solid #999;
+    border-left: thin solid #000;
     height: 100%;
     padding: 0;
     margin: 0;
@@ -127,10 +130,14 @@ template{
     padding-bottom: 5px;
     padding-bottom: 5px;
     cursor: move;
+    border-radius: 10px;
 }
 
 .widget_draggable_item:hover{
-    background-color: #bbf;
+    background-color: #999999;
+    color: #fff;
+    
+
 }
 
 .widget_draggable_item img
@@ -194,7 +201,8 @@ template{
     font-size: 1.8em;
     font-weight: bold;
     text-align: center;
-    background-color: #bbf;
+    background-color: #999999;
+    color: #fff;
     border-radius: 5px;
     vertical-align: middle;
 }

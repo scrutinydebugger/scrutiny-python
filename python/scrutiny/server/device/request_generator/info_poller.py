@@ -76,7 +76,13 @@ class InfoPoller:
         self.started = False
         self.protocol_version_callback = protocol_version_callback
         self.comm_param_callback = comm_param_callback
+        self.fsm_state = self.FsmState.Init
+        
         self.reset()
+
+    def set_known_info(self, device_id:str, device_display_name:str) -> None:
+        self.info.device_id = device_id
+        self.info.display_name = device_display_name
 
     def get_device_info(self) -> DeviceInfo:
         return copy.copy(self.info)
@@ -94,6 +100,8 @@ class InfoPoller:
         return self.fsm_state == self.FsmState.Error
 
     def reset(self) -> None:
+        if self.fsm_state != self.FsmState.Init:
+            self.logger.debug('Moving state machine to %s' % self.FsmState.Init)
         self.fsm_state = self.FsmState.Init
         self.last_fsm_state = self.FsmState.Init
         self.stop_requested = False

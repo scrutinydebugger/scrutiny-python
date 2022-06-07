@@ -1,7 +1,21 @@
 from scrutiny.core.firmware_description import MetadataType
-
 from typing import TypedDict, Optional, List, Any, Dict, Union
 
+
+class ApiMsgComp_DeviceInfo(TypedDict):
+    device_id: str
+    display_name: str
+    max_tx_data_size: int
+    max_rx_data_size: int
+    max_bitrate_bps: int
+    rx_timeout_us: int
+    heartbeat_timeout_us: int
+    address_size_bits: int
+    protocol_major: int
+    protocol_minor: int
+    supported_feature_map: Dict[str, bool]
+    forbidden_memory_regions: List[Dict[str, int]]
+    readonly_memory_regions: List[Dict[str, int]]
 
 class ApiMsgComp_SFDEntry(TypedDict):
     firmware_id:str
@@ -15,6 +29,7 @@ class ApiMsgComp_DeviceCommLinkDef(TypedDict):
 class ApiMsg_S2C_InformServerStatus(TypedDict):
     cmd:str
     device_status:str
+    device_info:ApiMsgComp_DeviceInfo
     loaded_sfd:Optional[ApiMsgComp_SFDEntry]
     device_comm_link: ApiMsgComp_DeviceCommLinkDef
 

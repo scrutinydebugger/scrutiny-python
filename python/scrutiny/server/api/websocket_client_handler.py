@@ -77,12 +77,14 @@ class WebsocketClientHandler(AbstractClientHandler):
         wsid = self.make_id()
         self.id2ws_map[wsid] = websocket
         self.ws2id_map[websocket] = wsid
+        self.logger.info('New client connected (ID=%s). %d clients total' % (wsid, len(self.ws2id_map)))
         return wsid
 
     async def unregister(self, websocket: WebsocketType):
         wsid = self.ws2id_map[websocket]
         del self.ws2id_map[websocket]
         del self.id2ws_map[wsid]
+        self.logger.info('Client disconnected (ID=%s). %d clients remainings' % (wsid, len(self.ws2id_map)))
 
     def is_connection_active(self, conn_id: str) -> bool:
         return True if conn_id in self.id2ws_map else False
