@@ -53,7 +53,7 @@ class CLI:
 
         return msg
 
-    def run(self, args):
+    def run(self, args, except_failed=False):
         code = 0
         if len(args) > 0:
             if args[0] in ['-h', '--help']:
@@ -92,6 +92,8 @@ class CLI:
             if error is not None:
                 raise error
         except Exception as e:
+            if except_failed:
+                raise e
             error = e
             error_stack_strace = traceback.format_exc()
 
@@ -99,5 +101,5 @@ class CLI:
             code = 1
             logging.error(str(error))
             logging.debug(error_stack_strace)
-
+            
         return code
