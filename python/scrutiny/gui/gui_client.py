@@ -37,7 +37,7 @@ class LoadHandler(object):
 class GUIClient:
     init_ok:bool
 
-    WEBAPP_FOLDER = 'webapp'
+    WEBAPP_FOLDER = 'webapp/build/'
     MIN_VERSION = '66.0'
     
     def __init__(self, config_filename:str=None):
