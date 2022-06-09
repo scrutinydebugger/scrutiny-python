@@ -12,7 +12,7 @@ from test import logger
 import signal  # For ctrl+c handling
 
 from scrutiny.server.device.emulated_device import EmulatedDevice
-from scrutiny.server.device import DeviceHandler
+from scrutiny.server.device.device_handler import DeviceHandler
 from scrutiny.server.datastore import Datastore, DatastoreEntry
 from scrutiny.server.protocol.commands import DummyCommand
 from scrutiny.server.protocol import Request, Response

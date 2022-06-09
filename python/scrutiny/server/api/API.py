@@ -13,7 +13,7 @@ import logging
 
 from scrutiny.server.datastore import Datastore, DatastoreEntry
 from scrutiny.server.tools import Timer
-from scrutiny.server.device import DeviceHandler
+from scrutiny.server.device.device_handler import DeviceHandler
 from scrutiny.server.device.links import AbstractLink
 from scrutiny.server.active_sfd_handler import ActiveSFDHandler, SFDLoadedCallback, SFDUnloadedCallback
 from scrutiny.core.sfd_storage import SFDStorage

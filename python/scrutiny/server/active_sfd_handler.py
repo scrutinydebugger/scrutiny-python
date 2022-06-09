@@ -12,7 +12,7 @@ import traceback
 
 from scrutiny.core import FirmwareDescription
 from scrutiny.core.sfd_storage import SFDStorage
-from scrutiny.server.device import DeviceHandler
+from scrutiny.server.device.device_handler import DeviceHandler
 from scrutiny.server.datastore import Datastore, DatastoreEntry
 
 from typing import Optional, List
