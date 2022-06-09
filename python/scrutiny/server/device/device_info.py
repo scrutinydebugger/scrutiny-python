@@ -40,6 +40,9 @@ class DeviceInfo:
     forbidden_memory_regions: List[Dict[str, int]]
     readonly_memory_regions: List[Dict[str, int]]
 
+    def get_attributes(self):
+        return self.__slots__
+
     def __init__(self):
         self.clear()
 

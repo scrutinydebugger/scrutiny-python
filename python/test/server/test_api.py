@@ -20,6 +20,7 @@ from scrutiny.server.datastore import Datastore, DatastoreEntry
 from scrutiny.core.sfd_storage import SFDStorage
 from scrutiny.server.api.dummy_client_handler import DummyConnection, DummyClientHandler
 from scrutiny.server.device.device_handler import DeviceHandler
+from scrutiny.server.device.device_info import DeviceInfo
 from scrutiny.server.active_sfd_handler import ActiveSFDHandler
 from scrutiny.server.device.links.dummy_link import DummyLink
 from scrutiny.core.variable import *
@@ -51,6 +52,27 @@ class StubbedDeviceHandler:
 
     def get_comm_link(self):
         return DummyLink()
+
+    def get_device_info(self):
+        info = DeviceInfo()
+        info.device_id = self.device_id
+        info.display_name = self.__class__.__name__
+        info.max_tx_data_size = 128
+        info.max_rx_data_size = 64
+        info.max_bitrate_bps = 10000
+        info.rx_timeout_us = 50000
+        info.heartbeat_timeout_us = 4000000
+        info.address_size_bits = 32
+        info.protocol_major = 1
+        info.protocol_minor = 0
+        info.supported_feature_map = {                    
+            'memory_read':      True,
+            'memory_write':     True,
+            'datalog_acquire':  False,
+            'user_command':     False}
+        info.forbidden_memory_regions = [{'start' : 0x1000, 'end' : 0x2000}]
+        info.readonly_memory_regions = [{'start' : 0x2000, 'end' : 0x3000}, {'start' : 0x3000, 'end' : 0x4000}]        
+        return info
 
 
 class TestAPI(unittest.TestCase):
@@ -549,7 +571,6 @@ class TestAPI(unittest.TestCase):
         SFDStorage.uninstall(sfd1.get_firmware_id())
         SFDStorage.uninstall(sfd2.get_firmware_id())
 
-
     def test_get_server_status(self):
         dummy_sfd1_filename = get_artifact('test_sfd_1.sfd')
         dummy_sfd2_filename = get_artifact('test_sfd_2.sfd')
@@ -576,15 +597,17 @@ class TestAPI(unittest.TestCase):
         self.assertEqual(response['loaded_sfd']['firmware_id'], sfd2.get_firmware_id())        
         self.assertIn('metadata', response['loaded_sfd'])
         self.assertEqual(response['loaded_sfd']['metadata'], sfd2.get_metadata())        
-
-
         self.assertIn('device_comm_link', response)
         self.assertIn('link_type', response['device_comm_link'])
         self.assertEqual(response['device_comm_link']['link_type'], 'dummy')
         self.assertIn('config', response['device_comm_link'])
         self.assertEqual(response['device_comm_link']['config'], {})
-
-
+        self.assertIn('device_info', response)
+        device_info = self.device_handler.get_device_info()
+        for attr in device_info.get_attributes():
+            self.assertIn(attr, response['device_info'])
+            self.assertEqual(getattr(device_info, attr), response['device_info'][attr])
+        
         # Redo the test, but with no SFD loaded. We should get None
         self.sfd_handler.reset_active_sfd()
         self.sfd_handler.process()
@@ -608,6 +631,11 @@ class TestAPI(unittest.TestCase):
         self.assertEqual(response['device_comm_link']['link_type'], 'dummy')
         self.assertIn('config', response['device_comm_link'])
         self.assertEqual(response['device_comm_link']['config'], {})
-
+        self.assertIn('device_info', response)
+        device_info = self.device_handler.get_device_info()
+        for attr in device_info.get_attributes():
+            self.assertIn(attr, response['device_info'])
+            self.assertEqual(getattr(device_info, attr), response['device_info'][attr])
+        
         SFDStorage.uninstall(sfd1.get_firmware_id())
         SFDStorage.uninstall(sfd2.get_firmware_id())
