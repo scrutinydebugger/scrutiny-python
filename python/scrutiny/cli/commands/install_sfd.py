@@ -8,9 +8,7 @@
 #   Copyright (c) 2021-2022 scrutinydebugger
 
 import argparse
-
 from .base_command import BaseCommand
-from scrutiny.core.sfd_storage import SFDStorage
 from typing import Optional, List
 
 
@@ -28,6 +26,8 @@ class InstallSFD(BaseCommand):
         self.parser.add_argument('file', help='Scrutiny Firmware Description (SFD) file to be installed')
 
     def run(self) -> Optional[int]:
+        from scrutiny.core.sfd_storage import SFDStorage
+    
         args = self.parser.parse_args(self.args)
         SFDStorage.install(args.file)
 

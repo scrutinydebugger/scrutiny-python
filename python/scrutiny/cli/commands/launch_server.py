@@ -10,7 +10,6 @@ import argparse
 import logging
 
 from .base_command import BaseCommand
-from scrutiny.server.server import ScrutinyServer
 from typing import Optional, List
 
 
@@ -29,6 +28,8 @@ class LaunchServer(BaseCommand):
         self.parser.add_argument('--log_websockets', default='error', metavar='LEVEL', help="Verbosity level of websockets module")
 
     def run(self) -> Optional[int]:
+        from scrutiny.server.server import ScrutinyServer
+
         args = self.parser.parse_args(self.args)
 
         # For server, we will add more details to logging message.

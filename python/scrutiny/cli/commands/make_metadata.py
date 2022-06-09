@@ -13,10 +13,7 @@ import json
 import os
 import datetime
 import platform
-import scrutiny
 from typing import Optional, List
-
-from scrutiny.core.firmware_description import MetadataType
 
 
 class MakeMetadata(BaseCommand):
@@ -41,6 +38,7 @@ class MakeMetadata(BaseCommand):
         self.parser.add_argument('--version', default='', help='Version of the project, for display in the GUI only.')
 
     def run(self) -> Optional[int]:
+        import scrutiny
         args = self.parser.parse_args(self.args)
 
         if args.output is None:

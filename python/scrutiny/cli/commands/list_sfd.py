@@ -9,8 +9,6 @@
 
 import argparse
 from .base_command import BaseCommand
-from scrutiny.core.firmware_description import FirmwareDescription
-from scrutiny.core.sfd_storage import SFDStorage
 from typing import Optional, List
 import logging
 import traceback
@@ -53,6 +51,9 @@ class ListSFD(BaseCommand):
         self.parser = argparse.ArgumentParser(prog=self.get_prog())
 
     def run(self) -> Optional[int]:
+        from scrutiny.core.firmware_description import FirmwareDescription
+        from scrutiny.core.sfd_storage import SFDStorage
+
         sfd_list: List[PrintableSFDEntry] = []
         args = self.parser.parse_args(self.args)
         firmware_id_list = SFDStorage.list()

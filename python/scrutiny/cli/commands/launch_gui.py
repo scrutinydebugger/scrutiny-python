@@ -3,7 +3,6 @@ import logging
 import traceback
 
 from .base_command import BaseCommand
-from scrutiny.gui.gui_client import GUIClient
 from typing import Optional, List
 
 
@@ -18,12 +17,23 @@ class LaunchGUI(BaseCommand):
     def __init__(self, args: List[str], requested_log_level: Optional[str] = None):
         self.args = args
         self.parser = argparse.ArgumentParser(prog=self.get_prog())
+        self.parser.add_argument('--method', default='cef', choices=['cef', 'webbrowser'], help='The method used to launch the GUI. "cef": Uses Chromium Embedded Framework. "webbrowser": Launch the GUI in a web browser using the webbrowser python module')
         self.parser.add_argument('--config', default=None, help='Configuration file used by the GUI')
 
     def run(self) -> Optional[int]:
+        from scrutiny.gui.gui_client import GUIClient, LaunchMethod   
+
         args = self.parser.parse_args(self.args)
         success = True
-        gui = GUIClient(args.config)
+        launch_method = LaunchMethod.NONE
+        if args.method.strip().lower() == "cef":
+            launch_method = LaunchMethod.CEF
+        elif args.method.strip().lower() == "webbrowser":
+            launch_method = LaunchMethod.WEB_BROWSER
+        else:
+            raise ValueError('Unknown launch method %s' % args.method)
+
+        gui = GUIClient(config_filename=args.config, launch_method=launch_method)
         try:
             gui.run()
         except Exception as e:
