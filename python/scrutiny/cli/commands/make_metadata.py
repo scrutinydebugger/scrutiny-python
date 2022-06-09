@@ -39,6 +39,7 @@ class MakeMetadata(BaseCommand):
 
     def run(self) -> Optional[int]:
         import scrutiny
+        from scrutiny.core.firmware_description import MetadataType
         args = self.parser.parse_args(self.args)
 
         if args.output is None:

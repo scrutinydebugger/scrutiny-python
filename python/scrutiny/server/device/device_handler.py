@@ -465,6 +465,9 @@ class DeviceHandler:
 
             if state_entry:
                 self.info_poller.start()
+                # make mypy happy
+                assert self.device_id is not None
+                assert self.device_display_name is not None
                 # Set known info after start, otherwise it will be deleted and data will be missing.
                 self.info_poller.set_known_info(device_id=self.device_id, device_display_name = self.device_display_name) # To write the device_info
 

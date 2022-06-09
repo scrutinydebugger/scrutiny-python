@@ -29,7 +29,7 @@ class ApiMsgComp_DeviceCommLinkDef(TypedDict):
 class ApiMsg_S2C_InformServerStatus(TypedDict):
     cmd:str
     device_status:str
-    device_info:ApiMsgComp_DeviceInfo
+    device_info:Optional[ApiMsgComp_DeviceInfo]
     loaded_sfd:Optional[ApiMsgComp_SFDEntry]
     device_comm_link: ApiMsgComp_DeviceCommLinkDef
 

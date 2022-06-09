@@ -6,8 +6,17 @@
 #
 #   Copyright (c) 2021-2022 scrutinydebugger
 
-from typing import Dict, List
+from typing import TypedDict, Dict, List
 
+class MemoryRegion(TypedDict):
+    start:int
+    end:int
+
+class SupportedFeatureMap(TypedDict):
+    memory_read : bool
+    memory_write : bool
+    datalog_acquire : bool
+    user_command : bool
 
 class DeviceInfo:
     __slots__ = (
@@ -36,9 +45,9 @@ class DeviceInfo:
     address_size_bits: int
     protocol_major: int
     protocol_minor: int
-    supported_feature_map: Dict[str, bool]
-    forbidden_memory_regions: List[Dict[str, int]]
-    readonly_memory_regions: List[Dict[str, int]]
+    supported_feature_map: SupportedFeatureMap
+    forbidden_memory_regions: List[MemoryRegion]
+    readonly_memory_regions: List[MemoryRegion]
 
     def get_attributes(self):
         return self.__slots__

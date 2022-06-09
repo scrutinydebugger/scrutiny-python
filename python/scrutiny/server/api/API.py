@@ -439,6 +439,7 @@ class API:
                 "metadata" : sfd.get_metadata()
                 }
 
+        device_info:Optional[ApiMsgComp_DeviceInfo] = None
         if device_info_input is not None:
             device_info = {
                 'device_id' : device_info_input.device_id,
@@ -451,12 +452,10 @@ class API:
                 'address_size_bits' : device_info_input.address_size_bits,
                 'protocol_major' : device_info_input.protocol_major,
                 'protocol_minor' : device_info_input.protocol_minor,
-                'supported_feature_map' : device_info_input.supported_feature_map,
-                'forbidden_memory_regions' : device_info_input.forbidden_memory_regions,
-                'readonly_memory_regions' : device_info_input.readonly_memory_regions
+                'supported_feature_map' : cast( Dict[str, bool], device_info_input.supported_feature_map),
+                'forbidden_memory_regions' : cast( List[Dict[str, int]], device_info_input.forbidden_memory_regions),
+                'readonly_memory_regions' : cast( List[Dict[str, int]],device_info_input.readonly_memory_regions)
             }
-        else:
-            device_info = None
 
 
         response:ApiMsg_S2C_InformServerStatus = {
