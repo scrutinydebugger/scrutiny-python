@@ -32,7 +32,6 @@ class ActiveSFDHandler:
     autoload:bool
 
     sfd: Optional[FirmwareDescription]
-    device_status: DeviceHandler.ConnectionStatus
     previous_device_status: DeviceHandler.ConnectionStatus
     requested_firmware_id: Optional[str]
 
@@ -46,7 +45,6 @@ class ActiveSFDHandler:
         self.autoload = autoload
 
         self.sfd = None
-        self.device_status = DeviceHandler.ConnectionStatus.UNKNOWN
         self.previous_device_status = DeviceHandler.ConnectionStatus.UNKNOWN
         self.requested_firmware_id = None
 
@@ -80,7 +78,7 @@ class ActiveSFDHandler:
                 self.reset_active_sfd()     # Clear active SFD
             else:
                 if self.sfd is None:    # if none loaded
-                    verbose = self.previous_device_status != self.device_status
+                    verbose = self.previous_device_status != device_status
                     device_id = self.device_handler.get_device_id()
                     if device_id is not None:
                         self.load_sfd(device_id, verbose=verbose)   # Initiale loading. Will populate the datastore
