@@ -104,7 +104,7 @@ class ScrutinyGuiHttpServer:
         self.thread.start()
         self.started_event.wait()
 
-    def get_port(self) -> int:
+    def get_port(self) -> Optional[int]:
         if self.http_server is None:
             return None
 
@@ -128,6 +128,7 @@ class ScrutinyGuiHttpServer:
         self.logger.info('HTTP server started')
 
         try:
+            assert self.http_server is not None
             self.http_server.serve_forever(poll_interval=0.2)
         except KeyboardInterrupt:
             pass

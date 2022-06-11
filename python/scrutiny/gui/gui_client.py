@@ -16,10 +16,13 @@ class GUI_ServerConfig(TypedDict, total=False):
     host:str
     port:int
 
+class LocalWebServerConfig(TypedDict, total=False):
+    port:int
+
 class GUIConfig(TypedDict, total=False):
     name: str
     server: GUI_ServerConfig
-
+    local_webserver: LocalWebServerConfig
 
 DEFAULT_CONFIG: GUIConfig = {
     'name': 'Scrutiny GUI Client (Default config)',
@@ -28,7 +31,7 @@ DEFAULT_CONFIG: GUIConfig = {
         'port' : 8765
         },
     'local_webserver': {
-            'port' : 8081
+            'port' : 0
         }
     }
 
