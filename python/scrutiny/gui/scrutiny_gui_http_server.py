@@ -11,19 +11,24 @@ from urllib.parse import urlparse, parse_qsl, urlencode, urlunparse
 from .ext2contenttype import EXTENSION_TO_CONTENT_TYPE
 
 
-
-
 class HTTPResponseException(Exception):
     def __init__(self, code, content):
         super().__init__(self, '')
         self.code= code
         self.content = content
 
-def make_server_handler(base_folder:str):
+def make_server_handler(gui_server_obj):
 
     class ServerHandler(BaseHTTPRequestHandler):
+
+        def log_message(self, format, *args):
+            logger = gui_server_obj.logger
+            logger.debug("HTTP Request - (%s) %s" % (args[1], args[0]))
+
         def do_GET(self):
             try:
+                base_folder = gui_server_obj.base_folder
+                logger = gui_server_obj.logger
                 urlparts = urlparse(self.path)
                 file = urlparts.path.strip();
         
@@ -51,7 +56,6 @@ def make_server_handler(base_folder:str):
 
                 self.send_response(200)
                 self.send_header("Content-type", EXTENSION_TO_CONTENT_TYPE[file_extension])
-                self.send_header("X-Cache-Info", "not cacheable")
                 self.end_headers()
                 
                 self.wfile.write(file_content)
@@ -67,6 +71,8 @@ def make_server_handler(base_folder:str):
                 self.end_headers()
 
                 self.wfile.write(bytes('Internal error', "utf-8"))
+                logger.error('GET response error. %s' % str(e))
+                logger.debug(traceback.format_exc())
 
 
     return ServerHandler
@@ -92,17 +98,25 @@ class ScrutinyGuiHttpServer:
 
     def start(self, port:int) -> None:
         self.logger.debug('Requesting HTTP server to start')
-        self.http_server = HTTPServer(('localhost', port), make_server_handler(self.base_folder))
+        self.http_server = HTTPServer(('localhost', port), make_server_handler(self))
         self.thread = threading.Thread(target=self.thread_task)
         self.started_event.clear()
         self.thread.start()
         self.started_event.wait()
 
+    def get_port(self) -> int:
+        if self.http_server is None:
+            return None
+
+        host, port = self.http_server.socket.getsockname()
+
+        return port
+
 
     def stop(self) -> None:
         self.logger.debug('Requesting HTTP server to stop')
         if self.http_server is not None:
-            self.http_server.shutdown() # Race condition here??
+            self.http_server.shutdown() # Shutdown is thread safe
 
         self.exit_requested = True
         if self.thread is not None:

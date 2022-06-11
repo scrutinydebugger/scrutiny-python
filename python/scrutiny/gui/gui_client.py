@@ -58,7 +58,7 @@ class GUIClient:
     webapp_fullpath:str
 
     
-    def __init__(self, config_filename:str=None, launch_method:LaunchMethod=LaunchMethod.NONE, http_server_port:int=8181):
+    def __init__(self, config_filename:str=None, launch_method:LaunchMethod=LaunchMethod.NONE, http_server_port:int=0):
         self.launch_method = launch_method
         self.logger = logging.getLogger(self.__class__.__name__)
         self.http_server_port = http_server_port
@@ -113,8 +113,13 @@ class GUIClient:
         from base64 import b64encode
         import json
 
-        url = 'http://localhost:%d' % port
+        # Launch the HTTP server
+        gui_server = ScrutinyGuiHttpServer(base_folder=self.webapp_fullpath)
+        gui_server.start(port=port)
+        final_port = gui_server.get_port()    # Can be changed if input port is 0
 
+        # Launch the client
+        url = 'http://localhost:%d' % final_port
         config_str = b64encode(json.dumps(self.config).encode('utf8')).decode('ascii')
         # Add config to url as we don't have CEF hooks to communicate with the webapp
         url_parts = list(urlparse(url))
@@ -124,16 +129,13 @@ class GUIClient:
         url_parts[4] = urlencode(query)
         url = urlunparse(url_parts)    
 
-        gui_server = ScrutinyGuiHttpServer(self.webapp_fullpath)
-        gui_server.start(port=port)
-
         webbrowser.open_new_tab(url)
 
         # Wait for exit conditon.
         # webserver runs in a separate thread
         while True:
             try:
-                time.sleep(0.1)
+                time.sleep(0.5) # Nothing to do here
             except KeyboardInterrupt:
                 break
             except Exception as e:

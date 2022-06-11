@@ -19,6 +19,7 @@ class LaunchGUI(BaseCommand):
         self.parser = argparse.ArgumentParser(prog=self.get_prog())
         self.parser.add_argument('--method', default=None, choices=['cef', 'browser'], help='The method used to launch the GUI. "cef": Uses Chromium Embedded Framework. "browser": Launch the GUI in a web browser using the webbrowser python module')
         self.parser.add_argument('--config', default=None, help='Configuration file used by the GUI')
+        self.parser.add_argument('--port', default=0, help='Port used by local webserver when GUI is launched in a web browser')
 
     def run(self) -> Optional[int]:
         from scrutiny.gui.gui_client import GUIClient, LaunchMethod   
@@ -34,7 +35,7 @@ class LaunchGUI(BaseCommand):
             else :
                 raise ValueError('Unknown launch method %s' % args.method)
 
-        gui = GUIClient(config_filename=args.config, launch_method=launch_method)
+        gui = GUIClient(config_filename=args.config, launch_method=launch_method, http_server_port=int(args.port))
         try:
             gui.run()
         except Exception as e:

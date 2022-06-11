@@ -21,7 +21,6 @@ EXTENSION_TO_CONTENT_TYPE = {
     '.epub' :'application/epub+zip',
     '.gz' :  'application/gzip',
     '.gif' : 'image/gif',
-    '.htm' : 'text/html',
     '.ico' : 'image/vnd.microsoft.icon',
     '.ics' : 'text/calendar',
     '.jar' : 'application/java-archive',
