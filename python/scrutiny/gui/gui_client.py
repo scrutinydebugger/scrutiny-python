@@ -1,3 +1,11 @@
+#    gui_client.py
+#        Represent the GUI application. Allows to launch through Chromium Embedded Framework
+#        or in a web browser with local server
+#
+#   - License : MIT - See LICENSE file.
+#   - Project : Scrutiny Debugger (github.com/scrutinydebugger/scrutiny)
+#
+#   Copyright (c) 2021-2022 scrutinydebugger
 
 import platform
 import sys

@@ -1,3 +1,11 @@
+#    ext2contenttype.py
+#        Maps file extension to their respective HTTP Content-Type header
+#
+#   - License : MIT - See LICENSE file.
+#   - Project : Scrutiny Debugger (github.com/scrutinydebugger/scrutiny)
+#
+#   Copyright (c) 2021-2022 scrutinydebugger
+
 EXTENSION_TO_CONTENT_TYPE = {
     '.html' : 'text/html',
     '.htm' : 'text/html',
