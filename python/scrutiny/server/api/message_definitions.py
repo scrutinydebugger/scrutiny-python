@@ -25,22 +25,24 @@ class ApiMsgComp_DeviceInfo(TypedDict):
     forbidden_memory_regions: List[Dict[str, int]]
     readonly_memory_regions: List[Dict[str, int]]
 
+
 class ApiMsgComp_SFDEntry(TypedDict):
-    firmware_id:str
-    metadata : MetadataType
+    firmware_id: str
+    metadata: MetadataType
+
 
 class ApiMsgComp_DeviceCommLinkDef(TypedDict):
-    link_type:str
-    config:Dict
+    link_type: str
+    config: Dict
 
 
 class ApiMsg_S2C_InformServerStatus(TypedDict):
-    cmd:str
-    device_status:str
-    device_info:Optional[ApiMsgComp_DeviceInfo]
-    loaded_sfd:Optional[ApiMsgComp_SFDEntry]
+    cmd: str
+    device_status: str
+    device_info: Optional[ApiMsgComp_DeviceInfo]
+    loaded_sfd: Optional[ApiMsgComp_SFDEntry]
     device_comm_link: ApiMsgComp_DeviceCommLinkDef
 
 
-#Dict[Any, Any] is tmeporary until all typing is complete
-APIMessage = Union[ApiMsg_S2C_InformServerStatus, Dict[Any, Any]]  
+# Dict[Any, Any] is tmeporary until all typing is complete
+APIMessage = Union[ApiMsg_S2C_InformServerStatus, Dict[Any, Any]]

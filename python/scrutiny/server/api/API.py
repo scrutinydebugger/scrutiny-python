@@ -60,7 +60,6 @@ class API:
             GET_LOADED_SFD = 'get_loaded_sfd'
             LOAD_SFD = 'load_sfd'
             GET_SERVER_STATUS = 'get_server_status'
-            
 
         class Api2Client:
             ECHO_RESPONSE = 'response_echo'
@@ -81,49 +80,47 @@ class API:
         DatastoreEntry.EntryType.Alias: 'alias',
     }
 
-    data_type_to_str : Dict[VariableType, str] = {
-        VariableType.sint8 : 'sint8',
-        VariableType.sint16 : 'sint16',
-        VariableType.sint32 : 'sint32',
-        VariableType.sint64 : 'sint64',
-        VariableType.sint128 : 'sint128',
-        VariableType.sint256 : 'sint256',
-        VariableType.uint8 : 'uint8',
-        VariableType.uint16 : 'uint16',
-        VariableType.uint32 : 'uint32',
-        VariableType.uint64 : 'uint64',
-        VariableType.uint128 : 'uint128',
-        VariableType.uint256 : 'uint256',
-        VariableType.float8 : 'float8',
-        VariableType.float16 : 'float16',
-        VariableType.float32 : 'float32',
-        VariableType.float64 : 'float64',
-        VariableType.float128 : 'float128',
-        VariableType.float256 : 'float256',
-        VariableType.cfloat8 : 'cfloat8',
-        VariableType.cfloat16 : 'cfloat16',
-        VariableType.cfloat32 : 'cfloat32',
-        VariableType.cfloat64 : 'cfloat64',
-        VariableType.cfloat128 : 'cfloat128',
-        VariableType.cfloat256 : 'cfloat256',
-        VariableType.boolean : 'boolean',
-        VariableType.struct : 'struct',
+    data_type_to_str: Dict[VariableType, str] = {
+        VariableType.sint8: 'sint8',
+        VariableType.sint16: 'sint16',
+        VariableType.sint32: 'sint32',
+        VariableType.sint64: 'sint64',
+        VariableType.sint128: 'sint128',
+        VariableType.sint256: 'sint256',
+        VariableType.uint8: 'uint8',
+        VariableType.uint16: 'uint16',
+        VariableType.uint32: 'uint32',
+        VariableType.uint64: 'uint64',
+        VariableType.uint128: 'uint128',
+        VariableType.uint256: 'uint256',
+        VariableType.float8: 'float8',
+        VariableType.float16: 'float16',
+        VariableType.float32: 'float32',
+        VariableType.float64: 'float64',
+        VariableType.float128: 'float128',
+        VariableType.float256: 'float256',
+        VariableType.cfloat8: 'cfloat8',
+        VariableType.cfloat16: 'cfloat16',
+        VariableType.cfloat32: 'cfloat32',
+        VariableType.cfloat64: 'cfloat64',
+        VariableType.cfloat128: 'cfloat128',
+        VariableType.cfloat256: 'cfloat256',
+        VariableType.boolean: 'boolean',
+        VariableType.struct: 'struct',
     }
 
     device_conn_status_to_str: Dict[DeviceHandler.ConnectionStatus, str] = {
-        DeviceHandler.ConnectionStatus.UNKNOWN : 'unknown',
-        DeviceHandler.ConnectionStatus.DISCONNECTED : 'disconnected',
-        DeviceHandler.ConnectionStatus.CONNECTING : 'connecting',
-        DeviceHandler.ConnectionStatus.CONNECTED_NOT_READY : 'connected',
-        DeviceHandler.ConnectionStatus.CONNECTED_READY : 'connected_ready'
+        DeviceHandler.ConnectionStatus.UNKNOWN: 'unknown',
+        DeviceHandler.ConnectionStatus.DISCONNECTED: 'disconnected',
+        DeviceHandler.ConnectionStatus.CONNECTING: 'connecting',
+        DeviceHandler.ConnectionStatus.CONNECTED_NOT_READY: 'connected',
+        DeviceHandler.ConnectionStatus.CONNECTED_READY: 'connected_ready'
     }
 
     str_to_entry_type: Dict[str, DatastoreEntry.EntryType] = {
         'var': DatastoreEntry.EntryType.Var,
         'alias': DatastoreEntry.EntryType.Alias
     }
-
-
 
     datastore: Datastore
     device_handler: DeviceHandler
@@ -168,8 +165,7 @@ class API:
         self.sfd_handler.register_sfd_loaded_callback(SFDLoadedCallback(self.sfd_loaded_callback))
         self.sfd_handler.register_sfd_unloaded_callback(SFDUnloadedCallback(self.sfd_unloaded_callback))
 
-
-    def sfd_loaded_callback(self, sfd:FirmwareDescription):
+    def sfd_loaded_callback(self, sfd: FirmwareDescription):
         for conn_id in self.connections:
             self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=self.craft_inform_server_status_response()))
 
@@ -421,7 +417,6 @@ class API:
 
         # Do not send a response. There's a callback on SFD Loading that will notfy everyone.
 
-
     def process_get_server_status(self, conn_id: str, req: Dict[str, str]):
         self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=self.craft_inform_server_status_response()))
 
@@ -432,57 +427,54 @@ class API:
         device_comm_link = self.device_handler.get_comm_link()
         device_info_input = self.device_handler.get_device_info()
 
-        loaded_sfd:Optional[ApiMsgComp_SFDEntry] = None
+        loaded_sfd: Optional[ApiMsgComp_SFDEntry] = None
         if sfd is not None:
             loaded_sfd = {
-                "firmware_id" : str(sfd.get_firmware_id()),
-                "metadata" : sfd.get_metadata()
-                }
-
-        device_info:Optional[ApiMsgComp_DeviceInfo] = None
-        if device_info_input is not None:
-            device_info = {
-                'device_id' : device_info_input.device_id,
-                'display_name' : device_info_input.display_name,
-                'max_tx_data_size' : device_info_input.max_tx_data_size,
-                'max_rx_data_size' : device_info_input.max_rx_data_size,
-                'max_bitrate_bps' : device_info_input.max_bitrate_bps,
-                'rx_timeout_us' : device_info_input.rx_timeout_us,
-                'heartbeat_timeout_us' : device_info_input.heartbeat_timeout_us,
-                'address_size_bits' : device_info_input.address_size_bits,
-                'protocol_major' : device_info_input.protocol_major,
-                'protocol_minor' : device_info_input.protocol_minor,
-                'supported_feature_map' : cast( Dict[str, bool], device_info_input.supported_feature_map),
-                'forbidden_memory_regions' : cast( List[Dict[str, int]], device_info_input.forbidden_memory_regions),
-                'readonly_memory_regions' : cast( List[Dict[str, int]],device_info_input.readonly_memory_regions)
+                "firmware_id": str(sfd.get_firmware_id()),
+                "metadata": sfd.get_metadata()
             }
 
+        device_info: Optional[ApiMsgComp_DeviceInfo] = None
+        if device_info_input is not None:
+            device_info = {
+                'device_id': device_info_input.device_id,
+                'display_name': device_info_input.display_name,
+                'max_tx_data_size': device_info_input.max_tx_data_size,
+                'max_rx_data_size': device_info_input.max_rx_data_size,
+                'max_bitrate_bps': device_info_input.max_bitrate_bps,
+                'rx_timeout_us': device_info_input.rx_timeout_us,
+                'heartbeat_timeout_us': device_info_input.heartbeat_timeout_us,
+                'address_size_bits': device_info_input.address_size_bits,
+                'protocol_major': device_info_input.protocol_major,
+                'protocol_minor': device_info_input.protocol_minor,
+                'supported_feature_map': cast(Dict[str, bool], device_info_input.supported_feature_map),
+                'forbidden_memory_regions': cast(List[Dict[str, int]], device_info_input.forbidden_memory_regions),
+                'readonly_memory_regions': cast(List[Dict[str, int]], device_info_input.readonly_memory_regions)
+            }
 
-        response:ApiMsg_S2C_InformServerStatus = {
+        response: ApiMsg_S2C_InformServerStatus = {
             'cmd': self.Command.Api2Client.INFORM_SERVER_STATUS,
-            'device_status' : self.device_conn_status_to_str[self.device_handler.get_connection_status()],
-            'device_info' : device_info,
-            'loaded_sfd' : loaded_sfd,
-            'device_comm_link' : {
-                'link_type' : device_link_type,
-                'config' : {} if device_comm_link is None else device_comm_link.get_config()     # Possibly null
+            'device_status': self.device_conn_status_to_str[self.device_handler.get_connection_status()],
+            'device_info': device_info,
+            'loaded_sfd': loaded_sfd,
+            'device_comm_link': {
+                'link_type': device_link_type,
+                'config': {} if device_comm_link is None else device_comm_link.get_config()     # Possibly null
             }
         }
 
         return response
 
-
     def var_update_callback(self, conn_id: str, datastore_entry: DatastoreEntry) -> None:
         self.streamer.publish(datastore_entry, conn_id)
         self.stream_all_we_can()
 
-
     def make_datastore_entry_definition(self, entry: DatastoreEntry, include_entry_type=False) -> Dict[str, str]:
         core_variable = entry.get_core_variable()
-        definition =  {
+        definition = {
             'id': entry.get_id(),
             'display_path': entry.get_display_path(),
-            'datatype' : self.data_type_to_str[core_variable.get_type()]
+            'datatype': self.data_type_to_str[core_variable.get_type()]
         }
 
         if include_entry_type:
@@ -493,8 +485,8 @@ class API:
             assert enum is False
             enum_def = enum.get_def()
             definition['enum'] = {  # Cherry pick items to avoid sending too much to client
-                'name' : enum_def['name'],
-                'values' : enum_def['values']
+                'name': enum_def['name'],
+                'values': enum_def['values']
             }
 
         return definition

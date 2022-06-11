@@ -20,34 +20,40 @@ import time
 
 from typing import TypedDict
 
+
 class GUI_ServerConfig(TypedDict, total=False):
-    host:str
-    port:int
+    host: str
+    port: int
+
 
 class LocalWebServerConfig(TypedDict, total=False):
-    port:int
+    port: int
+
 
 class GUIConfig(TypedDict, total=False):
     name: str
     server: GUI_ServerConfig
     local_webserver: LocalWebServerConfig
 
+
 DEFAULT_CONFIG: GUIConfig = {
     'name': 'Scrutiny GUI Client (Default config)',
     'server': {
         'host': "127.0.0.1",
-        'port' : 8765
-        },
+        'port': 8765
+    },
     'local_webserver': {
-            'port' : 0
-        }
+        'port': 0
     }
+}
+
 
 class LoadHandler(object):
     def OnLoadingStateChange(self, browser, is_loading, **_):
         if not is_loading:
             # Loading is complete. DOM is ready.
-           pass
+            pass
+
 
 class LaunchMethod(enum.Enum):
     NONE = enum.auto()
@@ -55,21 +61,18 @@ class LaunchMethod(enum.Enum):
     WEB_BROWSER = enum.auto()
 
 
-
-
 class GUIClient:
 
-    WEBAPP_FOLDER:str = 'webapp/build/'
-    CEF_MIN_VERSION:str = '66.0'
-    
-    launch_method:LaunchMethod
-    logger: logging.Logger
-    http_server_port:int
-    config:GUIConfig
-    webapp_fullpath:str
+    WEBAPP_FOLDER: str = 'webapp/build/'
+    CEF_MIN_VERSION: str = '66.0'
 
-    
-    def __init__(self, config_filename:str=None, launch_method:LaunchMethod=LaunchMethod.NONE, http_server_port:int=0):
+    launch_method: LaunchMethod
+    logger: logging.Logger
+    http_server_port: int
+    config: GUIConfig
+    webapp_fullpath: str
+
+    def __init__(self, config_filename: str = None, launch_method: LaunchMethod = LaunchMethod.NONE, http_server_port: int = 0):
         self.launch_method = launch_method
         self.logger = logging.getLogger(self.__class__.__name__)
         self.http_server_port = http_server_port
@@ -87,7 +90,7 @@ class GUIClient:
                     raise Exception("Invalid configuration JSON. %s" % e)
 
     def run(self):
-        launch_method_not_set:bool = (self.launch_method == LaunchMethod.NONE)
+        launch_method_not_set: bool = (self.launch_method == LaunchMethod.NONE)
 
         if self.launch_method in [LaunchMethod.NONE, LaunchMethod.CEF]:
             try:
@@ -96,7 +99,7 @@ class GUIClient:
             except Exception as e:
                 self.logger.warning('Cannot use Chromium Embedded Framework to launch the GUI. %s' % str(e))
                 self.logger.debug(traceback.format_exc())
-                
+
                 if launch_method_not_set:
                     self.launch_method = LaunchMethod.NONE
                 else:
@@ -135,10 +138,10 @@ class GUIClient:
         # Add config to url as we don't have CEF hooks to communicate with the webapp
         url_parts = list(urlparse(url))
         query = dict(parse_qsl(url_parts[4]))
-        query.update({'config' : config_str})    # Add config
-        
+        query.update({'config': config_str})    # Add config
+
         url_parts[4] = urlencode(query)
-        url = urlunparse(url_parts)    
+        url = urlunparse(url_parts)
 
         webbrowser.open_new_tab(url)
 
@@ -146,7 +149,7 @@ class GUIClient:
         # webserver runs in a separate thread
         while True:
             try:
-                time.sleep(0.5) # Nothing to do here
+                time.sleep(0.5)  # Nothing to do here
             except KeyboardInterrupt:
                 break
             except Exception as e:
@@ -156,8 +159,8 @@ class GUIClient:
         gui_server.stop()   # stops and join the thread
 
     def try_launch_cef(self):
-        from cefpython3 import cefpython as cef # type: ignore
-        
+        from cefpython3 import cefpython as cef  # type: ignore
+
         ver = cef.GetVersion()
         self.logger.debug("CEF Python %s" % ver["version"])
         self.logger.debug("Chromium %s" % ver["chrome_version"])
@@ -172,20 +175,17 @@ class GUIClient:
         settings = {
             "debug": False
         }
-        
+
         cef.Initialize(settings)
         url = "file:///%s" % os.path.join(self.webapp_fullpath, 'index.html')
         browser = cef.CreateBrowserSync(navigateUrl=url, window_title='Scrutiny')
-        
+
         # Configure browser
         browser.SetClientHandler(LoadHandler())
         bindings = cef.JavascriptBindings(bindToFrames=False, bindToPopups=False)
         bindings.SetProperty("config_from_python", self.config)
         browser.SetJavascriptBindings(bindings)
-        
+
         # Launch everything
         cef.MessageLoop()
         cef.Shutdown()
-
-
-        

@@ -18,27 +18,29 @@ from scrutiny.server.datastore import Datastore, DatastoreEntry
 from typing import Optional, List
 from scrutiny.core.typehints import GenericCallback, Callable
 
+
 class SFDLoadedCallback(GenericCallback):
     callback: Callable[[FirmwareDescription], None]
+
 
 class SFDUnloadedCallback(GenericCallback):
     callback: Callable[[None], None]
 
 
 class ActiveSFDHandler:
-    logger:logging.Logger
-    device_handler:DeviceHandler
-    datastore:Datastore
-    autoload:bool
+    logger: logging.Logger
+    device_handler: DeviceHandler
+    datastore: Datastore
+    autoload: bool
 
     sfd: Optional[FirmwareDescription]
     previous_device_status: DeviceHandler.ConnectionStatus
     requested_firmware_id: Optional[str]
 
-    loaded_callbacks:List[SFDLoadedCallback]
-    unloaded_callbacks:List[SFDUnloadedCallback]
+    loaded_callbacks: List[SFDLoadedCallback]
+    unloaded_callbacks: List[SFDUnloadedCallback]
 
-    def __init__(self, device_handler:DeviceHandler, datastore:Datastore, autoload=True):
+    def __init__(self, device_handler: DeviceHandler, datastore: Datastore, autoload=True):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.device_handler = device_handler
         self.datastore = datastore
@@ -53,12 +55,11 @@ class ActiveSFDHandler:
 
         self.reset_active_sfd()
 
-    def register_sfd_loaded_callback(self, callback:SFDLoadedCallback):
+    def register_sfd_loaded_callback(self, callback: SFDLoadedCallback):
         self.loaded_callbacks.append(callback)
 
-    def register_sfd_unloaded_callback(self, callback:SFDUnloadedCallback):
+    def register_sfd_unloaded_callback(self, callback: SFDUnloadedCallback):
         self.unloaded_callbacks.append(callback)
-
 
     def init(self):
         self.reset_active_sfd()
@@ -66,7 +67,7 @@ class ActiveSFDHandler:
     def close(self):
         pass
 
-    def set_autoload(self, val:bool) -> None:
+    def set_autoload(self, val: bool) -> None:
         self.autoload = val
 
     # To be called periodically

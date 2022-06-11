@@ -65,13 +65,13 @@ class StubbedDeviceHandler:
         info.address_size_bits = 32
         info.protocol_major = 1
         info.protocol_minor = 0
-        info.supported_feature_map = {                    
-            'memory_read':      True,
-            'memory_write':     True,
-            'datalog_acquire':  False,
-            'user_command':     False}
-        info.forbidden_memory_regions = [{'start' : 0x1000, 'end' : 0x2000}]
-        info.readonly_memory_regions = [{'start' : 0x2000, 'end' : 0x3000}, {'start' : 0x3000, 'end' : 0x4000}]        
+        info.supported_feature_map = {
+            'memory_read': True,
+            'memory_write': True,
+            'datalog_acquire': False,
+            'user_command': False}
+        info.forbidden_memory_regions = [{'start': 0x1000, 'end': 0x2000}]
+        info.readonly_memory_regions = [{'start': 0x2000, 'end': 0x3000}, {'start': 0x3000, 'end': 0x4000}]
         return info
 
 
@@ -237,7 +237,7 @@ class TestAPI(unittest.TestCase):
 
             self.assertEqual(entry.get_id(), api_entry['id'])
             self.assertEqual(entry.get_display_path(), api_entry['display_path'])
-          
+
             del expected_entries_in_response[api_entry['id']]
 
         self.assertEqual(len(expected_entries_in_response), 0)
@@ -313,7 +313,7 @@ class TestAPI(unittest.TestCase):
 
             self.assertEqual(entry.get_id(), api_entry['id'])
             self.assertEqual(entry.get_display_path(), api_entry['display_path'])
-          
+
             del expected_entries_in_response[api_entry['id']]
 
         self.assertEqual(len(expected_entries_in_response), 0)
@@ -389,7 +389,7 @@ class TestAPI(unittest.TestCase):
 
             self.assertEqual(entry.get_id(), api_entry['id'])
             self.assertEqual(entry.get_display_path(), api_entry['display_path'])
-            
+
             del expected_entries_in_response[api_entry['id']]
 
         self.assertEqual(len(expected_entries_in_response), 0)
@@ -550,7 +550,7 @@ class TestAPI(unittest.TestCase):
         self.assertEqual(response['cmd'], 'inform_server_status')
         self.assertIn('loaded_sfd', response)
         self.assertIn('firmware_id', response['loaded_sfd'])
-        self.assertEqual(response['loaded_sfd']['firmware_id'], sfd1.get_firmware_id())        
+        self.assertEqual(response['loaded_sfd']['firmware_id'], sfd1.get_firmware_id())
 
         # load #2
         req = {
@@ -559,14 +559,14 @@ class TestAPI(unittest.TestCase):
         }
 
         self.send_request(req, 0)
-        
+
         # inform status should be trigger by callback
         response = self.wait_and_load_response(timeout=0.5)
 
         self.assertEqual(response['cmd'], 'inform_server_status')
         self.assertIn('loaded_sfd', response)
         self.assertIn('firmware_id', response['loaded_sfd'])
-        self.assertEqual(response['loaded_sfd']['firmware_id'], sfd2.get_firmware_id())        
+        self.assertEqual(response['loaded_sfd']['firmware_id'], sfd2.get_firmware_id())
 
         SFDStorage.uninstall(sfd1.get_firmware_id())
         SFDStorage.uninstall(sfd2.get_firmware_id())
@@ -594,9 +594,9 @@ class TestAPI(unittest.TestCase):
         self.assertEqual(response['device_status'], 'connected_ready')
         self.assertIn('loaded_sfd', response)
         self.assertIn('firmware_id', response['loaded_sfd'])
-        self.assertEqual(response['loaded_sfd']['firmware_id'], sfd2.get_firmware_id())        
+        self.assertEqual(response['loaded_sfd']['firmware_id'], sfd2.get_firmware_id())
         self.assertIn('metadata', response['loaded_sfd'])
-        self.assertEqual(response['loaded_sfd']['metadata'], sfd2.get_metadata())        
+        self.assertEqual(response['loaded_sfd']['metadata'], sfd2.get_metadata())
         self.assertIn('device_comm_link', response)
         self.assertIn('link_type', response['device_comm_link'])
         self.assertEqual(response['device_comm_link']['link_type'], 'dummy')
@@ -607,7 +607,7 @@ class TestAPI(unittest.TestCase):
         for attr in device_info.get_attributes():
             self.assertIn(attr, response['device_info'])
             self.assertEqual(getattr(device_info, attr), response['device_info'][attr])
-        
+
         # Redo the test, but with no SFD loaded. We should get None
         self.sfd_handler.reset_active_sfd()
         self.sfd_handler.process()
@@ -625,7 +625,7 @@ class TestAPI(unittest.TestCase):
         self.assertEqual(response['device_status'], 'connected_ready')
         self.assertIn('loaded_sfd', response)
         self.assertIsNone(response['loaded_sfd'])
-        
+
         self.assertIn('device_comm_link', response)
         self.assertIn('link_type', response['device_comm_link'])
         self.assertEqual(response['device_comm_link']['link_type'], 'dummy')
@@ -636,6 +636,6 @@ class TestAPI(unittest.TestCase):
         for attr in device_info.get_attributes():
             self.assertIn(attr, response['device_info'])
             self.assertEqual(getattr(device_info, attr), response['device_info'][attr])
-        
+
         SFDStorage.uninstall(sfd1.get_firmware_id())
         SFDStorage.uninstall(sfd2.get_firmware_id())

@@ -128,7 +128,8 @@ class TestCLI(unittest.TestCase):
             with open(get_artifact('demobin_firmwareid')) as f:
                 demobin_firmware_id = f.read()
 
-            cli.run(['make-metadata', '--version', '1.2.3.4', '--project-name', 'testname', '--author', 'unittest', '--output', tempdirname], except_failed=True)
+            cli.run(['make-metadata', '--version', '1.2.3.4', '--project-name', 'testname',
+                    '--author', 'unittest', '--output', tempdirname], except_failed=True)
             cli.run(['get-firmware-id', temp_bin, '--output', tempdirname, '--apply'], except_failed=True)
             cli.run(['elf2varmap', temp_bin, '--output', tempdirname], except_failed=True)
             cli.run(['uninstall-sfd', demobin_firmware_id, '--quiet'], except_failed=True)

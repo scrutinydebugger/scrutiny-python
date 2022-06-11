@@ -40,7 +40,6 @@ class GetFirmwareId(BaseCommand):
     def run(self) -> Optional[int]:
         import scrutiny.core.firmware_id as firmware_id
 
-
         args = self.parser.parse_args(self.args)
         filename = os.path.normpath(args.filename)
 

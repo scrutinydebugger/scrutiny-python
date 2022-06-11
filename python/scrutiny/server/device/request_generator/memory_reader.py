@@ -90,7 +90,7 @@ class MemoryReader:
     def set_max_response_size(self, max_size: int) -> None:
         self.max_response_size = max_size
 
-    def set_size_limits(self, max_request_size:int, max_response_size:int) -> None:
+    def set_size_limits(self, max_request_size: int, max_response_size: int) -> None:
         self.set_max_request_size(max_request_size)
         self.set_max_response_size(max_response_size)
 

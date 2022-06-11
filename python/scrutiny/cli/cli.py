@@ -101,5 +101,5 @@ class CLI:
             code = 1
             logging.error(str(error))
             logging.debug(error_stack_strace)
-            
+
         return code

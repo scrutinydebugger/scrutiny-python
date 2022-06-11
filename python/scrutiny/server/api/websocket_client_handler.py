@@ -41,7 +41,7 @@ class Timer:
             await self.callback(*self.args, **self.kwargs)
             self.start()
         except Exception as e:
-            raise e 
+            raise e
 
     def start(self) -> None:
         self.task = asyncio.ensure_future(self.job())

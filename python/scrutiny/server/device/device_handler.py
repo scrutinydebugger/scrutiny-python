@@ -1,7 +1,7 @@
 #    device_handler.py
 #        Manage the communication with the device at high level.
 #        Try to establish a connection, once it succeed, reads the device configuration.
-#        
+#
 #        Will keep the communication ongoing and will request for memory dump based on the
 #        Datastore state
 #
@@ -53,9 +53,9 @@ class DeviceHandlerConfig(TypedDict, total=False):
     default_protocol_version: str
     link_type: str
     link_config: Any
-    max_request_size:int
-    max_response_size:int
-    max_bitrate_bps:int
+    max_request_size: int
+    max_response_size: int
+    max_bitrate_bps: int
 
 
 class DeviceHandler:
@@ -91,9 +91,9 @@ class DeviceHandler:
         'heartbeat_timeout': 4.0,
         'default_address_size': 32,
         'default_protocol_version': '1.0',
-        'max_request_size' : 1024,
-        'max_response_size' : 1024,
-        'max_bitrate_bps' : 0
+        'max_request_size': 1024,
+        'max_response_size': 1024,
+        'max_bitrate_bps': 0
     }
 
     # Low number = Low priority
@@ -248,7 +248,8 @@ class DeviceHandler:
         actual_major, actual_minor = self.protocol.get_version()
 
         if actual_major != major or actual_minor != minor:
-            raise Exception('Device protocol says that its protocol version is V%d.%d, but previously said that it was V%d.%d when discovered. Something is not working properly.' % (major, minor, actual_major, actual_minor))
+            raise Exception('Device protocol says that its protocol version is V%d.%d, but previously said that it was V%d.%d when discovered. Something is not working properly.' % (
+                major, minor, actual_major, actual_minor))
 
     # Tells the state of our connection with the device.
 
@@ -276,7 +277,7 @@ class DeviceHandler:
     def get_link_type(self) -> str:
         if 'link_type' not in self.config:
             return "none"
-        
+
         return self.config['link_type']
 
     # Set communication state to a fresh start.
@@ -469,7 +470,7 @@ class DeviceHandler:
                 assert self.device_id is not None
                 assert self.device_display_name is not None
                 # Set known info after start, otherwise it will be deleted and data will be missing.
-                self.info_poller.set_known_info(device_id=self.device_id, device_display_name = self.device_display_name) # To write the device_info
+                self.info_poller.set_known_info(device_id=self.device_id, device_display_name=self.device_display_name)  # To write the device_info
 
             if self.info_poller.is_in_error():
                 self.logger.info('Impossible to poll data from the device. Restarting communication')
@@ -553,15 +554,16 @@ class DeviceHandler:
             if not self.comm_handler.is_open():
                 break
 
-            if self.active_request_record is None :  # We haven't send a request
+            if self.active_request_record is None:  # We haven't send a request
                 if not self.comm_handler.waiting_response():
                     record = self.dispatcher.pop_next()
 
                     if record is not None:              # A new request to send
                         self.active_request_record = record
                         self.comm_handler.send_request(record.request)
-                else:   #Should not happen normally
-                    self.logger.critical('Device handler believes there is no active request but comm handler says there is. This is not supposed to happen')
+                else:  # Should not happen normally
+                    self.logger.critical(
+                        'Device handler believes there is no active request but comm handler says there is. This is not supposed to happen')
             else:
                 if self.comm_handler.has_timed_out():       # The request we have sent has timed out.. no response
                     self.logger.debug('Request timed out. %s' % self.active_request_record.request)

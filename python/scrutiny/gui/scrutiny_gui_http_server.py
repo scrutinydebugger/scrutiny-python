@@ -22,8 +22,9 @@ from .ext2contenttype import EXTENSION_TO_CONTENT_TYPE
 class HTTPResponseException(Exception):
     def __init__(self, code, content):
         super().__init__(self, '')
-        self.code= code
+        self.code = code
         self.content = content
+
 
 def make_server_handler(gui_server_obj):
 
@@ -39,15 +40,15 @@ def make_server_handler(gui_server_obj):
                 logger = gui_server_obj.logger
                 urlparts = urlparse(self.path)
                 file = urlparts.path.strip();
-        
+
                 if file.startswith('/'):
                     file = file[1:]
-        
+
                 final_file = os.path.join(base_folder, file)
                 if os.path.isdir(final_file):
                     final_file = os.path.join(final_file, 'index.html')
 
-                if os.path.commonprefix((os.path.realpath(final_file),base_folder)) != base_folder:
+                if os.path.commonprefix((os.path.realpath(final_file), base_folder)) != base_folder:
                     raise HTTPResponseException(403, 'Bad URL')
 
                 if not os.path.isfile(final_file):
@@ -65,7 +66,7 @@ def make_server_handler(gui_server_obj):
                 self.send_response(200)
                 self.send_header("Content-type", EXTENSION_TO_CONTENT_TYPE[file_extension])
                 self.end_headers()
-                
+
                 self.wfile.write(file_content)
 
             except HTTPResponseException as e:
@@ -82,7 +83,6 @@ def make_server_handler(gui_server_obj):
                 logger.error('GET response error. %s' % str(e))
                 logger.debug(traceback.format_exc())
 
-
     return ServerHandler
 
 
@@ -93,9 +93,9 @@ class ScrutinyGuiHttpServer:
     request_exit: bool
     thread: Optional[threading.Thread]
     http_server: Optional[HTTPServer]
-    base_folder : str
+    base_folder: str
 
-    def __init__(self, base_folder:str):
+    def __init__(self, base_folder: str):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.started_event = threading.Event()
         self.request_exit = False
@@ -103,8 +103,7 @@ class ScrutinyGuiHttpServer:
         self.http_server = None
         self.base_folder = base_folder
 
-
-    def start(self, port:int) -> None:
+    def start(self, port: int) -> None:
         self.logger.debug('Requesting HTTP server to start')
         self.http_server = HTTPServer(('localhost', port), make_server_handler(self))
         self.thread = threading.Thread(target=self.thread_task)
@@ -120,11 +119,10 @@ class ScrutinyGuiHttpServer:
 
         return port
 
-
     def stop(self) -> None:
         self.logger.debug('Requesting HTTP server to stop')
         if self.http_server is not None:
-            self.http_server.shutdown() # Shutdown is thread safe
+            self.http_server.shutdown()  # Shutdown is thread safe
 
         self.exit_requested = True
         if self.thread is not None:
@@ -140,11 +138,8 @@ class ScrutinyGuiHttpServer:
             self.http_server.serve_forever(poll_interval=0.2)
         except KeyboardInterrupt:
             pass
-        except Exception as e:  
+        except Exception as e:
             self.logger.error('HTTP server exited with error. %s' % str(e))
             self.logger.debug(traceback.format_exc())
 
         self.logger.info('HTTP server stopped')
-
-            
-

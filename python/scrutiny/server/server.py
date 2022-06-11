@@ -23,6 +23,7 @@ from scrutiny.server.active_sfd_handler import ActiveSFDHandler
 
 from typing import TypedDict, Optional
 
+
 class ServerConfig(TypedDict, total=False):
     name: str
     autoload_sfd: bool

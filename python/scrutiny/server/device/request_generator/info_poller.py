@@ -77,10 +77,10 @@ class InfoPoller:
         self.protocol_version_callback = protocol_version_callback
         self.comm_param_callback = comm_param_callback
         self.fsm_state = self.FsmState.Init
-        
+
         self.reset()
 
-    def set_known_info(self, device_id:str, device_display_name:str) -> None:
+    def set_known_info(self, device_id: str, device_display_name: str) -> None:
         self.info.device_id = device_id
         self.info.display_name = device_display_name
 
@@ -309,7 +309,7 @@ class InfoPoller:
             elif self.fsm_state == self.FsmState.GetForbiddenMemoryRegions:
                 if self.info.forbidden_memory_regions is None:
                     self.info.forbidden_memory_regions = []
-                forbidden_entry:MemoryRegion = {
+                forbidden_entry: MemoryRegion = {
                     'start': response_data['start'],
                     'end': response_data['end']
                 }
@@ -319,7 +319,7 @@ class InfoPoller:
                 if self.info.readonly_memory_regions is None:
                     self.info.readonly_memory_regions = []
 
-                readonly_entry:MemoryRegion = {
+                readonly_entry: MemoryRegion = {
                     'start': response_data['start'],
                     'end': response_data['end']
                 }

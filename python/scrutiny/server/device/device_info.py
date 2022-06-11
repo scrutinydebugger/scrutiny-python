@@ -8,15 +8,18 @@
 
 from typing import TypedDict, Dict, List
 
+
 class MemoryRegion(TypedDict):
-    start:int
-    end:int
+    start: int
+    end: int
+
 
 class SupportedFeatureMap(TypedDict):
-    memory_read : bool
-    memory_write : bool
-    datalog_acquire : bool
-    user_command : bool
+    memory_read: bool
+    memory_write: bool
+    datalog_acquire: bool
+    user_command: bool
+
 
 class DeviceInfo:
     __slots__ = (
