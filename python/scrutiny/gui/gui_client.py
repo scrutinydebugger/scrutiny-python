@@ -25,6 +25,9 @@ DEFAULT_CONFIG: GUIConfig = {
     'server': {
         'host': "127.0.0.1",
         'port' : 8765
+        },
+    'local_webserver': {
+            'port' : 8081
         }
     }
 
@@ -52,7 +55,7 @@ class GUIClient:
 
         self.config = copy(DEFAULT_CONFIG)
         self.webapp_fullpath = os.path.realpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), self.WEBAPP_FOLDER))
-        self.webapp_entry_point_absolute = "file:///%s/index.html" % self.webapp_fullpath
+        self.webapp_entry_point_absolute = "file:///%s" % os.path.join(self.webapp_fullpath, 'index.html')
         if config_filename is not None:
             self.logger.debug('Loading user configuration file: "%s"' % config_filename)
             del self.config['name']  # remove "default config" from name
@@ -64,24 +67,32 @@ class GUIClient:
                     raise Exception("Invalid configuration JSON. %s" % e)
 
     def run(self):
+        launch_method_not_set = (self.launch_method == LaunchMethod.NONE)
 
         if self.launch_method in [LaunchMethod.NONE, LaunchMethod.CEF]:
             try:
                 self.launch_method = LaunchMethod.CEF
                 self.try_launch_cef()
             except Exception as e:
-                self.launch_method = LaunchMethod.NONE
                 self.logger.warning('Cannot use Chromium Embedded Framework to launch the GUI. %s' % str(e))
                 self.logger.debug(traceback.format_exc())
+                
+                if launch_method_not_set:
+                    self.launch_method = LaunchMethod.NONE
+                else:
+                    raise e
 
         if self.launch_method in [LaunchMethod.NONE, LaunchMethod.WEB_BROWSER]:
             try:
                 self.launch_method = LaunchMethod.WEB_BROWSER
                 self.try_launch_webbrowser()
             except Exception as e:
-                self.launch_method = LaunchMethod.NONE
                 self.logger.warning('Cannot use webbrowser module to launch the GUI. %s' % str(e))
                 self.logger.debug(traceback.format_exc())
+                if launch_method_not_set:
+                    self.launch_method = LaunchMethod.NONE
+                else:
+                    raise e
 
         if self.launch_method == LaunchMethod.NONE:
             raise Exception('Cannot launch Scrutiny GUI. Exiting')
@@ -105,7 +116,7 @@ class GUIClient:
 
     def try_launch_cef(self):
         from cefpython3 import cefpython as cef # type: ignore
-
+        
         ver = cef.GetVersion()
         self.logger.debug("CEF Python %s" % ver["version"])
         self.logger.debug("Chromium %s" % ver["chrome_version"])
@@ -122,14 +133,17 @@ class GUIClient:
         }
         
         cef.Initialize(settings)
-        browser = cef.CreateBrowserSync(self.webapp_entry_point_absolute, window_title="Scrutiny")
-        self.configure_cef_browser(browser)
-        cef.MessageLoop()
-        cef.Shutdown()
-
-    def configure_cef_browser(self, browser):
+        browser = cef.CreateBrowserSync(navigateUrl=self.webapp_entry_point_absolute, window_title='Scrutiny')
+        
+        # Configure browser
         browser.SetClientHandler(LoadHandler())
         bindings = cef.JavascriptBindings(bindToFrames=False, bindToPopups=False)
         bindings.SetProperty("config_from_python", self.config)
         browser.SetJavascriptBindings(bindings)
+        
+        # Launch everything
+        cef.MessageLoop()
+        cef.Shutdown()
+
+
         

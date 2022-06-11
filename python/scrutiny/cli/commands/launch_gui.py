@@ -17,7 +17,7 @@ class LaunchGUI(BaseCommand):
     def __init__(self, args: List[str], requested_log_level: Optional[str] = None):
         self.args = args
         self.parser = argparse.ArgumentParser(prog=self.get_prog())
-        self.parser.add_argument('--method', default='cef', choices=['cef', 'webbrowser'], help='The method used to launch the GUI. "cef": Uses Chromium Embedded Framework. "webbrowser": Launch the GUI in a web browser using the webbrowser python module')
+        self.parser.add_argument('--method', default=None, choices=['cef', 'browser'], help='The method used to launch the GUI. "cef": Uses Chromium Embedded Framework. "browser": Launch the GUI in a web browser using the webbrowser python module')
         self.parser.add_argument('--config', default=None, help='Configuration file used by the GUI')
 
     def run(self) -> Optional[int]:
@@ -26,18 +26,19 @@ class LaunchGUI(BaseCommand):
         args = self.parser.parse_args(self.args)
         success = True
         launch_method = LaunchMethod.NONE
-        if args.method.strip().lower() == "cef":
-            launch_method = LaunchMethod.CEF
-        elif args.method.strip().lower() == "webbrowser":
-            launch_method = LaunchMethod.WEB_BROWSER
-        else:
-            raise ValueError('Unknown launch method %s' % args.method)
+        if args.method is not None:
+            if args.method.strip().lower() == "cef":
+                launch_method = LaunchMethod.CEF
+            elif args.method.strip().lower() == "browser":
+                launch_method = LaunchMethod.WEB_BROWSER
+            else :
+                raise ValueError('Unknown launch method %s' % args.method)
 
         gui = GUIClient(config_filename=args.config, launch_method=launch_method)
         try:
             gui.run()
         except Exception as e:
-            logging.critical(str(e))
+            logging.critical('GUI error. ' + str(e))
             logging.debug(traceback.format_exc())
             succes = False
 
