@@ -8,6 +8,7 @@ from copy import copy
 import json
 import traceback
 from os import path
+import time
 
 from typing import TypedDict
 
@@ -43,19 +44,27 @@ class LaunchMethod(enum.Enum):
     WEB_BROWSER = enum.auto()
 
 
-class GUIClient:
-    launch_method:LaunchMethod
 
-    WEBAPP_FOLDER = 'webapp/build/'
-    CEF_MIN_VERSION = '66.0'
+
+class GUIClient:
+
+    WEBAPP_FOLDER:str = 'webapp/build/'
+    CEF_MIN_VERSION:str = '66.0'
     
-    def __init__(self, config_filename:str=None, launch_method:LaunchMethod=LaunchMethod.NONE):
+    launch_method:LaunchMethod
+    logger: logging.Logger
+    http_server_port:int
+    config:GUIConfig
+    webapp_fullpath:str
+
+    
+    def __init__(self, config_filename:str=None, launch_method:LaunchMethod=LaunchMethod.NONE, http_server_port:int=8181):
         self.launch_method = launch_method
         self.logger = logging.getLogger(self.__class__.__name__)
+        self.http_server_port = http_server_port
 
         self.config = copy(DEFAULT_CONFIG)
         self.webapp_fullpath = os.path.realpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), self.WEBAPP_FOLDER))
-        self.webapp_entry_point_absolute = "file:///%s" % os.path.join(self.webapp_fullpath, 'index.html')
         if config_filename is not None:
             self.logger.debug('Loading user configuration file: "%s"' % config_filename)
             del self.config['name']  # remove "default config" from name
@@ -67,7 +76,7 @@ class GUIClient:
                     raise Exception("Invalid configuration JSON. %s" % e)
 
     def run(self):
-        launch_method_not_set = (self.launch_method == LaunchMethod.NONE)
+        launch_method_not_set:bool = (self.launch_method == LaunchMethod.NONE)
 
         if self.launch_method in [LaunchMethod.NONE, LaunchMethod.CEF]:
             try:
@@ -85,7 +94,7 @@ class GUIClient:
         if self.launch_method in [LaunchMethod.NONE, LaunchMethod.WEB_BROWSER]:
             try:
                 self.launch_method = LaunchMethod.WEB_BROWSER
-                self.try_launch_webbrowser()
+                self.try_launch_webbrowser(self.http_server_port)
             except Exception as e:
                 self.logger.warning('Cannot use webbrowser module to launch the GUI. %s' % str(e))
                 self.logger.debug(traceback.format_exc())
@@ -97,22 +106,41 @@ class GUIClient:
         if self.launch_method == LaunchMethod.NONE:
             raise Exception('Cannot launch Scrutiny GUI. Exiting')
 
-    def try_launch_webbrowser(self):
-        import webbrowser
+    def try_launch_webbrowser(self, port):
         from urllib.parse import urlparse, parse_qsl, urlencode, urlunparse
+        from .scrutiny_gui_http_server import ScrutinyGuiHttpServer
+        import webbrowser
+        from base64 import b64encode
         import json
 
-        config_str = json.dumps(self.config).encode('utf8')
+        url = 'http://localhost:%d' % port
+
+        config_str = b64encode(json.dumps(self.config).encode('utf8')).decode('ascii')
         # Add config to url as we don't have CEF hooks to communicate with the webapp
-        url_parts = list(urlparse(self.webapp_entry_point_absolute))
+        url_parts = list(urlparse(url))
         query = dict(parse_qsl(url_parts[4]))
         query.update({'config' : config_str})    # Add config
+        
         url_parts[4] = urlencode(query)
         url = urlunparse(url_parts)    
 
-        #fixme : config is lost with the file protocol : 
-        # https://stackoverflow.com/questions/72553727/python-webbrowser-module-and-query-string-with-file-protocol
+        gui_server = ScrutinyGuiHttpServer(self.webapp_fullpath)
+        gui_server.start(port=port)
+
         webbrowser.open_new_tab(url)
+
+        # Wait for exit conditon.
+        # webserver runs in a separate thread
+        while True:
+            try:
+                time.sleep(0.1)
+            except KeyboardInterrupt:
+                break
+            except Exception as e:
+                self.logger.error(str(e))
+                self.logger.debug(traceback.format_exc())
+
+        gui_server.stop()   # stops and join the thread
 
     def try_launch_cef(self):
         from cefpython3 import cefpython as cef # type: ignore
@@ -133,7 +161,8 @@ class GUIClient:
         }
         
         cef.Initialize(settings)
-        browser = cef.CreateBrowserSync(navigateUrl=self.webapp_entry_point_absolute, window_title='Scrutiny')
+        url = "file:///%s" % os.path.join(self.webapp_fullpath, 'index.html')
+        browser = cef.CreateBrowserSync(navigateUrl=url, window_title='Scrutiny')
         
         # Configure browser
         browser.SetClientHandler(LoadHandler())
