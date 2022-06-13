@@ -1,0 +1,13 @@
+//Request
+{
+    "cmd": "get_watchable_count"
+}
+
+// Response
+{
+    "cmd": "response_get_watchable_count",
+    "qty": {
+        "var": 100,
+        "alias": 50
+    }
+}

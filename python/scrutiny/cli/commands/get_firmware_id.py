@@ -9,13 +9,12 @@
 #   Copyright (c) 2021-2022 scrutinydebugger
 
 import argparse
-from .base_command import BaseCommand
-import scrutiny.core.firmware_id as firmware_id
 import hashlib
 import mmap
 import os
 import logging
 
+from .base_command import BaseCommand
 from typing import Optional, List
 
 
@@ -39,6 +38,8 @@ class GetFirmwareId(BaseCommand):
                                  help='When set, tag the firmware binary file with the new firmware-id hash by replacing the compiled placeholder.')
 
     def run(self) -> Optional[int]:
+        import scrutiny.core.firmware_id as firmware_id
+
         args = self.parser.parse_args(self.args)
         filename = os.path.normpath(args.filename)
 

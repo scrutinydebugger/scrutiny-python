@@ -1,0 +1,43 @@
+// Request
+{
+    "cmd": "get_watchable_list",
+    "max_per_response": 100, // Optional
+    "filter": { // Optional
+        "type": ["var", "alias"]
+    }
+}
+
+
+// Response
+{
+    "cmd": "response_get_watchable_list",
+    "qty": {
+        "var": 50,
+        "alias": 50
+    },
+    "content": {
+        "var": [{
+                "id": "XXXXX",
+                "display_path": "/static/file1.cpp/someVar",
+                "datatype": "sint8"
+            }, {
+                "id": "YYYYY",
+                "display_path": "/static/file1.cpp/someVar2",
+                "datatype": "uint32",
+                "enum": { // Optional
+                    "1": "val1",
+                    "2": "val2",
+                    "3": "val3"
+                }
+            }, { //...
+            }
+
+        ],
+        "alias": [{
+            "id": "ZZZZZ",
+            "display_path": "/custom/path/someExposedVar",
+            "datatype": "uint32"
+        }, { //...
+        }]
+    }
+}

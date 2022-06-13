@@ -128,21 +128,22 @@ class TestCLI(unittest.TestCase):
             with open(get_artifact('demobin_firmwareid')) as f:
                 demobin_firmware_id = f.read()
 
-            cli.run(['make-metadata', '--version', '1.2.3.4', '--project-name', 'testname', '--author', 'unittest', '--output', tempdirname])
-            cli.run(['get-firmware-id', temp_bin, '--output', tempdirname, '--apply'])
-            cli.run(['elf2varmap', temp_bin, '--output', tempdirname])
-            cli.run(['uninstall-sfd', demobin_firmware_id, '--quiet'])
+            cli.run(['make-metadata', '--version', '1.2.3.4', '--project-name', 'testname',
+                    '--author', 'unittest', '--output', tempdirname], except_failed=True)
+            cli.run(['get-firmware-id', temp_bin, '--output', tempdirname, '--apply'], except_failed=True)
+            cli.run(['elf2varmap', temp_bin, '--output', tempdirname], except_failed=True)
+            cli.run(['uninstall-sfd', demobin_firmware_id, '--quiet'], except_failed=True)
             self.assertFalse(SFDStorage.is_installed(demobin_firmware_id))
 
-            cli.run(['make-sfd', tempdirname, sfd_name, '--install'])     # install while making
+            cli.run(['make-sfd', tempdirname, sfd_name, '--install'], except_failed=True)     # install while making
             self.assertTrue(SFDStorage.is_installed(demobin_firmware_id))
-            cli.run(['uninstall-sfd', demobin_firmware_id, '--quiet'])    # uninstall
+            cli.run(['uninstall-sfd', demobin_firmware_id, '--quiet'], except_failed=True)    # uninstall
             self.assertFalse(SFDStorage.is_installed(demobin_firmware_id))
-            cli.run(['install-sfd', sfd_name])                            # install with dedicated command
+            cli.run(['install-sfd', sfd_name], except_failed=True)                            # install with dedicated command
             self.assertTrue(SFDStorage.is_installed(demobin_firmware_id))
             sfd = SFDStorage.get(demobin_firmware_id)
             self.assertEqual(sfd.get_firmware_id(ascii=True), demobin_firmware_id)  # Load and check id.
-            cli.run(['uninstall-sfd', demobin_firmware_id, '--quiet'])    # cleanup
+            cli.run(['uninstall-sfd', demobin_firmware_id, '--quiet'], except_failed=True)    # cleanup
 
     def test_list_sfd(self):
         cli = CLI()

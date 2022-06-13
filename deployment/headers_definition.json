@@ -341,5 +341,20 @@
     },
     "python\\test\\server\\test_active_sfd_handler.py": {
         "docstring": "Test the ActiveSFDHandler"
+    },
+    "python\\scrutiny\\cli\\commands\\launch_gui.py": {
+        "docstring": "CLI command to launch the Graphical User Interface"
+    },
+    "python\\scrutiny\\gui\\ext2contenttype.py": {
+        "docstring": "Maps file extension to their respective HTTP Content-Type header"
+    },
+    "python\\scrutiny\\gui\\gui_client.py": {
+        "docstring": "Represent the GUI application. Allows to launch through Chromium Embedded Framework or in a web browser with local server"
+    },
+    "python\\scrutiny\\gui\\scrutiny_gui_http_server.py": {
+        "docstring": "Local web server for serving the local GUI in a browser"
+    },
+    "python\\scrutiny\\server\\api\\message_definitions.py": {
+        "docstring": "Static type definition of the API messages"
     }
 }

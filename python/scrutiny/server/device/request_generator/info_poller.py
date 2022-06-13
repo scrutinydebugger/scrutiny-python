@@ -15,7 +15,7 @@ import copy
 import traceback
 
 from scrutiny.server.protocol import ResponseCode
-from scrutiny.server.device.device_info import DeviceInfo
+from scrutiny.server.device.device_info import *
 import scrutiny.server.protocol.commands as cmd
 from scrutiny.server.device.request_dispatcher import RequestDispatcher, SuccessCallback, FailureCallback
 from scrutiny.server.protocol import *
@@ -76,7 +76,13 @@ class InfoPoller:
         self.started = False
         self.protocol_version_callback = protocol_version_callback
         self.comm_param_callback = comm_param_callback
+        self.fsm_state = self.FsmState.Init
+
         self.reset()
+
+    def set_known_info(self, device_id: str, device_display_name: str) -> None:
+        self.info.device_id = device_id
+        self.info.display_name = device_display_name
 
     def get_device_info(self) -> DeviceInfo:
         return copy.copy(self.info)
@@ -94,6 +100,8 @@ class InfoPoller:
         return self.fsm_state == self.FsmState.Error
 
     def reset(self) -> None:
+        if self.fsm_state != self.FsmState.Init:
+            self.logger.debug('Moving state machine to %s' % self.FsmState.Init)
         self.fsm_state = self.FsmState.Init
         self.last_fsm_state = self.FsmState.Init
         self.stop_requested = False
@@ -301,21 +309,21 @@ class InfoPoller:
             elif self.fsm_state == self.FsmState.GetForbiddenMemoryRegions:
                 if self.info.forbidden_memory_regions is None:
                     self.info.forbidden_memory_regions = []
-                entry = {
+                forbidden_entry: MemoryRegion = {
                     'start': response_data['start'],
                     'end': response_data['end']
                 }
-                self.info.forbidden_memory_regions.append(entry)
+                self.info.forbidden_memory_regions.append(forbidden_entry)
 
             elif self.fsm_state == self.FsmState.GetReadOnlyMemoryRegions:
                 if self.info.readonly_memory_regions is None:
                     self.info.readonly_memory_regions = []
 
-                entry = {
+                readonly_entry: MemoryRegion = {
                     'start': response_data['start'],
                     'end': response_data['end']
                 }
-                self.info.readonly_memory_regions.append(entry)
+                self.info.readonly_memory_regions.append(readonly_entry)
 
             else:
                 self.fsm_state == self.FsmState.Error

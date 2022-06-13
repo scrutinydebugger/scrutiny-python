@@ -26,6 +26,7 @@ class UdpLink(AbstractLink):
     logger: logging.Logger
     sock: Optional[socket.socket]
     bound: bool
+    config: Dict
 
     BUFSIZE: int = 4096
 
@@ -41,11 +42,20 @@ class UdpLink(AbstractLink):
 
         self.port = int(parameters['port'])
         self.host = parameters['host']
+
+        self.config = {
+            'host': parameters['host'],
+            'port': int(parameters['port'])
+        }
+
         self.ip_address = socket.gethostbyname(self.host)
 
         self.logger = logging.getLogger(self.__class__.__name__)
         self.sock = None
         self.bound = False
+
+    def get_config(self):
+        return self.config
 
     def initialize(self) -> None:
         self.logger.debug('Opening UDP Link. Host=%s (%s). Port=%d' % (self.host, self.ip_address, self.port))

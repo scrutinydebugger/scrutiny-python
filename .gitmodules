@@ -1,0 +1,4 @@
+[submodule "python/scrutiny/gui/webapp"]
+	path = python/scrutiny/gui/webapp
+	url = ../scrutiny-gui-webapp
+	branch = master

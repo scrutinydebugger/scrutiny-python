@@ -1,0 +1,10 @@
+// Request
+{
+    "cmd": "get_loaded_sfd"
+}
+
+//Response
+{
+    "cmd": "response_get_loaded_sfd",
+    "firmware_id": "DEADBEEFDEADBEEF00000"
+}

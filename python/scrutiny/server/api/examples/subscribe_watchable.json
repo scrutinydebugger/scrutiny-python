@@ -1,0 +1,22 @@
+//Request
+{
+    "cmd": "subscribe_watchable",
+    "watchables": [
+        "XXXX",
+        "YYYY",
+        "ZZZZ",
+        //...
+    ]
+}
+
+
+//Response
+{
+    "cmd": "response_subscribe_watchable",
+    "watchables": [
+        "XXXX",
+        "YYYY",
+        "ZZZZ",
+        //...
+    ]
+}

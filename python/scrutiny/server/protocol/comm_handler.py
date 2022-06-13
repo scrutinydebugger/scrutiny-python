@@ -257,7 +257,7 @@ class CommHandler:
 
     def send_request(self, request: Request) -> None:
         if self.waiting_response():
-            raise Exception('Waiting for a response')
+            raise Exception('Cannot send new request. Already waiting for a response')
 
         self.pending_request = request
         self.received_response = None

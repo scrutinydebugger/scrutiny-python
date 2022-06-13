@@ -10,7 +10,7 @@ import uuid
 from enum import Enum
 import time
 
-from scrutiny.core import Variable
+from scrutiny.core import Variable, VariableType
 
 from typing import Any, Optional, Dict, Callable, Tuple
 from scrutiny.core.typehints import GenericCallback
@@ -108,6 +108,12 @@ class DatastoreEntry:
 
     def get_type(self) -> "DatastoreEntry.EntryType":
         return self.entry_type
+
+    def get_data_type(self) -> VariableType:
+        return self.variable_def.get_type()
+
+    def get_core_variable(self) -> Variable:
+        return self.variable_def
 
     def get_id(self) -> str:
         return self.entry_id

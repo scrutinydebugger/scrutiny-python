@@ -55,6 +55,9 @@ class ThreadSafeDummyLink(AbstractLink):
     def operational(self) -> bool:
         return True
 
+    def get_config(self):
+        return {}
+
 
 class DummyLink(AbstractLink):
     to_device_data: bytes
@@ -92,3 +95,6 @@ class DummyLink(AbstractLink):
 
     def operational(self) -> bool:
         return True
+
+    def get_config(self):
+        return {}

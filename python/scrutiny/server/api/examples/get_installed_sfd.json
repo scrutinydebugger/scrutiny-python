@@ -1,0 +1,25 @@
+//Request
+{
+    "cmd": "get_installed_sfd"
+}
+
+//Response
+{
+    "cmd": "response_get_installed_sfd",
+    "sfd_list": {
+        "SFD_ID_1": {
+            "project_name": "Demo App",
+            "author": "Scrutiny Org",
+            "version": "1.2.3.4",
+            "generation_info": {
+                "time": 123456789,
+                "python_version": "3.9",
+                "scrutiny_version": "1.0.0",
+                "system_type": "Windows"
+            }
+        },
+        "SFD_ID_2": {
+            // ...
+        }
+    }
+}

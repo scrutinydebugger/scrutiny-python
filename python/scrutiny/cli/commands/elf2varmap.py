@@ -12,7 +12,6 @@ import os
 import logging
 
 from .base_command import BaseCommand
-from scrutiny.core.bintools.elf_dwarf_var_extractor import ElfDwarfVarExtractor
 from typing import Optional, List
 
 
@@ -31,6 +30,8 @@ class Elf2VarMap(BaseCommand):
         self.parser.add_argument('--output', default=None, help='The varmap output file. Will go to STDOUT if not set')
 
     def run(self) -> Optional[int]:
+        from scrutiny.core.bintools.elf_dwarf_var_extractor import ElfDwarfVarExtractor
+
         args = self.parser.parse_args(self.args)
         extractor = ElfDwarfVarExtractor(args.file)
         varmap = extractor.get_varmap()

@@ -468,6 +468,12 @@ class Variable:
     def get_address(self) -> int:
         return self.location.get_address()
 
+    def has_enum(self) -> bool:
+        return self.enum is not None
+
+    def get_enum(self) -> Optional[VariableEnum]:
+        return self.enum
+
     def get_size(self) -> Optional[int]:
         size_bit = self.vartype.get_size_bit()
         if size_bit is None:
