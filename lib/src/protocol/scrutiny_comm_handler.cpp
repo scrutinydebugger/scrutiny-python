@@ -522,6 +522,7 @@ namespace scrutiny
 			m_session_id = session_counter++;
 			m_session_active = true;
 			m_heartbeat_received = false;
+			m_heartbeat_timestamp = m_timebase->get_timestamp();
 			reset_rx();
 
 			return true;
