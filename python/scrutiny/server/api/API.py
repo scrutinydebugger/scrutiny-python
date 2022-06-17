@@ -144,7 +144,7 @@ class API:
         Command.Client2Api.GET_SERVER_STATUS: 'process_get_server_status'
     }
 
-    def __init__(self, config: APIConfig, datastore: Datastore, device_handler: DeviceHandler, sfd_handler: ActiveSFDHandler):
+    def __init__(self, config: APIConfig, datastore: Datastore, device_handler: DeviceHandler, sfd_handler: ActiveSFDHandler, enable_debug:bool=False):
         self.validate_config(config)
 
         if config['client_interface_type'] == 'websocket':
@@ -161,6 +161,13 @@ class API:
         self.connections = set()            # Keep a list of all clients connections
         self.streamer = ValueStreamer()     # The value streamer takes cares of publishing values to the client without polling.
         self.req_count = 0
+
+        self.enable_debug = enable_debug
+        
+        if enable_debug:
+            import ipdb
+            API.Command.Client2Api.DEBUG = 'debug'
+            self.ApiRequestCallbacks[API.Command.Client2Api.DEBUG] = 'process_debug'
 
         self.sfd_handler.register_sfd_loaded_callback(SFDLoadedCallback(self.sfd_loaded_callback))
         self.sfd_handler.register_sfd_unloaded_callback(SFDUnloadedCallback(self.sfd_unloaded_callback))
@@ -263,6 +270,10 @@ class API:
             response = self.make_error_response(req, 'Internal error')
             self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
 
+    def process_debug(self, conn_id: str, req: Dict[str, str]) -> None:
+        import ipdb
+        ipdb.set_trace()
+
     # === ECHO ====
     def process_echo(self, conn_id: str, req: Dict[str, str]) -> None:
         if 'payload' not in req:
@@ -316,6 +327,7 @@ class API:
 
             response = {
                 'cmd': self.Command.Api2Client.GET_WATCHABLE_LIST_RESPONSE,
+                'reqid': req['reqid'] if 'reqid' in req else None,
                 'qty': {
                     'var': len(var_to_send),
                     'alias': len(alias_to_send)
@@ -333,6 +345,7 @@ class API:
     def process_get_watchable_count(self, conn_id: str, req: Dict[str, str]) -> None:
         response = {
             'cmd': self.Command.Api2Client.GET_WATCHABLE_COUNT_RESPONSE,
+            'reqid': req['reqid'] if 'reqid' in req else None,
             'qty': {
                 'var': self.datastore.get_entries_count(DatastoreEntry.EntryType.Var),
                 'alias': self.datastore.get_entries_count(DatastoreEntry.EntryType.Alias)
@@ -357,6 +370,7 @@ class API:
 
         response = {
             'cmd': self.Command.Api2Client.SUBSCRIBE_WATCHABLE_RESPONSE,
+            'reqid': req['reqid'] if 'reqid' in req else None,
             'watchables': req['watchables']
         }
 
@@ -378,6 +392,7 @@ class API:
 
         response = {
             'cmd': self.Command.Api2Client.SUBSCRIBE_WATCHABLE_RESPONSE,
+            'reqid': req['reqid'] if 'reqid' in req else None,
             'watchables': req['watchables']
         }
 
@@ -391,6 +406,7 @@ class API:
 
         response = {
             'cmd': self.Command.Api2Client.GET_INSTALLED_SFD_RESPONSE,
+            'reqid': req['reqid'] if 'reqid' in req else None,
             'sfd_list': metadata_dict
         }
 
@@ -401,6 +417,7 @@ class API:
 
         response = {
             'cmd': self.Command.Api2Client.GET_LOADED_SFD_RESPONSE,
+            'reqid': req['reqid'] if 'reqid' in req else None,
             'firmware_id': sfd.get_firmware_id() if sfd is not None else None
         }
 
@@ -418,9 +435,10 @@ class API:
         # Do not send a response. There's a callback on SFD Loading that will notfy everyone.
 
     def process_get_server_status(self, conn_id: str, req: Dict[str, str]):
-        self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=self.craft_inform_server_status_response()))
+        reqid =  req['reqid'] if 'reqid' in req else None,
+        self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=self.craft_inform_server_status_response(reqid=reqid)))
 
-    def craft_inform_server_status_response(self) -> ApiMsg_S2C_InformServerStatus:
+    def craft_inform_server_status_response(self, reqid=None) -> ApiMsg_S2C_InformServerStatus:
 
         sfd = self.sfd_handler.get_loaded_sfd()
         device_link_type = self.device_handler.get_link_type()
@@ -454,6 +472,7 @@ class API:
 
         response: ApiMsg_S2C_InformServerStatus = {
             'cmd': self.Command.Api2Client.INFORM_SERVER_STATUS,
+            'reqid': reqid,
             'device_status': self.device_conn_status_to_str[self.device_handler.get_connection_status()],
             'device_info': device_info,
             'loaded_sfd': loaded_sfd,
@@ -497,6 +516,7 @@ class API:
             cmd = req['cmd']
         response = {
             'cmd': self.Command.Api2Client.ERROR_RESPONSE,
+            'reqid': req['reqid'] if 'reqid' in req else None,
             'request_cmd': cmd,
             'msg': msg
         }

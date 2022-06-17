@@ -1,6 +1,7 @@
 //Request
 {
     "cmd": "subscribe_watchable",
+    "reqid": 123,
     "watchables": [
         "XXXX",
         "YYYY",
@@ -13,6 +14,7 @@
 //Response
 {
     "cmd": "response_subscribe_watchable",
+    "reqid": 123,
     "watchables": [
         "XXXX",
         "YYYY",
