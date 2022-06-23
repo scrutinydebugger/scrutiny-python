@@ -327,7 +327,7 @@ class API:
 
             response = {
                 'cmd': self.Command.Api2Client.GET_WATCHABLE_LIST_RESPONSE,
-                'reqid': req['reqid'] if 'reqid' in req else None,
+                'reqid': self.get_req_id(req),
                 'qty': {
                     'var': len(var_to_send),
                     'alias': len(alias_to_send)
@@ -345,7 +345,7 @@ class API:
     def process_get_watchable_count(self, conn_id: str, req: Dict[str, str]) -> None:
         response = {
             'cmd': self.Command.Api2Client.GET_WATCHABLE_COUNT_RESPONSE,
-            'reqid': req['reqid'] if 'reqid' in req else None,
+            'reqid': self.get_req_id(req),
             'qty': {
                 'var': self.datastore.get_entries_count(DatastoreEntry.EntryType.Var),
                 'alias': self.datastore.get_entries_count(DatastoreEntry.EntryType.Alias)
@@ -370,7 +370,7 @@ class API:
 
         response = {
             'cmd': self.Command.Api2Client.SUBSCRIBE_WATCHABLE_RESPONSE,
-            'reqid': req['reqid'] if 'reqid' in req else None,
+            'reqid': self.get_req_id(req),
             'watchables': req['watchables']
         }
 
@@ -392,7 +392,7 @@ class API:
 
         response = {
             'cmd': self.Command.Api2Client.SUBSCRIBE_WATCHABLE_RESPONSE,
-            'reqid': req['reqid'] if 'reqid' in req else None,
+            'reqid': self.get_req_id(req),
             'watchables': req['watchables']
         }
 
@@ -406,7 +406,7 @@ class API:
 
         response = {
             'cmd': self.Command.Api2Client.GET_INSTALLED_SFD_RESPONSE,
-            'reqid': req['reqid'] if 'reqid' in req else None,
+            'reqid': self.get_req_id(req),
             'sfd_list': metadata_dict
         }
 
@@ -417,7 +417,7 @@ class API:
 
         response = {
             'cmd': self.Command.Api2Client.GET_LOADED_SFD_RESPONSE,
-            'reqid': req['reqid'] if 'reqid' in req else None,
+            'reqid':self.get_req_id(req),
             'firmware_id': sfd.get_firmware_id() if sfd is not None else None
         }
 
@@ -435,8 +435,8 @@ class API:
         # Do not send a response. There's a callback on SFD Loading that will notfy everyone.
 
     def process_get_server_status(self, conn_id: str, req: Dict[str, str]):
-        reqid =  req['reqid'] if 'reqid' in req else None,
-        self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=self.craft_inform_server_status_response(reqid=reqid)))
+        obj = self.craft_inform_server_status_response(reqid=self.get_req_id(req))
+        self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=obj))
 
     def craft_inform_server_status_response(self, reqid=None) -> ApiMsg_S2C_InformServerStatus:
 
@@ -516,11 +516,14 @@ class API:
             cmd = req['cmd']
         response = {
             'cmd': self.Command.Api2Client.ERROR_RESPONSE,
-            'reqid': req['reqid'] if 'reqid' in req else None,
+            'reqid': self.get_req_id(req),
             'request_cmd': cmd,
             'msg': msg
         }
         return response
+
+    def get_req_id(self, req):
+        return req['reqid'] if 'reqid' in req else None
 
     def is_dict_with_key(self, d: Dict[Any, Any], k: Any):
         return isinstance(d, dict) and k in d

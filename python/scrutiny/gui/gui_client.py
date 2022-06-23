@@ -63,7 +63,7 @@ class LaunchMethod(enum.Enum):
 
 class GUIClient:
 
-    WEBAPP_FOLDER: str = 'webapp/build/'
+    WEBAPP_FOLDER: str = os.path.join('webapp', 'webapp_release')
     CEF_MIN_VERSION: str = '66.0'
 
     launch_method: LaunchMethod
@@ -172,13 +172,17 @@ class GUIClient:
 
         sys.excepthook = cef.ExceptHook  # To shutdown all CEF processes on error
 
-        settings = {
+        app_settings = {
             "debug": False
         }
 
-        cef.Initialize(settings)
+        browser_settings = {
+            'web_security_disabled' : True  # We need to load files through ajax
+        }
+
+        cef.Initialize(app_settings)
         url = "file:///%s" % os.path.join(self.webapp_fullpath, 'index.html')
-        browser = cef.CreateBrowserSync(navigateUrl=url, window_title='Scrutiny')
+        browser = cef.CreateBrowserSync(navigateUrl=url, window_title='Scrutiny', settings=browser_settings)
 
         # Configure browser
         browser.SetClientHandler(LoadHandler())

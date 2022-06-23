@@ -64,9 +64,14 @@ class SessionInitializer:
         return self.session_id
 
     def process(self) -> None:
-        if not self.started or self.error:
+        if not self.started:
             return
-        elif not self.connection_pending and self.stop_requested:
+        if self.error:
+            if self.stop_requested:
+                self.reset()
+            return
+
+        if not self.connection_pending and self.stop_requested:
             self.reset()
             return
 
