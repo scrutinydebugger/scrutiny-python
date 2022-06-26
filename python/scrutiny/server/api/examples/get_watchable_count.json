@@ -1,11 +1,13 @@
 //Request
 {
-    "cmd": "get_watchable_count"
+    "cmd": "get_watchable_count",
+    "reqid": 123,
 }
 
 // Response
 {
     "cmd": "response_get_watchable_count",
+    "reqid": 123,
     "qty": {
         "var": 100,
         "alias": 50

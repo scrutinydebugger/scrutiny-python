@@ -455,6 +455,7 @@ class DeviceHandler:
                 next_state = self.FsmState.POLLING_INFO
             elif self.session_initializer.is_in_error():
                 self.session_initializer.stop()
+                self.logger.error('Failed to initialize session.')
                 self.comm_broken = True
             elif self.disconnection_requested:
                 next_state = self.FsmState.DISCONNECTING
@@ -566,7 +567,7 @@ class DeviceHandler:
                         'Device handler believes there is no active request but comm handler says there is. This is not supposed to happen')
             else:
                 if self.comm_handler.has_timed_out():       # The request we have sent has timed out.. no response
-                    self.logger.debug('Request timed out. %s' % self.active_request_record.request)
+                    self.logger.error('Request timed out. %s' % self.active_request_record.request)
                     self.comm_broken = True
                     self.comm_handler.clear_timeout()
                     self.active_request_record.complete(success=False)
@@ -585,6 +586,7 @@ class DeviceHandler:
 
                 else:   # Comm handler decided to go back to Idle by itself. Most likely a valid message that was not the response of the request.
                     self.comm_broken = True
+                    self.logger.error('Request processing finished with no valid response available.')
                     self.comm_handler.reset()
                     self.active_request_record.complete(success=False)
 

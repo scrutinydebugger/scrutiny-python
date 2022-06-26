@@ -1,11 +1,6 @@
 // Request
 {
     "cmd": "load_sfd",
+    "reqid": 123,
     "firmware_id": "DEADBEEFDEADBEEF00000"
-}
-
-//Response
-{
-    "cmd": "response_load_sfd",
-    "success": true
 }

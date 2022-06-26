@@ -13,6 +13,7 @@
 //Response
 {
     "cmd": "response_unsubscribe_watchable",
+    "reqid": 123,
     "watchables": [
         "XXXX",
         "YYYY",

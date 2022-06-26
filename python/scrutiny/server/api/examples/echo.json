@@ -1,12 +1,14 @@
 // Request
 {
     "cmd": "echo",
-    "payload": "foo"
+    "payload": "foo",
+    "reqid": 123
 }
 
 
 // Response
 {
     "cmd": "response_echo",
-    "payload": "foo"
+    "payload": "foo",
+    "reqid": 123
 }

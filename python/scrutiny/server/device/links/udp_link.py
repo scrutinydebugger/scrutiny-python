@@ -116,4 +116,5 @@ class UdpLink(AbstractLink):
         self.sock.sendto(data, (self.host, self.port))
 
     def process(self) -> None:
+        # Todo : try reconnect on broken pipe.
         pass

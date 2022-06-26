@@ -1,6 +1,7 @@
 // Request
 {
     "cmd": "get_watchable_list",
+    "reqid": 123,
     "max_per_response": 100, // Optional
     "filter": { // Optional
         "type": ["var", "alias"]
@@ -11,6 +12,7 @@
 // Response
 {
     "cmd": "response_get_watchable_list",
+    "reqid": 123,
     "qty": {
         "var": 50,
         "alias": 50

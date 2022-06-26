@@ -1,11 +1,13 @@
 //Request
 {
-    "cmd": "get_server_status"
+    "cmd": "get_server_status",
+    "reqid": 123,
 }
 
 //Response
 {
     "cmd": "inform_server_status",
+    "reqid": 123,
     "device_status": "connected_ready", // unknown, disconnected, connecting, connected, connected_ready
     "loaded_sfd": {
         "firmware_id": "DEADBEEFDEADBEEF00000", // ID or null

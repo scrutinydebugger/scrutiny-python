@@ -21,6 +21,7 @@ from binascii import hexlify
 import time
 from scrutiny.server.tools import Throttler
 from scrutiny.server.device.links import AbstractLink
+import traceback
 
 from typing import Union, TypedDict, Optional
 
@@ -214,10 +215,18 @@ class CommHandler:
                 self.logger.debug("Sending request %s" % self.active_request)
                 self.logger.debug("Sending : %s" % (hexlify(data).decode('ascii')))
                 datasize_bits = len(data) * 8
-                self.tx_bitcount += datasize_bits
-                self.throttler.consume_bandwidth(datasize_bits)
-                self.link.write(data)
-                self.response_timer.start()
+                try:
+                    self.link.write(data)
+                    err = None
+                except Exception as e:
+                    err = e
+                    self.logger.error('Cannot write to communication link. %s' %  str(e))
+                    self.logger.debug(traceback.format_exc())
+
+                if not err:
+                    self.tx_bitcount += datasize_bits
+                    self.throttler.consume_bandwidth(datasize_bits)
+                    self.response_timer.start()
             elif not self.throttler.possible(approx_delta_bandwidth):
                 self.logger.critical("Throttling doesn't allow to send request. Dropping %s" % self.pending_request)
                 self.pending_request = None

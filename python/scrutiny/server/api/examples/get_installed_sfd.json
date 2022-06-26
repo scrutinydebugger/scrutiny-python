@@ -1,11 +1,13 @@
 //Request
 {
-    "cmd": "get_installed_sfd"
+    "cmd": "get_installed_sfd",
+    "reqid": 123
 }
 
 //Response
 {
     "cmd": "response_get_installed_sfd",
+    "reqid": 123,
     "sfd_list": {
         "SFD_ID_1": {
             "project_name": "Demo App",
