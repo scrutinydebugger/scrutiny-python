@@ -12,8 +12,6 @@ import unittest
 import logging
 from typing import Optional, List
 
-
-
 class RunTest(BaseCommand):
     _cmd_name_ = 'runtest'
     _brief_ = 'Run unit tests'
@@ -34,6 +32,7 @@ class RunTest(BaseCommand):
         import scrutiny
         import os
         import sys
+        success = -1
 
         args = self.parser.parse_args(self.args)
         test_root = os.path.realpath(os.path.join(os.path.dirname(scrutiny.__file__), '../test'))
@@ -44,12 +43,16 @@ class RunTest(BaseCommand):
         if self.requested_log_level is None:
             logging.getLogger().handlers[0].setLevel(logging.CRITICAL)
 
-        loader = unittest.TestLoader()
-        if args.module is None:
-            suite = loader.discover(test_root)
+        import test  # load the test module.
+        if not hasattr(test, '__scrutiny__'):   # Make sure this is Scrutiny Test folder (in case we run from install dir)
+            logging.getLogger(self._cmd_name_).critical('No unit tests available. Are you running from an installed module?')
         else:
-            suite = loader.loadTestsFromName(args.module)
+            loader = unittest.TestLoader()
+            if args.module is None:
+                suite = loader.discover(test_root)
+            else:
+                suite = loader.loadTestsFromName(args.module)
 
-        result = unittest.TextTestRunner(verbosity=int(args.verbosity)).run(suite)
-        success = len(result.errors) == 0 and len(result.failures) == 0
+            result = unittest.TextTestRunner(verbosity=int(args.verbosity)).run(suite)
+            success = len(result.errors) == 0 and len(result.failures) == 0
         return 0 if success else -1
