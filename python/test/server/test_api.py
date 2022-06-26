@@ -26,6 +26,7 @@ from scrutiny.server.device.links.dummy_link import DummyLink
 from scrutiny.core.variable import *
 from scrutiny.core import FirmwareDescription
 from test.artifacts import get_artifact
+
 # todo
 # - Test rate limiter/data streamer
 

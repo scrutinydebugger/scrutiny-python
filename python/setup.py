@@ -36,7 +36,7 @@ setup(
 
     entry_points={
         "console_scripts": [
-            "scrutiny = scrutiny.main",
+            "scrutiny = scrutiny.__main__",
         ]
     },
 )
