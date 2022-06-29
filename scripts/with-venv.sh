@@ -2,6 +2,6 @@
 set -euo pipefail
 
 PROJECT_ROOT="$( cd "$( dirname "${BASH_SOURCE[0]}" )"/../.. >/dev/null 2>&1 && pwd -P )"
-source "$PROJECT_ROOT/python/scripts/activate-venv.sh"
+source "$PROJECT_ROOT/scripts/activate-venv.sh"
 
 exec "$@"
