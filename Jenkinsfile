@@ -16,7 +16,9 @@ pipeline {
                         sh ''' 
                         mkdir -p /tmp/bin/
                         rm -f /tmp/bin/python3
+                        rm -f /tmp/bin/pip3
                         ln -s $(which python3.10) /tmp/bin/python3
+                        ln -s $(which pip3.10) /tmp/bin/pip3
                         export PATH=/tmp/bin:$PATH
                         scripts/check_python_version.sh 3.10 && scripts/runtests.sh
                         '''
