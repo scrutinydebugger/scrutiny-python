@@ -20,6 +20,7 @@ pipeline {
                         ln -s $(which python3.10) /tmp/bin/python3
                         ln -s $(which pip3.10) /tmp/bin/pip3
                         export PATH=/tmp/bin:$PATH
+
                         scripts/check_python_version.sh 3.10 && scripts/runtests.sh
                         '''
                     }
@@ -32,6 +33,7 @@ pipeline {
                         rm -f /tmp/bin/pip3
                         ln -s $(which python3.9) /tmp/bin/python3
                         ln -s $(which pip3.9) /tmp/bin/pip3
+                        export PATH=/tmp/bin:$PATH
 
                         scripts/check_python_version.sh 3.9 && scripts/runtests.sh
                         '''
@@ -45,6 +47,7 @@ pipeline {
                         rm -f /tmp/bin/pip3
                         ln -s $(which python3.8) /tmp/bin/python3
                         ln -s $(which pip3.8) /tmp/bin/pip3
+                        export PATH=/tmp/bin:$PATH
 
                         scripts/check_python_version.sh 3.8 && scripts/runtests.sh
                         '''
