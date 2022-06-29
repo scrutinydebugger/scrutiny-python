@@ -15,6 +15,8 @@ pipeline {
                     steps {
                         sh 'alias python3=python3.10'
                         sh 'alias pip3=pip3.10'
+                        sh '[[ $(python3 --version) = *"3.10"* ]]'
+                        sh '[[ $(pip3 --version) == *"3.10"* ]]'
                         sh 'scripts/runtests.sh'
                     }
                 }
@@ -22,6 +24,8 @@ pipeline {
                     steps {
                         sh 'alias python3=python3.9'
                         sh 'alias pip3=pip3.9'
+                        sh '[[ $(python3 --version) = *"3.9"* ]]'
+                        sh '[[ $(pip3 --version) == *"3.9"* ]]'
                         sh 'scripts/runtests.sh'
                     }
                 }
@@ -29,6 +33,8 @@ pipeline {
                     steps {
                         sh 'alias python3=python3.8'
                         sh 'alias pip3=pip3.8'
+                        sh '[[ $(python3 --version) = *"3.8"* ]]'
+                        sh '[[ $(pip3 --version) == *"3.8"* ]]'
                         sh 'scripts/runtests.sh'
                     }
                 }
