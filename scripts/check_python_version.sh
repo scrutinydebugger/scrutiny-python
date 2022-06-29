@@ -17,4 +17,8 @@ if [[ $ACTUAL_PIP_VERSION != *"python ${REQUIRED_VERSION}"* ]]; then
     exit 1
 fi
 
+echo "OK. Versions are"
+echo "  - ${ACTUAL_PYTHON_VERSION}"
+echo "  - ${ACTUAL_PIP_VERSION}"
+
 exit 0
