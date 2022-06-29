@@ -1,4 +1,4 @@
-#/|/bin/bash
+#!/bin/bash
 
 shopt -s nocasematch
 
