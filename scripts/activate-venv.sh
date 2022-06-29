@@ -2,7 +2,7 @@
 set -euo pipefail
 
 PROJECT_ROOT="$( cd "$( dirname "${BASH_SOURCE[0]}" )"/.. >/dev/null 2>&1 && pwd -P )"
-PY_MODULE_ROOT="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd -P )"
+PY_MODULE_ROOT="$( cd "$( dirname "${BASH_SOURCE[0]}" )/.." >/dev/null 2>&1 && pwd -P )"
 VENV_ROOT="$PROJECT_ROOT/venv"
 log() { echo -e "\x1B[92m[OK]\x1B[39m $@"; }
 
