@@ -14,52 +14,53 @@ RUN	apt-get install -y \
     libffi-dev \
     libreadline-dev \
     zlib1g-dev \
-    libsqlite3-dev
+    libsqlite3-dev \
+    libssl-devel
 
 # ============================================
 WORKDIR /tmp/
 ARG PYTHON_VERSION="3.10.5"
 ARG PYTHON_SRC="https://www.python.org/ftp/python/${PYTHON_VERSION}/Python-${PYTHON_VERSION}.tgz"
 
-RUN wget $PYTHON_SRC
-RUN tar -xvzf "Python-${PYTHON_VERSION}.tgz"
+RUN wget $PYTHON_SRC &&\
+    tar -xvzf "Python-${PYTHON_VERSION}.tgz"
 WORKDIR "Python-${PYTHON_VERSION}"
-RUN ./configure
-RUN make -j 4
-RUN make install
+RUN ./configure     &&\
+    make -j 4       &&\
+    make install    &&\
 WORKDIR /tmp/
-RUN rm "Python-${PYTHON_VERSION}.tgz"
-RUN rm -rf "Python-${PYTHON_VERSION}"
+RUN rm "Python-${PYTHON_VERSION}.tgz" &&\
+    rm -rf "Python-${PYTHON_VERSION}"
 
 # ============================================
 WORKDIR /tmp/
 ARG PYTHON_VERSION="3.9.13"
 ARG PYTHON_SRC="https://www.python.org/ftp/python/${PYTHON_VERSION}/Python-${PYTHON_VERSION}.tgz"
 
-RUN wget $PYTHON_SRC
-RUN tar -xvzf "Python-${PYTHON_VERSION}.tgz"
+RUN wget $PYTHON_SRC &&\
+    tar -xvzf "Python-${PYTHON_VERSION}.tgz"
 WORKDIR "Python-${PYTHON_VERSION}"
-RUN ./configure
-RUN make -j 4
-RUN make install
+RUN ./configure     &&\
+    make -j 4       &&\
+    make install    &&\
 WORKDIR /tmp/
-RUN rm "Python-${PYTHON_VERSION}.tgz"
-RUN rm -rf "Python-${PYTHON_VERSION}"
+RUN rm "Python-${PYTHON_VERSION}.tgz" &&\
+    rm -rf "Python-${PYTHON_VERSION}"
 
 # ============================================
 WORKDIR /tmp/
 ARG PYTHON_VERSION="3.8.13"
 ARG PYTHON_SRC="https://www.python.org/ftp/python/${PYTHON_VERSION}/Python-${PYTHON_VERSION}.tgz"
 
-RUN wget $PYTHON_SRC
-RUN tar -xvzf "Python-${PYTHON_VERSION}.tgz"
+RUN wget $PYTHON_SRC &&\
+    tar -xvzf "Python-${PYTHON_VERSION}.tgz"
 WORKDIR "Python-${PYTHON_VERSION}"
-RUN ./configure
-RUN make -j 4
-RUN make install
+RUN ./configure     &&\
+    make -j 4       &&\
+    make install    &&\
 WORKDIR /tmp/
-RUN rm "Python-${PYTHON_VERSION}.tgz"
-RUN rm -rf "Python-${PYTHON_VERSION}"
+RUN rm "Python-${PYTHON_VERSION}.tgz" &&\
+    rm -rf "Python-${PYTHON_VERSION}"
 
 # ============================================
 WORKDIR /tmp/
