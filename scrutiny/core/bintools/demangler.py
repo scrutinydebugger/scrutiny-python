@@ -28,6 +28,8 @@ class GccDemangler(BaseDemangler):
     error_details:str
 
     def __init__(self, binary_name=_default_binary_name):
+        if binary_name is None:
+            binary_name = self._default_binary_name
         self.binary_name = binary_name
         self.error_details=""
     
