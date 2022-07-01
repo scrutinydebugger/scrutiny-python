@@ -1,7 +1,11 @@
 #!/bin/bash
 set -euo pipefail
 
-GIVEN_VENV=$1
+if [ $# -ge 1 ]; then
+    GIVEN_VENV=$1
+else
+    GIVEN_VENV=""
+fi
 
 PROJECT_ROOT="$( cd "$( dirname "${BASH_SOURCE[0]}" )"/.. >/dev/null 2>&1 && pwd -P )"
 PY_MODULE_ROOT="$( cd "$( dirname "${BASH_SOURCE[0]}" )/.." >/dev/null 2>&1 && pwd -P )"
@@ -12,6 +16,7 @@ else
     VENV_ROOT="$GIVEN_VENV";
 fi
 
+echo $VENV_ROOT
 log() { echo -e "\x1B[92m[OK]\x1B[39m $@"; }
 
 [ ! -d "$VENV_ROOT" ] \
