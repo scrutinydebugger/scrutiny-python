@@ -27,7 +27,7 @@ RUN wget $PYTHON_SRC &&\
 WORKDIR "Python-${PYTHON_VERSION}"
 RUN ./configure     &&\
     make -j 4       &&\
-    make install    &&\
+    make install
 WORKDIR /tmp/
 RUN rm "Python-${PYTHON_VERSION}.tgz" &&\
     rm -rf "Python-${PYTHON_VERSION}"
@@ -42,7 +42,7 @@ RUN wget $PYTHON_SRC &&\
 WORKDIR "Python-${PYTHON_VERSION}"
 RUN ./configure     &&\
     make -j 4       &&\
-    make install    &&\
+    make install
 WORKDIR /tmp/
 RUN rm "Python-${PYTHON_VERSION}.tgz" &&\
     rm -rf "Python-${PYTHON_VERSION}"
@@ -57,7 +57,7 @@ RUN wget $PYTHON_SRC &&\
 WORKDIR "Python-${PYTHON_VERSION}"
 RUN ./configure     &&\
     make -j 4       &&\
-    make install    &&\
+    make install
 WORKDIR /tmp/
 RUN rm "Python-${PYTHON_VERSION}.tgz" &&\
     rm -rf "Python-${PYTHON_VERSION}"
