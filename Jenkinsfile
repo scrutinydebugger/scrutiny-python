@@ -15,7 +15,7 @@ pipeline {
                     steps {
                         sh ''' 
                         python3.10 -m venv /tmp/venv3.10
-                        scripts/with_venv.sh /tmp/venv3.10 scripts/check_python_version.sh 3.10 && scripts/runtests.sh
+                        ./scripts/with_venv.sh /tmp/venv3.10 scripts/check_python_version.sh 3.10 && scripts/runtests.sh
                         '''
                     }
                 }
