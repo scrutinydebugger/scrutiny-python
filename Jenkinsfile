@@ -13,7 +13,7 @@ pipeline {
             stages {
                 stage ('Test Python') {
                     parallel(
-                        stage('Python 3.10') : {
+                        stage('Python 3.10') {
                             steps {
                                 sh ''' 
                                 python3.10 -m venv /tmp/venv3.10
@@ -21,7 +21,7 @@ pipeline {
                                 '''
                             }
                         },
-                        stage('Python 3.9') : {
+                        stage('Python 3.9') {
                             steps {
                                 sh ''' 
                                 python3.9 -m venv /tmp/venv3.9
@@ -29,7 +29,7 @@ pipeline {
                                 '''
                             }
                         },
-                        stage('Python 3.8') : {
+                        stage('Python 3.8') {
                             steps {
                                 sh ''' 
                                 python3.8 -m venv /tmp/venv3.8
