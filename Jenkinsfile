@@ -15,7 +15,7 @@ pipeline {
                     steps {
                         sh ''' 
                         python3.10 -m venv /tmp/venv3.10
-                        ./scripts/with_venv.sh /tmp/venv3.10 scripts/check_python_version.sh 3.10 && scripts/runtests.sh
+                        scripts/with-venv.sh /tmp/venv3.10 scripts/check-python-version.sh 3.10 && scripts/runtests.sh
                         '''
                     }
                 }
@@ -25,7 +25,7 @@ pipeline {
                         python3.9 -m venv /tmp/venv3.10
                         source /tmp/venv3.9/bin/activate
 
-                        scripts/check_python_version.sh 3.9 && scripts/runtests.sh
+                        scripts/check-python-version.sh 3.9 && scripts/runtests.sh
                         '''
                     }
                 }
@@ -35,7 +35,7 @@ pipeline {
                         python3.8 -m venv /tmp/venv3.8
                         source /tmp/venv3.8/bin/activate
 
-                        scripts/check_python_version.sh 3.8 && scripts/runtests.sh
+                        scripts/check-python-version.sh 3.8 && scripts/runtests.sh
                         '''
                     }
                 }
