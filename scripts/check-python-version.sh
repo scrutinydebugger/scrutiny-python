@@ -6,8 +6,12 @@ REQUIRED_VERSION=$1
 ACTUAL_PYTHON_VERSION=$(python3 --version)
 ACTUAL_PIP_VERSION=$(pip3 --version)
 
+if [ $# -eq 0 ]; then
+    echo "Python version must be specified"
+    exit 1
+fi
+
 if [[ $ACTUAL_PYTHON_VERSION != *"python ${REQUIRED_VERSION}"* ]]; then
-    
     echo "ERROR - Reported python3 version is ${ACTUAL_PYTHON_VERSION}. Expecting Python ${REQUIRED_VERSION}"
     exit 1
 fi
@@ -17,8 +21,7 @@ if [[ $ACTUAL_PIP_VERSION != *"python ${REQUIRED_VERSION}"* ]]; then
     exit 1
 fi
 
-echo "OK. Versions are"
+echo "Python version OK."
 echo "  - ${ACTUAL_PYTHON_VERSION}"
 echo "  - ${ACTUAL_PIP_VERSION}"
-
 exit 0
