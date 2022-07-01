@@ -108,9 +108,9 @@ def write_docstring(file, docstring, language=None, add_shebang=False):
         new_header = """%s%s%s
 //
 //   - License : MIT - See LICENSE file.
-//   - Project : Scrutiny Debugger (github.com/scrutinydebugger/scrutiny)
+//   - Project : Scrutiny Debugger (github.com/scrutinydebugger)
 //
-//   Copyright (c) 2021-%s scrutinydebugger
+//   Copyright (c) 2021-%s Scrutiny Debugger
 """ % (shebang, filename, docstring, datetime.now().strftime('%Y'))
 
     elif language == 'python':
@@ -118,9 +118,9 @@ def write_docstring(file, docstring, language=None, add_shebang=False):
         new_header = """%s%s%s
 #
 #   - License : MIT - See LICENSE file.
-#   - Project : Scrutiny Debugger (github.com/scrutinydebugger/scrutiny)
+#   - Project : Scrutiny Debugger (github.com/scrutinydebugger)
 #
-#   Copyright (c) 2021-%s scrutinydebugger
+#   Copyright (c) 2021-%s Scrutiny Debugger
 """ % (shebang, filename, docstring, datetime.now().strftime('%Y'))
     
     header_lines = new_header.split('\n')
