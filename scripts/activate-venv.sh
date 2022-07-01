@@ -1,9 +1,17 @@
 #!/bin/bash
 set -euo pipefail
 
+GIVEN_VENV=$1
+
 PROJECT_ROOT="$( cd "$( dirname "${BASH_SOURCE[0]}" )"/.. >/dev/null 2>&1 && pwd -P )"
 PY_MODULE_ROOT="$( cd "$( dirname "${BASH_SOURCE[0]}" )/.." >/dev/null 2>&1 && pwd -P )"
-VENV_ROOT="$PROJECT_ROOT/venv"
+
+if [ -z "$GIVEN_VENV" ]; then
+    VENV_ROOT="$GIVEN_VENV";
+else
+    VENV_ROOT="$PROJECT_ROOT/venv";
+fi
+
 log() { echo -e "\x1B[92m[OK]\x1B[39m $@"; }
 
 [ ! -d "$VENV_ROOT" ] \
@@ -23,7 +31,7 @@ fi
 
 if ! diff "$PY_MODULE_ROOT/setup.py" "$VENV_ROOT/cache/setup.py" 2>&1 >/dev/null; then
     log "Install scrutiny inside venv"
-    pip3 install -e "$PY_MODULE_ROOT[dev]"
+    pip3 install -e "$PY_MODULE_ROOT"
     mkdir -p "$VENV_ROOT/cache/"
     cp "$PY_MODULE_ROOT/setup.py" "$VENV_ROOT/cache/setup.py"
 fi
