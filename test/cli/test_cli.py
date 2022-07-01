@@ -19,8 +19,9 @@ import sys
 from scrutiny.core.varmap import VarMap
 from scrutiny.core.sfd_storage import SFDStorage
 from test.artifacts import get_artifact
-
+from test import SkipOnException
 from scrutiny.cli import CLI
+from scrutiny.exceptions import EnvionmentNotSetUpException
 
 
 class RedirectStdout:
@@ -43,7 +44,7 @@ class TestCLI(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tempdirname:
             cli = CLI()
             filename = os.path.join(tempdirname, 'testfile.json')
-            cli.run(['make-metadata', '--version', '1.2.3.4', '--project-name', 'testname', '--author', 'unittest', '--output', filename])
+            cli.run(['make-metadata', '--version', '1.2.3.4', '--project-name', 'testname', '--author', 'unittest', '--output', filename], except_failed=True)
             with open(filename, 'r') as f:
                 metadata = json.loads(f.read())
 
@@ -60,7 +61,7 @@ class TestCLI(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tempdirname:
             cli = CLI(tempdirname)
             filename = os.path.join(tempdirname, 'metadata.json')   # default name
-            cli.run(['make-metadata', '--version', '1.2.3.4', '--project-name', 'testname', '--author', 'unittest'])
+            cli.run(['make-metadata', '--version', '1.2.3.4', '--project-name', 'testname', '--author', 'unittest'], except_failed=True)
             with open(filename, 'r') as f:
                 metadata = json.loads(f.read())
 
@@ -80,13 +81,13 @@ class TestCLI(unittest.TestCase):
 
             # Write firmware id to stdout and compare with reference
             with RedirectStdout() as stdout:
-                cli.run(['get-firmware-id', temp_bin])
+                cli.run(['get-firmware-id', temp_bin], except_failed=True)
                 firmwareid = stdout.read()
             self.assertEqual(firmwareid, demobin_firmware_id)
 
             # Write firmware id to file and compare with reference
             output_file = os.path.join(tempdirname, 'temp_firmwareid')
-            cli.run(['get-firmware-id', temp_bin, '--output', output_file])  # Write firmware id to file
+            cli.run(['get-firmware-id', temp_bin, '--output', output_file], except_failed=True)  # Write firmware id to file
             with open(output_file) as f:
                 outputted_firmwareid = f.read()
             self.assertEqual(outputted_firmwareid, demobin_firmware_id)
@@ -95,7 +96,7 @@ class TestCLI(unittest.TestCase):
             with RedirectStdout() as stdout:
                 with open(temp_bin, 'rb') as f:
                     tempbin_content = f.read()
-                cli.run(['get-firmware-id', temp_bin, '--apply'])
+                cli.run(['get-firmware-id', temp_bin, '--apply'], except_failed=True)
                 firmwareid = stdout.read()
             with open(temp_bin, 'rb') as f:
                 tempbin_modified_content = f.read()
@@ -103,22 +104,22 @@ class TestCLI(unittest.TestCase):
             self.assertEqual(firmwareid, demobin_firmware_id)
 
     # Read a demo firmware binary and make varmap file. We don't check the content, just that it is valid varmap.
-    @unittest.skip('temporary disable for CI')
+    @SkipOnException(EnvionmentNotSetUpException) 
     def test_elf2varmap(self):
         cli = CLI()
         demobin_path = get_artifact('demobin.elf')
 
         with RedirectStdout() as stdout:
-            cli.run(['elf2varmap', demobin_path])
+            cli.run(['elf2varmap', demobin_path], except_failed=True)
             VarMap(stdout.read())  # make sure the output is loadable. Don't check content, there's another test suite for that
 
         with tempfile.TemporaryDirectory() as tempdirname:
             outputfile = os.path.join(tempdirname, 'varmap.json')
-            cli.run(['elf2varmap', demobin_path, '--output', outputfile])
+            cli.run(['elf2varmap', demobin_path, '--output', outputfile], except_failed=True)
             VarMap(outputfile)  # make sure the output is loadable. Don't check content, there's another test suite for that
 
     # Test all commands related to manipulating Scrutiny Firmware Description
-    @unittest.skip('temporary disable for CI')
+    @SkipOnException(EnvionmentNotSetUpException)
     def test_make_sfd_and_install(self):
         with tempfile.TemporaryDirectory() as tempdirname:
             cli = CLI()

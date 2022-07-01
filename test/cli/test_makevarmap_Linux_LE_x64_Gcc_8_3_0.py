@@ -15,9 +15,11 @@ import sys
 from scrutiny.core import *
 from scrutiny.core.bintools.elf_dwarf_var_extractor import ElfDwarfVarExtractor
 from scrutiny.core.memory_content import MemoryContent
+from scrutiny.exceptions import EnvionmentNotSetUpException
+from test import SkipOnException
 from test.artifacts import get_artifact
 
-@unittest.skip("Temporary disable for CI")
+
 class TestMakeVarMap_LinuxLEx64_Gcc8_3_0(unittest.TestCase):
 
     bin_filename = get_artifact('testappDebianLEx64_gcc8_3_0')
@@ -25,10 +27,19 @@ class TestMakeVarMap_LinuxLEx64_Gcc8_3_0(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        extractor = ElfDwarfVarExtractor(cls.bin_filename)
-        varmap = extractor.get_varmap()
-        cls.varmap = VarMap(varmap.get_json())
-        cls.memdump = MemoryContent(cls.memdump_filename)
+        cls.init_exception = None
+        try:
+            extractor = ElfDwarfVarExtractor(cls.bin_filename)
+            varmap = extractor.get_varmap()
+            cls.varmap = VarMap(varmap.get_json())
+            cls.memdump = MemoryContent(cls.memdump_filename)
+        except Exception as e:
+            cls.init_exception = e  # Let's remember the exception and throw it for each test for good logging.
+    
+    @SkipOnException(EnvionmentNotSetUpException)
+    def setUp(self) -> None:
+        if self.init_exception is not None:
+            raise self.init_exception
 
     def load_var(self, fullname):
         return self.varmap.get_var(fullname)
@@ -64,9 +75,10 @@ class TestMakeVarMap_LinuxLEx64_Gcc8_3_0(unittest.TestCase):
         self.assertIsNotNone(valname)
         self.assertEqual(name, valname)
 
+    
     def test_env(self):
         self.assertEqual(self.varmap.endianness, Endianness.Little)
-
+    
     def test_file1_globals_basic_types(self):
         self.assert_var('/global/file1GlobalChar', VariableType.sint8, value_at_loc=-10)
         self.assert_var('/global/file1GlobalInt', VariableType.sint32, value_at_loc=-1000)

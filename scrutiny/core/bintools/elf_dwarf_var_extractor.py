@@ -17,7 +17,7 @@ import re
 import json
 
 from scrutiny.core import *
-
+from scrutiny.exceptions import EnvionmentNotSetUpException
 
 class CuName:
     """
@@ -292,6 +292,10 @@ class ElfDwarfVarExtractor:
 
             self.make_cu_name_map(self.dwarfinfo)
             self.demangler = GccDemangler()  # todo : adapt according to compile unit producer
+
+
+            if not self.demangler.can_run():
+                raise EnvionmentNotSetUpException("Demangler cannot be used. %s" % self.demangler.get_arror())
 
             for cu in self.dwarfinfo.iter_CUs():
                 die = cu.get_top_DIE()

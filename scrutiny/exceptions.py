@@ -1,0 +1,4 @@
+
+
+class EnvionmentNotSetUpException(Exception):
+    pass
