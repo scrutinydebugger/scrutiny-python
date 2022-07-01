@@ -28,7 +28,7 @@ RUN wget $PYTHON_SRC \
     && ./configure \
     && make -j 4 \
     && make install \
-    && cd ..
+    && cd .. \
     && rm "Python-${PYTHON_VERSION}.tgz" \
     && rm -rf "Python-${PYTHON_VERSION}"
 
@@ -42,7 +42,7 @@ RUN wget $PYTHON_SRC \
     && ./configure \
     && make -j 4 \
     && make install \
-    && cd ..
+    && cd .. \
     && rm "Python-${PYTHON_VERSION}.tgz" \
     && rm -rf "Python-${PYTHON_VERSION}"
 
@@ -56,7 +56,7 @@ RUN wget $PYTHON_SRC \
     && ./configure \
     && make -j 4 \
     && make install \
-    && cd ..
+    && cd .. \
     && rm "Python-${PYTHON_VERSION}.tgz" \
     && rm -rf "Python-${PYTHON_VERSION}"
 
