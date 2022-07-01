@@ -27,13 +27,14 @@ class Elf2VarMap(BaseCommand):
         self.args = args
         self.parser = argparse.ArgumentParser(prog=self.get_prog())
         self.parser.add_argument('file', help='The ELF file to read')
+        self.parser.add_argument('--cppfilt', default=None, help='The path to the c++filt used demangler when parsing a binary produced by GCC')
         self.parser.add_argument('--output', default=None, help='The varmap output file. Will go to STDOUT if not set')
 
     def run(self) -> Optional[int]:
         from scrutiny.core.bintools.elf_dwarf_var_extractor import ElfDwarfVarExtractor
 
         args = self.parser.parse_args(self.args)
-        extractor = ElfDwarfVarExtractor(args.file)
+        extractor = ElfDwarfVarExtractor(args.file, cppfilt=args.cppfilt)
         varmap = extractor.get_varmap()
 
         if args.output is None:

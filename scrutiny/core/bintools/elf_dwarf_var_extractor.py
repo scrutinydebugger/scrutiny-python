@@ -88,7 +88,7 @@ class ElfDwarfVarExtractor:
         DW_ATE_lo_user = 0x80
         DW_ATE_hi_user = 0xff
 
-    def __init__(self, filename=None):
+    def __init__(self, filename=None, cppfilt=None):
         self.varmap = VarMap()    # This is what we want to generate.
         self.die2typeid_map = {}
         self.die2vartype_map = {}
@@ -97,6 +97,7 @@ class ElfDwarfVarExtractor:
         self.struct_die_map = {}
         self.hierarchical_name_2_memberlist_map = {}
         self.endianness = Endianness.Little
+        self.cppfilt = cppfilt
 
         if filename is not None:
             self.load_from_elf_file(filename)
@@ -291,7 +292,7 @@ class ElfDwarfVarExtractor:
             self.endianness = Endianness.Little if elffile.little_endian else Endianness.Big
 
             self.make_cu_name_map(self.dwarfinfo)
-            self.demangler = GccDemangler()  # todo : adapt according to compile unit producer
+            self.demangler = GccDemangler(self.cppfilt)  # todo : adapt according to compile unit producer
 
 
             if not self.demangler.can_run():
