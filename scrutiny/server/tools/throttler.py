@@ -88,8 +88,14 @@ class Throttler:
         if not self.enabled:
             return True
 
-        # return self.estimated_bitrate_fast < self.mean_bitrate
-        return max(self.estimated_bitrate_slow, self.estimated_bitrate_fast) < self.mean_bitrate
+        allowed = True
+        approx_bitrate = max(self.estimated_bitrate_slow, self.estimated_bitrate_fast)
+
+        # bit/s + bit compared with bit/s. Units doesn't match, this is not a mistake.
+        if approx_bitrate + self.consumed_since_last_estimation > self.mean_bitrate:
+            allowed = False
+
+        return allowed
 
     def possible(self, delta_bandwidth: int) -> bool:
         """
