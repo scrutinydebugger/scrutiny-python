@@ -15,7 +15,7 @@ RUN	apt-get install -y \
     libreadline-dev \
     zlib1g-dev \
     libsqlite3-dev \
-    libssl-devel
+    libssl-dev
 
 # ============================================
 WORKDIR /tmp/
