@@ -296,7 +296,7 @@ class ElfDwarfVarExtractor:
 
 
             if not self.demangler.can_run():
-                raise EnvionmentNotSetUpException("Demangler cannot be used. %s" % self.demangler.get_arror())
+                raise EnvionmentNotSetUpException("Demangler cannot be used. %s" % self.demangler.get_error())
 
             for cu in self.dwarfinfo.iter_CUs():
                 die = cu.get_top_DIE()

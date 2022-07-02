@@ -14,7 +14,6 @@ import logging
 from scrutiny.server.datastore import Datastore, DatastoreEntry
 from scrutiny.server.tools import Timer
 from scrutiny.server.device.device_handler import DeviceHandler
-from scrutiny.server.device.links import AbstractLink
 from scrutiny.server.active_sfd_handler import ActiveSFDHandler, SFDLoadedCallback, SFDUnloadedCallback
 from scrutiny.core.sfd_storage import SFDStorage
 from scrutiny.core import Variable, VariableType
@@ -60,6 +59,7 @@ class API:
             GET_LOADED_SFD = 'get_loaded_sfd'
             LOAD_SFD = 'load_sfd'
             GET_SERVER_STATUS = 'get_server_status'
+            DEBUG = 'debug'
 
         class Api2Client:
             ECHO_RESPONSE = 'response_echo'
@@ -165,7 +165,7 @@ class API:
         self.enable_debug = enable_debug
         
         if enable_debug:
-            import ipdb
+            import ipdb # type: ignore
             API.Command.Client2Api.DEBUG = 'debug'
             self.ApiRequestCallbacks[API.Command.Client2Api.DEBUG] = 'process_debug'
 
@@ -271,8 +271,9 @@ class API:
             self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
 
     def process_debug(self, conn_id: str, req: Dict[str, str]) -> None:
-        import ipdb
-        ipdb.set_trace()
+        if self.enable_debug:
+            import ipdb # type: ignore
+            ipdb.set_trace()
 
     # === ECHO ====
     def process_echo(self, conn_id: str, req: Dict[str, str]) -> None:

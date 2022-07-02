@@ -40,7 +40,10 @@ setup(
 
     setup_requires=[],
     install_requires = dependencies,
-
+    extras_require = {
+        'test' : ['mypy'],
+        'dev' : ['mypy', 'ipdb']
+    },
     entry_points={
         "console_scripts": [
             "scrutiny=scrutiny.__main__:main",

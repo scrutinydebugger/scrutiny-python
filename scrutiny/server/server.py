@@ -27,6 +27,7 @@ from typing import TypedDict, Optional
 class ServerConfig(TypedDict, total=False):
     name: str
     autoload_sfd: bool
+    debug: bool
     device_config: DeviceHandlerConfig
     api_config: APIConfig
 
@@ -34,7 +35,7 @@ class ServerConfig(TypedDict, total=False):
 DEFAULT_CONFIG: ServerConfig = {
     'name': 'Scrutiny Server (Default config)',
     'autoload_sfd': True,
-    'debug' : True,
+    'debug' : False,    # Requires ipdb. Module must be installed with [dev] extras
     'api_config': {
         'client_interface_type': 'websocket',
         'client_interface_config': {

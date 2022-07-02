@@ -7,10 +7,10 @@
 #
 #   Copyright (c) 2021-2022 scrutinydebugger
 
+
 import websockets
 import websockets.server
 import queue
-import time
 import asyncio
 import threading
 import uuid
@@ -18,7 +18,7 @@ import logging
 import json
 
 from .abstract_client_handler import AbstractClientHandler, ClientHandlerConfig, ClientHandlerMessage
-from typing import List, Dict, Tuple, Any, Coroutine, Optional, Callable
+from typing import Dict, Tuple, Any, Coroutine, Optional, Callable
 
 WebsocketType = websockets.server.WebSocketServerProtocol
 
@@ -130,9 +130,10 @@ class WebsocketClientHandler(AbstractClientHandler):
     # Run in client_handler thread
     def run(self) -> None:
         asyncio.set_event_loop(self.loop)
-        self.ws_server = websockets.serve(self.server_routine, self.config['host'], int(self.config['port']))
+        self.ws_server = websockets.serve(self.server_routine, self.config['host'], int(self.config['port']))   #type: ignore
 
         self.logger.info('Starting websocket listener on %s:%s' % (self.config['host'], self.config['port']))
+        assert self.ws_server is not None   # make mypy happy
         self.loop.run_until_complete(self.ws_server)
         self.started_event.set()
         self.loop.run_forever()
