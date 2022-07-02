@@ -14,7 +14,7 @@ class BaseDemangler(abc.ABC):
     def can_run(self)->bool:
         return False
     
-    def get_arror(self)->str:
+    def get_error(self)->str:
         return "virtual class"
     
     def demangle(self, mangler:str)->str:
@@ -41,7 +41,7 @@ class GccDemangler(BaseDemangler):
         
         return can_run
     
-    def get_arror(self)->str:
+    def get_error(self)->str:
         return self.error_details
 
     def demangle(self, mangled:str)->str:

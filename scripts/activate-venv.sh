@@ -34,9 +34,16 @@ if ! pip3 show wheel 2>&1 >/dev/null; then
     pip3 install --upgrade setuptools
 fi
 
+MODULE_FEATURE=""
+if ! [[ -z "${BUILD_CONTEXT+x}" ]]; then
+    if [[ "$BUILD_CONTEXT" == "ci" ]]; then
+        MODULE_FEATURE="[test]" # Will cause testing tools to be installed.
+    fi
+fi
+
 if ! diff "$PY_MODULE_ROOT/setup.py" "$VENV_ROOT/cache/setup.py" 2>&1 >/dev/null; then
     log "Install scrutiny inside venv"
-    pip3 install -e "$PY_MODULE_ROOT"
+    pip3 install -e "${PY_MODULE_ROOT}${MODULE_FEATURE}"
     mkdir -p "$VENV_ROOT/cache/"
     cp "$PY_MODULE_ROOT/setup.py" "$VENV_ROOT/cache/setup.py"
 fi

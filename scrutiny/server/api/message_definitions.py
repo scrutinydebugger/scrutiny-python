@@ -38,6 +38,7 @@ class ApiMsgComp_DeviceCommLinkDef(TypedDict):
 
 class ApiMsg_S2C_InformServerStatus(TypedDict):
     cmd: str
+    reqid: str
     device_status: str
     device_info: Optional[ApiMsgComp_DeviceInfo]
     loaded_sfd: Optional[ApiMsgComp_SFDEntry]
