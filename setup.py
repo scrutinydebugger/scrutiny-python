@@ -28,6 +28,7 @@ else:
 
 setup(
     name=scrutiny.__name__,
+    python_requires='>3.8',
     description='Scrutiny debug framework',
     url='https://github.com/scrutinydebugger/scrutiny-python',
     version=scrutiny.__version__,
