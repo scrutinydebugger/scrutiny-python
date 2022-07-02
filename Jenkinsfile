@@ -11,9 +11,9 @@ pipeline {
                 }
             }
             stages {
-                stage ('Test Python') {
+                stage ('Testing') {
                     parallel {
-                        stage ('Test Python 3.10') {
+                        stage ('Python 3.10') {
                             steps {
                                 sh ''' 
                                 VENV_DIR=/tmp/venv3.10
@@ -23,7 +23,7 @@ pipeline {
                                 '''
                             }
                         }
-                        stage ('Test Python 3.9') {
+                        stage ('Python 3.9') {
                             steps {
                                 sh ''' 
                                 VENV_DIR=/tmp/venv3.9
@@ -33,7 +33,7 @@ pipeline {
                                 '''
                             }
                         }
-                        stage ('Test Python 3.8') {
+                        stage ('Python 3.8') {
                             steps {
                                 sh ''' 
                                 VENV_DIR=/tmp/venv3.8
