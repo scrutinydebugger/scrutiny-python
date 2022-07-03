@@ -34,7 +34,7 @@ class TestMakeVarMap_LinuxLEx64_Gcc8_3_0(unittest.TestCase):
             cls.memdump = MemoryContent(cls.memdump_filename)
         except Exception as e:
             cls.init_exception = e  # Let's remember the exception and throw it for each test for good logging.
-    
+
     @SkipOnException(EnvionmentNotSetUpException)
     def setUp(self) -> None:
         if self.init_exception is not None:
@@ -74,10 +74,9 @@ class TestMakeVarMap_LinuxLEx64_Gcc8_3_0(unittest.TestCase):
         self.assertIsNotNone(valname)
         self.assertEqual(name, valname)
 
-    
     def test_env(self):
         self.assertEqual(self.varmap.endianness, Endianness.Little)
-    
+
     def test_file1_globals_basic_types(self):
         self.assert_var('/global/file1GlobalChar', VariableType.sint8, value_at_loc=-10)
         self.assert_var('/global/file1GlobalInt', VariableType.sint32, value_at_loc=-1000)

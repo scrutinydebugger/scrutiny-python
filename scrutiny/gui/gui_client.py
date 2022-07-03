@@ -175,7 +175,7 @@ class GUIClient:
         }
 
         browser_settings = {
-            'web_security_disabled' : True  # We need to load files through ajax
+            'web_security_disabled': True  # We need to load files through ajax
         }
 
         cef.Initialize(app_settings)

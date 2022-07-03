@@ -215,7 +215,7 @@ class CommHandler:
                     err = None
                 except Exception as e:
                     err = e
-                    self.logger.error('Cannot write to communication link. %s' %  str(e))
+                    self.logger.error('Cannot write to communication link. %s' % str(e))
                     self.logger.debug(traceback.format_exc())
 
                 if not err:

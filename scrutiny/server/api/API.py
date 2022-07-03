@@ -142,7 +142,7 @@ class API:
         Command.Client2Api.GET_SERVER_STATUS: 'process_get_server_status'
     }
 
-    def __init__(self, config: APIConfig, datastore: Datastore, device_handler: DeviceHandler, sfd_handler: ActiveSFDHandler, enable_debug:bool=False):
+    def __init__(self, config: APIConfig, datastore: Datastore, device_handler: DeviceHandler, sfd_handler: ActiveSFDHandler, enable_debug: bool = False):
         self.validate_config(config)
 
         if config['client_interface_type'] == 'websocket':
@@ -161,9 +161,9 @@ class API:
         self.req_count = 0
 
         self.enable_debug = enable_debug
-        
+
         if enable_debug:
-            import ipdb # type: ignore
+            import ipdb  # type: ignore
             API.Command.Client2Api.DEBUG = 'debug'
             self.ApiRequestCallbacks[API.Command.Client2Api.DEBUG] = 'process_debug'
 
@@ -270,7 +270,7 @@ class API:
 
     def process_debug(self, conn_id: str, req: Dict[str, str]) -> None:
         if self.enable_debug:
-            import ipdb # type: ignore
+            import ipdb  # type: ignore
             ipdb.set_trace()
 
     # === ECHO ====
@@ -416,7 +416,7 @@ class API:
 
         response = {
             'cmd': self.Command.Api2Client.GET_LOADED_SFD_RESPONSE,
-            'reqid':self.get_req_id(req),
+            'reqid': self.get_req_id(req),
             'firmware_id': sfd.get_firmware_id() if sfd is not None else None
         }
 

@@ -127,7 +127,7 @@ class WebsocketClientHandler(AbstractClientHandler):
     # Run in client_handler thread
     def run(self) -> None:
         asyncio.set_event_loop(self.loop)
-        self.ws_server = websockets.serve(self.server_routine, self.config['host'], int(self.config['port']))   #type: ignore
+        self.ws_server = websockets.serve(self.server_routine, self.config['host'], int(self.config['port']))  # type: ignore
 
         self.logger.info('Starting websocket listener on %s:%s' % (self.config['host'], self.config['port']))
         assert self.ws_server is not None   # make mypy happy

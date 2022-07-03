@@ -11,6 +11,7 @@ import unittest
 import logging
 from typing import Optional, List
 
+
 class RunTest(BaseCommand):
     _cmd_name_ = 'runtest'
     _brief_ = 'Run unit tests'

@@ -32,7 +32,7 @@ class ServerConfig(TypedDict, total=False):
 DEFAULT_CONFIG: ServerConfig = {
     'name': 'Scrutiny Server (Default config)',
     'autoload_sfd': True,
-    'debug' : False,    # Requires ipdb. Module must be installed with [dev] extras
+    'debug': False,    # Requires ipdb. Module must be installed with [dev] extras
     'api_config': {
         'client_interface_type': 'websocket',
         'client_interface_config': {
@@ -77,7 +77,8 @@ class ScrutinyServer:
         self.datastore = Datastore()
         self.device_handler = DeviceHandler(self.config['device_config'], self.datastore)
         self.sfd_handler = ActiveSFDHandler(device_handler=self.device_handler, datastore=self.datastore, autoload=self.config['autoload_sfd'])
-        self.api = API(self.config['api_config'], datastore=self.datastore, device_handler=self.device_handler, sfd_handler=self.sfd_handler, enable_debug=self.config['debug'])
+        self.api = API(self.config['api_config'], datastore=self.datastore, device_handler=self.device_handler,
+                       sfd_handler=self.sfd_handler, enable_debug=self.config['debug'])
 
     def validate_config(self) -> None:
         pass
