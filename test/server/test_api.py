@@ -503,140 +503,140 @@ class TestAPI(unittest.TestCase):
     def test_get_sfd_list(self):
         dummy_sfd1_filename = get_artifact('test_sfd_1.sfd')
         dummy_sfd2_filename = get_artifact('test_sfd_2.sfd')
+        with SFDStorage.use_temp_folder():
+            sfd1 = SFDStorage.install(dummy_sfd1_filename, ignore_exist=True)
+            sfd2 = SFDStorage.install(dummy_sfd2_filename, ignore_exist=True)
 
-        sfd1 = SFDStorage.install(dummy_sfd1_filename, ignore_exist=True)
-        sfd2 = SFDStorage.install(dummy_sfd2_filename, ignore_exist=True)
+            req = {
+                'cmd': 'get_installed_sfd'
+            }
 
-        req = {
-            'cmd': 'get_installed_sfd'
-        }
+            self.send_request(req, 0)
+            response = self.wait_and_load_response(timeout=0.5)
+            self.assertEqual(response['cmd'], 'response_get_installed_sfd')
+            self.assertIn('sfd_list', response)
 
-        self.send_request(req, 0)
-        response = self.wait_and_load_response(timeout=0.5)
-        self.assertEqual(response['cmd'], 'response_get_installed_sfd')
-        self.assertIn('sfd_list', response)
+            installed_list = SFDStorage.list()
+            self.assertEqual(len(installed_list), len(response['sfd_list']))
 
-        installed_list = SFDStorage.list()
-        self.assertEqual(len(installed_list), len(response['sfd_list']))
+            for installed_firmware_id in installed_list:
+                self.assertIn(installed_firmware_id, response['sfd_list'])
+                gotten_metadata = response['sfd_list'][installed_firmware_id]
+                real_metadata = SFDStorage.get_metadata(installed_firmware_id)
+                self.assertEqual(real_metadata, gotten_metadata)
 
-        for installed_firmware_id in installed_list:
-            self.assertIn(installed_firmware_id, response['sfd_list'])
-            gotten_metadata = response['sfd_list'][installed_firmware_id]
-            real_metadata = SFDStorage.get_metadata(installed_firmware_id)
-            self.assertEqual(real_metadata, gotten_metadata)
-
-        SFDStorage.uninstall(sfd1.get_firmware_id())
-        SFDStorage.uninstall(sfd2.get_firmware_id())
+            SFDStorage.uninstall(sfd1.get_firmware_id())
+            SFDStorage.uninstall(sfd2.get_firmware_id())
 
     # Check that we can load a SFD through the API and read the actually loaded SFD
 
     def test_load_and_get_loaded_sfd(self):
         dummy_sfd1_filename = get_artifact('test_sfd_1.sfd')
         dummy_sfd2_filename = get_artifact('test_sfd_2.sfd')
+        with SFDStorage.use_temp_folder():
+            sfd1 = SFDStorage.install(dummy_sfd1_filename, ignore_exist=True)
+            sfd2 = SFDStorage.install(dummy_sfd2_filename, ignore_exist=True)
 
-        sfd1 = SFDStorage.install(dummy_sfd1_filename, ignore_exist=True)
-        sfd2 = SFDStorage.install(dummy_sfd2_filename, ignore_exist=True)
+            # load #1
+            req = {
+                'cmd': 'load_sfd',
+                'firmware_id': sfd1.get_firmware_id()
+            }
 
-        # load #1
-        req = {
-            'cmd': 'load_sfd',
-            'firmware_id': sfd1.get_firmware_id()
-        }
+            self.send_request(req, 0)
 
-        self.send_request(req, 0)
+            # inform status should be trigger by callback
+            response = self.wait_and_load_response(timeout=0.5)
 
-        # inform status should be trigger by callback
-        response = self.wait_and_load_response(timeout=0.5)
+            self.assertEqual(response['cmd'], 'inform_server_status')
+            self.assertIn('loaded_sfd', response)
+            self.assertIn('firmware_id', response['loaded_sfd'])
+            self.assertEqual(response['loaded_sfd']['firmware_id'], sfd1.get_firmware_id())
 
-        self.assertEqual(response['cmd'], 'inform_server_status')
-        self.assertIn('loaded_sfd', response)
-        self.assertIn('firmware_id', response['loaded_sfd'])
-        self.assertEqual(response['loaded_sfd']['firmware_id'], sfd1.get_firmware_id())
+            # load #2
+            req = {
+                'cmd': 'load_sfd',
+                'firmware_id': sfd2.get_firmware_id()
+            }
 
-        # load #2
-        req = {
-            'cmd': 'load_sfd',
-            'firmware_id': sfd2.get_firmware_id()
-        }
+            self.send_request(req, 0)
 
-        self.send_request(req, 0)
+            # inform status should be trigger by callback
+            response = self.wait_and_load_response(timeout=0.5)
 
-        # inform status should be trigger by callback
-        response = self.wait_and_load_response(timeout=0.5)
+            self.assertEqual(response['cmd'], 'inform_server_status')
+            self.assertIn('loaded_sfd', response)
+            self.assertIn('firmware_id', response['loaded_sfd'])
+            self.assertEqual(response['loaded_sfd']['firmware_id'], sfd2.get_firmware_id())
 
-        self.assertEqual(response['cmd'], 'inform_server_status')
-        self.assertIn('loaded_sfd', response)
-        self.assertIn('firmware_id', response['loaded_sfd'])
-        self.assertEqual(response['loaded_sfd']['firmware_id'], sfd2.get_firmware_id())
-
-        SFDStorage.uninstall(sfd1.get_firmware_id())
-        SFDStorage.uninstall(sfd2.get_firmware_id())
+            SFDStorage.uninstall(sfd1.get_firmware_id())
+            SFDStorage.uninstall(sfd2.get_firmware_id())
 
     def test_get_server_status(self):
         dummy_sfd1_filename = get_artifact('test_sfd_1.sfd')
         dummy_sfd2_filename = get_artifact('test_sfd_2.sfd')
+        with SFDStorage.use_temp_folder():
+            sfd1 = SFDStorage.install(dummy_sfd1_filename, ignore_exist=True)
+            sfd2 = SFDStorage.install(dummy_sfd2_filename, ignore_exist=True)
 
-        sfd1 = SFDStorage.install(dummy_sfd1_filename, ignore_exist=True)
-        sfd2 = SFDStorage.install(dummy_sfd2_filename, ignore_exist=True)
+            self.sfd_handler.request_load_sfd(sfd2.get_firmware_id())
+            self.sfd_handler.process()
+            self.device_handler.set_connection_status(DeviceHandler.ConnectionStatus.CONNECTED_READY)
 
-        self.sfd_handler.request_load_sfd(sfd2.get_firmware_id())
-        self.sfd_handler.process()
-        self.device_handler.set_connection_status(DeviceHandler.ConnectionStatus.CONNECTED_READY)
+            req = {
+                'cmd': 'get_server_status'
+            }
 
-        req = {
-            'cmd': 'get_server_status'
-        }
+            self.send_request(req, 0)
+            response = self.wait_and_load_response(timeout=0.5)
 
-        self.send_request(req, 0)
-        response = self.wait_and_load_response(timeout=0.5)
+            self.assertEqual(response['cmd'], 'inform_server_status')
+            self.assertIn('device_status', response)
+            self.assertEqual(response['device_status'], 'connected_ready')
+            self.assertIn('loaded_sfd', response)
+            self.assertIn('firmware_id', response['loaded_sfd'])
+            self.assertEqual(response['loaded_sfd']['firmware_id'], sfd2.get_firmware_id())
+            self.assertIn('metadata', response['loaded_sfd'])
+            self.assertEqual(response['loaded_sfd']['metadata'], sfd2.get_metadata())
+            self.assertIn('device_comm_link', response)
+            self.assertIn('link_type', response['device_comm_link'])
+            self.assertEqual(response['device_comm_link']['link_type'], 'dummy')
+            self.assertIn('config', response['device_comm_link'])
+            self.assertEqual(response['device_comm_link']['config'], {})
+            self.assertIn('device_info', response)
+            device_info = self.device_handler.get_device_info()
+            for attr in device_info.get_attributes():
+                self.assertIn(attr, response['device_info'])
+                self.assertEqual(getattr(device_info, attr), response['device_info'][attr])
 
-        self.assertEqual(response['cmd'], 'inform_server_status')
-        self.assertIn('device_status', response)
-        self.assertEqual(response['device_status'], 'connected_ready')
-        self.assertIn('loaded_sfd', response)
-        self.assertIn('firmware_id', response['loaded_sfd'])
-        self.assertEqual(response['loaded_sfd']['firmware_id'], sfd2.get_firmware_id())
-        self.assertIn('metadata', response['loaded_sfd'])
-        self.assertEqual(response['loaded_sfd']['metadata'], sfd2.get_metadata())
-        self.assertIn('device_comm_link', response)
-        self.assertIn('link_type', response['device_comm_link'])
-        self.assertEqual(response['device_comm_link']['link_type'], 'dummy')
-        self.assertIn('config', response['device_comm_link'])
-        self.assertEqual(response['device_comm_link']['config'], {})
-        self.assertIn('device_info', response)
-        device_info = self.device_handler.get_device_info()
-        for attr in device_info.get_attributes():
-            self.assertIn(attr, response['device_info'])
-            self.assertEqual(getattr(device_info, attr), response['device_info'][attr])
+            # Redo the test, but with no SFD loaded. We should get None
+            self.sfd_handler.reset_active_sfd()
+            self.sfd_handler.process()
+            self.device_handler.set_connection_status(DeviceHandler.ConnectionStatus.CONNECTED_READY)
 
-        # Redo the test, but with no SFD loaded. We should get None
-        self.sfd_handler.reset_active_sfd()
-        self.sfd_handler.process()
-        self.device_handler.set_connection_status(DeviceHandler.ConnectionStatus.CONNECTED_READY)
+            req = {
+                'cmd': 'get_server_status'
+            }
 
-        req = {
-            'cmd': 'get_server_status'
-        }
+            self.send_request(req, 0)
+            response = self.wait_and_load_response(timeout=0.5)
 
-        self.send_request(req, 0)
-        response = self.wait_and_load_response(timeout=0.5)
+            self.assertEqual(response['cmd'], 'inform_server_status')
+            self.assertIn('device_status', response)
+            self.assertEqual(response['device_status'], 'connected_ready')
+            self.assertIn('loaded_sfd', response)
+            self.assertIsNone(response['loaded_sfd'])
 
-        self.assertEqual(response['cmd'], 'inform_server_status')
-        self.assertIn('device_status', response)
-        self.assertEqual(response['device_status'], 'connected_ready')
-        self.assertIn('loaded_sfd', response)
-        self.assertIsNone(response['loaded_sfd'])
+            self.assertIn('device_comm_link', response)
+            self.assertIn('link_type', response['device_comm_link'])
+            self.assertEqual(response['device_comm_link']['link_type'], 'dummy')
+            self.assertIn('config', response['device_comm_link'])
+            self.assertEqual(response['device_comm_link']['config'], {})
+            self.assertIn('device_info', response)
+            device_info = self.device_handler.get_device_info()
+            for attr in device_info.get_attributes():
+                self.assertIn(attr, response['device_info'])
+                self.assertEqual(getattr(device_info, attr), response['device_info'][attr])
 
-        self.assertIn('device_comm_link', response)
-        self.assertIn('link_type', response['device_comm_link'])
-        self.assertEqual(response['device_comm_link']['link_type'], 'dummy')
-        self.assertIn('config', response['device_comm_link'])
-        self.assertEqual(response['device_comm_link']['config'], {})
-        self.assertIn('device_info', response)
-        device_info = self.device_handler.get_device_info()
-        for attr in device_info.get_attributes():
-            self.assertIn(attr, response['device_info'])
-            self.assertEqual(getattr(device_info, attr), response['device_info'][attr])
-
-        SFDStorage.uninstall(sfd1.get_firmware_id())
-        SFDStorage.uninstall(sfd2.get_firmware_id())
+            SFDStorage.uninstall(sfd1.get_firmware_id())
+            SFDStorage.uninstall(sfd2.get_firmware_id())

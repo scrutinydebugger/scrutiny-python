@@ -122,44 +122,46 @@ class TestCLI(unittest.TestCase):
     @SkipOnException(EnvionmentNotSetUpException)
     def test_make_sfd_and_install(self):
         with tempfile.TemporaryDirectory() as tempdirname:
-            cli = CLI()
-            demo_bin = get_artifact('demobin.elf')
-            temp_bin = os.path.join(tempdirname, 'demobin.elf')
-            sfd_name = os.path.join(tempdirname, 'myfile.sfd')
-            shutil.copyfile(demo_bin, temp_bin)
+            with SFDStorage.use_temp_folder():
+                cli = CLI()
+                demo_bin = get_artifact('demobin.elf')
+                temp_bin = os.path.join(tempdirname, 'demobin.elf')
+                sfd_name = os.path.join(tempdirname, 'myfile.sfd')
+                shutil.copyfile(demo_bin, temp_bin)
 
-            with open(get_artifact('demobin_firmwareid')) as f:
-                demobin_firmware_id = f.read()
+                with open(get_artifact('demobin_firmwareid')) as f:
+                    demobin_firmware_id = f.read()
 
-            cli.run(['make-metadata', '--version', '1.2.3.4', '--project-name', 'testname',
-                    '--author', 'unittest', '--output', tempdirname], except_failed=True)
-            cli.run(['get-firmware-id', temp_bin, '--output', tempdirname, '--apply'], except_failed=True)
-            cli.run(['elf2varmap', temp_bin, '--output', tempdirname], except_failed=True)
-            cli.run(['uninstall-sfd', demobin_firmware_id, '--quiet'], except_failed=True)
-            self.assertFalse(SFDStorage.is_installed(demobin_firmware_id))
+                cli.run(['make-metadata', '--version', '1.2.3.4', '--project-name', 'testname',
+                        '--author', 'unittest', '--output', tempdirname], except_failed=True)
+                cli.run(['get-firmware-id', temp_bin, '--output', tempdirname, '--apply'], except_failed=True)
+                cli.run(['elf2varmap', temp_bin, '--output', tempdirname], except_failed=True)
+                cli.run(['uninstall-sfd', demobin_firmware_id, '--quiet'], except_failed=True)
+                self.assertFalse(SFDStorage.is_installed(demobin_firmware_id))
 
-            cli.run(['make-sfd', tempdirname, sfd_name, '--install'], except_failed=True)     # install while making
-            self.assertTrue(SFDStorage.is_installed(demobin_firmware_id))
-            cli.run(['uninstall-sfd', demobin_firmware_id, '--quiet'], except_failed=True)    # uninstall
-            self.assertFalse(SFDStorage.is_installed(demobin_firmware_id))
-            cli.run(['install-sfd', sfd_name], except_failed=True)                            # install with dedicated command
-            self.assertTrue(SFDStorage.is_installed(demobin_firmware_id))
-            sfd = SFDStorage.get(demobin_firmware_id)
-            self.assertEqual(sfd.get_firmware_id(ascii=True), demobin_firmware_id)  # Load and check id.
-            cli.run(['uninstall-sfd', demobin_firmware_id, '--quiet'], except_failed=True)    # cleanup
+                cli.run(['make-sfd', tempdirname, sfd_name, '--install'], except_failed=True)     # install while making
+                self.assertTrue(SFDStorage.is_installed(demobin_firmware_id))
+                cli.run(['uninstall-sfd', demobin_firmware_id, '--quiet'], except_failed=True)    # uninstall
+                self.assertFalse(SFDStorage.is_installed(demobin_firmware_id))
+                cli.run(['install-sfd', sfd_name], except_failed=True)                            # install with dedicated command
+                self.assertTrue(SFDStorage.is_installed(demobin_firmware_id))
+                sfd = SFDStorage.get(demobin_firmware_id)
+                self.assertEqual(sfd.get_firmware_id(ascii=True), demobin_firmware_id)  # Load and check id.
+                cli.run(['uninstall-sfd', demobin_firmware_id, '--quiet'], except_failed=True)    # cleanup
 
     def test_list_sfd(self):
         cli = CLI()
         sfd1_filename = get_artifact('test_sfd_1.sfd')
         sfd2_filename = get_artifact('test_sfd_2.sfd')
 
-        sfd1 = SFDStorage.install(sfd1_filename, ignore_exist=True)
-        sfd2 = SFDStorage.install(sfd2_filename, ignore_exist=True)
+        with SFDStorage.use_temp_folder():
+            sfd1 = SFDStorage.install(sfd1_filename, ignore_exist=True)
+            sfd2 = SFDStorage.install(sfd2_filename, ignore_exist=True)
 
-        with RedirectStdout() as stdout:
-            cli.run(['list-sfd'])  # Make sure no exception is raised
-            nbline = stdout.read().count('\n')
-            self.assertGreaterEqual(nbline, 3)  # 2 SFD + total number
+            with RedirectStdout() as stdout:
+                cli.run(['list-sfd'])  # Make sure no exception is raised
+                nbline = stdout.read().count('\n')
+                self.assertGreaterEqual(nbline, 3)  # 2 SFD + total number
 
-        SFDStorage.uninstall(sfd1.get_firmware_id())
-        SFDStorage.uninstall(sfd2.get_firmware_id())
+            SFDStorage.uninstall(sfd1.get_firmware_id())
+            SFDStorage.uninstall(sfd2.get_firmware_id())
