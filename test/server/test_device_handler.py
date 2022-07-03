@@ -1,10 +1,9 @@
 #    test_device_handler.py
-#        Test the DeviceHandler that manage the communication with the device at high level.
 #
 #   - License : MIT - See LICENSE file.
-#   - Project : Scrutiny Debugger (github.com/scrutinydebugger/scrutiny)
+#   - Project : Scrutiny Debugger (github.com/scrutinydebugger)
 #
-#   Copyright (c) 2021-2022 scrutinydebugger
+#   Copyright (c) 2021-2022 Scrutiny Debugger
 
 import unittest
 from time import time, sleep

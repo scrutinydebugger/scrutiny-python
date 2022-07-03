@@ -1,10 +1,9 @@
 #    throttler.py
-#        Allow to do some throttling to reduce the transmission speed
 #
 #   - License : MIT - See LICENSE file.
-#   - Project : Scrutiny Debugger (github.com/scrutinydebugger/scrutiny)
+#   - Project : Scrutiny Debugger (github.com/scrutinydebugger)
 #
-#   Copyright (c) 2021-2022 scrutinydebugger
+#   Copyright (c) 2021-2022 Scrutiny Debugger
 
 import time
 import math

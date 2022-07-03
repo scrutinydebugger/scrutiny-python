@@ -1,11 +1,9 @@
 #    cli.py
-#        Provide the Command Line Interface.
-#        Allow to launch specific functionality by invoking Scrutiny with command line arguments.
 #
 #   - License : MIT - See LICENSE file.
-#   - Project : Scrutiny Debugger (github.com/scrutinydebugger/scrutiny)
+#   - Project : Scrutiny Debugger (github.com/scrutinydebugger)
 #
-#   Copyright (c) 2021-2022 scrutinydebugger
+#   Copyright (c) 2021-2022 Scrutiny Debugger
 
 import os
 import argparse

@@ -1,10 +1,9 @@
 #    dummy_link.py
-#        Fake communication link with a device. Used by the EmulatedDevice for unit test purpose
 #
 #   - License : MIT - See LICENSE file.
-#   - Project : Scrutiny Debugger (github.com/scrutinydebugger/scrutiny)
+#   - Project : Scrutiny Debugger (github.com/scrutinydebugger)
 #
-#   Copyright (c) 2021-2022 scrutinydebugger
+#   Copyright (c) 2021-2022 Scrutiny Debugger
 
 import threading
 from .abstract_link import AbstractLink, LinkConfig

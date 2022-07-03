@@ -1,12 +1,9 @@
 #    memory_writer.py
-#        Synchronize the datastore with the device
-#        Poll for entries that are watched and update the device with value change request
-#        coming from the user in the datastore.
 #
 #   - License : MIT - See LICENSE file.
-#   - Project : Scrutiny Debugger (github.com/scrutinydebugger/scrutiny)
+#   - Project : Scrutiny Debugger (github.com/scrutinydebugger)
 #
-#   Copyright (c) 2021-2022 scrutinydebugger
+#   Copyright (c) 2021-2022 Scrutiny Debugger
 
 import time
 import logging

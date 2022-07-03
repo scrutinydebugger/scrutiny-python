@@ -1,10 +1,9 @@
 #    device_info.py
-#        All the information that can be extracted from the device through the Scrutiny protocol
 #
 #   - License : MIT - See LICENSE file.
-#   - Project : Scrutiny Debugger (github.com/scrutinydebugger/scrutiny)
+#   - Project : Scrutiny Debugger (github.com/scrutinydebugger)
 #
-#   Copyright (c) 2021-2022 scrutinydebugger
+#   Copyright (c) 2021-2022 Scrutiny Debugger
 
 from typing import TypedDict, Dict, List
 

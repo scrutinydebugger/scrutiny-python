@@ -1,11 +1,9 @@
 #    test_request_response.py
-#        Test for the protocol Request and Response class.
-#        Ensure that byte encoding/decoding works properly
 #
 #   - License : MIT - See LICENSE file.
-#   - Project : Scrutiny Debugger (github.com/scrutinydebugger/scrutiny)
+#   - Project : Scrutiny Debugger (github.com/scrutinydebugger)
 #
-#   Copyright (c) 2021-2022 scrutinydebugger
+#   Copyright (c) 2021-2022 Scrutiny Debugger
 
 import unittest
 from scrutiny.server.protocol import Request, Response

@@ -1,11 +1,9 @@
 #    test_memory_content.py
-#        Test the MemoryContent class functionalities. Make sure it correctly wirtes and read
-#        and also agglomerate contiguous clusters
 #
 #   - License : MIT - See LICENSE file.
-#   - Project : Scrutiny Debugger (github.com/scrutinydebugger/scrutiny)
+#   - Project : Scrutiny Debugger (github.com/scrutinydebugger)
 #
-#   Copyright (c) 2021-2022 scrutinydebugger
+#   Copyright (c) 2021-2022 Scrutiny Debugger
 
 import unittest
 from scrutiny.core.memory_content import MemoryContent, Cluster

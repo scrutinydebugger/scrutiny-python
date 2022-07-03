@@ -1,14 +1,9 @@
 #    device_handler.py
-#        Manage the communication with the device at high level.
-#        Try to establish a connection, once it succeed, reads the device configuration.
-#
-#        Will keep the communication ongoing and will request for memory dump based on the
-#        Datastore state
 #
 #   - License : MIT - See LICENSE file.
-#   - Project : Scrutiny Debugger (github.com/scrutinydebugger/scrutiny)
+#   - Project : Scrutiny Debugger (github.com/scrutinydebugger)
 #
-#   Copyright (c) 2021-2022 scrutinydebugger
+#   Copyright (c) 2021-2022 Scrutiny Debugger
 
 import copy
 import queue

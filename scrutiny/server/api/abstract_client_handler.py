@@ -1,10 +1,9 @@
 #    abstract_client_handler.py
-#        Base class for all API client handlers
 #
 #   - License : MIT - See LICENSE file.
-#   - Project : Scrutiny Debugger (github.com/scrutinydebugger/scrutiny)
+#   - Project : Scrutiny Debugger (github.com/scrutinydebugger)
 #
-#   Copyright (c) 2021-2022 scrutinydebugger
+#   Copyright (c) 2021-2022 Scrutiny Debugger
 
 from abc import ABC, abstractmethod
 from typing import Dict, Optional

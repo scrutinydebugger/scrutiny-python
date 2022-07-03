@@ -1,11 +1,9 @@
 #    emulated_device.py
-#        Emulate a device that is compiled with the C++ lib.
-#        For unit testing purpose
 #
 #   - License : MIT - See LICENSE file.
-#   - Project : Scrutiny Debugger (github.com/scrutinydebugger/scrutiny)
+#   - Project : Scrutiny Debugger (github.com/scrutinydebugger)
 #
-#   Copyright (c) 2021-2022 scrutinydebugger
+#   Copyright (c) 2021-2022 Scrutiny Debugger
 
 import threading
 import time

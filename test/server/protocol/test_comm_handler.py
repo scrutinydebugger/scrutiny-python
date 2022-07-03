@@ -1,11 +1,9 @@
 #    test_comm_handler.py
-#        Test the CommHandler that manage the communication with the deviec a lower level.
-#        Converts btyes to Request/Response and flag timeouts
 #
 #   - License : MIT - See LICENSE file.
-#   - Project : Scrutiny Debugger (github.com/scrutinydebugger/scrutiny)
+#   - Project : Scrutiny Debugger (github.com/scrutinydebugger)
 #
-#   Copyright (c) 2021-2022 scrutinydebugger
+#   Copyright (c) 2021-2022 Scrutiny Debugger
 
 import unittest
 import time

@@ -1,11 +1,9 @@
 #    device_searcher.py
-#        Once enbled, generates DISCOVER requests to find a device at the other end of the
-#        communication link.
 #
 #   - License : MIT - See LICENSE file.
-#   - Project : Scrutiny Debugger (github.com/scrutinydebugger/scrutiny)
+#   - Project : Scrutiny Debugger (github.com/scrutinydebugger)
 #
-#   Copyright (c) 2021-2022 scrutinydebugger
+#   Copyright (c) 2021-2022 Scrutiny Debugger
 
 import time
 import logging

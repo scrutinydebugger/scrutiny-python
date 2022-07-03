@@ -1,11 +1,9 @@
 #    install_sfd.py
-#        CLI Command to copy a Scrutiny Firmware Description file into the scrutiny storage
-#        so it can be automatically loaded by the server upon connection with a device
 #
 #   - License : MIT - See LICENSE file.
-#   - Project : Scrutiny Debugger (github.com/scrutinydebugger/scrutiny)
+#   - Project : Scrutiny Debugger (github.com/scrutinydebugger)
 #
-#   Copyright (c) 2021-2022 scrutinydebugger
+#   Copyright (c) 2021-2022 Scrutiny Debugger
 
 import argparse
 from .base_command import BaseCommand

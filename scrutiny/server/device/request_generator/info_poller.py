@@ -1,12 +1,9 @@
 #    info_poller.py
-#        Once enabled, successively poll all pollable data from a device through the Scrutiny
-#        protocol. Also call callbacks method when specific data is read e.g. Protocol version,
-#        buffer size, etc
 #
 #   - License : MIT - See LICENSE file.
-#   - Project : Scrutiny Debugger (github.com/scrutinydebugger/scrutiny)
+#   - Project : Scrutiny Debugger (github.com/scrutinydebugger)
 #
-#   Copyright (c) 2021-2022 scrutinydebugger
+#   Copyright (c) 2021-2022 Scrutiny Debugger
 
 import time
 import logging

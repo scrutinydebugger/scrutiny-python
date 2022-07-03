@@ -1,10 +1,9 @@
 #    exceptions.py
-#        Some exceptions specific to the protocol
 #
 #   - License : MIT - See LICENSE file.
-#   - Project : Scrutiny Debugger (github.com/scrutinydebugger/scrutiny)
+#   - Project : Scrutiny Debugger (github.com/scrutinydebugger)
 #
-#   Copyright (c) 2021-2022 scrutinydebugger
+#   Copyright (c) 2021-2022 Scrutiny Debugger
 
 class InvalidRequestException(Exception):
     def __init__(self, req, *args, **kwargs):
