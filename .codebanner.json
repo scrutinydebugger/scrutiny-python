@@ -6,7 +6,7 @@
     "include_patterns": [
         "*.py"
     ],
-    "exclude_pattern": [
+    "exclude_patterns": [
         "__init__.py"
     ],
     "license": "MIT - See LICENSE file",
@@ -202,9 +202,6 @@
         "test/server/protocol/test_request_response.py": {
             "docstring": "Test for the protocol Request and Response class.\n Ensure that byte encoding/decoding works properly"
         },
-        "setup.py": {
-            "docstring": "Standard installation script"
-        },
         "test/server/test_request_dispatcher.py": {
             "docstring": "Test the request dispatcher.\nPriorities, throttling, size limits."
         },
@@ -271,72 +268,8 @@
         "scrutiny/server/api/message_definitions.py": {
             "docstring": "Static type definition of the API messages"
         },
-        "test/__init__.py": {
-            "docstring": ""
-        },
-        "test/cli/__init__.py": {
-            "docstring": ""
-        },
-        "test/core/__init__.py": {
-            "docstring": ""
-        },
-        "test/artifacts/__init__.py": {
-            "docstring": ""
-        },
-        "test/server/__init__.py": {
-            "docstring": ""
-        },
-        "test/server/protocol/__init__.py": {
-            "docstring": ""
-        },
-        "scrutiny/__init__.py": {
-            "docstring": ""
-        },
         "scrutiny/exceptions.py": {
-            "docstring": ""
-        },
-        "scrutiny/cli/__init__.py": {
-            "docstring": ""
-        },
-        "scrutiny/cli/commands/__init__.py": {
-            "docstring": ""
-        },
-        "scrutiny/gui/__init__.py": {
-            "docstring": ""
-        },
-        "scrutiny/core/__init__.py": {
-            "docstring": ""
-        },
-        "scrutiny/core/bintools/__init__.py": {
-            "docstring": ""
-        },
-        "scrutiny/server/__init__.py": {
-            "docstring": ""
-        },
-        "scrutiny/server/datastore/__init__.py": {
-            "docstring": ""
-        },
-        "scrutiny/server/protocol/__init__.py": {
-            "docstring": ""
-        },
-        "scrutiny/server/protocol/commands/__init__.py": {
-            "docstring": ""
-        },
-        "scrutiny/server/tools/__init__.py": {
-            "docstring": ""
-        },
-        "scrutiny/server/device/__init__.py": {
-            "docstring": ""
-        },
-        "scrutiny/server/device/links/__init__.py": {
-            "docstring": ""
-        },
-        "scrutiny/server/device/request_generator/__init__.py": {
-            "docstring": ""
-        },
-        "scrutiny/server/api/__init__.py": {
-            "docstring": ""
+            "docstring": "Some exceptions specific to this module"
         }
-    },
-    "exclude_patterns": []
+    }
 }
