@@ -1,12 +1,19 @@
 {
-    "folders":["test", "scrutiny"],
-    "include_patterns" : ["*.py"],
-    "exclude_pattern" : ["__init__.py"],
-    "license" : "MIT - See LICENSE file",
-    "project" : "Scrutiny Debugger",
-    "repo" : "github.com/scrutinydebugger/scrutiny-python",
-    "copyright_owner" : "Scrutiny Debugger",
-    "copyright_start_date" : "2021",
+    "folders": [
+        "test",
+        "scrutiny"
+    ],
+    "include_patterns": [
+        "*.py"
+    ],
+    "exclude_pattern": [
+        "__init__.py"
+    ],
+    "license": "MIT - See LICENSE file",
+    "project": "Scrutiny Debugger",
+    "repo": "github.com/scrutinydebugger/scrutiny-python",
+    "copyright_owner": "Scrutiny Debugger",
+    "copyright_start_date": "2021",
     "files": {
         "scrutiny/__main__.py": {
             "docstring": "Entry point of the python module. Launch the CLI.",
@@ -263,6 +270,73 @@
         },
         "scrutiny/server/api/message_definitions.py": {
             "docstring": "Static type definition of the API messages"
+        },
+        "test/__init__.py": {
+            "docstring": ""
+        },
+        "test/cli/__init__.py": {
+            "docstring": ""
+        },
+        "test/core/__init__.py": {
+            "docstring": ""
+        },
+        "test/artifacts/__init__.py": {
+            "docstring": ""
+        },
+        "test/server/__init__.py": {
+            "docstring": ""
+        },
+        "test/server/protocol/__init__.py": {
+            "docstring": ""
+        },
+        "scrutiny/__init__.py": {
+            "docstring": ""
+        },
+        "scrutiny/exceptions.py": {
+            "docstring": ""
+        },
+        "scrutiny/cli/__init__.py": {
+            "docstring": ""
+        },
+        "scrutiny/cli/commands/__init__.py": {
+            "docstring": ""
+        },
+        "scrutiny/gui/__init__.py": {
+            "docstring": ""
+        },
+        "scrutiny/core/__init__.py": {
+            "docstring": ""
+        },
+        "scrutiny/core/bintools/__init__.py": {
+            "docstring": ""
+        },
+        "scrutiny/server/__init__.py": {
+            "docstring": ""
+        },
+        "scrutiny/server/datastore/__init__.py": {
+            "docstring": ""
+        },
+        "scrutiny/server/protocol/__init__.py": {
+            "docstring": ""
+        },
+        "scrutiny/server/protocol/commands/__init__.py": {
+            "docstring": ""
+        },
+        "scrutiny/server/tools/__init__.py": {
+            "docstring": ""
+        },
+        "scrutiny/server/device/__init__.py": {
+            "docstring": ""
+        },
+        "scrutiny/server/device/links/__init__.py": {
+            "docstring": ""
+        },
+        "scrutiny/server/device/request_generator/__init__.py": {
+            "docstring": ""
+        },
+        "scrutiny/server/api/__init__.py": {
+            "docstring": ""
         }
-    }
+    },
+    "exclude_patterns": []
 }
