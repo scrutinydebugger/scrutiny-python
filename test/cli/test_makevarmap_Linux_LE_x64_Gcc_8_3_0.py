@@ -1,7 +1,8 @@
 #    test_makevarmap_Linux_LE_x64_Gcc_8_3_0.py
+#        Test that we can make a valid VarMap out of a known binary.
 #
 #   - License : MIT - See LICENSE file.
-#   - Project : Scrutiny Debugger (github.com/scrutinydebugger)
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
 #
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 

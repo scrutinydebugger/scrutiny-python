@@ -1,9 +1,9 @@
 #    exceptions.py
 #
-#   - License : MIT - See LICENSE file.
-#   - Project : Scrutiny Debugger (github.com/scrutinydebugger)
+#   - License : .
+#   - Project :   
 #
-#   Copyright (c) 2021-2022 Scrutiny Debugger
+#   Copyright (c) 2022 
 
 class EnvionmentNotSetUpException(Exception):
     pass

@@ -1,7 +1,8 @@
 #    test_crc.py
+#        Make sure the CRC32 is working for the protocol
 #
 #   - License : MIT - See LICENSE file.
-#   - Project : Scrutiny Debugger (github.com/scrutinydebugger)
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
 #
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 

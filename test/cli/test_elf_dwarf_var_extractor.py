@@ -1,7 +1,8 @@
 #    test_elf_dwarf_var_extractor.py
+#        Test the extraction of dwarf symbols from a .elf file
 #
 #   - License : MIT - See LICENSE file.
-#   - Project : Scrutiny Debugger (github.com/scrutinydebugger)
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
 #
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 

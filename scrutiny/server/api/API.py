@@ -1,7 +1,9 @@
 #    API.py
+#        Manages the websocket API to talk with the multiple clients. Can be a GUI client
+#        or a CLI client
 #
 #   - License : MIT - See LICENSE file.
-#   - Project : Scrutiny Debugger (github.com/scrutinydebugger)
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
 #
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 

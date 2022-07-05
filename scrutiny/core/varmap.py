@@ -1,7 +1,10 @@
 #    varmap.py
+#        A VarMap list all variables in a firmware file along with their types, address, bit
+#        offset, etc
+#        . I is a simplified version of the DWARF debugging symbols.
 #
 #   - License : MIT - See LICENSE file.
-#   - Project : Scrutiny Debugger (github.com/scrutinydebugger)
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
 #
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 

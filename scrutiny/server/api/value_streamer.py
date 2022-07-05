@@ -1,7 +1,9 @@
 #    value_streamer.py
+#        Take the data from the Datastore and sends it to all clients by respecting bitrate
+#        limits and avoiding duplicate date.
 #
 #   - License : MIT - See LICENSE file.
-#   - Project : Scrutiny Debugger (github.com/scrutinydebugger)
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
 #
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 

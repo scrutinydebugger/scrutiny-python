@@ -1,7 +1,9 @@
 #    elf2varmap.py
+#        CLI Command to read and .elf file and generate a Scrutiny VarMap file that will be
+#        included into the Firmware Description File.
 #
 #   - License : MIT - See LICENSE file.
-#   - Project : Scrutiny Debugger (github.com/scrutinydebugger)
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
 #
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 

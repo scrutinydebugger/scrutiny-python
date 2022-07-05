@@ -1,7 +1,10 @@
 #    firmware_description.py
+#        Contains the class that represent a Scrutiny Firmware Description file.
+#        A .sfd is a file that holds all the data related to a firmware and is identified
+#        by a unique ID.
 #
 #   - License : MIT - See LICENSE file.
-#   - Project : Scrutiny Debugger (github.com/scrutinydebugger)
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
 #
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 

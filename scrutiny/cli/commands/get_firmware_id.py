@@ -1,7 +1,10 @@
 #    get_firmware_id.py
+#        CLI Command to generate a unique ID from a .elf file and optionally writes that ID
+#        to the file by a search and replace approach so that the device can broadcast its
+#        ID once flashed by this firmware.
 #
 #   - License : MIT - See LICENSE file.
-#   - Project : Scrutiny Debugger (github.com/scrutinydebugger)
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
 #
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 

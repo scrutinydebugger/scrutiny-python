@@ -1,7 +1,9 @@
 #    make_metadata.py
+#        CLI Command to generate the metadata file that will be included in a Scrutiny Firmware
+#        Description file
 #
 #   - License : MIT - See LICENSE file.
-#   - Project : Scrutiny Debugger (github.com/scrutinydebugger)
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
 #
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 

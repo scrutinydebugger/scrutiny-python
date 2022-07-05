@@ -1,7 +1,8 @@
 #    firmware_id.py
+#        Holds the defaut firmware ID. Used for detection of untagged firmware
 #
 #   - License : MIT - See LICENSE file.
-#   - Project : Scrutiny Debugger (github.com/scrutinydebugger)
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
 #
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 

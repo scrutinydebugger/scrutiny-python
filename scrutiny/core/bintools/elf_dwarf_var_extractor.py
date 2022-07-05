@@ -1,7 +1,9 @@
 #    elf_dwarf_var_extractor.py
+#        Reads a .elf file, extract the DWARF debugging symbols and make a VarMap object out
+#        of it.
 #
 #   - License : MIT - See LICENSE file.
-#   - Project : Scrutiny Debugger (github.com/scrutinydebugger)
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
 #
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 

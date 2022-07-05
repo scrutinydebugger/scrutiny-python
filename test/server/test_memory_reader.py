@@ -1,7 +1,9 @@
 #    test_memory_reader.py
+#        Make sure the memory_Reader correctly reads the device memory to fills the datastore
+#        entries that are watch
 #
 #   - License : MIT - See LICENSE file.
-#   - Project : Scrutiny Debugger (github.com/scrutinydebugger)
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
 #
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 

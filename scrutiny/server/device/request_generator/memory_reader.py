@@ -1,7 +1,10 @@
 #    memory_reader.py
+#        Synchronize the datastore with the device
+#        Poll for entries that are watched and update the datastore with data read from the
+#        device.
 #
 #   - License : MIT - See LICENSE file.
-#   - Project : Scrutiny Debugger (github.com/scrutinydebugger)
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
 #
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 

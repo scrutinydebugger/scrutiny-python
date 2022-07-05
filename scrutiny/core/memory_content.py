@@ -1,7 +1,9 @@
 #    memory_content.py
+#        Provide a tool to manipulate non contiguous chunks of bytes with their addresses.
+#        Represent a partial memory snapshot
 #
 #   - License : MIT - See LICENSE file.
-#   - Project : Scrutiny Debugger (github.com/scrutinydebugger)
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
 #
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 

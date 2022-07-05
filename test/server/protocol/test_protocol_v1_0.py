@@ -1,7 +1,9 @@
 #    test_protocol_v1_0.py
+#        Test the Scrutiny Protocol.
+#         Validate encoding and decoding of each command.
 #
 #   - License : MIT - See LICENSE file.
-#   - Project : Scrutiny Debugger (github.com/scrutinydebugger)
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
 #
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 
