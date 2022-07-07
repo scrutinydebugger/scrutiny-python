@@ -2,9 +2,9 @@
 #        Test the Command Line Interface
 #
 #   - License : MIT - See LICENSE file.
-#   - Project : Scrutiny Debugger (github.com/scrutinydebugger/scrutiny)
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
 #
-#   Copyright (c) 2021-2022 scrutinydebugger
+#   Copyright (c) 2021-2022 Scrutiny Debugger
 
 import os
 import unittest
@@ -44,7 +44,8 @@ class TestCLI(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tempdirname:
             cli = CLI()
             filename = os.path.join(tempdirname, 'testfile.json')
-            cli.run(['make-metadata', '--version', '1.2.3.4', '--project-name', 'testname', '--author', 'unittest', '--output', filename], except_failed=True)
+            cli.run(['make-metadata', '--version', '1.2.3.4', '--project-name', 'testname',
+                    '--author', 'unittest', '--output', filename], except_failed=True)
             with open(filename, 'r') as f:
                 metadata = json.loads(f.read())
 
@@ -104,7 +105,7 @@ class TestCLI(unittest.TestCase):
             self.assertEqual(firmwareid, demobin_firmware_id)
 
     # Read a demo firmware binary and make varmap file. We don't check the content, just that it is valid varmap.
-    @SkipOnException(EnvionmentNotSetUpException) 
+    @SkipOnException(EnvionmentNotSetUpException)
     def test_elf2varmap(self):
         cli = CLI()
         demobin_path = get_artifact('demobin.elf')

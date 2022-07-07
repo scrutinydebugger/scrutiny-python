@@ -3,9 +3,9 @@
 #        Allow to launch specific functionality by invoking Scrutiny with command line arguments.
 #
 #   - License : MIT - See LICENSE file.
-#   - Project : Scrutiny Debugger (github.com/scrutinydebugger/scrutiny)
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
 #
-#   Copyright (c) 2021-2022 scrutinydebugger
+#   Copyright (c) 2021-2022 Scrutiny Debugger
 
 import os
 import argparse

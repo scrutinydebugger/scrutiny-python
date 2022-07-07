@@ -2,9 +2,9 @@
 #        Static type definition of the API messages
 #
 #   - License : MIT - See LICENSE file.
-#   - Project : Scrutiny Debugger (github.com/scrutinydebugger/scrutiny)
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
 #
-#   Copyright (c) 2021-2022 scrutinydebugger
+#   Copyright (c) 2021-2022 Scrutiny Debugger
 
 from scrutiny.core.firmware_description import MetadataType
 from typing import TypedDict, Optional, List, Any, Dict, Union

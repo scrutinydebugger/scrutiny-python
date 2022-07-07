@@ -2,9 +2,9 @@
 #        Manipulate the Scrutiny storage for .sfd files
 #
 #   - License : MIT - See LICENSE file.
-#   - Project : Scrutiny Debugger (github.com/scrutinydebugger/scrutiny)
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
 #
-#   Copyright (c) 2021-2022 scrutinydebugger
+#   Copyright (c) 2021-2022 Scrutiny Debugger
 
 import appdirs  # type: ignore
 import os
@@ -16,10 +16,11 @@ import tempfile
 
 from typing import List
 
+
 class TempStorageWithAutoRestore:
     def __init__(self, storage):
         self.storage = storage
-    
+
     def __enter__(self):
         return self
 
@@ -37,14 +38,14 @@ class SFDStorageManager():
     def use_temp_folder(self):
         self.temporary_dir = tempfile.TemporaryDirectory()
         return TempStorageWithAutoRestore(self)
-    
+
     def restore_storage(self):
         self.temporary_dir = None
 
     def get_storage_dir(self) -> str:
         if self.temporary_dir is not None:
             return self.temporary_dir.name
-        
+
         return self.folder
 
     def install(self, filename: str, ignore_exist=False) -> FirmwareDescription:

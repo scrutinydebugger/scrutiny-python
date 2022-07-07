@@ -1,14 +1,14 @@
 #    comm_handler.py
 #        The CommHandler task is to convert Requests and Response from or to a stream of bytes.
-#
+#        
 #        This class manage send requests, wait for response, indicates if a response timeout
 #        occured and decodes bytes.
 #        It manages the low level part of the communication protocol with the device
 #
 #   - License : MIT - See LICENSE file.
-#   - Project : Scrutiny Debugger (github.com/scrutinydebugger/scrutiny)
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
 #
-#   Copyright (c) 2021-2022 scrutinydebugger
+#   Copyright (c) 2021-2022 Scrutiny Debugger
 
 from queue import Queue
 from scrutiny.server.protocol import Request, Response
@@ -220,7 +220,7 @@ class CommHandler:
                     err = None
                 except Exception as e:
                     err = e
-                    self.logger.error('Cannot write to communication link. %s' %  str(e))
+                    self.logger.error('Cannot write to communication link. %s' % str(e))
                     self.logger.debug(traceback.format_exc())
 
                 if not err:

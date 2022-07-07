@@ -3,9 +3,9 @@
 #        or in a web browser with local server
 #
 #   - License : MIT - See LICENSE file.
-#   - Project : Scrutiny Debugger (github.com/scrutinydebugger/scrutiny)
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
 #
-#   Copyright (c) 2021-2022 scrutinydebugger
+#   Copyright (c) 2021-2022 Scrutiny Debugger
 
 import platform
 import sys
@@ -177,7 +177,7 @@ class GUIClient:
         }
 
         browser_settings = {
-            'web_security_disabled' : True  # We need to load files through ajax
+            'web_security_disabled': True  # We need to load files through ajax
         }
 
         cef.Initialize(app_settings)

@@ -4,9 +4,9 @@
 #        It's the meeting point of the API (with ValueStreamer) and the DeviceHandler
 #
 #   - License : MIT - See LICENSE file.
-#   - Project : Scrutiny Debugger (github.com/scrutinydebugger/scrutiny)
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
 #
-#   Copyright (c) 2021-2022 scrutinydebugger
+#   Copyright (c) 2021-2022 Scrutiny Debugger
 
 import logging
 from .datastore_entry import DatastoreEntry

@@ -2,9 +2,9 @@
 #        Holds the defaut firmware ID. Used for detection of untagged firmware
 #
 #   - License : MIT - See LICENSE file.
-#   - Project : Scrutiny Debugger (github.com/scrutinydebugger/scrutiny)
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
 #
-#   Copyright (c) 2021-2022 scrutinydebugger
+#   Copyright (c) 2021-2022 Scrutiny Debugger
 
 PLACEHOLDER: bytes = bytes([
     0xA9, 0xDC, 0xC0, 0x65, 0x28, 0xFD, 0x41, 0xFA,
