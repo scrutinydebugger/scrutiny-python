@@ -1,4 +1,4 @@
-[submodule "python/scrutiny/gui/webapp"]
-	path = python/scrutiny/gui/webapp
-	url = ../scrutiny-gui-webapp
+[submodule "gui-webapp"]
+	path = scrutiny/gui/webapp
+	url = ssh://git@github.com/scrutinydebugger/scrutiny-gui-webapp
 	branch = master

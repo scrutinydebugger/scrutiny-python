@@ -567,7 +567,7 @@ class DeviceHandler:
                         'Device handler believes there is no active request but comm handler says there is. This is not supposed to happen')
             else:
                 if self.comm_handler.has_timed_out():       # The request we have sent has timed out.. no response
-                    self.logger.error('Request timed out. %s' % self.active_request_record.request)
+                    self.logger.debug('Request timed out. %s' % self.active_request_record.request)
                     self.comm_broken = True
                     self.comm_handler.clear_timeout()
                     self.active_request_record.complete(success=False)

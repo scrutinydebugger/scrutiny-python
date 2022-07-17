@@ -10,6 +10,7 @@
 import os
 import sys
 import logging
+import traceback
 
 from scrutiny.server.datastore import Datastore, DatastoreEntry
 from scrutiny.server.tools import Timer
@@ -267,6 +268,7 @@ class API:
             self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
         except Exception as e:
             self.logger.error('[Conn:%s] Unexpected error while processing request #%d. %s' % (conn_id, self.req_count, str(e)))
+            self.logger.debug(traceback.format_exc())
             response = self.make_error_response(req, 'Internal error')
             self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
 
@@ -502,7 +504,6 @@ class API:
 
         if core_variable.has_enum():
             enum = core_variable.get_enum()
-            assert enum is False
             enum_def = enum.get_def()
             definition['enum'] = {  # Cherry pick items to avoid sending too much to client
                 'name': enum_def['name'],
