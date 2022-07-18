@@ -7,14 +7,11 @@
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 
 from abc import ABC, abstractmethod
-from typing import Optional, Dict
+from typing import Optional, Dict, Any
 
-LinkConfig = Optional[Dict[str, str]]
-
+LinkConfig = Dict[Any, Any]
 
 class AbstractLink(ABC):
-
-    config: LinkConfig
 
     @abstractmethod
     def __init__(self, config: LinkConfig):
@@ -48,6 +45,11 @@ class AbstractLink(ABC):
     def operational(self) -> bool:
         pass
 
+    @staticmethod
     @abstractmethod
-    def get_config(self):
-        return self.config
+    def validate_config(config:LinkConfig) -> None:
+        pass
+
+    @abstractmethod
+    def get_config(self) -> LinkConfig:
+        pass

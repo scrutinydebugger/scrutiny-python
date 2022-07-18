@@ -20,7 +20,7 @@ import struct
 from binascii import hexlify
 import time
 from scrutiny.server.tools import Throttler
-from scrutiny.server.device.links import AbstractLink
+from scrutiny.server.device.links import AbstractLink, LinkConfig
 import traceback
 
 from typing import Union, TypedDict, Optional, Any, Dict, Type
@@ -31,6 +31,8 @@ class CommHandler:
     This class is the bridge between the application and the communication channel with the device.
     It exchange bytes with the device and exchanges request/response with the upper layer.
     The link object abstract the communication channel.
+
+    This class also act as a Link Factory.
     """
 
     class Params(TypedDict):
@@ -110,14 +112,25 @@ class CommHandler:
     def get_link_type(self) -> str:
         return self.link_type
 
-    def set_link(self, link_type:str, link_config:Dict[Any, Any]):
+    def set_link(self, link_type:str, link_config:LinkConfig) -> None:
         self.close()
         if link_type == 'none':
             self.link = None
             self.link_type = "none"
             return 
         
-        link_class: Type[AbstractLink]
+        self.link_type = link_type
+        
+        link_class = self.get_link_class(link_type)
+        self.link = link_class(link_config)
+    
+    def validate_link_config(self, link_type:str, link_config:LinkConfig) -> None:
+        link_class = self.get_link_class(link_type)
+        return link_class.validate_config(link_config)
+
+    def get_link_class(self, link_type:str) -> Type[AbstractLink]:
+        link_class:Type[AbstractLink]
+
         if link_type == 'udp':
             from scrutiny.server.device.links.udp_link import UdpLink
             link_class = UdpLink
@@ -130,8 +143,7 @@ class CommHandler:
         else:
             raise ValueError('Unknown link type %s' % link_type)
         
-        self.link_type = link_type
-        self.link = link_class(link_config)
+        return link_class
 
     def open(self) -> None:
         """

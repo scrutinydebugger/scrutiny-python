@@ -67,6 +67,10 @@ class ThreadSafeDummyLink(AbstractLink):
 
     def get_config(self):
         return {}
+    
+    @staticmethod
+    def validate_config(config:LinkConfig) -> None:
+        pass
 
 
 class DummyLink(AbstractLink):
@@ -117,3 +121,7 @@ class DummyLink(AbstractLink):
 
     def get_config(self):
         return {}
+    
+    @staticmethod
+    def validate_config(config:LinkConfig) -> None:
+        pass

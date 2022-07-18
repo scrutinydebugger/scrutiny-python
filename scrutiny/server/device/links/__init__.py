@@ -1,2 +1,2 @@
 
-from .abstract_link import AbstractLink
+from .abstract_link import AbstractLink, LinkConfig

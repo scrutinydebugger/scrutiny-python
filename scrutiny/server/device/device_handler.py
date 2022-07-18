@@ -32,7 +32,7 @@ from scrutiny.server.device.device_info import DeviceInfo
 
 from scrutiny.server.tools import Timer
 from scrutiny.server.datastore import Datastore
-from scrutiny.server.device.links import AbstractLink
+from scrutiny.server.device.links import AbstractLink, LinkConfig
 from scrutiny.core.firmware_id import PLACEHOLDER as DEFAULT_FIRMWARE_ID
 
 
@@ -55,7 +55,7 @@ class DeviceHandlerConfig(TypedDict, total=False):
     max_response_size: int
     max_bitrate_bps: int
     link_type:str
-    link_config:Dict[Any, Any]
+    link_config:LinkConfig
 
 class DeviceHandler:
     logger: logging.Logger
@@ -321,9 +321,12 @@ class DeviceHandler:
         self.dispatcher.set_size_limits(max_request_size=max_request_size, max_response_size=max_response_size)
 
     # Open communication channel based on config
-    def configure_comm(self, link_type:str, link_config={}) -> None:
+    def configure_comm(self, link_type:str, link_config:LinkConfig={}) -> None:
         self.comm_handler.set_link(link_type, link_config)
         self.reset_comm()
+
+    def validate_link_config(self, link_type:str, link_config:LinkConfig) -> None:
+        self.comm_handler.validate_link_config(link_type, link_config)
 
     def send_disconnect(self, disconnect_callback: Optional[DisconnectCallback] = None):
         self.logger.debug('Disconnection requested.')
