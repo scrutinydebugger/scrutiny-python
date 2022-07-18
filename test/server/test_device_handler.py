@@ -41,7 +41,6 @@ class TestDeviceHandler(unittest.TestCase):
         }
 
         self.device_handler = DeviceHandler(config, self.datastore)
-        self.device_handler.init_comm()
         link = self.device_handler.get_comm_link()
         self.emulated_device = EmulatedDevice(link)
         self.emulated_device.start()

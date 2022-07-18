@@ -27,6 +27,7 @@ class UdpLink(AbstractLink):
     sock: Optional[socket.socket]
     bound: bool
     config: Dict
+    _initialized:bool
 
     BUFSIZE: int = 4096
 
@@ -53,6 +54,7 @@ class UdpLink(AbstractLink):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.sock = None
         self.bound = False
+        self._initialized = False
 
     def get_config(self):
         return self.config
@@ -60,6 +62,7 @@ class UdpLink(AbstractLink):
     def initialize(self) -> None:
         self.logger.debug('Opening UDP Link. Host=%s (%s). Port=%d' % (self.host, self.ip_address, self.port))
         self.init_socket()
+        self._initialized = True
 
     def init_socket(self) -> None:
         try:
@@ -83,8 +86,10 @@ class UdpLink(AbstractLink):
             self.sock.close()
         self.sock = None
         self.bound = False
+        self._initialized = False
 
     def operational(self) -> bool:
+        # If bound, we are necessarily initialized
         if self.sock is not None and self.bound == True:
             return True
         return False
@@ -106,6 +111,8 @@ class UdpLink(AbstractLink):
 
         if err:
             self.logger.debug('Socket error : ' + str(err))
+            if self.sock is not None:
+                self.sock.close()
 
         return None
 
@@ -113,8 +120,13 @@ class UdpLink(AbstractLink):
         if not self.operational():
             return
         assert self.sock is not None  # for mypy
-        self.sock.sendto(data, (self.host, self.port))
+        try:
+            self.sock.sendto(data, (self.host, self.port))
+        except:
+            self.bound = False
+
+    def initialized(self) -> bool:
+        return self._initialized
 
     def process(self) -> None:
-        # Todo : try reconnect on broken pipe.
         pass

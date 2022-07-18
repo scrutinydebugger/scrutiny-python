@@ -36,7 +36,7 @@ from scrutiny.server.device.links import AbstractLink
 from scrutiny.core.firmware_id import PLACEHOLDER as DEFAULT_FIRMWARE_ID
 
 
-from typing import TypedDict, Optional, Callable, Type, Any
+from typing import TypedDict, Optional, Callable, Any, Dict
 from scrutiny.core.typehints import GenericCallback
 
 DEFAULT_FIRMWARE_ID_ASCII = binascii.hexlify(DEFAULT_FIRMWARE_ID).decode('ascii')
@@ -51,12 +51,11 @@ class DeviceHandlerConfig(TypedDict, total=False):
     heartbeat_timeout: float
     default_address_size: int
     default_protocol_version: str
-    link_type: str
-    link_config: Any
     max_request_size: int
     max_response_size: int
     max_bitrate_bps: int
-
+    link_type:str
+    link_config:Dict[Any, Any]
 
 class DeviceHandler:
     logger: logging.Logger
@@ -158,6 +157,9 @@ class DeviceHandler:
         self.device_id = None
         self.operating_mode = self.OperatingMode.Normal
 
+        if 'link_type' in self.config and 'link_config' in self.config:
+            self.configure_comm(self.config['link_type'], self.config['link_config'])
+        
         self.reset_comm()
 
     def get_device_id(self) -> Optional[str]:
@@ -275,10 +277,7 @@ class DeviceHandler:
         return self.comm_handler.get_link()
 
     def get_link_type(self) -> str:
-        if 'link_type' not in self.config:
-            return "none"
-
-        return self.config['link_type']
+        return self.comm_handler.get_link_type()
 
     # Set communication state to a fresh start.
     def reset_comm(self) -> None:
@@ -322,26 +321,8 @@ class DeviceHandler:
         self.dispatcher.set_size_limits(max_request_size=max_request_size, max_response_size=max_response_size)
 
     # Open communication channel based on config
-    def init_comm(self) -> None:
-        link_class: Type[AbstractLink]
-
-        if self.config['link_type'] == 'none':
-            return None
-
-        if self.config['link_type'] == 'udp':
-            from .links.udp_link import UdpLink
-            link_class = UdpLink
-        elif self.config['link_type'] == 'dummy':
-            from .links.dummy_link import DummyLink
-            link_class = DummyLink
-        elif self.config['link_type'] == 'thread_safe_dummy':
-            from .links.dummy_link import ThreadSafeDummyLink
-            link_class = ThreadSafeDummyLink
-        else:
-            raise ValueError('Unknown link type %s' % self.config['link_type'])
-
-        device_link = link_class(self.config['link_config'])  # instantiate the class
-        self.comm_handler.open(device_link)
+    def configure_comm(self, link_type:str, link_config={}) -> None:
+        self.comm_handler.set_link(link_type, link_config)
         self.reset_comm()
 
     def send_disconnect(self, disconnect_callback: Optional[DisconnectCallback] = None):
@@ -354,9 +335,6 @@ class DeviceHandler:
         if self.comm_handler is not None:
             self.comm_handler.close()
         self.reset_comm()
-
-    def refresh_vars(self) -> None:
-        pass
 
     # To be called periodically
     def process(self) -> None:
@@ -548,6 +526,14 @@ class DeviceHandler:
 
     def handle_comm(self) -> None:
         done: bool = False
+
+        # Try open automatically the communication with device if we can
+        if not self.comm_handler.is_open():
+            # Try to open comm only if the link is set
+            if self.comm_handler.get_link() is not None:
+                self.comm_handler.open()
+                self.reset_comm()   # Make sure to restart
+
         while not done:
             done = True
             self.comm_handler.process()     # Process reception

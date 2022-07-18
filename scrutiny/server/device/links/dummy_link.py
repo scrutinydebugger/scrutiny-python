@@ -16,18 +16,25 @@ class ThreadSafeDummyLink(AbstractLink):
     from_device_data: bytes
     from_device_mutex: threading.Lock
     to_device_mutex: threading.Lock
+    _initialized:bool
 
     def __init__(self, config: LinkConfig = None):
-        self.initialize()
+        self._initialized = False
+        self.clear_all()
 
-    def initialize(self) -> None:
+    def clear_all(self) -> None:
         self.to_device_data = bytes()
         self.from_device_data = bytes()
         self.from_device_mutex = threading.Lock()
         self.to_device_mutex = threading.Lock()
 
+    def initialize(self) -> None:
+        self.clear_all()
+        self._initialized = True
+
     def destroy(self) -> None:
-        self.initialize()
+        self.clear_all()
+        self._initialized = False
 
     def write(self, data: bytes) -> None:
         with self.to_device_mutex:
@@ -53,7 +60,10 @@ class ThreadSafeDummyLink(AbstractLink):
         pass
 
     def operational(self) -> bool:
-        return True
+        return self._initialized
+    
+    def initialized(self) -> bool:
+        return self._initialized
 
     def get_config(self):
         return {}
@@ -62,17 +72,23 @@ class ThreadSafeDummyLink(AbstractLink):
 class DummyLink(AbstractLink):
     to_device_data: bytes
     from_device_data: bytes
+    _initialized:bool
 
     def __init__(self, config: LinkConfig = None):
-        self.initialize()
+        self._initialized = False
+        self.clear_all()
+
+    def clear_all(self) -> None:
+        self.to_device_data = bytes()
+        self.from_device_data = bytes()
 
     def initialize(self) -> None:
-        self.to_device_data = bytes()
-        self.from_device_data = bytes()
+        self.clear_all()
+        self._initialized = True
 
     def destroy(self) -> None:
-        self.to_device_data = bytes()
-        self.from_device_data = bytes()
+        self.clear_all()
+        self._initialized = False
 
     def write(self, data: bytes) -> None:
         self.to_device_data += data
@@ -94,7 +110,10 @@ class DummyLink(AbstractLink):
         pass
 
     def operational(self) -> bool:
-        return True
+        return self._initialized
+
+    def initialized(self) -> bool:
+        return self._initialized
 
     def get_config(self):
         return {}

@@ -23,6 +23,10 @@ class AbstractLink(ABC):
     @abstractmethod
     def initialize(self):
         pass
+    
+    @abstractmethod
+    def initialized(self):
+        pass
 
     @abstractmethod
     def destroy(self):

@@ -22,9 +22,10 @@ class TestCommHandler(unittest.TestCase):
             'response_timeout': 0.2
         }
 
-        self.link = DummyLink()
         self.comm_handler = CommHandler(params)
-        self.comm_handler.open(self.link)
+        self.comm_handler.set_link('dummy', {})
+        self.comm_handler.open()
+        self.link = self.comm_handler.get_link()
 
     def tearDown(self):
         self.comm_handler.close()
