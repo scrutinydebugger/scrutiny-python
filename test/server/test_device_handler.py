@@ -41,8 +41,8 @@ class TestDeviceHandler(unittest.TestCase):
         }
 
         self.device_handler = DeviceHandler(config, self.datastore)
-        link = self.device_handler.get_comm_link()
-        self.emulated_device = EmulatedDevice(link)
+        self.link = self.device_handler.get_comm_link()
+        self.emulated_device = EmulatedDevice(self.link)
         self.emulated_device.start()
 
         signal.signal(signal.SIGINT, self.ctrlc_handler)    # Clean exit on Ctrl+C
@@ -197,6 +197,37 @@ class TestDeviceHandler(unittest.TestCase):
                     break
 
         self.assertTrue(connection_lost)
+
+    def test_auto_diconnect_and_reconnect_on_broken_link(self):
+        timeout = 5     # Should take about 2.5 sec to disconnect With heartbeat at every 2 sec
+        t1 = time()
+        connection_completed = False
+        connection_lost = False
+        connection_recovered = False
+        while time() - t1 < timeout:
+            self.device_handler.process()
+            sleep(0.01)
+            status = self.device_handler.get_connection_status()
+
+            if status == DeviceHandler.ConnectionStatus.CONNECTED_READY and connection_completed == False:
+                connection_completed = True
+                self.assertEqual(self.device_handler.get_comm_error_count(), 0)
+                self.device_handler.get_comm_link().emulate_broken = True
+
+            if connection_completed:
+                if status != DeviceHandler.ConnectionStatus.CONNECTED_READY:
+                    if connection_lost == False:
+                        self.emulated_device.force_disconnect() # So that next connection works right away without getting responded with a "Busy"
+                        self.device_handler.get_comm_link().emulate_broken = False
+                    connection_lost = True
+            
+            if connection_lost:
+                if status == DeviceHandler.ConnectionStatus.CONNECTED_READY:
+                    connection_recovered= True
+                    break
+
+        self.assertTrue(connection_lost)
+        self.assertTrue(connection_recovered)
 
     def test_throttling(self):
         timeout = 3

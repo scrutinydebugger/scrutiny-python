@@ -151,6 +151,7 @@ class DeviceHandler:
                                           request_priority=self.RequestPriority.WriteMemory)
 
         self.comm_handler = CommHandler(self.config)
+        self.comm_handler_open_restart_timer = Timer(1.0)
 
         self.heartbeat_generator.set_interval(max(0.5, self.config['heartbeat_timeout'] * 0.75))
         self.comm_broken = False
@@ -534,8 +535,11 @@ class DeviceHandler:
         if not self.comm_handler.is_open():
             # Try to open comm only if the link is set
             if self.comm_handler.get_link() is not None:
-                self.comm_handler.open()
-                self.reset_comm()   # Make sure to restart
+                if self.comm_handler_open_restart_timer.is_stopped() or self.comm_handler_open_restart_timer.is_timed_out():
+                    self.logger.debug("Starting communication")
+                    self.comm_handler_open_restart_timer.start()
+                    self.comm_handler.open()
+                    self.reset_comm()   # Make sure to restart
 
         while not done:
             done = True

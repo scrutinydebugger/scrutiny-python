@@ -187,6 +187,7 @@ class CommHandler:
             return
 
         if self.link.initialized() and not self.link.operational():
+            self.logger.error('Communication link stopped working. Stopping communication')
             # Something broken here. Hardware disconnected maybe?
             self.close()    # Destroy and deinit the link
             return
