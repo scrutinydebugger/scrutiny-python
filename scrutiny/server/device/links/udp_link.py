@@ -34,6 +34,10 @@ class UdpLink(AbstractLink):
 
     BUFSIZE: int = 4096
 
+    @classmethod
+    def make(cls, config:LinkConfig) -> "UdpLink":
+        return cls(config)
+
     def __init__(self, config: LinkConfig):
         self.validate_config(config)
         
@@ -137,7 +141,7 @@ class UdpLink(AbstractLink):
 
         port = -1
         try:
-            port = int(config[port])
+            port = int(config['port'])
         except:
             raise ValueError('Port is not a valid integer')
         

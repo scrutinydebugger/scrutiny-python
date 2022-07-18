@@ -13,6 +13,11 @@ LinkConfig = Dict[Any, Any]
 
 class AbstractLink(ABC):
 
+    @classmethod
+    @abstractmethod
+    def make(cls, config: LinkConfig) -> "AbstractLink":
+        return cls(config)
+
     @abstractmethod
     def __init__(self, config: LinkConfig):
         pass

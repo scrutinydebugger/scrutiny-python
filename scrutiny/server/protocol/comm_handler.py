@@ -113,6 +113,8 @@ class CommHandler:
         return self.link_type
 
     def set_link(self, link_type:str, link_config:LinkConfig) -> None:
+        self.logger.debug('Configuring new device link of type %s with config : %s' % (link_type, str(link_config)))
+
         self.close()
         if link_type == 'none':
             self.link = None
@@ -122,7 +124,7 @@ class CommHandler:
         self.link_type = link_type
         
         link_class = self.get_link_class(link_type)
-        self.link = link_class(link_config)
+        self.link = link_class.make(link_config)
     
     def validate_link_config(self, link_type:str, link_config:LinkConfig) -> None:
         link_class = self.get_link_class(link_type)

@@ -8,6 +8,7 @@
 
 import threading
 from .abstract_link import AbstractLink, LinkConfig
+from typing import Dict, Any
 
 
 class ThreadSafeDummyLink(AbstractLink):
@@ -19,7 +20,18 @@ class ThreadSafeDummyLink(AbstractLink):
     _initialized:bool
     emulate_broken:bool
 
-    def __init__(self, config: LinkConfig = None):
+    INSTANCES:Dict[Any, "ThreadSafeDummyLink"] = {}
+
+    @classmethod
+    def make(cls, config:LinkConfig = {}) -> "ThreadSafeDummyLink":
+        if 'channel_id' in config:
+            if config['channel_id'] not in cls.INSTANCES:
+                cls.INSTANCES[config['channel_id']] = cls(config)
+            return cls.INSTANCES[config['channel_id']]
+
+        return cls(config)
+
+    def __init__(self, config: LinkConfig={}):
         self._initialized = False
         self.clear_all()
         self.emulate_broken = False
@@ -93,6 +105,17 @@ class DummyLink(AbstractLink):
     from_device_data: bytes
     _initialized:bool
     emulate_broken:bool
+
+    INSTANCES:Dict[Any, "DummyLink"] = {}
+
+    @classmethod
+    def make(cls, config:LinkConfig = {}) -> "DummyLink":
+        if 'channel_id' in config:
+            if config['channel_id'] not in cls.INSTANCES:
+                cls.INSTANCES[config['channel_id']] = cls(config)
+            return cls.INSTANCES[config['channel_id']]
+
+        return cls(config)
 
     def __init__(self, config: LinkConfig = None):
         self._initialized = False

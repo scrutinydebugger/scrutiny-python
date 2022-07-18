@@ -325,6 +325,7 @@ class DeviceHandler:
     def configure_comm(self, link_type:str, link_config:LinkConfig={}) -> None:
         self.comm_handler.set_link(link_type, link_config)
         self.reset_comm()
+        self.comm_handler_open_restart_timer.stop()
 
     def validate_link_config(self, link_type:str, link_config:LinkConfig) -> None:
         self.comm_handler.validate_link_config(link_type, link_config)

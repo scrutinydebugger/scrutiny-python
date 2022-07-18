@@ -13,6 +13,7 @@ import signal  # For ctrl+c handling
 
 from scrutiny.server.device.emulated_device import EmulatedDevice
 from scrutiny.server.device.device_handler import DeviceHandler
+from scrutiny.server.device.links.dummy_link import ThreadSafeDummyLink
 from scrutiny.server.datastore import Datastore, DatastoreEntry
 from scrutiny.server.protocol.commands import DummyCommand
 from scrutiny.server.protocol import Request, Response
@@ -356,3 +357,90 @@ class TestDeviceHandler(unittest.TestCase):
 
         self.assertTrue(connection_successful)
         self.assertEqual(round_completed, test_round_to_do)  # Check that we made 5 cycles of value
+
+
+
+
+class TestDeviceHandlerMultipleLink(unittest.TestCase):
+
+    def ctrlc_handler(self, signal, frame):
+        if self.emulated_device1 is not None:
+            self.emulated_device1.stop()
+        
+        if self.emulated_device2 is not None:
+            self.emulated_device2.stop()
+        raise KeyboardInterrupt
+
+    def setUp(self):
+
+        self.datastore = Datastore()
+        config = {
+            'response_timeout': 0.25,
+            'heartbeat_timeout': 2
+        }
+
+        self.device_handler = DeviceHandler(config, self.datastore)
+        self.assertIsNone(self.device_handler.get_comm_link())
+        self.link1 = ThreadSafeDummyLink.make( { 'channel_id' : 1 } )
+        self.link2 = ThreadSafeDummyLink.make( { 'channel_id' : 2 } )
+
+        self.emulated_device1 = EmulatedDevice(self.link1)
+        self.emulated_device2 = EmulatedDevice(self.link2)
+        self.emulated_device1.start()
+        self.emulated_device2.start()
+
+        signal.signal(signal.SIGINT, self.ctrlc_handler)    # Clean exit on Ctrl+C
+    
+    def tearDown(self):
+        self.emulated_device1.stop()
+        self.emulated_device2.stop()
+
+    def test_change_link_mid_comm(self):
+
+        # Make sur ewe can work with no link
+        self.device_handler.process()
+        self.device_handler.process()
+        self.device_handler.process()
+
+        self.assertIsNone(self.device_handler.get_comm_link())
+
+        self.device_handler.configure_comm('thread_safe_dummy', {'channel_id' : 1})
+        
+         # Should behave exactly the same as test_auto_disconnect_if_comm_interrupted
+        timeout = 5     # Should take about 2.5 sec to disconnect With heartbeat at every 2 sec
+        t1 = time()
+        connection_completed = False
+        while time() - t1 < timeout:
+            self.device_handler.process()
+            sleep(0.01)
+            status = self.device_handler.get_connection_status()
+
+            if status == DeviceHandler.ConnectionStatus.CONNECTED_READY and connection_completed == False:
+                connection_completed = True
+                break
+        
+        self.assertTrue(connection_completed)
+        self.assertTrue(self.emulated_device1.is_connected())
+        self.assertFalse(self.emulated_device2.is_connected())
+        self.assertEqual(self.device_handler.get_comm_error_count(), 0)
+
+        self.device_handler.configure_comm('thread_safe_dummy', {'channel_id' : 2})
+        self.device_handler.process()
+        self.assertNotEqual(self.device_handler.get_connection_status(), DeviceHandler.ConnectionStatus.CONNECTED_READY)
+
+        timeout = 5     # Should take about 2.5 sec to disconnect With heartbeat at every 2 sec
+        t1 = time()
+        connection_completed = False
+        while time() - t1 < timeout:
+            self.device_handler.process()
+            sleep(0.01)
+            status = self.device_handler.get_connection_status()
+
+            if status == DeviceHandler.ConnectionStatus.CONNECTED_READY and connection_completed == False:
+                connection_completed = True
+                break
+
+        self.assertTrue(connection_completed)
+        #self.assertTrue(self.emulated_device1.is_connected())
+        self.assertTrue(self.emulated_device2.is_connected())
+        self.assertEqual(self.device_handler.get_comm_error_count(), 0)
