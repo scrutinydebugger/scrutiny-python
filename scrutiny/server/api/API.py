@@ -75,6 +75,7 @@ class API:
             GET_INSTALLED_SFD_RESPONSE = 'response_get_installed_sfd'
             GET_LOADED_SFD_RESPONSE = 'response_get_loaded_sfd'
             GET_POSSIBLE_LINK_CONFIG = "response_get_possible_link_config"
+            SET_LINK_CONFIG_RESPONSE = 'set_link_config_response'
             INFORM_SERVER_STATUS = 'inform_server_status'
             ERROR_RESPONSE = 'error'
 
@@ -466,6 +467,13 @@ class API:
             raise InvalidRequestException(req, "Link configuration is not good for given link type. " + str(link_config_err))
 
         self.device_handler.configure_comm(req['link_type'], cast(LinkConfig, req['link_config']))
+
+        response = {
+            'cmd': self.Command.Api2Client.SET_LINK_CONFIG_RESPONSE,
+            'reqid': self.get_req_id(req)
+        }
+
+        self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
 
     def process_get_possible_link_config(self, conn_id: str, req: Dict[Any, Any]):
         pass
