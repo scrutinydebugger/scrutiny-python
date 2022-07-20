@@ -62,7 +62,7 @@ class API:
             LOAD_SFD = 'load_sfd'
             GET_SERVER_STATUS = 'get_server_status'
             SET_LINK_CONFIG = "set_link_config"
-            GET_POSSIBLE_LINK_CONFIG = "get_possible_link_config"
+            GET_POSSIBLE_LINK_CONFIG = "get_possible_link_config"   # todo
             DEBUG = 'debug'
 
         class Api2Client:
@@ -476,6 +476,7 @@ class API:
         self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
 
     def process_get_possible_link_config(self, conn_id: str, req: Dict[Any, Any]):
+        #todo
         pass
 
 

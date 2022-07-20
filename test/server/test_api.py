@@ -671,6 +671,7 @@ class TestAPI(unittest.TestCase):
         self.assertEqual(self.device_handler.link_type, 'none')
         self.assertEqual(self.device_handler.link_config, {})
 
+        # Switch the device link for real
         req = {
             'cmd': 'set_link_config',
             'link_type' : 'dummy',
@@ -684,7 +685,7 @@ class TestAPI(unittest.TestCase):
         self.assertEqual(self.device_handler.link_type, 'dummy')
         self.assertEqual(self.device_handler.link_config, {'channel_id' : 10})
 
-
+        # Simulate that the device handler refused the configuration. Make sure we return a proper error
         req = {
             'cmd': 'set_link_config',
             'link_type' : 'potato',
