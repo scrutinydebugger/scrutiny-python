@@ -1,3 +1,12 @@
+#    test_udp_link.py
+#        Test UDP link.
+#        nMake the link object talk with a socket
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021-2022 Scrutiny Debugger
+
 import unittest
 import socket as s
 
@@ -12,9 +21,12 @@ class TestUdpLink(unittest.TestCase):
             'host' : 'localhost',
             'port' : self.PORT
         }
-        sock = s.socket(s.AF_INET, s.SOCK_DGRAM, s.IPPROTO_UDP)
-        sock.bind(('localhost', self.PORT))
-        sock.setblocking(False)
+        try:
+            sock = s.socket(s.AF_INET, s.SOCK_DGRAM, s.IPPROTO_UDP)
+            sock.bind(('localhost', self.PORT))
+            sock.setblocking(False)
+        except Exception as e:
+            raise unittest.SkipTest("Cannot open test socket. " + str(e))
 
         link = UdpLink.make(link_config)
         self.assertFalse(link.initialized())
@@ -46,9 +58,13 @@ class TestUdpLink(unittest.TestCase):
             'host' : 'localhost',
             'port' : self.PORT
         }
-        sock = s.socket(s.AF_INET, s.SOCK_DGRAM, s.IPPROTO_UDP)
-        sock.bind(('localhost', self.PORT))
-        sock.setblocking(False)
+        
+        try:
+            sock = s.socket(s.AF_INET, s.SOCK_DGRAM, s.IPPROTO_UDP)
+            sock.bind(('localhost', self.PORT))
+            sock.setblocking(False)
+        except Exception as e:
+            raise unittest.SkipTest("Cannot open test socket. " + str(e))
 
         link = UdpLink.make(link_config)
         link.initialize()

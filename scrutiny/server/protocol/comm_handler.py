@@ -136,6 +136,9 @@ class CommHandler:
         if link_type == 'udp':
             from scrutiny.server.device.links.udp_link import UdpLink
             link_class = UdpLink
+        elif link_type == 'serial':
+            from scrutiny.server.device.links.serial_link import SerialLink
+            link_class = SerialLink
         elif link_type == 'dummy':
             from scrutiny.server.device.links.dummy_link import DummyLink
             link_class = DummyLink

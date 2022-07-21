@@ -17,6 +17,7 @@ dependencies = [
     'pyelftools',
     'websockets',
     'sortedcontainers',
+    'pyserial'
 ]
 
 # todo : Update this version check when cefpython3 is released for 3.10
