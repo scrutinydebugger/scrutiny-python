@@ -502,10 +502,9 @@ class API:
         configs.append(udp_config)
 
         try:
-            import serial.tools.list_ports
+            import serial.tools.list_ports  # type: ignore
             ports = serial.tools.list_ports.comports()
-            if ports is None:
-                portname_list = [] if ports is None else [port.device for port in ports]
+            portname_list:List[str] = [] if ports is None else [port.device for port in ports] 
 
             serial_config = {
                 'name' : 'serial',
