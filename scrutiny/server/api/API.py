@@ -74,7 +74,7 @@ class API:
             WATCHABLE_UPDATE = 'watchable_update'
             GET_INSTALLED_SFD_RESPONSE = 'response_get_installed_sfd'
             GET_LOADED_SFD_RESPONSE = 'response_get_loaded_sfd'
-            GET_POSSIBLE_LINK_CONFIG = "response_get_possible_link_config"
+            GET_POSSIBLE_LINK_CONFIG_RESPONSE = "response_get_possible_link_config"
             SET_LINK_CONFIG_RESPONSE = 'set_link_config_response'
             INFORM_SERVER_STATUS = 'inform_server_status'
             ERROR_RESPONSE = 'error'
@@ -264,6 +264,7 @@ class API:
                 raise InvalidRequestException(req, 'No command in request')
         
             cmd = req['cmd']
+
             if not isinstance(cmd, str):
                 raise InvalidRequestException(req, 'cmd is not a valid string')
 
@@ -479,8 +480,93 @@ class API:
         self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
 
     def process_get_possible_link_config(self, conn_id: str, req: Dict[Any, Any]):
-        #todo
-        pass
+        configs = []
+
+        udp_config = {
+            'name' : 'udp',
+            'params' : {
+                'host' : {
+                    'description' : 'UDP Hostname or IP address',
+                    'default' : 'localhost',
+                    'type' : 'string'
+                },
+                'port' : {
+                    'description' : 'UDP port',
+                    'default' : 8765,
+                    'type' : 'int',
+                    'range' : {'min':0, 'max':65535}
+                }
+            }
+        }
+
+        configs.append(udp_config)
+
+        try:
+            import serial.tools.list_ports
+            ports = serial.tools.list_ports.comports()
+            if ports is None:
+                portname_list = [] if ports is None else [port.device for port in ports]
+
+            serial_config = {
+                'name' : 'serial',
+                'params' : {
+                    'portname' : {
+                        'description' : 'Serial port name',
+                        'type' : 'select',
+                        'text-edit' : True,
+                        'values' : portname_list
+                    },
+                    'baudrate' : {
+                        'description' : 'Speed transmission in Baud/s (bit/s)',
+                        'default' : 115200,
+                        'type' : 'select',
+                        'text-edit' : True,
+                        'values' : [
+                            1200,
+                            2400,
+                            4800,
+                            9600,
+                            14400,
+                            19200,
+                            28800,
+                            38400,
+                            57600,
+                            115200,
+                            230400
+                        ]
+                    },
+                    'stopbits' : {
+                        'description' : 'Number of stop bits',
+                        'type' : 'select',
+                        'values' : [1,1.5,2]
+                    },
+                    'databits' : {
+                        'description' : 'Number of data bits',
+                        'default' : 5,
+                        'type' : 'select',
+                        'values' : [5,6,7,8]
+                    },
+                    'parity' : {
+                        'description' : 'Parity validation',
+                        'default' : 'none',
+                        'type' : 'select',
+                        'values' : ['none', 'even', 'odd', 'mark', 'space']
+                    }            
+                }
+            }
+
+            configs.append(serial_config)
+        except Exception as e:
+            self.logger.debug('Serial communication not possible.\n' + traceback.format_exc())
+        
+
+        response = {
+            'cmd': self.Command.Api2Client.GET_POSSIBLE_LINK_CONFIG_RESPONSE,
+            'reqid': self.get_req_id(req),
+            'configs' : configs
+        }
+
+        self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
 
 
     def craft_inform_server_status_response(self, reqid=None) -> ApiMsg_S2C_InformServerStatus:
