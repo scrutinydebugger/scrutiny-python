@@ -16,10 +16,11 @@ import time
 
 class TestUdpLink(unittest.TestCase):
     PORT = 40555
+
     def test_read_write(self):
         link_config = {
-            'host' : 'localhost',
-            'port' : self.PORT
+            'host': 'localhost',
+            'port': self.PORT
         }
         try:
             sock = s.socket(s.AF_INET, s.SOCK_DGRAM, s.IPPROTO_UDP)
@@ -52,13 +53,12 @@ class TestUdpLink(unittest.TestCase):
         self.assertFalse(link.initialized())
         self.assertFalse(link.operational())
 
-
     def test_detect_broken(self):
         link_config = {
-            'host' : 'localhost',
-            'port' : self.PORT
+            'host': 'localhost',
+            'port': self.PORT
         }
-        
+
         try:
             sock = s.socket(s.AF_INET, s.SOCK_DGRAM, s.IPPROTO_UDP)
             sock.bind(('localhost', self.PORT))
@@ -76,8 +76,7 @@ class TestUdpLink(unittest.TestCase):
 
         self.assertTrue(link.operational())
         link.sock.close()   # destroy internal socket to make it fail.
-        link.write(payload) # At least one operation is necessary to detect failure
+        link.write(payload)  # At least one operation is necessary to detect failure
         self.assertFalse(link.operational())
 
         link.destroy()
-        

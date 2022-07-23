@@ -1,6 +1,6 @@
 #    comm_handler.py
 #        The CommHandler task is to convert Requests and Response from or to a stream of bytes.
-#        
+#
 #        This class manage send requests, wait for response, indicates if a response timeout
 #        occured and decodes bytes.
 #        It manages the low level part of the communication protocol with the device
@@ -71,7 +71,7 @@ class CommHandler:
     bitcount_time: float
     timed_out: bool
     pending_request: Optional[Request]
-    link_type:str
+    link_type: str
 
     def __init__(self, params={}):
         self.active_request = None      # Contains the request object that has been sent to the device. When None, no request sent and we are standby
@@ -112,26 +112,26 @@ class CommHandler:
     def get_link_type(self) -> str:
         return self.link_type
 
-    def set_link(self, link_type:str, link_config:LinkConfig) -> None:
+    def set_link(self, link_type: str, link_config: LinkConfig) -> None:
         self.logger.debug('Configuring new device link of type %s with config : %s' % (link_type, str(link_config)))
 
         self.close()
         if link_type == 'none':
             self.link = None
             self.link_type = "none"
-            return 
-        
+            return
+
         self.link_type = link_type
-        
+
         link_class = self.get_link_class(link_type)
         self.link = link_class.make(link_config)
-    
-    def validate_link_config(self, link_type:str, link_config:LinkConfig) -> None:
+
+    def validate_link_config(self, link_type: str, link_config: LinkConfig) -> None:
         link_class = self.get_link_class(link_type)
         return link_class.validate_config(link_config)
 
-    def get_link_class(self, link_type:str) -> Type[AbstractLink]:
-        link_class:Type[AbstractLink]
+    def get_link_class(self, link_type: str) -> Type[AbstractLink]:
+        link_class: Type[AbstractLink]
 
         if link_type == 'udp':
             from scrutiny.server.device.links.udp_link import UdpLink
@@ -147,7 +147,7 @@ class CommHandler:
             link_class = ThreadSafeDummyLink
         else:
             raise ValueError('Unknown link type %s' % link_type)
-        
+
         return link_class
 
     def open(self) -> None:
@@ -163,7 +163,7 @@ class CommHandler:
         except Exception as e:
             self.logger.error("Cannot connect to device. " + str(e))
             self.opened = False
-    
+
     def is_open(self):
         return self.opened
 

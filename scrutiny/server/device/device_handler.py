@@ -1,7 +1,7 @@
 #    device_handler.py
 #        Manage the communication with the device at high level.
 #        Try to establish a connection, once it succeed, reads the device configuration.
-#        
+#
 #        Will keep the communication ongoing and will request for memory dump based on the
 #        Datastore state
 #
@@ -54,8 +54,9 @@ class DeviceHandlerConfig(TypedDict, total=False):
     max_request_size: int
     max_response_size: int
     max_bitrate_bps: int
-    link_type:str
-    link_config:LinkConfig
+    link_type: str
+    link_config: LinkConfig
+
 
 class DeviceHandler:
     logger: logging.Logger
@@ -160,7 +161,7 @@ class DeviceHandler:
 
         if 'link_type' in self.config and 'link_config' in self.config:
             self.configure_comm(self.config['link_type'], self.config['link_config'])
-        
+
         self.reset_comm()
 
     def get_device_id(self) -> Optional[str]:
@@ -322,12 +323,12 @@ class DeviceHandler:
         self.dispatcher.set_size_limits(max_request_size=max_request_size, max_response_size=max_response_size)
 
     # Open communication channel based on config
-    def configure_comm(self, link_type:str, link_config:LinkConfig={}) -> None:
+    def configure_comm(self, link_type: str, link_config: LinkConfig = {}) -> None:
         self.comm_handler.set_link(link_type, link_config)
         self.reset_comm()
         self.comm_handler_open_restart_timer.stop()
 
-    def validate_link_config(self, link_type:str, link_config:LinkConfig) -> None:
+    def validate_link_config(self, link_type: str, link_config: LinkConfig) -> None:
         self.comm_handler.validate_link_config(link_type, link_config)
 
     def send_disconnect(self, disconnect_callback: Optional[DisconnectCallback] = None):

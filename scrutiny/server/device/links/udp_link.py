@@ -17,9 +17,11 @@ from .abstract_link import AbstractLink, LinkConfig
 
 from typing import Optional, Dict, TypedDict, cast
 
+
 class UdpConfig(TypedDict):
-    host:str
-    port:int
+    host: str
+    port: int
+
 
 class UdpLink(AbstractLink):
 
@@ -30,17 +32,17 @@ class UdpLink(AbstractLink):
     sock: Optional[socket.socket]
     bound: bool
     config: UdpConfig
-    _initialized:bool
+    _initialized: bool
 
     BUFSIZE: int = 4096
 
     @classmethod
-    def make(cls, config:LinkConfig) -> "UdpLink":
+    def make(cls, config: LinkConfig) -> "UdpLink":
         return cls(config)
 
     def __init__(self, config: LinkConfig):
         self.validate_config(config)
-        
+
         self.config = cast(UdpConfig, {
             'host': config['host'],
             'port': int(config['port'])
@@ -127,15 +129,15 @@ class UdpLink(AbstractLink):
 
     def process(self) -> None:
         pass
-    
+
     @staticmethod
-    def validate_config(config:LinkConfig) -> None:
+    def validate_config(config: LinkConfig) -> None:
         if not isinstance(config, dict):
             raise ValueError('Configuration is not a valid dictionary')
 
         if 'host' not in config:
             raise ValueError('Missing hostname')
-        
+
         if 'port' not in config:
             raise ValueError('Missing hostname')
 
@@ -144,8 +146,6 @@ class UdpLink(AbstractLink):
             port = int(config['port'])
         except:
             raise ValueError('Port is not a valid integer')
-        
+
         if port <= 0 or port >= 0x10000:
             raise ValueError('Port number must be a valid 16 bits value')
-
-

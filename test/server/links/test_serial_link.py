@@ -16,12 +16,13 @@ import time
 import platform
 import serial   # type: ignore
 
+
 class TestSerialLink(unittest.TestCase):
     WINPORTS = ['COM101', 'COM102']
     NIXPORT = ['/tmp/scrutiny-pty0', '/tmp/scrutiny-pty1']
 
     def setUp(self):
-        if platform.system()=="Windows":
+        if platform.system() == "Windows":
             self.PORT = self.WINPORTS
         else:
             self.PORT = self.NIXPORT
@@ -46,11 +47,11 @@ class TestSerialLink(unittest.TestCase):
         stopbits = serial.STOPBITS_ONE
 
         link_config = {
-            'portname' : self.PORT[0],
-            'baudrate' : baudrate,
-            'stopbits' : 1,
-            'databits' : 8,
-            'parity' : 'none'
+            'portname': self.PORT[0],
+            'baudrate': baudrate,
+            'stopbits': 1,
+            'databits': 8,
+            'parity': 'none'
         }
 
         port = serial.Serial(self.PORT[1], baudrate, timeout=0, parity=parity, bytesize=databits, stopbits=stopbits, xonxoff=False)
@@ -87,11 +88,11 @@ class TestSerialLink(unittest.TestCase):
         stopbits = serial.STOPBITS_ONE
 
         link_config = {
-            'portname' : self.PORT[0],
-            'baudrate' : baudrate,
-            'stopbits' : 1,
-            'databits' : 8,
-            'parity' : 'none'
+            'portname': self.PORT[0],
+            'baudrate': baudrate,
+            'stopbits': 1,
+            'databits': 8,
+            'parity': 'none'
         }
 
         port = serial.Serial(self.PORT[1], baudrate, timeout=0, parity=parity, bytesize=databits, stopbits=stopbits, xonxoff=False)

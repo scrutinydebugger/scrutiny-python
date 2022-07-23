@@ -17,13 +17,13 @@ class ThreadSafeDummyLink(AbstractLink):
     from_device_data: bytes
     from_device_mutex: threading.Lock
     to_device_mutex: threading.Lock
-    _initialized:bool
-    emulate_broken:bool
+    _initialized: bool
+    emulate_broken: bool
 
-    INSTANCES:Dict[Any, "ThreadSafeDummyLink"] = {}
+    INSTANCES: Dict[Any, "ThreadSafeDummyLink"] = {}
 
     @classmethod
-    def make(cls, config:LinkConfig = {}) -> "ThreadSafeDummyLink":
+    def make(cls, config: LinkConfig = {}) -> "ThreadSafeDummyLink":
         if 'channel_id' in config:
             if config['channel_id'] not in cls.INSTANCES:
                 cls.INSTANCES[config['channel_id']] = cls(config)
@@ -31,7 +31,7 @@ class ThreadSafeDummyLink(AbstractLink):
 
         return cls(config)
 
-    def __init__(self, config: LinkConfig={}):
+    def __init__(self, config: LinkConfig = {}):
         self._initialized = False
         self.clear_all()
         self.emulate_broken = False
@@ -73,7 +73,7 @@ class ThreadSafeDummyLink(AbstractLink):
         with self.to_device_mutex:
             data = self.to_device_data
             self.to_device_data = bytes()
-        
+
         return data
 
     def emulate_device_write(self, data: bytes) -> None:
@@ -88,28 +88,28 @@ class ThreadSafeDummyLink(AbstractLink):
 
     def operational(self) -> bool:
         return self._initialized and not self.emulate_broken
-    
+
     def initialized(self) -> bool:
-        return self._initialized 
+        return self._initialized
 
     def get_config(self):
         return {}
-    
+
     @staticmethod
-    def validate_config(config:LinkConfig) -> None:
+    def validate_config(config: LinkConfig) -> None:
         pass
 
 
 class DummyLink(AbstractLink):
     to_device_data: bytes
     from_device_data: bytes
-    _initialized:bool
-    emulate_broken:bool
+    _initialized: bool
+    emulate_broken: bool
 
-    INSTANCES:Dict[Any, "DummyLink"] = {}
+    INSTANCES: Dict[Any, "DummyLink"] = {}
 
     @classmethod
-    def make(cls, config:LinkConfig = {}) -> "DummyLink":
+    def make(cls, config: LinkConfig = {}) -> "DummyLink":
         if 'channel_id' in config:
             if config['channel_id'] not in cls.INSTANCES:
                 cls.INSTANCES[config['channel_id']] = cls(config)
@@ -142,7 +142,7 @@ class DummyLink(AbstractLink):
     def read(self) -> bytes:
         if self.emulate_broken:
             return bytes()
-            
+
         data = self.from_device_data
         self.from_device_data = bytes()
         return data
@@ -170,7 +170,7 @@ class DummyLink(AbstractLink):
 
     def get_config(self):
         return {}
-    
+
     @staticmethod
-    def validate_config(config:LinkConfig) -> None:
+    def validate_config(config: LinkConfig) -> None:
         pass

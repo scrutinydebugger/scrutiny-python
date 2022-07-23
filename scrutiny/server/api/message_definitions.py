@@ -14,13 +14,14 @@ class EnumDefinition(TypedDict):
     name: str
     values: Dict[int, str]
 
+
 class DatastoreEntryDefinition(TypedDict, total=False):
     id: str
     display_path: str
     datatype: str
     entry_type: str
     enum: Optional[EnumDefinition]
-    
+
 
 class ApiMsgComp_DeviceInfo(TypedDict):
     device_id: str

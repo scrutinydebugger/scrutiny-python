@@ -218,13 +218,13 @@ class TestDeviceHandler(unittest.TestCase):
             if connection_completed:
                 if status != DeviceHandler.ConnectionStatus.CONNECTED_READY:
                     if connection_lost == False:
-                        self.emulated_device.force_disconnect() # So that next connection works right away without getting responded with a "Busy"
+                        self.emulated_device.force_disconnect()  # So that next connection works right away without getting responded with a "Busy"
                         self.device_handler.get_comm_link().emulate_broken = False
                     connection_lost = True
-            
+
             if connection_lost:
                 if status == DeviceHandler.ConnectionStatus.CONNECTED_READY:
-                    connection_recovered= True
+                    connection_recovered = True
                     break
 
         self.assertTrue(connection_lost)
@@ -359,14 +359,12 @@ class TestDeviceHandler(unittest.TestCase):
         self.assertEqual(round_completed, test_round_to_do)  # Check that we made 5 cycles of value
 
 
-
-
 class TestDeviceHandlerMultipleLink(unittest.TestCase):
 
     def ctrlc_handler(self, signal, frame):
         if self.emulated_device1 is not None:
             self.emulated_device1.stop()
-        
+
         if self.emulated_device2 is not None:
             self.emulated_device2.stop()
         raise KeyboardInterrupt
@@ -381,8 +379,8 @@ class TestDeviceHandlerMultipleLink(unittest.TestCase):
 
         self.device_handler = DeviceHandler(config, self.datastore)
         self.assertIsNone(self.device_handler.get_comm_link())
-        self.link1 = ThreadSafeDummyLink.make( { 'channel_id' : 1 } )
-        self.link2 = ThreadSafeDummyLink.make( { 'channel_id' : 2 } )
+        self.link1 = ThreadSafeDummyLink.make({'channel_id': 1})
+        self.link2 = ThreadSafeDummyLink.make({'channel_id': 2})
 
         self.emulated_device1 = EmulatedDevice(self.link1)
         self.emulated_device2 = EmulatedDevice(self.link2)
@@ -390,7 +388,7 @@ class TestDeviceHandlerMultipleLink(unittest.TestCase):
         self.emulated_device2.start()
 
         signal.signal(signal.SIGINT, self.ctrlc_handler)    # Clean exit on Ctrl+C
-    
+
     def tearDown(self):
         self.emulated_device1.stop()
         self.emulated_device2.stop()
@@ -404,9 +402,9 @@ class TestDeviceHandlerMultipleLink(unittest.TestCase):
 
         self.assertIsNone(self.device_handler.get_comm_link())
 
-        self.device_handler.configure_comm('thread_safe_dummy', {'channel_id' : 1})
-        
-         # Should behave exactly the same as test_auto_disconnect_if_comm_interrupted
+        self.device_handler.configure_comm('thread_safe_dummy', {'channel_id': 1})
+
+        # Should behave exactly the same as test_auto_disconnect_if_comm_interrupted
         timeout = 5     # Should take about 2.5 sec to disconnect With heartbeat at every 2 sec
         t1 = time()
         connection_completed = False
@@ -418,13 +416,13 @@ class TestDeviceHandlerMultipleLink(unittest.TestCase):
             if status == DeviceHandler.ConnectionStatus.CONNECTED_READY and connection_completed == False:
                 connection_completed = True
                 break
-        
+
         self.assertTrue(connection_completed)
         self.assertTrue(self.emulated_device1.is_connected())
         self.assertFalse(self.emulated_device2.is_connected())
         self.assertEqual(self.device_handler.get_comm_error_count(), 0)
 
-        self.device_handler.configure_comm('thread_safe_dummy', {'channel_id' : 2})
+        self.device_handler.configure_comm('thread_safe_dummy', {'channel_id': 2})
         self.device_handler.process()
         self.assertNotEqual(self.device_handler.get_connection_status(), DeviceHandler.ConnectionStatus.CONNECTED_READY)
 
@@ -441,6 +439,6 @@ class TestDeviceHandlerMultipleLink(unittest.TestCase):
                 break
 
         self.assertTrue(connection_completed)
-        #self.assertTrue(self.emulated_device1.is_connected())
+        # self.assertTrue(self.emulated_device1.is_connected())
         self.assertTrue(self.emulated_device2.is_connected())
         self.assertEqual(self.device_handler.get_comm_error_count(), 0)

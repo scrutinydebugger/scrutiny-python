@@ -80,16 +80,14 @@ class StubbedDeviceHandler:
         info.forbidden_memory_regions = [{'start': 0x1000, 'end': 0x2000}]
         info.readonly_memory_regions = [{'start': 0x2000, 'end': 0x3000}, {'start': 0x3000, 'end': 0x4000}]
         return info
-    
+
     def configure_comm(self, link_type, link_config):
         self.link_type = link_type
-        self.link_config = link_config   
+        self.link_config = link_config
 
     def validate_link_config(self, link_type, link_config):
         if self.reject_link_config:
             raise Exception('Bad config')
-        
-
 
 
 class TestAPI(unittest.TestCase):
@@ -143,7 +141,7 @@ class TestAPI(unittest.TestCase):
             if 'msg' in response and msg is None:
                 msg = response['msg']
             self.assertNotEqual(response['cmd'], API.Command.Api2Client.ERROR_RESPONSE, msg)
-    
+
     def assert_is_error(self, response):
         if 'cmd' in response:
             self.assertEqual(response['cmd'], API.Command.Api2Client.ERROR_RESPONSE)
@@ -674,23 +672,23 @@ class TestAPI(unittest.TestCase):
         # Switch the device link for real
         req = {
             'cmd': 'set_link_config',
-            'link_type' : 'dummy',
-            'link_config' : {
-                'channel_id' : 10
+            'link_type': 'dummy',
+            'link_config': {
+                'channel_id': 10
             }
         }
         self.send_request(req, 0)
         response = self.wait_and_load_response(timeout=0.5)
         self.assert_no_error(response)
         self.assertEqual(self.device_handler.link_type, 'dummy')
-        self.assertEqual(self.device_handler.link_config, {'channel_id' : 10})
+        self.assertEqual(self.device_handler.link_config, {'channel_id': 10})
 
         # Simulate that the device handler refused the configuration. Make sure we return a proper error
         req = {
             'cmd': 'set_link_config',
-            'link_type' : 'potato',
-            'link_config' : {
-                'mium' : 'mium'
+            'link_type': 'potato',
+            'link_config': {
+                'mium': 'mium'
             }
         }
         self.device_handler.reject_link_config = True   # Emulate a bad config
@@ -698,22 +696,22 @@ class TestAPI(unittest.TestCase):
         response = self.wait_and_load_response(timeout=0.5)
         self.assert_is_error(response)
         self.assertNotEqual(self.device_handler.link_type, 'potato')
-        self.assertNotEqual(self.device_handler.link_config, {'mium' : 'mium'})
+        self.assertNotEqual(self.device_handler.link_config, {'mium': 'mium'})
         self.device_handler.reject_link_config = False
 
-        #Missing link_config
+        # Missing link_config
         req = {
             'cmd': 'set_link_config',
-            'link_type' : 'potato'
+            'link_type': 'potato'
         }
         self.send_request(req, 0)
         response = self.wait_and_load_response(timeout=0.5)
         self.assert_is_error(response)
 
-        #Missing link_type
+        # Missing link_type
         req = {
             'cmd': 'set_link_config',
-            'link_config' : {}
+            'link_config': {}
         }
         self.send_request(req, 0)
         response = self.wait_and_load_response(timeout=0.5)

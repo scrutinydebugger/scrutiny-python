@@ -11,6 +11,7 @@ from typing import Optional, Dict, Any
 
 LinkConfig = Dict[Any, Any]
 
+
 class AbstractLink(ABC):
 
     @classmethod
@@ -25,7 +26,7 @@ class AbstractLink(ABC):
     @abstractmethod
     def initialize(self):
         pass
-    
+
     @abstractmethod
     def initialized(self):
         pass
@@ -52,7 +53,7 @@ class AbstractLink(ABC):
 
     @staticmethod
     @abstractmethod
-    def validate_config(config:LinkConfig) -> None:
+    def validate_config(config: LinkConfig) -> None:
         pass
 
     @abstractmethod
