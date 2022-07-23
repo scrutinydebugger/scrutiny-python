@@ -16,6 +16,7 @@ from scrutiny.server.datastore import Datastore, DatastoreEntry
 from scrutiny.server.tools import Timer
 from scrutiny.server.device.device_handler import DeviceHandler
 from scrutiny.server.active_sfd_handler import ActiveSFDHandler, SFDLoadedCallback, SFDUnloadedCallback
+from scrutiny.server.device.links import AbstractLink, LinkConfig
 from scrutiny.core.sfd_storage import SFDStorage
 from scrutiny.core import Variable, VariableType
 from scrutiny.core.firmware_description import FirmwareDescription
@@ -60,6 +61,8 @@ class API:
             GET_LOADED_SFD = 'get_loaded_sfd'
             LOAD_SFD = 'load_sfd'
             GET_SERVER_STATUS = 'get_server_status'
+            SET_LINK_CONFIG = "set_link_config"
+            GET_POSSIBLE_LINK_CONFIG = "get_possible_link_config"   # todo
             DEBUG = 'debug'
 
         class Api2Client:
@@ -71,6 +74,8 @@ class API:
             WATCHABLE_UPDATE = 'watchable_update'
             GET_INSTALLED_SFD_RESPONSE = 'response_get_installed_sfd'
             GET_LOADED_SFD_RESPONSE = 'response_get_loaded_sfd'
+            GET_POSSIBLE_LINK_CONFIG_RESPONSE = "response_get_possible_link_config"
+            SET_LINK_CONFIG_RESPONSE = 'set_link_config_response'
             INFORM_SERVER_STATUS = 'inform_server_status'
             ERROR_RESPONSE = 'error'
 
@@ -107,7 +112,7 @@ class API:
         VariableType.cfloat128: 'cfloat128',
         VariableType.cfloat256: 'cfloat256',
         VariableType.boolean: 'boolean',
-        VariableType.struct: 'struct',
+        VariableType.struct: 'struct'
     }
 
     device_conn_status_to_str: Dict[DeviceHandler.ConnectionStatus, str] = {
@@ -142,7 +147,10 @@ class API:
         Command.Client2Api.GET_INSTALLED_SFD: 'process_get_installed_sfd',
         Command.Client2Api.LOAD_SFD: 'process_load_sfd',
         Command.Client2Api.GET_LOADED_SFD: 'process_get_loaded_sfd',
-        Command.Client2Api.GET_SERVER_STATUS: 'process_get_server_status'
+        Command.Client2Api.GET_SERVER_STATUS: 'process_get_server_status',
+        Command.Client2Api.SET_LINK_CONFIG: 'process_set_link_config',
+        Command.Client2Api.GET_POSSIBLE_LINK_CONFIG: 'process_get_possible_link_config'
+
     }
 
     def __init__(self, config: APIConfig, datastore: Datastore, device_handler: DeviceHandler, sfd_handler: ActiveSFDHandler, enable_debug: bool = False):
@@ -256,6 +264,10 @@ class API:
                 raise InvalidRequestException(req, 'No command in request')
 
             cmd = req['cmd']
+
+            if not isinstance(cmd, str):
+                raise InvalidRequestException(req, 'cmd is not a valid string')
+
             if cmd in self.ApiRequestCallbacks:
                 callback = getattr(self, self.ApiRequestCallbacks[cmd])
                 callback.__call__(conn_id, req)
@@ -272,13 +284,13 @@ class API:
             response = self.make_error_response(req, 'Internal error')
             self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
 
-    def process_debug(self, conn_id: str, req: Dict[str, str]) -> None:
+    def process_debug(self, conn_id: str, req: Dict[Any, Any]) -> None:
         if self.enable_debug:
             import ipdb  # type: ignore
             ipdb.set_trace()
 
     # === ECHO ====
-    def process_echo(self, conn_id: str, req: Dict[str, str]) -> None:
+    def process_echo(self, conn_id: str, req: Dict[Any, Any]) -> None:
         if 'payload' not in req:
             raise InvalidRequestException(req, 'Missing payload')
         response = dict(cmd=self.Command.Api2Client.ECHO_RESPONSE, payload=req['payload'])
@@ -345,7 +357,7 @@ class API:
             self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
 
     #  ===  GET_WATCHABLE_COUNT ===
-    def process_get_watchable_count(self, conn_id: str, req: Dict[str, str]) -> None:
+    def process_get_watchable_count(self, conn_id: str, req: Dict[Any, Any]) -> None:
         response = {
             'cmd': self.Command.Api2Client.GET_WATCHABLE_COUNT_RESPONSE,
             'reqid': self.get_req_id(req),
@@ -358,7 +370,7 @@ class API:
         self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
 
     #  ===  SUBSCRIBE_WATCHABLE ===
-    def process_subscribe_watchable(self, conn_id: str, req: Dict[str, str]) -> None:
+    def process_subscribe_watchable(self, conn_id: str, req: Dict[Any, Any]) -> None:
         if 'watchables' not in req and not isinstance(req['watchables'], list):
             raise InvalidRequestException(req, 'Invalid or missing watchables list')
 
@@ -380,7 +392,7 @@ class API:
         self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
 
     #  ===  UNSUBSCRIBE_WATCHABLE ===
-    def process_unsubscribe_watchable(self, conn_id: str, req: Dict[str, str]) -> None:
+    def process_unsubscribe_watchable(self, conn_id: str, req: Dict[Any, Any]) -> None:
         if 'watchables' not in req and not isinstance(req['watchables'], list):
             raise InvalidRequestException(req, 'Invalid or missing watchables list')
 
@@ -401,7 +413,7 @@ class API:
 
         self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
 
-    def process_get_installed_sfd(self, conn_id: str, req: Dict[str, str]):
+    def process_get_installed_sfd(self, conn_id: str, req: Dict[Any, Any]):
         firmware_id_list = SFDStorage.list()
         metadata_dict = {}
         for firmware_id in firmware_id_list:
@@ -415,7 +427,7 @@ class API:
 
         self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
 
-    def process_get_loaded_sfd(self, conn_id: str, req: Dict[str, str]):
+    def process_get_loaded_sfd(self, conn_id: str, req: Dict[Any, Any]):
         sfd = self.sfd_handler.get_loaded_sfd()
 
         response = {
@@ -426,7 +438,7 @@ class API:
 
         self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
 
-    def process_load_sfd(self, conn_id: str, req: Dict[str, str]):
+    def process_load_sfd(self, conn_id: str, req: Dict[Any, Any]):
         if 'firmware_id' not in req and not isinstance(req['firmware_id'], str):
             raise InvalidRequestException(req, 'Invalid firmware_id')
 
@@ -437,9 +449,121 @@ class API:
 
         # Do not send a response. There's a callback on SFD Loading that will notfy everyone.
 
-    def process_get_server_status(self, conn_id: str, req: Dict[str, str]):
+    def process_get_server_status(self, conn_id: str, req: Dict[Any, Any]):
         obj = self.craft_inform_server_status_response(reqid=self.get_req_id(req))
         self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=obj))
+
+    def process_set_link_config(self, conn_id: str, req: Dict[Any, Any]):
+        if 'link_type' not in req and not isinstance(req['link_type'], str):
+            raise InvalidRequestException(req, 'Invalid link_type')
+
+        if 'link_config' not in req and not isinstance(req['link_config'], dict):
+            raise InvalidRequestException(req, 'Invalid link_config')
+
+        link_config_err: Optional[Exception] = None
+        try:
+            self.device_handler.validate_link_config(req['link_type'], req['link_config'])
+        except Exception as e:
+            link_config_err = e
+
+        if link_config_err:
+            raise InvalidRequestException(req, "Link configuration is not good for given link type. " + str(link_config_err))
+
+        self.device_handler.configure_comm(req['link_type'], cast(LinkConfig, req['link_config']))
+
+        response = {
+            'cmd': self.Command.Api2Client.SET_LINK_CONFIG_RESPONSE,
+            'reqid': self.get_req_id(req)
+        }
+
+        self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
+
+    def process_get_possible_link_config(self, conn_id: str, req: Dict[Any, Any]):
+        configs = []
+
+        udp_config = {
+            'name': 'udp',
+            'params': {
+                'host': {
+                    'description': 'UDP Hostname or IP address',
+                    'default': 'localhost',
+                    'type': 'string'
+                },
+                'port': {
+                    'description': 'UDP port',
+                    'default': 8765,
+                    'type': 'int',
+                    'range': {'min': 0, 'max': 65535}
+                }
+            }
+        }
+
+        configs.append(udp_config)
+
+        try:
+            import serial.tools.list_ports  # type: ignore
+            ports = serial.tools.list_ports.comports()
+            portname_list: List[str] = [] if ports is None else [port.device for port in ports]
+
+            serial_config = {
+                'name': 'serial',
+                'params': {
+                    'portname': {
+                        'description': 'Serial port name',
+                        'type': 'select',
+                        'text-edit': True,
+                        'values': portname_list
+                    },
+                    'baudrate': {
+                        'description': 'Speed transmission in Baud/s (bit/s)',
+                        'default': 115200,
+                        'type': 'select',
+                        'text-edit': True,
+                        'values': [
+                            1200,
+                            2400,
+                            4800,
+                            9600,
+                            14400,
+                            19200,
+                            28800,
+                            38400,
+                            57600,
+                            115200,
+                            230400
+                        ]
+                    },
+                    'stopbits': {
+                        'description': 'Number of stop bits',
+                        'type': 'select',
+                        'values': [1, 1.5, 2]
+                    },
+                    'databits': {
+                        'description': 'Number of data bits',
+                        'default': 5,
+                        'type': 'select',
+                        'values': [5, 6, 7, 8]
+                    },
+                    'parity': {
+                        'description': 'Parity validation',
+                        'default': 'none',
+                        'type': 'select',
+                        'values': ['none', 'even', 'odd', 'mark', 'space']
+                    }
+                }
+            }
+
+            configs.append(serial_config)
+        except Exception as e:
+            self.logger.debug('Serial communication not possible.\n' + traceback.format_exc())
+
+        response = {
+            'cmd': self.Command.Api2Client.GET_POSSIBLE_LINK_CONFIG_RESPONSE,
+            'reqid': self.get_req_id(req),
+            'configs': configs
+        }
+
+        self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
 
     def craft_inform_server_status_response(self, reqid=None) -> ApiMsg_S2C_InformServerStatus:
 
@@ -493,7 +617,7 @@ class API:
 
     def make_datastore_entry_definition(self, entry: DatastoreEntry, include_entry_type=False) -> DatastoreEntryDefinition:
         core_variable = entry.get_core_variable()
-        definition:DatastoreEntryDefinition = {
+        definition: DatastoreEntryDefinition = {
             'id': entry.get_id(),
             'display_path': entry.get_display_path(),
             'datatype': self.data_type_to_str[core_variable.get_type()]

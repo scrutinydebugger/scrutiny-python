@@ -1,6 +1,6 @@
 #    comm_handler.py
 #        The CommHandler task is to convert Requests and Response from or to a stream of bytes.
-#        
+#
 #        This class manage send requests, wait for response, indicates if a response timeout
 #        occured and decodes bytes.
 #        It manages the low level part of the communication protocol with the device
@@ -20,10 +20,10 @@ import struct
 from binascii import hexlify
 import time
 from scrutiny.server.tools import Throttler
-from scrutiny.server.device.links import AbstractLink
+from scrutiny.server.device.links import AbstractLink, LinkConfig
 import traceback
 
-from typing import Union, TypedDict, Optional
+from typing import Union, TypedDict, Optional, Any, Dict, Type
 
 
 class CommHandler:
@@ -31,6 +31,8 @@ class CommHandler:
     This class is the bridge between the application and the communication channel with the device.
     It exchange bytes with the device and exchanges request/response with the upper layer.
     The link object abstract the communication channel.
+
+    This class also act as a Link Factory.
     """
 
     class Params(TypedDict):
@@ -69,6 +71,7 @@ class CommHandler:
     bitcount_time: float
     timed_out: bool
     pending_request: Optional[Request]
+    link_type: str
 
     def __init__(self, params={}):
         self.active_request = None      # Contains the request object that has been sent to the device. When None, no request sent and we are standby
@@ -83,6 +86,7 @@ class CommHandler:
         self.opened = False     # True when communication channel is active and working.
         self.reset_bitrate_monitor()
         self.throttler = Throttler()
+        self.link_type = "none"
 
     def enable_throttling(self, bitrate: float) -> None:
         self.throttler.set_bitrate(bitrate)
@@ -105,12 +109,54 @@ class CommHandler:
     def get_link(self) -> Optional[AbstractLink]:
         return self.link
 
-    def open(self, link: AbstractLink) -> None:
+    def get_link_type(self) -> str:
+        return self.link_type
+
+    def set_link(self, link_type: str, link_config: LinkConfig) -> None:
+        self.logger.debug('Configuring new device link of type %s with config : %s' % (link_type, str(link_config)))
+
+        self.close()
+        if link_type == 'none':
+            self.link = None
+            self.link_type = "none"
+            return
+
+        self.link_type = link_type
+
+        link_class = self.get_link_class(link_type)
+        self.link = link_class.make(link_config)
+
+    def validate_link_config(self, link_type: str, link_config: LinkConfig) -> None:
+        link_class = self.get_link_class(link_type)
+        return link_class.validate_config(link_config)
+
+    def get_link_class(self, link_type: str) -> Type[AbstractLink]:
+        link_class: Type[AbstractLink]
+
+        if link_type == 'udp':
+            from scrutiny.server.device.links.udp_link import UdpLink
+            link_class = UdpLink
+        elif link_type == 'serial':
+            from scrutiny.server.device.links.serial_link import SerialLink
+            link_class = SerialLink
+        elif link_type == 'dummy':
+            from scrutiny.server.device.links.dummy_link import DummyLink
+            link_class = DummyLink
+        elif link_type == 'thread_safe_dummy':
+            from scrutiny.server.device.links.dummy_link import ThreadSafeDummyLink
+            link_class = ThreadSafeDummyLink
+        else:
+            raise ValueError('Unknown link type %s' % link_type)
+
+        return link_class
+
+    def open(self) -> None:
         """
             Try to open the communication channel with the device.
         """
-        self.link = link
-        self.reset()
+        if self.link is None:
+            raise Exception('Link must be set before opening')
+
         try:
             self.link.initialize()
             self.opened = True
@@ -118,18 +164,24 @@ class CommHandler:
             self.logger.error("Cannot connect to device. " + str(e))
             self.opened = False
 
+    def is_open(self):
+        return self.opened
+
     def close(self) -> None:
         """
             Close the communication channel with the device
         """
         if self.link is not None:
             self.link.destroy()
-            self.link = None
+
         self.reset()
         self.opened = False
 
-    def is_open(self) -> bool:
-        return self.opened
+    def is_operational(self) -> bool:
+        if self.link is None:
+            return False
+
+        return self.opened and self.link.operational()
 
     def process(self) -> None:
         """
@@ -139,15 +191,20 @@ class CommHandler:
             self.reset()
             return
 
-        self.link.process()  # Process the link handling
-        self.throttler.process()
-        self.process_rx()   # Treat response reception
-        self.process_tx()   # Handle throttling
+        if self.link.initialized() and not self.link.operational():
+            self.logger.error('Communication link stopped working. Stopping communication')
+            # Something broken here. Hardware disconnected maybe?
+            self.close()    # Destroy and deinit the link
+            return
+
+        if self.is_operational():
+            self.link.process()  # Process the link handling
+            self.throttler.process()
+            self.process_rx()   # Treat response reception
+            self.process_tx()   # Handle throttling
 
     def process_rx(self) -> None:
-        if self.link is None:
-            self.reset()
-            return
+        assert self.link is not None
 
         # If we haven't got a response or we know we won't get one. Mark the request as timed out
         if self.waiting_response() and (self.response_timer.is_timed_out() or not self.link.operational()):
@@ -202,9 +259,7 @@ class CommHandler:
                     self.reset_rx()
 
     def process_tx(self, newrequest: bool = False) -> None:
-        if self.link is None:
-            self.reset()
-            return
+        assert self.link is not None
 
         if self.pending_request is not None:
             approx_delta_bandwidth = (self.pending_request.size() + self.pending_request.get_expected_response_size()) * 8;
@@ -268,13 +323,16 @@ class CommHandler:
         if self.waiting_response():
             raise Exception('Cannot send new request. Already waiting for a response')
 
-        self.pending_request = request
-        self.received_response = None
-        self.timed_out = False
-        self.process_tx(newrequest=True)
+        if self.opened:
+            self.pending_request = request
+            self.received_response = None
+            self.timed_out = False
+            self.process_tx(newrequest=True)
 
     def waiting_response(self) -> bool:
         # We are waiting response if a request is active, meaning it has been sent and reponse has not been acknowledge by the application
+        if not self.opened:
+            return False
         return (self.active_request is not None or self.pending_request is not None)
 
     def reset(self) -> None:

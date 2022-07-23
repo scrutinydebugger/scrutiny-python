@@ -15,7 +15,12 @@ import traceback
 from scrutiny.server.tools import Timer
 from .abstract_link import AbstractLink, LinkConfig
 
-from typing import Optional, Dict
+from typing import Optional, Dict, TypedDict, cast
+
+
+class UdpConfig(TypedDict):
+    host: str
+    port: int
 
 
 class UdpLink(AbstractLink):
@@ -26,40 +31,37 @@ class UdpLink(AbstractLink):
     logger: logging.Logger
     sock: Optional[socket.socket]
     bound: bool
-    config: Dict
+    config: UdpConfig
+    _initialized: bool
 
     BUFSIZE: int = 4096
 
-    def __init__(self, parameters: LinkConfig):
-        if parameters is None:
-            raise ValueError('Empty configuration')
+    @classmethod
+    def make(cls, config: LinkConfig) -> "UdpLink":
+        return cls(config)
 
-        if 'port' not in parameters:
-            raise ValueError('Missing UDP port')
+    def __init__(self, config: LinkConfig):
+        self.validate_config(config)
 
-        if 'host' not in parameters:
-            raise ValueError('Missing UDP host')
+        self.config = cast(UdpConfig, {
+            'host': config['host'],
+            'port': int(config['port'])
+        })
 
-        self.port = int(parameters['port'])
-        self.host = parameters['host']
-
-        self.config = {
-            'host': parameters['host'],
-            'port': int(parameters['port'])
-        }
-
-        self.ip_address = socket.gethostbyname(self.host)
+        self.ip_address = socket.gethostbyname(self.config['host'])
 
         self.logger = logging.getLogger(self.__class__.__name__)
         self.sock = None
         self.bound = False
+        self._initialized = False
 
     def get_config(self):
-        return self.config
+        return cast(LinkConfig, self.config)
 
     def initialize(self) -> None:
-        self.logger.debug('Opening UDP Link. Host=%s (%s). Port=%d' % (self.host, self.ip_address, self.port))
+        self.logger.debug('Opening UDP Link. Host=%s (%s). Port=%d' % (self.config['host'], self.ip_address, self.config['port']))
         self.init_socket()
+        self._initialized = True
 
     def init_socket(self) -> None:
         try:
@@ -77,14 +79,16 @@ class UdpLink(AbstractLink):
             self.bound = False
 
     def destroy(self) -> None:
-        self.logger.debug('Closing UDP Link. Host=%s. Port=%d' % (self.host, self.port))
+        self.logger.debug('Closing UDP Link. Host=%s. Port=%d' % (self.config['host'], self.config['port']))
 
         if self.sock is not None:
             self.sock.close()
         self.sock = None
         self.bound = False
+        self._initialized = False
 
     def operational(self) -> bool:
+        # If bound, we are necessarily initialized
         if self.sock is not None and self.bound == True:
             return True
         return False
@@ -97,7 +101,7 @@ class UdpLink(AbstractLink):
             assert self.sock is not None
             err = None
             data, (ip_address, port) = self.sock.recvfrom(self.BUFSIZE)
-            if ip_address == self.ip_address and port == self.port:  # Make sure the datagram comes from our target host
+            if ip_address == self.ip_address and port == self.config['port']:  # Make sure the datagram comes from our target host
                 return data
         except socket.error as e:
             err = e
@@ -106,6 +110,8 @@ class UdpLink(AbstractLink):
 
         if err:
             self.logger.debug('Socket error : ' + str(err))
+            if self.sock is not None:
+                self.sock.close()
 
         return None
 
@@ -113,8 +119,33 @@ class UdpLink(AbstractLink):
         if not self.operational():
             return
         assert self.sock is not None  # for mypy
-        self.sock.sendto(data, (self.host, self.port))
+        try:
+            self.sock.sendto(data, (self.config['host'], self.config['port']))
+        except:
+            self.bound = False
+
+    def initialized(self) -> bool:
+        return self._initialized
 
     def process(self) -> None:
-        # Todo : try reconnect on broken pipe.
         pass
+
+    @staticmethod
+    def validate_config(config: LinkConfig) -> None:
+        if not isinstance(config, dict):
+            raise ValueError('Configuration is not a valid dictionary')
+
+        if 'host' not in config:
+            raise ValueError('Missing hostname')
+
+        if 'port' not in config:
+            raise ValueError('Missing hostname')
+
+        port = -1
+        try:
+            port = int(config['port'])
+        except:
+            raise ValueError('Port is not a valid integer')
+
+        if port <= 0 or port >= 0x10000:
+            raise ValueError('Port number must be a valid 16 bits value')

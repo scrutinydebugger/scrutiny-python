@@ -34,10 +34,16 @@ from test.artifacts import get_artifact
 class StubbedDeviceHandler:
     connection_status: DeviceHandler.ConnectionStatus
     device_id: str
+    link_type: str
+    link_config: Dict[Any, Any]
+    reject_link_config: bool
 
     def __init__(self, device_id, connection_status=DeviceHandler.ConnectionStatus.UNKNOWN):
         self.device_id = device_id
         self.connection_status = connection_status
+        self.link_type = 'none'
+        self.link_config = {}
+        self.reject_link_config = False
 
     def get_connection_status(self):
         return self.connection_status
@@ -74,6 +80,14 @@ class StubbedDeviceHandler:
         info.forbidden_memory_regions = [{'start': 0x1000, 'end': 0x2000}]
         info.readonly_memory_regions = [{'start': 0x2000, 'end': 0x3000}, {'start': 0x3000, 'end': 0x4000}]
         return info
+
+    def configure_comm(self, link_type, link_config):
+        self.link_type = link_type
+        self.link_config = link_config
+
+    def validate_link_config(self, link_type, link_config):
+        if self.reject_link_config:
+            raise Exception('Bad config')
 
 
 class TestAPI(unittest.TestCase):
@@ -127,6 +141,12 @@ class TestAPI(unittest.TestCase):
             if 'msg' in response and msg is None:
                 msg = response['msg']
             self.assertNotEqual(response['cmd'], API.Command.Api2Client.ERROR_RESPONSE, msg)
+
+    def assert_is_error(self, response):
+        if 'cmd' in response:
+            self.assertEqual(response['cmd'], API.Command.Api2Client.ERROR_RESPONSE)
+        else:
+            raise Exception('Missing cmd field in response')
 
     def make_dummy_entries(self, n, entry_type=DatastoreEntry.EntryType.Var, prefix='path'):
         dummy_var = Variable('dummy', vartype=VariableType.float32, path_segments=['a', 'b', 'c'], location=0x12345678, endianness=Endianness.Little)
@@ -513,6 +533,7 @@ class TestAPI(unittest.TestCase):
 
             self.send_request(req, 0)
             response = self.wait_and_load_response(timeout=0.5)
+            self.assert_no_error(response)
             self.assertEqual(response['cmd'], 'response_get_installed_sfd')
             self.assertIn('sfd_list', response)
 
@@ -563,6 +584,7 @@ class TestAPI(unittest.TestCase):
 
             # inform status should be trigger by callback
             response = self.wait_and_load_response(timeout=0.5)
+            self.assert_no_error(response)
 
             self.assertEqual(response['cmd'], 'inform_server_status')
             self.assertIn('loaded_sfd', response)
@@ -589,6 +611,7 @@ class TestAPI(unittest.TestCase):
 
             self.send_request(req, 0)
             response = self.wait_and_load_response(timeout=0.5)
+            self.assert_no_error(response)
 
             self.assertEqual(response['cmd'], 'inform_server_status')
             self.assertIn('device_status', response)
@@ -620,6 +643,7 @@ class TestAPI(unittest.TestCase):
 
             self.send_request(req, 0)
             response = self.wait_and_load_response(timeout=0.5)
+            self.assert_no_error(response)
 
             self.assertEqual(response['cmd'], 'inform_server_status')
             self.assertIn('device_status', response)
@@ -640,3 +664,63 @@ class TestAPI(unittest.TestCase):
 
             SFDStorage.uninstall(sfd1.get_firmware_id())
             SFDStorage.uninstall(sfd2.get_firmware_id())
+
+    def test_set_device_link(self):
+        self.assertEqual(self.device_handler.link_type, 'none')
+        self.assertEqual(self.device_handler.link_config, {})
+
+        # Switch the device link for real
+        req = {
+            'cmd': 'set_link_config',
+            'link_type': 'dummy',
+            'link_config': {
+                'channel_id': 10
+            }
+        }
+        self.send_request(req, 0)
+        response = self.wait_and_load_response(timeout=0.5)
+        self.assert_no_error(response)
+        self.assertEqual(self.device_handler.link_type, 'dummy')
+        self.assertEqual(self.device_handler.link_config, {'channel_id': 10})
+
+        # Simulate that the device handler refused the configuration. Make sure we return a proper error
+        req = {
+            'cmd': 'set_link_config',
+            'link_type': 'potato',
+            'link_config': {
+                'mium': 'mium'
+            }
+        }
+        self.device_handler.reject_link_config = True   # Emulate a bad config
+        self.send_request(req, 0)
+        response = self.wait_and_load_response(timeout=0.5)
+        self.assert_is_error(response)
+        self.assertNotEqual(self.device_handler.link_type, 'potato')
+        self.assertNotEqual(self.device_handler.link_config, {'mium': 'mium'})
+        self.device_handler.reject_link_config = False
+
+        # Missing link_config
+        req = {
+            'cmd': 'set_link_config',
+            'link_type': 'potato'
+        }
+        self.send_request(req, 0)
+        response = self.wait_and_load_response(timeout=0.5)
+        self.assert_is_error(response)
+
+        # Missing link_type
+        req = {
+            'cmd': 'set_link_config',
+            'link_config': {}
+        }
+        self.send_request(req, 0)
+        response = self.wait_and_load_response(timeout=0.5)
+        self.assert_is_error(response)
+
+        # Missing 2 fields
+        req = {
+            'cmd': 'set_link_config'
+        }
+        self.send_request(req, 0)
+        response = self.wait_and_load_response(timeout=0.5)
+        self.assert_is_error(response)

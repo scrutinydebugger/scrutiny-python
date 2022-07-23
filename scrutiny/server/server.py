@@ -91,7 +91,6 @@ class ScrutinyServer:
 
         try:
             self.api.start_listening()
-            self.device_handler.init_comm()
             self.sfd_handler.init()
             while True:
                 self.api.process()

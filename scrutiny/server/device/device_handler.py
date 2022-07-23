@@ -1,7 +1,7 @@
 #    device_handler.py
 #        Manage the communication with the device at high level.
 #        Try to establish a connection, once it succeed, reads the device configuration.
-#        
+#
 #        Will keep the communication ongoing and will request for memory dump based on the
 #        Datastore state
 #
@@ -32,11 +32,11 @@ from scrutiny.server.device.device_info import DeviceInfo
 
 from scrutiny.server.tools import Timer
 from scrutiny.server.datastore import Datastore
-from scrutiny.server.device.links import AbstractLink
+from scrutiny.server.device.links import AbstractLink, LinkConfig
 from scrutiny.core.firmware_id import PLACEHOLDER as DEFAULT_FIRMWARE_ID
 
 
-from typing import TypedDict, Optional, Callable, Type, Any
+from typing import TypedDict, Optional, Callable, Any, Dict
 from scrutiny.core.typehints import GenericCallback
 
 DEFAULT_FIRMWARE_ID_ASCII = binascii.hexlify(DEFAULT_FIRMWARE_ID).decode('ascii')
@@ -51,11 +51,11 @@ class DeviceHandlerConfig(TypedDict, total=False):
     heartbeat_timeout: float
     default_address_size: int
     default_protocol_version: str
-    link_type: str
-    link_config: Any
     max_request_size: int
     max_response_size: int
     max_bitrate_bps: int
+    link_type: str
+    link_config: LinkConfig
 
 
 class DeviceHandler:
@@ -152,11 +152,15 @@ class DeviceHandler:
                                           request_priority=self.RequestPriority.WriteMemory)
 
         self.comm_handler = CommHandler(self.config)
+        self.comm_handler_open_restart_timer = Timer(1.0)
 
         self.heartbeat_generator.set_interval(max(0.5, self.config['heartbeat_timeout'] * 0.75))
         self.comm_broken = False
         self.device_id = None
         self.operating_mode = self.OperatingMode.Normal
+
+        if 'link_type' in self.config and 'link_config' in self.config:
+            self.configure_comm(self.config['link_type'], self.config['link_config'])
 
         self.reset_comm()
 
@@ -275,10 +279,7 @@ class DeviceHandler:
         return self.comm_handler.get_link()
 
     def get_link_type(self) -> str:
-        if 'link_type' not in self.config:
-            return "none"
-
-        return self.config['link_type']
+        return self.comm_handler.get_link_type()
 
     # Set communication state to a fresh start.
     def reset_comm(self) -> None:
@@ -322,27 +323,13 @@ class DeviceHandler:
         self.dispatcher.set_size_limits(max_request_size=max_request_size, max_response_size=max_response_size)
 
     # Open communication channel based on config
-    def init_comm(self) -> None:
-        link_class: Type[AbstractLink]
-
-        if self.config['link_type'] == 'none':
-            return None
-
-        if self.config['link_type'] == 'udp':
-            from .links.udp_link import UdpLink
-            link_class = UdpLink
-        elif self.config['link_type'] == 'dummy':
-            from .links.dummy_link import DummyLink
-            link_class = DummyLink
-        elif self.config['link_type'] == 'thread_safe_dummy':
-            from .links.dummy_link import ThreadSafeDummyLink
-            link_class = ThreadSafeDummyLink
-        else:
-            raise ValueError('Unknown link type %s' % self.config['link_type'])
-
-        device_link = link_class(self.config['link_config'])  # instantiate the class
-        self.comm_handler.open(device_link)
+    def configure_comm(self, link_type: str, link_config: LinkConfig = {}) -> None:
+        self.comm_handler.set_link(link_type, link_config)
         self.reset_comm()
+        self.comm_handler_open_restart_timer.stop()
+
+    def validate_link_config(self, link_type: str, link_config: LinkConfig) -> None:
+        self.comm_handler.validate_link_config(link_type, link_config)
 
     def send_disconnect(self, disconnect_callback: Optional[DisconnectCallback] = None):
         self.logger.debug('Disconnection requested.')
@@ -354,9 +341,6 @@ class DeviceHandler:
         if self.comm_handler is not None:
             self.comm_handler.close()
         self.reset_comm()
-
-    def refresh_vars(self) -> None:
-        pass
 
     # To be called periodically
     def process(self) -> None:
@@ -548,6 +532,17 @@ class DeviceHandler:
 
     def handle_comm(self) -> None:
         done: bool = False
+
+        # Try open automatically the communication with device if we can
+        if not self.comm_handler.is_open():
+            # Try to open comm only if the link is set
+            if self.comm_handler.get_link() is not None:
+                if self.comm_handler_open_restart_timer.is_stopped() or self.comm_handler_open_restart_timer.is_timed_out():
+                    self.logger.debug("Starting communication")
+                    self.comm_handler_open_restart_timer.start()
+                    self.comm_handler.open()
+                    self.reset_comm()   # Make sure to restart
+
         while not done:
             done = True
             self.comm_handler.process()     # Process reception

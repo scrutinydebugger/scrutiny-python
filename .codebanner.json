@@ -270,6 +270,18 @@
         },
         "scrutiny/exceptions.py": {
             "docstring": "Some exceptions specific to this module"
+        },
+        "test/server/links/test_dummy_link.py": {
+            "docstring": "Make sure that dummy links transfer data and that global channels works (to simulate switching of channels)"
+        },
+        "test/server/links/test_serial_link.py": {
+            "docstring": "Test serial port link. Require an external serial loopback.\nMake the link object talk with a serial port."
+        },
+        "test/server/links/test_udp_link.py": {
+            "docstring": "Test UDP link.\nnMake the link object talk with a socket"
+        },
+        "scrutiny/server/device/links/serial_link.py": {
+            "docstring": "Represent a Serial Link that can be used to communicate with a device"
         }
     }
 }
