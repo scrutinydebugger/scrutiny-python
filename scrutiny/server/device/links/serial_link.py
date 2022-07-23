@@ -96,9 +96,9 @@ class SerialLink(AbstractLink):
         self.config = cast(SerialConfig, {
             'portname': config['portname'],
             'baudrate': config['baudrate'],
-            'stopbits': config['stopbits'],
-            'databits': config['databits'],
-            'parity': config['parity'],
+            'stopbits': config['stopbits'] if 'stopbits' in config else 1,
+            'databits': config['databits'] if 'databits' in config else 8,
+            'parity': config['parity'] if 'parity' in config else 'none',
         })
 
     def get_config(self):
@@ -145,6 +145,7 @@ class SerialLink(AbstractLink):
             assert self.port is not None    # For mypy
             try:
                 self.port.write(data)
+                self.port.flush()
             except Exception as e:
                 self.logger.debug("Cannot write data. " + str(e))
                 self.port.close()
@@ -160,7 +161,7 @@ class SerialLink(AbstractLink):
         if not isinstance(config, dict):
             raise ValueError('Configuration is not a valid dictionary')
 
-        requried_fields = ['portname', 'baudrate', 'stopbits', 'databits', 'parity']
+        requried_fields = ['portname', 'baudrate']
 
         for field in requried_fields:
             if field not in config:
@@ -177,8 +178,14 @@ class SerialLink(AbstractLink):
 
         if baudrate <= 0 :
             raise ValueError('Baudrate  must be a positive integer greater than 0')
+        
 
-        SerialLink.get_parity(config['parity'])       # raise an exception on bad value
-        SerialLink.get_stop_bits(config['stopbits'])   # raise an exception on bad value
-        SerialLink.get_data_bits(config['databits'])   # raise an exception on bad value
+        if 'parity' in config:
+            SerialLink.get_parity(config['parity'])       # raise an exception on bad value
+        
+        if 'stopbits' in config:
+            SerialLink.get_stop_bits(config['stopbits'])   # raise an exception on bad value
+        
+        if 'databits' in config['databits']:
+            SerialLink.get_data_bits(config['databits'])   # raise an exception on bad value
 

@@ -262,8 +262,11 @@ class API:
 
             if 'cmd' not in req:
                 raise InvalidRequestException(req, 'No command in request')
-
+        
             cmd = req['cmd']
+            if not isinstance(cmd, str):
+                raise InvalidRequestException(req, 'cmd is not a valid string')
+
             if cmd in self.ApiRequestCallbacks:
                 callback = getattr(self, self.ApiRequestCallbacks[cmd])
                 callback.__call__(conn_id, req)

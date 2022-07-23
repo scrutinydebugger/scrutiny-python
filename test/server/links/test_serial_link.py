@@ -14,7 +14,7 @@ from scrutiny.server.device.links.serial_link import SerialLink
 from test import logger
 import time
 import platform
-import serial
+import serial   # type: ignore
 
 class TestSerialLink(unittest.TestCase):
     WINPORTS = ['COM101', 'COM102']
@@ -63,11 +63,13 @@ class TestSerialLink(unittest.TestCase):
 
         payload = 'hello'.encode('ascii')
         link.write(payload)
+        time.sleep(0.05)        # Required for port emulation in user space
         data = port.read(5)
         self.assertEqual(data, payload)
 
         payload = 'potato'.encode('ascii')
         port.write(payload)
+        time.sleep(0.05)        # Required for port emulation in user space
         data = link.read()
         self.assertEqual(data, payload)
 
@@ -98,6 +100,7 @@ class TestSerialLink(unittest.TestCase):
 
         payload = 'hello'.encode('ascii')
         link.write(payload)
+        time.sleep(0.05)        # Required for port emulation in user space
         data = port.read(5)
         self.assertEqual(data, payload)
 
