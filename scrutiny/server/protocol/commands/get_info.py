@@ -19,6 +19,9 @@ class GetInfo(BaseCommand):
         GetSupportedFeatures = 3
         GetSpecialMemoryRegionCount = 4
         GetSpecialMemoryRegionLocation = 5
+        GetRuntimePublishedValuesCount = 6
+        GetRuntimePublishedValuesDefinition = 7
+
 
     class MemoryRangeType(Enum):
         ReadOnly = 0
