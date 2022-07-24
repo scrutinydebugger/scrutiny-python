@@ -185,5 +185,5 @@ class SerialLink(AbstractLink):
         if 'stopbits' in config:
             SerialLink.get_stop_bits(config['stopbits'])   # raise an exception on bad value
 
-        if 'databits' in config['databits']:
+        if 'databits' in config:
             SerialLink.get_data_bits(config['databits'])   # raise an exception on bad value
