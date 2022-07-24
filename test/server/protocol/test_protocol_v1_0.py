@@ -91,12 +91,13 @@ class TestProtocolV1_0(unittest.TestCase):
         self.check_expected_payload_size(req, 2)
     
     def test_req_get_rpv_definition(self):
+        self.proto.set_address_size_bits(32)
         req = self.proto.get_rpv_definition(start=2, count=5)
         self.assert_req_response_bytes(req, [1, 7, 0, 4, 0, 2, 0, 5])
         data = self.proto.parse_request(req)
         self.assertEqual(data['start'], 2)
         self.assertEqual(data['count'], 5)
-        self.check_expected_payload_size(req, 4*5)
+        self.check_expected_payload_size(req, (2+1+4)*5)    # id, type, address
 
 # ============= MemoryControl ===============
     def test_req_read_single_memory_block_8bits(self):
@@ -618,28 +619,27 @@ class TestProtocolV1_0(unittest.TestCase):
         self.assertEqual(data['count'], 0x1234)
 
     def test_response_get_rpv_definition(self):
+        self.proto.set_address_size_bits(32)
         definitions = [
-            dict(id=0x1234, type=VariableType.float32, read=True, write=False),
-            dict(id=0x9875, type=VariableType.uint32, read=True, write=True)
+            dict(id=0x1234, type=VariableType.float32, address=0x11223344),
+            dict(id=0x9875, type=VariableType.uint32, address=0x55667788)
         ]
 
         definition_payloads = [
-            [0x12, 0x34, VariableType.float32.value, 0x01],
-            [0x98, 0x75, VariableType.uint32.value, 0x03]
+            [0x12, 0x34, VariableType.float32.value, 0x11, 0x22, 0x33, 0x44],
+            [0x98, 0x75, VariableType.uint32.value, 0x55, 0x66, 0x77, 0x88]
         ]
 
         response = self.proto.respond_get_rpv_definition(definitions)
-        self.assert_req_response_bytes(response, [0x81, 7, 0, 0, 8] + definition_payloads[0] + definition_payloads[1])
+        self.assert_req_response_bytes(response, [0x81, 7, 0, 0, 14] + definition_payloads[0] + definition_payloads[1])
         data = self.proto.parse_response(response)
         self.assertEqual(len(data['rpvs']), 2)
         self.assertEqual(data['rpvs'][0]['id'], 0x1234)
         self.assertEqual(data['rpvs'][0]['type'], VariableType.float32)
-        self.assertEqual(data['rpvs'][0]['read'], True)
-        self.assertEqual(data['rpvs'][0]['write'], False)
+        self.assertEqual(data['rpvs'][0]['address'], 0x11223344)
         self.assertEqual(data['rpvs'][1]['id'], 0x9875)
         self.assertEqual(data['rpvs'][1]['type'], VariableType.uint32)
-        self.assertEqual(data['rpvs'][1]['read'], True)
-        self.assertEqual(data['rpvs'][1]['write'], True)
+        self.assertEqual(data['rpvs'][1]['address'], 0x55667788)
 
 
 # ============= MemoryControl ===============

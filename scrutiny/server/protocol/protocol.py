@@ -192,7 +192,7 @@ class Protocol:
         return Request(cmd.GetInfo, cmd.GetInfo.Subfunction.GetRuntimePublishedValuesCount, bytes(), response_payload_size=2)
     
     def get_rpv_definition(self, start:int, count:int):
-        return Request(cmd.GetInfo, cmd.GetInfo.Subfunction.GetRuntimePublishedValuesDefinition, struct.pack('>HH', start, count), response_payload_size=4*count)
+        return Request(cmd.GetInfo, cmd.GetInfo.Subfunction.GetRuntimePublishedValuesDefinition, struct.pack('>HH', start, count), response_payload_size=(2+1+self.get_address_size_bytes())*count)
 
     def read_memory_request_size_per_block(self):
         return self.get_address_size_bytes() + 2  # Address + 16 bits length
@@ -487,15 +487,11 @@ class Protocol:
         payload = bytes()
         
         for definition in definitions:
-            flags = 0
-            flags |= 1 if definition['read'] else 0
-            flags |= 2 if definition['write'] else 0
-
             vtype = definition['type']
             if isinstance(vtype, VariableType):
                 vtype = vtype.value
                 
-            payload += struct.pack('>HBB', definition['id'], vtype, flags)
+            payload += struct.pack('>HB'+self.address_format.get_pack_char(), definition['id'], vtype, definition['address'])
         
         return Response(cmd.GetInfo, cmd.GetInfo.Subfunction.GetRuntimePublishedValuesDefinition, Response.ResponseCode.OK, payload)
 
@@ -638,17 +634,17 @@ class Protocol:
                         data['count'], = struct.unpack('>H', response.payload[0:2])
                     
                     elif subfn == cmd.GetInfo.Subfunction.GetRuntimePublishedValuesDefinition:
-                        if len(response.payload) % 4 != 0:
+                        bytes_per_rpv = 2+1+self.get_address_size_bytes()
+                        if len(response.payload) % bytes_per_rpv != 0:
                             raise Exception('Invalid payload length for GetRuntimePublishedValuesDefinition')
                         data['rpvs'] = []
 
-                        nbr_fpv = len(response.payload)//4
+                        nbr_fpv = len(response.payload)//bytes_per_rpv
                         for i in range(nbr_fpv):
                             d:RuntimePublishedValue={}
-                            d['id'], typeint, flags = struct.unpack('>HBB', response.payload[i*4+0:i*4+4])
+                            d['id'], typeint, d['address'] = struct.unpack('>HB'+self.address_format.get_pack_char(), response.payload[i*bytes_per_rpv+0:i*bytes_per_rpv+bytes_per_rpv])
                             d['type'] = VariableType(typeint)
-                            d['read'] = True if flags & 0x01 != 0 else False
-                            d['write'] = True if flags & 0x02 != 0 else False
+                            
                             data['rpvs'].append(d)
 
                 elif response.command == cmd.MemoryControl:
