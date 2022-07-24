@@ -29,6 +29,11 @@ class BlockAddressData(TypedDict, total=False):
     data: bytes
     write_mask: Optional[bytes]
 
+class RuntimePublishedValue(TypedDict):
+    id:int
+    type:VariableType
+    read:bool
+    write:bool
 
 class RequestData(TypedDict, total=False):
     valid: bool
@@ -183,6 +188,12 @@ class Protocol:
         data = struct.pack('BB', region_type, region_index)
         return Request(cmd.GetInfo, cmd.GetInfo.Subfunction.GetSpecialMemoryRegionLocation, data, response_payload_size=2 + self.get_address_size_bytes() * 2)
 
+    def get_rpv_count(self):
+        return Request(cmd.GetInfo, cmd.GetInfo.Subfunction.GetRuntimePublishedValuesCount, bytes(), response_payload_size=2)
+    
+    def get_rpv_definition(self, start:int, count:int):
+        return Request(cmd.GetInfo, cmd.GetInfo.Subfunction.GetRuntimePublishedValuesDefinition, struct.pack('>HH', start, count), response_payload_size=4*count)
+
     def read_memory_request_size_per_block(self):
         return self.get_address_size_bytes() + 2  # Address + 16 bits length
 
@@ -309,6 +320,9 @@ class Protocol:
                     region_type, region_index = struct.unpack('BB', req.payload[0:2])
                     data['region_type'] = cmd.GetInfo.MemoryRangeType(region_type)
                     data['region_index'] = region_index
+                
+                elif subfn == cmd.GetInfo.Subfunction.GetRuntimePublishedValuesDefinition:
+                    data['start'], data['count'] = struct.unpack('>HH', req.payload[0:4])
 
             elif req.command == cmd.MemoryControl:
                 subfn = cmd.MemoryControl.Subfunction(req.subfn)
@@ -466,6 +480,25 @@ class Protocol:
         data += self.encode_address(start) + self.encode_address(end)
         return Response(cmd.GetInfo, cmd.GetInfo.Subfunction.GetSpecialMemoryRegionLocation, Response.ResponseCode.OK, data)
 
+    def respond_get_rpv_count(self, count:int):
+        return Response(cmd.GetInfo, cmd.GetInfo.Subfunction.GetRuntimePublishedValuesCount, Response.ResponseCode.OK, struct.pack('>H', count))
+
+    def respond_get_rpv_definition(self, definitions:List[RuntimePublishedValue]):
+        payload = bytes()
+        
+        for definition in definitions:
+            flags = 0
+            flags |= 1 if definition['read'] else 0
+            flags |= 2 if definition['write'] else 0
+
+            vtype = definition['type']
+            if isinstance(vtype, VariableType):
+                vtype = vtype.value
+                
+            payload += struct.pack('>HBB', definition['id'], vtype, flags)
+        
+        return Response(cmd.GetInfo, cmd.GetInfo.Subfunction.GetRuntimePublishedValuesDefinition, Response.ResponseCode.OK, payload)
+
     def respond_comm_discover(self, firmware_id: Union[bytes, List[int], bytearray], display_name: str) -> Response:
         if len(display_name) > 64:
             raise Exception('Display name too long.')
@@ -600,6 +633,23 @@ class Protocol:
                         data['region_index'] = response.payload[1]
                         data['start'] = self.decode_address(response.payload[2:])
                         data['end'] = self.decode_address(response.payload[2 + self.get_address_size_bytes():])
+                    
+                    elif subfn == cmd.GetInfo.Subfunction.GetRuntimePublishedValuesCount:
+                        data['count'], = struct.unpack('>H', response.payload[0:2])
+                    
+                    elif subfn == cmd.GetInfo.Subfunction.GetRuntimePublishedValuesDefinition:
+                        if len(response.payload) % 4 != 0:
+                            raise Exception('Invalid payload length for GetRuntimePublishedValuesDefinition')
+                        data['rpvs'] = []
+
+                        nbr_fpv = len(response.payload)//4
+                        for i in range(nbr_fpv):
+                            d:RuntimePublishedValue={}
+                            d['id'], typeint, flags = struct.unpack('>HBB', response.payload[i*4+0:i*4+4])
+                            d['type'] = VariableType(typeint)
+                            d['read'] = True if flags & 0x01 != 0 else False
+                            d['write'] = True if flags & 0x02 != 0 else False
+                            data['rpvs'].append(d)
 
                 elif response.command == cmd.MemoryControl:
                     subfn = cmd.MemoryControl.Subfunction(response.subfn)

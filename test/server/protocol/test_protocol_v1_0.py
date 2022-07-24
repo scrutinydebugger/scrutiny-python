@@ -83,6 +83,20 @@ class TestProtocolV1_0(unittest.TestCase):
         self.assertEqual(data['region_type'], cmd.GetInfo.MemoryRangeType.Forbidden)
         self.assertEqual(data['region_index'], 0x12)
         self.check_expected_payload_size(req, 2 + self.proto.get_address_size_bytes() * 2)
+    
+    def test_req_get_rpv_count(self):
+        req = self.proto.get_rpv_count()
+        self.assert_req_response_bytes(req, [1, 6, 0, 0])
+        data = self.proto.parse_request(req)
+        self.check_expected_payload_size(req, 2)
+    
+    def test_req_get_rpv_definition(self):
+        req = self.proto.get_rpv_definition(start=2, count=5)
+        self.assert_req_response_bytes(req, [1, 7, 0, 4, 0, 2, 0, 5])
+        data = self.proto.parse_request(req)
+        self.assertEqual(data['start'], 2)
+        self.assertEqual(data['count'], 5)
+        self.check_expected_payload_size(req, 4*5)
 
 # ============= MemoryControl ===============
     def test_req_read_single_memory_block_8bits(self):
@@ -596,6 +610,36 @@ class TestProtocolV1_0(unittest.TestCase):
         self.assertEqual(data['region_index'], 0x12)
         self.assertEqual(data['start'], 0x11223344)
         self.assertEqual(data['end'], 0x99887766)
+    
+    def test_response_get_rpv_count(self):
+        response = self.proto.respond_get_rpv_count(0x1234)
+        self.assert_req_response_bytes(response, [0x81, 6, 0, 0, 2, 0x12, 0x34])
+        data = self.proto.parse_response(response)
+        self.assertEqual(data['count'], 0x1234)
+
+    def test_response_get_rpv_definition(self):
+        definitions = [
+            dict(id=0x1234, type=VariableType.float32, read=True, write=False),
+            dict(id=0x9875, type=VariableType.uint32, read=True, write=True)
+        ]
+
+        definition_payloads = [
+            [0x12, 0x34, VariableType.float32.value, 0x01],
+            [0x98, 0x75, VariableType.uint32.value, 0x03]
+        ]
+
+        response = self.proto.respond_get_rpv_definition(definitions)
+        self.assert_req_response_bytes(response, [0x81, 7, 0, 0, 8] + definition_payloads[0] + definition_payloads[1])
+        data = self.proto.parse_response(response)
+        self.assertEqual(len(data['rpvs']), 2)
+        self.assertEqual(data['rpvs'][0]['id'], 0x1234)
+        self.assertEqual(data['rpvs'][0]['type'], VariableType.float32)
+        self.assertEqual(data['rpvs'][0]['read'], True)
+        self.assertEqual(data['rpvs'][0]['write'], False)
+        self.assertEqual(data['rpvs'][1]['id'], 0x9875)
+        self.assertEqual(data['rpvs'][1]['type'], VariableType.uint32)
+        self.assertEqual(data['rpvs'][1]['read'], True)
+        self.assertEqual(data['rpvs'][1]['write'], True)
 
 
 # ============= MemoryControl ===============
@@ -1033,3 +1077,6 @@ class TestProtocolV1_0(unittest.TestCase):
         self.assert_req_response_bytes(response, [0x84, 10, 0, 0, 3, 1, 2, 3])
         self.assertEqual(response.subfn, 10)
         self.assertEqual(response.payload, bytes([1, 2, 3]))
+
+if __name__ == '__main__':
+    unittest.main()
