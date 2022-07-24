@@ -191,8 +191,11 @@ class Protocol:
     def get_rpv_count(self):
         return Request(cmd.GetInfo, cmd.GetInfo.Subfunction.GetRuntimePublishedValuesCount, bytes(), response_payload_size=2)
     
+    def response_size_per_rpv(self):
+        return self.get_address_size_bytes() + 2 + 1
+
     def get_rpv_definition(self, start:int, count:int):
-        return Request(cmd.GetInfo, cmd.GetInfo.Subfunction.GetRuntimePublishedValuesDefinition, struct.pack('>HH', start, count), response_payload_size=(2+1+self.get_address_size_bytes())*count)
+        return Request(cmd.GetInfo, cmd.GetInfo.Subfunction.GetRuntimePublishedValuesDefinition, struct.pack('>HH', start, count), response_payload_size=self.response_size_per_rpv()*count)
 
     def read_memory_request_size_per_block(self):
         return self.get_address_size_bytes() + 2  # Address + 16 bits length
@@ -634,15 +637,15 @@ class Protocol:
                         data['count'], = struct.unpack('>H', response.payload[0:2])
                     
                     elif subfn == cmd.GetInfo.Subfunction.GetRuntimePublishedValuesDefinition:
-                        bytes_per_rpv = 2+1+self.get_address_size_bytes()
-                        if len(response.payload) % bytes_per_rpv != 0:
+                        n = self.response_size_per_rpv()
+                        if len(response.payload) % n != 0:
                             raise Exception('Invalid payload length for GetRuntimePublishedValuesDefinition')
                         data['rpvs'] = []
 
-                        nbr_fpv = len(response.payload)//bytes_per_rpv
+                        nbr_fpv = len(response.payload)//n
                         for i in range(nbr_fpv):
                             d:RuntimePublishedValue={}
-                            d['id'], typeint, d['address'] = struct.unpack('>HB'+self.address_format.get_pack_char(), response.payload[i*bytes_per_rpv+0:i*bytes_per_rpv+bytes_per_rpv])
+                            d['id'], typeint, d['address'] = struct.unpack('>HB'+self.address_format.get_pack_char(), response.payload[i*n+0:i*n+n])
                             d['type'] = VariableType(typeint)
                             
                             data['rpvs'].append(d)
