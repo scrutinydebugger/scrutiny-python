@@ -1,0 +1,13 @@
+{
+    "device_config": {
+        "response_timeout": 1.0,
+        "link_type": "serial",
+        "link_config": {
+            "portname": "/dev/cu.usbserial-A5027XFR",
+            "baudrate": 115200,
+            "stopbits": 1,
+            "databits": 8,
+            "parity": "none"
+        }
+    }
+}
