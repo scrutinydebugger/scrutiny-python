@@ -1,9 +1,6 @@
 FROM ubuntu:20.04
 
-RUN set -eux;
 ENV DEBIAN_FRONTEND=noninteractive
-ENV TZ=America/Toronto
-RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
 RUN apt-get update && apt-get install -y \
     git \
@@ -15,7 +12,7 @@ RUN apt-get update && apt-get install -y \
     zlib1g-dev \
     libsqlite3-dev \
     libssl-dev \
-    && rm -rf /var/lib/apt/lists/*    
+    && rm -rf /var/lib/apt/lists/*
 
 # ============================================
 WORKDIR /tmp/
