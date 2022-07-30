@@ -66,7 +66,7 @@ class GetFirmwareId(BaseCommand):
                     break
                 sha256.update(data)
             hash256 = bytes.fromhex(sha256.hexdigest())
-            thehash_bin = bytes([a^b for a,b in zip(hash256[0:16], hash256[16:32])])    # Reduces from 256 to 128 bits
+            thehash_bin = bytes([a ^ b for a, b in zip(hash256[0:16], hash256[16:32])])    # Reduces from 256 to 128 bits
             thehash_str = hexlify(thehash_bin).decode('ascii')
 
         if output_file is None:
