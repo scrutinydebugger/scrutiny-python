@@ -60,7 +60,7 @@ class EmulatedDevice:
             raise ValueError('EmulatedDevice expects a DummyLink object')
         self.logger = logging.getLogger(self.__class__.__name__)
         self.link = link    # Preopened link.
-        self.firmware_id = bytes(range(32))
+        self.firmware_id = bytes(range(16))
         self.request_history = []
         self.protocol = Protocol(1, 0)
 
@@ -82,7 +82,6 @@ class EmulatedDevice:
         self.memory_lock = threading.Lock()
 
         self.supported_features = {
-            'memory_read': False,
             'memory_write': False,
             'datalog_acquire': False,
             'user_command': False

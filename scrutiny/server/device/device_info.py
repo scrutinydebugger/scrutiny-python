@@ -15,7 +15,6 @@ class MemoryRegion(TypedDict):
 
 
 class SupportedFeatureMap(TypedDict):
-    memory_read: bool
     memory_write: bool
     datalog_acquire: bool
     user_command: bool
