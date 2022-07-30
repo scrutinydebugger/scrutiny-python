@@ -412,7 +412,7 @@ class TestProtocolV1_0(unittest.TestCase):
         self.assert_req_response_bytes(req, request_bytes)
         data = self.proto.parse_request(req)
         self.assertEqual(data['magic'], magic)
-        self.check_expected_payload_size(req, 32)    # firmwareid - Response to discover is variable size but 32 bytes at least.
+        self.check_expected_payload_size(req, 16)    # firmwareid - Response to discover is variable size but 32 bytes at least.
 
     def test_req_comm_heartbeat(self):
         req = self.proto.comm_heartbeat(0x12345678, 0x1122)
@@ -573,12 +573,11 @@ class TestProtocolV1_0(unittest.TestCase):
         self.assertEqual(data['software_id'], 'hello'.encode('ascii'))
 
     def test_response_get_supported_features(self):
-        response = self.proto.respond_supported_features(memory_read=True, memory_write=False, datalog_acquire=True, user_command=True)
-        self.assert_req_response_bytes(response, [0x81, 3, 0, 0, 1, 0xB0])
+        response = self.proto.respond_supported_features(memory_write=True, datalog_acquire=False, user_command=True)
+        self.assert_req_response_bytes(response, [0x81, 3, 0, 0, 1, 0xA0])
         data = self.proto.parse_response(response)
-        self.assertEqual(data['memory_read'], True)
-        self.assertEqual(data['memory_write'], False)
-        self.assertEqual(data['datalog_acquire'], True)
+        self.assertEqual(data['memory_write'], True)
+        self.assertEqual(data['datalog_acquire'], False)
         self.assertEqual(data['user_command'], True)
 
     def test_response_get_special_memory_range_count(self):
@@ -883,7 +882,7 @@ class TestProtocolV1_0(unittest.TestCase):
 # ============= CommControl ===============
 
     def test_response_comm_discover(self):
-        firmwareid = bytes(range(32))
+        firmwareid = bytes(range(16))
         display_name = 'hello'
         payload_length = 1 + 1 + len(firmwareid) + 1 + len(display_name.encode('utf8'))
         payload_data = bytes([self.proto.version_major, self.proto.version_minor]) + firmwareid + \

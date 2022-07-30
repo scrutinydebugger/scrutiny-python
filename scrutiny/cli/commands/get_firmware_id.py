@@ -13,6 +13,7 @@ import hashlib
 import mmap
 import os
 import logging
+from binascii import hexlify
 
 from .base_command import BaseCommand
 from typing import Optional, List
@@ -64,19 +65,20 @@ class GetFirmwareId(BaseCommand):
                 if not data:
                     break
                 sha256.update(data)
-            thehash = sha256.hexdigest()
-            thehash_bin = bytes.fromhex(thehash)
+            hash256 = bytes.fromhex(sha256.hexdigest())
+            thehash_bin = bytes([a^b for a,b in zip(hash256[0:16], hash256[16:32])])    # Reduces from 256 to 128 bits
+            thehash_str = hexlify(thehash_bin).decode('ascii')
 
         if output_file is None:
-            print(thehash, flush=True, end='')
+            print(thehash_str, flush=True, end='')
         else:
             with open(output_file, 'w') as f:
-                f.write(thehash)
+                f.write(thehash_str)
 
         if args.apply:
             with open(filename, "rb+") as f:
                 f.seek(pos)
                 f.write(thehash_bin)
-                logging.debug('Wrote new hash %s at address 0x%08x' % (thehash, pos))
+                logging.debug('Wrote new hash %s at address 0x%08x' % (thehash_str, pos))
 
         return 0

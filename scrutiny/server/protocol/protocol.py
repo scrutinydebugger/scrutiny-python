@@ -47,7 +47,6 @@ class ResponseData(TypedDict, total=False):
     valid: bool
     major: int
     minor: int
-    memory_read: bool
     memory_write: bool
     datalog_acquire: bool
     user_command: bool
@@ -233,7 +232,7 @@ class Protocol:
 
     def comm_discover(self) -> Request:
         data = cmd.CommControl.DISCOVER_MAGIC
-        return Request(cmd.CommControl, cmd.CommControl.Subfunction.Discover, data, response_payload_size=32)  # 32 minimum
+        return Request(cmd.CommControl, cmd.CommControl.Subfunction.Discover, data, response_payload_size=16)  # 16 minimum
 
     def comm_heartbeat(self, session_id: int, challenge: int) -> Request:
         return Request(cmd.CommControl, cmd.CommControl.Subfunction.Heartbeat, struct.pack('>LH', session_id, challenge), response_payload_size=6)
@@ -444,19 +443,16 @@ class Protocol:
     def respond_software_id(self, software_id: Union[bytes, List[int], bytearray]) -> Response:
         return Response(cmd.GetInfo, cmd.GetInfo.Subfunction.GetSoftwareId, Response.ResponseCode.OK, bytes(software_id))
 
-    def respond_supported_features(self, memory_read: bool = False, memory_write: bool = False, datalog_acquire: bool = False, user_command: bool = False) -> Response:
+    def respond_supported_features(self, memory_write: bool = False, datalog_acquire: bool = False, user_command: bool = False) -> Response:
         bytes1 = 0
-        if memory_read:
+        if memory_write:
             bytes1 |= 0x80
 
-        if memory_write:
+        if datalog_acquire:
             bytes1 |= 0x40
 
-        if datalog_acquire:
-            bytes1 |= 0x20
-
         if user_command:
-            bytes1 |= 0x10
+            bytes1 |= 0x20
 
         return Response(cmd.GetInfo, cmd.GetInfo.Subfunction.GetSupportedFeatures, Response.ResponseCode.OK, bytes([bytes1]))
 
@@ -471,7 +467,7 @@ class Protocol:
         return Response(cmd.GetInfo, cmd.GetInfo.Subfunction.GetSpecialMemoryRegionLocation, Response.ResponseCode.OK, data)
 
     def respond_comm_discover(self, firmware_id: Union[bytes, List[int], bytearray], display_name: str) -> Response:
-        if len(display_name) > 255:
+        if len(display_name) > 64:
             raise Exception('Display name too long.')
 
         resp_data = bytes([self.version_major, self.version_minor]) + bytes(firmware_id) + bytes([len(display_name)]) + display_name.encode('utf8')
@@ -589,10 +585,9 @@ class Protocol:
                         (data['major'], data['minor']) = struct.unpack('BB', response.payload)
                     elif subfn == cmd.GetInfo.Subfunction.GetSupportedFeatures:
                         (byte1,) = struct.unpack('B', response.payload)
-                        data['memory_read'] = True if (byte1 & 0x80) != 0 else False
-                        data['memory_write'] = True if (byte1 & 0x40) != 0 else False
-                        data['datalog_acquire'] = True if (byte1 & 0x20) != 0 else False
-                        data['user_command'] = True if (byte1 & 0x10) != 0 else False
+                        data['memory_write'] = True if (byte1 & 0x80) != 0 else False
+                        data['datalog_acquire'] = True if (byte1 & 0x40) != 0 else False
+                        data['user_command'] = True if (byte1 & 0x20) != 0 else False
 
                     elif subfn == cmd.GetInfo.Subfunction.GetSoftwareId:
                         data['software_id'] = response.payload
@@ -698,7 +693,7 @@ class Protocol:
                     subfn = cmd.CommControl.Subfunction(response.subfn)
 
                     if subfn == cmd.CommControl.Subfunction.Discover:
-                        firmware_id_size = 32
+                        firmware_id_size = 16
                         if len(response.payload) < 1 + 1 + firmware_id_size + 1:    # proto_maj, proto_min + firmware_id + name_length
                             raise Exception('Incomplete payload.')
 

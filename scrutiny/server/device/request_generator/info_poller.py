@@ -296,7 +296,6 @@ class InfoPoller:
 
             elif self.fsm_state == self.FsmState.GetSupportedFeatures:
                 self.info.supported_feature_map = {
-                    'memory_read': response_data['memory_read'],
                     'memory_write': response_data['memory_write'],
                     'datalog_acquire': response_data['datalog_acquire'],
                     'user_command': response_data['user_command']
