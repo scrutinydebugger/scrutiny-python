@@ -69,11 +69,11 @@ class TestMakeVarMap_LinuxLEx64_Gcc8_3_0(unittest.TestCase):
     def assert_is_enum(self, v):
         self.assertIsNotNone(v.enum)
 
-    def assert_has_enum(self, v, value, name):
+    def assert_has_enum(self, v, name, value):
         self.assert_is_enum(v)
-        valname = v.enum.get_name(value)
-        self.assertIsNotNone(valname)
-        self.assertEqual(name, valname)
+        value2 = v.enum.get_value(name)
+        self.assertIsNotNone(value2)
+        self.assertEqual(value2, value)
 
     def test_env(self):
         self.assertEqual(self.varmap.endianness, Endianness.Little)
@@ -145,10 +145,10 @@ class TestMakeVarMap_LinuxLEx64_Gcc8_3_0(unittest.TestCase):
 
     def assert_is_enumA(self, fullpath, value_at_loc=None):
         v = self.assert_var(fullpath, VariableType.uint32, value_at_loc=value_at_loc)
-        self.assert_has_enum(v, 0, 'eVal1')
-        self.assert_has_enum(v, 1, 'eVal2')
-        self.assert_has_enum(v, 100, 'eVal3')
-        self.assert_has_enum(v, 101, 'eVal4')
+        self.assert_has_enum(v, 'eVal1', 0)
+        self.assert_has_enum(v, 'eVal2', 1)
+        self.assert_has_enum(v, 'eVal3', 100)
+        self.assert_has_enum(v, 'eVal4', 101)
 
     def test_enum(self):
         self.assert_is_enumA('/global/NamespaceInFile2/instance_enumA', value_at_loc=1)

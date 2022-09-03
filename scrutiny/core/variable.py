@@ -147,27 +147,28 @@ class VariableType(Enum):
 
 class VariableEnumDef(TypedDict):
     name: str
-    values: Dict[int, str]
+    values: Dict[str, int]
 
 
 class VariableEnum:
 
     name: str
-    vals: Dict[int, str]
+    vals: Dict[str, int]
 
     def __init__(self, name: str):
         self.name = name
         self.vals = {}
 
-    def add_value(self, value: int, name: str) -> None:
-        if value in self.vals and self.vals[value] != name:
-            raise Exception('Duplicate entry for enum %s. %s can either be %s or %s' % (self.name, value, self.vals[value], name))
-        self.vals[value] = name
+    def add_value(self, name: str, value: int) -> None:
+        if  name in self.vals and self.vals[name] != value:
+            raise Exception('Duplicate entry for enum %s. %s can either be %s or %s' % (self.name, value, self.vals[name], value))
 
-    def get_name(self, value: int) -> str:
-        if value not in self.vals:
-            raise Exception('%d is not a valid value for enum %s' % (value, self.name))
-        return self.vals[value]
+        self.vals[name] = value
+
+    def get_value(self, name: str) -> int:
+        if name not in self.vals:
+            raise Exception('%s is not a valid value for enum %s' % (name, self.name))
+        return self.vals[name]
 
     def get_def(self) -> VariableEnumDef:
         obj: VariableEnumDef = {
@@ -179,15 +180,8 @@ class VariableEnum:
     @classmethod
     def from_def(cls, enum_def: VariableEnumDef):
         obj = cls(enum_def['name'])
-        obj.vals = {}
-        for k in enum_def['values']:
-            if isinstance(k, str):
-                newkey = int(k)
-            else:
-                newkey = k
-            obj.vals[newkey] = enum_def['values'][k]
+        obj.vals = enum_def['values']
         return obj
-
 
 class Struct:
     class Member:
