@@ -388,6 +388,10 @@ class Variable:
         VariableType.boolean: BoolCodec(),
     }
 
+    @classmethod
+    def get_codec(self, vartype:VariableType):
+        return self.TYPE_TO_CODEC_MAP[vartype]
+
     def __init__(self, name: str, vartype: VariableType, path_segments: List[str], location: Union[int, VariableLocation], endianness: Endianness, bitsize: Optional[int] = None, bitoffset: Optional[int] = None, enum: Optional[VariableEnum] = None):
 
         self.name = name
@@ -412,7 +416,7 @@ class Variable:
         self.enum = enum
 
     def decode(self, data: Union[bytes, bytearray]) -> Union[int, float, bool, None]:
-        decoded = self.TYPE_TO_CODEC_MAP[self.vartype].decode(data, self.endianness)
+        decoded = self.get_codec(self.vartype).decode(data, self.endianness)
 
         if self.bitfield:
             # todo improve this with bit array maybe.
@@ -436,12 +440,12 @@ class Variable:
                 data = struct.pack('>q', uint_data)
                 data = data[-initial_len:]
 
-        decoded = self.TYPE_TO_CODEC_MAP[self.vartype].decode(data, self.endianness)
+        decoded = self.get_codec(self.vartype).decode(data, self.endianness)
         return decoded
 
     def encode(self, value: Union[int, float, bool]) -> Tuple[bytes, Optional[bytes]]:
         write_mask = None
-        data = self.TYPE_TO_CODEC_MAP[self.vartype].encode(value, self.endianness)
+        data = self.get_codec(self.vartype).encode(value, self.endianness)
 
         # todo bitfield set write_mask
         return data, write_mask
@@ -477,3 +481,18 @@ class Variable:
 
     def __repr__(self):
         return '<%s - %s (%s) @ %s>' % (self.__class__.__name__, self.get_fullname(), self.vartype, self.location)
+
+
+class RuntimePublishedValue:
+    id:int
+    type:VariableType
+
+    def __init__(self, id:int, type:Union[VariableType, int]):
+        if id < 0 or id > 0xFFFF:
+            raise ValueError('RuntimePublishedValue ID out of range (0x0000-0xFFFF). %d' % id)
+        
+        if isinstance(type, int):
+            type = VariableType(type)
+        
+        self.id = id
+        self.type = type

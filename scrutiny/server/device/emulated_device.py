@@ -12,10 +12,13 @@ import time
 import logging
 import random
 import traceback
+
+from requests import request
 import scrutiny.server.protocol.commands as cmd
 from scrutiny.server.device.links.dummy_link import DummyLink, ThreadSafeDummyLink
 from scrutiny.server.protocol import Protocol, Request, Response, ResponseCode, RequestData, ResponseData
 from scrutiny.core.memory_content import MemoryContent
+from scrutiny.core.variable import RuntimePublishedValue, VariableType
 
 from typing import List, Dict, Optional, Union
 
@@ -85,6 +88,13 @@ class EmulatedDevice:
             'memory_write': False,
             'datalog_acquire': False,
             'user_command': False
+        }
+
+        self.rpvs = {
+            RuntimePublishedValue(id=0x1001, type=VariableType.float32),
+            RuntimePublishedValue(id=0x1002, type=VariableType.uint16),
+            RuntimePublishedValue(id=0x1003, type=VariableType.sint8),
+            RuntimePublishedValue(id=0x1004, type=VariableType.boolean)
         }
 
         self.forbidden_regions = [
@@ -235,7 +245,18 @@ class EmulatedDevice:
 
             region = region_list[data['region_index']]
             response = self.protocol.respond_special_memory_region_location(data['region_type'], data['region_index'], region['start'], region['end'])
-
+        
+        elif subfunction == cmd.GetInfo.Subfunction.GetRuntimePublishedValuesCount:
+            response = self.protocol.respond_get_rpv_count(count=len(self.rpvs))
+        
+        elif subfunction == cmd.GetInfo.Subfunction.GetRuntimePublishedValuesDefinition:
+            if data['start'] > len(self.rpvs):
+                return Response(req.command, subfunction, ResponseCode.FailureToProceed)
+            
+            if data['start'] + data['count'] > len(self.rpvs):
+                return Response(req.command, subfunction, ResponseCode.FailureToProceed)
+            
+            response = self.protocol.respond_get_rpv_definition(self.rpvs)
         else:
             self.logger.error('Unsupported subfunction "%s" for command : "%s"' % (subfunction, req.command.__name__))
 

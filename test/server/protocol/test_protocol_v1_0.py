@@ -11,11 +11,13 @@ import unittest
 from scrutiny.server.protocol import Protocol, Response, Request
 from scrutiny.server.protocol import commands as cmd
 from scrutiny.server.protocol.datalog import *
-from scrutiny.core import VariableType
+from scrutiny.core import VariableType, RuntimePublishedValue
 import struct
 
 from scrutiny.server.protocol.crc32 import crc32
 
+def d2f(d):
+    return struct.unpack('f', struct.pack('f', d))[0]
 
 class TestProtocolV1_0(unittest.TestCase):
 
@@ -91,13 +93,12 @@ class TestProtocolV1_0(unittest.TestCase):
         self.check_expected_payload_size(req, 2)
     
     def test_req_get_rpv_definition(self):
-        self.proto.set_address_size_bits(32)
         req = self.proto.get_rpv_definition(start=2, count=5)
         self.assert_req_response_bytes(req, [1, 7, 0, 4, 0, 2, 0, 5])
         data = self.proto.parse_request(req)
         self.assertEqual(data['start'], 2)
         self.assertEqual(data['count'], 5)
-        self.check_expected_payload_size(req, (2+1+4)*5)    # id, type, address
+        self.check_expected_payload_size(req, (2+1)*5)    # id, type 
 
 # ============= MemoryControl ===============
     def test_req_read_single_memory_block_8bits(self):
@@ -418,6 +419,92 @@ class TestProtocolV1_0(unittest.TestCase):
         with self.assertRaises(Exception):
             self.proto.parse_request(request)
 
+    def test_req_read_single_rpv(self):
+        self.proto.configure_rpvs([
+            RuntimePublishedValue(id=0x1234, type=VariableType.uint32),
+            RuntimePublishedValue(id=0x5678, type=VariableType.uint16)
+            ])
+
+        req = self.proto.read_runtime_published_values(0x1234)
+        self.assert_req_response_bytes(req, [3, 4, 0, 2, 0x12, 0x34])
+        data = self.proto.parse_request(req)
+        self.assertEqual(data['rpvs_id'][0], 0x1234)
+        self.check_expected_payload_size(req, 2+4)
+    
+    def test_req_read_multiple_rpv(self):
+        self.proto.configure_rpvs([
+            RuntimePublishedValue(id=0x1234, type=VariableType.uint32),
+            RuntimePublishedValue(id=0x5678, type=VariableType.uint16)
+            ])
+
+        req = self.proto.read_runtime_published_values([0x1234, 0x5678])
+        self.assert_req_response_bytes(req, [3, 4, 0, 4, 0x12, 0x34, 0x56, 0x78])
+        data = self.proto.parse_request(req)
+        self.assertEqual(data['rpvs_id'][0], 0x1234)
+        self.assertEqual(data['rpvs_id'][1], 0x5678)
+        self.check_expected_payload_size(req, 2+4 + 2+2)
+    
+    def test_req_read_rpv_not_in_config(self):
+        self.proto.configure_rpvs([
+            RuntimePublishedValue(id=0x1234, type=VariableType.uint32),
+            RuntimePublishedValue(id=0x5678, type=VariableType.uint16)
+            ])
+
+        with self.assertRaises(Exception):
+            self.proto.read_runtime_published_values([0x1234, 0x5678, 0x9999])
+
+
+    def test_write_single_rpv(self):
+        config = [
+            RuntimePublishedValue(id=0x1234, type=VariableType.uint32)
+            ]
+        self.proto.configure_rpvs(config)
+
+        req = self.proto.write_runtime_published_values((0x1234, 0x11223344))
+
+        self.assert_req_response_bytes(req, [3, 5, 0, 6, 0x12, 0x34, 0x11, 0x22, 0x33, 0x44])
+        data = self.proto.parse_request(req)
+        self.assertEqual(data['rpvs'][0]['id'], 0x1234)
+        self.assertEqual(data['rpvs'][0]['data'], 0x11223344)
+        self.check_expected_payload_size(req, 3)    # ID + size
+    
+    def test_write_multiple_rpvs(self):
+        config = [
+            RuntimePublishedValue(id=0x1234, type=VariableType.uint32),
+            RuntimePublishedValue(id=0x5678, type=VariableType.uint16)
+            ]
+        self.proto.configure_rpvs(config)
+
+        req = self.proto.write_runtime_published_values([(0x1234, 0x11223344), (0x5678, 0x8899)])
+
+        self.assert_req_response_bytes(req, [3, 5, 0, 10, 0x12, 0x34, 0x11, 0x22, 0x33, 0x44, 0x56, 0x78, 0x88, 0x99])
+        data = self.proto.parse_request(req)
+        self.assertEqual(data['rpvs'][0]['id'], 0x1234)
+        self.assertEqual(data['rpvs'][0]['data'], 0x11223344)
+        self.assertEqual(data['rpvs'][1]['id'], 0x5678)
+        self.assertEqual(data['rpvs'][1]['data'], 0x8899)
+
+        self.check_expected_payload_size(req, 6)    # 2x ID + size
+
+    def test_write_rpv_not_in_config(self):
+        config = [
+            RuntimePublishedValue(id=0x1234, type=VariableType.uint32)
+            ]
+        self.proto.configure_rpvs(config)
+
+        with self.assertRaises(Exception):
+            self.proto.write_runtime_published_values((0x1235, 0x11223344))
+    
+    def test_write_rpv_bad_type(self):
+        config = [
+            RuntimePublishedValue(id=0x1234, type=VariableType.uint32)
+            ]
+        self.proto.configure_rpvs(config)
+
+        with self.assertRaises(Exception):
+            self.proto.write_runtime_published_values((0x1234, 1.345))
+
+
 # ============= CommControl ===============
 
     def test_req_comm_discover(self):
@@ -620,26 +707,24 @@ class TestProtocolV1_0(unittest.TestCase):
 
     def test_response_get_rpv_definition(self):
         self.proto.set_address_size_bits(32)
-        definitions = [
-            dict(id=0x1234, type=VariableType.float32, address=0x11223344),
-            dict(id=0x9875, type=VariableType.uint32, address=0x55667788)
+        rpvs = [
+            RuntimePublishedValue(id=0x1234, type=VariableType.float32),
+            RuntimePublishedValue(id=0x9875, type=VariableType.uint32)
         ]
 
         definition_payloads = [
-            [0x12, 0x34, VariableType.float32.value, 0x11, 0x22, 0x33, 0x44],
-            [0x98, 0x75, VariableType.uint32.value, 0x55, 0x66, 0x77, 0x88]
+            [0x12, 0x34, VariableType.float32.value],
+            [0x98, 0x75, VariableType.uint32.value]
         ]
 
-        response = self.proto.respond_get_rpv_definition(definitions)
-        self.assert_req_response_bytes(response, [0x81, 7, 0, 0, 14] + definition_payloads[0] + definition_payloads[1])
+        response = self.proto.respond_get_rpv_definition(rpvs)
+        self.assert_req_response_bytes(response, [0x81, 7, 0, 0, 6] + definition_payloads[0] + definition_payloads[1])
         data = self.proto.parse_response(response)
         self.assertEqual(len(data['rpvs']), 2)
-        self.assertEqual(data['rpvs'][0]['id'], 0x1234)
-        self.assertEqual(data['rpvs'][0]['type'], VariableType.float32)
-        self.assertEqual(data['rpvs'][0]['address'], 0x11223344)
-        self.assertEqual(data['rpvs'][1]['id'], 0x9875)
-        self.assertEqual(data['rpvs'][1]['type'], VariableType.uint32)
-        self.assertEqual(data['rpvs'][1]['address'], 0x55667788)
+        self.assertEqual(data['rpvs'][0].id, 0x1234)
+        self.assertEqual(data['rpvs'][0].type, VariableType.float32)
+        self.assertEqual(data['rpvs'][1].id, 0x9875)
+        self.assertEqual(data['rpvs'][1].type, VariableType.uint32)
 
 
 # ============= MemoryControl ===============
@@ -916,13 +1001,97 @@ class TestProtocolV1_0(unittest.TestCase):
         self.proto.set_address_size_bits(32)
         response = Response(cmd.MemoryControl, cmd.MemoryControl.Subfunction.Write, Response.ResponseCode.OK, [0x12, 0x34, 0x56, 0x78, 0x11])
         with self.assertRaises(Exception):
-            data = self.proto.parse_response(response)
+            self.proto.parse_response(response)
 
         response = Response(cmd.MemoryControl, cmd.MemoryControl.Subfunction.Write,
                             Response.ResponseCode.OK, [0x12, 0x34, 0x56, 0x78, 0x11, 0x22, 0x33])
         with self.assertRaises(Exception):
-            data = self.proto.parse_response(response)
+            self.proto.parse_response(response)
+    
+    def test_response_read_single_rpv(self):
+        self.proto.configure_rpvs([
+            RuntimePublishedValue(id=0x1234, type=VariableType.float32),
+            RuntimePublishedValue(id=0x1235, type=VariableType.uint16)
+        ])
 
+        response = self.proto.respond_read_runtime_published_values( (0x1234, 1.123) )
+        floatdata = [ x for x in struct.pack('>f', 1.123)]
+        self.assert_req_response_bytes(response, [0x83, 4, 0, 0, 6, 0x12, 0x34] + floatdata )
+        data = self.proto.parse_response(response)
+        self.assertEqual(data['read_rpv'][0]['id'], 0x1234)
+        self.assertEqual(data['read_rpv'][0]['data'], d2f(1.123))
+    
+    def test_response_read_multiple_rpv(self):
+        self.proto.configure_rpvs([
+            RuntimePublishedValue(id=0x1234, type=VariableType.float32),
+            RuntimePublishedValue(id=0x1235, type=VariableType.uint16)
+        ])
+
+        response = self.proto.respond_read_runtime_published_values( [(0x1234, 1.123), (0x1235, 0xabcd)] )
+        floatdata = [ x for x in struct.pack('>f', 1.123)]
+        self.assert_req_response_bytes(response, [0x83, 4, 0, 0, 10, 0x12, 0x34] + floatdata + [0x12, 0x35, 0xab, 0xcd])
+        data = self.proto.parse_response(response)
+        self.assertEqual(data['read_rpv'][0]['id'], 0x1234)
+        self.assertEqual(data['read_rpv'][0]['data'], d2f(1.123))
+        self.assertEqual(data['read_rpv'][1]['id'], 0x1235)
+        self.assertEqual(data['read_rpv'][1]['data'], 0xabcd)    
+
+    def test_response_read_rpv_bad_datatype(self):
+        self.proto.configure_rpvs([
+            RuntimePublishedValue(id=0x1234, type=VariableType.float32),
+            RuntimePublishedValue(id=0x1235, type=VariableType.uint16)
+        ])
+
+        with self.assertRaises(Exception):
+            self.proto.respond_read_runtime_published_values( [(0x1234, 1.123), (0x1235, 1.5)] )
+       
+
+    def test_response_read_rpv_unknown_id(self):
+        self.proto.configure_rpvs([
+            RuntimePublishedValue(id=0x1234, type=VariableType.float32),
+            RuntimePublishedValue(id=0x1235, type=VariableType.uint16)
+        ])
+
+        with self.assertRaises(Exception):
+            self.proto.respond_read_runtime_published_values( [(0x9999, 1.0)] )
+       
+
+    def test_response_write_single_rpv(self):
+        self.proto.configure_rpvs([
+            RuntimePublishedValue(id=0x1234, type=VariableType.float32),
+            RuntimePublishedValue(id=0x1235, type=VariableType.uint16)
+        ])
+
+        response = self.proto.respond_write_runtime_published_values( 0x1234 )
+        self.assert_req_response_bytes(response, [0x83, 5, 0, 0, 3, 0x12, 0x34, 4])
+        data = self.proto.parse_response(response)
+        self.assertEqual(data['written_rpv'][0]['id'], 0x1234)
+        self.assertEqual(data['written_rpv'][0]['size'], 4)  
+
+    def test_response_write_multiple_rpvs(self):
+        self.proto.configure_rpvs([
+            RuntimePublishedValue(id=0x1234, type=VariableType.float32),
+            RuntimePublishedValue(id=0x1235, type=VariableType.uint16)
+        ])
+
+        response = self.proto.respond_write_runtime_published_values( [0x1234, 0x1235] )
+        self.assert_req_response_bytes(response, [0x83, 5, 0, 0, 6, 0x12, 0x34, 4, 0x12, 0x35, 2])
+        data = self.proto.parse_response(response)
+        self.assertEqual(data['written_rpv'][0]['id'], 0x1234)
+        self.assertEqual(data['written_rpv'][0]['size'], 4)
+        self.assertEqual(data['written_rpv'][1]['id'], 0x1235)
+        self.assertEqual(data['written_rpv'][1]['size'], 2)
+
+    def test_response_write_rpv_unknown_id(self):
+        self.proto.configure_rpvs([
+            RuntimePublishedValue(id=0x1234, type=VariableType.float32),
+            RuntimePublishedValue(id=0x1235, type=VariableType.uint16)
+        ])
+
+        with self.assertRaises(Exception):
+            self.proto.respond_write_runtime_published_values( [0x1234, 0x1235, 0x9999] )
+
+    
 # ============= CommControl ===============
 
     def test_response_comm_discover(self):
