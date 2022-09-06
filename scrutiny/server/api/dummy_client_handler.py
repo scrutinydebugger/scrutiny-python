@@ -6,10 +6,8 @@
 #
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 
-import websockets
 import queue
 import time
-import asyncio
 import threading
 import uuid
 import logging

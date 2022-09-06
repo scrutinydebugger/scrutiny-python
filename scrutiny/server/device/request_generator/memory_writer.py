@@ -8,18 +8,14 @@
 #
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 
-import time
 import logging
-import binascii
-import copy
-import bisect
-import traceback
+from scrutiny.server.datastore.datastore_entry import DatastoreVariableEntry
 
 from scrutiny.server.protocol import *
 from scrutiny.server.device.request_dispatcher import RequestDispatcher, SuccessCallback, FailureCallback
 from scrutiny.server.datastore import Datastore, DatastoreEntry
 
-from typing import Any, List, Tuple, Optional
+from typing import Any, List, Tuple, Optional, cast
 
 
 class MemoryWriter:
@@ -127,13 +123,18 @@ class MemoryWriter:
                     break
 
         if self.entry_being_updated is not None:
-            value_to_write = self.entry_being_updated.get_pending_target_update_val()
+            resolved_entry = self.entry_being_updated.resolve()
+            assert isinstance(resolved_entry, DatastoreVariableEntry)   # No RPV here! We need an address
+            #resolved_entry = cast(DatastoreVariableEntry, resolved_entry)
+            value_to_write = resolved_entry.get_pending_target_update_val()
             if value_to_write is None:
                 self.logger.critical('Value to write is not availble. This should never happen')
             else:
-                encoded_value, write_mask = self.entry_being_updated.encode_pending_update_value()
+                encoded_value, write_mask = resolved_entry.encode_pending_update_value()
                 request = self.protocol.write_single_memory_block(
-                    address=self.entry_being_updated.get_address(), data=encoded_value, write_mask=write_mask)
+                    address=resolved_entry.get_address(), 
+                    data=encoded_value, write_mask=write_mask
+                    )
                 self.request_of_entry_being_updated = request
         return request
 

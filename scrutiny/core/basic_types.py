@@ -64,7 +64,7 @@ class EmbeddedDataType(Enum):
 
     def get_size_byte(self) -> Optional[int]:
         vbytes = (self.value & 0xF)
-        if vbytes == 0xF:
+        if DataTypeSize(vbytes) == DataTypeSize._NA:
             return None
         return 1 << vbytes
 

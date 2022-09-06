@@ -13,7 +13,6 @@ import logging
 import random
 import traceback
 
-from requests import request
 import scrutiny.server.protocol.commands as cmd
 from scrutiny.server.device.links.dummy_link import DummyLink, ThreadSafeDummyLink
 from scrutiny.server.protocol import Protocol, Request, Response, ResponseCode, RequestData, ResponseData
@@ -293,17 +292,17 @@ class EmulatedDevice:
         #    pass
 
         elif subfunction == cmd.MemoryControl.Subfunction.ReadRPV:
-            response_data:List[Tuple[int, Any]] = []
+            read_response_data:List[Tuple[int, Any]] = []
             for rpv_id in data['rpvs_id']:
                 if rpv_id not in self.rpvs:
                     raise Exception('Unknown RPV with ID 0x%x' % rpv_id)
                 value = self.rpvs[rpv_id]['value']
-                response_data.append((rpv_id, value))
+                read_response_data.append((rpv_id, value))
             
-            response = self.protocol.respond_read_runtime_published_values(response_data)
+            response = self.protocol.respond_read_runtime_published_values(read_response_data)
         
         elif subfunction == cmd.MemoryControl.Subfunction.WriteRPV:
-            response_data:List[Tuple[int, Any]] = []
+            write_response_data:List[int] = []
             for id_data_pair in data['rpvs']:
                 id = id_data_pair['id']
                 value = id_data_pair['value']
@@ -312,9 +311,9 @@ class EmulatedDevice:
                     raise Exception('Unknown RPV with ID 0x%x' % id)
                 self.rpvs[id]['value'] = data['value']
                 value = self.rpvs[rpv_id]['value']
-                response_data.append(rpv_id)
+                write_response_data.append(rpv_id)
             
-            response = self.protocol.respond_write_runtime_published_values(response_data)
+            response = self.protocol.respond_write_runtime_published_values(write_response_data)
 
         else:
             self.logger.error('Unsupported subfunction "%s" for command : "%s"' % (subfunction, req.command.__name__))

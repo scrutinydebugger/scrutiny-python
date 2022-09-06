@@ -45,6 +45,7 @@ class RequestData(TypedDict, total=False):
     count:int
     rpvs_id:List[int]
     rpvs:List[Dict[str, Any]]
+    value:Any
 
 
 class ResponseData(TypedDict, total=False):

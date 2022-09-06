@@ -86,20 +86,22 @@ class BoolCodec(BaseCodec):
     def decode(self, data: Union[bytes, bytearray], mask:Optional[bytes]=None) -> bool:
         return True if data[0] != 0 else False
 
-    def encode(self, value: Encodable) -> Tuple[bytes, Optional[bytes]]:
+    def encode(self, value: Encodable) -> bytes:
         v = 1 if value is True else 0
         return struct.pack('B', v) #  todo : Mask
 
 class Codecs:
     @staticmethod
     def get(vartype:EmbeddedDataType, endianness:Endianness) -> BaseCodec:
+        datasize = vartype.get_size_byte()
+        assert datasize is not None
         if vartype in [EmbeddedDataType.sint8, EmbeddedDataType.sint16, EmbeddedDataType.sint32, EmbeddedDataType.sint64]:
-            return SIntCodec(vartype.get_size_byte(), endianness=endianness)
+            return SIntCodec(datasize, endianness=endianness)
         elif vartype in [EmbeddedDataType.uint8, EmbeddedDataType.uint16, EmbeddedDataType.uint32, EmbeddedDataType.uint64]:
-            return UIntCodec(vartype.get_size_byte(), endianness=endianness)
+            return UIntCodec(datasize, endianness=endianness)
         elif vartype in [EmbeddedDataType.float64, EmbeddedDataType.float32]:
-            return FloatCodec(vartype.get_size_byte(), endianness=endianness)
+            return FloatCodec(datasize, endianness=endianness)
         elif vartype in [EmbeddedDataType.boolean]:
             return BoolCodec()
 
-        return NotImplementedError("No codec defined for variable type %s" % vartype)
+        raise NotImplementedError("No codec defined for variable type %s" % vartype)

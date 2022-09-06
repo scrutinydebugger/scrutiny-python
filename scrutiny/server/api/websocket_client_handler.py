@@ -7,8 +7,8 @@
 #
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 
-import websockets
-import websockets.server
+import websockets           # type: ignore
+import websockets.server    # type: ignore
 import queue
 import asyncio
 import threading
@@ -19,7 +19,8 @@ import json
 from .abstract_client_handler import AbstractClientHandler, ClientHandlerConfig, ClientHandlerMessage
 from typing import Dict, Tuple, Any, Coroutine, Optional, Callable
 
-WebsocketType = websockets.server.WebSocketServerProtocol
+#WebsocketType = websockets.server.WebSocketServerProtocol
+WebsocketType = Any # todo fix this
 
 
 class Timer:

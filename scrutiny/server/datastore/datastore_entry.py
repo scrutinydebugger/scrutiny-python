@@ -115,11 +115,15 @@ class DatastoreEntry:
         raise NotImplementedError("Abstract class")
     
     @abc.abstractmethod
-    def encode(self, value: Encodable = None) -> Tuple[bytes, Optional[bytes]]:
+    def encode(self, value: Encodable) -> Tuple[bytes, Optional[bytes]]:
         raise NotImplementedError("Abstract class")
 
     @abc.abstractmethod
     def decode(self, data: bytes) -> Encodable:
+        raise NotImplementedError("Abstract class")
+    
+    @abc.abstractmethod
+    def resolve(self) -> "DatastoreEntry":
         raise NotImplementedError("Abstract class")
         
     def get_id(self) -> str:
@@ -208,6 +212,7 @@ class DatastoreEntry:
     def encode_pending_update_value(self) -> Tuple[bytes, Optional[bytes]]:
         if not self.has_pending_target_update():
             raise Exception('Datastore entry has no update request pending')
+        assert self.pending_target_update is not None
 
         return self.encode_value(self.pending_target_update.value)
 
@@ -234,7 +239,9 @@ class DatastoreVariableEntry(DatastoreEntry):
         return self.variable_def.get_address()
 
     def get_size(self) -> int:
-        return self.variable_def.get_type().get_size_byte()
+        typesize = self.variable_def.get_type().get_size_byte()
+        assert typesize is not None
+        return typesize
     
     def has_enum(self) -> bool:
         return self.variable_def.has_enum()
@@ -249,6 +256,9 @@ class DatastoreVariableEntry(DatastoreEntry):
 
     def decode(self, data:bytes) -> Encodable:
         return self.variable_def.decode(data)
+    
+    def resolve(self) -> DatastoreEntry:
+        return self
 
 
 
@@ -259,12 +269,12 @@ class DatastoreAliasEntry(DatastoreEntry):
         super().__init__(display_path=display_path)
         self.refentry=refentry
     
-    def resolve_entry(self, obj=None) -> DatastoreEntry:
+    def resolve(self, obj=None) -> DatastoreEntry:
         if obj == None:
             obj = self.refentry
 
         if isinstance(obj, DatastoreAliasEntry):
-            return obj.resolve_entry(obj.refentry)
+            return obj.resolve(obj.refentry)
         return obj
     
     def get_type(self) -> EntryType:
@@ -279,8 +289,8 @@ class DatastoreAliasEntry(DatastoreEntry):
     def get_enum(self) -> VariableEnum:
         return self.refentry.get_enum()
     
-    def encode(self, value: Any = None) -> Tuple[bytes, Optional[bytes]]:
+    def encode(self, value: Encodable) -> Tuple[bytes, Optional[bytes]]:
         return self.refentry.encode(value)
 
-    def decode(self, data:bytes, mask:Optional[bytes]=None) -> Any:
-        self.refentry.decode(data, mask)
+    def decode(self, data:bytes) -> Encodable:
+        return self.refentry.decode(data)
