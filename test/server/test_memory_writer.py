@@ -10,22 +10,24 @@
 import unittest
 import time
 
-from scrutiny.server.datastore import Datastore, DatastoreEntry
+from scrutiny.server.datastore import *
 from scrutiny.server.device.request_generator.memory_writer import MemoryWriter
 from scrutiny.server.device.request_dispatcher import RequestDispatcher
-from scrutiny.server.protocol import Protocol, Request, Response
+from scrutiny.server.protocol import Protocol
 from scrutiny.server.protocol.commands import *
-from scrutiny.core.variable import *
+from scrutiny.core.basic_types import EmbeddedDataType, Endianness
+from scrutiny.core.variable import Variable
+import struct
 
 from typing import List, Dict
 from scrutiny.core.typehints import GenericCallback
 
 
-def make_dummy_entries(address, n, vartype=VariableType.float32):
+def make_dummy_entries(address, n, vartype=EmbeddedDataType.float32):
     for i in range(n):
         dummy_var = Variable('dummy', vartype=vartype, path_segments=['a', 'b', 'c'],
                              location=address + i * vartype.get_size_bit() // 8, endianness=Endianness.Little)
-        entry = DatastoreEntry(DatastoreEntry.EntryType.Var, 'path_%d' % i, variable_def=dummy_var)
+        entry = DatastoreVariableEntry('path_%d' % i, variable_def=dummy_var)
         yield entry
 
 
@@ -40,7 +42,7 @@ class TestMemoryWriterBasicReadOperation(unittest.TestCase):
         nfloat = 1
         address = 0x1000
         ds = Datastore()
-        entries = list(make_dummy_entries(address=address, n=nfloat, vartype=VariableType.float32))
+        entries = list(make_dummy_entries(address=address, n=nfloat, vartype=EmbeddedDataType.float32))
         ds.add_entries(entries)
         dispatcher = RequestDispatcher()
 
@@ -92,7 +94,7 @@ class TestMemoryWriterBasicReadOperation(unittest.TestCase):
         ndouble = 100
         address = 0x1000
         ds = Datastore()
-        entries = list(make_dummy_entries(address=address, n=ndouble, vartype=VariableType.float64))
+        entries = list(make_dummy_entries(address=address, n=ndouble, vartype=EmbeddedDataType.float64))
         ds.add_entries(entries)
         dispatcher = RequestDispatcher()
 

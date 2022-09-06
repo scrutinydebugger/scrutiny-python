@@ -15,7 +15,7 @@ import logging
 
 import scrutiny.core.firmware_id as firmware_id
 from scrutiny.core.varmap import VarMap
-from scrutiny.core import Variable
+from scrutiny.core.variable import Variable
 
 from typing import List, Union, Dict, Any, Tuple, Generator, TypedDict
 

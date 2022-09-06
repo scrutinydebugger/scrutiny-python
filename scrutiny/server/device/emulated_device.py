@@ -18,9 +18,9 @@ import scrutiny.server.protocol.commands as cmd
 from scrutiny.server.device.links.dummy_link import DummyLink, ThreadSafeDummyLink
 from scrutiny.server.protocol import Protocol, Request, Response, ResponseCode, RequestData, ResponseData
 from scrutiny.core.memory_content import MemoryContent
-from scrutiny.core.variable import RuntimePublishedValue, VariableType
+from scrutiny.core.basic_types import RuntimePublishedValue, EmbeddedDataType
 
-from typing import List, Dict, Optional, Union
+from typing import List, Dict, Optional, Union, Any, Tuple, TypedDict
 
 
 class RequestLogRecord:
@@ -33,6 +33,9 @@ class RequestLogRecord:
         self.request = request
         self.response = response
 
+class RPVValuePair(TypedDict):
+    definition:RuntimePublishedValue
+    value:Any
 
 class EmulatedDevice:
     logger: logging.Logger
@@ -57,6 +60,7 @@ class EmulatedDevice:
     session_id: Optional[int]
     memory: MemoryContent
     memory_lock: threading.Lock
+    rpvs:List[RPVValuePair]
 
     def __init__(self, link):
         if not isinstance(link, DummyLink) and not isinstance(link, ThreadSafeDummyLink):
@@ -90,12 +94,12 @@ class EmulatedDevice:
             'user_command': False
         }
 
-        self.rpvs = {
-            RuntimePublishedValue(id=0x1001, type=VariableType.float32),
-            RuntimePublishedValue(id=0x1002, type=VariableType.uint16),
-            RuntimePublishedValue(id=0x1003, type=VariableType.sint8),
-            RuntimePublishedValue(id=0x1004, type=VariableType.boolean)
-        }
+        self.rpvs = [
+            {'definition' : RuntimePublishedValue(id=0x1001, datatype=EmbeddedDataType.float32), 'value': 3.1415926},
+            {'definition' : RuntimePublishedValue(id=0x1002, datatype=EmbeddedDataType.uint16), 'value': 0x1234},
+            {'definition' : RuntimePublishedValue(id=0x1003, datatype=EmbeddedDataType.sint8), 'value': -65},
+            {'definition' : RuntimePublishedValue(id=0x1004, datatype=EmbeddedDataType.boolean), 'value': True}
+        ]
 
         self.forbidden_regions = [
             {'start': 0x100, 'end': 0x1FF},
@@ -105,6 +109,8 @@ class EmulatedDevice:
             {'start': 0x200, 'end': 0x2FF},
             {'start': 0x800, 'end': 0x8FF},
             {'start': 0x900, 'end': 0x9FF}]
+
+        self.protocol.configure_rpvs([x['definition'] for x in self.rpvs])
 
     def thread_task(self) -> None:
         self.thread_started_event.set()
@@ -256,7 +262,8 @@ class EmulatedDevice:
             if data['start'] + data['count'] > len(self.rpvs):
                 return Response(req.command, subfunction, ResponseCode.FailureToProceed)
             
-            response = self.protocol.respond_get_rpv_definition(self.rpvs)
+            selected_rpv_value_pair = self.rpvs[data['start']:data['start']+data['count']]
+            response = self.protocol.respond_get_rpv_definition([x['definition'] for x in selected_rpv_value_pair])
         else:
             self.logger.error('Unsupported subfunction "%s" for command : "%s"' % (subfunction, req.command.__name__))
 
@@ -284,6 +291,30 @@ class EmulatedDevice:
 
         # elif subfunction == cmd.MemoryControl.Subfunction.WriteMasked:
         #    pass
+
+        elif subfunction == cmd.MemoryControl.Subfunction.ReadRPV:
+            response_data:List[Tuple[int, Any]] = []
+            for rpv_id in data['rpvs_id']:
+                if rpv_id not in self.rpvs:
+                    raise Exception('Unknown RPV with ID 0x%x' % rpv_id)
+                value = self.rpvs[rpv_id]['value']
+                response_data.append((rpv_id, value))
+            
+            response = self.protocol.respond_read_runtime_published_values(response_data)
+        
+        elif subfunction == cmd.MemoryControl.Subfunction.WriteRPV:
+            response_data:List[Tuple[int, Any]] = []
+            for id_data_pair in data['rpvs']:
+                id = id_data_pair['id']
+                value = id_data_pair['value']
+
+                if id not in self.rpvs:
+                    raise Exception('Unknown RPV with ID 0x%x' % id)
+                self.rpvs[id]['value'] = data['value']
+                value = self.rpvs[rpv_id]['value']
+                response_data.append(rpv_id)
+            
+            response = self.protocol.respond_write_runtime_published_values(response_data)
 
         else:
             self.logger.error('Unsupported subfunction "%s" for command : "%s"' % (subfunction, req.command.__name__))

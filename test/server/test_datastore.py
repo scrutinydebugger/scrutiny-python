@@ -8,7 +8,7 @@
 
 import unittest
 
-from scrutiny.server.datastore import Datastore, DatastoreEntry
+from scrutiny.server.datastore import Datastore, DatastoreVariableEntry
 from scrutiny.core.variable import *
 
 
@@ -16,10 +16,10 @@ class TestDataStore(unittest.TestCase):
     def setUp(self):
         self.callback_call_history = {}
 
-    def make_dummy_entries(self, n):
-        dummy_var = Variable('dummy', vartype=VariableType.float32, path_segments=['a', 'b', 'c'], location=0x12345678, endianness=Endianness.Little)
+    def make_dummy_var_entries(self, n):
+        dummy_var = Variable('dummy', vartype=EmbeddedDataType.float32, path_segments=['a', 'b', 'c'], location=0x12345678, endianness=Endianness.Little)
         for i in range(n):
-            entry = DatastoreEntry(DatastoreEntry.EntryType.Var, 'path_%d' % i, variable_def=dummy_var)
+            entry = DatastoreVariableEntry('path_%d' % i, variable_def=dummy_var)
             yield entry
 
     def entry_callback(self, owner, args, entry):
@@ -32,7 +32,7 @@ class TestDataStore(unittest.TestCase):
         self.callback_call_history[owner][entry.get_id()] += 1
 
     def assertCallbackCalled(self, entry_id, owner, n, msg=None):
-        if isinstance(entry_id, DatastoreEntry):
+        if isinstance(entry_id, DatastoreVariableEntry):
             entry_id = entry_id.get_id()
 
         if owner not in self.callback_call_history:
@@ -45,9 +45,9 @@ class TestDataStore(unittest.TestCase):
         self.assertEqual(count, n, msg)
 
     def test_add_get(self):
-        n = 4;
+        n = 4
         ds = Datastore()
-        entries = list(self.make_dummy_entries(n))
+        entries = list(self.make_dummy_var_entries(n))
         for entry in entries:
             ds.add_entry(entry)
 
@@ -58,7 +58,7 @@ class TestDataStore(unittest.TestCase):
 
     def test_entry_no_duplicate_id(self):
         n = 10000
-        entries = self.make_dummy_entries(n)
+        entries = self.make_dummy_var_entries(n)
         entry_ids = {}
         for entry in entries:
             self.assertNotIn(entry.get_id(), entry_ids)
@@ -66,7 +66,7 @@ class TestDataStore(unittest.TestCase):
 
     # Make sure all callbacks are called when entry gets dirty
     def test_callback_on_value_change(self):
-        entries = list(self.make_dummy_entries(5))
+        entries = list(self.make_dummy_var_entries(5))
         ds = Datastore()
         ds.add_entries_quiet(entries)
         owner = 'watcher1'
@@ -120,7 +120,7 @@ class TestDataStore(unittest.TestCase):
 
     # Make sure we manage correctly multiple watchers
     def test_watch_behavior(self):
-        entries = list(self.make_dummy_entries(4))
+        entries = list(self.make_dummy_var_entries(4))
         ds = Datastore()
         ds.add_entries_quiet(entries)
 

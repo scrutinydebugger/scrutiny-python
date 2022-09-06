@@ -6,26 +6,24 @@
 #
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 
+
 import struct
-
-from scrutiny.core.variable import Endianness
-
-from . import commands as cmd
-from . import Request, Response
-from .exceptions import *
-from .datalog import *
 import logging
 import ctypes
 import traceback
-import scrutiny.core as core
+
+from .exceptions import *
+from .datalog import *
+from . import commands as cmd
+from . import Request, Response
+from scrutiny.core.codecs import Codecs
+from scrutiny.core.basic_types import Endianness, RuntimePublishedValue
 
 from typing import Union, List, Tuple, Optional, TypedDict, Dict, Any
-
 
 class BlockAddressLength(TypedDict):
     address: int
     length: int
-
 
 class BlockAddressData(TypedDict, total=False):
     address: int
@@ -86,7 +84,7 @@ class ResponseData(TypedDict, total=False):
     address_size_byte: int
     magic: bytes
     count:int
-    rpvs:List[core.RuntimePublishedValue]
+    rpvs:List[RuntimePublishedValue]
     read_rpv:List[Dict[str, Any]]
     written_rpv:List[Dict[str, Any]]
 
@@ -95,7 +93,7 @@ class Protocol:
     version_major: int
     version_minor: int
     logger: logging.Logger
-    rpv_map:Dict[int, core.RuntimePublishedValue]
+    rpv_map:Dict[int, RuntimePublishedValue]
 
     class AddressFormat:
 
@@ -165,7 +163,7 @@ class Protocol:
     def get_version(self):
         return (self.version_major, self.version_minor)
 
-    def configure_rpvs(self, rpvs:List[core.RuntimePublishedValue]):
+    def configure_rpvs(self, rpvs:List[RuntimePublishedValue]):
         self.rpv_map = {}
         for rpv in rpvs:
             self.rpv_map[rpv.id] = rpv
@@ -262,7 +260,7 @@ class Protocol:
             if id not in self.rpv_map:
                 raise Exception('Unkown RuntimePublishedValue ID %s' % id)
             rpv = self.rpv_map[id]
-            typesize = rpv.type.get_size_byte()
+            typesize = rpv.datatype.get_size_byte()
             assert typesize is not None
             expected_response_size += 2 + typesize
         
@@ -279,9 +277,9 @@ class Protocol:
             if id not in self.rpv_map:
                 raise Exception('Unkown RuntimePublishedValue ID %s' % id)
             rpv = self.rpv_map[id]
-            codec = core.Variable.get_codec(rpv.type)
+            codec = Codecs.get(rpv.datatype, Endianness.Big)
             data += struct.pack('>H', id)
-            data += codec.encode(val, core.Endianness.Big)
+            data += codec.encode(val)
         
         return Request(cmd.MemoryControl, cmd.MemoryControl.Subfunction.WriteRPV, data, response_payload_size=len(values)*3)
 
@@ -445,12 +443,12 @@ class Protocol:
                             raise Exception('Request requires to decode RPV with ID %s which is unknown' % id) 
                         
                         rpv = self.rpv_map[id]
-                        codec = core.Variable.get_codec(rpv.type)
-                        datasize = rpv.type.get_size_byte()
+                        codec = Codecs.get(rpv.datatype, Endianness.Big)
+                        datasize = rpv.datatype.get_size_byte()
                         assert datasize is not None
-                        value = codec.decode(req.payload[cursor:cursor+datasize], core.Endianness.Big)
+                        value = codec.decode(req.payload[cursor:cursor+datasize])
                         cursor += datasize
-                        data['rpvs'].append(dict(id=id, data=value))
+                        data['rpvs'].append(dict(id=id, value=value))
 
             elif req.command == cmd.DatalogControl:
                 subfn = cmd.DatalogControl.Subfunction(req.subfn)
@@ -556,11 +554,11 @@ class Protocol:
     def respond_get_rpv_count(self, count:int):
         return Response(cmd.GetInfo, cmd.GetInfo.Subfunction.GetRuntimePublishedValuesCount, Response.ResponseCode.OK, struct.pack('>H', count))
 
-    def respond_get_rpv_definition(self, rpvs:List[core.RuntimePublishedValue]):
+    def respond_get_rpv_definition(self, rpvs:List[RuntimePublishedValue]):
         payload = bytes()
         
         for rpv in rpvs:
-            vtype = rpv.type.value
+            vtype = rpv.datatype.value
             payload += struct.pack('>HB', rpv.id, vtype)
         
         return Response(cmd.GetInfo, cmd.GetInfo.Subfunction.GetRuntimePublishedValuesDefinition, Response.ResponseCode.OK, payload)
@@ -635,8 +633,8 @@ class Protocol:
                 raise Exception('Unkown RuntimePublishedValue ID %s' % id)
             
             rpv = self.rpv_map[id]
-            codec = core.Variable.get_codec(rpv.type)
-            data += struct.pack('>H', id) + codec.encode(val, endianness=core.Endianness.Big)
+            codec = Codecs.get(rpv.datatype, Endianness.Big)
+            data += struct.pack('>H', id) + codec.encode(val)
         
         return Response(cmd.MemoryControl, cmd.MemoryControl.Subfunction.ReadRPV, Response.ResponseCode.OK, data)
 
@@ -649,7 +647,7 @@ class Protocol:
             if id not in self.rpv_map:
                 raise Exception('Unkown RuntimePublishedValue ID %s' % id)
             rpv = self.rpv_map[id]
-            data += struct.pack('>HB', id, rpv.type.get_size_byte())
+            data += struct.pack('>HB', id, rpv.datatype.get_size_byte())
         
         return Response(cmd.MemoryControl, cmd.MemoryControl.Subfunction.WriteRPV, Response.ResponseCode.OK, data)
 
@@ -740,7 +738,7 @@ class Protocol:
                         nbr_rpv = len(response.payload)//n
                         for i in range(nbr_rpv):
                             vid, typeint,  = struct.unpack('>HB', response.payload[i*n+0:i*n+n])                            
-                            data['rpvs'].append(core.RuntimePublishedValue(id=vid, type=typeint))
+                            data['rpvs'].append(RuntimePublishedValue(id=vid, datatype=typeint))
 
                 elif response.command == cmd.MemoryControl:
                     subfn = cmd.MemoryControl.Subfunction(response.subfn)
@@ -790,13 +788,13 @@ class Protocol:
                             if id not in self.rpv_map:
                                 raise Exception('Unknown RuntimePublishedValue of ID 0x%x', id)
                             rpv = self.rpv_map[id]
-                            typesize = rpv.type.get_size_byte()
+                            typesize = rpv.datatype.get_size_byte()
                             assert typesize is not None
                             if len(response.payload)-cursor < typesize:
                                 raise Exception('Incomplete data for RPV with ID 0x%x', id)
                             
-                            codec = core.Variable.get_codec(rpv.type)
-                            val = codec.decode(response.payload[cursor:cursor+typesize], endianness=Endianness.Big)
+                            codec = Codecs.get(rpv.datatype, Endianness.Big)
+                            val = codec.decode(response.payload[cursor:cursor+typesize])
                             cursor += typesize
                             data['read_rpv'].append(dict(id=id, data=val))
 

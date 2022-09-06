@@ -10,10 +10,10 @@ import logging
 import enum
 import traceback
 
-from scrutiny.core import FirmwareDescription
+from scrutiny.core.firmware_description import FirmwareDescription
 from scrutiny.core.sfd_storage import SFDStorage
 from scrutiny.server.device.device_handler import DeviceHandler
-from scrutiny.server.datastore import Datastore, DatastoreEntry
+from scrutiny.server.datastore import Datastore, DatastoreVariableEntry
 
 from typing import Optional, List
 from scrutiny.core.typehints import GenericCallback, Callable
@@ -108,7 +108,7 @@ class ActiveSFDHandler:
 
             # populate datastore
             for fullname, vardef in self.sfd.get_vars_for_datastore():
-                entry = DatastoreEntry(entry_type=DatastoreEntry.EntryType.Var, display_path=fullname, variable_def=vardef)
+                entry = DatastoreVariableEntry(display_path=fullname, variable_def=vardef)
                 try:
                     self.datastore.add_entry(entry)
                 except Exception as e:

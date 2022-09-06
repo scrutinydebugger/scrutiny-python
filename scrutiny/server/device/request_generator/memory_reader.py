@@ -18,14 +18,14 @@ from sortedcontainers import SortedSet  # type: ignore
 
 from scrutiny.server.protocol import *
 from scrutiny.server.device.request_dispatcher import RequestDispatcher, SuccessCallback, FailureCallback
-from scrutiny.server.datastore import Datastore, DatastoreEntry, WatchCallback
+from scrutiny.server.datastore import Datastore, DatastoreVariableEntry, WatchCallback
 from scrutiny.core.memory_content import MemoryContent, Cluster
 
 from typing import Any, List, Tuple, Optional
 
 
 class DataStoreEntrySortableByAddress:
-    entry: DatastoreEntry
+    entry: DatastoreVariableEntry
 
     def __init__(self, entry):
         self.entry = entry
@@ -71,7 +71,7 @@ class MemoryReader:
     readonly_regions: List[Tuple[int, int]]
     watched_entries_sorted_by_address: SortedSet
     read_cursor: int
-    entries_in_pending_read_request: List[DatastoreEntry]
+    entries_in_pending_read_request: List[DatastoreVariableEntry]
 
     def __init__(self, protocol: Protocol, dispatcher: RequestDispatcher, datastore: Datastore, request_priority: int):
         self.logger = logging.getLogger(self.__class__.__name__)
@@ -146,13 +146,13 @@ class MemoryReader:
                 self.request_pending = True
                 self.entries_in_pending_read_request = entries_in_request
 
-    def make_next_read_request(self) -> Tuple[Optional[Request], List[DatastoreEntry]]:
+    def make_next_read_request(self) -> Tuple[Optional[Request], List[DatastoreVariableEntry]]:
         """
         This method generate a read request by moving in a list of watched entries
         It works in a round-robin scheme and will agglomerate entries that are contiguous in memory
         """
         max_block_per_request: int = (self.max_request_size - Request.OVERHEAD_SIZE) // self.protocol.read_memory_request_size_per_block()
-        entries_in_request: List[DatastoreEntry] = []
+        entries_in_request: List[DatastoreVariableEntry] = []
         block_list: List[Tuple[int, int]] = []
         skipped_entries_count = 0
         clusters_in_request: List[Cluster] = []

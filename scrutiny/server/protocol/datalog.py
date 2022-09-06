@@ -7,7 +7,7 @@
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 
 from enum import Enum
-from scrutiny.core import VariableType
+from scrutiny.core.variable import EmbeddedDataType
 
 from typing import Union
 
@@ -46,13 +46,13 @@ class DatalogConfiguration:
     class WatchOperand(Operand):
         address: int
         length: int
-        interpret_as: VariableType
+        interpret_as: EmbeddedDataType
         operand_type: "DatalogConfiguration.OperandType"
 
-        def __init__(self, address: int, length: int, interpret_as: VariableType):
+        def __init__(self, address: int, length: int, interpret_as: EmbeddedDataType):
             self.address = address
             self.length = length
-            self.interpret_as = VariableType(interpret_as)
+            self.interpret_as = EmbeddedDataType(interpret_as)
             self.operand_type = DatalogConfiguration.OperandType.WATCH
 
     class Watch:

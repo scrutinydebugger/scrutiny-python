@@ -11,7 +11,7 @@ import unittest
 from scrutiny.server.protocol import Protocol, Response, Request
 from scrutiny.server.protocol import commands as cmd
 from scrutiny.server.protocol.datalog import *
-from scrutiny.core import VariableType, RuntimePublishedValue
+from scrutiny.core.basic_types import EmbeddedDataType, RuntimePublishedValue
 import struct
 
 from scrutiny.server.protocol.crc32 import crc32
@@ -421,8 +421,8 @@ class TestProtocolV1_0(unittest.TestCase):
 
     def test_req_read_single_rpv(self):
         self.proto.configure_rpvs([
-            RuntimePublishedValue(id=0x1234, type=VariableType.uint32),
-            RuntimePublishedValue(id=0x5678, type=VariableType.uint16)
+            RuntimePublishedValue(id=0x1234, datatype=EmbeddedDataType.uint32),
+            RuntimePublishedValue(id=0x5678, datatype=EmbeddedDataType.uint16)
             ])
 
         req = self.proto.read_runtime_published_values(0x1234)
@@ -433,8 +433,8 @@ class TestProtocolV1_0(unittest.TestCase):
     
     def test_req_read_multiple_rpv(self):
         self.proto.configure_rpvs([
-            RuntimePublishedValue(id=0x1234, type=VariableType.uint32),
-            RuntimePublishedValue(id=0x5678, type=VariableType.uint16)
+            RuntimePublishedValue(id=0x1234, datatype=EmbeddedDataType.uint32),
+            RuntimePublishedValue(id=0x5678, datatype=EmbeddedDataType.uint16)
             ])
 
         req = self.proto.read_runtime_published_values([0x1234, 0x5678])
@@ -446,8 +446,8 @@ class TestProtocolV1_0(unittest.TestCase):
     
     def test_req_read_rpv_not_in_config(self):
         self.proto.configure_rpvs([
-            RuntimePublishedValue(id=0x1234, type=VariableType.uint32),
-            RuntimePublishedValue(id=0x5678, type=VariableType.uint16)
+            RuntimePublishedValue(id=0x1234, datatype=EmbeddedDataType.uint32),
+            RuntimePublishedValue(id=0x5678, datatype=EmbeddedDataType.uint16)
             ])
 
         with self.assertRaises(Exception):
@@ -456,7 +456,7 @@ class TestProtocolV1_0(unittest.TestCase):
 
     def test_write_single_rpv(self):
         config = [
-            RuntimePublishedValue(id=0x1234, type=VariableType.uint32)
+            RuntimePublishedValue(id=0x1234, datatype=EmbeddedDataType.uint32)
             ]
         self.proto.configure_rpvs(config)
 
@@ -465,13 +465,13 @@ class TestProtocolV1_0(unittest.TestCase):
         self.assert_req_response_bytes(req, [3, 5, 0, 6, 0x12, 0x34, 0x11, 0x22, 0x33, 0x44])
         data = self.proto.parse_request(req)
         self.assertEqual(data['rpvs'][0]['id'], 0x1234)
-        self.assertEqual(data['rpvs'][0]['data'], 0x11223344)
+        self.assertEqual(data['rpvs'][0]['value'], 0x11223344)
         self.check_expected_payload_size(req, 3)    # ID + size
     
     def test_write_multiple_rpvs(self):
         config = [
-            RuntimePublishedValue(id=0x1234, type=VariableType.uint32),
-            RuntimePublishedValue(id=0x5678, type=VariableType.uint16)
+            RuntimePublishedValue(id=0x1234, datatype=EmbeddedDataType.uint32),
+            RuntimePublishedValue(id=0x5678, datatype=EmbeddedDataType.uint16)
             ]
         self.proto.configure_rpvs(config)
 
@@ -480,15 +480,15 @@ class TestProtocolV1_0(unittest.TestCase):
         self.assert_req_response_bytes(req, [3, 5, 0, 10, 0x12, 0x34, 0x11, 0x22, 0x33, 0x44, 0x56, 0x78, 0x88, 0x99])
         data = self.proto.parse_request(req)
         self.assertEqual(data['rpvs'][0]['id'], 0x1234)
-        self.assertEqual(data['rpvs'][0]['data'], 0x11223344)
+        self.assertEqual(data['rpvs'][0]['value'], 0x11223344)
         self.assertEqual(data['rpvs'][1]['id'], 0x5678)
-        self.assertEqual(data['rpvs'][1]['data'], 0x8899)
+        self.assertEqual(data['rpvs'][1]['value'], 0x8899)
 
         self.check_expected_payload_size(req, 6)    # 2x ID + size
 
     def test_write_rpv_not_in_config(self):
         config = [
-            RuntimePublishedValue(id=0x1234, type=VariableType.uint32)
+            RuntimePublishedValue(id=0x1234, datatype=EmbeddedDataType.uint32)
             ]
         self.proto.configure_rpvs(config)
 
@@ -497,7 +497,7 @@ class TestProtocolV1_0(unittest.TestCase):
     
     def test_write_rpv_bad_type(self):
         config = [
-            RuntimePublishedValue(id=0x1234, type=VariableType.uint32)
+            RuntimePublishedValue(id=0x1234, datatype=EmbeddedDataType.uint32)
             ]
         self.proto.configure_rpvs(config)
 
@@ -576,13 +576,13 @@ class TestProtocolV1_0(unittest.TestCase):
         conf.sample_rate = 100000
         conf.decimation = 5
         conf.trigger.condition = DatalogConfiguration.TriggerCondition.EQUAL
-        conf.trigger.operand1 = DatalogConfiguration.WatchOperand(address=0x99887766, length=4, interpret_as=VariableType.float32)
+        conf.trigger.operand1 = DatalogConfiguration.WatchOperand(address=0x99887766, length=4, interpret_as=EmbeddedDataType.float32)
         conf.trigger.operand2 = DatalogConfiguration.ConstOperand(666)
 
         data = struct.pack('>BfBH', 0, 100000, 5, 3)    # destination, sample rate, decimation, num watch
         data += struct.pack('>LHLHLH', 0x1234, 2, 0x1111, 4, 0x2222, 4)  # watch def
         data += b'\x00'  # condition
-        data += struct.pack('>BLBB', 2, 0x99887766, 4, 22)  # operand type, operand data
+        data += struct.pack('>BLBB', 2, 0x99887766, 4, EmbeddedDataType.float32.value)  # operand type, operand data
         data += struct.pack('>Bf', 1, 666)  # operand type, operand data
 
         payload = bytes([5, 4]) + struct.pack('>H', len(data)) + data
@@ -708,13 +708,13 @@ class TestProtocolV1_0(unittest.TestCase):
     def test_response_get_rpv_definition(self):
         self.proto.set_address_size_bits(32)
         rpvs = [
-            RuntimePublishedValue(id=0x1234, type=VariableType.float32),
-            RuntimePublishedValue(id=0x9875, type=VariableType.uint32)
+            RuntimePublishedValue(id=0x1234, datatype=EmbeddedDataType.float32),
+            RuntimePublishedValue(id=0x9875, datatype=EmbeddedDataType.uint32)
         ]
 
         definition_payloads = [
-            [0x12, 0x34, VariableType.float32.value],
-            [0x98, 0x75, VariableType.uint32.value]
+            [0x12, 0x34, EmbeddedDataType.float32.value],
+            [0x98, 0x75, EmbeddedDataType.uint32.value]
         ]
 
         response = self.proto.respond_get_rpv_definition(rpvs)
@@ -722,9 +722,9 @@ class TestProtocolV1_0(unittest.TestCase):
         data = self.proto.parse_response(response)
         self.assertEqual(len(data['rpvs']), 2)
         self.assertEqual(data['rpvs'][0].id, 0x1234)
-        self.assertEqual(data['rpvs'][0].type, VariableType.float32)
+        self.assertEqual(data['rpvs'][0].datatype, EmbeddedDataType.float32)
         self.assertEqual(data['rpvs'][1].id, 0x9875)
-        self.assertEqual(data['rpvs'][1].type, VariableType.uint32)
+        self.assertEqual(data['rpvs'][1].datatype, EmbeddedDataType.uint32)
 
 
 # ============= MemoryControl ===============
@@ -1010,8 +1010,8 @@ class TestProtocolV1_0(unittest.TestCase):
     
     def test_response_read_single_rpv(self):
         self.proto.configure_rpvs([
-            RuntimePublishedValue(id=0x1234, type=VariableType.float32),
-            RuntimePublishedValue(id=0x1235, type=VariableType.uint16)
+            RuntimePublishedValue(id=0x1234, datatype=EmbeddedDataType.float32),
+            RuntimePublishedValue(id=0x1235, datatype=EmbeddedDataType.uint16)
         ])
 
         response = self.proto.respond_read_runtime_published_values( (0x1234, 1.123) )
@@ -1023,8 +1023,8 @@ class TestProtocolV1_0(unittest.TestCase):
     
     def test_response_read_multiple_rpv(self):
         self.proto.configure_rpvs([
-            RuntimePublishedValue(id=0x1234, type=VariableType.float32),
-            RuntimePublishedValue(id=0x1235, type=VariableType.uint16)
+            RuntimePublishedValue(id=0x1234, datatype=EmbeddedDataType.float32),
+            RuntimePublishedValue(id=0x1235, datatype=EmbeddedDataType.uint16)
         ])
 
         response = self.proto.respond_read_runtime_published_values( [(0x1234, 1.123), (0x1235, 0xabcd)] )
@@ -1038,8 +1038,8 @@ class TestProtocolV1_0(unittest.TestCase):
 
     def test_response_read_rpv_bad_datatype(self):
         self.proto.configure_rpvs([
-            RuntimePublishedValue(id=0x1234, type=VariableType.float32),
-            RuntimePublishedValue(id=0x1235, type=VariableType.uint16)
+            RuntimePublishedValue(id=0x1234, datatype=EmbeddedDataType.float32),
+            RuntimePublishedValue(id=0x1235, datatype=EmbeddedDataType.uint16)
         ])
 
         with self.assertRaises(Exception):
@@ -1048,8 +1048,8 @@ class TestProtocolV1_0(unittest.TestCase):
 
     def test_response_read_rpv_unknown_id(self):
         self.proto.configure_rpvs([
-            RuntimePublishedValue(id=0x1234, type=VariableType.float32),
-            RuntimePublishedValue(id=0x1235, type=VariableType.uint16)
+            RuntimePublishedValue(id=0x1234, datatype=EmbeddedDataType.float32),
+            RuntimePublishedValue(id=0x1235, datatype=EmbeddedDataType.uint16)
         ])
 
         with self.assertRaises(Exception):
@@ -1058,8 +1058,8 @@ class TestProtocolV1_0(unittest.TestCase):
 
     def test_response_write_single_rpv(self):
         self.proto.configure_rpvs([
-            RuntimePublishedValue(id=0x1234, type=VariableType.float32),
-            RuntimePublishedValue(id=0x1235, type=VariableType.uint16)
+            RuntimePublishedValue(id=0x1234, datatype=EmbeddedDataType.float32),
+            RuntimePublishedValue(id=0x1235, datatype=EmbeddedDataType.uint16)
         ])
 
         response = self.proto.respond_write_runtime_published_values( 0x1234 )
@@ -1070,8 +1070,8 @@ class TestProtocolV1_0(unittest.TestCase):
 
     def test_response_write_multiple_rpvs(self):
         self.proto.configure_rpvs([
-            RuntimePublishedValue(id=0x1234, type=VariableType.float32),
-            RuntimePublishedValue(id=0x1235, type=VariableType.uint16)
+            RuntimePublishedValue(id=0x1234, datatype=EmbeddedDataType.float32),
+            RuntimePublishedValue(id=0x1235, datatype=EmbeddedDataType.uint16)
         ])
 
         response = self.proto.respond_write_runtime_published_values( [0x1234, 0x1235] )
@@ -1084,8 +1084,8 @@ class TestProtocolV1_0(unittest.TestCase):
 
     def test_response_write_rpv_unknown_id(self):
         self.proto.configure_rpvs([
-            RuntimePublishedValue(id=0x1234, type=VariableType.float32),
-            RuntimePublishedValue(id=0x1235, type=VariableType.uint16)
+            RuntimePublishedValue(id=0x1234, datatype=EmbeddedDataType.float32),
+            RuntimePublishedValue(id=0x1235, datatype=EmbeddedDataType.uint16)
         ])
 
         with self.assertRaises(Exception):

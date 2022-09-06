@@ -9,14 +9,13 @@
 
 from elftools.elf.elffile import ELFFile    # type: ignore
 import os
-import sys
 from enum import Enum
 from .demangler import GccDemangler
 import logging
-import re
-import json
 
-from scrutiny.core import *
+from scrutiny.core.varmap import VarMap
+from scrutiny.core.basic_types import *
+from scrutiny.core.variable import *
 from scrutiny.exceptions import EnvionmentNotSetUpException
 
 
@@ -215,61 +214,61 @@ class ElfDwarfVarExtractor:
                 # todo
             },
             self.DwarfEncoding.DW_ATE_boolean: {
-                1: VariableType.boolean
+                1: EmbeddedDataType.boolean
             },
             self.DwarfEncoding.DW_ATE_complex_float: {
-                1: VariableType.cfloat8,
-                2: VariableType.cfloat16,
-                4: VariableType.cfloat32,
-                8: VariableType.cfloat64,
-                16: VariableType.cfloat128,
-                32: VariableType.cfloat256
+                1: EmbeddedDataType.cfloat8,
+                2: EmbeddedDataType.cfloat16,
+                4: EmbeddedDataType.cfloat32,
+                8: EmbeddedDataType.cfloat64,
+                16: EmbeddedDataType.cfloat128,
+                32: EmbeddedDataType.cfloat256
             },
             self.DwarfEncoding.DW_ATE_float: {
-                1: VariableType.float8,
-                2: VariableType.float16,
-                4: VariableType.float32,
-                8: VariableType.float64,
-                16: VariableType.float128,
-                32: VariableType.float256
+                1: EmbeddedDataType.float8,
+                2: EmbeddedDataType.float16,
+                4: EmbeddedDataType.float32,
+                8: EmbeddedDataType.float64,
+                16: EmbeddedDataType.float128,
+                32: EmbeddedDataType.float256
 
             },
             self.DwarfEncoding.DW_ATE_signed: {
-                1: VariableType.sint8,
-                2: VariableType.sint16,
-                4: VariableType.sint32,
-                8: VariableType.sint64,
-                16: VariableType.sint128,
-                32: VariableType.sint256
+                1: EmbeddedDataType.sint8,
+                2: EmbeddedDataType.sint16,
+                4: EmbeddedDataType.sint32,
+                8: EmbeddedDataType.sint64,
+                16: EmbeddedDataType.sint128,
+                32: EmbeddedDataType.sint256
             },
             self.DwarfEncoding.DW_ATE_signed_char: {
-                1: VariableType.sint8,
-                2: VariableType.sint16,
-                4: VariableType.sint32,
-                8: VariableType.sint64,
-                16: VariableType.sint128,
-                32: VariableType.sint256
+                1: EmbeddedDataType.sint8,
+                2: EmbeddedDataType.sint16,
+                4: EmbeddedDataType.sint32,
+                8: EmbeddedDataType.sint64,
+                16: EmbeddedDataType.sint128,
+                32: EmbeddedDataType.sint256
             },
             self.DwarfEncoding.DW_ATE_unsigned: {
-                1: VariableType.uint8,
-                2: VariableType.uint16,
-                4: VariableType.uint32,
-                8: VariableType.uint64,
-                16: VariableType.uint128,
-                32: VariableType.uint256
+                1: EmbeddedDataType.uint8,
+                2: EmbeddedDataType.uint16,
+                4: EmbeddedDataType.uint32,
+                8: EmbeddedDataType.uint64,
+                16: EmbeddedDataType.uint128,
+                32: EmbeddedDataType.uint256
             },
             self.DwarfEncoding.DW_ATE_unsigned_char: {
-                1: VariableType.uint8,
-                2: VariableType.uint16,
-                4: VariableType.uint32,
-                8: VariableType.uint64,
-                16: VariableType.uint128,
-                32: VariableType.uint256
+                1: EmbeddedDataType.uint8,
+                2: EmbeddedDataType.uint16,
+                4: EmbeddedDataType.uint32,
+                8: EmbeddedDataType.uint64,
+                16: EmbeddedDataType.uint128,
+                32: EmbeddedDataType.uint256
             },
             self.DwarfEncoding.DW_ATE_UTF: {
-                1: VariableType.sint8,
-                2: VariableType.sint16,
-                4: VariableType.sint32,
+                1: EmbeddedDataType.sint8,
+                2: EmbeddedDataType.sint16,
+                4: EmbeddedDataType.sint32,
             }
         }
 
@@ -435,7 +434,7 @@ class ElfDwarfVarExtractor:
         if self.is_type_struct_or_class(die):
             struct_die = self.get_struct_or_class_type(die)
             substruct = self.get_struct_or_class_def(struct_die)  # recursion
-            vartype = VariableType.struct
+            vartype = EmbeddedDataType.struct
             typename = None
         else:
             basetype_die = self.extract_basetype_die(die)

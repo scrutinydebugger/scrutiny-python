@@ -9,7 +9,7 @@
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 
 import logging
-from .datastore_entry import DatastoreEntry
+from .datastore_entry import DatastoreEntry, EntryType
 from scrutiny.core.typehints import GenericCallback
 
 from typing import Set, List, Dict, Optional, Any, Iterator, Union, Callable
@@ -22,7 +22,7 @@ class WatchCallback(GenericCallback):
 class Datastore:
     logger: logging.Logger
     entries: Dict[str, DatastoreEntry]
-    entries_list_by_type: Dict[DatastoreEntry.EntryType, List[DatastoreEntry]]
+    entries_list_by_type: Dict[EntryType, List[DatastoreEntry]]
     global_watch_callbacks: List[WatchCallback]
     global_unwatch_callbacks: List[WatchCallback]
     watcher_map: Dict[str, Set[str]]
@@ -40,7 +40,7 @@ class Datastore:
         self.watcher_map = {}
 
         self.entries_list_by_type = {}
-        for entry_type in DatastoreEntry.EntryType:
+        for entry_type in EntryType:
             self.entries_list_by_type[entry_type] = []
 
     def add_entries_quiet(self, entries: List[DatastoreEntry]):
@@ -64,7 +64,7 @@ class Datastore:
         if len(self.entries) >= self.MAX_ENTRY:
             raise RuntimeError('Datastore cannot have more than %d entries' % self.MAX_ENTRY)
 
-        self.entries[entry.get_id()] = entry;
+        self.entries[entry.get_id()] = entry
         self.entries_list_by_type[entry.get_type()].append(entry)
 
     def get_entry(self, entry_id: str) -> DatastoreEntry:
@@ -111,7 +111,7 @@ class Datastore:
         for entry_id in self.entries:
             yield self.entries[entry_id]
 
-    def get_entries_list_by_type(self, wtype: DatastoreEntry.EntryType) -> List[DatastoreEntry]:
+    def get_entries_list_by_type(self, wtype: EntryType) -> List[DatastoreEntry]:
         return self.entries_list_by_type[wtype]
 
     def interpret_entry_id(self, entry_id: Union[DatastoreEntry, str]) -> str:
@@ -120,7 +120,7 @@ class Datastore:
         else:
             return entry_id
 
-    def get_entries_count(self, wtype: Optional[DatastoreEntry.EntryType] = None):
+    def get_entries_count(self, wtype: Optional[EntryType] = None):
         val = 0
         for entry_type in self.entries_list_by_type:
             if wtype is None or wtype == entry_type:

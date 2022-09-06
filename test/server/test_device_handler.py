@@ -10,14 +10,14 @@ import unittest
 from time import time, sleep
 from test import logger
 import signal  # For ctrl+c handling
+import struct
 
 from scrutiny.server.device.emulated_device import EmulatedDevice
 from scrutiny.server.device.device_handler import DeviceHandler
 from scrutiny.server.device.links.dummy_link import ThreadSafeDummyLink
-from scrutiny.server.datastore import Datastore, DatastoreEntry
-from scrutiny.server.protocol.commands import DummyCommand
-from scrutiny.server.protocol import Request, Response
-from scrutiny.core import *
+from scrutiny.server.datastore import Datastore, DatastoreVariableEntry
+from scrutiny.core.variable import Variable
+from scrutiny.core.basic_types import *
 
 from scrutiny.core.typehints import GenericCallback
 
@@ -257,12 +257,32 @@ class TestDeviceHandler(unittest.TestCase):
     # Check that the datastore is correctly synchronized with a fake memory in the emulated device.
 
     def test_read_write_variables(self):
-        vfloat32 = DatastoreEntry(DatastoreEntry.EntryType.Var, 'dummy_float32', variable_def=Variable(
-            'dummy_float32', vartype=VariableType.float32, path_segments=[], location=0x10000, endianness=Endianness.Little))
-        vint64 = DatastoreEntry(DatastoreEntry.EntryType.Var, 'dummy_sint64', variable_def=Variable(
-            'dummy_sint64', vartype=VariableType.sint64, path_segments=[], location=0x10010, endianness=Endianness.Little))
-        vbool = DatastoreEntry(DatastoreEntry.EntryType.Var, 'dummy_bool', variable_def=Variable(
-            'dummy_bool', vartype=VariableType.boolean, path_segments=[], location=0x10020, endianness=Endianness.Little))
+        vfloat32 = DatastoreVariableEntry('dummy_float32', 
+            variable_def=Variable(
+            'dummy_float32', 
+            vartype=EmbeddedDataType.float32, 
+            path_segments=[], 
+            location=0x10000, 
+            endianness=Endianness.Little)
+            )
+
+        vint64 = DatastoreVariableEntry('dummy_sint64', 
+            variable_def=Variable(
+            'dummy_sint64', 
+            vartype=EmbeddedDataType.sint64, 
+            path_segments=[], 
+            location=0x10010, 
+            endianness=Endianness.Little)
+            )
+
+        vbool = DatastoreVariableEntry('dummy_bool', 
+            variable_def=Variable(
+            'dummy_bool', 
+            vartype=EmbeddedDataType.boolean, 
+            path_segments=[], 
+            location=0x10020, 
+            endianness=Endianness.Little)
+            )
 
         self.datastore.add_entry(vfloat32)
         self.datastore.add_entry(vint64)
@@ -276,7 +296,6 @@ class TestDeviceHandler(unittest.TestCase):
         t1 = time()
         connection_successful = False
         timeout = setup_timeout
-        connection_time = None
         time_margin = 0.1
 
         round_completed = 0
@@ -289,7 +308,6 @@ class TestDeviceHandler(unittest.TestCase):
             if status == DeviceHandler.ConnectionStatus.CONNECTED_READY:
                 if connection_successful == False:
                     timeout = hold_timeout
-                    connection_time = time()
                     connection_successful = True
 
                     self.datastore.start_watching(vfloat32, watcher='unittest', callback=dummy_callback)
@@ -301,12 +319,11 @@ class TestDeviceHandler(unittest.TestCase):
                     self.emulated_device.write_memory(0x10010, struct.pack('<q', 0x123456789abcdef))
                     self.emulated_device.write_memory(0x10020, struct.pack('<b', 1))
                     init_memory_time = time()
-                    init_memory_done = True
                     state = 'read_memory'
 
                 elif state == 'read_memory':
                     value_updated = (vfloat32.get_update_time() > init_memory_time + time_margin) and (vint64.get_update_time() >
-                                                                                                       init_memory_time + time_margin) and (vbool.get_update_time() > init_memory_time + time_margin)
+                                init_memory_time + time_margin) and (vbool.get_update_time() > init_memory_time + time_margin)
 
                     if value_updated:
                         self.assertEqual(vfloat32.get_value(), d2f(3.1415926), 'round=%d' % round_completed)

@@ -16,7 +16,7 @@ import uuid
 import math
 
 from scrutiny.server.api.API import API
-from scrutiny.server.datastore import Datastore, DatastoreEntry
+from scrutiny.server.datastore import Datastore, DatastoreVariableEntry, EntryType, DatastoreAliasEntry
 from scrutiny.core.sfd_storage import SFDStorage
 from scrutiny.server.api.dummy_client_handler import DummyConnection, DummyClientHandler
 from scrutiny.server.device.device_handler import DeviceHandler
@@ -24,7 +24,7 @@ from scrutiny.server.device.device_info import DeviceInfo
 from scrutiny.server.active_sfd_handler import ActiveSFDHandler
 from scrutiny.server.device.links.dummy_link import DummyLink
 from scrutiny.core.variable import *
-from scrutiny.core import FirmwareDescription
+from scrutiny.core.firmware_description import FirmwareDescription
 from test.artifacts import get_artifact
 
 # todo
@@ -148,11 +148,17 @@ class TestAPI(unittest.TestCase):
         else:
             raise Exception('Missing cmd field in response')
 
-    def make_dummy_entries(self, n, entry_type=DatastoreEntry.EntryType.Var, prefix='path'):
-        dummy_var = Variable('dummy', vartype=VariableType.float32, path_segments=['a', 'b', 'c'], location=0x12345678, endianness=Endianness.Little)
+    def make_dummy_entries(self, n, entry_type=EntryType.Var, prefix='path'):
+        dummy_var = Variable('dummy', vartype=EmbeddedDataType.float32, path_segments=['a', 'b', 'c'], location=0x12345678, endianness=Endianness.Little)
         entries = []
         for i in range(n):
-            entry = DatastoreEntry(entry_type, '%s_%d' % (prefix, i), variable_def=dummy_var)
+            if entry_type == EntryType.Var:
+                entry = DatastoreVariableEntry('%s_%d' % (prefix, i), variable_def=dummy_var)
+            elif entry_type == EntryType.Alias:
+                entry_temp = DatastoreVariableEntry('%s_%d' % (prefix, i), variable_def=dummy_var)
+                entry = DatastoreAliasEntry('%s_%d' % (prefix, i), refentry=entry_temp)
+            else:
+                raise NotImplementedError("Todo")
             entries.append(entry)
         return entries
 
@@ -175,8 +181,8 @@ class TestAPI(unittest.TestCase):
 
     # Fetch count of var/alias. Ensure response is well formatted and accurate
     def test_get_watchable_count(self):
-        var_entries = self.make_dummy_entries(3, entry_type=DatastoreEntry.EntryType.Var, prefix='var')
-        alias_entries = self.make_dummy_entries(5, entry_type=DatastoreEntry.EntryType.Alias, prefix='alias')
+        var_entries = self.make_dummy_entries(3, entry_type=EntryType.Var, prefix='var')
+        alias_entries = self.make_dummy_entries(5, entry_type=EntryType.Alias, prefix='alias')
 
         # Add entries in the datastore that we will reread through the API
         self.datastore.add_entries_quiet(var_entries)
@@ -212,8 +218,8 @@ class TestAPI(unittest.TestCase):
 
     # Fetch list of var/alias. Ensure response is well formatted, accurate, complete, no duplicates
     def test_get_watchable_list_basic(self):
-        var_entries = self.make_dummy_entries(3, entry_type=DatastoreEntry.EntryType.Var, prefix='var')
-        alias_entries = self.make_dummy_entries(5, entry_type=DatastoreEntry.EntryType.Alias, prefix='alias')
+        var_entries = self.make_dummy_entries(3, entry_type=EntryType.Var, prefix='var')
+        alias_entries = self.make_dummy_entries(5, entry_type=EntryType.Alias, prefix='alias')
 
         expected_entries_in_response = {}
         for entry in var_entries:
@@ -275,8 +281,8 @@ class TestAPI(unittest.TestCase):
     # Fetch list of var/alias and sets a type filter.
     def do_test_get_watchable_list_with_type_filter(self, type_filter):
         self.datastore.clear()
-        var_entries = self.make_dummy_entries(3, entry_type=DatastoreEntry.EntryType.Var, prefix='var')
-        alias_entries = self.make_dummy_entries(5, entry_type=DatastoreEntry.EntryType.Alias, prefix='alias')
+        var_entries = self.make_dummy_entries(3, entry_type=EntryType.Var, prefix='var')
+        alias_entries = self.make_dummy_entries(5, entry_type=EntryType.Alias, prefix='alias')
 
         no_filter = True if type_filter is None or type_filter == '' or isinstance(type_filter, list) and len(type_filter) == 0 else False
 
@@ -346,8 +352,8 @@ class TestAPI(unittest.TestCase):
         nVar = 19
         nAlias = 17
         max_per_response = 10
-        var_entries = self.make_dummy_entries(nVar, entry_type=DatastoreEntry.EntryType.Var, prefix='var')
-        alias_entries = self.make_dummy_entries(nAlias, entry_type=DatastoreEntry.EntryType.Alias, prefix='alias')
+        var_entries = self.make_dummy_entries(nVar, entry_type=EntryType.Var, prefix='var')
+        alias_entries = self.make_dummy_entries(nAlias, entry_type=EntryType.Alias, prefix='alias')
         expected_entries_in_response = {}
 
         for entry in var_entries:
@@ -428,7 +434,7 @@ class TestAPI(unittest.TestCase):
             self.assertIn('value', update)
 
     def test_subscribe_single_var(self):
-        entries = self.make_dummy_entries(10, entry_type=DatastoreEntry.EntryType.Var, prefix='var')
+        entries = self.make_dummy_entries(10, entry_type=EntryType.Var, prefix='var')
         self.datastore.add_entries(entries)
 
         subscribed_entry = entries[2]
@@ -464,7 +470,7 @@ class TestAPI(unittest.TestCase):
 
     # Make sure that we can unsubscribe correctly to a variable and value update stops
     def test_subscribe_unsubscribe(self):
-        entries = self.make_dummy_entries(10, entry_type=DatastoreEntry.EntryType.Var, prefix='var')
+        entries = self.make_dummy_entries(10, entry_type=EntryType.Var, prefix='var')
         self.datastore.add_entries(entries)
         subscribed_entry = entries[2]
         subscribe_cmd = {
@@ -491,7 +497,7 @@ class TestAPI(unittest.TestCase):
 
     # Make sure that the streamer send the value update once if many update happens before the value is outputted to the client.
     def test_do_not_send_duplicate_changes(self):
-        entries = self.make_dummy_entries(10, entry_type=DatastoreEntry.EntryType.Var, prefix='var')
+        entries = self.make_dummy_entries(10, entry_type=EntryType.Var, prefix='var')
         self.datastore.add_entries(entries)
 
         subscribed_entry = entries[2]

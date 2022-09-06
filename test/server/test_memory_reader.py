@@ -12,12 +12,13 @@ import random
 from dataclasses import dataclass
 from sortedcontainers import SortedSet
 
-from scrutiny.server.datastore import Datastore, DatastoreEntry
+from scrutiny.server.datastore import Datastore, DatastoreVariableEntry
 from scrutiny.server.device.request_generator.memory_reader import MemoryReader, DataStoreEntrySortableByAddress
 from scrutiny.server.device.request_dispatcher import RequestDispatcher
 from scrutiny.server.protocol import Protocol, Request, Response
 from scrutiny.server.protocol.commands import *
 from scrutiny.core.variable import *
+from scrutiny.core.basic_types import Endianness, EmbeddedDataType
 
 from typing import List, Dict
 from scrutiny.core.typehints import GenericCallback
@@ -26,9 +27,9 @@ from scrutiny.core.typehints import GenericCallback
 class BlockToRead:
     address: int
     nfloat: int
-    entries: List[DatastoreEntry]
+    entries: List[DatastoreVariableEntry]
 
-    def __init__(self, address: int, nfloat: int, entries: List[DatastoreEntry]):
+    def __init__(self, address: int, nfloat: int, entries: List[DatastoreVariableEntry]):
         self.address = address
         self.nfloat = nfloat
         self.entries = entries
@@ -37,11 +38,11 @@ class BlockToRead:
         return '<Block: 0x%08x with %d float>' % (self.address, self.nfloat)
 
 
-def make_dummy_entries(address, n, vartype=VariableType.float32):
+def make_dummy_entries(address, n, vartype=EmbeddedDataType.float32):
     for i in range(n):
         dummy_var = Variable('dummy', vartype=vartype, path_segments=['a', 'b', 'c'],
                              location=address + i * vartype.get_size_bit() // 8, endianness=Endianness.Little)
-        entry = DatastoreEntry(DatastoreEntry.EntryType.Var, 'path_%d' % i, variable_def=dummy_var)
+        entry = DatastoreVariableEntry('path_%d' % i, variable_def=dummy_var)
         yield entry
 
 
@@ -128,7 +129,7 @@ class TestMemoryReaderBasicReadOperation(unittest.TestCase):
         nfloat = 100
         address = 0x1000
         ds = Datastore()
-        entries = list(make_dummy_entries(address=address, n=nfloat, vartype=VariableType.float32))
+        entries = list(make_dummy_entries(address=address, n=nfloat, vartype=EmbeddedDataType.float32))
         ds.add_entries(entries)
         dispatcher = RequestDispatcher()
 
@@ -159,9 +160,9 @@ class TestMemoryReaderBasicReadOperation(unittest.TestCase):
         address2 = 0x2000
         address3 = 0x3000
         ds = Datastore()
-        entries1 = list(make_dummy_entries(address=address1, n=nfloat1, vartype=VariableType.float32))
-        entries2 = list(make_dummy_entries(address=address2, n=nfloat2, vartype=VariableType.float32))
-        entries3 = list(make_dummy_entries(address=address3, n=nfloat3, vartype=VariableType.float32))
+        entries1 = list(make_dummy_entries(address=address1, n=nfloat1, vartype=EmbeddedDataType.float32))
+        entries2 = list(make_dummy_entries(address=address2, n=nfloat2, vartype=EmbeddedDataType.float32))
+        entries3 = list(make_dummy_entries(address=address3, n=nfloat3, vartype=EmbeddedDataType.float32))
         all_entries = entries1 + entries2 + entries3
         ds.add_entries(all_entries)
         dispatcher = RequestDispatcher()
@@ -190,7 +191,7 @@ class TestMemoryReaderBasicReadOperation(unittest.TestCase):
         nfloat = 15
         entries = []
         for i in range(nfloat):
-            entries += list(make_dummy_entries(address=i * 0x100, n=1, vartype=VariableType.float32))
+            entries += list(make_dummy_entries(address=i * 0x100, n=1, vartype=EmbeddedDataType.float32))
 
         ds = Datastore()
         ds.add_entries(entries)
@@ -221,10 +222,10 @@ class TestMemoryReaderBasicReadOperation(unittest.TestCase):
 
         entries = []
         for i in range(20):  # different variable size
-            entries += list(make_dummy_entries(address=i * 0x100, n=1, vartype=VariableType.uint64))
-            entries += list(make_dummy_entries(address=i * 0x100 + 8, n=1, vartype=VariableType.uint32))
-            entries += list(make_dummy_entries(address=i * 0x100 + 8 + 4, n=1, vartype=VariableType.uint16))
-            entries += list(make_dummy_entries(address=i * 0x100 + 8 + 4 + 2, n=1, vartype=VariableType.uint8))
+            entries += list(make_dummy_entries(address=i * 0x100, n=1, vartype=EmbeddedDataType.uint64))
+            entries += list(make_dummy_entries(address=i * 0x100 + 8, n=1, vartype=EmbeddedDataType.uint32))
+            entries += list(make_dummy_entries(address=i * 0x100 + 8 + 4, n=1, vartype=EmbeddedDataType.uint16))
+            entries += list(make_dummy_entries(address=i * 0x100 + 8 + 4 + 2, n=1, vartype=EmbeddedDataType.uint8))
 
         # Setup everything
         ds = Datastore()
@@ -265,10 +266,10 @@ class TestMemoryReaderBasicReadOperation(unittest.TestCase):
 
         entries = []
         for i in range(20):     # Try different size of variable
-            entries += list(make_dummy_entries(address=i * 0x100, n=1, vartype=VariableType.uint64))
-            entries += list(make_dummy_entries(address=i * 0x100 + 8, n=1, vartype=VariableType.uint32))
-            entries += list(make_dummy_entries(address=i * 0x100 + 8 + 4, n=1, vartype=VariableType.uint16))
-            entries += list(make_dummy_entries(address=i * 0x100 + 8 + 4 + 2, n=1, vartype=VariableType.uint8))
+            entries += list(make_dummy_entries(address=i * 0x100, n=1, vartype=EmbeddedDataType.uint64))
+            entries += list(make_dummy_entries(address=i * 0x100 + 8, n=1, vartype=EmbeddedDataType.uint32))
+            entries += list(make_dummy_entries(address=i * 0x100 + 8 + 4, n=1, vartype=EmbeddedDataType.uint16))
+            entries += list(make_dummy_entries(address=i * 0x100 + 8 + 4 + 2, n=1, vartype=EmbeddedDataType.uint8))
 
         # Setup everything
         ds = Datastore()
@@ -347,19 +348,19 @@ class TestMemoryReaderComplexReadOperation(unittest.TestCase):
         forbidden_region_end = 0x413D
 
         # Generate a complex patterns of datastore entries
-        entries = list(make_dummy_entries(address=0x1000, n=1, vartype=VariableType.float32))
-        entries += list(make_dummy_entries(address=0x1004, n=2, vartype=VariableType.uint16))
-        entries += list(make_dummy_entries(address=0x2000, n=0x100, vartype=VariableType.sint8))
-        entries += list(make_dummy_entries(address=0x2100, n=0x100, vartype=VariableType.uint8))
-        entries += list(make_dummy_entries(address=0x2200, n=0x100, vartype=VariableType.boolean))
-        entries += list(make_dummy_entries(address=0x3000, n=0x100, vartype=VariableType.uint32))
-        entries += list(make_dummy_entries(address=0x4000, n=0x100, vartype=VariableType.uint8))
-        forbidden_entries = list(make_dummy_entries(address=0x4100, n=0x10, vartype=VariableType.uint32))
+        entries = list(make_dummy_entries(address=0x1000, n=1, vartype=EmbeddedDataType.float32))
+        entries += list(make_dummy_entries(address=0x1004, n=2, vartype=EmbeddedDataType.uint16))
+        entries += list(make_dummy_entries(address=0x2000, n=0x100, vartype=EmbeddedDataType.sint8))
+        entries += list(make_dummy_entries(address=0x2100, n=0x100, vartype=EmbeddedDataType.uint8))
+        entries += list(make_dummy_entries(address=0x2200, n=0x100, vartype=EmbeddedDataType.boolean))
+        entries += list(make_dummy_entries(address=0x3000, n=0x100, vartype=EmbeddedDataType.uint32))
+        entries += list(make_dummy_entries(address=0x4000, n=0x100, vartype=EmbeddedDataType.uint8))
+        forbidden_entries = list(make_dummy_entries(address=0x4100, n=0x10, vartype=EmbeddedDataType.uint32))
         entries += forbidden_entries
-        entries += list(make_dummy_entries(address=0x4140, n=0x10, vartype=VariableType.uint8))
+        entries += list(make_dummy_entries(address=0x4140, n=0x10, vartype=EmbeddedDataType.uint8))
 
         for i in range(0x100):
-            entries += list(make_dummy_entries(address=0x10000 + i * 0x10, n=1, vartype=VariableType.uint8))
+            entries += list(make_dummy_entries(address=0x10000 + i * 0x10, n=1, vartype=EmbeddedDataType.uint8))
 
         # This will count the number of time the value is changed in the datastore
         self.init_count_map(entries)
