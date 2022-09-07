@@ -9,7 +9,6 @@
 import unittest
 from scrutiny.server.tools import Throttler
 import time
-import logging
 import math
 from test import logger
 

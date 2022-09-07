@@ -19,7 +19,7 @@ from scrutiny.core.codecs import Codecs
 from scrutiny.core.basic_types import Endianness, RuntimePublishedValue
 import scrutiny.server.protocol.typing as protocol_typing
 
-from typing import Union, List, Tuple, Optional, TypedDict, Dict, Any, cast
+from typing import Union, List, Tuple, Optional, Dict, Any, cast
 
 
 class Protocol:

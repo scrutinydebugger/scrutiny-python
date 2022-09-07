@@ -49,6 +49,6 @@ class LaunchServer(BaseCommand):
         except:
             # The server logs its own error in run(). No need to print it twice.
             # We will return a non-success error code. It will be picked up by the CLI.
-            succes = False
+            success = False
 
         return 0 if success else -1

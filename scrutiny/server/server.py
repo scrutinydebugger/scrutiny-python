@@ -8,8 +8,6 @@
 #
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 
-import sys
-import os
 import time
 import json
 import logging

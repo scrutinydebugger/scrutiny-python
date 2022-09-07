@@ -7,7 +7,6 @@
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 
 import logging
-import enum
 import traceback
 
 from scrutiny.core.firmware_description import FirmwareDescription
@@ -15,8 +14,8 @@ from scrutiny.core.sfd_storage import SFDStorage
 from scrutiny.server.device.device_handler import DeviceHandler
 from scrutiny.server.datastore import Datastore, DatastoreVariableEntry
 
-from typing import Optional, List
-from scrutiny.core.typehints import GenericCallback, Callable
+from typing import Optional, List, Callable
+from scrutiny.core.typehints import GenericCallback
 
 
 class SFDLoadedCallback(GenericCallback):

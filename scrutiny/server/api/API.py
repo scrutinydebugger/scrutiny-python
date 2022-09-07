@@ -7,8 +7,6 @@
 #
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 
-import os
-import sys
 import logging
 import traceback
 
@@ -29,7 +27,6 @@ from .abstract_client_handler import AbstractClientHandler, ClientHandlerMessage
 
 from scrutiny.core.typehints import GenericCallback
 from typing import Callable, Dict, List, Set, Any, TypedDict, cast
-
 
 class APIConfig(TypedDict, total=False):
     client_interface_type: str

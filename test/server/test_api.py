@@ -7,12 +7,10 @@
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 
 import unittest
-import queue
 import time
 import random
 import string
 import json
-import uuid
 import math
 
 from scrutiny.server.api.API import API

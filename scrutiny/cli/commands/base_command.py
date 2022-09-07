@@ -7,7 +7,6 @@
 #
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 
-import argparse
 from abc import ABC, abstractmethod
 from typing import List, Optional
 

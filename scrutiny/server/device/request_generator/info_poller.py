@@ -8,7 +8,6 @@
 #
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 
-import time
 import logging
 import enum
 import copy

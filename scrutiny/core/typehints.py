@@ -6,8 +6,6 @@
 #
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 
-from typing import Literal, Callable
-
 
 class GenericCallback:
     """

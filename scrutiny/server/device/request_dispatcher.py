@@ -10,7 +10,6 @@
 import bisect
 from scrutiny.server.protocol import Request, Response, ResponseCode
 from time import time
-import math
 import logging
 
 from typing import List, Optional, Callable, Any, TypeVar

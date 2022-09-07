@@ -23,7 +23,7 @@ from scrutiny.server.tools import Throttler
 from scrutiny.server.device.links import AbstractLink, LinkConfig
 import traceback
 
-from typing import Union, TypedDict, Optional, Any, Dict, Type
+from typing import TypedDict, Optional, Any, Dict, Type
 
 
 class CommHandler:

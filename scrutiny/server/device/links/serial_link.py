@@ -7,8 +7,6 @@
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 
 import logging
-import traceback
-import enum
 
 from .abstract_link import AbstractLink, LinkConfig
 
