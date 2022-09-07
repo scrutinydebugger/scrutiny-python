@@ -1,3 +1,11 @@
+#    basic_types.py
+#        Contains the basic types used project-wides
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021-2022 Scrutiny Debugger
+
 from enum import Enum
 
 from typing import Union, Optional, Dict

@@ -1,3 +1,11 @@
+#    test_types.py
+#        Make some checks on Scrutiny basic types used project wide
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021-2022 Scrutiny Debugger
+
 import unittest
 
 from scrutiny.core.basic_types import *

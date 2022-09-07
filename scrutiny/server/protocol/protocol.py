@@ -6,7 +6,6 @@
 #
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 
-
 import struct
 import logging
 import ctypes

@@ -1,3 +1,11 @@
+#    codecs.py
+#        Contains classes capable to encode/decode data exchanged with embedded side
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021-2022 Scrutiny Debugger
+
 from abc import ABC, abstractmethod
 from scrutiny.core.basic_types import Endianness, EmbeddedDataType
 import struct
