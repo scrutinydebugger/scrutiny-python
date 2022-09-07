@@ -257,32 +257,32 @@ class TestDeviceHandler(unittest.TestCase):
     # Check that the datastore is correctly synchronized with a fake memory in the emulated device.
 
     def test_read_write_variables(self):
-        vfloat32 = DatastoreVariableEntry('dummy_float32', 
-            variable_def=Variable(
-            'dummy_float32', 
-            vartype=EmbeddedDataType.float32, 
-            path_segments=[], 
-            location=0x10000, 
-            endianness=Endianness.Little)
-            )
+        vfloat32 = DatastoreVariableEntry('dummy_float32',
+                                          variable_def=Variable(
+                                              'dummy_float32',
+                                              vartype=EmbeddedDataType.float32,
+                                              path_segments=[],
+                                              location=0x10000,
+                                              endianness=Endianness.Little)
+                                          )
 
-        vint64 = DatastoreVariableEntry('dummy_sint64', 
-            variable_def=Variable(
-            'dummy_sint64', 
-            vartype=EmbeddedDataType.sint64, 
-            path_segments=[], 
-            location=0x10010, 
-            endianness=Endianness.Little)
-            )
+        vint64 = DatastoreVariableEntry('dummy_sint64',
+                                        variable_def=Variable(
+                                            'dummy_sint64',
+                                            vartype=EmbeddedDataType.sint64,
+                                            path_segments=[],
+                                            location=0x10010,
+                                            endianness=Endianness.Little)
+                                        )
 
-        vbool = DatastoreVariableEntry('dummy_bool', 
-            variable_def=Variable(
-            'dummy_bool', 
-            vartype=EmbeddedDataType.boolean, 
-            path_segments=[], 
-            location=0x10020, 
-            endianness=Endianness.Little)
-            )
+        vbool = DatastoreVariableEntry('dummy_bool',
+                                       variable_def=Variable(
+                                           'dummy_bool',
+                                           vartype=EmbeddedDataType.boolean,
+                                           path_segments=[],
+                                           location=0x10020,
+                                           endianness=Endianness.Little)
+                                       )
 
         self.datastore.add_entry(vfloat32)
         self.datastore.add_entry(vint64)
@@ -323,7 +323,7 @@ class TestDeviceHandler(unittest.TestCase):
 
                 elif state == 'read_memory':
                     value_updated = (vfloat32.get_update_time() > init_memory_time + time_margin) and (vint64.get_update_time() >
-                                init_memory_time + time_margin) and (vbool.get_update_time() > init_memory_time + time_margin)
+                                                                                                       init_memory_time + time_margin) and (vbool.get_update_time() > init_memory_time + time_margin)
 
                     if value_updated:
                         self.assertEqual(vfloat32.get_value(), d2f(3.1415926), 'round=%d' % round_completed)

@@ -40,10 +40,12 @@ class Callback():
         else:
             self.fn.__call__(self.owner, self.args, *args, **kwargs)
 
+
 class EntryType(Enum):
     Var = 0
     Alias = 1
     RuntimePublishedValue = 2
+
 
 class UpdateTargetRequest:
     value: Any
@@ -81,13 +83,13 @@ class DatastoreEntry:
     entry_id: str
     value_change_callback: Dict[str, Callable[["DatastoreEntry"], Any]]
     display_path: str
-    value:Any
+    value: Any
     last_target_update_timestamp: Optional[float]
     pending_target_update: Optional[UpdateTargetRequest]
     last_value_update_timestamp: float
     callback_pending: bool
 
-    def __init__(self, display_path:str):
+    def __init__(self, display_path: str):
 
         self.value_change_callback = {}
         self.entry_id = uuid.uuid4().hex
@@ -101,19 +103,19 @@ class DatastoreEntry:
     @abc.abstractmethod
     def get_data_type(self) -> EmbeddedDataType:
         raise NotImplementedError("Abstract class")
-    
+
     @abc.abstractmethod
     def get_type(self) -> EntryType:
         raise NotImplementedError("Abstract class")
-    
+
     @abc.abstractmethod
     def has_enum(self) -> bool:
         raise NotImplementedError("Abstract class")
-    
+
     @abc.abstractmethod
     def get_enum(self) -> VariableEnum:
         raise NotImplementedError("Abstract class")
-    
+
     @abc.abstractmethod
     def encode(self, value: Encodable) -> Tuple[bytes, Optional[bytes]]:
         raise NotImplementedError("Abstract class")
@@ -121,20 +123,20 @@ class DatastoreEntry:
     @abc.abstractmethod
     def decode(self, data: bytes) -> Encodable:
         raise NotImplementedError("Abstract class")
-    
+
     @abc.abstractmethod
     def resolve(self) -> "DatastoreEntry":
         raise NotImplementedError("Abstract class")
-        
+
     def get_id(self) -> str:
         return self.entry_id
 
     def get_display_path(self) -> str:
         return self.display_path
-    
+
     def get_value(self) -> Any:
         return self.value
-    
+
     def set_value_from_data(self, data) -> None:
         self.set_value(self.decode(data))
 
@@ -170,7 +172,7 @@ class DatastoreEntry:
 
     def get_update_time(self) -> float:
         return self.last_value_update_timestamp
-    
+
     def get_last_update_timestamp(self) -> Optional[float]:
         return self.last_target_update_timestamp
 
@@ -219,7 +221,7 @@ class DatastoreEntry:
 
 class DatastoreVariableEntry(DatastoreEntry):
     variable_def: Variable
-    codec:BaseCodec
+    codec: BaseCodec
 
     def __init__(self, display_path: str, variable_def: Variable):
         super().__init__(display_path=display_path)
@@ -242,33 +244,33 @@ class DatastoreVariableEntry(DatastoreEntry):
         typesize = self.variable_def.get_type().get_size_byte()
         assert typesize is not None
         return typesize
-    
+
     def has_enum(self) -> bool:
         return self.variable_def.has_enum()
-    
+
     def get_enum(self) -> VariableEnum:
         enum = self.variable_def.get_enum()
         assert enum is not None
         return enum
-    
-    def encode(self, value:Encodable) -> Tuple[bytes, Optional[bytes]]:
+
+    def encode(self, value: Encodable) -> Tuple[bytes, Optional[bytes]]:
         return self.variable_def.encode(value)
 
-    def decode(self, data:bytes) -> Encodable:
+    def decode(self, data: bytes) -> Encodable:
         return self.variable_def.decode(data)
-    
+
     def resolve(self) -> DatastoreEntry:
         return self
 
 
-
 class DatastoreAliasEntry(DatastoreEntry):
 
-    refentry:DatastoreEntry
-    def __init__(self, display_path:str, refentry:DatastoreEntry):
+    refentry: DatastoreEntry
+
+    def __init__(self, display_path: str, refentry: DatastoreEntry):
         super().__init__(display_path=display_path)
-        self.refentry=refentry
-    
+        self.refentry = refentry
+
     def resolve(self, obj=None) -> DatastoreEntry:
         if obj == None:
             obj = self.refentry
@@ -276,21 +278,21 @@ class DatastoreAliasEntry(DatastoreEntry):
         if isinstance(obj, DatastoreAliasEntry):
             return obj.resolve(obj.refentry)
         return obj
-    
+
     def get_type(self) -> EntryType:
         return EntryType.Alias
 
     def get_data_type(self) -> EmbeddedDataType:
         return self.refentry.get_data_type()
-    
+
     def has_enum(self) -> bool:
         return self.refentry.has_enum()
-    
+
     def get_enum(self) -> VariableEnum:
         return self.refentry.get_enum()
-    
+
     def encode(self, value: Encodable) -> Tuple[bytes, Optional[bytes]]:
         return self.refentry.encode(value)
 
-    def decode(self, data:bytes) -> Encodable:
+    def decode(self, data: bytes) -> Encodable:
         return self.refentry.decode(data)

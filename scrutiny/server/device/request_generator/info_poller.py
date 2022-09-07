@@ -247,7 +247,7 @@ class InfoPoller:
 
     def success_callback(self, request: Request, response: Response, params: Any = None) -> None:
         self.logger.debug("Success callback. Request=%s. Response Code=%s, Params=%s" % (request, response.code, params))
-        response_data:protocol_typing.ResponseData
+        response_data: protocol_typing.ResponseData
 
         must_process_response = True
         if self.stop_requested:
@@ -270,7 +270,7 @@ class InfoPoller:
         if must_process_response:
             try:
                 response_data = self.protocol.parse_response(response)  # It's ok to have the exception go up
-            except Exception as e: 
+            except Exception as e:
                 self.request_failed = True
                 error_message_map = {
                     self.FsmState.GetProtocolVersion: 'Device gave invalid data when polling for protocol version. Response Code = %s' % response.code,

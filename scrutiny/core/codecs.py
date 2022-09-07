@@ -14,17 +14,19 @@ from typing import Union, Optional, Tuple
 
 Encodable = Union[int, float, bool]
 
+
 class BaseCodec(ABC):
     def __init__(self,):
         pass
 
     @abstractmethod
-    def decode(self, data: Union[bytes, bytearray], mask:Optional[bytes]=None) -> Encodable:
+    def decode(self, data: Union[bytes, bytearray], mask: Optional[bytes] = None) -> Encodable:
         pass
 
     @abstractmethod
     def encode(self, value: Encodable) -> bytes:
         pass
+
 
 class SIntCodec(BaseCodec):
     str_map = {
@@ -34,18 +36,19 @@ class SIntCodec(BaseCodec):
         8: 'q'
     }
 
-    def __init__(self, size: int, endianness:Endianness):
+    def __init__(self, size: int, endianness: Endianness):
         super().__init__()
         if size not in self.str_map:
             raise NotImplementedError('Does not support signed int of %d bytes', size)
         endianness_char = '<' if endianness == Endianness.Little else '>'
-        self.packstr = endianness_char+self.str_map[size]
+        self.packstr = endianness_char + self.str_map[size]
 
-    def decode(self, data: Union[bytes, bytearray], mask:Optional[bytes]=None) -> int:
+    def decode(self, data: Union[bytes, bytearray], mask: Optional[bytes] = None) -> int:
         return struct.unpack(self.packstr, data)[0]
 
     def encode(self, value: Encodable) -> bytes:
         return struct.pack(self.packstr, value)
+
 
 class UIntCodec(BaseCodec):
     str_map = {
@@ -55,18 +58,19 @@ class UIntCodec(BaseCodec):
         8: 'Q'
     }
 
-    def __init__(self, size:int, endianness:Endianness):
+    def __init__(self, size: int, endianness: Endianness):
         super().__init__()
         if size not in self.str_map:
             raise NotImplementedError('Does not support unsigend signed int of %d bytes', size)
         endianness_char = '<' if endianness == Endianness.Little else '>'
-        self.packstr = endianness_char+self.str_map[size]
+        self.packstr = endianness_char + self.str_map[size]
 
-    def decode(self, data: Union[bytes, bytearray], mask:Optional[bytes]=None) -> int:
+    def decode(self, data: Union[bytes, bytearray], mask: Optional[bytes] = None) -> int:
         return struct.unpack(self.packstr, data)[0]
 
     def encode(self, value: Encodable) -> bytes:
-        return struct.pack(self.packstr, value)  #  todo : Mask
+        return struct.pack(self.packstr, value)  # todo : Mask
+
 
 class FloatCodec(BaseCodec):
     str_map = {
@@ -74,33 +78,35 @@ class FloatCodec(BaseCodec):
         8: 'd'
     }
 
-    def __init__(self, size:int, endianness:Endianness):
+    def __init__(self, size: int, endianness: Endianness):
         super().__init__()
         if size not in self.str_map:
             raise NotImplementedError('Does not support float of %d bytes', size)
         endianness_char = '<' if endianness == Endianness.Little else '>'
-        self.packstr = endianness_char+self.str_map[size]
+        self.packstr = endianness_char + self.str_map[size]
 
-    def decode(self, data: Union[bytes, bytearray], mask:Optional[bytes]=None) -> float:
+    def decode(self, data: Union[bytes, bytearray], mask: Optional[bytes] = None) -> float:
         return struct.unpack(self.packstr, data)[0]
 
     def encode(self, value: Encodable) -> bytes:
-        return struct.pack(self.packstr, value)  #  todo : Mask
+        return struct.pack(self.packstr, value)  # todo : Mask
+
 
 class BoolCodec(BaseCodec):
     def __init__(self):
         super().__init__()
 
-    def decode(self, data: Union[bytes, bytearray], mask:Optional[bytes]=None) -> bool:
+    def decode(self, data: Union[bytes, bytearray], mask: Optional[bytes] = None) -> bool:
         return True if data[0] != 0 else False
 
     def encode(self, value: Encodable) -> bytes:
         v = 1 if value is True else 0
-        return struct.pack('B', v) #  todo : Mask
+        return struct.pack('B', v)  # todo : Mask
+
 
 class Codecs:
     @staticmethod
-    def get(vartype:EmbeddedDataType, endianness:Endianness) -> BaseCodec:
+    def get(vartype: EmbeddedDataType, endianness: Endianness) -> BaseCodec:
         datasize = vartype.get_size_byte()
         assert datasize is not None
         if vartype in [EmbeddedDataType.sint8, EmbeddedDataType.sint16, EmbeddedDataType.sint32, EmbeddedDataType.sint64]:

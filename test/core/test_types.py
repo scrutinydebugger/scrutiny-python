@@ -10,8 +10,9 @@ import unittest
 
 from scrutiny.core.basic_types import *
 
+
 class TestTypes(unittest.TestCase):
-    
+
     def test_type_size(self):
         self.assertEqual(EmbeddedDataType.sint8.get_size_byte(), 1)
         self.assertEqual(EmbeddedDataType.sint16.get_size_byte(), 2)
@@ -40,7 +41,7 @@ class TestTypes(unittest.TestCase):
         self.assertEqual(EmbeddedDataType.cfloat64.get_size_byte(), 8)
         self.assertEqual(EmbeddedDataType.cfloat128.get_size_byte(), 16)
         self.assertEqual(EmbeddedDataType.cfloat256.get_size_byte(), 32)
-        
+
         self.assertEqual(EmbeddedDataType.boolean.get_size_byte(), 1)
-        
+
         self.assertIsNone(EmbeddedDataType.struct.get_size_byte())

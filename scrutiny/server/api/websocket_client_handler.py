@@ -20,7 +20,7 @@ from .abstract_client_handler import AbstractClientHandler, ClientHandlerConfig,
 from typing import Dict, Tuple, Any, Coroutine, Optional, Callable
 
 #WebsocketType = websockets.server.WebSocketServerProtocol
-WebsocketType = Any # todo fix this
+WebsocketType = Any  # todo fix this
 
 
 class Timer:

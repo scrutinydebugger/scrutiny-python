@@ -134,9 +134,9 @@ class MemoryWriter:
             else:
                 encoded_value, write_mask = resolved_entry.encode_pending_update_value()
                 request = self.protocol.write_single_memory_block(
-                    address=resolved_entry.get_address(), 
+                    address=resolved_entry.get_address(),
                     data=encoded_value, write_mask=write_mask
-                    )
+                )
                 self.request_of_entry_being_updated = request
         return request
 

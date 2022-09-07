@@ -17,7 +17,8 @@ class TestDataStore(unittest.TestCase):
         self.callback_call_history = {}
 
     def make_dummy_var_entries(self, n):
-        dummy_var = Variable('dummy', vartype=EmbeddedDataType.float32, path_segments=['a', 'b', 'c'], location=0x12345678, endianness=Endianness.Little)
+        dummy_var = Variable('dummy', vartype=EmbeddedDataType.float32, path_segments=[
+                             'a', 'b', 'c'], location=0x12345678, endianness=Endianness.Little)
         for i in range(n):
             entry = DatastoreVariableEntry('path_%d' % i, variable_def=dummy_var)
             yield entry

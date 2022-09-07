@@ -22,14 +22,11 @@ import scrutiny.server.protocol.typing as protocol_typing
 from typing import Union, List, Tuple, Optional, TypedDict, Dict, Any, cast
 
 
-
-
-
 class Protocol:
     version_major: int
     version_minor: int
     logger: logging.Logger
-    rpv_map:Dict[int, RuntimePublishedValue]
+    rpv_map: Dict[int, RuntimePublishedValue]
 
     class AddressFormat:
 
@@ -99,7 +96,7 @@ class Protocol:
     def get_version(self):
         return (self.version_major, self.version_minor)
 
-    def configure_rpvs(self, rpvs:List[RuntimePublishedValue]):
+    def configure_rpvs(self, rpvs: List[RuntimePublishedValue]):
         self.rpv_map = {}
         for rpv in rpvs:
             self.rpv_map[rpv.id] = rpv
@@ -136,9 +133,9 @@ class Protocol:
 
     def get_rpv_count(self):
         return Request(cmd.GetInfo, cmd.GetInfo.Subfunction.GetRuntimePublishedValuesCount, bytes(), response_payload_size=2)
-    
-    def get_rpv_definition(self, start:int, count:int):
-        return Request(cmd.GetInfo, cmd.GetInfo.Subfunction.GetRuntimePublishedValuesDefinition, struct.pack('>HH', start, count), response_payload_size=3*count)
+
+    def get_rpv_definition(self, start: int, count: int):
+        return Request(cmd.GetInfo, cmd.GetInfo.Subfunction.GetRuntimePublishedValuesDefinition, struct.pack('>HH', start, count), response_payload_size=3 * count)
 
     def read_memory_request_size_per_block(self):
         return self.get_address_size_bytes() + 2  # Address + 16 bits length
@@ -187,10 +184,10 @@ class Protocol:
             data += self.encode_address(addr) + struct.pack('>H', len(mem_data)) + bytes(mem_data) + bytes(mask)
         return Request(cmd.MemoryControl, cmd.MemoryControl.Subfunction.WriteMasked, data, response_payload_size=(self.get_address_size_bytes() + 2) * len(block_list))
 
-    def read_runtime_published_values(self, ids:Union[int, List[int]]):
+    def read_runtime_published_values(self, ids: Union[int, List[int]]):
         if not isinstance(ids, List):
             ids = [ids]
-        
+
         expected_response_size = 0
         for id in ids:
             if id not in self.rpv_map:
@@ -199,15 +196,15 @@ class Protocol:
             typesize = rpv.datatype.get_size_byte()
             assert typesize is not None
             expected_response_size += 2 + typesize
-        
+
         nbids = len(ids)
-        data = struct.pack('>'+'H'*nbids, *ids)
+        data = struct.pack('>' + 'H' * nbids, *ids)
         return Request(cmd.MemoryControl, cmd.MemoryControl.Subfunction.ReadRPV, data, response_payload_size=expected_response_size)
 
-    def write_runtime_published_values(self, values:Union[List[Tuple[int, Any]], Tuple[int, Any]]):
+    def write_runtime_published_values(self, values: Union[List[Tuple[int, Any]], Tuple[int, Any]]):
         if not isinstance(values, list):
             values = [values]
-        
+
         data = bytes()
         for id, val in values:
             if id not in self.rpv_map:
@@ -216,8 +213,8 @@ class Protocol:
             codec = Codecs.get(rpv.datatype, Endianness.Big)
             data += struct.pack('>H', id)
             data += codec.encode(val)
-        
-        return Request(cmd.MemoryControl, cmd.MemoryControl.Subfunction.WriteRPV, data, response_payload_size=len(values)*3)
+
+        return Request(cmd.MemoryControl, cmd.MemoryControl.Subfunction.WriteRPV, data, response_payload_size=len(values) * 3)
 
     def comm_discover(self) -> Request:
         data = cmd.CommControl.DISCOVER_MAGIC
@@ -289,11 +286,11 @@ class Protocol:
     def parse_request(self, req: Request) -> protocol_typing.RequestData:
         data: protocol_typing.RequestData = cast(protocol_typing.Request.Empty, {})
         subfn: Enum
-        valid:bool = True
+        valid: bool = True
 
         try:
             if req.command == cmd.GetInfo:
-                
+
                 subfn = cmd.GetInfo.Subfunction(req.subfn)
 
                 if subfn == cmd.GetInfo.Subfunction.GetSpecialMemoryRegionLocation:
@@ -301,7 +298,7 @@ class Protocol:
                     region_type, region_index = struct.unpack('BB', req.payload[0:2])
                     data['region_type'] = cmd.GetInfo.MemoryRangeType(region_type)
                     data['region_index'] = region_index
-                
+
                 elif subfn == cmd.GetInfo.Subfunction.GetRuntimePublishedValuesDefinition:
                     data = cast(protocol_typing.Request.GetInfo.GetRuntimePublishedValuesDefinition, data)
                     data['start'], data['count'] = struct.unpack('>HH', req.payload[0:4])
@@ -364,34 +361,34 @@ class Protocol:
 
                         if index >= len(req.payload):
                             break
-                
+
                 elif subfn == cmd.MemoryControl.Subfunction.ReadRPV:
                     data = cast(protocol_typing.Request.MemoryControl.ReadRPV, data)
                     data['rpvs_id'] = []
                     if len(req.payload) % 2 != 0:
                         raise Exception('Invalid payload length')
-                    
-                    nbids = len(req.payload)//2
+
+                    nbids = len(req.payload) // 2
                     for i in range(nbids):
-                        id = struct.unpack('>H', req.payload[i*2:i*2+2])[0]
+                        id = struct.unpack('>H', req.payload[i * 2:i * 2 + 2])[0]
                         data['rpvs_id'].append(id)
-                
+
                 elif subfn == cmd.MemoryControl.Subfunction.WriteRPV:
                     data = cast(protocol_typing.Request.MemoryControl.WriteRPV, data)
                     data['rpvs'] = []
                     cursor = 0
 
                     while cursor < len(req.payload):
-                        id = struct.unpack('>H', req.payload[cursor:cursor+2])[0]
-                        cursor+=2
+                        id = struct.unpack('>H', req.payload[cursor:cursor + 2])[0]
+                        cursor += 2
                         if id not in self.rpv_map:
-                            raise Exception('Request requires to decode RPV with ID %s which is unknown' % id) 
-                        
+                            raise Exception('Request requires to decode RPV with ID %s which is unknown' % id)
+
                         rpv = self.rpv_map[id]
                         codec = Codecs.get(rpv.datatype, Endianness.Big)
                         datasize = rpv.datatype.get_size_byte()
                         assert datasize is not None
-                        value = codec.decode(req.payload[cursor:cursor+datasize])
+                        value = codec.decode(req.payload[cursor:cursor + datasize])
                         cursor += datasize
                         data['rpvs'].append(dict(id=id, value=value))
 
@@ -502,16 +499,16 @@ class Protocol:
         data += self.encode_address(start) + self.encode_address(end)
         return Response(cmd.GetInfo, cmd.GetInfo.Subfunction.GetSpecialMemoryRegionLocation, Response.ResponseCode.OK, data)
 
-    def respond_get_rpv_count(self, count:int):
+    def respond_get_rpv_count(self, count: int):
         return Response(cmd.GetInfo, cmd.GetInfo.Subfunction.GetRuntimePublishedValuesCount, Response.ResponseCode.OK, struct.pack('>H', count))
 
-    def respond_get_rpv_definition(self, rpvs:List[RuntimePublishedValue]):
+    def respond_get_rpv_definition(self, rpvs: List[RuntimePublishedValue]):
         payload = bytes()
-        
+
         for rpv in rpvs:
             vtype = rpv.datatype.value
             payload += struct.pack('>HB', rpv.id, vtype)
-        
+
         return Response(cmd.GetInfo, cmd.GetInfo.Subfunction.GetRuntimePublishedValuesDefinition, Response.ResponseCode.OK, payload)
 
     def respond_comm_discover(self, firmware_id: Union[bytes, List[int], bytearray], display_name: str) -> Response:
@@ -573,33 +570,33 @@ class Protocol:
             data += self.encode_address(address) + struct.pack('>H', length)
 
         return Response(cmd.MemoryControl, cmd.MemoryControl.Subfunction.WriteMasked, Response.ResponseCode.OK, data)
-    
-    def respond_read_runtime_published_values(self, vals:Union[Tuple[int, Any], List[Tuple[int, Any]]] ):
+
+    def respond_read_runtime_published_values(self, vals: Union[Tuple[int, Any], List[Tuple[int, Any]]]):
         if not isinstance(vals, list):
             vals = [vals]
-        
+
         data = bytes()
         for id, val in vals:
             if id not in self.rpv_map:
                 raise Exception('Unkown RuntimePublishedValue ID %s' % id)
-            
+
             rpv = self.rpv_map[id]
             codec = Codecs.get(rpv.datatype, Endianness.Big)
             data += struct.pack('>H', id) + codec.encode(val)
-        
+
         return Response(cmd.MemoryControl, cmd.MemoryControl.Subfunction.ReadRPV, Response.ResponseCode.OK, data)
 
-    def respond_write_runtime_published_values(self, ids:Union[int, List[int]]):
+    def respond_write_runtime_published_values(self, ids: Union[int, List[int]]):
         if not isinstance(ids, list):
             ids = [ids]
-        
+
         data = bytes()
         for id in ids:
             if id not in self.rpv_map:
                 raise Exception('Unkown RuntimePublishedValue ID %s' % id)
             rpv = self.rpv_map[id]
             data += struct.pack('>HB', id, rpv.datatype.get_size_byte())
-        
+
         return Response(cmd.MemoryControl, cmd.MemoryControl.Subfunction.WriteRPV, Response.ResponseCode.OK, data)
 
     def respond_data_get_targets(self, targets: List[DatalogLocation]) -> Response:
@@ -649,7 +646,7 @@ class Protocol:
     def parse_response(self, response: Response) -> protocol_typing.ResponseData:
         data: protocol_typing.ResponseData = cast(protocol_typing.Response.Empty, {})
         subfn: Enum
-        valid:bool = True
+        valid: bool = True
 
         # For now, all commands have no data in negative response. But it could be different in the future.
         # So it might be possible in the furture to move this condition and have a response with
@@ -682,11 +679,11 @@ class Protocol:
                         data['region_index'] = response.payload[1]
                         data['start'] = self.decode_address(response.payload[2:])
                         data['end'] = self.decode_address(response.payload[2 + self.get_address_size_bytes():])
-                    
+
                     elif subfn == cmd.GetInfo.Subfunction.GetRuntimePublishedValuesCount:
                         data = cast(protocol_typing.Response.GetInfo.GetRuntimePublishedValuesCount, data)
                         data['count'], = struct.unpack('>H', response.payload[0:2])
-                    
+
                     elif subfn == cmd.GetInfo.Subfunction.GetRuntimePublishedValuesDefinition:
                         data = cast(protocol_typing.Response.GetInfo.GetRuntimePublishedValuesDefinition, data)
                         n = 3   # 3 bytes per RPV
@@ -694,9 +691,9 @@ class Protocol:
                             raise Exception('Invalid payload length for GetRuntimePublishedValuesDefinition')
                         data['rpvs'] = []
 
-                        nbr_rpv = len(response.payload)//n
+                        nbr_rpv = len(response.payload) // n
                         for i in range(nbr_rpv):
-                            vid, typeint,  = struct.unpack('>HB', response.payload[i*n+0:i*n+n])                            
+                            vid, typeint, = struct.unpack('>HB', response.payload[i * n + 0:i * n + n])
                             data['rpvs'].append(RuntimePublishedValue(id=vid, datatype=typeint))
 
                 elif response.command == cmd.MemoryControl:
@@ -742,21 +739,21 @@ class Protocol:
 
                         cursor = 0
                         while cursor < len(response.payload):
-                            if len(response.payload)-cursor < 2:
+                            if len(response.payload) - cursor < 2:
                                 raise Exception('Invalid data length')
-                            
-                            id, = struct.unpack('>H', response.payload[cursor:cursor+2])
-                            cursor+=2
+
+                            id, = struct.unpack('>H', response.payload[cursor:cursor + 2])
+                            cursor += 2
                             if id not in self.rpv_map:
                                 raise Exception('Unknown RuntimePublishedValue of ID 0x%x', id)
                             rpv = self.rpv_map[id]
                             typesize = rpv.datatype.get_size_byte()
                             assert typesize is not None
-                            if len(response.payload)-cursor < typesize:
+                            if len(response.payload) - cursor < typesize:
                                 raise Exception('Incomplete data for RPV with ID 0x%x', id)
-                            
+
                             codec = Codecs.get(rpv.datatype, Endianness.Big)
-                            val = codec.decode(response.payload[cursor:cursor+typesize])
+                            val = codec.decode(response.payload[cursor:cursor + typesize])
                             cursor += typesize
                             data['read_rpv'].append(dict(id=id, data=val))
 
@@ -765,10 +762,10 @@ class Protocol:
                         data['written_rpv'] = []
                         cursor = 0
                         while cursor < len(response.payload):
-                            if len(response.payload)-cursor < 3:
+                            if len(response.payload) - cursor < 3:
                                 raise Exception('Invalid data length')
-                            id, size = struct.unpack('>HB', response.payload[cursor:cursor+3])
-                            cursor+=3
+                            id, size = struct.unpack('>HB', response.payload[cursor:cursor + 3])
+                            cursor += 3
                             data['written_rpv'].append(dict(id=id, size=size))
 
                 elif response.command == cmd.DatalogControl:
@@ -869,7 +866,7 @@ class Protocol:
                         data = cast(protocol_typing.Response.CommControl.Connect, data)
                         data['magic'] = response.payload[0:4]
                         data['session_id'], = struct.unpack('>L', response.payload[4:8])
-                
+
             except Exception as e:
                 self.logger.error(str(e))
                 self.logger.debug(traceback.format_exc())

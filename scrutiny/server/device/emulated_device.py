@@ -33,9 +33,11 @@ class RequestLogRecord:
         self.request = request
         self.response = response
 
+
 class RPVValuePair(TypedDict):
-    definition:RuntimePublishedValue
-    value:Any
+    definition: RuntimePublishedValue
+    value: Any
+
 
 class EmulatedDevice:
     logger: logging.Logger
@@ -60,7 +62,7 @@ class EmulatedDevice:
     session_id: Optional[int]
     memory: MemoryContent
     memory_lock: threading.Lock
-    rpvs:List[RPVValuePair]
+    rpvs: List[RPVValuePair]
 
     def __init__(self, link):
         if not isinstance(link, DummyLink) and not isinstance(link, ThreadSafeDummyLink):
@@ -95,10 +97,10 @@ class EmulatedDevice:
         }
 
         self.rpvs = [
-            {'definition' : RuntimePublishedValue(id=0x1001, datatype=EmbeddedDataType.float32), 'value': 3.1415926},
-            {'definition' : RuntimePublishedValue(id=0x1002, datatype=EmbeddedDataType.uint16), 'value': 0x1234},
-            {'definition' : RuntimePublishedValue(id=0x1003, datatype=EmbeddedDataType.sint8), 'value': -65},
-            {'definition' : RuntimePublishedValue(id=0x1004, datatype=EmbeddedDataType.boolean), 'value': True}
+            {'definition': RuntimePublishedValue(id=0x1001, datatype=EmbeddedDataType.float32), 'value': 3.1415926},
+            {'definition': RuntimePublishedValue(id=0x1002, datatype=EmbeddedDataType.uint16), 'value': 0x1234},
+            {'definition': RuntimePublishedValue(id=0x1003, datatype=EmbeddedDataType.sint8), 'value': -65},
+            {'definition': RuntimePublishedValue(id=0x1004, datatype=EmbeddedDataType.boolean), 'value': True}
         ]
 
         self.forbidden_regions = [
@@ -122,7 +124,7 @@ class EmulatedDevice:
                 self.logger.error('Error decoding request. %s' % str(e))
 
             if request is not None:
-                response:Optional[Response] = None
+                response: Optional[Response] = None
                 self.logger.debug('Received a request : %s' % request)
                 try:
                     response = self.process_request(request)
@@ -143,7 +145,7 @@ class EmulatedDevice:
             self.logger.error("Request doesn't fit buffer. Dropping %s" % req)
             return None  # drop
 
-        data = self.protocol.parse_request(req) # can throw
+        data = self.protocol.parse_request(req)  # can throw
 
         if not self.connected:
             # We only respond to DISCOVER and CONNECT request while not session is active
@@ -253,19 +255,19 @@ class EmulatedDevice:
 
             region = region_list[data['region_index']]
             response = self.protocol.respond_special_memory_region_location(data['region_type'], data['region_index'], region['start'], region['end'])
-        
+
         elif subfunction == cmd.GetInfo.Subfunction.GetRuntimePublishedValuesCount:
             response = self.protocol.respond_get_rpv_count(count=len(self.rpvs))
-        
+
         elif subfunction == cmd.GetInfo.Subfunction.GetRuntimePublishedValuesDefinition:
             data = cast(protocol_typing.Request.GetInfo.GetRuntimePublishedValuesDefinition, data)
             if data['start'] > len(self.rpvs):
                 return Response(req.command, subfunction, ResponseCode.FailureToProceed)
-            
+
             if data['start'] + data['count'] > len(self.rpvs):
                 return Response(req.command, subfunction, ResponseCode.FailureToProceed)
-            
-            selected_rpv_value_pair = self.rpvs[data['start']:data['start']+data['count']]
+
+            selected_rpv_value_pair = self.rpvs[data['start']:data['start'] + data['count']]
             response = self.protocol.respond_get_rpv_definition([x['definition'] for x in selected_rpv_value_pair])
         else:
             self.logger.error('Unsupported subfunction "%s" for command : "%s"' % (subfunction, req.command.__name__))
@@ -300,18 +302,18 @@ class EmulatedDevice:
 
         elif subfunction == cmd.MemoryControl.Subfunction.ReadRPV:
             data = cast(protocol_typing.Request.MemoryControl.ReadRPV, data)
-            read_response_data:List[Tuple[int, Any]] = []
+            read_response_data: List[Tuple[int, Any]] = []
             for rpv_id in data['rpvs_id']:
                 if rpv_id not in self.rpvs:
                     raise Exception('Unknown RPV with ID 0x%x' % rpv_id)
                 value = self.rpvs[rpv_id]['value']
                 read_response_data.append((rpv_id, value))
-            
+
             response = self.protocol.respond_read_runtime_published_values(read_response_data)
-        
+
         elif subfunction == cmd.MemoryControl.Subfunction.WriteRPV:
             data = cast(protocol_typing.Request.MemoryControl.WriteRPV, data)
-            write_response_data:List[int] = []
+            write_response_data: List[int] = []
             for id_data_pair in data['rpvs']:
                 id = id_data_pair['id']
                 value = id_data_pair['value']
@@ -320,7 +322,7 @@ class EmulatedDevice:
                     raise Exception('Unknown RPV with ID 0x%x' % id)
                 self.rpvs[id]['value'] = value
                 write_response_data.append(rpv_id)
-            
+
             response = self.protocol.respond_write_runtime_published_values(write_response_data)
 
         else:

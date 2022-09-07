@@ -90,7 +90,7 @@ class HeartbeatGenerator:
         if response.code == ResponseCode.OK:
             try:
                 response_data = cast(protocol_typing.Response.CommControl.Heartbeat, self.protocol.parse_response(response))
-                
+
                 if response_data['session_id'] == self.session_id:
                     if response_data['challenge_response'] == expected_challenge_response:
                         self.last_heartbeat_timestamp = time.time()

@@ -7,7 +7,7 @@
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 
 import struct
-from scrutiny.core.basic_types import Endianness, EmbeddedDataType 
+from scrutiny.core.basic_types import Endianness, EmbeddedDataType
 from scrutiny.core.codecs import Codecs, Encodable
 from typing import Dict, Union, List, Literal, Optional, TypedDict, Any, Tuple
 
@@ -65,9 +65,11 @@ class VariableLocation:
     def __repr__(self):
         return '<%s - 0x%08X>' % (self.__class__.__name__, self.get_address())
 
+
 class VariableEnumDef(TypedDict):
     name: str
     values: Dict[str, int]
+
 
 class VariableEnum:
 
@@ -79,7 +81,7 @@ class VariableEnum:
         self.vals = {}
 
     def add_value(self, name: str, value: int) -> None:
-        if  name in self.vals and self.vals[name] != value:
+        if name in self.vals and self.vals[name] != value:
             raise Exception('Duplicate entry for enum %s. %s can either be %s or %s' % (self.name, value, self.vals[name], value))
 
         self.vals[name] = value
@@ -101,6 +103,7 @@ class VariableEnum:
         obj = cls(enum_def['name'])
         obj.vals = enum_def['values']
         return obj
+
 
 class Struct:
     class Member:
@@ -223,7 +226,7 @@ class Variable:
                 uint_data &= MASK_MAP[self.bitsize]
                 data = struct.pack('>q', uint_data)
                 data = data[-initial_len:]
-        
+
         decoded = Codecs.get(self.vartype, endianness=self.endianness).decode(data)
 
         return decoded

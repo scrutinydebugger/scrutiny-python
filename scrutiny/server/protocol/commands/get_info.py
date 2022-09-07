@@ -22,7 +22,6 @@ class GetInfo(BaseCommand):
         GetRuntimePublishedValuesCount = 6
         GetRuntimePublishedValuesDefinition = 7
 
-
     class MemoryRangeType(Enum):
         ReadOnly = 0
         Forbidden = 1

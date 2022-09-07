@@ -12,7 +12,7 @@ import json
 import os
 import logging
 
-from scrutiny.core.variable import Variable,  VariableEnum, VariableLocation
+from scrutiny.core.variable import Variable, VariableEnum, VariableLocation
 from scrutiny.core.basic_types import EmbeddedDataType, Endianness
 from typing import Dict, TypedDict, List, Tuple, Optional, Any, Union, Literal, Generator
 from scrutiny.core.variable import VariableEnumDef

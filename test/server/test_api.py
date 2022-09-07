@@ -149,7 +149,8 @@ class TestAPI(unittest.TestCase):
             raise Exception('Missing cmd field in response')
 
     def make_dummy_entries(self, n, entry_type=EntryType.Var, prefix='path'):
-        dummy_var = Variable('dummy', vartype=EmbeddedDataType.float32, path_segments=['a', 'b', 'c'], location=0x12345678, endianness=Endianness.Little)
+        dummy_var = Variable('dummy', vartype=EmbeddedDataType.float32, path_segments=[
+                             'a', 'b', 'c'], location=0x12345678, endianness=Endianness.Little)
         entries = []
         for i in range(n):
             if entry_type == EntryType.Var:
