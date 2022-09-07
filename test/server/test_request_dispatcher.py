@@ -9,10 +9,9 @@
 
 import unittest
 
-from scrutiny.server.device.request_dispatcher import RequestDispatcher, RequestQueue, Throttler
+from scrutiny.server.device.request_dispatcher import RequestDispatcher, RequestQueue
 from scrutiny.server.protocol.commands import DummyCommand
 from scrutiny.server.protocol import Request, Response, ResponseCode
-import time
 
 
 class TestPriorityQueue(unittest.TestCase):

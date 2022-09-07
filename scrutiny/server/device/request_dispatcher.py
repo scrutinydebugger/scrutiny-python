@@ -8,8 +8,7 @@
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 
 import bisect
-from scrutiny.server.protocol import Request, RequestData, Response, ResponseData, ResponseCode
-from scrutiny.server.tools import Throttler
+from scrutiny.server.protocol import Request, Response, ResponseCode
 from time import time
 import math
 import logging

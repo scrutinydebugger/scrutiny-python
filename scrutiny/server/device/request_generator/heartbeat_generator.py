@@ -9,11 +9,14 @@
 
 import time
 import logging
+import traceback
 
 from scrutiny.server.protocol import *
+from scrutiny.server.protocol.commands.comm_control import CommControl
+import scrutiny.server.protocol.typing as protocol_typing
 from scrutiny.server.device.request_dispatcher import RequestDispatcher, SuccessCallback, FailureCallback
 
-from typing import Any, Optional
+from typing import Any, Optional, cast
 
 
 class HeartbeatGenerator:
@@ -85,8 +88,9 @@ class HeartbeatGenerator:
 
         expected_challenge_response = self.protocol.heartbeat_expected_challenge_response(self.challenge)
         if response.code == ResponseCode.OK:
-            response_data = self.protocol.parse_response(response)
-            if response_data['valid']:
+            try:
+                response_data = cast(protocol_typing.Response.CommControl.Heartbeat, self.protocol.parse_response(response))
+                
                 if response_data['session_id'] == self.session_id:
                     if response_data['challenge_response'] == expected_challenge_response:
                         self.last_heartbeat_timestamp = time.time()
@@ -95,8 +99,9 @@ class HeartbeatGenerator:
                                           (response_data['challenge_response'], expected_challenge_response))
                 else:
                     self.logger.error('Heartbeat session ID echo not good. Got %s, expected %s' % (response_data['session_id'], self.session_id))
-            else:
+            except:
                 self.logger.error('Heartbeat response data is invalid')
+                self.logger.debug(traceback.format_exc())
         else:
             self.logger.error('Heartbeat request got Nacked. %s' % response.code)
 

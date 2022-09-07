@@ -393,7 +393,6 @@ class TestMemoryReaderComplexReadOperation(unittest.TestCase):
             self.assertLessEqual(record.request.size(), max_request_size)
             response_block = []
             request_data = protocol.parse_request(record.request)
-            self.assertTrue(request_data['valid'])
 
             for block in request_data['blocks_to_read']:
                 in_allowed_region = block['address'] > forbidden_region_end or (block['address'] + block['length'] < forbidden_region_start)

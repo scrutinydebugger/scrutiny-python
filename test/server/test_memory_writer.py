@@ -73,7 +73,6 @@ class TestMemoryWriterBasicReadOperation(unittest.TestCase):
         self.assertEqual(MemoryControl.Subfunction(record.request.subfn), MemoryControl.Subfunction.Write)
 
         request_data = protocol.parse_request(record.request)
-        self.assertTrue(request_data['valid'])
 
         self.assertEqual(len(request_data['blocks_to_write']), 1)
         self.assertEqual(request_data['blocks_to_write'][0]['address'], 0x1000)
@@ -135,7 +134,6 @@ class TestMemoryWriterBasicReadOperation(unittest.TestCase):
             self.assertEqual(MemoryControl.Subfunction(record.request.subfn), MemoryControl.Subfunction.Write, 'i=%d' % i)
 
             request_data = protocol.parse_request(record.request)
-            self.assertTrue(request_data['valid'], 'i=%d' % i)
 
             # Emulate the device response
             block_in_response = []

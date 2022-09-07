@@ -8,20 +8,18 @@
 #
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 
-import time
 import logging
-import binascii
 import copy
-import bisect
 import traceback
 from sortedcontainers import SortedSet  # type: ignore
 
 from scrutiny.server.protocol import *
+import scrutiny.server.protocol.typing as protocol_typing
 from scrutiny.server.device.request_dispatcher import RequestDispatcher, SuccessCallback, FailureCallback
 from scrutiny.server.datastore import Datastore, DatastoreVariableEntry, WatchCallback
 from scrutiny.core.memory_content import MemoryContent, Cluster
 
-from typing import Any, List, Tuple, Optional
+from typing import Any, List, Tuple, Optional, cast
 
 
 class DataStoreEntrySortableByAddress:
@@ -215,8 +213,8 @@ class MemoryReader:
         self.logger.debug("Success callback. Response=%s, Params=%s" % (response, params))
 
         if response.code == ResponseCode.OK:
-            response_data = self.protocol.parse_response(response)
-            if response_data['valid']:
+            try:
+                response_data = cast(protocol_typing.Response.MemoryControl.Read, self.protocol.parse_response(response))
                 try:
                     temp_memory = MemoryContent()
                     for block in response_data['read_blocks']:
@@ -228,8 +226,9 @@ class MemoryReader:
                 except Exception as e:
                     self.logger.critical('Error while writing datastore. %s' % str(e))
                     self.logger.debug(traceback.format_exc())
-            else:
+            except:
                 self.logger.error('Response for ReadMemory read request is malformed and must be discared.')
+                self.logger.debug(traceback.format_exc())
         else:
             self.logger.warning('Response for ReadMemory has been refused with response code %s.' % response.code)
 

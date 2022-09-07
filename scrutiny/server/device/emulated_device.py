@@ -15,11 +15,12 @@ import traceback
 
 import scrutiny.server.protocol.commands as cmd
 from scrutiny.server.device.links.dummy_link import DummyLink, ThreadSafeDummyLink
-from scrutiny.server.protocol import Protocol, Request, Response, ResponseCode, RequestData, ResponseData
+from scrutiny.server.protocol import Protocol, Request, Response, ResponseCode
+import scrutiny.server.protocol.typing as protocol_typing
 from scrutiny.core.memory_content import MemoryContent
 from scrutiny.core.basic_types import RuntimePublishedValue, EmbeddedDataType
 
-from typing import List, Dict, Optional, Union, Any, Tuple, TypedDict
+from typing import List, Dict, Optional, Union, Any, Tuple, TypedDict, cast
 
 
 class RequestLogRecord:
@@ -121,7 +122,7 @@ class EmulatedDevice:
                 self.logger.error('Error decoding request. %s' % str(e))
 
             if request is not None:
-                response = None
+                response:Optional[Response] = None
                 self.logger.debug('Received a request : %s' % request)
                 try:
                     response = self.process_request(request)
@@ -142,10 +143,7 @@ class EmulatedDevice:
             self.logger.error("Request doesn't fit buffer. Dropping %s" % req)
             return None  # drop
 
-        data = self.protocol.parse_request(req)
-        if data['valid'] == False:
-            self.logger.error('Invalid request data')
-            return None
+        data = self.protocol.parse_request(req) # can throw
 
         if not self.connected:
             # We only respond to DISCOVER and CONNECT request while not session is active
@@ -170,17 +168,19 @@ class EmulatedDevice:
         return response
 
     # ===== [CommControl] ======
-    def process_comm_control(self, req: Request, data: RequestData) -> Optional[Response]:
+    def process_comm_control(self, req: Request, data: protocol_typing.RequestData) -> Optional[Response]:
         response = None
         subfunction = cmd.CommControl.Subfunction(req.subfn)
         session_id_str = '0x%08X' % self.session_id if self.session_id is not None else 'None'
         if subfunction == cmd.CommControl.Subfunction.Discover:
+            data = cast(protocol_typing.Request.CommControl.Discover, data)
             if data['magic'] == cmd.CommControl.DISCOVER_MAGIC:
                 response = self.protocol.respond_comm_discover(self.firmware_id, 'EmulatedDevice')
             else:
                 self.logger.error('Received as Discover request with invalid payload')
 
         elif subfunction == cmd.CommControl.Subfunction.Connect:
+            data = cast(protocol_typing.Request.CommControl.Connect, data)
             if data['magic'] == cmd.CommControl.CONNECT_MAGIC:
                 if not self.connected:
                     self.initiate_session()
@@ -192,6 +192,7 @@ class EmulatedDevice:
                 self.logger.error('Received as Connect request with invalid payload')
 
         elif subfunction == cmd.CommControl.Subfunction.Heartbeat:
+            data = cast(protocol_typing.Request.CommControl.Heartbeat, data)
             if data['session_id'] == self.session_id:
                 challenge_response = self.protocol.heartbeat_expected_challenge_response(data['challenge'])
                 response = self.protocol.respond_comm_heartbeat(self.session_id, challenge_response)
@@ -201,6 +202,7 @@ class EmulatedDevice:
                 response = Response(cmd.CommControl, subfunction, ResponseCode.InvalidRequest)
 
         elif subfunction == cmd.CommControl.Subfunction.Disconnect:
+            data = cast(protocol_typing.Request.CommControl.Disconnect, data)
             if data['session_id'] == self.session_id:
                 self.destroy_session()
                 response = self.protocol.respond_comm_disconnect()
@@ -225,7 +227,7 @@ class EmulatedDevice:
         return response
 
     # ===== [GetInfo] ======
-    def process_get_info(self, req: Request, data: RequestData) -> Optional[Response]:
+    def process_get_info(self, req: Request, data: protocol_typing.RequestData) -> Optional[Response]:
         response = None
         subfunction = cmd.GetInfo.Subfunction(req.subfn)
         if subfunction == cmd.GetInfo.Subfunction.GetProtocolVersion:
@@ -238,6 +240,7 @@ class EmulatedDevice:
             response = self.protocol.respond_special_memory_region_count(len(self.readonly_regions), len(self.forbidden_regions))
 
         elif subfunction == cmd.GetInfo.Subfunction.GetSpecialMemoryRegionLocation:
+            data = cast(protocol_typing.Request.GetInfo.GetSpecialMemoryRegionLocation, data)
             if data['region_type'] == cmd.GetInfo.MemoryRangeType.ReadOnly:
                 region_list = self.readonly_regions
             elif data['region_type'] == cmd.GetInfo.MemoryRangeType.Forbidden:
@@ -255,6 +258,7 @@ class EmulatedDevice:
             response = self.protocol.respond_get_rpv_count(count=len(self.rpvs))
         
         elif subfunction == cmd.GetInfo.Subfunction.GetRuntimePublishedValuesDefinition:
+            data = cast(protocol_typing.Request.GetInfo.GetRuntimePublishedValuesDefinition, data)
             if data['start'] > len(self.rpvs):
                 return Response(req.command, subfunction, ResponseCode.FailureToProceed)
             
@@ -269,10 +273,11 @@ class EmulatedDevice:
         return response
     # ===== [MemoryControl] ======
 
-    def process_memory_control(self, req: Request, data: RequestData) -> Optional[Response]:
+    def process_memory_control(self, req: Request, data: protocol_typing.RequestData) -> Optional[Response]:
         response = None
         subfunction = cmd.MemoryControl.Subfunction(req.subfn)
         if subfunction == cmd.MemoryControl.Subfunction.Read:
+            data = cast(protocol_typing.Request.MemoryControl.Read, data)
             response_blocks_read = []
             for block_to_read in data['blocks_to_read']:
                 memdata = self.read_memory(block_to_read['address'], block_to_read['length'])
@@ -281,6 +286,7 @@ class EmulatedDevice:
             response = self.protocol.respond_read_memory_blocks(response_blocks_read)
 
         elif subfunction == cmd.MemoryControl.Subfunction.Write:
+            data = cast(protocol_typing.Request.MemoryControl.Write, data)
             response_blocks_write = []
             for block_to_write in data['blocks_to_write']:
                 self.write_memory(block_to_write['address'], block_to_write['data'])
@@ -288,10 +294,12 @@ class EmulatedDevice:
 
             response = self.protocol.respond_write_memory_blocks(response_blocks_write)
 
-        # elif subfunction == cmd.MemoryControl.Subfunction.WriteMasked:
-        #    pass
+        elif subfunction == cmd.MemoryControl.Subfunction.WriteMasked:
+            data = cast(protocol_typing.Request.MemoryControl.Write, data)
+            raise NotImplementedError("")
 
         elif subfunction == cmd.MemoryControl.Subfunction.ReadRPV:
+            data = cast(protocol_typing.Request.MemoryControl.ReadRPV, data)
             read_response_data:List[Tuple[int, Any]] = []
             for rpv_id in data['rpvs_id']:
                 if rpv_id not in self.rpvs:
@@ -302,6 +310,7 @@ class EmulatedDevice:
             response = self.protocol.respond_read_runtime_published_values(read_response_data)
         
         elif subfunction == cmd.MemoryControl.Subfunction.WriteRPV:
+            data = cast(protocol_typing.Request.MemoryControl.WriteRPV, data)
             write_response_data:List[int] = []
             for id_data_pair in data['rpvs']:
                 id = id_data_pair['id']
@@ -309,8 +318,7 @@ class EmulatedDevice:
 
                 if id not in self.rpvs:
                     raise Exception('Unknown RPV with ID 0x%x' % id)
-                self.rpvs[id]['value'] = data['value']
-                value = self.rpvs[rpv_id]['value']
+                self.rpvs[id]['value'] = value
                 write_response_data.append(rpv_id)
             
             response = self.protocol.respond_write_runtime_published_values(write_response_data)
@@ -320,7 +328,7 @@ class EmulatedDevice:
 
         return response
 
-    def process_dummy_cmd(self, req: Request, data: RequestData):
+    def process_dummy_cmd(self, req: Request, data: protocol_typing.RequestData):
         return Response(cmd.DummyCommand, subfn=req.subfn, code=ResponseCode.OK, payload=b'\xAA' * 32)
 
     def start(self) -> None:

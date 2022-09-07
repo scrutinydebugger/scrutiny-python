@@ -11,14 +11,13 @@
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 
 import copy
-import queue
-import time
 import logging
 import binascii
 from enum import Enum
 import traceback
 
 from scrutiny.server.protocol import *
+import scrutiny.server.protocol.typing as protocol_typing
 from scrutiny.server.protocol.comm_handler import CommHandler
 from scrutiny.server.protocol.commands import DummyCommand
 from scrutiny.server.device.request_dispatcher import RequestDispatcher, RequestRecord, SuccessCallback, FailureCallback
@@ -36,7 +35,7 @@ from scrutiny.server.device.links import AbstractLink, LinkConfig
 from scrutiny.core.firmware_id import PLACEHOLDER as DEFAULT_FIRMWARE_ID
 
 
-from typing import TypedDict, Optional, Callable, Any, Dict
+from typing import TypedDict, Optional, Callable, Any, Dict, cast
 from scrutiny.core.typehints import GenericCallback
 
 DEFAULT_FIRMWARE_ID_ASCII = binascii.hexlify(DEFAULT_FIRMWARE_ID).decode('ascii')
@@ -520,7 +519,7 @@ class DeviceHandler:
             self.logger.debug('Moving FSM to state %s' % next_state)
         self.fsm_state = next_state
 
-    def disconnect_complete_success(self, request: Request, response_code: ResponseCode, response_data: ResponseData, params: Any = None):
+    def disconnect_complete_success(self, request: Request, response_code: ResponseCode, response_data: protocol_typing.ResponseData, params: Any = None):
         self.disconnect_complete = True
         if self.disconnect_callback is not None:
             self.disconnect_callback.__call__(True)

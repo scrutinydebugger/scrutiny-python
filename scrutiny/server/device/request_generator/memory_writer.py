@@ -12,8 +12,10 @@ import logging
 from scrutiny.server.datastore.datastore_entry import DatastoreVariableEntry
 
 from scrutiny.server.protocol import *
+import scrutiny.server.protocol.typing as protocol_typing
 from scrutiny.server.device.request_dispatcher import RequestDispatcher, SuccessCallback, FailureCallback
 from scrutiny.server.datastore import Datastore, DatastoreEntry
+
 
 from typing import Any, List, Tuple, Optional, cast
 
@@ -143,33 +145,28 @@ class MemoryWriter:
 
         if response.code == ResponseCode.OK:
             if request == self.request_of_entry_being_updated:
-                request_data = self.protocol.parse_request(request)
-                if request_data['valid']:
-                    response_data = self.protocol.parse_response(response)
-                    if response_data['valid']:
-                        if self.entry_being_updated is not None and self.entry_being_updated.has_pending_target_update():
-                            response_match_request = True
-                            if len(request_data['blocks_to_write']) != 1 or len(response_data['written_blocks']) != 1:
-                                response_match_request = False
-                            else:
-                                if request_data['blocks_to_write'][0]['address'] != response_data['written_blocks'][0]['address']:
-                                    response_match_request = False
+                request_data = cast(protocol_typing.Request.MemoryControl.Write, self.protocol.parse_request(request))
+                response_data = cast(protocol_typing.Response.MemoryControl.Write, self.protocol.parse_response(response))
 
-                                if len(request_data['blocks_to_write'][0]['data']) != response_data['written_blocks'][0]['length']:
-                                    response_match_request = False
-
-                            if response_match_request:
-                                newval, mask = self.entry_being_updated.encode_pending_update_value()
-                                self.entry_being_updated.set_value_from_data(newval)
-                                self.entry_being_updated.mark_target_update_request_complete()
-                            else:
-                                self.logger.error('Received a WriteMemory response that does not match the request')
-                        else:
-                            self.logger.warning('Received a WriteMemory response but no datastore entry was being updated.')
+                if self.entry_being_updated is not None and self.entry_being_updated.has_pending_target_update():
+                    response_match_request = True
+                    if len(request_data['blocks_to_write']) != 1 or len(response_data['written_blocks']) != 1:
+                        response_match_request = False
                     else:
-                        self.logger.error('Response for WriteMemory request is malformed and must be discared.')
+                        if request_data['blocks_to_write'][0]['address'] != response_data['written_blocks'][0]['address']:
+                            response_match_request = False
+
+                        if len(request_data['blocks_to_write'][0]['data']) != response_data['written_blocks'][0]['length']:
+                            response_match_request = False
+
+                    if response_match_request:
+                        newval, mask = self.entry_being_updated.encode_pending_update_value()
+                        self.entry_being_updated.set_value_from_data(newval)
+                        self.entry_being_updated.mark_target_update_request_complete()
+                    else:
+                        self.logger.error('Received a WriteMemory response that does not match the request')
                 else:
-                    self.logger.error('Request associated with WriteMemory response is malformed. Response must be discared.')
+                    self.logger.warning('Received a WriteMemory response but no datastore entry was being updated.')
             else:
                 self.logger.critical('Received a WriteMemory response for the wrong request. This should not happen')
         else:

@@ -19,10 +19,11 @@ from scrutiny.server.device.device_info import *
 import scrutiny.server.protocol.commands as cmd
 from scrutiny.server.device.request_dispatcher import RequestDispatcher, SuccessCallback, FailureCallback
 from scrutiny.server.protocol import *
+import scrutiny.server.protocol.typing as protocol_typing
 
 from scrutiny.core.typehints import GenericCallback
 
-from typing import Optional, Callable, Any
+from typing import Optional, Callable, Any, cast
 
 
 class ProtocolVersionCallback(GenericCallback):
@@ -246,6 +247,7 @@ class InfoPoller:
 
     def success_callback(self, request: Request, response: Response, params: Any = None) -> None:
         self.logger.debug("Success callback. Request=%s. Response Code=%s, Params=%s" % (request, response.code, params))
+        response_data:protocol_typing.ResponseData
 
         must_process_response = True
         if self.stop_requested:
@@ -266,8 +268,9 @@ class InfoPoller:
             must_process_response = False
 
         if must_process_response:
-            response_data = self.protocol.parse_response(response)  # It's ok to have the exception go up
-            if response_data['valid'] == False:
+            try:
+                response_data = self.protocol.parse_response(response)  # It's ok to have the exception go up
+            except Exception as e: 
                 self.request_failed = True
                 error_message_map = {
                     self.FsmState.GetProtocolVersion: 'Device gave invalid data when polling for protocol version. Response Code = %s' % response.code,
@@ -283,10 +286,12 @@ class InfoPoller:
 
         if must_process_response:
             if self.fsm_state == self.FsmState.GetProtocolVersion:
+                response_data = cast(protocol_typing.Response.GetInfo.GetProtocolVersion, response_data)
                 self.info.protocol_major = response_data['major']
                 self.info.protocol_minor = response_data['minor']
 
             elif self.fsm_state == self.FsmState.GetCommParams:
+                response_data = cast(protocol_typing.Response.CommControl.GetParams, response_data)
                 self.info.max_tx_data_size = response_data['max_tx_data_size']
                 self.info.max_rx_data_size = response_data['max_rx_data_size']
                 self.info.max_bitrate_bps = response_data['max_bitrate_bps']
@@ -295,6 +300,7 @@ class InfoPoller:
                 self.info.address_size_bits = response_data['address_size_byte'] * 8
 
             elif self.fsm_state == self.FsmState.GetSupportedFeatures:
+                response_data = cast(protocol_typing.Response.GetInfo.GetSupportedFeatures, response_data)
                 self.info.supported_feature_map = {
                     'memory_write': response_data['memory_write'],
                     'datalog_acquire': response_data['datalog_acquire'],
@@ -302,10 +308,12 @@ class InfoPoller:
                 }
 
             elif self.fsm_state == self.FsmState.GetSpecialMemoryRegionCount:
+                response_data = cast(protocol_typing.Response.GetInfo.GetSpecialMemoryRegionCount, response_data)
                 self.readonly_memory_region_count = response_data['nbr_readonly']
                 self.forbidden_memory_region_count = response_data['nbr_forbidden']
 
             elif self.fsm_state == self.FsmState.GetForbiddenMemoryRegions:
+                response_data = cast(protocol_typing.Response.GetInfo.GetSpecialMemoryRegionLocation, response_data)
                 if self.info.forbidden_memory_regions is None:
                     self.info.forbidden_memory_regions = []
                 forbidden_entry: MemoryRegion = {
@@ -315,6 +323,7 @@ class InfoPoller:
                 self.info.forbidden_memory_regions.append(forbidden_entry)
 
             elif self.fsm_state == self.FsmState.GetReadOnlyMemoryRegions:
+                response_data = cast(protocol_typing.Response.GetInfo.GetSpecialMemoryRegionLocation, response_data)
                 if self.info.readonly_memory_regions is None:
                     self.info.readonly_memory_regions = []
 
