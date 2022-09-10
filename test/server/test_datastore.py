@@ -10,6 +10,7 @@ import unittest
 
 from scrutiny.server.datastore import Datastore, DatastoreVariableEntry
 from scrutiny.core.variable import *
+from scrutiny.server.datastore.datastore_entry import EntryType
 
 
 class TestDataStore(unittest.TestCase):
@@ -132,7 +133,7 @@ class TestDataStore(unittest.TestCase):
         watchers = ds.get_watchers(entries[0])
         self.assertEqual(sorted(watchers), ['watcher1', 'watcher2'])
 
-        watched_entries_id = ds.get_watched_entries_id()
+        watched_entries_id = ds.get_watched_entries_id(EntryType.Var)
         self.assertEqual(len(watched_entries_id), len(entries))
         for entry in entries:
             self.assertIn(entry.get_id(), watched_entries_id)
@@ -143,7 +144,7 @@ class TestDataStore(unittest.TestCase):
         watchers = ds.get_watchers(entries[0])
         self.assertEqual(watchers, ['watcher1'])
 
-        watched_entries_id = ds.get_watched_entries_id()
+        watched_entries_id = ds.get_watched_entries_id(EntryType.Var)
         self.assertEqual(len(watched_entries_id), len(entries))
         for entry in entries:
             self.assertIn(entry.get_id(), watched_entries_id)
@@ -154,7 +155,7 @@ class TestDataStore(unittest.TestCase):
         watchers = ds.get_watchers(entries[0])
         self.assertEqual(watchers, [])
 
-        watched_entries_id = ds.get_watched_entries_id()
+        watched_entries_id = ds.get_watched_entries_id(EntryType.Var)
         self.assertEqual(len(watched_entries_id), 2)
         self.assertIn(entries[2].get_id(), watched_entries_id)
         self.assertIn(entries[3].get_id(), watched_entries_id)
@@ -162,5 +163,5 @@ class TestDataStore(unittest.TestCase):
         ds.stop_watching(entries[2], watcher='watcher1')
         ds.stop_watching(entries[3], watcher='watcher1')
 
-        watched_entries_id = ds.get_watched_entries_id()
+        watched_entries_id = ds.get_watched_entries_id(EntryType.Var)
         self.assertEqual(len(watched_entries_id), 0)

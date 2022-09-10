@@ -9,7 +9,7 @@
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 
 import logging
-from scrutiny.server.datastore.datastore_entry import DatastoreVariableEntry
+from scrutiny.server.datastore.datastore_entry import DatastoreVariableEntry, EntryType
 
 from scrutiny.server.protocol import *
 import scrutiny.server.protocol.typing as protocol_typing
@@ -113,7 +113,7 @@ class MemoryWriter:
         request: Optional[Request] = None
 
         if self.write_cursor >= len(self.watched_entries):
-            self.watched_entries = self.datastore.get_watched_entries_id()
+            self.watched_entries = self.datastore.get_watched_entries_id(EntryType.Var)
             self.write_cursor = 0
 
         if self.entry_being_updated is None:
@@ -126,7 +126,7 @@ class MemoryWriter:
 
         if self.entry_being_updated is not None:
             resolved_entry = self.entry_being_updated.resolve()
-            assert isinstance(resolved_entry, DatastoreVariableEntry)   # No RPV here! We need an address
+            assert isinstance(resolved_entry, DatastoreVariableEntry)   # No RPV or Alias here! We need an address
             #resolved_entry = cast(DatastoreVariableEntry, resolved_entry)
             value_to_write = resolved_entry.get_pending_target_update_val()
             if value_to_write is None:

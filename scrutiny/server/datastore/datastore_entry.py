@@ -10,6 +10,7 @@ import uuid
 from enum import Enum
 import time
 import abc
+from scrutiny.core.basic_types import RuntimePublishedValue
 
 from scrutiny.core.variable import Variable, VariableEnum, EmbeddedDataType
 from scrutiny.core.codecs import *
@@ -296,3 +297,36 @@ class DatastoreAliasEntry(DatastoreEntry):
 
     def decode(self, data: bytes) -> Encodable:
         return self.refentry.decode(data)
+
+
+
+class DatastoreRPVEntry(DatastoreEntry):
+
+    rpv: RuntimePublishedValue
+    codec: BaseCodec
+
+    def __init__(self, display_path: str, rpv: RuntimePublishedValue):
+        super().__init__(display_path=display_path)
+        self.rpv = rpv
+        self.codec = Codecs.get(rpv.datatype, Endianness.Big)    # Default protocol encoding is big endian
+
+    def resolve(self) -> DatastoreEntry:
+        return self
+
+    def get_type(self) -> EntryType:
+        return EntryType.RuntimePublishedValue
+
+    def get_data_type(self) -> EmbeddedDataType:
+        return self.rpv.datatype
+
+    def has_enum(self) -> bool:
+        return False
+
+    def get_enum(self) -> VariableEnum:
+        raise NotImplementedError('RuntimePublishedValues does not have enums')
+
+    def encode(self, value: Encodable) -> Tuple[bytes, Optional[bytes]]:
+        return self.codec.encode(value), None   # Not bitmask on RPV.
+
+    def decode(self, data: bytes) -> Encodable:
+        return self.codec.decode(data)
