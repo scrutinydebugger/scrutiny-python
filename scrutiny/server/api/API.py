@@ -121,7 +121,8 @@ class API:
 
     str_to_entry_type: Dict[str, EntryType] = {
         'var': EntryType.Var,
-        'alias': EntryType.Alias
+        'alias': EntryType.Alias,
+        'rpv': EntryType.RuntimePublishedValue
     }
 
     datastore: Datastore
@@ -309,43 +310,58 @@ class API:
                 if isinstance(req['filter']['type'], list):
                     for t in req['filter']['type']:
                         if t not in self.str_to_entry_type:
-                            raise InvalidRequestException(req, 'Insupported type filter :"%s"' % (t))
+                            raise InvalidRequestException(req, 'Unsupported type filter :"%s"' % (t))
 
                         type_to_include.append(self.str_to_entry_type[t])
 
         if len(type_to_include) == 0:
-            type_to_include = [EntryType.Var, EntryType.Alias]
+            type_to_include = [EntryType.Var, EntryType.Alias, EntryType.RuntimePublishedValue]
 
-        variables = self.datastore.get_entries_list_by_type(EntryType.Var) if EntryType.Var in type_to_include else []
-        alias = self.datastore.get_entries_list_by_type(EntryType.Alias) if EntryType.Alias in type_to_include else []
+        priority = [EntryType.RuntimePublishedValue, EntryType.Alias, EntryType.Var]
+
+        entries = {}
+        for entry_type in priority:
+            entries[entry_type] = self.datastore.get_entries_list_by_type(entry_type) if entry_type in type_to_include else []
 
         done = False
+
+
         while not done:
             if max_per_response is None:
-                alias_to_send = alias
-                var_to_send = variables
+                entries_to_send = entries
                 done = True
             else:
-                nAlias = min(max_per_response, len(alias))
-                alias_to_send = alias[0:nAlias]
-                alias = alias[nAlias:]
+                count = 0
+                entries_to_send = {
+                    EntryType.RuntimePublishedValue : [],
+                    EntryType.Alias :  [],
+                    EntryType.Var :  []
+                }
 
-                nVar = min(max_per_response - nAlias, len(variables))
-                var_to_send = variables[0:nVar]
-                variables = variables[nVar:]
-
-                done = True if len(variables) + len(alias) == 0 else False
+                for entry_type in priority:
+                    n = min(max_per_response-count, len(entries[entry_type]))
+                    entries_to_send[entry_type] = entries[entry_type][0:n]
+                    entries[entry_type] = entries[entry_type][n:]
+                    count += n
+                
+                remaining = 0
+                for entry_type in entries:
+                    remaining += len(entries[entry_type])
+                
+                done = (remaining == 0)
 
             response = {
                 'cmd': self.Command.Api2Client.GET_WATCHABLE_LIST_RESPONSE,
                 'reqid': self.get_req_id(req),
                 'qty': {
-                    'var': len(var_to_send),
-                    'alias': len(alias_to_send)
+                    'var': len(entries_to_send[EntryType.Var]),
+                    'alias': len(entries_to_send[EntryType.Alias]),
+                    'rpv': len(entries_to_send[EntryType.RuntimePublishedValue])
                 },
                 'content': {
-                    'var': [self.make_datastore_entry_definition(x, include_entry_type=False) for x in var_to_send],
-                    'alias': [self.make_datastore_entry_definition(x, include_entry_type=False) for x in alias_to_send]
+                    'var': [self.make_datastore_entry_definition(x, include_entry_type=False) for x in entries_to_send[EntryType.Var]],
+                    'alias': [self.make_datastore_entry_definition(x, include_entry_type=False) for x in entries_to_send[EntryType.Alias]],
+                    'rpv': [self.make_datastore_entry_definition(x, include_entry_type=False) for x in entries_to_send[EntryType.RuntimePublishedValue]]
                 },
                 'done': done
             }
@@ -359,7 +375,8 @@ class API:
             'reqid': self.get_req_id(req),
             'qty': {
                 'var': self.datastore.get_entries_count(EntryType.Var),
-                'alias': self.datastore.get_entries_count(EntryType.Alias)
+                'alias': self.datastore.get_entries_count(EntryType.Alias),
+                'rpv': self.datastore.get_entries_count(EntryType.RuntimePublishedValue),
             }
         }
 
@@ -372,7 +389,7 @@ class API:
 
         for watchable in req['watchables']:
             try:
-                entry = self.datastore.get_entry(watchable)
+                self.datastore.get_entry(watchable) # Will raise an exception if not existant
             except KeyError as e:
                 raise InvalidRequestException(req, 'Unknown watchable ID : %s' % str(watchable))
 
@@ -394,7 +411,7 @@ class API:
 
         for watchable in req['watchables']:
             try:
-                entry = self.datastore.get_entry(watchable)
+                self.datastore.get_entry(watchable) # Will raise an exception if not existant
             except KeyError as e:
                 raise InvalidRequestException(req, 'Unknown watchable ID : %s' % str(watchable))
 

@@ -83,6 +83,7 @@ class Datastore:
         raise KeyError('Entry with ID %s not found in datastore' % entry_id)
 
     def add_watch_callback(self, callback: WatchCallback):
+        # Mainly used to notify device handler that a new variable is to be polled
         self.global_watch_callbacks.append(callback)
 
     def add_unwatch_callback(self, callback: WatchCallback):
@@ -97,6 +98,7 @@ class Datastore:
         if not entry.has_value_change_callback(watcher):
             entry.register_value_change_callback(owner=watcher, callback=callback, args=args)
 
+        # Mainly used to notify device handler that a new variable is to be polled
         for callback in self.global_watch_callbacks:
             callback(entry_id)
 
@@ -119,7 +121,7 @@ class Datastore:
         for callback in self.global_unwatch_callbacks:
             callback(entry_id)
 
-    def get_all_entries(self) -> Iterator[DatastoreEntry]:
+    def get_all_entries(self, entry_type:Optional[EntryType]=None) -> Iterator[DatastoreEntry]:
         for entry_type in EntryType:
             for entry_id in self.entries[entry_type]:
                 yield self.entries[entry_type][entry_id]
