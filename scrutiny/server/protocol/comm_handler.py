@@ -1,6 +1,6 @@
 #    comm_handler.py
 #        The CommHandler task is to convert Requests and Response from or to a stream of bytes.
-#
+#        
 #        This class manage send requests, wait for response, indicates if a response timeout
 #        occured and decodes bytes.
 #        It manages the low level part of the communication protocol with the device

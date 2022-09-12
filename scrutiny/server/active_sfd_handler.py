@@ -100,7 +100,7 @@ class ActiveSFDHandler:
 
     def load_sfd(self, firmware_id: str, verbose=True) -> None:
         self.sfd = None
-        # We only clear the entry types coming from the SFD. 
+        # We only clear the entry types coming from the SFD.
         self.datastore.clear(EntryType.Var)
         self.datastore.clear(EntryType.Alias)
 
@@ -136,7 +136,7 @@ class ActiveSFDHandler:
         must_call_callback = (self.sfd is not None)
 
         self.sfd = None
-        self.datastore.clear(EntryType.Alias)   # We only clear the entry types coming from the SFD. 
+        self.datastore.clear(EntryType.Alias)   # We only clear the entry types coming from the SFD.
         self.datastore.clear(EntryType.Var)
         if must_call_callback:
             self.logger.debug('Triggering SFD Unload callback')

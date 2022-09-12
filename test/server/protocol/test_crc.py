@@ -10,6 +10,7 @@ import unittest
 
 from scrutiny.server.protocol.crc32 import crc32
 
+
 class TestCRC(unittest.TestCase):
 
     def test_crc32(self):

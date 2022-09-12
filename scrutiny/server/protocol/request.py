@@ -12,7 +12,7 @@ from enum import Enum
 
 from .crc32 import crc32
 from .commands.base_command import BaseCommand
-
+from .response import Response
 from typing import Union, Type
 
 
@@ -53,10 +53,16 @@ class Request:
         return data
 
     def get_expected_response_size(self) -> int:
-        return 9 + self.response_payload_size
+        return Response.OVERHEAD_SIZE + self.response_payload_size
+
+    def get_expected_response_data_size(self) -> int:
+        return self.response_payload_size
 
     def size(self) -> int:
-        return 8 + len(self.payload)
+        return Request.OVERHEAD_SIZE + len(self.payload)
+
+    def data_size(self):
+        return len(self.payload)
 
     @classmethod
     def from_bytes(cls, data: bytes):

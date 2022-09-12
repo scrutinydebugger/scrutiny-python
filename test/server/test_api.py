@@ -79,6 +79,7 @@ class StubbedDeviceHandler:
             'user_command': False}
         info.forbidden_memory_regions = [{'start': 0x1000, 'end': 0x2000}]
         info.readonly_memory_regions = [{'start': 0x2000, 'end': 0x3000}, {'start': 0x3000, 'end': 0x4000}]
+        info.runtime_published_values = []
         return info
 
     def configure_comm(self, link_type, link_config):
@@ -137,6 +138,7 @@ class TestAPI(unittest.TestCase):
         self.connections[conn_idx].write_to_server(json.dumps(req))
 
     def assert_no_error(self, response, msg=None):
+        self.assertIsNotNone(response)
         if 'cmd' in response:
             if 'msg' in response and msg is None:
                 msg = response['msg']
@@ -260,7 +262,6 @@ class TestAPI(unittest.TestCase):
         self.assertEqual(len(response['content']['alias']), 5)
         self.assertEqual(len(response['content']['rpv']), 8)
 
-
         # Put all entries in a single list, paired with the name of the parent key.
         all_entries_same_level = []
         all_entries_same_level += [(EntryType.Var, entry) for entry in response['content']['var']]
@@ -355,7 +356,7 @@ class TestAPI(unittest.TestCase):
         all_entries_same_level = []
         all_entries_same_level += [(EntryType.Var, entry) for entry in response['content']['var']]
         all_entries_same_level += [(EntryType.Alias, entry) for entry in response['content']['alias']]
-        all_entries_same_level += [(EntryType.RuntimePublishedValue, entry) for entry in response['content']['rpv']]                                                                            
+        all_entries_same_level += [(EntryType.RuntimePublishedValue, entry) for entry in response['content']['rpv']]
 
         for item in all_entries_same_level:
             entrytype = item[0]
@@ -377,8 +378,6 @@ class TestAPI(unittest.TestCase):
 
     # Fetch list of var/alias and sets a limit of items per response.
     # List should be broken in multiple messages
-
-
 
     def test_get_watchable_list_with_item_limit(self):
         nVar = 19
@@ -431,18 +430,20 @@ class TestAPI(unittest.TestCase):
             if i < len(responses) - 1:
                 self.assertEqual(response['done'], False)
                 self.assertEqual(response['qty']['var'] + response['qty']['alias'] + response['qty']['rpv'], max_per_response)
-                self.assertEqual(len(response['content']['var']) + len(response['content']['alias']) +  len(response['content']['rpv']), max_per_response)
+                self.assertEqual(len(response['content']['var']) + len(response['content']['alias']) +
+                                 len(response['content']['rpv']), max_per_response)
             else:
                 remaining_items = nVar + nAlias + nRpv - (len(responses) - 1) * max_per_response
                 self.assertEqual(response['done'], True)
-                self.assertEqual(response['qty']['var'] + response['qty']['alias'] + response['qty']['rpv'] , remaining_items)
-                self.assertEqual(len(response['content']['var']) + len(response['content']['alias']) + len(response['content']['rpv']), remaining_items)
+                self.assertEqual(response['qty']['var'] + response['qty']['alias'] + response['qty']['rpv'], remaining_items)
+                self.assertEqual(len(response['content']['var']) + len(response['content']['alias']) +
+                                 len(response['content']['rpv']), remaining_items)
 
             # Put all entries in a single list, paired with the name of the parent key.
             all_entries_same_level = []
             all_entries_same_level += [(EntryType.Var, entry) for entry in response['content']['var']]
             all_entries_same_level += [(EntryType.Alias, entry) for entry in response['content']['alias']]
-            all_entries_same_level += [(EntryType.RuntimePublishedValue, entry) for entry in response['content']['rpv']]     
+            all_entries_same_level += [(EntryType.RuntimePublishedValue, entry) for entry in response['content']['rpv']]
 
             for item in all_entries_same_level:
 
@@ -643,6 +644,7 @@ class TestAPI(unittest.TestCase):
             SFDStorage.uninstall(sfd2.get_firmware_id())
 
     def test_get_server_status(self):
+        device_info_exlude_propeties = ['runtime_published_values']
         dummy_sfd1_filename = get_artifact('test_sfd_1.sfd')
         dummy_sfd2_filename = get_artifact('test_sfd_2.sfd')
         with SFDStorage.use_temp_folder():
@@ -675,10 +677,12 @@ class TestAPI(unittest.TestCase):
             self.assertIn('config', response['device_comm_link'])
             self.assertEqual(response['device_comm_link']['config'], {})
             self.assertIn('device_info', response)
+            self.assertIsNotNone(response['device_info'])
             device_info = self.device_handler.get_device_info()
             for attr in device_info.get_attributes():
-                self.assertIn(attr, response['device_info'])
-                self.assertEqual(getattr(device_info, attr), response['device_info'][attr])
+                if attr not in device_info_exlude_propeties:    # Exclude list
+                    self.assertIn(attr, response['device_info'])
+                    self.assertEqual(getattr(device_info, attr), response['device_info'][attr])
 
             # Redo the test, but with no SFD loaded. We should get None
             self.sfd_handler.reset_active_sfd()
@@ -707,8 +711,9 @@ class TestAPI(unittest.TestCase):
             self.assertIn('device_info', response)
             device_info = self.device_handler.get_device_info()
             for attr in device_info.get_attributes():
-                self.assertIn(attr, response['device_info'])
-                self.assertEqual(getattr(device_info, attr), response['device_info'][attr])
+                if attr not in device_info_exlude_propeties:
+                    self.assertIn(attr, response['device_info'])
+                    self.assertEqual(getattr(device_info, attr), response['device_info'][attr])
 
             SFDStorage.uninstall(sfd1.get_firmware_id())
             SFDStorage.uninstall(sfd2.get_firmware_id())

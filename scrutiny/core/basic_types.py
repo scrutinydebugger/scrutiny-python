@@ -68,16 +68,14 @@ class EmbeddedDataType(Enum):
 
     struct = DataTypeType._struct.value | DataTypeSize._NA.value
 
-    def get_size_bit(self) -> Optional[int]:
+    def get_size_bit(self) -> int:
         v = self.get_size_byte()
-        if v is None:
-            return None
         return v * 8
 
-    def get_size_byte(self) -> Optional[int]:
+    def get_size_byte(self) -> int:
         vbytes = (self.value & 0xF)
         if DataTypeSize(vbytes) == DataTypeSize._NA:
-            return None
+            return 0
         return 1 << vbytes
 
 

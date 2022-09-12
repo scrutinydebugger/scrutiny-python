@@ -294,6 +294,12 @@
         },
         "scrutiny/server/protocol/typing.py": {
             "docstring": "Mypy typing information for the Scrutiny protocol"
+        },
+        "scrutiny/server/device/request_generator/rpv_writer.py": {
+            "docstring": "Make requests to read Runtime Published values from the device.\n This feature requires a different protocol message than Memory Read"
+        },
+        "scrutiny/server/device/request_generator/rpv_reader.py": {
+            "docstring": "Make requests to write Runtime Published values from the device.\n This feature requires a different protocol message than Memory Write"
         }
     }
 }

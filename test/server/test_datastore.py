@@ -12,24 +12,26 @@ from scrutiny.server.datastore import *
 from scrutiny.core.variable import *
 from scrutiny.core.basic_types import *
 
+
 class TestDataStore(unittest.TestCase):
     def setUp(self):
         self.callback_call_history = {}
 
-    def make_dummy_entries(self, n:int, entry_type:EntryType, prefix='path'):
-            dummy_var = Variable('dummy', vartype=EmbeddedDataType.float32, path_segments=['a', 'b', 'c'], location=0x12345678, endianness=Endianness.Little)
-            for i in range(n):
-                name = '%s_%d' % (prefix, i)
-                if entry_type == EntryType.Var:
-                    entry = DatastoreVariableEntry(name, variable_def=dummy_var)
-                elif entry_type == EntryType.Alias:
-                    entry_temp = DatastoreVariableEntry(name, variable_def=dummy_var)
-                    entry = DatastoreAliasEntry(name, refentry=entry_temp)
-                else:
-                    dummy_rpv = RuntimePublishedValue(id=i, datatype=EmbeddedDataType.float32)
-                    entry = DatastoreRPVEntry(name, rpv=dummy_rpv)
+    def make_dummy_entries(self, n: int, entry_type: EntryType, prefix='path'):
+        dummy_var = Variable('dummy', vartype=EmbeddedDataType.float32, path_segments=[
+                             'a', 'b', 'c'], location=0x12345678, endianness=Endianness.Little)
+        for i in range(n):
+            name = '%s_%d' % (prefix, i)
+            if entry_type == EntryType.Var:
+                entry = DatastoreVariableEntry(name, variable_def=dummy_var)
+            elif entry_type == EntryType.Alias:
+                entry_temp = DatastoreVariableEntry(name, variable_def=dummy_var)
+                entry = DatastoreAliasEntry(name, refentry=entry_temp)
+            else:
+                dummy_rpv = RuntimePublishedValue(id=i, datatype=EmbeddedDataType.float32)
+                entry = DatastoreRPVEntry(name, rpv=dummy_rpv)
 
-                yield entry
+            yield entry
 
     def entry_callback(self, owner, args, entry):
         if owner not in self.callback_call_history:
@@ -55,36 +57,36 @@ class TestDataStore(unittest.TestCase):
 
     def test_add_get(self):
         ds = Datastore()
-        entries = [] 
+        entries = []
         entries += list(self.make_dummy_entries(3, EntryType.Var))
         entries += list(self.make_dummy_entries(4, EntryType.Alias))
         entries += list(self.make_dummy_entries(5, EntryType.RuntimePublishedValue))
 
         for entry in entries:
             ds.add_entry(entry)
-        
-        self.assertEqual(ds.get_entries_count(), 3+4+5)
+
+        self.assertEqual(ds.get_entries_count(), 3 + 4 + 5)
         self.assertEqual(ds.get_entries_count(EntryType.Var), 3)
         self.assertEqual(ds.get_entries_count(EntryType.Alias), 4)
         self.assertEqual(ds.get_entries_count(EntryType.RuntimePublishedValue), 5)
 
         ds_entries = list(ds.get_all_entries())
-        self.assertEqual(len(ds_entries), 3+4+5)
+        self.assertEqual(len(ds_entries), 3 + 4 + 5)
         for entry in ds_entries:
             self.assertIn(entry, entries)
-        
+
         ds_entries = list(ds.get_entries_list_by_type(EntryType.Var))
         self.assertEqual(len(ds_entries), 3)
         for entry in ds_entries:
             self.assertEqual(entry.get_type(), EntryType.Var)
             self.assertIn(entry, entries)
-        
+
         ds_entries = list(ds.get_entries_list_by_type(EntryType.Alias))
         self.assertEqual(len(ds_entries), 4)
         for entry in ds_entries:
             self.assertEqual(entry.get_type(), EntryType.Alias)
             self.assertIn(entry, entries)
-        
+
         ds_entries = list(ds.get_entries_list_by_type(EntryType.RuntimePublishedValue))
         self.assertEqual(len(ds_entries), 5)
         for entry in ds_entries:
@@ -96,7 +98,7 @@ class TestDataStore(unittest.TestCase):
         entries = list(self.make_dummy_entries(n, EntryType.Var))
         entries += list(self.make_dummy_entries(n, EntryType.Alias))
         entries += list(self.make_dummy_entries(n, EntryType.RuntimePublishedValue
-        ))
+                                                ))
         entry_ids = set()
         for entry in entries:
             self.assertNotIn(entry.get_id(), entry_ids)
@@ -107,7 +109,7 @@ class TestDataStore(unittest.TestCase):
 
         for entry_type in EntryType:
             entries = list(self.make_dummy_entries(5, entry_type))
-            
+
             ds = Datastore()
             ds.add_entries_quiet(entries)
             owner = 'watcher1'

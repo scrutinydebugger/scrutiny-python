@@ -49,8 +49,8 @@ class TestMemoryWriterBasicReadOperation(unittest.TestCase):
         protocol = Protocol(1, 0)
         protocol.set_address_size_bits(32)
         writer = MemoryWriter(protocol, dispatcher=dispatcher, datastore=ds, request_priority=0)
-        writer.set_max_request_size(1024)  # big enough for all of them
-        writer.set_max_response_size(1024)  # big enough for all of them
+        writer.set_max_request_payload_size(1024)  # big enough for all of them
+        writer.set_max_response_payload_size(1024)  # big enough for all of them
         writer.start()
 
         for entry in entries:
@@ -100,8 +100,8 @@ class TestMemoryWriterBasicReadOperation(unittest.TestCase):
         protocol = Protocol(1, 0)
         protocol.set_address_size_bits(32)
         writer = MemoryWriter(protocol, dispatcher=dispatcher, datastore=ds, request_priority=0)
-        writer.set_max_request_size(1024)  # Will require 4 request
-        writer.set_max_response_size(1024)  # big enough for all of them
+        writer.set_max_request_payload_size(1024)  # Will require 4 request
+        writer.set_max_response_payload_size(1024)  # big enough for all of them
         writer.start()
 
         for entry in entries:

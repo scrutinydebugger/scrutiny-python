@@ -10,6 +10,7 @@
 import unittest
 from scrutiny.server.device.links.dummy_link import *
 
+
 class TestDummyLinkBaseClass():
     def __init__(self, test_class):
         self.TEST_CLASS = test_class

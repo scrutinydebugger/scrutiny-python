@@ -15,6 +15,7 @@ from scrutiny.server.protocol import Request, Response
 from scrutiny.server.protocol.commands import DummyCommand
 from scrutiny.server.device.links.dummy_link import DummyLink
 
+
 class TestCommHandler(unittest.TestCase):
     def setUp(self):
         params = {

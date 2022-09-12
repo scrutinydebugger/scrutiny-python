@@ -39,16 +39,15 @@ class Datastore:
             self.entries[entry_type] = {}
             self.watcher_map[entry_type] = {}
 
-    def clear(self, entry_type:Optional[EntryType]=None) -> None:
+    def clear(self, entry_type: Optional[EntryType] = None) -> None:
         if entry_type is None:
             type_to_clear_list = list(EntryType.__iter__())
         else:
             type_to_clear_list = [entry_type]
-        
+
         for type_to_clear in type_to_clear_list:
             self.entries[type_to_clear] = {}
             self.watcher_map[type_to_clear] = {}
-
 
     def add_entries_quiet(self, entries: List[DatastoreEntry]):
         for entry in entries:
@@ -63,7 +62,6 @@ class Datastore:
     def add_entries(self, entries: List[DatastoreEntry]) -> None:
         for entry in entries:
             self.add_entry(entry)
-
 
     def add_entry(self, entry: DatastoreEntry) -> None:
         entry_id = entry.get_id()
@@ -121,7 +119,7 @@ class Datastore:
         for callback in self.global_unwatch_callbacks:
             callback(entry_id)
 
-    def get_all_entries(self, entry_type:Optional[EntryType]=None) -> Iterator[DatastoreEntry]:
+    def get_all_entries(self, entry_type: Optional[EntryType] = None) -> Iterator[DatastoreEntry]:
         for entry_type in EntryType:
             for entry_id in self.entries[entry_type]:
                 yield self.entries[entry_type][entry_id]
@@ -148,7 +146,7 @@ class Datastore:
         entry = self.get_entry(entry_id)
         entry.set_value(value)
 
-    def get_watched_entries_id(self, entry_type:EntryType) -> List[str]:
+    def get_watched_entries_id(self, entry_type: EntryType) -> List[str]:
         return list(self.watcher_map[entry_type].keys())
 
     def get_watchers(self, entry_id: Union[DatastoreEntry, str]) -> List[str]:
@@ -157,5 +155,5 @@ class Datastore:
         for entry_type in EntryType:
             if entry_id in self.watcher_map[entry_type]:
                 watcher_list += list(self.watcher_map[entry_type][entry_id])  # Make a copy
-        
+
         return watcher_list

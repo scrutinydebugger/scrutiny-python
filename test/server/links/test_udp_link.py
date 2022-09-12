@@ -12,6 +12,7 @@ import socket as s
 
 from scrutiny.server.device.links.udp_link import UdpLink
 
+
 class TestUdpLink(unittest.TestCase):
     PORT = 40555
 

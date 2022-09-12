@@ -50,6 +50,7 @@ class InfoPoller:
     request_failed: bool
     forbidden_memory_region_count: Optional[int]
     readonly_memory_region_count: Optional[int]
+    rpv_count: Optional[int]
     error_message: str
 
     class FsmState(enum.Enum):
@@ -61,7 +62,9 @@ class InfoPoller:
         GetSpecialMemoryRegionCount = 4
         GetForbiddenMemoryRegions = 5
         GetReadOnlyMemoryRegions = 6
-        Done = 7
+        GetRPVCount = 7
+        GetRPVDefinition = 8
+        Done = 9
 
     def __init__(self, protocol: Protocol, dispatcher: RequestDispatcher, priority: int,
                  protocol_version_callback: Optional[ProtocolVersionCallback] = None,
@@ -109,6 +112,7 @@ class InfoPoller:
         self.request_failed = False
         self.forbidden_memory_region_count = None
         self.readonly_memory_region_count = None
+        self.rpv_count = 0
         self.error_message = ""
         self.info.clear()
 
@@ -208,6 +212,7 @@ class InfoPoller:
                 if self.request_failed:
                     next_state = self.FsmState.Error
 
+                assert self.info.forbidden_memory_regions is not None   # for mypy
                 if len(self.info.forbidden_memory_regions) >= self.forbidden_memory_region_count:
                     next_state = self.FsmState.GetReadOnlyMemoryRegions
 
@@ -225,7 +230,53 @@ class InfoPoller:
                 if self.request_failed:
                     next_state = self.FsmState.Error
 
+                assert self.info.readonly_memory_regions is not None
                 if len(self.info.readonly_memory_regions) >= self.readonly_memory_region_count:
+                    next_state = self.FsmState.GetRPVCount
+
+        # ======= [GetRPVCount] =====
+        elif self.fsm_state == self.FsmState.GetRPVCount:
+            if state_entry:
+                self.rpv_count = None
+                self.dispatcher.register_request(request=self.protocol.get_rpv_count(),
+                                                 success_callback=SuccessCallback(self.success_callback), failure_callback=FailureCallback(self.failure_callback), priority=self.priority)
+                self.request_pending = True
+
+            if self.request_failed:
+                next_state = self.FsmState.Error
+            if not self.request_pending:
+                next_state = self.FsmState.GetRPVDefinition
+
+        # ======= [GetRPVDefinition] =====
+        elif self.fsm_state == self.FsmState.GetRPVDefinition:
+            if state_entry:
+                if self.rpv_count is None:
+                    next_state = self.FsmState.Error
+                elif self.info.max_rx_data_size is None or self.info.max_tx_data_size is None:
+                    next_state = self.FsmState.Error
+                else:
+                    max_rpv_per_request = self.info.max_tx_data_size // self.protocol.get_rpv_definition_response_size_per_rpv()
+                    self.info.runtime_published_values = []
+
+            if self.request_failed:
+                next_state = self.FsmState.Error
+
+            elif not self.request_pending and next_state != self.FsmState.Error:
+                assert self.info.runtime_published_values is not None
+                assert self.rpv_count is not None
+
+                already_read_count = len(self.info.runtime_published_values)
+                if already_read_count < self.rpv_count:
+                    count = min(max_rpv_per_request, self.rpv_count - already_read_count)
+                    request = self.protocol.get_rpv_definition(start=len(self.info.runtime_published_values), count=count)
+                    self.dispatcher.register_request(
+                        request=request,
+                        success_callback=SuccessCallback(self.success_callback),
+                        failure_callback=FailureCallback(self.failure_callback),
+                        priority=self.priority
+                    )
+                    self.request_pending = True
+                else:
                     next_state = self.FsmState.Done
 
         elif self.fsm_state == self.FsmState.Done:
@@ -260,7 +311,9 @@ class InfoPoller:
                 self.FsmState.GetSupportedFeatures: 'Device refused to give supported features. Response Code = %s' % response.code,
                 self.FsmState.GetSpecialMemoryRegionCount: 'Device refused to give special region count. Response Code = %s' % response.code,
                 self.FsmState.GetForbiddenMemoryRegions: 'Device refused to give forbidden region list. Response Code = %s' % response.code,
-                self.FsmState.GetReadOnlyMemoryRegions: 'Device refused to give readonly region list. Response Code = %s' % response.code
+                self.FsmState.GetReadOnlyMemoryRegions: 'Device refused to give readonly region list. Response Code = %s' % response.code,
+                self.FsmState.GetRPVCount: 'Device refused to give RuntimePublishedValues count. Response Code = %s' % response.code,
+                self.FsmState.GetRPVDefinition: 'Device refused to give RuntimePublishedValues definition. Response Code = %s' % response.code
             }
             self.error_message = error_message_map[self.fsm_state] if self.fsm_state in error_message_map else 'Internal error - Request denied. %s - %s' % (
                 str(Request), response.code)
@@ -277,7 +330,9 @@ class InfoPoller:
                     self.FsmState.GetSupportedFeatures: 'Device gave invalid data when polling for supported features. Response Code = %s' % response.code,
                     self.FsmState.GetSpecialMemoryRegionCount: 'Device gave invalid data when polling for special region count. Response Code = %s' % response.code,
                     self.FsmState.GetForbiddenMemoryRegions: 'Device gave invalid data when polling for forbidden region list. Response Code = %s' % response.code,
-                    self.FsmState.GetReadOnlyMemoryRegions: 'Device gave invalid data when polling for readonly region list. Response Code = %s' % response.code
+                    self.FsmState.GetReadOnlyMemoryRegions: 'Device gave invalid data when polling for readonly region list. Response Code = %s' % response.code,
+                    self.FsmState.GetRPVCount: 'Device gave invalid data when polling for RuntimePublishedValues count. Response Code = %s' % response.code,
+                    self.FsmState.GetRPVCount: 'Device gave invalid data when polling for RuntimePublishedValues definition. Response Code = %s' % response.code
                 }
                 self.error_message = error_message_map[self.fsm_state] if self.fsm_state in error_message_map else 'Internal error - Invalid response for request %s' % str(
                     Request)
@@ -331,6 +386,15 @@ class InfoPoller:
                     'end': response_data['end']
                 }
                 self.info.readonly_memory_regions.append(readonly_entry)
+
+            elif self.fsm_state == self.FsmState.GetRPVCount:
+                response_data = cast(protocol_typing.Response.GetInfo.GetRuntimePublishedValuesCount, response_data)
+                self.rpv_count = response_data['count']
+
+            elif self.fsm_state == self.FsmState.GetRPVDefinition:
+                response_data = cast(protocol_typing.Response.GetInfo.GetRuntimePublishedValuesDefinition, response_data)
+                assert self.info.runtime_published_values is not None
+                self.info.runtime_published_values += response_data['rpvs']
 
             else:
                 self.fsm_state == self.FsmState.Error

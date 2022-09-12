@@ -43,5 +43,3 @@ class TestTypes(unittest.TestCase):
         self.assertEqual(EmbeddedDataType.cfloat256.get_size_byte(), 32)
 
         self.assertEqual(EmbeddedDataType.boolean.get_size_byte(), 1)
-
-        self.assertIsNone(EmbeddedDataType.struct.get_size_byte())

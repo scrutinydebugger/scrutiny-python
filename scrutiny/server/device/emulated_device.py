@@ -12,6 +12,7 @@ import time
 import logging
 import random
 import traceback
+from scrutiny.core.codecs import Encodable
 
 import scrutiny.server.protocol.commands as cmd
 from scrutiny.server.device.links.dummy_link import DummyLink, ThreadSafeDummyLink
@@ -20,7 +21,7 @@ import scrutiny.server.protocol.typing as protocol_typing
 from scrutiny.core.memory_content import MemoryContent
 from scrutiny.core.basic_types import RuntimePublishedValue, EmbeddedDataType
 
-from typing import List, Dict, Optional, Union, Any, Tuple, TypedDict, cast
+from typing import List, Dict, Optional, Union, Any, Tuple, TypedDict, cast, Set
 
 
 class RequestLogRecord:
@@ -62,7 +63,7 @@ class EmulatedDevice:
     session_id: Optional[int]
     memory: MemoryContent
     memory_lock: threading.Lock
-    rpvs: List[RPVValuePair]
+    rpvs: Dict[int, RPVValuePair]
 
     def __init__(self, link):
         if not isinstance(link, DummyLink) and not isinstance(link, ThreadSafeDummyLink):
@@ -96,12 +97,12 @@ class EmulatedDevice:
             'user_command': False
         }
 
-        self.rpvs = [
-            {'definition': RuntimePublishedValue(id=0x1001, datatype=EmbeddedDataType.float32), 'value': 3.1415926},
-            {'definition': RuntimePublishedValue(id=0x1002, datatype=EmbeddedDataType.uint16), 'value': 0x1234},
-            {'definition': RuntimePublishedValue(id=0x1003, datatype=EmbeddedDataType.sint8), 'value': -65},
-            {'definition': RuntimePublishedValue(id=0x1004, datatype=EmbeddedDataType.boolean), 'value': True}
-        ]
+        self.rpvs = {
+            0x1001: {'definition': RuntimePublishedValue(id=0x1001, datatype=EmbeddedDataType.float32), 'value': 3.1415926},
+            0x1002: {'definition': RuntimePublishedValue(id=0x1002, datatype=EmbeddedDataType.uint16), 'value': 0x1234},
+            0x1003: {'definition': RuntimePublishedValue(id=0x1003, datatype=EmbeddedDataType.sint8), 'value': -65},
+            0x1004: {'definition': RuntimePublishedValue(id=0x1004, datatype=EmbeddedDataType.boolean), 'value': True}
+        }
 
         self.forbidden_regions = [
             {'start': 0x100, 'end': 0x1FF},
@@ -112,7 +113,7 @@ class EmulatedDevice:
             {'start': 0x800, 'end': 0x8FF},
             {'start': 0x900, 'end': 0x9FF}]
 
-        self.protocol.configure_rpvs([x['definition'] for x in self.rpvs])
+        self.protocol.configure_rpvs([self.rpvs[id]['definition'] for id in self.rpvs])
 
     def thread_task(self) -> None:
         self.thread_started_event.set()
@@ -267,8 +268,10 @@ class EmulatedDevice:
             if data['start'] + data['count'] > len(self.rpvs):
                 return Response(req.command, subfunction, ResponseCode.FailureToProceed)
 
-            selected_rpv_value_pair = self.rpvs[data['start']:data['start'] + data['count']]
-            response = self.protocol.respond_get_rpv_definition([x['definition'] for x in selected_rpv_value_pair])
+            all_rpvs = self.get_rpvs()
+            all_rpvs.sort(key=lambda x: x.id)
+            selected_rpvs = all_rpvs[data['start']:data['start'] + data['count']]
+            response = self.protocol.respond_get_rpv_definition(selected_rpvs)
         else:
             self.logger.error('Unsupported subfunction "%s" for command : "%s"' % (subfunction, req.command.__name__))
 
@@ -321,7 +324,7 @@ class EmulatedDevice:
                 if id not in self.rpvs:
                     raise Exception('Unknown RPV with ID 0x%x' % id)
                 self.rpvs[id]['value'] = value
-                write_response_data.append(rpv_id)
+                write_response_data.append(id)
 
             response = self.protocol.respond_write_runtime_published_values(write_response_data)
 
@@ -404,3 +407,14 @@ class EmulatedDevice:
         data = self.memory.read(address, length)
         self.memory_lock.release()
         return data
+
+    def get_rpvs(self) -> List[RuntimePublishedValue]:
+        output: List[RuntimePublishedValue] = []
+        for id in self.rpvs:
+            output.append(self.rpvs[id]['definition'])
+        return output
+
+    def write_rpv(self, id: int, value: Any) -> None:
+        if id not in self.rpvs:
+            raise Exception('Unknown RuntimePublishedValue with ID %d' % id)
+        self.rpvs[id]['value'] = value

@@ -25,7 +25,7 @@ from typing import Any, List, Tuple, Optional, cast
 class DataStoreEntrySortableByAddress:
     entry: DatastoreVariableEntry
 
-    def __init__(self, entry):
+    def __init__(self, entry: DatastoreVariableEntry):
         self.entry = entry
 
     def __hash__(self):
@@ -52,8 +52,8 @@ class DataStoreEntrySortableByAddress:
 
 class MemoryReader:
 
-    DEFAULT_MAX_REQUEST_SIZE: int = 1024
-    DEFAULT_MAX_RESPONSE_SIZE: int = 1024
+    DEFAULT_MAX_REQUEST_PAYLOAD_SIZE: int = 1024
+    DEFAULT_MAX_RESPONSE_PAYLOAD_SIZE: int = 1024
 
     logger: logging.Logger
     dispatcher: RequestDispatcher
@@ -63,8 +63,8 @@ class MemoryReader:
     stop_requested: bool
     request_pending: bool
     started: bool
-    max_request_size: int
-    max_response_size: int
+    max_request_payload_size: int
+    max_response_payload_size: int
     forbidden_regions: List[Tuple[int, int]]
     readonly_regions: List[Tuple[int, int]]
     watched_entries_sorted_by_address: SortedSet
@@ -82,27 +82,30 @@ class MemoryReader:
 
         self.reset()
 
-    def set_max_request_size(self, max_size: int) -> None:
-        self.max_request_size = max_size
+    def set_max_request_payload_size(self, max_size: int) -> None:
+        self.max_request_payload_size = max_size
 
-    def set_max_response_size(self, max_size: int) -> None:
-        self.max_response_size = max_size
+    def set_max_response_payload_size(self, max_size: int) -> None:
+        self.max_response_payload_size = max_size
 
-    def set_size_limits(self, max_request_size: int, max_response_size: int) -> None:
-        self.set_max_request_size(max_request_size)
-        self.set_max_response_size(max_response_size)
+    def set_size_limits(self, max_request_payload_size: int, max_response_payload_size: int) -> None:
+        self.set_max_request_payload_size(max_request_payload_size)
+        self.set_max_response_payload_size(max_response_payload_size)
 
     def add_forbidden_region(self, start_addr: int, size: int) -> None:
         self.forbidden_regions.append((start_addr, size))
 
     def the_watch_callback(self, entry_id: str) -> None:
         entry = self.datastore.get_entry(entry_id)
-        self.watched_entries_sorted_by_address.add(DataStoreEntrySortableByAddress(entry))
+        if isinstance(entry, DatastoreVariableEntry):   # Should we use.resolve() here for alias??
+            # Memory reader reads by address. Only Variables has that
+            self.watched_entries_sorted_by_address.add(DataStoreEntrySortableByAddress(entry))
 
     def the_unwatch_callback(self, entry_id: str) -> None:
         if len(self.datastore.get_watchers(entry_id)) == 0:
             entry = self.datastore.get_entry(entry_id)
-            self.watched_entries_sorted_by_address.discard(DataStoreEntrySortableByAddress(entry))
+            if isinstance(entry, DatastoreVariableEntry):
+                self.watched_entries_sorted_by_address.discard(DataStoreEntrySortableByAddress(entry))
 
     def start(self) -> None:
         self.started = True
@@ -115,8 +118,8 @@ class MemoryReader:
         self.request_pending = False
         self.started = False
 
-        self.max_request_size = self.DEFAULT_MAX_REQUEST_SIZE
-        self.max_response_size = self.DEFAULT_MAX_RESPONSE_SIZE
+        self.max_request_payload_size = self.DEFAULT_MAX_REQUEST_PAYLOAD_SIZE
+        self.max_response_payload_size = self.DEFAULT_MAX_RESPONSE_PAYLOAD_SIZE
         self.forbidden_regions = []
         self.readonly_regions = []
 
@@ -149,11 +152,14 @@ class MemoryReader:
         This method generate a read request by moving in a list of watched entries
         It works in a round-robin scheme and will agglomerate entries that are contiguous in memory
         """
-        max_block_per_request: int = (self.max_request_size - Request.OVERHEAD_SIZE) // self.protocol.read_memory_request_size_per_block()
+        max_block_per_request: int = self.max_request_payload_size // self.protocol.read_memory_request_size_per_block()
         entries_in_request: List[DatastoreVariableEntry] = []
         block_list: List[Tuple[int, int]] = []
         skipped_entries_count = 0
         clusters_in_request: List[Cluster] = []
+
+        if self.read_cursor >= len(self.watched_entries_sorted_by_address):
+            self.read_cursor = 0
 
         memory_to_read = MemoryContent(retain_data=False)  # We'll use that for agglomeration
         while len(entries_in_request) + skipped_entries_count < len(self.watched_entries_sorted_by_address):
@@ -191,7 +197,7 @@ class MemoryReader:
                     response_size += self.protocol.read_memory_response_overhead_size_per_block()
                     response_size += cluster.size
 
-                if response_size > self.max_response_size:
+                if response_size > self.max_response_payload_size:
                     break   # No space in response
 
                 # We can fit the data so far..  latch the list of cluster and add the candidate to the entries to be updated
@@ -237,7 +243,6 @@ class MemoryReader:
     def failure_callback(self, request: Request, params: Any = None) -> None:
         self.logger.debug("Failure callback. Request=%s. Params=%s" % (request, params))
         self.logger.error('Failed to get a response for ReadMemory request.')
-
         self.read_completed()
 
     def read_completed(self) -> None:

@@ -28,6 +28,7 @@ from .abstract_client_handler import AbstractClientHandler, ClientHandlerMessage
 from scrutiny.core.typehints import GenericCallback
 from typing import Callable, Dict, List, Set, Any, TypedDict, cast
 
+
 class APIConfig(TypedDict, total=False):
     client_interface_type: str
     client_interface_config: Any
@@ -107,8 +108,7 @@ class API:
         EmbeddedDataType.cfloat64: 'cfloat64',
         EmbeddedDataType.cfloat128: 'cfloat128',
         EmbeddedDataType.cfloat256: 'cfloat256',
-        EmbeddedDataType.boolean: 'boolean',
-        EmbeddedDataType.struct: 'struct'
+        EmbeddedDataType.boolean: 'boolean'
     }
 
     device_conn_status_to_str: Dict[DeviceHandler.ConnectionStatus, str] = {
@@ -325,7 +325,6 @@ class API:
 
         done = False
 
-
         while not done:
             if max_per_response is None:
                 entries_to_send = entries
@@ -333,21 +332,21 @@ class API:
             else:
                 count = 0
                 entries_to_send = {
-                    EntryType.RuntimePublishedValue : [],
-                    EntryType.Alias :  [],
-                    EntryType.Var :  []
+                    EntryType.RuntimePublishedValue: [],
+                    EntryType.Alias: [],
+                    EntryType.Var: []
                 }
 
                 for entry_type in priority:
-                    n = min(max_per_response-count, len(entries[entry_type]))
+                    n = min(max_per_response - count, len(entries[entry_type]))
                     entries_to_send[entry_type] = entries[entry_type][0:n]
                     entries[entry_type] = entries[entry_type][n:]
                     count += n
-                
+
                 remaining = 0
                 for entry_type in entries:
                     remaining += len(entries[entry_type])
-                
+
                 done = (remaining == 0)
 
             response = {
@@ -389,7 +388,7 @@ class API:
 
         for watchable in req['watchables']:
             try:
-                self.datastore.get_entry(watchable) # Will raise an exception if not existant
+                self.datastore.get_entry(watchable)  # Will raise an exception if not existant
             except KeyError as e:
                 raise InvalidRequestException(req, 'Unknown watchable ID : %s' % str(watchable))
 
@@ -411,7 +410,7 @@ class API:
 
         for watchable in req['watchables']:
             try:
-                self.datastore.get_entry(watchable) # Will raise an exception if not existant
+                self.datastore.get_entry(watchable)  # Will raise an exception if not existant
             except KeyError as e:
                 raise InvalidRequestException(req, 'Unknown watchable ID : %s' % str(watchable))
 
@@ -593,18 +592,18 @@ class API:
             }
 
         device_info: Optional[ApiMsgComp_DeviceInfo] = None
-        if device_info_input is not None:
+        if device_info_input is not None and device_info_input.all_ready():
             device_info = {
-                'device_id': device_info_input.device_id,
-                'display_name': device_info_input.display_name,
-                'max_tx_data_size': device_info_input.max_tx_data_size,
-                'max_rx_data_size': device_info_input.max_rx_data_size,
-                'max_bitrate_bps': device_info_input.max_bitrate_bps,
-                'rx_timeout_us': device_info_input.rx_timeout_us,
-                'heartbeat_timeout_us': device_info_input.heartbeat_timeout_us,
-                'address_size_bits': device_info_input.address_size_bits,
-                'protocol_major': device_info_input.protocol_major,
-                'protocol_minor': device_info_input.protocol_minor,
+                'device_id': cast(str, device_info_input.device_id),
+                'display_name': cast(str, device_info_input.display_name),
+                'max_tx_data_size': cast(int, device_info_input.max_tx_data_size),
+                'max_rx_data_size': cast(int, device_info_input.max_rx_data_size),
+                'max_bitrate_bps': cast(int, device_info_input.max_bitrate_bps),
+                'rx_timeout_us': cast(int, device_info_input.rx_timeout_us),
+                'heartbeat_timeout_us': cast(int, device_info_input.heartbeat_timeout_us),
+                'address_size_bits': cast(int, device_info_input.address_size_bits),
+                'protocol_major': cast(int, device_info_input.protocol_major),
+                'protocol_minor': cast(int, device_info_input.protocol_minor),
                 'supported_feature_map': cast(Dict[str, bool], device_info_input.supported_feature_map),
                 'forbidden_memory_regions': cast(List[Dict[str, int]], device_info_input.forbidden_memory_regions),
                 'readonly_memory_regions': cast(List[Dict[str, int]], device_info_input.readonly_memory_regions)

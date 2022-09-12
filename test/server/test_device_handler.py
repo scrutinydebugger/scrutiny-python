@@ -8,22 +8,33 @@
 
 import unittest
 from time import time, sleep
+from scrutiny.core.codecs import Encodable
+from scrutiny.server.datastore.datastore_entry import DatastoreRPVEntry, EntryType
 from test import logger
 import signal  # For ctrl+c handling
 import struct
+import random
 
 from scrutiny.server.device.emulated_device import EmulatedDevice
 from scrutiny.server.device.device_handler import DeviceHandler
 from scrutiny.server.device.links.dummy_link import ThreadSafeDummyLink
 from scrutiny.server.datastore import Datastore, DatastoreVariableEntry
 from scrutiny.core.variable import Variable
+from scrutiny.core.codecs import Codecs
 from scrutiny.core.basic_types import *
 
 from scrutiny.core.typehints import GenericCallback
+from typing import cast, List
 
 
 def d2f(d):
     return struct.unpack('f', struct.pack('f', d))[0]
+
+
+def generate_random_value(datatype: EmbeddedDataType) -> Encodable:
+    # Generate random bitstring of the right size. Then decode it.
+    bytestr = bytes([random.randint(0, 0xff) for i in range(datatype.get_size_byte())])
+    return Codecs.get(datatype, Endianness.Big).decode(bytestr)
 
 
 class TestDeviceHandler(unittest.TestCase):
@@ -373,6 +384,94 @@ class TestDeviceHandler(unittest.TestCase):
 
         self.assertTrue(connection_successful)
         self.assertEqual(round_completed, test_round_to_do)  # Check that we made 5 cycles of value
+
+    def test_discover_read_write_rpvs(self):
+        test_round_to_do = 5
+        setup_timeout = 2
+        hold_timeout = 5
+
+        timeout = setup_timeout
+        round_completed = 0
+        t1 = time()
+        all_entries = []
+        write_timestamp = 0
+        write_from_device_timestamp = 0
+        state = 'wait_for_connection'
+
+        while time() - t1 < timeout and round_completed < test_round_to_do:
+            self.device_handler.process()
+
+            status = self.device_handler.get_connection_status()
+            self.assertEqual(self.device_handler.get_comm_error_count(), 0)
+
+            if status == DeviceHandler.ConnectionStatus.CONNECTED_READY:
+                if state == 'wait_for_connection':
+                    timeout = hold_timeout
+
+                    self.assertEqual(self.datastore.get_entries_count(EntryType.Var), 0)
+                    self.assertEqual(self.datastore.get_entries_count(EntryType.Alias), 0)
+                    self.assertEqual(self.datastore.get_entries_count(EntryType.RuntimePublishedValue), len(self.emulated_device.rpvs))
+
+                    all_entries = cast(List[DatastoreRPVEntry], self.datastore.get_entries_list_by_type(EntryType.RuntimePublishedValue))
+
+                    for entry in all_entries:
+                        assert isinstance(entry, DatastoreRPVEntry)
+                        self.datastore.start_watching(entry, watcher='unittest', callback=GenericCallback(lambda *args, **kwargs: None))
+
+                    state = 'write'
+                    round_completed = 0
+
+                if state == 'write':
+                    write_timestamp = time()
+                    written_values = {}
+                    for entry in all_entries:
+                        rpv = entry.get_rpv()
+                        written_values[rpv.id] = generate_random_value(rpv.datatype)
+                        entry.update_target_value(written_values[rpv.id])
+
+                    state = 'wait_for_update_and_validate'
+
+                elif state == 'wait_for_update_and_validate':
+                    all_updated = True
+                    for entry in all_entries:
+                        last_update_timestamp = entry.get_last_update_timestamp()
+                        if last_update_timestamp is None or last_update_timestamp < write_timestamp:
+                            all_updated = False
+                        else:
+                            rpv = entry.get_rpv()
+                            self.assertEqual(entry.get_value(), written_values[rpv.id])
+
+                    if all_updated:
+                        written_values = {}
+                        state = 'write_from_device'
+
+                elif state == 'write_from_device':
+                    written_values = {}
+                    write_from_device_timestamp = time()
+                    for rpv in self.emulated_device.get_rpvs():
+                        written_values[rpv.id] = generate_random_value(rpv.datatype)
+                        self.emulated_device.write_rpv(rpv.id, written_values[rpv.id])
+                    state = 'wait_for_update_and_read'
+
+                elif state == 'wait_for_update_and_read':
+                    all_updated = True
+                    for entry in all_entries:
+                        rpv = entry.get_rpv()
+                        if entry.get_update_time() < write_from_device_timestamp:
+                            all_updated = False
+                        else:
+                            self.assertEqual(entry.get_value(), written_values[rpv.id])
+
+                    if all_updated:
+                        state = 'done'
+                        written_values = {}
+
+                elif state == 'done':
+                    round_completed += 1
+                    sleep(0.02)
+                    state = 'write'
+
+        self.assertEqual(round_completed, test_round_to_do)  # Make sure test went through.
 
 
 class TestDeviceHandlerMultipleLink(unittest.TestCase):

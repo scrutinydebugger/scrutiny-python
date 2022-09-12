@@ -15,7 +15,7 @@ from .exceptions import *
 from .datalog import *
 from . import commands as cmd
 from . import Request, Response
-from scrutiny.core.codecs import Codecs
+from scrutiny.core.codecs import *
 from scrutiny.core.basic_types import Endianness, RuntimePublishedValue
 import scrutiny.server.protocol.typing as protocol_typing
 
@@ -137,6 +137,33 @@ class Protocol:
     def get_rpv_definition(self, start: int, count: int):
         return Request(cmd.GetInfo, cmd.GetInfo.Subfunction.GetRuntimePublishedValuesDefinition, struct.pack('>HH', start, count), response_payload_size=3 * count)
 
+    def get_rpv_definition_req_size(self) -> int:
+        return 4
+
+    def get_rpv_definition_response_size_per_rpv(self) -> int:
+        return 3
+
+    def read_rpv_request_size_per_rpv(self) -> int:
+        return 2
+
+    def read_rpv_request_required_size(self, rpvs: List[RuntimePublishedValue]) -> int:
+        return self.read_rpv_request_size_per_rpv() * len(rpvs)
+
+    def read_rpv_response_required_size(self, rpvs: List[RuntimePublishedValue]) -> int:
+        sum = 0
+        for rpv in rpvs:
+            sum = 2 + rpv.datatype.get_size_byte()
+        return sum
+
+    def write_rpv_request_required_size(self, rpvs: List[RuntimePublishedValue]) -> int:
+        sum = 0
+        for rpv in rpvs:
+            sum = 2 + rpv.datatype.get_size_byte()
+        return sum
+
+    def write_rpv_response_required_size(self, rpvs: List[RuntimePublishedValue]) -> int:
+        return self.get_rpv_definition_response_size_per_rpv() * len(rpvs)
+
     def read_memory_request_size_per_block(self):
         return self.get_address_size_bytes() + 2  # Address + 16 bits length
 
@@ -191,7 +218,7 @@ class Protocol:
         expected_response_size = 0
         for id in ids:
             if id not in self.rpv_map:
-                raise Exception('Unkown RuntimePublishedValue ID %s' % id)
+                raise Exception('Unkown RuntimePublishedValue ID 0x%x' % id)
             rpv = self.rpv_map[id]
             typesize = rpv.datatype.get_size_byte()
             assert typesize is not None
@@ -201,7 +228,7 @@ class Protocol:
         data = struct.pack('>' + 'H' * nbids, *ids)
         return Request(cmd.MemoryControl, cmd.MemoryControl.Subfunction.ReadRPV, data, response_payload_size=expected_response_size)
 
-    def write_runtime_published_values(self, values: Union[List[Tuple[int, Any]], Tuple[int, Any]]):
+    def write_runtime_published_values(self, values: Union[List[Tuple[int, Encodable]], Tuple[int, Encodable]]):
         if not isinstance(values, list):
             values = [values]
 
@@ -460,6 +487,7 @@ class Protocol:
 
 
 # ======================== Response =================
+
 
     def respond_not_ok(self, req: Request, code: Union[int, Enum]) -> Response:
         return Response(req.command, req.subfn, Response.ResponseCode(code))

@@ -6,7 +6,6 @@
 #
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 
-
 class GenericCallback:
     """
     This class is a way to workaround the limitation of mypy with assigning callbacks

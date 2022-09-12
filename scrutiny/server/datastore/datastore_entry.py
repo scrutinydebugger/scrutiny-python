@@ -299,7 +299,6 @@ class DatastoreAliasEntry(DatastoreEntry):
         return self.refentry.decode(data)
 
 
-
 class DatastoreRPVEntry(DatastoreEntry):
 
     rpv: RuntimePublishedValue
@@ -330,3 +329,6 @@ class DatastoreRPVEntry(DatastoreEntry):
 
     def decode(self, data: bytes) -> Encodable:
         return self.codec.decode(data)
+
+    def get_rpv(self) -> RuntimePublishedValue:
+        return self.rpv
