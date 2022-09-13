@@ -92,3 +92,6 @@ class RuntimePublishedValue:
 
         self.id = id
         self.datatype = datatype
+    
+    def __repr__(self):
+        return "<%s: 0x%x (%s) at 0x%016x>" % (self.__class__.__name__, self.id, self.datatype.name, id(self))

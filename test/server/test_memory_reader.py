@@ -200,7 +200,7 @@ class TestMemoryReaderBasicReadOperation(unittest.TestCase):
         protocol = Protocol(1, 0)
         reader = MemoryReader(protocol, dispatcher=dispatcher, datastore=ds, request_priority=0)
         reader.set_max_request_payload_size(1024)  # Non-limiting here
-        reader.set_max_response_payload_size(Response.OVERHEAD_SIZE + protocol.read_memory_response_overhead_size_per_block() * 10 + 4 * 10)
+        reader.set_max_response_payload_size(protocol.read_memory_response_overhead_size_per_block() * 10 + 4 * 10)
         reader.start()
 
         for entry in entries:
@@ -285,9 +285,9 @@ class TestMemoryReaderBasicReadOperation(unittest.TestCase):
             ds.start_watching(entry, 'unittest', callback=GenericCallback(lambda *args, **kwargs: None))
 
         # Try multiple max_size
-        for max_response_size in range(32, 128):
+        for max_response_payload_size in range(32, 128):
             for i in range(20):  # repeat multiple time just tu be sure. Will do all entries and wrap
-                reader.set_max_response_payload_size(max_response_size)
+                reader.set_max_response_payload_size(max_response_payload_size)
                 reader.process()
                 dispatcher.process()
 
@@ -301,7 +301,7 @@ class TestMemoryReaderBasicReadOperation(unittest.TestCase):
                     response_block.append((block['address'], b'\x00' * block['length']))
 
                 response = protocol.respond_read_memory_blocks(response_block)
-                self.assertLessEqual(response.size(), max_response_size)    # That's the main test
+                self.assertLessEqual(response.data_size(), max_response_payload_size)    # That's the main test
                 record.complete(success=True, response=response)
 
 
@@ -343,7 +343,7 @@ class TestMemoryReaderComplexReadOperation(unittest.TestCase):
 
     def test_read_request_multiple_blocks_complex_pattern(self):
         max_request_size = 128
-        max_response_size = 128
+        max_response_payload_size = 128
         forbidden_region_start = 0x4101
         forbidden_region_end = 0x413D
 
@@ -400,7 +400,7 @@ class TestMemoryReaderComplexReadOperation(unittest.TestCase):
                 response_block.append((block['address'], b'\x00' * block['length']))
 
             response = protocol.respond_read_memory_blocks(response_block)
-            self.assertLessEqual(response.size(), max_response_size)
+            self.assertLessEqual(response.data_size(), max_response_payload_size)
             record.complete(success=True, response=response)
 
             low, high = self.get_callback_count_min_max(exclude_entries=forbidden_entries)

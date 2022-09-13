@@ -33,9 +33,12 @@ def d2f(d):
 
 def generate_random_value(datatype: EmbeddedDataType) -> Encodable:
     # Generate random bitstring of the right size. Then decode it.
-    bytestr = bytes([random.randint(0, 0xff) for i in range(datatype.get_size_byte())])
-    return Codecs.get(datatype, Endianness.Big).decode(bytestr)
+    codec = Codecs.get(datatype, Endianness.Big)
+    if datatype in [EmbeddedDataType.float8, EmbeddedDataType.float16, EmbeddedDataType.float32, EmbeddedDataType.float64, EmbeddedDataType.float128, EmbeddedDataType.float256]:
+        return codec.decode(codec.encode((random.random()-0.5)*1000))
 
+    bytestr = bytes([random.randint(0, 0xff) for i in range(datatype.get_size_byte())])
+    return codec.decode(bytestr)
 
 class TestDeviceHandler(unittest.TestCase):
     def ctrlc_handler(self, signal, frame):

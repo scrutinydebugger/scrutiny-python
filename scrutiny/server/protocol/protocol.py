@@ -152,13 +152,13 @@ class Protocol:
     def read_rpv_response_required_size(self, rpvs: List[RuntimePublishedValue]) -> int:
         sum = 0
         for rpv in rpvs:
-            sum = 2 + rpv.datatype.get_size_byte()
+            sum += 2 + rpv.datatype.get_size_byte()
         return sum
 
     def write_rpv_request_required_size(self, rpvs: List[RuntimePublishedValue]) -> int:
         sum = 0
         for rpv in rpvs:
-            sum = 2 + rpv.datatype.get_size_byte()
+            sum += 2 + rpv.datatype.get_size_byte()
         return sum
 
     def write_rpv_response_required_size(self, rpvs: List[RuntimePublishedValue]) -> int:

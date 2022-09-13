@@ -192,12 +192,12 @@ class MemoryReader:
                     break  # No space in request
 
                 # Check response size limit
-                response_size = Response.OVERHEAD_SIZE
+                response_payload_size = 0
                 for cluster in clusters_candidate:
-                    response_size += self.protocol.read_memory_response_overhead_size_per_block()
-                    response_size += cluster.size
+                    response_payload_size += self.protocol.read_memory_response_overhead_size_per_block()
+                    response_payload_size += cluster.size
 
-                if response_size > self.max_response_payload_size:
+                if response_payload_size > self.max_response_payload_size:
                     break   # No space in response
 
                 # We can fit the data so far..  latch the list of cluster and add the candidate to the entries to be updated
