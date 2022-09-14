@@ -12,8 +12,9 @@ import json
 import os
 import logging
 
-from scrutiny.core import Variable, VariableType, VariableEnum, VariableLocation, Endianness
-from typing import Dict, TypedDict, List, Tuple, Optional, Any, Union, Literal, Generator
+from scrutiny.core.variable import Variable, VariableEnum, VariableLocation
+from scrutiny.core.basic_types import EmbeddedDataType, Endianness
+from typing import Dict, TypedDict, List, Tuple, Optional, Any, Union, Generator
 from scrutiny.core.variable import VariableEnumDef
 
 
@@ -176,9 +177,9 @@ class VarMap:
 
         self.variables[fullname] = entry
 
-    def register_base_type(self, original_name: str, vartype: VariableType) -> None:
-        if not isinstance(vartype, VariableType):
-            raise ValueError('Given vartype must be an instance of VariableType')
+    def register_base_type(self, original_name: str, vartype: EmbeddedDataType) -> None:
+        if not isinstance(vartype, EmbeddedDataType):
+            raise ValueError('Given vartype must be an instance of EmbeddedDataType')
 
         if self.is_known_type(original_name):
             assigned_vartype = self.get_vartype_from_binary_name(original_name)
@@ -190,10 +191,10 @@ class VarMap:
             self.typename2typeid_map[original_name] = str(typeid)
             self.typemap[str(typeid)] = dict(name=original_name, type=vartype.name)
 
-    def get_vartype_from_binary_name(self, binary_type_name: str) -> VariableType:
+    def get_vartype_from_binary_name(self, binary_type_name: str) -> EmbeddedDataType:
         typeid = self.typename2typeid_map[binary_type_name]
         vartype_name = self.typemap[typeid]['type']
-        return VariableType[vartype_name]    # Enums supports square brackets to get enum from name
+        return EmbeddedDataType[vartype_name]    # Enums supports square brackets to get enum from name
 
     def has_type_id(self, typeid: int) -> bool:
         return (typeid in self.typemap)
@@ -235,12 +236,12 @@ class VarMap:
         fullname += name
         return fullname
 
-    def get_type(self, vardef: VariableEntry) -> VariableType:
+    def get_type(self, vardef: VariableEntry) -> EmbeddedDataType:
         type_id = str(vardef['type_id'])
         if type_id not in self.typemap:
             raise AssertionError('Type "%s" refer to a type not in type map' % type_id)
         typename = self.typemap[type_id]['type']
-        return VariableType[typename]  # Enums support square brackets
+        return EmbeddedDataType[typename]  # Enums support square brackets
 
     def get_addr(self, vardef: VariableEntry) -> int:
         return vardef['addr']

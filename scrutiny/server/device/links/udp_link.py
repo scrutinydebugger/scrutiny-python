@@ -8,14 +8,11 @@
 
 import logging
 import socket
-import threading
 import errno
-import traceback
 
-from scrutiny.server.tools import Timer
 from .abstract_link import AbstractLink, LinkConfig
 
-from typing import Optional, Dict, TypedDict, cast
+from typing import Optional, TypedDict, cast
 
 
 class UdpConfig(TypedDict):

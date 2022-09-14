@@ -10,12 +10,13 @@
 import time
 import logging
 import binascii
+import traceback
 
 from scrutiny.server.protocol import *
-from scrutiny.server.device.device_info import DeviceInfo
+import scrutiny.server.protocol.typing as protocol_typing
 from scrutiny.server.device.request_dispatcher import RequestDispatcher, SuccessCallback, FailureCallback
 
-from typing import Optional, Tuple, Any
+from typing import Optional, Tuple, Any, cast
 
 
 class DeviceSearcher:
@@ -27,7 +28,7 @@ class DeviceSearcher:
     last_request_timestamp: Optional[float]
     found_device_timestamp: float
     started: bool
-    found_device: Optional[ResponseData]
+    found_device: Optional[protocol_typing.Response.CommControl.Discover]
 
     DISCOVER_INTERVAL: float = 0.5
     DEVICE_GONE_DELAY: float = 3
@@ -100,12 +101,13 @@ class DeviceSearcher:
         self.logger.debug("Success callback. Request=%s. Response Code=%s, Params=%s" % (request, response.code, params))
 
         if response.code == ResponseCode.OK:
-            response_data = self.protocol.parse_response(response)
-            if response_data['valid']:
+            try:
+                response_data = cast(protocol_typing.Response.CommControl.Discover, self.protocol.parse_response(response))
                 self.found_device_timestamp = time.time()
                 self.found_device = response_data
-            else:
+            except Exception as e:
                 self.logger.error('Discover request got a response with invalid data.')
+                self.logger.debug(traceback.format_exc())
                 self.found_device = None
         else:
             self.logger.error('Discover request got Nacked. %s' % response.code)

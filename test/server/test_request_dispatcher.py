@@ -9,10 +9,9 @@
 
 import unittest
 
-from scrutiny.server.device.request_dispatcher import RequestDispatcher, RequestQueue, Throttler
+from scrutiny.server.device.request_dispatcher import RequestDispatcher, RequestQueue
 from scrutiny.server.protocol.commands import DummyCommand
 from scrutiny.server.protocol import Request, Response, ResponseCode
-import time
 
 
 class TestPriorityQueue(unittest.TestCase):
@@ -118,10 +117,10 @@ class TestRequestDispatcher(unittest.TestCase):
 
     def test_drops_overflowing_requests(self):
         dispatcher = RequestDispatcher()
-        req1 = self.make_dummy_request(payload=self.make_payload(128 - 8), response_payload_size=256 - 9)
-        req2 = self.make_dummy_request(payload=self.make_payload(129 - 8), response_payload_size=256 - 9)
-        req3 = self.make_dummy_request(payload=self.make_payload(128 - 8), response_payload_size=257 - 9)
-        dispatcher.set_size_limits(max_request_size=128, max_response_size=256)
+        req1 = self.make_dummy_request(payload=self.make_payload(128), response_payload_size=256)
+        req2 = self.make_dummy_request(payload=self.make_payload(129), response_payload_size=256)
+        req3 = self.make_dummy_request(payload=self.make_payload(128), response_payload_size=257)
+        dispatcher.set_size_limits(max_request_payload_size=128, max_response_payload_size=256)
 
         dispatcher.logger.disabled = True
         dispatcher.register_request(request=req1, success_callback=self.success_callback, failure_callback=self.failure_callback)

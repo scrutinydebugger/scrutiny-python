@@ -6,7 +6,7 @@
 #
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 from typing import Dict, Optional
 from dataclasses import dataclass
 

@@ -6,7 +6,8 @@
 #
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 
-from typing import TypedDict, Dict, List
+from typing import TypedDict, List, Optional
+from scrutiny.core.basic_types import *
 
 
 class MemoryRegion(TypedDict):
@@ -34,22 +35,24 @@ class DeviceInfo:
         'protocol_minor',
         'supported_feature_map',
         'forbidden_memory_regions',
-        'readonly_memory_regions'
+        'readonly_memory_regions',
+        'runtime_published_values'
     )
 
-    device_id: str
-    display_name: str
-    max_tx_data_size: int
-    max_rx_data_size: int
-    max_bitrate_bps: int
-    rx_timeout_us: int
-    heartbeat_timeout_us: int
-    address_size_bits: int
-    protocol_major: int
-    protocol_minor: int
-    supported_feature_map: SupportedFeatureMap
-    forbidden_memory_regions: List[MemoryRegion]
-    readonly_memory_regions: List[MemoryRegion]
+    device_id: Optional[str]
+    display_name: Optional[str]
+    max_tx_data_size: Optional[int]
+    max_rx_data_size: Optional[int]
+    max_bitrate_bps: Optional[int]
+    rx_timeout_us: Optional[int]
+    heartbeat_timeout_us: Optional[int]
+    address_size_bits: Optional[int]
+    protocol_major: Optional[int]
+    protocol_minor: Optional[int]
+    supported_feature_map: Optional[SupportedFeatureMap]
+    forbidden_memory_regions: Optional[List[MemoryRegion]]
+    readonly_memory_regions: Optional[List[MemoryRegion]]
+    runtime_published_values: Optional[List[RuntimePublishedValue]]
 
     def get_attributes(self):
         return self.__slots__

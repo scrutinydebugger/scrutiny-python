@@ -8,11 +8,13 @@
 
 import logging
 from time import time
+import traceback
 
 from scrutiny.server.protocol import *
+import scrutiny.server.protocol.typing as protocol_typing
 from scrutiny.server.device.request_dispatcher import RequestDispatcher, SuccessCallback, FailureCallback
 
-from typing import Optional, Any
+from typing import Optional, Any, cast
 
 
 class SessionInitializer:
@@ -87,13 +89,14 @@ class SessionInitializer:
 
     def success_callback(self, request: Request, response: Response, params: Any = None) -> None:
         if response.code == ResponseCode.OK:
-            response_data = self.protocol.parse_response(response)
-            if response_data['valid']:
+            try:
+                response_data = cast(protocol_typing.Response.CommControl.Connect, self.protocol.parse_response(response))
                 self.logger.info('The connection request was accepted by the device')
                 self.session_id = response_data['session_id']
                 self.success = True
-            else:
+            except:
                 self.logger.warning('Connection request to the device was acknowledged by the device but response data was malformed')
+                self.logger.debug(traceback.format_exc())
                 self.error = True
         else:
             self.logger.warning('Connection request to the device was refused by the device with response code %s' % response.code)

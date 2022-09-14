@@ -12,7 +12,7 @@ from typing import TypedDict, Optional, List, Any, Dict, Union
 
 class EnumDefinition(TypedDict):
     name: str
-    values: Dict[int, str]
+    values: Dict[str, int]
 
 
 class DatastoreEntryDefinition(TypedDict, total=False):

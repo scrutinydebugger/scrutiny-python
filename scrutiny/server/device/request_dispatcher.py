@@ -8,10 +8,8 @@
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 
 import bisect
-from scrutiny.server.protocol import Request, RequestData, Response, ResponseData, ResponseCode
-from scrutiny.server.tools import Throttler
+from scrutiny.server.protocol import Request, Response, ResponseCode
 from time import time
-import math
 import logging
 
 from typing import List, Optional, Callable, Any, TypeVar
@@ -106,8 +104,8 @@ class RequestDispatcher:
 
     request_queue: RequestQueue
     logger: logging.Logger
-    rx_size_limit: Optional[int]
-    tx_size_limit: Optional[int]
+    rx_data_size_limit: Optional[int]
+    tx_data_size_limit: Optional[int]
     critical_error: bool
 
     def __init__(self, queue_size=100):
@@ -116,8 +114,8 @@ class RequestDispatcher:
         self.reset()
 
     def reset(self) -> None:
-        self.rx_size_limit = None
-        self.tx_size_limit = None
+        self.rx_data_size_limit = None
+        self.tx_data_size_limit = None
         self.critical_error = False
         self.request_queue.clear()
 
@@ -133,15 +131,15 @@ class RequestDispatcher:
         record.failure_params = failure_params
         record.approximate_delta_bandwidth = (request.size() + request.get_expected_response_size()) * 8
 
-        if self.rx_size_limit is not None:
-            if request.size() > self.rx_size_limit:  # Should not happens. Request generators should craft their request according to this limit
+        if self.rx_data_size_limit is not None:
+            if request.data_size() > self.rx_data_size_limit:  # Should not happens. Request generators should craft their request according to this limit
                 self.logger.critical('Request is bigger than device receive buffer. Dropping %s' % request)
                 self.critical_error = True
                 record.complete(success=False)
                 return None
 
-        if self.tx_size_limit is not None:
-            if request.get_expected_response_size() > self.tx_size_limit:  # Should not happens. Request generators should craft their request according to this limit
+        if self.tx_data_size_limit is not None:
+            if request.get_expected_response_data_size() > self.tx_data_size_limit:  # Should not happens. Request generators should craft their request according to this limit
                 self.logger.critical('Request expected response size is bigger than device tx buffer. Dropping %s' % request)
                 self.critical_error = True
                 record.complete(success=False)
@@ -150,9 +148,9 @@ class RequestDispatcher:
         self.request_queue.push(record, priority)
         return None
 
-    def set_size_limits(self, max_request_size: Optional[int], max_response_size: Optional[int]) -> None:
-        self.rx_size_limit = max_request_size
-        self.tx_size_limit = max_response_size
+    def set_size_limits(self, max_request_payload_size: Optional[int], max_response_payload_size: Optional[int]) -> None:
+        self.rx_data_size_limit = max_request_payload_size
+        self.tx_data_size_limit = max_response_payload_size
 
     def process(self) -> None:
         pass    # nothing to do

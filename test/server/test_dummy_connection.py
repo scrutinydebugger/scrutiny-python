@@ -7,7 +7,6 @@
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 
 import unittest
-import queue
 import json
 import time
 

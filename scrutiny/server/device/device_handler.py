@@ -11,14 +11,14 @@
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 
 import copy
-import queue
-import time
 import logging
 import binascii
 from enum import Enum
 import traceback
+from scrutiny.server.datastore.datastore_entry import DatastoreRPVEntry, EntryType
 
 from scrutiny.server.protocol import *
+import scrutiny.server.protocol.typing as protocol_typing
 from scrutiny.server.protocol.comm_handler import CommHandler
 from scrutiny.server.protocol.commands import DummyCommand
 from scrutiny.server.device.request_dispatcher import RequestDispatcher, RequestRecord, SuccessCallback, FailureCallback
@@ -28,6 +28,8 @@ from scrutiny.server.device.request_generator.info_poller import InfoPoller, Pro
 from scrutiny.server.device.request_generator.session_initializer import SessionInitializer
 from scrutiny.server.device.request_generator.memory_reader import MemoryReader
 from scrutiny.server.device.request_generator.memory_writer import MemoryWriter
+from scrutiny.server.device.request_generator.rpv_reader import RPVReader
+from scrutiny.server.device.request_generator.rpv_writer import RPVWriter
 from scrutiny.server.device.device_info import DeviceInfo
 
 from scrutiny.server.tools import Timer
@@ -36,7 +38,7 @@ from scrutiny.server.device.links import AbstractLink, LinkConfig
 from scrutiny.core.firmware_id import PLACEHOLDER as DEFAULT_FIRMWARE_ID
 
 
-from typing import TypedDict, Optional, Callable, Any, Dict
+from typing import TypedDict, Optional, Callable, Any, Dict, cast
 from scrutiny.core.typehints import GenericCallback
 
 DEFAULT_FIRMWARE_ID_ASCII = binascii.hexlify(DEFAULT_FIRMWARE_ID).decode('ascii')
@@ -67,6 +69,8 @@ class DeviceHandler:
     heartbeat_generator: HeartbeatGenerator
     memory_reader: MemoryReader
     memory_writer: MemoryWriter
+    rpv_reader: RPVReader
+    rpv_writer: RPVWriter
     info_poller: InfoPoller
     comm_handler: CommHandler
     protocol: Protocol
@@ -102,7 +106,9 @@ class DeviceHandler:
         Connect = 5
         Heatbeat = 4
         WriteMemory = 3
+        WriteRPV = 3
         ReadMemory = 2
+        ReadRPV = 2
         PollInfo = 1
         Discover = 0
 
@@ -150,6 +156,12 @@ class DeviceHandler:
 
         self.memory_writer = MemoryWriter(self.protocol, self.dispatcher, self.datastore,
                                           request_priority=self.RequestPriority.WriteMemory)
+
+        self.rpv_reader = RPVReader(self.protocol, self.dispatcher, self.datastore,
+                                    request_priority=self.RequestPriority.ReadRPV)
+
+        self.rpv_writer = RPVWriter(self.protocol, self.dispatcher, self.datastore,
+                                    request_priority=self.RequestPriority.WriteRPV)
 
         self.comm_handler = CommHandler(self.config)
         self.comm_handler_open_restart_timer = Timer(1.0)
@@ -230,13 +242,15 @@ class DeviceHandler:
         else:
             self.comm_handler.disable_throttling()
 
-        max_request_size = min(self.config['max_request_size'], partial_device_info.max_rx_data_size)
-        max_response_size = min(self.config['max_response_size'], partial_device_info.max_tx_data_size)
+        max_request_payload_size = min(self.config['max_request_size'], partial_device_info.max_rx_data_size)
+        max_response_payload_size = min(self.config['max_response_size'], partial_device_info.max_tx_data_size)
 
         # Will do a safety check before emitting a request
-        self.memory_reader.set_size_limits(max_request_size=max_request_size, max_response_size=max_response_size)
-        self.memory_writer.set_size_limits(max_request_size=max_request_size, max_response_size=max_response_size)
-        self.dispatcher.set_size_limits(max_request_size=max_request_size, max_response_size=max_response_size)
+        self.memory_reader.set_size_limits(max_request_payload_size=max_request_payload_size, max_response_payload_size=max_response_payload_size)
+        self.memory_writer.set_size_limits(max_request_payload_size=max_request_payload_size, max_response_payload_size=max_response_payload_size)
+        self.rpv_reader.set_size_limits(max_request_payload_size=max_request_payload_size, max_response_payload_size=max_response_payload_size)
+        self.rpv_writer.set_size_limits(max_request_payload_size=max_request_payload_size, max_response_payload_size=max_response_payload_size)
+        self.dispatcher.set_size_limits(max_request_payload_size=max_request_payload_size, max_response_payload_size=max_response_payload_size)
         self.protocol.set_address_size_bits(partial_device_info.address_size_bits)
         self.heartbeat_generator.set_interval(max(0.5, float(partial_device_info.heartbeat_timeout_us) / 1000000.0 * 0.75))
 
@@ -300,6 +314,8 @@ class DeviceHandler:
         self.dispatcher.reset()
         self.memory_reader.stop()
         self.memory_writer.stop()
+        self.rpv_reader.stop()
+        self.rpv_writer.stop()
         self.session_id = None
         self.disconnection_requested = False
         self.disconnect_callback = None
@@ -316,11 +332,16 @@ class DeviceHandler:
         else:
             self.comm_handler.disable_throttling()
 
-        max_request_size = self.config['max_request_size']
-        max_response_size = self.config['max_response_size']
-        self.memory_reader.set_size_limits(max_request_size=max_request_size, max_response_size=max_response_size)
-        self.memory_writer.set_size_limits(max_request_size=max_request_size, max_response_size=max_response_size)
-        self.dispatcher.set_size_limits(max_request_size=max_request_size, max_response_size=max_response_size)
+        max_request_payload_size = self.config['max_request_size']
+        max_response_payload_size = self.config['max_response_size']
+        self.memory_reader.set_size_limits(max_request_payload_size=max_request_payload_size, max_response_payload_size=max_response_payload_size)
+        self.memory_writer.set_size_limits(max_request_payload_size=max_request_payload_size, max_response_payload_size=max_response_payload_size)
+        self.rpv_reader.set_size_limits(max_request_payload_size=max_request_payload_size, max_response_payload_size=max_response_payload_size)
+        self.rpv_writer.set_size_limits(max_request_payload_size=max_request_payload_size, max_response_payload_size=max_response_payload_size)
+        self.dispatcher.set_size_limits(max_request_payload_size=max_request_payload_size, max_response_payload_size=max_response_payload_size)
+
+        self.datastore.clear(entry_type=EntryType.RuntimePublishedValue)    # Device handler own RPVs
+        self.protocol.configure_rpvs([])    # Empty list
 
     # Open communication channel based on config
     def configure_comm(self, link_type: str, link_config: LinkConfig = {}) -> None:
@@ -350,6 +371,8 @@ class DeviceHandler:
         self.session_initializer.process()
         self.memory_reader.process()
         self.memory_writer.process()
+        self.rpv_reader.process()
+        self.rpv_writer.process()
         self.dispatcher.process()
 
         self.handle_comm()      # Make sure request and response are being exchanged with the device
@@ -366,6 +389,8 @@ class DeviceHandler:
             if state_entry:
                 self.memory_reader.start()
                 self.memory_writer.start()
+                self.rpv_reader.start()
+                self.rpv_writer.start()
             # Nothing else to do
         elif self.operating_mode == self.OperatingMode.Test_CheckThrottling:
             if self.dispatcher.peek_next() is None:
@@ -466,15 +491,22 @@ class DeviceHandler:
                 self.info_poller.stop()
 
                 if self.device_info is None or not self.device_info.all_ready():    # No property should be None
-                    self.logger.error('Data polled from device is incomplete. Restarting communication. %s')
+                    self.logger.error('Data polled from device is incomplete. Restarting communication.')
                     self.logger.debug(str(self.device_info))
                     next_state = self.FsmState.INIT
                 else:
+                    assert self.device_info.runtime_published_values is not None
+                    self.protocol.configure_rpvs(self.device_info.runtime_published_values)
                     next_state = self.FsmState.READY
 
         # ========= [READY] ==========
         elif self.fsm_state == self.FsmState.READY:
             if state_entry:
+                assert self.device_info is not None
+                assert self.device_info.runtime_published_values is not None
+                for rpv in self.device_info.runtime_published_values:
+                    self.datastore.add_entry(DatastoreRPVEntry(display_path='/rpv/x%04x' % rpv.id, rpv=rpv))
+
                 self.logger.info('Communication with device "%s" (ID: %s) fully ready' % (self.device_display_name, self.device_id))
                 self.logger.debug("Device information : %s" % self.device_info)
 
@@ -486,6 +518,8 @@ class DeviceHandler:
                 self.fully_connected_ready = False
                 self.memory_reader.stop()
                 self.memory_writer.stop()
+                self.rpv_reader.stop()
+                self.rpv_writer.stop()
                 next_state = self.FsmState.DISCONNECTING
 
             if self.dispatcher.is_in_error():
@@ -520,7 +554,7 @@ class DeviceHandler:
             self.logger.debug('Moving FSM to state %s' % next_state)
         self.fsm_state = next_state
 
-    def disconnect_complete_success(self, request: Request, response_code: ResponseCode, response_data: ResponseData, params: Any = None):
+    def disconnect_complete_success(self, request: Request, response_code: ResponseCode, response_data: protocol_typing.ResponseData, params: Any = None):
         self.disconnect_complete = True
         if self.disconnect_callback is not None:
             self.disconnect_callback.__call__(True)

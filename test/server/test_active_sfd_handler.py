@@ -7,6 +7,7 @@
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 
 import unittest
+from scrutiny.server.datastore.datastore_entry import EntryType
 
 from scrutiny.server.device.device_handler import DeviceHandler
 from scrutiny.server.active_sfd_handler import ActiveSFDHandler
@@ -58,12 +59,12 @@ class TestActiveSFDHandler(unittest.TestCase):
         sfd = self.sfd_handler.get_loaded_sfd()
         all_vars = list(sfd.get_vars_for_datastore())
 
-        self.assertGreater(self.datastore.get_entries_count(), 0)
-        self.assertEqual(self.datastore.get_entries_count(), len(all_vars))
+        self.assertGreater(self.datastore.get_entries_count(EntryType.Var), 0)
+        self.assertEqual(self.datastore.get_entries_count(EntryType.Var), len(all_vars))
 
         self.device_handler.connection_status = DeviceHandler.ConnectionStatus.DISCONNECTED
         self.sfd_handler.process()
-        self.assertEqual(self.datastore.get_entries_count(), 0)
+        self.assertEqual(self.datastore.get_entries_count(EntryType.Var), 0)
         self.assertIsNone(self.sfd_handler.get_loaded_sfd())
 
     # Make sure the SFD is correctly loaded when requested (through API normally)
@@ -85,9 +86,9 @@ class TestActiveSFDHandler(unittest.TestCase):
         all_vars = list(sfd.get_vars_for_datastore())
 
         self.assertGreater(self.datastore.get_entries_count(), 0)
-        self.assertEqual(self.datastore.get_entries_count(), len(all_vars))
+        self.assertEqual(self.datastore.get_entries_count(EntryType.Var), len(all_vars))
 
         self.device_handler.connection_status = DeviceHandler.ConnectionStatus.DISCONNECTED
         self.sfd_handler.process()
-        self.assertGreater(self.datastore.get_entries_count(), 0)
-        self.assertEqual(self.datastore.get_entries_count(), len(all_vars))
+        self.assertGreater(self.datastore.get_entries_count(EntryType.Var), 0)
+        self.assertEqual(self.datastore.get_entries_count(EntryType.Var), len(all_vars))

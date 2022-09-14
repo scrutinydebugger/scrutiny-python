@@ -8,26 +8,24 @@
 #
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 
-import time
 import logging
-import binascii
 import copy
-import bisect
 import traceback
 from sortedcontainers import SortedSet  # type: ignore
 
 from scrutiny.server.protocol import *
+import scrutiny.server.protocol.typing as protocol_typing
 from scrutiny.server.device.request_dispatcher import RequestDispatcher, SuccessCallback, FailureCallback
-from scrutiny.server.datastore import Datastore, DatastoreEntry, WatchCallback
+from scrutiny.server.datastore import Datastore, DatastoreVariableEntry, WatchCallback
 from scrutiny.core.memory_content import MemoryContent, Cluster
 
-from typing import Any, List, Tuple, Optional
+from typing import Any, List, Tuple, Optional, cast
 
 
 class DataStoreEntrySortableByAddress:
-    entry: DatastoreEntry
+    entry: DatastoreVariableEntry
 
-    def __init__(self, entry):
+    def __init__(self, entry: DatastoreVariableEntry):
         self.entry = entry
 
     def __hash__(self):
@@ -54,8 +52,8 @@ class DataStoreEntrySortableByAddress:
 
 class MemoryReader:
 
-    DEFAULT_MAX_REQUEST_SIZE: int = 1024
-    DEFAULT_MAX_RESPONSE_SIZE: int = 1024
+    DEFAULT_MAX_REQUEST_PAYLOAD_SIZE: int = 1024
+    DEFAULT_MAX_RESPONSE_PAYLOAD_SIZE: int = 1024
 
     logger: logging.Logger
     dispatcher: RequestDispatcher
@@ -65,13 +63,13 @@ class MemoryReader:
     stop_requested: bool
     request_pending: bool
     started: bool
-    max_request_size: int
-    max_response_size: int
+    max_request_payload_size: int
+    max_response_payload_size: int
     forbidden_regions: List[Tuple[int, int]]
     readonly_regions: List[Tuple[int, int]]
     watched_entries_sorted_by_address: SortedSet
     read_cursor: int
-    entries_in_pending_read_request: List[DatastoreEntry]
+    entries_in_pending_read_request: List[DatastoreVariableEntry]
 
     def __init__(self, protocol: Protocol, dispatcher: RequestDispatcher, datastore: Datastore, request_priority: int):
         self.logger = logging.getLogger(self.__class__.__name__)
@@ -84,27 +82,30 @@ class MemoryReader:
 
         self.reset()
 
-    def set_max_request_size(self, max_size: int) -> None:
-        self.max_request_size = max_size
+    def set_max_request_payload_size(self, max_size: int) -> None:
+        self.max_request_payload_size = max_size
 
-    def set_max_response_size(self, max_size: int) -> None:
-        self.max_response_size = max_size
+    def set_max_response_payload_size(self, max_size: int) -> None:
+        self.max_response_payload_size = max_size
 
-    def set_size_limits(self, max_request_size: int, max_response_size: int) -> None:
-        self.set_max_request_size(max_request_size)
-        self.set_max_response_size(max_response_size)
+    def set_size_limits(self, max_request_payload_size: int, max_response_payload_size: int) -> None:
+        self.set_max_request_payload_size(max_request_payload_size)
+        self.set_max_response_payload_size(max_response_payload_size)
 
     def add_forbidden_region(self, start_addr: int, size: int) -> None:
         self.forbidden_regions.append((start_addr, size))
 
     def the_watch_callback(self, entry_id: str) -> None:
         entry = self.datastore.get_entry(entry_id)
-        self.watched_entries_sorted_by_address.add(DataStoreEntrySortableByAddress(entry))
+        if isinstance(entry, DatastoreVariableEntry):   # Should we use.resolve() here for alias??
+            # Memory reader reads by address. Only Variables has that
+            self.watched_entries_sorted_by_address.add(DataStoreEntrySortableByAddress(entry))
 
     def the_unwatch_callback(self, entry_id: str) -> None:
         if len(self.datastore.get_watchers(entry_id)) == 0:
             entry = self.datastore.get_entry(entry_id)
-            self.watched_entries_sorted_by_address.discard(DataStoreEntrySortableByAddress(entry))
+            if isinstance(entry, DatastoreVariableEntry):
+                self.watched_entries_sorted_by_address.discard(DataStoreEntrySortableByAddress(entry))
 
     def start(self) -> None:
         self.started = True
@@ -117,8 +118,8 @@ class MemoryReader:
         self.request_pending = False
         self.started = False
 
-        self.max_request_size = self.DEFAULT_MAX_REQUEST_SIZE
-        self.max_response_size = self.DEFAULT_MAX_RESPONSE_SIZE
+        self.max_request_payload_size = self.DEFAULT_MAX_REQUEST_PAYLOAD_SIZE
+        self.max_response_payload_size = self.DEFAULT_MAX_RESPONSE_PAYLOAD_SIZE
         self.forbidden_regions = []
         self.readonly_regions = []
 
@@ -146,16 +147,19 @@ class MemoryReader:
                 self.request_pending = True
                 self.entries_in_pending_read_request = entries_in_request
 
-    def make_next_read_request(self) -> Tuple[Optional[Request], List[DatastoreEntry]]:
+    def make_next_read_request(self) -> Tuple[Optional[Request], List[DatastoreVariableEntry]]:
         """
         This method generate a read request by moving in a list of watched entries
         It works in a round-robin scheme and will agglomerate entries that are contiguous in memory
         """
-        max_block_per_request: int = (self.max_request_size - Request.OVERHEAD_SIZE) // self.protocol.read_memory_request_size_per_block()
-        entries_in_request: List[DatastoreEntry] = []
+        max_block_per_request: int = self.max_request_payload_size // self.protocol.read_memory_request_size_per_block()
+        entries_in_request: List[DatastoreVariableEntry] = []
         block_list: List[Tuple[int, int]] = []
         skipped_entries_count = 0
         clusters_in_request: List[Cluster] = []
+
+        if self.read_cursor >= len(self.watched_entries_sorted_by_address):
+            self.read_cursor = 0
 
         memory_to_read = MemoryContent(retain_data=False)  # We'll use that for agglomeration
         while len(entries_in_request) + skipped_entries_count < len(self.watched_entries_sorted_by_address):
@@ -188,12 +192,12 @@ class MemoryReader:
                     break  # No space in request
 
                 # Check response size limit
-                response_size = Response.OVERHEAD_SIZE
+                response_payload_size = 0
                 for cluster in clusters_candidate:
-                    response_size += self.protocol.read_memory_response_overhead_size_per_block()
-                    response_size += cluster.size
+                    response_payload_size += self.protocol.read_memory_response_overhead_size_per_block()
+                    response_payload_size += cluster.size
 
-                if response_size > self.max_response_size:
+                if response_payload_size > self.max_response_payload_size:
                     break   # No space in response
 
                 # We can fit the data so far..  latch the list of cluster and add the candidate to the entries to be updated
@@ -215,8 +219,8 @@ class MemoryReader:
         self.logger.debug("Success callback. Response=%s, Params=%s" % (response, params))
 
         if response.code == ResponseCode.OK:
-            response_data = self.protocol.parse_response(response)
-            if response_data['valid']:
+            try:
+                response_data = cast(protocol_typing.Response.MemoryControl.Read, self.protocol.parse_response(response))
                 try:
                     temp_memory = MemoryContent()
                     for block in response_data['read_blocks']:
@@ -228,8 +232,9 @@ class MemoryReader:
                 except Exception as e:
                     self.logger.critical('Error while writing datastore. %s' % str(e))
                     self.logger.debug(traceback.format_exc())
-            else:
+            except:
                 self.logger.error('Response for ReadMemory read request is malformed and must be discared.')
+                self.logger.debug(traceback.format_exc())
         else:
             self.logger.warning('Response for ReadMemory has been refused with response code %s.' % response.code)
 
@@ -238,7 +243,6 @@ class MemoryReader:
     def failure_callback(self, request: Request, params: Any = None) -> None:
         self.logger.debug("Failure callback. Request=%s. Params=%s" % (request, params))
         self.logger.error('Failed to get a response for ReadMemory request.')
-
         self.read_completed()
 
     def read_completed(self) -> None:

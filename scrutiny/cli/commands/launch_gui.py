@@ -50,6 +50,6 @@ class LaunchGUI(BaseCommand):
         except Exception as e:
             logging.critical('GUI error. ' + str(e))
             logging.debug(traceback.format_exc())
-            succes = False
+            success = False
 
         return 0 if success else -1

@@ -7,18 +7,15 @@
 #
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 
-import os
-import sys
 import logging
 import traceback
 
-from scrutiny.server.datastore import Datastore, DatastoreEntry
-from scrutiny.server.tools import Timer
+from scrutiny.server.datastore import Datastore, DatastoreEntry, EntryType
 from scrutiny.server.device.device_handler import DeviceHandler
 from scrutiny.server.active_sfd_handler import ActiveSFDHandler, SFDLoadedCallback, SFDUnloadedCallback
-from scrutiny.server.device.links import AbstractLink, LinkConfig
+from scrutiny.server.device.links import LinkConfig
 from scrutiny.core.sfd_storage import SFDStorage
-from scrutiny.core import Variable, VariableType
+from scrutiny.core.variable import EmbeddedDataType
 from scrutiny.core.firmware_description import FirmwareDescription
 
 from .websocket_client_handler import WebsocketClientHandler
@@ -26,7 +23,7 @@ from .dummy_client_handler import DummyClientHandler
 from .value_streamer import ValueStreamer
 from .message_definitions import *
 
-from .abstract_client_handler import AbstractClientHandler, ClientHandlerConfig, ClientHandlerMessage
+from .abstract_client_handler import AbstractClientHandler, ClientHandlerMessage
 
 from scrutiny.core.typehints import GenericCallback
 from typing import Callable, Dict, List, Set, Any, TypedDict, cast
@@ -81,38 +78,37 @@ class API:
 
     FLUSH_VARS_TIMEOUT: float = 0.1
 
-    entry_type_to_str: Dict[DatastoreEntry.EntryType, str] = {
-        DatastoreEntry.EntryType.Var: 'var',
-        DatastoreEntry.EntryType.Alias: 'alias',
+    entry_type_to_str: Dict[EntryType, str] = {
+        EntryType.Var: 'var',
+        EntryType.Alias: 'alias',
     }
 
-    data_type_to_str: Dict[VariableType, str] = {
-        VariableType.sint8: 'sint8',
-        VariableType.sint16: 'sint16',
-        VariableType.sint32: 'sint32',
-        VariableType.sint64: 'sint64',
-        VariableType.sint128: 'sint128',
-        VariableType.sint256: 'sint256',
-        VariableType.uint8: 'uint8',
-        VariableType.uint16: 'uint16',
-        VariableType.uint32: 'uint32',
-        VariableType.uint64: 'uint64',
-        VariableType.uint128: 'uint128',
-        VariableType.uint256: 'uint256',
-        VariableType.float8: 'float8',
-        VariableType.float16: 'float16',
-        VariableType.float32: 'float32',
-        VariableType.float64: 'float64',
-        VariableType.float128: 'float128',
-        VariableType.float256: 'float256',
-        VariableType.cfloat8: 'cfloat8',
-        VariableType.cfloat16: 'cfloat16',
-        VariableType.cfloat32: 'cfloat32',
-        VariableType.cfloat64: 'cfloat64',
-        VariableType.cfloat128: 'cfloat128',
-        VariableType.cfloat256: 'cfloat256',
-        VariableType.boolean: 'boolean',
-        VariableType.struct: 'struct'
+    data_type_to_str: Dict[EmbeddedDataType, str] = {
+        EmbeddedDataType.sint8: 'sint8',
+        EmbeddedDataType.sint16: 'sint16',
+        EmbeddedDataType.sint32: 'sint32',
+        EmbeddedDataType.sint64: 'sint64',
+        EmbeddedDataType.sint128: 'sint128',
+        EmbeddedDataType.sint256: 'sint256',
+        EmbeddedDataType.uint8: 'uint8',
+        EmbeddedDataType.uint16: 'uint16',
+        EmbeddedDataType.uint32: 'uint32',
+        EmbeddedDataType.uint64: 'uint64',
+        EmbeddedDataType.uint128: 'uint128',
+        EmbeddedDataType.uint256: 'uint256',
+        EmbeddedDataType.float8: 'float8',
+        EmbeddedDataType.float16: 'float16',
+        EmbeddedDataType.float32: 'float32',
+        EmbeddedDataType.float64: 'float64',
+        EmbeddedDataType.float128: 'float128',
+        EmbeddedDataType.float256: 'float256',
+        EmbeddedDataType.cfloat8: 'cfloat8',
+        EmbeddedDataType.cfloat16: 'cfloat16',
+        EmbeddedDataType.cfloat32: 'cfloat32',
+        EmbeddedDataType.cfloat64: 'cfloat64',
+        EmbeddedDataType.cfloat128: 'cfloat128',
+        EmbeddedDataType.cfloat256: 'cfloat256',
+        EmbeddedDataType.boolean: 'boolean'
     }
 
     device_conn_status_to_str: Dict[DeviceHandler.ConnectionStatus, str] = {
@@ -123,9 +119,10 @@ class API:
         DeviceHandler.ConnectionStatus.CONNECTED_READY: 'connected_ready'
     }
 
-    str_to_entry_type: Dict[str, DatastoreEntry.EntryType] = {
-        'var': DatastoreEntry.EntryType.Var,
-        'alias': DatastoreEntry.EntryType.Alias
+    str_to_entry_type: Dict[str, EntryType] = {
+        'var': EntryType.Var,
+        'alias': EntryType.Alias,
+        'rpv': EntryType.RuntimePublishedValue
     }
 
     datastore: Datastore
@@ -313,43 +310,57 @@ class API:
                 if isinstance(req['filter']['type'], list):
                     for t in req['filter']['type']:
                         if t not in self.str_to_entry_type:
-                            raise InvalidRequestException(req, 'Insupported type filter :"%s"' % (t))
+                            raise InvalidRequestException(req, 'Unsupported type filter :"%s"' % (t))
 
                         type_to_include.append(self.str_to_entry_type[t])
 
         if len(type_to_include) == 0:
-            type_to_include = [DatastoreEntry.EntryType.Var, DatastoreEntry.EntryType.Alias]
+            type_to_include = [EntryType.Var, EntryType.Alias, EntryType.RuntimePublishedValue]
 
-        variables = self.datastore.get_entries_list_by_type(DatastoreEntry.EntryType.Var) if DatastoreEntry.EntryType.Var in type_to_include else []
-        alias = self.datastore.get_entries_list_by_type(DatastoreEntry.EntryType.Alias) if DatastoreEntry.EntryType.Alias in type_to_include else []
+        priority = [EntryType.RuntimePublishedValue, EntryType.Alias, EntryType.Var]
+
+        entries = {}
+        for entry_type in priority:
+            entries[entry_type] = self.datastore.get_entries_list_by_type(entry_type) if entry_type in type_to_include else []
 
         done = False
+
         while not done:
             if max_per_response is None:
-                alias_to_send = alias
-                var_to_send = variables
+                entries_to_send = entries
                 done = True
             else:
-                nAlias = min(max_per_response, len(alias))
-                alias_to_send = alias[0:nAlias]
-                alias = alias[nAlias:]
+                count = 0
+                entries_to_send = {
+                    EntryType.RuntimePublishedValue: [],
+                    EntryType.Alias: [],
+                    EntryType.Var: []
+                }
 
-                nVar = min(max_per_response - nAlias, len(variables))
-                var_to_send = variables[0:nVar]
-                variables = variables[nVar:]
+                for entry_type in priority:
+                    n = min(max_per_response - count, len(entries[entry_type]))
+                    entries_to_send[entry_type] = entries[entry_type][0:n]
+                    entries[entry_type] = entries[entry_type][n:]
+                    count += n
 
-                done = True if len(variables) + len(alias) == 0 else False
+                remaining = 0
+                for entry_type in entries:
+                    remaining += len(entries[entry_type])
+
+                done = (remaining == 0)
 
             response = {
                 'cmd': self.Command.Api2Client.GET_WATCHABLE_LIST_RESPONSE,
                 'reqid': self.get_req_id(req),
                 'qty': {
-                    'var': len(var_to_send),
-                    'alias': len(alias_to_send)
+                    'var': len(entries_to_send[EntryType.Var]),
+                    'alias': len(entries_to_send[EntryType.Alias]),
+                    'rpv': len(entries_to_send[EntryType.RuntimePublishedValue])
                 },
                 'content': {
-                    'var': [self.make_datastore_entry_definition(x, include_entry_type=False) for x in var_to_send],
-                    'alias': [self.make_datastore_entry_definition(x, include_entry_type=False) for x in alias_to_send]
+                    'var': [self.make_datastore_entry_definition(x, include_entry_type=False) for x in entries_to_send[EntryType.Var]],
+                    'alias': [self.make_datastore_entry_definition(x, include_entry_type=False) for x in entries_to_send[EntryType.Alias]],
+                    'rpv': [self.make_datastore_entry_definition(x, include_entry_type=False) for x in entries_to_send[EntryType.RuntimePublishedValue]]
                 },
                 'done': done
             }
@@ -362,8 +373,9 @@ class API:
             'cmd': self.Command.Api2Client.GET_WATCHABLE_COUNT_RESPONSE,
             'reqid': self.get_req_id(req),
             'qty': {
-                'var': self.datastore.get_entries_count(DatastoreEntry.EntryType.Var),
-                'alias': self.datastore.get_entries_count(DatastoreEntry.EntryType.Alias)
+                'var': self.datastore.get_entries_count(EntryType.Var),
+                'alias': self.datastore.get_entries_count(EntryType.Alias),
+                'rpv': self.datastore.get_entries_count(EntryType.RuntimePublishedValue),
             }
         }
 
@@ -376,7 +388,7 @@ class API:
 
         for watchable in req['watchables']:
             try:
-                entry = self.datastore.get_entry(watchable)
+                self.datastore.get_entry(watchable)  # Will raise an exception if not existant
             except KeyError as e:
                 raise InvalidRequestException(req, 'Unknown watchable ID : %s' % str(watchable))
 
@@ -398,7 +410,7 @@ class API:
 
         for watchable in req['watchables']:
             try:
-                entry = self.datastore.get_entry(watchable)
+                self.datastore.get_entry(watchable)  # Will raise an exception if not existant
             except KeyError as e:
                 raise InvalidRequestException(req, 'Unknown watchable ID : %s' % str(watchable))
 
@@ -580,18 +592,18 @@ class API:
             }
 
         device_info: Optional[ApiMsgComp_DeviceInfo] = None
-        if device_info_input is not None:
+        if device_info_input is not None and device_info_input.all_ready():
             device_info = {
-                'device_id': device_info_input.device_id,
-                'display_name': device_info_input.display_name,
-                'max_tx_data_size': device_info_input.max_tx_data_size,
-                'max_rx_data_size': device_info_input.max_rx_data_size,
-                'max_bitrate_bps': device_info_input.max_bitrate_bps,
-                'rx_timeout_us': device_info_input.rx_timeout_us,
-                'heartbeat_timeout_us': device_info_input.heartbeat_timeout_us,
-                'address_size_bits': device_info_input.address_size_bits,
-                'protocol_major': device_info_input.protocol_major,
-                'protocol_minor': device_info_input.protocol_minor,
+                'device_id': cast(str, device_info_input.device_id),
+                'display_name': cast(str, device_info_input.display_name),
+                'max_tx_data_size': cast(int, device_info_input.max_tx_data_size),
+                'max_rx_data_size': cast(int, device_info_input.max_rx_data_size),
+                'max_bitrate_bps': cast(int, device_info_input.max_bitrate_bps),
+                'rx_timeout_us': cast(int, device_info_input.rx_timeout_us),
+                'heartbeat_timeout_us': cast(int, device_info_input.heartbeat_timeout_us),
+                'address_size_bits': cast(int, device_info_input.address_size_bits),
+                'protocol_major': cast(int, device_info_input.protocol_major),
+                'protocol_minor': cast(int, device_info_input.protocol_minor),
                 'supported_feature_map': cast(Dict[str, bool], device_info_input.supported_feature_map),
                 'forbidden_memory_regions': cast(List[Dict[str, int]], device_info_input.forbidden_memory_regions),
                 'readonly_memory_regions': cast(List[Dict[str, int]], device_info_input.readonly_memory_regions)
@@ -616,18 +628,17 @@ class API:
         self.stream_all_we_can()
 
     def make_datastore_entry_definition(self, entry: DatastoreEntry, include_entry_type=False) -> DatastoreEntryDefinition:
-        core_variable = entry.get_core_variable()
         definition: DatastoreEntryDefinition = {
             'id': entry.get_id(),
             'display_path': entry.get_display_path(),
-            'datatype': self.data_type_to_str[core_variable.get_type()]
+            'datatype': self.data_type_to_str[entry.get_data_type()]
         }
 
         if include_entry_type:
             definition['entry_type'] = self.entry_type_to_str[entry.get_type()]
 
-        if core_variable.has_enum():
-            enum = core_variable.get_enum()
+        if entry.has_enum():
+            enum = entry.get_enum()
             assert enum is not None
             enum_def = enum.get_def()
             definition['enum'] = {  # Cherry pick items to avoid sending too much to client

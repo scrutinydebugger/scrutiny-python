@@ -7,16 +7,16 @@
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 
 import logging
-import enum
 import traceback
 
-from scrutiny.core import FirmwareDescription
+from scrutiny.core.firmware_description import FirmwareDescription
 from scrutiny.core.sfd_storage import SFDStorage
+from scrutiny.server.datastore.datastore_entry import EntryType
 from scrutiny.server.device.device_handler import DeviceHandler
-from scrutiny.server.datastore import Datastore, DatastoreEntry
+from scrutiny.server.datastore import Datastore, DatastoreVariableEntry
 
-from typing import Optional, List
-from scrutiny.core.typehints import GenericCallback, Callable
+from typing import Optional, List, Callable
+from scrutiny.core.typehints import GenericCallback
 
 
 class SFDLoadedCallback(GenericCallback):
@@ -100,15 +100,18 @@ class ActiveSFDHandler:
 
     def load_sfd(self, firmware_id: str, verbose=True) -> None:
         self.sfd = None
-        self.datastore.clear()
+        # We only clear the entry types coming from the SFD.
+        self.datastore.clear(EntryType.Var)
+        self.datastore.clear(EntryType.Alias)
 
         if SFDStorage.is_installed(firmware_id):
             self.logger.info('Loading firmware description file (SFD) for firmware ID %s' % firmware_id)
             self.sfd = SFDStorage.get(firmware_id)
 
             # populate datastore
+            # todo Fetch Alaises from SFD as well.
             for fullname, vardef in self.sfd.get_vars_for_datastore():
-                entry = DatastoreEntry(entry_type=DatastoreEntry.EntryType.Var, display_path=fullname, variable_def=vardef)
+                entry = DatastoreVariableEntry(display_path=fullname, variable_def=vardef)
                 try:
                     self.datastore.add_entry(entry)
                 except Exception as e:
@@ -133,7 +136,8 @@ class ActiveSFDHandler:
         must_call_callback = (self.sfd is not None)
 
         self.sfd = None
-        self.datastore.clear()
+        self.datastore.clear(EntryType.Alias)   # We only clear the entry types coming from the SFD.
+        self.datastore.clear(EntryType.Var)
         if must_call_callback:
             self.logger.debug('Triggering SFD Unload callback')
             for callback in self.unloaded_callbacks:

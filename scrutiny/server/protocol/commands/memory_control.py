@@ -17,3 +17,5 @@ class MemoryControl(BaseCommand):
         Read = 1
         Write = 2
         WriteMasked = 3
+        ReadRPV = 4
+        WriteRPV = 5

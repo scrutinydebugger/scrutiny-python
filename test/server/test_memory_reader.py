@@ -12,12 +12,13 @@ import random
 from dataclasses import dataclass
 from sortedcontainers import SortedSet
 
-from scrutiny.server.datastore import Datastore, DatastoreEntry
+from scrutiny.server.datastore import Datastore, DatastoreVariableEntry
 from scrutiny.server.device.request_generator.memory_reader import MemoryReader, DataStoreEntrySortableByAddress
 from scrutiny.server.device.request_dispatcher import RequestDispatcher
 from scrutiny.server.protocol import Protocol, Request, Response
 from scrutiny.server.protocol.commands import *
 from scrutiny.core.variable import *
+from scrutiny.core.basic_types import Endianness, EmbeddedDataType
 
 from typing import List, Dict
 from scrutiny.core.typehints import GenericCallback
@@ -26,9 +27,9 @@ from scrutiny.core.typehints import GenericCallback
 class BlockToRead:
     address: int
     nfloat: int
-    entries: List[DatastoreEntry]
+    entries: List[DatastoreVariableEntry]
 
-    def __init__(self, address: int, nfloat: int, entries: List[DatastoreEntry]):
+    def __init__(self, address: int, nfloat: int, entries: List[DatastoreVariableEntry]):
         self.address = address
         self.nfloat = nfloat
         self.entries = entries
@@ -37,11 +38,11 @@ class BlockToRead:
         return '<Block: 0x%08x with %d float>' % (self.address, self.nfloat)
 
 
-def make_dummy_entries(address, n, vartype=VariableType.float32):
+def make_dummy_entries(address, n, vartype=EmbeddedDataType.float32):
     for i in range(n):
         dummy_var = Variable('dummy', vartype=vartype, path_segments=['a', 'b', 'c'],
                              location=address + i * vartype.get_size_bit() // 8, endianness=Endianness.Little)
-        entry = DatastoreEntry(DatastoreEntry.EntryType.Var, 'path_%d' % i, variable_def=dummy_var)
+        entry = DatastoreVariableEntry('path_%d' % i, variable_def=dummy_var)
         yield entry
 
 
@@ -128,15 +129,15 @@ class TestMemoryReaderBasicReadOperation(unittest.TestCase):
         nfloat = 100
         address = 0x1000
         ds = Datastore()
-        entries = list(make_dummy_entries(address=address, n=nfloat, vartype=VariableType.float32))
+        entries = list(make_dummy_entries(address=address, n=nfloat, vartype=EmbeddedDataType.float32))
         ds.add_entries(entries)
         dispatcher = RequestDispatcher()
 
         protocol = Protocol(1, 0)
         protocol.set_address_size_bits(32)
         reader = MemoryReader(protocol, dispatcher=dispatcher, datastore=ds, request_priority=0)
-        reader.set_max_request_size(1024)  # big enough for all of them
-        reader.set_max_response_size(1024)  # big enough for all of them
+        reader.set_max_request_payload_size(1024)  # big enough for all of them
+        reader.set_max_response_payload_size(1024)  # big enough for all of them
         reader.start()
 
         for entry in entries:
@@ -159,16 +160,16 @@ class TestMemoryReaderBasicReadOperation(unittest.TestCase):
         address2 = 0x2000
         address3 = 0x3000
         ds = Datastore()
-        entries1 = list(make_dummy_entries(address=address1, n=nfloat1, vartype=VariableType.float32))
-        entries2 = list(make_dummy_entries(address=address2, n=nfloat2, vartype=VariableType.float32))
-        entries3 = list(make_dummy_entries(address=address3, n=nfloat3, vartype=VariableType.float32))
+        entries1 = list(make_dummy_entries(address=address1, n=nfloat1, vartype=EmbeddedDataType.float32))
+        entries2 = list(make_dummy_entries(address=address2, n=nfloat2, vartype=EmbeddedDataType.float32))
+        entries3 = list(make_dummy_entries(address=address3, n=nfloat3, vartype=EmbeddedDataType.float32))
         all_entries = entries1 + entries2 + entries3
         ds.add_entries(all_entries)
         dispatcher = RequestDispatcher()
         protocol = Protocol(1, 0)
         reader = MemoryReader(protocol, dispatcher=dispatcher, datastore=ds, request_priority=0)
-        reader.set_max_request_size(Request.OVERHEAD_SIZE + protocol.read_memory_request_size_per_block() * 2)  # 2 block per request
-        reader.set_max_response_size(1024)  # Non-limiting here
+        reader.set_max_request_payload_size(protocol.read_memory_request_size_per_block() * 2)  # 2 block per request
+        reader.set_max_response_payload_size(1024)  # Non-limiting here
         reader.start()
 
         for entry in all_entries:
@@ -190,7 +191,7 @@ class TestMemoryReaderBasicReadOperation(unittest.TestCase):
         nfloat = 15
         entries = []
         for i in range(nfloat):
-            entries += list(make_dummy_entries(address=i * 0x100, n=1, vartype=VariableType.float32))
+            entries += list(make_dummy_entries(address=i * 0x100, n=1, vartype=EmbeddedDataType.float32))
 
         ds = Datastore()
         ds.add_entries(entries)
@@ -198,8 +199,8 @@ class TestMemoryReaderBasicReadOperation(unittest.TestCase):
         dispatcher = RequestDispatcher()
         protocol = Protocol(1, 0)
         reader = MemoryReader(protocol, dispatcher=dispatcher, datastore=ds, request_priority=0)
-        reader.set_max_request_size(1024)  # Non-limiting here
-        reader.set_max_response_size(Response.OVERHEAD_SIZE + protocol.read_memory_response_overhead_size_per_block() * 10 + 4 * 10)
+        reader.set_max_request_payload_size(1024)  # Non-limiting here
+        reader.set_max_response_payload_size(protocol.read_memory_response_overhead_size_per_block() * 10 + 4 * 10)
         reader.start()
 
         for entry in entries:
@@ -221,10 +222,10 @@ class TestMemoryReaderBasicReadOperation(unittest.TestCase):
 
         entries = []
         for i in range(20):  # different variable size
-            entries += list(make_dummy_entries(address=i * 0x100, n=1, vartype=VariableType.uint64))
-            entries += list(make_dummy_entries(address=i * 0x100 + 8, n=1, vartype=VariableType.uint32))
-            entries += list(make_dummy_entries(address=i * 0x100 + 8 + 4, n=1, vartype=VariableType.uint16))
-            entries += list(make_dummy_entries(address=i * 0x100 + 8 + 4 + 2, n=1, vartype=VariableType.uint8))
+            entries += list(make_dummy_entries(address=i * 0x100, n=1, vartype=EmbeddedDataType.uint64))
+            entries += list(make_dummy_entries(address=i * 0x100 + 8, n=1, vartype=EmbeddedDataType.uint32))
+            entries += list(make_dummy_entries(address=i * 0x100 + 8 + 4, n=1, vartype=EmbeddedDataType.uint16))
+            entries += list(make_dummy_entries(address=i * 0x100 + 8 + 4 + 2, n=1, vartype=EmbeddedDataType.uint8))
 
         # Setup everything
         ds = Datastore()
@@ -232,8 +233,8 @@ class TestMemoryReaderBasicReadOperation(unittest.TestCase):
         dispatcher = RequestDispatcher()
         protocol = Protocol(1, 0)
         reader = MemoryReader(protocol, dispatcher=dispatcher, datastore=ds, request_priority=0)
-        reader.set_max_request_size(1024)
-        reader.set_max_response_size(1024)
+        reader.set_max_request_payload_size(1024)
+        reader.set_max_response_payload_size(1024)
         reader.start()
 
         # We need to watch the variable so that they are read
@@ -243,13 +244,13 @@ class TestMemoryReaderBasicReadOperation(unittest.TestCase):
         # try many different possible size
         for max_request_size in range(32, 128):
             for i in range(20):  # repeat multiple time, just to be sure to wrap around the entries.
-                reader.set_max_request_size(max_request_size)
+                reader.set_max_request_payload_size(max_request_size)
                 reader.process()
                 dispatcher.process()
 
                 record = dispatcher.pop_next()
                 self.assertIsNotNone(record)
-                self.assertLessEqual(record.request.size(), max_request_size)   # That's the main test
+                self.assertLessEqual(record.request.data_size(), max_request_size)   # That's the main test
 
                 # Respond the request so that we can a new request coming in
                 request_data = protocol.parse_request(record.request)
@@ -265,10 +266,10 @@ class TestMemoryReaderBasicReadOperation(unittest.TestCase):
 
         entries = []
         for i in range(20):     # Try different size of variable
-            entries += list(make_dummy_entries(address=i * 0x100, n=1, vartype=VariableType.uint64))
-            entries += list(make_dummy_entries(address=i * 0x100 + 8, n=1, vartype=VariableType.uint32))
-            entries += list(make_dummy_entries(address=i * 0x100 + 8 + 4, n=1, vartype=VariableType.uint16))
-            entries += list(make_dummy_entries(address=i * 0x100 + 8 + 4 + 2, n=1, vartype=VariableType.uint8))
+            entries += list(make_dummy_entries(address=i * 0x100, n=1, vartype=EmbeddedDataType.uint64))
+            entries += list(make_dummy_entries(address=i * 0x100 + 8, n=1, vartype=EmbeddedDataType.uint32))
+            entries += list(make_dummy_entries(address=i * 0x100 + 8 + 4, n=1, vartype=EmbeddedDataType.uint16))
+            entries += list(make_dummy_entries(address=i * 0x100 + 8 + 4 + 2, n=1, vartype=EmbeddedDataType.uint8))
 
         # Setup everything
         ds = Datastore()
@@ -276,17 +277,17 @@ class TestMemoryReaderBasicReadOperation(unittest.TestCase):
         dispatcher = RequestDispatcher()
         protocol = Protocol(1, 0)
         reader = MemoryReader(protocol, dispatcher=dispatcher, datastore=ds, request_priority=0)
-        reader.set_max_request_size(1024)
-        reader.set_max_response_size(1024)
+        reader.set_max_request_payload_size(1024)
+        reader.set_max_response_payload_size(1024)
         reader.start()
 
         for entry in entries:
             ds.start_watching(entry, 'unittest', callback=GenericCallback(lambda *args, **kwargs: None))
 
         # Try multiple max_size
-        for max_response_size in range(32, 128):
+        for max_response_payload_size in range(32, 128):
             for i in range(20):  # repeat multiple time just tu be sure. Will do all entries and wrap
-                reader.set_max_response_size(max_response_size)
+                reader.set_max_response_payload_size(max_response_payload_size)
                 reader.process()
                 dispatcher.process()
 
@@ -300,7 +301,7 @@ class TestMemoryReaderBasicReadOperation(unittest.TestCase):
                     response_block.append((block['address'], b'\x00' * block['length']))
 
                 response = protocol.respond_read_memory_blocks(response_block)
-                self.assertLessEqual(response.size(), max_response_size)    # That's the main test
+                self.assertLessEqual(response.data_size(), max_response_payload_size)    # That's the main test
                 record.complete(success=True, response=response)
 
 
@@ -342,24 +343,24 @@ class TestMemoryReaderComplexReadOperation(unittest.TestCase):
 
     def test_read_request_multiple_blocks_complex_pattern(self):
         max_request_size = 128
-        max_response_size = 128
+        max_response_payload_size = 128
         forbidden_region_start = 0x4101
         forbidden_region_end = 0x413D
 
         # Generate a complex patterns of datastore entries
-        entries = list(make_dummy_entries(address=0x1000, n=1, vartype=VariableType.float32))
-        entries += list(make_dummy_entries(address=0x1004, n=2, vartype=VariableType.uint16))
-        entries += list(make_dummy_entries(address=0x2000, n=0x100, vartype=VariableType.sint8))
-        entries += list(make_dummy_entries(address=0x2100, n=0x100, vartype=VariableType.uint8))
-        entries += list(make_dummy_entries(address=0x2200, n=0x100, vartype=VariableType.boolean))
-        entries += list(make_dummy_entries(address=0x3000, n=0x100, vartype=VariableType.uint32))
-        entries += list(make_dummy_entries(address=0x4000, n=0x100, vartype=VariableType.uint8))
-        forbidden_entries = list(make_dummy_entries(address=0x4100, n=0x10, vartype=VariableType.uint32))
+        entries = list(make_dummy_entries(address=0x1000, n=1, vartype=EmbeddedDataType.float32))
+        entries += list(make_dummy_entries(address=0x1004, n=2, vartype=EmbeddedDataType.uint16))
+        entries += list(make_dummy_entries(address=0x2000, n=0x100, vartype=EmbeddedDataType.sint8))
+        entries += list(make_dummy_entries(address=0x2100, n=0x100, vartype=EmbeddedDataType.uint8))
+        entries += list(make_dummy_entries(address=0x2200, n=0x100, vartype=EmbeddedDataType.boolean))
+        entries += list(make_dummy_entries(address=0x3000, n=0x100, vartype=EmbeddedDataType.uint32))
+        entries += list(make_dummy_entries(address=0x4000, n=0x100, vartype=EmbeddedDataType.uint8))
+        forbidden_entries = list(make_dummy_entries(address=0x4100, n=0x10, vartype=EmbeddedDataType.uint32))
         entries += forbidden_entries
-        entries += list(make_dummy_entries(address=0x4140, n=0x10, vartype=VariableType.uint8))
+        entries += list(make_dummy_entries(address=0x4140, n=0x10, vartype=EmbeddedDataType.uint8))
 
         for i in range(0x100):
-            entries += list(make_dummy_entries(address=0x10000 + i * 0x10, n=1, vartype=VariableType.uint8))
+            entries += list(make_dummy_entries(address=0x10000 + i * 0x10, n=1, vartype=EmbeddedDataType.uint8))
 
         # This will count the number of time the value is changed in the datastore
         self.init_count_map(entries)
@@ -370,8 +371,8 @@ class TestMemoryReaderComplexReadOperation(unittest.TestCase):
         dispatcher = RequestDispatcher()
         protocol = Protocol(1, 0)
         reader = MemoryReader(protocol=protocol, dispatcher=dispatcher, datastore=ds, request_priority=0)
-        reader.set_max_request_size(128)
-        reader.set_max_response_size(128)
+        reader.set_max_request_payload_size(128)
+        reader.set_max_response_payload_size(128)
         reader.add_forbidden_region(forbidden_region_start, forbidden_region_end - forbidden_region_start + 1)
         reader.start()
 
@@ -392,7 +393,6 @@ class TestMemoryReaderComplexReadOperation(unittest.TestCase):
             self.assertLessEqual(record.request.size(), max_request_size)
             response_block = []
             request_data = protocol.parse_request(record.request)
-            self.assertTrue(request_data['valid'])
 
             for block in request_data['blocks_to_read']:
                 in_allowed_region = block['address'] > forbidden_region_end or (block['address'] + block['length'] < forbidden_region_start)
@@ -400,7 +400,7 @@ class TestMemoryReaderComplexReadOperation(unittest.TestCase):
                 response_block.append((block['address'], b'\x00' * block['length']))
 
             response = protocol.respond_read_memory_blocks(response_block)
-            self.assertLessEqual(response.size(), max_response_size)
+            self.assertLessEqual(response.data_size(), max_response_payload_size)
             record.complete(success=True, response=response)
 
             low, high = self.get_callback_count_min_max(exclude_entries=forbidden_entries)

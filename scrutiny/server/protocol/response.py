@@ -51,6 +51,9 @@ class Response:
     def size(self) -> int:
         return 9 + len(self.payload)
 
+    def data_size(self):
+        return len(self.payload)
+
     def make_bytes_no_crc(self) -> bytes:
         data = struct.pack('>BBB', self.command_id, self.subfn, self.code.value)
         data += struct.pack('>H', len(self.payload))

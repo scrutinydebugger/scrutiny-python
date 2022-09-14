@@ -7,24 +7,24 @@
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 
 import unittest
-import queue
 import time
 import random
 import string
 import json
-import uuid
 import math
+from scrutiny.core.basic_types import RuntimePublishedValue
 
 from scrutiny.server.api.API import API
-from scrutiny.server.datastore import Datastore, DatastoreEntry
+from scrutiny.server.datastore import Datastore, DatastoreVariableEntry, EntryType, DatastoreAliasEntry, DatastoreRPVEntry
 from scrutiny.core.sfd_storage import SFDStorage
 from scrutiny.server.api.dummy_client_handler import DummyConnection, DummyClientHandler
+from scrutiny.server.datastore.datastore_entry import DatastoreEntry
 from scrutiny.server.device.device_handler import DeviceHandler
 from scrutiny.server.device.device_info import DeviceInfo
 from scrutiny.server.active_sfd_handler import ActiveSFDHandler
 from scrutiny.server.device.links.dummy_link import DummyLink
 from scrutiny.core.variable import *
-from scrutiny.core import FirmwareDescription
+from scrutiny.core.firmware_description import FirmwareDescription
 from test.artifacts import get_artifact
 
 # todo
@@ -79,6 +79,7 @@ class StubbedDeviceHandler:
             'user_command': False}
         info.forbidden_memory_regions = [{'start': 0x1000, 'end': 0x2000}]
         info.readonly_memory_regions = [{'start': 0x2000, 'end': 0x3000}, {'start': 0x3000, 'end': 0x4000}]
+        info.runtime_published_values = []
         return info
 
     def configure_comm(self, link_type, link_config):
@@ -137,6 +138,7 @@ class TestAPI(unittest.TestCase):
         self.connections[conn_idx].write_to_server(json.dumps(req))
 
     def assert_no_error(self, response, msg=None):
+        self.assertIsNotNone(response)
         if 'cmd' in response:
             if 'msg' in response and msg is None:
                 msg = response['msg']
@@ -148,11 +150,20 @@ class TestAPI(unittest.TestCase):
         else:
             raise Exception('Missing cmd field in response')
 
-    def make_dummy_entries(self, n, entry_type=DatastoreEntry.EntryType.Var, prefix='path'):
-        dummy_var = Variable('dummy', vartype=VariableType.float32, path_segments=['a', 'b', 'c'], location=0x12345678, endianness=Endianness.Little)
+    def make_dummy_entries(self, n, entry_type=EntryType.Var, prefix='path') -> List[DatastoreEntry]:
+        dummy_var = Variable('dummy', vartype=EmbeddedDataType.float32, path_segments=[
+                             'a', 'b', 'c'], location=0x12345678, endianness=Endianness.Little)
         entries = []
         for i in range(n):
-            entry = DatastoreEntry(entry_type, '%s_%d' % (prefix, i), variable_def=dummy_var)
+            name = '%s_%d' % (prefix, i)
+            if entry_type == EntryType.Var:
+                entry = DatastoreVariableEntry(name, variable_def=dummy_var)
+            elif entry_type == EntryType.Alias:
+                entry_temp = DatastoreVariableEntry(name, variable_def=dummy_var)
+                entry = DatastoreAliasEntry(name, refentry=entry_temp)
+            else:
+                dummy_rpv = RuntimePublishedValue(id=i, datatype=EmbeddedDataType.float32)
+                entry = DatastoreRPVEntry(name, rpv=dummy_rpv)
             entries.append(entry)
         return entries
 
@@ -175,12 +186,14 @@ class TestAPI(unittest.TestCase):
 
     # Fetch count of var/alias. Ensure response is well formatted and accurate
     def test_get_watchable_count(self):
-        var_entries = self.make_dummy_entries(3, entry_type=DatastoreEntry.EntryType.Var, prefix='var')
-        alias_entries = self.make_dummy_entries(5, entry_type=DatastoreEntry.EntryType.Alias, prefix='alias')
+        var_entries = self.make_dummy_entries(3, entry_type=EntryType.Var, prefix='var')
+        alias_entries = self.make_dummy_entries(5, entry_type=EntryType.Alias, prefix='alias')
+        rpv_entries = self.make_dummy_entries(8, entry_type=EntryType.RuntimePublishedValue, prefix='rpv')
 
         # Add entries in the datastore that we will reread through the API
         self.datastore.add_entries_quiet(var_entries)
         self.datastore.add_entries_quiet(alias_entries)
+        self.datastore.add_entries_quiet(rpv_entries)
 
         req = {
             'cmd': 'get_watchable_count'
@@ -194,10 +207,12 @@ class TestAPI(unittest.TestCase):
         self.assertIn('qty', response)
         self.assertIn('var', response['qty'])
         self.assertIn('alias', response['qty'])
+        self.assertIn('rpv', response['qty'])
 
         self.assertEqual(response['cmd'], 'response_get_watchable_count')
         self.assertEqual(response['qty']['var'], 3)
         self.assertEqual(response['qty']['alias'], 5)
+        self.assertEqual(response['qty']['rpv'], 8)
 
     def assert_get_watchable_list_response_format(self, response):
         self.assertIn('cmd', response)
@@ -205,24 +220,30 @@ class TestAPI(unittest.TestCase):
         self.assertIn('done', response)
         self.assertIn('var', response['qty'])
         self.assertIn('alias', response['qty'])
+        self.assertIn('rpv', response['qty'])
         self.assertIn('content', response)
         self.assertIn('var', response['content'])
         self.assertIn('alias', response['content'])
+        self.assertIn('rpv', response['content'])
         self.assertEqual(response['cmd'], 'response_get_watchable_list')
 
     # Fetch list of var/alias. Ensure response is well formatted, accurate, complete, no duplicates
     def test_get_watchable_list_basic(self):
-        var_entries = self.make_dummy_entries(3, entry_type=DatastoreEntry.EntryType.Var, prefix='var')
-        alias_entries = self.make_dummy_entries(5, entry_type=DatastoreEntry.EntryType.Alias, prefix='alias')
+        var_entries = self.make_dummy_entries(3, entry_type=EntryType.Var, prefix='var')
+        alias_entries = self.make_dummy_entries(5, entry_type=EntryType.Alias, prefix='alias')
+        rpv_entries = self.make_dummy_entries(8, entry_type=EntryType.RuntimePublishedValue, prefix='rpv')
 
         expected_entries_in_response = {}
         for entry in var_entries:
             expected_entries_in_response[entry.get_id()] = entry
         for entry in alias_entries:
             expected_entries_in_response[entry.get_id()] = entry
+        for entry in rpv_entries:
+            expected_entries_in_response[entry.get_id()] = entry
         # Add entries in the datastore that we will reread through the API
         self.datastore.add_entries(var_entries)
         self.datastore.add_entries(alias_entries)
+        self.datastore.add_entries(rpv_entries)
 
         req = {
             'cmd': 'get_watchable_list'
@@ -236,18 +257,20 @@ class TestAPI(unittest.TestCase):
         self.assertEqual(response['done'], True)
         self.assertEqual(response['qty']['var'], 3)
         self.assertEqual(response['qty']['alias'], 5)
+        self.assertEqual(response['qty']['rpv'], 8)
         self.assertEqual(len(response['content']['var']), 3)
         self.assertEqual(len(response['content']['alias']), 5)
-
-        read_id = []
+        self.assertEqual(len(response['content']['rpv']), 8)
 
         # Put all entries in a single list, paired with the name of the parent key.
-        all_entries_same_level = [('var', entry) for entry in response['content']['var']] + [('alias', entry)
-                                                                                             for entry in response['content']['alias']]
+        all_entries_same_level = []
+        all_entries_same_level += [(EntryType.Var, entry) for entry in response['content']['var']]
+        all_entries_same_level += [(EntryType.Alias, entry) for entry in response['content']['alias']]
+        all_entries_same_level += [(EntryType.RuntimePublishedValue, entry) for entry in response['content']['rpv']]
 
+        # We make sure that the list is exact.
         for item in all_entries_same_level:
-
-            container = item[0]
+            entrytype = item[0]
             api_entry = item[1]
 
             self.assertIn('id', api_entry)
@@ -257,6 +280,7 @@ class TestAPI(unittest.TestCase):
             entry = expected_entries_in_response[api_entry['id']]
 
             self.assertEqual(entry.get_id(), api_entry['id'])
+            self.assertEqual(entry.get_type(), entrytype)
             self.assertEqual(entry.get_display_path(), api_entry['display_path'])
 
             del expected_entries_in_response[api_entry['id']]
@@ -270,18 +294,23 @@ class TestAPI(unittest.TestCase):
         self.do_test_get_watchable_list_with_type_filter([])
         self.do_test_get_watchable_list_with_type_filter(['var'])
         self.do_test_get_watchable_list_with_type_filter(['alias'])
+        self.do_test_get_watchable_list_with_type_filter(['rpv'])
         self.do_test_get_watchable_list_with_type_filter(['var', 'alias'])
+        self.do_test_get_watchable_list_with_type_filter(['rpv', 'var'])
+        self.do_test_get_watchable_list_with_type_filter(['var', 'alias', 'rpv'])
 
     # Fetch list of var/alias and sets a type filter.
     def do_test_get_watchable_list_with_type_filter(self, type_filter):
         self.datastore.clear()
-        var_entries = self.make_dummy_entries(3, entry_type=DatastoreEntry.EntryType.Var, prefix='var')
-        alias_entries = self.make_dummy_entries(5, entry_type=DatastoreEntry.EntryType.Alias, prefix='alias')
+        var_entries = self.make_dummy_entries(3, entry_type=EntryType.Var, prefix='var')
+        alias_entries = self.make_dummy_entries(5, entry_type=EntryType.Alias, prefix='alias')
+        rpv_entries = self.make_dummy_entries(8, entry_type=EntryType.RuntimePublishedValue, prefix='rpv')
 
         no_filter = True if type_filter is None or type_filter == '' or isinstance(type_filter, list) and len(type_filter) == 0 else False
 
         nbr_expected_var = 0
         nbr_expected_alias = 0
+        nbr_expected_rpv = 0
         expected_entries_in_response = {}
         if no_filter or 'var' in type_filter:
             nbr_expected_var = len(var_entries)
@@ -293,9 +322,15 @@ class TestAPI(unittest.TestCase):
             for entry in alias_entries:
                 expected_entries_in_response[entry.get_id()] = entry
 
+        if no_filter or 'rpv' in type_filter:
+            nbr_expected_rpv = len(rpv_entries)
+            for entry in rpv_entries:
+                expected_entries_in_response[entry.get_id()] = entry
+
         # Add entries in the datastore that we will reread through the API
         self.datastore.add_entries(var_entries)
         self.datastore.add_entries(alias_entries)
+        self.datastore.add_entries(rpv_entries)
 
         req = {
             'cmd': 'get_watchable_list',
@@ -312,18 +347,19 @@ class TestAPI(unittest.TestCase):
         self.assertEqual(response['done'], True)
         self.assertEqual(response['qty']['var'], nbr_expected_var)
         self.assertEqual(response['qty']['alias'], nbr_expected_alias)
+        self.assertEqual(response['qty']['rpv'], nbr_expected_rpv)
         self.assertEqual(len(response['content']['var']), nbr_expected_var)
         self.assertEqual(len(response['content']['alias']), nbr_expected_alias)
-
-        read_id = []
+        self.assertEqual(len(response['content']['rpv']), nbr_expected_rpv)
 
         # Put all entries in a single list, paired with the name of the parent key.
-        all_entries_same_level = [('var', entry) for entry in response['content']['var']] + [('alias', entry)
-                                                                                             for entry in response['content']['alias']]
+        all_entries_same_level = []
+        all_entries_same_level += [(EntryType.Var, entry) for entry in response['content']['var']]
+        all_entries_same_level += [(EntryType.Alias, entry) for entry in response['content']['alias']]
+        all_entries_same_level += [(EntryType.RuntimePublishedValue, entry) for entry in response['content']['rpv']]
 
         for item in all_entries_same_level:
-
-            container = item[0]
+            entrytype = item[0]
             api_entry = item[1]
 
             self.assertIn('id', api_entry)
@@ -333,6 +369,7 @@ class TestAPI(unittest.TestCase):
             entry = expected_entries_in_response[api_entry['id']]
 
             self.assertEqual(entry.get_id(), api_entry['id'])
+            self.assertEqual(entry.get_type(), entrytype)
             self.assertEqual(entry.get_display_path(), api_entry['display_path'])
 
             del expected_entries_in_response[api_entry['id']]
@@ -345,9 +382,11 @@ class TestAPI(unittest.TestCase):
     def test_get_watchable_list_with_item_limit(self):
         nVar = 19
         nAlias = 17
+        nRpv = 21
         max_per_response = 10
-        var_entries = self.make_dummy_entries(nVar, entry_type=DatastoreEntry.EntryType.Var, prefix='var')
-        alias_entries = self.make_dummy_entries(nAlias, entry_type=DatastoreEntry.EntryType.Alias, prefix='alias')
+        var_entries = self.make_dummy_entries(nVar, entry_type=EntryType.Var, prefix='var')
+        alias_entries = self.make_dummy_entries(nAlias, entry_type=EntryType.Alias, prefix='alias')
+        rpv_entries = self.make_dummy_entries(nRpv, entry_type=EntryType.RuntimePublishedValue, prefix='rpv')
         expected_entries_in_response = {}
 
         for entry in var_entries:
@@ -356,9 +395,13 @@ class TestAPI(unittest.TestCase):
         for entry in alias_entries:
             expected_entries_in_response[entry.get_id()] = entry
 
+        for entry in rpv_entries:
+            expected_entries_in_response[entry.get_id()] = entry
+
         # Add entries in the datastore that we will reread through the API
         self.datastore.add_entries(var_entries)
         self.datastore.add_entries(alias_entries)
+        self.datastore.add_entries(rpv_entries)
 
         req = {
             'cmd': 'get_watchable_list',
@@ -367,12 +410,13 @@ class TestAPI(unittest.TestCase):
 
         self.send_request(req)
         responses = []
-        nresponse = math.ceil((nVar + nAlias) / max_per_response)
+        nresponse = math.ceil((nVar + nAlias + nRpv) / max_per_response)
         for i in range(nresponse):
             responses.append(self.wait_and_load_response())
 
         received_vars = []
         received_alias = []
+        received_rpvs = []
 
         for i in range(len(responses)):
             response = responses[i]
@@ -381,37 +425,42 @@ class TestAPI(unittest.TestCase):
 
             received_vars += response['content']['var']
             received_alias += response['content']['alias']
+            received_rpvs += response['content']['rpv']
 
             if i < len(responses) - 1:
                 self.assertEqual(response['done'], False)
-                self.assertEqual(response['qty']['var'] + response['qty']['alias'], max_per_response)
-                self.assertEqual(len(response['content']['var']) + len(response['content']['alias']), max_per_response)
+                self.assertEqual(response['qty']['var'] + response['qty']['alias'] + response['qty']['rpv'], max_per_response)
+                self.assertEqual(len(response['content']['var']) + len(response['content']['alias']) +
+                                 len(response['content']['rpv']), max_per_response)
             else:
-                remaining_items = nVar + nAlias - (len(responses) - 1) * max_per_response
+                remaining_items = nVar + nAlias + nRpv - (len(responses) - 1) * max_per_response
                 self.assertEqual(response['done'], True)
-                self.assertEqual(response['qty']['var'] + response['qty']['alias'], remaining_items)
-                self.assertEqual(len(response['content']['var']) + len(response['content']['alias']), remaining_items)
+                self.assertEqual(response['qty']['var'] + response['qty']['alias'] + response['qty']['rpv'], remaining_items)
+                self.assertEqual(len(response['content']['var']) + len(response['content']['alias']) +
+                                 len(response['content']['rpv']), remaining_items)
 
-        read_id = []
+            # Put all entries in a single list, paired with the name of the parent key.
+            all_entries_same_level = []
+            all_entries_same_level += [(EntryType.Var, entry) for entry in response['content']['var']]
+            all_entries_same_level += [(EntryType.Alias, entry) for entry in response['content']['alias']]
+            all_entries_same_level += [(EntryType.RuntimePublishedValue, entry) for entry in response['content']['rpv']]
 
-        # Put all entries in a single list, paired with the name of the parent key.
-        all_entries_same_level = [('var', entry) for entry in received_vars] + [('alias', entry) for entry in received_alias]
+            for item in all_entries_same_level:
 
-        for item in all_entries_same_level:
+                entrytype = item[0]
+                api_entry = item[1]
 
-            container = item[0]
-            api_entry = item[1]
+                self.assertIn('id', api_entry)
+                self.assertIn('display_path', api_entry)
 
-            self.assertIn('id', api_entry)
-            self.assertIn('display_path', api_entry)
+                self.assertIn(api_entry['id'], expected_entries_in_response)
+                entry = expected_entries_in_response[api_entry['id']]
 
-            self.assertIn(api_entry['id'], expected_entries_in_response)
-            entry = expected_entries_in_response[api_entry['id']]
+                self.assertEqual(entry.get_id(), api_entry['id'])
+                self.assertEqual(entry.get_type(), entrytype)
+                self.assertEqual(entry.get_display_path(), api_entry['display_path'])
 
-            self.assertEqual(entry.get_id(), api_entry['id'])
-            self.assertEqual(entry.get_display_path(), api_entry['display_path'])
-
-            del expected_entries_in_response[api_entry['id']]
+                del expected_entries_in_response[api_entry['id']]
 
         self.assertEqual(len(expected_entries_in_response), 0)
 
@@ -428,7 +477,7 @@ class TestAPI(unittest.TestCase):
             self.assertIn('value', update)
 
     def test_subscribe_single_var(self):
-        entries = self.make_dummy_entries(10, entry_type=DatastoreEntry.EntryType.Var, prefix='var')
+        entries = self.make_dummy_entries(10, entry_type=EntryType.Var, prefix='var')
         self.datastore.add_entries(entries)
 
         subscribed_entry = entries[2]
@@ -464,7 +513,7 @@ class TestAPI(unittest.TestCase):
 
     # Make sure that we can unsubscribe correctly to a variable and value update stops
     def test_subscribe_unsubscribe(self):
-        entries = self.make_dummy_entries(10, entry_type=DatastoreEntry.EntryType.Var, prefix='var')
+        entries = self.make_dummy_entries(10, entry_type=EntryType.Var, prefix='var')
         self.datastore.add_entries(entries)
         subscribed_entry = entries[2]
         subscribe_cmd = {
@@ -491,7 +540,7 @@ class TestAPI(unittest.TestCase):
 
     # Make sure that the streamer send the value update once if many update happens before the value is outputted to the client.
     def test_do_not_send_duplicate_changes(self):
-        entries = self.make_dummy_entries(10, entry_type=DatastoreEntry.EntryType.Var, prefix='var')
+        entries = self.make_dummy_entries(10, entry_type=EntryType.Var, prefix='var')
         self.datastore.add_entries(entries)
 
         subscribed_entry = entries[2]
@@ -595,6 +644,7 @@ class TestAPI(unittest.TestCase):
             SFDStorage.uninstall(sfd2.get_firmware_id())
 
     def test_get_server_status(self):
+        device_info_exlude_propeties = ['runtime_published_values']
         dummy_sfd1_filename = get_artifact('test_sfd_1.sfd')
         dummy_sfd2_filename = get_artifact('test_sfd_2.sfd')
         with SFDStorage.use_temp_folder():
@@ -627,10 +677,12 @@ class TestAPI(unittest.TestCase):
             self.assertIn('config', response['device_comm_link'])
             self.assertEqual(response['device_comm_link']['config'], {})
             self.assertIn('device_info', response)
+            self.assertIsNotNone(response['device_info'])
             device_info = self.device_handler.get_device_info()
             for attr in device_info.get_attributes():
-                self.assertIn(attr, response['device_info'])
-                self.assertEqual(getattr(device_info, attr), response['device_info'][attr])
+                if attr not in device_info_exlude_propeties:    # Exclude list
+                    self.assertIn(attr, response['device_info'])
+                    self.assertEqual(getattr(device_info, attr), response['device_info'][attr])
 
             # Redo the test, but with no SFD loaded. We should get None
             self.sfd_handler.reset_active_sfd()
@@ -659,8 +711,9 @@ class TestAPI(unittest.TestCase):
             self.assertIn('device_info', response)
             device_info = self.device_handler.get_device_info()
             for attr in device_info.get_attributes():
-                self.assertIn(attr, response['device_info'])
-                self.assertEqual(getattr(device_info, attr), response['device_info'][attr])
+                if attr not in device_info_exlude_propeties:
+                    self.assertIn(attr, response['device_info'])
+                    self.assertEqual(getattr(device_info, attr), response['device_info'][attr])
 
             SFDStorage.uninstall(sfd1.get_firmware_id())
             SFDStorage.uninstall(sfd2.get_firmware_id())
