@@ -8,18 +8,15 @@
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 
 import logging
-import copy
 import traceback
 from sortedcontainers import SortedSet  # type: ignore
-from scrutiny.server.datastore.datastore_entry import DatastoreRPVEntry
 
 from scrutiny.server.protocol import *
 import scrutiny.server.protocol.typing as protocol_typing
 from scrutiny.server.device.request_dispatcher import RequestDispatcher, SuccessCallback, FailureCallback
-from scrutiny.server.datastore import Datastore, DatastoreVariableEntry, WatchCallback
-from scrutiny.core.memory_content import MemoryContent, Cluster
+from scrutiny.server.datastore import Datastore, DatastoreRPVEntry, WatchCallback
 
-from typing import Any, List, Set, Tuple, Optional, cast, Dict
+from typing import Any, List, Tuple, Optional, cast, Dict
 
 
 class DataStoreEntrySortableByRpvId:

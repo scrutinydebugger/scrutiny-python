@@ -1,12 +1,11 @@
 import unittest
 import random
-from dataclasses import dataclass
 from sortedcontainers import SortedSet
 
 from scrutiny.server.datastore import Datastore, DatastoreRPVEntry
 from scrutiny.server.device.request_generator.rpv_reader import RPVReader, DataStoreEntrySortableByRpvId
 from scrutiny.server.device.request_dispatcher import RequestDispatcher
-from scrutiny.server.protocol import Protocol,  Response
+from scrutiny.server.protocol import Protocol
 from scrutiny.server.protocol.commands import *
 from scrutiny.core.variable import *
 from scrutiny.core.basic_types import *
