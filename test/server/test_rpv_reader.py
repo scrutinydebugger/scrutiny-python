@@ -1,3 +1,12 @@
+#    test_rpv_reader.py
+#        Test the RPVReader whos jobs is to emit read requests to the device to keep all Runtime
+#        Published Values up to date in the datastore
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021-2022 Scrutiny Debugger
+
 import unittest
 import random
 from sortedcontainers import SortedSet
@@ -14,11 +23,12 @@ import scrutiny.server.protocol.typing as protocol_typing
 from typing import List, Dict, cast, Generator
 from scrutiny.core.typehints import GenericCallback
 
+
 def generate_random_value(datatype: EmbeddedDataType) -> Encodable:
     # Generate random bitstring of the right size. Then decode it.
     codec = Codecs.get(datatype, Endianness.Big)
     if datatype in [EmbeddedDataType.float8, EmbeddedDataType.float16, EmbeddedDataType.float32, EmbeddedDataType.float64, EmbeddedDataType.float128, EmbeddedDataType.float256]:
-        return codec.decode(codec.encode((random.random()-0.5)*1000))
+        return codec.decode(codec.encode((random.random() - 0.5) * 1000))
 
     bytestr = bytes([random.randint(0, 0xff) for i in range(datatype.get_size_byte())])
     return codec.decode(bytestr)
@@ -26,7 +36,7 @@ def generate_random_value(datatype: EmbeddedDataType) -> Encodable:
 
 def make_dummy_entries(start_id, n, vartype=EmbeddedDataType.float32) -> Generator[DatastoreRPVEntry, None, None]:
     for i in range(n):
-        rpv = RuntimePublishedValue(id=start_id+i, datatype=vartype)
+        rpv = RuntimePublishedValue(id=start_id + i, datatype=vartype)
         entry = DatastoreRPVEntry('rpv_%d' % i, rpv=rpv)
         yield entry
 
@@ -57,8 +67,8 @@ class TestRPVReaderBasicReadOperation(unittest.TestCase):
 
         self.assertEqual(len(theset), 0)
 
-    def generic_test_read_rpv_sequence(self, expected_rpv_entry_sequence:List[List[DatastoreRPVEntry]], reader:RPVReader, dispatcher:RequestDispatcher, protocol:Protocol, niter:int=5):
-        all_rpvs:List[RuntimePublishedValue] = []
+    def generic_test_read_rpv_sequence(self, expected_rpv_entry_sequence: List[List[DatastoreRPVEntry]], reader: RPVReader, dispatcher: RequestDispatcher, protocol: Protocol, niter: int = 5):
+        all_rpvs: List[RuntimePublishedValue] = []
         for sequence_entry in expected_rpv_entry_sequence:
             all_rpvs += [entry.get_rpv() for entry in sequence_entry]
         protocol.configure_rpvs(all_rpvs)
@@ -99,7 +109,7 @@ class TestRPVReaderBasicReadOperation(unittest.TestCase):
                     value_lut[rpv.id] = value   # Remember for assertion later
                     expected_rpv_values.append((rpv.id, value))
 
-                response = protocol.respond_read_runtime_published_values(vals = expected_rpv_values)
+                response = protocol.respond_read_runtime_published_values(vals=expected_rpv_values)
                 req_record.complete(success=True, response=response)
                 # By completing the request. Success callback should be called making the datastore reader update the datastore
 
@@ -139,7 +149,6 @@ class TestRPVReaderBasicReadOperation(unittest.TestCase):
         # Here, we define 3 rpvs and impose a limit on the request size to allow only 2 rpv read per request.
         # We make sure that blocks are completely read.
 
-
         start_id = 0x1000
         ds = Datastore()
         entries = list(make_dummy_entries(start_id=start_id, n=3, vartype=EmbeddedDataType.float32))
@@ -170,7 +179,7 @@ class TestRPVReaderBasicReadOperation(unittest.TestCase):
 
         nfloat = 15
         number_per_req = 10
-        entries:List[DatastoreRPVEntry] = []
+        entries: List[DatastoreRPVEntry] = []
         entries += list(make_dummy_entries(start_id=100, n=nfloat, vartype=EmbeddedDataType.float32))
 
         ds = Datastore()
@@ -181,7 +190,8 @@ class TestRPVReaderBasicReadOperation(unittest.TestCase):
         reader = RPVReader(protocol, dispatcher=dispatcher, datastore=ds, request_priority=0)
         reader.set_max_request_payload_size(1024)  # Non-limiting here
         temp_list = [entry.get_rpv() for entry in entries]
-        reader.set_max_response_payload_size(protocol.read_rpv_response_required_size(temp_list[0:number_per_req]) )    # All RPV are the same type,s o we can do that
+        reader.set_max_response_payload_size(protocol.read_rpv_response_required_size(
+            temp_list[0:number_per_req]))    # All RPV are the same type,s o we can do that
         reader.start()
 
         for entry in entries:
@@ -200,7 +210,7 @@ class TestRPVReaderBasicReadOperation(unittest.TestCase):
     def test_request_size_limit(self):
         # Make sure the maximum request size is always respected
 
-        entries:List[DatastoreRPVEntry] = []
+        entries: List[DatastoreRPVEntry] = []
         for i in range(20):  # different variable size
             entries += list(make_dummy_entries(start_id=i * 0x100 + 0, n=1, vartype=EmbeddedDataType.uint64))
             entries += list(make_dummy_entries(start_id=i * 0x100 + 1, n=1, vartype=EmbeddedDataType.uint32))
@@ -235,9 +245,9 @@ class TestRPVReaderBasicReadOperation(unittest.TestCase):
 
                 # Respond the request so that we can a new request coming in
                 request_data = cast(protocol_typing.Request.MemoryControl.ReadRPV, protocol.parse_request(record.request))
-                response_vals:List[Tuple[int, Encodable]] = []
+                response_vals: List[Tuple[int, Encodable]] = []
                 for rpv_id in request_data['rpvs_id']:
-                    response_vals.append( (rpv_id, int(random.random()*255)) )
+                    response_vals.append((rpv_id, int(random.random() * 255)))
 
                 response = protocol.respond_read_runtime_published_values(response_vals)  # Make device hadnler happy so we can continue the test
                 record.complete(success=True, response=response)
@@ -245,7 +255,7 @@ class TestRPVReaderBasicReadOperation(unittest.TestCase):
     def test_response_size_limit(self):
         # Make sure the maximum response size is always respected
 
-        entries:List[DatastoreRPVEntry] = []
+        entries: List[DatastoreRPVEntry] = []
         for i in range(20):  # different variable size
             entries += list(make_dummy_entries(start_id=i * 0x100 + 0, n=1, vartype=EmbeddedDataType.uint64))
             entries += list(make_dummy_entries(start_id=i * 0x100 + 1, n=1, vartype=EmbeddedDataType.uint32))
@@ -278,9 +288,9 @@ class TestRPVReaderBasicReadOperation(unittest.TestCase):
 
                 # Respond the request so that we can a new request coming in
                 request_data = cast(protocol_typing.Request.MemoryControl.ReadRPV, protocol.parse_request(record.request))
-                response_vals:List[Tuple[int, Encodable]] = []
+                response_vals: List[Tuple[int, Encodable]] = []
                 for rpv_id in request_data['rpvs_id']:
-                    response_vals.append( (rpv_id, int(random.random()*255)) )
+                    response_vals.append((rpv_id, int(random.random() * 255)))
 
                 response = protocol.respond_read_runtime_published_values(response_vals)
                 self.assertLessEqual(response.data_size(), max_response_payload_size)    # That's the main test

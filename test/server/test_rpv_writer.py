@@ -1,3 +1,12 @@
+#    test_rpv_writer.py
+#        Test the RPVWriter whos jobs is to emit write requests to the device to keep all
+#        Runtime Published Values up to date in the datastore
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021-2022 Scrutiny Debugger
+
 import unittest
 import time
 import random
@@ -20,7 +29,7 @@ def generate_random_value(datatype: EmbeddedDataType) -> Encodable:
     # Generate random bitstring of the right size. Then decode it.
     codec = Codecs.get(datatype, Endianness.Big)
     if datatype in [EmbeddedDataType.float8, EmbeddedDataType.float16, EmbeddedDataType.float32, EmbeddedDataType.float64, EmbeddedDataType.float128, EmbeddedDataType.float256]:
-        return codec.decode(codec.encode((random.random()-0.5)*1000))
+        return codec.decode(codec.encode((random.random() - 0.5) * 1000))
 
     bytestr = bytes([random.randint(0, 0xff) for i in range(datatype.get_size_byte())])
     return codec.decode(bytestr)
@@ -28,7 +37,7 @@ def generate_random_value(datatype: EmbeddedDataType) -> Encodable:
 
 def make_dummy_entries(start_id, n, vartype=EmbeddedDataType.float32) -> Generator[DatastoreRPVEntry, None, None]:
     for i in range(n):
-        rpv = RuntimePublishedValue(id=start_id+i, datatype=vartype)
+        rpv = RuntimePublishedValue(id=start_id + i, datatype=vartype)
         entry = DatastoreRPVEntry('rpv_%d' % i, rpv=rpv)
         yield entry
 
@@ -81,7 +90,7 @@ class TestRPVWriter(unittest.TestCase):
         self.assertEqual(request_data['rpvs'][0]['value'], d2f(3.1415926))  # Needs to use float32 representation.
 
         # Make the RpVReader happy by responding.
-        response = protocol.respond_write_runtime_published_values([rpv['id'] for rpv in request_data['rpvs']]) 
+        response = protocol.respond_write_runtime_published_values([rpv['id'] for rpv in request_data['rpvs']])
 
         record.complete(success=True, response=response)
         self.assertFalse(entry_to_write.has_pending_target_update())
@@ -133,7 +142,7 @@ class TestRPVWriter(unittest.TestCase):
             request_data = cast(protocol_typing.Request.MemoryControl.WriteRPV, protocol.parse_request(record.request))
 
             # Emulate the device response
-            response = protocol.respond_write_runtime_published_values([rpv['id'] for rpv in request_data['rpvs']]) 
+            response = protocol.respond_write_runtime_published_values([rpv['id'] for rpv in request_data['rpvs']])
             record.complete(success=True, response=response)    # This should trigger the datastore write callback
 
         # Make sure all entries has been updated. We check the update timestamp and the data itself

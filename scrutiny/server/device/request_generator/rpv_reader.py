@@ -148,7 +148,7 @@ class RPVReader:
 
         while len(entries_in_request) < len(self.watched_entries_ordered_by_id):
             next_entry = self.watched_entries_ordered_by_id[self.read_cursor].entry
-            
+
             candidate_list = entries_in_request + [next_entry]
             rpv_candidate_list = [x.get_rpv() for x in candidate_list]
             required_request_payload_size = self.protocol.read_rpv_request_required_size(rpv_candidate_list)
