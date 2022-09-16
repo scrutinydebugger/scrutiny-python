@@ -37,7 +37,7 @@ class TestActiveSFDHandler(unittest.TestCase):
         SFDStorage.use_temp_folder()
         self.sfd_filename = get_artifact('test_sfd_1.sfd')
         sfd = SFDStorage.install(self.sfd_filename, ignore_exist=True)
-        self.firmware_id = sfd.get_firmware_id()
+        self.firmware_id = sfd.get_firmware_id_ascii()
 
         self.device_handler = StubbedDeviceHandler(self.firmware_id, DeviceHandler.ConnectionStatus.DISCONNECTED)
         self.datastore = Datastore()

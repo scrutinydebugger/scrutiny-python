@@ -595,8 +595,8 @@ class TestAPI(unittest.TestCase):
                 real_metadata = SFDStorage.get_metadata(installed_firmware_id)
                 self.assertEqual(real_metadata, gotten_metadata)
 
-            SFDStorage.uninstall(sfd1.get_firmware_id())
-            SFDStorage.uninstall(sfd2.get_firmware_id())
+            SFDStorage.uninstall(sfd1.get_firmware_id_ascii())
+            SFDStorage.uninstall(sfd2.get_firmware_id_ascii())
 
     # Check that we can load a SFD through the API and read the actually loaded SFD
 
@@ -610,7 +610,7 @@ class TestAPI(unittest.TestCase):
             # load #1
             req = {
                 'cmd': 'load_sfd',
-                'firmware_id': sfd1.get_firmware_id()
+                'firmware_id': sfd1.get_firmware_id_ascii()
             }
 
             self.send_request(req, 0)
@@ -621,12 +621,12 @@ class TestAPI(unittest.TestCase):
             self.assertEqual(response['cmd'], 'inform_server_status')
             self.assertIn('loaded_sfd', response)
             self.assertIn('firmware_id', response['loaded_sfd'])
-            self.assertEqual(response['loaded_sfd']['firmware_id'], sfd1.get_firmware_id())
+            self.assertEqual(response['loaded_sfd']['firmware_id'], sfd1.get_firmware_id_ascii())
 
             # load #2
             req = {
                 'cmd': 'load_sfd',
-                'firmware_id': sfd2.get_firmware_id()
+                'firmware_id': sfd2.get_firmware_id_ascii()
             }
 
             self.send_request(req, 0)
@@ -638,10 +638,10 @@ class TestAPI(unittest.TestCase):
             self.assertEqual(response['cmd'], 'inform_server_status')
             self.assertIn('loaded_sfd', response)
             self.assertIn('firmware_id', response['loaded_sfd'])
-            self.assertEqual(response['loaded_sfd']['firmware_id'], sfd2.get_firmware_id())
+            self.assertEqual(response['loaded_sfd']['firmware_id'], sfd2.get_firmware_id_ascii())
 
-            SFDStorage.uninstall(sfd1.get_firmware_id())
-            SFDStorage.uninstall(sfd2.get_firmware_id())
+            SFDStorage.uninstall(sfd1.get_firmware_id_ascii())
+            SFDStorage.uninstall(sfd2.get_firmware_id_ascii())
 
     def test_get_server_status(self):
         device_info_exlude_propeties = ['runtime_published_values']
@@ -651,7 +651,7 @@ class TestAPI(unittest.TestCase):
             sfd1 = SFDStorage.install(dummy_sfd1_filename, ignore_exist=True)
             sfd2 = SFDStorage.install(dummy_sfd2_filename, ignore_exist=True)
 
-            self.sfd_handler.request_load_sfd(sfd2.get_firmware_id())
+            self.sfd_handler.request_load_sfd(sfd2.get_firmware_id_ascii())
             self.sfd_handler.process()
             self.device_handler.set_connection_status(DeviceHandler.ConnectionStatus.CONNECTED_READY)
 
@@ -668,14 +668,14 @@ class TestAPI(unittest.TestCase):
             self.assertEqual(response['device_status'], 'connected_ready')
             self.assertIn('loaded_sfd', response)
             self.assertIn('firmware_id', response['loaded_sfd'])
-            self.assertEqual(response['loaded_sfd']['firmware_id'], sfd2.get_firmware_id())
+            self.assertEqual(response['loaded_sfd']['firmware_id'], sfd2.get_firmware_id_ascii())
             self.assertIn('metadata', response['loaded_sfd'])
             self.assertEqual(response['loaded_sfd']['metadata'], sfd2.get_metadata())
             self.assertIn('device_comm_link', response)
             self.assertIn('link_type', response['device_comm_link'])
             self.assertEqual(response['device_comm_link']['link_type'], 'dummy')
-            self.assertIn('config', response['device_comm_link'])
-            self.assertEqual(response['device_comm_link']['config'], {})
+            self.assertIn('link_config', response['device_comm_link'])
+            self.assertEqual(response['device_comm_link']['link_config'], {})
             self.assertIn('device_info', response)
             self.assertIsNotNone(response['device_info'])
             device_info = self.device_handler.get_device_info()
@@ -706,8 +706,8 @@ class TestAPI(unittest.TestCase):
             self.assertIn('device_comm_link', response)
             self.assertIn('link_type', response['device_comm_link'])
             self.assertEqual(response['device_comm_link']['link_type'], 'dummy')
-            self.assertIn('config', response['device_comm_link'])
-            self.assertEqual(response['device_comm_link']['config'], {})
+            self.assertIn('link_config', response['device_comm_link'])
+            self.assertEqual(response['device_comm_link']['link_config'], {})
             self.assertIn('device_info', response)
             device_info = self.device_handler.get_device_info()
             for attr in device_info.get_attributes():
@@ -715,8 +715,8 @@ class TestAPI(unittest.TestCase):
                     self.assertIn(attr, response['device_info'])
                     self.assertEqual(getattr(device_info, attr), response['device_info'][attr])
 
-            SFDStorage.uninstall(sfd1.get_firmware_id())
-            SFDStorage.uninstall(sfd2.get_firmware_id())
+            SFDStorage.uninstall(sfd1.get_firmware_id_ascii())
+            SFDStorage.uninstall(sfd2.get_firmware_id_ascii())
 
     def test_set_device_link(self):
         self.assertEqual(self.device_handler.link_type, 'none')

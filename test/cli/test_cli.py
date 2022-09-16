@@ -147,7 +147,7 @@ class TestCLI(unittest.TestCase):
                 cli.run(['install-sfd', sfd_name], except_failed=True)                            # install with dedicated command
                 self.assertTrue(SFDStorage.is_installed(demobin_firmware_id))
                 sfd = SFDStorage.get(demobin_firmware_id)
-                self.assertEqual(sfd.get_firmware_id(ascii=True), demobin_firmware_id)  # Load and check id.
+                self.assertEqual(sfd.get_firmware_id_ascii(), demobin_firmware_id)  # Load and check id.
                 cli.run(['uninstall-sfd', demobin_firmware_id, '--quiet'], except_failed=True)    # cleanup
 
     def test_list_sfd(self):
@@ -164,5 +164,5 @@ class TestCLI(unittest.TestCase):
                 nbline = stdout.read().count('\n')
                 self.assertGreaterEqual(nbline, 3)  # 2 SFD + total number
 
-            SFDStorage.uninstall(sfd1.get_firmware_id())
-            SFDStorage.uninstall(sfd2.get_firmware_id())
+            SFDStorage.uninstall(sfd1.get_firmware_id_ascii())
+            SFDStorage.uninstall(sfd2.get_firmware_id_ascii())
