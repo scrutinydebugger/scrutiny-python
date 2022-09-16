@@ -53,7 +53,7 @@ class SFDStorageManager():
             raise ValueError('File "%s" does not exist' % (filename))
 
         sfd = FirmwareDescription(filename)
-        firmware_id_ascii = sfd.get_firmware_id(ascii=True)
+        firmware_id_ascii = sfd.get_firmware_id_ascii()
         assert isinstance(firmware_id_ascii, str)
         output_file = os.path.join(self.get_storage_dir(), firmware_id_ascii)
 

@@ -13,9 +13,11 @@
 {
     "cmd": "response_get_watchable_list",
     "reqid": 123,
+    "done" : false,
     "qty": {
         "var": 50,
-        "alias": 50
+        "alias": 50,
+        "rpv":10
     },
     "content": {
         "var": [{

@@ -101,11 +101,11 @@ class FirmwareDescription:
             outzip.writestr(self.metadata_filename, json.dumps(self.metadata, indent=4))
             outzip.writestr(self.varmap_filename, self.varmap.get_json())
 
-    def get_firmware_id(self, ascii: bool = True) -> Union[bytes, str]:
-        if ascii:
-            return self.firmwareid.hex()
-        else:
-            return self.firmwareid
+    def get_firmware_id(self) -> bytes:
+        return self.firmwareid
+    
+    def get_firmware_id_ascii(self) -> str:
+        return self.firmwareid.hex()
 
     def validate(self) -> None:
         if not hasattr(self, 'metadata') or not hasattr(self, 'varmap') or not hasattr(self, 'firmwareid'):

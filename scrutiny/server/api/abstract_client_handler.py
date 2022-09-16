@@ -7,10 +7,10 @@
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 
 from abc import abstractmethod
-from typing import Dict, Optional
+from typing import Dict, Optional, Union
 from dataclasses import dataclass
 
-from .message_definitions import APIMessage
+import scrutiny.server.api.typing as api_typing
 
 ClientHandlerConfig = Dict[str, str]
 
@@ -18,8 +18,7 @@ ClientHandlerConfig = Dict[str, str]
 @dataclass
 class ClientHandlerMessage:
     conn_id: str
-    obj: APIMessage
-
+    obj: Union[api_typing.C2SMessage, api_typing.S2CMessage]
 
 class AbstractClientHandler:
 

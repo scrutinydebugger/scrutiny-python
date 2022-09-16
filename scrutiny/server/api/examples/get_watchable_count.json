@@ -10,6 +10,7 @@
     "reqid": 123,
     "qty": {
         "var": 100,
-        "alias": 50
+        "alias": 50,
+        "rpv": 20
     }
 }
