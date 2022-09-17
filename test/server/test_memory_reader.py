@@ -766,9 +766,9 @@ class TestMemoryAndRPVReader(unittest.TestCase):
         # We validate that the round robin scheme works and alternate between RPV and Variables.
 
         rpv_entries = list(make_dummy_rpv_entries(start_id=0x1000, n=30, vartype=EmbeddedDataType.float32))
-        var_entries = list(make_dummy_var_entries(address=0x10000, n=10, vartype=EmbeddedDataType.float32))
-        var_entries += list(make_dummy_var_entries(address=0x20000, n=10, vartype=EmbeddedDataType.float32))
-        var_entries += list(make_dummy_var_entries(address=0x30000, n=10, vartype=EmbeddedDataType.float32))
+        var_entries = list(make_dummy_var_entries(address=0x2000, n=10, vartype=EmbeddedDataType.float32))
+        var_entries += list(make_dummy_var_entries(address=0x3000, n=10, vartype=EmbeddedDataType.float32))
+        var_entries += list(make_dummy_var_entries(address=0x4000, n=10, vartype=EmbeddedDataType.float32))
 
         self.datastore.add_entries(rpv_entries)
         self.datastore.add_entries(var_entries)
