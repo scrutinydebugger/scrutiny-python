@@ -513,6 +513,7 @@ class TestDeviceHandlerMultipleLink(unittest.TestCase):
         self.emulated_device2.stop()
 
     def test_change_link_mid_comm(self):
+        # This test failed once on CI for no reason.  Keep an eye on it!   self.assertTrue(connection_completed) == flase
 
         # Make sur ewe can work with no link
         self.device_handler.process()

@@ -209,9 +209,9 @@ class API:
             if len(chunk) == 0:
                 continue
 
-            msg:api_typing.S2C.WatchableUpdate = {
+            msg: api_typing.S2C.WatchableUpdate = {
                 'cmd': self.Command.Api2Client.WATCHABLE_UPDATE,
-                'reqid':None,
+                'reqid': None,
                 'updates': [dict(id=x.get_id(), value=x.get_value()) for x in chunk]
             }
 
@@ -292,10 +292,10 @@ class API:
     def process_echo(self, conn_id: str, req: api_typing.C2S.Echo) -> None:
         if 'payload' not in req:
             raise InvalidRequestException(req, 'Missing payload')
-        response:api_typing.S2C.Echo = {
-            'cmd' : self.Command.Api2Client.ECHO_RESPONSE,
-            'reqid' : self.get_req_id(req),
-            'payload' : req['payload']
+        response: api_typing.S2C.Echo = {
+            'cmd': self.Command.Api2Client.ECHO_RESPONSE,
+            'reqid': self.get_req_id(req),
+            'payload': req['payload']
         }
         self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
 
@@ -310,7 +310,7 @@ class API:
 
             max_per_response = req['max_per_response']
 
-        type_to_include:List[EntryType] = []
+        type_to_include: List[EntryType] = []
         if self.is_dict_with_key(cast(Dict, req), 'filter'):
             if self.is_dict_with_key(cast(Dict, req['filter']), 'type'):
                 if isinstance(req['filter']['type'], list):
@@ -355,7 +355,7 @@ class API:
 
                 done = (remaining == 0)
 
-            response:api_typing.S2C.GetWatchableList = {
+            response: api_typing.S2C.GetWatchableList = {
                 'cmd': self.Command.Api2Client.GET_WATCHABLE_LIST_RESPONSE,
                 'reqid': self.get_req_id(req),
                 'qty': {
@@ -375,7 +375,7 @@ class API:
 
     #  ===  GET_WATCHABLE_COUNT ===
     def process_get_watchable_count(self, conn_id: str, req: api_typing.C2S.GetWatchableCount) -> None:
-        response:api_typing.S2C.GetWatchableCount = {
+        response: api_typing.S2C.GetWatchableCount = {
             'cmd': self.Command.Api2Client.GET_WATCHABLE_COUNT_RESPONSE,
             'reqid': self.get_req_id(req),
             'qty': {
@@ -401,7 +401,7 @@ class API:
         for watchable in req['watchables']:
             self.datastore.start_watching(watchable, watcher=conn_id, callback=UpdateVarCallback(self.var_update_callback))
 
-        response:api_typing.S2C.SubscribeWatchable = {
+        response: api_typing.S2C.SubscribeWatchable = {
             'cmd': self.Command.Api2Client.SUBSCRIBE_WATCHABLE_RESPONSE,
             'reqid': self.get_req_id(req),
             'watchables': req['watchables']
@@ -423,7 +423,7 @@ class API:
         for watchable in req['watchables']:
             self.datastore.stop_watching(watchable, watcher=conn_id)
 
-        response:api_typing.S2C.UnsubscribeWatchable = {
+        response: api_typing.S2C.UnsubscribeWatchable = {
             'cmd': self.Command.Api2Client.SUBSCRIBE_WATCHABLE_RESPONSE,
             'reqid': self.get_req_id(req),
             'watchables': req['watchables']
@@ -437,7 +437,7 @@ class API:
         for firmware_id in firmware_id_list:
             metadata_dict[firmware_id] = SFDStorage.get_metadata(firmware_id)
 
-        response:api_typing.S2C.GetInstalledSFD = {
+        response: api_typing.S2C.GetInstalledSFD = {
             'cmd': self.Command.Api2Client.GET_INSTALLED_SFD_RESPONSE,
             'reqid': self.get_req_id(req),
             'sfd_list': metadata_dict
@@ -448,7 +448,7 @@ class API:
     def process_get_loaded_sfd(self, conn_id: str, req: api_typing.C2S.GetLoadedSFD):
         sfd = self.sfd_handler.get_loaded_sfd()
 
-        response:api_typing.S2C.GetLoadedSFD = {
+        response: api_typing.S2C.GetLoadedSFD = {
             'cmd': self.Command.Api2Client.GET_LOADED_SFD_RESPONSE,
             'reqid': self.get_req_id(req),
             'firmware_id': sfd.get_firmware_id_ascii() if sfd is not None else None
@@ -489,7 +489,7 @@ class API:
 
         self.device_handler.configure_comm(req['link_type'], cast(LinkConfig, req['link_config']))
 
-        response:api_typing.S2C.Empty = {
+        response: api_typing.S2C.Empty = {
             'cmd': self.Command.Api2Client.SET_LINK_CONFIG_RESPONSE,
             'reqid': self.get_req_id(req)
         }
@@ -576,15 +576,15 @@ class API:
         except Exception as e:
             self.logger.debug('Serial communication not possible.\n' + traceback.format_exc())
 
-        response:api_typing.S2C.GetPossibleLinkConfig = {
+        response: api_typing.S2C.GetPossibleLinkConfig = {
             'cmd': self.Command.Api2Client.GET_POSSIBLE_LINK_CONFIG_RESPONSE,
             'reqid': self.get_req_id(req),
-            'configs': configs  
+            'configs': configs
         }
 
         self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
 
-    def craft_inform_server_status_response(self, reqid:Optional[int]=None) -> api_typing.S2C.InformServerStatus:
+    def craft_inform_server_status_response(self, reqid: Optional[int] = None) -> api_typing.S2C.InformServerStatus:
 
         sfd = self.sfd_handler.get_loaded_sfd()
         device_link_type = self.device_handler.get_link_type()
@@ -669,7 +669,7 @@ class API:
         }
         return response
 
-    def get_req_id(self, req:  api_typing.C2SMessage) -> Optional[int]:
+    def get_req_id(self, req: api_typing.C2SMessage) -> Optional[int]:
         return req['reqid'] if 'reqid' in req else None
 
     def is_dict_with_key(self, d: Dict[Any, Any], k: Any):

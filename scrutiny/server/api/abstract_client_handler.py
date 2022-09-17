@@ -20,6 +20,7 @@ class ClientHandlerMessage:
     conn_id: str
     obj: Union[api_typing.C2SMessage, api_typing.S2CMessage]
 
+
 class AbstractClientHandler:
 
     @abstractmethod

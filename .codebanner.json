@@ -265,9 +265,6 @@
         "scrutiny/gui/scrutiny_gui_http_server.py": {
             "docstring": "Local web server for serving the local GUI in a browser"
         },
-        "scrutiny/server/api/message_definitions.py": {
-            "docstring": "Static type definition of the API messages"
-        },
         "scrutiny/exceptions.py": {
             "docstring": "Some exceptions specific to this module"
         },
@@ -295,17 +292,8 @@
         "scrutiny/server/protocol/typing.py": {
             "docstring": "Mypy typing information for the Scrutiny protocol"
         },
-        "scrutiny/server/device/request_generator/rpv_writer.py": {
-            "docstring": "Make requests to read Runtime Published values from the device.\n This feature requires a different protocol message than Memory Read"
-        },
-        "scrutiny/server/device/request_generator/rpv_reader.py": {
-            "docstring": "Make requests to write Runtime Published values from the device.\n This feature requires a different protocol message than Memory Write"
-        },
-        "test/server/test_rpv_reader.py": {
-            "docstring": "Test the RPVReader whos jobs is to emit read requests to the device to keep all Runtime Published Values up to date in the datastore"
-        },
-        "test/server/test_rpv_writer.py": {
-            "docstring": "Test the RPVWriter whos jobs is to emit write requests to the device to keep all Runtime Published Values up to date in the datastore"
+        "scrutiny/server/api/typing.py": {
+            "docstring": "Mypy typing information for API"
         }
     }
 }

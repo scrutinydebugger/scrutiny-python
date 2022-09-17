@@ -8,6 +8,7 @@
 
 from typing import TypedDict
 
+
 class GenericCallback:
     """
     This class is a way to workaround the limitation of mypy with assigning callbacks
@@ -21,6 +22,7 @@ class GenericCallback:
         assert self.callback is not None
         self.callback(*args, **kwargs)
 
+
 class EmptyList:
     @classmethod
     def __get_validators__(cls):
@@ -33,6 +35,7 @@ class EmptyList:
         if len(v) > 0:
             raise ValueError('list must be empty')
         return []
+
 
 class EmptyDict(TypedDict):
     pass

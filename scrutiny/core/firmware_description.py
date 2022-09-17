@@ -103,7 +103,7 @@ class FirmwareDescription:
 
     def get_firmware_id(self) -> bytes:
         return self.firmwareid
-    
+
     def get_firmware_id_ascii(self) -> str:
         return self.firmwareid.hex()
 
