@@ -356,8 +356,6 @@ class MemoryReader:
             self.logger.warning('Response for ReadMemory has been refused with response code %s.' % response.code)
     
     def success_callback_rpv_read(self, request: Request, response: Response, params: Any = None) -> None:
-        self.logger.debug("Success callback. Response=%s, Params=%s" % (response, params))
-
         if response.code == ResponseCode.OK:
             try:
                 response_data = cast(protocol_typing.Response.MemoryControl.ReadRPV, self.protocol.parse_response(response))

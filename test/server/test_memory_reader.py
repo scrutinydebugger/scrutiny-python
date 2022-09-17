@@ -13,9 +13,10 @@ from dataclasses import dataclass
 from sortedcontainers import SortedSet
 
 from scrutiny.server.datastore import Datastore, DatastoreVariableEntry, DatastoreRPVEntry
+from scrutiny.server.datastore.datastore_entry import DatastoreEntry, EntryType
 from scrutiny.server.device.request_generator.memory_reader import MemoryReader, DataStoreEntrySortableByAddress, DataStoreEntrySortableByRpvId
 from scrutiny.server.device.request_dispatcher import RequestDispatcher
-from scrutiny.server.protocol import Protocol
+from scrutiny.server.protocol import Protocol, Request, Response
 import scrutiny.server.protocol.typing as protocol_typing
 from scrutiny.server.protocol.commands import *
 from scrutiny.core.variable import *
@@ -695,3 +696,120 @@ class TestRPVReaderBasicReadOperation(unittest.TestCase):
                 response = protocol.respond_read_runtime_published_values(response_vals)
                 self.assertLessEqual(response.data_size(), max_response_payload_size)    # That's the main test
                 record.complete(success=True, response=response)
+
+class TestMemoryAndRPVReader(unittest.TestCase):
+    """
+    Here we test the ability of the MemoryReader to handle mixed subscriptions between RPV and Variables
+    """
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.datastore = Datastore()
+        self.protocol = Protocol(1, 0)
+        self.callback_counter_per_type:Dict[EntryType, Dict[str, int]] = {}
+        self.callback_counter_per_type[EntryType.Var] = {}
+        self.callback_counter_per_type[EntryType.RuntimePublishedValue] = {}
+    
+    def assert_round_robin(self):
+        var_minval = 999
+        var_maxval = 0
+        for entry_id in self.callback_counter_per_type[EntryType.Var]:
+            var_maxval = max(var_maxval, self.callback_counter_per_type[EntryType.Var][entry_id])
+            var_minval = min(var_minval, self.callback_counter_per_type[EntryType.Var][entry_id])
+        
+        rpv_minval = 999
+        rpv_maxval = 0
+        for entry_id in self.callback_counter_per_type[EntryType.RuntimePublishedValue]:
+            rpv_maxval = max(rpv_maxval, self.callback_counter_per_type[EntryType.RuntimePublishedValue][entry_id])
+            rpv_minval = min(rpv_minval, self.callback_counter_per_type[EntryType.RuntimePublishedValue][entry_id])
+
+        # Round robin within groups
+        self.assertLessEqual(var_maxval-var_minval, 1)  
+        self.assertLessEqual(rpv_maxval-rpv_minval, 1)
+
+        # Difference between groups
+        # Boundary condition may cause a group to have few entry to have 2 updates more than the other
+        self.assertLessEqual(abs(rpv_maxval-var_maxval), 2) 
+        self.assertLessEqual(abs(rpv_minval-var_minval), 2)
+        self.assertLessEqual(rpv_maxval-var_minval, 2)  
+        self.assertLessEqual(var_maxval-rpv_minval, 2)
+
+
+    def respond_request(self, request:Request) -> Response:
+        subfn = MemoryControl.Subfunction(request.subfn)
+        if subfn == MemoryControl.Subfunction.Read:
+            request_data = cast(protocol_typing.Request.MemoryControl.Read, self.protocol.parse_request(request))
+            response_blocks:List[Tuple[int, bytes]] = []
+            for block in request_data['blocks_to_read']:
+                response_block = (block['address'], b'\x00' * block['length'])
+                response_blocks.append(response_block)
+
+            response = self.protocol.respond_read_memory_blocks(block_list=response_blocks)
+
+        elif subfn == MemoryControl.Subfunction.ReadRPV:
+            request_data = cast(protocol_typing.Request.MemoryControl.ReadRPV, self.protocol.parse_request(request))
+            response_data = []
+            for rpv_id in request_data['rpvs_id']:
+                response_data.append( (rpv_id, generate_random_value(EmbeddedDataType.float32)) )
+            response = self.protocol.respond_read_runtime_published_values(response_data)
+        else:
+            raise Exception('unknown subfunction')
+        
+        return response
+
+    def update_callback(self, watcher:str, entry:DatastoreEntry):
+        self.callback_counter_per_type[entry.get_type()][entry.get_id()] += 1
+
+
+    def test_validate_round_robin(self):
+        # This test reads lots of entry.
+        # A limit is set on the response buffer size to ensure that not all entries can be round in a single request.
+        # We validate that the round robin scheme works and alternate between RPV and Variables.
+
+        rpv_entries = list(make_dummy_rpv_entries(start_id=0x1000, n=30, vartype=EmbeddedDataType.float32))
+        var_entries = list(make_dummy_var_entries(address=0x10000, n=10, vartype=EmbeddedDataType.float32))
+        var_entries += list(make_dummy_var_entries(address=0x20000, n=10, vartype=EmbeddedDataType.float32))
+        var_entries += list(make_dummy_var_entries(address=0x30000, n=10, vartype=EmbeddedDataType.float32))
+
+        self.datastore.add_entries(rpv_entries)
+        self.datastore.add_entries(var_entries)
+        dispatcher = RequestDispatcher()
+
+        self.protocol.set_address_size_bits(32)
+
+        all_rpvs: List[RuntimePublishedValue] = []
+        for rpv_entry in rpv_entries:
+            all_rpvs.append(rpv_entry.get_rpv())
+        self.protocol.configure_rpvs(all_rpvs)
+
+        for entry in self.datastore.get_all_entries():
+            self.callback_counter_per_type[entry.get_type()][entry.get_id()] = 0
+        
+        reader = MemoryReader(self.protocol, dispatcher=dispatcher, datastore=self.datastore, request_priority=0)
+        reader.set_max_request_payload_size(1024)  
+        reader.set_max_response_payload_size(20*4+4*2)  
+        reader.start()
+
+        for entry in rpv_entries:
+            self.datastore.start_watching(entry, 'unittest', self.update_callback)
+
+        for entry in var_entries:
+            self.datastore.start_watching(entry, 'unittest', self.update_callback)
+
+        debug = False
+        for i in range(20):
+            reader.process()
+            dispatcher.process()
+            req_record = dispatcher.pop_next()
+            req_record.complete(success=True, response=self.respond_request(req_record.request))
+            
+            if debug:
+                # Can be pasted
+                for entry_id in self.callback_counter_per_type[EntryType.Var]:
+                    n = self.callback_counter_per_type[EntryType.Var][entry_id]
+                    print("Mem: 0x%04x - %d" % (self.datastore.get_entry(entry_id).get_address(), n) )
+                
+                for entry_id in self.callback_counter_per_type[EntryType.RuntimePublishedValue]:
+                    n = self.callback_counter_per_type[EntryType.RuntimePublishedValue][entry_id]
+                    print("RPV: 0x%04x - %d" % (self.datastore.get_entry(entry_id).get_rpv().id, n) )
+
+            self.assert_round_robin()
