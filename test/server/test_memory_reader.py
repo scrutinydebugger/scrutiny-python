@@ -39,6 +39,7 @@ class BlockToRead:
     def __repr__(self):
         return '<Block: 0x%08x with %d float>' % (self.address, self.nfloat)
 
+
 def generate_random_value(datatype: EmbeddedDataType) -> Encodable:
     # Generate random bitstring of the right size. Then decode it.
     codec = Codecs.get(datatype, Endianness.Big)
@@ -48,6 +49,7 @@ def generate_random_value(datatype: EmbeddedDataType) -> Encodable:
     bytestr = bytes([random.randint(0, 0xff) for i in range(datatype.get_size_byte())])
     return codec.decode(bytestr)
 
+
 def make_dummy_var_entries(address, n, vartype=EmbeddedDataType.float32):
     for i in range(n):
         dummy_var = Variable('dummy', vartype=vartype, path_segments=['a', 'b', 'c'],
@@ -55,11 +57,13 @@ def make_dummy_var_entries(address, n, vartype=EmbeddedDataType.float32):
         entry = DatastoreVariableEntry('path_%d' % i, variable_def=dummy_var)
         yield entry
 
+
 def make_dummy_rpv_entries(start_id, n, vartype=EmbeddedDataType.float32) -> Generator[DatastoreRPVEntry, None, None]:
     for i in range(n):
         rpv = RuntimePublishedValue(id=start_id + i, datatype=vartype)
         entry = DatastoreRPVEntry('rpv_%d' % i, rpv=rpv)
         yield entry
+
 
 def d2f(d):
     return struct.unpack('f', struct.pack('f', d))[0]
@@ -71,6 +75,7 @@ class TestMemoryReaderBasicReadOperation(unittest.TestCase):
         Basic read operation only
     """
     # Make sure that the entries are sortable by address with the thirdparty SortedSet object
+
     def test_sorted_set(self):
         theset = SortedSet()
         entries = list(make_dummy_var_entries(1000, 5))
@@ -90,7 +95,7 @@ class TestMemoryReaderBasicReadOperation(unittest.TestCase):
 
         self.assertEqual(len(theset), 0)
 
-    def generic_test_read_block_sequence(self, expected_blocks_sequence:List[List[BlockToRead]], reader:MemoryReader, dispatcher:RequestDispatcher, protocol:Protocol, niter:int=5):
+    def generic_test_read_block_sequence(self, expected_blocks_sequence: List[List[BlockToRead]], reader: MemoryReader, dispatcher: RequestDispatcher, protocol: Protocol, niter: int = 5):
         for i in range(niter):
             for expected_block_list in expected_blocks_sequence:
                 expected_block_list.sort(key=lambda x: x.address)
@@ -697,25 +702,27 @@ class TestRPVReaderBasicReadOperation(unittest.TestCase):
                 self.assertLessEqual(response.data_size(), max_response_payload_size)    # That's the main test
                 record.complete(success=True, response=response)
 
+
 class TestMemoryAndRPVReader(unittest.TestCase):
     """
     Here we test the ability of the MemoryReader to handle mixed subscriptions between RPV and Variables
     """
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.datastore = Datastore()
         self.protocol = Protocol(1, 0)
-        self.callback_counter_per_type:Dict[EntryType, Dict[str, int]] = {}
+        self.callback_counter_per_type: Dict[EntryType, Dict[str, int]] = {}
         self.callback_counter_per_type[EntryType.Var] = {}
         self.callback_counter_per_type[EntryType.RuntimePublishedValue] = {}
-    
+
     def assert_round_robin(self):
         var_minval = 999
         var_maxval = 0
         for entry_id in self.callback_counter_per_type[EntryType.Var]:
             var_maxval = max(var_maxval, self.callback_counter_per_type[EntryType.Var][entry_id])
             var_minval = min(var_minval, self.callback_counter_per_type[EntryType.Var][entry_id])
-        
+
         rpv_minval = 999
         rpv_maxval = 0
         for entry_id in self.callback_counter_per_type[EntryType.RuntimePublishedValue]:
@@ -723,22 +730,21 @@ class TestMemoryAndRPVReader(unittest.TestCase):
             rpv_minval = min(rpv_minval, self.callback_counter_per_type[EntryType.RuntimePublishedValue][entry_id])
 
         # Round robin within groups
-        self.assertLessEqual(var_maxval-var_minval, 1)  
-        self.assertLessEqual(rpv_maxval-rpv_minval, 1)
+        self.assertLessEqual(var_maxval - var_minval, 1)
+        self.assertLessEqual(rpv_maxval - rpv_minval, 1)
 
         # Difference between groups
         # Boundary condition may cause a group to have few entry to have 2 updates more than the other
-        self.assertLessEqual(abs(rpv_maxval-var_maxval), 2) 
-        self.assertLessEqual(abs(rpv_minval-var_minval), 2)
-        self.assertLessEqual(rpv_maxval-var_minval, 2)  
-        self.assertLessEqual(var_maxval-rpv_minval, 2)
+        self.assertLessEqual(abs(rpv_maxval - var_maxval), 2)
+        self.assertLessEqual(abs(rpv_minval - var_minval), 2)
+        self.assertLessEqual(rpv_maxval - var_minval, 2)
+        self.assertLessEqual(var_maxval - rpv_minval, 2)
 
-
-    def respond_request(self, request:Request) -> Response:
+    def respond_request(self, request: Request) -> Response:
         subfn = MemoryControl.Subfunction(request.subfn)
         if subfn == MemoryControl.Subfunction.Read:
             request_data = cast(protocol_typing.Request.MemoryControl.Read, self.protocol.parse_request(request))
-            response_blocks:List[Tuple[int, bytes]] = []
+            response_blocks: List[Tuple[int, bytes]] = []
             for block in request_data['blocks_to_read']:
                 response_block = (block['address'], b'\x00' * block['length'])
                 response_blocks.append(response_block)
@@ -749,16 +755,15 @@ class TestMemoryAndRPVReader(unittest.TestCase):
             request_data = cast(protocol_typing.Request.MemoryControl.ReadRPV, self.protocol.parse_request(request))
             response_data = []
             for rpv_id in request_data['rpvs_id']:
-                response_data.append( (rpv_id, generate_random_value(EmbeddedDataType.float32)) )
+                response_data.append((rpv_id, generate_random_value(EmbeddedDataType.float32)))
             response = self.protocol.respond_read_runtime_published_values(response_data)
         else:
             raise Exception('unknown subfunction')
-        
+
         return response
 
-    def update_callback(self, watcher:str, entry:DatastoreEntry):
+    def update_callback(self, watcher: str, entry: DatastoreEntry):
         self.callback_counter_per_type[entry.get_type()][entry.get_id()] += 1
-
 
     def test_validate_round_robin(self):
         # This test reads lots of entry.
@@ -783,10 +788,10 @@ class TestMemoryAndRPVReader(unittest.TestCase):
 
         for entry in self.datastore.get_all_entries():
             self.callback_counter_per_type[entry.get_type()][entry.get_id()] = 0
-        
+
         reader = MemoryReader(self.protocol, dispatcher=dispatcher, datastore=self.datastore, request_priority=0)
-        reader.set_max_request_payload_size(1024)  
-        reader.set_max_response_payload_size(20*4+4*2)  
+        reader.set_max_request_payload_size(1024)
+        reader.set_max_response_payload_size(20 * 4 + 4 * 2)
         reader.start()
 
         for entry in rpv_entries:
@@ -801,15 +806,15 @@ class TestMemoryAndRPVReader(unittest.TestCase):
             dispatcher.process()
             req_record = dispatcher.pop_next()
             req_record.complete(success=True, response=self.respond_request(req_record.request))
-            
+
             if debug:
                 # Can be pasted
                 for entry_id in self.callback_counter_per_type[EntryType.Var]:
                     n = self.callback_counter_per_type[EntryType.Var][entry_id]
-                    print("Mem: 0x%04x - %d" % (self.datastore.get_entry(entry_id).get_address(), n) )
-                
+                    print("Mem: 0x%04x - %d" % (self.datastore.get_entry(entry_id).get_address(), n))
+
                 for entry_id in self.callback_counter_per_type[EntryType.RuntimePublishedValue]:
                     n = self.callback_counter_per_type[EntryType.RuntimePublishedValue][entry_id]
-                    print("RPV: 0x%04x - %d" % (self.datastore.get_entry(entry_id).get_rpv().id, n) )
+                    print("RPV: 0x%04x - %d" % (self.datastore.get_entry(entry_id).get_rpv().id, n))
 
             self.assert_round_robin()

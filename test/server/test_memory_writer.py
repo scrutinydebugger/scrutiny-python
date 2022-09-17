@@ -31,6 +31,7 @@ def make_dummy_var_entries(address, n, vartype=EmbeddedDataType.float32) -> Gene
         entry = DatastoreVariableEntry('path_%d' % i, variable_def=dummy_var)
         yield entry
 
+
 def make_dummy_rpv_entries(start_id, n, vartype=EmbeddedDataType.float32) -> Generator[DatastoreRPVEntry, None, None]:
     for i in range(n):
         rpv = RuntimePublishedValue(id=start_id + i, datatype=vartype)
@@ -158,8 +159,8 @@ class TestMemoryWriterBasicReadOperation(unittest.TestCase):
             self.assertIsNotNone(update_time, 'i=%d' % i)
             self.assertGreaterEqual(update_time, time_start, 'i=%d' % i)
 
-
     # Write a single datastore entry. Make sure the request is good.
+
     def test_simple_rpv_write(self):
         nfloat = 1
         start_id = 0x1000
@@ -264,7 +265,6 @@ class TestMemoryWriterBasicReadOperation(unittest.TestCase):
             self.assertGreaterEqual(update_time, time_start, 'i=%d' % i)
             self.assertEqual(entries[i].get_value(), i)
 
-
     def test_multiple_mixed_write(self):
         ds = Datastore()
         rpv_entries = list(make_dummy_rpv_entries(start_id=0x1000, n=5, vartype=EmbeddedDataType.float64))
@@ -274,7 +274,7 @@ class TestMemoryWriterBasicReadOperation(unittest.TestCase):
         dispatcher = RequestDispatcher()
 
         protocol = Protocol(1, 0)
-        protocol.configure_rpvs([entry.get_rpv() for entry in rpv_entries ])
+        protocol.configure_rpvs([entry.get_rpv() for entry in rpv_entries])
         writer = MemoryWriter(protocol, dispatcher=dispatcher, datastore=ds, request_priority=0)
         writer.set_max_request_payload_size(1024)  # Will require 4 request minimum
         writer.set_max_response_payload_size(1024)  # big enough for all of them
@@ -291,7 +291,7 @@ class TestMemoryWriterBasicReadOperation(unittest.TestCase):
         # Request a data write on  all data store entries
         value_dict = {}
         for i in range(len(all_entries)):
-            val = i+10
+            val = i + 10
             all_entries[i].set_value(0)
             all_entries[i].update_target_value(val)
             value_dict[all_entries[i].get_id()] = val
@@ -314,7 +314,7 @@ class TestMemoryWriterBasicReadOperation(unittest.TestCase):
             request_data = protocol.parse_request(record.request)
             if subfn == MemoryControl.Subfunction.WriteRPV:
                 request_data = cast(protocol_typing.Request.MemoryControl.WriteRPV, request_data)
-                response = protocol.respond_write_runtime_published_values([rpv['id'] for rpv in request_data['rpvs']]) # Emulate the device response
+                response = protocol.respond_write_runtime_published_values([rpv['id'] for rpv in request_data['rpvs']])  # Emulate the device response
             elif subfn == MemoryControl.Subfunction.Write:
                 request_data = cast(protocol_typing.Request.MemoryControl.Write, request_data)
                 # Emulate the device response

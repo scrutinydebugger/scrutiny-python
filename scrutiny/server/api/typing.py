@@ -1,13 +1,21 @@
+#    typing.py
+#        Mypy typing information for API
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021-2022 Scrutiny Debugger
+
 from typing import TypedDict, Optional, List, Dict, Union, Literal, Any
 from scrutiny.core.typehints import EmptyDict
 
 import scrutiny.core.firmware_description
-import scrutiny.server.device.links.serial_link 
-import scrutiny.server.device.links.udp_link 
+import scrutiny.server.device.links.serial_link
+import scrutiny.server.device.links.udp_link
 
 WatchableType = Literal['alias', 'var', 'rpv']
 # Mapping between app type and API type.
-SFDMetadata = scrutiny.core.firmware_description.MetadataType 
+SFDMetadata = scrutiny.core.firmware_description.MetadataType
 SerialLinkConfig = scrutiny.server.device.links.serial_link.SerialConfig
 UdpLinkConfig = scrutiny.server.device.links.udp_link.UdpConfig
 LinkConfig = Union[EmptyDict, UdpLinkConfig, SerialLinkConfig]
@@ -22,16 +30,19 @@ Datatype = Literal[
 
 
 class BaseC2SMessage(TypedDict):
-    cmd:str
-    reqid:int
+    cmd: str
+    reqid: int
+
 
 class BaseS2CMessage(TypedDict):
-    cmd:str
-    reqid:Optional[int]
+    cmd: str
+    reqid: Optional[int]
+
 
 class EnumDefinition(TypedDict):
     name: str
     values: Dict[str, int]
+
 
 class DatastoreEntryDefinitionNoType(TypedDict, total=False):
     id: str
@@ -39,10 +50,12 @@ class DatastoreEntryDefinitionNoType(TypedDict, total=False):
     datatype: str
     enum: Optional[EnumDefinition]
 
+
 class WatchableListContent(TypedDict):
-    var:List[DatastoreEntryDefinitionNoType]
-    alias:List[DatastoreEntryDefinitionNoType]
-    rpv:List[DatastoreEntryDefinitionNoType]
+    var: List[DatastoreEntryDefinitionNoType]
+    alias: List[DatastoreEntryDefinitionNoType]
+    rpv: List[DatastoreEntryDefinitionNoType]
+
 
 class DeviceInfo(TypedDict):
     device_id: str
@@ -59,29 +72,34 @@ class DeviceInfo(TypedDict):
     forbidden_memory_regions: List[Dict[str, int]]
     readonly_memory_regions: List[Dict[str, int]]
 
+
 class SFDEntry(TypedDict):
     firmware_id: str
     metadata: SFDMetadata
+
 
 class DeviceCommLinkDef(TypedDict):
     link_type: LinkType
     link_config: LinkConfig
 
+
 class GetWatchableList_Filter(TypedDict):
-    type:WatchableType
+    type: WatchableType
+
 
 class WatchableCount(TypedDict):
-    alias:int
-    var:int
-    rpv:int
+    alias: int
+    var: int
+    rpv: int
+
 
 class C2S:
     class Echo(BaseC2SMessage):
-        payload:str
-    
+        payload: str
+
     class GetInstalledSFD(BaseC2SMessage):
         pass
-    
+
     class GetLoadedSFD(BaseC2SMessage):
         pass
 
@@ -92,22 +110,22 @@ class C2S:
         pass
 
     class GetWatchableList(BaseC2SMessage):
-        max_per_response:int
-        filter:GetWatchableList_Filter
+        max_per_response: int
+        filter: GetWatchableList_Filter
 
     class LoadSFD(BaseC2SMessage):
-        firmware_id:str
-    
+        firmware_id: str
+
     class SubscribeWatchable(BaseC2SMessage):
-        watchables:List[str]
-    
+        watchables: List[str]
+
     class UnsubscribeWatchable(BaseC2SMessage):
-        watchables:List[str]
+        watchables: List[str]
 
     class SetLinkConfig(BaseC2SMessage, DeviceCommLinkDef):
         pass
 
-    GetPossibleLinkConfig = Dict[Any, Any] #Todo
+    GetPossibleLinkConfig = Dict[Any, Any]  # Todo
 
 
 class S2C:
@@ -115,45 +133,45 @@ class S2C:
         pass
 
     class Echo(BaseS2CMessage):
-        payload:str
-    
-    class Error(BaseS2CMessage):
-        request_cmd:str
-        msg:str
+        payload: str
 
-    class  GetInstalledSFD(BaseS2CMessage):
-        sfd_list : Dict[str, SFDMetadata]
-    
+    class Error(BaseS2CMessage):
+        request_cmd: str
+        msg: str
+
+    class GetInstalledSFD(BaseS2CMessage):
+        sfd_list: Dict[str, SFDMetadata]
+
     class GetLoadedSFD(BaseS2CMessage):
-        firmware_id:Optional[str]
+        firmware_id: Optional[str]
 
     class InformServerStatus(BaseS2CMessage):
         device_status: str
         device_info: Optional[DeviceInfo]
         loaded_sfd: Optional[SFDEntry]
         device_comm_link: DeviceCommLinkDef   # Dict is Any,Any.  Should be EmptyDict.
-    
+
     class GetWatchableCount(BaseS2CMessage):
-        qty:WatchableCount
-    
+        qty: WatchableCount
+
     class GetWatchableList(BaseS2CMessage):
-        qty:WatchableCount
-        content:WatchableListContent
-        done:bool
-    
+        qty: WatchableCount
+        content: WatchableListContent
+        done: bool
+
     class SubscribeWatchable(BaseS2CMessage):
-        watchables:List[str]
-    
+        watchables: List[str]
+
     class UnsubscribeWatchable(BaseS2CMessage):
-        watchables:List[str]
-    
+        watchables: List[str]
+
     class WatchableUpdate(BaseS2CMessage):
-        updates:List[Dict[str, Any]]
-    
-    GetPossibleLinkConfig = Dict[Any, Any] # TODO
+        updates: List[Dict[str, Any]]
+
+    GetPossibleLinkConfig = Dict[Any, Any]  # TODO
 
 
-C2SMessage = Union [
+C2SMessage = Union[
     C2S.Echo,
     C2S.GetInstalledSFD,
     C2S.GetLoadedSFD,
@@ -166,7 +184,7 @@ C2SMessage = Union [
     C2S.GetPossibleLinkConfig
 ]
 
-S2CMessage = Union [
+S2CMessage = Union[
     S2C.Empty,
     S2C.Echo,
     S2C.Error,

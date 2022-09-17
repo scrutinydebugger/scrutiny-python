@@ -133,14 +133,14 @@ class MemoryWriter:
                 if isinstance(self.entry_being_updated, DatastoreVariableEntry):
                     encoded_value, write_mask = self.entry_being_updated.encode(value_to_write)
                     request = self.protocol.write_single_memory_block(
-                        address = self.entry_being_updated.get_address(),
-                        data = encoded_value, 
-                        write_mask = write_mask
+                        address=self.entry_being_updated.get_address(),
+                        data=encoded_value,
+                        write_mask=write_mask
                     )
                 elif isinstance(self.entry_being_updated, DatastoreRPVEntry):
                     request = self.protocol.write_runtime_published_values((self.entry_being_updated.get_rpv().id, value_to_write))
                 else:
-                    raise RuntimeError('entry_being_updated should be of type %s' % self.entry_being_updated.__class__.__name__)    
+                    raise RuntimeError('entry_being_updated should be of type %s' % self.entry_being_updated.__class__.__name__)
                 self.request_of_entry_being_updated = request
         return request
 
@@ -225,7 +225,6 @@ class MemoryWriter:
             self.logger.error('Failed to get a response for WriteRPV request.')
         else:
             self.logger.critical('Got a response for a request we did not send. Not supposed to happen!')
-
 
         if self.entry_being_updated is not None:
             self.entry_being_updated.mark_target_update_request_failed()
