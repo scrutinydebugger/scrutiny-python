@@ -87,14 +87,14 @@ class Datastore:
     def add_unwatch_callback(self, callback: WatchCallback):
         self.global_unwatch_callbacks.append(callback)
 
-    def start_watching(self, entry_id: Union[DatastoreEntry, str], watcher: str, value_update_callback: Optional[GenericCallback]=None, target_update_callback: Optional[GenericCallback]=None, args: Any = None) -> None:
+    def start_watching(self, entry_id: Union[DatastoreEntry, str], watcher: str, value_update_callback: Optional[GenericCallback] = None, target_update_callback: Optional[GenericCallback] = None, args: Any = None) -> None:
         # Shortcut for unit tests
         if value_update_callback is None:
             value_update_callback = GenericCallback(lambda *args, **kwargs: None)
-        
+
         if target_update_callback is None:
             target_update_callback = GenericCallback(lambda *args, **kwargs: None)
-        
+
         entry_id = self.interpret_entry_id(entry_id)
         entry = self.get_entry(entry_id)
         if entry_id not in self.watcher_map[entry.get_type()]:
@@ -110,15 +110,15 @@ class Datastore:
         # Mainly used to notify device handler that a new variable is to be polled
         for callback in self.global_watch_callbacks:
             callback(entry_id)
-    
-    def is_watching(self, entry:Union[DatastoreEntry, str], watcher:str) -> bool:
+
+    def is_watching(self, entry: Union[DatastoreEntry, str], watcher: str) -> bool:
         entry_id = self.interpret_entry_id(entry)
         entry = self.get_entry(entry_id)
         if entry_id not in self.watcher_map[entry.get_type()]:
             return False
-        return watcher in self.watcher_map[entry.get_type()][entry_id] 
-    
-    def get_watchers(self, entry:Union[DatastoreEntry, str]) -> List[str]:
+        return watcher in self.watcher_map[entry.get_type()][entry_id]
+
+    def get_watchers(self, entry: Union[DatastoreEntry, str]) -> List[str]:
         entry_id = self.interpret_entry_id(entry)
         entry = self.get_entry(entry_id)
         if entry_id not in self.watcher_map[entry.get_type()]:

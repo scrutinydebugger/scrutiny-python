@@ -632,7 +632,7 @@ class API:
 
             if not self.datastore.is_watching(entry, conn_id):
                 raise InvalidRequestException(req, 'Cannot update entry %s without being subscribed to it' % entry.get_id())
-                
+
             if entry.has_pending_target_update():
                 raise InvalidRequestException(req, 'Pending write request for entry %s' % entry.get_id())
 
@@ -708,18 +708,18 @@ class API:
         if update_record is None:
             return  # Should not happen has this callback is supposed to be called when this value is set.
 
-        success =  update_record.is_success()
+        success = update_record.is_success()
         timestamp = update_record.get_completion_timestamp()
 
         if success is None or timestamp is None:
             return  # Should not happen has this callback is supposed to be called when this value is set.
 
-        msg:api_typing.S2C.WriteCompletion = {
-            'cmd' : self.Command.Api2Client.INFORM_WRITE_COMPLETION,
-            'reqid' : None,
-            'watchable' : datastore_entry.get_id(),
-            'status' : "ok" if success else "failed",
-            'timestamp' : timestamp
+        msg: api_typing.S2C.WriteCompletion = {
+            'cmd': self.Command.Api2Client.INFORM_WRITE_COMPLETION,
+            'reqid': None,
+            'watchable': datastore_entry.get_id(),
+            'status': "ok" if success else "failed",
+            'timestamp': timestamp
         }
 
         for watcher_conn_id in watchers:

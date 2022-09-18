@@ -836,7 +836,7 @@ class TestAPI(unittest.TestCase):
         response = self.wait_and_load_response()
         self.assert_is_error(response)
         self.assertEqual(response['reqid'], 123)
-    
+
     def test_write_watchable_bad_ID(self):
         req = {
             'cmd': 'write_value',
@@ -854,7 +854,6 @@ class TestAPI(unittest.TestCase):
         self.assert_is_error(response)
         self.assertEqual(response['reqid'], 555)
 
-    
     def test_write_watchable_not_subscribed(self):
         entries = self.make_dummy_entries(1, entry_type=EntryType.Var, prefix='var')
         self.datastore.add_entries(entries)

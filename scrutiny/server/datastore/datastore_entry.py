@@ -216,7 +216,7 @@ class DatastoreEntry:
         if self.pending_target_update is not None:
             self.pending_target_update.complete(success=False)
             self.execute_target_update_callback()
-    
+
     def get_target_update_record(self) -> Optional[UpdateTargetRequest]:
         return self.pending_target_update
 
