@@ -777,3 +777,136 @@ class TestAPI(unittest.TestCase):
         self.send_request(req, 0)
         response = self.wait_and_load_response(timeout=0.5)
         self.assert_is_error(response)
+
+    def test_write_watchable(self):
+        entries = self.make_dummy_entries(10, entry_type=EntryType.Var, prefix='var')
+        self.datastore.add_entries(entries)
+
+        subscribed_entry1 = entries[2]
+        subscribed_entry2 = entries[5]
+        req = {
+            'cmd': 'subscribe_watchable',
+            'watchables': [subscribed_entry1.get_id(), subscribed_entry2.get_id()]
+        }
+
+        self.send_request(req, 0)
+        response = self.wait_and_load_response()
+        self.assert_no_error(response)
+
+        req = {
+            'cmd': 'write_value',
+            'updates': [
+                {
+                    'watchable': subscribed_entry1.get_id(),
+                    'value': 1234
+                },
+                {
+                    'watchable': subscribed_entry2.get_id(),
+                    'value': 3.1415926
+                }
+            ]
+        }
+
+        self.assertFalse(subscribed_entry1.has_pending_target_update())
+        self.assertFalse(subscribed_entry2.has_pending_target_update())
+
+        self.send_request(req, 0)
+        response = self.wait_and_load_response()
+        self.assert_no_error(response)
+
+        self.assertIn(response['cmd'], 'response_write_value')
+        self.assertIn('watchables', response)
+        self.assertEqual(len(response['watchables']), 2)
+        self.assertIn(subscribed_entry1.get_id(), response['watchables'])
+        self.assertIn(subscribed_entry2.get_id(), response['watchables'])
+
+        self.assertTrue(subscribed_entry1.has_pending_target_update())
+        self.assertEqual(subscribed_entry1.get_pending_target_update_val(), 1234)
+        self.assertTrue(subscribed_entry2.has_pending_target_update())
+        self.assertEqual(subscribed_entry2.get_pending_target_update_val(), 3.1415926)
+
+    def test_subscribe_watchable_bad_ID(self):
+        req = {
+            'cmd': 'subscribe_watchable',
+            'reqid': 123,
+            'watchables': ['qwerty']
+        }
+
+        self.send_request(req, 0)
+        response = self.wait_and_load_response()
+        self.assert_is_error(response)
+        self.assertEqual(response['reqid'], 123)
+
+    def test_write_watchable_bad_ID(self):
+        req = {
+            'cmd': 'write_value',
+            'reqid': 555,
+            'updates': [
+                {
+                    'watchable': 'qwerty',
+                    'value': 1234
+                }
+            ]
+        }
+
+        self.send_request(req, 0)
+        response = self.wait_and_load_response()
+        self.assert_is_error(response)
+        self.assertEqual(response['reqid'], 555)
+
+    def test_write_watchable_not_subscribed(self):
+        entries = self.make_dummy_entries(1, entry_type=EntryType.Var, prefix='var')
+        self.datastore.add_entries(entries)
+
+        req = {
+            'cmd': 'write_value',
+            'reqid': 555,
+            'updates': [
+                {
+                    'watchable': entries[0].get_id(),
+                    'value': 1234
+                }
+            ]
+        }
+
+        self.send_request(req, 0)
+        response = self.wait_and_load_response()
+        self.assert_is_error(response)
+        self.assertEqual(response['reqid'], 555)
+
+    def test_notified_on_successful_write(self):
+        entries = self.make_dummy_entries(10, entry_type=EntryType.Var, prefix='var')
+        self.datastore.add_entries(entries)
+
+        subscribed_entry1 = entries[2]
+        subscribed_entry2 = entries[5]
+        req = {
+            'cmd': 'subscribe_watchable',
+            'watchables': [subscribed_entry1.get_id(), subscribed_entry2.get_id()]
+        }
+
+        self.send_request(req, 0)
+        response = self.wait_and_load_response()
+        self.assert_no_error(response)
+
+        subscribed_entry1.update_target_value(1234)
+        subscribed_entry1.mark_target_update_request_complete()
+
+        subscribed_entry2.update_target_value(4567)
+        subscribed_entry2.mark_target_update_request_failed()
+
+        for i in range(2):
+            response = self.wait_and_load_response()
+            self.assert_no_error(response)
+
+            self.assertEqual(response['cmd'], 'inform_write_completion')
+            self.assertIn('watchable', response)
+            self.assertIn('status', response)
+            self.assertIn('timestamp', response)
+
+            if response['watchable'] == subscribed_entry1.get_id():
+                self.assertEqual(response['status'], 'ok')
+                self.assertEqual(response['timestamp'], subscribed_entry1.pending_target_update.get_completion_timestamp())
+            elif response['watchable'] == subscribed_entry2.get_id():
+                self.assertEqual(response['status'], 'failed')
+                self.assertEqual(response['timestamp'], subscribed_entry2.pending_target_update.get_completion_timestamp())

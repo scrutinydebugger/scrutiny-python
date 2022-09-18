@@ -164,7 +164,7 @@ class TestMemoryReaderBasicReadOperation(unittest.TestCase):
         reader.start()
 
         for entry in entries:
-            ds.start_watching(entry, 'unittest', GenericCallback(lambda *args, **kwargs: None))
+            ds.start_watching(entry, 'unittest')
 
         expected_blocks_sequence = [
             [BlockToRead(address, nfloat, entries)]
@@ -196,7 +196,7 @@ class TestMemoryReaderBasicReadOperation(unittest.TestCase):
         reader.start()
 
         for entry in all_entries:
-            ds.start_watching(entry, 'unittest', GenericCallback(lambda *args, **kwargs: None))
+            ds.start_watching(entry, 'unittest')
 
         # The expected sequence of block will be : 1,2 - 3,1 - 2,3 - 1,2 - etc
         expected_blocks_sequence = [
@@ -227,7 +227,7 @@ class TestMemoryReaderBasicReadOperation(unittest.TestCase):
         reader.start()
 
         for entry in entries:
-            ds.start_watching(entry, 'unittest', GenericCallback(lambda *args, **kwargs: None))
+            ds.start_watching(entry, 'unittest')
 
         # The expected sequence of block will be : 1,2 - 3,1 - 2,3 - 1,2 - etc
         # Sorted by address.
@@ -262,7 +262,7 @@ class TestMemoryReaderBasicReadOperation(unittest.TestCase):
 
         # We need to watch the variable so that they are read
         for entry in entries:
-            ds.start_watching(entry, 'unittest', callback=GenericCallback(lambda *args, **kwargs: None))
+            ds.start_watching(entry, 'unittest')
 
         # try many different possible size
         for max_request_size in range(32, 128):
@@ -305,7 +305,7 @@ class TestMemoryReaderBasicReadOperation(unittest.TestCase):
         reader.start()
 
         for entry in entries:
-            ds.start_watching(entry, 'unittest', callback=GenericCallback(lambda *args, **kwargs: None))
+            ds.start_watching(entry, 'unittest')
 
         # Try multiple max_size
         for max_response_payload_size in range(32, 128):
@@ -543,7 +543,7 @@ class TestRPVReaderBasicReadOperation(unittest.TestCase):
         reader.start()
 
         for entry in entries:
-            ds.start_watching(entry, 'unittest', GenericCallback(lambda *args, **kwargs: None))
+            ds.start_watching(entry, 'unittest')
 
         expected_rpv_sequence = [
             entries
@@ -568,7 +568,7 @@ class TestRPVReaderBasicReadOperation(unittest.TestCase):
         reader.start()
 
         for entry in entries:
-            ds.start_watching(entry, 'unittest', GenericCallback(lambda *args, **kwargs: None))
+            ds.start_watching(entry, 'unittest')
 
         # The expected sequence of block will be : 1,2 - 3,1 - 2,3 - 1,2 - etc
         expected_rpv_entries_sequence = [
@@ -601,7 +601,7 @@ class TestRPVReaderBasicReadOperation(unittest.TestCase):
         reader.start()
 
         for entry in entries:
-            ds.start_watching(entry, 'unittest', GenericCallback(lambda *args, **kwargs: None))
+            ds.start_watching(entry, 'unittest')
 
         # The expected sequence of block will be : 1,2 - 3,1 - 2,3 - 1,2 - etc
         # Sorted by address.
@@ -636,7 +636,7 @@ class TestRPVReaderBasicReadOperation(unittest.TestCase):
 
         # We need to watch the variable so that they are read
         for entry in entries:
-            ds.start_watching(entry, 'unittest', callback=GenericCallback(lambda *args, **kwargs: None))
+            ds.start_watching(entry, 'unittest')
 
         # try many different possible size
         for max_request_payload_size in range(32, 128):
@@ -680,7 +680,7 @@ class TestRPVReaderBasicReadOperation(unittest.TestCase):
         reader.start()
 
         for entry in entries:
-            ds.start_watching(entry, 'unittest', callback=GenericCallback(lambda *args, **kwargs: None))
+            ds.start_watching(entry, 'unittest')
 
         # Try multiple max_size
         for max_response_payload_size in range(32, 128):
@@ -795,10 +795,10 @@ class TestMemoryAndRPVReader(unittest.TestCase):
         reader.start()
 
         for entry in rpv_entries:
-            self.datastore.start_watching(entry, 'unittest', self.update_callback)
+            self.datastore.start_watching(entry, 'unittest', value_update_callback=self.update_callback)
 
         for entry in var_entries:
-            self.datastore.start_watching(entry, 'unittest', self.update_callback)
+            self.datastore.start_watching(entry, 'unittest', value_update_callback=self.update_callback)
 
         debug = False
         for i in range(20):

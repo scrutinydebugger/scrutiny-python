@@ -9,7 +9,7 @@
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 
 import logging
-from .datastore_entry import DatastoreEntry, EntryType
+from .datastore_entry import DatastoreEntry, EntryType, UpdateTargetRequest
 from scrutiny.core.typehints import GenericCallback
 
 from typing import Set, List, Dict, Optional, Any, Iterator, Union, Callable
@@ -87,18 +87,43 @@ class Datastore:
     def add_unwatch_callback(self, callback: WatchCallback):
         self.global_unwatch_callbacks.append(callback)
 
-    def start_watching(self, entry_id: Union[DatastoreEntry, str], watcher: str, callback: GenericCallback, args: Any = None) -> None:
+    def start_watching(self, entry_id: Union[DatastoreEntry, str], watcher: str, value_update_callback: Optional[GenericCallback] = None, target_update_callback: Optional[GenericCallback] = None, args: Any = None) -> None:
+        # Shortcut for unit tests
+        if value_update_callback is None:
+            value_update_callback = GenericCallback(lambda *args, **kwargs: None)
+
+        if target_update_callback is None:
+            target_update_callback = GenericCallback(lambda *args, **kwargs: None)
+
         entry_id = self.interpret_entry_id(entry_id)
         entry = self.get_entry(entry_id)
         if entry_id not in self.watcher_map[entry.get_type()]:
             self.watcher_map[entry.get_type()][entry.get_id()] = set()
         self.watcher_map[entry.get_type()][entry_id].add(watcher)
+
         if not entry.has_value_change_callback(watcher):
-            entry.register_value_change_callback(owner=watcher, callback=callback, args=args)
+            entry.register_value_change_callback(owner=watcher, callback=value_update_callback, args=args)
+
+        if not entry.has_target_update_callback(watcher):
+            entry.register_target_update_callback(owner=watcher, callback=target_update_callback, args=args)
 
         # Mainly used to notify device handler that a new variable is to be polled
         for callback in self.global_watch_callbacks:
             callback(entry_id)
+
+    def is_watching(self, entry: Union[DatastoreEntry, str], watcher: str) -> bool:
+        entry_id = self.interpret_entry_id(entry)
+        entry = self.get_entry(entry_id)
+        if entry_id not in self.watcher_map[entry.get_type()]:
+            return False
+        return watcher in self.watcher_map[entry.get_type()][entry_id]
+
+    def get_watchers(self, entry: Union[DatastoreEntry, str]) -> List[str]:
+        entry_id = self.interpret_entry_id(entry)
+        entry = self.get_entry(entry_id)
+        if entry_id not in self.watcher_map[entry.get_type()]:
+            return []
+        return list(self.watcher_map[entry.get_type()][entry_id])
 
     def stop_watching(self, entry_id: Union[DatastoreEntry, str], watcher: str) -> None:
         entry_id = self.interpret_entry_id(entry_id)
@@ -116,6 +141,8 @@ class Datastore:
             pass
 
         entry.unregister_value_change_callback(watcher)
+        entry.unregister_target_update_callback(watcher)
+
         for callback in self.global_unwatch_callbacks:
             callback(entry_id)
 
@@ -146,14 +173,10 @@ class Datastore:
         entry = self.get_entry(entry_id)
         entry.set_value(value)
 
+    def update_target_value(self, entry_id: Union[DatastoreEntry, str], value: Any) -> UpdateTargetRequest:
+        entry_id = self.interpret_entry_id(entry_id)
+        entry = self.get_entry(entry_id)
+        return entry.update_target_value(value)
+
     def get_watched_entries_id(self, entry_type: EntryType) -> List[str]:
         return list(self.watcher_map[entry_type].keys())
-
-    def get_watchers(self, entry_id: Union[DatastoreEntry, str]) -> List[str]:
-        entry_id = self.interpret_entry_id(entry_id)
-        watcher_list = []
-        for entry_type in EntryType:
-            if entry_id in self.watcher_map[entry_type]:
-                watcher_list += list(self.watcher_map[entry_type][entry_id])  # Make a copy
-
-        return watcher_list

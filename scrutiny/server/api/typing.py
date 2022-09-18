@@ -93,6 +93,11 @@ class WatchableCount(TypedDict):
     rpv: int
 
 
+class UpdateRecord(TypedDict):
+    watchable: str
+    value: Any
+
+
 class C2S:
     class Echo(BaseC2SMessage):
         payload: str
@@ -124,6 +129,9 @@ class C2S:
 
     class SetLinkConfig(BaseC2SMessage, DeviceCommLinkDef):
         pass
+
+    class WriteValue(BaseC2SMessage):
+        updates: List[UpdateRecord]
 
     GetPossibleLinkConfig = Dict[Any, Any]  # Todo
 
@@ -170,6 +178,14 @@ class S2C:
 
     GetPossibleLinkConfig = Dict[Any, Any]  # TODO
 
+    class WriteValue(BaseS2CMessage):
+        watchables: List[str]
+
+    class WriteCompletion(BaseS2CMessage):
+        watchable: str
+        status: Literal['ok', 'failed']
+        timestamp: float
+
 
 C2SMessage = Union[
     C2S.Echo,
@@ -181,7 +197,8 @@ C2SMessage = Union[
     C2S.LoadSFD,
     C2S.SubscribeWatchable,
     C2S.UnsubscribeWatchable,
-    C2S.GetPossibleLinkConfig
+    C2S.GetPossibleLinkConfig,
+    C2S.WriteValue
 ]
 
 S2CMessage = Union[
@@ -196,5 +213,7 @@ S2CMessage = Union[
     S2C.SubscribeWatchable,
     S2C.UnsubscribeWatchable,
     S2C.WatchableUpdate,
-    S2C.GetPossibleLinkConfig
+    S2C.GetPossibleLinkConfig,
+    S2C.WriteValue,
+    S2C.WriteCompletion
 ]
