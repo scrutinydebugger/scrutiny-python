@@ -52,15 +52,16 @@ class UpdateTargetRequest:
     value: Any
     request_timestamp: float
     completed: bool
-    failed: bool
+    success: Optional[bool]
     complete_timestamp: Optional[float]
+    completion_callbacks = Dict[str, Callable[["DatastoreEntry", 'UpdateTargetRequest'], Any]]
 
     def __init__(self, value: Any):
         self.value = value
         self.request_timestamp = time.time()
         self.completed = False
         self.complete_timestamp = None
-        self.success = False
+        self.success = None
 
     def complete(self, success) -> None:
         self.completed = True
@@ -70,11 +71,11 @@ class UpdateTargetRequest:
     def is_complete(self) -> bool:
         return self.completed
 
-    def is_failed(self):
-        return self.completed and not self.success
+    def is_failed(self) -> Optional[bool]:
+        return None if self.success is None else (not self.success)
 
-    def is_success(self):
-        return self.completed and self.success
+    def is_success(self) -> Optional[bool]:
+        return self.success
 
     def get_completion_timestamp(self) -> Optional[float]:
         return self.complete_timestamp
@@ -83,22 +84,22 @@ class UpdateTargetRequest:
 class DatastoreEntry:
     entry_id: str
     value_change_callback: Dict[str, Callable[["DatastoreEntry"], Any]]
+    target_update_callback: Dict[str, Callable[["DatastoreEntry"], Any]]
     display_path: str
     value: Any
     last_target_update_timestamp: Optional[float]
     pending_target_update: Optional[UpdateTargetRequest]
     last_value_update_timestamp: float
-    callback_pending: bool
 
     def __init__(self, display_path: str):
 
         self.value_change_callback = {}
+        self.target_update_callback = {}
         self.entry_id = uuid.uuid4().hex
         self.display_path = display_path
         self.last_target_update_timestamp = None
         self.last_value_update_timestamp = time.time()
         self.pending_target_update = None
-        self.callback_pending = False
         self.value = 0
 
     @abc.abstractmethod
@@ -142,13 +143,12 @@ class DatastoreEntry:
         self.set_value(self.decode(data))
 
     def execute_value_change_callback(self) -> None:
-        self.callback_pending = True
         for owner in self.value_change_callback:
             self.value_change_callback[owner](self)
-        self.callback_pending = False
 
-    def has_callback_pending(self) -> bool:
-        return self.callback_pending
+    def execute_target_update_callback(self) -> None:
+        for owner in self.target_update_callback:
+            self.target_update_callback[owner](self)
 
     def register_value_change_callback(self, owner: str, callback: GenericCallback, args: Any = None) -> None:
         thecallback = Callback(fn=callback, owner=owner, args=args)
@@ -156,7 +156,17 @@ class DatastoreEntry:
             raise ValueError('This owner already has a callback registered')
         self.value_change_callback[owner] = thecallback
 
+    def register_target_update_callback(self, owner: str, callback: GenericCallback, args: Any = None) -> None:
+        thecallback = Callback(fn=callback, owner=owner, args=args)
+        if owner in self.target_update_callback:
+            raise ValueError('This owner already has a callback registered')
+        self.target_update_callback[owner] = thecallback
+
     def unregister_value_change_callback(self, owner: Any) -> None:
+        if owner in self.value_change_callback:
+            del self.value_change_callback[owner]
+
+    def unregister_target_update_callback(self, owner: Any) -> None:
         if owner in self.value_change_callback:
             del self.value_change_callback[owner]
 
@@ -165,6 +175,12 @@ class DatastoreEntry:
             return (len(self.value_change_callback) == 0)
         else:
             return (owner in self.value_change_callback)
+
+    def has_target_update_callback(self, owner=None) -> bool:
+        if owner is None:
+            return (len(self.target_update_callback) == 0)
+        else:
+            return (owner in self.target_update_callback)
 
     def set_value(self, value: Any) -> None:
         self.value = value
@@ -177,8 +193,9 @@ class DatastoreEntry:
     def get_last_update_timestamp(self) -> Optional[float]:
         return self.last_target_update_timestamp
 
-    def update_target_value(self, value: Any) -> None:
+    def update_target_value(self, value: Any) -> UpdateTargetRequest:
         self.pending_target_update = UpdateTargetRequest(value)
+        return self.pending_target_update
 
     def has_pending_target_update(self) -> bool:
         if self.pending_target_update is None:
@@ -193,10 +210,15 @@ class DatastoreEntry:
         if self.pending_target_update is not None:
             self.pending_target_update.complete(success=True)
             self.last_target_update_timestamp = self.pending_target_update.get_completion_timestamp()
+            self.execute_target_update_callback()
 
     def mark_target_update_request_failed(self) -> None:
         if self.pending_target_update is not None:
             self.pending_target_update.complete(success=False)
+            self.execute_target_update_callback()
+    
+    def get_target_update_record(self) -> Optional[UpdateTargetRequest]:
+        return self.pending_target_update
 
     def discard_target_update_request(self) -> None:
         self.pending_target_update = None

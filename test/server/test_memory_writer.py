@@ -62,7 +62,7 @@ class TestMemoryWriterBasicReadOperation(unittest.TestCase):
         writer.start()
 
         for entry in entries:
-            ds.start_watching(entry, 'unittest', GenericCallback(lambda *args, **kwargs: None))
+            ds.start_watching(entry, 'unittest')
 
         entry_to_write = entries[0]
         writer.process()
@@ -113,7 +113,7 @@ class TestMemoryWriterBasicReadOperation(unittest.TestCase):
         writer.start()
 
         for entry in entries:
-            ds.start_watching(entry, 'unittest', GenericCallback(lambda *args, **kwargs: None))
+            ds.start_watching(entry, 'unittest')
 
         # Initial check to make sure no request is pending
         writer.process()
@@ -177,7 +177,7 @@ class TestMemoryWriterBasicReadOperation(unittest.TestCase):
         writer.start()
 
         for entry in entries:
-            ds.start_watching(entry, 'unittest', GenericCallback(lambda *args, **kwargs: None))
+            ds.start_watching(entry, 'unittest')
 
         entry_to_write = entries[0]
         writer.process()
@@ -223,7 +223,7 @@ class TestMemoryWriterBasicReadOperation(unittest.TestCase):
         writer.start()
 
         for entry in entries:
-            ds.start_watching(entry, 'unittest', GenericCallback(lambda *args, **kwargs: None))
+            ds.start_watching(entry, 'unittest')
 
         # Initial check to make sure no request is pending
         writer.process()
@@ -281,7 +281,7 @@ class TestMemoryWriterBasicReadOperation(unittest.TestCase):
         writer.start()
 
         for entry in all_entries:
-            ds.start_watching(entry, 'unittest', GenericCallback(lambda *args, **kwargs: None))
+            ds.start_watching(entry, 'unittest')
 
         # Initial check to make sure no request is pending
         writer.process()

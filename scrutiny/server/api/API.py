@@ -9,8 +9,9 @@
 
 import logging
 import traceback
+from scrutiny.server import datastore
 
-from scrutiny.server.datastore import Datastore, DatastoreEntry, EntryType
+from scrutiny.server.datastore import Datastore, DatastoreEntry, EntryType, UpdateTargetRequest
 from scrutiny.server.device.device_handler import DeviceHandler
 from scrutiny.server.active_sfd_handler import ActiveSFDHandler, SFDLoadedCallback, SFDUnloadedCallback
 from scrutiny.server.device.links import LinkConfig
@@ -39,6 +40,10 @@ class UpdateVarCallback(GenericCallback):
     callback: Callable[[str, DatastoreEntry], None]
 
 
+class TargetUpdateCallback(GenericCallback):
+    callback: Callable[[str, DatastoreEntry], None]
+
+
 class InvalidRequestException(Exception):
     def __init__(self, req, msg):
         super().__init__(msg)
@@ -61,6 +66,7 @@ class API:
             GET_SERVER_STATUS = 'get_server_status'
             SET_LINK_CONFIG = "set_link_config"
             GET_POSSIBLE_LINK_CONFIG = "get_possible_link_config"   # todo
+            WRITE_VALUE = "write_value"
             DEBUG = 'debug'
 
         class Api2Client:
@@ -75,6 +81,8 @@ class API:
             GET_POSSIBLE_LINK_CONFIG_RESPONSE = "response_get_possible_link_config"
             SET_LINK_CONFIG_RESPONSE = 'set_link_config_response'
             INFORM_SERVER_STATUS = 'inform_server_status'
+            WRITE_VALUE_RESPONSE = 'response_write_value'
+            INFORM_WRITE_COMPLETION = 'inform_write_completion'
             ERROR_RESPONSE = 'error'
 
     FLUSH_VARS_TIMEOUT: float = 0.1
@@ -147,7 +155,8 @@ class API:
         Command.Client2Api.GET_LOADED_SFD: 'process_get_loaded_sfd',
         Command.Client2Api.GET_SERVER_STATUS: 'process_get_server_status',
         Command.Client2Api.SET_LINK_CONFIG: 'process_set_link_config',
-        Command.Client2Api.GET_POSSIBLE_LINK_CONFIG: 'process_get_possible_link_config'
+        Command.Client2Api.GET_POSSIBLE_LINK_CONFIG: 'process_get_possible_link_config',
+        Command.Client2Api.WRITE_VALUE: 'process_write_value'
 
     }
 
@@ -399,7 +408,12 @@ class API:
                 raise InvalidRequestException(req, 'Unknown watchable ID : %s' % str(watchable))
 
         for watchable in req['watchables']:
-            self.datastore.start_watching(watchable, watcher=conn_id, callback=UpdateVarCallback(self.var_update_callback))
+            self.datastore.start_watching(
+                entry_id=watchable,
+                watcher=conn_id,
+                value_update_callback=UpdateVarCallback(self.entry_value_change_callback),
+                target_update_callback=TargetUpdateCallback(self.entry_target_update_callback)
+            )
 
         response: api_typing.S2C.SubscribeWatchable = {
             'cmd': self.Command.Api2Client.SUBSCRIBE_WATCHABLE_RESPONSE,
@@ -431,6 +445,7 @@ class API:
 
         self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
 
+    #  ===  GET_INSTALLED_SFD ===
     def process_get_installed_sfd(self, conn_id: str, req: api_typing.C2S.GetInstalledSFD):
         firmware_id_list = SFDStorage.list()
         metadata_dict = {}
@@ -445,6 +460,7 @@ class API:
 
         self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
 
+    #  ===  GET_LOADED_SFD ===
     def process_get_loaded_sfd(self, conn_id: str, req: api_typing.C2S.GetLoadedSFD):
         sfd = self.sfd_handler.get_loaded_sfd()
 
@@ -456,6 +472,7 @@ class API:
 
         self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
 
+    #  ===  LOAD_SFD ===
     def process_load_sfd(self, conn_id: str, req: api_typing.C2S.LoadSFD):
         if 'firmware_id' not in req and not isinstance(req['firmware_id'], str):
             raise InvalidRequestException(req, 'Invalid firmware_id')
@@ -464,13 +481,14 @@ class API:
             self.sfd_handler.request_load_sfd(req['firmware_id'])
         except Exception as e:
             self.logger.error('Cannot load SFD %s. %s' % (req['firmware_id'], str(e)))
-
         # Do not send a response. There's a callback on SFD Loading that will notfy everyone.
 
+    #  ===  GET_SERVER_STATUS ===
     def process_get_server_status(self, conn_id: str, req: api_typing.C2S.GetServerStatus):
         obj = self.craft_inform_server_status_response(reqid=self.get_req_id(req))
         self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=obj))
 
+    #  ===  SET_LINK_CONFIG ===
     def process_set_link_config(self, conn_id: str, req: api_typing.C2S.SetLinkConfig):
         if 'link_type' not in req or not isinstance(req['link_type'], str):
             raise InvalidRequestException(req, 'Invalid link_type')
@@ -584,6 +602,52 @@ class API:
 
         self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
 
+    #  ===  WRITE_VALUE ===
+    def process_write_value(self, conn_id: str, req: api_typing.C2S.WriteValue) -> None:
+        # We first fetch the entries as it will raise an exception if the ID does not exist
+        # We don't want to trigger a write if an entry is bad in the request
+        if 'updates' not in req:
+            raise InvalidRequestException(req, 'Missing "updates" field')
+
+        if not isinstance(req['updates'], list):
+            raise InvalidRequestException(req, 'Invalid "updates" field')
+
+        for update in req['updates']:
+            if 'watchable' not in update:
+                raise InvalidRequestException(req, 'Missing "watchable" field')
+
+            if 'value' not in update:
+                raise InvalidRequestException(req, 'Missing "value" field')
+
+            if not isinstance(update['watchable'], str):
+                raise InvalidRequestException(req, 'Invalid "watchable" field')
+
+            if not isinstance(update['value'], int) and not isinstance(update['value'], float) and not isinstance(update['value'], bool):
+                raise InvalidRequestException(req, 'Invalid "value" field')
+
+            try:
+                entry = self.datastore.get_entry(update['watchable'])
+            except Exception as e:
+                raise InvalidRequestException(req, 'Unknown watchable ID %s' % update['watchable'])
+
+            if not self.datastore.is_watching(entry, conn_id):
+                raise InvalidRequestException(req, 'Cannot update entry %s without being subscribed to it' % entry.get_id())
+                
+            if entry.has_pending_target_update():
+                raise InvalidRequestException(req, 'Pending write request for entry %s' % entry.get_id())
+
+        for update in req['updates']:
+            entry = self.datastore.get_entry(update['watchable'])
+            entry.update_target_value(update['value'])
+
+        response: api_typing.S2C.WriteValue = {
+            'cmd': self.Command.Api2Client.WRITE_VALUE_RESPONSE,
+            'reqid': self.get_req_id(req),
+            'watchables': [update['watchable'] for update in req['updates']]
+        }
+
+        self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
+
     def craft_inform_server_status_response(self, reqid: Optional[int] = None) -> api_typing.S2C.InformServerStatus:
 
         sfd = self.sfd_handler.get_loaded_sfd()
@@ -634,9 +698,32 @@ class API:
 
         return response
 
-    def var_update_callback(self, conn_id: str, datastore_entry: DatastoreEntry) -> None:
+    def entry_value_change_callback(self, conn_id: str, datastore_entry: DatastoreEntry) -> None:
         self.streamer.publish(datastore_entry, conn_id)
         self.stream_all_we_can()
+
+    def entry_target_update_callback(self, conn_id: str, datastore_entry: DatastoreEntry) -> None:
+        watchers = self.datastore.get_watchers(datastore_entry)
+        update_record = datastore_entry.get_target_update_record()
+        if update_record is None:
+            return  # Should not happen has this callback is supposed to be called when this value is set.
+
+        success =  update_record.is_success()
+        timestamp = update_record.get_completion_timestamp()
+
+        if success is None or timestamp is None:
+            return  # Should not happen has this callback is supposed to be called when this value is set.
+
+        msg:api_typing.S2C.WriteCompletion = {
+            'cmd' : self.Command.Api2Client.INFORM_WRITE_COMPLETION,
+            'reqid' : None,
+            'watchable' : datastore_entry.get_id(),
+            'status' : "ok" if success else "failed",
+            'timestamp' : timestamp
+        }
+
+        for watcher_conn_id in watchers:
+            self.client_handler.send(ClientHandlerMessage(conn_id=watcher_conn_id, obj=msg))
 
     def make_datastore_entry_definition_no_type(self, entry: DatastoreEntry) -> api_typing.DatastoreEntryDefinitionNoType:
         definition: api_typing.DatastoreEntryDefinitionNoType = {

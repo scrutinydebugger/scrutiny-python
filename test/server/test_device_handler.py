@@ -325,9 +325,9 @@ class TestDeviceHandler(unittest.TestCase):
                     timeout = hold_timeout
                     connection_successful = True
 
-                    self.datastore.start_watching(vfloat32, watcher='unittest', callback=dummy_callback)
-                    self.datastore.start_watching(vint64, watcher='unittest', callback=dummy_callback)
-                    self.datastore.start_watching(vbool, watcher='unittest', callback=dummy_callback)
+                    self.datastore.start_watching(vfloat32, watcher='unittest')
+                    self.datastore.start_watching(vint64, watcher='unittest')
+                    self.datastore.start_watching(vbool, watcher='unittest')
 
                 if state == 'init_memory':
                     self.emulated_device.write_memory(0x10000, struct.pack('<f', 3.1415926))
@@ -420,7 +420,7 @@ class TestDeviceHandler(unittest.TestCase):
 
                     for entry in all_entries:
                         assert isinstance(entry, DatastoreRPVEntry)
-                        self.datastore.start_watching(entry, watcher='unittest', callback=GenericCallback(lambda *args, **kwargs: None))
+                        self.datastore.start_watching(entry, watcher='unittest')
 
                     state = 'write'
                     round_completed = 0

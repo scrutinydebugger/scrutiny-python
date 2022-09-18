@@ -13,6 +13,8 @@ from scrutiny.core.variable import *
 from scrutiny.core.basic_types import *
 
 
+dummy_callback = lambda *args, **kwargs: None
+
 class TestDataStore(unittest.TestCase):
     def setUp(self):
         self.callback_call_history = {}
@@ -115,7 +117,7 @@ class TestDataStore(unittest.TestCase):
             owner = 'watcher1'
             owner2 = 'watcher2'
             for entry in entries:
-                ds.start_watching(entry.get_id(), watcher=owner, callback=self.entry_callback, args=dict(someParam=entry.get_id()))
+                ds.start_watching(entry.get_id(), watcher=owner, value_update_callback=self.entry_callback, args=dict(someParam=entry.get_id()))
 
             for entry in entries:
                 self.assertCallbackCalled(entry, owner, 0)
@@ -142,7 +144,7 @@ class TestDataStore(unittest.TestCase):
             self.assertCallbackCalled(entries[4], owner, 0, "EntryType=%s" % entry_type)
 
             # Add a second callback on entry 3 with same owner. Should make 1 call on dirty, not 2
-            ds.start_watching(entries[3].get_id(), watcher=owner, callback=self.entry_callback, args=dict(someParam=entry.get_id()))
+            ds.start_watching(entries[3].get_id(), watcher=owner, value_update_callback=self.entry_callback, args=dict(someParam=entry.get_id()))
             entries[3].set_value(3)
             self.assertCallbackCalled(entries[0], owner, 2, "EntryType=%s" % entry_type)
             self.assertCallbackCalled(entries[1], owner, 0, "EntryType=%s" % entry_type)
@@ -151,8 +153,8 @@ class TestDataStore(unittest.TestCase):
             self.assertCallbackCalled(entries[4], owner, 0, "EntryType=%s" % entry_type)
 
             # Add a 2 callbacks with different owner. Should make 2 calls
-            ds.start_watching(entries[4].get_id(), watcher=owner, callback=self.entry_callback, args=dict(someParam=entry.get_id()))
-            ds.start_watching(entries[4].get_id(), watcher=owner2, callback=self.entry_callback, args=dict(someParam=entry.get_id()))
+            ds.start_watching(entries[4].get_id(), watcher=owner, value_update_callback=self.entry_callback, args=dict(someParam=entry.get_id()))
+            ds.start_watching(entries[4].get_id(), watcher=owner2, value_update_callback=self.entry_callback, args=dict(someParam=entry.get_id()))
             entries[4].set_value(4)
             self.assertCallbackCalled(entries[0], owner, 2, "EntryType=%s" % entry_type)
             self.assertCallbackCalled(entries[1], owner, 0, "EntryType=%s" % entry_type)
@@ -169,8 +171,8 @@ class TestDataStore(unittest.TestCase):
             ds.add_entries_quiet(entries)
 
             for entry in entries:
-                ds.start_watching(entry, watcher='watcher1', callback=lambda: None)
-                ds.start_watching(entry, watcher='watcher2', callback=lambda: None)
+                ds.start_watching(entry, watcher='watcher1', value_update_callback=lambda: None, target_update_callback=lambda: None)
+                ds.start_watching(entry, watcher='watcher2', value_update_callback=lambda: None, target_update_callback=lambda: None)
 
             watchers = ds.get_watchers(entries[0])
             self.assertEqual(sorted(watchers), ['watcher1', 'watcher2'])
@@ -184,7 +186,8 @@ class TestDataStore(unittest.TestCase):
                 ds.stop_watching(entry, watcher='watcher2')
 
             watchers = ds.get_watchers(entries[0])
-            self.assertEqual(watchers, ['watcher1'])
+            self.assertEqual(len(watchers), 1)
+            self.assertEqual(watchers[0], 'watcher1')
 
             watched_entries_id = ds.get_watched_entries_id(entry_type)
             self.assertEqual(len(watched_entries_id), len(entries))
@@ -195,7 +198,7 @@ class TestDataStore(unittest.TestCase):
             ds.stop_watching(entries[1], watcher='watcher1')
 
             watchers = ds.get_watchers(entries[0])
-            self.assertEqual(watchers, [])
+            self.assertEqual(len(watchers), 0)
 
             watched_entries_id = ds.get_watched_entries_id(entry_type)
             self.assertEqual(len(watched_entries_id), 2)
