@@ -56,6 +56,10 @@ class TestDataStore(unittest.TestCase):
 
         self.target_update_callback_call_history[owner][entry.get_id()] += 1
 
+    def clear_callback_count(self):
+        self.value_change_callback_call_history = {}
+        self.target_update_callback_call_history = {}
+
     def assertValueChangeCallbackCalled(self, entry_id, owner, n, msg=None):
         if isinstance(entry_id, DatastoreEntry):
             entry_id = entry_id.get_id()
@@ -345,16 +349,32 @@ class TestDataStore(unittest.TestCase):
             args='nothing'
             )
         
-        var_entries[2].set_value(55)
+        ds.set_value(var_entries[2], 55)
         self.assertEqual(alias_var_2.get_value(), 55)
         self.assertEqual(var_entries[2].get_value(), 55)
 
         self.assertValueChangeCallbackCalled(var_entries[2].get_id(), watcher, n=0) # Not watching this one, so n=0
         self.assertValueChangeCallbackCalled(alias_var_2.get_id(), watcher, n=1)
 
-        alias_rpv_1.update_target_value(123)
+        ds.update_target_value(alias_rpv_1, 123)
         self.assertEqual(rpv_entries[1].get_pending_target_update_val(), 123)
         rpv_entries[1].mark_target_update_request_complete()
 
         self.assertTargetUpdateCallbackCalled(rpv_entries[1], watcher, n=0) # Internal callback used
         self.assertTargetUpdateCallbackCalled(alias_rpv_1, watcher, n=1)
+
+
+        # Unwatch!
+        self.clear_callback_count()
+        ds.stop_watching(alias_var_2.get_id(), watcher)
+        ds.set_value(var_entries[2], 999)
+        self.assertValueChangeCallbackCalled(var_entries[2].get_id(), watcher, n=0)
+        self.assertValueChangeCallbackCalled(alias_var_2.get_id(), watcher, n=0)
+
+        ds.stop_watching(alias_rpv_1.get_id(), watcher)
+        ds.update_target_value(alias_rpv_1, 9999)
+        self.assertEqual(rpv_entries[1].get_pending_target_update_val(), 9999)  # Still works as it does not depends on watching state.
+        rpv_entries[1].mark_target_update_request_complete()    # We can do this, but nobody will be notified
+        
+        self.assertTargetUpdateCallbackCalled(var_entries[2].get_id(), watcher, n=0)
+        self.assertTargetUpdateCallbackCalled(alias_var_2.get_id(), watcher, n=0)
