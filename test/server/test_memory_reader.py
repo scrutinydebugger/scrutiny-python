@@ -795,10 +795,10 @@ class TestMemoryAndRPVReader(unittest.TestCase):
         reader.start()
 
         for entry in rpv_entries:
-            self.datastore.start_watching(entry, 'unittest', value_update_callback=self.update_callback)
+            self.datastore.start_watching(entry, 'unittest', value_change_callback=self.update_callback)
 
         for entry in var_entries:
-            self.datastore.start_watching(entry, 'unittest', value_update_callback=self.update_callback)
+            self.datastore.start_watching(entry, 'unittest', value_change_callback=self.update_callback)
 
         debug = False
         for i in range(20):

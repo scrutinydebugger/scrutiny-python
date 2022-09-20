@@ -411,7 +411,7 @@ class API:
             self.datastore.start_watching(
                 entry_id=watchable,
                 watcher=conn_id,
-                value_update_callback=UpdateVarCallback(self.entry_value_change_callback),
+                value_change_callback=UpdateVarCallback(self.entry_value_change_callback),
                 target_update_callback=TargetUpdateCallback(self.entry_target_update_callback)
             )
 

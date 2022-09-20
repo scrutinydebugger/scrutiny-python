@@ -9,7 +9,7 @@
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 
 import logging
-from .datastore_entry import DatastoreEntry, EntryType, UpdateTargetRequest
+from .datastore_entry import DatastoreAliasEntry, DatastoreEntry, EntryType, UpdateTargetRequest
 from scrutiny.core.typehints import GenericCallback
 
 from typing import Set, List, Dict, Optional, Any, Iterator, Union, Callable
@@ -71,6 +71,11 @@ class Datastore:
 
         if self.get_entries_count() >= self.MAX_ENTRY:
             raise RuntimeError('Datastore cannot have more than %d entries' % self.MAX_ENTRY)
+        
+        if isinstance(entry, DatastoreAliasEntry):
+            resolved_entry = entry.resolve()
+            if resolved_entry.get_id() not in self.entries[resolved_entry.get_type()]:
+                raise KeyError('Alias ID %s (%s) refer to entry ID %s (%s) that is not in the datastore' % (entry.get_id(), entry.get_display_path(), resolved_entry.get_id(), resolved_entry.get_display_path()))
 
         self.entries[entry.get_type()][entry.get_id()] = entry
 
@@ -87,22 +92,23 @@ class Datastore:
     def add_unwatch_callback(self, callback: WatchCallback):
         self.global_unwatch_callbacks.append(callback)
 
-    def start_watching(self, entry_id: Union[DatastoreEntry, str], watcher: str, value_update_callback: Optional[GenericCallback] = None, target_update_callback: Optional[GenericCallback] = None, args: Any = None) -> None:
+    def start_watching(self, entry_id: Union[DatastoreEntry, str], watcher: str, value_change_callback: Optional[GenericCallback] = None, target_update_callback: Optional[GenericCallback] = None, args: Any = None) -> None:
         # Shortcut for unit tests
-        if value_update_callback is None:
-            value_update_callback = GenericCallback(lambda *args, **kwargs: None)
+        if value_change_callback is None:
+            value_change_callback = GenericCallback(lambda *args, **kwargs: None)
 
         if target_update_callback is None:
             target_update_callback = GenericCallback(lambda *args, **kwargs: None)
 
         entry_id = self.interpret_entry_id(entry_id)
         entry = self.get_entry(entry_id)
+
         if entry_id not in self.watcher_map[entry.get_type()]:
             self.watcher_map[entry.get_type()][entry.get_id()] = set()
         self.watcher_map[entry.get_type()][entry_id].add(watcher)
 
         if not entry.has_value_change_callback(watcher):
-            entry.register_value_change_callback(owner=watcher, callback=value_update_callback, args=args)
+            entry.register_value_change_callback(owner=watcher, callback=value_change_callback, args=args)
 
         if not entry.has_target_update_callback(watcher):
             entry.register_target_update_callback(owner=watcher, callback=target_update_callback, args=args)
@@ -110,6 +116,15 @@ class Datastore:
         # Mainly used to notify device handler that a new variable is to be polled
         for callback in self.global_watch_callbacks:
             callback(entry_id)
+        
+        if isinstance(entry, DatastoreAliasEntry):
+            self.start_watching(
+                entry_id = entry.resolve(), 
+                watcher = self.make_owner_from_alias_entry(entry),
+                value_change_callback = GenericCallback(self.alias_value_change_callback),
+                target_update_callback = GenericCallback(self.alias_target_update_callback),
+                args = {'watching_entry' : entry}
+                )
 
     def is_watching(self, entry: Union[DatastoreEntry, str], watcher: str) -> bool:
         entry_id = self.interpret_entry_id(entry)
@@ -137,6 +152,9 @@ class Datastore:
         try:
             if len(self.watcher_map[entry.get_type()][entry_id]) == 0:
                 del self.watcher_map[entry.get_type()][entry_id]
+
+                if isinstance(entry, DatastoreAliasEntry):
+                    self.stop_watching(entry.resolve(), self.make_owner_from_alias_entry(entry))
         except:
             pass
 
@@ -180,3 +198,24 @@ class Datastore:
 
     def get_watched_entries_id(self, entry_type: EntryType) -> List[str]:
         return list(self.watcher_map[entry_type].keys())
+
+    def make_owner_from_alias_entry(self, entry:DatastoreAliasEntry) -> str:
+        return 'alias_' + entry.get_id()
+
+    def alias_value_change_callback(self, owner: str, args: Any, entry: DatastoreEntry) -> None:
+        watching_entry:DatastoreAliasEntry = args['watching_entry']
+        watching_entry.set_value_internal(entry.get_value())
+
+    def alias_target_update_callback(self, owner: str, args: Any, entry: DatastoreEntry) -> None:
+        watching_entry:DatastoreAliasEntry = args['watching_entry']
+        update_record = entry.get_target_update_record()
+        if update_record is not None:
+            if update_record.is_complete():
+                if update_record.is_success():
+                    watching_entry.mark_target_update_request_complete_internal()
+                else:
+                    watching_entry.mark_target_update_request_failed_internal()
+            else:
+                self.logger.critical('Alias update callback but update record is not completed. Should not happen. Owner=%s, entry id=%s' % (owner, entry.get_id()))
+        else:
+            self.logger.critical('Alias update callback but no update status available. Should not happen. Owner=%s, entry id=%s' % (owner, entry.get_id()))

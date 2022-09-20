@@ -126,10 +126,6 @@ class DatastoreEntry:
     def decode(self, data: bytes) -> Encodable:
         raise NotImplementedError("Abstract class")
 
-    @abc.abstractmethod
-    def resolve(self) -> "DatastoreEntry":
-        raise NotImplementedError("Abstract class")
-
     def get_id(self) -> str:
         return self.entry_id
 
@@ -282,9 +278,6 @@ class DatastoreVariableEntry(DatastoreEntry):
     def decode(self, data: bytes) -> Encodable:
         return self.variable_def.decode(data)
 
-    def resolve(self) -> DatastoreEntry:
-        return self
-
 
 class DatastoreAliasEntry(DatastoreEntry):
 
@@ -319,7 +312,32 @@ class DatastoreAliasEntry(DatastoreEntry):
 
     def decode(self, data: bytes) -> Encodable:
         return self.refentry.decode(data)
+    
 
+    def update_target_value(self, value: Any) -> UpdateTargetRequest:
+        self.refentry.update_target_value(value)
+        return super().update_target_value(value)
+
+    # The function belows should not be used on a alias
+    def set_value(self, *args, **kwargs):
+        # Just to make explicit that this is not supposed to happen
+        raise NotImplementedError('Cannot set value on a Alias variable')
+
+    def mark_target_update_request_complete(self, *args, **kwargs):
+        raise NotImplementedError('Cannot use mark_target_update_request_complete on a Alias variable')
+
+    def mark_target_update_request_failed(self, *args, **kwargs):
+        raise NotImplementedError('Cannot use mark_target_update_request_failed on a Alias variable')
+
+    ## These function are meant to be used internally to make the alias mechanism work. Not to be used by a user.
+    def set_value_internal(self, *args, **kwargs):
+        DatastoreEntry.set_value(self, *args, **kwargs)
+    
+    def mark_target_update_request_complete_internal(self, *args, **kwargs) :
+        return super().mark_target_update_request_complete(*args, **kwargs)
+
+    def mark_target_update_request_failed_internal(self, *args, **kwargs) :
+        return super().mark_target_update_request_failed(*args, **kwargs)
 
 class DatastoreRPVEntry(DatastoreEntry):
 
@@ -330,9 +348,6 @@ class DatastoreRPVEntry(DatastoreEntry):
         super().__init__(display_path=display_path)
         self.rpv = rpv
         self.codec = Codecs.get(rpv.datatype, Endianness.Big)    # Default protocol encoding is big endian
-
-    def resolve(self) -> DatastoreEntry:
-        return self
 
     def get_type(self) -> EntryType:
         return EntryType.RuntimePublishedValue

@@ -6,6 +6,7 @@
 #
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 
+import re
 import unittest
 
 from scrutiny.server.datastore import *
@@ -37,7 +38,7 @@ class TestDataStore(unittest.TestCase):
 
             yield entry
 
-    def value_change_callback(self, owner: str, args: Any, entry: DatastoreEntry):
+    def value_change_callback(self, owner: str, args:Any, entry: DatastoreEntry):
         if owner not in self.value_change_callback_call_history:
             self.value_change_callback_call_history[owner] = {}
 
@@ -46,7 +47,7 @@ class TestDataStore(unittest.TestCase):
 
         self.value_change_callback_call_history[owner][entry.get_id()] += 1
 
-    def target_update_callback(self, owner: str, args: Any, entry: DatastoreEntry):
+    def target_update_callback(self, owner: str, args:Any, entry: DatastoreEntry):
         if owner not in self.target_update_callback_call_history:
             self.target_update_callback_call_history[owner] = {}
 
@@ -84,31 +85,31 @@ class TestDataStore(unittest.TestCase):
     def test_add_get(self):
         ds = Datastore()
         entries = []
-        entries += list(self.make_dummy_entries(3, EntryType.Var))
-        entries += list(self.make_dummy_entries(4, EntryType.Alias))
+        entries += list(self.make_dummy_entries(4, EntryType.Var))
+        entries += [DatastoreAliasEntry('alias_1', refentry=entries[0]), DatastoreAliasEntry('alias_2', refentry=entries[1])]
         entries += list(self.make_dummy_entries(5, EntryType.RuntimePublishedValue))
 
         for entry in entries:
             ds.add_entry(entry)
 
-        self.assertEqual(ds.get_entries_count(), 3 + 4 + 5)
-        self.assertEqual(ds.get_entries_count(EntryType.Var), 3)
-        self.assertEqual(ds.get_entries_count(EntryType.Alias), 4)
+        self.assertEqual(ds.get_entries_count(), 4 + 2 + 5)
+        self.assertEqual(ds.get_entries_count(EntryType.Var), 4)
+        self.assertEqual(ds.get_entries_count(EntryType.Alias), 2)
         self.assertEqual(ds.get_entries_count(EntryType.RuntimePublishedValue), 5)
 
         ds_entries = list(ds.get_all_entries())
-        self.assertEqual(len(ds_entries), 3 + 4 + 5)
+        self.assertEqual(len(ds_entries), 4 + 2 + 5)
         for entry in ds_entries:
             self.assertIn(entry, entries)
 
         ds_entries = list(ds.get_entries_list_by_type(EntryType.Var))
-        self.assertEqual(len(ds_entries), 3)
+        self.assertEqual(len(ds_entries), 4)
         for entry in ds_entries:
             self.assertEqual(entry.get_type(), EntryType.Var)
             self.assertIn(entry, entries)
 
         ds_entries = list(ds.get_entries_list_by_type(EntryType.Alias))
-        self.assertEqual(len(ds_entries), 4)
+        self.assertEqual(len(ds_entries), 2)
         for entry in ds_entries:
             self.assertEqual(entry.get_type(), EntryType.Alias)
             self.assertIn(entry, entries)
@@ -133,15 +134,15 @@ class TestDataStore(unittest.TestCase):
     # Make sure all callbacks are called when entry gets dirty
     def test_callback_on_value_change(self):
 
-        for entry_type in EntryType:
+        for entry_type in [EntryType.Var, EntryType.RuntimePublishedValue]:
             entries = list(self.make_dummy_entries(5, entry_type))
 
             ds = Datastore()
-            ds.add_entries_quiet(entries)
+            ds.add_entries(entries)
             owner = 'watcher1'
             owner2 = 'watcher2'
             for entry in entries:
-                ds.start_watching(entry.get_id(), watcher=owner, value_update_callback=self.value_change_callback,
+                ds.start_watching(entry.get_id(), watcher=owner, value_change_callback=self.value_change_callback,
                                   args=dict(someParam=entry.get_id()))
 
             for entry in entries:
@@ -169,7 +170,7 @@ class TestDataStore(unittest.TestCase):
             self.assertValueChangeCallbackCalled(entries[4], owner, 0, "EntryType=%s" % entry_type)
 
             # Add a second callback on entry 3 with same owner. Should make 1 call on dirty, not 2
-            ds.start_watching(entries[3].get_id(), watcher=owner, value_update_callback=self.value_change_callback,
+            ds.start_watching(entries[3].get_id(), watcher=owner, value_change_callback=self.value_change_callback,
                               args=dict(someParam=entry.get_id()))
             entries[3].set_value(3)
             self.assertValueChangeCallbackCalled(entries[0], owner, 2, "EntryType=%s" % entry_type)
@@ -179,10 +180,10 @@ class TestDataStore(unittest.TestCase):
             self.assertValueChangeCallbackCalled(entries[4], owner, 0, "EntryType=%s" % entry_type)
 
             # Add a 2 callbacks with different owner. Should make 2 calls
-            ds.start_watching(entries[4].get_id(), watcher=owner, value_update_callback=self.value_change_callback,
+            ds.start_watching(entries[4].get_id(), watcher=owner, value_change_callback=self.value_change_callback,
                               args=dict(someParam=entry.get_id()))
             ds.start_watching(entries[4].get_id(), watcher=owner2,
-                              value_update_callback=self.value_change_callback, args=dict(someParam=entry.get_id()))
+                              value_change_callback=self.value_change_callback, args=dict(someParam=entry.get_id()))
             entries[4].set_value(4)
             self.assertValueChangeCallbackCalled(entries[0], owner, 2, "EntryType=%s" % entry_type)
             self.assertValueChangeCallbackCalled(entries[1], owner, 0, "EntryType=%s" % entry_type)
@@ -193,11 +194,11 @@ class TestDataStore(unittest.TestCase):
 
     # Make sure all callbacks are called when entry gets dirty
     def test_callback_on_target_update(self):
-        for entry_type in EntryType:
+        for entry_type in [EntryType.RuntimePublishedValue, EntryType.Var]:
             entries = list(self.make_dummy_entries(5, entry_type))
 
             ds = Datastore()
-            ds.add_entries_quiet(entries)
+            ds.add_entries(entries)
             owner = 'watcher1'
             owner2 = 'watcher2'
             for entry in entries:
@@ -258,20 +259,20 @@ class TestDataStore(unittest.TestCase):
 
     # Make sure we manage correctly multiple watchers
     def test_watch_behavior(self):
-        for entry_type in EntryType:
+        for entry_type in [EntryType.Var, EntryType.RuntimePublishedValue]:
             entries = list(self.make_dummy_entries(4, entry_type))
             ds = Datastore()
-            ds.add_entries_quiet(entries)
+            ds.add_entries(entries)
 
             for entry in entries:
                 self.assertFalse(ds.is_watching(entry, 'watcher1'))
                 self.assertFalse(ds.is_watching(entry, 'watcher2'))
 
-                ds.start_watching(entry, watcher='watcher1', value_update_callback=lambda: None, target_update_callback=lambda: None)
+                ds.start_watching(entry, watcher='watcher1', value_change_callback=lambda: None, target_update_callback=lambda: None)
                 self.assertTrue(ds.is_watching(entry, 'watcher1'))
                 self.assertFalse(ds.is_watching(entry, 'watcher2'))
 
-                ds.start_watching(entry, watcher='watcher2', value_update_callback=lambda: None, target_update_callback=lambda: None)
+                ds.start_watching(entry, watcher='watcher2', value_change_callback=lambda: None, target_update_callback=lambda: None)
                 self.assertTrue(ds.is_watching(entry, 'watcher1'))
                 self.assertTrue(ds.is_watching(entry, 'watcher2'))
 
@@ -311,3 +312,49 @@ class TestDataStore(unittest.TestCase):
 
             watched_entries_id = ds.get_watched_entries_id(entry_type)
             self.assertEqual(len(watched_entries_id), 0)
+    
+    def test_alias_behavior(self):
+        var_entries = list(self.make_dummy_entries(4, EntryType.Var))
+        rpv_entries = list(self.make_dummy_entries(4, EntryType.RuntimePublishedValue))
+
+        alias_var_2 = DatastoreAliasEntry('alias_var_2', refentry=var_entries[2])
+        alias_rpv_1 = DatastoreAliasEntry('alias_rpv_1', refentry=rpv_entries[1])
+
+        ds = Datastore()
+        ds.add_entries(var_entries)
+        ds.add_entries(rpv_entries)
+
+        ds.add_entry(alias_var_2)
+        ds.add_entry(alias_rpv_1)
+
+        watcher = 'potato'
+
+        ds.start_watching(
+            alias_var_2.get_id(), 
+            watcher=watcher, 
+            value_change_callback=self.value_change_callback,
+            target_update_callback=self.target_update_callback,
+            args='nothing'
+            )
+       
+        ds.start_watching(
+            alias_rpv_1.get_id(), 
+            watcher=watcher, 
+            value_change_callback=self.value_change_callback,
+            target_update_callback=self.target_update_callback,
+            args='nothing'
+            )
+        
+        var_entries[2].set_value(55)
+        self.assertEqual(alias_var_2.get_value(), 55)
+        self.assertEqual(var_entries[2].get_value(), 55)
+
+        self.assertValueChangeCallbackCalled(var_entries[2].get_id(), watcher, n=0) # Not watching this one, so n=0
+        self.assertValueChangeCallbackCalled(alias_var_2.get_id(), watcher, n=1)
+
+        alias_rpv_1.update_target_value(123)
+        self.assertEqual(rpv_entries[1].get_pending_target_update_val(), 123)
+        rpv_entries[1].mark_target_update_request_complete()
+
+        self.assertTargetUpdateCallbackCalled(rpv_entries[1], watcher, n=0) # Internal callback used
+        self.assertTargetUpdateCallbackCalled(alias_rpv_1, watcher, n=1)

@@ -150,17 +150,22 @@ class TestAPI(unittest.TestCase):
         else:
             raise Exception('Missing cmd field in response')
 
-    def make_dummy_entries(self, n, entry_type=EntryType.Var, prefix='path') -> List[DatastoreEntry]:
-        dummy_var = Variable('dummy', vartype=EmbeddedDataType.float32, path_segments=[
-                             'a', 'b', 'c'], location=0x12345678, endianness=Endianness.Little)
+    def make_dummy_entries(self, n, entry_type=EntryType.Var, prefix='path', alias_bucket:List[DatastoreEntry]=[]) -> List[DatastoreEntry]:
+        
         entries = []
+        if entry_type == EntryType.Alias:
+            assert len(alias_bucket) >= n
+            for entry in alias_bucket:
+                assert not isinstance(entry, DatastoreAliasEntry)
+        
         for i in range(n):
             name = '%s_%d' % (prefix, i)
             if entry_type == EntryType.Var:
+                dummy_var = Variable('dummy', vartype=EmbeddedDataType.float32, path_segments=[
+                             'a', 'b', 'c'], location=0x12345678, endianness=Endianness.Little)
                 entry = DatastoreVariableEntry(name, variable_def=dummy_var)
             elif entry_type == EntryType.Alias:
-                entry_temp = DatastoreVariableEntry(name, variable_def=dummy_var)
-                entry = DatastoreAliasEntry(name, refentry=entry_temp)
+                entry = DatastoreAliasEntry(name, refentry=alias_bucket[i])
             else:
                 dummy_rpv = RuntimePublishedValue(id=i, datatype=EmbeddedDataType.float32)
                 entry = DatastoreRPVEntry(name, rpv=dummy_rpv)
@@ -186,14 +191,14 @@ class TestAPI(unittest.TestCase):
 
     # Fetch count of var/alias. Ensure response is well formatted and accurate
     def test_get_watchable_count(self):
-        var_entries = self.make_dummy_entries(3, entry_type=EntryType.Var, prefix='var')
-        alias_entries = self.make_dummy_entries(5, entry_type=EntryType.Alias, prefix='alias')
+        var_entries = self.make_dummy_entries(5, entry_type=EntryType.Var, prefix='var')
+        alias_entries = self.make_dummy_entries(3, entry_type=EntryType.Alias, prefix='alias', alias_bucket=var_entries)
         rpv_entries = self.make_dummy_entries(8, entry_type=EntryType.RuntimePublishedValue, prefix='rpv')
 
         # Add entries in the datastore that we will reread through the API
-        self.datastore.add_entries_quiet(var_entries)
-        self.datastore.add_entries_quiet(alias_entries)
-        self.datastore.add_entries_quiet(rpv_entries)
+        self.datastore.add_entries(var_entries)
+        self.datastore.add_entries(alias_entries)
+        self.datastore.add_entries(rpv_entries)
 
         req = {
             'cmd': 'get_watchable_count'
@@ -210,8 +215,8 @@ class TestAPI(unittest.TestCase):
         self.assertIn('rpv', response['qty'])
 
         self.assertEqual(response['cmd'], 'response_get_watchable_count')
-        self.assertEqual(response['qty']['var'], 3)
-        self.assertEqual(response['qty']['alias'], 5)
+        self.assertEqual(response['qty']['var'], 5)
+        self.assertEqual(response['qty']['alias'], 3)
         self.assertEqual(response['qty']['rpv'], 8)
 
     def assert_get_watchable_list_response_format(self, response):
@@ -229,8 +234,8 @@ class TestAPI(unittest.TestCase):
 
     # Fetch list of var/alias. Ensure response is well formatted, accurate, complete, no duplicates
     def test_get_watchable_list_basic(self):
-        var_entries = self.make_dummy_entries(3, entry_type=EntryType.Var, prefix='var')
-        alias_entries = self.make_dummy_entries(5, entry_type=EntryType.Alias, prefix='alias')
+        var_entries = self.make_dummy_entries(5, entry_type=EntryType.Var, prefix='var')
+        alias_entries = self.make_dummy_entries(2, entry_type=EntryType.Alias, prefix='alias', alias_bucket=var_entries)
         rpv_entries = self.make_dummy_entries(8, entry_type=EntryType.RuntimePublishedValue, prefix='rpv')
 
         expected_entries_in_response = {}
@@ -255,11 +260,11 @@ class TestAPI(unittest.TestCase):
         self.assert_get_watchable_list_response_format(response)
 
         self.assertEqual(response['done'], True)
-        self.assertEqual(response['qty']['var'], 3)
-        self.assertEqual(response['qty']['alias'], 5)
+        self.assertEqual(response['qty']['var'], 5)
+        self.assertEqual(response['qty']['alias'], 2)
         self.assertEqual(response['qty']['rpv'], 8)
-        self.assertEqual(len(response['content']['var']), 3)
-        self.assertEqual(len(response['content']['alias']), 5)
+        self.assertEqual(len(response['content']['var']), 5)
+        self.assertEqual(len(response['content']['alias']), 2)
         self.assertEqual(len(response['content']['rpv']), 8)
 
         # Put all entries in a single list, paired with the name of the parent key.
@@ -302,8 +307,8 @@ class TestAPI(unittest.TestCase):
     # Fetch list of var/alias and sets a type filter.
     def do_test_get_watchable_list_with_type_filter(self, type_filter):
         self.datastore.clear()
-        var_entries = self.make_dummy_entries(3, entry_type=EntryType.Var, prefix='var')
-        alias_entries = self.make_dummy_entries(5, entry_type=EntryType.Alias, prefix='alias')
+        var_entries = self.make_dummy_entries(5, entry_type=EntryType.Var, prefix='var')
+        alias_entries = self.make_dummy_entries(3, entry_type=EntryType.Alias, prefix='alias', alias_bucket=var_entries)
         rpv_entries = self.make_dummy_entries(8, entry_type=EntryType.RuntimePublishedValue, prefix='rpv')
 
         no_filter = True if type_filter is None or type_filter == '' or isinstance(type_filter, list) and len(type_filter) == 0 else False
@@ -385,7 +390,7 @@ class TestAPI(unittest.TestCase):
         nRpv = 21
         max_per_response = 10
         var_entries = self.make_dummy_entries(nVar, entry_type=EntryType.Var, prefix='var')
-        alias_entries = self.make_dummy_entries(nAlias, entry_type=EntryType.Alias, prefix='alias')
+        alias_entries = self.make_dummy_entries(nAlias, entry_type=EntryType.Alias, prefix='alias', alias_bucket=var_entries)
         rpv_entries = self.make_dummy_entries(nRpv, entry_type=EntryType.RuntimePublishedValue, prefix='rpv')
         expected_entries_in_response = {}
 
