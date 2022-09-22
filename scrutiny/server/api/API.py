@@ -12,6 +12,7 @@ import traceback
 from scrutiny.server import datastore
 
 from scrutiny.server.datastore import Datastore, DatastoreEntry, EntryType, UpdateTargetRequest
+from scrutiny.server.datastore.datastore_entry import UpdateTargetRequestCallback
 from scrutiny.server.device.device_handler import DeviceHandler
 from scrutiny.server.active_sfd_handler import ActiveSFDHandler, SFDLoadedCallback, SFDUnloadedCallback
 from scrutiny.server.device.links import LinkConfig
@@ -411,8 +412,7 @@ class API:
             self.datastore.start_watching(
                 entry_id=watchable,
                 watcher=conn_id,
-                value_change_callback=UpdateVarCallback(self.entry_value_change_callback),
-                target_update_callback=TargetUpdateCallback(self.entry_target_update_callback)
+                value_change_callback=UpdateVarCallback(self.entry_value_change_callback)
             )
 
         response: api_typing.S2C.SubscribeWatchable = {
@@ -638,7 +638,7 @@ class API:
 
         for update in req['updates']:
             entry = self.datastore.get_entry(update['watchable'])
-            entry.update_target_value(update['value'])
+            entry.update_target_value(update['value'], callback=UpdateTargetRequestCallback(self.entry_target_update_callback))
 
         response: api_typing.S2C.WriteValue = {
             'cmd': self.Command.Api2Client.WRITE_VALUE_RESPONSE,
@@ -702,17 +702,8 @@ class API:
         self.streamer.publish(datastore_entry, conn_id)
         self.stream_all_we_can()
 
-    def entry_target_update_callback(self, conn_id: str, datastore_entry: DatastoreEntry) -> None:
+    def entry_target_update_callback(self, success:bool, datastore_entry: DatastoreEntry, timestamp:float) -> None:
         watchers = self.datastore.get_watchers(datastore_entry)
-        update_record = datastore_entry.get_target_update_record()
-        if update_record is None:
-            return  # Should not happen has this callback is supposed to be called when this value is set.
-
-        success = update_record.is_success()
-        timestamp = update_record.get_completion_timestamp()
-
-        if success is None or timestamp is None:
-            return  # Should not happen has this callback is supposed to be called when this value is set.
 
         msg: api_typing.S2C.WriteCompletion = {
             'cmd': self.Command.Api2Client.INFORM_WRITE_COMPLETION,

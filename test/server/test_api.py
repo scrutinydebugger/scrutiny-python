@@ -6,6 +6,7 @@
 #
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 
+from re import S
 import unittest
 import time
 import random
@@ -826,9 +827,9 @@ class TestAPI(unittest.TestCase):
         self.assertIn(subscribed_entry2.get_id(), response['watchables'])
 
         self.assertTrue(subscribed_entry1.has_pending_target_update())
-        self.assertEqual(subscribed_entry1.get_pending_target_update_val(), 1234)
+        self.assertEqual(subscribed_entry1.pop_target_update_request().get_value(), 1234)
         self.assertTrue(subscribed_entry2.has_pending_target_update())
-        self.assertEqual(subscribed_entry2.get_pending_target_update_val(), 3.1415926)
+        self.assertEqual(subscribed_entry2.pop_target_update_request().get_value(), 3.1415926)
 
     def test_subscribe_watchable_bad_ID(self):
         req = {
@@ -894,24 +895,24 @@ class TestAPI(unittest.TestCase):
         response = self.wait_and_load_response()
         self.assert_no_error(response)
 
-        subscribed_entry1.update_target_value(1234)
-        subscribed_entry1.mark_target_update_request_complete()
+        entry1_update_request = subscribed_entry1.update_target_value(1234, self.api.entry_target_update_callback)
+        entry1_update_request.complete(success=True)
 
-        subscribed_entry2.update_target_value(4567)
-        subscribed_entry2.mark_target_update_request_failed()
+        entry2_update_request = subscribed_entry2.update_target_value(4567, self.api.entry_target_update_callback)
+        entry2_update_request.complete(success=False)
 
         for i in range(2):
             response = self.wait_and_load_response()
-            self.assert_no_error(response)
+            self.assert_no_error(response, 'i=%d' % i)
 
-            self.assertEqual(response['cmd'], 'inform_write_completion')
-            self.assertIn('watchable', response)
-            self.assertIn('status', response)
-            self.assertIn('timestamp', response)
+            self.assertEqual(response['cmd'], 'inform_write_completion', 'i=%d' % i)
+            self.assertIn('watchable', response, 'i=%d' % i)
+            self.assertIn('status', response, 'i=%d' % i)
+            self.assertIn('timestamp', response, 'i=%d' % i)
 
             if response['watchable'] == subscribed_entry1.get_id():
-                self.assertEqual(response['status'], 'ok')
-                self.assertEqual(response['timestamp'], subscribed_entry1.pending_target_update.get_completion_timestamp())
+                self.assertEqual(response['status'], 'ok', 'i=%d' % i)
+                self.assertEqual(response['timestamp'], entry1_update_request.get_completion_timestamp(), 'i=%d' % i)
             elif response['watchable'] == subscribed_entry2.get_id():
-                self.assertEqual(response['status'], 'failed')
-                self.assertEqual(response['timestamp'], subscribed_entry2.pending_target_update.get_completion_timestamp())
+                self.assertEqual(response['status'], 'failed', 'i=%d' % i)
+                self.assertEqual(response['timestamp'], entry2_update_request.get_completion_timestamp(), 'i=%d' % i)

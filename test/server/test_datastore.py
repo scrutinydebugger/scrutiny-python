@@ -47,14 +47,12 @@ class TestDataStore(unittest.TestCase):
 
         self.value_change_callback_call_history[owner][entry.get_id()] += 1
 
-    def target_update_callback(self, owner: str, args:Any, entry: DatastoreEntry):
-        if owner not in self.target_update_callback_call_history:
-            self.target_update_callback_call_history[owner] = {}
+    def target_update_callback(self, success:bool, entry: DatastoreEntry, timestamp:float):
 
-        if entry.get_id() not in self.target_update_callback_call_history[owner]:
-            self.target_update_callback_call_history[owner][entry.get_id()] = 0
+        if entry.get_id() not in self.target_update_callback_call_history:
+            self.target_update_callback_call_history[entry.get_id()] = 0
 
-        self.target_update_callback_call_history[owner][entry.get_id()] += 1
+        self.target_update_callback_call_history[entry.get_id()] += 1
 
     def clear_callback_count(self):
         self.value_change_callback_call_history = {}
@@ -73,17 +71,15 @@ class TestDataStore(unittest.TestCase):
                 count = self.value_change_callback_call_history[owner][entry_id]
         self.assertEqual(count, n, msg)
 
-    def assertTargetUpdateCallbackCalled(self, entry_id, owner, n, msg=None):
+    def assertTargetUpdateCallbackCalled(self, entry_id, n, msg=None):
         if isinstance(entry_id, DatastoreEntry):
             entry_id = entry_id.get_id()
 
-        if owner not in self.target_update_callback_call_history:
+
+        if entry_id not in self.target_update_callback_call_history:
             count = 0
         else:
-            if entry_id not in self.target_update_callback_call_history[owner]:
-                count = 0
-            else:
-                count = self.target_update_callback_call_history[owner][entry_id]
+            count = self.target_update_callback_call_history[entry_id]
         self.assertEqual(count, n, msg)
 
     def test_add_get(self):
@@ -206,60 +202,65 @@ class TestDataStore(unittest.TestCase):
             owner = 'watcher1'
             owner2 = 'watcher2'
             for entry in entries:
-                ds.start_watching(entry.get_id(), watcher=owner, target_update_callback=self.target_update_callback,
-                                  args=dict(someParam=entry.get_id()))
+                ds.start_watching(entry.get_id(), watcher=owner, args=dict(someParam=entry.get_id()))
 
             for entry in entries:
-                self.assertTargetUpdateCallbackCalled(entry, owner, 0)
+                self.assertTargetUpdateCallbackCalled(entry, 0)
 
-            entries[0].update_target_value(0)
-            entries[0].mark_target_update_request_complete()
-            self.assertTargetUpdateCallbackCalled(entries[0], owner, 1, "EntryType=%s" % entry_type)
-            self.assertTargetUpdateCallbackCalled(entries[1], owner, 0, "EntryType=%s" % entry_type)
-            self.assertTargetUpdateCallbackCalled(entries[2], owner, 0, "EntryType=%s" % entry_type)
-            self.assertTargetUpdateCallbackCalled(entries[3], owner, 0, "EntryType=%s" % entry_type)
-            self.assertTargetUpdateCallbackCalled(entries[4], owner, 0, "EntryType=%s" % entry_type)
+            self.assertFalse(entries[0].has_pending_target_update())
+            self.assertIsNone(entries[0].pop_target_update_request())
+            entries[0].update_target_value(123, callback=self.target_update_callback)
+            self.assertTrue(entries[0].has_pending_target_update())
+            update_request = entries[0].pop_target_update_request()
+            self.assertEqual(update_request.get_value(), 123)
+            self.assertIsNotNone(update_request)
+            update_request.complete(success=True)
 
-            entries[0].update_target_value(1)
-            entries[0].mark_target_update_request_complete()
-            self.assertTargetUpdateCallbackCalled(entries[0], owner, 2, "EntryType=%s" % entry_type)
-            self.assertTargetUpdateCallbackCalled(entries[1], owner, 0, "EntryType=%s" % entry_type)
-            self.assertTargetUpdateCallbackCalled(entries[2], owner, 0, "EntryType=%s" % entry_type)
-            self.assertTargetUpdateCallbackCalled(entries[3], owner, 0, "EntryType=%s" % entry_type)
-            self.assertTargetUpdateCallbackCalled(entries[4], owner, 0, "EntryType=%s" % entry_type)
+            self.assertTargetUpdateCallbackCalled(entries[0],  1, "EntryType=%s" % entry_type)
+            self.assertTargetUpdateCallbackCalled(entries[1],  0, "EntryType=%s" % entry_type)
+            self.assertTargetUpdateCallbackCalled(entries[2],  0, "EntryType=%s" % entry_type)
+            self.assertTargetUpdateCallbackCalled(entries[3],  0, "EntryType=%s" % entry_type)
+            self.assertTargetUpdateCallbackCalled(entries[4],  0, "EntryType=%s" % entry_type)
 
-            entries[2].update_target_value(2)
-            entries[2].mark_target_update_request_complete()
-            self.assertTargetUpdateCallbackCalled(entries[0], owner, 2, "EntryType=%s" % entry_type)
-            self.assertTargetUpdateCallbackCalled(entries[1], owner, 0, "EntryType=%s" % entry_type)
-            self.assertTargetUpdateCallbackCalled(entries[2], owner, 1, "EntryType=%s" % entry_type)
-            self.assertTargetUpdateCallbackCalled(entries[3], owner, 0, "EntryType=%s" % entry_type)
-            self.assertTargetUpdateCallbackCalled(entries[4], owner, 0, "EntryType=%s" % entry_type)
+            entries[0].update_target_value(1,callback=self.target_update_callback)
+            entries[0].pop_target_update_request().complete(success=True)
+            self.assertTargetUpdateCallbackCalled(entries[0],  2, "EntryType=%s" % entry_type)
+            self.assertTargetUpdateCallbackCalled(entries[1],  0, "EntryType=%s" % entry_type)
+            self.assertTargetUpdateCallbackCalled(entries[2],  0, "EntryType=%s" % entry_type)
+            self.assertTargetUpdateCallbackCalled(entries[3],  0, "EntryType=%s" % entry_type)
+            self.assertTargetUpdateCallbackCalled(entries[4],  0, "EntryType=%s" % entry_type)
+
+            entries[2].update_target_value(2,callback=self.target_update_callback)
+            entries[2].pop_target_update_request().complete(success=True)
+            self.assertTargetUpdateCallbackCalled(entries[0], 2, "EntryType=%s" % entry_type)
+            self.assertTargetUpdateCallbackCalled(entries[1], 0, "EntryType=%s" % entry_type)
+            self.assertTargetUpdateCallbackCalled(entries[2], 1, "EntryType=%s" % entry_type)
+            self.assertTargetUpdateCallbackCalled(entries[3], 0, "EntryType=%s" % entry_type)
+            self.assertTargetUpdateCallbackCalled(entries[4], 0, "EntryType=%s" % entry_type)
 
             # Add a second callback on entry 3 with same owner. Should make 1 call on dirty, not 2
-            ds.start_watching(entries[3].get_id(), watcher=owner, target_update_callback=self.target_update_callback,
-                              args=dict(someParam=entry.get_id()))
-            entries[3].update_target_value(3)
-            entries[3].mark_target_update_request_complete()
-            self.assertTargetUpdateCallbackCalled(entries[0], owner, 2, "EntryType=%s" % entry_type)
-            self.assertTargetUpdateCallbackCalled(entries[1], owner, 0, "EntryType=%s" % entry_type)
-            self.assertTargetUpdateCallbackCalled(entries[2], owner, 1, "EntryType=%s" % entry_type)
-            self.assertTargetUpdateCallbackCalled(entries[3], owner, 1, "EntryType=%s" % entry_type)
-            self.assertTargetUpdateCallbackCalled(entries[4], owner, 0, "EntryType=%s" % entry_type)
+            ds.start_watching(entries[3].get_id(), watcher=owner, args=dict(someParam=entry.get_id()))
+            entries[3].update_target_value(3,callback=self.target_update_callback)
+            entries[3].pop_target_update_request().complete(success=True)
+            self.assertTargetUpdateCallbackCalled(entries[0], 2, "EntryType=%s" % entry_type)
+            self.assertTargetUpdateCallbackCalled(entries[1], 0, "EntryType=%s" % entry_type)
+            self.assertTargetUpdateCallbackCalled(entries[2], 1, "EntryType=%s" % entry_type)
+            self.assertTargetUpdateCallbackCalled(entries[3], 1, "EntryType=%s" % entry_type)
+            self.assertTargetUpdateCallbackCalled(entries[4], 0, "EntryType=%s" % entry_type)
 
             # Add a 2 callbacks with different owner. Should make 2 calls
             ds.start_watching(entries[4].get_id(), watcher=owner, target_update_callback=self.target_update_callback,
                               args=dict(someParam=entry.get_id()))
             ds.start_watching(entries[4].get_id(), watcher=owner2,
                               target_update_callback=self.target_update_callback, args=dict(someParam=entry.get_id()))
-            entries[4].update_target_value(4)
-            entries[4].mark_target_update_request_failed()
-            self.assertTargetUpdateCallbackCalled(entries[0], owner, 2, "EntryType=%s" % entry_type)
-            self.assertTargetUpdateCallbackCalled(entries[1], owner, 0, "EntryType=%s" % entry_type)
-            self.assertTargetUpdateCallbackCalled(entries[2], owner, 1, "EntryType=%s" % entry_type)
-            self.assertTargetUpdateCallbackCalled(entries[3], owner, 1, "EntryType=%s" % entry_type)
-            self.assertTargetUpdateCallbackCalled(entries[4], owner, 1, "EntryType=%s" % entry_type)
-            self.assertTargetUpdateCallbackCalled(entries[4], owner2, 1, "EntryType=%s" % entry_type)
+            entries[4].update_target_value(4,callback=self.target_update_callback)
+            entries[4].pop_target_update_request().complete(success=False)
+            self.assertTargetUpdateCallbackCalled(entries[0], 2, "EntryType=%s" % entry_type)
+            self.assertTargetUpdateCallbackCalled(entries[1], 0, "EntryType=%s" % entry_type)
+            self.assertTargetUpdateCallbackCalled(entries[2], 1, "EntryType=%s" % entry_type)
+            self.assertTargetUpdateCallbackCalled(entries[3], 1, "EntryType=%s" % entry_type)
+            self.assertTargetUpdateCallbackCalled(entries[4], 1, "EntryType=%s" % entry_type)
+            self.assertTargetUpdateCallbackCalled(entries[4], 1, "EntryType=%s" % entry_type)
 
     # Make sure we manage correctly multiple watchers
     def test_watch_behavior(self):
@@ -272,11 +273,11 @@ class TestDataStore(unittest.TestCase):
                 self.assertFalse(ds.is_watching(entry, 'watcher1'))
                 self.assertFalse(ds.is_watching(entry, 'watcher2'))
 
-                ds.start_watching(entry, watcher='watcher1', value_change_callback=lambda: None, target_update_callback=lambda: None)
+                ds.start_watching(entry, watcher='watcher1', value_change_callback=lambda: None)
                 self.assertTrue(ds.is_watching(entry, 'watcher1'))
                 self.assertFalse(ds.is_watching(entry, 'watcher2'))
 
-                ds.start_watching(entry, watcher='watcher2', value_change_callback=lambda: None, target_update_callback=lambda: None)
+                ds.start_watching(entry, watcher='watcher2', value_change_callback=lambda: None)
                 self.assertTrue(ds.is_watching(entry, 'watcher1'))
                 self.assertTrue(ds.is_watching(entry, 'watcher2'))
 
@@ -322,14 +323,18 @@ class TestDataStore(unittest.TestCase):
         rpv_entries = list(self.make_dummy_entries(4, EntryType.RuntimePublishedValue))
 
         alias_var_2 = DatastoreAliasEntry('alias_var_2', refentry=var_entries[2])
+        alias_var_2_2 = DatastoreAliasEntry('alias_var_2', refentry=var_entries[2])
         alias_rpv_1 = DatastoreAliasEntry('alias_rpv_1', refentry=rpv_entries[1])
+        alias_rpv_1_2 = DatastoreAliasEntry('alias_rpv_1', refentry=rpv_entries[1])
 
         ds = Datastore()
         ds.add_entries(var_entries)
         ds.add_entries(rpv_entries)
 
         ds.add_entry(alias_var_2)
+        ds.add_entry(alias_var_2_2)
         ds.add_entry(alias_rpv_1)
+        ds.add_entry(alias_rpv_1_2)
 
         watcher = 'potato'
 
@@ -337,7 +342,13 @@ class TestDataStore(unittest.TestCase):
             alias_var_2.get_id(), 
             watcher=watcher, 
             value_change_callback=self.value_change_callback,
-            target_update_callback=self.target_update_callback,
+            args='nothing'
+            )
+
+        ds.start_watching(
+            alias_var_2_2.get_id(), 
+            watcher=watcher, 
+            value_change_callback=self.value_change_callback,
             args='nothing'
             )
        
@@ -345,36 +356,42 @@ class TestDataStore(unittest.TestCase):
             alias_rpv_1.get_id(), 
             watcher=watcher, 
             value_change_callback=self.value_change_callback,
-            target_update_callback=self.target_update_callback,
             args='nothing'
             )
+
+        ds.start_watching(
+            alias_rpv_1_2.get_id(), 
+            watcher=watcher, 
+            value_change_callback=self.value_change_callback,
+            args='nothing'
+            )            
         
         ds.set_value(var_entries[2], 55)
-        self.assertEqual(alias_var_2.get_value(), 55)
         self.assertEqual(var_entries[2].get_value(), 55)
+        self.assertEqual(alias_var_2.get_value(), 55)
+        self.assertEqual(alias_var_2_2.get_value(), 55)
 
         self.assertValueChangeCallbackCalled(var_entries[2].get_id(), watcher, n=0) # Not watching this one, so n=0
         self.assertValueChangeCallbackCalled(alias_var_2.get_id(), watcher, n=1)
-
-        ds.update_target_value(alias_rpv_1, 123)
-        self.assertEqual(rpv_entries[1].get_pending_target_update_val(), 123)
-        rpv_entries[1].mark_target_update_request_complete()
-
-        self.assertTargetUpdateCallbackCalled(rpv_entries[1], watcher, n=0) # Internal callback used
-        self.assertTargetUpdateCallbackCalled(alias_rpv_1, watcher, n=1)
+        self.assertValueChangeCallbackCalled(alias_var_2_2.get_id(), watcher, n=1)
 
 
-        # Unwatch!
-        self.clear_callback_count()
-        ds.stop_watching(alias_var_2.get_id(), watcher)
-        ds.set_value(var_entries[2], 999)
-        self.assertValueChangeCallbackCalled(var_entries[2].get_id(), watcher, n=0)
-        self.assertValueChangeCallbackCalled(alias_var_2.get_id(), watcher, n=0)
+        ds.update_target_value(alias_rpv_1, 123, self.target_update_callback)
+        self.assertTrue(rpv_entries[1].has_pending_target_update())
+        update_request = rpv_entries[1].pop_target_update_request()
+        self.assertEqual(update_request.get_value(), 123)
+        update_request.complete(success=True)
 
-        ds.stop_watching(alias_rpv_1.get_id(), watcher)
-        ds.update_target_value(alias_rpv_1, 9999)
-        self.assertEqual(rpv_entries[1].get_pending_target_update_val(), 9999)  # Still works as it does not depends on watching state.
-        rpv_entries[1].mark_target_update_request_complete()    # We can do this, but nobody will be notified
-        
-        self.assertTargetUpdateCallbackCalled(var_entries[2].get_id(), watcher, n=0)
-        self.assertTargetUpdateCallbackCalled(alias_var_2.get_id(), watcher, n=0)
+        self.assertTargetUpdateCallbackCalled(rpv_entries[1], n=0) 
+        self.assertTargetUpdateCallbackCalled(alias_rpv_1, n=1)
+        self.assertTargetUpdateCallbackCalled(alias_rpv_1_2, n=0)
+       
+        ds.update_target_value(alias_rpv_1_2, 321, self.target_update_callback)
+        self.assertTrue(rpv_entries[1].has_pending_target_update())
+        update_request = rpv_entries[1].pop_target_update_request()
+        self.assertEqual(update_request.get_value(), 321)
+        update_request.complete(success=False)
+
+        self.assertTargetUpdateCallbackCalled(rpv_entries[1], n=0) 
+        self.assertTargetUpdateCallbackCalled(alias_rpv_1, n=1)
+        self.assertTargetUpdateCallbackCalled(alias_rpv_1_2, n=1)

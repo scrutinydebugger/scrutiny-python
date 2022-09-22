@@ -9,7 +9,7 @@
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 
 import logging
-from scrutiny.server.datastore.datastore_entry import DatastoreRPVEntry, DatastoreVariableEntry, EntryType
+from scrutiny.server.datastore.datastore_entry import DatastoreRPVEntry, DatastoreVariableEntry, EntryType, UpdateTargetRequest
 
 from scrutiny.server.protocol import *
 import scrutiny.server.protocol.commands as cmd
@@ -40,6 +40,7 @@ class MemoryWriter:
 
     entry_being_updated: Optional[DatastoreEntry]
     request_of_entry_being_updated: Optional[Request]
+    target_update_request_being_processed:Optional[UpdateTargetRequest]
     watched_entries: List[str]
     write_cursor: int
 
@@ -88,6 +89,7 @@ class MemoryWriter:
         self.write_cursor = 0
         self.entry_being_updated = None
         self.request_of_entry_being_updated = None
+        self.target_update_request_being_processed = None
 
     def process(self) -> None:
         if not self.started:
@@ -123,10 +125,11 @@ class MemoryWriter:
                 self.write_cursor += 1
                 if entry.has_pending_target_update():
                     self.entry_being_updated = entry
+                    self.target_update_request_being_processed = entry.pop_target_update_request()
                     break
 
-        if self.entry_being_updated is not None:
-            value_to_write = self.entry_being_updated.get_pending_target_update_val()
+        if self.entry_being_updated is not None and self.target_update_request_being_processed is not None:
+            value_to_write = self.target_update_request_being_processed.get_value()
             if value_to_write is None:
                 self.logger.critical('Value to write is not availble. This should never happen')
             else:
@@ -162,7 +165,7 @@ class MemoryWriter:
                 request_data = cast(protocol_typing.Request.MemoryControl.Write, self.protocol.parse_request(request))
                 response_data = cast(protocol_typing.Response.MemoryControl.Write, self.protocol.parse_response(response))
 
-                if self.entry_being_updated is not None and self.entry_being_updated.has_pending_target_update():
+                if self.entry_being_updated is not None and self.target_update_request_being_processed is not None:
                     response_match_request = True
                     if len(request_data['blocks_to_write']) != 1 or len(response_data['written_blocks']) != 1:
                         response_match_request = False
@@ -174,10 +177,10 @@ class MemoryWriter:
                             response_match_request = False
 
                     if response_match_request:
-                        newval, mask = self.entry_being_updated.encode_pending_update_value()
-                        self.entry_being_updated.set_value_from_data(newval)
-                        self.entry_being_updated.mark_target_update_request_complete()
+                        self.entry_being_updated.set_value(self.target_update_request_being_processed.get_value())
+                        self.target_update_request_being_processed.complete(success=True)
                     else:
+                        self.target_update_request_being_processed.complete(success=False)
                         self.logger.error('Received a WriteMemory response that does not match the request')
                 else:
                     self.logger.warning('Received a WriteMemory response but no datastore entry was being updated.')
@@ -194,7 +197,7 @@ class MemoryWriter:
                 request_data = cast(protocol_typing.Request.MemoryControl.WriteRPV, self.protocol.parse_request(request))
                 response_data = cast(protocol_typing.Response.MemoryControl.WriteRPV, self.protocol.parse_response(response))
 
-                if self.entry_being_updated is not None and self.entry_being_updated.has_pending_target_update():
+                if self.entry_being_updated is not None and self.target_update_request_being_processed is not None:
                     response_match_request = True
                     if len(request_data['rpvs']) != 1 or len(response_data['written_rpv']) != 1:
                         response_match_request = False
@@ -203,10 +206,10 @@ class MemoryWriter:
                             response_match_request = False
 
                     if response_match_request:
-                        newval = self.entry_being_updated.get_pending_target_update_val()
-                        self.entry_being_updated.set_value(newval)
-                        self.entry_being_updated.mark_target_update_request_complete()
+                        self.entry_being_updated.set_value(self.target_update_request_being_processed.get_value())
+                        self.target_update_request_being_processed.complete(success=True)
                     else:
+                        self.target_update_request_being_processed.complete(success=False)
                         self.logger.error('Received a WriteRPV response that does not match the request')
                 else:
                     self.logger.warning('Received a WriteRPV response but no datastore entry was being updated.')
@@ -226,8 +229,8 @@ class MemoryWriter:
         else:
             self.logger.critical('Got a response for a request we did not send. Not supposed to happen!')
 
-        if self.entry_being_updated is not None:
-            self.entry_being_updated.mark_target_update_request_failed()
+        if self.target_update_request_being_processed is not None:
+            self.target_update_request_being_processed.complete(success=False)
 
         self.completed()
 
@@ -235,3 +238,4 @@ class MemoryWriter:
         self.request_pending = False
         self.entry_being_updated = None
         self.request_of_entry_being_updated = None
+        self.target_update_request_being_processed = None

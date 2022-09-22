@@ -9,7 +9,7 @@
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 
 import logging
-from .datastore_entry import DatastoreAliasEntry, DatastoreEntry, EntryType, UpdateTargetRequest
+from .datastore_entry import DatastoreAliasEntry, DatastoreEntry, EntryType, UpdateTargetRequest, UpdateTargetRequestCallback
 from scrutiny.core.typehints import GenericCallback
 
 from typing import Set, List, Dict, Optional, Any, Iterator, Union, Callable
@@ -110,9 +110,6 @@ class Datastore:
         if not entry.has_value_change_callback(watcher):
             entry.register_value_change_callback(owner=watcher, callback=value_change_callback, args=args)
 
-        if not entry.has_target_update_callback(watcher):
-            entry.register_target_update_callback(owner=watcher, callback=target_update_callback, args=args)
-
         # Mainly used to notify device handler that a new variable is to be polled
         for callback in self.global_watch_callbacks:
             callback(entry_id)
@@ -122,7 +119,6 @@ class Datastore:
                 entry_id = entry.resolve(), 
                 watcher = self.make_owner_from_alias_entry(entry),
                 value_change_callback = GenericCallback(self.alias_value_change_callback),
-                target_update_callback = GenericCallback(self.alias_target_update_callback),
                 args = {'watching_entry' : entry}
                 )
 
@@ -159,7 +155,6 @@ class Datastore:
             pass
 
         entry.unregister_value_change_callback(watcher)
-        entry.unregister_target_update_callback(watcher)
 
         for callback in self.global_unwatch_callbacks:
             callback(entry_id)
@@ -191,10 +186,10 @@ class Datastore:
         entry = self.get_entry(entry_id)
         entry.set_value(value)
 
-    def update_target_value(self, entry_id: Union[DatastoreEntry, str], value: Any) -> UpdateTargetRequest:
+    def update_target_value(self, entry_id: Union[DatastoreEntry, str], value: Any, callback:UpdateTargetRequestCallback) -> UpdateTargetRequest:
         entry_id = self.interpret_entry_id(entry_id)
         entry = self.get_entry(entry_id)
-        return entry.update_target_value(value)
+        return entry.update_target_value(value, callback=callback)
 
     def get_watched_entries_id(self, entry_type: EntryType) -> List[str]:
         return list(self.watcher_map[entry_type].keys())
@@ -205,17 +200,3 @@ class Datastore:
     def alias_value_change_callback(self, owner: str, args: Any, entry: DatastoreEntry) -> None:
         watching_entry:DatastoreAliasEntry = args['watching_entry']
         watching_entry.set_value_internal(entry.get_value())
-
-    def alias_target_update_callback(self, owner: str, args: Any, entry: DatastoreEntry) -> None:
-        watching_entry:DatastoreAliasEntry = args['watching_entry']
-        update_record = entry.get_target_update_record()
-        if update_record is not None:
-            if update_record.is_complete():
-                if update_record.is_success():
-                    watching_entry.mark_target_update_request_complete_internal()
-                else:
-                    watching_entry.mark_target_update_request_failed_internal()
-            else:
-                self.logger.critical('Alias update callback but update record is not completed. Should not happen. Owner=%s, entry id=%s' % (owner, entry.get_id()))
-        else:
-            self.logger.critical('Alias update callback but no update status available. Should not happen. Owner=%s, entry id=%s' % (owner, entry.get_id()))

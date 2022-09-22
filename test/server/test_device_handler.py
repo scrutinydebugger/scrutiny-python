@@ -337,8 +337,8 @@ class TestDeviceHandler(unittest.TestCase):
                     state = 'read_memory'
 
                 elif state == 'read_memory':
-                    value_updated = (vfloat32.get_update_time() > init_memory_time + time_margin) and (vint64.get_update_time() >
-                                                                                                       init_memory_time + time_margin) and (vbool.get_update_time() > init_memory_time + time_margin)
+                    value_updated = (vfloat32.get_value_change_timestamp() > init_memory_time + time_margin) and (vint64.get_value_change_timestamp() >
+                                                                                                       init_memory_time + time_margin) and (vbool.get_value_change_timestamp() > init_memory_time + time_margin)
 
                     if value_updated:
                         self.assertEqual(vfloat32.get_value(), d2f(3.1415926), 'round=%d' % round_completed)
@@ -357,12 +357,12 @@ class TestDeviceHandler(unittest.TestCase):
 
                 elif state == 'write_memory':
                     value_updated = True
-                    value_updated = value_updated and (vfloat32.get_last_update_timestamp() is not None) and (
-                        vfloat32.get_last_update_timestamp() > write_time)
-                    value_updated = value_updated and (vint64.get_last_update_timestamp() is not None) and (
-                        vint64.get_last_update_timestamp() > write_time)
-                    value_updated = value_updated and (vbool.get_last_update_timestamp() is not None) and (
-                        vbool.get_last_update_timestamp() > write_time)
+                    value_updated = value_updated and (vfloat32.get_last_target_update_timestamp() is not None) and (
+                        vfloat32.get_last_target_update_timestamp() > write_time)
+                    value_updated = value_updated and (vint64.get_last_target_update_timestamp() is not None) and (
+                        vint64.get_last_target_update_timestamp() > write_time)
+                    value_updated = value_updated and (vbool.get_last_target_update_timestamp() is not None) and (
+                        vbool.get_last_target_update_timestamp() > write_time)
 
                     if value_updated:
                         self.assertEqual(vfloat32.get_value(), d2f(2.7), 'round=%d' % round_completed)
@@ -438,7 +438,7 @@ class TestDeviceHandler(unittest.TestCase):
                 elif state == 'wait_for_update_and_validate':
                     all_updated = True
                     for entry in all_entries:
-                        last_update_timestamp = entry.get_last_update_timestamp()
+                        last_update_timestamp = entry.get_last_target_update_timestamp()
                         if last_update_timestamp is None or last_update_timestamp < write_timestamp:
                             all_updated = False
                         else:
@@ -461,7 +461,7 @@ class TestDeviceHandler(unittest.TestCase):
                     all_updated = True
                     for entry in all_entries:
                         rpv = entry.get_rpv()
-                        if entry.get_update_time() < write_from_device_timestamp:
+                        if entry.get_value_change_timestamp() < write_from_device_timestamp:
                             all_updated = False
                         else:
                             self.assertEqual(entry.get_value(), written_values[rpv.id])
