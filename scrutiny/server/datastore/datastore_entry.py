@@ -6,7 +6,7 @@
 #
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 
-from ast import Call
+from ast import Call, alias
 import functools
 import uuid
 from enum import Enum
@@ -191,9 +191,12 @@ class DatastoreEntry:
         self.last_target_update_timestamp = val
 
     def update_target_value(self, value: Any, callback:Optional[UpdateTargetRequestCallback]=None) -> UpdateTargetRequest:
-        request = UpdateTargetRequest(value, entry=self, callback=callback, )
-        self.target_update_request_queue.put_nowait(request)
-        return request
+        update_request = UpdateTargetRequest(value, entry=self, callback=callback)
+        try:
+            self.target_update_request_queue.put_nowait(update_request)
+        except:
+            update_request.complete(success=False)
+        return update_request
 
     def has_pending_target_update(self) -> bool:
         return not self.target_update_request_queue.empty()
@@ -289,7 +292,9 @@ class DatastoreAliasEntry(DatastoreEntry):
     def update_target_value(self, value: Any, callback:UpdateTargetRequestCallback=None) -> UpdateTargetRequest:
         alias_request = super().update_target_value(value, callback)
         nested_callback = UpdateTargetRequestCallback(functools.partial(self.alias_target_update_callback, alias_request))
-        self.refentry.update_target_value(value, callback=nested_callback)
+        new_request = self.refentry.update_target_value(value, callback=nested_callback)
+        if alias_request.is_complete(): # Edge case if failed to enqueue request.
+            new_request.complete(success=alias_request.is_complete())
         return alias_request
 
     def alias_target_update_callback(self, alias_request: UpdateTargetRequest, success:bool, entry:DatastoreEntry, timestamp:float):

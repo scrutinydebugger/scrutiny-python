@@ -160,8 +160,8 @@ class TestMemoryWriterBasicReadOperation(unittest.TestCase):
             self.assertGreaterEqual(update_time, time_start, 'i=%d' % i)
     
     def test_write_burst_do_all(self):
-        # Important to make sure that we don'T drop a write request sonce this can be used to make
-        # some device state moves.
+        # This test makes write request in burst (faster than memory writer can process them) and we
+        # expect the memory writer to do them all in order and not skip any
 
         address = 0x1000
         ds = Datastore()
