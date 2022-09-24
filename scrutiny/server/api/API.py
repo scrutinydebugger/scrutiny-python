@@ -728,7 +728,7 @@ class API:
             assert enum is not None
             enum_def = enum.get_def()
             definition['enum'] = {  # Cherry pick items to avoid sending too much to client
-                'name': enum_def['name'],
+                'name': enum.get_name(),
                 'values': enum_def['values']
             }
 

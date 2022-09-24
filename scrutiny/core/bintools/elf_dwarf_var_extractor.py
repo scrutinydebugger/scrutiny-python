@@ -343,7 +343,7 @@ class ElfDwarfVarExtractor:
         name = self.get_name(die)
         if 'DW_AT_const_value' in die.attributes:
             value = die.attributes['DW_AT_const_value'].value
-            self.enum_die_map[parent_enum].add_value(name=name, value=value)
+            self.enum_die_map[parent_enum].add_value(value=value, name=name, )
         else:
             logging.error('Enumerator without value')
 

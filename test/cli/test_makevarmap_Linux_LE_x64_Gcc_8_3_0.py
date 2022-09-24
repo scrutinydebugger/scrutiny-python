@@ -71,11 +71,11 @@ class TestMakeVarMap_LinuxLEx64_Gcc8_3_0(unittest.TestCase):
     def assert_is_enum(self, v):
         self.assertIsNotNone(v.enum)
 
-    def assert_has_enum(self, v, name, value):
+    def assert_has_enum(self, v:Variable, name:str, value:int):
         self.assert_is_enum(v)
-        value2 = v.enum.get_value(name)
-        self.assertIsNotNone(value2)
-        self.assertEqual(value2, value)
+        name2 = v.enum.get_val_name(value)
+        self.assertIsNotNone(name2)
+        self.assertEqual(name2, name)
 
     def test_env(self):
         self.assertEqual(self.varmap.endianness, Endianness.Little)

@@ -12,12 +12,14 @@ import zipfile
 import os
 import json
 import logging
+from glob import glob
+from fnmatch import fnmatch
 
 import scrutiny.core.firmware_id as firmware_id
 from scrutiny.core.varmap import VarMap
 from scrutiny.core.variable import Variable
 
-from typing import List, Union, Dict, Any, Tuple, Generator, TypedDict
+from typing import List, Union, Dict, Any, Tuple, Generator, TypedDict, cast, IO, Optional 
 
 
 class GenerationInfoType(TypedDict, total=False):
@@ -33,17 +35,81 @@ class MetadataType(TypedDict, total=False):
     version: str
     generation_info: GenerationInfoType
 
+class AliasDefinition:
+    fullpath:str
+    target:str
+    gain:float
+    offset:float
+    min:float
+    max:float
 
+    @classmethod 
+    def from_json(cls, fullpath:str, json_str:str) -> 'AliasDefinition':
+        d = json.loads(json_str)
+        return cls.from_dict(fullpath, d)
+
+    @classmethod
+    def from_dict(cls, fullpath:str, obj:Dict[str, Any]) -> 'AliasDefinition':
+        assert 'target' in obj
+        obj_out = cls()
+        obj_out.fullpath = fullpath
+        obj_out.target = obj['target']
+        obj_out.gain = obj['gain'] if 'gain' in obj else 1.0
+        obj_out.offset = obj['offset'] if 'offset' in obj else 0.0
+        obj_out.min = obj['min'] if 'min' in obj else float('-inf')
+        obj_out.max = obj['max'] if 'max' in obj else float('inf')
+        
+        return obj_out
+    
+    def to_dict(self) -> Dict[str, Any]:
+        d:Dict[str, Any] = dict(target=self.target)
+
+        if self.gain != 1.0:
+            d['gain'] = self.gain
+
+        if self.offset != 0.0:
+            d['offset'] = self.offset
+
+        if self.min != float('-inf'):
+            d['min'] = self.min
+
+        if self.max != float('inf'):
+            d['max'] = self.max
+        
+        return d
+    
+    def to_json(self) -> str:
+        return json.dumps(self.to_dict())
+
+    def get_fullpath(self) -> str:
+        return self.fullpath
+
+    def get_target(self) -> str:
+        return self.target
+
+    def get_min(self) -> float:
+        return self.min if self.min is not None else float('-inf')
+    
+    def get_max(self) -> float:
+        return self.max if self.max is not None else float('inf')
+
+    def get_gain(self) -> float:
+        return self.gain if self.gain is not None else 1.0
+    
+    def get_offset(self) -> float:
+        return self.offset if self.offset is not None else 0.0
 class FirmwareDescription:
     COMPRESSION_TYPE = zipfile.ZIP_DEFLATED
 
     varmap: VarMap
     metadata: MetadataType
     firmwareid: bytes
+    aliases:Dict[str, AliasDefinition]
 
     varmap_filename: str = 'varmap.json'
     metadata_filename: str = 'metadata.json'
     firmwareid_filename: str = 'firmwareid'
+    alias_file: str = 'alias.json'
 
     REQUIRED_FILES: List[str] = [
         firmwareid_filename,
@@ -68,45 +134,90 @@ class FirmwareDescription:
                 raise Exception('Missing %s' % file)
 
         metadata_file = os.path.join(folder, self.metadata_filename)
-        with open(metadata_file) as f:
-            self.metadata = json.loads(f.read())
+        with open(metadata_file, 'rb') as f:
+            self.metadata = self.read_metadata(f)
 
-        with open(os.path.join(folder, self.firmwareid_filename)) as f:
-            self.firmwareid = bytes.fromhex(f.read())
+        with open(os.path.join(folder, self.firmwareid_filename), 'rb') as f:
+            self.firmwareid = self.read_firmware_id(f)
+        
+        self.aliases = {}
+        # Extra convenience for when we create the sfd through command line.
+        for alias_file in glob(os.path.join(folder, 'alias_*.json')) :
+            with open(alias_file, 'rb') as f:
+                aliases = self.read_aliases(f)
+                self.append_aliases(aliases)
+        
+        if os.path.isfile(os.path.join(folder, self.alias_file)):
+            with open(os.path.join(folder, self.alias_file), 'rb') as f:
+                aliases = self.read_aliases(f)
+                self.append_aliases(aliases)
 
         self.varmap = VarMap(os.path.join(folder, self.varmap_filename))
 
     @classmethod
-    def read_metadata_from_file(cls, filename: str) -> MetadataType:
+    def read_metadata_from_sfd_file(cls, filename: str) -> MetadataType:
         with zipfile.ZipFile(filename, mode='r', compression=cls.COMPRESSION_TYPE) as sfd:
             with sfd.open(cls.metadata_filename) as f:
-                metadata = json.loads(f.read())
+                metadata = cls.read_metadata(f)
 
         return metadata
 
     def load_from_file(self, filename: str) -> None:
         with zipfile.ZipFile(filename, mode='r', compression=self.COMPRESSION_TYPE) as sfd:
             with sfd.open(self.firmwareid_filename) as f:
-                self.firmwareid = bytes.fromhex(f.read().decode('ascii'))
+                self.firmwareid = self.read_firmware_id(f)
 
-            with sfd.open(self.metadata_filename) as f:
-                self.metadata = json.loads(f.read())
+            with sfd.open(self.metadata_filename, 'r') as f:
+                self.metadata = self.read_metadata(f)
 
-            with sfd.open(self.varmap_filename) as f:
+            with sfd.open(self.varmap_filename, 'r') as f:
                 self.varmap = VarMap(f.read())
+
+            self.aliases = {}
+            if self.alias_file in sfd.namelist():
+                with sfd.open(self.alias_file, 'r') as f:
+                    self.append_aliases(self.read_aliases(f))
+   
+    @classmethod
+    def read_firmware_id(cls, f:IO[bytes] ) -> bytes:
+        return bytes.fromhex(f.read().decode('ascii'))
+    
+    @classmethod
+    def read_metadata(cls, f:IO[bytes]) -> MetadataType:
+        return cast(MetadataType, json.loads(f.read().decode('utf8')))
+    
+    @classmethod
+    def read_aliases(cls, f:IO[bytes]) -> Dict[str, AliasDefinition]:
+        aliases_raw = json.loads(f.read().decode('utf8'))
+        aliases = {}
+        for k in aliases_raw:
+            aliases[k] = AliasDefinition.from_dict(k, aliases_raw[k])
+        return aliases
+
+    def append_aliases(self, aliases : Dict[str, AliasDefinition]) -> None:
+        for unique_path in aliases:
+            if unique_path not in self.aliases:
+                self.aliases[unique_path] = aliases[unique_path]
+            else:
+                logging.warning('Duplicate alias %s. Dropping' % unique_path)
 
     def write(self, filename: str) -> None:
         with zipfile.ZipFile(filename, mode='w', compression=self.COMPRESSION_TYPE) as outzip:
             outzip.writestr(self.firmwareid_filename, self.firmwareid.hex())
             outzip.writestr(self.metadata_filename, json.dumps(self.metadata, indent=4))
             outzip.writestr(self.varmap_filename, self.varmap.get_json())
+            zipped = zip(
+                [self.aliases[k].get_fullpath()for k in self.aliases],
+                [self.aliases[k].to_dict() for k in self.aliases]
+                )
+            outzip.writestr(self.alias_file, json.dumps(dict(zipped), indent=4))
 
     def get_firmware_id(self) -> bytes:
         return self.firmwareid
 
     def get_firmware_id_ascii(self) -> str:
         return self.firmwareid.hex()
-
+    
     def validate(self) -> None:
         if not hasattr(self, 'metadata') or not hasattr(self, 'varmap') or not hasattr(self, 'firmwareid'):
             raise Exception('Firmware Descritpion not loaded correctly')
@@ -133,6 +244,10 @@ class FirmwareDescription:
     def get_vars_for_datastore(self) -> Generator[Tuple[str, Variable], None, None]:
         for fullname, vardef in self.varmap.iterate_vars():
             yield (fullname, vardef)
+    
+    def get_aliases_for_datastore(self) -> Generator[Tuple[str, AliasDefinition], None, None]:
+        for k in self.aliases:
+            yield (self.aliases[k].get_fullpath(), self.aliases[k])
 
     def get_metadata(self):
         return self.metadata

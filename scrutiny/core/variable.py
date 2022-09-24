@@ -7,6 +7,7 @@
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 
 import struct
+import logging
 from scrutiny.core.basic_types import Endianness, EmbeddedDataType
 from scrutiny.core.codecs import Codecs, Encodable
 from typing import Dict, Union, List, Literal, Optional, TypedDict, Any, Tuple
@@ -68,28 +69,32 @@ class VariableLocation:
 
 class VariableEnumDef(TypedDict):
     name: str
-    values: Dict[str, int]
+    values: Dict[int, str]
 
 
 class VariableEnum:
 
     name: str
-    vals: Dict[str, int]
+    vals: Dict[int, str]
 
     def __init__(self, name: str):
         self.name = name
         self.vals = {}
 
-    def add_value(self, name: str, value: int) -> None:
-        if name in self.vals and self.vals[name] != value:
-            raise Exception('Duplicate entry for enum %s. %s can either be %s or %s' % (self.name, value, self.vals[name], value))
+    def add_value(self, value: int, name: str) -> None:
+        if value in self.vals and self.vals[value] != name:
+            raise Exception('Duplicate entry for enum %s. %s can either be %s or %s' % (self.name, value, self.vals[value], name))
 
-        self.vals[name] = value
+        self.vals[value] = name
+    
+    def get_name(self) -> str:
+        return self.name
 
-    def get_value(self, name: str) -> int:
-        if name not in self.vals:
-            raise Exception('%s is not a valid value for enum %s' % (name, self.name))
-        return self.vals[name]
+    def get_val_name(self, val: Union[str, int]) -> str:
+        val = int(val)
+        if val not in self.vals:
+            raise Exception('%s is not a valid value for enum %s' % (str(val), self.name))
+        return self.vals[val]
 
     def get_def(self) -> VariableEnumDef:
         obj: VariableEnumDef = {
@@ -101,7 +106,12 @@ class VariableEnum:
     @classmethod
     def from_def(cls, enum_def: VariableEnumDef):
         obj = cls(enum_def['name'])
-        obj.vals = enum_def['values']
+        for k in enum_def['values']:
+            try:
+                v = int(k)
+                obj.vals[v] = str(enum_def['values'][k])
+            except Exception as e:
+                logging.error("Cannot create enum %s because content is invalid. %s" % (obj.get_name(), str(e)))
         return obj
 
 

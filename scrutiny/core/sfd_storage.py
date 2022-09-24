@@ -97,7 +97,7 @@ class SFDStorageManager():
     def get_metadata(self, firmwareid: str) -> MetadataType:
         storage = self.get_storage_dir()
         filename = os.path.join(storage, firmwareid)
-        return FirmwareDescription.read_metadata_from_file(filename)
+        return FirmwareDescription.read_metadata_from_sfd_file(filename)
 
     def list(self) -> List[str]:
         thelist = []

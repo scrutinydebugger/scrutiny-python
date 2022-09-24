@@ -41,7 +41,7 @@ class BaseS2CMessage(TypedDict):
 
 class EnumDefinition(TypedDict):
     name: str
-    values: Dict[str, int]
+    values: Dict[int, str]
 
 
 class DatastoreEntryDefinitionNoType(TypedDict, total=False):
