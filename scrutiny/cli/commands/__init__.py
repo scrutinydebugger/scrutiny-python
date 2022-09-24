@@ -9,6 +9,7 @@ from .elf2varmap import Elf2VarMap
 from .launch_server import LaunchServer
 from .launch_gui import LaunchGUI
 from .runtest import RunTest
+from .sfd_add_alias import SFDAddAlias
 
 from typing import List, Dict, Type
 

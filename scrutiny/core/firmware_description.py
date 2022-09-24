@@ -140,19 +140,13 @@ class FirmwareDescription:
         with open(os.path.join(folder, self.firmwareid_filename), 'rb') as f:
             self.firmwareid = self.read_firmware_id(f)
         
-        self.aliases = {}
-        # Extra convenience for when we create the sfd through command line.
-        for alias_file in glob(os.path.join(folder, 'alias_*.json')) :
-            with open(alias_file, 'rb') as f:
-                aliases = self.read_aliases(f)
-                self.append_aliases(aliases)
-        
+        self.aliases = {}       
         if os.path.isfile(os.path.join(folder, self.alias_file)):
             with open(os.path.join(folder, self.alias_file), 'rb') as f:
                 aliases = self.read_aliases(f)
                 self.append_aliases(aliases)
 
-        self.varmap = VarMap(os.path.join(folder, self.varmap_filename))
+        self.varmap = self.read_varmap_from_filesystem(folder)
 
     @classmethod
     def read_metadata_from_sfd_file(cls, filename: str) -> MetadataType:
@@ -193,6 +187,18 @@ class FirmwareDescription:
         for k in aliases_raw:
             aliases[k] = AliasDefinition.from_dict(k, aliases_raw[k])
         return aliases
+    
+    @classmethod
+    def read_varmap_from_filesystem(cls, path:str) -> VarMap: 
+        if os.path.isfile(path):
+            fullpath = path
+        elif os.path.isdir(path):
+            fullpath = os.path.join(path, cls.varmap_filename)
+        else:
+            raise Exception('Cannot find varmap file at %s' % path)
+        
+        return VarMap(fullpath)
+
 
     def append_aliases(self, aliases : Dict[str, AliasDefinition]) -> None:
         for unique_path in aliases:

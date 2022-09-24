@@ -294,6 +294,12 @@
         },
         "scrutiny/server/api/typing.py": {
             "docstring": "Mypy typing information for API"
+        },
+        "test/core/test_sfd.py": {
+            "docstring": "Run some test on the Firmware Description class meant to identify a firmware"
+        },
+        "scrutiny/cli/commands/sfd_add_alias.py": {
+            "docstring": "Defines the sfd-add-alias command used to embed an alias file into an SFD file in the making"
         }
     }
 }

@@ -128,6 +128,7 @@ class TestCLI(unittest.TestCase):
                 demo_bin = get_artifact('demobin.elf')
                 temp_bin = os.path.join(tempdirname, 'demobin.elf')
                 sfd_name = os.path.join(tempdirname, 'myfile.sfd')
+                alias_file_1 = get_artifact(os.path.join('sfd_material', 'alias1.json'))
                 shutil.copyfile(demo_bin, temp_bin)
 
                 with open(get_artifact('demobin_firmwareid')) as f:
@@ -137,6 +138,7 @@ class TestCLI(unittest.TestCase):
                         '--author', 'unittest', '--output', tempdirname], except_failed=True)
                 cli.run(['get-firmware-id', temp_bin, '--output', tempdirname, '--apply'], except_failed=True)
                 cli.run(['elf2varmap', temp_bin, '--output', tempdirname], except_failed=True)
+                cli.run(['sfd-add-alias', alias_file_1, tempdirname], except_failed=True)
                 cli.run(['uninstall-sfd', demobin_firmware_id, '--quiet'], except_failed=True)
                 self.assertFalse(SFDStorage.is_installed(demobin_firmware_id))
 
@@ -166,3 +168,35 @@ class TestCLI(unittest.TestCase):
 
             SFDStorage.uninstall(sfd1.get_firmware_id_ascii())
             SFDStorage.uninstall(sfd2.get_firmware_id_ascii())
+
+    def test_append_alias_to_sfd_folder(self):
+        with tempfile.TemporaryDirectory() as tempdirname:
+            varmap_file = get_artifact(os.path.join('sfd_material', 'varmap.json'))
+            alias_file_1 = get_artifact(os.path.join('sfd_material', 'alias1.json'))
+            alias_file_2 = get_artifact(os.path.join('sfd_material', 'alias2.json'))
+            shutil.copyfile(varmap_file, os.path.join(tempdirname, 'varmap.json'))
+            cli = CLI()
+            
+            cli.run(['sfd-add-alias', alias_file_1, tempdirname], except_failed=True)
+            cli.run(['sfd-add-alias', alias_file_2, tempdirname], except_failed=True)
+
+            with open(os.path.join(tempdirname, 'alias.json')) as f:
+                alias_dict = json.load(f)
+            
+            with open(alias_file_1) as f:
+                alias1_dict = json.load(f)
+            
+            with open(alias_file_2) as f:
+                alias2_dict = json.load(f)
+
+            for k in alias1_dict:
+                self.assertIn(k, alias_dict)
+                for k2 in alias1_dict[k]:
+                    self.assertIn(k2, alias_dict[k])
+                    self.assertEqual(alias_dict[k][k2], alias1_dict[k][k2])
+            
+            for k in alias2_dict:
+                self.assertIn(k, alias_dict)
+                for k2 in alias2_dict[k]:
+                    self.assertIn(k2, alias_dict[k])
+                    self.assertEqual(alias_dict[k][k2], alias2_dict[k][k2])

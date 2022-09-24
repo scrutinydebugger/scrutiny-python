@@ -62,6 +62,8 @@ class CLI:
 
         args, command_cargs = self.parser.parse_known_args(args)
         if args.command not in [cls.get_name() for cls in self.command_list]:
+            if except_failed:
+                raise Exception('Unknown command %s' % args.command)
             self.parser.print_help()
             return -1
 
