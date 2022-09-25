@@ -280,6 +280,9 @@ class FirmwareDescription:
         for k in self.aliases:
             yield (self.aliases[k].get_fullpath(), self.aliases[k])
 
+    def get_aliases(self) -> Dict[str, AliasDefinition]:
+        return self.aliases
+
     def get_metadata(self):
         return self.metadata
 
