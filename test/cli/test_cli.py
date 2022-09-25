@@ -138,7 +138,7 @@ class TestCLI(unittest.TestCase):
                         '--author', 'unittest', '--output', tempdirname], except_failed=True)
                 cli.run(['get-firmware-id', temp_bin, '--output', tempdirname, '--apply'], except_failed=True)
                 cli.run(['elf2varmap', temp_bin, '--output', tempdirname], except_failed=True)
-                cli.run(['sfd-add-alias', alias_file_1, tempdirname], except_failed=True)
+                cli.run(['sfd-add-alias', tempdirname, '--file', alias_file_1], except_failed=True)
                 cli.run(['uninstall-sfd', demobin_firmware_id, '--quiet'], except_failed=True)
                 self.assertFalse(SFDStorage.is_installed(demobin_firmware_id))
 
@@ -177,8 +177,17 @@ class TestCLI(unittest.TestCase):
             shutil.copyfile(varmap_file, os.path.join(tempdirname, 'varmap.json'))
             cli = CLI()
             
-            cli.run(['sfd-add-alias', alias_file_1, tempdirname], except_failed=True)
-            cli.run(['sfd-add-alias', alias_file_2, tempdirname], except_failed=True)
+            cli.run(['sfd-add-alias',tempdirname, '--file',  alias_file_1], except_failed=True)
+            cli.run(['sfd-add-alias',tempdirname, '--file',  alias_file_2], except_failed=True)
+            
+            cli.run(['sfd-add-alias',tempdirname, 
+            '--fullpath', '/alias/command_line_added',
+            '--target', '/path1/path2/some_int32',
+            '--gain', '5.2',
+            '--offset', '2.5',
+            '--min', '0',
+            '--max', '100'
+            ], except_failed=True)
 
             with open(os.path.join(tempdirname, 'alias.json')) as f:
                 alias_dict = json.load(f)
@@ -200,3 +209,10 @@ class TestCLI(unittest.TestCase):
                 for k2 in alias2_dict[k]:
                     self.assertIn(k2, alias_dict[k])
                     self.assertEqual(alias_dict[k][k2], alias2_dict[k][k2])
+            
+            self.assertIn('/alias/command_line_added', alias_dict)
+            entry = alias_dict['/alias/command_line_added']
+            self.assertEqual(entry['gain'], 5.2)
+            self.assertEqual(entry['offset'], 2.5)
+            self.assertEqual(entry['min'], 0)
+            self.assertEqual(entry['max'], 100)

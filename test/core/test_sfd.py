@@ -94,3 +94,61 @@ class TestSFD(unittest.TestCase):
         self.assertEqual(aliases_as_dict['/alias/some_enum'].get_offset(), 0.0)
         self.assertEqual(aliases_as_dict['/alias/some_enum'].get_min(), float('-inf'))
         self.assertEqual(aliases_as_dict['/alias/some_enum'].get_max(), float('inf'))
+
+    def test_alias(self):
+        with self.assertRaises(Exception):
+            AliasDefinition.from_dict('aaa', {})
+        
+        x = AliasDefinition.from_dict('aaa', {'target' : 'asd'})
+        self.assertEqual(x.fullpath, 'aaa')
+        self.assertEqual(x.target, 'asd')
+        self.assertEqual(x.min, float('-inf'))
+        self.assertEqual(x.max, float('inf'))
+        self.assertEqual(x.gain, 1.0)
+        self.assertEqual(x.offset, 0.0)
+
+        d = x.to_dict()
+        self.assertEqual(d['target'], 'asd')
+        self.assertNotIn('min', d)  # Remove because of default value
+        self.assertNotIn('max', d)
+        self.assertNotIn('gain', d)
+        self.assertNotIn('offset', d)
+
+        with self.assertRaises(Exception):
+            x.min = 1.0
+            x.max = 0.0
+            x.validate()
+        
+        x.min = 0.0
+        x.max = 100.0
+        x.validate()
+
+        with self.assertRaises(Exception):
+            x.gain = float('inf')
+            x.validate()
+        x.gain = 1.0
+        
+        with self.assertRaises(Exception):
+            x.offset = float('inf')
+            x.validate()
+        x.offset = 0.0
+
+        with self.assertRaises(Exception):
+            x.min = float('nan')
+            x.validate()
+        x.min = 0.0
+
+        with self.assertRaises(Exception):
+            x.max = float('nan')
+            x.validate()
+        x.max = 100.0
+
+        with self.assertRaises(Exception):
+            x.gain = float('nan')
+            x.validate()
+        x.gain = 1.0
+
+        with self.assertRaises(Exception):
+            x.offset = float('nan')
+            x.validate()
+        x.offset = 0.0

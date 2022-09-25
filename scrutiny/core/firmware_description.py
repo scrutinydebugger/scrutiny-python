@@ -12,8 +12,7 @@ import zipfile
 import os
 import json
 import logging
-from glob import glob
-from fnmatch import fnmatch
+import math
 
 import scrutiny.core.firmware_id as firmware_id
 from scrutiny.core.varmap import VarMap
@@ -54,12 +53,38 @@ class AliasDefinition:
         obj_out = cls()
         obj_out.fullpath = fullpath
         obj_out.target = obj['target']
-        obj_out.gain = obj['gain'] if 'gain' in obj else 1.0
-        obj_out.offset = obj['offset'] if 'offset' in obj else 0.0
-        obj_out.min = obj['min'] if 'min' in obj else float('-inf')
-        obj_out.max = obj['max'] if 'max' in obj else float('inf')
-        
+        obj_out.gain = float(obj['gain']) if 'gain' in obj else 1.0
+        obj_out.offset = float(obj['offset']) if 'offset' in obj else 0.0
+        obj_out.min = float(obj['min']) if 'min' in obj else float('-inf')
+        obj_out.max = float(obj['max']) if 'max' in obj else float('inf')
+        obj_out.validate()
         return obj_out
+    
+    def validate(self):
+        if not self.fullpath or not isinstance(self.fullpath, str):
+            raise ValueError('fullpath is not valid')
+        
+        if not self.target or not isinstance(self.target, str):
+            raise ValueError('Alias (%s) target is not valid' % self.fullpath)
+
+        if not isinstance(self.gain, float) or math.isnan(self.gain):
+            raise ValueError('Alias (%s) gain is not a valid float' % self.fullpath)
+        if not isinstance(self.offset, float) or math.isnan(self.offset):
+            raise ValueError('Alias (%s) offset is not a valid float' % self.fullpath)
+        if not isinstance(self.min, float) or math.isnan(self.min):
+            raise ValueError('Alias (%s) minimum value is not a valid float' % self.fullpath)
+        if not isinstance(self.max, float) or math.isnan(self.max):
+            raise ValueError('Alias (%s) maximum is not a valid float' % self.fullpath)
+
+        if self.min > self.max:
+            raise ValueError('Max (%s) > min (%s)' % (str(self.max), str(self.min)))
+            
+        if not math.isfinite(self.gain):
+             raise ValueError('Gain is not a finite value')
+            
+        if not math.isfinite(self.offset):
+             raise ValueError('Gain is not a finite value')
+
     
     def to_dict(self) -> Dict[str, Any]:
         d:Dict[str, Any] = dict(target=self.target)
