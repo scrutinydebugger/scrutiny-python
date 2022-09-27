@@ -13,7 +13,6 @@ from typing import Optional, List
 import logging
 import os
 import json
-import math
 
 class AddAlias(BaseCommand):
     _cmd_name_ = 'add-alias'
@@ -26,10 +25,9 @@ class AddAlias(BaseCommand):
     def __init__(self, args: List[str], requested_log_level: Optional[str] = None):
         self.args = args
         self.parser = argparse.ArgumentParser(prog=self.get_prog())
-        self.parser.add_argument('destination', help='SFD file or folder containing the firmware description files content.')
+        self.parser.add_argument('destination', help='Where to add the alias. Can be an SFD file, a folder of a in making SFD file or a firmware ID to alter an already installed SFD file.')
         self.parser.add_argument('--file', help='The input alias file in .json format')
         
-
         self.parser.add_argument('--fullpath', help='The alias fullpath')
         self.parser.add_argument('--target', help='The target of the alias')
         self.parser.add_argument('--gain',  help='The gain to apply when reading the alias')
@@ -39,6 +37,7 @@ class AddAlias(BaseCommand):
 
     def run(self) -> Optional[int]:
         from scrutiny.core.firmware_description import FirmwareDescription, AliasDefinition
+        from scrutiny.core.sfd_storage import SFDStorage
 
         args = self.parser.parse_args(self.args)
 
@@ -55,6 +54,10 @@ class AddAlias(BaseCommand):
                     all_alliases = FirmwareDescription.read_aliases(f)
         elif os.path.isfile(args.destination):
             sfd = FirmwareDescription(args.destination)
+            varmap = sfd.varmap
+            all_alliases = sfd.get_aliases()
+        elif SFDStorage.is_installed(args.destination):
+            sfd = SFDStorage.get(args.destination)
             varmap = sfd.varmap
             all_alliases = sfd.get_aliases()
         else:
@@ -125,4 +128,7 @@ class AddAlias(BaseCommand):
             sfd.append_aliases(new_aliases)
             sfd.write(args.destination)
         
+        elif SFDStorage.is_installed(args.destination):
+            SFDStorage.install_sfd(sfd, ignore_exist=True)
+
         return 0

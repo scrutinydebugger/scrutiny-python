@@ -30,6 +30,13 @@ class TempStorageWithAutoRestore:
 
 class SFDStorageManager():
 
+    @classmethod
+    def clean_firmware_id(self, firmwareid:str) -> str:
+        if not isinstance(firmwareid, str):
+            raise ValueError('Firmware ID must be a string')
+        
+        return firmwareid.lower().strip()
+
     def __init__(self, folder):
         self.folder = folder
         self.temporary_dir = None
@@ -48,22 +55,26 @@ class SFDStorageManager():
 
         return self.folder
 
-    def install(self, filename: str, ignore_exist=False) -> FirmwareDescription:
+    def install(self, filename: str, ignore_exist:bool=False) -> FirmwareDescription:
         if not os.path.isfile(filename):
             raise ValueError('File "%s" does not exist' % (filename))
 
         sfd = FirmwareDescription(filename)
-        firmware_id_ascii = sfd.get_firmware_id_ascii()
-        assert isinstance(firmware_id_ascii, str)
+        self.install_sfd(sfd, ignore_exist=ignore_exist)
+        return sfd
+        
+    
+    def install_sfd(self, sfd:FirmwareDescription, ignore_exist:bool=False) -> None:
+        firmware_id_ascii = self.clean_firmware_id(sfd.get_firmware_id_ascii())
         output_file = os.path.join(self.get_storage_dir(), firmware_id_ascii)
 
         if os.path.isfile(output_file) and ignore_exist == False:
             logging.warning('A Scrutiny Firmware Description file with the same firmware ID was already installed. Overwriting.')
 
         sfd.write(output_file)  # Write the Firmware Description file in storage folder with firmware ID as name
-        return sfd
 
     def uninstall(self, firmwareid: str, ignore_not_exist: bool = False) -> None:
+        firmwareid = self.clean_firmware_id(firmwareid)
         if not self.is_valid_firmware_id(firmwareid):
             raise ValueError('Invalid firmware ID')
 
@@ -76,6 +87,7 @@ class SFDStorageManager():
                 raise ValueError('SFD file with firmware ID %s not found' % (firmwareid))
 
     def is_installed(self, firmwareid: str) -> bool:
+        firmwareid = self.clean_firmware_id(firmwareid)
         if not self.is_valid_firmware_id(firmwareid):
             raise ValueError('Invalid firmware ID')
 
@@ -84,6 +96,7 @@ class SFDStorageManager():
         return os.path.isfile(filename)
 
     def get(self, firmwareid: str) -> FirmwareDescription:
+        self.clean_firmware_id(firmwareid)
         if not self.is_valid_firmware_id(firmwareid):
             raise ValueError('Invalid firmware ID')
 
@@ -96,6 +109,7 @@ class SFDStorageManager():
 
     def get_metadata(self, firmwareid: str) -> MetadataType:
         storage = self.get_storage_dir()
+        firmwareid = self.clean_firmware_id(firmwareid)
         filename = os.path.join(storage, firmwareid)
         return FirmwareDescription.read_metadata_from_sfd_file(filename)
 
@@ -106,10 +120,11 @@ class SFDStorageManager():
                 thelist.append(filename)
         return thelist
 
-    def is_valid_firmware_id(self, firmware_id: str) -> bool:
+    @classmethod
+    def is_valid_firmware_id(cls, firmware_id: str) -> bool:
         retval = False
         try:
-            firmware_id = firmware_id.strip().lower()
+            firmware_id = cls.clean_firmware_id(firmware_id)
             regex = '[0-9a-f]{%d}' % FirmwareDescription.firmware_id_length() * 2   # Match only check first line, which is good
             if not re.match(regex, firmware_id):
                 raise Exception('regex not match')

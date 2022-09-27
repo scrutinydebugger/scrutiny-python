@@ -247,7 +247,7 @@ class FirmwareDescription:
         return self.firmwareid
 
     def get_firmware_id_ascii(self) -> str:
-        return self.firmwareid.hex()
+        return self.firmwareid.hex().lower()
     
     def validate(self) -> None:
         if not hasattr(self, 'metadata') or not hasattr(self, 'varmap') or not hasattr(self, 'firmwareid'):

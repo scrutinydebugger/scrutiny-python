@@ -249,3 +249,30 @@ class TestCLI(unittest.TestCase):
             self.assertEqual(alias.get_offset(), 2.5)
             self.assertEqual(alias.get_min(), 0.0)
             self.assertEqual(alias.get_max(), 100.0)
+
+    def test_append_alias_to_install_sfd_by_id(self):
+        with SFDStorage.use_temp_folder():
+            sfd = SFDStorage.install(get_artifact('test_sfd_1.sfd'))
+            firmwareid = sfd.get_firmware_id_ascii()
+            del sfd
+
+            cli = CLI()
+            cli.run(['add-alias', firmwareid, 
+            '--fullpath', '/alias/command_line_added',
+            '--target', '/path1/path2/some_int32',
+            '--gain', '5.2',
+            '--offset', '2.5',
+            '--min', '0',
+            '--max', '100'
+            ])
+
+            sfd = SFDStorage.get(firmwareid)
+            aliases = sfd.get_aliases()
+            self.assertIn('/alias/command_line_added', aliases)
+            alias = aliases['/alias/command_line_added']
+            self.assertEqual(alias.get_fullpath(), '/alias/command_line_added')
+            self.assertEqual(alias.get_target(), '/path1/path2/some_int32')
+            self.assertEqual(alias.get_gain(), 5.2)
+            self.assertEqual(alias.get_offset(), 2.5)
+            self.assertEqual(alias.get_min(), 0.0)
+            self.assertEqual(alias.get_max(), 100.0)
