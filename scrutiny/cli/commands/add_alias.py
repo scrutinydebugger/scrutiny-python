@@ -71,24 +71,15 @@ class AddAlias(BaseCommand):
             if args.target is None:
                 raise Exception('No target specified')
 
-            d = {
-                'fullpath' : args.fullpath,
-                'target' : args.target,
-            }
+            alias = AliasDefinition(
+                fullpath = args.fullpath,
+                target = args.target,
+                gain = args.gain,
+                offset = args.offset,
+                min = args.min,
+                max = args.max
+            )
 
-            if args.gain:
-                d['gain'] = args.gain
-
-            if args.offset:
-                d['offset'] = args.offset
-
-            if args.min:
-                d['min'] = args.min  # Should handle '-inf'
-
-            if args.max:
-                d['max'] = args.max
-
-            alias = AliasDefinition.from_dict(d['fullpath'], d)
             new_aliases = {}
             new_aliases[alias.get_fullpath()] = alias
         else:
@@ -117,12 +108,8 @@ class AddAlias(BaseCommand):
             all_alliases[alias.get_fullpath()] = alias 
 
         if os.path.isdir(args.destination):
-            all_alias_dict = {}
-            for k in all_alliases:
-                all_alias_dict[k] = all_alliases[k].to_dict()
-
             with open(target_alias_file, 'wb') as f:
-                f.write(json.dumps(all_alias_dict).encode('utf8'))
+                f.write(FirmwareDescription.serialize_aliases(all_alliases))
 
         elif os.path.isfile(args.destination):
             sfd.append_aliases(new_aliases)

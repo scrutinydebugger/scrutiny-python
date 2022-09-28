@@ -18,7 +18,7 @@ import scrutiny.core.firmware_id as firmware_id
 from scrutiny.core.varmap import VarMap
 from scrutiny.core.variable import Variable
 
-from typing import List, Union, Dict, Any, Tuple, Generator, TypedDict, cast, IO, Optional 
+from typing import List,  Dict, Any, Tuple, Generator, TypedDict, cast, IO, Optional, Union
 
 
 class GenerationInfoType(TypedDict, total=False):
@@ -37,10 +37,10 @@ class MetadataType(TypedDict, total=False):
 class AliasDefinition:
     fullpath:str
     target:str
-    gain:float
-    offset:float
-    min:float
-    max:float
+    gain:Optional[float]
+    offset:Optional[float]
+    min:Optional[float]
+    max:Optional[float]
 
     @classmethod 
     def from_json(cls, fullpath:str, json_str:str) -> 'AliasDefinition':
@@ -50,16 +50,26 @@ class AliasDefinition:
     @classmethod
     def from_dict(cls, fullpath:str, obj:Dict[str, Any]) -> 'AliasDefinition':
         assert 'target' in obj
-        obj_out = cls()
-        obj_out.fullpath = fullpath
-        obj_out.target = obj['target']
-        obj_out.gain = float(obj['gain']) if 'gain' in obj else 1.0
-        obj_out.offset = float(obj['offset']) if 'offset' in obj else 0.0
-        obj_out.min = float(obj['min']) if 'min' in obj else float('-inf')
-        obj_out.max = float(obj['max']) if 'max' in obj else float('inf')
+        obj_out = cls(
+            fullpath = fullpath,
+            target = obj['target'],
+            gain = obj['gain'] if 'gain' in obj else None,
+            offset = obj['offset'] if 'offset' in obj else None,
+            min = obj['min'] if 'min' in obj else None,
+            max = obj['max'] if 'max' in obj else None
+        )
         obj_out.validate()
         return obj_out
     
+    def __init__(self, fullpath:str, target:str, gain:Optional[float]=None, offset:Optional[float]=None, min:Optional[float]=None, max:Optional[float]=None):
+        self.fullpath = fullpath
+        self.target = target
+        self.gain = float(gain) if gain is not None else None
+        self.offset = float(offset) if offset is not None else None
+        self.min = float(min) if min is not None else None
+        self.max = float(max) if max is not None else None
+
+
     def validate(self):
         if not self.fullpath or not isinstance(self.fullpath, str):
             raise ValueError('fullpath is not valid')
@@ -67,38 +77,38 @@ class AliasDefinition:
         if not self.target or not isinstance(self.target, str):
             raise ValueError('Alias (%s) target is not valid' % self.fullpath)
 
-        if not isinstance(self.gain, float) or math.isnan(self.gain):
+        if  not isinstance(self.get_gain(), float) or math.isnan(self.get_gain()):
             raise ValueError('Alias (%s) gain is not a valid float' % self.fullpath)
-        if not isinstance(self.offset, float) or math.isnan(self.offset):
+        if  not isinstance(self.get_offset(), float) or math.isnan(self.get_offset()):
             raise ValueError('Alias (%s) offset is not a valid float' % self.fullpath)
-        if not isinstance(self.min, float) or math.isnan(self.min):
+        if  not isinstance(self.get_min(), float) or math.isnan(self.get_min()):
             raise ValueError('Alias (%s) minimum value is not a valid float' % self.fullpath)
-        if not isinstance(self.max, float) or math.isnan(self.max):
+        if  not isinstance(self.get_max(), float) or math.isnan(self.get_max()):
             raise ValueError('Alias (%s) maximum is not a valid float' % self.fullpath)
 
-        if self.min > self.max:
+        if self.get_min() > self.get_max():
             raise ValueError('Max (%s) > min (%s)' % (str(self.max), str(self.min)))
             
-        if not math.isfinite(self.gain):
+        if not math.isfinite(self.get_gain()):
              raise ValueError('Gain is not a finite value')
             
-        if not math.isfinite(self.offset):
+        if not math.isfinite(self.get_offset()):
              raise ValueError('Gain is not a finite value')
 
     
     def to_dict(self) -> Dict[str, Any]:
         d:Dict[str, Any] = dict(target=self.target)
 
-        if self.gain != 1.0:
+        if self.gain is not None and self.gain != 1.0:
             d['gain'] = self.gain
 
-        if self.offset != 0.0:
+        if self.offset is not None and self.offset != 0.0:
             d['offset'] = self.offset
 
-        if self.min != float('-inf'):
+        if self.min is not None and self.min != float('-inf'):
             d['min'] = self.min
 
-        if self.max != float('inf'):
+        if self.max is not None and self.max != float('inf'):
             d['max'] = self.max
         
         return d
@@ -237,11 +247,23 @@ class FirmwareDescription:
             outzip.writestr(self.firmwareid_filename, self.firmwareid.hex())
             outzip.writestr(self.metadata_filename, json.dumps(self.metadata, indent=4))
             outzip.writestr(self.varmap_filename, self.varmap.get_json())
+            outzip.writestr(self.alias_file, self.serialize_aliases(list(self.aliases.values())))
+
+    @classmethod
+    def serialize_aliases(cls, aliases:Union[Dict[str, AliasDefinition], List[AliasDefinition]]) -> bytes:
+        if isinstance(aliases, list):
             zipped = zip(
-                [self.aliases[k].get_fullpath()for k in self.aliases],
-                [self.aliases[k].to_dict() for k in self.aliases]
-                )
-            outzip.writestr(self.alias_file, json.dumps(dict(zipped), indent=4))
+                    [alias.get_fullpath() for alias in aliases],
+                    [alias.to_dict() for alias in aliases]
+                    )
+        elif isinstance(aliases, dict):
+            zipped = zip(
+                    [aliases[k].get_fullpath() for k in aliases],
+                    [aliases[k].to_dict() for k in aliases]
+                    )
+        else:
+            ValueError('Require a list or a dict of aliases')
+        return json.dumps(dict(zipped), indent=4).encode('utf8')
 
     def get_firmware_id(self) -> bytes:
         return self.firmwareid
