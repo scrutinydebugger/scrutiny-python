@@ -8,6 +8,7 @@
 
 import unittest
 from scrutiny.core.firmware_description import AliasDefinition, FirmwareDescription
+from scrutiny.server.datastore import EntryType
 from scrutiny.core.variable import *
 from test.artifacts import get_artifact
 from binascii import unhexlify
@@ -99,9 +100,28 @@ class TestSFD(unittest.TestCase):
         with self.assertRaises(Exception):
             AliasDefinition.from_dict('aaa', {})
         
-        x = AliasDefinition.from_dict('aaa', {'target' : 'asd'})
-        self.assertEqual(x.fullpath, 'aaa')
-        self.assertEqual(x.target, 'asd')
+        with self.assertRaises(Exception):
+            AliasDefinition()
+        
+        with self.assertRaises(Exception):
+            AliasDefinition(fullpath='asd')     # missing target and target type
+
+        with self.assertRaises(Exception):
+            AliasDefinition(fullpath='asd', target='ssss', target_type=EntryType.Alias)
+
+        x = AliasDefinition(fullpath='aaa', target='asd', target_type=EntryType.Var)
+        self.assertEqual(x.get_fullpath(), 'aaa')
+        self.assertEqual(x.get_target(), 'asd')
+        self.assertEqual(x.get_target_type(), EntryType.Var)
+        self.assertEqual(x.get_min(), float('-inf'))
+        self.assertEqual(x.get_max(), float('inf'))
+        self.assertEqual(x.get_gain(), 1.0)
+        self.assertEqual(x.get_offset(), 0.0)
+        
+        x = AliasDefinition.from_dict('aaa', {'target' : 'asd', 'target_type' : EntryType.RuntimePublishedValue})
+        self.assertEqual(x.get_fullpath(), 'aaa')
+        self.assertEqual(x.get_target(), 'asd')
+        self.assertEqual(x.get_target_type(), EntryType.RuntimePublishedValue)
         self.assertEqual(x.get_min(), float('-inf'))
         self.assertEqual(x.get_max(), float('inf'))
         self.assertEqual(x.get_gain(), 1.0)
@@ -109,6 +129,7 @@ class TestSFD(unittest.TestCase):
 
         d = x.to_dict()
         self.assertEqual(d['target'], 'asd')
+        self.assertEqual(d['target_type'], EntryType.RuntimePublishedValue)
         self.assertNotIn('min', d)  # Remove because of default value
         self.assertNotIn('max', d)
         self.assertNotIn('gain', d)

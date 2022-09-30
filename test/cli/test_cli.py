@@ -23,6 +23,7 @@ from test.artifacts import get_artifact
 from test import SkipOnException
 from scrutiny.cli import CLI
 from scrutiny.exceptions import EnvionmentNotSetUpException
+from scrutiny.server.datastore import EntryType
 
 
 class RedirectStdout:
@@ -213,6 +214,7 @@ class TestCLI(unittest.TestCase):
             
             self.assertIn('/alias/command_line_added', alias_dict)
             entry = alias_dict['/alias/command_line_added']
+            self.assertEqual(entry['target'], "/path1/path2/some_int32")
             self.assertEqual(entry['gain'], 5.2)
             self.assertEqual(entry['offset'], 2.5)
             self.assertEqual(entry['min'], 0)
@@ -245,6 +247,7 @@ class TestCLI(unittest.TestCase):
             alias = aliases['/alias/command_line_added']
             self.assertEqual(alias.get_fullpath(), '/alias/command_line_added')
             self.assertEqual(alias.get_target(), '/path1/path2/some_int32')
+            self.assertEqual(alias.get_target_type(), EntryType.Var)
             self.assertEqual(alias.get_gain(), 5.2)
             self.assertEqual(alias.get_offset(), 2.5)
             self.assertEqual(alias.get_min(), 0.0)
@@ -259,7 +262,7 @@ class TestCLI(unittest.TestCase):
             cli = CLI()
             cli.run(['add-alias', firmwareid, 
             '--fullpath', '/alias/command_line_added',
-            '--target', '/path1/path2/some_int32',
+            '--target', '/rpv/x123',
             '--gain', '5.2',
             '--offset', '2.5',
             '--min', '0',
@@ -271,7 +274,8 @@ class TestCLI(unittest.TestCase):
             self.assertIn('/alias/command_line_added', aliases)
             alias = aliases['/alias/command_line_added']
             self.assertEqual(alias.get_fullpath(), '/alias/command_line_added')
-            self.assertEqual(alias.get_target(), '/path1/path2/some_int32')
+            self.assertEqual(alias.get_target(), '/rpv/x123')
+            self.assertEqual(alias.get_target_type(), EntryType.RuntimePublishedValue)
             self.assertEqual(alias.get_gain(), 5.2)
             self.assertEqual(alias.get_offset(), 2.5)
             self.assertEqual(alias.get_min(), 0.0)

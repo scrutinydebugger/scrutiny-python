@@ -9,11 +9,10 @@
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 
 import logging
-from .datastore_entry import DatastoreAliasEntry, DatastoreEntry, EntryType, UpdateTargetRequest, UpdateTargetRequestCallback
+from scrutiny.server.datastore.datastore_entry import *
 from scrutiny.core.typehints import GenericCallback
 
 from typing import Set, List, Dict, Optional, Any, Iterator, Union, Callable
-
 
 class WatchCallback(GenericCallback):
     callback: Callable[[str], None]
@@ -41,7 +40,7 @@ class Datastore:
 
     def clear(self, entry_type: Optional[EntryType] = None) -> None:
         if entry_type is None:
-            type_to_clear_list = list(EntryType.__iter__())
+            type_to_clear_list = EntryType.all()
         else:
             type_to_clear_list = [entry_type]
 
@@ -175,7 +174,7 @@ class Datastore:
 
     def get_entries_count(self, entry_type: Optional[EntryType] = None) -> int:
         val = 0
-        typelist = [entry_type] if entry_type is not None else list(EntryType.__iter__())
+        typelist = [entry_type] if entry_type is not None else EntryType.all()
         for thetype in typelist:
             val += len(self.entries[thetype])
 
@@ -200,3 +199,7 @@ class Datastore:
     def alias_value_change_callback(self, owner: str, args: Any, entry: DatastoreEntry) -> None:
         watching_entry:DatastoreAliasEntry = args['watching_entry']
         watching_entry.set_value_internal(entry.get_value())
+    
+    @classmethod
+    def is_rpv_path(cls, path:str) -> bool:
+        return DatastoreRPVEntry.is_valid_path(path)

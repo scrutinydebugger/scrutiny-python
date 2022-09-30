@@ -17,6 +17,7 @@ import math
 import scrutiny.core.firmware_id as firmware_id
 from scrutiny.core.varmap import VarMap
 from scrutiny.core.variable import Variable
+from scrutiny.server.datastore import EntryType, Datastore
 
 from typing import List,  Dict, Any, Tuple, Generator, TypedDict, cast, IO, Optional, Union
 
@@ -37,6 +38,7 @@ class MetadataType(TypedDict, total=False):
 class AliasDefinition:
     fullpath:str
     target:str
+    target_type:Optional[EntryType]
     gain:Optional[float]
     offset:Optional[float]
     min:Optional[float]
@@ -49,10 +51,12 @@ class AliasDefinition:
 
     @classmethod
     def from_dict(cls, fullpath:str, obj:Dict[str, Any]) -> 'AliasDefinition':
-        assert 'target' in obj
+        assert 'target' in obj, 'Missing target'
+        
         obj_out = cls(
             fullpath = fullpath,
             target = obj['target'],
+            target_type = obj['target_type'] if 'target_type' in obj else None,
             gain = obj['gain'] if 'gain' in obj else None,
             offset = obj['offset'] if 'offset' in obj else None,
             min = obj['min'] if 'min' in obj else None,
@@ -61,8 +65,18 @@ class AliasDefinition:
         obj_out.validate()
         return obj_out
     
-    def __init__(self, fullpath:str, target:str, gain:Optional[float]=None, offset:Optional[float]=None, min:Optional[float]=None, max:Optional[float]=None):
+    def __init__(self, fullpath:str, target:str, target_type:Optional[EntryType]=None, gain:Optional[float]=None, offset:Optional[float]=None, min:Optional[float]=None, max:Optional[float]=None):
+        
+        
+        
         self.fullpath = fullpath
+        if target_type is not None:
+            target_type = EntryType(target_type)
+            if target_type == EntryType.Alias:
+                raise ValueError("Cannot make an alias over another alias.")
+            self.target_type = EntryType(target_type)
+        else:
+            self.target_type = None
         self.target = target
         self.gain = float(gain) if gain is not None else None
         self.offset = float(offset) if offset is not None else None
@@ -73,6 +87,9 @@ class AliasDefinition:
     def validate(self):
         if not self.fullpath or not isinstance(self.fullpath, str):
             raise ValueError('fullpath is not valid')
+        
+        if self.target_type is not None:
+            EntryType(self.target_type) # Make sure ocnversion is possible
         
         if not self.target or not isinstance(self.target, str):
             raise ValueError('Alias (%s) target is not valid' % self.fullpath)
@@ -97,7 +114,7 @@ class AliasDefinition:
 
     
     def to_dict(self) -> Dict[str, Any]:
-        d:Dict[str, Any] = dict(target=self.target)
+        d:Dict[str, Any] = dict(target=self.target, target_type=self.target_type)
 
         if self.gain is not None and self.gain != 1.0:
             d['gain'] = self.gain
@@ -121,6 +138,16 @@ class AliasDefinition:
 
     def get_target(self) -> str:
         return self.target
+    
+    def get_target_type(self) -> EntryType:
+        if self.target_type is None:
+            raise RuntimeError('Target type for alias %s is not set' % self.get_fullpath())
+        return self.target_type
+    
+    def set_target_type(self, target_type:EntryType):
+        if self.target_type == EntryType.Alias:
+            raise ValueError('Alias %s point onto another alias (%s)' % (self.get_fullpath(), self.get_target()))
+        self.target_type = target_type
 
     def get_min(self) -> float:
         return self.min if self.min is not None else float('-inf')
@@ -133,6 +160,7 @@ class AliasDefinition:
     
     def get_offset(self) -> float:
         return self.offset if self.offset is not None else 0.0
+
 class FirmwareDescription:
     COMPRESSION_TYPE = zipfile.ZIP_DEFLATED
 
@@ -145,6 +173,8 @@ class FirmwareDescription:
     metadata_filename: str = 'metadata.json'
     firmwareid_filename: str = 'firmwareid'
     alias_file: str = 'alias.json'
+
+    logger = logging.getLogger('FirmwareDescription')
 
     REQUIRED_FILES: List[str] = [
         firmwareid_filename,
@@ -161,6 +191,10 @@ class FirmwareDescription:
         self.validate()
 
     def load_from_folder(self, folder: str) -> None:
+        """
+        Reads a folder just like if it was an unzipped Scrutiny Firmware Description (SFD) file.
+        Used to build the SFD
+        """
         if not os.path.isdir(folder):
             raise Exception("Folder %s does not exist" % folder)
 
@@ -175,13 +209,14 @@ class FirmwareDescription:
         with open(os.path.join(folder, self.firmwareid_filename), 'rb') as f:
             self.firmwareid = self.read_firmware_id(f)
         
+        self.varmap = self.read_varmap_from_filesystem(folder)
+
         self.aliases = {}       
         if os.path.isfile(os.path.join(folder, self.alias_file)):
             with open(os.path.join(folder, self.alias_file), 'rb') as f:
-                aliases = self.read_aliases(f)
+                aliases = self.read_aliases(f, self.varmap)
                 self.append_aliases(aliases)
 
-        self.varmap = self.read_varmap_from_filesystem(folder)
 
     @classmethod
     def read_metadata_from_sfd_file(cls, filename: str) -> MetadataType:
@@ -192,20 +227,23 @@ class FirmwareDescription:
         return metadata
 
     def load_from_file(self, filename: str) -> None:
+        """
+        Reads a Scrutiny Frimware Description file (.sfd) which is just a .zip containing bunch of json files 
+        """
         with zipfile.ZipFile(filename, mode='r', compression=self.COMPRESSION_TYPE) as sfd:
             with sfd.open(self.firmwareid_filename) as f:
-                self.firmwareid = self.read_firmware_id(f)
+                self.firmwareid = self.read_firmware_id(f)  # This is not a Json file. Content is raw.
 
             with sfd.open(self.metadata_filename, 'r') as f:
-                self.metadata = self.read_metadata(f)
+                self.metadata = self.read_metadata(f)   # This is a json file
 
             with sfd.open(self.varmap_filename, 'r') as f:
-                self.varmap = VarMap(f.read())
+                self.varmap = VarMap(f.read())  # Json file
 
             self.aliases = {}
             if self.alias_file in sfd.namelist():
                 with sfd.open(self.alias_file, 'r') as f:
-                    self.append_aliases(self.read_aliases(f))
+                    self.append_aliases(self.read_aliases(f, self.varmap))
    
     @classmethod
     def read_firmware_id(cls, f:IO[bytes] ) -> bytes:
@@ -216,12 +254,28 @@ class FirmwareDescription:
         return cast(MetadataType, json.loads(f.read().decode('utf8')))
     
     @classmethod
-    def read_aliases(cls, f:IO[bytes]) -> Dict[str, AliasDefinition]:
-        aliases_raw = json.loads(f.read().decode('utf8'))
-        aliases = {}
+    def read_aliases(cls, f:IO[bytes], varmap:VarMap) -> Dict[str, AliasDefinition]:
+        aliases_raw:Dict[str, Any] = json.loads(f.read().decode('utf8'))
+        aliases:Dict[str, AliasDefinition] = {}
         for k in aliases_raw:
-            aliases[k] = AliasDefinition.from_dict(k, aliases_raw[k])
+            alias = AliasDefinition.from_dict(k, aliases_raw[k])
+            try:
+                alias.set_target_type(cls.get_alias_target_type(alias, varmap))
+            except Exception as e: 
+                cls.logger.error("Cannot read alias. %s" % str(e))
+
+            aliases[k] = alias
+            
         return aliases
+    
+    @classmethod
+    def get_alias_target_type(cls, alias:AliasDefinition, varmap:VarMap) -> EntryType:
+        if varmap.has_var(alias.get_target()):
+            return EntryType.Var
+        elif Datastore.is_rpv_path(alias.get_target()):
+            return EntryType.RuntimePublishedValue
+        else:
+            raise Exception('Alias %s does not seems to point towards a valid Variable or Runtime Published Value' % alias.get_fullpath())
     
     @classmethod
     def read_varmap_from_filesystem(cls, path:str) -> VarMap: 

@@ -222,6 +222,9 @@ class VarMap:
             bitoffset=self.get_bitoffset(vardef),
             enum=self.get_enum(vardef)
         )
+    
+    def has_var(self, fullname:str) -> bool:
+        return fullname in self.variables
 
     def make_segments(self, fullname: str) -> Tuple[List[str], str]:
         pieces = fullname.split('/')
@@ -247,7 +250,7 @@ class VarMap:
         return vardef['addr']
 
     def get_var_def(self, fullname: str) -> VariableEntry:
-        if fullname not in self.variables:
+        if not self.has_var(fullname):
             raise ValueError('%s not in Variable Decsription File' % fullname)
         return self.variables[fullname]
 

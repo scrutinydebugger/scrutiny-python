@@ -12,7 +12,7 @@ from .base_command import BaseCommand
 from typing import Optional, List
 import logging
 import os
-import json
+import traceback
 
 class AddAlias(BaseCommand):
     _cmd_name_ = 'add-alias'
@@ -23,6 +23,7 @@ class AddAlias(BaseCommand):
     parser: argparse.ArgumentParser
 
     def __init__(self, args: List[str], requested_log_level: Optional[str] = None):
+        self.logger = logging.getLogger('CLI')
         self.args = args
         self.parser = argparse.ArgumentParser(prog=self.get_prog())
         self.parser.add_argument('destination', help='Where to add the alias. Can be an SFD file, a folder of a in making SFD file or a firmware ID to alter an already installed SFD file.')
@@ -51,7 +52,7 @@ class AddAlias(BaseCommand):
         
             if os.path.isfile(target_alias_file):
                 with open(target_alias_file, 'rb') as f:
-                    all_alliases = FirmwareDescription.read_aliases(f)
+                    all_alliases = FirmwareDescription.read_aliases(f, varmap)
         elif os.path.isfile(args.destination):
             sfd = FirmwareDescription(args.destination)
             varmap = sfd.varmap
@@ -66,7 +67,7 @@ class AddAlias(BaseCommand):
 
         if args.file is not None:
             with open(args.file, 'rb') as f:
-                new_aliases = FirmwareDescription.read_aliases(f)
+                new_aliases = FirmwareDescription.read_aliases(f, varmap)
         elif args.fullpath is not None:
             if args.target is None:
                 raise Exception('No target specified')
@@ -92,17 +93,18 @@ class AddAlias(BaseCommand):
             try:
                 alias.validate()
             except Exception as e:
-                logging.error('Alias %s refers is invalid. %s' % (alias.get_fullpath(), str(e)))
+                self.logger.error('Alias %s is invalid. %s' % (alias.get_fullpath(), str(e)))
                 continue                
 
             try:
-                varmap.get_var(alias.get_target())
-            except:
-                logging.error('Alias %s refers to non-existent variable %s' % (alias.get_fullpath(), alias.get_target()))
+                alias.set_target_type(FirmwareDescription.get_alias_target_type(alias, varmap))
+            except Exception as e:
+                self.logger.error('Cannot deduce type of alias %s referring to %s. %s' % (alias.get_fullpath(), alias.get_target(), str(e)))
+                self.logger.debug(traceback.format_exc())
                 continue
 
             if k in all_alliases:
-                logging.error('Duplicate alias with path %s' % k)
+                self.logger.error('Duplicate alias with path %s' % k)
                 continue
             
             all_alliases[alias.get_fullpath()] = alias 

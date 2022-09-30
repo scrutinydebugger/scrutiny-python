@@ -12,6 +12,7 @@ import uuid
 from enum import Enum
 import time
 import abc
+import re
 from scrutiny.core.basic_types import RuntimePublishedValue
 from queue import Queue
 
@@ -21,6 +22,7 @@ from scrutiny.core.codecs import *
 from typing import Any, Optional, Dict, Callable, Tuple, List
 from scrutiny.core.typehints import GenericCallback
 
+DISPLAY_PATH_REGEX = re.compile('^\/?(([^\/\n]+)\/)*(\w+)?$')
 
 class ValueChangeCallback():
     fn: GenericCallback
@@ -45,10 +47,17 @@ class ValueChangeCallback():
             self.fn.__call__(self.owner, self.args, *args, **kwargs)
 
 
-class EntryType(Enum):
-    Var = 0
-    Alias = 1
-    RuntimePublishedValue = 2
+class EntryType(str, Enum):
+    Var = 'var'
+    Alias = 'alias'
+    RuntimePublishedValue = 'rpv'
+
+    @classmethod
+    def all(cls) -> List['EntryType']:
+        return  [EntryType.Var, EntryType.Alias, EntryType.RuntimePublishedValue]   # Todo, find a better way to do this. This enum also inherit str
+
+    def toJson(self):
+        return self.value
 
 class UpdateTargetRequestCallback(GenericCallback):
     fn:Callable[[bool, 'DatastoreEntry', float], None]
@@ -109,12 +118,13 @@ class DatastoreEntry:
     target_update_request_queue:Queue
     last_value_update_timestamp: float
 
-    def __init__(self, display_path: str):
 
+    def __init__(self, display_path: str):
+        display_path = display_path.strip()
         self.value_change_callback = {}
         self.target_update_callback = {}
         self.entry_id = uuid.uuid4().hex
-        self.display_path = display_path
+        self.display_path = display_path 
         self.last_target_update_timestamp = None
         self.last_value_update_timestamp = time.time()
         self.target_update_request_queue = Queue()
@@ -342,3 +352,15 @@ class DatastoreRPVEntry(DatastoreEntry):
 
     def get_rpv(self) -> RuntimePublishedValue:
         return self.rpv
+
+    @classmethod
+    def make_path(cls, id:int) -> str:
+        return '/rpv/x%04X' % id
+    
+    @classmethod
+    def is_valid_path(self, path:str) -> bool:
+        return True if re.match(r'^\/?rpv\/x\d+\/?$', path, re.IGNORECASE) else False
+
+    @classmethod
+    def make(cls, rpv:RuntimePublishedValue) -> 'DatastoreRPVEntry':
+        return DatastoreRPVEntry(display_path=cls.make_path(rpv.id), rpv=rpv)

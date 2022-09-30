@@ -485,7 +485,7 @@ class DeviceHandler:
                 assert self.device_info is not None
                 assert self.device_info.runtime_published_values is not None
                 for rpv in self.device_info.runtime_published_values:
-                    self.datastore.add_entry(DatastoreRPVEntry(display_path='/rpv/x%04x' % rpv.id, rpv=rpv))
+                    self.datastore.add_entry(DatastoreRPVEntry.make(rpv))
 
                 self.logger.info('Communication with device "%s" (ID: %s) fully ready' % (self.device_display_name, self.device_id))
                 self.logger.debug("Device information : %s" % self.device_info)
