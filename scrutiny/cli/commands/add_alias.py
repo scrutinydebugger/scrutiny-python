@@ -37,7 +37,8 @@ class AddAlias(BaseCommand):
         self.parser.add_argument('--max', help='The maximum value for this alias')
 
     def run(self) -> Optional[int]:
-        from scrutiny.core.firmware_description import FirmwareDescription, AliasDefinition
+        from scrutiny.core.firmware_description import FirmwareDescription
+        from scrutiny.core.alias import Alias
         from scrutiny.core.sfd_storage import SFDStorage
 
         args = self.parser.parse_args(self.args)
@@ -72,7 +73,7 @@ class AddAlias(BaseCommand):
             if args.target is None:
                 raise Exception('No target specified')
 
-            alias = AliasDefinition(
+            alias = Alias(
                 fullpath = args.fullpath,
                 target = args.target,
                 gain = args.gain,

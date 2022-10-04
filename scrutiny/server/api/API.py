@@ -11,8 +11,9 @@ import logging
 import traceback
 from scrutiny.server import datastore
 
-from scrutiny.server.datastore import Datastore, DatastoreEntry, EntryType, UpdateTargetRequest
-from scrutiny.server.datastore.datastore_entry import UpdateTargetRequestCallback
+from scrutiny.server.datastore.datastore import Datastore
+from scrutiny.server.datastore.datastore_entry import EntryType
+from scrutiny.server.datastore.datastore_entry import DatastoreEntry, UpdateTargetRequestCallback, UpdateTargetRequest
 from scrutiny.server.device.device_handler import DeviceHandler
 from scrutiny.server.active_sfd_handler import ActiveSFDHandler, SFDLoadedCallback, SFDUnloadedCallback
 from scrutiny.server.device.links import LinkConfig
@@ -87,11 +88,6 @@ class API:
             ERROR_RESPONSE = 'error'
 
     FLUSH_VARS_TIMEOUT: float = 0.1
-
-    entry_type_to_str: Dict[EntryType, str] = {
-        EntryType.Var: 'var',
-        EntryType.Alias: 'alias',
-    }
 
     data_type_to_str: Dict[EmbeddedDataType, str] = {
         EmbeddedDataType.sint8: 'sint8',
@@ -633,8 +629,8 @@ class API:
             if not self.datastore.is_watching(entry, conn_id):
                 raise InvalidRequestException(req, 'Cannot update entry %s without being subscribed to it' % entry.get_id())
 
-            if entry.has_pending_target_update():
-                raise InvalidRequestException(req, 'Pending write request for entry %s' % entry.get_id())
+#            if entry.has_pending_target_update():
+#                raise InvalidRequestException(req, 'Pending write request for entry %s' % entry.get_id())
 
         for update in req['updates']:
             entry = self.datastore.get_entry(update['watchable'])

@@ -12,12 +12,13 @@ import zipfile
 import os
 import json
 import logging
-import math
 
 import scrutiny.core.firmware_id as firmware_id
 from scrutiny.core.varmap import VarMap
 from scrutiny.core.variable import Variable
-from scrutiny.server.datastore import EntryType, Datastore
+from scrutiny.server.datastore.datastore import Datastore
+from scrutiny.server.datastore.entry_type import EntryType
+from scrutiny.core.alias import Alias
 
 from typing import List,  Dict, Any, Tuple, Generator, TypedDict, cast, IO, Optional, Union
 
@@ -35,131 +36,6 @@ class MetadataType(TypedDict, total=False):
     version: str
     generation_info: GenerationInfoType
 
-class AliasDefinition:
-    fullpath:str
-    target:str
-    target_type:Optional[EntryType]
-    gain:Optional[float]
-    offset:Optional[float]
-    min:Optional[float]
-    max:Optional[float]
-
-    @classmethod 
-    def from_json(cls, fullpath:str, json_str:str) -> 'AliasDefinition':
-        d = json.loads(json_str)
-        return cls.from_dict(fullpath, d)
-
-    @classmethod
-    def from_dict(cls, fullpath:str, obj:Dict[str, Any]) -> 'AliasDefinition':
-        assert 'target' in obj, 'Missing target'
-        
-        obj_out = cls(
-            fullpath = fullpath,
-            target = obj['target'],
-            target_type = obj['target_type'] if 'target_type' in obj else None,
-            gain = obj['gain'] if 'gain' in obj else None,
-            offset = obj['offset'] if 'offset' in obj else None,
-            min = obj['min'] if 'min' in obj else None,
-            max = obj['max'] if 'max' in obj else None
-        )
-        obj_out.validate()
-        return obj_out
-    
-    def __init__(self, fullpath:str, target:str, target_type:Optional[EntryType]=None, gain:Optional[float]=None, offset:Optional[float]=None, min:Optional[float]=None, max:Optional[float]=None):
-        
-        
-        
-        self.fullpath = fullpath
-        if target_type is not None:
-            target_type = EntryType(target_type)
-            if target_type == EntryType.Alias:
-                raise ValueError("Cannot make an alias over another alias.")
-            self.target_type = EntryType(target_type)
-        else:
-            self.target_type = None
-        self.target = target
-        self.gain = float(gain) if gain is not None else None
-        self.offset = float(offset) if offset is not None else None
-        self.min = float(min) if min is not None else None
-        self.max = float(max) if max is not None else None
-
-
-    def validate(self):
-        if not self.fullpath or not isinstance(self.fullpath, str):
-            raise ValueError('fullpath is not valid')
-        
-        if self.target_type is not None:
-            EntryType(self.target_type) # Make sure ocnversion is possible
-        
-        if not self.target or not isinstance(self.target, str):
-            raise ValueError('Alias (%s) target is not valid' % self.fullpath)
-
-        if  not isinstance(self.get_gain(), float) or math.isnan(self.get_gain()):
-            raise ValueError('Alias (%s) gain is not a valid float' % self.fullpath)
-        if  not isinstance(self.get_offset(), float) or math.isnan(self.get_offset()):
-            raise ValueError('Alias (%s) offset is not a valid float' % self.fullpath)
-        if  not isinstance(self.get_min(), float) or math.isnan(self.get_min()):
-            raise ValueError('Alias (%s) minimum value is not a valid float' % self.fullpath)
-        if  not isinstance(self.get_max(), float) or math.isnan(self.get_max()):
-            raise ValueError('Alias (%s) maximum is not a valid float' % self.fullpath)
-
-        if self.get_min() > self.get_max():
-            raise ValueError('Max (%s) > min (%s)' % (str(self.max), str(self.min)))
-            
-        if not math.isfinite(self.get_gain()):
-             raise ValueError('Gain is not a finite value')
-            
-        if not math.isfinite(self.get_offset()):
-             raise ValueError('Gain is not a finite value')
-
-    
-    def to_dict(self) -> Dict[str, Any]:
-        d:Dict[str, Any] = dict(target=self.target, target_type=self.target_type)
-
-        if self.gain is not None and self.gain != 1.0:
-            d['gain'] = self.gain
-
-        if self.offset is not None and self.offset != 0.0:
-            d['offset'] = self.offset
-
-        if self.min is not None and self.min != float('-inf'):
-            d['min'] = self.min
-
-        if self.max is not None and self.max != float('inf'):
-            d['max'] = self.max
-        
-        return d
-    
-    def to_json(self) -> str:
-        return json.dumps(self.to_dict())
-
-    def get_fullpath(self) -> str:
-        return self.fullpath
-
-    def get_target(self) -> str:
-        return self.target
-    
-    def get_target_type(self) -> EntryType:
-        if self.target_type is None:
-            raise RuntimeError('Target type for alias %s is not set' % self.get_fullpath())
-        return self.target_type
-    
-    def set_target_type(self, target_type:EntryType):
-        if self.target_type == EntryType.Alias:
-            raise ValueError('Alias %s point onto another alias (%s)' % (self.get_fullpath(), self.get_target()))
-        self.target_type = target_type
-
-    def get_min(self) -> float:
-        return self.min if self.min is not None else float('-inf')
-    
-    def get_max(self) -> float:
-        return self.max if self.max is not None else float('inf')
-
-    def get_gain(self) -> float:
-        return self.gain if self.gain is not None else 1.0
-    
-    def get_offset(self) -> float:
-        return self.offset if self.offset is not None else 0.0
 
 class FirmwareDescription:
     COMPRESSION_TYPE = zipfile.ZIP_DEFLATED
@@ -167,7 +43,7 @@ class FirmwareDescription:
     varmap: VarMap
     metadata: MetadataType
     firmwareid: bytes
-    aliases:Dict[str, AliasDefinition]
+    aliases:Dict[str, Alias]
 
     varmap_filename: str = 'varmap.json'
     metadata_filename: str = 'metadata.json'
@@ -254,11 +130,11 @@ class FirmwareDescription:
         return cast(MetadataType, json.loads(f.read().decode('utf8')))
     
     @classmethod
-    def read_aliases(cls, f:IO[bytes], varmap:VarMap) -> Dict[str, AliasDefinition]:
+    def read_aliases(cls, f:IO[bytes], varmap:VarMap) -> Dict[str, Alias]:
         aliases_raw:Dict[str, Any] = json.loads(f.read().decode('utf8'))
-        aliases:Dict[str, AliasDefinition] = {}
+        aliases:Dict[str, Alias] = {}
         for k in aliases_raw:
-            alias = AliasDefinition.from_dict(k, aliases_raw[k])
+            alias = Alias.from_dict(k, aliases_raw[k])
             try:
                 alias.set_target_type(cls.get_alias_target_type(alias, varmap))
             except Exception as e: 
@@ -269,7 +145,7 @@ class FirmwareDescription:
         return aliases
     
     @classmethod
-    def get_alias_target_type(cls, alias:AliasDefinition, varmap:VarMap) -> EntryType:
+    def get_alias_target_type(cls, alias:Alias, varmap:VarMap) -> EntryType:
         if varmap.has_var(alias.get_target()):
             return EntryType.Var
         elif Datastore.is_rpv_path(alias.get_target()):
@@ -289,7 +165,7 @@ class FirmwareDescription:
         return VarMap(fullpath)
 
 
-    def append_aliases(self, aliases : Dict[str, AliasDefinition]) -> None:
+    def append_aliases(self, aliases : Dict[str, Alias]) -> None:
         for unique_path in aliases:
             if unique_path not in self.aliases:
                 self.aliases[unique_path] = aliases[unique_path]
@@ -304,7 +180,7 @@ class FirmwareDescription:
             outzip.writestr(self.alias_file, self.serialize_aliases(list(self.aliases.values())))
 
     @classmethod
-    def serialize_aliases(cls, aliases:Union[Dict[str, AliasDefinition], List[AliasDefinition]]) -> bytes:
+    def serialize_aliases(cls, aliases:Union[Dict[str, Alias], List[Alias]]) -> bytes:
         if isinstance(aliases, list):
             zipped = zip(
                     [alias.get_fullpath() for alias in aliases],
@@ -352,11 +228,12 @@ class FirmwareDescription:
         for fullname, vardef in self.varmap.iterate_vars():
             yield (fullname, vardef)
     
-    def get_aliases_for_datastore(self) -> Generator[Tuple[str, AliasDefinition], None, None]:
+    def get_aliases_for_datastore(self, entry_type:Optional[EntryType]=None) -> Generator[Tuple[str, Alias], None, None]:
         for k in self.aliases:
-            yield (self.aliases[k].get_fullpath(), self.aliases[k])
+            if entry_type is None or self.aliases[k].get_target_type() == entry_type:
+                yield (self.aliases[k].get_fullpath(), self.aliases[k])
 
-    def get_aliases(self) -> Dict[str, AliasDefinition]:
+    def get_aliases(self) -> Dict[str, Alias]:
         return self.aliases
 
     def get_metadata(self):

@@ -9,7 +9,10 @@
 import re
 import unittest
 
-from scrutiny.server.datastore import *
+from scrutiny.server.datastore.datastore import Datastore
+from scrutiny.server.datastore.entry_type import EntryType
+from scrutiny.server.datastore.datastore_entry import *
+from scrutiny.core.alias import Alias
 from scrutiny.core.variable import *
 from scrutiny.core.basic_types import *
 
@@ -31,7 +34,7 @@ class TestDataStore(unittest.TestCase):
                 entry = DatastoreVariableEntry(name, variable_def=dummy_var)
             elif entry_type == EntryType.Alias:
                 entry_temp = DatastoreVariableEntry(name, variable_def=dummy_var)
-                entry = DatastoreAliasEntry(name, refentry=entry_temp)
+                entry = DatastoreAliasEntry(Alias(name, target='none'), refentry=entry_temp)
             else:
                 dummy_rpv = RuntimePublishedValue(id=i, datatype=EmbeddedDataType.float32)
                 entry = DatastoreRPVEntry(name, rpv=dummy_rpv)
@@ -86,7 +89,7 @@ class TestDataStore(unittest.TestCase):
         ds = Datastore()
         entries = []
         entries += list(self.make_dummy_entries(4, EntryType.Var))
-        entries += [DatastoreAliasEntry('alias_1', refentry=entries[0]), DatastoreAliasEntry('alias_2', refentry=entries[1])]
+        entries += [DatastoreAliasEntry(Alias('alias_1', target='none'), refentry=entries[0]), DatastoreAliasEntry(Alias('alias_2', target='none'), refentry=entries[1])]
         entries += list(self.make_dummy_entries(5, EntryType.RuntimePublishedValue))
 
         for entry in entries:
@@ -322,10 +325,10 @@ class TestDataStore(unittest.TestCase):
         var_entries = list(self.make_dummy_entries(4, EntryType.Var))
         rpv_entries = list(self.make_dummy_entries(4, EntryType.RuntimePublishedValue))
 
-        alias_var_2 = DatastoreAliasEntry('alias_var_2', refentry=var_entries[2])
-        alias_var_2_2 = DatastoreAliasEntry('alias_var_2', refentry=var_entries[2])
-        alias_rpv_1 = DatastoreAliasEntry('alias_rpv_1', refentry=rpv_entries[1])
-        alias_rpv_1_2 = DatastoreAliasEntry('alias_rpv_1', refentry=rpv_entries[1])
+        alias_var_2 = DatastoreAliasEntry(Alias('alias_var_2', target='none'), refentry=var_entries[2])
+        alias_var_2_2 = DatastoreAliasEntry(Alias('alias_var_2', target='none'), refentry=var_entries[2])
+        alias_rpv_1 = DatastoreAliasEntry(Alias('alias_rpv_1', target='none'), refentry=rpv_entries[1])
+        alias_rpv_1_2 = DatastoreAliasEntry(Alias('alias_rpv_1', target='none'), refentry=rpv_entries[1])
 
         ds = Datastore()
         ds.add_entries(var_entries)

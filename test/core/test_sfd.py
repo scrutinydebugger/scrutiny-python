@@ -7,8 +7,10 @@
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 
 import unittest
-from scrutiny.core.firmware_description import AliasDefinition, FirmwareDescription
-from scrutiny.server.datastore import EntryType
+from scrutiny.core.firmware_description import FirmwareDescription
+from scrutiny.core.alias import Alias
+from scrutiny.server.datastore.datastore_entry import *
+from scrutiny.server.datastore.entry_type import EntryType
 from scrutiny.core.variable import *
 from test.artifacts import get_artifact
 from binascii import unhexlify
@@ -53,12 +55,12 @@ class TestSFD(unittest.TestCase):
         self.assertTrue(var_as_dict["/path1/path2/some_uint32"].has_enum())
         enum = var_as_dict["/path1/path2/some_uint32"].get_enum()
         self.assertEqual(enum.get_name(), 'EnumA')
-        self.assertEqual(enum.get_val_name(0), 'eVal1')
-        self.assertEqual(enum.get_val_name(1), 'eVal2')
-        self.assertEqual(enum.get_val_name(100), 'eVal3')
-        self.assertEqual(enum.get_val_name(101), 'eVal4')
+        self.assertEqual(enum.get_value('eVal1'), 0 )
+        self.assertEqual(enum.get_value('eVal2'), 1 )
+        self.assertEqual(enum.get_value('eVal3'), 100 )
+        self.assertEqual(enum.get_value('eVal4'), 101 )
         with self.assertRaises(Exception):
-            enum.get_val_name(2)
+            enum.get_value('inexistant_name')
         
         self.assertEqual(var_as_dict["/path1/path2/some_float32"].get_address(), 1008)
         self.assertEqual(var_as_dict["/path1/path2/some_float32"].get_type(), EmbeddedDataType.float32)
@@ -73,12 +75,17 @@ class TestSFD(unittest.TestCase):
         self.assertEqual(var_as_dict["/path1/path2/some_float64"].get_fullname(), "/path1/path2/some_float64")
         self.assertFalse(var_as_dict["/path1/path2/some_float64"].has_enum())
         self.assertIsNone(var_as_dict["/path1/path2/some_float64"].get_enum())
+        
+        for fullpath, alias in sfd.get_aliases_for_datastore(EntryType.Var):
+            self.assertEqual(alias.get_target_type(), EntryType.Var)
+        
+        for fullpath, alias in sfd.get_aliases_for_datastore(EntryType.RuntimePublishedValue):
+            self.assertEqual(alias.get_target_type(), EntryType.RuntimePublishedValue)
 
-
-        aliases_as_dict:Dict[str, AliasDefinition] = {}
+        aliases_as_dict:Dict[str, Alias] = {}
         for fullpath, alias in sfd.get_aliases_for_datastore():
             aliases_as_dict[fullpath] = alias
-        
+            
         self.assertIn("/alias/some_float32", aliases_as_dict)
         self.assertIn("/alias/some_enum", aliases_as_dict)
 
@@ -96,80 +103,4 @@ class TestSFD(unittest.TestCase):
         self.assertEqual(aliases_as_dict['/alias/some_enum'].get_min(), float('-inf'))
         self.assertEqual(aliases_as_dict['/alias/some_enum'].get_max(), float('inf'))
 
-    def test_alias(self):
-        with self.assertRaises(Exception):
-            AliasDefinition.from_dict('aaa', {})
-        
-        with self.assertRaises(Exception):
-            AliasDefinition()
-        
-        with self.assertRaises(Exception):
-            AliasDefinition(fullpath='asd')     # missing target and target type
-
-        with self.assertRaises(Exception):
-            AliasDefinition(fullpath='asd', target='ssss', target_type=EntryType.Alias)
-
-        x = AliasDefinition(fullpath='aaa', target='asd', target_type=EntryType.Var)
-        self.assertEqual(x.get_fullpath(), 'aaa')
-        self.assertEqual(x.get_target(), 'asd')
-        self.assertEqual(x.get_target_type(), EntryType.Var)
-        self.assertEqual(x.get_min(), float('-inf'))
-        self.assertEqual(x.get_max(), float('inf'))
-        self.assertEqual(x.get_gain(), 1.0)
-        self.assertEqual(x.get_offset(), 0.0)
-        
-        x = AliasDefinition.from_dict('aaa', {'target' : 'asd', 'target_type' : EntryType.RuntimePublishedValue})
-        self.assertEqual(x.get_fullpath(), 'aaa')
-        self.assertEqual(x.get_target(), 'asd')
-        self.assertEqual(x.get_target_type(), EntryType.RuntimePublishedValue)
-        self.assertEqual(x.get_min(), float('-inf'))
-        self.assertEqual(x.get_max(), float('inf'))
-        self.assertEqual(x.get_gain(), 1.0)
-        self.assertEqual(x.get_offset(), 0.0)
-
-        d = x.to_dict()
-        self.assertEqual(d['target'], 'asd')
-        self.assertEqual(d['target_type'], EntryType.RuntimePublishedValue)
-        self.assertNotIn('min', d)  # Remove because of default value
-        self.assertNotIn('max', d)
-        self.assertNotIn('gain', d)
-        self.assertNotIn('offset', d)
-
-        with self.assertRaises(Exception):
-            x.min = 1.0
-            x.max = 0.0
-            x.validate()
-        
-        x.min = 0.0
-        x.max = 100.0
-        x.validate()
-
-        with self.assertRaises(Exception):
-            x.gain = float('inf')
-            x.validate()
-        x.gain = 1.0
-        
-        with self.assertRaises(Exception):
-            x.offset = float('inf')
-            x.validate()
-        x.offset = 0.0
-
-        with self.assertRaises(Exception):
-            x.min = float('nan')
-            x.validate()
-        x.min = 0.0
-
-        with self.assertRaises(Exception):
-            x.max = float('nan')
-            x.validate()
-        x.max = 100.0
-
-        with self.assertRaises(Exception):
-            x.gain = float('nan')
-            x.validate()
-        x.gain = 1.0
-
-        with self.assertRaises(Exception):
-            x.offset = float('nan')
-            x.validate()
-        x.offset = 0.0
+    

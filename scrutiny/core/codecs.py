@@ -100,7 +100,7 @@ class BoolCodec(BaseCodec):
         return True if data[0] != 0 else False
 
     def encode(self, value: Encodable) -> bytes:
-        v = 1 if value is True else 0
+        v = 1 if value else 0
         return struct.pack('B', v)  # todo : Mask
 
 
@@ -108,7 +108,7 @@ class Codecs:
     @staticmethod
     def get(vartype: EmbeddedDataType, endianness: Endianness) -> BaseCodec:
         datasize = vartype.get_size_byte()
-        assert datasize is not None
+        
         if vartype in [EmbeddedDataType.sint8, EmbeddedDataType.sint16, EmbeddedDataType.sint32, EmbeddedDataType.sint64]:
             return SIntCodec(datasize, endianness=endianness)
         elif vartype in [EmbeddedDataType.uint8, EmbeddedDataType.uint16, EmbeddedDataType.uint32, EmbeddedDataType.uint64]:

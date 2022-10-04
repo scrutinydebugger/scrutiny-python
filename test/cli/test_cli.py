@@ -23,7 +23,7 @@ from test.artifacts import get_artifact
 from test import SkipOnException
 from scrutiny.cli import CLI
 from scrutiny.exceptions import EnvionmentNotSetUpException
-from scrutiny.server.datastore import EntryType
+from scrutiny.server.datastore.entry_type import EntryType
 
 
 class RedirectStdout:

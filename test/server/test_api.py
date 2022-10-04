@@ -16,16 +16,17 @@ import math
 from scrutiny.core.basic_types import RuntimePublishedValue
 
 from scrutiny.server.api.API import API
-from scrutiny.server.datastore import Datastore, DatastoreVariableEntry, EntryType, DatastoreAliasEntry, DatastoreRPVEntry
+from scrutiny.server.datastore.datastore import Datastore
+from scrutiny.server.datastore.datastore_entry import *
+from scrutiny.server.datastore.entry_type import EntryType
 from scrutiny.core.sfd_storage import SFDStorage
 from scrutiny.server.api.dummy_client_handler import DummyConnection, DummyClientHandler
-from scrutiny.server.datastore.datastore_entry import DatastoreEntry
 from scrutiny.server.device.device_handler import DeviceHandler
 from scrutiny.server.device.device_info import DeviceInfo
 from scrutiny.server.active_sfd_handler import ActiveSFDHandler
 from scrutiny.server.device.links.dummy_link import DummyLink
 from scrutiny.core.variable import *
-from scrutiny.core.firmware_description import FirmwareDescription
+from scrutiny.core.alias import Alias
 from test.artifacts import get_artifact
 
 # todo
@@ -166,7 +167,7 @@ class TestAPI(unittest.TestCase):
                              'a', 'b', 'c'], location=0x12345678, endianness=Endianness.Little)
                 entry = DatastoreVariableEntry(name, variable_def=dummy_var)
             elif entry_type == EntryType.Alias:
-                entry = DatastoreAliasEntry(name, refentry=alias_bucket[i])
+                entry = DatastoreAliasEntry(Alias(name, target='none'), refentry=alias_bucket[i])
             else:
                 dummy_rpv = RuntimePublishedValue(id=i, datatype=EmbeddedDataType.float32)
                 entry = DatastoreRPVEntry(name, rpv=dummy_rpv)

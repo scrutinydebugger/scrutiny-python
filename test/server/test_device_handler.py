@@ -7,7 +7,7 @@
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 
 import unittest
-from time import time, sleep
+import time
 from scrutiny.core.codecs import Encodable
 from scrutiny.server.datastore.datastore_entry import DatastoreRPVEntry, EntryType
 from test import logger
@@ -18,7 +18,9 @@ import random
 from scrutiny.server.device.emulated_device import EmulatedDevice
 from scrutiny.server.device.device_handler import DeviceHandler
 from scrutiny.server.device.links.dummy_link import ThreadSafeDummyLink
-from scrutiny.server.datastore import Datastore, DatastoreVariableEntry
+from scrutiny.server.datastore.datastore import Datastore
+from scrutiny.server.datastore.datastore_entry import *
+from scrutiny.server.datastore.entry_type import EntryType
 from scrutiny.core.variable import Variable
 from scrutiny.core.codecs import Codecs
 from scrutiny.core.basic_types import *
@@ -75,12 +77,12 @@ class TestDeviceHandler(unittest.TestCase):
         self.disconnect_callback_called = False
         self.disconnect_was_clean = False
         timeout = 1
-        t1 = time()
+        t1 = time.time()
         connection_successful = False
         disconnect_sent = False
-        while time() - t1 < timeout:
+        while time.time() - t1 < timeout:
             self.device_handler.process()
-            sleep(0.01)
+            time.sleep(0.01)
             status = self.device_handler.get_connection_status()
             self.assertEqual(self.device_handler.get_comm_error_count(), 0)
 
@@ -102,13 +104,13 @@ class TestDeviceHandler(unittest.TestCase):
     def test_establish_full_connection_and_hold(self):
         setup_timeout = 2
         hold_time = 10
-        t1 = time()
+        t1 = time.time()
         connection_successful = False
         hold_time_set = False
         timeout = setup_timeout
-        while time() - t1 < timeout:
+        while time.time() - t1 < timeout:
             self.device_handler.process()
-            sleep(0.01)
+            time.sleep(0.01)
             status = self.device_handler.get_connection_status()
             self.assertEqual(self.device_handler.get_comm_error_count(), 0)
 
@@ -117,7 +119,7 @@ class TestDeviceHandler(unittest.TestCase):
                 if hold_time_set == False:
                     hold_time_set = True
                     timeout = hold_time
-                    t1 = time()
+                    t1 = time.time()
 
             if connection_successful:
                 self.assertTrue(status == DeviceHandler.ConnectionStatus.CONNECTED_READY)
@@ -127,11 +129,11 @@ class TestDeviceHandler(unittest.TestCase):
 
     def test_read_correct_params(self):
         timeout = 3
-        t1 = time()
+        t1 = time.time()
         connection_successful = False
-        while time() - t1 < timeout:
+        while time.time() - t1 < timeout:
             self.device_handler.process()
-            sleep(0.01)
+            time.sleep(0.01)
             status = self.device_handler.get_connection_status()
 
             if status == DeviceHandler.ConnectionStatus.CONNECTED_READY:
@@ -170,12 +172,12 @@ class TestDeviceHandler(unittest.TestCase):
 
     def test_auto_disconnect_if_comm_interrupted(self):
         timeout = 5     # Should take about 2.5 sec to disconnect With heartbeat at every 2 sec
-        t1 = time()
+        t1 = time.time()
         connection_completed = False
         connection_lost = False
-        while time() - t1 < timeout:
+        while time.time() - t1 < timeout:
             self.device_handler.process()
-            sleep(0.01)
+            time.sleep(0.01)
             status = self.device_handler.get_connection_status()
 
             if status == DeviceHandler.ConnectionStatus.CONNECTED_READY and connection_completed == False:
@@ -193,12 +195,12 @@ class TestDeviceHandler(unittest.TestCase):
     def test_auto_disconnect_if_device_disconnect(self):
         # Should behave exactly the same as test_auto_disconnect_if_comm_interrupted
         timeout = 5     # Should take about 2.5 sec to disconnect With heartbeat at every 2 sec
-        t1 = time()
+        t1 = time.time()
         connection_completed = False
         connection_lost = False
-        while time() - t1 < timeout:
+        while time.time() - t1 < timeout:
             self.device_handler.process()
-            sleep(0.01)
+            time.sleep(0.01)
             status = self.device_handler.get_connection_status()
 
             if status == DeviceHandler.ConnectionStatus.CONNECTED_READY and connection_completed == False:
@@ -215,13 +217,13 @@ class TestDeviceHandler(unittest.TestCase):
 
     def test_auto_diconnect_and_reconnect_on_broken_link(self):
         timeout = 5     # Should take about 2.5 sec to disconnect With heartbeat at every 2 sec
-        t1 = time()
+        t1 = time.time()
         connection_completed = False
         connection_lost = False
         connection_recovered = False
-        while time() - t1 < timeout:
+        while time.time() - t1 < timeout:
             self.device_handler.process()
-            sleep(0.01)
+            time.sleep(0.01)
             status = self.device_handler.get_connection_status()
 
             if status == DeviceHandler.ConnectionStatus.CONNECTED_READY and connection_completed == False:
@@ -251,16 +253,16 @@ class TestDeviceHandler(unittest.TestCase):
         self.emulated_device.max_bitrate_bps = target_bitrate
         self.device_handler.set_operating_mode(DeviceHandler.OperatingMode.Test_CheckThrottling)
         connect_time = None
-        t1 = time()
-        while time() - t1 < timeout:
+        t1 = time.time()
+        while time.time() - t1 < timeout:
             self.device_handler.process()
             status = self.device_handler.get_connection_status()
             if status == DeviceHandler.ConnectionStatus.CONNECTED_READY and connect_time is None:
                 self.device_handler.reset_bitrate_monitor()
-                connect_time = time()
+                connect_time = time.time()
                 self.assertTrue(self.device_handler.is_throttling_enabled())
                 self.assertEqual(self.device_handler.get_throttling_bitrate(), self.emulated_device.max_bitrate_bps)
-                t1 = time()
+                t1 = time.time()
                 timeout = measurement_time
 
         self.assertIsNotNone(connect_time)
@@ -308,14 +310,14 @@ class TestDeviceHandler(unittest.TestCase):
         test_round_to_do = 5
         setup_timeout = 2
         hold_timeout = 5
-        t1 = time()
+        t1 = time.time()
         connection_successful = False
         timeout = setup_timeout
         time_margin = 0.1
 
         round_completed = 0
         state = 'init_memory'
-        while time() - t1 < timeout and round_completed < test_round_to_do:
+        while time.time() - t1 < timeout and round_completed < test_round_to_do:
             self.device_handler.process()
             status = self.device_handler.get_connection_status()
             self.assertEqual(self.device_handler.get_comm_error_count(), 0)
@@ -333,7 +335,7 @@ class TestDeviceHandler(unittest.TestCase):
                     self.emulated_device.write_memory(0x10000, struct.pack('<f', 3.1415926))
                     self.emulated_device.write_memory(0x10010, struct.pack('<q', 0x123456789abcdef))
                     self.emulated_device.write_memory(0x10020, struct.pack('<b', 1))
-                    init_memory_time = time()
+                    init_memory_time = time.time()
                     state = 'read_memory'
 
                 elif state == 'read_memory':
@@ -349,10 +351,10 @@ class TestDeviceHandler(unittest.TestCase):
                         vint64.update_target_value(0x1122334455667788)
                         vbool.update_target_value(False)
 
-                        write_time = time()
+                        write_time = time.time()
                         state = 'write_memory'
 
-                    elif time() - init_memory_time > 1:
+                    elif time.time() - init_memory_time > 1:
                         raise Exception('Value did not update')
 
                 elif state == 'write_memory':
@@ -376,7 +378,7 @@ class TestDeviceHandler(unittest.TestCase):
                         round_completed += 1
                         state = 'init_memory'
 
-                    elif time() - write_time > 1:
+                    elif time.time() - write_time > 1:
                         raise Exception('Value not written')
 
             # Make sure we don't disconnect
@@ -384,7 +386,7 @@ class TestDeviceHandler(unittest.TestCase):
                 self.assertTrue(status == DeviceHandler.ConnectionStatus.CONNECTED_READY)
                 self.assertTrue(self.emulated_device.is_connected())
 
-            sleep(0.01)
+            time.sleep(0.01)
 
         self.assertTrue(connection_successful)
         self.assertEqual(round_completed, test_round_to_do)  # Check that we made 5 cycles of value
@@ -396,13 +398,13 @@ class TestDeviceHandler(unittest.TestCase):
 
         timeout = setup_timeout
         round_completed = 0
-        t1 = time()
+        t1 = time.time()
         all_entries = []
         write_timestamp = 0
         write_from_device_timestamp = 0
         state = 'wait_for_connection'
 
-        while time() - t1 < timeout and round_completed < test_round_to_do:
+        while time.time() - t1 < timeout and round_completed < test_round_to_do:
             self.device_handler.process()
 
             status = self.device_handler.get_connection_status()
@@ -426,7 +428,7 @@ class TestDeviceHandler(unittest.TestCase):
                     round_completed = 0
 
                 if state == 'write':
-                    write_timestamp = time()
+                    write_timestamp = time.time()
                     written_values = {}
                     for entry in all_entries:
                         rpv = entry.get_rpv()
@@ -451,7 +453,7 @@ class TestDeviceHandler(unittest.TestCase):
 
                 elif state == 'write_from_device':
                     written_values = {}
-                    write_from_device_timestamp = time()
+                    write_from_device_timestamp = time.time()
                     for rpv in self.emulated_device.get_rpvs():
                         written_values[rpv.id] = generate_random_value(rpv.datatype)
                         self.emulated_device.write_rpv(rpv.id, written_values[rpv.id])
@@ -472,7 +474,7 @@ class TestDeviceHandler(unittest.TestCase):
 
                 elif state == 'done':
                     round_completed += 1
-                    sleep(0.02)
+                    time.sleep(0.02)
                     state = 'write'
 
         self.assertEqual(round_completed, test_round_to_do)  # Make sure test went through.
@@ -526,11 +528,11 @@ class TestDeviceHandlerMultipleLink(unittest.TestCase):
 
         # Should behave exactly the same as test_auto_disconnect_if_comm_interrupted
         timeout = 5     # Should take about 2.5 sec to disconnect With heartbeat at every 2 sec
-        t1 = time()
+        t1 = time.time()
         connection_completed = False
-        while time() - t1 < timeout:
+        while time.time() - t1 < timeout:
             self.device_handler.process()
-            sleep(0.01)
+            time.sleep(0.01)
             status = self.device_handler.get_connection_status()
 
             if status == DeviceHandler.ConnectionStatus.CONNECTED_READY and connection_completed == False:
@@ -547,11 +549,11 @@ class TestDeviceHandlerMultipleLink(unittest.TestCase):
         self.assertNotEqual(self.device_handler.get_connection_status(), DeviceHandler.ConnectionStatus.CONNECTED_READY)
 
         timeout = 5     # Should take about 2.5 sec to disconnect With heartbeat at every 2 sec
-        t1 = time()
+        t1 = time.time()
         connection_completed = False
-        while time() - t1 < timeout:
+        while time.time() - t1 < timeout:
             self.device_handler.process()
-            sleep(0.01)
+            time.sleep(0.01)
             status = self.device_handler.get_connection_status()
 
             if status == DeviceHandler.ConnectionStatus.CONNECTED_READY and connection_completed == False:

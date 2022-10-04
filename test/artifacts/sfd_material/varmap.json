@@ -41,10 +41,10 @@
         "0": {
             "name": "EnumA",
             "values": {
-                "0": "eVal1",
-                "1": "eVal2",
-                "100": "eVal3",
-                "101": "eVal4"
+                "eVal1": 0,
+                "eVal2": 1,
+                "eVal3": 100,
+                "eVal4": 101 
             }
         }
     }

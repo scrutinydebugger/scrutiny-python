@@ -6,24 +6,21 @@
 #
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 
-from ast import Call, alias
 import functools
 import uuid
-from enum import Enum
 import time
 import abc
 import re
 from scrutiny.core.basic_types import RuntimePublishedValue
 from queue import Queue
 
+from scrutiny.server.datastore.entry_type import EntryType
 from scrutiny.core.variable import Variable, VariableEnum, EmbeddedDataType
 from scrutiny.core.codecs import *
 
 from typing import Any, Optional, Dict, Callable, Tuple, List
 from scrutiny.core.typehints import GenericCallback
-
-DISPLAY_PATH_REGEX = re.compile('^\/?(([^\/\n]+)\/)*(\w+)?$')
-
+from scrutiny.core.alias import Alias
 class ValueChangeCallback():
     fn: GenericCallback
     owner: str
@@ -46,18 +43,6 @@ class ValueChangeCallback():
         else:
             self.fn.__call__(self.owner, self.args, *args, **kwargs)
 
-
-class EntryType(str, Enum):
-    Var = 'var'
-    Alias = 'alias'
-    RuntimePublishedValue = 'rpv'
-
-    @classmethod
-    def all(cls) -> List['EntryType']:
-        return  [EntryType.Var, EntryType.Alias, EntryType.RuntimePublishedValue]   # Todo, find a better way to do this. This enum also inherit str
-
-    def toJson(self):
-        return self.value
 
 class UpdateTargetRequestCallback(GenericCallback):
     fn:Callable[[bool, 'DatastoreEntry', float], None]
@@ -268,10 +253,12 @@ class DatastoreVariableEntry(DatastoreEntry):
 class DatastoreAliasEntry(DatastoreEntry):
 
     refentry: DatastoreEntry
+    aliasdef:Alias
 
-    def __init__(self, display_path: str, refentry: DatastoreEntry):
-        super().__init__(display_path=display_path)
+    def __init__(self, aliasdef:Alias, refentry: DatastoreEntry):
+        super().__init__(display_path=aliasdef.get_fullpath())
         self.refentry = refentry
+        self.aliasdef = aliasdef
 
     def resolve(self, obj=None) -> DatastoreEntry:
         if obj == None:
@@ -301,8 +288,9 @@ class DatastoreAliasEntry(DatastoreEntry):
     
     def update_target_value(self, value: Any, callback:UpdateTargetRequestCallback=None) -> UpdateTargetRequest:
         alias_request = super().update_target_value(value, callback)
+        new_value = self.aliasdef.compute_user_to_device(value)
         nested_callback = UpdateTargetRequestCallback(functools.partial(self.alias_target_update_callback, alias_request))
-        new_request = self.refentry.update_target_value(value, callback=nested_callback)
+        new_request = self.refentry.update_target_value(new_value, callback=nested_callback)
         if alias_request.is_complete(): # Edge case if failed to enqueue request.
             new_request.complete(success=alias_request.is_complete())
         return alias_request
@@ -319,8 +307,9 @@ class DatastoreAliasEntry(DatastoreEntry):
         raise NotImplementedError('Cannot set value on a Alias variable')
 
     ## These function are meant to be used internally to make the alias mechanism work. Not to be used by a user.
-    def set_value_internal(self, *args, **kwargs):
-        DatastoreEntry.set_value(self, *args, **kwargs)
+    def set_value_internal(self, value:Any):
+        new_value = self.aliasdef.compute_device_to_user(value)           
+        DatastoreEntry.set_value(self, new_value)
 
 class DatastoreRPVEntry(DatastoreEntry):
 

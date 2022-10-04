@@ -18,7 +18,8 @@ from scrutiny.server.protocol import *
 import scrutiny.server.protocol.commands as cmd
 import scrutiny.server.protocol.typing as protocol_typing
 from scrutiny.server.device.request_dispatcher import RequestDispatcher, SuccessCallback, FailureCallback
-from scrutiny.server.datastore import Datastore, DatastoreVariableEntry, DatastoreRPVEntry, WatchCallback
+from scrutiny.server.datastore.datastore import Datastore, WatchCallback
+from scrutiny.server.datastore.datastore_entry import *
 from scrutiny.core.memory_content import MemoryContent, Cluster
 
 from typing import Any, List, Tuple, Optional, cast, Set, Dict

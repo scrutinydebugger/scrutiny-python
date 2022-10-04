@@ -31,7 +31,7 @@ from scrutiny.server.device.request_generator.memory_writer import MemoryWriter
 from scrutiny.server.device.device_info import DeviceInfo
 
 from scrutiny.server.tools import Timer
-from scrutiny.server.datastore import Datastore
+from scrutiny.server.datastore.datastore import Datastore
 from scrutiny.server.device.links import AbstractLink, LinkConfig
 from scrutiny.core.firmware_id import PLACEHOLDER as DEFAULT_FIRMWARE_ID
 

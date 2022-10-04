@@ -7,11 +7,11 @@
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 
 import unittest
-from scrutiny.server.datastore.datastore_entry import EntryType
 
+from scrutiny.server.datastore.entry_type import EntryType
 from scrutiny.server.device.device_handler import DeviceHandler
 from scrutiny.server.active_sfd_handler import ActiveSFDHandler
-from scrutiny.server.datastore import Datastore
+from scrutiny.server.datastore.datastore import Datastore
 from scrutiny.core.sfd_storage import SFDStorage
 from test.artifacts import get_artifact
 

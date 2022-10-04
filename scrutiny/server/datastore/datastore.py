@@ -10,6 +10,8 @@
 
 import logging
 from scrutiny.server.datastore.datastore_entry import *
+from scrutiny.server.datastore.entry_type import EntryType
+
 from scrutiny.core.typehints import GenericCallback
 
 from typing import Set, List, Dict, Optional, Any, Iterator, Union, Callable
@@ -21,6 +23,7 @@ class WatchCallback(GenericCallback):
 class Datastore:
     logger: logging.Logger
     entries: Dict[EntryType, Dict[str, DatastoreEntry]]
+    displaypath2idmap: Dict[EntryType, Dict[str,str]]
     watcher_map: Dict[EntryType, Dict[str, Set[str]]]
     global_watch_callbacks: List[WatchCallback]
     global_unwatch_callbacks: List[WatchCallback]
@@ -34,9 +37,11 @@ class Datastore:
 
         self.entries = {}
         self.watcher_map = {}
+        self.displaypath2idmap = {}
         for entry_type in EntryType:
             self.entries[entry_type] = {}
             self.watcher_map[entry_type] = {}
+            self.displaypath2idmap[entry_type] = {}
 
     def clear(self, entry_type: Optional[EntryType] = None) -> None:
         if entry_type is None:
@@ -47,6 +52,7 @@ class Datastore:
         for type_to_clear in type_to_clear_list:
             self.entries[type_to_clear] = {}
             self.watcher_map[type_to_clear] = {}
+            self.displaypath2idmap[type_to_clear] = {}
 
     def add_entries_quiet(self, entries: List[DatastoreEntry]):
         for entry in entries:
@@ -77,12 +83,22 @@ class Datastore:
                 raise KeyError('Alias ID %s (%s) refer to entry ID %s (%s) that is not in the datastore' % (entry.get_id(), entry.get_display_path(), resolved_entry.get_id(), resolved_entry.get_display_path()))
 
         self.entries[entry.get_type()][entry.get_id()] = entry
+        self.displaypath2idmap[entry.get_type()][entry.get_display_path()] = entry.get_id()
 
     def get_entry(self, entry_id: str) -> DatastoreEntry:
         for entry_type in EntryType:
             if entry_id in self.entries[entry_type]:
                 return self.entries[entry_type][entry_id]
         raise KeyError('Entry with ID %s not found in datastore' % entry_id)
+    
+    def get_entry_by_display_path(self, display_path:str) -> DatastoreEntry:
+        for entry_type in EntryType:
+            if display_path in self.displaypath2idmap[entry_type]:
+                entry_id = self.displaypath2idmap[entry_type][display_path]
+                if entry_id in self.entries[entry_type]:
+                    return self.entries[entry_type][entry_id]
+        
+        raise KeyError('Entry with display path %s not found in datastore' % display_path)
 
     def add_watch_callback(self, callback: WatchCallback):
         # Mainly used to notify device handler that a new variable is to be polled

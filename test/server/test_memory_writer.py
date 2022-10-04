@@ -10,7 +10,9 @@
 import unittest
 import time
 
-from scrutiny.server.datastore import *
+from scrutiny.server.datastore.datastore import Datastore
+from scrutiny.server.datastore.datastore_entry import *
+from scrutiny.server.datastore.entry_type import EntryType
 from scrutiny.server.device.request_generator.memory_writer import MemoryWriter
 from scrutiny.server.device.request_dispatcher import RequestDispatcher
 from scrutiny.server.protocol import Protocol
