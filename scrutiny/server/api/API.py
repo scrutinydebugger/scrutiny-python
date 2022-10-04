@@ -698,7 +698,7 @@ class API:
         self.streamer.publish(datastore_entry, conn_id)
         self.stream_all_we_can()
 
-    def entry_target_update_callback(self, success:bool, datastore_entry: DatastoreEntry, timestamp:float) -> None:
+    def entry_target_update_callback(self, success: bool, datastore_entry: DatastoreEntry, timestamp: float) -> None:
         watchers = self.datastore.get_watchers(datastore_entry)
 
         msg: api_typing.S2C.WriteCompletion = {

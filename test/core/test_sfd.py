@@ -17,19 +17,20 @@ from binascii import unhexlify
 
 from typing import Dict
 
+
 class TestSFD(unittest.TestCase):
 
     def test_load_sfd(self):
         sfd = FirmwareDescription(get_artifact('test_sfd_1.sfd'))   # expects no exception
         sfd.validate()  # Expects no exception
-    
+
     def test_check_content(self):
         sfd = FirmwareDescription(get_artifact('test_sfd_1.sfd'))
         self.assertEqual(sfd.get_firmware_id(), unhexlify('00000000000000000000000000000001'))
         self.assertEqual(sfd.get_firmware_id_ascii(), '00000000000000000000000000000001')
-        
+
         vars = list(sfd.get_vars_for_datastore())
-        var_as_dict:Dict[str, Variable]={}
+        var_as_dict: Dict[str, Variable] = {}
         for pair in vars:
             display_path = pair[0]
             var = pair[1]
@@ -55,37 +56,37 @@ class TestSFD(unittest.TestCase):
         self.assertTrue(var_as_dict["/path1/path2/some_uint32"].has_enum())
         enum = var_as_dict["/path1/path2/some_uint32"].get_enum()
         self.assertEqual(enum.get_name(), 'EnumA')
-        self.assertEqual(enum.get_value('eVal1'), 0 )
-        self.assertEqual(enum.get_value('eVal2'), 1 )
-        self.assertEqual(enum.get_value('eVal3'), 100 )
-        self.assertEqual(enum.get_value('eVal4'), 101 )
+        self.assertEqual(enum.get_value('eVal1'), 0)
+        self.assertEqual(enum.get_value('eVal2'), 1)
+        self.assertEqual(enum.get_value('eVal3'), 100)
+        self.assertEqual(enum.get_value('eVal4'), 101)
         with self.assertRaises(Exception):
             enum.get_value('inexistant_name')
-        
+
         self.assertEqual(var_as_dict["/path1/path2/some_float32"].get_address(), 1008)
         self.assertEqual(var_as_dict["/path1/path2/some_float32"].get_type(), EmbeddedDataType.float32)
         self.assertEqual(var_as_dict["/path1/path2/some_float32"].get_size(), 4)
         self.assertEqual(var_as_dict["/path1/path2/some_float32"].get_fullname(), "/path1/path2/some_float32")
         self.assertFalse(var_as_dict["/path1/path2/some_float32"].has_enum())
         self.assertIsNone(var_as_dict["/path1/path2/some_float32"].get_enum())
-        
+
         self.assertEqual(var_as_dict["/path1/path2/some_float64"].get_address(), 1012)
         self.assertEqual(var_as_dict["/path1/path2/some_float64"].get_type(), EmbeddedDataType.float64)
         self.assertEqual(var_as_dict["/path1/path2/some_float64"].get_size(), 8)
         self.assertEqual(var_as_dict["/path1/path2/some_float64"].get_fullname(), "/path1/path2/some_float64")
         self.assertFalse(var_as_dict["/path1/path2/some_float64"].has_enum())
         self.assertIsNone(var_as_dict["/path1/path2/some_float64"].get_enum())
-        
+
         for fullpath, alias in sfd.get_aliases_for_datastore(EntryType.Var):
             self.assertEqual(alias.get_target_type(), EntryType.Var)
-        
+
         for fullpath, alias in sfd.get_aliases_for_datastore(EntryType.RuntimePublishedValue):
             self.assertEqual(alias.get_target_type(), EntryType.RuntimePublishedValue)
 
-        aliases_as_dict:Dict[str, Alias] = {}
+        aliases_as_dict: Dict[str, Alias] = {}
         for fullpath, alias in sfd.get_aliases_for_datastore():
             aliases_as_dict[fullpath] = alias
-            
+
         self.assertIn("/alias/some_float32", aliases_as_dict)
         self.assertIn("/alias/some_enum", aliases_as_dict)
 
@@ -102,5 +103,3 @@ class TestSFD(unittest.TestCase):
         self.assertEqual(aliases_as_dict['/alias/some_enum'].get_offset(), 0.0)
         self.assertEqual(aliases_as_dict['/alias/some_enum'].get_min(), float('-inf'))
         self.assertEqual(aliases_as_dict['/alias/some_enum'].get_max(), float('inf'))
-
-    

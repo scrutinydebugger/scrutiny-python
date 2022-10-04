@@ -14,6 +14,7 @@ import logging
 import os
 import traceback
 
+
 class AddAlias(BaseCommand):
     _cmd_name_ = 'add-alias'
     _brief_ = 'Append an alias to a SFD file or in making SFD work folder. Definition can be passed with a file or command line arguments.'
@@ -26,13 +27,14 @@ class AddAlias(BaseCommand):
         self.logger = logging.getLogger('CLI')
         self.args = args
         self.parser = argparse.ArgumentParser(prog=self.get_prog())
-        self.parser.add_argument('destination', help='Where to add the alias. Can be an SFD file, a folder of a in making SFD file or a firmware ID to alter an already installed SFD file.')
+        self.parser.add_argument(
+            'destination', help='Where to add the alias. Can be an SFD file, a folder of a in making SFD file or a firmware ID to alter an already installed SFD file.')
         self.parser.add_argument('--file', help='The input alias file in .json format')
-        
+
         self.parser.add_argument('--fullpath', help='The alias fullpath')
         self.parser.add_argument('--target', help='The target of the alias')
-        self.parser.add_argument('--gain',  help='The gain to apply when reading the alias')
-        self.parser.add_argument('--offset',  help='The offset to apply when reading the alias')
+        self.parser.add_argument('--gain', help='The gain to apply when reading the alias')
+        self.parser.add_argument('--offset', help='The offset to apply when reading the alias')
         self.parser.add_argument('--min', help='The mimimum value for this alias')
         self.parser.add_argument('--max', help='The maximum value for this alias')
 
@@ -45,12 +47,12 @@ class AddAlias(BaseCommand):
 
         if args.fullpath is not None and args.file is not None:
             raise Exception('Alias must be defined by a file (--file) or command line parameters (--fullpath + others), but not both.')
-        
+
         all_alliases = {}
         if os.path.isdir(args.destination):
             varmap = FirmwareDescription.read_varmap_from_filesystem(args.destination)
             target_alias_file = os.path.join(args.destination, FirmwareDescription.alias_file)
-        
+
             if os.path.isfile(target_alias_file):
                 with open(target_alias_file, 'rb') as f:
                     all_alliases = FirmwareDescription.read_aliases(f, varmap)
@@ -63,8 +65,7 @@ class AddAlias(BaseCommand):
             varmap = sfd.varmap
             all_alliases = sfd.get_aliases()
         else:
-            raise Exception('Inexistant destination for alias %s' % args.destination )
-
+            raise Exception('Inexistant destination for alias %s' % args.destination)
 
         if args.file is not None:
             with open(args.file, 'rb') as f:
@@ -74,19 +75,19 @@ class AddAlias(BaseCommand):
                 raise Exception('No target specified')
 
             alias = Alias(
-                fullpath = args.fullpath,
-                target = args.target,
-                gain = args.gain,
-                offset = args.offset,
-                min = args.min,
-                max = args.max
+                fullpath=args.fullpath,
+                target=args.target,
+                gain=args.gain,
+                offset=args.offset,
+                min=args.min,
+                max=args.max
             )
 
             new_aliases = {}
             new_aliases[alias.get_fullpath()] = alias
         else:
             raise Exception('Alias must be defined through a file or command line by specifying the --target option.')
-        
+
         for k in new_aliases:
             alias = new_aliases[k]
             assert k == alias.get_fullpath()
@@ -95,7 +96,7 @@ class AddAlias(BaseCommand):
                 alias.validate()
             except Exception as e:
                 self.logger.error('Alias %s is invalid. %s' % (alias.get_fullpath(), str(e)))
-                continue                
+                continue
 
             try:
                 alias.set_target_type(FirmwareDescription.get_alias_target_type(alias, varmap))
@@ -107,8 +108,8 @@ class AddAlias(BaseCommand):
             if k in all_alliases:
                 self.logger.error('Duplicate alias with path %s' % k)
                 continue
-            
-            all_alliases[alias.get_fullpath()] = alias 
+
+            all_alliases[alias.get_fullpath()] = alias
 
         if os.path.isdir(args.destination):
             with open(target_alias_file, 'wb') as f:
@@ -117,7 +118,7 @@ class AddAlias(BaseCommand):
         elif os.path.isfile(args.destination):
             sfd.append_aliases(new_aliases)
             sfd.write(args.destination)
-        
+
         elif SFDStorage.is_installed(args.destination):
             SFDStorage.install_sfd(sfd, ignore_exist=True)
 

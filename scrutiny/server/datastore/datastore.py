@@ -16,6 +16,7 @@ from scrutiny.core.typehints import GenericCallback
 
 from typing import Set, List, Dict, Optional, Any, Iterator, Union, Callable
 
+
 class WatchCallback(GenericCallback):
     callback: Callable[[str], None]
 
@@ -23,7 +24,7 @@ class WatchCallback(GenericCallback):
 class Datastore:
     logger: logging.Logger
     entries: Dict[EntryType, Dict[str, DatastoreEntry]]
-    displaypath2idmap: Dict[EntryType, Dict[str,str]]
+    displaypath2idmap: Dict[EntryType, Dict[str, str]]
     watcher_map: Dict[EntryType, Dict[str, Set[str]]]
     global_watch_callbacks: List[WatchCallback]
     global_unwatch_callbacks: List[WatchCallback]
@@ -76,11 +77,12 @@ class Datastore:
 
         if self.get_entries_count() >= self.MAX_ENTRY:
             raise RuntimeError('Datastore cannot have more than %d entries' % self.MAX_ENTRY)
-        
+
         if isinstance(entry, DatastoreAliasEntry):
             resolved_entry = entry.resolve()
             if resolved_entry.get_id() not in self.entries[resolved_entry.get_type()]:
-                raise KeyError('Alias ID %s (%s) refer to entry ID %s (%s) that is not in the datastore' % (entry.get_id(), entry.get_display_path(), resolved_entry.get_id(), resolved_entry.get_display_path()))
+                raise KeyError('Alias ID %s (%s) refer to entry ID %s (%s) that is not in the datastore' %
+                               (entry.get_id(), entry.get_display_path(), resolved_entry.get_id(), resolved_entry.get_display_path()))
 
         self.entries[entry.get_type()][entry.get_id()] = entry
         self.displaypath2idmap[entry.get_type()][entry.get_display_path()] = entry.get_id()
@@ -90,14 +92,14 @@ class Datastore:
             if entry_id in self.entries[entry_type]:
                 return self.entries[entry_type][entry_id]
         raise KeyError('Entry with ID %s not found in datastore' % entry_id)
-    
-    def get_entry_by_display_path(self, display_path:str) -> DatastoreEntry:
+
+    def get_entry_by_display_path(self, display_path: str) -> DatastoreEntry:
         for entry_type in EntryType:
             if display_path in self.displaypath2idmap[entry_type]:
                 entry_id = self.displaypath2idmap[entry_type][display_path]
                 if entry_id in self.entries[entry_type]:
                     return self.entries[entry_type][entry_id]
-        
+
         raise KeyError('Entry with display path %s not found in datastore' % display_path)
 
     def add_watch_callback(self, callback: WatchCallback):
@@ -128,14 +130,14 @@ class Datastore:
         # Mainly used to notify device handler that a new variable is to be polled
         for callback in self.global_watch_callbacks:
             callback(entry_id)
-        
+
         if isinstance(entry, DatastoreAliasEntry):
             self.start_watching(
-                entry_id = entry.resolve(), 
-                watcher = self.make_owner_from_alias_entry(entry),
-                value_change_callback = GenericCallback(self.alias_value_change_callback),
-                args = {'watching_entry' : entry}
-                )
+                entry_id=entry.resolve(),
+                watcher=self.make_owner_from_alias_entry(entry),
+                value_change_callback=GenericCallback(self.alias_value_change_callback),
+                args={'watching_entry': entry}
+            )
 
     def is_watching(self, entry: Union[DatastoreEntry, str], watcher: str) -> bool:
         entry_id = self.interpret_entry_id(entry)
@@ -201,7 +203,7 @@ class Datastore:
         entry = self.get_entry(entry_id)
         entry.set_value(value)
 
-    def update_target_value(self, entry_id: Union[DatastoreEntry, str], value: Any, callback:UpdateTargetRequestCallback) -> UpdateTargetRequest:
+    def update_target_value(self, entry_id: Union[DatastoreEntry, str], value: Any, callback: UpdateTargetRequestCallback) -> UpdateTargetRequest:
         entry_id = self.interpret_entry_id(entry_id)
         entry = self.get_entry(entry_id)
         return entry.update_target_value(value, callback=callback)
@@ -209,13 +211,13 @@ class Datastore:
     def get_watched_entries_id(self, entry_type: EntryType) -> List[str]:
         return list(self.watcher_map[entry_type].keys())
 
-    def make_owner_from_alias_entry(self, entry:DatastoreAliasEntry) -> str:
+    def make_owner_from_alias_entry(self, entry: DatastoreAliasEntry) -> str:
         return 'alias_' + entry.get_id()
 
     def alias_value_change_callback(self, owner: str, args: Any, entry: DatastoreEntry) -> None:
-        watching_entry:DatastoreAliasEntry = args['watching_entry']
+        watching_entry: DatastoreAliasEntry = args['watching_entry']
         watching_entry.set_value_internal(entry.get_value())
-    
+
     @classmethod
-    def is_rpv_path(cls, path:str) -> bool:
+    def is_rpv_path(cls, path: str) -> bool:
         return DatastoreRPVEntry.is_valid_path(path)

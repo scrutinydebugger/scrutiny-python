@@ -340,7 +340,7 @@ class TestDeviceHandler(unittest.TestCase):
 
                 elif state == 'read_memory':
                     value_updated = (vfloat32.get_value_change_timestamp() > init_memory_time + time_margin) and (vint64.get_value_change_timestamp() >
-                                                                                                       init_memory_time + time_margin) and (vbool.get_value_change_timestamp() > init_memory_time + time_margin)
+                                                                                                                  init_memory_time + time_margin) and (vbool.get_value_change_timestamp() > init_memory_time + time_margin)
 
                     if value_updated:
                         self.assertEqual(vfloat32.get_value(), d2f(3.1415926), 'round=%d' % round_completed)

@@ -42,7 +42,7 @@ class MemoryWriter:
 
     entry_being_updated: Optional[DatastoreEntry]
     request_of_entry_being_updated: Optional[Request]
-    target_update_request_being_processed:Optional[UpdateTargetRequest]
+    target_update_request_being_processed: Optional[UpdateTargetRequest]
     watched_entries: List[str]
     write_cursor: int
 

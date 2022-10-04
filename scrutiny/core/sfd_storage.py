@@ -31,10 +31,10 @@ class TempStorageWithAutoRestore:
 class SFDStorageManager():
 
     @classmethod
-    def clean_firmware_id(self, firmwareid:str) -> str:
+    def clean_firmware_id(self, firmwareid: str) -> str:
         if not isinstance(firmwareid, str):
             raise ValueError('Firmware ID must be a string')
-        
+
         return firmwareid.lower().strip()
 
     def __init__(self, folder):
@@ -55,16 +55,15 @@ class SFDStorageManager():
 
         return self.folder
 
-    def install(self, filename: str, ignore_exist:bool=False) -> FirmwareDescription:
+    def install(self, filename: str, ignore_exist: bool = False) -> FirmwareDescription:
         if not os.path.isfile(filename):
             raise ValueError('File "%s" does not exist' % (filename))
 
         sfd = FirmwareDescription(filename)
         self.install_sfd(sfd, ignore_exist=ignore_exist)
         return sfd
-        
-    
-    def install_sfd(self, sfd:FirmwareDescription, ignore_exist:bool=False) -> None:
+
+    def install_sfd(self, sfd: FirmwareDescription, ignore_exist: bool = False) -> None:
         firmware_id_ascii = self.clean_firmware_id(sfd.get_firmware_id_ascii())
         output_file = os.path.join(self.get_storage_dir(), firmware_id_ascii)
 

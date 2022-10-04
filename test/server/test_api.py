@@ -152,19 +152,19 @@ class TestAPI(unittest.TestCase):
         else:
             raise Exception('Missing cmd field in response')
 
-    def make_dummy_entries(self, n, entry_type=EntryType.Var, prefix='path', alias_bucket:List[DatastoreEntry]=[]) -> List[DatastoreEntry]:
-        
+    def make_dummy_entries(self, n, entry_type=EntryType.Var, prefix='path', alias_bucket: List[DatastoreEntry] = []) -> List[DatastoreEntry]:
+
         entries = []
         if entry_type == EntryType.Alias:
             assert len(alias_bucket) >= n
             for entry in alias_bucket:
                 assert not isinstance(entry, DatastoreAliasEntry)
-        
+
         for i in range(n):
             name = '%s_%d' % (prefix, i)
             if entry_type == EntryType.Var:
                 dummy_var = Variable('dummy', vartype=EmbeddedDataType.float32, path_segments=[
-                             'a', 'b', 'c'], location=0x12345678, endianness=Endianness.Little)
+                    'a', 'b', 'c'], location=0x12345678, endianness=Endianness.Little)
                 entry = DatastoreVariableEntry(name, variable_def=dummy_var)
             elif entry_type == EntryType.Alias:
                 entry = DatastoreAliasEntry(Alias(name, target='none'), refentry=alias_bucket[i])

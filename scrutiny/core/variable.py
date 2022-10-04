@@ -85,11 +85,11 @@ class VariableEnum:
             raise Exception('Duplicate entry for enum %s. %s can either be %s or %s' % (self.name, name, self.vals[name], value))
 
         self.vals[name] = value
-    
+
     def get_name(self) -> str:
         return self.name
 
-    def get_value(self, name:str) -> int:
+    def get_value(self, name: str) -> int:
         if name not in self.vals:
             raise Exception('%s is not a valid name for enum %s' % (name, self.name))
         return self.vals[name]

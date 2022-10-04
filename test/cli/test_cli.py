@@ -178,25 +178,25 @@ class TestCLI(unittest.TestCase):
             alias_file_2 = get_artifact(os.path.join('sfd_material', 'alias2.json'))
             shutil.copyfile(varmap_file, os.path.join(tempdirname, 'varmap.json'))
             cli = CLI()
-            
-            cli.run(['add-alias', tempdirname, '--file',  alias_file_1], except_failed=True)
-            cli.run(['add-alias', tempdirname, '--file',  alias_file_2], except_failed=True)
-            
-            cli.run(['add-alias',tempdirname, 
-            '--fullpath', '/alias/command_line_added',
-            '--target', '/path1/path2/some_int32',
-            '--gain', '5.2',
-            '--offset', '2.5',
-            '--min', '0',
-            '--max', '100'
-            ], except_failed=True)
+
+            cli.run(['add-alias', tempdirname, '--file', alias_file_1], except_failed=True)
+            cli.run(['add-alias', tempdirname, '--file', alias_file_2], except_failed=True)
+
+            cli.run(['add-alias', tempdirname,
+                     '--fullpath', '/alias/command_line_added',
+                     '--target', '/path1/path2/some_int32',
+                     '--gain', '5.2',
+                     '--offset', '2.5',
+                     '--min', '0',
+                     '--max', '100'
+                     ], except_failed=True)
 
             with open(os.path.join(tempdirname, 'alias.json')) as f:
                 alias_dict = json.load(f)
-            
+
             with open(alias_file_1) as f:
                 alias1_dict = json.load(f)
-            
+
             with open(alias_file_2) as f:
                 alias2_dict = json.load(f)
 
@@ -205,13 +205,13 @@ class TestCLI(unittest.TestCase):
                 for k2 in alias1_dict[k]:
                     self.assertIn(k2, alias_dict[k])
                     self.assertEqual(alias_dict[k][k2], alias1_dict[k][k2])
-            
+
             for k in alias2_dict:
                 self.assertIn(k, alias_dict)
                 for k2 in alias2_dict[k]:
                     self.assertIn(k2, alias_dict[k])
                     self.assertEqual(alias_dict[k][k2], alias2_dict[k][k2])
-            
+
             self.assertIn('/alias/command_line_added', alias_dict)
             entry = alias_dict['/alias/command_line_added']
             self.assertEqual(entry['target'], "/path1/path2/some_int32")
@@ -231,14 +231,14 @@ class TestCLI(unittest.TestCase):
             self.assertNotIn('/alias/command_line_added', aliases)
 
             cli = CLI()
-            cli.run(['add-alias', target_filename, 
-            '--fullpath', '/alias/command_line_added',
-            '--target', '/path1/path2/some_int32',
-            '--gain', '5.2',
-            '--offset', '2.5',
-            '--min', '0',
-            '--max', '100'
-            ])
+            cli.run(['add-alias', target_filename,
+                     '--fullpath', '/alias/command_line_added',
+                     '--target', '/path1/path2/some_int32',
+                     '--gain', '5.2',
+                     '--offset', '2.5',
+                     '--min', '0',
+                     '--max', '100'
+                     ])
 
             sfd = FirmwareDescription(target_filename)
             aliases = sfd.get_aliases()
@@ -260,14 +260,14 @@ class TestCLI(unittest.TestCase):
             del sfd
 
             cli = CLI()
-            cli.run(['add-alias', firmwareid, 
-            '--fullpath', '/alias/command_line_added',
-            '--target', '/rpv/x123',
-            '--gain', '5.2',
-            '--offset', '2.5',
-            '--min', '0',
-            '--max', '100'
-            ])
+            cli.run(['add-alias', firmwareid,
+                     '--fullpath', '/alias/command_line_added',
+                     '--target', '/rpv/x123',
+                     '--gain', '5.2',
+                     '--offset', '2.5',
+                     '--min', '0',
+                     '--max', '100'
+                     ])
 
             sfd = SFDStorage.get(firmwareid)
             aliases = sfd.get_aliases()

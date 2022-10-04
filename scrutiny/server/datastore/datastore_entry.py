@@ -21,6 +21,8 @@ from scrutiny.core.codecs import *
 from typing import Any, Optional, Dict, Callable, Tuple, List
 from scrutiny.core.typehints import GenericCallback
 from scrutiny.core.alias import Alias
+
+
 class ValueChangeCallback():
     fn: GenericCallback
     owner: str
@@ -45,7 +47,8 @@ class ValueChangeCallback():
 
 
 class UpdateTargetRequestCallback(GenericCallback):
-    fn:Callable[[bool, 'DatastoreEntry', float], None]
+    fn: Callable[[bool, 'DatastoreEntry', float], None]
+
 
 class UpdateTargetRequest:
     value: Any
@@ -53,10 +56,10 @@ class UpdateTargetRequest:
     completed: bool
     success: Optional[bool]
     complete_timestamp: Optional[float]
-    completion_callback:Optional[UpdateTargetRequestCallback]
-    entry:'DatastoreEntry'
+    completion_callback: Optional[UpdateTargetRequestCallback]
+    entry: 'DatastoreEntry'
 
-    def __init__(self, value: Any, entry:'DatastoreEntry', callback:Optional[UpdateTargetRequestCallback]=None):
+    def __init__(self, value: Any, entry: 'DatastoreEntry', callback: Optional[UpdateTargetRequestCallback] = None):
         self.value = value
         self.request_timestamp = time.time()
         self.completed = False
@@ -71,10 +74,9 @@ class UpdateTargetRequest:
         self.complete_timestamp = time.time()
         if success:
             self.entry.set_last_target_update_timestamp(self.complete_timestamp)
-        
+
         if self.completion_callback is not None:
             self.completion_callback(success, self.entry, self.complete_timestamp)
-
 
     def is_complete(self) -> bool:
         return self.completed
@@ -87,10 +89,9 @@ class UpdateTargetRequest:
 
     def get_completion_timestamp(self) -> Optional[float]:
         return self.complete_timestamp
-    
+
     def get_value(self) -> Any:
         return self.value
-
 
 
 class DatastoreEntry:
@@ -100,16 +101,15 @@ class DatastoreEntry:
     display_path: str
     value: Any
     last_target_update_timestamp: Optional[float]
-    target_update_request_queue:Queue
+    target_update_request_queue: Queue
     last_value_update_timestamp: float
-
 
     def __init__(self, display_path: str):
         display_path = display_path.strip()
         self.value_change_callback = {}
         self.target_update_callback = {}
         self.entry_id = uuid.uuid4().hex
-        self.display_path = display_path 
+        self.display_path = display_path
         self.last_target_update_timestamp = None
         self.last_value_update_timestamp = time.time()
         self.target_update_request_queue = Queue()
@@ -181,11 +181,11 @@ class DatastoreEntry:
 
     def get_last_target_update_timestamp(self) -> Optional[float]:
         return self.last_target_update_timestamp
-    
-    def set_last_target_update_timestamp(self, val:float) -> None:
+
+    def set_last_target_update_timestamp(self, val: float) -> None:
         self.last_target_update_timestamp = val
 
-    def update_target_value(self, value: Any, callback:Optional[UpdateTargetRequestCallback]=None) -> UpdateTargetRequest:
+    def update_target_value(self, value: Any, callback: Optional[UpdateTargetRequestCallback] = None) -> UpdateTargetRequest:
         update_request = UpdateTargetRequest(value, entry=self, callback=callback)
         try:
             self.target_update_request_queue.put_nowait(update_request)
@@ -253,9 +253,9 @@ class DatastoreVariableEntry(DatastoreEntry):
 class DatastoreAliasEntry(DatastoreEntry):
 
     refentry: DatastoreEntry
-    aliasdef:Alias
+    aliasdef: Alias
 
-    def __init__(self, aliasdef:Alias, refentry: DatastoreEntry):
+    def __init__(self, aliasdef: Alias, refentry: DatastoreEntry):
         super().__init__(display_path=aliasdef.get_fullpath())
         self.refentry = refentry
         self.aliasdef = aliasdef
@@ -285,31 +285,31 @@ class DatastoreAliasEntry(DatastoreEntry):
 
     def decode(self, data: bytes) -> Encodable:
         return self.refentry.decode(data)
-    
-    def update_target_value(self, value: Any, callback:UpdateTargetRequestCallback=None) -> UpdateTargetRequest:
+
+    def update_target_value(self, value: Any, callback: UpdateTargetRequestCallback = None) -> UpdateTargetRequest:
         alias_request = super().update_target_value(value, callback)
         new_value = self.aliasdef.compute_user_to_device(value)
         nested_callback = UpdateTargetRequestCallback(functools.partial(self.alias_target_update_callback, alias_request))
         new_request = self.refentry.update_target_value(new_value, callback=nested_callback)
-        if alias_request.is_complete(): # Edge case if failed to enqueue request.
+        if alias_request.is_complete():  # Edge case if failed to enqueue request.
             new_request.complete(success=alias_request.is_complete())
         return alias_request
 
-    def alias_target_update_callback(self, alias_request: UpdateTargetRequest, success:bool, entry:DatastoreEntry, timestamp:float):
+    def alias_target_update_callback(self, alias_request: UpdateTargetRequest, success: bool, entry: DatastoreEntry, timestamp: float):
         # entry is a var or a RPV
         alias_request.complete(success=success)
 
-
-
     # The function belows should not be used on a alias
+
     def set_value(self, *args, **kwargs):
         # Just to make explicit that this is not supposed to happen
         raise NotImplementedError('Cannot set value on a Alias variable')
 
-    ## These function are meant to be used internally to make the alias mechanism work. Not to be used by a user.
-    def set_value_internal(self, value:Any):
-        new_value = self.aliasdef.compute_device_to_user(value)           
+    # These function are meant to be used internally to make the alias mechanism work. Not to be used by a user.
+    def set_value_internal(self, value: Any):
+        new_value = self.aliasdef.compute_device_to_user(value)
         DatastoreEntry.set_value(self, new_value)
+
 
 class DatastoreRPVEntry(DatastoreEntry):
 
@@ -343,13 +343,13 @@ class DatastoreRPVEntry(DatastoreEntry):
         return self.rpv
 
     @classmethod
-    def make_path(cls, id:int) -> str:
+    def make_path(cls, id: int) -> str:
         return '/rpv/x%04X' % id
-    
+
     @classmethod
-    def is_valid_path(self, path:str) -> bool:
+    def is_valid_path(self, path: str) -> bool:
         return True if re.match(r'^\/?rpv\/x\d+\/?$', path, re.IGNORECASE) else False
 
     @classmethod
-    def make(cls, rpv:RuntimePublishedValue) -> 'DatastoreRPVEntry':
+    def make(cls, rpv: RuntimePublishedValue) -> 'DatastoreRPVEntry':
         return DatastoreRPVEntry(display_path=cls.make_path(rpv.id), rpv=rpv)

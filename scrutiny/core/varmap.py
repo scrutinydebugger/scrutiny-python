@@ -222,8 +222,8 @@ class VarMap:
             bitoffset=self.get_bitoffset(vardef),
             enum=self.get_enum(vardef)
         )
-    
-    def has_var(self, fullname:str) -> bool:
+
+    def has_var(self, fullname: str) -> bool:
         return fullname in self.variables
 
     def make_segments(self, fullname: str) -> Tuple[List[str], str]:

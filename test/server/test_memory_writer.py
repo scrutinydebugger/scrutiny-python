@@ -160,7 +160,7 @@ class TestMemoryWriterBasicReadOperation(unittest.TestCase):
             update_time = entries[i].get_last_target_update_timestamp()
             self.assertIsNotNone(update_time, 'i=%d' % i)
             self.assertGreaterEqual(update_time, time_start, 'i=%d' % i)
-    
+
     def test_write_burst_do_all(self):
         # This test makes write request in burst (faster than memory writer can process them) and we
         # expect the memory writer to do them all in order and not skip any
@@ -187,8 +187,8 @@ class TestMemoryWriterBasicReadOperation(unittest.TestCase):
 
         # Request a data write on  all data store entries
         entry.set_value(0)
-        vals = [100,200,300]
-        
+        vals = [100, 200, 300]
+
         # We do burst writes. We expect the memory writer to do them all in order. No skip
         for val in vals:
             entry.update_target_value(val)
@@ -220,7 +220,6 @@ class TestMemoryWriterBasicReadOperation(unittest.TestCase):
             update_time = entry.get_last_target_update_timestamp()
             self.assertIsNotNone(update_time, 'val=%d' % val)
             self.assertGreaterEqual(update_time, time_start, 'val=%d' % val)
-
 
     # Write a single datastore entry. Make sure the request is good.
 
