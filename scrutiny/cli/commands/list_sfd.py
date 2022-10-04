@@ -30,11 +30,19 @@ class PrintableSFDEntry:
         self.project_name = 'No Name'
         self.version = 'No version'
         self.author = 'No author'
+        self.padding_target_len = 0
+
+    def set_padding_target_len(self, padding_target_len=0):
+        self.padding_target_len = padding_target_len
+
+    def get_len_for_padding(self):
+        return (len(self.project_name) + len(self.version) + 1)
 
     def __str__(self):
+        padding_len = max(0, self.padding_target_len - self.get_len_for_padding()) + 3
         create_time_str = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(self.create_time))
-        line = '%s %s (%s)\tScrutiny %s \t Created on %s' % (self.project_name, self.version,
-                                                             self.firmware_id, self.scrutiny_version, create_time_str)
+        line = '  %s %s%s (%s)\tScrutiny %s \t Created on %s' % (self.project_name, self.version, ' ' * padding_len,
+                                                                 self.firmware_id, self.scrutiny_version, create_time_str)
         return line
 
 
@@ -57,6 +65,7 @@ class ListSFD(BaseCommand):
         sfd_list: List[PrintableSFDEntry] = []
         args = self.parser.parse_args(self.args)
         firmware_id_list = SFDStorage.list()
+        padding = 0
         for firmware_id in firmware_id_list:
             try:
                 metadata = SFDStorage.get_metadata(firmware_id)
@@ -81,6 +90,8 @@ class ListSFD(BaseCommand):
                 except:
                     pass
 
+                padding = max(padding, entry.get_len_for_padding())
+
                 sfd_list.append(entry)
 
             except Exception as e:
@@ -92,6 +103,7 @@ class ListSFD(BaseCommand):
         sfd_list.sort(key=lambda x: (x.project_name, x.version, x.create_time))
 
         for entry in sfd_list:
+            entry.set_padding_target_len(padding)
             print(entry)
 
         return 0

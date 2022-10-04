@@ -15,7 +15,7 @@ import traceback
 from copy import copy
 
 from scrutiny.server.api import API, APIConfig
-from scrutiny.server.datastore import Datastore
+from scrutiny.server.datastore.datastore import Datastore
 from scrutiny.server.device.device_handler import DeviceHandler, DeviceHandlerConfig
 from scrutiny.server.active_sfd_handler import ActiveSFDHandler
 

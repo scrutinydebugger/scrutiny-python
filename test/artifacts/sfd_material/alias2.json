@@ -1,0 +1,5 @@
+{
+    "/alias/some_float64" : {
+        "target": "/path1/path2/some_float64"
+    }
+}

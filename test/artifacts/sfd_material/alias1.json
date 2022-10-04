@@ -1,0 +1,12 @@
+{
+    "/alias/some_float32" : {
+        "target": "/path1/path2/some_float32",
+        "gain" : 2.0,
+        "offset" : 1.0,
+        "min"  : 0,
+        "max" : 100
+    },
+    "/alias/some_enum" : {
+        "target": "/path1/path2/some_uint32"
+    }
+}

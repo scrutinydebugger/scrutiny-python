@@ -28,7 +28,7 @@ class VariableEntry(TypedDict, total=False):
     addr: int
     bitoffset: int
     bitsize: int
-    enum_id: int
+    enum: int
 
 
 # TODO : This class requires more work and unit tests
@@ -173,7 +173,7 @@ class VarMap:
                 self.enums_to_id_map[enum] = self.next_enum_id
                 self.next_enum_id += 1
 
-            entry['enum_id'] = self.enums_to_id_map[enum]
+            entry['enum'] = self.enums_to_id_map[enum]
 
         self.variables[fullname] = entry
 
@@ -223,6 +223,9 @@ class VarMap:
             enum=self.get_enum(vardef)
         )
 
+    def has_var(self, fullname: str) -> bool:
+        return fullname in self.variables
+
     def make_segments(self, fullname: str) -> Tuple[List[str], str]:
         pieces = fullname.split('/')
         segments = [segment for segment in pieces[0:-1] if segment]
@@ -247,7 +250,7 @@ class VarMap:
         return vardef['addr']
 
     def get_var_def(self, fullname: str) -> VariableEntry:
-        if fullname not in self.variables:
+        if not self.has_var(fullname):
             raise ValueError('%s not in Variable Decsription File' % fullname)
         return self.variables[fullname]
 
@@ -262,10 +265,10 @@ class VarMap:
         return None
 
     def get_enum(self, vardef: VariableEntry) -> Optional[VariableEnum]:
-        if 'enum_id' in vardef:
-            enum_id = str(vardef['enum_id'])
+        if 'enum' in vardef:
+            enum_id = str(vardef['enum'])
             if enum_id not in self.enums:
-                raise Exception("Unknown enum_id %s" % enum_id)
+                raise Exception("Unknown enum ID %s" % enum_id)
             enum_def = self.enums[enum_id]
             return VariableEnum.from_def(enum_def)
         return None

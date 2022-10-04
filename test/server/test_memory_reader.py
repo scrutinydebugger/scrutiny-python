@@ -12,8 +12,9 @@ import random
 from dataclasses import dataclass
 from sortedcontainers import SortedSet
 
-from scrutiny.server.datastore import Datastore, DatastoreVariableEntry, DatastoreRPVEntry
-from scrutiny.server.datastore.datastore_entry import DatastoreEntry, EntryType
+from scrutiny.server.datastore.datastore import Datastore
+from scrutiny.server.datastore.datastore_entry import *
+from scrutiny.server.datastore.entry_type import EntryType
 from scrutiny.server.device.request_generator.memory_reader import MemoryReader, DataStoreEntrySortableByAddress, DataStoreEntrySortableByRpvId
 from scrutiny.server.device.request_dispatcher import RequestDispatcher
 from scrutiny.server.protocol import Protocol, Request, Response
@@ -795,10 +796,10 @@ class TestMemoryAndRPVReader(unittest.TestCase):
         reader.start()
 
         for entry in rpv_entries:
-            self.datastore.start_watching(entry, 'unittest', value_update_callback=self.update_callback)
+            self.datastore.start_watching(entry, 'unittest', value_change_callback=self.update_callback)
 
         for entry in var_entries:
-            self.datastore.start_watching(entry, 'unittest', value_update_callback=self.update_callback)
+            self.datastore.start_watching(entry, 'unittest', value_change_callback=self.update_callback)
 
         debug = False
         for i in range(20):

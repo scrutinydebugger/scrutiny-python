@@ -10,7 +10,9 @@
 import unittest
 import time
 
-from scrutiny.server.datastore import *
+from scrutiny.server.datastore.datastore import Datastore
+from scrutiny.server.datastore.datastore_entry import *
+from scrutiny.server.datastore.entry_type import EntryType
 from scrutiny.server.device.request_generator.memory_writer import MemoryWriter
 from scrutiny.server.device.request_dispatcher import RequestDispatcher
 from scrutiny.server.protocol import Protocol
@@ -155,9 +157,69 @@ class TestMemoryWriterBasicReadOperation(unittest.TestCase):
         # Make sure all entries has been updated. We check the update timestamp and the data itself
         for i in range(ndouble):
             self.assertFalse(entries[i].has_pending_target_update(), 'i=%d' % i)
-            update_time = entries[i].get_last_update_timestamp()
+            update_time = entries[i].get_last_target_update_timestamp()
             self.assertIsNotNone(update_time, 'i=%d' % i)
             self.assertGreaterEqual(update_time, time_start, 'i=%d' % i)
+
+    def test_write_burst_do_all(self):
+        # This test makes write request in burst (faster than memory writer can process them) and we
+        # expect the memory writer to do them all in order and not skip any
+
+        address = 0x1000
+        ds = Datastore()
+        entry = list(make_dummy_var_entries(address=address, n=1, vartype=EmbeddedDataType.float64))[0]
+        ds.add_entry(entry)
+        dispatcher = RequestDispatcher()
+
+        protocol = Protocol(1, 0)
+        protocol.set_address_size_bits(32)
+        writer = MemoryWriter(protocol, dispatcher=dispatcher, datastore=ds, request_priority=0)
+        writer.set_max_request_payload_size(1024)  # Will require 4 request
+        writer.set_max_response_payload_size(1024)  # big enough for all of them
+        writer.start()
+
+        ds.start_watching(entry, 'unittest')
+
+        # Initial check to make sure no request is pending
+        writer.process()
+        dispatcher.process()
+        self.assertIsNone(dispatcher.pop_next())
+
+        # Request a data write on  all data store entries
+        entry.set_value(0)
+        vals = [100, 200, 300]
+
+        # We do burst writes. We expect the memory writer to do them all in order. No skip
+        for val in vals:
+            entry.update_target_value(val)
+
+        time_start = time.time()
+        time.sleep(0.010)
+        for val in vals:
+            writer.process()
+            dispatcher.process()
+
+            record = dispatcher.pop_next()
+            self.assertIsNotNone(record, 'val=%d' % val)  # Make sure there is something to send
+
+            self.assertEqual(record.request.command, MemoryControl, 'val=%d' % val)
+            self.assertEqual(MemoryControl.Subfunction(record.request.subfn), MemoryControl.Subfunction.Write, 'val=%d' % val)
+
+            request_data = cast(protocol_typing.Request.MemoryControl.Write, protocol.parse_request(record.request))
+
+            # Emulate the device response
+            block_in_response = []
+            for block in request_data['blocks_to_write']:
+                block_in_response.append((block['address'], len(block['data'])))
+                self.assertEqual(len(block['data']), 8)     # float64 = 8 bytes
+
+            response = protocol.respond_write_memory_blocks(block_in_response)
+            record.complete(success=True, response=response)    # This should trigger the datastore write callback
+
+            self.assertEqual(entry.get_value(), val)
+            update_time = entry.get_last_target_update_timestamp()
+            self.assertIsNotNone(update_time, 'val=%d' % val)
+            self.assertGreaterEqual(update_time, time_start, 'val=%d' % val)
 
     # Write a single datastore entry. Make sure the request is good.
 
@@ -260,7 +322,7 @@ class TestMemoryWriterBasicReadOperation(unittest.TestCase):
         # Make sure all entries has been updated. We check the update timestamp and the data itself
         for i in range(ndouble):
             self.assertFalse(entries[i].has_pending_target_update(), 'i=%d' % i)
-            update_time = entries[i].get_last_update_timestamp()
+            update_time = entries[i].get_last_target_update_timestamp()
             self.assertIsNotNone(update_time, 'i=%d' % i)
             self.assertGreaterEqual(update_time, time_start, 'i=%d' % i)
             self.assertEqual(entries[i].get_value(), i)
@@ -330,7 +392,7 @@ class TestMemoryWriterBasicReadOperation(unittest.TestCase):
         # Make sure all entries has been updated. We check the update timestamp and the data itself
         for i in range(len(all_entries)):
             self.assertFalse(all_entries[i].has_pending_target_update(), 'i=%d' % i)
-            update_time = all_entries[i].get_last_update_timestamp()
+            update_time = all_entries[i].get_last_target_update_timestamp()
             self.assertIsNotNone(update_time, 'i=%d' % i)
             self.assertGreaterEqual(update_time, time_start, 'i=%d' % i)
             self.assertEqual(all_entries[i].get_value(), value_dict[all_entries[i].get_id()])

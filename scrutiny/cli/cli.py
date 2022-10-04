@@ -17,8 +17,9 @@ from scrutiny.cli.commands import *
 
 class CLI:
 
-    def __init__(self, workdir='.'):
+    def __init__(self, workdir='.', default_log_level='info'):
         self.workdir = workdir
+        self.default_log_level = default_log_level
 
         self.command_list = get_all_commands()  # comes from commands module
         self.parser = argparse.ArgumentParser(
@@ -62,12 +63,14 @@ class CLI:
 
         args, command_cargs = self.parser.parse_known_args(args)
         if args.command not in [cls.get_name() for cls in self.command_list]:
+            if except_failed:
+                raise Exception('Unknown command %s' % args.command)
             self.parser.print_help()
             return -1
 
         error = None
         try:
-            logging_level_str = args.loglevel if args.loglevel else 'info'
+            logging_level_str = args.loglevel if args.loglevel else self.default_log_level
             logging_level = getattr(logging, logging_level_str.upper())
             format_string = '[%(levelname)s] %(message)s'
             logging.basicConfig(level=logging_level, filename=args.logfile, format=format_string)

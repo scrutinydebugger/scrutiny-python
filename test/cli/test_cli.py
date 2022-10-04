@@ -17,11 +17,13 @@ import shutil
 from io import StringIO
 import sys
 from scrutiny.core.varmap import VarMap
+from scrutiny.core.firmware_description import FirmwareDescription
 from scrutiny.core.sfd_storage import SFDStorage
 from test.artifacts import get_artifact
 from test import SkipOnException
 from scrutiny.cli import CLI
 from scrutiny.exceptions import EnvionmentNotSetUpException
+from scrutiny.server.datastore.entry_type import EntryType
 
 
 class RedirectStdout:
@@ -128,6 +130,7 @@ class TestCLI(unittest.TestCase):
                 demo_bin = get_artifact('demobin.elf')
                 temp_bin = os.path.join(tempdirname, 'demobin.elf')
                 sfd_name = os.path.join(tempdirname, 'myfile.sfd')
+                alias_file_1 = get_artifact(os.path.join('sfd_material', 'alias1.json'))
                 shutil.copyfile(demo_bin, temp_bin)
 
                 with open(get_artifact('demobin_firmwareid')) as f:
@@ -137,6 +140,7 @@ class TestCLI(unittest.TestCase):
                         '--author', 'unittest', '--output', tempdirname], except_failed=True)
                 cli.run(['get-firmware-id', temp_bin, '--output', tempdirname, '--apply'], except_failed=True)
                 cli.run(['elf2varmap', temp_bin, '--output', tempdirname], except_failed=True)
+                cli.run(['add-alias', tempdirname, '--file', alias_file_1], except_failed=True)
                 cli.run(['uninstall-sfd', demobin_firmware_id, '--quiet'], except_failed=True)
                 self.assertFalse(SFDStorage.is_installed(demobin_firmware_id))
 
@@ -166,3 +170,113 @@ class TestCLI(unittest.TestCase):
 
             SFDStorage.uninstall(sfd1.get_firmware_id_ascii())
             SFDStorage.uninstall(sfd2.get_firmware_id_ascii())
+
+    def test_append_alias_to_sfd_folder(self):
+        with tempfile.TemporaryDirectory() as tempdirname:
+            varmap_file = get_artifact(os.path.join('sfd_material', 'varmap.json'))
+            alias_file_1 = get_artifact(os.path.join('sfd_material', 'alias1.json'))
+            alias_file_2 = get_artifact(os.path.join('sfd_material', 'alias2.json'))
+            shutil.copyfile(varmap_file, os.path.join(tempdirname, 'varmap.json'))
+            cli = CLI()
+
+            cli.run(['add-alias', tempdirname, '--file', alias_file_1], except_failed=True)
+            cli.run(['add-alias', tempdirname, '--file', alias_file_2], except_failed=True)
+
+            cli.run(['add-alias', tempdirname,
+                     '--fullpath', '/alias/command_line_added',
+                     '--target', '/path1/path2/some_int32',
+                     '--gain', '5.2',
+                     '--offset', '2.5',
+                     '--min', '0',
+                     '--max', '100'
+                     ], except_failed=True)
+
+            with open(os.path.join(tempdirname, 'alias.json')) as f:
+                alias_dict = json.load(f)
+
+            with open(alias_file_1) as f:
+                alias1_dict = json.load(f)
+
+            with open(alias_file_2) as f:
+                alias2_dict = json.load(f)
+
+            for k in alias1_dict:
+                self.assertIn(k, alias_dict)
+                for k2 in alias1_dict[k]:
+                    self.assertIn(k2, alias_dict[k])
+                    self.assertEqual(alias_dict[k][k2], alias1_dict[k][k2])
+
+            for k in alias2_dict:
+                self.assertIn(k, alias_dict)
+                for k2 in alias2_dict[k]:
+                    self.assertIn(k2, alias_dict[k])
+                    self.assertEqual(alias_dict[k][k2], alias2_dict[k][k2])
+
+            self.assertIn('/alias/command_line_added', alias_dict)
+            entry = alias_dict['/alias/command_line_added']
+            self.assertEqual(entry['target'], "/path1/path2/some_int32")
+            self.assertEqual(entry['gain'], 5.2)
+            self.assertEqual(entry['offset'], 2.5)
+            self.assertEqual(entry['min'], 0)
+            self.assertEqual(entry['max'], 100)
+
+    def test_append_alias_to_sfd_file(self):
+        with tempfile.TemporaryDirectory() as tempdirname:
+            sfd_filename = get_artifact('test_sfd_1.sfd')
+            target_filename = os.path.join(tempdirname, 'test_sfd_1.sfd')
+            shutil.copy(sfd_filename, target_filename)
+
+            sfd = FirmwareDescription(target_filename)
+            aliases = sfd.get_aliases()
+            self.assertNotIn('/alias/command_line_added', aliases)
+
+            cli = CLI()
+            cli.run(['add-alias', target_filename,
+                     '--fullpath', '/alias/command_line_added',
+                     '--target', '/path1/path2/some_int32',
+                     '--gain', '5.2',
+                     '--offset', '2.5',
+                     '--min', '0',
+                     '--max', '100'
+                     ])
+
+            sfd = FirmwareDescription(target_filename)
+            aliases = sfd.get_aliases()
+
+            self.assertIn('/alias/command_line_added', aliases)
+            alias = aliases['/alias/command_line_added']
+            self.assertEqual(alias.get_fullpath(), '/alias/command_line_added')
+            self.assertEqual(alias.get_target(), '/path1/path2/some_int32')
+            self.assertEqual(alias.get_target_type(), EntryType.Var)
+            self.assertEqual(alias.get_gain(), 5.2)
+            self.assertEqual(alias.get_offset(), 2.5)
+            self.assertEqual(alias.get_min(), 0.0)
+            self.assertEqual(alias.get_max(), 100.0)
+
+    def test_append_alias_to_install_sfd_by_id(self):
+        with SFDStorage.use_temp_folder():
+            sfd = SFDStorage.install(get_artifact('test_sfd_1.sfd'))
+            firmwareid = sfd.get_firmware_id_ascii()
+            del sfd
+
+            cli = CLI()
+            cli.run(['add-alias', firmwareid,
+                     '--fullpath', '/alias/command_line_added',
+                     '--target', '/rpv/x123',
+                     '--gain', '5.2',
+                     '--offset', '2.5',
+                     '--min', '0',
+                     '--max', '100'
+                     ])
+
+            sfd = SFDStorage.get(firmwareid)
+            aliases = sfd.get_aliases()
+            self.assertIn('/alias/command_line_added', aliases)
+            alias = aliases['/alias/command_line_added']
+            self.assertEqual(alias.get_fullpath(), '/alias/command_line_added')
+            self.assertEqual(alias.get_target(), '/rpv/x123')
+            self.assertEqual(alias.get_target_type(), EntryType.RuntimePublishedValue)
+            self.assertEqual(alias.get_gain(), 5.2)
+            self.assertEqual(alias.get_offset(), 2.5)
+            self.assertEqual(alias.get_min(), 0.0)
+            self.assertEqual(alias.get_max(), 100.0)

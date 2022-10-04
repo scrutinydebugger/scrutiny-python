@@ -294,6 +294,21 @@
         },
         "scrutiny/server/api/typing.py": {
             "docstring": "Mypy typing information for API"
+        },
+        "test/core/test_sfd.py": {
+            "docstring": "Run some test on the Firmware Description class meant to identify a firmware"
+        },
+        "scrutiny/cli/commands/add_alias.py": {
+            "docstring": "Defines the add-alias command used to embed an alias file into an SFD file in the making"
+        },
+        "test/core/test_alias.py": {
+            "docstring": "Test Alias basic features"
+        },
+        "scrutiny/core/alias.py": {
+            "docstring": "Class that contains the definition of an alias."
+        },
+        "scrutiny/server/datastore/entry_type.py": {
+            "docstring": "Type of datastore entry."
         }
     }
 }

@@ -1,0 +1,51 @@
+{
+    "endianness": "little",
+    "type_map": {
+        "0": {
+            "name": "int",
+            "type": "sint32"
+        },
+        "1": {
+            "name": "unsigned int",
+            "type": "uint32"
+        },
+        "2": {
+            "name": "float",
+            "type": "float32"
+        },
+        "3": {
+            "name": "double",
+            "type": "float64"
+        }
+    },
+    "variables": {
+        "/path1/path2/some_int32": {
+            "type_id": "0",
+            "addr": 1000
+        },
+        "/path1/path2/some_uint32": {
+            "type_id": "1",
+            "addr": 1004,
+            "enum": "0"
+        },
+        "/path1/path2/some_float32": {
+            "type_id": "2",
+            "addr": 1008
+        },
+        "/path1/path2/some_float64": {
+            "type_id": "3",
+            "addr": 1012
+        }
+    },
+    "enums": {
+        "0": {
+            "name": "EnumA",
+            "values": {
+                "eVal1": 0,
+                "eVal2": 1,
+                "eVal3": 100,
+                "eVal4": 101 
+            }
+        }
+    }
+}

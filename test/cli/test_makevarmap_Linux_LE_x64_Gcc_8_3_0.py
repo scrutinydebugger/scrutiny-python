@@ -71,7 +71,7 @@ class TestMakeVarMap_LinuxLEx64_Gcc8_3_0(unittest.TestCase):
     def assert_is_enum(self, v):
         self.assertIsNotNone(v.enum)
 
-    def assert_has_enum(self, v, name, value):
+    def assert_has_enum(self, v, name: str, value: int):
         self.assert_is_enum(v)
         value2 = v.enum.get_value(name)
         self.assertIsNotNone(value2)

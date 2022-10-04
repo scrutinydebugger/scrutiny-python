@@ -7,7 +7,7 @@
 #
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 
-from scrutiny.server.datastore import DatastoreEntry
+from scrutiny.server.datastore.datastore_entry import DatastoreEntry
 
 from typing import List
 

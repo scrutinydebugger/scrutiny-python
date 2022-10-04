@@ -7,6 +7,7 @@
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 
 import struct
+import logging
 from scrutiny.core.basic_types import Endianness, EmbeddedDataType
 from scrutiny.core.codecs import Codecs, Encodable
 from typing import Dict, Union, List, Literal, Optional, TypedDict, Any, Tuple
@@ -72,7 +73,6 @@ class VariableEnumDef(TypedDict):
 
 
 class VariableEnum:
-
     name: str
     vals: Dict[str, int]
 
@@ -82,13 +82,16 @@ class VariableEnum:
 
     def add_value(self, name: str, value: int) -> None:
         if name in self.vals and self.vals[name] != value:
-            raise Exception('Duplicate entry for enum %s. %s can either be %s or %s' % (self.name, value, self.vals[name], value))
+            raise Exception('Duplicate entry for enum %s. %s can either be %s or %s' % (self.name, name, self.vals[name], value))
 
         self.vals[name] = value
 
+    def get_name(self) -> str:
+        return self.name
+
     def get_value(self, name: str) -> int:
         if name not in self.vals:
-            raise Exception('%s is not a valid value for enum %s' % (name, self.name))
+            raise Exception('%s is not a valid name for enum %s' % (name, self.name))
         return self.vals[name]
 
     def get_def(self) -> VariableEnumDef:

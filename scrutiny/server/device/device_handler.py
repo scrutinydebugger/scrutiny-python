@@ -31,7 +31,7 @@ from scrutiny.server.device.request_generator.memory_writer import MemoryWriter
 from scrutiny.server.device.device_info import DeviceInfo
 
 from scrutiny.server.tools import Timer
-from scrutiny.server.datastore import Datastore
+from scrutiny.server.datastore.datastore import Datastore
 from scrutiny.server.device.links import AbstractLink, LinkConfig
 from scrutiny.core.firmware_id import PLACEHOLDER as DEFAULT_FIRMWARE_ID
 
@@ -485,7 +485,7 @@ class DeviceHandler:
                 assert self.device_info is not None
                 assert self.device_info.runtime_published_values is not None
                 for rpv in self.device_info.runtime_published_values:
-                    self.datastore.add_entry(DatastoreRPVEntry(display_path='/rpv/x%04x' % rpv.id, rpv=rpv))
+                    self.datastore.add_entry(DatastoreRPVEntry.make(rpv))
 
                 self.logger.info('Communication with device "%s" (ID: %s) fully ready' % (self.device_display_name, self.device_id))
                 self.logger.debug("Device information : %s" % self.device_info)

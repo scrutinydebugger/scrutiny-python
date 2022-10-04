@@ -13,7 +13,9 @@ from scrutiny.core.firmware_description import FirmwareDescription
 from scrutiny.core.sfd_storage import SFDStorage
 from scrutiny.server.datastore.datastore_entry import EntryType
 from scrutiny.server.device.device_handler import DeviceHandler
-from scrutiny.server.datastore import Datastore, DatastoreVariableEntry
+from scrutiny.server.datastore.datastore import Datastore
+from scrutiny.server.datastore.datastore_entry import *
+from scrutiny.server.datastore.entry_type import EntryType
 
 from typing import Optional, List, Callable
 from scrutiny.core.typehints import GenericCallback
@@ -111,9 +113,18 @@ class ActiveSFDHandler:
             # populate datastore
             # todo Fetch Alaises from SFD as well.
             for fullname, vardef in self.sfd.get_vars_for_datastore():
-                entry = DatastoreVariableEntry(display_path=fullname, variable_def=vardef)
                 try:
-                    self.datastore.add_entry(entry)
+                    entry_var = DatastoreVariableEntry(display_path=fullname, variable_def=vardef)
+                    self.datastore.add_entry(entry_var)
+                except Exception as e:
+                    self.logger.warning('Cannot add entry "%s". %s' % (fullname, str(e)))
+                    self.logger.debug(traceback.format_exc())
+
+            for fullname, alias in self.sfd.get_aliases_for_datastore():
+                try:
+                    refentry = self.datastore.get_entry_by_display_path(alias.get_target())
+                    entry_alias = DatastoreAliasEntry(aliasdef=alias, refentry=refentry)
+                    self.datastore.add_entry(entry_alias)
                 except Exception as e:
                     self.logger.warning('Cannot add entry "%s". %s' % (fullname, str(e)))
                     self.logger.debug(traceback.format_exc())
@@ -136,7 +147,8 @@ class ActiveSFDHandler:
         must_call_callback = (self.sfd is not None)
 
         self.sfd = None
-        self.datastore.clear(EntryType.Alias)   # We only clear the entry types coming from the SFD.
+        # We only clear the entry types coming from the SFD. (i.e. no RPV)
+        self.datastore.clear(EntryType.Alias)
         self.datastore.clear(EntryType.Var)
         if must_call_callback:
             self.logger.debug('Triggering SFD Unload callback')
