@@ -1,3 +1,11 @@
+#    entry_type.py
+#        Type of datastore entry.
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021-2022 Scrutiny Debugger
+
 from typing import List
 from enum import Enum
 

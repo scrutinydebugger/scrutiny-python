@@ -1,3 +1,11 @@
+#    test_alias.py
+#        Test Alias basic features
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021-2022 Scrutiny Debugger
+
 import unittest
 from scrutiny.core.alias import Alias
 from scrutiny.server.datastore.entry_type import EntryType

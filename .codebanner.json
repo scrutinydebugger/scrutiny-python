@@ -300,6 +300,15 @@
         },
         "scrutiny/cli/commands/add_alias.py": {
             "docstring": "Defines the add-alias command used to embed an alias file into an SFD file in the making"
+        },
+        "test/core/test_alias.py": {
+            "docstring": "Test Alias basic features"
+        },
+        "scrutiny/core/alias.py": {
+            "docstring": "Class that contains the definition of an alias."
+        },
+        "scrutiny/server/datastore/entry_type.py": {
+            "docstring": "Type of datastore entry."
         }
     }
 }

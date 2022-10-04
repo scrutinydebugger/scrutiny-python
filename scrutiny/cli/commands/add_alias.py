@@ -1,6 +1,6 @@
-#    sfd_add_alias.py
-#        Defines the add-alias command used to embed an alias file into an SFD file in
-#        the making
+#    add_alias.py
+#        Defines the add-alias command used to embed an alias file into an SFD file in the
+#        making
 #
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
