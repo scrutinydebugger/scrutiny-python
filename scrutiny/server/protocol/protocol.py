@@ -33,6 +33,7 @@ class Protocol:
         nbits: int
         nbytes: int
         pack_char: str
+        mask:int
 
         def __init__(self, nbits: int):
             PACK_CHARS = {
@@ -48,6 +49,7 @@ class Protocol:
             self.nbits = nbits
             self.nbytes = int(nbits / 8)
             self.pack_char = PACK_CHARS[nbits]
+            self.mask = int((1<<nbits)-1)
 
         def get_address_size_bytes(self) -> int:
             return self.nbytes
@@ -57,6 +59,16 @@ class Protocol:
 
         def get_pack_char(self) -> str:
             return self.pack_char
+        
+        def get_address_mask(self):
+            return self.mask
+    
+        def encode_address(self, address: int) -> bytes:
+            address &= self.get_address_mask()
+            return struct.pack('>%s' % self.get_pack_char(), address)
+
+        def decode_address(self, buff: bytes) -> int:
+            return struct.unpack('>%s' % self.get_pack_char(), buff[0:self.get_address_size_bytes()])[0]
 
     def __init__(self, version_major: int = 1, version_minor: int = 0, address_size_bits: int = 32):
         self.version_major = version_major
@@ -69,7 +81,7 @@ class Protocol:
         self.address_format = self.AddressFormat(nbits=address_size_bits)
 
     def set_address_size_bytes(self, address_size_byte: int) -> None:
-        self.address_format = self.AddressFormat(nbits=address_size_byte * 8)
+        self.set_address_size_bits(address_size_byte * 8)
 
     def get_address_size_bytes(self) -> int:
         return self.address_format.get_address_size_bytes()
@@ -93,19 +105,19 @@ class Protocol:
         self.version_major = major
         self.version_minor = minor
 
-    def get_version(self):
+    def get_version(self) -> Tuple[int, int]:
         return (self.version_major, self.version_minor)
 
-    def configure_rpvs(self, rpvs: List[RuntimePublishedValue]):
+    def configure_rpvs(self, rpvs: List[RuntimePublishedValue]) -> None:
         self.rpv_map = {}
         for rpv in rpvs:
             self.rpv_map[rpv.id] = rpv
 
     def encode_address(self, address: int) -> bytes:
-        return struct.pack('>%s' % self.address_format.get_pack_char(), address)
+        return self.address_format.encode_address(address)
 
     def decode_address(self, buff: bytes) -> int:
-        return struct.unpack('>%s' % self.address_format.get_pack_char(), buff[0:self.get_address_size_bytes()])[0]
+        return self.address_format.decode_address(buff)
 
     def compute_challenge_16bits(self, challenge: int) -> int:
         return ctypes.c_uint16(~challenge).value
