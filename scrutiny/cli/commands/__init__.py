@@ -1,6 +1,7 @@
 from .base_command import BaseCommand
 from .make_sfd import MakeSFD
 from .get_firmware_id import GetFirmwareId
+from .tag_firmware_id import TagFirmwareID
 from .make_metadata import MakeMetadata
 from .install_sfd import InstallSFD
 from .uninstall_sfd import UninstallSFD

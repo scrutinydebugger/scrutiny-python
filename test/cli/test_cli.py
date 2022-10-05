@@ -24,6 +24,7 @@ from test import SkipOnException
 from scrutiny.cli import CLI
 from scrutiny.exceptions import EnvionmentNotSetUpException
 from scrutiny.server.datastore.entry_type import EntryType
+from scrutiny.core.firmware_parser import FirmwareParser
 
 
 class RedirectStdout:
@@ -95,16 +96,37 @@ class TestCLI(unittest.TestCase):
                 outputted_firmwareid = f.read()
             self.assertEqual(outputted_firmwareid, demobin_firmware_id)
 
+    def test_tag_firmware_id(self):
+        with tempfile.TemporaryDirectory() as tempdirname:
+            cli = CLI()
+            demo_bin = get_artifact('demobin.elf')
+            temp_bin = os.path.join(tempdirname, 'demobin.elf')
+            temp_bin_tagged = os.path.join(tempdirname, 'demobin_tagged.elf')
+            temp_bin2 = os.path.join(tempdirname, 'demobin2.elf')
+            shutil.copyfile(demo_bin, temp_bin)
+            shutil.copyfile(demo_bin, temp_bin2)    # Will be tagged inplace
+
+            with self.assertRaises(Exception):
+                cli.run(['tag-firmware-id', temp_bin], except_failed=True)
+            
+            with self.assertRaises(Exception):
+                cli.run(['tag-firmware-id', temp_bin, 'somefile', '--inplace'], except_failed=True)
+            
+            cli.run(['tag-firmware-id', temp_bin, temp_bin_tagged], except_failed=True)
+            cli.run(['tag-firmware-id', temp_bin2, '--inplace'], except_failed=True)
+
             # Write the firmware id to the demobin and catch its from stdout. Make sure file has changed
-            with RedirectStdout() as stdout:
-                with open(temp_bin, 'rb') as f:
-                    tempbin_content = f.read()
-                cli.run(['get-firmware-id', temp_bin, '--apply'], except_failed=True)
-                firmwareid = stdout.read()
             with open(temp_bin, 'rb') as f:
-                tempbin_modified_content = f.read()
-            self.assertNotEqual(tempbin_modified_content, tempbin_content)
-            self.assertEqual(firmwareid, demobin_firmware_id)
+                tempbin_content = f.read()
+            
+            with open(temp_bin2, 'rb') as f:
+                tempbin2_content = f.read()
+            
+            with open(temp_bin_tagged, 'rb') as f:
+                tempbin_tagged_content = f.read()
+
+            self.assertFalse(tempbin_content == tempbin_tagged_content)
+            self.assertTrue(tempbin2_content == tempbin2_content)
 
     # Read a demo firmware binary and make varmap file. We don't check the content, just that it is valid varmap.
     @SkipOnException(EnvionmentNotSetUpException)
