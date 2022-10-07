@@ -84,7 +84,7 @@ class ScrutinyServer:
 
     def validate_config(self) -> None:
         pass
-    
+
     def run(self) -> None:
         self.logger.info('Starting server instance "%s"' % (self.server_name))
 

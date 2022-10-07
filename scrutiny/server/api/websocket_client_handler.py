@@ -20,9 +20,10 @@ from scrutiny.core.typehints import GenericCallback
 #WebsocketType = websockets.server.WebSocketServerProtocol
 WebsocketType = Any  # todo fix this
 
+
 class WebsocketClientHandler(AbstractClientHandler):
 
-    server:SynchronousWebsocketServer
+    server: SynchronousWebsocketServer
     config: ClientHandlerConfig
     logger: logging.Logger
     id2ws_map: Dict[str, WebsocketType]
@@ -33,7 +34,8 @@ class WebsocketClientHandler(AbstractClientHandler):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.id2ws_map = dict()
         self.ws2id_map = dict()
-        self.server = SynchronousWebsocketServer(connect_callback=GenericCallback(self.register), disconnect_callback=GenericCallback(self.unregister))
+        self.server = SynchronousWebsocketServer(connect_callback=GenericCallback(
+            self.register), disconnect_callback=GenericCallback(self.unregister))
 
     def register(self, websocket: WebsocketType) -> None:
         wsid = self.make_id()
@@ -76,7 +78,7 @@ class WebsocketClientHandler(AbstractClientHandler):
             return
 
         if not self.server.txqueue.full():
-            self.server.txqueue.put( (websocket, msg_string) )
+            self.server.txqueue.put((websocket, msg_string))
         else:
             self.logger.critical('Transmit queue full')
 
@@ -88,7 +90,7 @@ class WebsocketClientHandler(AbstractClientHandler):
             (websocket, msg) = self.server.rxqueue.get_nowait()
         except:
             return None
-    
+
         if websocket not in self.ws2id_map:
             self.logger.critical('Received message from unregistered websocket')
             return None
