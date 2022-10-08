@@ -186,10 +186,12 @@ class API:
         self.sfd_handler.register_sfd_unloaded_callback(SFDUnloadedCallback(self.sfd_unloaded_callback))
 
     def sfd_loaded_callback(self, sfd: FirmwareDescription):
+        # Called when a SFD is loaded after a device connection
         for conn_id in self.connections:
             self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=self.craft_inform_server_status_response()))
 
     def sfd_unloaded_callback(self):
+        # Called when a SFD is unloaded (device disconnected)
         for conn_id in self.connections:
             self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=self.craft_inform_server_status_response()))
 
@@ -205,6 +207,7 @@ class API:
         self.streamer.clear_connection(conn_id)
 
     def is_new_connection(self, conn_id: str) -> bool:
+        # Tells if a connection ID is new (not known)
         return True if conn_id not in self.connections else False
 
     # Extract a chunk of data from the value streamer and send it to the clients.
@@ -236,7 +239,7 @@ class API:
 
     # to be called periodically
     def process(self) -> None:
-        self.client_handler.process()
+        self.client_handler.process()   # Get incoming requests
         while self.client_handler.available():
             popped = self.client_handler.recv()
             assert popped is not None  # make mypy happy
@@ -255,12 +258,14 @@ class API:
             self.logger.debug('Closing connection %s' % conn_id)
             self.close_connection(conn_id)
 
-        self.streamer.process()
-        self.stream_all_we_can()
+        self.streamer.process()     # Decides which message needs to go out
+        self.stream_all_we_can()    # Gives the message to the client handler
+        self.client_handler.process()  # Give a chance to outgoing message to be written to output buffer
 
     # Process a request gotten from the Client Handler
 
     def process_request(self, conn_id: str, req: api_typing.C2SMessage):
+        # Handle an incoming request from the client handler
         try:
             self.req_count += 1
             self.logger.debug('[Conn:%s] Processing request #%d - %s' % (conn_id, self.req_count, req))
@@ -273,6 +278,8 @@ class API:
             if not isinstance(cmd, str):
                 raise InvalidRequestException(req, 'cmd is not a valid string')
 
+            # Fetch the right function from a global dict and call it
+            # Response are sent in each callback. Not all requests requires a response
             if cmd in self.ApiRequestCallbacks:
                 callback = getattr(self, self.ApiRequestCallbacks[cmd])
                 callback.__call__(conn_id, req)
@@ -280,16 +287,19 @@ class API:
                 raise InvalidRequestException(req, 'Unsupported command %s' % cmd)
 
         except InvalidRequestException as e:
+            # Client sent a bad request. Controlled error
             self.logger.debug('[Conn:%s] Invalid request #%d. %s' % (conn_id, self.req_count, str(e)))
             response = self.make_error_response(req, str(e))
             self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
         except Exception as e:
+            # Unknown internal error
             self.logger.error('[Conn:%s] Unexpected error while processing request #%d. %s' % (conn_id, self.req_count, str(e)))
             self.logger.debug(traceback.format_exc())
             response = self.make_error_response(req, 'Internal error')
             self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
 
     def process_debug(self, conn_id: str, req: Dict[Any, Any]) -> None:
+        # Start ipdb tracing upon reception of a "debug" message (if enabled)
         if self.enable_debug:
             import ipdb  # type: ignore
             ipdb.set_trace()
@@ -329,10 +339,11 @@ class API:
         if len(type_to_include) == 0:
             type_to_include = [EntryType.Var, EntryType.Alias, EntryType.RuntimePublishedValue]
 
+        # Sends RPV first, variable last
         priority = [EntryType.RuntimePublishedValue, EntryType.Alias, EntryType.Var]
 
         entries = {}
-        for entry_type in priority:
+        for entry_type in priority:  # TODO : Improve this not to copy the whole datastore while sending. Use a generator instead
             entries[entry_type] = self.datastore.get_entries_list_by_type(entry_type) if entry_type in type_to_include else []
 
         done = False
@@ -381,6 +392,7 @@ class API:
 
     #  ===  GET_WATCHABLE_COUNT ===
     def process_get_watchable_count(self, conn_id: str, req: api_typing.C2S.GetWatchableCount) -> None:
+        # Returns the number of watchable per type
         response: api_typing.S2C.GetWatchableCount = {
             'cmd': self.Command.Api2Client.GET_WATCHABLE_COUNT_RESPONSE,
             'reqid': self.get_req_id(req),
@@ -395,9 +407,12 @@ class API:
 
     #  ===  SUBSCRIBE_WATCHABLE ===
     def process_subscribe_watchable(self, conn_id: str, req: api_typing.C2S.SubscribeWatchable) -> None:
+        # Add the connection ID to the list of watchers of given datastore entries.
+        # datastore callback will write the new values in the API output queue (through the value streamer)
         if 'watchables' not in req and not isinstance(req['watchables'], list):
             raise InvalidRequestException(req, 'Invalid or missing watchables list')
 
+        # Check existence of all watchable before doing anything.
         for watchable in req['watchables']:
             try:
                 self.datastore.get_entry(watchable)  # Will raise an exception if not existant
@@ -407,7 +422,7 @@ class API:
         for watchable in req['watchables']:
             self.datastore.start_watching(
                 entry_id=watchable,
-                watcher=conn_id,
+                watcher=conn_id,    # We use the API connection ID as datastore watcher ID
                 value_change_callback=UpdateVarCallback(self.entry_value_change_callback)
             )
 
@@ -421,9 +436,11 @@ class API:
 
     #  ===  UNSUBSCRIBE_WATCHABLE ===
     def process_unsubscribe_watchable(self, conn_id: str, req: api_typing.C2S.UnsubscribeWatchable) -> None:
+        # Unsubscribe client from value update of the given datastore entries
         if 'watchables' not in req and not isinstance(req['watchables'], list):
             raise InvalidRequestException(req, 'Invalid or missing watchables list')
 
+        # Check existence of all entries before doing anything
         for watchable in req['watchables']:
             try:
                 self.datastore.get_entry(watchable)  # Will raise an exception if not existant
@@ -443,6 +460,7 @@ class API:
 
     #  ===  GET_INSTALLED_SFD ===
     def process_get_installed_sfd(self, conn_id: str, req: api_typing.C2S.GetInstalledSFD):
+        # Request to know the list of installed Scrutiny Firmware Description on this server
         firmware_id_list = SFDStorage.list()
         metadata_dict = {}
         for firmware_id in firmware_id_list:
@@ -458,6 +476,8 @@ class API:
 
     #  ===  GET_LOADED_SFD ===
     def process_get_loaded_sfd(self, conn_id: str, req: api_typing.C2S.GetLoadedSFD):
+        # Request to get the actively loaded Scrutiny Firmware Description. Loaded by the SFD Handler
+        # pon connection with a known device
         sfd = self.sfd_handler.get_loaded_sfd()
 
         response: api_typing.S2C.GetLoadedSFD = {
@@ -470,6 +490,7 @@ class API:
 
     #  ===  LOAD_SFD ===
     def process_load_sfd(self, conn_id: str, req: api_typing.C2S.LoadSFD):
+        # Forcibly load a Scrutiny Firmware Descritpion through API
         if 'firmware_id' not in req and not isinstance(req['firmware_id'], str):
             raise InvalidRequestException(req, 'Invalid firmware_id')
 
@@ -477,15 +498,17 @@ class API:
             self.sfd_handler.request_load_sfd(req['firmware_id'])
         except Exception as e:
             self.logger.error('Cannot load SFD %s. %s' % (req['firmware_id'], str(e)))
-        # Do not send a response. There's a callback on SFD Loading that will notfy everyone.
+        # Do not send a response. There's a callback on SFD Loading that will notfy everyone once completed.
 
     #  ===  GET_SERVER_STATUS ===
     def process_get_server_status(self, conn_id: str, req: api_typing.C2S.GetServerStatus):
+        # Request the server status.
         obj = self.craft_inform_server_status_response(reqid=self.get_req_id(req))
         self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=obj))
 
     #  ===  SET_LINK_CONFIG ===
     def process_set_link_config(self, conn_id: str, req: api_typing.C2S.SetLinkConfig):
+        # With this request, the user can change the device connection through an API call
         if 'link_type' not in req or not isinstance(req['link_type'], str):
             raise InvalidRequestException(req, 'Invalid link_type')
 
@@ -645,7 +668,8 @@ class API:
         self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
 
     def craft_inform_server_status_response(self, reqid: Optional[int] = None) -> api_typing.S2C.InformServerStatus:
-
+        # Make a Server to client message that inform the actual state of the server
+        # Qeury the state of all subpart of the software.
         sfd = self.sfd_handler.get_loaded_sfd()
         device_link_type = self.device_handler.get_link_type()
         device_comm_link = self.device_handler.get_comm_link()
@@ -695,10 +719,13 @@ class API:
         return response
 
     def entry_value_change_callback(self, conn_id: str, datastore_entry: DatastoreEntry) -> None:
+        # This callback is given to the datastore when we a client start watching an entry.
         self.streamer.publish(datastore_entry, conn_id)
         self.stream_all_we_can()
 
     def entry_target_update_callback(self, success: bool, datastore_entry: DatastoreEntry, timestamp: float) -> None:
+        # This callback is given to the datastore when we make a write request (target update request)
+        # It will be called once the request is completed.
         watchers = self.datastore.get_watchers(datastore_entry)
 
         msg: api_typing.S2C.WriteCompletion = {
@@ -713,6 +740,7 @@ class API:
             self.client_handler.send(ClientHandlerMessage(conn_id=watcher_conn_id, obj=msg))
 
     def make_datastore_entry_definition_no_type(self, entry: DatastoreEntry) -> api_typing.DatastoreEntryDefinitionNoType:
+        # Craft the data structure sent by the API to give the available watchables
         definition: api_typing.DatastoreEntryDefinitionNoType = {
             'id': entry.get_id(),
             'display_path': entry.get_display_path(),
@@ -731,6 +759,7 @@ class API:
         return definition
 
     def make_error_response(self, req: api_typing.C2SMessage, msg: str) -> api_typing.S2C.Error:
+        # craft a standardized error message
         cmd = '<empty>'
         if 'cmd' in req:
             cmd = req['cmd']

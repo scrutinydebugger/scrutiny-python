@@ -18,6 +18,10 @@ from typing import Optional
 
 
 class FirmwareParser:
+    """
+    This class can read a freshly compiled firmware then generate a firmware ID and also write this
+    firmware ID into the binary
+    """
     BUF_SIZE = 0x10000
     NO_TAG_ERROR = "Binary file does not contains Scrutiny placeholder. Either it is already tagged or the file hasn't been compiled with a full scrutiny-lib"
 
@@ -70,6 +74,9 @@ class FirmwareParser:
         return hexlify(self.get_firmware_id()).decode('ascii')
 
     def write_tagged(self, dst: Optional[str]) -> None:
+        """
+        Write back the firmware ID into an untagged one. If dst is set, make a copy, if None, write directly to it.
+        """
         if self.firmware_id is None or not self.has_placeholder():
             self.throw_no_tag_error()
 

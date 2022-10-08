@@ -20,6 +20,10 @@ WebsocketType = Any  # todo fix this
 
 
 class SynchronousWebsocketServer:
+    """
+    Websocket server that wraps the asynchornous "websockets" module into a class that 
+    provides a synchronous interface.
+    """
     rxqueue: queue.Queue
     txqueue: queue.Queue
     loop: asyncio.AbstractEventLoop
@@ -37,8 +41,8 @@ class SynchronousWebsocketServer:
         self.disconnect_callback = disconnect_callback
         self.logger = logging.getLogger(self.__class__.__name__)
 
-    # Executed for each websocket
     async def server_routine(self, websocket: WebsocketType, path: str):
+        # Executed for each websocket
         if self.connect_callback is not None:
             self.connect_callback(websocket)
 

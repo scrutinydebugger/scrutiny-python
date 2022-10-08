@@ -17,7 +17,8 @@ class EntryType(str, Enum):
 
     @classmethod
     def all(cls) -> List['EntryType']:
-        return [EntryType.Var, EntryType.Alias, EntryType.RuntimePublishedValue]   # Todo, find a better way to do this. This enum also inherit str
+        # Todo, find a better way to do this. This enum also inherit str. __iter__ returns the chars
+        return [EntryType.Var, EntryType.Alias, EntryType.RuntimePublishedValue]
 
     def toJson(self):
         return self.value

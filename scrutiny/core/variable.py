@@ -22,6 +22,10 @@ for i in range(63):
 
 
 class VariableLocation:
+    """
+    Represent an address in memory
+    """
+
     def __init__(self, address: int):
         if not isinstance(address, int):
             raise ValueError('Address must be a valid integer')
@@ -68,11 +72,19 @@ class VariableLocation:
 
 
 class VariableEnumDef(TypedDict):
+    """
+    Represent the dictionary version of the VariableEnum (for .json import/export).
+    Used only for type hints
+    """
     name: str
     values: Dict[str, int]
 
 
 class VariableEnum:
+    """
+    Represents an enumeration in the embedded code.
+    Match a string to an int value
+    """
     name: str
     vals: Dict[str, int]
 
@@ -95,6 +107,9 @@ class VariableEnum:
         return self.vals[name]
 
     def get_def(self) -> VariableEnumDef:
+        """
+        Export to dict for json serialization mainly
+        """
         obj: VariableEnumDef = {
             'name': self.name,
             'values': self.vals
@@ -103,6 +118,9 @@ class VariableEnum:
 
     @classmethod
     def from_def(cls, enum_def: VariableEnumDef):
+        """
+        Recreate from a .json dict
+        """
         obj = cls(enum_def['name'])
         obj.vals = enum_def['values']
         return obj
@@ -172,6 +190,11 @@ class Struct:
 
 
 class Variable:
+    """
+    One of the most basic type of data (with RPV and Alias).
+    Represent a variable in memory. It has a name, location and type.
+    It supports bitfields and variable endianness.
+    """
 
     name: str
     vartype: EmbeddedDataType
@@ -207,6 +230,9 @@ class Variable:
         self.enum = enum
 
     def decode(self, data: Union[bytes, bytearray]) -> Encodable:
+        """
+        Decode the binary content in memory to a python value
+        """
 
         if self.bitfield:
             # todo improve this with bit array maybe.
@@ -235,6 +261,10 @@ class Variable:
         return decoded
 
     def encode(self, value: Encodable) -> Tuple[bytes, Optional[bytes]]:
+        """
+        Converts a python balue to a binary content that can be written in memory.
+        The write mask is used for bitfields
+        """
         write_mask = None
         data = Codecs.get(self.vartype, endianness=self.endianness).encode(value)
 

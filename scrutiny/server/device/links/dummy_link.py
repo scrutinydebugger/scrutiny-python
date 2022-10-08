@@ -12,7 +12,10 @@ from typing import Dict, Any
 
 
 class ThreadSafeDummyLink(AbstractLink):
-
+    """
+    Thread safe fake communication channel that implement the 
+    required interface to talk with a device. Used for unit teststing
+    """
     to_device_data: bytes
     from_device_data: bytes
     from_device_mutex: threading.Lock
@@ -101,6 +104,10 @@ class ThreadSafeDummyLink(AbstractLink):
 
 
 class DummyLink(AbstractLink):
+    """
+    Non-thread safe fake communication channel that implement the 
+    required interface to talk with a device. Used for unit teststing
+    """
     to_device_data: bytes
     from_device_data: bytes
     _initialized: bool

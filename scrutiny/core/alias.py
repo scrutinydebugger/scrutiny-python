@@ -15,6 +15,10 @@ from typing import Dict, Optional, Any, Union
 
 
 class Alias:
+    """
+    Represent an Alias. Read/write to an alias are deferred to another object (either a Variable or a Runtime Published Value)
+    Some optional value modifier will be applied (gain, offset, min, max)
+    """
     fullpath: str
     target: str
     target_type: Optional[EntryType]
@@ -46,6 +50,7 @@ class Alias:
 
     def __init__(self, fullpath: str, target: str, target_type: Optional[EntryType] = None, gain: Optional[float] = None, offset: Optional[float] = None, min: Optional[float] = None, max: Optional[float] = None):
         self.fullpath = fullpath
+        # Target type can be set later on.
         if target_type is not None:
             target_type = EntryType(target_type)
             if target_type == EntryType.Alias:
@@ -54,6 +59,7 @@ class Alias:
         else:
             self.target_type = None
         self.target = target
+        # Set to None if unset. getter will return the default value.
         self.gain = float(gain) if gain is not None else None
         self.offset = float(offset) if offset is not None else None
         self.min = float(min) if min is not None else None
@@ -90,6 +96,7 @@ class Alias:
     def to_dict(self) -> Dict[str, Any]:
         d: Dict[str, Any] = dict(target=self.target, target_type=self.target_type)
 
+        # Save some space in alias.json by ommiting defaults value
         if self.gain is not None and self.gain != 1.0:
             d['gain'] = self.gain
 
@@ -147,4 +154,5 @@ class Alias:
         if isinstance(value, int) or isinstance(value, float):
             value *= self.get_gain()
             value += self.get_offset()
+            # No min max on purpose. We want to report the real value
         return value

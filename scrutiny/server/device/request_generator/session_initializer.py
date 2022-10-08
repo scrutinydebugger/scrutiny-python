@@ -20,9 +20,9 @@ from typing import Optional, Any, cast
 class SessionInitializer:
 
     logger: logging.Logger
-    dispatcher: RequestDispatcher
-    protocol: Protocol
-    priority: int
+    dispatcher: RequestDispatcher   # We put the request in here, and we know they'll go out
+    protocol: Protocol              # The actual protocol. Used to build the request payloads
+    priority: int                   # Our dispatcher priority
     connection_pending: bool
     stop_requested: bool
     started: bool

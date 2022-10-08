@@ -24,6 +24,9 @@ from typing import List, Dict, Any, Tuple, Generator, TypedDict, cast, IO, Optio
 
 
 class GenerationInfoType(TypedDict, total=False):
+    """
+    Metadata about the environment of the file creator
+    """
     time: int
     python_version: str
     scrutiny_version: str
@@ -31,6 +34,9 @@ class GenerationInfoType(TypedDict, total=False):
 
 
 class MetadataType(TypedDict, total=False):
+    """
+    Firmware Description metadata. Used for display in the UI (Communicated through API)
+    """
     project_name: str
     author: str
     version: str
@@ -38,6 +44,11 @@ class MetadataType(TypedDict, total=False):
 
 
 class FirmwareDescription:
+    """
+    Scrutiny Firmware Description (SFD) is an object that contains all the relevant data about a firmware.
+    It mainly knows its firmware ID and the list of variables with their location.
+    Upon connection with a device, the correct SFD must be loaded, found with the firmware ID
+    """
     COMPRESSION_TYPE = zipfile.ZIP_DEFLATED
 
     varmap: VarMap
@@ -145,6 +156,9 @@ class FirmwareDescription:
 
     @classmethod
     def get_alias_target_type(cls, alias: Alias, varmap: VarMap) -> EntryType:
+        """
+        Finds the referred entry and gives this datatype. Alias do not have a datatype by themselves
+        """
         if varmap.has_var(alias.get_target()):
             return EntryType.Var
         elif Datastore.is_rpv_path(alias.get_target()):
@@ -164,6 +178,9 @@ class FirmwareDescription:
         return VarMap(fullpath)
 
     def append_aliases(self, aliases: Dict[str, Alias]) -> None:
+        """
+        Add some aliases to the actual SFD
+        """
         for unique_path in aliases:
             if unique_path not in self.aliases:
                 self.aliases[unique_path] = aliases[unique_path]
@@ -171,6 +188,9 @@ class FirmwareDescription:
                 logging.warning('Duplicate alias %s. Dropping' % unique_path)
 
     def write(self, filename: str) -> None:
+        """
+        SFD file format is just a .zip with a bunch of JSON (and a firmwareid file)
+        """
         with zipfile.ZipFile(filename, mode='w', compression=self.COMPRESSION_TYPE) as outzip:
             outzip.writestr(self.firmwareid_filename, self.firmwareid.hex())
             outzip.writestr(self.metadata_filename, json.dumps(self.metadata, indent=4))
@@ -179,6 +199,10 @@ class FirmwareDescription:
 
     @classmethod
     def serialize_aliases(cls, aliases: Union[Dict[str, Alias], List[Alias]]) -> bytes:
+        """
+        Takes bunch of alias and return a JSON containing a dict structure like this
+        [alias1.fullpath] => alias1,  [alias2.fullpath] => alias2
+        """
         if isinstance(aliases, list):
             zipped = zip(
                 [alias.get_fullpath() for alias in aliases],
@@ -208,6 +232,9 @@ class FirmwareDescription:
         self.varmap.validate()
 
     def validate_firmware_id(self) -> None:
+        """
+        Expects a Firmware ID to have the same length as the default placeholder
+        """
         if len(self.firmwareid) != self.firmware_id_length():
             raise Exception('Firmware ID seems to be the wrong length. Found %d bytes, expected %d bytes' %
                             (len(self.firmwareid), len(firmware_id.PLACEHOLDER)))
@@ -223,10 +250,16 @@ class FirmwareDescription:
             logging.warning('No author defined in %s' % self.metadata_filename)
 
     def get_vars_for_datastore(self) -> Generator[Tuple[str, Variable], None, None]:
+        """
+        Returns all variables in this SFD with a Generator to avoid consuming memory.
+        """
         for fullname, vardef in self.varmap.iterate_vars():
             yield (fullname, vardef)
 
     def get_aliases_for_datastore(self, entry_type: Optional[EntryType] = None) -> Generator[Tuple[str, Alias], None, None]:
+        """
+        Returns all alias in this SFD with a Generator to avoid consuming memory.
+        """
         for k in self.aliases:
             if entry_type is None or self.aliases[k].get_target_type() == entry_type:
                 yield (self.aliases[k].get_fullpath(), self.aliases[k])

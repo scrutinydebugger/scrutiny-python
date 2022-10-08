@@ -28,10 +28,10 @@ class MemoryWriter:
     DEFAULT_MAX_RESPONSE_PAYLOAD_SIZE: int = 1024
 
     logger: logging.Logger
-    dispatcher: RequestDispatcher
-    protocol: Protocol
+    dispatcher: RequestDispatcher       # We put the request in here, and we know they'll go out
+    protocol: Protocol                  # The actual protocol. Used to build the request payloads
+    request_priority: int               # Our dispatcher priority
     datastore: Datastore
-    request_priority: int
     stop_requested: bool
     request_pending: bool
     started: bool

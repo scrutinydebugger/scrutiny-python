@@ -436,6 +436,7 @@ class DeviceHandler:
                 self.session_id = self.session_initializer.get_session_id()
                 session_id_str = 'None' if self.session_id is None else '0x%08x' % self.session_id
                 self.logger.debug("Session ID set : %s" % session_id_str)
+                assert self.session_id is not None
                 self.heartbeat_generator.set_session_id(self.session_id)
                 self.heartbeat_generator.start()    # This guy will send recurrent heartbeat request. If that request fails (timeout), comm will be reset
                 self.connected = True

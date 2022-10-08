@@ -6,7 +6,6 @@
 #
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 
-import re
 import unittest
 
 from scrutiny.server.datastore.datastore import Datastore
@@ -41,7 +40,7 @@ class TestDataStore(unittest.TestCase):
 
             yield entry
 
-    def value_change_callback(self, owner: str, args: Any, entry: DatastoreEntry):
+    def value_change_callback(self, owner: str, entry: DatastoreEntry):
         if owner not in self.value_change_callback_call_history:
             self.value_change_callback_call_history[owner] = {}
 
@@ -145,8 +144,7 @@ class TestDataStore(unittest.TestCase):
             owner = 'watcher1'
             owner2 = 'watcher2'
             for entry in entries:
-                ds.start_watching(entry.get_id(), watcher=owner, value_change_callback=self.value_change_callback,
-                                  args=dict(someParam=entry.get_id()))
+                ds.start_watching(entry.get_id(), watcher=owner, value_change_callback=self.value_change_callback)
 
             for entry in entries:
                 self.assertValueChangeCallbackCalled(entry, owner, 0)
@@ -173,8 +171,7 @@ class TestDataStore(unittest.TestCase):
             self.assertValueChangeCallbackCalled(entries[4], owner, 0, "EntryType=%s" % entry_type)
 
             # Add a second callback on entry 3 with same owner. Should make 1 call on dirty, not 2
-            ds.start_watching(entries[3].get_id(), watcher=owner, value_change_callback=self.value_change_callback,
-                              args=dict(someParam=entry.get_id()))
+            ds.start_watching(entries[3].get_id(), watcher=owner, value_change_callback=self.value_change_callback)
             entries[3].set_value(3)
             self.assertValueChangeCallbackCalled(entries[0], owner, 2, "EntryType=%s" % entry_type)
             self.assertValueChangeCallbackCalled(entries[1], owner, 0, "EntryType=%s" % entry_type)
@@ -183,10 +180,9 @@ class TestDataStore(unittest.TestCase):
             self.assertValueChangeCallbackCalled(entries[4], owner, 0, "EntryType=%s" % entry_type)
 
             # Add a 2 callbacks with different owner. Should make 2 calls
-            ds.start_watching(entries[4].get_id(), watcher=owner, value_change_callback=self.value_change_callback,
-                              args=dict(someParam=entry.get_id()))
+            ds.start_watching(entries[4].get_id(), watcher=owner, value_change_callback=self.value_change_callback)
             ds.start_watching(entries[4].get_id(), watcher=owner2,
-                              value_change_callback=self.value_change_callback, args=dict(someParam=entry.get_id()))
+                              value_change_callback=self.value_change_callback)
             entries[4].set_value(4)
             self.assertValueChangeCallbackCalled(entries[0], owner, 2, "EntryType=%s" % entry_type)
             self.assertValueChangeCallbackCalled(entries[1], owner, 0, "EntryType=%s" % entry_type)
@@ -205,7 +201,7 @@ class TestDataStore(unittest.TestCase):
             owner = 'watcher1'
             owner2 = 'watcher2'
             for entry in entries:
-                ds.start_watching(entry.get_id(), watcher=owner, args=dict(someParam=entry.get_id()))
+                ds.start_watching(entry.get_id(), watcher=owner)
 
             for entry in entries:
                 self.assertTargetUpdateCallbackCalled(entry, 0)
@@ -242,7 +238,7 @@ class TestDataStore(unittest.TestCase):
             self.assertTargetUpdateCallbackCalled(entries[4], 0, "EntryType=%s" % entry_type)
 
             # Add a second callback on entry 3 with same owner. Should make 1 call on dirty, not 2
-            ds.start_watching(entries[3].get_id(), watcher=owner, args=dict(someParam=entry.get_id()))
+            ds.start_watching(entries[3].get_id(), watcher=owner)
             entries[3].update_target_value(3, callback=self.target_update_callback)
             entries[3].pop_target_update_request().complete(success=True)
             self.assertTargetUpdateCallbackCalled(entries[0], 2, "EntryType=%s" % entry_type)
@@ -252,10 +248,8 @@ class TestDataStore(unittest.TestCase):
             self.assertTargetUpdateCallbackCalled(entries[4], 0, "EntryType=%s" % entry_type)
 
             # Add a 2 callbacks with different owner. Should make 2 calls
-            ds.start_watching(entries[4].get_id(), watcher=owner, target_update_callback=self.target_update_callback,
-                              args=dict(someParam=entry.get_id()))
-            ds.start_watching(entries[4].get_id(), watcher=owner2,
-                              target_update_callback=self.target_update_callback, args=dict(someParam=entry.get_id()))
+            ds.start_watching(entries[4].get_id(), watcher=owner, target_update_callback=self.target_update_callback)
+            ds.start_watching(entries[4].get_id(), watcher=owner2, target_update_callback=self.target_update_callback)
             entries[4].update_target_value(4, callback=self.target_update_callback)
             entries[4].pop_target_update_request().complete(success=False)
             self.assertTargetUpdateCallbackCalled(entries[0], 2, "EntryType=%s" % entry_type)
@@ -344,29 +338,25 @@ class TestDataStore(unittest.TestCase):
         ds.start_watching(
             alias_var_2.get_id(),
             watcher=watcher,
-            value_change_callback=self.value_change_callback,
-            args='nothing'
+            value_change_callback=self.value_change_callback
         )
 
         ds.start_watching(
             alias_var_2_2.get_id(),
             watcher=watcher,
-            value_change_callback=self.value_change_callback,
-            args='nothing'
+            value_change_callback=self.value_change_callback
         )
 
         ds.start_watching(
             alias_rpv_1.get_id(),
             watcher=watcher,
-            value_change_callback=self.value_change_callback,
-            args='nothing'
+            value_change_callback=self.value_change_callback
         )
 
         ds.start_watching(
             alias_rpv_1_2.get_id(),
             watcher=watcher,
-            value_change_callback=self.value_change_callback,
-            args='nothing'
+            value_change_callback=self.value_change_callback
         )
 
         ds.set_value(var_entries[2], 55)

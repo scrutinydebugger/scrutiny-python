@@ -16,15 +16,23 @@ from typing import Optional, TypedDict, cast
 
 
 class UdpConfig(TypedDict):
+    """
+    Config given the the UdpLink object.
+    Can be set through the API or config file with JSON format
+    """
     host: str
     port: int
 
 
 class UdpLink(AbstractLink):
+    """
+    Communication channel to talk with a device through a UDP socket
+    Based on socket module
+    """
 
     port: int
     host: str
-    ip_address: str
+    ip_address: str     # Resolved hostname
     logger: logging.Logger
     sock: Optional[socket.socket]
     bound: bool
@@ -45,30 +53,33 @@ class UdpLink(AbstractLink):
             'port': int(config['port'])
         })
 
-        self.ip_address = socket.gethostbyname(self.config['host'])
+        self.ip_address = socket.gethostbyname(self.config['host'])  # get the IP of the device
 
         self.logger = logging.getLogger(self.__class__.__name__)
-        self.sock = None
-        self.bound = False
+        self.sock = None            # the socket
+        self.bound = False          # True when address is bound
         self._initialized = False
 
     def get_config(self):
         return cast(LinkConfig, self.config)
 
     def initialize(self) -> None:
+        # Called by device handler to initialize the communication channel.
+        # Expect comm to be functional after that
         self.logger.debug('Opening UDP Link. Host=%s (%s). Port=%d' % (self.config['host'], self.ip_address, self.config['port']))
         self.init_socket()
         self._initialized = True
 
     def init_socket(self) -> None:
+        # Creates the UDP socket and listen on all interfaces
         try:
             if self.sock is not None:
                 self.sock.close()
 
             self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            self.sock.bind(('0.0.0.0', 0))
+            self.sock.bind(('0.0.0.0', 0))  # 0.0.0.0 listen on all interface.  Port 0 = takes any available
             self.sock.setblocking(False)
-            (addr, port) = self.sock.getsockname()
+            (addr, port) = self.sock.getsockname()  # Read our own address and port, will tell the receiving port auto attributed
             self.logger.debug('Socket bound to address=%s and port=%d' % (addr, port))
             self.bound = True
         except Exception as e:
@@ -76,6 +87,7 @@ class UdpLink(AbstractLink):
             self.bound = False
 
     def destroy(self) -> None:
+        # Close the socket and put the comm channel in a non-functional state
         self.logger.debug('Closing UDP Link. Host=%s. Port=%d' % (self.config['host'], self.config['port']))
 
         if self.sock is not None:
@@ -85,12 +97,13 @@ class UdpLink(AbstractLink):
         self._initialized = False
 
     def operational(self) -> bool:
-        # If bound, we are necessarily initialized
-        if self.sock is not None and self.bound == True:
+        # Tells the upper layer if we are in a working state (to the best of our knowledge)
+        if self.sock is not None and self.bound == True:    # If bound, we are necessarily initialized
             return True
         return False
 
     def read(self) -> Optional[bytes]:
+        # Reads bytes Non-Blocking from the comm channel. None if no data available
         if not self.operational():
             return None
 
@@ -98,7 +111,7 @@ class UdpLink(AbstractLink):
             assert self.sock is not None
             err = None
             data, (ip_address, port) = self.sock.recvfrom(self.BUFSIZE)
-            if ip_address == self.ip_address and port == self.config['port']:  # Make sure the datagram comes from our target host
+            if ip_address == self.ip_address and port == self.config['port']:  # Make sure the datagram comes from our target device
                 return data
         except socket.error as e:
             err = e
@@ -113,6 +126,7 @@ class UdpLink(AbstractLink):
         return None
 
     def write(self, data: bytes):
+        # Write data to the comm channel.
         if not self.operational():
             return
         assert self.sock is not None  # for mypy

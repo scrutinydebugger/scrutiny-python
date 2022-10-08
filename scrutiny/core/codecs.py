@@ -105,6 +105,9 @@ class BoolCodec(BaseCodec):
 
 
 class Codecs:
+    """
+    Common interface to get the correct code for a given embedded datatype
+    """
     @staticmethod
     def get(vartype: EmbeddedDataType, endianness: Endianness) -> BaseCodec:
         datasize = vartype.get_size_byte()

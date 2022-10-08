@@ -18,6 +18,10 @@ from typing import List
 
 
 class TempStorageWithAutoRestore:
+    """
+    This is used to set a temporary SFD storage. Mainly used for unit tests
+    """
+
     def __init__(self, storage):
         self.storage = storage
 
@@ -28,7 +32,7 @@ class TempStorageWithAutoRestore:
         self.storage.restore_storage()
 
 
-class SFDStorageManager():
+class SFDStorageManager:
 
     @classmethod
     def clean_firmware_id(self, firmwareid: str) -> str:

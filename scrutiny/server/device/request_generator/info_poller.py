@@ -36,9 +36,9 @@ class CommParamCallback(GenericCallback):
 class InfoPoller:
 
     logger: logging.Logger
-    dispatcher: RequestDispatcher
-    protocol: Protocol
-    priority: int
+    dispatcher: RequestDispatcher       # We put the request in here, and we know they'll go out
+    protocol: Protocol                  # The actual protocol. Used to build the request payloads
+    priority: int                       # Our dispatcher priority
     info: DeviceInfo
     started: bool
     protocol_version_callback: Optional[ProtocolVersionCallback]
