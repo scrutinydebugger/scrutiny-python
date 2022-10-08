@@ -23,7 +23,6 @@ class GetFirmwareId(BaseCommand):
     _group_ = 'Build Toochain'
 
     DEFAULT_NAME = 'firmwareid'
-    
 
     args: List[str]
     parser: argparse.ArgumentParser

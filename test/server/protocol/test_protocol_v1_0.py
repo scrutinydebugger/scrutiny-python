@@ -17,6 +17,7 @@ import struct
 from scrutiny.server.protocol.crc32 import crc32
 from typing import List
 
+
 def d2f(d):
     return struct.unpack('f', struct.pack('f', d))[0]
 
@@ -50,8 +51,8 @@ class TestProtocolV1_0(unittest.TestCase):
 
     def check_expected_payload_size(self, req, size):
         self.assertEqual(req.get_expected_response_size(), 9 + size)
-    
-    def assert_address_encode(self, nbits:int, address:int, vals:List[int]):
+
+    def assert_address_encode(self, nbits: int, address: int, vals: List[int]):
         self.proto.set_address_size_bits(nbits)
         buff = self.proto.encode_address(address)
         vals2 = list(map(lambda x: int(x), buff))
@@ -79,15 +80,16 @@ class TestProtocolV1_0(unittest.TestCase):
 
         self.assert_address_encode(64, 0x123456789abcdef0, [0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xde, 0xf0])
         self.assert_address_encode(64, 0x10000000000000000, [0, 0, 0, 0, 0, 0, 0, 0])
-        self.assert_address_encode(64, 0x10000000000000001, [0, 0 , 0 , 0 , 0, 0, 0, 1])
-        self.assert_address_encode(64, -1, [0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF])        
+        self.assert_address_encode(64, 0x10000000000000001, [0, 0, 0, 0, 0, 0, 0, 1])
+        self.assert_address_encode(64, -1, [0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF])
 
-        
+
 # ============================
 #               Request
 # ============================
 
 # ============= GetInfo ===============
+
     def test_req_get_protocol_version(self):
         req = self.proto.get_protocol_version()
         self.assert_req_response_bytes(req, [1, 1, 0, 0])
@@ -540,7 +542,6 @@ class TestProtocolV1_0(unittest.TestCase):
 
 # ============= CommControl ===============
 
-
     def test_req_comm_discover(self):
         magic = bytes([0x7e, 0x18, 0xfc, 0x68])
         request_bytes = bytes([2, 1, 0, 4]) + magic
@@ -679,7 +680,6 @@ class TestProtocolV1_0(unittest.TestCase):
 
 # ============= UserCommand ===============
 
-
     def test_req_user_command(self):
         req = self.proto.user_command(10, bytes([1, 2, 3]))
         self.assert_req_response_bytes(req, [4, 10, 0, 3, 1, 2, 3])
@@ -693,7 +693,6 @@ class TestProtocolV1_0(unittest.TestCase):
 # ============================
 
 # =============  GetInfo ==============
-
 
     def test_response_get_protocol_version(self):
         response = self.proto.respond_protocol_version(major=2, minor=3)
@@ -764,7 +763,6 @@ class TestProtocolV1_0(unittest.TestCase):
 
 
 # ============= MemoryControl ===============
-
 
     def test_response_read_single_memory_block_8bits(self):
         self.proto.set_address_size_bits(8)
@@ -1128,7 +1126,6 @@ class TestProtocolV1_0(unittest.TestCase):
 
 
 # ============= CommControl ===============
-
 
     def test_response_comm_discover(self):
         firmwareid = bytes(range(16))

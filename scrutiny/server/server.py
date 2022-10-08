@@ -12,6 +12,7 @@ import time
 import json
 import logging
 import traceback
+import asyncio
 from copy import copy
 
 from scrutiny.server.api import API, APIConfig
@@ -19,7 +20,7 @@ from scrutiny.server.datastore.datastore import Datastore
 from scrutiny.server.device.device_handler import DeviceHandler, DeviceHandlerConfig
 from scrutiny.server.active_sfd_handler import ActiveSFDHandler
 
-from typing import TypedDict, Optional
+from typing import TypedDict
 
 
 class ServerConfig(TypedDict, total=False):
@@ -95,12 +96,12 @@ class ScrutinyServer:
                 self.device_handler.process()
                 self.sfd_handler.process()
 
-                time.sleep(0.05)
+                time.sleep(0.01)
         except KeyboardInterrupt:
             self.close_all()
         except Exception as e:
             self.logger.error(str(e))
-            self.logger.debug(''.join(traceback.format_exception(None, e, e.__traceback__)))
+            self.logger.debug(traceback.format_exc())
             self.close_all()
             raise
 

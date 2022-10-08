@@ -108,20 +108,20 @@ class TestCLI(unittest.TestCase):
 
             with self.assertRaises(Exception):
                 cli.run(['tag-firmware-id', temp_bin], except_failed=True)
-            
+
             with self.assertRaises(Exception):
                 cli.run(['tag-firmware-id', temp_bin, 'somefile', '--inplace'], except_failed=True)
-            
+
             cli.run(['tag-firmware-id', temp_bin, temp_bin_tagged], except_failed=True)
             cli.run(['tag-firmware-id', temp_bin2, '--inplace'], except_failed=True)
 
             # Write the firmware id to the demobin and catch its from stdout. Make sure file has changed
             with open(temp_bin, 'rb') as f:
                 tempbin_content = f.read()
-            
+
             with open(temp_bin2, 'rb') as f:
                 tempbin2_content = f.read()
-            
+
             with open(temp_bin_tagged, 'rb') as f:
                 tempbin_tagged_content = f.read()
 

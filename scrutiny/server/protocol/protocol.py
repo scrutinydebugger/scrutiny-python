@@ -33,7 +33,7 @@ class Protocol:
         nbits: int
         nbytes: int
         pack_char: str
-        mask:int
+        mask: int
 
         def __init__(self, nbits: int):
             PACK_CHARS = {
@@ -49,7 +49,7 @@ class Protocol:
             self.nbits = nbits
             self.nbytes = int(nbits / 8)
             self.pack_char = PACK_CHARS[nbits]
-            self.mask = int((1<<nbits)-1)
+            self.mask = int((1 << nbits) - 1)
 
         def get_address_size_bytes(self) -> int:
             return self.nbytes
@@ -59,10 +59,10 @@ class Protocol:
 
         def get_pack_char(self) -> str:
             return self.pack_char
-        
+
         def get_address_mask(self):
             return self.mask
-    
+
         def encode_address(self, address: int) -> bytes:
             address &= self.get_address_mask()
             return struct.pack('>%s' % self.get_pack_char(), address)

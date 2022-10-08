@@ -309,6 +309,18 @@
         },
         "scrutiny/server/datastore/entry_type.py": {
             "docstring": "Type of datastore entry."
+        },
+        "test/core/test_firmware_parser.py": {
+            "docstring": "Test basic capacities to parse a firmware a generate a valid firmware ID"
+        },
+        "scrutiny/cli/commands/tag_firmware_id.py": {
+            "docstring": "Command to write the firmware ID into a freshly compiled binary"
+        },
+        "scrutiny/core/firmware_parser.py": {
+            "docstring": "Reads a compiled firmware and provide tools to read or write the firmware ID"
+        },
+        "scrutiny/server/tools/synchronous_websocket_server.py": {
+            "docstring": "Synchornous wrapper around the asynchronous websockets module"
         }
     }
 }
