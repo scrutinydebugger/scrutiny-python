@@ -15,7 +15,7 @@ from scrutiny.core.basic_types import EmbeddedDataType, RuntimePublishedValue
 import struct
 
 from scrutiny.server.protocol.crc32 import crc32
-
+from typing import List
 
 def d2f(d):
     return struct.unpack('f', struct.pack('f', d))[0]
@@ -50,7 +50,39 @@ class TestProtocolV1_0(unittest.TestCase):
 
     def check_expected_payload_size(self, req, size):
         self.assertEqual(req.get_expected_response_size(), 9 + size)
+    
+    def assert_address_encode(self, nbits:int, address:int, vals:List[int]):
+        self.proto.set_address_size_bits(nbits)
+        buff = self.proto.encode_address(address)
+        vals2 = list(map(lambda x: int(x), buff))
+        self.assertEqual(len(buff), len(vals))
+        self.assertEqual(vals, vals2)
 
+    def test_address_encoding(self):
+        self.assert_address_encode(8, 5, [5])
+        self.assert_address_encode(8, 256, [0])
+        self.assert_address_encode(8, 257, [1])
+        self.assert_address_encode(8, 513, [1])
+        self.assert_address_encode(8, -1, [255])
+
+        self.assert_address_encode(16, 0x1234, [0x12, 0x34])
+        self.assert_address_encode(16, 0xFFFF, [0xFF, 0xFF])
+        self.assert_address_encode(16, 0x10000, [0, 0])
+        self.assert_address_encode(16, 0x10001, [0, 1])
+        self.assert_address_encode(16, 0x100001, [0, 1])
+        self.assert_address_encode(16, -1, [0xFF, 0xFF])
+
+        self.assert_address_encode(32, 0x12345678, [0x12, 0x34, 0x56, 0x78])
+        self.assert_address_encode(32, 0x100000000, [0, 0, 0, 0])
+        self.assert_address_encode(32, 0x1000000001, [0, 0, 0, 1])
+        self.assert_address_encode(32, -1, [0xFF, 0xFF, 0xFF, 0xFF])
+
+        self.assert_address_encode(64, 0x123456789abcdef0, [0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xde, 0xf0])
+        self.assert_address_encode(64, 0x10000000000000000, [0, 0, 0, 0, 0, 0, 0, 0])
+        self.assert_address_encode(64, 0x10000000000000001, [0, 0 , 0 , 0 , 0, 0, 0, 1])
+        self.assert_address_encode(64, -1, [0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF])        
+
+        
 # ============================
 #               Request
 # ============================
