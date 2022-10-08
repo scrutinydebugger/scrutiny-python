@@ -9,11 +9,9 @@
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 
 import argparse
-import hashlib
-import mmap
+
 import os
 import logging
-from binascii import hexlify
 
 from .base_command import BaseCommand
 from typing import Optional, List
@@ -25,7 +23,7 @@ class GetFirmwareId(BaseCommand):
     _group_ = 'Build Toochain'
 
     DEFAULT_NAME = 'firmwareid'
-    BUF_SIZE = 0x10000
+    
 
     args: List[str]
     parser: argparse.ArgumentParser
@@ -39,7 +37,7 @@ class GetFirmwareId(BaseCommand):
                                  help='When set, tag the firmware binary file with the new firmware-id hash by replacing the compiled placeholder.')
 
     def run(self) -> Optional[int]:
-        import scrutiny.core.firmware_id as firmware_id
+        from scrutiny.core.firmware_parser import FirmwareParser
 
         args = self.parser.parse_args(self.args)
         filename = os.path.normpath(args.filename)
@@ -51,34 +49,14 @@ class GetFirmwareId(BaseCommand):
         else:
             output_file = args.output
 
-        with open(filename, "rb") as f:
-            s = mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
-            pos = s.find(firmware_id.PLACEHOLDER);
-            if pos == -1:
-                raise Exception(
-                    "Binary file does not contains Scrutiny placeholder. Either it is already tagged or the file hasn't been compiled with a full scrutiny-lib")
-
-            logging.debug('Found scrutiny placeholder at address 0x%08x' % pos)
-            sha256 = hashlib.sha256()
-            while True:
-                data = f.read(self.BUF_SIZE)
-                if not data:
-                    break
-                sha256.update(data)
-            hash256 = bytes.fromhex(sha256.hexdigest())
-            thehash_bin = bytes([a ^ b for a, b in zip(hash256[0:16], hash256[16:32])])    # Reduces from 256 to 128 bits
-            thehash_str = hexlify(thehash_bin).decode('ascii')
+        parser = FirmwareParser(filename)
+        if not parser.has_placeholder():
+            parser.throw_no_tag_error()
 
         if output_file is None:
-            print(thehash_str, flush=True, end='')
+            print(parser.get_firmware_id_ascii(), flush=True, end='')
         else:
             with open(output_file, 'w') as f:
-                f.write(thehash_str)
-
-        if args.apply:
-            with open(filename, "rb+") as f:
-                f.seek(pos)
-                f.write(thehash_bin)
-                logging.debug('Wrote new hash %s at address 0x%08x' % (thehash_str, pos))
+                f.write(parser.get_firmware_id_ascii())
 
         return 0
