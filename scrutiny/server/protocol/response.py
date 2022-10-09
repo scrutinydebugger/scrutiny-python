@@ -17,6 +17,9 @@ from typing import Union, Type
 
 
 class Response:
+    """
+    Represent a response that can be received freom a device using the Scrutiny embedded protocol
+    """
     command: Type[BaseCommand]
     subfn: Union[int, Enum]
     code: "ResponseCode"
@@ -26,11 +29,11 @@ class Response:
 
     class ResponseCode(Enum):
         OK = 0
-        InvalidRequest = 1
-        UnsupportedFeature = 2
-        Overflow = 3
-        Busy = 4
-        FailureToProceed = 5
+        InvalidRequest = 1      # When the payload makes no sense for the given command
+        UnsupportedFeature = 2  # When we request for a feature that is not supported
+        Overflow = 3            # When the response cannot be sent because it would overflow a buffer
+        Busy = 4                # When the request cannot be handled because the device is doing something else.
+        FailureToProceed = 5    # Generic error for all other types of failures
 
     def __init__(self, command: Union[Type[BaseCommand], int], subfn: Union[int, Enum], code: ResponseCode, payload: bytes = b''):
         if inspect.isclass(command) and issubclass(command, BaseCommand):
@@ -49,24 +52,29 @@ class Response:
         self.payload = bytes(payload)
 
     def size(self) -> int:
+        """Returns the size of the byte encoded response"""
         return 9 + len(self.payload)
 
     def data_size(self):
+        """Returns the length of the payload only (without protocol overhead)"""
         return len(self.payload)
 
     def make_bytes_no_crc(self) -> bytes:
+        """Encode the response to bytes, without adding a CRC at the end"""
         data = struct.pack('>BBB', self.command_id, self.subfn, self.code.value)
         data += struct.pack('>H', len(self.payload))
         data += self.payload
         return data
 
     def to_bytes(self) -> bytes:
+        """Encode the response to bytes"""
         data = self.make_bytes_no_crc()
         data += struct.pack('>L', crc32(data))
         return data
 
     @classmethod
     def from_bytes(cls, data: bytes) -> "Response":
+        """Recreate a Response object from a byte-encoded response"""
         if len(data) < 9:
             raise Exception('Not enough data in payload')
 

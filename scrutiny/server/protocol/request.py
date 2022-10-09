@@ -70,7 +70,7 @@ class Request:
         return Request.OVERHEAD_SIZE + len(self.payload)
 
     def data_size(self):
-        """Returns the length of the payload"""
+        """Returns the length of the payload only (without protocol overhead)"""
         return len(self.payload)
 
     @classmethod
