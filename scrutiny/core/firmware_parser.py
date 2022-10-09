@@ -58,12 +58,14 @@ class FirmwareParser:
                 self.firmware_id = bytes([a ^ b for a, b in zip(hash256[0:16], hash256[16:32])])    # Reduces from 256 to 128 bits
 
     def has_placeholder(self) -> bool:
+        """True if the parsed binary contains a placeholder ID ready to be replaced"""
         return self.placeholder_location is not None
 
     def throw_no_tag_error(self) -> None:
         raise Exception(self.NO_TAG_ERROR)
 
     def get_firmware_id(self) -> bytes:
+        """Return the firmware ID generated while parsing an untagged binary"""
         if self.firmware_id is None:
             self.throw_no_tag_error()
 

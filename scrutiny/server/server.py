@@ -24,6 +24,7 @@ from typing import TypedDict
 
 
 class ServerConfig(TypedDict, total=False):
+    """The server configuration definition loadable from json"""
     name: str
     autoload_sfd: bool
     debug: bool
@@ -86,6 +87,7 @@ class ScrutinyServer:
         pass
 
     def run(self) -> None:
+        """Launch the server code. This function is blocking"""
         self.logger.info('Starting server instance "%s"' % (self.server_name))
 
         try:
@@ -106,6 +108,7 @@ class ScrutinyServer:
             raise
 
     def close_all(self) -> None:
+        """Terminate the server by closing all its resources"""
         if self.api is not None:
             self.api.close()
 

@@ -39,21 +39,22 @@ class InfoPoller:
     dispatcher: RequestDispatcher       # We put the request in here, and we know they'll go out
     protocol: Protocol                  # The actual protocol. Used to build the request payloads
     priority: int                       # Our dispatcher priority
-    info: DeviceInfo
-    started: bool
-    protocol_version_callback: Optional[ProtocolVersionCallback]
-    comm_param_callback: Optional[CommParamCallback]
-    fsm_state: "InfoPoller.FsmState"
-    last_fsm_state: "InfoPoller.FsmState"
-    stop_requested: bool
-    request_pending: bool
-    request_failed: bool
-    forbidden_memory_region_count: Optional[int]
-    readonly_memory_region_count: Optional[int]
-    rpv_count: Optional[int]
-    error_message: str
+    info: DeviceInfo        # Stores the data that we gather from the device
+    started: bool           # Indicate if enabled or not
+    protocol_version_callback: Optional[ProtocolVersionCallback]    # When the protocol version from the device is read, call this
+    comm_param_callback: Optional[CommParamCallback]    # When we have fetched the communication parameters, call this callback
+    fsm_state: "InfoPoller.FsmState"        # The state machine state
+    last_fsm_state: "InfoPoller.FsmState"   # Previous cycle state of the state machine
+    stop_requested: bool    # Requested to stop polling
+    request_pending: bool   # True when we are waiting for a request to complete
+    request_failed: bool    # Flag indicating that a request have failed. Will make the
+    forbidden_memory_region_count: Optional[int]    # Number of forbidden memory region to read
+    readonly_memory_region_count: Optional[int]     # Number of readonly memory region to read
+    rpv_count: Optional[int]    # Number of Runtime Published Values to reads
+    error_message: str          # Detailed error of why it was impossible to poll al the data
 
     class FsmState(enum.Enum):
+        # Finite State Machine state
         Error = -1
         Init = 0
         GetProtocolVersion = 1
@@ -84,22 +85,29 @@ class InfoPoller:
         self.reset()
 
     def set_known_info(self, device_id: str, device_display_name: str) -> None:
+        # Some info about the device is known beforehand. Let's input it here, it will
+        # be written to the final DeviceInfo structure
         self.info.device_id = device_id
         self.info.display_name = device_display_name
 
     def get_device_info(self) -> DeviceInfo:
+        # Retrieve the data gathered from the device
         return copy.copy(self.info)
 
     def start(self) -> None:
+        # Launch polling of data
         self.started = True
 
     def stop(self) -> None:
+        # Stop the poller
         self.stop_requested = True
 
     def done(self) -> bool:
+        """Returns True when data is finished to be gathered from the device"""
         return self.fsm_state == self.FsmState.Done
 
     def is_in_error(self) -> bool:
+        """Returns true if an error occured and the state machine went to error state"""
         return self.fsm_state == self.FsmState.Error
 
     def reset(self) -> None:
@@ -117,6 +125,7 @@ class InfoPoller:
         self.info.clear()
 
     def process(self) -> None:
+        """To be called  periodically to make the process move forward"""
         if not self.started:
             self.reset()
             return
@@ -134,6 +143,7 @@ class InfoPoller:
 
         # ======= [GetProtocolVersion] =====
         elif self.fsm_state == self.FsmState.GetProtocolVersion:
+            # We already know the protocol version from the discover request.  This should maybe be removed...
             if state_entry:
                 self.dispatcher.register_request(request=self.protocol.get_protocol_version(),
                                                  success_callback=SuccessCallback(self.success_callback), failure_callback=FailureCallback(self.failure_callback), priority=self.priority)
@@ -141,7 +151,7 @@ class InfoPoller:
 
             if self.request_failed:
                 next_state = self.FsmState.Error
-            if not self.request_pending:
+            if not self.request_pending:    # Request completed
                 try:
                     if self.protocol_version_callback is not None:
                         self.protocol_version_callback.__call__(self.info.protocol_major, self.info.protocol_minor)
@@ -237,7 +247,7 @@ class InfoPoller:
         # ======= [GetRPVCount] =====
         elif self.fsm_state == self.FsmState.GetRPVCount:
             if state_entry:
-                self.rpv_count = None
+                self.rpv_count = None   # Will be set in success callback
                 self.dispatcher.register_request(request=self.protocol.get_rpv_count(),
                                                  success_callback=SuccessCallback(self.success_callback), failure_callback=FailureCallback(self.failure_callback), priority=self.priority)
                 self.request_pending = True
@@ -265,6 +275,7 @@ class InfoPoller:
                 assert self.info.runtime_published_values is not None
                 assert self.rpv_count is not None
 
+                # Issue a new request until all RPV are read
                 already_read_count = len(self.info.runtime_published_values)
                 if already_read_count < self.rpv_count:
                     count = min(max_rpv_per_request, self.rpv_count - already_read_count)
@@ -296,6 +307,8 @@ class InfoPoller:
         self.fsm_state = next_state
 
     def success_callback(self, request: Request, response: Response, params: Any = None) -> None:
+        """Called when a request completes and succeeds"""
+
         self.logger.debug("Success callback. Request=%s. Response Code=%s, Params=%s" % (request, response.code, params))
         response_data: protocol_typing.ResponseData
 

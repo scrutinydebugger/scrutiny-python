@@ -22,9 +22,7 @@ for i in range(63):
 
 
 class VariableLocation:
-    """
-    Represent an address in memory
-    """
+    """Represent an address in memory. """
 
     def __init__(self, address: int):
         if not isinstance(address, int):
@@ -33,18 +31,22 @@ class VariableLocation:
         self.address = address
 
     def get_address(self) -> int:
+        """Return the address in a numerical format"""
         return self.address
 
     def add_offset(self, offset: int):
+        """Modify the address by the given offset"""
         self.address += offset
 
     @classmethod
     def check_endianness(cls, endianness: Endianness):
+        """Tells if given endianness is valid"""
         if endianness not in [Endianness.Little, Endianness.Big]:
             raise ValueError('Invalid endianness "%s" ' % endianness)
 
     @classmethod
     def from_bytes(cls, data: Union[bytes, List[int], bytearray], endianness: Endianness):
+        """Reads the address encoded in binary with the given endianness"""
         if isinstance(data, list) or isinstance(data, bytearray):
             data = bytes(data)
         if not isinstance(data, bytes):
@@ -62,6 +64,7 @@ class VariableLocation:
         return cls(address)
 
     def copy(self) -> 'VariableLocation':
+        """Return a copy of this VariableLocation object"""
         return VariableLocation(self.get_address())
 
     def __str__(self):
@@ -93,23 +96,24 @@ class VariableEnum:
         self.vals = {}
 
     def add_value(self, name: str, value: int) -> None:
+        """Add a string/value pair in the enum"""
         if name in self.vals and self.vals[name] != value:
             raise Exception('Duplicate entry for enum %s. %s can either be %s or %s' % (self.name, name, self.vals[name], value))
 
         self.vals[name] = value
 
     def get_name(self) -> str:
+        """Return the name of the enum"""
         return self.name
 
     def get_value(self, name: str) -> int:
+        """Return the value associated with a name"""
         if name not in self.vals:
             raise Exception('%s is not a valid name for enum %s' % (name, self.name))
         return self.vals[name]
 
     def get_def(self) -> VariableEnumDef:
-        """
-        Export to dict for json serialization mainly
-        """
+        """Export to dict for json serialization mainly"""
         obj: VariableEnumDef = {
             'name': self.name,
             'values': self.vals
@@ -118,9 +122,7 @@ class VariableEnum:
 
     @classmethod
     def from_def(cls, enum_def: VariableEnumDef):
-        """
-        Recreate from a .json dict
-        """
+        """Recreate from a .json dict"""
         obj = cls(enum_def['name'])
         obj.vals = enum_def['values']
         return obj
@@ -180,6 +182,7 @@ class Struct:
         self.members = {}
 
     def add_member(self, member):
+        """Add a member to the struct"""
         if member.name in self.members:
             raise Exception('Duplicate member %s' % member.name)
 
@@ -230,9 +233,7 @@ class Variable:
         self.enum = enum
 
     def decode(self, data: Union[bytes, bytearray]) -> Encodable:
-        """
-        Decode the binary content in memory to a python value
-        """
+        """Decode the binary content in memory to a python value"""
 
         if self.bitfield:
             # todo improve this with bit array maybe.
@@ -272,6 +273,7 @@ class Variable:
         return data, write_mask
 
     def get_fullname(self) -> str:
+        """Returns the full path identifying this variable"""
         if len(self.path_segments) == 0:
             path_str = '/'
         else:
@@ -279,24 +281,30 @@ class Variable:
         return '%s/%s' % (path_str, self.name)
 
     def get_type(self) -> EmbeddedDataType:
+        """Returns the data type of the variable"""
         return self.vartype
 
     def get_path_segments(self) -> List[str]:
+        """Returns a list of segments representing the path to the variable. Exclude the variable name"""
         return self.path_segments
 
     def get_address(self) -> int:
+        """Get the variable address"""
         return self.location.get_address()
 
     def has_enum(self) -> bool:
+        """True if an enum is attached to that variable"""
         return self.enum is not None
 
     def get_enum(self) -> Optional[VariableEnum]:
+        """Return the enum attached to the variable. None if it does not exists"""
         return self.enum
 
     def get_size(self) -> Optional[int]:
+        """Returns the size of the variable in bytes"""
         size_bit = self.vartype.get_size_bit()
         if size_bit is None:
-            return size_bit
+            return None
         else:
             return int(size_bit / 8)
 

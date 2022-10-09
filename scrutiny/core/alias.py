@@ -66,6 +66,7 @@ class Alias:
         self.max = float(max) if max is not None else None
 
     def validate(self):
+        """Raise an exception if internal values are bad"""
         if not self.fullpath or not isinstance(self.fullpath, str):
             raise ValueError('fullpath is not valid')
 
@@ -94,6 +95,7 @@ class Alias:
             raise ValueError('Gain is not a finite value')
 
     def to_dict(self) -> Dict[str, Any]:
+        """Make a dict containing all the information on the alias and that can be loaded with `from_json` """
         d: Dict[str, Any] = dict(target=self.target, target_type=self.target_type)
 
         # Save some space in alias.json by ommiting defaults value
@@ -143,6 +145,7 @@ class Alias:
         return self.offset if self.offset is not None else 0.0
 
     def compute_user_to_device(self, value: Union[int, float, bool]) -> Union[int, float, bool]:
+        """Transform the value received from the user before writing it to the device. Applies min, max, gain, offset"""
         if isinstance(value, int) or isinstance(value, float):
             value = min(value, self.get_max())
             value = max(value, self.get_min())
@@ -151,6 +154,7 @@ class Alias:
         return value
 
     def compute_device_to_user(self, value: Union[int, float, bool]) -> Union[int, float, bool]:
+        """Converts to value read from the device into a value that can be shown to the suer. Applies gain, offset"""
         if isinstance(value, int) or isinstance(value, float):
             value *= self.get_gain()
             value += self.get_offset()

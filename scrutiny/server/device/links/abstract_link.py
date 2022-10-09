@@ -17,6 +17,7 @@ class AbstractLink(ABC):
     @classmethod
     @abstractmethod
     def make(cls, config: LinkConfig) -> "AbstractLink":
+        """Construct a Link object from its configuration"""
         return cls(config)
 
     @abstractmethod
@@ -24,38 +25,47 @@ class AbstractLink(ABC):
         pass
 
     @abstractmethod
-    def initialize(self):
+    def initialize(self) -> None:
+        """Initialize the communication channel. The channel is expected to be usable after this"""
         pass
 
     @abstractmethod
-    def initialized(self):
+    def initialized(self) -> bool:
+        """Returns True if the Link object has been initialized"""
         pass
 
     @abstractmethod
-    def destroy(self):
+    def destroy(self) -> None:
+        """Release all internal resources and put the Link into a non-usable state"""
         pass
 
     @abstractmethod
     def write(self, data: bytes) -> None:
+        """Write data into the communication channels"""
         pass
 
     @abstractmethod
     def read(self) -> Optional[bytes]:
+        """Reads data from the communication channel. Returns None if not available"""
         pass
 
     @abstractmethod
     def process(self):
+        """To be called periodically"""
         pass
 
     @abstractmethod
     def operational(self) -> bool:
+        """REturns True if the communication channel is in a functional state"""
         pass
 
     @staticmethod
     @abstractmethod
     def validate_config(config: LinkConfig) -> None:
+        """Raises an exception if the configuration is not good"""
         pass
 
     @abstractmethod
     def get_config(self) -> LinkConfig:
+        """Get the link configuration"""
         pass

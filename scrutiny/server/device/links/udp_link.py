@@ -64,14 +64,16 @@ class UdpLink(AbstractLink):
         return cast(LinkConfig, self.config)
 
     def initialize(self) -> None:
-        # Called by device handler to initialize the communication channel.
-        # Expect comm to be functional after that
+        """ 
+        Called by device handler to initialize the communication channel.
+         Expect comm to be functional after that
+         """
         self.logger.debug('Opening UDP Link. Host=%s (%s). Port=%d' % (self.config['host'], self.ip_address, self.config['port']))
         self.init_socket()
         self._initialized = True
 
     def init_socket(self) -> None:
-        # Creates the UDP socket and listen on all interfaces
+        """ Creates the UDP socket and listen on all interfaces"""
         try:
             if self.sock is not None:
                 self.sock.close()
@@ -87,7 +89,7 @@ class UdpLink(AbstractLink):
             self.bound = False
 
     def destroy(self) -> None:
-        # Close the socket and put the comm channel in a non-functional state
+        """ Close the socket and put the comm channel in a non-functional state"""
         self.logger.debug('Closing UDP Link. Host=%s. Port=%d' % (self.config['host'], self.config['port']))
 
         if self.sock is not None:
@@ -97,13 +99,13 @@ class UdpLink(AbstractLink):
         self._initialized = False
 
     def operational(self) -> bool:
-        # Tells the upper layer if we are in a working state (to the best of our knowledge)
+        """ Tells the upper layer if we are in a working state (to the best of our knowledge)"""
         if self.sock is not None and self.bound == True:    # If bound, we are necessarily initialized
             return True
         return False
 
     def read(self) -> Optional[bytes]:
-        # Reads bytes Non-Blocking from the comm channel. None if no data available
+        """ Reads bytes Non-Blocking from the comm channel. None if no data available"""
         if not self.operational():
             return None
 
@@ -126,7 +128,7 @@ class UdpLink(AbstractLink):
         return None
 
     def write(self, data: bytes):
-        # Write data to the comm channel.
+        """ Write data to the comm channel."""
         if not self.operational():
             return
         assert self.sock is not None  # for mypy

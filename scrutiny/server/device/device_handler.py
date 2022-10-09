@@ -184,7 +184,7 @@ class DeviceHandler:
     def is_throttling_enabled(self) -> bool:
         return self.comm_handler.is_throttling_enabled()
 
-    def get_throttling_bitrate(self) -> float:
+    def get_throttling_bitrate(self) -> Optional[float]:
         return self.comm_handler.get_throttling_bitrate()
 
     def get_comm_params_callback(self, partial_device_info: DeviceInfo):

@@ -63,7 +63,7 @@ class SerialLink(AbstractLink):
 
     @classmethod
     def get_parity(cls, s: str) -> str:
-        # Parse a parity string and convert to pyserial constant
+        """ Parse a parity string and convert to pyserial constant"""
         s = str(s)
         s = s.strip().lower()
         if s not in cls.STR_TO_PARITY:
@@ -72,7 +72,7 @@ class SerialLink(AbstractLink):
 
     @classmethod
     def get_stop_bits(cls, s: Union[str, float, int]) -> float:
-        # Convert a stopbit input (str, or number) into a pyserial constant
+        """ Convert a stopbit input (str, or number) into a pyserial constant"""
         s = str(s)
         s = s.strip().lower()
         if s not in cls.STR_TO_STOPBITS:
@@ -81,7 +81,7 @@ class SerialLink(AbstractLink):
 
     @classmethod
     def get_data_bits(cls, s: Union[str, int]) -> int:
-        # Converts a data bist input (str or number) to a pyserial constant
+        """ Converts a data bist input (str or number) to a pyserial constant"""
         try:
             s = int(s)
         except:
@@ -94,7 +94,7 @@ class SerialLink(AbstractLink):
 
     @classmethod
     def make(cls, config: LinkConfig) -> "SerialLink":
-        # Return a serialLink instance from a config object
+        """ Return a serialLink instance from a config object"""
         return cls(config)
 
     def __init__(self, config: LinkConfig):
@@ -115,7 +115,7 @@ class SerialLink(AbstractLink):
         return cast(LinkConfig, self.config)
 
     def initialize(self) -> None:
-        # Called by the device Handler when initiating communication. Should reset the channel to a working state
+        """ Called by the device Handler when initiating communication. Should reset the channel to a working state"""
         portname = str(self.config['portname'])
         baudrate = int(self.config['baudrate'])
         stopbits = self.get_stop_bits(self.config['stopbits'])
@@ -128,19 +128,19 @@ class SerialLink(AbstractLink):
         self._initialized = True
 
     def destroy(self) -> None:
-        # Put the comm channel to a resource-free non-working state
+        """ Put the comm channel to a resource-free non-working state"""
         if self.port is not None:
             self.port.close()
         self._initialized = False
 
     def operational(self) -> bool:
-        # Tells if this comm channel is in proper state to be functional
+        """ Tells if this comm channel is in proper state to be functional"""
         if self.port is None:
             return False
         return self.port.isOpen() and self._initialized
 
     def read(self) -> Optional[bytes]:
-        # Reads bytes Non-Blocking from the comm channel. None if no data available
+        """ Reads bytes Non-Blocking from the comm channel. None if no data available"""
         data: Optional[bytes] = None
         if self.operational():
             assert self.port is not None    # For mypy
@@ -155,7 +155,7 @@ class SerialLink(AbstractLink):
         return data
 
     def write(self, data: bytes):
-        # Write data to the comm channel.
+        """ Write data to the comm channel."""
         if self.operational():
             assert self.port is not None    # For mypy
             try:
@@ -166,7 +166,7 @@ class SerialLink(AbstractLink):
                 self.port.close()
 
     def initialized(self) -> bool:
-        # Tells if initialize() has been called
+        """ Tells if initialize() has been called"""
         return self._initialized
 
     def process(self) -> None:

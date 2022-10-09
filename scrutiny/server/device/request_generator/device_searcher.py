@@ -44,15 +44,15 @@ class DeviceSearcher:
         self.reset()
 
     def start(self) -> None:
-        # Enable the search
+        """ Enable the search"""
         self.started = True
 
     def stop(self) -> None:
-        # Stop the search. No more request emitted and state machine will stop
+        """ Stop the search. No more request emitted and state machine will stop"""
         self.started = False
 
     def reset(self) -> None:
-        # Restart the search from the beginning
+        """ Restart the search from the beginning"""
         self.pending = False
         self.last_request_timestamp = None
         self.found_device_timestamp = time.time()
@@ -60,36 +60,36 @@ class DeviceSearcher:
         self.found_device = None
 
     def device_found(self) -> bool:
-        # Tells if a device was found
+        """Tells if a device was found"""
         return self.found_device is not None
 
     def get_device_firmware_id(self) -> Optional[bytes]:
-        # Get the firmware ID of the found device. None if none was found
+        """Get the firmware ID of the found device. None if none was found"""
         if self.found_device is not None:
             return self.found_device['firmware_id']
         return None
 
     def get_device_firmware_id_ascii(self) -> Optional[str]:
-        # Get the firmware ID in ascii format of the found device. None if none was found
+        """Get the firmware ID in ascii format of the found device. None if none was found"""
         firmware_id = self.get_device_firmware_id()
         if firmware_id is not None:
             return binascii.hexlify(firmware_id).decode('ascii')
         return None
 
     def get_device_display_name(self) -> Optional[str]:
-        # Get the display name of the found device. None if none was found
+        """Get the display name of the found device. None if none was found"""
         if self.found_device is not None:
             return self.found_device['display_name']
         return None
 
     def get_device_protocol_version(self) -> Optional[Tuple[int, int]]:
-        # Get the protocol version of the found device. None if none was found
+        """Get the protocol version of the found device. None if none was found"""
         if self.found_device is not None:
             return (self.found_device['protocol_major'], self.found_device['protocol_minor'])
         return None
 
     def process(self) -> None:
-        # To be called periodically
+        """To be called periodically"""
         if not self.started:
             self.reset()
             return
@@ -111,7 +111,7 @@ class DeviceSearcher:
                 self.last_request_timestamp = time.time()
 
     def success_callback(self, request: Request, response: Response, params: Any = None):
-        # Called by the dispatcher when a request is completed and succeeded
+        """ Called by the dispatcher when a request is completed and succeeded"""
         self.logger.debug("Success callback. Request=%s. Response Code=%s, Params=%s" % (request, response.code, params))
 
         if response.code == ResponseCode.OK:
@@ -130,7 +130,7 @@ class DeviceSearcher:
         self.completed()
 
     def failure_callback(self, request: Request, params: Any = None):
-        # Called by the dispatcher when a request is completed and failed to succeed
+        """ Called by the dispatcher when a request is completed and failed to succeed"""
         self.logger.debug("Failure callback. Request=%s. Params=%s" % (request, params))
         self.found_device = None
         self.completed()

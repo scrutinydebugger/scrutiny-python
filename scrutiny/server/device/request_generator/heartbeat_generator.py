@@ -51,16 +51,16 @@ class HeartbeatGenerator:
         self.interval = interval
 
     def set_session_id(self, session_id: int) -> None:
-        # Sets the session ID to use for heartbeat reuqest
+        """Sets the session ID to use for heartbeat request"""
         self.session_id = session_id
 
     def start(self) -> None:
-        # Enable the heartbeat generator.
+        """Enable the heartbeat generator."""
         self.started = True
         self.last_heartbeat_timestamp = time.time()
 
     def stop(self) -> None:
-        # Disable the heartbeat generator. Will stop sending request and FSM will go idle
+        """Disable the heartbeat generator. Will stop sending request and FSM will go idle"""
         self.started = False
 
     def reset(self) -> None:
@@ -90,7 +90,7 @@ class HeartbeatGenerator:
                 self.last_heartbeat_request = time.time()
 
     def success_callback(self, request: Request, response: Response, params: Any = None) -> None:
-        # Called by the dispatcher when a request is completed and succeeded
+        """ Called by the dispatcher when a request is completed and succeeded"""
         self.logger.debug("Success callback. Request=%s. Response Code=%s, Params=%s" % (request, response.code, params))
 
         expected_challenge_response = self.protocol.heartbeat_expected_challenge_response(self.challenge)
@@ -115,11 +115,11 @@ class HeartbeatGenerator:
         self.completed()
 
     def failure_callback(self, request: Request, params: Any = None) -> None:
-        # Called by the dispatcher when a request is completed and failed to succeed
+        """ Called by the dispatcher when a request is completed and failed to succeed"""
         self.logger.debug("Failure callback. Request=%s. Params=%s" % (request, params))
         self.completed()
 
     def completed(self) -> None:
-        # Common code between success and failure
+        """ Common code between success and failure"""
         self.challenge = (self.challenge + 1) & 0xFFFF  # NExt challenge
         self.pending = False
