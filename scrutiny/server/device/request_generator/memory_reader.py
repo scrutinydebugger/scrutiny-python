@@ -310,7 +310,7 @@ class MemoryReader:
             self.memory_read_cursor += 1
             if self.memory_read_cursor >= len(self.watched_var_entries_sorted_by_address):
                 self.memory_read_cursor = 0
-                cursor_wrapped = True
+                cursor_wrapped = True   # Indicates that we completed 1 round of round-robin for variables. Time to process RPVs
 
         block_list = []
         for cluster in clusters_in_request:
@@ -346,7 +346,7 @@ class MemoryReader:
             entries_in_request = candidate_list
             self.rpv_read_cursor += 1
             if self.rpv_read_cursor >= len(self.watched_rpv_entries_sorted_by_id):
-                cursor_wrapped = True
+                cursor_wrapped = True   # Indicates that we finished one round of round-robin for RPV entries. Times to check Variables
                 self.rpv_read_cursor = 0
 
         ids = [x.get_rpv().id for x in entries_in_request]
@@ -423,5 +423,5 @@ class MemoryReader:
         self.read_completed()
 
     def read_completed(self) -> None:
-        """Comon code after success and failure callbacks"""
+        """Common code after success and failure callbacks"""
         self.request_pending = False

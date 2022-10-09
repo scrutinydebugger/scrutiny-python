@@ -111,7 +111,7 @@ class DeviceSearcher:
                 self.last_request_timestamp = time.time()
 
     def success_callback(self, request: Request, response: Response, params: Any = None):
-        """ Called by the dispatcher when a request is completed and succeeded"""
+        # Called by the dispatcher when a request is completed and succeeded
         self.logger.debug("Success callback. Request=%s. Response Code=%s, Params=%s" % (request, response.code, params))
 
         if response.code == ResponseCode.OK:
@@ -130,7 +130,7 @@ class DeviceSearcher:
         self.completed()
 
     def failure_callback(self, request: Request, params: Any = None):
-        """ Called by the dispatcher when a request is completed and failed to succeed"""
+        # Called by the dispatcher when a request is completed and failed to succeed
         self.logger.debug("Failure callback. Request=%s. Params=%s" % (request, params))
         self.found_device = None
         self.completed()
