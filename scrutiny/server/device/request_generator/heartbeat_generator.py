@@ -48,6 +48,7 @@ class HeartbeatGenerator:
         self.reset()
 
     def set_interval(self, interval: float) -> None:
+        """Set the interval of time at which to send heartbeat"""
         self.interval = interval
 
     def set_session_id(self, session_id: int) -> None:
@@ -64,14 +65,17 @@ class HeartbeatGenerator:
         self.started = False
 
     def reset(self) -> None:
+        """Put the heartbeat generator in its startup state"""
         self.pending = False
         self.started = False
         self.session_id = None
 
     def last_valid_heartbeat_timestamp(self) -> Optional[float]:
+        """Returns the timestamp of the last heartbeat that completed successfully"""
         return self.last_heartbeat_timestamp
 
     def process(self) -> None:
+        """To be called periodically"""
         if not self.started:
             self.reset()
             return

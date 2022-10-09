@@ -34,6 +34,8 @@ class CommParamCallback(GenericCallback):
 
 
 class InfoPoller:
+    """Class that will successfuly sends polling request to the device
+    to gather all of its internal parameters. Will fill a DeviceInformation structure"""
 
     logger: logging.Logger
     dispatcher: RequestDispatcher       # We put the request in here, and we know they'll go out
@@ -54,7 +56,7 @@ class InfoPoller:
     error_message: str          # Detailed error of why it was impossible to poll al the data
 
     class FsmState(enum.Enum):
-        # Finite State Machine state
+        """Enum representing the InfoPoller State machine possible states"""
         Error = -1
         Init = 0
         GetProtocolVersion = 1
@@ -85,21 +87,21 @@ class InfoPoller:
         self.reset()
 
     def set_known_info(self, device_id: str, device_display_name: str) -> None:
-        # Some info about the device is known beforehand. Let's input it here, it will
-        # be written to the final DeviceInfo structure
+        """ Some info about the device is known beforehand. Let's input it here, it will
+         be written to the final DeviceInfo structure"""
         self.info.device_id = device_id
         self.info.display_name = device_display_name
 
     def get_device_info(self) -> DeviceInfo:
-        # Retrieve the data gathered from the device
+        """ Retrieve the data gathered from the device """
         return copy.copy(self.info)
 
     def start(self) -> None:
-        # Launch polling of data
+        """ Launch polling of data """
         self.started = True
 
     def stop(self) -> None:
-        # Stop the poller
+        """ Stop the poller """
         self.stop_requested = True
 
     def done(self) -> bool:
@@ -111,6 +113,7 @@ class InfoPoller:
         return self.fsm_state == self.FsmState.Error
 
     def reset(self) -> None:
+        """Put back the info poller to its startup state"""
         if self.fsm_state != self.FsmState.Init:
             self.logger.debug('Moving state machine to %s' % self.FsmState.Init)
         self.fsm_state = self.FsmState.Init
@@ -416,6 +419,7 @@ class InfoPoller:
         self.completed()
 
     def failure_callback(self, request: Request, params: Any = None) -> None:
+        """Callback called by the request dispatcher when a request fails to complete"""
         self.logger.debug("Failure callback. Request=%s. Params=%s" % (request, params))
         if not self.stop_requested:
             self.request_failed = True
@@ -434,6 +438,7 @@ class InfoPoller:
         self.completed()
 
     def completed(self) -> None:
+        """Common code after success and failure of a request"""
         self.request_pending = False
         if self.stop_requested:
             self.reset()

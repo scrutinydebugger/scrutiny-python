@@ -117,6 +117,7 @@ class DummyLink(AbstractLink):
 
     @classmethod
     def make(cls, config: LinkConfig = {}) -> "DummyLink":
+        """Construct a dummyLink object based on a configuration dictionnary"""
         if 'channel_id' in config:
             if config['channel_id'] not in cls.INSTANCES:
                 cls.INSTANCES[config['channel_id']] = cls(config)
@@ -130,23 +131,28 @@ class DummyLink(AbstractLink):
         self.emulate_broken = False
 
     def clear_all(self) -> None:
+        """Empty both transmit and receive buffer"""
         self.to_device_data = bytes()
         self.from_device_data = bytes()
 
     def initialize(self) -> None:
+        """Returns True if the Link object has been initialized"""
         self.clear_all()
         self._initialized = True
 
     def destroy(self) -> None:
+        """Release all internal resources and put the Link into a non-usable state"""
         self.clear_all()
         self._initialized = False
 
     def write(self, data: bytes) -> None:
+        """Write data into the communication channels"""
         if self.emulate_broken:
             return None
         self.to_device_data += data
 
     def read(self) -> bytes:
+        """Reads data from the communication channel. Returns None if not available"""
         if self.emulate_broken:
             return bytes()
 
@@ -155,6 +161,7 @@ class DummyLink(AbstractLink):
         return data
 
     def emulate_device_read(self) -> bytes:
+        """Reads data written by the server side. Meant to emulate a device action"""
         data = self.to_device_data
         self.to_device_data = bytes()
         if self.emulate_broken:
@@ -163,21 +170,27 @@ class DummyLink(AbstractLink):
         return data
 
     def emulate_device_write(self, data: bytes) -> None:
+        """Write data from the device side so that the server side can read it. Meant to emulate a device action"""
         if not self.emulate_broken:
             self.from_device_data += data
 
     def process(self) -> None:
+        """To be called periodically"""
         pass
 
     def operational(self) -> bool:
+        """Returns True if the communication channel is in a functional state"""
         return self._initialized and not self.emulate_broken
 
     def initialized(self) -> bool:
+        """Returns True if the Link object has been initialized"""
         return self._initialized
 
     def get_config(self):
+        """Get the link configuration"""
         return {}
 
     @staticmethod
     def validate_config(config: LinkConfig) -> None:
+        """Raises an exception if the configuration is not good"""
         pass

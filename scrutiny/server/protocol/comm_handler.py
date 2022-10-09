@@ -102,7 +102,7 @@ class CommHandler:
         self.throttler.disable()
 
     def is_throttling_enabled(self) -> bool:
-        """REturns True if throttling is enabled on the device communication"""
+        """Returns True if throttling is enabled on the device communication"""
         return self.throttler.is_enabled()
 
     def get_throttling_bitrate(self) -> Optional[float]:

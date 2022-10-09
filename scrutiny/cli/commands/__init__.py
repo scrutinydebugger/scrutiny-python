@@ -16,10 +16,12 @@ from typing import List, Dict, Type
 
 
 def get_all_commands() -> List[Type[BaseCommand]]:
+    """Return a list of class object. One for each possible CLI command"""
     return BaseCommand.__subclasses__()
 
 
 def get_commands_by_groups() -> Dict[str, List[Type[BaseCommand]]]:
+    """Return all possible CLI command, grouped in a dictionnary by group string"""
     commands = get_all_commands()
     groups: Dict[str, List[Type[BaseCommand]]] = {}
     for cmd in commands:

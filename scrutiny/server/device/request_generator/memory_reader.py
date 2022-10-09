@@ -26,6 +26,8 @@ from typing import Any, List, Tuple, Optional, cast, Set, Dict
 
 
 class DataStoreEntrySortableByAddress:
+    """Wrapper around a DatastoreVariableEntry that can sort them by their address.
+    Used to feed a SortedSet"""
     entry: DatastoreVariableEntry
 
     def __init__(self, entry: DatastoreVariableEntry):
@@ -54,6 +56,8 @@ class DataStoreEntrySortableByAddress:
 
 
 class DataStoreEntrySortableByRpvId:
+    """Wrapper around DatastoreRPVEntry that can be sorted by RPV ID. 
+    Used to feed a SortedSet"""
     entry: DatastoreRPVEntry
 
     def __init__(self, entry: DatastoreRPVEntry):
@@ -82,11 +86,18 @@ class DataStoreEntrySortableByRpvId:
 
 
 class ReadType(enum.Enum):
+    """Type of read request. Memory and RPV reads uses a different protocol commands"""
     MemoryBlock = enum.auto()
     RuntimePublishedValues = enum.auto()
 
 
 class MemoryReader:
+    """Class that poll the device for its memory content and update the datastore
+    with new values when the content is received.
+    It treats Variable and RuntimePublishedValues differently as they use a different protocol command.
+
+    The Memory reader only polls for entry with a least 1 watcher
+    """
 
     DEFAULT_MAX_REQUEST_PAYLOAD_SIZE: int = 1024
     DEFAULT_MAX_RESPONSE_PAYLOAD_SIZE: int = 1024
@@ -95,21 +106,22 @@ class MemoryReader:
     dispatcher: RequestDispatcher       # We put the request in here, and we know they'll go out
     protocol: Protocol                  # The actual protocol. Used to build the request payloads
     request_priority: int               # Our dispatcher priority
-    datastore: Datastore
-    stop_requested: bool
-    request_pending: bool
-    started: bool
-    max_request_payload_size: int
-    max_response_payload_size: int
-    forbidden_regions: List[Tuple[int, int]]
-    readonly_regions: List[Tuple[int, int]]
-    watched_var_entries_sorted_by_address: SortedSet
-    watched_rpv_entries_sorted_by_id: SortedSet
-    memory_read_cursor: int
-    rpv_read_cursor: int
-    entries_in_pending_read_mem_request: List[DatastoreVariableEntry]
+    datastore: Datastore    # The datastore the look for entries to update
+    stop_requested: bool    # Requested to stop polling
+    request_pending: bool   # True when we are waiting for a request to complete
+    started: bool           # Indicate if enabled or not
+    max_request_payload_size: int   # Maximum size for a request payload gotten from the InfoPoller
+    max_response_payload_size: int  # Maximum size for a response payload gotten from the InfoPoller
+    forbidden_regions: List[Tuple[int, int]]    # List of memory regions to avoid. Gotten from InfoPoller
+    readonly_regions: List[Tuple[int, int]]     # List of memory region that can only be read. Gotten from InfoPoller
+    watched_var_entries_sorted_by_address: SortedSet    # Set of entries referring variables sorted by address
+    watched_rpv_entries_sorted_by_id: SortedSet         # Set of entries referring RuntimePublishedValues (RPV) sorted by ID
+    memory_read_cursor: int     # Cursor used for round-robin inside the SortedSet of Variables datastore entries
+    rpv_read_cursor: int        # Cursor used for round-robin inside the SortedSet of RPV datastore entries
+    entries_in_pending_read_mem_request: List[DatastoreVariableEntry]   # List of memory entries in the request we're waiting for
+    # List of RPV entries in the request we're waiting for. Stored in a dict with their ID as key
     entries_in_pending_read_rpv_request: Dict[int, DatastoreRPVEntry]
-    actual_read_type: ReadType
+    actual_read_type: ReadType  # Tell wether we are doing RPV read or memory read request. We alternate from one another.
 
     def __init__(self, protocol: Protocol, dispatcher: RequestDispatcher, datastore: Datastore, request_priority: int):
         self.logger = logging.getLogger(self.__class__.__name__)
@@ -123,19 +135,24 @@ class MemoryReader:
         self.reset()
 
     def set_max_request_payload_size(self, max_size: int) -> None:
+        """Set the maximum payload size that can be sent in a request. Depends on device internal buffer size"""
         self.max_request_payload_size = max_size
 
     def set_max_response_payload_size(self, max_size: int) -> None:
+        """Set the maximum payload size that the device can send in a response. Depends on device internal buffer size"""
         self.max_response_payload_size = max_size
 
     def set_size_limits(self, max_request_payload_size: int, max_response_payload_size: int) -> None:
+        """Set both maximum request and response payload size"""
         self.set_max_request_payload_size(max_request_payload_size)
         self.set_max_response_payload_size(max_response_payload_size)
 
     def add_forbidden_region(self, start_addr: int, size: int) -> None:
+        """Add a memory region to avoid touching. They normally are broadcasted by the device itself"""
         self.forbidden_regions.append((start_addr, size))
 
     def the_watch_callback(self, entry_id: str) -> None:
+        """Callback called by the datastore whenever somebody starts watching an entry."""
         entry = self.datastore.get_entry(entry_id)
         if isinstance(entry, DatastoreVariableEntry):
             # Memory reader reads by address. Only Variables has that
@@ -144,6 +161,7 @@ class MemoryReader:
             self.watched_rpv_entries_sorted_by_id.add(DataStoreEntrySortableByRpvId(entry))
 
     def the_unwatch_callback(self, entry_id: str) -> None:
+        """Callback called by the datastore  whenever somebody stops watching an entry"""
         if len(self.datastore.get_watchers(entry_id)) == 0:
             entry = self.datastore.get_entry(entry_id)
             if isinstance(entry, DatastoreVariableEntry):
@@ -152,12 +170,15 @@ class MemoryReader:
                 self.watched_rpv_entries_sorted_by_id.discard(DataStoreEntrySortableByRpvId(entry))
 
     def start(self) -> None:
+        """Enable the memory reader to poll the devices"""
         self.started = True
 
     def stop(self) -> None:
+        """Stops the memory readers from polling the device"""
         self.stop_requested = True
 
     def reset(self) -> None:
+        """Put back the memory reader to its startup state"""
         self.stop_requested = False
         self.request_pending = False
         self.started = False
@@ -176,6 +197,7 @@ class MemoryReader:
         self.entries_in_pending_read_rpv_request = {}
 
     def process(self) -> None:
+        """To be called periodically"""
         if not self.started:
             self.reset()
             return
@@ -216,6 +238,7 @@ class MemoryReader:
                 raise Exception('Unknown read type.')
 
     def dispatch(self, request: Request) -> None:
+        """Sends a request to the request dispatcher and assign the corrects completion callbacks"""
         self.dispatcher.register_request(
             request=request,
             success_callback=SuccessCallback(self.success_callback),
@@ -226,8 +249,9 @@ class MemoryReader:
 
     def make_next_read_memory_request(self) -> Tuple[Optional[Request], List[DatastoreVariableEntry], bool]:
         """
-        This method generate a read request by moving in a list of watched entries
-        It works in a round-robin scheme and will agglomerate entries that are contiguous in memory
+        This method generate a read request by moving in a list of watched variable entries
+        It works in a round-robin scheme and will agglomerate entries that are contiguous in memory.
+        Consider device internal max buffer size
         """
         cursor_wrapped = False
         max_block_per_request: int = self.max_request_payload_size // self.protocol.read_memory_request_size_per_block()
@@ -296,6 +320,10 @@ class MemoryReader:
         return (request, entries_in_request, cursor_wrapped)
 
     def make_next_read_rpv_request(self) -> Tuple[Optional[Request], List[DatastoreRPVEntry], bool]:
+        """
+        This method generate a read request by moving in a list of watched RPV entries
+        It works in a round-robin scheme and will agglomerate entries until buffer size limit is reached
+        """
         cursor_wrapped = False
         entries_in_request: List[DatastoreRPVEntry] = []
         if self.rpv_read_cursor >= len(self.watched_rpv_entries_sorted_by_id):
@@ -326,6 +354,7 @@ class MemoryReader:
         return (request, entries_in_request, cursor_wrapped)
 
     def success_callback(self, request: Request, response: Response, params: Any = None) -> None:
+        """Called when a request completes and succeeds"""
         self.logger.debug("Success callback. Response=%s, Params=%s" % (response, params))
         subfn = cmd.MemoryControl.Subfunction(response.subfn)
         if subfn == cmd.MemoryControl.Subfunction.Read:
@@ -338,6 +367,7 @@ class MemoryReader:
         self.read_completed()
 
     def success_callback_memory_read(self, request: Request, response: Response, params: Any = None) -> None:
+        """Called when a MemoryRead request completes and succeeds"""
         if response.code == ResponseCode.OK:
             try:
                 response_data = cast(protocol_typing.Response.MemoryControl.Read, self.protocol.parse_response(response))
@@ -359,6 +389,7 @@ class MemoryReader:
             self.logger.warning('Response for ReadMemory has been refused with response code %s.' % response.code)
 
     def success_callback_rpv_read(self, request: Request, response: Response, params: Any = None) -> None:
+        """Called when a RPV read request completes and succeeds"""
         if response.code == ResponseCode.OK:
             try:
                 response_data = cast(protocol_typing.Response.MemoryControl.ReadRPV, self.protocol.parse_response(response))
@@ -379,6 +410,7 @@ class MemoryReader:
             self.logger.warning('Response for ReadRPV has been refused with response code %s.' % response.code)
 
     def failure_callback(self, request: Request, params: Any = None) -> None:
+        """Callback called by the request dispatcher when a request fails to complete"""
         self.logger.debug("Failure callback. Request=%s. Params=%s" % (request, params))
         subfn = cmd.MemoryControl.Subfunction(request.subfn)
         if subfn == cmd.MemoryControl.Subfunction.Read:
@@ -391,4 +423,5 @@ class MemoryReader:
         self.read_completed()
 
     def read_completed(self) -> None:
+        """Comon code after success and failure callbacks"""
         self.request_pending = False

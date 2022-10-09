@@ -56,7 +56,7 @@ class AbstractLink(ABC):
 
     @abstractmethod
     def operational(self) -> bool:
-        """REturns True if the communication channel is in a functional state"""
+        """Returns True if the communication channel is in a functional state"""
         pass
 
     @staticmethod
