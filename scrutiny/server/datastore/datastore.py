@@ -34,6 +34,7 @@ class Datastore:
     handler when a connection is made. Alias and variable are added when a Firmware Description is loaded. 
     It's the same as having 3 datastore, one for each type.
     """
+
     logger: logging.Logger
     entries: Dict[EntryType, Dict[str, DatastoreEntry]]
     displaypath2idmap: Dict[EntryType, Dict[str, str]]

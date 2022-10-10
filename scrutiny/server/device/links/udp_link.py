@@ -64,10 +64,7 @@ class UdpLink(AbstractLink):
         return cast(LinkConfig, self.config)
 
     def initialize(self) -> None:
-        """ 
-        Called by device handler to initialize the communication channel.
-         Expect comm to be functional after that
-         """
+        """Initialize the communication channel. The channel is expected to be usable after this"""
         self.logger.debug('Opening UDP Link. Host=%s (%s). Port=%d' % (self.config['host'], self.ip_address, self.config['port']))
         self.init_socket()
         self._initialized = True
@@ -141,10 +138,12 @@ class UdpLink(AbstractLink):
         return self._initialized
 
     def process(self) -> None:
+        """To be called periodically"""
         pass
 
     @staticmethod
     def validate_config(config: LinkConfig) -> None:
+        """Raises an exception if the configuration is not adequate"""
         if not isinstance(config, dict):
             raise ValueError('Configuration is not a valid dictionary')
 

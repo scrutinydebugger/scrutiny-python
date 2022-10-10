@@ -174,6 +174,7 @@ class SerialLink(AbstractLink):
 
     @staticmethod
     def validate_config(config: LinkConfig) -> None:
+        """Raises an exception if the configuration is not adequate"""
         if not isinstance(config, dict):
             raise ValueError('Configuration is not a valid dictionary')
 

@@ -684,6 +684,7 @@ class Protocol:
         return Response(cmd.UserCommand, subfn, Response.ResponseCode.OK, data)
 
     def parse_response(self, response: Response) -> protocol_typing.ResponseData:
+        """Parse a response payload into a meaningful data structure"""
         data: protocol_typing.ResponseData = cast(protocol_typing.Response.Empty, {})
         subfn: Enum
         valid: bool = True

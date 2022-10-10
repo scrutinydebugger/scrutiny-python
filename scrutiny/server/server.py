@@ -53,6 +53,8 @@ DEFAULT_CONFIG: ServerConfig = {
 
 
 class ScrutinyServer:
+    """The Scrutiny server that communicate with a device running libscrutiny-embedded and make
+    the device internal data available through a multi-client websocket API"""
     server_name: str
     logger: logging.Logger
     config: ServerConfig

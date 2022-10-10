@@ -11,17 +11,20 @@ from scrutiny.core.basic_types import *
 
 
 class MemoryRegion(TypedDict):
+    """Describe a region in memory with a start and end address"""
     start: int
     end: int
 
 
 class SupportedFeatureMap(TypedDict):
+    """Dictionnary of all possible supported features by the device (libscrutiny-embedded)"""
     memory_write: bool
     datalog_acquire: bool
     user_command: bool
 
 
 class DeviceInfo:
+    """Container for all data that can be gathered from a device while initializing the communication with it"""
     __slots__ = (
         'device_id',
         'display_name',
