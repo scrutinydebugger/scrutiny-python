@@ -18,6 +18,8 @@ from typing import List
 
 
 class TempStorageWithAutoRestore:
+    """This is used to set a temporary SFD storage. Mainly used for unit tests"""
+
     def __init__(self, storage):
         self.storage = storage
 
@@ -28,10 +30,11 @@ class TempStorageWithAutoRestore:
         self.storage.restore_storage()
 
 
-class SFDStorageManager():
+class SFDStorageManager:
 
     @classmethod
     def clean_firmware_id(self, firmwareid: str) -> str:
+        """Normalize the firmware ID"""
         if not isinstance(firmwareid, str):
             raise ValueError('Firmware ID must be a string')
 
@@ -43,19 +46,25 @@ class SFDStorageManager():
         os.makedirs(self.folder, exist_ok=True)
 
     def use_temp_folder(self):
+        """Require the storage manager to switch to a temporary directory. Used for unit testing"""
         self.temporary_dir = tempfile.TemporaryDirectory()
         return TempStorageWithAutoRestore(self)
 
     def restore_storage(self):
+        """Require the storage manager to work on the real directory and not a temporary directory"""
         self.temporary_dir = None
 
     def get_storage_dir(self) -> str:
+        """Ge the actual storage directory"""
         if self.temporary_dir is not None:
             return self.temporary_dir.name
 
         return self.folder
 
     def install(self, filename: str, ignore_exist: bool = False) -> FirmwareDescription:
+        """Install a Scrutiny Firmware Description file (SFD) from a filename into the global storage. 
+        Once isntalled, it can be loaded when communication starts with a device that identify
+        itself with an ID that matches this SFD"""
         if not os.path.isfile(filename):
             raise ValueError('File "%s" does not exist' % (filename))
 
@@ -64,6 +73,9 @@ class SFDStorageManager():
         return sfd
 
     def install_sfd(self, sfd: FirmwareDescription, ignore_exist: bool = False) -> None:
+        """Install a Scrutiny Firmware Description (SFD) object into the global storage. 
+        Once isntalled, it can be loaded when communication starts with a device that identify
+        itself with an ID that matches this SFD"""
         firmware_id_ascii = self.clean_firmware_id(sfd.get_firmware_id_ascii())
         output_file = os.path.join(self.get_storage_dir(), firmware_id_ascii)
 
@@ -73,6 +85,7 @@ class SFDStorageManager():
         sfd.write(output_file)  # Write the Firmware Description file in storage folder with firmware ID as name
 
     def uninstall(self, firmwareid: str, ignore_not_exist: bool = False) -> None:
+        """Remove a Scrutiny Firmware Description (SFD) with given ID from the global storage"""
         firmwareid = self.clean_firmware_id(firmwareid)
         if not self.is_valid_firmware_id(firmwareid):
             raise ValueError('Invalid firmware ID')
@@ -86,6 +99,7 @@ class SFDStorageManager():
                 raise ValueError('SFD file with firmware ID %s not found' % (firmwareid))
 
     def is_installed(self, firmwareid: str) -> bool:
+        """Tells if a SFD file with given ID exists in global storage"""
         firmwareid = self.clean_firmware_id(firmwareid)
         if not self.is_valid_firmware_id(firmwareid):
             raise ValueError('Invalid firmware ID')
@@ -95,7 +109,8 @@ class SFDStorageManager():
         return os.path.isfile(filename)
 
     def get(self, firmwareid: str) -> FirmwareDescription:
-        self.clean_firmware_id(firmwareid)
+        """Returns the FirmwareDescription object from the global storage that has the given firmware ID """
+        firmwareid = self.clean_firmware_id(firmwareid)
         if not self.is_valid_firmware_id(firmwareid):
             raise ValueError('Invalid firmware ID')
 
@@ -107,12 +122,14 @@ class SFDStorageManager():
         return FirmwareDescription(filename)
 
     def get_metadata(self, firmwareid: str) -> MetadataType:
+        """Reads only the metadata from the Firmware DEscription file in the global storage identified by the given ID"""
         storage = self.get_storage_dir()
         firmwareid = self.clean_firmware_id(firmwareid)
         filename = os.path.join(storage, firmwareid)
         return FirmwareDescription.read_metadata_from_sfd_file(filename)
 
     def list(self) -> List[str]:
+        """Returns a list of firmware ID installed in the global storage"""
         thelist = []
         for filename in os.listdir(self.get_storage_dir()):   # file name is firmware ID
             if os.path.isfile(os.path.join(self.get_storage_dir(), filename)) and self.is_valid_firmware_id(filename):
@@ -121,6 +138,7 @@ class SFDStorageManager():
 
     @classmethod
     def is_valid_firmware_id(cls, firmware_id: str) -> bool:
+        """Returns True if the given string respect the expected format for a firmware ID"""
         retval = False
         try:
             firmware_id = cls.clean_firmware_id(firmware_id)

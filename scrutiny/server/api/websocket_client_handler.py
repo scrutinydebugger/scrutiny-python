@@ -22,6 +22,11 @@ WebsocketType = Any  # todo fix this
 
 
 class WebsocketClientHandler(AbstractClientHandler):
+    """
+    Manages connections to the API through websockets
+    and implements the AbstractClientHandler, the connection handler for the API.
+
+    """
 
     server: SynchronousWebsocketServer
     config: ClientHandlerConfig
@@ -38,12 +43,14 @@ class WebsocketClientHandler(AbstractClientHandler):
             self.register), disconnect_callback=GenericCallback(self.unregister))
 
     def register(self, websocket: WebsocketType) -> None:
+        # Callback on new websocket connection.  We make a unique ID for each object.
         wsid = self.make_id()
         self.id2ws_map[wsid] = websocket
         self.ws2id_map[websocket] = wsid
         self.logger.info('New client connected (ID=%s). %d clients total' % (wsid, len(self.ws2id_map)))
 
     def unregister(self, websocket: WebsocketType) -> None:
+        # Callback on websocket diconnection.
         wsid = self.ws2id_map[websocket]
         del self.ws2id_map[websocket]
         del self.id2ws_map[wsid]
@@ -64,7 +71,7 @@ class WebsocketClientHandler(AbstractClientHandler):
         self.server.stop()
 
     def send(self, msg: ClientHandlerMessage) -> None:
-        # Find the websocket associated with the ID string and send the data
+        # Sends data given by the API to a given client identified by its unique connection ID
         wsid = msg.conn_id
         if wsid not in self.id2ws_map:
             self.logger.error('Conn ID %s not known. Discarding')
@@ -86,6 +93,7 @@ class WebsocketClientHandler(AbstractClientHandler):
         return not self.server.rxqueue.empty()
 
     def recv(self) -> Optional[ClientHandlerMessage]:
+        # Returns to the API messages received associated with the client connection unique ID
         try:
             (websocket, msg) = self.server.rxqueue.get_nowait()
         except:

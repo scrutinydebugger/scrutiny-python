@@ -23,6 +23,7 @@ class BaseDemangler(abc.ABC):
 
 
 class GccDemangler(BaseDemangler):
+    """Class capable of demangling symbols names mangled by GCC. It uses the provided GCC c++filt utility"""
 
     _default_binary_name: str = "c++filt"
 
@@ -36,6 +37,7 @@ class GccDemangler(BaseDemangler):
         self.error_details = ""
 
     def can_run(self) -> bool:
+        """Returns True if c++filt is found on the system"""
         can_run = True
         if shutil.which(self.binary_name) is None:
             can_run = False
@@ -44,9 +46,11 @@ class GccDemangler(BaseDemangler):
         return can_run
 
     def get_error(self) -> str:
+        """Returns why the demangler cannot run"""
         return self.error_details
 
     def demangle(self, mangled: str) -> str:
+        """Perform demangling on a mangled symbol name"""
         if not self.can_run():
             raise Exception('Cannot run demangler. %s' % self.get_error())
 

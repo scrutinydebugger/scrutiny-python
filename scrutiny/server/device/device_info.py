@@ -11,17 +11,20 @@ from scrutiny.core.basic_types import *
 
 
 class MemoryRegion(TypedDict):
+    """Describe a region in memory with a start and end address"""
     start: int
     end: int
 
 
 class SupportedFeatureMap(TypedDict):
+    """Dictionnary of all possible supported features by the device (libscrutiny-embedded)"""
     memory_write: bool
     datalog_acquire: bool
     user_command: bool
 
 
 class DeviceInfo:
+    """Container for all data that can be gathered from a device while initializing the communication with it"""
     __slots__ = (
         'device_id',
         'display_name',
@@ -40,19 +43,46 @@ class DeviceInfo:
     )
 
     device_id: Optional[str]
+    """The device firmware ID uniquely identifying the firmware"""
+
     display_name: Optional[str]
+    """The textual name broadcasted by the device"""
+
     max_tx_data_size: Optional[int]
+    """The maximum payload size that the device can send. Limited by its internal buffer size"""
+
     max_rx_data_size: Optional[int]
+    """The maximum payload size that the device can receive. Limited by its internal buffer size"""
+
     max_bitrate_bps: Optional[int]
+    """The maximum bitrate requested by the device."""
+
     rx_timeout_us: Optional[int]
+    """The amount of time, in microseconds that the device will wait before resetting it's internal reception state machine"""
+
     heartbeat_timeout_us: Optional[int]
+    """The number of time, in microseconds, that the device will wait without receiving a heartbeat before resetting the session"""
+
     address_size_bits: Optional[int]
+    """Device address size in bits. Value of sizeof(void*)*8 """
+
     protocol_major: Optional[int]
+    """Protocol version major number"""
+
     protocol_minor: Optional[int]
+    """Protocol version minor number"""
+
     supported_feature_map: Optional[SupportedFeatureMap]
+    """Dictionary listing all supported feature"""
+
     forbidden_memory_regions: Optional[List[MemoryRegion]]
+    """List of all memory regions that are forbidden to access broadcasted by the device"""
+
     readonly_memory_regions: Optional[List[MemoryRegion]]
+    """List of all memory regions that are readonly broadcasted by the device"""
+
     runtime_published_values: Optional[List[RuntimePublishedValue]]
+    """List of all RuntimePublishedValues (RPV) registered in the device firmware"""
 
     def get_attributes(self):
         return self.__slots__
@@ -61,6 +91,7 @@ class DeviceInfo:
         self.clear()
 
     def all_ready(self) -> bool:
+        """Returns True when all attributes are set to something (not None)"""
         ready = True
         for attr in self.__slots__:
             if getattr(self, attr) is None:
@@ -69,6 +100,7 @@ class DeviceInfo:
         return ready
 
     def clear(self) -> None:
+        """Clear all attributes by setting them to None"""
         for attr in self.__slots__:
             setattr(self, attr, None)
 

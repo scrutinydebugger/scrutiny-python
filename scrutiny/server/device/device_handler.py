@@ -40,6 +40,7 @@ from typing import TypedDict, Optional, Callable, Any, Dict, cast
 from scrutiny.core.typehints import GenericCallback
 
 DEFAULT_FIRMWARE_ID_ASCII = binascii.hexlify(DEFAULT_FIRMWARE_ID).decode('ascii')
+"""Default firmware ID assigned to a binary that uses libscrutiny-embedded without tagging the binary after compilation"""
 
 
 class DisconnectCallback(GenericCallback):
@@ -47,44 +48,77 @@ class DisconnectCallback(GenericCallback):
 
 
 class DeviceHandlerConfig(TypedDict, total=False):
+    """DegiceHandler configuration in a dict format that can be laoded from a json file"""
+
     response_timeout: float
+    """Amount of time to wait before considering that a request has timed out"""
+
     heartbeat_timeout: float
+    """Time interval in between heatbeat request. This value will be 
+    overriden if the device requires a smaller interval"""
+
     default_address_size: int
+    """Address size to use in the protocol before receiving the size from a device"""
+
     default_protocol_version: str
+    """Default protocol version to use before a device broadcast its version"""
+
     max_request_size: int
+    """Maximum payload size to send in the requests. This value can be overriden
+    by the device if it broadcast a smaler limit"""
+
     max_response_size: int
+    """Maximum payload size that can be sent in a response by the device. This value can be overriden
+    by the device if it broadcast a smaler limit"""
+
     max_bitrate_bps: int
+    """Maximum bitrate to use on the device communication channel.
+    This value can be overriden if the device requires a smaller value"""
+
     link_type: str
+    """The type of communication link to use to talk with a device. udp, serial, dummy, dummy_threadsafe, etc"""
+
     link_config: LinkConfig
+    """The configuration dictionnary that will configure the communication link layer. 
+    Unique for each type of link (udp, serial, etc)"""
 
 
 class DeviceHandler:
+    """Handle the communication with the embedded device that implement libscrutiny-embedded.
+    It will scan for device, try to connect to it if it finds one. Then if the connection succeeds,
+    it will request all the device parameters and limitations (buffer size, throttling limits, number
+    of Runtime Published Values, forbidden memory region, etc.)
+
+    Once this is done, the device handler will start watching the datastore for entries that are watched by the API
+    and will run read/write request on the device to keep the datastore in sync with the embedded device.
+    """
+
     logger: logging.Logger
-    config: DeviceHandlerConfig
-    dispatcher: RequestDispatcher
-    device_searcher: DeviceSearcher
-    session_initializer: SessionInitializer
-    heartbeat_generator: HeartbeatGenerator
-    memory_reader: MemoryReader
-    memory_writer: MemoryWriter
-    info_poller: InfoPoller
-    comm_handler: CommHandler
-    protocol: Protocol
-    datastore: Datastore
-    device_info: Optional[DeviceInfo]
-    comm_broken: bool
-    device_id: Optional[str]
-    operating_mode: "DeviceHandler.OperatingMode"
-    connected: bool
-    fsm_state: "DeviceHandler.FsmState"
-    last_fsm_state: "DeviceHandler.FsmState"
-    active_request_record: Optional[RequestRecord]
-    session_id: Optional[int]
-    disconnection_requested: bool
-    disconnect_callback: Optional[DisconnectCallback]
-    disconnect_complet: bool
-    comm_broken_count: int
-    fully_connected_ready: bool
+    config: DeviceHandlerConfig             # The configuration coming from the user
+    dispatcher: RequestDispatcher           # The arbiter that receive all request to be sent and decides which one to send (uses a priority queue)
+    device_searcher: DeviceSearcher         # Componenent of the DeviceHandler that search for a new device on the communication link
+    session_initializer: SessionInitializer  # Componenent of the DeviceHandler that try to establish a connection to a found device
+    heartbeat_generator: HeartbeatGenerator  # Componenent of the DeviceHandler that periodically enqueue heartbeat request to keep a session active
+    memory_reader: MemoryReader     # Componenent of the DeviceHandler that polls the device memory to keep the datastore watched entries in sync with the deviec
+    memory_writer: MemoryWriter     # Componenent of the DeviceHandler that fulfill writes requests on datastore entries
+    info_poller: InfoPoller         # Componenent of the DeviceHandler that will gather all device parameters after a connection is established
+    comm_handler: CommHandler       # Layer that handle the communication with the device. Converts Requests to bytes and bytes to response. Also tells if a request timed out
+    protocol: Protocol      # The communication protocol. Encode and decodes request/response payload to meaning ful data
+    datastore: Datastore    # A reference to the main Datastore
+    device_info: Optional[DeviceInfo]   # All the information about the devicegathered by the InfoPoller
+    comm_broken: bool   # Flag indicating that we lost connection with the device. Resets the communication and the state machine.
+    device_id: Optional[str]    # Firmware ID of the device on which we are connected.
+    operating_mode: "DeviceHandler.OperatingMode"   # Operating mode - Normal or special modes for unit testing
+    connected: bool  # True when a connection to a device has been made
+    fsm_state: "DeviceHandler.FsmState"         # The internal state machine state
+    last_fsm_state: "DeviceHandler.FsmState"    # The state machine state at the previous execution cycle
+    active_request_record: Optional[RequestRecord]  # Request to the device on which we are waiting for
+    session_id: Optional[int]       # The session ID given by the device upon connection
+    disconnection_requested: bool   # The external world requested that we disconnect from the device
+    disconnect_callback: Optional[DisconnectCallback]   # Callback called upon disconnection
+    disconnect_complete: bool   # Flags indicating that a disconnect request has been completed
+    comm_broken_count: int      # Counter keeping track of how many time we had communication issues
+    fully_connected_ready: bool  # Indicates that the DeviceHandler is connected to a device and the initialization phase is correctly completed
 
     DEFAULT_PARAMS: DeviceHandlerConfig = {
         'response_timeout': 1.0,    # If a response take more than this delay to be received after a request is sent, drop the response.
@@ -98,6 +132,8 @@ class DeviceHandler:
 
     # Low number = Low priority
     class RequestPriority:
+        """Priority assigned to each type of requests. It will be used by the RequestDispatcher
+        internal priority queue"""
         Disconnect = 6
         Connect = 5
         Heatbeat = 4
@@ -109,6 +145,7 @@ class DeviceHandler:
         Discover = 0
 
     class ConnectionStatus(Enum):
+        """Status of the device handler given to the outside world"""
         UNKNOWN = -1
         DISCONNECTED = 0
         CONNECTING = 1
@@ -116,6 +153,7 @@ class DeviceHandler:
         CONNECTED_READY = 3
 
     class FsmState(Enum):
+        """The Device Handler State Machine states"""
         INIT = 0
         DISCOVERING = 1
         CONNECTING = 2
@@ -124,6 +162,7 @@ class DeviceHandler:
         DISCONNECTING = 5
 
     class OperatingMode(Enum):
+        """Tells the main function of the device handler. Modes different from Normal are meant for unit tests"""
         Normal = 0
         Test_CheckThrottling = 1
 
@@ -167,27 +206,34 @@ class DeviceHandler:
         self.reset_comm()
 
     def get_device_id(self) -> Optional[str]:
+        """Returns the firmware ID of the connected device. None if not connected"""
         return self.device_id
 
     def set_operating_mode(self, mode: "DeviceHandler.OperatingMode"):
+        """Sets the operating mode of the DeviceHandler. Used only for unit testing"""
         if not isinstance(mode, self.OperatingMode):
             raise ValueError('mode must be an instance of DeviceHandler.OperatingMode')
 
         self.operating_mode = mode
 
     def get_device_info(self) -> Optional[DeviceInfo]:
+        """Returns all the information we have about the connected device. None if not connected"""
         return copy.copy(self.device_info)
 
     def get_comm_error_count(self) -> int:
+        """Returns the number of communication issue we have encountered since startup"""
         return self.comm_broken_count
 
     def is_throttling_enabled(self) -> bool:
+        """Returns True if throttling is enabled on the communication with the device"""
         return self.comm_handler.is_throttling_enabled()
 
-    def get_throttling_bitrate(self) -> float:
+    def get_throttling_bitrate(self) -> Optional[float]:
+        """Returns the target mean bitrate that the throttling will try to limit to. None if throttling is not enabled"""
         return self.comm_handler.get_throttling_bitrate()
 
     def get_comm_params_callback(self, partial_device_info: DeviceInfo):
+        """Callback given to InfoPoller to be called whenever the GetParams command completes."""
         # In the POLLING_INFO stage, there is a point where we will have gotten the communication params.
         # This callback is called right after it so we can adapt.
         # We can raise exception here.
@@ -243,6 +289,7 @@ class DeviceHandler:
         self.heartbeat_generator.set_interval(max(0.5, float(partial_device_info.heartbeat_timeout_us) / 1000000.0 * 0.75))
 
     def get_protocol_version_callback(self, major: int, minor: int):
+        """Callback called by the InfoPoller whenever the protocol version is gotten after a GetProtocol command"""
         # In the POLLING_INFO stage, there is a point where we will have gotten the communication params.
         # This callback is called right after it so we can adapt.
         # We can raise exception here.
@@ -260,6 +307,7 @@ class DeviceHandler:
     # Tells the state of our connection with the device.
 
     def get_connection_status(self) -> "DeviceHandler.ConnectionStatus":
+        """Return a status meaningful for the outside world. Used to display the connection light (red, yellow, green) in the UI"""
         if self.connected:
             if self.fully_connected_ready:
                 return self.ConnectionStatus.CONNECTED_READY
@@ -281,10 +329,12 @@ class DeviceHandler:
         return self.comm_handler.get_link()
 
     def get_link_type(self) -> str:
+        """Returns what type of link is used to communicate with the device (serial, UDP, CanBus, etc)"""
         return self.comm_handler.get_link_type()
 
     # Set communication state to a fresh start.
     def reset_comm(self) -> None:
+        """Reset the communication with the device. Reset all state machines, clear pending requests, reset internal status"""
         if self.comm_broken and self.device_id is not None:
             self.logger.info('Communication with device stopped. Searching for a new device')
 
@@ -329,26 +379,29 @@ class DeviceHandler:
 
     # Open communication channel based on config
     def configure_comm(self, link_type: str, link_config: LinkConfig = {}) -> None:
+        """Configure the communication channel used to communicate with the device. Can be UDP, serial, etc"""
         self.comm_handler.set_link(link_type, link_config)
         self.reset_comm()
         self.comm_handler_open_restart_timer.stop()
 
     def validate_link_config(self, link_type: str, link_config: LinkConfig) -> None:
+        """Raise an exception if the given config is not adequate for the given link type"""
         self.comm_handler.validate_link_config(link_type, link_config)
 
     def send_disconnect(self, disconnect_callback: Optional[DisconnectCallback] = None):
+        """Request a disconnection with the device. Mainly used for unit testing"""
         self.logger.debug('Disconnection requested.')
         self.disconnection_requested = True
         self.disconnect_callback = disconnect_callback
 
-    # Stop all communication with the device
     def stop_comm(self) -> None:
+        """Close the communication channel with the device"""
         if self.comm_handler is not None:
             self.comm_handler.close()
         self.reset_comm()
 
-    # To be called periodically
     def process(self) -> None:
+        """To be called periodically"""
         self.device_searcher.process()
         self.heartbeat_generator.process()
         self.info_poller.process()
@@ -357,33 +410,38 @@ class DeviceHandler:
         self.memory_writer.process()
         self.dispatcher.process()
 
-        self.handle_comm()      # Make sure request and response are being exchanged with the device
+        self.process_comm()      # Make sure request and response are being exchanged with the device
         self.do_state_machine()
 
     def reset_bitrate_monitor(self) -> None:
+        """Reset internal bitrate counter"""
         self.comm_handler.reset_bitrate_monitor()
 
     def get_average_bitrate(self) -> float:
+        """Returns the average bitrate measured"""
         return self.comm_handler.get_average_bitrate()
 
     def exec_ready_task(self, state_entry: bool = False) -> None:
+        """Task to execute when the state machine is in Ready state (connected to a device and successful initialization phase)"""
         if self.operating_mode == self.OperatingMode.Normal:
             if state_entry:
                 self.memory_reader.start()
                 self.memory_writer.start()
             # Nothing else to do
-        elif self.operating_mode == self.OperatingMode.Test_CheckThrottling:
+        elif self.operating_mode == self.OperatingMode.Test_CheckThrottling:    # For unit tests
             if self.dispatcher.peek_next() is None:
                 dummy_request = Request(DummyCommand, subfn=1, payload=b'\x00' * 32, response_payload_size=32);
                 self.dispatcher.register_request(dummy_request, success_callback=SuccessCallback(
                     lambda *args, **kwargs: None), failure_callback=FailureCallback(self.test_failure_callback))
 
     def test_failure_callback(self, request: Request, params: Any) -> None:
+        """Callback used for unit testing only"""
         if self.operating_mode == self.OperatingMode.Test_CheckThrottling:
             self.logger.error('Dummy Command failed to be achieved. Stopping test')
             self.comm_broken = True
 
     def do_state_machine(self) -> None:
+        """Execute the internal state machine. This is the main logic of the DeviceHandler"""
         if self.comm_broken:
             self.comm_broken_count += 1
             self.fsm_state = self.FsmState.INIT
@@ -436,6 +494,7 @@ class DeviceHandler:
                 self.session_id = self.session_initializer.get_session_id()
                 session_id_str = 'None' if self.session_id is None else '0x%08x' % self.session_id
                 self.logger.debug("Session ID set : %s" % session_id_str)
+                assert self.session_id is not None
                 self.heartbeat_generator.set_session_id(self.session_id)
                 self.heartbeat_generator.start()    # This guy will send recurrent heartbeat request. If that request fails (timeout), comm will be reset
                 self.connected = True
@@ -533,16 +592,19 @@ class DeviceHandler:
         self.fsm_state = next_state
 
     def disconnect_complete_success(self, request: Request, response_code: ResponseCode, response_data: protocol_typing.ResponseData, params: Any = None):
+        """Callback called when a disconnect request completes successfully"""
         self.disconnect_complete = True
         if self.disconnect_callback is not None:
             self.disconnect_callback.__call__(True)
 
     def disconnect_complete_failure(self, request: Request, params: Any = None):
+        """Callback called when a disconnect request fails to complete"""
         self.disconnect_complete = True
         if self.disconnect_callback is not None:
             self.disconnect_callback.__call__(False)
 
-    def handle_comm(self) -> None:
+    def process_comm(self) -> None:
+        """Process the communication with the device. To be called periodically"""
         done: bool = False
 
         # Try open automatically the communication with device if we can

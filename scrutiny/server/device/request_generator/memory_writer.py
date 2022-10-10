@@ -28,23 +28,25 @@ class MemoryWriter:
     DEFAULT_MAX_RESPONSE_PAYLOAD_SIZE: int = 1024
 
     logger: logging.Logger
-    dispatcher: RequestDispatcher
-    protocol: Protocol
-    datastore: Datastore
-    request_priority: int
-    stop_requested: bool
-    request_pending: bool
-    started: bool
-    max_request_payload_size: int
-    max_response_payload_size: int
-    forbidden_regions: List[Tuple[int, int]]
-    readonly_regions: List[Tuple[int, int]]
+    dispatcher: RequestDispatcher       # We put the request in here, and we know they'll go out
+    protocol: Protocol                  # The actual protocol. Used to build the request payloads
+    request_priority: int               # Our dispatcher priority
+    datastore: Datastore    # The datastore the look for entries to update
+    stop_requested: bool    # Requested to stop polling
+    request_pending: bool   # True when we are waiting for a request to complete
+    started: bool           # Indicate if enabled or not
+    max_request_payload_size: int   # Maximum size for a request payload gotten from the InfoPoller
+    max_response_payload_size: int  # Maximum size for a response payload gotten from the InfoPoller
+    forbidden_regions: List[Tuple[int, int]]    # List of memory regions to avoid. Gotten from InfoPoller
+    readonly_regions: List[Tuple[int, int]]     # List of memory region that can only be read. Gotten from InfoPoller
 
-    entry_being_updated: Optional[DatastoreEntry]
+    entry_being_updated: Optional[DatastoreEntry]   # The datastore entry updated by the actual pending request. None if no request is pending
+    # When an entry is being written, this request is the pending request. None if nothing is being done
     request_of_entry_being_updated: Optional[Request]
+    # Update request attached to the entry being updated. It's what'S coming from the API
     target_update_request_being_processed: Optional[UpdateTargetRequest]
-    watched_entries: List[str]
-    write_cursor: int
+    watched_entries: List[str]  # List of entries beoing watched by clients. We will pool them to see if they have write request
+    write_cursor: int   # Cursor used for round-robin inside the list datastore entries to write
 
     def __init__(self, protocol: Protocol, dispatcher: RequestDispatcher, datastore: Datastore, request_priority: int):
         self.logger = logging.getLogger(self.__class__.__name__)
@@ -56,28 +58,37 @@ class MemoryWriter:
         self.reset()
 
     def set_max_request_payload_size(self, max_size: int) -> None:
+        """Set the maximum payload size that can be sent in a request. Depends on device internal buffer size"""
         self.max_request_payload_size = max_size
 
     def set_max_response_payload_size(self, max_size: int) -> None:
+        """Set the maximum payload size that the device can send in a response. Depends on device internal buffer size"""
         self.max_response_payload_size = max_size
 
     def set_size_limits(self, max_request_payload_size: int, max_response_payload_size: int) -> None:
+        """Set both maximum request and response payload size"""
         self.set_max_request_payload_size(max_request_payload_size)
         self.set_max_response_payload_size(max_response_payload_size)
 
     def add_forbidden_region(self, start_addr: int, size: int) -> None:
+        """Add a memory region to avoid touching. They normally are broadcasted by the device itself"""
         self.forbidden_regions.append((start_addr, size))
 
     def add_readonly_region(self, start_addr: int, size: int) -> None:
+        """Add a memory region tthat can only be read. We will avoid any write to them. 
+        They normally are broadcasted by the device itself"""
         self.readonly_regions.append((start_addr, size))
 
     def start(self) -> None:
+        """Enable the memory writer to poll the datastore and update the device"""
         self.started = True
 
     def stop(self) -> None:
+        """Stops the memory writer from polling the datastore and updating the device"""
         self.stop_requested = True
 
     def reset(self) -> None:
+        """Put back the memory writer to its startup state"""
         self.stop_requested = False
         self.request_pending = False
         self.started = False
@@ -94,6 +105,7 @@ class MemoryWriter:
         self.target_update_request_being_processed = None
 
     def process(self) -> None:
+        """To be called periodically"""
         if not self.started:
             self.reset()
             return
@@ -114,6 +126,11 @@ class MemoryWriter:
                 self.request_pending = True
 
     def make_next_memory_write_request(self) -> Optional[Request]:
+        """
+        This method generate a write request by moving in a list of watched variable entries
+        It works in a round-robin scheme and will send write request 1 by 1, without agglomeration.
+        It considers device internal max buffer size
+        """
         request: Optional[Request] = None
 
         if self.write_cursor >= len(self.watched_entries):
@@ -150,6 +167,7 @@ class MemoryWriter:
         return request
 
     def success_callback(self, request: Request, response: Response, params: Any = None) -> None:
+        """Called when a request completes and succeeds"""
         self.logger.debug("Success callback. Response=%s, Params=%s" % (response, params))
         subfn = cmd.MemoryControl.Subfunction(response.subfn)
         if subfn == cmd.MemoryControl.Subfunction.Write:
@@ -162,6 +180,7 @@ class MemoryWriter:
         self.completed()
 
     def success_callback_memory_write(self, request: Request, response: Response, params: Any = None) -> None:
+        """Called when a memory write request completes and succeeds"""
         if response.code == ResponseCode.OK:
             if request == self.request_of_entry_being_updated:
                 request_data = cast(protocol_typing.Request.MemoryControl.Write, self.protocol.parse_request(request))
@@ -192,6 +211,7 @@ class MemoryWriter:
             self.logger.warning('Response for WriteMemory has been refused with response code %s.' % response.code)
 
     def success_callback_rpv_write(self, request: Request, response: Response, params: Any = None) -> None:
+        """Called when a RPV write request completes and succeeds"""
         self.logger.debug("Success callback. Response=%s, Params=%s" % (response, params))
 
         if response.code == ResponseCode.OK:
@@ -221,6 +241,7 @@ class MemoryWriter:
             self.logger.warning('Response for WriteRPV has been refused with response code %s.' % response.code)
 
     def failure_callback(self, request: Request, params: Any = None) -> None:
+        """Callback called by the request dispatcher when a request fails to complete"""
         self.logger.debug("Failure callback. Request=%s. Params=%s" % (request, params))
 
         subfn = cmd.MemoryControl.Subfunction(request.subfn)
@@ -237,6 +258,7 @@ class MemoryWriter:
         self.completed()
 
     def completed(self) -> None:
+        """Common code after success and failure callbacks"""
         self.request_pending = False
         self.entry_being_updated = None
         self.request_of_entry_being_updated = None

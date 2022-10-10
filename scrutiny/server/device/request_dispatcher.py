@@ -42,10 +42,12 @@ class RequestQueue:
         self.maxsize = maxsize
 
     def clear(self) -> None:
+        """Delete all data inside the queue"""
         self.data = []
         self.priorities = []
 
     def push(self, item: "RequestRecord", priority: int = 0) -> None:
+        """Push an element into the queue"""
         if self.maxsize is not None and len(self.data) >= self.maxsize:
             raise Exception('Request queue full')
 
@@ -54,6 +56,7 @@ class RequestQueue:
         self.priorities.insert(index, priority)
 
     def pop(self) -> Optional["RequestRecord"]:
+        """Pop an element at the exit of the queue"""
         if len(self.data) > 0:
             item = self.data[-1]
             del self.priorities[-1]
@@ -62,11 +65,13 @@ class RequestQueue:
         return None
 
     def peek(self) -> Optional["RequestRecord"]:
+        """Get without removing the next element to come at the exit of the queue"""
         if len(self.data) > 0:
             return self.data[-1]
         return None
 
     def empty(self) -> bool:
+        """Returns True if the queue is empty"""
         return len(self.data) == 0
 
     def __len__(self):
@@ -74,20 +79,37 @@ class RequestQueue:
 
 
 class RequestRecord:
+    """Represents a request to dispatch a scrutiny protocol request. 
+    Completion callbacks are attached to this object alongside the protocol request"""
+
     __slots__ = ('request', 'success_callback', 'failure_callback', 'success_params', 'failure_params', 'completed', 'approximate_delta_bandwidth')
 
     request: Request
+    """The Scrutiny protocol request to send"""
+
     success_callback: SuccessCallback
+    """Callback to call if the request get a valid response"""
+
     failure_callback: FailureCallback
+    """Callback to call if the request fails to get a response (timeout or communication problem)"""
+
     success_params: Any
+    """Parameters to give to the success callback"""
+
     failure_params: Any
+    """Parameters to give to the failure callback"""
+
     completed: bool
+    """True when the request is completed (success or failure)"""
+
     approximate_delta_bandwidth: int
+    """Amount of bits that will be exchanged if this request completes. Used for throttling"""
 
     def __init__(self):
         self.completed = False
 
     def complete(self, success: bool = False, response: Optional[Response] = None):
+        """Mark this record as completed (success or failure). Will triggers callback execution"""
         self.completed = True  # Set to true at beginning so that it is still true if an exception raise in the callback
         if success:
             if response is None:
@@ -97,14 +119,19 @@ class RequestRecord:
             self.failure_callback.__call__(self.request, self.failure_params)
 
     def is_completed(self) -> bool:
+        """Return True if the request has completed (success or failure)"""
         return self.completed
 
 
 class RequestDispatcher:
+    """Uses a priority queue to buffer all pending Scrutiny Protocol requests and 
+    decide which one is the enxt to go out."""
 
     request_queue: RequestQueue
+    """PriorityQueue for requests"""
+
     logger: logging.Logger
-    rx_data_size_limit: Optional[int]
+    rx_data_size_limit: Optional[int]   # Used to validate that a request will fit in the device. If the payload is bigger than that, dropped
     tx_data_size_limit: Optional[int]
     critical_error: bool
 
@@ -114,15 +141,19 @@ class RequestDispatcher:
         self.reset()
 
     def reset(self) -> None:
+        """Clear all data within the RequestDispatcher and reset any error."""
         self.rx_data_size_limit = None
         self.tx_data_size_limit = None
         self.critical_error = False
         self.request_queue.clear()
 
     def is_in_error(self) -> bool:
+        """Returns True if an error occured. Will happen if a request has been enqueued that either 
+        has a request or an expected response size bigger than what the device can handle"""
         return self.critical_error
 
     def register_request(self, request: Request, success_callback: SuccessCallback, failure_callback: FailureCallback, priority: int = 0, success_params: Any = None, failure_params: Any = None) -> None:
+        """Enqueue a request to be sent to the device with a priority and completion callbacks"""
         record = RequestRecord()
         record.request = request
         record.success_callback = success_callback
@@ -149,14 +180,18 @@ class RequestDispatcher:
         return None
 
     def set_size_limits(self, max_request_payload_size: Optional[int], max_response_payload_size: Optional[int]) -> None:
+        """Set the device size limit. If a request is enqueued that doesn't fit these size, it will be dropped and an error will be reported"""
         self.rx_data_size_limit = max_request_payload_size
         self.tx_data_size_limit = max_response_payload_size
 
     def process(self) -> None:
+        """To be called periodically"""
         pass    # nothing to do
 
     def peek_next(self) -> Optional[RequestRecord]:
+        """Get the next request to be sent without removing it from the queue"""
         return self.request_queue.peek()
 
     def pop_next(self) -> Optional[RequestRecord]:
+        """Get the next request to be sent and remove it from the queue"""
         return self.request_queue.pop()

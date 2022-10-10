@@ -16,6 +16,8 @@ from scrutiny.cli.commands import *
 
 
 class CLI:
+    """Scrutiny Command Line Interface.
+    All commands are executed through this class."""
 
     def __init__(self, workdir='.', default_log_level='info'):
         self.workdir = workdir
@@ -32,7 +34,8 @@ class CLI:
         self.parser.add_argument('--loglevel', help='Log level to use', default=None, metavar='LEVEL')
         self.parser.add_argument('--logfile', help='File to write logs', default=None, metavar='FILENAME')
 
-    def make_command_list_help(self):
+    def make_command_list_help(self) -> str:
+        """Return a string meant to be displayed in the command line explaining the possible commands"""
         msg = "Here are the possible commands\n\n"
         commands = get_commands_by_groups()
         groups = list(commands.keys())
@@ -55,8 +58,9 @@ class CLI:
         return msg
 
     def run(self, args, except_failed=False):
+        """Run a command. Arguments must be passed as a list of strings (like they would be splitted in a shell)"""
         code = 0
-        if len(args) > 0:
+        if len(args) > 0:   # The help might be for a subcommand, so we take it only if it'S the first argument.
             if args[0] in ['-h', '--help']:
                 self.parser.print_help()
                 return 0

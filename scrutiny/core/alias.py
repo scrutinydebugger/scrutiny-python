@@ -15,6 +15,10 @@ from typing import Dict, Optional, Any, Union
 
 
 class Alias:
+    """
+    Represent an Alias. Read/write to an alias are deferred to another object (either a Variable or a Runtime Published Value)
+    Some optional value modifier will be applied (gain, offset, min, max)
+    """
     fullpath: str
     target: str
     target_type: Optional[EntryType]
@@ -46,6 +50,7 @@ class Alias:
 
     def __init__(self, fullpath: str, target: str, target_type: Optional[EntryType] = None, gain: Optional[float] = None, offset: Optional[float] = None, min: Optional[float] = None, max: Optional[float] = None):
         self.fullpath = fullpath
+        # Target type can be set later on.
         if target_type is not None:
             target_type = EntryType(target_type)
             if target_type == EntryType.Alias:
@@ -54,12 +59,14 @@ class Alias:
         else:
             self.target_type = None
         self.target = target
+        # Set to None if unset. getter will return the default value.
         self.gain = float(gain) if gain is not None else None
         self.offset = float(offset) if offset is not None else None
         self.min = float(min) if min is not None else None
         self.max = float(max) if max is not None else None
 
     def validate(self):
+        """Raise an exception if internal values are bad"""
         if not self.fullpath or not isinstance(self.fullpath, str):
             raise ValueError('fullpath is not valid')
 
@@ -88,8 +95,10 @@ class Alias:
             raise ValueError('Gain is not a finite value')
 
     def to_dict(self) -> Dict[str, Any]:
+        """Make a dict containing all the information on the alias and that can be loaded with `from_json` """
         d: Dict[str, Any] = dict(target=self.target, target_type=self.target_type)
 
+        # Save some space in alias.json by ommiting defaults value
         if self.gain is not None and self.gain != 1.0:
             d['gain'] = self.gain
 
@@ -136,6 +145,7 @@ class Alias:
         return self.offset if self.offset is not None else 0.0
 
     def compute_user_to_device(self, value: Union[int, float, bool]) -> Union[int, float, bool]:
+        """Transform the value received from the user before writing it to the device. Applies min, max, gain, offset"""
         if isinstance(value, int) or isinstance(value, float):
             value = min(value, self.get_max())
             value = max(value, self.get_min())
@@ -144,7 +154,9 @@ class Alias:
         return value
 
     def compute_device_to_user(self, value: Union[int, float, bool]) -> Union[int, float, bool]:
+        """Converts to value read from the device into a value that can be shown to the suer. Applies gain, offset"""
         if isinstance(value, int) or isinstance(value, float):
             value *= self.get_gain()
             value += self.get_offset()
+            # No min max on purpose. We want to report the real value
         return value

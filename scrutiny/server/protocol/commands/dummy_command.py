@@ -13,6 +13,7 @@ from enum import Enum
 
 
 class DummyCommand(BaseCommand):
+    """Dummy command for testing purpose"""
     _cmd_id = 0
 
     class Subfunction(Enum):

@@ -7,7 +7,8 @@
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 
 def crc32(data: bytes) -> int:
-    crc = 0xFFFFFFFF;
+    """Computes the CRC32 of a byte array"""
+    crc = 0xFFFFFFFF
     for i in range(len(data)):
         byte = data[i]
         for j in range(8):

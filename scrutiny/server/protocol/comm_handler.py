@@ -89,30 +89,42 @@ class CommHandler:
         self.link_type = "none"
 
     def enable_throttling(self, bitrate: float) -> None:
+        """Enable throttling on communication.
+        Overall bitrate (incoming and outgoing data included) will try to be respected.
+        This does not take in account the protocol overhwad. Just the payload sum.
+        """
         self.throttler.set_bitrate(bitrate)
         self.throttler.enable()
 
     def disable_throttling(self) -> None:
+        """Disable throttling on communication with the device"""
+        self.throttler.set_bitrate(0)
         self.throttler.disable()
 
     def is_throttling_enabled(self) -> bool:
+        """Returns True if throttling is enabled on the device communication"""
         return self.throttler.is_enabled()
 
-    def get_throttling_bitrate(self) -> float:
-        return self.throttler.get_bitrate()
+    def get_throttling_bitrate(self) -> Optional[float]:
+        """Get the target bitrate for throttling. None if disabled"""
+        return self.throttler.get_bitrate() if self.throttler.is_enabled() else None
 
     def reset_bitrate_monitor(self) -> None:
+        """Reset data size counters"""
         self.rx_bitcount = 0
         self.tx_bitcount = 0
         self.bitcount_time = time.time()
 
     def get_link(self) -> Optional[AbstractLink]:
+        """REturn the Link object used to talk with the device."""
         return self.link
 
     def get_link_type(self) -> str:
+        """Return the link type as a string. This type is the same used by the server configuration"""
         return self.link_type
 
     def set_link(self, link_type: str, link_config: LinkConfig) -> None:
+        """Set the device Link object from a type and a configuration."""
         self.logger.debug('Configuring new device link of type %s with config : %s' % (link_type, str(link_config)))
 
         self.close()
@@ -127,10 +139,12 @@ class CommHandler:
         self.link = link_class.make(link_config)
 
     def validate_link_config(self, link_type: str, link_config: LinkConfig) -> None:
+        """Raises an exception if the given configuration is wrong for the given link type"""
         link_class = self.get_link_class(link_type)
         return link_class.validate_config(link_config)
 
     def get_link_class(self, link_type: str) -> Type[AbstractLink]:
+        """Link Factory that returns the correct Link class based on a type given as string."""
         link_class: Type[AbstractLink]
 
         if link_type == 'udp':
@@ -151,9 +165,7 @@ class CommHandler:
         return link_class
 
     def open(self) -> None:
-        """
-            Try to open the communication channel with the device.
-        """
+        """Try to open the communication channel with the device."""
         if self.link is None:
             raise Exception('Link must be set before opening')
 
@@ -165,12 +177,11 @@ class CommHandler:
             self.opened = False
 
     def is_open(self):
+        """Return True if the communciation channel is open with the device"""
         return self.opened
 
     def close(self) -> None:
-        """
-            Close the communication channel with the device
-        """
+        """Close the communication channel with the device"""
         if self.link is not None:
             self.link.destroy()
 
@@ -178,15 +189,14 @@ class CommHandler:
         self.opened = False
 
     def is_operational(self) -> bool:
+        """Return True if the communication channel is presently in a healty state."""
         if self.link is None:
             return False
 
         return self.opened and self.link.operational()
 
     def process(self) -> None:
-        """
-        To be called periodically
-        """
+        """To be called periodically"""
         if self.link is None:
             self.reset()
             return
@@ -204,6 +214,7 @@ class CommHandler:
             self.process_tx()   # Handle throttling
 
     def process_rx(self) -> None:
+        """Handle data reception"""
         assert self.link is not None
 
         # If we haven't got a response or we know we won't get one. Mark the request as timed out
@@ -259,6 +270,7 @@ class CommHandler:
                     self.reset_rx()
 
     def process_tx(self, newrequest: bool = False) -> None:
+        """Handle data transmission"""
         assert self.link is not None
 
         if self.pending_request is not None:
@@ -290,18 +302,19 @@ class CommHandler:
                     self.logger.debug('Received request to send. Waiting because of throttling. %s' % self.pending_request)
 
     def response_available(self) -> bool:
+        """Return True if a response for the pending request has been received"""
         return (self.received_response is not None)
 
     def has_timed_out(self) -> bool:
+        """Return True if the pending request has timed out without response"""
         return self.timed_out
 
     def clear_timeout(self) -> None:
+        """Clear the timeout if the pending request did time out. Put back the CommHandler in a ready state for the next request"""
         self.timed_out = False
 
     def get_response(self) -> Response:
-        """
-        Return the response received for the active request
-        """
+        """Return the response received for the active request"""
         if self.received_response is None:
             raise Exception('No response to read')
 
@@ -311,8 +324,10 @@ class CommHandler:
         return response
 
     def reset_rx(self) -> None:
-        # Make sure we can send a new request.
-        # Also clear the received resposne so that response_available() return False
+        """ 
+        Make sure we can send a new request.
+        Also clear the received resposne so that response_available() return False
+        """
         self.active_request = None
         self.pending_request = None
         self.received_response = None
@@ -320,6 +335,7 @@ class CommHandler:
         self.rx_data.clear()
 
     def send_request(self, request: Request) -> None:
+        """Sends a request to the device"""
         if self.waiting_response():
             raise Exception('Cannot send new request. Already waiting for a response')
 
@@ -330,15 +346,19 @@ class CommHandler:
             self.process_tx(newrequest=True)
 
     def waiting_response(self) -> bool:
+        """Return True if there is a pending request waiting for a response. 
+        Will return False if the pending request does time out"""
         # We are waiting response if a request is active, meaning it has been sent and reponse has not been acknowledge by the application
         if not self.opened:
             return False
         return (self.active_request is not None or self.pending_request is not None)
 
     def reset(self) -> None:
+        """Put bacj the CommHandler to its startup state"""
         self.reset_rx()
         self.clear_timeout()
 
     def get_average_bitrate(self):
+        """Get the measured average bitrate since last counter reset"""
         dt = time.time() - self.bitcount_time
         return (self.rx_bitcount + self.tx_bitcount) / dt

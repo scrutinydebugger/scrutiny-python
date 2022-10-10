@@ -24,6 +24,7 @@ from typing import TypedDict
 
 
 class ServerConfig(TypedDict, total=False):
+    """The server configuration definition loadable from json"""
     name: str
     autoload_sfd: bool
     debug: bool
@@ -52,6 +53,8 @@ DEFAULT_CONFIG: ServerConfig = {
 
 
 class ScrutinyServer:
+    """The Scrutiny server that communicate with a device running libscrutiny-embedded and make
+    the device internal data available through a multi-client websocket API"""
     server_name: str
     logger: logging.Logger
     config: ServerConfig
@@ -86,6 +89,7 @@ class ScrutinyServer:
         pass
 
     def run(self) -> None:
+        """Launch the server code. This function is blocking"""
         self.logger.info('Starting server instance "%s"' % (self.server_name))
 
         try:
@@ -106,6 +110,7 @@ class ScrutinyServer:
             raise
 
     def close_all(self) -> None:
+        """Terminate the server by closing all its resources"""
         if self.api is not None:
             self.api.close()
 

@@ -36,6 +36,11 @@ class DataTypeSize(Enum):
 
 
 class EmbeddedDataType(Enum):
+    """
+    Represent a datatype that can be read from a device.
+    The embedded library has the same definition of datatype as this one. They needs to match.
+    Not all datatype are supported.  (cfloat or >64 bits)
+    """
     sint8 = DataTypeType._sint.value | DataTypeSize._8.value
     sint16 = DataTypeType._sint.value | DataTypeSize._16.value
     sint32 = DataTypeType._sint.value | DataTypeSize._32.value
@@ -80,12 +85,18 @@ class EmbeddedDataType(Enum):
 
 
 class RuntimePublishedValue:
+    """
+    A Runtime Published Value (RPV) is on of the basic element that can be read from a target device.
+    RPVs are defined in the embedded code and known by the server by polling the device.
+    They don't have a name, they are identified by a 16bits identifier.
+    The user can add an Alias on a RPV to assign them a name
+    """
     id: int
     datatype: EmbeddedDataType
 
     def __init__(self, id: int, datatype: Union[EmbeddedDataType, int]):
         if id < 0 or id > 0xFFFF:
-            raise ValueError('RuntimePublishedValue ID out of range (0x0000-0xFFFF). %d' % id)
+            raise ValueError('RuntimePublishedValue ID out of range (0x0000-0xFFFF). 0x%X' % id)
 
         if isinstance(datatype, int):
             datatype = EmbeddedDataType(datatype)

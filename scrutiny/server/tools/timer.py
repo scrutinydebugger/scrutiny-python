@@ -12,6 +12,9 @@ from typing import Union
 
 
 class Timer:
+    """
+    Class to make periodic task or timeout easier to manage.
+    """
     start_time: Union[float, None]
 
     def __init__(self, timeout: float):

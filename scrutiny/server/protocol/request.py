@@ -17,6 +17,9 @@ from typing import Union, Type
 
 
 class Request:
+    """
+    Represent a request that can be send to a device using the Scrutiny embedded protocol
+    """
     command: Type[BaseCommand]
     subfn: Union[int, Enum]
     payload: bytes
@@ -41,6 +44,7 @@ class Request:
         self.response_payload_size = response_payload_size
 
     def make_bytes_no_crc(self) -> bytes:
+        """Encode the request to bytes without CRC at the end"""
         data = struct.pack('>BB', (self.command_id & 0x7F), self.subfn)
         data += struct.pack('>H', len(self.payload))
         data += self.payload
@@ -48,24 +52,30 @@ class Request:
         return data
 
     def to_bytes(self) -> bytes:
+        """Encode the request into bytes, including the CRC"""
         data = self.make_bytes_no_crc()
         data += struct.pack('>L', crc32(data))
         return data
 
     def get_expected_response_size(self) -> int:
+        """Returns the expected response size if it is known"""
         return Response.OVERHEAD_SIZE + self.response_payload_size
 
     def get_expected_response_data_size(self) -> int:
+        """Returns the expected response payload size (no overhead) if it is known"""
         return self.response_payload_size
 
     def size(self) -> int:
+        """Returns the len of the binary encoded request"""
         return Request.OVERHEAD_SIZE + len(self.payload)
 
     def data_size(self):
+        """Returns the length of the payload only (without protocol overhead)"""
         return len(self.payload)
 
     @classmethod
     def from_bytes(cls, data: bytes):
+        """Decode an byte-encoded request into a Request object"""
         if len(data) < 8:
             raise Exception('Not enough data in payload')
 
