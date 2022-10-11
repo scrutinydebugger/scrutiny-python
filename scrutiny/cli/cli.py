@@ -65,8 +65,8 @@ class CLI:
                 self.parser.print_help()
                 return 0
 
-        args, command_cargs = self.parser.parse_known_args(args)
-        if args.command not in [cls.get_name() for cls in self.command_list]:
+        cargs, command_cargs = self.parser.parse_known_args(args)
+        if cargs.command not in [cls.get_name() for cls in self.command_list]:
             if except_failed:
                 raise Exception('Unknown command %s' % args.command)
             self.parser.print_help()
@@ -74,14 +74,14 @@ class CLI:
 
         error = None
         try:
-            logging_level_str = args.loglevel if args.loglevel else self.default_log_level
+            logging_level_str = cargs.loglevel if cargs.loglevel else self.default_log_level
             logging_level = getattr(logging, logging_level_str.upper())
             format_string = '[%(levelname)s] %(message)s'
-            logging.basicConfig(level=logging_level, filename=args.logfile, format=format_string)
+            logging.basicConfig(level=logging_level, filename=cargs.logfile, format=format_string)
 
             for cmd in self.command_list:
-                if cmd.get_name() == args.command:
-                    cmd_instance = cmd(command_cargs, requested_log_level=args.loglevel)
+                if cmd.get_name() == cargs.command:
+                    cmd_instance = cmd(command_cargs, requested_log_level=cargs.loglevel)
                     break
 
             current_workdir = os.getcwd()
@@ -107,6 +107,7 @@ class CLI:
         if error is not None:
             code = 1
             logging.error(str(error))
+            logging.debug('Command : scrutiny ' + ' '.join(args))
             logging.debug(error_stack_strace)
 
         return code
