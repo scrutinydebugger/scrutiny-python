@@ -518,7 +518,33 @@ class TestAPI(unittest.TestCase):
         self.assertEqual(update['id'], subscribed_entry.get_id())
         self.assertEqual(update['value'], 1234)
 
+    def test_stop_watching_on_disconnect(self):
+        entries = self.make_dummy_entries(2, entry_type=EntryType.Var, prefix='var')
+        self.datastore.add_entries(entries)
+
+        req = {
+            'cmd': 'subscribe_watchable',
+            'watchables': [entries[0].get_id(), entries[1].get_id()]
+        }
+
+        self.send_request(req, 0)   # connection 0
+        response = self.wait_and_load_response(0)
+        self.assert_no_error(response)
+
+        self.send_request(req, 1)   # connection 1
+        response = self.wait_and_load_response(1)
+        self.assert_no_error(response)
+
+        # Make sure we stop watching on disconnect
+        self.assertEqual(len(self.datastore.get_watchers(entries[0])), 2)
+        self.assertEqual(len(self.datastore.get_watchers(entries[1])), 2)
+        self.connections[1].close()
+        self.api.process()
+        self.assertEqual(len(self.datastore.get_watchers(entries[0])), 1)
+        self.assertEqual(len(self.datastore.get_watchers(entries[1])), 1)
+
     # Make sure that we can unsubscribe correctly to a variable and value update stops
+
     def test_subscribe_unsubscribe(self):
         entries = self.make_dummy_entries(10, entry_type=EntryType.Var, prefix='var')
         self.datastore.add_entries(entries)

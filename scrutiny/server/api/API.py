@@ -203,6 +203,7 @@ class API:
         self.streamer.new_connection(conn_id)
 
     def close_connection(self, conn_id: str) -> None:
+        self.datastore.stop_watching_all(conn_id)   # Removes this connection as a watcher from all entries
         self.connections.remove(conn_id)
         self.streamer.clear_connection(conn_id)
 
