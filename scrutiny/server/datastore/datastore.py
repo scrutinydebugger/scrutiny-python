@@ -52,7 +52,7 @@ class Datastore:
         self.entries = {}
         self.watcher_map = {}
         self.displaypath2idmap = {}
-        for entry_type in EntryType:
+        for entry_type in EntryType.all():
             self.entries[entry_type] = {}
             self.watcher_map[entry_type] = {}
             self.displaypath2idmap[entry_type] = {}
@@ -89,7 +89,7 @@ class Datastore:
     def add_entry(self, entry: DatastoreEntry) -> None:
         """ Add a single entry to the datastore."""
         entry_id = entry.get_id()
-        for entry_type in EntryType:
+        for entry_type in EntryType.all():
             if entry_id in self.entries[entry_type]:
                 raise ValueError('Duplicate datastore entry')
 
@@ -107,14 +107,14 @@ class Datastore:
 
     def get_entry(self, entry_id: str) -> DatastoreEntry:
         """ Fetch a datastore entry by its ID"""
-        for entry_type in EntryType:
+        for entry_type in EntryType.all():
             if entry_id in self.entries[entry_type]:
                 return self.entries[entry_type][entry_id]
         raise KeyError('Entry with ID %s not found in datastore' % entry_id)
 
     def get_entry_by_display_path(self, display_path: str) -> DatastoreEntry:
         """ Find an entry by its display path, which is supposed to be unique"""
-        for entry_type in EntryType:
+        for entry_type in EntryType.all():
             if display_path in self.displaypath2idmap[entry_type]:
                 entry_id = self.displaypath2idmap[entry_type][display_path]
                 if entry_id in self.entries[entry_type]:
@@ -207,9 +207,15 @@ class Datastore:
         for callback in self.global_unwatch_callbacks:
             callback(entry_id)  # Mainly used by the device handler to know it can stop polling that entry
 
+    def stop_watching_all(self, watcher: str) -> None:
+        for entry_type in EntryType.all():
+            watched_entries_id = self.get_watched_entries_id(entry_type)    # Make a copy of the list
+            for entry_id in watched_entries_id:
+                self.stop_watching(entry_id, watcher)
+
     def get_all_entries(self, entry_type: Optional[EntryType] = None) -> Iterator[DatastoreEntry]:
         """ Fetch all entries of a given type. All types if None"""
-        for entry_type in EntryType:
+        for entry_type in EntryType.all():
             for entry_id in self.entries[entry_type]:
                 yield self.entries[entry_type][entry_id]
 

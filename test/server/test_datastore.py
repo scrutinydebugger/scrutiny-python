@@ -315,6 +315,15 @@ class TestDataStore(unittest.TestCase):
             watched_entries_id = ds.get_watched_entries_id(entry_type)
             self.assertEqual(len(watched_entries_id), 0)
 
+            for entry in entries:
+                ds.start_watching(entry, watcher='watcher1', value_change_callback=lambda: None)
+                ds.start_watching(entry, watcher='watcher2', value_change_callback=lambda: None)
+
+            ds.stop_watching_all('watcher2')
+            for entry in entries:
+                self.assertTrue(ds.is_watching(entry, 'watcher1'))
+                self.assertFalse(ds.is_watching(entry, 'watcher2'))
+
     def test_alias_behavior(self):
         var_entries = list(self.make_dummy_entries(4, EntryType.Var))
         rpv_entries = list(self.make_dummy_entries(4, EntryType.RuntimePublishedValue))
