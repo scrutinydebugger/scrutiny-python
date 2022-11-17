@@ -86,7 +86,12 @@ class ScrutinyServer:
                        sfd_handler=self.sfd_handler, enable_debug=self.config['debug'])
 
     def validate_config(self) -> None:
-        pass
+        if self.config['debug']:
+            try:
+                import ipdb
+            except ImportError:
+                self.config['debug'] = False
+                self.logger.warning('Cannot enable debug mode. ipdb module is not available.')
 
     def run(self) -> None:
         """Launch the server code. This function is blocking"""
