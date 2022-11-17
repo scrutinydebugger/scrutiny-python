@@ -9,7 +9,7 @@
 from enum import Enum
 from scrutiny.core.variable import EmbeddedDataType
 
-from typing import Union
+from typing import Union, List
 
 
 class DatalogConfiguration:
@@ -102,17 +102,17 @@ class DatalogConfiguration:
                 raise ValueError('operand2 must be an instance of TriggerCondition.Operand')
             self._operand2 = val
 
-    def __init__(self):
-        watches: self.Watch
+    def __init__(self) -> None:
+        watches: DatalogConfiguration.Watch
         _trigger: "DatalogConfiguration.Trigger"
         _destination: int
         _sample_rate: Union[int, float]
         _decimation: int
 
-        self.watches = []
+        self.watches: List[DatalogConfiguration.Watch] = []
         self._trigger = self.Trigger()
 
-    def add_watch(self, address, length):
+    def add_watch(self, address: int, length: int) -> None:
         self.watches.append(self.Watch(address, length))
 
     @property

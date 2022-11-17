@@ -44,7 +44,7 @@ class VarMap:
     typename2typeid_map: Dict[str, str]      # name to numeric id as string
     enums_to_id_map: Dict[VariableEnum, int]
 
-    def __init__(self, file: Union[str, bytes] = None):
+    def __init__(self, file: Optional[Union[str, bytes]] = None):
         self.logger = logging.getLogger(self.__class__.__name__)
         error = None
         if file is not None:

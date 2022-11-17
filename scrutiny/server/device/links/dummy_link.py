@@ -8,7 +8,7 @@
 
 import threading
 from .abstract_link import AbstractLink, LinkConfig
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 
 class ThreadSafeDummyLink(AbstractLink):
@@ -125,7 +125,7 @@ class DummyLink(AbstractLink):
 
         return cls(config)
 
-    def __init__(self, config: LinkConfig = None):
+    def __init__(self, config: Optional[LinkConfig] = None):
         self._initialized = False
         self.clear_all()
         self.emulate_broken = False

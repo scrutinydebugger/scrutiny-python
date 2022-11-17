@@ -20,7 +20,7 @@ from scrutiny.server.datastore.datastore import Datastore
 from scrutiny.server.device.device_handler import DeviceHandler, DeviceHandlerConfig
 from scrutiny.server.active_sfd_handler import ActiveSFDHandler
 
-from typing import TypedDict
+from typing import TypedDict, Optional
 
 
 class ServerConfig(TypedDict, total=False):
@@ -63,7 +63,7 @@ class ScrutinyServer:
     device_handler: DeviceHandler
     sfd_handler: ActiveSFDHandler
 
-    def __init__(self, config_filename: str = None):
+    def __init__(self, config_filename: Optional[str] = None):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.config = copy(DEFAULT_CONFIG)
         if config_filename is not None:
@@ -86,7 +86,12 @@ class ScrutinyServer:
                        sfd_handler=self.sfd_handler, enable_debug=self.config['debug'])
 
     def validate_config(self) -> None:
-        pass
+        if self.config['debug']:
+            try:
+                import ipdb  # type: ignore
+            except ImportError:
+                self.config['debug'] = False
+                self.logger.warning('Cannot enable debug mode. ipdb module is not available.')
 
     def run(self) -> None:
         """Launch the server code. This function is blocking"""
