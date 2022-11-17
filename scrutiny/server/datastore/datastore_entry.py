@@ -352,7 +352,7 @@ class DatastoreAliasEntry(DatastoreEntry):
         """Decode a stream of bytes into a Python value"""
         return self.refentry.decode(data)
 
-    def update_target_value(self, value: Any, callback: UpdateTargetRequestCallback = None) -> UpdateTargetRequest:
+    def update_target_value(self, value: Any, callback: Optional[UpdateTargetRequestCallback] = None) -> UpdateTargetRequest:
         """
          Request a write operation on the device to get this entry updated.
          The request foes into a queue and we wait for the MemoryWriter to pick it up and mark the

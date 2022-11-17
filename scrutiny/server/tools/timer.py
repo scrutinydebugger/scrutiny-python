@@ -8,7 +8,7 @@
 
 import time
 
-from typing import Union
+from typing import Union, Optional
 
 
 class Timer:
@@ -24,7 +24,7 @@ class Timer:
     def set_timeout(self, timeout: float) -> None:
         self.timeout = timeout
 
-    def start(self, timeout: float = None) -> None:
+    def start(self, timeout: Optional[float] = None) -> None:
         if timeout is not None:
             self.set_timeout(timeout)
         self.start_time = time.time()

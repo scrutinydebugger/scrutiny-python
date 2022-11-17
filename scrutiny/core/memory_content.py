@@ -74,7 +74,7 @@ class Cluster:
             assert self.internal_data is not None
             self.internal_data = self.internal_data[0:new_size]
 
-    def extend(self, new_size: int, delta_data: Union[bytearray, bytes] = None) -> None:
+    def extend(self, new_size: int, delta_data: Optional[Union[bytearray, bytes]] = None) -> None:
         delta_size = new_size - self.size
         if delta_size < 0:
             raise Exception('Cannot shrink cluster with extend() method')
@@ -151,7 +151,7 @@ class MemoryContent:
     clusters: Dict[int, Cluster]
     sorted_keys: List[int]          # Need 2 object to use bisect before python 3.10
 
-    def __init__(self, filename: str = None, retain_data: bool = True):
+    def __init__(self, filename: Optional[str] = None, retain_data: bool = True):
         self.clusters = {}
         self.sorted_keys = []
         self.retain_data = retain_data
@@ -323,7 +323,7 @@ class MemoryContent:
                     self.clusters[new_chunk_start] = Cluster(start_addr=new_chunk_start, size=new_chunk_size,
                                                              data=new_chunk_data, has_data=self.retain_data)
 
-    def agglomerate(self, written_key_index: int = None) -> None:
+    def agglomerate(self, written_key_index: Optional[int] = None) -> None:
         if written_key_index is None:
             i = 0
         else:

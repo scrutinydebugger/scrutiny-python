@@ -18,7 +18,7 @@ import traceback
 from os import path
 import time
 
-from typing import TypedDict
+from typing import TypedDict, Optional
 
 
 class GUI_ServerConfig(TypedDict, total=False):
@@ -72,7 +72,7 @@ class GUIClient:
     config: GUIConfig
     webapp_fullpath: str
 
-    def __init__(self, config_filename: str = None, launch_method: LaunchMethod = LaunchMethod.NONE, http_server_port: int = 0):
+    def __init__(self, config_filename: Optional[str] = None, launch_method: LaunchMethod = LaunchMethod.NONE, http_server_port: int = 0):
         self.launch_method = launch_method
         self.logger = logging.getLogger(self.__class__.__name__)
         self.http_server_port = http_server_port
@@ -89,7 +89,7 @@ class GUIClient:
                 except Exception as e:
                     raise Exception("Invalid configuration JSON. %s" % e)
 
-    def run(self):
+    def run(self) -> None:
         launch_method_not_set: bool = (self.launch_method == LaunchMethod.NONE)
 
         if self.launch_method in [LaunchMethod.NONE, LaunchMethod.CEF]:
