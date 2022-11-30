@@ -179,15 +179,15 @@ class MemoryReader:
 
     def reset(self) -> None:
         """Put back the memory reader to its startup state"""
+        self.set_standby()
+        self.clear_config()
+
+    def set_standby(self) -> None:
+        """Put the state machine into standby and clear all internal buffers so that the logic restarts from the beginning"""
         self.stop_requested = False
         self.request_pending = False
         self.started = False
         self.actual_read_type = ReadType.MemoryBlock    # Alternate between RPV and Mem
-
-        self.max_request_payload_size = self.DEFAULT_MAX_REQUEST_PAYLOAD_SIZE
-        self.max_response_payload_size = self.DEFAULT_MAX_RESPONSE_PAYLOAD_SIZE
-        self.forbidden_regions = []
-        self.readonly_regions = []
 
         self.watched_var_entries_sorted_by_address = SortedSet()
         self.watched_rpv_entries_sorted_by_id = SortedSet()
@@ -196,10 +196,17 @@ class MemoryReader:
         self.entries_in_pending_read_mem_request = []
         self.entries_in_pending_read_rpv_request = {}
 
+    def clear_config(self) -> None:
+        """Erase the configuration coming from the device handler"""
+        self.max_request_payload_size = self.DEFAULT_MAX_REQUEST_PAYLOAD_SIZE
+        self.max_response_payload_size = self.DEFAULT_MAX_RESPONSE_PAYLOAD_SIZE
+        self.forbidden_regions = []
+        self.readonly_regions = []
+
     def process(self) -> None:
         """To be called periodically"""
         if not self.started:
-            self.reset()
+            self.set_standby()
             return
         elif self.stop_requested and not self.request_pending:
             self.reset()
