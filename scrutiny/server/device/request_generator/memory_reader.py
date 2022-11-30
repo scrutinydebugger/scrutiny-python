@@ -209,7 +209,7 @@ class MemoryReader:
             self.set_standby()
             return
         elif self.stop_requested and not self.request_pending:
-            self.reset()
+            self.set_standby()
             return
 
         read_type_considered: Set[ReadType] = set()

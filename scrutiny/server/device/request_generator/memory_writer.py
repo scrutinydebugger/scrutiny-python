@@ -117,7 +117,7 @@ class MemoryWriter:
             self.set_standby()
             return
         elif self.stop_requested and not self.request_pending:
-            self.reset()
+            self.set_standby()
             return
 
         if not self.request_pending:
