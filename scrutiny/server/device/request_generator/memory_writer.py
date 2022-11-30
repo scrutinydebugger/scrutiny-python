@@ -87,16 +87,11 @@ class MemoryWriter:
         """Stops the memory writer from polling the datastore and updating the device"""
         self.stop_requested = True
 
-    def reset(self) -> None:
-        """Put back the memory writer to its startup state"""
+    def set_standby(self) -> None:
+        """Put the state machine into standby and clear all internal buffers so that the logic restarts from the beginning"""
         self.stop_requested = False
         self.request_pending = False
         self.started = False
-
-        self.max_request_payload_size = self.DEFAULT_MAX_REQUEST_PAYLOAD_SIZE
-        self.max_response_payload_size = self.DEFAULT_MAX_RESPONSE_PAYLOAD_SIZE
-        self.forbidden_regions = []
-        self.readonly_regions = []
 
         self.watched_entries = []
         self.write_cursor = 0
@@ -104,10 +99,22 @@ class MemoryWriter:
         self.request_of_entry_being_updated = None
         self.target_update_request_being_processed = None
 
+    def clear_config(self) -> None:
+        """Erase the configuration coming from the device handler"""
+        self.max_request_payload_size = self.DEFAULT_MAX_REQUEST_PAYLOAD_SIZE
+        self.max_response_payload_size = self.DEFAULT_MAX_RESPONSE_PAYLOAD_SIZE
+        self.forbidden_regions = []
+        self.readonly_regions = []
+
+    def reset(self) -> None:
+        """Put back the memory writer to its startup state"""
+        self.set_standby()
+        self.clear_config()
+
     def process(self) -> None:
         """To be called periodically"""
         if not self.started:
-            self.reset()
+            self.set_standby()
             return
         elif self.stop_requested and not self.request_pending:
             self.reset()
