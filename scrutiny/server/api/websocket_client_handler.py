@@ -74,7 +74,7 @@ class WebsocketClientHandler(AbstractClientHandler):
         # Sends data given by the API to a given client identified by its unique connection ID
         wsid = msg.conn_id
         if wsid not in self.id2ws_map:
-            self.logger.error('Conn ID %s not known. Discarding')
+            self.logger.error('Conn ID %s not known. Discarding' % wsid)
             return
         websocket = self.id2ws_map[wsid]
 
