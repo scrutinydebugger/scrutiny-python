@@ -71,7 +71,7 @@ class TestMemoryWriterBasicReadOperation(unittest.TestCase):
         dispatcher.process()
         self.assertIsNone(dispatcher.pop_next())
         entry_to_write.set_value(0)
-        entry_to_write.update_target_value(d2f(3.1415926))
+        update_request = entry_to_write.update_target_value(d2f(3.1415926))
         self.assertTrue(entry_to_write.has_pending_target_update())
         writer.process()
         dispatcher.process()
@@ -96,6 +96,42 @@ class TestMemoryWriterBasicReadOperation(unittest.TestCase):
 
         record.complete(success=True, response=response)
         self.assertFalse(entry_to_write.has_pending_target_update())
+
+        self.assertTrue(update_request.is_complete())
+        self.assertTrue(update_request.is_success())
+
+    def test_var_write_impossible_value(self):
+        nfloat = 1
+        address = 0x1000
+        ds = Datastore()
+        entries = list(make_dummy_var_entries(address=address, n=nfloat, vartype=EmbeddedDataType.float32))
+        ds.add_entries(entries)
+        dispatcher = RequestDispatcher()
+
+        protocol = Protocol(1, 0)
+        protocol.set_address_size_bits(32)
+        writer = MemoryWriter(protocol, dispatcher=dispatcher, datastore=ds, request_priority=0)
+        writer.start()
+
+        for entry in entries:
+            ds.start_watching(entry, 'unittest')
+
+        entry_to_write = entries[0]
+        writer.process()
+        dispatcher.process()
+        self.assertIsNone(dispatcher.pop_next())
+        entry_to_write.set_value(0)
+        update_request = entry_to_write.update_target_value("BAD VALUE")
+        self.assertTrue(entry_to_write.has_pending_target_update())
+        writer.process()
+        dispatcher.process()
+
+        record = dispatcher.pop_next()
+        self.assertIsNone(record)
+        self.assertFalse(entry_to_write.has_pending_target_update())
+
+        self.assertTrue(update_request.is_complete())
+        self.assertTrue(update_request.is_failed())
 
     # Update multiple entries. Make sure that all entries has been updated.
 
@@ -246,7 +282,8 @@ class TestMemoryWriterBasicReadOperation(unittest.TestCase):
         dispatcher.process()
         self.assertIsNone(dispatcher.pop_next())
         entry_to_write.set_value(0)
-        entry_to_write.update_target_value(3.1415926)   # Will be converted to float32
+        update_request = entry_to_write.update_target_value(3.1415926)   # Will be converted to float32
+        self.assertFalse(update_request.is_complete())
         self.assertTrue(entry_to_write.has_pending_target_update())
         writer.process()
         dispatcher.process()
@@ -268,6 +305,43 @@ class TestMemoryWriterBasicReadOperation(unittest.TestCase):
 
         record.complete(success=True, response=response)
         self.assertFalse(entry_to_write.has_pending_target_update())
+
+        self.assertTrue(update_request.is_complete())
+        self.assertTrue(update_request.is_success())
+
+    def test_rpv_write_impossible_value(self):
+        nfloat = 1
+        start_id = 0x1000
+        ds = Datastore()
+        entries = list(make_dummy_rpv_entries(start_id=start_id, n=nfloat, vartype=EmbeddedDataType.float32))
+        ds.add_entries(entries)
+        dispatcher = RequestDispatcher()
+
+        protocol = Protocol(1, 0)
+        protocol.configure_rpvs([entry.get_rpv() for entry in entries])
+        writer = MemoryWriter(protocol, dispatcher=dispatcher, datastore=ds, request_priority=0)
+        writer.start()
+
+        for entry in entries:
+            ds.start_watching(entry, 'unittest')
+
+        entry_to_write = entries[0]
+        writer.process()
+        dispatcher.process()
+        self.assertIsNone(dispatcher.pop_next())
+        entry_to_write.set_value(0)
+        update_request = entry_to_write.update_target_value("BAD VALUE")   # Will be converted to float32
+        self.assertFalse(update_request.is_complete())
+        self.assertTrue(entry_to_write.has_pending_target_update())
+        writer.process()
+        dispatcher.process()
+
+        record = dispatcher.pop_next()
+        self.assertIsNone(record)
+        self.assertFalse(entry_to_write.has_pending_target_update())
+
+        self.assertTrue(update_request.is_complete())
+        self.assertTrue(update_request.is_failed())
 
     def test_multiple_rpv_write(self):
         ndouble = 100

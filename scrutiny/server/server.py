@@ -9,10 +9,10 @@
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 
 import time
+import os
 import json
 import logging
 import traceback
-import asyncio
 from copy import copy
 
 from scrutiny.server.api import API, APIConfig
@@ -20,7 +20,7 @@ from scrutiny.server.datastore.datastore import Datastore
 from scrutiny.server.device.device_handler import DeviceHandler, DeviceHandlerConfig
 from scrutiny.server.active_sfd_handler import ActiveSFDHandler
 
-from typing import TypedDict, Optional
+from typing import TypedDict, Optional, Union
 
 
 class ServerConfig(TypedDict, total=False):
@@ -63,18 +63,21 @@ class ScrutinyServer:
     device_handler: DeviceHandler
     sfd_handler: ActiveSFDHandler
 
-    def __init__(self, config_filename: Optional[str] = None):
+    def __init__(self, input_config: Optional[Union[str,ServerConfig]] = None):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.config = copy(DEFAULT_CONFIG)
-        if config_filename is not None:
-            self.logger.debug('Loading user configuration file: "%s"' % config_filename)
-            del self.config['name']  # remove "default config" from name
-            with open(config_filename) as f:
-                try:
-                    user_cfg = json.loads(f.read())
-                    self.config.update(user_cfg)
-                except Exception as e:
-                    raise Exception("Invalid configuration JSON. %s" % e)
+        if input_config is not None:
+            if isinstance(input_config, str) and os.path.isfile(input_config):
+                self.logger.debug('Loading user configuration file: "%s"' % input_config)
+                del self.config['name']  # remove "default config" from name
+                with open(input_config) as f:
+                    try:
+                        user_cfg = json.loads(f.read())
+                        self.config.update(user_cfg)
+                    except Exception as e:
+                        raise Exception("Invalid configuration JSON. %s" % e)
+            elif isinstance(input_config, dict):
+                self.config.update(input_config)
 
         self.validate_config()
         self.server_name = '<Unnamed>' if 'name' not in self.config else self.config['name']
@@ -93,18 +96,23 @@ class ScrutinyServer:
                 self.config['debug'] = False
                 self.logger.warning('Cannot enable debug mode. ipdb module is not available.')
 
+    def init(self) -> None:
+        self.api.start_listening()
+        self.sfd_handler.init()
+    
+    def process(self) -> None:
+        self.api.process()
+        self.device_handler.process()
+        self.sfd_handler.process()        
+
     def run(self) -> None:
         """Launch the server code. This function is blocking"""
         self.logger.info('Starting server instance "%s"' % (self.server_name))
 
         try:
-            self.api.start_listening()
-            self.sfd_handler.init()
+            self.init()
             while True:
-                self.api.process()
-                self.device_handler.process()
-                self.sfd_handler.process()
-
+                self.process()
                 time.sleep(0.01)
         except KeyboardInterrupt:
             self.close_all()
@@ -113,6 +121,10 @@ class ScrutinyServer:
             self.logger.debug(traceback.format_exc())
             self.close_all()
             raise
+    
+    def stop(self):
+        """ An alias for close_all"""
+        self.close_all()
 
     def close_all(self) -> None:
         """Terminate the server by closing all its resources"""

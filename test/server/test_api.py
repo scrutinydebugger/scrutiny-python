@@ -146,9 +146,9 @@ class TestAPI(unittest.TestCase):
                 msg = response['msg']
             self.assertNotEqual(response['cmd'], API.Command.Api2Client.ERROR_RESPONSE, msg)
 
-    def assert_is_error(self, response):
+    def assert_is_error(self, response, msg=""):
         if 'cmd' in response:
-            self.assertEqual(response['cmd'], API.Command.Api2Client.ERROR_RESPONSE)
+            self.assertEqual(response['cmd'], API.Command.Api2Client.ERROR_RESPONSE, msg)
         else:
             raise Exception('Missing cmd field in response')
 
@@ -284,10 +284,11 @@ class TestAPI(unittest.TestCase):
             self.assertIn('display_path', api_entry)
 
             self.assertIn(api_entry['id'], expected_entries_in_response)
-            entry = expected_entries_in_response[api_entry['id']]
+            entry: DatastoreEntry = expected_entries_in_response[api_entry['id']]
 
             self.assertEqual(entry.get_id(), api_entry['id'])
             self.assertEqual(entry.get_type(), entrytype)
+            self.assertEqual(API.get_datatype_name(entry.get_data_type()), api_entry['datatype'])
             self.assertEqual(entry.get_display_path(), api_entry['display_path'])
 
             del expected_entries_in_response[api_entry['id']]
@@ -943,3 +944,89 @@ class TestAPI(unittest.TestCase):
             elif response['watchable'] == subscribed_entry2.get_id():
                 self.assertEqual(response['status'], 'failed', 'i=%d' % i)
                 self.assertEqual(response['timestamp'], entry2_update_request.get_completion_timestamp(), 'i=%d' % i)
+
+    def test_write_watchable_bad_values(self):
+        varf32 = Variable('dummyf32', vartype=EmbeddedDataType.float32, path_segments=['a', 'b', 'c'], location=0x12345678, endianness=Endianness.Little)
+        vars32 = Variable('dummys32', vartype=EmbeddedDataType.sint32, path_segments=['a', 'b', 'c'], location=0x12345678, endianness=Endianness.Little)
+        varu32 = Variable('dummyu32', vartype=EmbeddedDataType.uint32, path_segments=['a', 'b', 'c'], location=0x12345678, endianness=Endianness.Little)
+        varbool = Variable('dummybool', vartype=EmbeddedDataType.boolean, path_segments=['a', 'b', 'c'], location=0x12345678, endianness=Endianness.Little)
+        
+        entryf32 = DatastoreVariableEntry(varf32.name, variable_def=varf32)
+        entrys32 = DatastoreVariableEntry(vars32.name, variable_def=vars32)
+        entryu32 = DatastoreVariableEntry(varu32.name, variable_def=varu32)
+        entrybool = DatastoreVariableEntry(varbool.name, variable_def=varbool)
+
+        alias_f32 = Alias("alias_f32", target="xxx", target_type=EntryType.Var, gain=2.0, offset=-10, min=-100, max=100 )
+        alias_u32 = Alias("alias_u32", target="xxx", target_type=EntryType.Var, gain=2.0, offset=-10, min=-100, max=100 )  # Notice the min that can go oob
+        alias_s32 = Alias("alias_s32", target="xxx", target_type=EntryType.Var, gain=2.0, offset=-10, min=-100, max=100 )
+        entry_alias_f32 = DatastoreAliasEntry(alias_f32, entryf32)
+        entry_alias_u32 = DatastoreAliasEntry(alias_u32, entryu32)
+        entry_alias_s32 = DatastoreAliasEntry(alias_s32, entrys32)
+        
+        entries:List[DatastoreEntry] = [entryf32, entrys32, entryu32, entrybool, entry_alias_f32, entry_alias_u32, entry_alias_s32]
+        self.datastore.add_entries(entries)
+
+        req = {
+            'cmd': 'subscribe_watchable',
+            'watchables': [entry.get_id() for entry in entries]
+        }
+
+        self.send_request(req, 0)
+        response = self.wait_and_load_response()
+        self.assert_no_error(response)
+
+        class TestCaseDef(TypedDict, total=False):
+            inval:any
+            outval:any
+            valid:bool
+
+        testcases:List[TestCaseDef] = [
+            dict(inval=math.nan, valid=False),
+            dict(inval=None, valid=False),
+            dict(inval="asdasd", valid=False),
+            dict(inval=int(123), valid=True, outval=int(123)),
+            dict(inval="1234", valid=True, outval=1234),
+            dict(inval="-2000.2", valid=True, outval=-2000.2),
+            dict(inval="0x100", valid=True, outval=256),
+            dict(inval="-0x100", valid=True, outval=-256),
+            dict(inval=-1234.2, valid=True, outval=-1234.2),
+            dict(inval=True, valid=True, outval=True),
+            dict(inval="true", valid=True, outval=True),
+           
+        ]
+
+        reqid = 0
+        # The job of the API is to parse the request. Not interpret the data.
+        # So we want the data to reach the datastore entry, but without conversion.
+        # Value conversion and validation is done by the memory writer.
+
+        for entry in entries:
+            for testcase in testcases:
+                reqid += 1
+                req = {
+                    'cmd': 'write_value',
+                    'reqid': reqid,
+                    'updates': [
+                        {
+                            'watchable': entry.get_id(),
+                            'value': testcase['inval']
+                        }
+                    ]
+                }
+
+                self.send_request(req)
+                response = self.wait_and_load_response()
+                error_msg = "Reqid = %d. Entry=%s.  Testcase=%s" % (reqid, entry.get_display_path(), testcase)
+                if not testcase['valid']:
+                    self.assert_is_error(response, error_msg)
+                    self.assertFalse(entry.has_pending_target_update())
+                else:
+                    self.assert_no_error(response, error_msg)
+                    self.assertTrue(entry.has_pending_target_update())
+                    self.assertEqual(entry.pop_target_update_request().get_value(), testcase['outval'], error_msg) 
+                    self.assertFalse(entry.has_pending_target_update())
+
+                    if isinstance(entry, DatastoreAliasEntry):
+                        self.assertTrue(entry.refentry.has_pending_target_update())
+                        entry.refentry.pop_target_update_request()
+                        self.assertFalse(entry.refentry.has_pending_target_update())

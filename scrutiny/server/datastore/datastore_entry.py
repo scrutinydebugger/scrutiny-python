@@ -13,6 +13,7 @@ import abc
 import re
 from scrutiny.core.basic_types import RuntimePublishedValue
 from queue import Queue
+import math
 
 from scrutiny.server.datastore.entry_type import EntryType
 from scrutiny.core.variable import Variable, VariableEnum, EmbeddedDataType
@@ -294,6 +295,7 @@ class DatastoreVariableEntry(DatastoreEntry):
     def encode(self, value: Encodable) -> Tuple[bytes, Optional[bytes]]:
         """Encode the value to a stream of bytes and a data mask. 
         Returns as tuple : (data, mask)"""
+        value = Codecs.make_value_valid(self.get_data_type(), value)
         return self.variable_def.encode(value)  # Returns a typle of (data, mask)
 
     def decode(self, data: bytes) -> Encodable:
@@ -415,6 +417,7 @@ class DatastoreRPVEntry(DatastoreEntry):
     def encode(self, value: Encodable) -> Tuple[bytes, Optional[bytes]]:
         """Encode the value to a stream of bytes and a data mask. 
         Returns as tuple : (data, mask)"""
+        value = Codecs.make_value_valid(self.get_data_type(), value)
         return self.codec.encode(value), None   # Not bitmask on RPV.
 
     def decode(self, data: bytes) -> Encodable:

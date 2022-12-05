@@ -17,7 +17,7 @@ import scrutiny.server.protocol.typing as protocol_typing
 from scrutiny.server.device.request_dispatcher import RequestDispatcher, SuccessCallback, FailureCallback
 from scrutiny.server.datastore.datastore import Datastore
 from scrutiny.server.datastore.datastore_entry import DatastoreEntry
-
+from scrutiny.core.codecs import Codecs
 
 from typing import Any, List, Tuple, Optional, cast
 
@@ -160,14 +160,32 @@ class MemoryWriter:
                 self.logger.critical('Value to write is not availble. This should never happen')
             else:
                 if isinstance(self.entry_being_updated, DatastoreVariableEntry):
-                    encoded_value, write_mask = self.entry_being_updated.encode(value_to_write)
-                    request = self.protocol.write_single_memory_block(
-                        address=self.entry_being_updated.get_address(),
-                        data=encoded_value,
-                        write_mask=write_mask
-                    )
+                    encoding_succeeded = True
+                    try:
+                        value_to_write = Codecs.make_value_valid(self.entry_being_updated.get_data_type(), value_to_write)
+                    except:
+                        encoding_succeeded = False
+
+                    if encoding_succeeded:
+                        encoded_value, write_mask = self.entry_being_updated.encode(value_to_write)
+                        request = self.protocol.write_single_memory_block(
+                            address=self.entry_being_updated.get_address(),
+                            data=encoded_value,
+                            write_mask=write_mask
+                        )
+                    else:
+                        self.target_update_request_being_processed.complete(success=False)
                 elif isinstance(self.entry_being_updated, DatastoreRPVEntry):
-                    request = self.protocol.write_runtime_published_values((self.entry_being_updated.get_rpv().id, value_to_write))
+                    rpv = self.entry_being_updated.get_rpv()
+                    encoding_succeeded = True
+                    try:
+                        value_to_write = Codecs.make_value_valid(rpv.datatype, value_to_write)
+                    except:
+                        encoding_succeeded = False
+                    if encoding_succeeded:
+                        request = self.protocol.write_runtime_published_values((rpv.id, value_to_write))
+                    else:
+                        self.target_update_request_being_processed.complete(success=False)
                 else:
                     raise RuntimeError('entry_being_updated should be of type %s' % self.entry_being_updated.__class__.__name__)
                 self.request_of_entry_being_updated = request

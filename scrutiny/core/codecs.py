@@ -10,7 +10,8 @@ from abc import ABC, abstractmethod
 from scrutiny.core.basic_types import Endianness, EmbeddedDataType
 import struct
 
-from typing import Union, Optional, Tuple
+from typing import Union, Optional
+import math
 
 Encodable = Union[int, float, bool]
 
@@ -122,3 +123,39 @@ class Codecs:
             return BoolCodec()
 
         raise NotImplementedError("No codec defined for variable type %s" % vartype)
+
+    @staticmethod
+    def make_value_valid(vartype: EmbeddedDataType, val: Encodable) -> Encodable:
+        if not math.isfinite(val):
+            raise ValueError("Does not support non-finite values")
+        if vartype == EmbeddedDataType.boolean:
+            return False if int(val) == 0 else True
+
+        if isinstance(val, bool):
+            val = int(val)
+        signed = vartype.is_signed()
+
+        if vartype.is_integer():
+            data_size = vartype.get_size_byte()
+            val = int(val)
+            if (data_size == 1):
+                val = min(val, 0x7F if (signed) else 0xFF)
+                val = max(val, -0x80 if (signed) else 0)
+            elif (data_size == 2):
+                val = min(val, 0x7FFF if (signed) else 0xFFFF)
+                val = max(val, -0x8000 if (signed) else 0)
+            elif (data_size == 4):
+                val = min(val, 0x7FFFFFFF if (signed) else 0xFFFFFFFF)
+                val = max(val, -0x80000000 if (signed) else 0)
+            elif (data_size == 8):
+                val = min(val, 0x7FFFFFFFFFFFFFFF if (signed) else 0xFFFFFFFFFFFFFFFF)
+                val = max(val, -0x8000000000000000 if (signed) else 0)
+            else:
+                raise ValueError("Does not support this data size: %d" % data_size)
+
+        elif vartype.is_float():
+            val = float(val)
+            if not math.isfinite(val):
+                raise ValueError("Float values must be finite")
+
+        return val
