@@ -9,7 +9,7 @@
 
 import logging
 import traceback
-from scrutiny.server import datastore
+import math
 
 from scrutiny.server.datastore.datastore import Datastore
 from scrutiny.server.datastore.datastore_entry import EntryType
@@ -184,6 +184,13 @@ class API:
 
         self.sfd_handler.register_sfd_loaded_callback(SFDLoadedCallback(self.sfd_loaded_callback))
         self.sfd_handler.register_sfd_unloaded_callback(SFDUnloadedCallback(self.sfd_unloaded_callback))
+
+    @classmethod
+    def get_datatype_name(cls, datatype: EmbeddedDataType) -> str:
+        if datatype not in cls.data_type_to_str:
+            raise ValueError('Unknown datatype : %s' % (str(datatype)))
+
+        return cls.data_type_to_str[datatype]
 
     def sfd_loaded_callback(self, sfd: FirmwareDescription):
         # Called when a SFD is loaded after a device connection
@@ -642,8 +649,27 @@ class API:
             if not isinstance(update['watchable'], str):
                 raise InvalidRequestException(req, 'Invalid "watchable" field')
 
-            if not isinstance(update['value'], int) and not isinstance(update['value'], float) and not isinstance(update['value'], bool):
+            value = update['value']
+            if isinstance(value, str):
+                valstr = value.lower().strip()
+                if valstr == "true":
+                    value = True
+                elif valstr == "false":
+                    value = False
+                elif valstr.startswith("0x"):
+                    value = int(valstr[2:], 16)
+                elif valstr.startswith("-0x"):
+                    value = -int(valstr[3:], 16)     
+                else:
+                    try:
+                        value = float(valstr)
+                    except:
+                        value = None
+            if value is None or not isinstance(value, int) and not isinstance(value, float) and not isinstance(value, bool):
                 raise InvalidRequestException(req, 'Invalid "value" field')
+            if not math.isfinite(value):
+                raise InvalidRequestException(req, 'Invalid "value" field')
+            update['value'] = value
 
             try:
                 entry = self.datastore.get_entry(update['watchable'])
@@ -652,9 +678,6 @@ class API:
 
             if not self.datastore.is_watching(entry, conn_id):
                 raise InvalidRequestException(req, 'Cannot update entry %s without being subscribed to it' % entry.get_id())
-
-#            if entry.has_pending_target_update():
-#                raise InvalidRequestException(req, 'Pending write request for entry %s' % entry.get_id())
 
         for update in req['updates']:
             entry = self.datastore.get_entry(update['watchable'])
@@ -745,7 +768,7 @@ class API:
         definition: api_typing.DatastoreEntryDefinitionNoType = {
             'id': entry.get_id(),
             'display_path': entry.get_display_path(),
-            'datatype': self.data_type_to_str[entry.get_data_type()]
+            'datatype': self.get_datatype_name(entry.get_data_type())
         }
 
         if entry.has_enum():

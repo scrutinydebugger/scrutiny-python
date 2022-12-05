@@ -8,7 +8,7 @@
 
 from enum import Enum
 
-from typing import Union, Optional, Dict
+from typing import Union
 
 
 class Endianness(Enum):
@@ -82,6 +82,25 @@ class EmbeddedDataType(Enum):
         if DataTypeSize(vbytes) == DataTypeSize._NA:
             return 0
         return 1 << vbytes
+
+    def is_integer(self) -> bool:
+        type_type = self.value & 0xF0
+        if type_type in (DataTypeType._sint.value, DataTypeType._uint.value):
+            return True
+        return False
+
+    def is_float(self):
+        type_type = self.value & 0xF0
+        # Cfloat???
+        if type_type in (DataTypeType._float.value, DataTypeType._cfloat.value):
+            return True
+        return False
+
+    def is_signed(self) -> bool:
+        type_type = self.value & 0xF0
+        if type_type in (DataTypeType._sint.value, DataTypeType._float.value, DataTypeType._cfloat.value):
+            return True
+        return False
 
 
 class RuntimePublishedValue:

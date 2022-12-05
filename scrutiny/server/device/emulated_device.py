@@ -284,11 +284,14 @@ class EmulatedDevice:
         if subfunction == cmd.MemoryControl.Subfunction.Read:
             data = cast(protocol_typing.Request.MemoryControl.Read, data)
             response_blocks_read = []
-            for block_to_read in data['blocks_to_read']:
-                memdata = self.read_memory(block_to_read['address'], block_to_read['length'])
-                response_blocks_read.append((block_to_read['address'], memdata))
-
-            response = self.protocol.respond_read_memory_blocks(response_blocks_read)
+            try:
+                for block_to_read in data['blocks_to_read']:
+                    memdata = self.read_memory(block_to_read['address'], block_to_read['length'])
+                    response_blocks_read.append((block_to_read['address'], memdata))
+                response = self.protocol.respond_read_memory_blocks(response_blocks_read)
+            except Exception as e:
+                self.logger.debug("Failed to read memory: %s" % e)
+                response = Response(req.command, subfunction, ResponseCode.FailureToProceed)
 
         elif subfunction == cmd.MemoryControl.Subfunction.Write:
             data = cast(protocol_typing.Request.MemoryControl.Write, data)
@@ -398,14 +401,29 @@ class EmulatedDevice:
         return None
 
     def write_memory(self, address: int, data: Union[bytes, bytearray]) -> None:
+        err = None
         self.memory_lock.acquire()
-        self.memory.write(address, data)
-        self.memory_lock.release()
+        try:
+            self.memory.write(address, data)
+        except Exception as e:
+            err = e
+        finally:
+            self.memory_lock.release()
 
+        if err:
+            raise err
     def read_memory(self, address: int, length: int) -> bytes:
+        err = None
         self.memory_lock.acquire()
-        data = self.memory.read(address, length)
-        self.memory_lock.release()
+        try:
+            data = self.memory.read(address, length)
+        except Exception as e:
+            err = e
+        finally:
+            self.memory_lock.release()
+
+        if err:
+            raise err
         return data
 
     def get_rpvs(self) -> List[RuntimePublishedValue]:
