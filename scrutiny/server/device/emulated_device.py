@@ -98,6 +98,7 @@ class EmulatedDevice:
         }
 
         self.rpvs = {
+            0x1000: {'definition': RuntimePublishedValue(id=0x1000, datatype=EmbeddedDataType.float64), 'value': 0.0},
             0x1001: {'definition': RuntimePublishedValue(id=0x1001, datatype=EmbeddedDataType.float32), 'value': 3.1415926},
             0x1002: {'definition': RuntimePublishedValue(id=0x1002, datatype=EmbeddedDataType.uint16), 'value': 0x1234},
             0x1003: {'definition': RuntimePublishedValue(id=0x1003, datatype=EmbeddedDataType.sint8), 'value': -65},
@@ -412,18 +413,16 @@ class EmulatedDevice:
 
         if err:
             raise err
+
     def read_memory(self, address: int, length: int) -> bytes:
-        err = None
         self.memory_lock.acquire()
         try:
             data = self.memory.read(address, length)
         except Exception as e:
-            err = e
+            data = '\x00' * length
         finally:
             self.memory_lock.release()
 
-        if err:
-            raise err
         return data
 
     def get_rpvs(self) -> List[RuntimePublishedValue]:
