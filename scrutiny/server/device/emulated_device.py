@@ -291,7 +291,8 @@ class EmulatedDevice:
                     response_blocks_read.append((block_to_read['address'], memdata))
                 response = self.protocol.respond_read_memory_blocks(response_blocks_read)
             except Exception as e:
-                self.logger.debug("Failed to read memory: %s" % e)
+                self.logger.warning("Failed to read memory: %s" % e)
+                self.logger.debug(traceback.format_exc())
                 response = Response(req.command, subfunction, ResponseCode.FailureToProceed)
 
         elif subfunction == cmd.MemoryControl.Subfunction.Write:
@@ -416,13 +417,16 @@ class EmulatedDevice:
 
     def read_memory(self, address: int, length: int) -> bytes:
         self.memory_lock.acquire()
+        err = None
         try:
             data = self.memory.read(address, length)
         except Exception as e:
-            data = '\x00' * length
+            err = e
         finally:
             self.memory_lock.release()
 
+        if err:
+            raise err
         return data
 
     def get_rpvs(self) -> List[RuntimePublishedValue]:
