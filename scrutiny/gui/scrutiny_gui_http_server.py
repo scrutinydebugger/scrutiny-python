@@ -101,19 +101,19 @@ class ScrutinyGuiHttpServer:
         self.request_exit = False
         self.thread = None
         self.http_server = None
-        self.base_folder = base_folder
+        self.base_folder = os.path.realpath(os.path.abspath(base_folder))
 
     def start(self, port: int) -> None:
-        self.logger.debug('Requesting HTTP server to start')
+        self.logger.debug('Requesting HTTP server to start. Serving folder %s' % self.base_folder)
         self.http_server = HTTPServer(('localhost', port), make_server_handler(self))
         self.thread = threading.Thread(target=self.thread_task)
         self.started_event.clear()
         self.thread.start()
         self.started_event.wait()
 
-    def get_port(self) -> Optional[int]:
+    def get_port(self) -> int:
         if self.http_server is None:
-            return None
+            raise RuntimeError("Server is not started")
 
         host, port = self.http_server.socket.getsockname()
 

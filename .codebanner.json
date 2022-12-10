@@ -7,7 +7,7 @@
         "*.py"
     ],
     "exclude_patterns": [
-        "__init__.py"
+        "*__init__.py"
     ],
     "license": "MIT - See LICENSE file",
     "project": "Scrutiny Debugger",
@@ -321,6 +321,9 @@
         },
         "scrutiny/server/tools/synchronous_websocket_server.py": {
             "docstring": "Synchornous wrapper around the asynchronous websockets module"
+        },
+        "test/server/test_server_integration.py": {
+            "docstring": "Test the whole python server by inputing on the API and controlling an emulated device that runs in a Thread"
         }
     }
 }
