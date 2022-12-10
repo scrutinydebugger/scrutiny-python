@@ -946,24 +946,29 @@ class TestAPI(unittest.TestCase):
                 self.assertEqual(response['timestamp'], entry2_update_request.get_completion_timestamp(), 'i=%d' % i)
 
     def test_write_watchable_bad_values(self):
-        varf32 = Variable('dummyf32', vartype=EmbeddedDataType.float32, path_segments=['a', 'b', 'c'], location=0x12345678, endianness=Endianness.Little)
-        vars32 = Variable('dummys32', vartype=EmbeddedDataType.sint32, path_segments=['a', 'b', 'c'], location=0x12345678, endianness=Endianness.Little)
-        varu32 = Variable('dummyu32', vartype=EmbeddedDataType.uint32, path_segments=['a', 'b', 'c'], location=0x12345678, endianness=Endianness.Little)
-        varbool = Variable('dummybool', vartype=EmbeddedDataType.boolean, path_segments=['a', 'b', 'c'], location=0x12345678, endianness=Endianness.Little)
-        
+        varf32 = Variable('dummyf32', vartype=EmbeddedDataType.float32, path_segments=[
+                          'a', 'b', 'c'], location=0x12345678, endianness=Endianness.Little)
+        vars32 = Variable('dummys32', vartype=EmbeddedDataType.sint32, path_segments=[
+                          'a', 'b', 'c'], location=0x12345678, endianness=Endianness.Little)
+        varu32 = Variable('dummyu32', vartype=EmbeddedDataType.uint32, path_segments=[
+                          'a', 'b', 'c'], location=0x12345678, endianness=Endianness.Little)
+        varbool = Variable('dummybool', vartype=EmbeddedDataType.boolean, path_segments=[
+                           'a', 'b', 'c'], location=0x12345678, endianness=Endianness.Little)
+
         entryf32 = DatastoreVariableEntry(varf32.name, variable_def=varf32)
         entrys32 = DatastoreVariableEntry(vars32.name, variable_def=vars32)
         entryu32 = DatastoreVariableEntry(varu32.name, variable_def=varu32)
         entrybool = DatastoreVariableEntry(varbool.name, variable_def=varbool)
 
-        alias_f32 = Alias("alias_f32", target="xxx", target_type=EntryType.Var, gain=2.0, offset=-10, min=-100, max=100 )
-        alias_u32 = Alias("alias_u32", target="xxx", target_type=EntryType.Var, gain=2.0, offset=-10, min=-100, max=100 )  # Notice the min that can go oob
-        alias_s32 = Alias("alias_s32", target="xxx", target_type=EntryType.Var, gain=2.0, offset=-10, min=-100, max=100 )
+        alias_f32 = Alias("alias_f32", target="xxx", target_type=EntryType.Var, gain=2.0, offset=-10, min=-100, max=100)
+        alias_u32 = Alias("alias_u32", target="xxx", target_type=EntryType.Var, gain=2.0,
+                          offset=-10, min=-100, max=100)  # Notice the min that can go oob
+        alias_s32 = Alias("alias_s32", target="xxx", target_type=EntryType.Var, gain=2.0, offset=-10, min=-100, max=100)
         entry_alias_f32 = DatastoreAliasEntry(alias_f32, entryf32)
         entry_alias_u32 = DatastoreAliasEntry(alias_u32, entryu32)
         entry_alias_s32 = DatastoreAliasEntry(alias_s32, entrys32)
-        
-        entries:List[DatastoreEntry] = [entryf32, entrys32, entryu32, entrybool, entry_alias_f32, entry_alias_u32, entry_alias_s32]
+
+        entries: List[DatastoreEntry] = [entryf32, entrys32, entryu32, entrybool, entry_alias_f32, entry_alias_u32, entry_alias_s32]
         self.datastore.add_entries(entries)
 
         req = {
@@ -976,11 +981,11 @@ class TestAPI(unittest.TestCase):
         self.assert_no_error(response)
 
         class TestCaseDef(TypedDict, total=False):
-            inval:any
-            outval:any
-            valid:bool
+            inval: any
+            outval: any
+            valid: bool
 
-        testcases:List[TestCaseDef] = [
+        testcases: List[TestCaseDef] = [
             dict(inval=math.nan, valid=False),
             dict(inval=None, valid=False),
             dict(inval="asdasd", valid=False),
@@ -992,7 +997,7 @@ class TestAPI(unittest.TestCase):
             dict(inval=-1234.2, valid=True, outval=-1234.2),
             dict(inval=True, valid=True, outval=True),
             dict(inval="true", valid=True, outval=True),
-           
+
         ]
 
         reqid = 0
@@ -1023,7 +1028,7 @@ class TestAPI(unittest.TestCase):
                 else:
                     self.assert_no_error(response, error_msg)
                     self.assertTrue(entry.has_pending_target_update())
-                    self.assertEqual(entry.pop_target_update_request().get_value(), testcase['outval'], error_msg) 
+                    self.assertEqual(entry.pop_target_update_request().get_value(), testcase['outval'], error_msg)
                     self.assertFalse(entry.has_pending_target_update())
 
                     if isinstance(entry, DatastoreAliasEntry):

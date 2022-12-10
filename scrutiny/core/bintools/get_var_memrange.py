@@ -1,6 +1,6 @@
 #    get_var_memrange.py
 #        Simple tool to get the memory ranges of the .elf sections that contains the variables.
-#        Used to generate Memdumps for unit teting
+#        Used to generate Memdumps for unit testing
 #
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)

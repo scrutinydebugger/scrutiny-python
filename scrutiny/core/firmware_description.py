@@ -19,6 +19,7 @@ from scrutiny.core.variable import Variable
 from scrutiny.server.datastore.datastore import Datastore
 from scrutiny.server.datastore.entry_type import EntryType
 from scrutiny.core.alias import Alias
+from scrutiny.core.basic_types import *
 
 from typing import List, Dict, Any, Tuple, Generator, TypedDict, cast, IO, Optional, Union
 
@@ -214,6 +215,9 @@ class FirmwareDescription:
 
     def get_firmware_id_ascii(self) -> str:
         return self.firmwareid.hex().lower()
+
+    def get_endianness(self) -> Endianness:
+        return self.varmap.get_endianness()
 
     def validate(self) -> None:
         if not hasattr(self, 'metadata') or not hasattr(self, 'varmap') or not hasattr(self, 'firmwareid'):

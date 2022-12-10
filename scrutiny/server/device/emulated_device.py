@@ -305,8 +305,13 @@ class EmulatedDevice:
             response = self.protocol.respond_write_memory_blocks(response_blocks_write)
 
         elif subfunction == cmd.MemoryControl.Subfunction.WriteMasked:
-            data = cast(protocol_typing.Request.MemoryControl.Write, data)
-            raise NotImplementedError("")
+            data = cast(protocol_typing.Request.MemoryControl.WriteMasked, data)
+            response_blocks_write = []
+            for block_to_write in data['blocks_to_write']:
+                self.write_memory_masked(block_to_write['address'], block_to_write['data'], block_to_write['write_mask'])
+                response_blocks_write.append((block_to_write['address'], len(block_to_write['data'])))
+
+            response = self.protocol.respond_write_memory_blocks_masked(response_blocks_write)
 
         elif subfunction == cmd.MemoryControl.Subfunction.ReadRPV:
             data = cast(protocol_typing.Request.MemoryControl.ReadRPV, data)
@@ -407,6 +412,25 @@ class EmulatedDevice:
         self.memory_lock.acquire()
         try:
             self.memory.write(address, data)
+        except Exception as e:
+            err = e
+        finally:
+            self.memory_lock.release()
+
+        if err:
+            raise err
+
+    def write_memory_masked(self, address: int, data: Union[bytes, bytearray], mask=Union[bytes, bytearray]) -> None:
+        err = None
+        assert len(mask) == len(data), "Data and mask must be the same length"
+
+        self.memory_lock.acquire()
+        try:
+            memdata = bytearray(self.memory.read(address, len(data)))
+            for i in range(len(data)):
+                memdata[i] &= (data[i] | (~mask[i]))
+                memdata[i] |= (data[i] & (mask[i]))
+            self.memory.write(address, memdata)
         except Exception as e:
             err = e
         finally:

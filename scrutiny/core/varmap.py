@@ -113,6 +113,9 @@ class VarMap:
             raise ValueError('Invalid endianness %s' % endianness)
         self.endianness = endianness
 
+    def get_endianness(self) -> Endianness:
+        return self.endianness
+
     def write(self, filename: str) -> None:
         with open(filename, 'w') as f:
             f.write(self.get_json())
