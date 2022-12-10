@@ -145,16 +145,22 @@ class TestCodecs(unittest.TestCase):
         self.assertEqual(Codecs.make_value_valid(EmbeddedDataType.sint8, -129), -128)
         self.assertEqual(Codecs.make_value_valid(EmbeddedDataType.sint8, -50), -50)
         self.assertEqual(Codecs.make_value_valid(EmbeddedDataType.sint8, 50), 50)
+        self.assertEqual(Codecs.make_value_valid(EmbeddedDataType.sint8, -50, bitsize=5), -16)
+        self.assertEqual(Codecs.make_value_valid(EmbeddedDataType.sint8, 50, bitsize=5), 15)
 
         self.assertEqual(Codecs.make_value_valid(EmbeddedDataType.sint16, 0x8000), 0x7FFF)
         self.assertEqual(Codecs.make_value_valid(EmbeddedDataType.sint16, -0x8001), -0x8000)
         self.assertEqual(Codecs.make_value_valid(EmbeddedDataType.sint16, -1000), -1000)
         self.assertEqual(Codecs.make_value_valid(EmbeddedDataType.sint16, 2000), 2000)
+        self.assertEqual(Codecs.make_value_valid(EmbeddedDataType.sint16, -1000, bitsize=5), -16)
+        self.assertEqual(Codecs.make_value_valid(EmbeddedDataType.sint16, 2000, bitsize=5), 15)
 
         self.assertEqual(Codecs.make_value_valid(EmbeddedDataType.sint32, 0x80000000), 0x7fffffff)
         self.assertEqual(Codecs.make_value_valid(EmbeddedDataType.sint32, -0x80000001), -0x80000000)
         self.assertEqual(Codecs.make_value_valid(EmbeddedDataType.sint32, -1000000), -1000000)
         self.assertEqual(Codecs.make_value_valid(EmbeddedDataType.sint32, 2000000), 2000000)
+        self.assertEqual(Codecs.make_value_valid(EmbeddedDataType.sint32, -1000000, bitsize=5), -16)
+        self.assertEqual(Codecs.make_value_valid(EmbeddedDataType.sint32, 2000000, bitsize=5), 15)
 
         self.assertEqual(Codecs.make_value_valid(EmbeddedDataType.sint64, 0x8000000000000000), 0x7fffffffffffffff)
         self.assertEqual(Codecs.make_value_valid(EmbeddedDataType.sint64, -0x8000000000000001), -0x8000000000000000)
@@ -173,18 +179,26 @@ class TestCodecs(unittest.TestCase):
         self.assertEqual(Codecs.make_value_valid(EmbeddedDataType.uint8, 0x100), 0xFF)
         self.assertEqual(Codecs.make_value_valid(EmbeddedDataType.uint8, -1), 0)
         self.assertEqual(Codecs.make_value_valid(EmbeddedDataType.uint8, 50), 50)
+        self.assertEqual(Codecs.make_value_valid(EmbeddedDataType.uint8, 50, bitsize=5), 31)
+        self.assertEqual(Codecs.make_value_valid(EmbeddedDataType.uint8, -5, bitsize=5), 0)
 
         self.assertEqual(Codecs.make_value_valid(EmbeddedDataType.uint16, 0x10000), 0xFFFF)
         self.assertEqual(Codecs.make_value_valid(EmbeddedDataType.uint16, -1), 0)
         self.assertEqual(Codecs.make_value_valid(EmbeddedDataType.uint16, 2000), 2000)
+        self.assertEqual(Codecs.make_value_valid(EmbeddedDataType.uint16, 2000, bitsize=5), 31)
+        self.assertEqual(Codecs.make_value_valid(EmbeddedDataType.uint16, -500, bitsize=5), 0)
 
         self.assertEqual(Codecs.make_value_valid(EmbeddedDataType.uint32, 0x100000000), 0xffffffff)
         self.assertEqual(Codecs.make_value_valid(EmbeddedDataType.uint32, -1), 0)
         self.assertEqual(Codecs.make_value_valid(EmbeddedDataType.uint32, 2000000), 2000000)
+        self.assertEqual(Codecs.make_value_valid(EmbeddedDataType.uint32, 2000000, bitsize=5), 31)
+        self.assertEqual(Codecs.make_value_valid(EmbeddedDataType.uint32, -500000, bitsize=5), 0)
 
         self.assertEqual(Codecs.make_value_valid(EmbeddedDataType.uint64, 0x10000000000000000), 0xffffffffffffffff)
         self.assertEqual(Codecs.make_value_valid(EmbeddedDataType.uint64, -1), 0)
         self.assertEqual(Codecs.make_value_valid(EmbeddedDataType.uint64, 0x234567892), 0x234567892)
+        self.assertEqual(Codecs.make_value_valid(EmbeddedDataType.uint64, 2000000, bitsize=5), 31)
+        self.assertEqual(Codecs.make_value_valid(EmbeddedDataType.uint64, -500000, bitsize=5), 0)
 
         for dtype in [EmbeddedDataType.uint8, EmbeddedDataType.uint16, EmbeddedDataType.uint32, EmbeddedDataType.uint64]:
             with self.assertRaises(ValueError):

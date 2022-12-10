@@ -19,7 +19,12 @@ class BlockAddressLength(TypedDict):
     length: int
 
 
-class BlockAddressData(TypedDict, total=False):
+class BlockAddressData(TypedDict):
+    address: int
+    data: bytes
+
+
+class BlockAddressDataMasked(TypedDict):
     address: int
     data: bytes
     write_mask: Optional[bytes]
@@ -59,6 +64,9 @@ class Request:
 
         class Write(TypedDict):
             blocks_to_write: List[BlockAddressData]
+
+        class WriteMasked(TypedDict):
+            blocks_to_write: List[BlockAddressDataMasked]
 
         class ReadRPV(TypedDict):
             rpvs_id: List[int]

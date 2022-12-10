@@ -7,18 +7,26 @@
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 
 import struct
-import logging
 from scrutiny.core.basic_types import Endianness, EmbeddedDataType
-from scrutiny.core.codecs import Codecs, Encodable
+from scrutiny.core.codecs import Codecs, Encodable, UIntCodec
 from typing import Dict, Union, List, Literal, Optional, TypedDict, Any, Tuple
 
 
 MASK_MAP: Dict[int, int] = {}
-for i in range(63):
+for i in range(64):
     v = 0
     for j in range(i):
         v |= (1 << j)
         MASK_MAP[i] = v
+
+BITFIELD_MASK_MAP: Dict[int, Dict[int, int]] = {}
+for offset in range(64):
+    BITFIELD_MASK_MAP[offset] = {}
+    for bitsize in range(1, 64):
+        v = 0
+        for i in range(offset, offset + bitsize):
+            v |= (1 << i)
+        BITFIELD_MASK_MAP[offset][bitsize] = v
 
 
 class VariableLocation:
@@ -205,7 +213,7 @@ class Variable:
     location: VariableLocation
     endianness: Endianness
     bitsize: Optional[int]
-    bitfield: Optional[bool]
+    bitfield: bool
     bitoffset: Optional[int]
     enum: Optional[VariableEnum]
 
@@ -220,14 +228,25 @@ class Variable:
             self.location = VariableLocation(location)
         self.endianness = endianness
 
+        var_size_bits = self.vartype.get_size_bit()
         if bitoffset is not None and bitsize is None:
-            var_size = self.vartype.get_size_bit()
-            if var_size is None:
-                raise Exception('Cannot specify bitsize for variable of type %s' % str(EmbeddedDataType))
-            bitsize = var_size - bitoffset
+            bitsize = var_size_bits - bitoffset
         elif bitoffset is None and bitsize is not None:
             bitoffset = 0
         self.bitfield = False if bitoffset is None or bitsize is None else True
+        if self.bitfield:
+            assert bitoffset is not None
+            assert bitsize is not None
+            if self.vartype.is_float():
+                # Not sure if it is possible...
+                raise ValueError("Bitfield on float value is not possible. Report this issue if you think it should!")
+
+            if bitoffset < 0 or bitsize <= 0:
+                raise ValueError("Bad bitfield definition")
+
+            if bitoffset + bitsize > var_size_bits:
+                raise ValueError("Bitfield definition does not fit in variable of type %s. Offset=%d, size=%d" % (self.vartype, bitoffset, bitsize))
+
         self.bitsize = bitsize
         self.bitoffset = bitoffset
         self.enum = enum
@@ -266,10 +285,15 @@ class Variable:
         Converts a python balue to a binary content that can be written in memory.
         The write mask is used for bitfields
         """
-        write_mask = None
-        data = Codecs.get(self.vartype, endianness=self.endianness).encode(value)
+        codec = Codecs.get(self.vartype, endianness=self.endianness)
+        if self.bitfield and not isinstance(value, float):
+            assert (self.bitoffset is not None)
+            data = codec.encode(value << self.bitoffset)
+            write_mask = self.get_bitfield_mask()
+        else:
+            data = codec.encode(value)
+            write_mask = None
 
-        # todo bitfield set write_mask
         return data, write_mask
 
     def get_fullname(self) -> str:
@@ -300,13 +324,31 @@ class Variable:
         """Return the enum attached to the variable. None if it does not exists"""
         return self.enum
 
-    def get_size(self) -> Optional[int]:
+    def get_size(self) -> int:
         """Returns the size of the variable in bytes"""
         size_bit = self.vartype.get_size_bit()
-        if size_bit is None:
-            return None
+        return int(size_bit / 8)
+
+    def is_bitfield(self) -> bool:
+        """Returns True if this variable is a bitfield"""
+        return self.bitfield
+
+    def get_bitsize(self) -> int | None:
+        """Returns the size of the bitfield. None if this variable is not a bitfield """
+        return self.bitsize
+
+    def get_bitoffset(self) -> int | None:
+        """Returns the offset of the bitfield in the variable. None if this variable is not a bitfield"""
+        return self.bitoffset
+
+    def get_bitfield_mask(self) -> bytes:
+        """Returns a mask that covers the bits targeted by this variable. Used to do masked_write on the device"""
+        if not self.bitfield:
+            return b'\xFF' * self.get_size()
         else:
-            return int(size_bit / 8)
+            assert self.bitoffset is not None
+            assert self.bitsize is not None
+            return UIntCodec(self.get_size(), self.endianness).encode(BITFIELD_MASK_MAP[self.bitoffset][self.bitsize])
 
     def __repr__(self):
         return '<%s - %s (%s) @ %s>' % (self.__class__.__name__, self.get_fullname(), self.vartype, self.location)

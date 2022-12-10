@@ -162,7 +162,8 @@ class MemoryWriter:
                 if isinstance(self.entry_being_updated, DatastoreVariableEntry):
                     encoding_succeeded = True
                     try:
-                        value_to_write = Codecs.make_value_valid(self.entry_being_updated.get_data_type(), value_to_write)
+                        value_to_write = Codecs.make_value_valid(self.entry_being_updated.get_data_type(),
+                                                                 value_to_write, bitsize=self.entry_being_updated.get_bitsize())
                     except:
                         encoding_succeeded = False
 
@@ -179,7 +180,7 @@ class MemoryWriter:
                     rpv = self.entry_being_updated.get_rpv()
                     encoding_succeeded = True
                     try:
-                        value_to_write = Codecs.make_value_valid(rpv.datatype, value_to_write)
+                        value_to_write = Codecs.make_value_valid(rpv.datatype, value_to_write)  # No bitsize on RPV
                     except:
                         encoding_succeeded = False
                     if encoding_succeeded:
@@ -195,7 +196,7 @@ class MemoryWriter:
         """Called when a request completes and succeeds"""
         self.logger.debug("Success callback. Response=%s, Params=%s" % (response, params))
         subfn = cmd.MemoryControl.Subfunction(response.subfn)
-        if subfn == cmd.MemoryControl.Subfunction.Write:
+        if subfn == cmd.MemoryControl.Subfunction.Write or subfn == cmd.MemoryControl.Subfunction.WriteMasked:
             self.success_callback_memory_write(request, response, params)
         elif subfn == cmd.MemoryControl.Subfunction.WriteRPV:
             self.success_callback_rpv_write(request, response, params)

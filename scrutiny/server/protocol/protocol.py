@@ -380,7 +380,7 @@ class Protocol:
                             break
 
                 elif subfn == cmd.MemoryControl.Subfunction.WriteMasked:                  # MemoryControl - WriteMasked
-                    data = cast(protocol_typing.Request.MemoryControl.Write, data)
+                    data = cast(protocol_typing.Request.MemoryControl.WriteMasked, data)
                     data['blocks_to_write'] = []
                     c = self.address_format.get_pack_char()
                     address_length_size = 2 + self.get_address_size_bytes()

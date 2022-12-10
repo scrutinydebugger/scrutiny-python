@@ -125,7 +125,7 @@ class Codecs:
         raise NotImplementedError("No codec defined for variable type %s" % vartype)
 
     @staticmethod
-    def make_value_valid(vartype: EmbeddedDataType, val: Encodable) -> Encodable:
+    def make_value_valid(vartype: EmbeddedDataType, val: Encodable, bitsize: int | None = None) -> Encodable:
         if not math.isfinite(val):
             raise ValueError("Does not support non-finite values")
         if vartype == EmbeddedDataType.boolean:
@@ -136,22 +136,21 @@ class Codecs:
         signed = vartype.is_signed()
 
         if vartype.is_integer():
-            data_size = vartype.get_size_byte()
+            data_size = vartype.get_size_bit()
+            if bitsize is not None:
+                data_size = min(data_size, bitsize)
+            if data_size <= 0 or data_size > 256:
+                ValueError("Does not support this data size: %dbits" % data_size)
+
             val = int(val)
-            if (data_size == 1):
-                val = min(val, 0x7F if (signed) else 0xFF)
-                val = max(val, -0x80 if (signed) else 0)
-            elif (data_size == 2):
-                val = min(val, 0x7FFF if (signed) else 0xFFFF)
-                val = max(val, -0x8000 if (signed) else 0)
-            elif (data_size == 4):
-                val = min(val, 0x7FFFFFFF if (signed) else 0xFFFFFFFF)
-                val = max(val, -0x80000000 if (signed) else 0)
-            elif (data_size == 8):
-                val = min(val, 0x7FFFFFFFFFFFFFFF if (signed) else 0xFFFFFFFFFFFFFFFF)
-                val = max(val, -0x8000000000000000 if (signed) else 0)
+            if signed:
+                upper_limit = 1 << (data_size - 1)
+                val = min(val, upper_limit - 1)
+                val = max(val, -upper_limit)
             else:
-                raise ValueError("Does not support this data size: %d" % data_size)
+                upper_limit = 1 << (data_size)
+                val = min(val, upper_limit - 1)
+                val = max(val, 0)
 
         elif vartype.is_float():
             val = float(val)

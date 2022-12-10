@@ -292,10 +292,21 @@ class DatastoreVariableEntry(DatastoreEntry):
         assert enum is not None             # Should have checked with has_enum() first
         return enum
 
+    def is_bitfield(self) -> bool:
+        """Returns True if this variable is a bitfield"""
+        return self.variable_def.is_bitfield()
+
+    def get_bitsize(self) -> int | None:
+        """Returns the size of the bitfield. None if this variable is not a bitfield """
+        return self.variable_def.get_bitsize()
+
+    def get_bitoffset(self) -> int | None:
+        """Returns the offset of the bitfield in the variable. None if this variable is not a bitfield"""
+        return self.variable_def.get_bitoffset()
+
     def encode(self, value: Encodable) -> Tuple[bytes, Optional[bytes]]:
         """Encode the value to a stream of bytes and a data mask. 
         Returns as tuple : (data, mask)"""
-        value = Codecs.make_value_valid(self.get_data_type(), value)
         return self.variable_def.encode(value)  # Returns a typle of (data, mask)
 
     def decode(self, data: bytes) -> Encodable:
