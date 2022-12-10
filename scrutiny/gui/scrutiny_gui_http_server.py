@@ -111,9 +111,9 @@ class ScrutinyGuiHttpServer:
         self.thread.start()
         self.started_event.wait()
 
-    def get_port(self) -> Optional[int]:
+    def get_port(self) -> int:
         if self.http_server is None:
-            return None
+            raise RuntimeError("Server is not started")
 
         host, port = self.http_server.socket.getsockname()
 

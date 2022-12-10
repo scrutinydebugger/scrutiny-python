@@ -146,7 +146,7 @@ class GUIClient:
         self.logger.debug("Python %s %s" % (platform.python_version(), platform.architecture()[0]))
 
         if cef.__version__ < self.CEF_MIN_VERSION:
-            raise NotImplementedError("CEF Python v%s+ required to run the Scrutiny GUI Client" % self.MIN_VERSION)
+            raise NotImplementedError("CEF Python v%s+ required to run the Scrutiny GUI Client" % self.CEF_MIN_VERSION)
 
         sys.excepthook = cef.ExceptHook  # To shutdown all CEF processes on error
 
