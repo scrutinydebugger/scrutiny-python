@@ -28,7 +28,7 @@ class TempStorageWithAutoRestore:
 
     def __exit__(self, type, value, traceback):
         self.restore()
-    
+
     def restore(self):
         self.storage.restore_storage()
 

@@ -322,8 +322,14 @@
         "scrutiny/server/tools/synchronous_websocket_server.py": {
             "docstring": "Synchornous wrapper around the asynchronous websockets module"
         },
-        "test/server/test_server_integration.py": {
-            "docstring": "Test the whole python server by inputing on the API and controlling an emulated device that runs in a Thread"
+        "test/integration/test_read_write.py": {
+            "docstring": "Does some Read and Write through the API and check the memory of the emulated device"
+        },
+        "test/integration/integration_test.py": {
+            "docstring": "Base class for tests that checks the integration of all the pythons components. They talk to the API and control an emulated device that runs in a thread"
+        },
+        "test/server/test_emulated_device.py": {
+            "docstring": "Some testcases to make sure the emulated device runs correctly"
         }
     }
 }

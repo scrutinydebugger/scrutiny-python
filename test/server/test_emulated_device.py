@@ -1,3 +1,11 @@
+#    test_emulated_device.py
+#        Some testcases to make sure the emulated device runs correctly
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021-2022 Scrutiny Debugger
+
 import unittest
 from scrutiny.server.device.emulated_device import EmulatedDevice
 from scrutiny.server.device.links.dummy_link import DummyLink

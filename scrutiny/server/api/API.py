@@ -659,7 +659,7 @@ class API:
                 elif valstr.startswith("0x"):
                     value = int(valstr[2:], 16)
                 elif valstr.startswith("-0x"):
-                    value = -int(valstr[3:], 16)     
+                    value = -int(valstr[3:], 16)
                 else:
                     try:
                         value = float(valstr)

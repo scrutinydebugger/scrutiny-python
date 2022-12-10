@@ -1,3 +1,11 @@
+#    test_read_write.py
+#        Does some Read and Write through the API and check the memory of the emulated device
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021-2022 Scrutiny Debugger
+
 import struct
 
 from scrutiny.server.device.emulated_device import EmulatedDevice

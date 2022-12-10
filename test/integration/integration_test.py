@@ -1,3 +1,12 @@
+#    integration_test.py
+#        Base class for tests that checks the integration of all the pythons components. They
+#        talk to the API and control an emulated device that runs in a thread
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021-2022 Scrutiny Debugger
+
 import unittest
 import time
 import json

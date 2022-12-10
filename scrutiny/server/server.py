@@ -63,7 +63,7 @@ class ScrutinyServer:
     device_handler: DeviceHandler
     sfd_handler: ActiveSFDHandler
 
-    def __init__(self, input_config: Optional[Union[str,ServerConfig]] = None):
+    def __init__(self, input_config: Optional[Union[str, ServerConfig]] = None):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.config = copy(DEFAULT_CONFIG)
         if input_config is not None:
@@ -99,11 +99,11 @@ class ScrutinyServer:
     def init(self) -> None:
         self.api.start_listening()
         self.sfd_handler.init()
-    
+
     def process(self) -> None:
         self.api.process()
         self.device_handler.process()
-        self.sfd_handler.process()        
+        self.sfd_handler.process()
 
     def run(self) -> None:
         """Launch the server code. This function is blocking"""
@@ -121,7 +121,7 @@ class ScrutinyServer:
             self.logger.debug(traceback.format_exc())
             self.close_all()
             raise
-    
+
     def stop(self):
         """ An alias for close_all"""
         self.close_all()
