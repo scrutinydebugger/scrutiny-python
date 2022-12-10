@@ -333,11 +333,11 @@ class Variable:
         """Returns True if this variable is a bitfield"""
         return self.bitfield
 
-    def get_bitsize(self) -> int | None:
+    def get_bitsize(self) -> Optional[int]:
         """Returns the size of the bitfield. None if this variable is not a bitfield """
         return self.bitsize
 
-    def get_bitoffset(self) -> int | None:
+    def get_bitoffset(self) -> Optional[int]:
         """Returns the offset of the bitfield in the variable. None if this variable is not a bitfield"""
         return self.bitoffset
 

@@ -125,7 +125,7 @@ class Codecs:
         raise NotImplementedError("No codec defined for variable type %s" % vartype)
 
     @staticmethod
-    def make_value_valid(vartype: EmbeddedDataType, val: Encodable, bitsize: int | None = None) -> Encodable:
+    def make_value_valid(vartype: EmbeddedDataType, val: Encodable, bitsize: Optional[int] = None) -> Encodable:
         if not math.isfinite(val):
             raise ValueError("Does not support non-finite values")
         if vartype == EmbeddedDataType.boolean:

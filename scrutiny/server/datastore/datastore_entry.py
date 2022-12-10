@@ -296,11 +296,11 @@ class DatastoreVariableEntry(DatastoreEntry):
         """Returns True if this variable is a bitfield"""
         return self.variable_def.is_bitfield()
 
-    def get_bitsize(self) -> int | None:
+    def get_bitsize(self) -> Optional[int]:
         """Returns the size of the bitfield. None if this variable is not a bitfield """
         return self.variable_def.get_bitsize()
 
-    def get_bitoffset(self) -> int | None:
+    def get_bitoffset(self) -> Optional[int]:
         """Returns the offset of the bitfield in the variable. None if this variable is not a bitfield"""
         return self.variable_def.get_bitoffset()
 
