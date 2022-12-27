@@ -78,7 +78,8 @@ class StubbedDeviceHandler:
             'memory_read': True,
             'memory_write': True,
             'datalog_acquire': False,
-            'user_command': False}
+            'user_command': False,
+            '_64bits': True}
         info.forbidden_memory_regions = [{'start': 0x1000, 'end': 0x2000}]
         info.readonly_memory_regions = [{'start': 0x2000, 'end': 0x3000}, {'start': 0x3000, 'end': 0x4000}]
         info.runtime_published_values = []
@@ -176,7 +177,7 @@ class TestAPI(unittest.TestCase):
 
     def make_random_string(self, n):
         letters = string.ascii_lowercase
-        return''.join(random.choice(letters) for i in range(n))
+        return ''.join(random.choice(letters) for i in range(n))
 
 # ===== Test section ===============
     def test_echo(self):
