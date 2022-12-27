@@ -372,9 +372,11 @@ class InfoPoller:
             elif self.fsm_state == self.FsmState.GetSupportedFeatures:
                 response_data = cast(protocol_typing.Response.GetInfo.GetSupportedFeatures, response_data)
                 self.info.supported_feature_map = {
+                    'memory_read': response_data['memory_read'],
                     'memory_write': response_data['memory_write'],
-                    'datalog_acquire': response_data['datalog_acquire'],
-                    'user_command': response_data['user_command']
+                    'datalogging': response_data['datalogging'],
+                    'user_command': response_data['user_command'],
+                    '_64bits': response_data['_64bits']
                 }
 
             elif self.fsm_state == self.FsmState.GetSpecialMemoryRegionCount:

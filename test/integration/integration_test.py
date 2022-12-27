@@ -225,4 +225,5 @@ class ScrutinyIntegrationTest(unittest.TestCase):
     def tearDown(self) -> None:
         self.emulated_device.stop()
         self.server.stop()
-        self.temp_storage_handler.restore()
+        if hasattr(self, 'temp_storage_handler'):
+            self.temp_storage_handler.restore()

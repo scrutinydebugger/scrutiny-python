@@ -18,9 +18,11 @@ class MemoryRegion(TypedDict):
 
 class SupportedFeatureMap(TypedDict):
     """Dictionnary of all possible supported features by the device (libscrutiny-embedded)"""
+    memory_read: bool
     memory_write: bool
-    datalog_acquire: bool
+    datalogging: bool
     user_command: bool
+    _64bits: bool
 
 
 class DeviceInfo:

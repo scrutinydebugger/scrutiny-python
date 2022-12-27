@@ -710,12 +710,14 @@ class TestProtocolV1_0(unittest.TestCase):
         self.assertEqual(data['software_id'], 'hello'.encode('ascii'))
 
     def test_response_get_supported_features(self):
-        response = self.proto.respond_supported_features(memory_write=True, datalog_acquire=False, user_command=True)
-        self.assert_req_response_bytes(response, [0x81, 3, 0, 0, 1, 0xA0])
+        response = self.proto.respond_supported_features(memory_read=True, memory_write=False, datalogging=False, user_command=True, _64bits=True)
+        self.assert_req_response_bytes(response, [0x81, 3, 0, 0, 1, 0x98])
         data = self.proto.parse_response(response)
-        self.assertEqual(data['memory_write'], True)
-        self.assertEqual(data['datalog_acquire'], False)
+        self.assertEqual(data['memory_read'], True)
+        self.assertEqual(data['memory_write'], False)
+        self.assertEqual(data['datalogging'], False)
         self.assertEqual(data['user_command'], True)
+        self.assertEqual(data['_64bits'], True)
 
     def test_response_get_special_memory_range_count(self):
         response = self.proto.respond_special_memory_region_count(readonly=0xAA, forbidden=0x55)

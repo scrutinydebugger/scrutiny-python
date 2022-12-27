@@ -151,9 +151,11 @@ class TestDeviceHandler(unittest.TestCase):
         self.assertEqual(info.heartbeat_timeout_us, self.emulated_device.heartbeat_timeout_us)
         self.assertEqual(info.rx_timeout_us, self.emulated_device.rx_timeout_us)
         self.assertEqual(info.address_size_bits, self.emulated_device.address_size_bits)
+        self.assertEqual(info.supported_feature_map['memory_read'], self.emulated_device.supported_features['memory_read'])
         self.assertEqual(info.supported_feature_map['memory_write'], self.emulated_device.supported_features['memory_write'])
-        self.assertEqual(info.supported_feature_map['datalog_acquire'], self.emulated_device.supported_features['datalog_acquire'])
+        self.assertEqual(info.supported_feature_map['datalogging'], self.emulated_device.supported_features['datalogging'])
         self.assertEqual(info.supported_feature_map['user_command'], self.emulated_device.supported_features['user_command'])
+        self.assertEqual(info.supported_feature_map['_64bits'], self.emulated_device.supported_features['_64bits'])
 
         for region in self.emulated_device.forbidden_regions:
             found = False

@@ -92,9 +92,11 @@ class EmulatedDevice:
         self.memory_lock = threading.Lock()
 
         self.supported_features = {
-            'memory_write': False,
-            'datalog_acquire': False,
-            'user_command': False
+            'memory_read': True,
+            'memory_write': True,
+            'datalogging': False,
+            'user_command': False,
+            '_64bits': False,
         }
 
         self.rpvs = {

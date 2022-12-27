@@ -516,16 +516,22 @@ class Protocol:
     def respond_software_id(self, software_id: Union[bytes, List[int], bytearray]) -> Response:
         return Response(cmd.GetInfo, cmd.GetInfo.Subfunction.GetSoftwareId, Response.ResponseCode.OK, bytes(software_id))
 
-    def respond_supported_features(self, memory_write: bool = False, datalog_acquire: bool = False, user_command: bool = False) -> Response:
+    def respond_supported_features(self, memory_read: bool = False, memory_write: bool = False, datalogging: bool = False, user_command: bool = False, _64bits: bool = False) -> Response:
         bytes1 = 0
-        if memory_write:
+        if memory_read:
             bytes1 |= 0x80
 
-        if datalog_acquire:
+        if memory_write:
             bytes1 |= 0x40
 
-        if user_command:
+        if datalogging:
             bytes1 |= 0x20
+
+        if user_command:
+            bytes1 |= 0x10
+
+        if _64bits:
+            bytes1 |= 0x08
 
         return Response(cmd.GetInfo, cmd.GetInfo.Subfunction.GetSupportedFeatures, Response.ResponseCode.OK, bytes([bytes1]))
 
@@ -702,9 +708,11 @@ class Protocol:
                     elif subfn == cmd.GetInfo.Subfunction.GetSupportedFeatures:
                         data = cast(protocol_typing.Response.GetInfo.GetSupportedFeatures, data)
                         (byte1,) = struct.unpack('B', response.payload)
-                        data['memory_write'] = True if (byte1 & 0x80) != 0 else False
-                        data['datalog_acquire'] = True if (byte1 & 0x40) != 0 else False
-                        data['user_command'] = True if (byte1 & 0x20) != 0 else False
+                        data['memory_read'] = True if (byte1 & 0x80) != 0 else False
+                        data['memory_write'] = True if (byte1 & 0x40) != 0 else False
+                        data['datalogging'] = True if (byte1 & 0x20) != 0 else False
+                        data['user_command'] = True if (byte1 & 0x10) != 0 else False
+                        data['_64bits'] = True if (byte1 & 0x08) != 0 else False
 
                     elif subfn == cmd.GetInfo.Subfunction.GetSoftwareId:
                         data = cast(protocol_typing.Response.GetInfo.GetSoftwareId, data)
