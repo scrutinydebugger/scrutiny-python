@@ -11,7 +11,6 @@ from typing import *
 import scrutiny.server.protocol.commands as cmd
 from scrutiny.core.codecs import Encodable
 from scrutiny.core.basic_types import RuntimePublishedValue
-from scrutiny.server.protocol.datalog import DatalogConfiguration, DatalogLocation, LogStatus, RecordInfo
 
 
 class BlockAddressLength(TypedDict):
@@ -75,11 +74,7 @@ class Request:
             rpvs: List[RPVWriteRequest]
 
     class DatalogControl:
-        class ReadRecordings(TypedDict):
-            record_id: int
-
-        class ConfigureDatalog(TypedDict):
-            configuration: DatalogConfiguration
+        pass  # TODO
 
     class CommControl:
         class Discover(TypedDict):
@@ -106,8 +101,8 @@ RequestData = Union[
     Request.MemoryControl.ReadRPV,
     Request.MemoryControl.WriteRPV,
 
-    Request.DatalogControl.ReadRecordings,
-    Request.DatalogControl.ConfigureDatalog,
+    # Request.DatalogControl.ReadRecordings,
+    # Request.DatalogControl.ConfigureDatalog,
 
     Request.CommControl.Discover,
     Request.CommControl.Connect,
@@ -163,30 +158,7 @@ class Response:
             written_rpv: List[RPVIdSizePair]
 
     class DatalogControl:
-        class GetAvailableTarget(TypedDict):
-            targets: List[DatalogLocation]
-
-        class GetBufferSize(TypedDict):
-            size: int
-
-        class GetLogStatus(TypedDict):
-            status: LogStatus
-
-        class ArmLog(TypedDict):
-            record_id: int
-
-        class ConfigureDatalog(TypedDict):
-            record_id: int
-
-        class ReadRecordings(TypedDict):
-            record_id: int
-            data: bytes
-
-        class ListRecordings(TypedDict):
-            recordings: List[RecordInfo]
-
-        class GetSamplingRates(TypedDict):
-            sampling_rates: List[float]
+        pass  # todo
 
     class CommControl:
         class Discover(TypedDict):
@@ -227,14 +199,14 @@ ResponseData = Union[
     Response.MemoryControl.ReadRPV,
     Response.MemoryControl.WriteRPV,
 
-    Response.DatalogControl.GetAvailableTarget,
-    Response.DatalogControl.GetBufferSize,
-    Response.DatalogControl.GetLogStatus,
-    Response.DatalogControl.ArmLog,
-    Response.DatalogControl.ConfigureDatalog,
-    Response.DatalogControl.ReadRecordings,
-    Response.DatalogControl.ListRecordings,
-    Response.DatalogControl.GetSamplingRates,
+    # Response.DatalogControl.GetAvailableTarget,
+    # Response.DatalogControl.GetBufferSize,
+    # Response.DatalogControl.GetLogStatus,
+    # Response.DatalogControl.ArmLog,
+    # Response.DatalogControl.ConfigureDatalog,
+    # Response.DatalogControl.ReadRecordings,
+    # Response.DatalogControl.ListRecordings,
+    # Response.DatalogControl.GetSamplingRates,
 
     Response.CommControl.Discover,
     Response.CommControl.Heartbeat,

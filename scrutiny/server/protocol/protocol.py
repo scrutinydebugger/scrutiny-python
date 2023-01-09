@@ -10,14 +10,16 @@ import struct
 import logging
 import ctypes
 import traceback
+from enum import Enum
 
 from .exceptions import *
-from .datalog import *
 from . import commands as cmd
 from . import Request, Response
 from scrutiny.core.codecs import *
 from scrutiny.core.basic_types import Endianness, RuntimePublishedValue
 import scrutiny.server.protocol.typing as protocol_typing
+import scrutiny.server.datalogging.definitions as datalogging
+
 
 from typing import Union, List, Tuple, Optional, Dict, Any, cast
 
@@ -230,7 +232,7 @@ class Protocol:
         expected_response_size = 0
         for id in ids:
             if id not in self.rpv_map:
-                raise Exception('Unkown RuntimePublishedValue ID 0x%x' % id)
+                raise Exception('Unknown RuntimePublishedValue ID 0x%x' % id)
             rpv = self.rpv_map[id]
             typesize = rpv.datatype.get_size_byte()
             assert typesize is not None
@@ -247,7 +249,7 @@ class Protocol:
         data = bytes()
         for id, val in values:
             if id not in self.rpv_map:
-                raise Exception('Unkown RuntimePublishedValue ID %s' % id)
+                raise Exception('Unknown RuntimePublishedValue ID %s' % id)
             rpv = self.rpv_map[id]
             codec = Codecs.get(rpv.datatype, Endianness.Big)
             data += struct.pack('>H', id)
@@ -275,49 +277,97 @@ class Protocol:
     def comm_disconnect(self, session_id: int) -> Request:
         return Request(cmd.CommControl, cmd.CommControl.Subfunction.Disconnect, struct.pack('>L', session_id), response_payload_size=0)
 
-    def datalog_get_targets(self) -> Request:
-        return Request(cmd.DatalogControl, cmd.DatalogControl.Subfunction.GetAvailableTarget)  # todo : response_payload_size
+    def datalogging_get_setup(self) -> Request:
+        return Request(cmd.DatalogControl, cmd.DatalogControl.Subfunction.GetSetup, response_payload_size=5)
 
-    def datalog_get_bufsize(self) -> Request:
-        return Request(cmd.DatalogControl, cmd.DatalogControl.Subfunction.GetBufferSize)    # todo : response_payload_size
+    def datalogging_configure(self, loop_id: int, config_id: int, config: datalogging.Configuration) -> Request:
+        data = struct.pack('>BHHBLBLB',
+                           loop_id,
+                           config_id,
+                           config.decimation,
+                           int(round(config.probe_location * 255)),
+                           int(round(config.timeout * 1e7)),
+                           config.trigger_condition.value,
+                           int(round(config.trigger_hold_time * 1e7)),
+                           len(config.trigger_condition_operands)
+                           )
 
-    def datalog_get_sampling_rates(self) -> Request:
-        return Request(cmd.DatalogControl, cmd.DatalogControl.Subfunction.GetSamplingRates)  # todo : response_payload_size
-
-    def datalog_configure_log(self, conf: DatalogConfiguration) -> Request:
-        if not isinstance(conf, DatalogConfiguration):
-            raise ValueError('Given configuration must be an instance of protocol.DatalogConfiguration')
-
-        data = struct.pack('>BfBH', conf.destination, conf.sample_rate, conf.decimation, len(conf.watches))
-        for watch in conf.watches:
-            data += struct.pack('>LH', watch.address, watch.length)
-
-        data += struct.pack('B', conf.trigger.condition.value)
-
-        for operand in [conf.trigger.operand1, conf.trigger.operand2]:
-            if operand.operand_type == DatalogConfiguration.OperandType.CONST:
-                data += struct.pack('>Bf', operand.operand_type.value, operand.value)
-            elif operand.operand_type == DatalogConfiguration.OperandType.WATCH:
-                data += struct.pack('>BLBB', operand.operand_type.value, operand.address, operand.length, operand.interpret_as.value)
+        for operand in config.trigger_condition_operands:
+            operand_type = operand.get_type()
+            data += struct.pack('B', operand_type.value)
+            if operand_type == datalogging.OperandType.Literal:
+                operand = cast(datalogging.LiteralOperand, operand)
+                data += struct.pack('>f', operand.literal)
+            elif operand_type == datalogging.OperandType.RPV:
+                operand = cast(datalogging.RPVOperand, operand)
+                data += struct.pack('>H', operand.rpv.id)
+            elif operand_type == datalogging.OperandType.Var:
+                operand = cast(datalogging.VarOperand, operand)
+                data += struct.pack('>B', operand.var.get_type())
+                data += self.encode_address(operand.var.get_address())
+            elif operand_type == datalogging.OperandType.VarBit:
+                operand = cast(datalogging.VarBitOperand, operand)
+                data += struct.pack('>B', operand.varbit.get_type())
+                data += self.encode_address(operand.varbit.get_address())
+                data += struct.pack('>BB', operand.varbit.get_bitoffset(), operand.varbit.get_bitsize())
             else:
-                raise Exception('Unknown operand type %s' % operand.operand_type)
+                raise ValueError("Unknown operand type")
 
-        return Request(cmd.DatalogControl, cmd.DatalogControl.Subfunction.ConfigureDatalog, data)   # todo : response_payload_size
+        data += struct.pack('>B', len(config.loggable_signals))
 
-    def datalog_get_list_recordings(self) -> Request:
-        return Request(cmd.DatalogControl, cmd.DatalogControl.Subfunction.ListRecordings)   # todo : response_payload_size
+        for signal in config.loggable_signals:
+            signal_type = signal.get_type()
+            data += struct.pack('>B', len(signal_type.value))
 
-    def datalog_read_recording(self, record_id: int) -> Request:
-        return Request(cmd.DatalogControl, cmd.DatalogControl.Subfunction.ReadRecordings, struct.pack('>H', record_id))  # todo : response_payload_size
+            if signal_type == datalogging.LoggableSignalType.MEMORY:
+                signal = cast(datalogging.MemoryLoggableSignal, signal)
+                data += self.encode_address(signal.address)
+                data += struct.pack('>B', signal.size)
 
-    def datalog_arm(self) -> Request:
-        return Request(cmd.DatalogControl, cmd.DatalogControl.Subfunction.ArmLog)   # todo : response_payload_size
+            elif signal_type == datalogging.LoggableSignalType.MEMORY:
+                signal = cast(datalogging.RPVLoggableSignal, signal)
+                data += struct.pack('>H', signal.rpv.id)
 
-    def datalog_disarm(self) -> Request:
-        return Request(cmd.DatalogControl, cmd.DatalogControl.Subfunction.DisarmLog)    # todo : response_payload_size
+            elif signal_type == datalogging.LoggableSignalType.MEMORY:
+                signal = cast(datalogging.TimeLoggableSignal, signal)
+                # nothing to encode!
+            else:
+                raise ValueError("Unknown signal type")
 
-    def datalog_status(self) -> Request:
-        return Request(cmd.DatalogControl, cmd.DatalogControl.Subfunction.GetLogStatus)  # todo : response_payload_size
+        return Request(cmd.DatalogControl, cmd.DatalogControl.Subfunction.ConfigureDatalog, response_payload_size=0)
+
+    def datalogging_arm_trigger(self) -> Request:
+        return Request(cmd.DatalogControl, cmd.DatalogControl.Subfunction.ArmTrigger, response_payload_size=0)
+
+    def datalogging_disarm_trigger(self) -> Request:
+        return Request(cmd.DatalogControl, cmd.DatalogControl.Subfunction.DisarmTrigger, response_payload_size=0)
+
+    def datalogging_get_status(self) -> Request:
+        return Request(cmd.DatalogControl, cmd.DatalogControl.Subfunction.GetStatus, response_payload_size=1)
+
+    def datalogging_get_acquisition_metadata(self) -> Request:
+        return Request(cmd.DatalogControl, cmd.DatalogControl.Subfunction.GetAcquisitionMetadata, response_payload_size=14)
+
+    def datalogging_read_acquisition(self, data_read: int, total_size: int, tx_buffer_size: int, encoding: datalogging.Encoding) -> Request:
+        payload_max_size = tx_buffer_size
+        remaining_count = total_size - data_read
+
+        if payload_max_size - 8 < 0:
+            raise ValueError('Negative max payload size. tx_buffer_size=%d', (tx_buffer_size))
+
+        if remaining_count < 0:
+            raise ValueError('Negative remaining data. total_size=%d, data_read=%d', (total_size, data_read))
+
+        expected_response_payload_size = 0
+        if encoding == datalogging.Encoding.RAW:
+            if remaining_count < payload_max_size - 8:    # Last block
+                expected_response_payload_size = remaining_count + 8
+            else:
+                expected_response_payload_size = payload_max_size
+        else:
+            raise ValueError('Unsupported encoding')
+
+        return Request(cmd.DatalogControl, cmd.DatalogControl.Subfunction.ReadAcquisition, response_payload_size=expected_response_payload_size)
 
     def user_command(self, subfn: int, data: bytes = b'') -> Request:
         return Request(cmd.UserCommand, subfn, data)    # todo : response_payload_size
@@ -434,39 +484,7 @@ class Protocol:
             elif req.command == cmd.DatalogControl:
                 subfn = cmd.DatalogControl.Subfunction(req.subfn)
 
-                if subfn == cmd.DatalogControl.Subfunction.ReadRecordings:          # DatalogControl - ReadRecordings
-                    data = cast(protocol_typing.Request.DatalogControl.ReadRecordings, data)
-                    (data['record_id'],) = struct.unpack('>H', req.payload[0:2])
-
-                elif subfn == cmd.DatalogControl.Subfunction.ConfigureDatalog:      # DatalogControl - ConfigureDatalog
-                    data = cast(protocol_typing.Request.DatalogControl.ConfigureDatalog, data)
-                    conf = DatalogConfiguration()
-                    (conf.destination, conf.sample_rate, conf.decimation, num_watches) = struct.unpack('>BfBH', req.payload[0:8])
-
-                    for i in range(num_watches):
-                        pos = 8 + i * 6
-                        (addr, length) = struct.unpack('>LH', req.payload[pos:pos + 6])
-                        conf.add_watch(addr, length)
-                    pos = 8 + num_watches * 6
-                    condition_num, = struct.unpack('>B', req.payload[pos:pos + 1])
-                    conf.trigger.condition = DatalogConfiguration.TriggerCondition(condition_num)
-                    pos += 1
-                    operands: List[DatalogConfiguration.Operand] = []
-                    for i in range(2):
-                        operand_type_num, = struct.unpack('B', req.payload[pos:pos + 1])
-                        pos += 1
-                        operand_type = DatalogConfiguration.OperandType(operand_type_num)
-                        if operand_type == DatalogConfiguration.OperandType.CONST:
-                            val, = struct.unpack('>f', req.payload[pos:pos + 4])
-                            operands.append(DatalogConfiguration.ConstOperand(val))
-                            pos += 4
-                        elif operand_type == DatalogConfiguration.OperandType.WATCH:
-                            (address, length, interpret_as) = struct.unpack('>LBB', req.payload[pos:pos + 6])
-                            operands.append(DatalogConfiguration.WatchOperand(address=address, length=length, interpret_as=interpret_as))
-                            pos += 6
-                    conf.trigger.operand1 = operands[0]
-                    conf.trigger.operand2 = operands[1]
-                    data['configuration'] = conf
+                # TODO
 
             elif req.command == cmd.CommControl:
                 subfn = cmd.CommControl.Subfunction(req.subfn)
@@ -499,7 +517,6 @@ class Protocol:
 
 
 # ======================== Response =================
-
 
     def respond_not_ok(self, req: Request, code: Union[int, Enum]) -> Response:
         return Response(req.command, req.subfn, Response.ResponseCode(code))
@@ -624,7 +641,7 @@ class Protocol:
         data = bytes()
         for id, val in vals:
             if id not in self.rpv_map:
-                raise Exception('Unkown RuntimePublishedValue ID %s' % id)
+                raise Exception('Unknown RuntimePublishedValue ID %s' % id)
 
             rpv = self.rpv_map[id]
             codec = Codecs.get(rpv.datatype, Endianness.Big)
@@ -639,52 +656,44 @@ class Protocol:
         data = bytes()
         for id in ids:
             if id not in self.rpv_map:
-                raise Exception('Unkown RuntimePublishedValue ID %s' % id)
+                raise Exception('Unknown RuntimePublishedValue ID %s' % id)
             rpv = self.rpv_map[id]
             data += struct.pack('>HB', id, rpv.datatype.get_size_byte())
 
         return Response(cmd.MemoryControl, cmd.MemoryControl.Subfunction.WriteRPV, Response.ResponseCode.OK, data)
 
-    def respond_data_get_targets(self, targets: List[DatalogLocation]) -> Response:
-        data = bytes()
-        for target in targets:
-            if not isinstance(target, DatalogLocation):
-                raise ValueError('Target must be an instance of DatalogLocation')
+    def respond_datalogging_get_setup(self, buffer_size: int, encoding: datalogging.Encoding) -> Response:
+        return Response(cmd.DatalogControl, cmd.DatalogControl.Subfunction.GetSetup, Response.ResponseCode.OK, struct.pack('>LB', buffer_size, encoding.value))
 
-            data += struct.pack('BBB', target.target_id, target.location_type.value, len(target.name))
-            data += target.name.encode('ascii')
+    def respond_datalogging_configure(self) -> Response:
+        return Response(cmd.DatalogControl, cmd.DatalogControl.Subfunction.ConfigureDatalog, Response.ResponseCode.OK)
 
-        return Response(cmd.DatalogControl, cmd.DatalogControl.Subfunction.GetAvailableTarget, Response.ResponseCode.OK, data)
+    def respond_datalogging_arm_trigger(self) -> Response:
+        return Response(cmd.DatalogControl, cmd.DatalogControl.Subfunction.ArmTrigger, Response.ResponseCode.OK)
 
-    def respond_datalog_get_bufsize(self, size: int) -> Response:
-        return Response(cmd.DatalogControl, cmd.DatalogControl.Subfunction.GetBufferSize, Response.ResponseCode.OK, struct.pack('>L', size))
+    def respond_datalogging_disarm_trigger(self) -> Response:
+        return Response(cmd.DatalogControl, cmd.DatalogControl.Subfunction.DisarmTrigger, Response.ResponseCode.OK)
 
-    def respond_datalog_get_sampling_rates(self, sampling_rates: List[float]) -> Response:
-        data = struct.pack('>' + 'f' * len(sampling_rates), *sampling_rates)
-        return Response(cmd.DatalogControl, cmd.DatalogControl.Subfunction.GetSamplingRates, Response.ResponseCode.OK, data)
+    def respond_datalogging_get_status(self, status: Union[datalogging.DataloggerStatus, int]) -> Response:
+        status = datalogging.DataloggerStatus(status)
+        return Response(cmd.DatalogControl, cmd.DatalogControl.Subfunction.GetStatus, Response.ResponseCode.OK, struct.pack('B', status.value))
 
-    def respond_datalog_arm(self, record_id: int) -> Response:
-        return Response(cmd.DatalogControl, cmd.DatalogControl.Subfunction.ArmLog, Response.ResponseCode.OK, struct.pack('>H', record_id))
+    def respond_datalogging_get_acquisition_metadata(self, acquisition_id: int, config_id: int, nb_points: int, datasize: int, points_after_trigger: int) -> Response:
+        return Response(cmd.DatalogControl, cmd.DatalogControl.Subfunction.GetStatus, Response.ResponseCode.OK,
+                        struct.pack('>HHLLL', acquisition_id, config_id, nb_points, datasize, points_after_trigger))
 
-    def respond_datalog_disarm(self) -> Response:
-        return Response(cmd.DatalogControl, cmd.DatalogControl.Subfunction.DisarmLog, Response.ResponseCode.OK)
+    def respond_datalogging_read_acquisition(self, finished: bool, rolling_counter: int, acquisition_id: int, data: bytes, crc: Optional[int] = None) -> Response:
+        if not finished and crc is not None:
+            raise ValueError("CRC must be given only for the final data chunk")
 
-    def respond_datalog_status(self, status: Union[LogStatus, int]) -> Response:
-        status = LogStatus(status)
-        return Response(cmd.DatalogControl, cmd.DatalogControl.Subfunction.GetLogStatus, Response.ResponseCode.OK, struct.pack('B', status.value))
+        if finished and crc is None:
+            raise ValueError("Missing CRC for last data chunk")
 
-    def respond_datalog_list_recordings(self, recordings: List[RecordInfo]) -> Response:
-        data = bytes()
-        for record in recordings:
-            data += struct.pack('>HBH', record.record_id, record.location_type.value, record.size)
-        return Response(cmd.DatalogControl, cmd.DatalogControl.Subfunction.ListRecordings, Response.ResponseCode.OK, data)
+        payload = struct.pack('>BBH', finished, rolling_counter, acquisition_id) + data
+        if finished:
+            payload += struct.pack('>L', crc)
 
-    def respond_read_recording(self, record_id: int, data: bytes) -> Response:
-        data = bytes(data)
-        return Response(cmd.DatalogControl, cmd.DatalogControl.Subfunction.ReadRecordings, Response.ResponseCode.OK, struct.pack('>H', record_id) + data)
-
-    def respond_configure_log(self, record_id: int) -> Response:
-        return Response(cmd.DatalogControl, cmd.DatalogControl.Subfunction.ConfigureDatalog, Response.ResponseCode.OK, struct.pack('>H', record_id))
+        return Response(cmd.DatalogControl, cmd.DatalogControl.Subfunction.ReadAcquisition, Response.ResponseCode.OK, payload)
 
     def respond_user_command(self, subfn: Union[int, Enum], data: bytes = b'') -> Response:
         return Response(cmd.UserCommand, subfn, Response.ResponseCode.OK, data)
@@ -820,63 +829,7 @@ class Protocol:
                 elif response.command == cmd.DatalogControl:
                     subfn = cmd.DatalogControl.Subfunction(response.subfn)
 
-                    if subfn == cmd.DatalogControl.Subfunction.GetAvailableTarget:
-                        data = cast(protocol_typing.Response.DatalogControl.GetAvailableTarget, data)
-                        targets = []
-                        pos = 0
-                        while True:
-                            if len(response.payload) < pos + 1:
-                                break
-                            target_id, location_type_num, target_name_len = struct.unpack('BBB', response.payload[pos:pos + 3])
-                            location_type = DatalogLocation.LocationType(location_type_num)
-                            pos += 3
-                            name = response.payload[pos:pos + target_name_len].decode('ascii')
-                            pos += target_name_len
-                            targets.append(DatalogLocation(target_id, location_type, name))
-
-                        data['targets'] = targets
-                    elif subfn == cmd.DatalogControl.Subfunction.GetBufferSize:
-                        data = cast(protocol_typing.Response.DatalogControl.GetBufferSize, data)
-                        data['size'], = struct.unpack('>L', response.payload[0:4])
-
-                    elif subfn == cmd.DatalogControl.Subfunction.GetLogStatus:
-                        data = cast(protocol_typing.Response.DatalogControl.GetLogStatus, data)
-                        data['status'] = LogStatus(int(response.payload[0]))
-
-                    elif subfn == cmd.DatalogControl.Subfunction.ArmLog:
-                        data = cast(protocol_typing.Response.DatalogControl.ArmLog, data)
-                        data['record_id'], = struct.unpack('>H', response.payload)
-
-                    elif subfn == cmd.DatalogControl.Subfunction.ConfigureDatalog:
-                        data = cast(protocol_typing.Response.DatalogControl.ConfigureDatalog, data)
-                        data['record_id'], = struct.unpack('>H', response.payload)
-
-                    elif subfn == cmd.DatalogControl.Subfunction.ReadRecordings:
-                        data = cast(protocol_typing.Response.DatalogControl.ReadRecordings, data)
-                        data['record_id'], = struct.unpack('>H', response.payload[0:2])
-                        data['data'] = response.payload[2:]
-
-                    elif subfn == cmd.DatalogControl.Subfunction.ListRecordings:
-                        data = cast(protocol_typing.Response.DatalogControl.ListRecordings, data)
-                        if len(response.payload) % 5 != 0:
-                            raise Exception('Incomplete payload')
-                        nrecords = int(len(response.payload) / 5)
-                        data['recordings'] = []
-                        pos = 0
-                        for i in range(nrecords):
-                            (record_id, location_type_num, size) = struct.unpack('>HBH', response.payload[pos:pos + 5])
-                            location_type = DatalogLocation.LocationType(location_type_num)
-                            pos += 5
-                            record = RecordInfo(record_id, location_type_num, size)
-                            data['recordings'].append(record)
-
-                    elif subfn == cmd.DatalogControl.Subfunction.GetSamplingRates:
-                        data = cast(protocol_typing.Response.DatalogControl.GetSamplingRates, data)
-                        if len(response.payload) % 4 != 0:
-                            raise Exception('Incomplete payload')
-
-                        nrates = int(len(response.payload) / 4)
-                        data['sampling_rates'] = list(struct.unpack('>' + 'f' * nrates, response.payload))
+                    pass
 
                 elif response.command == cmd.CommControl:
                     subfn = cmd.CommControl.Subfunction(response.subfn)

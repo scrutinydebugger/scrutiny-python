@@ -36,6 +36,12 @@ class GetInfo(BaseCommand):
         """Request the device with the definition of a Runtime Published Values (RPV). 
         Definition include ID and type (size implied by data type)"""
 
+        GetLoopCount = 8
+        """Request the device with the number of loops (execution unit with its own time domain) being run on the device"""
+
+        GetLoopDefinition = 9
+        """Get the parameters of a loop (execution unit with its own time domain) """
+
     class MemoryRangeType(Enum):
         """Type of special memory region"""
         ReadOnly = 0

@@ -9,7 +9,6 @@
 
 import unittest
 from scrutiny.server.protocol import Request, Response
-from scrutiny.server.protocol.datalog import DatalogConfiguration
 
 
 class TestMessage(unittest.TestCase):
