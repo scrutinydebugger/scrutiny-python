@@ -7,10 +7,10 @@
 #
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 
-import unittest
 import time
 import json
 
+from test import ScrutinyUnitTest
 from scrutiny.server.device.emulated_device import EmulatedDevice
 from scrutiny.server.server import ScrutinyServer, ServerConfig
 from scrutiny.server.api.dummy_client_handler import DummyConnection, DummyClientHandler
@@ -23,7 +23,7 @@ from scrutiny.core.codecs import *
 from typing import cast, List, Tuple
 
 
-class ScrutinyIntegrationTest(unittest.TestCase):
+class ScrutinyIntegrationTest(ScrutinyUnitTest):
     def setUp(self):
         err = None
         try:

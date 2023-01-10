@@ -8,7 +8,7 @@
 
 from enum import Enum
 from scrutiny.core.variable import Variable
-from scrutiny.core.basic_types import RuntimePublishedValue
+from scrutiny.core.basic_types import RuntimePublishedValue, EmbeddedDataType
 
 
 from typing import Union, List
@@ -46,61 +46,72 @@ class Operand(ABC):
 class LiteralOperand(Operand):
     value: float
 
-    def __init__(self, literal: Union[float, int]):
-        self.literal = float(literal)
+    def __init__(self, value: Union[float, int]):
+        self.value = float(value)
 
     def get_type(self) -> OperandType:
         return OperandType.Literal
 
 
 class VarOperand(Operand):
-    var: Variable
+    address: int
+    datatype: EmbeddedDataType
 
-    def __init__(self, var: Variable):
-        self.var = var
+    def __init__(self, address: int, datatype: EmbeddedDataType):
+        if not isinstance(address, int):
+            raise ValueError("Given address must be an int")
 
-        if var.is_bitfield():
-            raise ValueError("Bitfield defined on VarOperand")
+        if not isinstance(datatype, EmbeddedDataType):
+            raise ValueError("Given datatype must be an EmbeddedDataType")
+
+        self.address = address
+        self.datatype = datatype
 
     def get_type(self) -> OperandType:
         return OperandType.Var
 
 
 class VarBitOperand(Operand):
-    varbit: Variable
+    address: int
+    datatype: EmbeddedDataType
+    bitoffset: int
+    bitsize: int
 
-    def __init__(self, varbit: Variable):
-        self.varbit = varbit
+    def __init__(self, address: int, datatype: EmbeddedDataType, bitoffset: int, bitsize: int):
+        if not isinstance(address, int):
+            raise ValueError("Given address must be an int")
 
-        if not varbit.is_bitfield():
-            raise ValueError("No bitfield defined on VarBitOperand")
+        if not isinstance(datatype, EmbeddedDataType):
+            raise ValueError("Given datatype must be an EmbeddedDataType")
+
+        if not isinstance(bitoffset, int):
+            raise ValueError("Given bitoffset must be an int")
+
+        if not isinstance(bitsize, int):
+            raise ValueError("Given bitsize must be an int")
+
+        self.address = address
+        self.datatype = datatype
+        self.bitoffset = bitoffset
+        self.bitsize = bitsize
 
     def get_type(self) -> OperandType:
         return OperandType.VarBit
 
 
 class RPVOperand(Operand):
-    rpv: RuntimePublishedValue
+    rpv_id: int
 
-    def __init__(self, rpv: RuntimePublishedValue):
-        self.rpv = rpv
+    def __init__(self, rpv_id: int):
+        if not isinstance(rpv_id, int):
+            raise ValueError("Given operand requires a int")
+
+        self.rpv_id = rpv_id
 
     def get_type(self) -> OperandType:
         return OperandType.RPV
 
 
-def make_operand(data: Union[float, int, RuntimePublishedValue, Variable]) -> Operand:
-    if isinstance(data, float) or isinstance(data, int):
-        return LiteralOperand(data)
-
-    if isinstance(data, RuntimePublishedValue):
-        return RPVOperand(data)
-
-    if isinstance(data, Variable):
-        if data.is_bitfield():
-            return VarBitOperand(data)
-        else:
-            return VarOperand(data)
 # endregion
 
 # region Loggable Signals
@@ -125,6 +136,12 @@ class MemoryLoggableSignal(LoggableSignal):
     size: int
 
     def __init__(self, address: int, size: int):
+        if not isinstance(address, int):
+            raise ValueError("Given address must be an int")
+
+        if not isinstance(size, int):
+            raise ValueError("Given size must be an int")
+
         self.address = address
         self.size = size
 
@@ -133,10 +150,12 @@ class MemoryLoggableSignal(LoggableSignal):
 
 
 class RPVLoggableSignal(LoggableSignal):
-    rpv: RuntimePublishedValue
+    rpv_id: int
 
-    def __init__(self, rpv: RuntimePublishedValue):
-        self.rpv = rpv
+    def __init__(self, rpv_id: int):
+        if not isinstance(rpv_id, int):
+            raise ValueError("Given rpv_id must be an int")
+        self.rpv_id = rpv_id
 
     def get_type(self) -> OperandType:
         return LoggableSignalType.RPV
@@ -162,7 +181,7 @@ class TriggerConditionID(Enum):
     LessOrEqualThan = 4     # Operand1 <= Operand2
     GreaterThan = 5         # Operand1 > Operand2
     GreaterOrEqualThan = 6  # Operand1 >= Operand2
-    ChangeMoreThan = 7      # |Operand1[n] - Operand1[n-1]| > |Operand2| && sign(Operand1[n] - Operand1[n-1]) == sign(Operand2)
+    ChangeMoreThan = 7      # X=(Operand1[n]-Operand1[n-1]); |X| > |Operand2| && sign(X) == sign(Operand2)
     IsWithin = 8            # |Operand1 - Operand2| < |Operand3|
 
 
@@ -197,7 +216,7 @@ class TriggerCondition:
             if not isinstance(operand, Operand):
                 raise ValueError("Given operand is not a valid Operand object")
 
-        self.operands = args.copy()
+        self.operands = list(args)
 
     def get_operands(self) -> List[Operand]:
         return self.operands
@@ -213,18 +232,25 @@ class Configuration:
     _trigger_condition: TriggerCondition
     _trigger_hold_time: float
 
-    trigger_condition_operands: List[Operand]
-    loggable_signals: List[LoggableSignal]
+    _loggable_signals: List[LoggableSignal]
 
     def __init__(self):
         self._decimation = 1
         self._probe_location = 0.5
         self._timeout = 0
-        self._trigger_condition = TriggerConditionID.AlwaysTrue
+        self._trigger_condition = TriggerCondition(TriggerConditionID.AlwaysTrue)
         self._trigger_hold_time = 0
 
-        self.trigger_condition_operands = []
-        self.loggable_signals = []
+        self._loggable_signals = []
+
+    def add_signal(self, signal: LoggableSignal):
+        if not isinstance(signal, LoggableSignal):
+            raise ValueError('Requires a valid LoggableSignal object')
+
+        self._loggable_signals.append(signal)
+
+    def get_signals(self):
+        return self._loggable_signals
 
     @property
     def decimation(self) -> int:

@@ -7,11 +7,11 @@
 #
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 
-import unittest
 from scrutiny.server.protocol import Request, Response
+from test import ScrutinyUnitTest
 
 
-class TestMessage(unittest.TestCase):
+class TestMessage(ScrutinyUnitTest):
     def test_request(self):
         msg = Request(command=1, subfn=0x34, payload=bytes([1, 2, 3, 4]))
         data = msg.to_bytes()

@@ -7,7 +7,6 @@
 #
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 
-import unittest
 import time
 
 from scrutiny.server.datastore.datastore import Datastore
@@ -21,6 +20,7 @@ import scrutiny.server.protocol.typing as protocol_typing
 from scrutiny.core.basic_types import *
 from scrutiny.core.variable import Variable
 import struct
+from test import ScrutinyUnitTest
 
 from typing import List, Dict, Generator, cast
 from scrutiny.core.typehints import GenericCallback
@@ -45,7 +45,7 @@ def d2f(d):
     return struct.unpack('f', struct.pack('f', d))[0]
 
 
-class TestMemoryWriterBasicReadOperation(unittest.TestCase):
+class TestMemoryWriterBasicReadOperation(ScrutinyUnitTest):
 
     # Write a single datastore entry. Make sure the request is good.
     def test_simple_var_write(self):

@@ -6,7 +6,6 @@
 #
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 
-import unittest
 import time
 from scrutiny.core.codecs import Encodable
 from scrutiny.server.datastore.datastore_entry import DatastoreRPVEntry, EntryType
@@ -24,6 +23,7 @@ from scrutiny.server.datastore.entry_type import EntryType
 from scrutiny.core.variable import Variable
 from scrutiny.core.codecs import Codecs
 from scrutiny.core.basic_types import *
+from test import ScrutinyUnitTest
 
 from scrutiny.core.typehints import GenericCallback
 from typing import cast, List
@@ -43,7 +43,7 @@ def generate_random_value(datatype: EmbeddedDataType) -> Encodable:
     return codec.decode(bytestr)
 
 
-class TestDeviceHandler(unittest.TestCase):
+class TestDeviceHandler(ScrutinyUnitTest):
     def ctrlc_handler(self, signal, frame):
         if self.emulated_device is not None:
             self.emulated_device.stop()
@@ -482,7 +482,7 @@ class TestDeviceHandler(unittest.TestCase):
         self.assertEqual(round_completed, test_round_to_do)  # Make sure test went through.
 
 
-class TestDeviceHandlerMultipleLink(unittest.TestCase):
+class TestDeviceHandlerMultipleLink(ScrutinyUnitTest):
 
     def ctrlc_handler(self, signal, frame):
         if self.emulated_device1 is not None:

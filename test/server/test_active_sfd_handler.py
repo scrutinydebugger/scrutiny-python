@@ -6,7 +6,6 @@
 #
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 
-import unittest
 
 from scrutiny.server.datastore.entry_type import EntryType
 from scrutiny.server.device.device_handler import DeviceHandler
@@ -14,6 +13,7 @@ from scrutiny.server.active_sfd_handler import ActiveSFDHandler
 from scrutiny.server.datastore.datastore import Datastore
 from scrutiny.core.sfd_storage import SFDStorage
 from test.artifacts import get_artifact
+from test import ScrutinyUnitTest
 
 
 class StubbedDeviceHandler:
@@ -31,7 +31,7 @@ class StubbedDeviceHandler:
         return self.device_id
 
 
-class TestActiveSFDHandler(unittest.TestCase):
+class TestActiveSFDHandler(ScrutinyUnitTest):
 
     def setUp(self):
         SFDStorage.use_temp_folder()

@@ -6,7 +6,6 @@
 #
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 
-import unittest
 from scrutiny.core.firmware_description import FirmwareDescription
 from scrutiny.core.alias import Alias
 from scrutiny.server.datastore.datastore_entry import *
@@ -14,11 +13,12 @@ from scrutiny.server.datastore.entry_type import EntryType
 from scrutiny.core.variable import *
 from test.artifacts import get_artifact
 from binascii import unhexlify
+from test import ScrutinyUnitTest
 
 from typing import Dict
 
 
-class TestSFD(unittest.TestCase):
+class TestSFD(ScrutinyUnitTest):
 
     def test_load_sfd(self):
         sfd = FirmwareDescription(get_artifact('test_sfd_1.sfd'))   # expects no exception

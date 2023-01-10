@@ -7,8 +7,8 @@
 #
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 
-import unittest
+from test import ScrutinyUnitTest
 
 
-class TestValueStreamer(unittest.TestCase):
+class TestValueStreamer(ScrutinyUnitTest):
     pass

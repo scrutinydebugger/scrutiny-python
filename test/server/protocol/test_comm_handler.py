@@ -7,16 +7,16 @@
 #
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 
-import unittest
 import time
 
 from scrutiny.server.protocol.comm_handler import CommHandler
 from scrutiny.server.protocol import Request, Response
 from scrutiny.server.protocol.commands import DummyCommand
 from scrutiny.server.device.links.dummy_link import DummyLink
+from test import ScrutinyUnitTest
 
 
-class TestCommHandler(unittest.TestCase):
+class TestCommHandler(ScrutinyUnitTest):
     def setUp(self):
         params = {
             'response_timeout': 0.2

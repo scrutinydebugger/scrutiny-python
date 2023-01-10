@@ -6,20 +6,18 @@
 #
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 
-import unittest
-
 from scrutiny.server.datastore.datastore import Datastore
 from scrutiny.server.datastore.entry_type import EntryType
 from scrutiny.server.datastore.datastore_entry import *
 from scrutiny.core.alias import Alias
 from scrutiny.core.variable import *
 from scrutiny.core.basic_types import *
-
+from test import ScrutinyUnitTest
 
 dummy_callback = lambda *args, **kwargs: None
 
 
-class TestDataStore(unittest.TestCase):
+class TestDataStore(ScrutinyUnitTest):
     def setUp(self):
         self.value_change_callback_call_history = {}
         self.target_update_callback_call_history = {}

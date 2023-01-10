@@ -6,8 +6,6 @@
 #
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 
-from re import S
-import unittest
 import time
 import random
 import string
@@ -28,6 +26,7 @@ from scrutiny.server.device.links.dummy_link import DummyLink
 from scrutiny.core.variable import *
 from scrutiny.core.alias import Alias
 from test.artifacts import get_artifact
+from test import ScrutinyUnitTest
 
 # todo
 # - Test rate limiter/data streamer
@@ -94,7 +93,7 @@ class StubbedDeviceHandler:
             raise Exception('Bad config')
 
 
-class TestAPI(unittest.TestCase):
+class TestAPI(ScrutinyUnitTest):
 
     def setUp(self):
         self.connections = [DummyConnection(), DummyConnection(), DummyConnection()]

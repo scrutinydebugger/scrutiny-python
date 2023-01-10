@@ -6,11 +6,12 @@
 #
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 
-from typing import *
 
+from typing import TypedDict, Optional, List, Union
 import scrutiny.server.protocol.commands as cmd
 from scrutiny.core.codecs import Encodable
 from scrutiny.core.basic_types import RuntimePublishedValue
+import scrutiny.server.datalogging.definitions as datalogging
 
 
 class BlockAddressLength(TypedDict):
@@ -74,7 +75,10 @@ class Request:
             rpvs: List[RPVWriteRequest]
 
     class DatalogControl:
-        pass  # TODO
+        class Configure(TypedDict):
+            loop_id: int
+            config_id: int
+            config: datalogging.Configuration
 
     class CommControl:
         class Discover(TypedDict):
@@ -101,8 +105,7 @@ RequestData = Union[
     Request.MemoryControl.ReadRPV,
     Request.MemoryControl.WriteRPV,
 
-    # Request.DatalogControl.ReadRecordings,
-    # Request.DatalogControl.ConfigureDatalog,
+    Request.DatalogControl.Configure,
 
     Request.CommControl.Discover,
     Request.CommControl.Connect,

@@ -6,12 +6,12 @@
 #
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 
-import unittest
-import os
+
 import re
+from test import ScrutinyUnitTest
 
 
-class TestElf2VarMap(unittest.TestCase):
+class TestElf2VarMap(ScrutinyUnitTest):
 
     def test_unique_cu_name(self):
         from scrutiny.core.bintools.elf_dwarf_var_extractor import ElfDwarfVarExtractor

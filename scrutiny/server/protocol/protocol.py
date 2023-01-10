@@ -6,7 +6,7 @@
 #
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 
-import struct
+from struct import *
 import logging
 import ctypes
 import traceback
@@ -67,10 +67,10 @@ class Protocol:
 
         def encode_address(self, address: int) -> bytes:
             address &= self.get_address_mask()
-            return struct.pack('>%s' % self.get_pack_char(), address)
+            return pack('>%s' % self.get_pack_char(), address)
 
         def decode_address(self, buff: bytes) -> int:
-            return struct.unpack('>%s' % self.get_pack_char(), buff[0:self.get_address_size_bytes()])[0]
+            return unpack('>%s' % self.get_pack_char(), buff[0:self.get_address_size_bytes()])[0]
 
     def __init__(self, version_major: int = 1, version_minor: int = 0, address_size_bits: int = 32):
         self.version_major = version_major
@@ -142,14 +142,14 @@ class Protocol:
     def get_special_memory_region_location(self, region_type: Union[int, cmd.GetInfo.MemoryRangeType], region_index: int) -> Request:
         if isinstance(region_type, cmd.GetInfo.MemoryRangeType):
             region_type = region_type.value
-        data = struct.pack('BB', region_type, region_index)
+        data = pack('BB', region_type, region_index)
         return Request(cmd.GetInfo, cmd.GetInfo.Subfunction.GetSpecialMemoryRegionLocation, data, response_payload_size=2 + self.get_address_size_bytes() * 2)
 
     def get_rpv_count(self):
         return Request(cmd.GetInfo, cmd.GetInfo.Subfunction.GetRuntimePublishedValuesCount, bytes(), response_payload_size=2)
 
     def get_rpv_definition(self, start: int, count: int):
-        return Request(cmd.GetInfo, cmd.GetInfo.Subfunction.GetRuntimePublishedValuesDefinition, struct.pack('>HH', start, count), response_payload_size=3 * count)
+        return Request(cmd.GetInfo, cmd.GetInfo.Subfunction.GetRuntimePublishedValuesDefinition, pack('>HH', start, count), response_payload_size=3 * count)
 
     def get_rpv_definition_req_size(self) -> int:
         return 4
@@ -195,7 +195,7 @@ class Protocol:
             addr = block[0]
             size = block[1]
             total_length += size
-            data += self.encode_address(addr) + struct.pack('>H', size)
+            data += self.encode_address(addr) + pack('>H', size)
         return Request(cmd.MemoryControl, cmd.MemoryControl.Subfunction.Read, data, response_payload_size=(self.get_address_size_bytes() + 2) * len(block_list) + total_length)
 
     def write_single_memory_block(self, address: int, data: bytes, write_mask: Optional[bytes] = None) -> Request:
@@ -211,7 +211,7 @@ class Protocol:
         for block in block_list:
             addr = block[0]
             mem_data = block[1]
-            data += self.encode_address(addr) + struct.pack('>H', len(mem_data)) + bytes(mem_data)
+            data += self.encode_address(addr) + pack('>H', len(mem_data)) + bytes(mem_data)
         return Request(cmd.MemoryControl, cmd.MemoryControl.Subfunction.Write, data, response_payload_size=(self.get_address_size_bytes() + 2) * len(block_list))
 
     def write_memory_blocks_masked(self, block_list: List[Tuple[int, bytes, bytes]]) -> Request:
@@ -222,7 +222,7 @@ class Protocol:
             mask = block[2]
             if len(mem_data) != len(mask):
                 raise Exception('Length of mask must match length of data')
-            data += self.encode_address(addr) + struct.pack('>H', len(mem_data)) + bytes(mem_data) + bytes(mask)
+            data += self.encode_address(addr) + pack('>H', len(mem_data)) + bytes(mem_data) + bytes(mask)
         return Request(cmd.MemoryControl, cmd.MemoryControl.Subfunction.WriteMasked, data, response_payload_size=(self.get_address_size_bytes() + 2) * len(block_list))
 
     def read_runtime_published_values(self, ids: Union[int, List[int]]):
@@ -239,7 +239,7 @@ class Protocol:
             expected_response_size += 2 + typesize
 
         nbids = len(ids)
-        data = struct.pack('>' + 'H' * nbids, *ids)
+        data = pack('>' + 'H' * nbids, *ids)
         return Request(cmd.MemoryControl, cmd.MemoryControl.Subfunction.ReadRPV, data, response_payload_size=expected_response_size)
 
     def write_runtime_published_values(self, values: Union[List[Tuple[int, Encodable]], Tuple[int, Encodable]]):
@@ -252,7 +252,7 @@ class Protocol:
                 raise Exception('Unknown RuntimePublishedValue ID %s' % id)
             rpv = self.rpv_map[id]
             codec = Codecs.get(rpv.datatype, Endianness.Big)
-            data += struct.pack('>H', id)
+            data += pack('>H', id)
             data += codec.encode(val)
 
         return Request(cmd.MemoryControl, cmd.MemoryControl.Subfunction.WriteRPV, data, response_payload_size=len(values) * 3)
@@ -262,7 +262,7 @@ class Protocol:
         return Request(cmd.CommControl, cmd.CommControl.Subfunction.Discover, data, response_payload_size=16)  # 16 minimum
 
     def comm_heartbeat(self, session_id: int, challenge: int) -> Request:
-        return Request(cmd.CommControl, cmd.CommControl.Subfunction.Heartbeat, struct.pack('>LH', session_id, challenge), response_payload_size=6)
+        return Request(cmd.CommControl, cmd.CommControl.Subfunction.Heartbeat, pack('>LH', session_id, challenge), response_payload_size=6)
 
     def heartbeat_expected_challenge_response(self, challenge: int) -> int:
         return ~challenge & 0xFFFF
@@ -275,66 +275,66 @@ class Protocol:
         return Request(cmd.CommControl, cmd.CommControl.Subfunction.Connect, cmd.CommControl.CONNECT_MAGIC, response_payload_size=4 + 4)  # Magic + Session id
 
     def comm_disconnect(self, session_id: int) -> Request:
-        return Request(cmd.CommControl, cmd.CommControl.Subfunction.Disconnect, struct.pack('>L', session_id), response_payload_size=0)
+        return Request(cmd.CommControl, cmd.CommControl.Subfunction.Disconnect, pack('>L', session_id), response_payload_size=0)
 
     def datalogging_get_setup(self) -> Request:
         return Request(cmd.DatalogControl, cmd.DatalogControl.Subfunction.GetSetup, response_payload_size=5)
 
     def datalogging_configure(self, loop_id: int, config_id: int, config: datalogging.Configuration) -> Request:
-        data = struct.pack('>BHHBLBLB',
-                           loop_id,
-                           config_id,
-                           config.decimation,
-                           int(round(config.probe_location * 255)),
-                           int(round(config.timeout * 1e7)),
-                           config.trigger_condition.value,
-                           int(round(config.trigger_hold_time * 1e7)),
-                           len(config.trigger_condition_operands)
-                           )
+        data = pack('>BHHBLBLB',
+                    loop_id,
+                    config_id,
+                    config.decimation,
+                    int(round(config.probe_location * 255)),
+                    int(round(config.timeout * 1e7)),
+                    config.trigger_condition.condition_id.value,
+                    int(round(config.trigger_hold_time * 1e7)),
+                    len(config.trigger_condition.get_operands())
+                    )
 
-        for operand in config.trigger_condition_operands:
+        for operand in config.trigger_condition.get_operands():
             operand_type = operand.get_type()
-            data += struct.pack('B', operand_type.value)
+            data += pack('B', operand_type.value)
             if operand_type == datalogging.OperandType.Literal:
                 operand = cast(datalogging.LiteralOperand, operand)
-                data += struct.pack('>f', operand.literal)
+                data += pack('>f', operand.value)
             elif operand_type == datalogging.OperandType.RPV:
                 operand = cast(datalogging.RPVOperand, operand)
-                data += struct.pack('>H', operand.rpv.id)
+                data += pack('>H', operand.rpv_id)
             elif operand_type == datalogging.OperandType.Var:
                 operand = cast(datalogging.VarOperand, operand)
-                data += struct.pack('>B', operand.var.get_type())
-                data += self.encode_address(operand.var.get_address())
+                data += pack('>B', operand.datatype.value)
+                data += self.encode_address(operand.address)
             elif operand_type == datalogging.OperandType.VarBit:
                 operand = cast(datalogging.VarBitOperand, operand)
-                data += struct.pack('>B', operand.varbit.get_type())
-                data += self.encode_address(operand.varbit.get_address())
-                data += struct.pack('>BB', operand.varbit.get_bitoffset(), operand.varbit.get_bitsize())
+                data += pack('>B', operand.datatype.value)
+                data += self.encode_address(operand.address)
+                data += pack('>BB', operand.bitoffset, operand.bitsize)
             else:
                 raise ValueError("Unknown operand type")
 
-        data += struct.pack('>B', len(config.loggable_signals))
+        data += pack('>B', len(config.get_signals()))
 
-        for signal in config.loggable_signals:
+        for signal in config.get_signals():
             signal_type = signal.get_type()
-            data += struct.pack('>B', len(signal_type.value))
+            data += pack('>B', signal_type.value)
 
             if signal_type == datalogging.LoggableSignalType.MEMORY:
                 signal = cast(datalogging.MemoryLoggableSignal, signal)
                 data += self.encode_address(signal.address)
-                data += struct.pack('>B', signal.size)
+                data += pack('>B', signal.size)
 
-            elif signal_type == datalogging.LoggableSignalType.MEMORY:
+            elif signal_type == datalogging.LoggableSignalType.RPV:
                 signal = cast(datalogging.RPVLoggableSignal, signal)
-                data += struct.pack('>H', signal.rpv.id)
+                data += pack('>H', signal.rpv_id)
 
-            elif signal_type == datalogging.LoggableSignalType.MEMORY:
+            elif signal_type == datalogging.LoggableSignalType.TIME:
                 signal = cast(datalogging.TimeLoggableSignal, signal)
                 # nothing to encode!
             else:
-                raise ValueError("Unknown signal type")
+                raise ValueError("Unknown signal type %s" % signal)
 
-        return Request(cmd.DatalogControl, cmd.DatalogControl.Subfunction.ConfigureDatalog, response_payload_size=0)
+        return Request(cmd.DatalogControl, cmd.DatalogControl.Subfunction.ConfigureDatalog, data, response_payload_size=0)
 
     def datalogging_arm_trigger(self) -> Request:
         return Request(cmd.DatalogControl, cmd.DatalogControl.Subfunction.ArmTrigger, response_payload_size=0)
@@ -384,13 +384,13 @@ class Protocol:
 
                 if subfn == cmd.GetInfo.Subfunction.GetSpecialMemoryRegionLocation:
                     data = cast(protocol_typing.Request.GetInfo.GetSpecialMemoryRegionLocation, data)
-                    region_type, region_index = struct.unpack('BB', req.payload[0:2])
+                    region_type, region_index = unpack('BB', req.payload[0:2])
                     data['region_type'] = cmd.GetInfo.MemoryRangeType(region_type)
                     data['region_index'] = region_index
 
                 elif subfn == cmd.GetInfo.Subfunction.GetRuntimePublishedValuesDefinition:
                     data = cast(protocol_typing.Request.GetInfo.GetRuntimePublishedValuesDefinition, data)
-                    data['start'], data['count'] = struct.unpack('>HH', req.payload[0:4])
+                    data['start'], data['count'] = unpack('>HH', req.payload[0:4])
 
             elif req.command == cmd.MemoryControl:
                 subfn = cmd.MemoryControl.Subfunction(req.subfn)
@@ -404,8 +404,8 @@ class Protocol:
                     nblock = int(len(req.payload) / block_size)
                     data['blocks_to_read'] = []
                     for i in range(nblock):
-                        (addr, length) = struct.unpack('>' + self.address_format.get_pack_char() +
-                                                       'H', req.payload[(i * block_size + 0):(i * block_size + block_size)])
+                        (addr, length) = unpack('>' + self.address_format.get_pack_char() +
+                                                'H', req.payload[(i * block_size + 0):(i * block_size + block_size)])
                         data['blocks_to_read'].append(dict(address=addr, length=length))
 
                 elif subfn == cmd.MemoryControl.Subfunction.Write:                  # MemoryControl - Write
@@ -418,7 +418,7 @@ class Protocol:
                         if len(req.payload) < index + address_length_size:
                             raise Exception('Invalid request data, missing data')
 
-                        addr, length = struct.unpack('>' + c + 'H', req.payload[(index + 0):(index + address_length_size)])
+                        addr, length = unpack('>' + c + 'H', req.payload[(index + 0):(index + address_length_size)])
                         if len(req.payload) < index + address_length_size + length:
                             raise Exception('Data length and encoded length mismatch for address 0x%x' % addr)
 
@@ -439,7 +439,7 @@ class Protocol:
                         if len(req.payload) < index + address_length_size:
                             raise Exception('Invalid request data, missing data')
 
-                        addr, length = struct.unpack('>' + c + 'H', req.payload[(index + 0):(index + address_length_size)])
+                        addr, length = unpack('>' + c + 'H', req.payload[(index + 0):(index + address_length_size)])
                         if len(req.payload) < index + address_length_size + 2 * length:   # 2x length because of mask
                             raise Exception('Data length and encoded length mismatch for address 0x%x' % addr)
 
@@ -459,7 +459,7 @@ class Protocol:
 
                     nbids = len(req.payload) // 2
                     for i in range(nbids):
-                        id = struct.unpack('>H', req.payload[i * 2:i * 2 + 2])[0]
+                        id = unpack('>H', req.payload[i * 2:i * 2 + 2])[0]
                         data['rpvs_id'].append(id)
 
                 elif subfn == cmd.MemoryControl.Subfunction.WriteRPV:
@@ -468,7 +468,7 @@ class Protocol:
                     cursor = 0
 
                     while cursor < len(req.payload):
-                        id = struct.unpack('>H', req.payload[cursor:cursor + 2])[0]
+                        id = unpack('>H', req.payload[cursor:cursor + 2])[0]
                         cursor += 2
                         if id not in self.rpv_map:
                             raise Exception('Request requires to decode RPV with ID %s which is unknown' % id)
@@ -484,7 +484,111 @@ class Protocol:
             elif req.command == cmd.DatalogControl:
                 subfn = cmd.DatalogControl.Subfunction(req.subfn)
 
-                # TODO
+                if subfn == cmd.DatalogControl.Subfunction.ConfigureDatalog:
+                    if len(req.payload) < 16:
+                        raise ValueError("Not enough data")
+
+                    data['loop_id'] = req.payload[0]
+                    data['config_id'] = unpack('>H', req.payload[1:3])[0]
+                    config = datalogging.Configuration()
+                    config.decimation = unpack('>H', req.payload[3:5])[0]
+                    config.probe_location = float(req.payload[5]) / 255.0
+                    config.timeout = float(unpack('>L', req.payload[6:10])[0]) / 1.0e7
+                    condition_id = req.payload[10]
+                    if condition_id not in [v.value for v in datalogging.TriggerConditionID]:
+                        raise ValueError('Unknown condition ID %d' % condition_id)
+                    config.trigger_condition.condition_id = datalogging.TriggerConditionID(condition_id)
+                    config.trigger_hold_time = float(unpack('>L', req.payload[11:15])[0]) / 1.0e7
+
+                    operand_count = req.payload[15]
+                    cursor = 16
+                    for i in range(operand_count):
+                        if len(req.payload) < cursor:
+                            raise ValueError('Not enough data. cursor = %d' % cursor)
+                        operand_type_id = req.payload[cursor]
+                        cursor += 1
+                        if operand_type_id not in [v.value for v in datalogging.OperandType]:
+                            raise ValueError('Unknown operand type %d' % operand_type_id)
+
+                        operand_type = datalogging.OperandType(operand_type_id)
+
+                        if operand_type == datalogging.OperandType.Literal:
+                            if len(req.payload) < cursor + 4:
+                                raise ValueError('Not enough data for operand #%d (Literal). Cursor = %d' % (i, cursor))
+                            operand = datalogging.LiteralOperand(value=struct.unpack('>f', req.payload[cursor:cursor + 4])[0])
+                            cursor += 4
+                        elif operand_type == datalogging.OperandType.RPV:
+                            if len(req.payload) < cursor + 2:
+                                raise ValueError('Not enough data for operand #%d (RPV). Cursor = %d' % (i, cursor))
+                            operand = datalogging.RPVOperand(rpv_id=struct.unpack('>H', req.payload[cursor:cursor + 2])[0])
+                            cursor += 2
+
+                        elif operand_type == datalogging.OperandType.Var:
+                            if len(req.payload) < cursor + 1 + self.get_address_size_bytes():
+                                raise ValueError('Not enough data for operand #%d (Var). Cursor = %d' % (i, cursor))
+                            datatype_id = req.payload[cursor]
+                            cursor += 1
+                            if datatype_id not in [v.value for v in EmbeddedDataType]:
+                                raise ValueError("Unknown datatype for operand #%d (Var). Cursor=%d" % (i, cursor))
+                            datatype = EmbeddedDataType(datatype_id)
+                            address = self.decode_address(req.payload[cursor:cursor + self.get_address_size_bytes()])
+                            cursor += self.get_address_size_bytes()
+                            operand = datalogging.VarOperand(address=address, datatype=datatype)
+                        elif operand_type == datalogging.OperandType.VarBit:
+                            if len(req.payload) < cursor + 1 + self.get_address_size_bytes() + 1 + 1:
+                                raise ValueError('Not enough data for operand #%d (VarBit). Cursor = %d' % (i, cursor))
+                            datatype_id = req.payload[cursor]
+                            cursor += 1
+                            if datatype_id not in [v.value for v in EmbeddedDataType]:
+                                raise ValueError("Unknown datatype for operand #%d (VarBit). Cursor=%d" % (i, cursor))
+                            datatype = EmbeddedDataType(datatype_id)
+                            address = self.decode_address(req.payload[cursor:cursor + self.get_address_size_bytes()])
+                            cursor += self.get_address_size_bytes()
+                            bitoffset = req.payload[cursor]
+                            cursor += 1
+                            bitsize = req.payload[cursor]
+                            cursor += 1
+                            operand = datalogging.VarBitOperand(address=address, datatype=datatype, bitoffset=bitoffset, bitsize=bitsize)
+                        else:
+                            raise NotImplementedError('Unsupported Operand Type %s' % operand_type)
+
+                        config.trigger_condition.operands.append(operand)
+
+                    if len(req.payload) < cursor:
+                        raise ValueError('Not enough data to read the signal count. cursor = %d' % cursor)
+                    signal_count = req.payload[cursor]
+                    cursor += 1
+
+                    for i in range(signal_count):
+                        if len(req.payload) < cursor:
+                            raise ValueError('Not enough data to read the signal count. cursor = %d' % cursor)
+                        signal_type_id = req.payload[cursor]
+                        cursor += 1
+                        if signal_type_id not in [v.value for v in datalogging.LoggableSignalType]:
+                            raise ValueError("Unknown signal type for signal #%d. Cursor=%d" % (i, cursor))
+                        signal_type = datalogging.LoggableSignalType(signal_type_id)
+
+                        if signal_type == datalogging.LoggableSignalType.MEMORY:
+                            if len(req.payload) < cursor + self.get_address_size_bytes() + 1:
+                                raise ValueError('Not enough data for signal #%d (%s). Cursor = %d' % (i, signal_type.name, cursor))
+                            address = self.decode_address(req.payload[cursor:cursor + self.get_address_size_bytes()])
+                            cursor += self.get_address_size_bytes()
+                            memory_size = req.payload[cursor]
+                            cursor += 1
+                            signal = datalogging.MemoryLoggableSignal(address=address, size=memory_size)
+                        elif signal_type == datalogging.LoggableSignalType.RPV:
+                            if len(req.payload) < cursor + 2:
+                                raise ValueError('Not enough data for signal #%d (%s). Cursor = %d' % (i, signal_type.name, cursor))
+                            rpv_id = unpack('>H', req.payload[cursor:cursor + 2])[0]
+                            cursor += 2
+                            signal = datalogging.RPVLoggableSignal(rpv_id=rpv_id)
+                        elif signal_type == datalogging.LoggableSignalType.TIME:
+                            signal = datalogging.TimeLoggableSignal()
+                        else:
+                            raise NotImplementedError('Unsupported signal type %s' % (signal_type.name))
+
+                        config.add_signal(signal)
+                    data['config'] = config
 
             elif req.command == cmd.CommControl:
                 subfn = cmd.CommControl.Subfunction(req.subfn)
@@ -499,11 +603,11 @@ class Protocol:
 
                 elif subfn == cmd.CommControl.Subfunction.Heartbeat:
                     data = cast(protocol_typing.Request.CommControl.Heartbeat, data)
-                    data['session_id'], data['challenge'] = struct.unpack('>LH', req.payload[0:8])
+                    data['session_id'], data['challenge'] = unpack('>LH', req.payload[0:8])
 
                 elif subfn == cmd.CommControl.Subfunction.Disconnect:
                     data = cast(protocol_typing.Request.CommControl.Disconnect, data)
-                    data['session_id'], = struct.unpack('>L', req.payload[0:4])
+                    data['session_id'], = unpack('>L', req.payload[0:4])
 
         except Exception as e:
             self.logger.error(str(e))
@@ -517,6 +621,7 @@ class Protocol:
 
 
 # ======================== Response =================
+
 
     def respond_not_ok(self, req: Request, code: Union[int, Enum]) -> Response:
         return Response(req.command, req.subfn, Response.ResponseCode(code))
@@ -553,24 +658,24 @@ class Protocol:
         return Response(cmd.GetInfo, cmd.GetInfo.Subfunction.GetSupportedFeatures, Response.ResponseCode.OK, bytes([bytes1]))
 
     def respond_special_memory_region_count(self, readonly: int, forbidden: int) -> Response:
-        return Response(cmd.GetInfo, cmd.GetInfo.Subfunction.GetSpecialMemoryRegionCount, Response.ResponseCode.OK, struct.pack('BB', readonly, forbidden))
+        return Response(cmd.GetInfo, cmd.GetInfo.Subfunction.GetSpecialMemoryRegionCount, Response.ResponseCode.OK, pack('BB', readonly, forbidden))
 
     def respond_special_memory_region_location(self, region_type: Union[cmd.GetInfo.MemoryRangeType, int], region_index: int, start: int, end: int) -> Response:
         if isinstance(region_type, cmd.GetInfo.MemoryRangeType):
             region_type = region_type.value
-        data = struct.pack('BB', region_type, region_index)
+        data = pack('BB', region_type, region_index)
         data += self.encode_address(start) + self.encode_address(end)
         return Response(cmd.GetInfo, cmd.GetInfo.Subfunction.GetSpecialMemoryRegionLocation, Response.ResponseCode.OK, data)
 
     def respond_get_rpv_count(self, count: int):
-        return Response(cmd.GetInfo, cmd.GetInfo.Subfunction.GetRuntimePublishedValuesCount, Response.ResponseCode.OK, struct.pack('>H', count))
+        return Response(cmd.GetInfo, cmd.GetInfo.Subfunction.GetRuntimePublishedValuesCount, Response.ResponseCode.OK, pack('>H', count))
 
     def respond_get_rpv_definition(self, rpvs: List[RuntimePublishedValue]):
         payload = bytes()
 
         for rpv in rpvs:
             vtype = rpv.datatype.value
-            payload += struct.pack('>HB', rpv.id, vtype)
+            payload += pack('>HB', rpv.id, vtype)
 
         return Response(cmd.GetInfo, cmd.GetInfo.Subfunction.GetRuntimePublishedValuesDefinition, Response.ResponseCode.OK, payload)
 
@@ -582,14 +687,14 @@ class Protocol:
         return Response(cmd.CommControl, cmd.CommControl.Subfunction.Discover, Response.ResponseCode.OK, resp_data)
 
     def respond_comm_heartbeat(self, session_id: int, challenge_response: int) -> Response:
-        return Response(cmd.CommControl, cmd.CommControl.Subfunction.Heartbeat, Response.ResponseCode.OK, struct.pack('>LH', session_id, challenge_response))
+        return Response(cmd.CommControl, cmd.CommControl.Subfunction.Heartbeat, Response.ResponseCode.OK, pack('>LH', session_id, challenge_response))
 
     def respond_comm_get_params(self, max_rx_data_size: int, max_tx_data_size: int, max_bitrate_bps: int, heartbeat_timeout_us: int, rx_timeout_us: int, address_size_byte: int) -> Response:
-        data = struct.pack('>HHLLLB', max_rx_data_size, max_tx_data_size, max_bitrate_bps, heartbeat_timeout_us, rx_timeout_us, address_size_byte)
+        data = pack('>HHLLLB', max_rx_data_size, max_tx_data_size, max_bitrate_bps, heartbeat_timeout_us, rx_timeout_us, address_size_byte)
         return Response(cmd.CommControl, cmd.CommControl.Subfunction.GetParams, Response.ResponseCode.OK, data)
 
     def respond_comm_connect(self, session_id: int) -> Response:
-        resp_data = cmd.CommControl.CONNECT_MAGIC + struct.pack('>L', session_id)
+        resp_data = cmd.CommControl.CONNECT_MAGIC + pack('>L', session_id)
         return Response(cmd.CommControl, cmd.CommControl.Subfunction.Connect, Response.ResponseCode.OK, resp_data)
 
     def respond_comm_disconnect(self) -> Response:
@@ -604,7 +709,7 @@ class Protocol:
         for block in block_list:
             address = block[0]
             memory_data = bytes(block[1])
-            data += self.encode_address(address) + struct.pack('>H', len(memory_data)) + memory_data
+            data += self.encode_address(address) + pack('>H', len(memory_data)) + memory_data
 
         return Response(cmd.MemoryControl, cmd.MemoryControl.Subfunction.Read, Response.ResponseCode.OK, data)
 
@@ -621,7 +726,7 @@ class Protocol:
         for block in blocklist:
             address = block[0]
             length = block[1]
-            data += self.encode_address(address) + struct.pack('>H', length)
+            data += self.encode_address(address) + pack('>H', length)
 
         return Response(cmd.MemoryControl, cmd.MemoryControl.Subfunction.Write, Response.ResponseCode.OK, data)
 
@@ -630,7 +735,7 @@ class Protocol:
         for block in blocklist:
             address = block[0]
             length = block[1]
-            data += self.encode_address(address) + struct.pack('>H', length)
+            data += self.encode_address(address) + pack('>H', length)
 
         return Response(cmd.MemoryControl, cmd.MemoryControl.Subfunction.WriteMasked, Response.ResponseCode.OK, data)
 
@@ -645,7 +750,7 @@ class Protocol:
 
             rpv = self.rpv_map[id]
             codec = Codecs.get(rpv.datatype, Endianness.Big)
-            data += struct.pack('>H', id) + codec.encode(val)
+            data += pack('>H', id) + codec.encode(val)
 
         return Response(cmd.MemoryControl, cmd.MemoryControl.Subfunction.ReadRPV, Response.ResponseCode.OK, data)
 
@@ -658,12 +763,12 @@ class Protocol:
             if id not in self.rpv_map:
                 raise Exception('Unknown RuntimePublishedValue ID %s' % id)
             rpv = self.rpv_map[id]
-            data += struct.pack('>HB', id, rpv.datatype.get_size_byte())
+            data += pack('>HB', id, rpv.datatype.get_size_byte())
 
         return Response(cmd.MemoryControl, cmd.MemoryControl.Subfunction.WriteRPV, Response.ResponseCode.OK, data)
 
     def respond_datalogging_get_setup(self, buffer_size: int, encoding: datalogging.Encoding) -> Response:
-        return Response(cmd.DatalogControl, cmd.DatalogControl.Subfunction.GetSetup, Response.ResponseCode.OK, struct.pack('>LB', buffer_size, encoding.value))
+        return Response(cmd.DatalogControl, cmd.DatalogControl.Subfunction.GetSetup, Response.ResponseCode.OK, pack('>LB', buffer_size, encoding.value))
 
     def respond_datalogging_configure(self) -> Response:
         return Response(cmd.DatalogControl, cmd.DatalogControl.Subfunction.ConfigureDatalog, Response.ResponseCode.OK)
@@ -676,11 +781,11 @@ class Protocol:
 
     def respond_datalogging_get_status(self, status: Union[datalogging.DataloggerStatus, int]) -> Response:
         status = datalogging.DataloggerStatus(status)
-        return Response(cmd.DatalogControl, cmd.DatalogControl.Subfunction.GetStatus, Response.ResponseCode.OK, struct.pack('B', status.value))
+        return Response(cmd.DatalogControl, cmd.DatalogControl.Subfunction.GetStatus, Response.ResponseCode.OK, pack('B', status.value))
 
     def respond_datalogging_get_acquisition_metadata(self, acquisition_id: int, config_id: int, nb_points: int, datasize: int, points_after_trigger: int) -> Response:
         return Response(cmd.DatalogControl, cmd.DatalogControl.Subfunction.GetStatus, Response.ResponseCode.OK,
-                        struct.pack('>HHLLL', acquisition_id, config_id, nb_points, datasize, points_after_trigger))
+                        pack('>HHLLL', acquisition_id, config_id, nb_points, datasize, points_after_trigger))
 
     def respond_datalogging_read_acquisition(self, finished: bool, rolling_counter: int, acquisition_id: int, data: bytes, crc: Optional[int] = None) -> Response:
         if not finished and crc is not None:
@@ -689,9 +794,9 @@ class Protocol:
         if finished and crc is None:
             raise ValueError("Missing CRC for last data chunk")
 
-        payload = struct.pack('>BBH', finished, rolling_counter, acquisition_id) + data
+        payload = pack('>BBH', finished, rolling_counter, acquisition_id) + data
         if finished:
-            payload += struct.pack('>L', crc)
+            payload += pack('>L', crc)
 
         return Response(cmd.DatalogControl, cmd.DatalogControl.Subfunction.ReadAcquisition, Response.ResponseCode.OK, payload)
 
@@ -713,10 +818,10 @@ class Protocol:
                     subfn = cmd.GetInfo.Subfunction(response.subfn)
                     if subfn == cmd.GetInfo.Subfunction.GetProtocolVersion:
                         data = cast(protocol_typing.Response.GetInfo.GetProtocolVersion, data)
-                        (data['major'], data['minor']) = struct.unpack('BB', response.payload)
+                        (data['major'], data['minor']) = unpack('BB', response.payload)
                     elif subfn == cmd.GetInfo.Subfunction.GetSupportedFeatures:
                         data = cast(protocol_typing.Response.GetInfo.GetSupportedFeatures, data)
-                        (byte1,) = struct.unpack('B', response.payload)
+                        (byte1,) = unpack('B', response.payload)
                         data['memory_read'] = True if (byte1 & 0x80) != 0 else False
                         data['memory_write'] = True if (byte1 & 0x40) != 0 else False
                         data['datalogging'] = True if (byte1 & 0x20) != 0 else False
@@ -729,7 +834,7 @@ class Protocol:
 
                     elif subfn == cmd.GetInfo.Subfunction.GetSpecialMemoryRegionCount:
                         data = cast(protocol_typing.Response.GetInfo.GetSpecialMemoryRegionCount, data)
-                        data['nbr_readonly'], data['nbr_forbidden'] = struct.unpack('BB', response.payload[0:2])
+                        data['nbr_readonly'], data['nbr_forbidden'] = unpack('BB', response.payload[0:2])
 
                     elif subfn == cmd.GetInfo.Subfunction.GetSpecialMemoryRegionLocation:
                         data = cast(protocol_typing.Response.GetInfo.GetSpecialMemoryRegionLocation, data)
@@ -740,7 +845,7 @@ class Protocol:
 
                     elif subfn == cmd.GetInfo.Subfunction.GetRuntimePublishedValuesCount:
                         data = cast(protocol_typing.Response.GetInfo.GetRuntimePublishedValuesCount, data)
-                        data['count'], = struct.unpack('>H', response.payload[0:2])
+                        data['count'], = unpack('>H', response.payload[0:2])
 
                     elif subfn == cmd.GetInfo.Subfunction.GetRuntimePublishedValuesDefinition:
                         data = cast(protocol_typing.Response.GetInfo.GetRuntimePublishedValuesDefinition, data)
@@ -751,7 +856,7 @@ class Protocol:
 
                         nbr_rpv = len(response.payload) // n
                         for i in range(nbr_rpv):
-                            vid, typeint, = struct.unpack('>HB', response.payload[i * n + 0:i * n + n])
+                            vid, typeint, = unpack('>HB', response.payload[i * n + 0:i * n + n])
                             data['rpvs'].append(RuntimePublishedValue(id=vid, datatype=typeint))
 
                 elif response.command == cmd.MemoryControl:
@@ -765,7 +870,7 @@ class Protocol:
                             if len(response.payload[index:]) < addr_size + 2:
                                 raise Exception('Incomplete response payload')
                             c = self.address_format.get_pack_char()
-                            addr, length = struct.unpack('>' + c + 'H', response.payload[(index + 0):(index + addr_size + 2)])
+                            addr, length = unpack('>' + c + 'H', response.payload[(index + 0):(index + addr_size + 2)])
                             if len(response.payload[(index + addr_size + 2):]) < length:
                                 raise Exception('Invalid data length')
                             memory_data = response.payload[(index + addr_size + 2):(index + addr_size + 2 + length)]
@@ -784,7 +889,7 @@ class Protocol:
                             if len(response.payload[index:]) < addr_size + 2:
                                 raise Exception('Incomplete response payload')
                             c = self.address_format.get_pack_char()
-                            addr, length = struct.unpack('>' + c + 'H', response.payload[(index + 0):(index + addr_size + 2)])
+                            addr, length = unpack('>' + c + 'H', response.payload[(index + 0):(index + addr_size + 2)])
                             data['written_blocks'].append(dict(address=addr, length=length))
                             index += addr_size + 2
 
@@ -800,7 +905,7 @@ class Protocol:
                             if len(response.payload) - cursor < 2:
                                 raise Exception('Invalid data length')
 
-                            id, = struct.unpack('>H', response.payload[cursor:cursor + 2])
+                            id, = unpack('>H', response.payload[cursor:cursor + 2])
                             cursor += 2
                             if id not in self.rpv_map:
                                 raise Exception('Unknown RuntimePublishedValue of ID 0x%x', id)
@@ -822,7 +927,7 @@ class Protocol:
                         while cursor < len(response.payload):
                             if len(response.payload) - cursor < 3:
                                 raise Exception('Invalid data length')
-                            id, size = struct.unpack('>HB', response.payload[cursor:cursor + 3])
+                            id, size = unpack('>HB', response.payload[cursor:cursor + 3])
                             cursor += 3
                             data['written_rpv'].append(dict(id=id, size=size))
 
@@ -852,7 +957,7 @@ class Protocol:
 
                     elif subfn == cmd.CommControl.Subfunction.Heartbeat:
                         data = cast(protocol_typing.Response.CommControl.Heartbeat, data)
-                        data['session_id'], data['challenge_response'] = struct.unpack('>LH', response.payload[0:6])
+                        data['session_id'], data['challenge_response'] = unpack('>LH', response.payload[0:6])
 
                     elif subfn == cmd.CommControl.Subfunction.GetParams:
                         data = cast(protocol_typing.Response.CommControl.GetParams, data)
@@ -862,12 +967,12 @@ class Protocol:
                             data['heartbeat_timeout_us'],
                             data['rx_timeout_us'],
                             data['address_size_byte']
-                         ) = struct.unpack('>HHLLLB', response.payload[0:17])
+                         ) = unpack('>HHLLLB', response.payload[0:17])
 
                     elif subfn == cmd.CommControl.Subfunction.Connect:
                         data = cast(protocol_typing.Response.CommControl.Connect, data)
                         data['magic'] = response.payload[0:4]
-                        data['session_id'], = struct.unpack('>L', response.payload[4:8])
+                        data['session_id'], = unpack('>L', response.payload[4:8])
 
             except Exception as e:
                 self.logger.error(str(e))

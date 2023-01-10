@@ -6,15 +6,15 @@
 #
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 
-import unittest
 import json
 import time
 
 from scrutiny.server.api.abstract_client_handler import ClientHandlerMessage
 from scrutiny.server.api.dummy_client_handler import DummyConnection, DummyClientHandler
+from test import ScrutinyUnitTest
 
 
-class TestDummyConnection(unittest.TestCase):
+class TestDummyConnection(ScrutinyUnitTest):
 
     def test_read_write(self):
         conn = DummyConnection()
@@ -53,7 +53,7 @@ class TestDummyConnection(unittest.TestCase):
             connections.add(conn.get_id())
 
 
-class TestDummyConnectionHandler(unittest.TestCase):
+class TestDummyConnectionHandler(ScrutinyUnitTest):
     def setUp(self):
 
         self.connections = [DummyConnection(), DummyConnection(), DummyConnection()]

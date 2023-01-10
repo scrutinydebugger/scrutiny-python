@@ -6,12 +6,12 @@
 #
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 
-import unittest
 from scrutiny.core.alias import Alias
 from scrutiny.server.datastore.entry_type import EntryType
+from test import ScrutinyUnitTest
 
 
-class TestAlias(unittest.TestCase):
+class TestAlias(ScrutinyUnitTest):
     def test_basics(self):
         with self.assertRaises(Exception):
             Alias.from_dict('aaa', {})

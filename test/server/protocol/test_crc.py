@@ -6,12 +6,11 @@
 #
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 
-import unittest
-
 from scrutiny.server.protocol.crc32 import crc32
+from test import ScrutinyUnitTest
 
 
-class TestCRC(unittest.TestCase):
+class TestCRC(ScrutinyUnitTest):
 
     def test_crc32(self):
         data = bytes([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])

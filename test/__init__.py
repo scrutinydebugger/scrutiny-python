@@ -19,3 +19,31 @@ class SkipOnException:
             except self.exception as e:
                 raise unittest.SkipTest("%s. %s" % (self.msg, str(e)))
         return wrapper
+
+
+class PrintableBytes(bytes):
+    def __repr__(self) -> str:
+        return 'bytes(' + self.hex() + ')'
+
+
+class PrintableByteArray(bytearray):
+    def __repr__(self) -> str:
+        return 'bytearray(' + bytes(self).hex() + ')'
+
+
+class ScrutinyUnitTest(unittest.TestCase):
+    def assertEqual(self, v1, v2, *args, **kwargs):
+        if isinstance(v1, bytes) and isinstance(v2, bytes):
+            super().assertEqual(PrintableBytes(v1), PrintableBytes(v2), *args, **kwargs)
+        elif isinstance(v1, bytearray) and isinstance(v2, bytearray):
+            super().assertEqual(PrintableByteArray(v1), PrintableByteArray(v2), *args, **kwargs)
+        else:
+            super().assertEqual(v1, v2, *args, **kwargs)
+
+    def assertNotEqual(self, v1, v2, *args, **kwargs):
+        if isinstance(v1, bytes) and isinstance(v2, bytes):
+            super().assertNotEqual(PrintableBytes(v1), PrintableBytes(v2), *args, **kwargs)
+        elif isinstance(v1, bytearray) and isinstance(v2, bytearray):
+            super().assertEqual(PrintableByteArray(v1), PrintableByteArray(v2), *args, **kwargs)
+        else:
+            super().assertNotEqual(v1, v2, *args, **kwargs)

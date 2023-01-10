@@ -7,8 +7,8 @@
 #
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 
-import unittest
 from scrutiny.server.device.links.dummy_link import *
+from test import ScrutinyUnitTest
 
 
 class TestDummyLinkBaseClass():
@@ -81,13 +81,13 @@ class TestDummyLinkBaseClass():
         self.assertEqual(link2.read(), bytes())
 
 
-class TestDummyLink(unittest.TestCase, TestDummyLinkBaseClass):
+class TestDummyLink(ScrutinyUnitTest, TestDummyLinkBaseClass):
     def __init__(self, *args, **kwargs):
         TestDummyLinkBaseClass.__init__(self, test_class=DummyLink)
-        unittest.TestCase.__init__(self, *args, **kwargs)
+        ScrutinyUnitTest.__init__(self, *args, **kwargs)
 
 
-class TestThreadSafeDummyLink(unittest.TestCase, TestDummyLinkBaseClass):
+class TestThreadSafeDummyLink(ScrutinyUnitTest, TestDummyLinkBaseClass):
     def __init__(self, *args, **kwargs):
         TestDummyLinkBaseClass.__init__(self, test_class=ThreadSafeDummyLink)
-        unittest.TestCase.__init__(self, *args, **kwargs)
+        ScrutinyUnitTest.__init__(self, *args, **kwargs)

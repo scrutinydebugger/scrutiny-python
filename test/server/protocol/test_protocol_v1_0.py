@@ -7,25 +7,27 @@
 #
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 
-import unittest
-from scrutiny.server.protocol import Protocol, Response, Request
-from scrutiny.server.protocol import commands as cmd
-from scrutiny.server.datalogging import definitions
-from scrutiny.core.basic_types import EmbeddedDataType, RuntimePublishedValue
 import struct
+from scrutiny.server.protocol import Protocol, Request, Response
+from scrutiny.server.protocol import commands as cmd
+from scrutiny.core.basic_types import EmbeddedDataType, RuntimePublishedValue
+import scrutiny.server.protocol.typing as protocol_typing
+import scrutiny.server.datalogging.definitions as datalogging
+from test import ScrutinyUnitTest
 
 from scrutiny.server.protocol.crc32 import crc32
-from typing import List
+from typing import List, cast
 
 
 def d2f(d):
     return struct.unpack('f', struct.pack('f', d))[0]
 
 
-class TestProtocolV1_0(unittest.TestCase):
+class TestProtocolV1_0(ScrutinyUnitTest):
 
     def setUp(self):
         self.proto = Protocol(1, 0, address_size_bits=32)
+        self.proto.logger.disabled = False
 
     def append_crc(self, data):
         return data + struct.pack('>L', crc32(data))
@@ -594,9 +596,104 @@ class TestProtocolV1_0(unittest.TestCase):
         self.check_expected_payload_size(req, 5)
 
     def test_req_datalogging_configure(self):
-        config = definitions.Configuration()
+        self.proto.set_address_size_bits(32)
+
+        config = datalogging.Configuration()
+        config.decimation = 0x1234
+        config.probe_location = 0.5
+        config.timeout = 2.5              # 2.5sec
+        config.trigger_hold_time = 0.001  # 1msec
+        config.trigger_condition = datalogging.TriggerCondition(
+            datalogging.TriggerConditionID.IsWithin,
+            datalogging.RPVOperand(0x1234),
+            datalogging.VarBitOperand(address=0x99887766, datatype=EmbeddedDataType.uint32, bitoffset=5, bitsize=12),
+            datalogging.LiteralOperand(1)
+        )
+        config.add_signal(datalogging.MemoryLoggableSignal(0x55443322, 4))
+        config.add_signal(datalogging.TimeLoggableSignal())
+        config.add_signal(datalogging.RPVLoggableSignal(0xabcd))
 
         req = self.proto.datalogging_configure(loop_id=1, config_id=0xaabb, config=config)
+        request_bytes = bytes([5, 2, 0, 43, 1, 0xaa, 0xbb, 0x12, 0x34, 128])   # cmd, subfn, loop_id, config_id, decimation, probe_location
+        request_bytes += struct.pack('>L', 25000000) + bytes([8]) + struct.pack('>L', 10000) + \
+            bytes([3])    # timeout, condition_id, hold_time, nb_operand
+        request_bytes += bytes([3, 0x12, 0x34])  # Operand 1    - OperandType(1), RpvId(2)
+        # Operand 2.  OperandType(1), DataType(1), Address(4), bitoffset(1), bitsize(1)
+        request_bytes += bytes([2, 0x12, 0x99, 0x88, 0x77, 0x66, 5, 12])
+        request_bytes += struct.pack('>Bf', 0, 1.0)  # Operand 3 - OperandType(1), literal(4)
+        request_bytes += bytes([3])  # nb_signals
+        request_bytes += bytes([0, 0x55, 0x44, 0x33, 0x22, 4])  # Signal 1 - SignalType(1), address(4), size(1)
+        request_bytes += bytes([2])  # Signal 2 - SignalType(1)
+        request_bytes += bytes([1, 0xab, 0xcd])  # Signal 3 - SignalType(1) RpvId(2)
+
+        self.assert_req_response_bytes(req, request_bytes)
+        data = self.proto.parse_request(req)
+        self.check_expected_payload_size(req, 0)
+
+        self.assertIn('loop_id', data)
+        self.assertIn('config_id', data)
+        self.assertIn('config', data)
+
+        data = cast(protocol_typing.Request.DatalogControl.Configure, data)
+        self.assertEqual(data['loop_id'], 1)
+        self.assertEqual(data['config_id'], 0xaabb)
+        config2 = data['config']
+
+        self.assertEqual(config.decimation, config2.decimation)
+        self.assertAlmostEqual(config.probe_location, config2.probe_location, 2)
+        self.assertEqual(config.timeout, config2.timeout)
+        self.assertEqual(config.trigger_hold_time, config2.trigger_hold_time)
+        self.assertEqual(config.trigger_condition.condition_id, config2.trigger_condition.condition_id)
+
+        operands = config.trigger_condition.get_operands()
+        operands2 = config2.trigger_condition.get_operands()
+
+        self.assertEqual(len(operands), len(operands2))
+        for i in range(len(operands)):
+            operand = operands[i]
+            operand2 = operands2[i]
+
+            self.assertEqual(operand.get_type(), operand2.get_type())
+
+            if isinstance(operand, datalogging.LiteralOperand):
+                assert isinstance(operand2, datalogging.LiteralOperand)
+                self.assertEqual(operand.value, operand2.value)
+            elif isinstance(operand, datalogging.RPVOperand):
+                assert isinstance(operand2, datalogging.RPVOperand)
+                self.assertEqual(operand.rpv_id, operand2.rpv_id)
+            elif isinstance(operand, datalogging.VarOperand):
+                assert isinstance(operand2, datalogging.VarOperand)
+                self.assertEqual(operand.address, operand2.address)
+                self.assertEqual(operand.datatype, operand2.datatype)
+            elif isinstance(operand, datalogging.VarBitOperand):
+                assert isinstance(operand2, datalogging.VarBitOperand)
+                self.assertEqual(operand.address, operand2.address)
+                self.assertEqual(operand.datatype, operand2.datatype)
+                self.assertEqual(operand.bitoffset, operand2.bitoffset)
+                self.assertEqual(operand.bitsize, operand2.bitsize)
+            else:
+                raise ValueError("Unknown signal type %s" % (signal.__class__.__name__))
+
+        signals = config.get_signals()
+        signals2 = config2.get_signals()
+        self.assertEqual(len(signals), len(signals2))
+        for i in range(len(signals)):
+            signal = signals[i]
+            signal2 = signals2[i]
+
+            self.assertEqual(signal.get_type(), signal2.get_type())
+
+            if isinstance(signal, datalogging.MemoryLoggableSignal):
+                assert isinstance(signal2, datalogging.MemoryLoggableSignal)
+                self.assertEqual(signal.address, signal2.address)
+                self.assertEqual(signal.size, signal2.size)
+            elif isinstance(signal, datalogging.RPVLoggableSignal):
+                assert isinstance(signal2, datalogging.RPVLoggableSignal)
+                self.assertEqual(signal.rpv_id, signal2.rpv_id)
+            elif isinstance(signal, datalogging.TimeLoggableSignal):
+                assert isinstance(signal2, datalogging.TimeLoggableSignal)
+            else:
+                raise ValueError("Unknown signal type %s" % (signal.__class__.__name__))
 
     def test_req_datalogging_arm_trigger(self):
         request_bytes = bytes([5, 3, 0, 0])
@@ -629,15 +726,15 @@ class TestProtocolV1_0(unittest.TestCase):
     def test_req_datalogging_read_acquisition(self):
         request_bytes = bytes([5, 7, 0, 0])
 
-        req = self.proto.datalogging_read_acquisition(0, 100, tx_buffer_size=108, encoding=definitions.Encoding.RAW)
+        req = self.proto.datalogging_read_acquisition(0, 100, tx_buffer_size=108, encoding=datalogging.Encoding.RAW)
         self.assert_req_response_bytes(req, request_bytes)
         data = self.proto.parse_request(req)
         self.check_expected_payload_size(req, 108)
 
-        req = self.proto.datalogging_read_acquisition(0, 100, tx_buffer_size=50, encoding=definitions.Encoding.RAW)
+        req = self.proto.datalogging_read_acquisition(0, 100, tx_buffer_size=50, encoding=datalogging.Encoding.RAW)
         self.check_expected_payload_size(req, 50)
 
-        req = self.proto.datalogging_read_acquisition(80, 100, tx_buffer_size=100, encoding=definitions.Encoding.RAW)
+        req = self.proto.datalogging_read_acquisition(80, 100, tx_buffer_size=100, encoding=datalogging.Encoding.RAW)
         self.check_expected_payload_size(req, 28)
 
 

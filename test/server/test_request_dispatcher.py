@@ -7,14 +7,13 @@
 #
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 
-import unittest
-
 from scrutiny.server.device.request_dispatcher import RequestDispatcher, RequestQueue
 from scrutiny.server.protocol.commands import DummyCommand
 from scrutiny.server.protocol import Request, Response, ResponseCode
+from test import ScrutinyUnitTest
 
 
-class TestPriorityQueue(unittest.TestCase):
+class TestPriorityQueue(ScrutinyUnitTest):
     def test_priority_queue_no_priority(self):
         q = RequestQueue()
 
@@ -51,7 +50,7 @@ class TestPriorityQueue(unittest.TestCase):
         self.assertEqual(q.pop(), 50)
 
 
-class TestRequestDispatcher(unittest.TestCase):
+class TestRequestDispatcher(ScrutinyUnitTest):
     def setUp(self):
         self.success_list = []
         self.failure_list = []

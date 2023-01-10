@@ -6,18 +6,18 @@
 #
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 
-import unittest
 import struct
 
 from scrutiny.core.variable import *
 from binascii import unhexlify
+from test import ScrutinyUnitTest
 
 
 def d2f(d):
     return struct.unpack('f', struct.pack('f', d))[0]
 
 
-class TestVariables(unittest.TestCase):
+class TestVariables(ScrutinyUnitTest):
     def test_variable_encode_no_bitfield(self):
         # Floating point
         f32_le = Variable('float32_le', vartype=EmbeddedDataType.float32, path_segments=[], location=0, endianness=Endianness.Little)

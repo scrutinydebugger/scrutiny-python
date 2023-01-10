@@ -6,12 +6,12 @@
 #
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 
-import unittest
 from scrutiny.server.device.emulated_device import EmulatedDevice
 from scrutiny.server.device.links.dummy_link import DummyLink
+from test import ScrutinyUnitTest
 
 
-class TestEmulatedDevice(unittest.TestCase):
+class TestEmulatedDevice(ScrutinyUnitTest):
     emulated_device: EmulatedDevice
 
     def setUp(self):
