@@ -23,6 +23,7 @@ from scrutiny.server.datastore.entry_type import EntryType
 from scrutiny.core.variable import Variable
 from scrutiny.core.codecs import Codecs
 from scrutiny.core.basic_types import *
+from scrutiny.server.device.device_info import *
 from test import ScrutinyUnitTest
 
 from scrutiny.core.typehints import GenericCallback
@@ -171,6 +172,22 @@ class TestDeviceHandler(ScrutinyUnitTest):
                 if region2['start'] == region['start'] and region2['end'] == region['end']:
                     found = True
             self.assertTrue(found)
+
+        self.assertEqual(len(info.loops), len(self.emulated_device.loops))
+
+        for i in range(len(info.loops)):
+            received_loop = info.loops[i]
+            expected_loop = self.emulated_device.loops[i]
+
+            self.assertIsInstance(received_loop, expected_loop.__class__)
+            self.assertEqual(received_loop.get_name(), expected_loop.get_name())
+            self.assertEqual(received_loop.get_loop_type(), expected_loop.get_loop_type())
+            self.assertEqual(received_loop.support_datalogging, expected_loop.support_datalogging)
+
+            if isinstance(received_loop, FixedFreqLoop):
+                assert isinstance(expected_loop, FixedFreqLoop)
+                self.assertEqual(received_loop.get_timestep_100ns(), expected_loop.get_timestep_100ns())
+                self.assertEqual(received_loop.freq, expected_loop.freq)
 
     def test_auto_disconnect_if_comm_interrupted(self):
         timeout = 5     # Should take about 2.5 sec to disconnect With heartbeat at every 2 sec

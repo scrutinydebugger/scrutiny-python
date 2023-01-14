@@ -53,6 +53,7 @@ class InfoPoller:
     forbidden_memory_region_count: Optional[int]    # Number of forbidden memory region to read
     readonly_memory_region_count: Optional[int]     # Number of readonly memory region to read
     rpv_count: Optional[int]    # Number of Runtime Published Values to reads
+    loop_count: Optional[int]    # Number of execution loop (task) in the device
     error_message: str          # Detailed error of why it was impossible to poll al the data
 
     class FsmState(enum.Enum):
@@ -67,7 +68,9 @@ class InfoPoller:
         GetReadOnlyMemoryRegions = 6
         GetRPVCount = 7
         GetRPVDefinition = 8
-        Done = 9
+        GetLoopCount = 9,
+        GetLoopDefinition = 10,
+        Done = 11
 
     def __init__(self, protocol: Protocol, dispatcher: RequestDispatcher, priority: int,
                  protocol_version_callback: Optional[ProtocolVersionCallback] = None,
@@ -124,6 +127,7 @@ class InfoPoller:
         self.forbidden_memory_region_count = None
         self.readonly_memory_region_count = None
         self.rpv_count = 0
+        self.loop_count = 0
         self.error_message = ""
         self.info.clear()
 
@@ -215,6 +219,7 @@ class InfoPoller:
         elif self.fsm_state == self.FsmState.GetForbiddenMemoryRegions:
             if self.forbidden_memory_region_count is None:
                 next_state = self.FsmState.Error
+                self.logger.error("Internal error - Forbidden memory region count is not set")
             else:
                 if state_entry:
                     self.info.forbidden_memory_regions = []
@@ -233,6 +238,7 @@ class InfoPoller:
         elif self.fsm_state == self.FsmState.GetReadOnlyMemoryRegions:
             if self.readonly_memory_region_count is None:
                 next_state = self.FsmState.Error
+                self.logger.error("Internal error - Readonly memory region count is not set")
             else:
                 if state_entry:
                     self.info.readonly_memory_regions = []
@@ -265,7 +271,9 @@ class InfoPoller:
             if state_entry:
                 if self.rpv_count is None:
                     next_state = self.FsmState.Error
+                    self.logger.error("Internal error - RPV count is not set")
                 elif self.info.max_rx_data_size is None or self.info.max_tx_data_size is None:
+                    self.logger.error("Internal error - Buffer sizes not set")
                     next_state = self.FsmState.Error
                 else:
                     max_rpv_per_request = self.info.max_tx_data_size // self.protocol.get_rpv_definition_response_size_per_rpv()
@@ -291,6 +299,38 @@ class InfoPoller:
                     )
                     self.request_pending = True
                 else:
+                    next_state = self.FsmState.GetLoopCount
+
+        # ======= [GetLoopCount] =====
+        elif self.fsm_state == self.FsmState.GetLoopCount:
+            if state_entry:
+                self.loop_count = None   # Will be set in success callback
+                self.dispatcher.register_request(request=self.protocol.get_loop_count(),
+                                                 success_callback=SuccessCallback(self.success_callback), failure_callback=FailureCallback(self.failure_callback), priority=self.priority)
+                self.request_pending = True
+
+            if self.request_failed:
+                next_state = self.FsmState.Error
+            if not self.request_pending:
+                next_state = self.FsmState.GetLoopDefinition
+
+        # ======= [GetLoopDefinition] =====
+        elif self.fsm_state == self.FsmState.GetLoopDefinition:
+            if self.loop_count is None:
+                next_state = self.FsmState.Error
+                self.logger.error("Internal error - Loop count is not set")
+            else:
+                if state_entry:
+                    self.info.loops = []
+                    for i in range(self.loop_count):
+                        self.dispatcher.register_request(request=self.protocol.get_loop_definition(i),
+                                                         success_callback=SuccessCallback(self.success_callback), failure_callback=FailureCallback(self.failure_callback), priority=self.priority)
+
+                if self.request_failed:
+                    next_state = self.FsmState.Error
+
+                assert self.info.loops is not None
+                if len(self.info.loops) >= self.loop_count:
                     next_state = self.FsmState.Done
 
         elif self.fsm_state == self.FsmState.Done:
@@ -329,7 +369,9 @@ class InfoPoller:
                 self.FsmState.GetForbiddenMemoryRegions: 'Device refused to give forbidden region list. Response Code = %s' % response.code,
                 self.FsmState.GetReadOnlyMemoryRegions: 'Device refused to give readonly region list. Response Code = %s' % response.code,
                 self.FsmState.GetRPVCount: 'Device refused to give RuntimePublishedValues count. Response Code = %s' % response.code,
-                self.FsmState.GetRPVDefinition: 'Device refused to give RuntimePublishedValues definition. Response Code = %s' % response.code
+                self.FsmState.GetRPVDefinition: 'Device refused to give RuntimePublishedValues definition. Response Code = %s' % response.code,
+                self.FsmState.GetLoopCount: 'Device refused to give the exec loop count. Response Code = %s' % response.code,
+                self.FsmState.GetLoopDefinition: 'Device refused to give loop definition definition. Response Code = %s' % response.code
             }
             self.error_message = error_message_map[self.fsm_state] if self.fsm_state in error_message_map else 'Internal error - Request denied. %s - %s' % (
                 str(Request), response.code)
@@ -348,7 +390,9 @@ class InfoPoller:
                     self.FsmState.GetForbiddenMemoryRegions: 'Device gave invalid data when polling for forbidden region list. Response Code = %s' % response.code,
                     self.FsmState.GetReadOnlyMemoryRegions: 'Device gave invalid data when polling for readonly region list. Response Code = %s' % response.code,
                     self.FsmState.GetRPVCount: 'Device gave invalid data when polling for RuntimePublishedValues count. Response Code = %s' % response.code,
-                    self.FsmState.GetRPVCount: 'Device gave invalid data when polling for RuntimePublishedValues definition. Response Code = %s' % response.code
+                    self.FsmState.GetRPVDefinition: 'Device gave invalid data when polling for RuntimePublishedValues definition. Response Code = %s' % response.code,
+                    self.FsmState.GetLoopCount: 'Device gave invalid data when polling for loop count. Response Code = %s' % response.code,
+                    self.FsmState.GetLoopDefinition: 'Device gave invalid data when polling for loop definition. Response Code = %s' % response.code
                 }
                 self.error_message = error_message_map[self.fsm_state] if self.fsm_state in error_message_map else 'Internal error - Invalid response for request %s' % str(
                     Request)
@@ -414,9 +458,25 @@ class InfoPoller:
                 assert self.info.runtime_published_values is not None
                 self.info.runtime_published_values += response_data['rpvs']
 
+            elif self.fsm_state == self.FsmState.GetLoopCount:
+                response_data = cast(protocol_typing.Response.GetInfo.GetLoopCount, response_data)
+                self.loop_count = response_data['loop_count']
+
+            elif self.fsm_state == self.FsmState.GetLoopDefinition:
+                response_data = cast(protocol_typing.Response.GetInfo.GetLoopDefinition, response_data)
+                if self.info.loops is None:
+                    self.fsm_state == self.FsmState.Error
+                    self.error_message = "List of loop is not set"
+                # We poll for loop id from 0 to N by step of 1. So it should match the count.
+                elif response_data['loop_id'] != len(self.info.loops):
+                    self.fsm_state == self.FsmState.Error
+                    self.error_message = "Received the loop definition for an unexpect loop id"
+                else:
+                    self.info.loops.append(response_data['loop'])
+
             else:
                 self.fsm_state == self.FsmState.Error
-                self.error_message = "Internal error - Got response for unhandled parameter"
+                self.error_message = "Internal error - Got response for unhandled state"
 
         self.completed()
 
@@ -432,7 +492,11 @@ class InfoPoller:
                 self.FsmState.GetSupportedFeatures: 'Failed to get supported features',
                 self.FsmState.GetSpecialMemoryRegionCount: 'Failed to get special region count',
                 self.FsmState.GetForbiddenMemoryRegions: 'Failed to get forbidden region list',
-                self.FsmState.GetReadOnlyMemoryRegions: 'Failed to get readonly region list'
+                self.FsmState.GetReadOnlyMemoryRegions: 'Failed to get readonly region list',
+                self.FsmState.GetRPVCount: 'Failed to get RuntimePublishedValues count',
+                self.FsmState.GetRPVDefinition: 'Failed to get RuntimePublishedValues count',
+                self.FsmState.GetLoopCount: 'Failed to get loop count',
+                self.FsmState.GetLoopDefinition: 'Failed to get loop definition'
             }
 
             self.error_message = error_message_map[self.fsm_state] if self.fsm_state in error_message_map else 'Internal error - Request failure'

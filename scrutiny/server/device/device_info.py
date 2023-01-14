@@ -91,7 +91,8 @@ class DeviceInfo:
         'supported_feature_map',
         'forbidden_memory_regions',
         'readonly_memory_regions',
-        'runtime_published_values'
+        'runtime_published_values',
+        'loops'
     )
 
     device_id: Optional[str]
@@ -135,6 +136,9 @@ class DeviceInfo:
 
     runtime_published_values: Optional[List[RuntimePublishedValue]]
     """List of all RuntimePublishedValues (RPV) registered in the device firmware"""
+
+    loops: Optional[List[ExecLoop]]
+    """List of execution loops (tasks) exposed by the embedded device"""
 
     def get_attributes(self):
         return self.__slots__

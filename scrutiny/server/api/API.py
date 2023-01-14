@@ -706,9 +706,9 @@ class API:
                 "metadata": sfd.get_metadata()
             }
 
-        device_info: Optional[api_typing.DeviceInfo] = None
+        device_info_output: Optional[api_typing.DeviceInfo] = None
         if device_info_input is not None and device_info_input.all_ready():
-            device_info = {
+            device_info_output = {
                 'device_id': cast(str, device_info_input.device_id),
                 'display_name': cast(str, device_info_input.display_name),
                 'max_tx_data_size': cast(int, device_info_input.max_tx_data_size),
@@ -732,7 +732,7 @@ class API:
             'cmd': self.Command.Api2Client.INFORM_SERVER_STATUS,
             'reqid': reqid,
             'device_status': self.device_conn_status_to_str[self.device_handler.get_connection_status()],
-            'device_info': device_info,
+            'device_info': device_info_output,
             'loaded_sfd': loaded_sfd,
             'device_comm_link': {
                 'link_type': cast(api_typing.LinkType, device_link_type),

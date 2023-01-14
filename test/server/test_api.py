@@ -20,7 +20,7 @@ from scrutiny.server.datastore.entry_type import EntryType
 from scrutiny.core.sfd_storage import SFDStorage
 from scrutiny.server.api.dummy_client_handler import DummyConnection, DummyClientHandler
 from scrutiny.server.device.device_handler import DeviceHandler
-from scrutiny.server.device.device_info import DeviceInfo
+from scrutiny.server.device.device_info import DeviceInfo, FixedFreqLoop, VariableFreqLoop
 from scrutiny.server.active_sfd_handler import ActiveSFDHandler
 from scrutiny.server.device.links.dummy_link import DummyLink
 from scrutiny.core.variable import *
@@ -82,6 +82,12 @@ class StubbedDeviceHandler:
         info.forbidden_memory_regions = [{'start': 0x1000, 'end': 0x2000}]
         info.readonly_memory_regions = [{'start': 0x2000, 'end': 0x3000}, {'start': 0x3000, 'end': 0x4000}]
         info.runtime_published_values = []
+        info.loops = [
+            FixedFreqLoop(1000, "Fixed Freq 1KHz"),
+            FixedFreqLoop(10000, "Fixed Freq 10KHz"),
+            VariableFreqLoop("Variable Freq"),
+            VariableFreqLoop("Variable Freq No DL", support_datalogging=False)
+        ]
         return info
 
     def configure_comm(self, link_type, link_config):
@@ -678,7 +684,7 @@ class TestAPI(ScrutinyUnitTest):
             SFDStorage.uninstall(sfd2.get_firmware_id_ascii())
 
     def test_get_server_status(self):
-        device_info_exlude_propeties = ['runtime_published_values']
+        device_info_exlude_propeties = ['runtime_published_values', 'loops']
         dummy_sfd1_filename = get_artifact('test_sfd_1.sfd')
         dummy_sfd2_filename = get_artifact('test_sfd_2.sfd')
         with SFDStorage.use_temp_folder():
