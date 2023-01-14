@@ -227,3 +227,8 @@ class ScrutinyIntegrationTest(ScrutinyUnitTest):
         self.server.stop()
         if hasattr(self, 'temp_storage_handler'):
             self.temp_storage_handler.restore()
+
+
+if __name__ == '__main__':
+    import unittest
+    unittest.main()

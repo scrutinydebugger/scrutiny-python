@@ -12,16 +12,22 @@ import time
 import logging
 import random
 import traceback
-from scrutiny.core.codecs import Encodable
+import collections
+from dataclasses import dataclass
 
+from scrutiny.core.codecs import Encodable
 import scrutiny.server.protocol.commands as cmd
 from scrutiny.server.device.links.dummy_link import DummyLink, ThreadSafeDummyLink
 from scrutiny.server.protocol import Protocol, Request, Response, ResponseCode
 import scrutiny.server.protocol.typing as protocol_typing
 from scrutiny.core.memory_content import MemoryContent
 from scrutiny.core.basic_types import RuntimePublishedValue, EmbeddedDataType
+import scrutiny.server.datalogging.definitions as datalogging
+from scrutiny.core.codecs import *
+from scrutiny.server.device.device_info import ExecLoop, VariableFreqLoop, FixedFreqLoop, ExecLoopType
+from scrutiny.server.protocol.crc32 import crc32
 
-from typing import List, Dict, Optional, Union, Any, Tuple, TypedDict, cast, Set
+from typing import List, Dict, Optional, Union, Any, Tuple, TypedDict, cast, Set, Deque
 
 
 class RequestLogRecord:
@@ -37,7 +43,359 @@ class RequestLogRecord:
 
 class RPVValuePair(TypedDict):
     definition: RuntimePublishedValue
-    value: Any
+    value: Encodable
+
+
+class EmulatedTimebase:
+    timestamp_100ns: int
+    last_time: float
+
+    def __init__(self):
+        self.timestamp_100ns = int(0)
+        self.last_time = time.time()
+
+    def process(self):
+        t = time.time()
+        dt = t - self.last_time
+        self.timestamp_100ns += int(round(dt * 1e7))
+        self.timestamp_100ns = self.timestamp_100ns & 0xFFFFFFFF
+        self.last_time = t
+
+    def get_timestamp(self):
+        return self.timestamp_100ns
+
+
+class DataloggerEmulator:
+
+    @dataclass
+    class MemorySample:
+        data: bytes
+
+    @dataclass
+    class RPVSample:
+        data: Encodable
+        datatype: EmbeddedDataType
+
+    @dataclass
+    class TimeSample:
+        data: int
+
+    SampleType = Union["DataloggerEmulator.MemorySample", "DataloggerEmulator.RPVSample", "DataloggerEmulator.TimeSample"]
+
+    class Encoder(ABC):
+        byte_counter: int
+        entry_counter: int
+
+        @abstractmethod
+        def __init__(self, rpv_map: Dict[int, RuntimePublishedValue], buffer: bytearray, buffer_size: int):
+            raise NotImplementedError("Abstract method")
+
+        @abstractmethod
+        def configure(self, config: datalogging.Configuration) -> None:
+            raise NotImplementedError("Abstract method")
+
+        @abstractmethod
+        def encode_samples(self, samples: List["DataloggerEmulator.SampleType"]) -> None:
+            raise NotImplementedError("Abstract method")
+
+        @abstractmethod
+        def get_raw_data(self) -> bytes:
+            raise NotImplementedError("Abstract method")
+
+        @abstractmethod
+        def get_entry_count(self) -> int:
+            raise NotImplementedError("Abstract method")
+
+        def reset_write_counters(self) -> None:
+            self.byte_counter = 0
+            self.entry_counter = 0
+
+        def get_byte_counter(self) -> int:
+            return self.byte_counter
+
+        def get_entry_counter(self) -> int:
+            return self.entry_counter
+
+    class RawEncoder(Encoder):
+        buffer_size: int
+        write_cursor: int
+        read_cursor: int
+        config: Optional[datalogging.Configuration]
+        entry_size: int
+        rpv_map: Dict[int, RuntimePublishedValue]
+        data_deque: Deque[bytearray]
+
+        def __init__(self, rpv_map: Dict[int, RuntimePublishedValue], buffer_size: int):
+            self.buffer_size = buffer_size
+            self.write_cursor = 0
+            self.read_cursor = 0
+            self.config = None
+            self.entry_size = 0
+            self.rpv_map = rpv_map
+            self.data_deque = collections.deque(maxlen=0)
+            self.reset_write_counters()
+
+        def configure(self, config: datalogging.Configuration) -> None:
+            self.config = config
+            self.entry_size = 0
+            for signal in config.get_signals():
+                if isinstance(signal, datalogging.TimeLoggableSignal):
+                    self.entry_size += 4
+                elif isinstance(signal, datalogging.RPVLoggableSignal):
+                    if signal.rpv_id not in self.rpv_map:
+                        raise ValueError('RPV ID 0x%04X not in RPV map' % signal.rpv_id)
+                    self.entry_size += self.rpv_map[signal.rpv_id].datatype.get_size_byte()
+                elif isinstance(signal, datalogging.MemoryLoggableSignal):
+                    self.entry_size += signal.size
+                else:
+                    raise NotImplementedError("Unknown signal type")
+            max_entry = self.buffer_size // self.entry_size   # integer division
+            self.data_deque = collections.deque(maxlen=max_entry)
+
+        def encode_samples(self, samples: List["DataloggerEmulator.SampleType"]) -> None:
+            data = bytearray()
+            for sample in samples:
+                if isinstance(sample, DataloggerEmulator.TimeSample):
+                    data += struct.pack('>L', sample.data)
+                elif isinstance(sample, DataloggerEmulator.RPVSample):
+                    codec = Codecs.get(sample.datatype, Endianness.Big)
+                    data += codec.encode(sample.data)
+                elif isinstance(sample, DataloggerEmulator.MemorySample):
+                    data += sample.data
+
+            if len(data) != self.entry_size:
+                raise ValueError("Amount of data to encode doesn't match the given configuration. Size mismatch in block size")
+
+            self.entry_counter += 1
+            self.byte_counter += len(data)
+            self.data_deque.append(data)
+
+        def get_raw_data(self) -> bytes:
+            output_data = bytearray()
+            for block in self.data_deque:
+                output_data += block
+            return bytes(output_data)
+
+        def get_entry_count(self) -> int:
+            return len(self.data_deque)
+
+    buffer_size: int
+    config: Optional[datalogging.Configuration]
+    state: datalogging.DataloggerStatus
+    remaining_samples: int
+    timebase: EmulatedTimebase
+    trigger_cmt_last_val: Encodable
+    last_trigger_condition_result: bool
+    trigger_rising_edge_timestamp: Optional[float]
+    trigger_fulfilled_timestamp: float
+    encoding: datalogging.Encoding
+    encoder: "DataloggerEmulator.Encoder"
+    config_id: int
+    target_byte_count_after_trigger: int
+    byte_count_at_trigger: int
+    entry_counter_at_trigger: int
+
+    def __init__(self, device: "EmulatedDevice", buffer_size: int, encoding: datalogging.Encoding = datalogging.Encoding.RAW):
+        self.device = device
+        self.buffer_size = buffer_size
+        self.encoding = encoding
+        self.reset()
+
+    def reset(self) -> None:
+        if self.encoding == datalogging.Encoding.RAW:
+            self.encoder = DataloggerEmulator.RawEncoder(rpv_map=self.device.get_rpv_definition_map(), buffer_size=self.buffer_size)
+        else:
+            raise NotImplementedError("Unsupported encoding %s" % self.encoding)
+
+        self.config = None
+        self.state = datalogging.DataloggerStatus.IDLE
+        self.remaining_samples = 0
+        self.timebase = EmulatedTimebase()
+        self.trigger_cmt_last_val = 0
+        self.last_trigger_condition_result = False
+        self.trigger_rising_edge_timestamp = None
+        self.trigger_fulfilled = False
+        self.trigger_fulfilled_timestamp = 0
+        self.config_id = 0
+        self.target_byte_count_after_trigger = 0
+        self.byte_count_at_trigger = 0
+        self.entry_counter_at_trigger = 0
+
+    def configure(self, config_id: int, config: datalogging.Configuration) -> None:
+        self.reset()
+        self.config = config
+        self.config_id = config_id
+        self.encoder.configure(config)
+
+        self.state = datalogging.DataloggerStatus.CONFIGURED
+
+    def arm_trigger(self):
+        if self.state in [datalogging.DataloggerStatus.CONFIGURED, datalogging.DataloggerStatus.ACQUISITION_COMPLETED]:
+            self.state = datalogging.DataloggerStatus.ARMED
+
+    def disarm_trigger(self):
+        if self.state in [datalogging.DataloggerStatus.ARMED, datalogging.DataloggerStatus.ACQUISITION_COMPLETED]:
+            self.state = datalogging.DataloggerStatus.CONFIGURED
+
+    def set_error(self) -> None:
+        self.state = datalogging.DataloggerStatus.ERROR
+
+    def triggered(self) -> bool:
+        return self.trigger_fulfilled
+
+    def read_samples(self) -> List[SampleType]:
+        if self.config is None:
+            raise ValueError('Invalid configuration')
+
+        samples: List["DataloggerEmulator".SampleType] = []
+        for signal in self.config.get_signals():
+            if isinstance(signal, datalogging.MemoryLoggableSignal):
+                samples.append(DataloggerEmulator.MemorySample(data=self.device.read_memory(signal.address, signal.size)))
+            elif isinstance(signal, datalogging.RPVLoggableSignal):
+                value = self.device.read_rpv(signal.rpv_id)
+                datatype = self.device.get_rpv_definition(signal.rpv_id).datatype
+                samples.append(DataloggerEmulator.RPVSample(data=value, datatype=datatype))
+            elif isinstance(signal, datalogging.TimeLoggableSignal):
+                samples.append(DataloggerEmulator.TimeSample(self.timebase.get_timestamp()))
+            else:
+                raise ValueError('Unknown type of signal')
+        return samples
+
+    def fetch_operand(self, operand: datalogging.Operand) -> Encodable:
+        if isinstance(operand, datalogging.LiteralOperand):
+            return operand.value
+
+        if isinstance(operand, datalogging.RPVOperand):
+            return self.device.read_rpv(operand.rpv_id)
+
+        if isinstance(operand, datalogging.VarOperand):
+            data = self.device.read_memory(operand.address, operand.datatype.get_size_byte())
+            codec = Codecs.get(operand.datatype, Endianness.Little)
+            return codec.decode(data)
+
+        if isinstance(operand, datalogging.VarBitOperand):
+            mask = 0
+            for i in range(operand.bitoffset, operand.bitoffset + operand.bitsize):
+                mask |= (1 << i)
+            mask_codec = UIntCodec(operand.datatype.get_size_byte(), Endianness.Little)
+            data = self.device.read_memory(operand.address, operand.datatype.get_size_byte())
+            codec = Codecs.get(operand.datatype, Endianness.Little)
+            return codec.decode(data, mask_codec.encode(mask))
+
+        raise ValueError('Unknown operand type')
+
+    def check_trigger(self):
+        if self.config is None:
+            return False
+
+        output = False
+        val = self.check_trigger_condition()
+
+        if not self.last_trigger_condition_result and val:
+            self.trigger_rising_edge_timestamp = time.time()
+
+        if val:
+            if time.time() - self.trigger_rising_edge_timestamp > self.config.trigger_hold_time:
+                output = True
+
+        self.last_trigger_condition_result = val
+
+        return output
+
+    def check_trigger_condition(self) -> bool:
+        if self.config is None:
+            return False
+
+        operands = self.config.trigger_condition.operands
+        if self.config.trigger_condition.condition_id == datalogging.TriggerConditionID.AlwaysTrue:
+            return True
+
+        if self.config.trigger_condition.condition_id == datalogging.TriggerConditionID.Equal:
+            return self.fetch_operand(operands[0]) == self.fetch_operand(operands[1])
+
+        if self.config.trigger_condition.condition_id == datalogging.TriggerConditionID.NotEqual:
+            return self.fetch_operand(operands[0]) != self.fetch_operand(operands[1])
+
+        if self.config.trigger_condition.condition_id == datalogging.TriggerConditionID.GreaterThan:
+            return self.fetch_operand(operands[0]) > self.fetch_operand(operands[1])
+
+        if self.config.trigger_condition.condition_id == datalogging.TriggerConditionID.GreaterOrEqualThan:
+            return self.fetch_operand(operands[0]) >= self.fetch_operand(operands[1])
+
+        if self.config.trigger_condition.condition_id == datalogging.TriggerConditionID.LessThan:
+            return self.fetch_operand(operands[0]) < self.fetch_operand(operands[1])
+
+        if self.config.trigger_condition.condition_id == datalogging.TriggerConditionID.LessOrEqualThan:
+            return self.fetch_operand(operands[0]) <= self.fetch_operand(operands[1])
+
+        if self.config.trigger_condition.condition_id == datalogging.TriggerConditionID.IsWithin:
+            return abs(self.fetch_operand(operands[0]) - self.fetch_operand(operands[1])) <= abs(self.fetch_operand(operands[2]))
+
+        if self.config.trigger_condition.condition_id == datalogging.TriggerConditionID.ChangeMoreThan:
+            v = self.fetch_operand(operands[0])
+            diff = v - self.trigger_cmt_last_val
+            delta = self.fetch_operand(operands[1])
+            output = False
+            if delta >= 0:
+                output = diff >= delta
+            else:
+                output = diff <= delta
+
+            self.trigger_cmt_last_val = v
+            return output
+
+        return False
+
+    def process(self) -> None:
+        self.timebase.process()
+
+        if self.state in [datalogging.DataloggerStatus.CONFIGURED, datalogging.DataloggerStatus.ARMED]:
+            self.encoder.encode_samples(self.read_samples())
+
+        if self.state == datalogging.DataloggerStatus.ARMED:
+            assert self.config is not None
+            if not self.trigger_fulfilled:
+                if self.check_trigger():
+                    self.trigger_fulfilled = True
+                    self.trigger_fulfilled_timestamp = time.time()
+                    self.byte_count_at_trigger = self.encoder.get_byte_counter()
+                    self.entry_counter_at_trigger = self.encoder.get_entry_counter()
+                    self.target_byte_count_after_trigger = self.byte_count_at_trigger + round((1.0 - self.config.probe_location) * self.buffer_size)
+
+            if self.trigger_fulfilled:
+                probe_location_ok = self.encoder.get_byte_counter() >= self.target_byte_count_after_trigger
+                timed_out = (time.time() - self.trigger_fulfilled_timestamp) >= self.config.timeout
+                if probe_location_ok or timed_out:
+                    self.state = datalogging.DataloggerStatus.ACQUISITION_COMPLETED
+
+        else:
+            pass
+
+    def get_acquisition_data(self) -> bytes:
+        return self.encoder.get_raw_data()
+
+    def get_buffer_size(self) -> int:
+        return self.buffer_size
+
+    def get_encoding(self) -> datalogging.Encoding:
+        return self.encoding
+
+    def in_error(self) -> bool:
+        return self.state == datalogging.DataloggerStatus.ERROR
+
+    def get_acquisition_id(self) -> int:
+        pass
+
+    def get_config_id(self) -> int:
+        return self.config_id
+
+    def get_nb_points(self) -> int:
+        return self.encoder.get_entry_count()
+
+    def get_points_after_trigger(self) -> int:
+        # The validity of this depends on the datalogger capacity to stop acquiring at the right moment.
+        # if it continues acquiring and the encoder discards data, this value becomes invalid
+        return self.encoder.get_entry_counter() - self.entry_counter_at_trigger
 
 
 class EmulatedDevice:
@@ -63,7 +421,14 @@ class EmulatedDevice:
     session_id: Optional[int]
     memory: MemoryContent
     memory_lock: threading.Lock
+    rpv_lock: threading.Lock
     rpvs: Dict[int, RPVValuePair]
+    datalogger: DataloggerEmulator
+
+    datalogging_read_in_progress: bool
+    datalogging_read_cursor: int
+    datalogging_read_rolling_counter: int
+    loops: List[ExecLoop]
 
     def __init__(self, link):
         if not isinstance(link, DummyLink) and not isinstance(link, ThreadSafeDummyLink):
@@ -90,6 +455,7 @@ class EmulatedDevice:
         self.session_id = None
         self.memory = MemoryContent()
         self.memory_lock = threading.Lock()
+        self.rpv_lock = threading.Lock()
 
         self.supported_features = {
             'memory_read': True,
@@ -117,6 +483,19 @@ class EmulatedDevice:
             {'start': 0x900, 'end': 0x9FF}]
 
         self.protocol.configure_rpvs([self.rpvs[id]['definition'] for id in self.rpvs])
+
+        self.datalogger = DataloggerEmulator(self, 100)
+
+        self.loops = [
+            FixedFreqLoop(1000, name='1KHz'),
+            FixedFreqLoop(10000, name='10KHz'),
+            VariableFreqLoop(name='Variable Freq 1'),
+            VariableFreqLoop(name='Idle Loop', support_datalogging=False)
+        ]
+
+        self.datalogging_read_in_progress = False
+        self.datalogging_read_cursor = 0
+        self.datalogging_read_rolling_counter = 0
 
     def thread_task(self) -> None:
         self.thread_started_event.set()
@@ -165,6 +544,8 @@ class EmulatedDevice:
             response = self.process_get_info(req, data)
         elif req.command == cmd.MemoryControl:
             response = self.process_memory_control(req, data)
+        elif req.command == cmd.DatalogControl:
+            response = self.process_datalog_control(req, data)
         elif req.command == cmd.DummyCommand:
             response = self.process_dummy_cmd(req, data)
 
@@ -275,11 +656,22 @@ class EmulatedDevice:
             all_rpvs.sort(key=lambda x: x.id)
             selected_rpvs = all_rpvs[data['start']:data['start'] + data['count']]
             response = self.protocol.respond_get_rpv_definition(selected_rpvs)
+
+        elif subfunction == cmd.GetInfo.Subfunction.GetLoopCount:
+            response = self.protocol.respond_get_loop_count(len(self.loops))
+
+        elif subfunction == cmd.GetInfo.Subfunction.GetLoopDefinition:
+            data = cast(protocol_typing.Request.GetInfo.GetLoopDefinition, data)
+            if data['loop_id'] < 0 or data['loop_id'] >= len(self.loops):
+                response = Response(req.command, req.subfn, ResponseCode.FailureToProceed)
+            else:
+                response = self.protocol.respond_get_loop_definition(data['loop_id'], self.loops[data['loop_id']])
         else:
             self.logger.error('Unsupported subfunction "%s" for command : "%s"' % (subfunction, req.command.__name__))
 
         return response
-    # ===== [MemoryControl] ======
+
+# ===== [MemoryControl] ======
 
     def process_memory_control(self, req: Request, data: protocol_typing.RequestData) -> Optional[Response]:
         response = None
@@ -319,9 +711,7 @@ class EmulatedDevice:
             data = cast(protocol_typing.Request.MemoryControl.ReadRPV, data)
             read_response_data: List[Tuple[int, Any]] = []
             for rpv_id in data['rpvs_id']:
-                if rpv_id not in self.rpvs:
-                    raise Exception('Unknown RPV with ID 0x%x' % rpv_id)
-                value = self.rpvs[rpv_id]['value']
+                value = self.read_rpv(rpv_id)
                 read_response_data.append((rpv_id, value))
 
             response = self.protocol.respond_read_runtime_published_values(read_response_data)
@@ -330,16 +720,92 @@ class EmulatedDevice:
             data = cast(protocol_typing.Request.MemoryControl.WriteRPV, data)
             write_response_data: List[int] = []
             for id_data_pair in data['rpvs']:
-                id = id_data_pair['id']
+                rpv_id = id_data_pair['id']
                 value = id_data_pair['value']
-
-                if id not in self.rpvs:
-                    raise Exception('Unknown RPV with ID 0x%x' % id)
-                self.rpvs[id]['value'] = value
-                write_response_data.append(id)
+                self.write_rpv(rpv_id, value)
+                write_response_data.append(rpv_id)
 
             response = self.protocol.respond_write_runtime_published_values(write_response_data)
 
+        else:
+            self.logger.error('Unsupported subfunction "%s" for command : "%s"' % (subfunction, req.command.__name__))
+
+        return response
+
+    def process_datalog_control(self, req: Request, data: protocol_typing.RequestData) -> Optional[Response]:
+        response = None
+        subfunction = cmd.DatalogControl.Subfunction(req.subfn)
+        if subfunction == cmd.DatalogControl.Subfunction.GetSetup:
+            response = self.protocol.respond_datalogging_get_setup(
+                buffer_size=self.datalogger.get_buffer_size(),
+                encoding=self.datalogger.get_encoding())
+        elif subfunction == cmd.DatalogControl.Subfunction.ConfigureDatalog:
+            self.datalogging_read_in_progress = False
+            data = cast(protocol_typing.Request.DatalogControl.Configure, data)
+            if data['loop_id'] < 0 or data['loop_id'] >= len(self.loops):
+                response = Response(req.command, req.subfn, code=ResponseCode.FailureToProceed)
+            else:
+                self.datalogger.configure(data['config_id'], data['config'])
+                if self.datalogger.in_error():
+                    response = Response(req.command, req.subfn, code=ResponseCode.InvalidRequest)
+                else:
+                    response = self.protocol.respond_datalogging_configure()
+        elif subfunction == cmd.DatalogControl.Subfunction.ArmTrigger:
+            self.datalogging_read_in_progress = False
+            self.datalogger.arm_trigger()
+            response = self.protocol.respond_datalogging_arm_trigger()
+        elif subfunction == cmd.DatalogControl.Subfunction.DisarmTrigger:
+            self.datalogger.disarm_trigger()
+            response = self.protocol.respond_datalogging_disarm_trigger()
+        elif subfunction == cmd.DatalogControl.Subfunction.GetAcquisitionMetadata:
+            if self.datalogger.state != datalogging.DataloggerStatus.ACQUISITION_COMPLETED:
+                response = Response(req.command, req.subfn, ResponseCode.FailureToProceed)
+            else:
+                response = self.protocol.respond_datalogging_get_acquisition_metadata(
+                    acquisition_id=self.datalogger.get_acquisition_id(),
+                    config_id=self.datalogger.get_config_id(),
+                    nb_points=self.datalogger.get_nb_points(),
+                    datasize=len(self.datalogger.get_acquisition_data()),
+                    points_after_trigger=self.datalogger.get_points_after_trigger()
+                )
+        elif subfunction == cmd.DatalogControl.Subfunction.GetStatus:
+            response = self.protocol.respond_datalogging_get_status(status=self.datalogger.state)
+
+        elif subfunction == cmd.DatalogControl.Subfunction.ReadAcquisition:
+            if self.datalogger.state != datalogging.DataloggerStatus.ACQUISITION_COMPLETED:
+                response = Response(req.command, req.subfn, ResponseCode.FailureToProceed)
+            else:
+                acquired_data = self.datalogger.get_acquisition_data()
+
+                if not self.datalogging_read_in_progress:
+                    self.datalogging_read_in_progress = True
+                    self.read_datalogging_read_cursor = 0
+                    self.datalogging_read_rolling_counter = 0
+
+                remaining_data = acquired_data[self.read_datalogging_read_cursor:]
+                if self.protocol.datalogging_read_acquisition_is_last_response(len(remaining_data), self.max_tx_data_size):
+                    crc = crc32(acquired_data)
+                    finished = True
+                else:
+                    crc = None
+                    finished = False
+
+                datalen = self.protocol.datalogging_read_acquisition_max_data_size(len(remaining_data), self.max_tx_data_size)
+                datalen = min(len(remaining_data), datalen)
+
+                response = self.protocol.respond_datalogging_read_acquisition(
+                    finished=finished,
+                    rolling_counter=self.datalogging_read_rolling_counter,
+                    acquisition_id=self.datalogger.get_acquisition_id(),
+                    data=remaining_data[:datalen],
+                    crc=crc
+                )
+
+                self.datalogging_read_rolling_counter = (self.datalogging_read_rolling_counter + 1) & 0xFF
+                self.datalogging_read_cursor += datalen
+
+                if finished:
+                    self.datalogging_read_in_progress = False
         else:
             self.logger.error('Unsupported subfunction "%s" for command : "%s"' % (subfunction, req.command.__name__))
 
@@ -455,13 +921,64 @@ class EmulatedDevice:
             raise err
         return data
 
-    def get_rpvs(self) -> List[RuntimePublishedValue]:
-        output: List[RuntimePublishedValue] = []
-        for id in self.rpvs:
-            output.append(self.rpvs[id]['definition'])
+    def get_rpv_definition(self, rpv_id) -> RuntimePublishedValue:
+        if rpv_id not in self.rpvs:
+            raise ValueError('Unknown RPV ID 0x%04X' % rpv_id)
+        return self.rpvs[rpv_id]['definition']
+
+    def get_rpv_definition_map(self) -> Dict[int, RuntimePublishedValue]:
+        output: Dict[int, RuntimePublishedValue] = {}
+        for rpv_id in self.rpvs:
+            output[rpv_id] = self.get_rpv_definition(rpv_id)
         return output
 
-    def write_rpv(self, id: int, value: Any) -> None:
-        if id not in self.rpvs:
-            raise Exception('Unknown RuntimePublishedValue with ID %d' % id)
-        self.rpvs[id]['value'] = value
+    def get_rpvs(self) -> List[RuntimePublishedValue]:
+        output: List[RuntimePublishedValue] = []
+        err = None
+        self.rpv_lock.acquire()
+        try:
+            for id in self.rpvs:
+                output.append(self.rpvs[id]['definition'])
+        except Exception as e:
+            err = e
+        finally:
+            self.rpv_lock.release()
+
+        if err:
+            raise err
+
+        return output
+
+    def write_rpv(self, rpv_id: int, value: Encodable) -> None:
+        if rpv_id not in self.rpvs:
+            raise ValueError('Unknown RuntimePublishedValue with ID 0x%04X' % rpv_id)
+
+        err = None
+        self.rpv_lock.acquire()
+        try:
+            self.rpvs[rpv_id]['value'] = value
+        except Exception as e:
+            err = e
+        finally:
+            self.rpv_lock.release()
+
+        if err:
+            raise err
+
+    def read_rpv(self, rpv_id) -> Encodable:
+        val: Encodable
+        err = None
+        self.rpv_lock.acquire()
+        try:
+            val = self.rpvs[rpv_id]['value']
+        except Exception as e:
+            err = e
+        finally:
+            self.rpv_lock.release()
+
+        if err:
+            raise err
+
+        if rpv_id not in self.rpvs:
+            raise ValueError('Unknown RuntimePublishedValue with ID 0x%04X' % rpv_id)
+        return val

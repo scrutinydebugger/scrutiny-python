@@ -87,3 +87,8 @@ class TestMessage(ScrutinyUnitTest):
         request_4bytes = Request(command=1, subfn=0x34, payload=b'\x00' * 4)
         self.assertEqual(Request.OVERHEAD_SIZE + 4, request_4bytes.size())
         self.assertEqual(Request.OVERHEAD_SIZE + 4, len(request_4bytes.to_bytes()))
+
+
+if __name__ == '__main__':
+    import unittest
+    unittest.main()

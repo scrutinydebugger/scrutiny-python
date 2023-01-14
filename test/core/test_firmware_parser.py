@@ -19,3 +19,8 @@ class TestFirmwareParser(ScrutinyUnitTest):
         parser = FirmwareParser(get_artifact('demobin.elf'))
 
         self.assertEqual(parser.get_firmware_id_ascii(), demobin_firmware_id_ascii)
+
+
+if __name__ == '__main__':
+    import unittest
+    unittest.main()

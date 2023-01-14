@@ -219,3 +219,8 @@ class TestCodecs(ScrutinyUnitTest):
             Codecs.make_value_valid(EmbeddedDataType.boolean, math.inf)
         with self.assertRaises(ValueError):
             Codecs.make_value_valid(EmbeddedDataType.boolean, -math.inf)
+
+
+if __name__ == '__main__':
+    import unittest
+    unittest.main()

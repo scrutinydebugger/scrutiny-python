@@ -303,3 +303,8 @@ class TestCLI(ScrutinyUnitTest):
             self.assertEqual(alias.get_offset(), 2.5)
             self.assertEqual(alias.get_min(), 0.0)
             self.assertEqual(alias.get_max(), 100.0)
+
+
+if __name__ == '__main__':
+    import unittest
+    unittest.main()

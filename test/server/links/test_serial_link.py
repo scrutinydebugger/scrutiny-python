@@ -17,6 +17,7 @@ import platform
 import serial   # type: ignore
 from test import ScrutinyUnitTest
 
+
 class TestSerialLink(ScrutinyUnitTest):
     WINPORTS = ['COM101', 'COM102']
     NIXPORT = ['/tmp/scrutiny-pty0', '/tmp/scrutiny-pty1']
@@ -110,3 +111,8 @@ class TestSerialLink(ScrutinyUnitTest):
         self.assertFalse(link.operational())
 
         link.destroy()
+
+
+if __name__ == '__main__':
+    import unittest
+    unittest.main()

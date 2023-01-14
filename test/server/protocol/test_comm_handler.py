@@ -172,3 +172,8 @@ class TestCommHandler(ScrutinyUnitTest):
         self.assertTrue(self.comm_handler.response_available())
         response1_ = self.comm_handler.get_response()
         self.compare_responses(response1_, response1)
+
+
+if __name__ == '__main__':
+    import unittest
+    unittest.main()

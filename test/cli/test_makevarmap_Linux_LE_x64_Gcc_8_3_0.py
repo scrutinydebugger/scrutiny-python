@@ -18,6 +18,7 @@ from test import SkipOnException
 from test.artifacts import get_artifact
 from test import ScrutinyUnitTest
 
+
 class TestMakeVarMap_LinuxLEx64_Gcc8_3_0(ScrutinyUnitTest):
 
     bin_filename = get_artifact('testappDebianLEx64_gcc8_3_0')
@@ -217,3 +218,8 @@ class TestMakeVarMap_LinuxLEx64_Gcc8_3_0(ScrutinyUnitTest):
         self.assert_var('/static/file2.cpp/file2ClassBStaticInstance/nestedClassInstance/intInClassBA', EmbeddedDataType.sint32, value_at_loc=-55555)
         self.assert_var('/static/file2.cpp/file2ClassBStaticInstance/nestedClassInstance/classAInstance/intInClassA',
                         EmbeddedDataType.sint32, value_at_loc=-66666)
+
+
+if __name__ == '__main__':
+    import unittest
+    unittest.main()

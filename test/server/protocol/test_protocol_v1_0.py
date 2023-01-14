@@ -14,6 +14,7 @@ from scrutiny.core.basic_types import EmbeddedDataType, RuntimePublishedValue
 import scrutiny.server.protocol.typing as protocol_typing
 import scrutiny.server.datalogging.definitions as datalogging
 from test import ScrutinyUnitTest
+from scrutiny.server.device.device_info import *
 
 from scrutiny.server.protocol.crc32 import crc32
 from typing import List, cast
@@ -90,7 +91,7 @@ class TestProtocolV1_0(ScrutinyUnitTest):
 #               Request
 # ============================
 
-# ============= GetInfo ===============
+# region Request GetInfo
 
 
     def test_req_get_protocol_version(self):
@@ -139,7 +140,24 @@ class TestProtocolV1_0(ScrutinyUnitTest):
         self.assertEqual(data['count'], 5)
         self.check_expected_payload_size(req, (2 + 1) * 5)    # id, type
 
-# ============= MemoryControl ===============
+    def test_req_get_loop_count(self):
+        req = self.proto.get_loop_count()
+        self.assert_req_response_bytes(req, [1, 8, 0, 0])
+        data = self.proto.parse_request(req)
+        self.check_expected_payload_size(req, 1)
+
+    def test_req_get_loop_definition(self):
+        req = self.proto.get_loop_definition(loop_id=0xa5)
+        self.assert_req_response_bytes(req, [1, 9, 0, 1, 0xa5])
+        data = self.proto.parse_request(req)
+        self.check_expected_payload_size(req, 1 + 1 + 4 + 1 + 32)    # Maximum size
+        self.assertEqual(data['loop_id'], 0xa5)
+
+
+# endregion
+
+# region Request MemoryControl
+
     def test_req_read_single_memory_block_8bits(self):
         self.proto.set_address_size_bits(8)
         req = self.proto.read_single_memory_block(0x99, 0x123)
@@ -541,11 +559,9 @@ class TestProtocolV1_0(ScrutinyUnitTest):
 
         with self.assertRaises(Exception):
             self.proto.write_runtime_published_values((0x1234, 1.345))
+# endregion
 
-
-# ============= CommControl ===============
-
-
+# region Request CommControl
     def test_req_comm_discover(self):
         magic = bytes([0x7e, 0x18, 0xfc, 0x68])
         request_bytes = bytes([2, 1, 0, 4]) + magic
@@ -585,8 +601,9 @@ class TestProtocolV1_0(ScrutinyUnitTest):
         data = self.proto.parse_request(req)
         data['session_id'] = 0x12345678
         self.check_expected_payload_size(req, 0)  # No data
+# endregion
 
-# ============= Datalogging ===============
+# region Request Datalogging
 
     def test_req_datalogging_get_setup(self):
         request_bytes = bytes([5, 1, 0, 0])
@@ -736,26 +753,22 @@ class TestProtocolV1_0(ScrutinyUnitTest):
 
         req = self.proto.datalogging_read_acquisition(80, 100, tx_buffer_size=100, encoding=datalogging.Encoding.RAW)
         self.check_expected_payload_size(req, 28)
+# endregion
 
-
-# ============= UserCommand ===============
-
-
+# region Request UserCommand
     def test_req_user_command(self):
         req = self.proto.user_command(10, bytes([1, 2, 3]))
         self.assert_req_response_bytes(req, [4, 10, 0, 3, 1, 2, 3])
         self.assertEqual(req.subfn, 10)
         self.assertEqual(req.payload, bytes([1, 2, 3]))
         # todo : Response size
-
+# endregion
 
 # ============================
 #               Response
 # ============================
 
-# =============  GetInfo ==============
-
-
+# region Response GetInfo
     def test_response_get_protocol_version(self):
         response = self.proto.respond_protocol_version(major=2, minor=3)
         self.assert_req_response_bytes(response, [0x81, 1, 0, 0, 2, 2, 3])
@@ -825,9 +838,50 @@ class TestProtocolV1_0(ScrutinyUnitTest):
         self.assertEqual(data['rpvs'][1].id, 0x9875)
         self.assertEqual(data['rpvs'][1].datatype, EmbeddedDataType.uint32)
 
+    def test_response_get_loop_count(self):
+        response = self.proto.respond_get_loop_count(0xAA)
+        self.assert_req_response_bytes(response, [0x81, 8, 0, 0, 1, 0xaa])
+        data = self.proto.parse_response(response)
+        self.assertEqual(data['loop_count'], 0xAA)
 
-# ============= MemoryControl ===============
+    def test_response_get_loop_definition_fixed_freq(self):
+        ff_loop = FixedFreqLoop(100, "myloop1", support_datalogging=True)
+        response = self.proto.respond_get_loop_definition(0x99, ff_loop)
+        payload = bytes([0x81, 9, 0, 0, 15, 0x99, 0x00, 0x80])
+        payload += struct.pack('>L', 100000)
+        payload += struct.pack('B', 7)
+        payload += "myloop1".encode('utf8')
+        self.assert_req_response_bytes(response, payload)
+        data = self.proto.parse_response(response)
+        data = cast(protocol_typing.Response.GetInfo.GetLoopDefinition, data)
+        self.assertEqual(data['loop_id'], 0x99)
+        self.assertIsInstance(data['loop'], FixedFreqLoop)
+        data['loop'] = cast(FixedFreqLoop, data['loop'])
+        self.assertFalse(data['loop'] is ff_loop)
+        self.assertEqual(data['loop'].get_loop_type(), ExecLoopType.FIXED_FREQ)
+        self.assertEqual(data['loop'].get_timestep_100ns(), 100000)
+        self.assertEqual(data['loop'].support_datalogging, True)
 
+    def test_response_get_loop_definition_variable_freq(self):
+        ff_loop = VariableFreqLoop("myloop2", support_datalogging=False)
+        response = self.proto.respond_get_loop_definition(0x88, ff_loop)
+        payload = bytes([0x81, 9, 0, 0, 11, 0x88, 0x01, 0x00])
+        payload += struct.pack('B', 7)
+        payload += "myloop2".encode('utf8')
+        self.assert_req_response_bytes(response, payload)
+        data = self.proto.parse_response(response)
+        data = cast(protocol_typing.Response.GetInfo.GetLoopDefinition, data)
+        self.assertEqual(data['loop_id'], 0x88)
+        self.assertIsInstance(data['loop'], VariableFreqLoop)
+        data['loop'] = cast(VariableFreqLoop, data['loop'])
+        self.assertFalse(data['loop'] is ff_loop)
+        self.assertEqual(data['loop'].get_loop_type(), ExecLoopType.VARIABLE_FREQ)
+        self.assertEqual(data['loop'].support_datalogging, False)
+
+
+# endregion
+
+# region Response MemoryControl
 
     def test_response_read_single_memory_block_8bits(self):
         self.proto.set_address_size_bits(8)
@@ -1188,11 +1242,9 @@ class TestProtocolV1_0(ScrutinyUnitTest):
 
         with self.assertRaises(Exception):
             self.proto.respond_write_runtime_published_values([0x1234, 0x1235, 0x9999])
+# endregion
 
-
-# ============= CommControl ===============
-
-
+# region Response CommControl
     def test_response_comm_discover(self):
         firmwareid = bytes(range(16))
         display_name = 'hello'
@@ -1240,19 +1292,93 @@ class TestProtocolV1_0(ScrutinyUnitTest):
         response = self.proto.respond_comm_disconnect()
         self.assert_req_response_bytes(response, [0x82, 5, 0, 0, 0])
         data = self.proto.parse_response(response)
+# endregion
 
-# ============= Datalog ===============
 
-   # todo
+# region Response DatalogControl
 
-# ============= UserCommand ===============
+
+    def test_response_datalogging_get_setup(self):
+        response = self.proto.respond_datalogging_get_setup(buffer_size=0x12345678, encoding=datalogging.Encoding.RAW)
+        self.assert_req_response_bytes(response, [0x85, 1, 0, 0, 5, 0x12, 0x34, 0x56, 0x78, 0])
+        data = self.proto.parse_response(response)
+        self.assertEqual(data['buffer_size'], 0x12345678)
+        self.assertEqual(data['encoding'], datalogging.Encoding.RAW)
+
+    def test_response_datalogging_configure(self):
+        response = self.proto.respond_datalogging_configure()
+        self.assert_req_response_bytes(response, [0x85, 2, 0, 0, 0])
+        self.proto.parse_response(response)
+
+    def test_response_datalogging_arm_trigger(self):
+        response = self.proto.respond_datalogging_arm_trigger()
+        self.assert_req_response_bytes(response, [0x85, 3, 0, 0, 0])
+        self.proto.parse_response(response)
+
+    def test_response_datalogging_disarm_trigger(self):
+        response = self.proto.respond_datalogging_disarm_trigger()
+        self.assert_req_response_bytes(response, [0x85, 4, 0, 0, 0])
+        self.proto.parse_response(response)
+
+    def test_response_datalogging_get_status(self):
+        response = self.proto.respond_datalogging_get_status(status=datalogging.DataloggerStatus.CONFIGURED)
+        self.assert_req_response_bytes(response, [0x85, 5, 0, 0, 1, datalogging.DataloggerStatus.CONFIGURED.value])
+        data = self.proto.parse_response(response)
+        self.assertEqual(data['status'], datalogging.DataloggerStatus.CONFIGURED)
+
+    def test_response_datalogging_get_acquisition_metadata(self):
+        response = self.proto.respond_datalogging_get_acquisition_metadata(
+            acquisition_id=0x1234, config_id=0x5678, nb_points=0xaabbccdd, datasize=0x99887766, points_after_trigger=0x1a2b3c4d)
+        self.assert_req_response_bytes(response, [0x85, 6, 0, 0, 16, 0x12, 0x34, 0x56, 0x78, 0xaa, 0xbb,
+                                       0xcc, 0xdd, 0x99, 0x88, 0x77, 0x66, 0x1a, 0x2b, 0x3c, 0x4d])
+        data = self.proto.parse_response(response)
+        self.assertEqual(data['acquisition_id'], 0x1234)
+        self.assertEqual(data['config_id'], 0x5678)
+        self.assertEqual(data['nb_points'], 0xaabbccdd)
+        self.assertEqual(data['datasize'], 0x99887766)
+        self.assertEqual(data['points_after_trigger'], 0x1a2b3c4d)
+
+    def test_response_datalogging_read_acquisition(self):
+        response = self.proto.respond_datalogging_read_acquisition(
+            finished=False, rolling_counter=0xAA, acquisition_id=0x1234, data=bytes([1, 2, 3, 4, 5, 6, 7, 8]))
+        self.assert_req_response_bytes(response, [0x85, 7, 0, 0, 12, 0, 0xAA, 0x12, 0x34, 1, 2, 3, 4, 5, 6, 7, 8])
+        data = self.proto.parse_response(response)
+        self.assertEqual(data['finished'], False)
+        self.assertEqual(data['rolling_counter'], 0xAA)
+        self.assertEqual(data['acquisition_id'], 0x1234)
+        self.assertEqual(data['data'], bytes([1, 2, 3, 4, 5, 6, 7, 8]))
+        self.assertEqual(data['crc'], None)
+
+        response = self.proto.respond_datalogging_read_acquisition(
+            finished=True, rolling_counter=0xAA, acquisition_id=0x1234, data=bytes([1, 2, 3, 4, 5, 6, 7, 8]), crc=0x99887766)
+        self.assert_req_response_bytes(response, [0x85, 7, 0, 0, 16, 1, 0xAA, 0x12, 0x34, 1, 2, 3, 4, 5, 6, 7, 8, 0x99, 0x88, 0x77, 0x66])
+        data = self.proto.parse_response(response)
+        self.assertEqual(data['finished'], True)
+        self.assertEqual(data['rolling_counter'], 0xAA)
+        self.assertEqual(data['acquisition_id'], 0x1234)
+        self.assertEqual(data['data'], bytes([1, 2, 3, 4, 5, 6, 7, 8]))
+        self.assertEqual(data['crc'], 0x99887766)
+
+        # CRC must be present if finished. otherwise must not be present
+        with self.assertRaises(ValueError):
+            self.proto.respond_datalogging_read_acquisition(finished=False, rolling_counter=0xAA,
+                                                            acquisition_id=0x1234, data=bytes([1, 2, 3, 4, 5, 6, 7, 8]), crc=0x99887766)
+        with self.assertRaises(ValueError):
+            self.proto.respond_datalogging_read_acquisition(finished=True, rolling_counter=0xAA,
+                                                            acquisition_id=0x1234, data=bytes([1, 2, 3, 4, 5, 6, 7, 8]))
+
+# endregion
+
+# region Response UserCommand
 
     def test_response_user_cmd(self):
         response = self.proto.respond_user_command(10, bytes([1, 2, 3]))
         self.assert_req_response_bytes(response, [0x84, 10, 0, 0, 3, 1, 2, 3])
         self.assertEqual(response.subfn, 10)
         self.assertEqual(response.payload, bytes([1, 2, 3]))
+# endregion
 
 
 if __name__ == '__main__':
+    import unittest
     unittest.main()

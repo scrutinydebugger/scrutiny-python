@@ -19,6 +19,7 @@ from scrutiny.core.codecs import *
 from scrutiny.core.basic_types import Endianness, RuntimePublishedValue
 import scrutiny.server.protocol.typing as protocol_typing
 import scrutiny.server.datalogging.definitions as datalogging
+from scrutiny.server.device.device_info import ExecLoop, ExecLoopType, FixedFreqLoop, VariableFreqLoop
 
 
 from typing import Union, List, Tuple, Optional, Dict, Any, cast
@@ -145,11 +146,17 @@ class Protocol:
         data = pack('BB', region_type, region_index)
         return Request(cmd.GetInfo, cmd.GetInfo.Subfunction.GetSpecialMemoryRegionLocation, data, response_payload_size=2 + self.get_address_size_bytes() * 2)
 
-    def get_rpv_count(self):
+    def get_rpv_count(self) -> Request:
         return Request(cmd.GetInfo, cmd.GetInfo.Subfunction.GetRuntimePublishedValuesCount, bytes(), response_payload_size=2)
 
-    def get_rpv_definition(self, start: int, count: int):
+    def get_rpv_definition(self, start: int, count: int) -> Request:
         return Request(cmd.GetInfo, cmd.GetInfo.Subfunction.GetRuntimePublishedValuesDefinition, pack('>HH', start, count), response_payload_size=3 * count)
+
+    def get_loop_count(self) -> Request:
+        return Request(cmd.GetInfo, cmd.GetInfo.Subfunction.GetLoopCount, response_payload_size=1)
+
+    def get_loop_definition(self, loop_id: int) -> Request:
+        return Request(cmd.GetInfo, cmd.GetInfo.Subfunction.GetLoopDefinition, pack('B', loop_id), response_payload_size=32 + 1 + 1 + 4 + 1)
 
     def get_rpv_definition_req_size(self) -> int:
         return 4
@@ -392,6 +399,10 @@ class Protocol:
                     data = cast(protocol_typing.Request.GetInfo.GetRuntimePublishedValuesDefinition, data)
                     data['start'], data['count'] = unpack('>HH', req.payload[0:4])
 
+                elif subfn == cmd.GetInfo.Subfunction.GetLoopDefinition:
+                    data = cast(protocol_typing.Request.GetInfo.GetLoopDefinition, data)
+                    data['loop_id'] = req.payload[0]
+
             elif req.command == cmd.MemoryControl:
                 subfn = cmd.MemoryControl.Subfunction(req.subfn)
 
@@ -483,6 +494,7 @@ class Protocol:
 
             elif req.command == cmd.DatalogControl:
                 subfn = cmd.DatalogControl.Subfunction(req.subfn)
+                data = cast(protocol_typing.Request.DatalogControl.Configure, data)
 
                 if subfn == cmd.DatalogControl.Subfunction.ConfigureDatalog:
                     if len(req.payload) < 16:
@@ -511,7 +523,7 @@ class Protocol:
                             raise ValueError('Unknown operand type %d' % operand_type_id)
 
                         operand_type = datalogging.OperandType(operand_type_id)
-
+                        operand: datalogging.Operand
                         if operand_type == datalogging.OperandType.Literal:
                             if len(req.payload) < cursor + 4:
                                 raise ValueError('Not enough data for operand #%d (Literal). Cursor = %d' % (i, cursor))
@@ -568,6 +580,7 @@ class Protocol:
                             raise ValueError("Unknown signal type for signal #%d. Cursor=%d" % (i, cursor))
                         signal_type = datalogging.LoggableSignalType(signal_type_id)
 
+                        signal: datalogging.LoggableSignal
                         if signal_type == datalogging.LoggableSignalType.MEMORY:
                             if len(req.payload) < cursor + self.get_address_size_bytes() + 1:
                                 raise ValueError('Not enough data for signal #%d (%s). Cursor = %d' % (i, signal_type.name, cursor))
@@ -667,10 +680,10 @@ class Protocol:
         data += self.encode_address(start) + self.encode_address(end)
         return Response(cmd.GetInfo, cmd.GetInfo.Subfunction.GetSpecialMemoryRegionLocation, Response.ResponseCode.OK, data)
 
-    def respond_get_rpv_count(self, count: int):
+    def respond_get_rpv_count(self, count: int) -> Response:
         return Response(cmd.GetInfo, cmd.GetInfo.Subfunction.GetRuntimePublishedValuesCount, Response.ResponseCode.OK, pack('>H', count))
 
-    def respond_get_rpv_definition(self, rpvs: List[RuntimePublishedValue]):
+    def respond_get_rpv_definition(self, rpvs: List[RuntimePublishedValue]) -> Response:
         payload = bytes()
 
         for rpv in rpvs:
@@ -678,6 +691,34 @@ class Protocol:
             payload += pack('>HB', rpv.id, vtype)
 
         return Response(cmd.GetInfo, cmd.GetInfo.Subfunction.GetRuntimePublishedValuesDefinition, Response.ResponseCode.OK, payload)
+
+    def respond_get_loop_count(self, loop_count: int) -> Response:
+        return Response(cmd.GetInfo, cmd.GetInfo.Subfunction.GetLoopCount, Response.ResponseCode.OK, struct.pack('B', loop_count))
+
+    def respond_get_loop_definition(self, loop_id: int, loop: ExecLoop) -> Response:
+        data = bytearray()
+
+        attribute_byte = 0
+        if loop.support_datalogging:
+            attribute_byte |= 0x80
+
+        data += struct.pack("BBB", loop_id, loop.get_loop_type().value, attribute_byte)
+
+        if isinstance(loop, FixedFreqLoop):
+            data += struct.pack('>L', loop.get_timestep_100ns())
+        elif isinstance(loop, VariableFreqLoop):
+            pass
+        else:
+            raise NotImplementedError('Unknown loop type')
+
+        encoded_name = loop.get_name().encode('utf8')
+        if len(encoded_name) > 32:
+            raise ValueError("Name too long")
+
+        data += struct.pack('B', len(encoded_name))
+        data += encoded_name
+
+        return Response(cmd.GetInfo, cmd.GetInfo.Subfunction.GetLoopDefinition, Response.ResponseCode.OK, bytes(data))
 
     def respond_comm_discover(self, firmware_id: Union[bytes, List[int], bytearray], display_name: str) -> Response:
         if len(display_name) > 64:
@@ -784,8 +825,17 @@ class Protocol:
         return Response(cmd.DatalogControl, cmd.DatalogControl.Subfunction.GetStatus, Response.ResponseCode.OK, pack('B', status.value))
 
     def respond_datalogging_get_acquisition_metadata(self, acquisition_id: int, config_id: int, nb_points: int, datasize: int, points_after_trigger: int) -> Response:
-        return Response(cmd.DatalogControl, cmd.DatalogControl.Subfunction.GetStatus, Response.ResponseCode.OK,
+        return Response(cmd.DatalogControl, cmd.DatalogControl.Subfunction.GetAcquisitionMetadata, Response.ResponseCode.OK,
                         pack('>HHLLL', acquisition_id, config_id, nb_points, datasize, points_after_trigger))
+
+    def datalogging_read_acquisition_is_last_response(self, remaining_bytes: int, tx_buffer_size: int):
+        return remaining_bytes < tx_buffer_size - 8  # Header (4) + CRC (4)
+
+    def datalogging_read_acquisition_max_data_size(self, remaining_bytes: int, tx_buffer_size: int):
+        if self.datalogging_read_acquisition_is_last_response(remaining_bytes, tx_buffer_size):
+            return tx_buffer_size - 8
+        else:
+            return tx_buffer_size - 4
 
     def respond_datalogging_read_acquisition(self, finished: bool, rolling_counter: int, acquisition_id: int, data: bytes, crc: Optional[int] = None) -> Response:
         if not finished and crc is not None:
@@ -858,6 +908,43 @@ class Protocol:
                         for i in range(nbr_rpv):
                             vid, typeint, = unpack('>HB', response.payload[i * n + 0:i * n + n])
                             data['rpvs'].append(RuntimePublishedValue(id=vid, datatype=typeint))
+
+                    elif subfn == cmd.GetInfo.Subfunction.GetLoopCount:
+                        data = cast(protocol_typing.Response.GetInfo.GetLoopCount, data)
+                        data['loop_count'] = response.payload[0]
+
+                    elif subfn == cmd.GetInfo.Subfunction.GetLoopDefinition:
+                        data = cast(protocol_typing.Response.GetInfo.GetLoopDefinition, data)
+                        data['loop_id'] = response.payload[0]
+                        loop_type_id = response.payload[1]
+                        loop_type = ExecLoopType(loop_type_id)
+                        attribute_byte = response.payload[2]
+                        support_datalogging = True if attribute_byte & 0x80 else False
+
+                        cursor = 3
+                        if loop_type == ExecLoopType.FIXED_FREQ:
+                            timestep_100ns = unpack('>L', response.payload[cursor:cursor + 4])[0]
+                            cursor += 4
+                            freq = float(1e7) / (float(timestep_100ns))
+                        elif loop_type == ExecLoopType.VARIABLE_FREQ:
+                            pass
+                        else:
+                            raise NotImplementedError('Unknown loop type')
+
+                        namelength = response.payload[cursor]
+                        cursor += 1
+                        if namelength > 32:
+                            raise ValueError('Name length should be 32 bytes long or less')
+                        name = response.payload[cursor:cursor + namelength].decode('utf8')
+
+                        loop: ExecLoop
+                        if loop_type == ExecLoopType.FIXED_FREQ:
+                            loop = FixedFreqLoop(freq=freq, name=name, support_datalogging=support_datalogging)
+                        elif loop_type == ExecLoopType.VARIABLE_FREQ:
+                            loop = VariableFreqLoop(name, support_datalogging=support_datalogging)
+                        else:
+                            raise NotImplementedError('Unknown loop type')
+                        data['loop'] = loop
 
                 elif response.command == cmd.MemoryControl:
                     subfn = cmd.MemoryControl.Subfunction(response.subfn)
@@ -934,7 +1021,53 @@ class Protocol:
                 elif response.command == cmd.DatalogControl:
                     subfn = cmd.DatalogControl.Subfunction(response.subfn)
 
-                    pass
+                    if subfn == cmd.DatalogControl.Subfunction.GetSetup:
+                        data = cast(protocol_typing.Response.DatalogControl.GetSetup, data)
+                        if len(response.payload) != 5:
+                            raise ValueError('Not the right amount of data for a GetSetup response. Got %d expected %d', (len(response.payload), 5))
+
+                        data['buffer_size'] = struct.unpack('>L', response.payload[0:4])[0]
+                        encoding_code = response.payload[4]
+                        if encoding_code not in [v.value for v in datalogging.Encoding]:
+                            raise ValueError('Unknown encoding %d' % encoding_code)
+
+                        data['encoding'] = datalogging.Encoding(encoding_code)
+                    elif subfn == cmd.DatalogControl.Subfunction.GetStatus:
+                        data = cast(protocol_typing.Response.DatalogControl.GetStatus, data)
+                        if len(response.payload) != 1:
+                            raise ValueError('Not the right amount of data for a GetStatus response. Got %d expected %d', (len(response.payload), 1))
+
+                        status_code = response.payload[0]
+                        if status_code not in [v.value for v in datalogging.DataloggerStatus]:
+                            raise ValueError('Unknown datalogger status code %d' % status_code)
+
+                        data['status'] = datalogging.DataloggerStatus(status_code)
+                    elif subfn == cmd.DatalogControl.Subfunction.GetAcquisitionMetadata:
+                        data = cast(protocol_typing.Response.DatalogControl.GetAcquisitionMetadata, data)
+                        if len(response.payload) != 16:
+                            raise ValueError('Not the right amount of data for a GetAcquisitionMetadata response. Got %d expected %d',
+                                             (len(response.payload), 16))
+
+                        data['acquisition_id'] = struct.unpack('>H', response.payload[0:2])[0]
+                        data['config_id'] = struct.unpack('>H', response.payload[2:4])[0]
+                        data['nb_points'] = struct.unpack('>L', response.payload[4:8])[0]
+                        data['datasize'] = struct.unpack('>L', response.payload[8:12])[0]
+                        data['points_after_trigger'] = struct.unpack('>L', response.payload[12:16])[0]
+                    elif subfn == cmd.DatalogControl.Subfunction.ReadAcquisition:
+                        data = cast(protocol_typing.Response.DatalogControl.ReadAcquisition, data)
+                        if len(response.payload) < 8:
+                            raise ValueError('Not enough data for a GetAcquisitionMetadata response. Got %d expected at least %d',
+                                             (len(response.payload), 8))
+
+                        data['finished'] = response.payload[0] != 0
+                        data['rolling_counter'] = response.payload[1]
+                        data['acquisition_id'] = struct.unpack('>H', response.payload[2:4])[0]
+                        if not data['finished']:
+                            data['data'] = response.payload[4:]
+                            data['crc'] = None
+                        else:
+                            data['data'] = response.payload[4:-4]
+                            data['crc'] = struct.unpack('>L', response.payload[-4:])[0]
 
                 elif response.command == cmd.CommControl:
                     subfn = cmd.CommControl.Subfunction(response.subfn)

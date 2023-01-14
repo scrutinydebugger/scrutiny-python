@@ -12,6 +12,7 @@ import math
 from test import logger
 from test import ScrutinyUnitTest
 
+
 class TestThrottler(ScrutinyUnitTest):
 
     def test_throttler_measurement(self):
@@ -56,3 +57,8 @@ class TestThrottler(ScrutinyUnitTest):
                 buffer_peak = max(buffer_peak, buffer_estimation[-1])
 
         logger.info('Maximum buffer peak = %dbits' % (math.ceil(buffer_peak)))
+
+
+if __name__ == '__main__':
+    import unittest
+    unittest.main()

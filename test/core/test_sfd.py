@@ -103,3 +103,8 @@ class TestSFD(ScrutinyUnitTest):
         self.assertEqual(aliases_as_dict['/alias/some_enum'].get_offset(), 0.0)
         self.assertEqual(aliases_as_dict['/alias/some_enum'].get_min(), float('-inf'))
         self.assertEqual(aliases_as_dict['/alias/some_enum'].get_max(), float('inf'))
+
+
+if __name__ == '__main__':
+    import unittest
+    unittest.main()

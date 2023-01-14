@@ -91,3 +91,8 @@ class TestThreadSafeDummyLink(ScrutinyUnitTest, TestDummyLinkBaseClass):
     def __init__(self, *args, **kwargs):
         TestDummyLinkBaseClass.__init__(self, test_class=ThreadSafeDummyLink)
         ScrutinyUnitTest.__init__(self, *args, **kwargs)
+
+
+if __name__ == '__main__':
+    import unittest
+    unittest.main()

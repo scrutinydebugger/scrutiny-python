@@ -12,6 +12,7 @@ import scrutiny.server.protocol.commands as cmd
 from scrutiny.core.codecs import Encodable
 from scrutiny.core.basic_types import RuntimePublishedValue
 import scrutiny.server.datalogging.definitions as datalogging
+from scrutiny.server.device.device_info import ExecLoop
 
 
 class BlockAddressLength(TypedDict):
@@ -58,6 +59,9 @@ class Request:
             start: int
             count: int
 
+        class GetLoopDefinition(TypedDict):
+            loop_id: int
+
     class MemoryControl:
         class Read(TypedDict):
             blocks_to_read: List[BlockAddressLength]
@@ -99,6 +103,7 @@ RequestData = Union[
     Request.Empty,
     Request.GetInfo.GetSpecialMemoryRegionLocation,
     Request.GetInfo.GetRuntimePublishedValuesDefinition,
+    Request.GetInfo.GetLoopDefinition,
 
     Request.MemoryControl.Read,
     Request.MemoryControl.Write,
@@ -124,9 +129,11 @@ class Response:
             major: int
 
         class GetSupportedFeatures(TypedDict):
+            memory_read: bool
             memory_write: bool
-            datalog_acquire: bool
+            datalogging: bool
             user_command: bool
+            _64bits: bool
 
         class GetSoftwareId(TypedDict):
             software_id: bytes
@@ -147,6 +154,13 @@ class Response:
         class GetRuntimePublishedValuesDefinition(TypedDict):
             rpvs: List[RuntimePublishedValue]
 
+        class GetLoopCount(TypedDict):
+            loop_count: int
+
+        class GetLoopDefinition(TypedDict):
+            loop_id: int
+            loop: ExecLoop
+
     class MemoryControl:
         class Read(TypedDict):
             read_blocks: List[BlockAddressData]
@@ -161,7 +175,27 @@ class Response:
             written_rpv: List[RPVIdSizePair]
 
     class DatalogControl:
-        pass  # todo
+
+        class GetSetup(TypedDict):
+            buffer_size: int
+            encoding: datalogging.Encoding
+
+        class GetStatus(TypedDict):
+            status: datalogging.DataloggerStatus
+
+        class GetAcquisitionMetadata(TypedDict):
+            acquisition_id: int
+            config_id: int
+            nb_points: int
+            datasize: int
+            points_after_trigger: int
+
+        class ReadAcquisition(TypedDict):
+            finished: bool
+            rolling_counter: int
+            acquisition_id: int
+            data: bytes
+            crc: Optional[int]
 
     class CommControl:
         class Discover(TypedDict):
@@ -196,20 +230,18 @@ ResponseData = Union[
     Response.GetInfo.GetSpecialMemoryRegionLocation,
     Response.GetInfo.GetRuntimePublishedValuesCount,
     Response.GetInfo.GetRuntimePublishedValuesDefinition,
+    Response.GetInfo.GetLoopCount,
+    Response.GetInfo.GetLoopDefinition,
 
     Response.MemoryControl.Read,
     Response.MemoryControl.Write,
     Response.MemoryControl.ReadRPV,
     Response.MemoryControl.WriteRPV,
 
-    # Response.DatalogControl.GetAvailableTarget,
-    # Response.DatalogControl.GetBufferSize,
-    # Response.DatalogControl.GetLogStatus,
-    # Response.DatalogControl.ArmLog,
-    # Response.DatalogControl.ConfigureDatalog,
-    # Response.DatalogControl.ReadRecordings,
-    # Response.DatalogControl.ListRecordings,
-    # Response.DatalogControl.GetSamplingRates,
+    Response.DatalogControl.GetSetup,
+    Response.DatalogControl.GetStatus,
+    Response.DatalogControl.GetAcquisitionMetadata,
+    Response.DatalogControl.ReadAcquisition,
 
     Response.CommControl.Discover,
     Response.CommControl.Heartbeat,

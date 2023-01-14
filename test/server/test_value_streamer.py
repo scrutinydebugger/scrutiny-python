@@ -12,3 +12,8 @@ from test import ScrutinyUnitTest
 
 class TestValueStreamer(ScrutinyUnitTest):
     pass
+
+
+if __name__ == '__main__':
+    import unittest
+    unittest.main()

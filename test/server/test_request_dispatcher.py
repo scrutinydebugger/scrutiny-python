@@ -129,3 +129,8 @@ class TestRequestDispatcher(ScrutinyUnitTest):
 
         self.assertEqual(dispatcher.pop_next().request, req1)
         self.assertIsNone(dispatcher.pop_next())
+
+
+if __name__ == '__main__':
+    import unittest
+    unittest.main()

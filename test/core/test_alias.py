@@ -126,3 +126,8 @@ class TestAlias(ScrutinyUnitTest):
         self.assertEqual(alias.compute_user_to_device(-100), -55)
         self.assertEqual(alias.compute_device_to_user(10), 30.0)
         self.assertEqual(alias.compute_device_to_user(200), 410)
+
+
+if __name__ == '__main__':
+    import unittest
+    unittest.main()

@@ -416,3 +416,8 @@ class TestReadWrite(ScrutinyIntegrationTest):
 
     def tearDown(self) -> None:
         super().tearDown()
+
+
+if __name__ == '__main__':
+    import unittest
+    unittest.main()

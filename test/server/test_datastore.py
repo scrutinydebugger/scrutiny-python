@@ -394,3 +394,8 @@ class TestDataStore(ScrutinyUnitTest):
         self.assertTargetUpdateCallbackCalled(rpv_entries[1], n=0)
         self.assertTargetUpdateCallbackCalled(alias_rpv_1, n=1)
         self.assertTargetUpdateCallbackCalled(alias_rpv_1_2, n=1)
+
+
+if __name__ == '__main__':
+    import unittest
+    unittest.main()

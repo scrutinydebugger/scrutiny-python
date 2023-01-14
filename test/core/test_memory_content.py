@@ -409,3 +409,8 @@ class TestMemoryContent(ScrutinyUnitTest):
 
             memcontent = MemoryContent(filename=filename)
             self.assert_clusters(memcontent.get_cluster_list_no_data_by_address(), [(0x00100000, 31), (0x00200000, 10)])
+
+
+if __name__ == '__main__':
+    import unittest
+    unittest.main()

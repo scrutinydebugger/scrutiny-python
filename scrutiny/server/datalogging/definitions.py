@@ -11,7 +11,7 @@ from scrutiny.core.variable import Variable
 from scrutiny.core.basic_types import RuntimePublishedValue, EmbeddedDataType
 
 
-from typing import Union, List
+from typing import Union, List, Tuple
 from abc import ABC, abstractmethod
 
 
@@ -19,7 +19,7 @@ class Encoding(Enum):
     RAW = 0
 
 
-class DataloggerStatus:
+class DataloggerStatus(Enum):
     IDLE = 0
     CONFIGURED = 1
     ARMED = 2
@@ -127,7 +127,7 @@ class LoggableSignal:
     signal_type: LoggableSignalType
 
     @abstractmethod
-    def get_type(self) -> OperandType:
+    def get_type(self) -> LoggableSignalType:
         raise NotImplementedError("Not implemented")
 
 
@@ -145,7 +145,7 @@ class MemoryLoggableSignal(LoggableSignal):
         self.address = address
         self.size = size
 
-    def get_type(self) -> OperandType:
+    def get_type(self) -> LoggableSignalType:
         return LoggableSignalType.MEMORY
 
 
@@ -157,7 +157,7 @@ class RPVLoggableSignal(LoggableSignal):
             raise ValueError("Given rpv_id must be an int")
         self.rpv_id = rpv_id
 
-    def get_type(self) -> OperandType:
+    def get_type(self) -> LoggableSignalType:
         return LoggableSignalType.RPV
 
 
@@ -165,7 +165,7 @@ class TimeLoggableSignal(LoggableSignal):
     def __init__(self):
         pass
 
-    def get_type(self) -> OperandType:
+    def get_type(self) -> LoggableSignalType:
         return LoggableSignalType.TIME
 
 # endregion
@@ -189,7 +189,7 @@ class TriggerCondition:
     operands: List[Operand]
     condition_id: TriggerConditionID
 
-    def __init__(self, condition_id: TriggerConditionID, *args: List[Operand]):
+    def __init__(self, condition_id: TriggerConditionID, *args: Operand):
         self.operands = []
         self.condition_id = condition_id
 
@@ -222,7 +222,7 @@ class TriggerCondition:
         return self.operands
 
     def get_id(self) -> TriggerConditionID:
-        raise self.condition_id
+        return self.condition_id
 
 
 class Configuration:
@@ -249,7 +249,7 @@ class Configuration:
 
         self._loggable_signals.append(signal)
 
-    def get_signals(self):
+    def get_signals(self) -> List[LoggableSignal]:
         return self._loggable_signals
 
     @property
@@ -257,7 +257,7 @@ class Configuration:
         return self._decimation
 
     @decimation.setter
-    def decimation(self, v) -> int:
+    def decimation(self, v) -> None:
         v = int(v)
         if v <= 0:
             raise ValueError('Decimation must be a value greater than 0')

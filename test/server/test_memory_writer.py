@@ -470,3 +470,8 @@ class TestMemoryWriterBasicReadOperation(ScrutinyUnitTest):
             self.assertIsNotNone(update_time, 'i=%d' % i)
             self.assertGreaterEqual(update_time, time_start, 'i=%d' % i)
             self.assertEqual(all_entries[i].get_value(), value_dict[all_entries[i].get_id()])
+
+
+if __name__ == '__main__':
+    import unittest
+    unittest.main()

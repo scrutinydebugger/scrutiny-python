@@ -125,3 +125,8 @@ class TestDummyConnectionHandler(ScrutinyUnitTest):
 
     def tearDown(self):
         self.handler.stop()
+
+
+if __name__ == '__main__':
+    import unittest
+    unittest.main()

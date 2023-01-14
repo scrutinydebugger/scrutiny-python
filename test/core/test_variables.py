@@ -250,3 +250,7 @@ class TestVariables(ScrutinyUnitTest):
                      endianness=Endianness.Little, bitoffset=combination[1], bitsize=combination[2])
             Variable('a', vartype=combination[0], path_segments=[], location=0,
                      endianness=Endianness.Big, bitoffset=combination[1], bitsize=combination[2])
+
+if __name__ == '__main__':
+    import unittest
+    unittest.main()

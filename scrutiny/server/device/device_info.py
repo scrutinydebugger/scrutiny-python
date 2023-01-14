@@ -8,12 +8,62 @@
 
 from typing import TypedDict, List, Optional
 from scrutiny.core.basic_types import *
+from enum import Enum
+from dataclasses import dataclass
+from abc import abstractmethod
 
 
 class MemoryRegion(TypedDict):
     """Describe a region in memory with a start and end address"""
     start: int
     end: int
+
+
+class ExecLoopType(Enum):
+    FIXED_FREQ = 0
+    VARIABLE_FREQ = 1
+
+
+class ExecLoop:
+    name: str
+    support_datalogging: bool
+
+    def __init__(self, name: str, support_datalogging: bool = True):
+        self.name = name
+        self.support_datalogging = support_datalogging
+
+    def set_name(self, name: str) -> None:
+        self.name = name
+
+    def get_name(self) -> str:
+        return self.name
+
+    @abstractmethod
+    def get_loop_type(self) -> ExecLoopType:
+        raise NotImplementedError('Abstract method')
+
+
+class FixedFreqLoop(ExecLoop):
+    freq: float
+
+    def __init__(self, freq: float, name: str, support_datalogging: bool = True):
+        super().__init__(name, support_datalogging)
+        self.freq = freq
+
+    def get_loop_type(self) -> ExecLoopType:
+        return ExecLoopType.FIXED_FREQ
+
+    def get_timestep_100ns(self) -> int:
+        return round(1e7 / self.freq)
+
+
+class VariableFreqLoop(ExecLoop):
+
+    def __init__(self, name: str, support_datalogging: bool = True):
+        super().__init__(name, support_datalogging)
+
+    def get_loop_type(self) -> ExecLoopType:
+        return ExecLoopType.VARIABLE_FREQ
 
 
 class SupportedFeatureMap(TypedDict):

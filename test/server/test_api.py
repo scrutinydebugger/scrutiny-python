@@ -1035,3 +1035,8 @@ class TestAPI(ScrutinyUnitTest):
                         self.assertTrue(entry.refentry.has_pending_target_update())
                         entry.refentry.pop_target_update_request()
                         self.assertFalse(entry.refentry.has_pending_target_update())
+
+
+if __name__ == '__main__':
+    import unittest
+    unittest.main()

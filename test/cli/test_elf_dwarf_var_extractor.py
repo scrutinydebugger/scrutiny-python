@@ -45,3 +45,8 @@ class TestElf2VarMap(ScrutinyUnitTest):
             name = objmap[obj]
             self.assertNotIn(name, name_set, 'Duplicate name %s' % name)
             name_set.add(name)
+
+
+if __name__ == '__main__':
+    import unittest
+    unittest.main()

@@ -92,3 +92,8 @@ class TestActiveSFDHandler(ScrutinyUnitTest):
         self.sfd_handler.process()
         self.assertGreater(self.datastore.get_entries_count(EntryType.Var), 0)
         self.assertEqual(self.datastore.get_entries_count(EntryType.Var), len(all_vars))
+
+
+if __name__ == '__main__':
+    import unittest
+    unittest.main()

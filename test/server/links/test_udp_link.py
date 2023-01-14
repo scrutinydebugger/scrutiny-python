@@ -80,3 +80,8 @@ class TestUdpLink(ScrutinyUnitTest):
         self.assertFalse(link.operational())
 
         link.destroy()
+
+
+if __name__ == '__main__':
+    import unittest
+    unittest.main()

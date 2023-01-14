@@ -566,3 +566,8 @@ class TestDeviceHandlerMultipleLink(ScrutinyUnitTest):
         # self.assertTrue(self.emulated_device1.is_connected())
         self.assertTrue(self.emulated_device2.is_connected())
         self.assertEqual(self.device_handler.get_comm_error_count(), 0)
+
+
+if __name__ == '__main__':
+    import unittest
+    unittest.main()

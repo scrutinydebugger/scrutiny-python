@@ -819,3 +819,8 @@ class TestMemoryAndRPVReader(ScrutinyUnitTest):
                     print("RPV: 0x%04x - %d" % (self.datastore.get_entry(entry_id).get_rpv().id, n))
 
             self.assert_round_robin()
+
+
+if __name__ == '__main__':
+    import unittest
+    unittest.main()
