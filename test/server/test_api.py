@@ -23,6 +23,7 @@ from scrutiny.server.device.device_handler import DeviceHandler
 from scrutiny.server.device.device_info import DeviceInfo, FixedFreqLoop, VariableFreqLoop
 from scrutiny.server.active_sfd_handler import ActiveSFDHandler
 from scrutiny.server.device.links.dummy_link import DummyLink
+from scrutiny.server.datalogging.datalogging_manager import DataloggingManager
 from scrutiny.core.variable import *
 from scrutiny.core.alias import Alias
 from test.artifacts import get_artifact
@@ -114,8 +115,15 @@ class TestAPI(ScrutinyUnitTest):
 
         self.datastore = Datastore()
         self.device_handler = StubbedDeviceHandler('0' * 64, DeviceHandler.ConnectionStatus.DISCONNECTED)
+        self.datalogging_manager = DataloggingManager(self.datastore, self.device_handler)
         self.sfd_handler = ActiveSFDHandler(device_handler=self.device_handler, datastore=self.datastore, autoload=False)
-        self.api = API(config, self.datastore, device_handler=self.device_handler, sfd_handler=self.sfd_handler)
+        self.api = API(
+            config=config,
+            datastore=self.datastore,
+            device_handler=self.device_handler,
+            sfd_handler=self.sfd_handler,
+            datalogging_manager=self.datalogging_manager
+        )
         client_handler = self.api.get_client_handler()
         assert isinstance(client_handler, DummyClientHandler)
         client_handler.set_connections(self.connections)

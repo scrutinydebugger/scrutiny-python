@@ -56,6 +56,9 @@ class FixedFreqLoop(ExecLoop):
     def get_timestep_100ns(self) -> int:
         return round(1e7 / self.freq)
 
+    def get_frequency(self) -> float:
+        return self.freq
+
 
 class VariableFreqLoop(ExecLoop):
 

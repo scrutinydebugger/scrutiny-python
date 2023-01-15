@@ -19,6 +19,7 @@ from scrutiny.server.api import API, APIConfig
 from scrutiny.server.datastore.datastore import Datastore
 from scrutiny.server.device.device_handler import DeviceHandler, DeviceHandlerConfig
 from scrutiny.server.active_sfd_handler import ActiveSFDHandler
+from scrutiny.server.datalogging.datalogging_manager import DataloggingManager
 
 from typing import TypedDict, Optional, Union
 
@@ -62,6 +63,7 @@ class ScrutinyServer:
     api: API
     device_handler: DeviceHandler
     sfd_handler: ActiveSFDHandler
+    datalogging_manager: DataloggingManager
 
     def __init__(self, input_config: Optional[Union[str, ServerConfig]] = None):
         self.logger = logging.getLogger(self.__class__.__name__)
@@ -84,9 +86,15 @@ class ScrutinyServer:
 
         self.datastore = Datastore()
         self.device_handler = DeviceHandler(self.config['device_config'], self.datastore)
+        self.datalogging_manager = DataloggingManager(self.datastore, self.device_handler)
         self.sfd_handler = ActiveSFDHandler(device_handler=self.device_handler, datastore=self.datastore, autoload=self.config['autoload_sfd'])
-        self.api = API(self.config['api_config'], datastore=self.datastore, device_handler=self.device_handler,
-                       sfd_handler=self.sfd_handler, enable_debug=self.config['debug'])
+        self.api = API(
+            self.config['api_config'],
+            datastore=self.datastore,
+            device_handler=self.device_handler,
+            sfd_handler=self.sfd_handler,
+            datalogging_manager=self.datalogging_manager,
+            enable_debug=self.config['debug'])
 
     def validate_config(self) -> None:
         if self.config['debug']:
@@ -102,6 +110,7 @@ class ScrutinyServer:
 
     def process(self) -> None:
         self.api.process()
+        self.datalogging_manager.process()
         self.device_handler.process()
         self.sfd_handler.process()
 

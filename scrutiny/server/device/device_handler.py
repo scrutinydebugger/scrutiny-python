@@ -28,6 +28,7 @@ from scrutiny.server.device.request_generator.info_poller import InfoPoller, Pro
 from scrutiny.server.device.request_generator.session_initializer import SessionInitializer
 from scrutiny.server.device.request_generator.memory_reader import MemoryReader
 from scrutiny.server.device.request_generator.memory_writer import MemoryWriter
+from scrutiny.server.device.request_generator.datalogging_poller import DataloggingPoller
 from scrutiny.server.device.device_info import DeviceInfo
 
 from scrutiny.server.tools import Timer
@@ -95,6 +96,7 @@ class DeviceHandler:
 
     logger: logging.Logger
     config: DeviceHandlerConfig             # The configuration coming from the user
+    datastore: Datastore    # A reference to the main Datastore
     dispatcher: RequestDispatcher           # The arbiter that receive all request to be sent and decides which one to send (uses a priority queue)
     device_searcher: DeviceSearcher         # Componenent of the DeviceHandler that search for a new device on the communication link
     session_initializer: SessionInitializer  # Componenent of the DeviceHandler that try to establish a connection to a found device
@@ -102,9 +104,9 @@ class DeviceHandler:
     memory_reader: MemoryReader     # Componenent of the DeviceHandler that polls the device memory to keep the datastore watched entries in sync with the deviec
     memory_writer: MemoryWriter     # Componenent of the DeviceHandler that fulfill writes requests on datastore entries
     info_poller: InfoPoller         # Componenent of the DeviceHandler that will gather all device parameters after a connection is established
+    datalogging_poller: DataloggingPoller  # Componenent of the DeviceHandler that will interact with the device datalogging feature
     comm_handler: CommHandler       # Layer that handle the communication with the device. Converts Requests to bytes and bytes to response. Also tells if a request timed out
     protocol: Protocol      # The communication protocol. Encode and decodes request/response payload to meaning ful data
-    datastore: Datastore    # A reference to the main Datastore
     device_info: Optional[DeviceInfo]   # All the information about the devicegathered by the InfoPoller
     comm_broken: bool   # Flag indicating that we lost connection with the device. Resets the communication and the state machine.
     device_id: Optional[str]    # Firmware ID of the device on which we are connected.
@@ -134,11 +136,12 @@ class DeviceHandler:
     class RequestPriority:
         """Priority assigned to each type of requests. It will be used by the RequestDispatcher
         internal priority queue"""
-        Disconnect = 6
-        Connect = 5
-        Heatbeat = 4
-        WriteMemory = 3
-        WriteRPV = 3
+        Disconnect = 7
+        Connect = 6
+        Heatbeat = 5
+        WriteMemory = 4
+        WriteRPV = 4
+        Datalogging = 3
         ReadMemory = 2
         ReadRPV = 2
         PollInfo = 1
@@ -184,6 +187,11 @@ class DeviceHandler:
             priority=self.RequestPriority.PollInfo,
             protocol_version_callback=ProtocolVersionCallback(self.get_protocol_version_callback),  # Called when protocol version is polled
             comm_param_callback=CommParamCallback(self.get_comm_params_callback),            # Called when communication params are polled
+        )
+        self.datalogging_poller = DataloggingPoller(
+            self.protocol,
+            self.dispatcher,
+            self.RequestPriority.Datalogging
         )
 
         self.memory_reader = MemoryReader(self.protocol, self.dispatcher, self.datastore,
@@ -348,6 +356,7 @@ class DeviceHandler:
         self.device_searcher.stop()
         self.heartbeat_generator.stop()
         self.info_poller.stop()
+        self.datalogging_poller.stop()
         self.session_initializer.stop()
         self.dispatcher.reset()
         self.memory_reader.stop()
@@ -405,6 +414,7 @@ class DeviceHandler:
         self.device_searcher.process()
         self.heartbeat_generator.process()
         self.info_poller.process()
+        self.datalogging_poller.process()
         self.session_initializer.process()
         self.memory_reader.process()
         self.memory_writer.process()
@@ -425,6 +435,7 @@ class DeviceHandler:
         """Task to execute when the state machine is in Ready state (connected to a device and successful initialization phase)"""
         if self.operating_mode == self.OperatingMode.Normal:
             if state_entry:
+                self.datalogging_poller.start()  # Will refuse if disabled
                 self.memory_reader.start()
                 self.memory_writer.start()
             # Nothing else to do
@@ -519,7 +530,7 @@ class DeviceHandler:
                 assert self.device_id is not None
                 assert self.device_display_name is not None
                 # Set known info after start, otherwise it will be deleted and data will be missing.
-                self.info_poller.set_known_info(device_id=self.device_id, device_display_name=self.device_display_name)  # To write the device_info
+                self.info_poller.set_known_info(device_id=self.device_id, device_display_name=self.device_display_name)  # To write to the device_info
 
             if self.info_poller.is_in_error():
                 self.logger.info('Impossible to poll data from the device. Restarting communication')
@@ -535,7 +546,13 @@ class DeviceHandler:
                     next_state = self.FsmState.INIT
                 else:
                     assert self.device_info.runtime_published_values is not None
+                    assert self.device_info.supported_feature_map is not None
                     self.protocol.configure_rpvs(self.device_info.runtime_published_values)
+                    if self.device_info.supported_feature_map['datalogging']:
+                        self.datalogging_poller.enable()
+                        #  TODO enforce memory_read memory_write feature map
+                    else:
+                        self.datalogging_poller.disable()
                     next_state = self.FsmState.READY
 
         # ========= [READY] ==========
@@ -557,6 +574,7 @@ class DeviceHandler:
                 self.fully_connected_ready = False
                 self.memory_reader.stop()
                 self.memory_writer.stop()
+                self.datalogging_poller.stop()
                 next_state = self.FsmState.DISCONNECTING
 
             if self.dispatcher.is_in_error():

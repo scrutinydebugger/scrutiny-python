@@ -200,6 +200,7 @@ class DataloggerEmulator:
         self.device = device
         self.buffer_size = buffer_size
         self.encoding = encoding
+        self.acquisition_id = 0
         self.reset()
 
     def reset(self) -> None:
@@ -221,7 +222,6 @@ class DataloggerEmulator:
         self.target_byte_count_after_trigger = 0
         self.byte_count_at_trigger = 0
         self.entry_counter_at_trigger = 0
-        self.acquisition_id = 0
 
     def configure(self, config_id: int, config: datalogging.Configuration) -> None:
         self.reset()
@@ -369,7 +369,7 @@ class DataloggerEmulator:
                 timed_out = (time.time() - self.trigger_fulfilled_timestamp) >= self.config.timeout
                 if probe_location_ok or timed_out:
                     self.state = datalogging.DataloggerStatus.ACQUISITION_COMPLETED
-                    self.acquisition_id += 1
+                    self.acquisition_id = (self.acquisition_id + 1) & 0xFFFF
 
         else:
             pass

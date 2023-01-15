@@ -11,9 +11,9 @@ import logging
 import traceback
 import math
 
+from scrutiny.server.datalogging.datalogging_manager import DataloggingManager
 from scrutiny.server.datastore.datastore import Datastore
-from scrutiny.server.datastore.datastore_entry import EntryType
-from scrutiny.server.datastore.datastore_entry import DatastoreEntry, UpdateTargetRequestCallback, UpdateTargetRequest
+from scrutiny.server.datastore.datastore_entry import EntryType, DatastoreEntry, UpdateTargetRequestCallback
 from scrutiny.server.device.device_handler import DeviceHandler
 from scrutiny.server.active_sfd_handler import ActiveSFDHandler, SFDLoadedCallback, SFDUnloadedCallback
 from scrutiny.server.device.links import LinkConfig
@@ -139,6 +139,7 @@ class API:
     req_count: int
     client_handler: AbstractClientHandler
     sfd_handler: ActiveSFDHandler
+    datalogging_manager: DataloggingManager
 
     # The method to call for each command
     ApiRequestCallbacks: Dict[str, str] = {
@@ -157,7 +158,13 @@ class API:
 
     }
 
-    def __init__(self, config: APIConfig, datastore: Datastore, device_handler: DeviceHandler, sfd_handler: ActiveSFDHandler, enable_debug: bool = False):
+    def __init__(self,
+                 config: APIConfig,
+                 datastore: Datastore,
+                 device_handler: DeviceHandler,
+                 sfd_handler: ActiveSFDHandler,
+                 datalogging_manager: DataloggingManager,
+                 enable_debug: bool = False):
         self.validate_config(config)
 
         if config['client_interface_type'] == 'websocket':
@@ -170,6 +177,7 @@ class API:
         self.datastore = datastore
         self.device_handler = device_handler
         self.sfd_handler = sfd_handler
+        self.datalogging_manager = datalogging_manager
         self.logger = logging.getLogger('scrutiny.' + self.__class__.__name__)
         self.connections = set()            # Keep a list of all clients connections
         self.streamer = ValueStreamer()     # The value streamer takes cares of publishing values to the client without polling.
