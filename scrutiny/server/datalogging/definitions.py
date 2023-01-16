@@ -1,10 +1,10 @@
-#    datalog.py
-#        Defines a datalogging configuration that can be read or write from the device.
+#    definitions.py
+#        Some definitions used across the project for the datalogging feature
 #
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
 #
-#   Copyright (c) 2021-2022 Scrutiny Debugger
+#   Copyright (c) 2021-2023 Scrutiny Debugger
 
 from enum import Enum
 from scrutiny.core.variable import Variable

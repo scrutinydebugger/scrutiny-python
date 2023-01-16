@@ -4,7 +4,7 @@
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
 #
-#   Copyright (c) 2021-2022 Scrutiny Debugger
+#   Copyright (c) 2021-2023 Scrutiny Debugger
 
 import functools
 import uuid
@@ -316,7 +316,7 @@ class DatastoreVariableEntry(DatastoreEntry):
 
 class DatastoreAliasEntry(DatastoreEntry):
     """
-    Represnet a datastore entry of type Alias.
+    Represent a datastore entry of type Alias.
     It will points to another datastore entry of type != Alias and
     route write/read request to them. 
 
@@ -399,7 +399,7 @@ class DatastoreAliasEntry(DatastoreEntry):
 
 
 class DatastoreRPVEntry(DatastoreEntry):
-    """A datstore entry that represents a Runtime Published Value"""
+    """A datastore entry that represents a Runtime Published Value"""
 
     rpv: RuntimePublishedValue
     codec: BaseCodec

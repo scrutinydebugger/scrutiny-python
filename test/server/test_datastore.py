@@ -1,10 +1,10 @@
 #    test_datastore.py
-#        Test the Datastore behaviour
+#        Test the Datastore behavior
 #
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
 #
-#   Copyright (c) 2021-2022 Scrutiny Debugger
+#   Copyright (c) 2021-2023 Scrutiny Debugger
 
 from scrutiny.server.datastore.datastore import Datastore
 from scrutiny.server.datastore.entry_type import EntryType

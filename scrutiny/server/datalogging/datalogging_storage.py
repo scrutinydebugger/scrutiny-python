@@ -1,3 +1,12 @@
+#    datalogging_storage.py
+#        A storage interface to save and fetch datalogging acquisition from the disk to keep
+#        an history of them
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021-2023 Scrutiny Debugger
+
 import os
 import appdirs  # type: ignore
 import tempfile
@@ -162,7 +171,7 @@ class DataloggingStorageManager:
 
             acquisition_db_id = cursor.lastrowid
 
-            for serie_id in series2id_map.values():
+            for series_id in series2id_map.values():
                 cursor.execute(
                     """
                     INSERT INTO `acquisitions__dataseries` 
@@ -171,7 +180,7 @@ class DataloggingStorageManager:
                     """,
                     (
                         acquisition_db_id,
-                        serie_id
+                        series_id
                     )
                 )
 

@@ -1,3 +1,11 @@
+#    datalogging_manager.py
+#        The main server components that manages the datalogging feature at high level
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021-2023 Scrutiny Debugger
+
 import queue
 from enum import Enum
 from uuid import uuid4
@@ -12,6 +20,7 @@ from scrutiny.server.device.device_info import ExecLoopType, FixedFreqLoop
 from scrutiny.server.datalogging.acquisition import deinterleave_acquisition_data
 from scrutiny.server.datalogging.acquisition import DataloggingAcquisition
 from scrutiny.core.basic_types import *
+from scrutiny.server.datalogging.datalogging_storage import DataloggingStorage
 
 from typing import Optional, List, Dict
 
@@ -122,7 +131,7 @@ class DataloggingManager:
             encoding=self.datalogging_setup.encoding
         )
 
-    def get_available_smapling_freq(self) -> Optional[List[DataloggingSamplingRate]]:
+    def get_available_sampling_freq(self) -> Optional[List[DataloggingSamplingRate]]:
         output: List[DataloggingSamplingRate] = []
 
         if self.device_status == DeviceHandler.ConnectionStatus.CONNECTED_READY:

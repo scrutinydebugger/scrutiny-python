@@ -1,11 +1,11 @@
 #    websocket_client_handler.py
 #        Manage the API websocket connections .
-#        This class has a list of all clients and identifiy them by a unique ID
+#        This class has a list of all clients and identify them by a unique ID
 #
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
 #
-#   Copyright (c) 2021-2022 Scrutiny Debugger
+#   Copyright (c) 2021-2023 Scrutiny Debugger
 
 import uuid
 import logging

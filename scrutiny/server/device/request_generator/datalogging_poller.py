@@ -1,3 +1,12 @@
+#    datalogging_poller.py
+#        Component of the Device Handler that handles the datalogging feature within the device.
+#        Poll for status, new data and configure the device
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021-2023 Scrutiny Debugger
+
 import time
 import logging
 import traceback

@@ -1,10 +1,10 @@
 #    dummy_client_handler.py
-#        Stubbed API connector to make API requests in unittests without relying on websockets
+#        Stubbed API connector to make API requests in unit tests without relying on websockets
 #
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
 #
-#   Copyright (c) 2021-2022 Scrutiny Debugger
+#   Copyright (c) 2021-2023 Scrutiny Debugger
 
 import queue
 import time

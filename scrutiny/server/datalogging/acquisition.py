@@ -1,3 +1,11 @@
+#    acquisition.py
+#        Definitions and helper function to manipulate a datalogging acquisition
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021-2023 Scrutiny Debugger
+
 import time
 from uuid import uuid4
 import zlib
@@ -9,6 +17,7 @@ import struct
 
 
 class DataSeries:
+    """A data series is a series of measurement represented by a series of 64bit floating point value """
     name: str
     logged_element: str
     data: List[float]
@@ -37,12 +46,22 @@ class DataSeries:
 
 
 class DataloggingAcquisition:
+    """Represent an acquisition of multiple signals"""
 
     reference_id: str
+    """ID used to reference the acquisition in the storage"""
+
     firmware_id: str
+    """Firmware ID of the device on which the acquisition has been taken"""
+
     timestamp: float
+    """Timestamp at which the acquisition has been taken"""
+
     xaxis: Optional[DataSeries]
+    """The series of data that represent to X-Axis"""
+
     data: List[DataSeries]
+    """List of data series acquired"""
 
     def __init__(self, firmware_id: str, reference_id: Optional[str] = None, timestamp: Optional[float] = None):
         self.reference_id = reference_id if reference_id is not None else self.make_unique_id()
@@ -67,7 +86,7 @@ class DataloggingAcquisition:
 
 def deinterleave_acquisition_data(data: bytes, config: definitions.Configuration, rpv_map: Dict[int, RuntimePublishedValue], encoding: definitions.Encoding) -> List[List[bytes]]:
     """
-    Takes data writtent in the format [s1[n], s2[n], s3[n], s1[n+1], s2[n+1], s3[n+1], s1[n+2] ...]
+    Takes data written in the format [s1[n], s2[n], s3[n], s1[n+1], s2[n+1], s3[n+1], s1[n+2] ...]
     and put it in the format [s1[n], s1[n+1], s1[n+2]],  [s2[n], s2[n+1], s2[n+2]], [s3[n], s3[n+1], s3[n+2]]
     """
     data_out: List[List[bytes]] = []

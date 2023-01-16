@@ -1,5 +1,11 @@
+#    test_datalogging_storage.py
+#        Test the datalogging storage
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021-2023 Scrutiny Debugger
 
-import time
 from uuid import uuid4
 import random
 from test import ScrutinyUnitTest
