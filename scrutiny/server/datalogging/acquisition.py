@@ -1,6 +1,68 @@
+import time
+from uuid import uuid4
+import zlib
+
 from scrutiny.server.datalogging import definitions
 from scrutiny.core.basic_types import *
-from typing import List, Dict
+from typing import List, Dict, Optional
+import struct
+
+
+class DataSeries:
+    name: str
+    logged_element: str
+    data: List[float]
+
+    def __init__(self, name: str = "unnamed", logged_element: str = ""):
+        self.name = name
+        self.logged_element = logged_element
+        self.data = []
+
+    def set_data(self, data: List[float]) -> None:
+        self.data = data
+
+    def set_data_binary(self, data: bytes) -> None:
+        data = zlib.decompress(data)
+        if len(data) % 8 != 0:
+            raise ValueError('Invalid byte stream')
+        nfloat = len(data) // 8
+        self.data = list(struct.unpack('>' + 'd' * nfloat, data))
+
+    def get_data(self) -> List[float]:
+        return self.data
+
+    def get_data_binary(self) -> bytes:
+        data = struct.pack('>' + 'd' * len(self.data), *self.data)
+        return zlib.compress(data)
+
+
+class DataloggingAcquisition:
+
+    reference_id: str
+    firmware_id: str
+    timestamp: float
+    xaxis: Optional[DataSeries]
+    data: List[DataSeries]
+
+    def __init__(self, firmware_id: str, reference_id: Optional[str] = None, timestamp: Optional[float] = None):
+        self.reference_id = reference_id if reference_id is not None else self.make_unique_id()
+        self.firmware_id = firmware_id
+        self.timestamp = time.time() if timestamp is None else timestamp
+        self.xaxis = None
+        self.data = []
+
+    @classmethod
+    def make_unique_id(self) -> str:
+        return uuid4().hex.replace('-', '')
+
+    def set_xaxis(self, xaxis: DataSeries) -> None:
+        self.xaxis = xaxis
+
+    def add_data(self, dataserie: DataSeries) -> None:
+        self.data.append(dataserie)
+
+    def get_data(self) -> List[DataSeries]:
+        return self.data
 
 
 def deinterleave_acquisition_data(data: bytes, config: definitions.Configuration, rpv_map: Dict[int, RuntimePublishedValue], encoding: definitions.Encoding) -> List[List[bytes]]:
@@ -27,7 +89,7 @@ def deinterleave_acquisition_data(data: bytes, config: definitions.Configuration
                     rpv = rpv_map[signaldef.rpv_id]
                     datasize = rpv.datatype.get_size_byte()
                 elif isinstance(signaldef, definitions.TimeLoggableSignal):
-                    datasize = 4
+                    datasize = 4    # Time is always uint32
                 else:
                     raise NotImplementedError("Unsupported signal type")
                 if len(data) < cursor + datasize:

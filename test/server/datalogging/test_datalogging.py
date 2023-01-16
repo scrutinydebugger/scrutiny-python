@@ -41,6 +41,7 @@ class TestDatalogging(ScrutinyUnitTest):
         config.add_signal(datalogging.TimeLoggableSignal())
         config.add_signal(datalogging.RPVLoggableSignal(0xabcd))
 
+    
 
 if __name__ == '__main__':
     import unittest

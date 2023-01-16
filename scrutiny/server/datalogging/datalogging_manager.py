@@ -10,6 +10,7 @@ from scrutiny.server.datastore.datastore_entry import DatastoreEntry
 from scrutiny.server.datastore.datastore import Datastore
 from scrutiny.server.device.device_info import ExecLoopType, FixedFreqLoop
 from scrutiny.server.datalogging.acquisition import deinterleave_acquisition_data
+from scrutiny.server.datalogging.acquisition import DataloggingAcquisition
 from scrutiny.core.basic_types import *
 
 from typing import Optional, List, Dict
@@ -35,18 +36,6 @@ class AcquisitionRequest:
     x_axis: XAxisType
     x_axis_watchable: Optional[DatastoreEntry]
     entries: List[DatastoreEntry]
-
-
-class DataSeries:
-    name: str
-    data: List[float]
-
-
-class DataloggingAcquisition:
-    unique_id: str
-    timestamp: float
-    x_axis: DataSeries
-    data: List[DataSeries]
 
 
 class DataloggingDeviceSetup:
