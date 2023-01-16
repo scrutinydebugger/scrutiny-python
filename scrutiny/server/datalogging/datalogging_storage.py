@@ -198,7 +198,7 @@ class DataloggingStorageManager:
                 sql = "SELECT COUNT(1) AS n FROM `acquisitions` WHERE `firmware_id`=?"
                 cursor.execute(sql, (firmware_id,))
                 nout = cursor.fetchone()[0]
-            conn.close()
+
         return nout
 
     def list(self, firmware_id: Optional[str] = None) -> List[str]:
@@ -213,7 +213,6 @@ class DataloggingStorageManager:
                 sql = "SELECT `reference_id` FROM `acquisitions` WHERE `firmware_id`=?"
                 cursor.execute(sql, (firmware_id,))
                 listout = [row[0] for row in cursor.fetchall()]
-            conn.close()
 
         return listout
 
@@ -258,15 +257,22 @@ class DataloggingStorageManager:
         )
 
         for row in rows:
-            data = DataSeries(name=row[colmap['dataseries_name']], logged_element=row[colmap['logged_element']])
-            data.set_data_binary(row[colmap['data']])
+            name = row[colmap['dataseries_name']]
+            logged_element = row[colmap['logged_element']]
+            data = row[colmap['data']]
+
+            if name is None or logged_element is None or data is None:
+                raise LookupError('Incomplete data in database')
+
+            dataseries = DataSeries(name=name, logged_element=logged_element)
+            dataseries.set_data_binary(data)
             if row[colmap['x_axis']]:
-                acq.set_xaxis(data)
+                acq.set_xaxis(dataseries)
             else:
-                acq.add_data(data)
+                acq.add_data(dataseries)
 
         if acq.xaxis is None:
-            raise ValueError("No X-Axis in acquisition")
+            raise LookupError("No X-Axis in acquisition")
 
         return acq
 

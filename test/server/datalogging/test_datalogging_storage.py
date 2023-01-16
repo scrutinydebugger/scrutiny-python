@@ -84,17 +84,17 @@ class TestDataloggingStorage(ScrutinyUnitTest):
             self.assertEqual(DataloggingStorage.count(firmware_id="firmwareid1"), 2)
             self.assertEqual(DataloggingStorage.count(firmware_id="firmwareid2"), 1)
 
-            acq1_feteched = DataloggingStorage.read(acq1.reference_id)
-            acq2_feteched = DataloggingStorage.read(acq2.reference_id)
-            acq3_feteched = DataloggingStorage.read(acq3.reference_id)
+            acq1_fetched = DataloggingStorage.read(acq1.reference_id)
+            acq2_fetched = DataloggingStorage.read(acq2.reference_id)
+            acq3_fetched = DataloggingStorage.read(acq3.reference_id)
 
-            self.assert_acquisition_valid(acq1_feteched)
-            self.assert_acquisition_valid(acq2_feteched)
-            self.assert_acquisition_valid(acq3_feteched)
+            self.assert_acquisition_valid(acq1_fetched)
+            self.assert_acquisition_valid(acq2_fetched)
+            self.assert_acquisition_valid(acq3_fetched)
 
-            self.assert_acquisition_identical(acq1, acq1_feteched)
-            self.assert_acquisition_identical(acq2, acq2_feteched)
-            self.assert_acquisition_identical(acq3, acq3_feteched)
+            self.assert_acquisition_identical(acq1, acq1_fetched)
+            self.assert_acquisition_identical(acq2, acq2_fetched)
+            self.assert_acquisition_identical(acq3, acq3_fetched)
 
             DataloggingStorage.delete(acq2.reference_id)
 

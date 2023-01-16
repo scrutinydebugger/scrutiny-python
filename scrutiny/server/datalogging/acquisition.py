@@ -31,6 +31,9 @@ class DataSeries:
         self.data = data
 
     def set_data_binary(self, data: bytes) -> None:
+        if not isinstance(data, bytes):
+            raise ValueError('Data must be bytes')
+            
         data = zlib.decompress(data)
         if len(data) % 8 != 0:
             raise ValueError('Invalid byte stream')
