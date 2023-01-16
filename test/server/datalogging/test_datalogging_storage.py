@@ -68,12 +68,18 @@ class TestDataloggingStorage(ScrutinyUnitTest):
 
         with DataloggingStorage.use_temp_storage():
             self.assertEqual(DataloggingStorage.count(), 0)
+            self.assertEqual(DataloggingStorage.list(), [])
             DataloggingStorage.save(acq1)
             self.assertEqual(DataloggingStorage.count(), 1)
             DataloggingStorage.save(acq2)
             self.assertEqual(DataloggingStorage.count(), 2)
             DataloggingStorage.save(acq3)
             self.assertEqual(DataloggingStorage.count(), 3)
+            acq_list = DataloggingStorage.list()
+            self.assertEqual(len(acq_list), 3)
+            self.assertIn(acq1.reference_id, acq_list)
+            self.assertIn(acq2.reference_id, acq_list)
+            self.assertIn(acq3.reference_id, acq_list)
 
             self.assertEqual(DataloggingStorage.count(firmware_id="firmwareid1"), 2)
             self.assertEqual(DataloggingStorage.count(firmware_id="firmwareid2"), 1)
@@ -101,10 +107,16 @@ class TestDataloggingStorage(ScrutinyUnitTest):
             self.assertEqual(DataloggingStorage.count(firmware_id='firmwareid1'), 1)
             self.assertEqual(DataloggingStorage.count(firmware_id='firmwareid2'), 1)
 
+            acq_list = DataloggingStorage.list()
+            self.assertEqual(len(acq_list), 2)
+            self.assertIn(acq1.reference_id, acq_list)
+            self.assertIn(acq3.reference_id, acq_list)
+
             DataloggingStorage.delete(acq1.reference_id)
             DataloggingStorage.delete(acq3.reference_id)
 
             self.assertEqual(DataloggingStorage.count(), 0)
+            self.assertEqual(DataloggingStorage.list(), [])
 
             DataloggingStorage.delete("aaaa")   # Assert no error on wrong ID. silent ignore
 

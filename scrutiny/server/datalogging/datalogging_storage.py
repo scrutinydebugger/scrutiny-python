@@ -13,7 +13,7 @@ import tempfile
 from scrutiny.server.datalogging.acquisition import DataloggingAcquisition, DataSeries
 
 import sqlite3
-from typing import Optional, Dict
+from typing import Optional, Dict, List
 
 
 class TempStorageWithAutoRestore:
@@ -200,6 +200,22 @@ class DataloggingStorageManager:
                 nout = cursor.fetchone()[0]
             conn.close()
         return nout
+
+    def list(self, firmware_id: Optional[str] = None) -> List[str]:
+        with self.get_session() as conn:
+            cursor = conn.cursor()
+            listout: List[str]
+            if firmware_id is None:
+                sql = "SELECT `reference_id` FROM `acquisitions`"
+                cursor.execute(sql)
+                listout = [row[0] for row in cursor.fetchall()]
+            else:
+                sql = "SELECT `reference_id` FROM `acquisitions` WHERE `firmware_id`=?"
+                cursor.execute(sql, (firmware_id,))
+                listout = [row[0] for row in cursor.fetchall()]
+            conn.close()
+
+        return listout
 
     def read(self, reference_id: str) -> DataloggingAcquisition:
         with self.get_session() as conn:
