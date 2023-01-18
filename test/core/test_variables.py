@@ -175,7 +175,7 @@ class TestVariables(ScrutinyUnitTest):
         self.assertEqual(bool_le.get_bitfield_mask(), unhexlify('FF'))
         self.assertEqual(bool_be.get_bitfield_mask(), unhexlify('FF'))
 
-    def assert_var_bitfield_mask(self, vartype: EmbeddedDataType, endianness: Endianness, bitoffset: int, bitsize: int, expected_mask: bytes) -> Variable:
+    def assert_var_bitfield_mask(self, vartype: EmbeddedDataType, endianness: Endianness, bitoffset: int, bitsize: int, expected_mask: bytes) -> None:
         v = Variable('aaa', vartype=vartype, path_segments=[],
                      location=0, endianness=endianness, bitoffset=bitoffset, bitsize=bitsize)
         self.assertEqual(v.get_bitfield_mask(), expected_mask)
@@ -250,6 +250,7 @@ class TestVariables(ScrutinyUnitTest):
                      endianness=Endianness.Little, bitoffset=combination[1], bitsize=combination[2])
             Variable('a', vartype=combination[0], path_segments=[], location=0,
                      endianness=Endianness.Big, bitoffset=combination[1], bitsize=combination[2])
+
 
 if __name__ == '__main__':
     import unittest

@@ -24,6 +24,12 @@ from typing import cast, List, Tuple
 
 
 class ScrutinyIntegrationTest(ScrutinyUnitTest):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self.emulated_device = None
+        self.server = None
+
     def setUp(self):
         err = None
         try:
@@ -223,8 +229,12 @@ class ScrutinyIntegrationTest(ScrutinyUnitTest):
         return self.emulated_device.rpvs[entry.rpv.id]['value']
 
     def tearDown(self) -> None:
-        self.emulated_device.stop()
-        self.server.stop()
+        if self.emulated_device is not None:
+            self.emulated_device.stop()
+
+        if self.server is not None:
+            self.server.stop()
+
         if hasattr(self, 'temp_storage_handler'):
             self.temp_storage_handler.restore()
 

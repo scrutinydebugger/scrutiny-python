@@ -39,6 +39,7 @@ class StubbedDeviceHandler:
     link_type: str
     link_config: Dict[Any, Any]
     reject_link_config: bool
+    datalogging_callbacks: Dict[str, GenericCallback]
 
     def __init__(self, device_id, connection_status=DeviceHandler.ConnectionStatus.UNKNOWN):
         self.device_id = device_id
@@ -47,22 +48,25 @@ class StubbedDeviceHandler:
         self.link_config = {}
         self.reject_link_config = False
 
-    def get_connection_status(self):
+    def get_connection_status(self) -> DeviceHandler.ConnectionStatus:
         return self.connection_status
 
-    def set_connection_status(self, connection_status):
+    def set_connection_status(self, connection_status: DeviceHandler.ConnectionStatus) -> None:
         self.connection_status = connection_status
 
-    def get_device_id(self):
+    def get_device_id(self) -> str:
         return self.device_id
 
-    def get_link_type(self):
+    def set_datalogging_callbacks(self, **kwargs) -> None:
+        self.datalogging_callbacks = kwargs
+
+    def get_link_type(self) -> str:
         return 'dummy'
 
-    def get_comm_link(self):
+    def get_comm_link(self) -> DummyLink:
         return DummyLink()
 
-    def get_device_info(self):
+    def get_device_info(self) -> DeviceInfo:
         info = DeviceInfo()
         info.device_id = self.device_id
         info.display_name = self.__class__.__name__
@@ -91,11 +95,11 @@ class StubbedDeviceHandler:
         ]
         return info
 
-    def configure_comm(self, link_type, link_config):
+    def configure_comm(self, link_type: str, link_config: Dict[Any, Any]) -> None:
         self.link_type = link_type
         self.link_config = link_config
 
-    def validate_link_config(self, link_type, link_config):
+    def validate_link_config(self, link_type: str, link_config: Dict[Any, Any]):
         if self.reject_link_config:
             raise Exception('Bad config')
 

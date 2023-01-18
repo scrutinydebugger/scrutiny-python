@@ -20,7 +20,7 @@ from test import ScrutinyUnitTest
 
 
 class TestMakeVarMap_LinuxLEx64_Gcc8_3_0(ScrutinyUnitTest):
-
+    init_exception: Optional[Exception]
     bin_filename = get_artifact('testappDebianLEx64_gcc8_3_0')
     memdump_filename = get_artifact('testappDebianLEx64_gcc8_3_0.memdump')
 

@@ -7,12 +7,20 @@
 #   Copyright (c) 2021-2023 Scrutiny Debugger
 
 from enum import Enum
-from scrutiny.core.variable import Variable
-from scrutiny.core.basic_types import RuntimePublishedValue, EmbeddedDataType
-
-
-from typing import Union, List, Tuple
+from typing import Union, List
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
+
+from scrutiny.core.basic_types import EmbeddedDataType
+
+
+@dataclass
+class AcquisitionMetadata:
+    acquisition_id: int
+    config_id: int
+    number_of_points: int
+    data_size: int
+    points_after_trigger: int
 
 
 class Encoding(Enum):

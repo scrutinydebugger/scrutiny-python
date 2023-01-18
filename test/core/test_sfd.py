@@ -24,7 +24,7 @@ class TestSFD(ScrutinyUnitTest):
         sfd = FirmwareDescription(get_artifact('test_sfd_1.sfd'))   # expects no exception
         sfd.validate()  # Expects no exception
 
-    def test_check_content(self):
+    def test_check_content(self) -> None:
         sfd = FirmwareDescription(get_artifact('test_sfd_1.sfd'))
         self.assertEqual(sfd.get_firmware_id(), unhexlify('00000000000000000000000000000001'))
         self.assertEqual(sfd.get_firmware_id_ascii(), '00000000000000000000000000000001')
@@ -55,6 +55,7 @@ class TestSFD(ScrutinyUnitTest):
         self.assertEqual(var_as_dict["/path1/path2/some_uint32"].get_fullname(), "/path1/path2/some_uint32")
         self.assertTrue(var_as_dict["/path1/path2/some_uint32"].has_enum())
         enum = var_as_dict["/path1/path2/some_uint32"].get_enum()
+        assert enum is not None
         self.assertEqual(enum.get_name(), 'EnumA')
         self.assertEqual(enum.get_value('eVal1'), 0)
         self.assertEqual(enum.get_value('eVal2'), 1)

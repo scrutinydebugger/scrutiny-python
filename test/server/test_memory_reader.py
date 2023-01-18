@@ -9,7 +9,7 @@
 
 import random
 from dataclasses import dataclass
-from sortedcontainers import SortedSet
+from sortedcontainers import SortedSet  # type: ignore
 
 from scrutiny.server.datastore.datastore import Datastore
 from scrutiny.server.datastore.datastore_entry import *

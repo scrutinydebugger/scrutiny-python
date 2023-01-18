@@ -27,6 +27,7 @@ class TestDataStore(ScrutinyUnitTest):
                              'a', 'b', 'c'], location=0x12345678, endianness=Endianness.Little)
         for i in range(n):
             name = '%s_%d' % (prefix, i)
+            entry: DatastoreEntry
             if entry_type == EntryType.Var:
                 entry = DatastoreVariableEntry(name, variable_def=dummy_var)
             elif entry_type == EntryType.Alias:

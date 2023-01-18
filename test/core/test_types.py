@@ -106,7 +106,7 @@ class TestTypes(ScrutinyUnitTest):
 
         self.assertFalse(EmbeddedDataType.boolean.is_integer())
 
-    def test_is_integer(self):
+    def test_is_float(self):
         self.assertFalse(EmbeddedDataType.sint8.is_float())
         self.assertFalse(EmbeddedDataType.sint16.is_float())
         self.assertFalse(EmbeddedDataType.sint32.is_float())
