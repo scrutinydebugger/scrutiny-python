@@ -65,7 +65,7 @@ class DataloggingDeviceSetup:
 class DataloggingManager:
     datastore: Datastore
     device_handler: DeviceHandler
-    acquisition_request_queue: queue.Queue[Tuple[AcquisitionRequest, datalogging.Configuration]]
+    acquisition_request_queue: "queue.Queue[Tuple[AcquisitionRequest, datalogging.Configuration]]"
     last_device_status: DeviceHandler.ConnectionStatus
     device_status: DeviceHandler.ConnectionStatus
     active_request: Optional[AcquisitionRequest]

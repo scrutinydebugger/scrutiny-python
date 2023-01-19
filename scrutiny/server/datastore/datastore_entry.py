@@ -120,7 +120,7 @@ class DatastoreEntry:
     display_path: str
     value: Any
     last_target_update_timestamp: Optional[float]
-    target_update_request_queue: Queue
+    target_update_request_queue: "Queue[UpdateTargetRequest]"
     last_value_update_timestamp: float
 
     def __init__(self, display_path: str):

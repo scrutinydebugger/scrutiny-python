@@ -12,7 +12,7 @@ import queue
 import asyncio
 import logging
 
-from typing import Any, Optional
+from typing import Any, Optional, Tuple
 from scrutiny.core.typehints import GenericCallback
 
 #WebsocketType = websockets.server.WebSocketServerProtocol
@@ -21,11 +21,11 @@ WebsocketType = Any  # todo fix this
 
 class SynchronousWebsocketServer:
     """
-    Websocket server that wraps the asynchornous "websockets" module into a class that 
+    Websocket server that wraps the asynchronous "websockets" module into a class that 
     provides a synchronous interface.
     """
-    rxqueue: queue.Queue
-    txqueue: queue.Queue
+    rxqueue: "queue.Queue[Tuple[WebsocketType, Any]]"
+    txqueue: "queue.Queue[Tuple[WebsocketType, Any]]"
     loop: asyncio.AbstractEventLoop
     logger: logging.Logger
     connect_callback: Optional[GenericCallback]

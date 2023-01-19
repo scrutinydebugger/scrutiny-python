@@ -35,6 +35,7 @@
         "scrutinydebugger",
         "subfn",
         "testcases",
+        "typehints",
         "varbit",
         "websockets",
         "xaxis"
