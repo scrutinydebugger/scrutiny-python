@@ -31,8 +31,15 @@ class DataloggerStatus(Enum):
     IDLE = 0
     CONFIGURED = 1
     ARMED = 2
-    ACQUISITION_COMPLETED = 3
-    ERROR = 4
+    TRIGGERED = 3
+    ACQUISITION_COMPLETED = 4
+    ERROR = 5
+
+
+@dataclass
+class DataloggingSetup:
+    buffer_size: int
+    encoding: Encoding
 
 # region Operands
 

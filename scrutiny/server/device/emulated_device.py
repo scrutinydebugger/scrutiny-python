@@ -14,6 +14,7 @@ import random
 import traceback
 import collections
 from dataclasses import dataclass
+from binascii import hexlify
 
 from scrutiny.core.codecs import Encodable
 import scrutiny.server.protocol.commands as cmd
@@ -179,6 +180,7 @@ class DataloggerEmulator:
         def get_entry_count(self) -> int:
             return len(self.data_deque)
 
+    logger: logging.Logger
     buffer_size: int
     config: Optional[datalogging.Configuration]
     state: datalogging.DataloggerStatus
@@ -197,6 +199,7 @@ class DataloggerEmulator:
     acquisition_id: int
 
     def __init__(self, device: "EmulatedDevice", buffer_size: int, encoding: datalogging.Encoding = datalogging.Encoding.RAW):
+        self.logger = logging.getLogger(self.__class__.__name__)
         self.device = device
         self.buffer_size = buffer_size
         self.encoding = encoding
@@ -216,7 +219,6 @@ class DataloggerEmulator:
         self.trigger_cmt_last_val = 0
         self.last_trigger_condition_result = False
         self.trigger_rising_edge_timestamp = None
-        self.trigger_fulfilled = False
         self.trigger_fulfilled_timestamp = 0
         self.config_id = 0
         self.target_byte_count_after_trigger = 0
@@ -224,6 +226,7 @@ class DataloggerEmulator:
         self.entry_counter_at_trigger = 0
 
     def configure(self, config_id: int, config: datalogging.Configuration) -> None:
+        self.logger.debug("Being configured. Config ID=%d" % config_id)
         self.reset()
         self.config = config
         self.config_id = config_id
@@ -232,18 +235,21 @@ class DataloggerEmulator:
         self.state = datalogging.DataloggerStatus.CONFIGURED
 
     def arm_trigger(self):
-        if self.state in [datalogging.DataloggerStatus.CONFIGURED, datalogging.DataloggerStatus.ACQUISITION_COMPLETED]:
+        if self.state in [datalogging.DataloggerStatus.CONFIGURED, datalogging.DataloggerStatus.TRIGGERED, datalogging.DataloggerStatus.ACQUISITION_COMPLETED]:
             self.state = datalogging.DataloggerStatus.ARMED
+            self.logger.debug("Trigger Armed. Going to ARMED state")
 
     def disarm_trigger(self):
-        if self.state in [datalogging.DataloggerStatus.ARMED, datalogging.DataloggerStatus.ACQUISITION_COMPLETED]:
+        if self.state in [datalogging.DataloggerStatus.ARMED, datalogging.DataloggerStatus.TRIGGERED, datalogging.DataloggerStatus.ACQUISITION_COMPLETED]:
             self.state = datalogging.DataloggerStatus.CONFIGURED
+            self.logger.debug("Trigger Disarmed. Going to CONFIGURED state")
 
     def set_error(self) -> None:
         self.state = datalogging.DataloggerStatus.ERROR
+        self.logger.debug("Going to ERROR state")
 
     def triggered(self) -> bool:
-        return self.trigger_fulfilled
+        return self.state in [datalogging.DataloggerStatus.TRIGGERED, datalogging.DataloggerStatus.ACQUISITION_COMPLETED]
 
     def read_samples(self) -> List[SampleType]:
         if self.config is None:
@@ -351,25 +357,28 @@ class DataloggerEmulator:
     def process(self) -> None:
         self.timebase.process()
 
-        if self.state in [datalogging.DataloggerStatus.CONFIGURED, datalogging.DataloggerStatus.ARMED]:
+        if self.state in [datalogging.DataloggerStatus.CONFIGURED, datalogging.DataloggerStatus.ARMED, datalogging.DataloggerStatus.TRIGGERED]:
             self.encoder.encode_samples(self.read_samples())
+            self.logger.debug("Read sample")
 
         if self.state == datalogging.DataloggerStatus.ARMED:
             assert self.config is not None
-            if not self.trigger_fulfilled:
-                if self.check_trigger():
-                    self.trigger_fulfilled = True
-                    self.trigger_fulfilled_timestamp = time.time()
-                    self.byte_count_at_trigger = self.encoder.get_byte_counter()
-                    self.entry_counter_at_trigger = self.encoder.get_entry_counter()
-                    self.target_byte_count_after_trigger = self.byte_count_at_trigger + round((1.0 - self.config.probe_location) * self.buffer_size)
+            if self.check_trigger():
+                self.trigger_fulfilled_timestamp = time.time()
+                self.byte_count_at_trigger = self.encoder.get_byte_counter()
+                self.entry_counter_at_trigger = self.encoder.get_entry_counter()
+                self.target_byte_count_after_trigger = self.byte_count_at_trigger + round((1.0 - self.config.probe_location) * self.buffer_size)
+                self.state = datalogging.DataloggerStatus.TRIGGERED
+                self.logger.debug("Acquisition triggered. Going to TRIGGERED state")
 
-            if self.trigger_fulfilled:
-                probe_location_ok = self.encoder.get_byte_counter() >= self.target_byte_count_after_trigger
-                timed_out = (time.time() - self.trigger_fulfilled_timestamp) >= self.config.timeout
-                if probe_location_ok or timed_out:
-                    self.state = datalogging.DataloggerStatus.ACQUISITION_COMPLETED
-                    self.acquisition_id = (self.acquisition_id + 1) & 0xFFFF
+        if self.state == datalogging.DataloggerStatus.TRIGGERED:
+            assert self.config is not None
+            probe_location_ok = self.encoder.get_byte_counter() >= self.target_byte_count_after_trigger
+            timed_out = (time.time() - self.trigger_fulfilled_timestamp) >= self.config.timeout
+            if probe_location_ok or timed_out:
+                self.logger.debug("Acquisition complete. Going to ACQUISITION_COMPLETED state")
+                self.state = datalogging.DataloggerStatus.ACQUISITION_COMPLETED
+                self.acquisition_id = (self.acquisition_id + 1) & 0xFFFF
 
         else:
             pass
@@ -463,7 +472,7 @@ class EmulatedDevice:
         self.supported_features = {
             'memory_read': True,
             'memory_write': True,
-            'datalogging': False,
+            'datalogging': True,
             'user_command': False,
             '_64bits': False,
         }
@@ -487,7 +496,7 @@ class EmulatedDevice:
 
         self.protocol.configure_rpvs([self.rpvs[id]['definition'] for id in self.rpvs])
 
-        self.datalogger = DataloggerEmulator(self, 100)
+        self.datalogger = DataloggerEmulator(self, 256)
 
         self.loops = [
             FixedFreqLoop(1000, name='1KHz'),
@@ -523,6 +532,9 @@ class EmulatedDevice:
 
                 self.request_history.append(RequestLogRecord(request=request, response=response))
 
+            if self.is_datalogging_enabled():
+                self.datalogger.process()
+
             time.sleep(0.01)
 
     def process_request(self, req: Request) -> Optional[Response]:
@@ -548,7 +560,10 @@ class EmulatedDevice:
         elif req.command == cmd.MemoryControl:
             response = self.process_memory_control(req, data)
         elif req.command == cmd.DatalogControl:
-            response = self.process_datalog_control(req, data)
+            if self.supported_features['datalogging']:
+                response = self.process_datalog_control(req, data)
+            else:
+                response = Response(req.command, req.subfn, ResponseCode.UnsupportedFeature)
         elif req.command == cmd.DummyCommand:
             response = self.process_dummy_cmd(req, data)
 
@@ -782,10 +797,10 @@ class EmulatedDevice:
 
                 if not self.datalogging_read_in_progress:
                     self.datalogging_read_in_progress = True
-                    self.read_datalogging_read_cursor = 0
+                    self.datalogging_read_cursor = 0
                     self.datalogging_read_rolling_counter = 0
 
-                remaining_data = acquired_data[self.read_datalogging_read_cursor:]
+                remaining_data = acquired_data[self.datalogging_read_cursor:]
                 if self.protocol.datalogging_read_acquisition_is_last_response(len(remaining_data), self.max_tx_data_size):
                     crc = crc32(acquired_data)
                     finished = True
@@ -795,6 +810,9 @@ class EmulatedDevice:
 
                 datalen = self.protocol.datalogging_read_acquisition_max_data_size(len(remaining_data), self.max_tx_data_size)
                 datalen = min(len(remaining_data), datalen)
+
+                self.logger.debug("ReadAcquisition. Read Cursor=%d. Finished=%s. Acquired Data Len=%d. Remaining datalen=%d.  Sending %d bytes. " %
+                                  (self.datalogging_read_cursor, finished, len(acquired_data), len(remaining_data), datalen))
 
                 response = self.protocol.respond_datalogging_read_acquisition(
                     finished=finished,
@@ -861,6 +879,15 @@ class EmulatedDevice:
 
     def enable_comm(self) -> None:
         self.comm_enabled = True
+
+    def disable_datalogging(self) -> None:
+        self.supported_features['datalogging'] = False
+
+    def enable_datalogging(self) -> None:
+        self.supported_features['datalogging'] = True
+
+    def is_datalogging_enabled(self) -> bool:
+        return self.supported_features['datalogging']
 
     def clear_request_history(self) -> None:
         self.request_history = []

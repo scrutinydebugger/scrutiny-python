@@ -147,7 +147,7 @@ class TestEmulatedDatalogger(ScrutinyUnitTest):
         self.datalogger.process()   # Now it will see that the hold time has elapsed and trigger will be considered fulfiled
         time.sleep(0.001)
         self.assertTrue(self.datalogger.triggered())
-        self.assertEqual(self.datalogger.state, datalogging.DataloggerStatus.ARMED)
+        self.assertEqual(self.datalogger.state, datalogging.DataloggerStatus.TRIGGERED)
 
         # Keep processing for a while so we make sure that it stopped at the right moment (depends on probe location)
         for i in range(100):

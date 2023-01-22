@@ -188,7 +188,7 @@ class ScrutinyIntegrationTest(ScrutinyUnitTest):
                 self.assertIn('value', update)
                 self.client_entry_values[update['id']] = update['value']
 
-    def assert_value_received(self, entry: DatastoreEntry, value: any, msg=""):
+    def assert_value_received(self, entry: DatastoreEntry, value: Any, msg=""):
         id = entry.get_id()
         self.assertIn(id, self.client_entry_values, msg)
         self.assertEqual(self.client_entry_values[id], value, msg)

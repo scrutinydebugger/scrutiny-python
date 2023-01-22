@@ -56,7 +56,7 @@ class TestReadWrite(ScrutinyIntegrationTest):
     api_conn: DummyConnection
     emulated_device: EmulatedDevice
     sfd: FirmwareDescription
-    client_entry_values: Dict[str, any]
+    client_entry_values: Dict[str, Any]
 
     def setUp(self):
         super().setUp()

@@ -11,6 +11,7 @@ import logging
 import traceback
 from enum import Enum, auto
 from dataclasses import dataclass
+import copy
 
 from scrutiny.server.protocol import *
 from scrutiny.server.device.request_dispatcher import RequestDispatcher, SuccessCallback, FailureCallback
@@ -18,7 +19,7 @@ import scrutiny.server.datalogging.definitions as datalogging
 import scrutiny.server.protocol.typing as protocol_typing
 import scrutiny.server.protocol.commands as cmd
 from scrutiny.server.tools import Timer
-from scrutiny.server.datalogging.definitions import AcquisitionMetadata
+from scrutiny.server.datalogging.definitions import AcquisitionMetadata, DataloggingSetup
 from scrutiny.server.protocol.crc32 import crc32
 
 from scrutiny.core.typehints import GenericCallback
@@ -42,7 +43,7 @@ class AcquisitionRequestCompletionCallback(GenericCallback):
 
 
 class DataloggingReceiveSetupCallback(GenericCallback):
-    callback: Callable[[int, datalogging.Encoding], None]
+    callback: Callable[[DataloggingSetup], None]
 
 
 @dataclass
@@ -62,9 +63,6 @@ class ReceivedChunk:
 
 
 class DataloggingPoller:
-    class DeviceSetup:
-        encoding: datalogging.Encoding
-        buffer_size: int
 
     UPDATE_STATUS_INTERVAL_IDLE = 0.5
     UPDATE_STATUS_INTERVAL_ACQUIRING = 0.2
@@ -77,7 +75,7 @@ class DataloggingPoller:
     stop_requested: bool    # Requested to stop polling
     request_pending: bool   # True when we are waiting for a request to complete
     started: bool           # Indicate if enabled or not
-    device_setup: Optional["DataloggingPoller.DeviceSetup"]
+    device_setup: Optional[datalogging.DataloggingSetup]
     error: bool
     enabled: bool
     state: FSMState
@@ -164,6 +162,12 @@ class DataloggingPoller:
     def enable(self) -> None:
         self.enabled = True
 
+    def is_enabled(self) -> bool:
+        return self.enabled
+
+    def get_datalogger_status(self) -> datalogging.DataloggerStatus:
+        return self.device_datalogging_status
+
     def set_datalogging_callbacks(self, receive_setup: DataloggingReceiveSetupCallback):
         self.receive_setup_callback = receive_setup
 
@@ -178,7 +182,7 @@ class DataloggingPoller:
             self.acquisition_request = None
 
     def request_acquisition(self, loop_id: int, config: datalogging.Configuration, callback: AcquisitionRequestCompletionCallback) -> None:
-        if self.max_response_payload_size:
+        if not self.max_response_payload_size:
             raise ValueError("Maximum response payload size must be defined first")
 
         self.mark_active_acquisition_failed_if_any()
@@ -216,17 +220,18 @@ class DataloggingPoller:
             self.update_status_timer.start()
 
         try:
+            state_entry = self.previous_state != self.state
+            next_state = self.state
+
             if self.state == FSMState.IDLE:
                 self.mark_active_acquisition_failed_if_any()
                 self.device_setup = None
                 self.configure_completed = False
                 self.arm_completed = False
                 self.update_status_timer.start()
-                self.state = FSMState.GET_SETUP
+                next_state = FSMState.GET_SETUP
 
-            state_entry = self.previous_state != self.state
-            next_state = self.state
-            if self.state == FSMState.GET_SETUP:
+            elif self.state == FSMState.GET_SETUP:
                 if state_entry:
                     self.request_failed = False
 
@@ -235,8 +240,9 @@ class DataloggingPoller:
 
                 if self.device_setup is not None:
                     if self.receive_setup_callback is not None:
-                        self.receive_setup_callback(buffer_size=self.device_setup.buffer_size, encoding=self.device_setup.encoding)
+                        self.receive_setup_callback(copy.copy(self.device_setup))
                     next_state = FSMState.WAIT_FOR_REQUEST
+                    self.logger.debug("Datalogging setup received. %s" % (self.device_setup.__dict__))
 
             elif self.state == FSMState.WAIT_FOR_REQUEST:
                 if state_entry:
@@ -316,6 +322,7 @@ class DataloggingPoller:
                     self.request_failed = False
                     self.failure_counter = 0
                     self.received_data_chunk = None
+                    self.bytes_received = bytearray()
 
                 if self.new_request_received:   # New request interrupts the previous one
                     next_state = FSMState.WAIT_FOR_REQUEST
@@ -365,6 +372,20 @@ class DataloggingPoller:
                                     total_size=self.acquisition_metadata.data_size
                                 )
                                 self.dispatch(read_request)
+                    self.received_data_chunk = None
+                else:
+                    assert self.max_response_payload_size is not None
+                    assert self.acquisition_metadata is not None
+                    assert self.device_setup is not None
+
+                    if not self.request_pending:
+                        read_request = self.protocol.datalogging_read_acquisition(
+                            data_read=len(self.bytes_received),
+                            encoding=self.device_setup.encoding,
+                            tx_buffer_size=self.max_response_payload_size,
+                            total_size=self.acquisition_metadata.data_size
+                        )
+                        self.dispatch(read_request)
 
             elif self.state == FSMState.DATA_RETRIEVAL_FINISHED:
                 if state_entry:
@@ -376,6 +397,8 @@ class DataloggingPoller:
                 raise RuntimeError('Unknown FSM state %s' % str(self.state))
 
             self.previous_state = self.state
+            if next_state != self.state:
+                self.logger.debug("Moving state from %s to %s" % (self.state.name, next_state.name))
             self.state = next_state
         except Exception as e:
             self.error = True
@@ -412,6 +435,8 @@ class DataloggingPoller:
                     self.process_arm_success(response)
                 elif subfunction == cmd.DatalogControl.Subfunction.GetAcquisitionMetadata:
                     self.process_get_acq_metadata_success(response)
+                elif subfunction == cmd.DatalogControl.Subfunction.ReadAcquisition:
+                    self.process_read_acquisition_success(response)
 
             except Exception as e:
                 self.error = True
@@ -446,9 +471,10 @@ class DataloggingPoller:
             raise RuntimeError('Received a GetSetup response when none was asked')
 
         response_data = cast(protocol_typing.Response.DatalogControl.GetSetup, self.protocol.parse_response(response))
-        self.device_setup = DataloggingPoller.DeviceSetup()
-        self.device_setup.buffer_size = response_data['buffer_size']
-        self.device_setup.encoding = response_data['encoding']
+        self.device_setup = DataloggingSetup(
+            buffer_size=response_data['buffer_size'],
+            encoding=response_data['encoding']
+        )
 
     def process_configure_success(self, response: Response):
         if self.state != FSMState.CONFIGURING:
@@ -465,6 +491,16 @@ class DataloggingPoller:
     def process_get_acq_metadata_success(self, response: Response):
         if self.state != FSMState.READ_METADATA:
             raise RuntimeError('Received a GetAcquisitionMetadata response when none was asked')
+
+        response_data = cast(protocol_typing.Response.DatalogControl.GetAcquisitionMetadata, self.protocol.parse_response(response))
+
+        self.acquisition_metadata = AcquisitionMetadata(
+            acquisition_id=response_data['acquisition_id'],
+            config_id=response_data['config_id'],
+            data_size=response_data['datasize'],
+            number_of_points=response_data['nb_points'],
+            points_after_trigger=response_data['points_after_trigger']
+        )
 
     def process_read_acquisition_success(self, response: Response):
         if self.state != FSMState.RETRIEVING_DATA:

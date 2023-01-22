@@ -16,7 +16,7 @@ import binascii
 from enum import Enum
 import traceback
 from scrutiny.server.datastore.datastore_entry import DatastoreRPVEntry, EntryType
-
+import scrutiny.server.datalogging.definitions as datalogging
 from scrutiny.server.protocol import *
 import scrutiny.server.protocol.typing as protocol_typing
 from scrutiny.server.protocol.comm_handler import CommHandler
@@ -28,7 +28,7 @@ from scrutiny.server.device.request_generator.info_poller import InfoPoller, Pro
 from scrutiny.server.device.request_generator.session_initializer import SessionInitializer
 from scrutiny.server.device.request_generator.memory_reader import MemoryReader
 from scrutiny.server.device.request_generator.memory_writer import MemoryWriter
-from scrutiny.server.device.request_generator.datalogging_poller import DataloggingPoller, DataloggingReceiveSetupCallback
+from scrutiny.server.device.request_generator.datalogging_poller import DataloggingPoller, DataloggingReceiveSetupCallback, AcquisitionRequestCompletionCallback
 from scrutiny.server.device.device_info import DeviceInfo
 
 from scrutiny.server.tools import Timer
@@ -228,12 +228,15 @@ class DeviceHandler:
         """Register callbacks that are called when event related to datalogging are being triggered"""
         self.datalogging_poller.set_datalogging_callbacks(receive_setup)
 
-    def request_datalogging_acquisition(self):
-        pass
+    def request_datalogging_acquisition(self, loop_id: int, config: datalogging.Configuration, callback: AcquisitionRequestCompletionCallback) -> None:
+        self.datalogging_poller.request_acquisition(loop_id=loop_id, config=config, callback=callback)
 
     def get_device_info(self) -> Optional[DeviceInfo]:
         """Returns all the information we have about the connected device. None if not connected"""
         return copy.copy(self.device_info)
+
+    def get_datalogger_status(self) -> datalogging.DataloggerStatus:
+        return self.datalogging_poller.get_datalogger_status()
 
     def get_comm_error_count(self) -> int:
         """Returns the number of communication issue we have encountered since startup"""
@@ -300,6 +303,7 @@ class DeviceHandler:
         self.memory_reader.set_size_limits(max_request_payload_size=max_request_payload_size, max_response_payload_size=max_response_payload_size)
         self.memory_writer.set_size_limits(max_request_payload_size=max_request_payload_size, max_response_payload_size=max_response_payload_size)
         self.dispatcher.set_size_limits(max_request_payload_size=max_request_payload_size, max_response_payload_size=max_response_payload_size)
+        self.datalogging_poller.set_max_response_payload_size(max_response_payload_size)
         self.protocol.set_address_size_bits(partial_device_info.address_size_bits)
         self.heartbeat_generator.set_interval(max(0.5, float(partial_device_info.heartbeat_timeout_us) / 1000000.0 * 0.75))
 
@@ -389,6 +393,7 @@ class DeviceHandler:
         self.memory_reader.set_size_limits(max_request_payload_size=max_request_payload_size, max_response_payload_size=max_response_payload_size)
         self.memory_writer.set_size_limits(max_request_payload_size=max_request_payload_size, max_response_payload_size=max_response_payload_size)
         self.dispatcher.set_size_limits(max_request_payload_size=max_request_payload_size, max_response_payload_size=max_response_payload_size)
+        self.datalogging_poller.set_max_response_payload_size(max_response_payload_size)
 
         self.datastore.clear(entry_type=EntryType.RuntimePublishedValue)    # Device handler own RPVs
         self.protocol.configure_rpvs([])    # Empty list
@@ -557,9 +562,11 @@ class DeviceHandler:
                     self.protocol.configure_rpvs(self.device_info.runtime_published_values)
                     if self.device_info.supported_feature_map['datalogging']:
                         self.datalogging_poller.enable()
+                        self.logger.debug("Enabling datalogging handling")
                         #  TODO enforce memory_read memory_write feature map
                     else:
                         self.datalogging_poller.disable()
+                        self.logger.debug("Disabling datalogging handling")
                     next_state = self.FsmState.READY
 
         # ========= [READY] ==========

@@ -14,6 +14,7 @@ import signal  # For ctrl+c handling
 import struct
 import random
 
+import scrutiny.server.datalogging.definitions as datalogging
 from scrutiny.server.device.emulated_device import EmulatedDevice
 from scrutiny.server.device.device_handler import DeviceHandler
 from scrutiny.server.device.links.dummy_link import ThreadSafeDummyLink
@@ -51,6 +52,10 @@ class TestDeviceHandler(ScrutinyUnitTest):
         raise KeyboardInterrupt
 
     def setUp(self):
+        self.datalogging_setup = None
+        self.acquisition_complete_callback_called = False
+        self.acquisition_complete_callback_success = None
+        self.acquisition_complete_callback_data = None
         self.datastore = Datastore()
         config = {
             'link_type': 'thread_safe_dummy',
@@ -324,8 +329,6 @@ class TestDeviceHandler(ScrutinyUnitTest):
         self.datastore.add_entry(vint64)
         self.datastore.add_entry(vbool)
 
-        dummy_callback = GenericCallback(lambda *args, **kwargs: None)
-
         test_round_to_do = 5
         setup_timeout = 2
         hold_timeout = 5
@@ -497,6 +500,152 @@ class TestDeviceHandler(ScrutinyUnitTest):
                     state = 'write'
 
         self.assertEqual(round_completed, test_round_to_do)  # Make sure test went through.
+
+    def receive_datalogging_setup_callback(self, setup: datalogging.DataloggingSetup):
+        self.datalogging_setup = setup
+
+    def acquisition_complete_callback(self, success: bool, data: Optional[bytes]):
+        self.acquisition_complete_callback_called = True
+        self.acquisition_complete_callback_success = success
+        self.acquisition_complete_callback_data = data
+
+    def test_datalogging_device_disabled(self):
+        """Make sure that the device handler does nothing with datalogging when the device doesn't support it"""
+
+        self.device_handler.set_datalogging_callbacks(
+            receive_setup=self.receive_datalogging_setup_callback
+        )
+
+        self.emulated_device.disable_datalogging()
+        self.assertFalse(self.emulated_device.is_datalogging_enabled(), "Datalogging is disabled on emulated device.")
+
+        timeout = 4
+        t1 = time.time()
+        connection_completed = False
+        while time.time() - t1 < timeout:
+            self.device_handler.process()
+            time.sleep(0.01)
+            status = self.device_handler.get_connection_status()
+            if status == DeviceHandler.ConnectionStatus.CONNECTED_READY and connection_completed == False:
+                connection_completed = True
+                break
+        self.assertTrue(connection_completed)
+        device_info = self.device_handler.get_device_info()
+        assert device_info is not None
+        self.assertFalse(device_info.supported_feature_map['datalogging'])
+        self.assertFalse(self.device_handler.datalogging_poller.is_enabled())
+
+        t1 = time.time()
+        while time.time() - t1 < 0.5:
+            self.device_handler.process()   # Keep processing to see if datalogging feature will do something (it should not)
+
+        self.assertIsNone(self.datalogging_setup)   # Should never be set
+
+    def test_datalogging_control_normal_behavior(self):
+        # Make sure this is enabled, otherwise, the test is useless and will fail.
+        self.assertTrue(self.emulated_device.is_datalogging_enabled())
+
+        self.device_handler.set_datalogging_callbacks(
+            receive_setup=self.receive_datalogging_setup_callback
+        )
+
+        timeout = 4
+        t1 = time.time()
+        connection_completed = False
+        while time.time() - t1 < timeout:
+            self.device_handler.process()
+            time.sleep(0.01)
+            status = self.device_handler.get_connection_status()
+            if status == DeviceHandler.ConnectionStatus.CONNECTED_READY and connection_completed == False:
+                connection_completed = True
+                break
+        self.assertTrue(connection_completed)
+        device_info = self.device_handler.get_device_info()
+        assert device_info is not None
+        self.assertTrue(device_info.supported_feature_map['datalogging'])
+        self.assertTrue(self.device_handler.datalogging_poller.is_enabled())
+        self.assertEqual(self.device_handler.get_datalogger_status(), datalogging.DataloggerStatus.IDLE)
+
+        timeout = 2
+        t1 = time.time()
+        while time.time() - t1 < timeout:
+            self.device_handler.process()
+            if self.datalogging_setup is not None:  # Expect setup to be read
+                break
+
+        self.assertIsNotNone(self.datalogging_setup)
+        self.assertEqual(self.datalogging_setup.buffer_size, self.emulated_device.datalogger.get_buffer_size())
+        self.assertEqual(self.datalogging_setup.encoding, self.emulated_device.datalogger.get_encoding())
+
+        # Make sure we are waiting on a new acquisition request
+        self.device_handler.process()
+        time.sleep(0.1)
+        self.device_handler.process()
+        self.assertEqual(self.device_handler.get_datalogger_status(), datalogging.DataloggerStatus.IDLE)
+
+        loop_name = "Variable Freq 1"
+        loop_id = None
+        for i in range(len(device_info.loops)):
+            if device_info.loops[i].get_name() == loop_name:
+                loop_id = i
+                break
+        assert loop_id is not None
+
+        self.emulated_device.write_memory(0x100000, bytes([0, 0, 0, 0, 0, 0, 0, 0]))
+        self.emulated_device.write_rpv(0x1000, 0)
+        self.emulated_device.write_rpv(0x1003, 0)
+
+        config = datalogging.Configuration()
+        config.trigger_hold_time = 0
+        config.timeout = 0
+        config.probe_location = 0.5
+        config.decimation = 1
+        config.trigger_condition = datalogging.TriggerCondition(
+            datalogging.TriggerConditionID.Equal,
+            datalogging.RPVOperand(rpv_id=0x1000),
+            datalogging.LiteralOperand(12345678)
+        )
+        config.add_signal(datalogging.TimeLoggableSignal())
+        config.add_signal(datalogging.RPVLoggableSignal(0x1003))
+        config.add_signal(datalogging.MemoryLoggableSignal(address=0x100000, size=4))
+        config.add_signal(datalogging.MemoryLoggableSignal(address=0x100004, size=2))
+        config.add_signal(datalogging.MemoryLoggableSignal(address=0x100006, size=2))
+
+        self.device_handler.request_datalogging_acquisition(loop_id, config, self.acquisition_complete_callback)
+
+        timeout = 1
+        t1 = time.time()
+        while time.time() - t1 < timeout:
+            self.device_handler.process()
+            if self.device_handler.get_datalogger_status() == datalogging.DataloggerStatus.ARMED:
+                break
+
+        self.assertEqual(self.device_handler.get_datalogger_status(), datalogging.DataloggerStatus.ARMED)
+
+        t1 = time.time()
+        while time.time() - t1 < 0.5:
+            self.device_handler.process()
+            time.sleep(0.05)
+
+        self.assertEqual(self.device_handler.get_datalogger_status(), datalogging.DataloggerStatus.ARMED)
+        self.assertFalse(self.acquisition_complete_callback_called)
+        self.assertFalse(self.emulated_device.datalogger.triggered())
+
+        self.emulated_device.write_rpv(0x1000, 12345678)    # Should trigger the acquisition
+
+        timeout = 2
+        t1 = time.time()
+        while time.time() - t1 < timeout:
+            self.device_handler.process()
+            time.sleep(0.01)
+            if self.acquisition_complete_callback_called:
+                break
+        nb_points = self.emulated_device.datalogger.get_nb_points()
+        self.assertGreater(nb_points, 0)
+        self.assertTrue(self.emulated_device.datalogger.triggered())
+        self.assertTrue(self.acquisition_complete_callback_called, "Acquired %d points" % nb_points)
+        self.assertTrue(self.acquisition_complete_callback_success)
+        self.assertEqual(self.acquisition_complete_callback_data, self.emulated_device.datalogger.get_acquisition_data())
 
 
 class TestDeviceHandlerMultipleLink(ScrutinyUnitTest):
