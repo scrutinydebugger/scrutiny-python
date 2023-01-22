@@ -93,6 +93,7 @@ class DataloggingPoller:
     data_read_success: bool
     bytes_received: bytearray
     read_rolling_counter: int
+    require_status_update: bool
 
     acquisition_metadata: Optional[AcquisitionMetadata]
     received_data_chunk: Optional[ReceivedChunk]
@@ -142,6 +143,7 @@ class DataloggingPoller:
         self.bytes_received = bytearray()
         self.read_rolling_counter = 0
         self.acquisition_metadata = None
+        self.require_status_update = False
 
     def set_max_response_payload_size(self, max_response_payload_size: int) -> None:
         self.max_response_payload_size = max_response_payload_size
@@ -215,9 +217,10 @@ class DataloggingPoller:
         else:   # Slow update otherwise
             self.update_status_timer.set_timeout(self.UPDATE_STATUS_INTERVAL_IDLE)
 
-        if self.update_status_timer.is_timed_out() and not self.request_pending:
-            self.dispatch(self.protocol.datalogging_get_status())
-            self.update_status_timer.start()
+        if not self.request_pending:
+            if self.require_status_update or self.update_status_timer.is_timed_out():
+                self.dispatch(self.protocol.datalogging_get_status())
+                self.update_status_timer.start()
 
         try:
             state_entry = self.previous_state != self.state
@@ -245,9 +248,6 @@ class DataloggingPoller:
                     self.logger.debug("Datalogging setup received. %s" % (self.device_setup.__dict__))
 
             elif self.state == FSMState.WAIT_FOR_REQUEST:
-                if state_entry:
-                    self.mark_active_acquisition_failed_if_any()
-
                 if not self.request_pending:
                     if self.new_request_received:
                         self.new_request_received = False
@@ -288,29 +288,36 @@ class DataloggingPoller:
                     next_state = FSMState.WAIT_FOR_DATA
 
             elif self.state == FSMState.WAIT_FOR_DATA:
+                if state_entry:
+                    self.require_status_update = True
+
                 if self.new_request_received:   # New request interrupts the previous one
                     next_state = FSMState.WAIT_FOR_REQUEST
 
-                if self.device_datalogging_status == datalogging.DataloggerStatus.ACQUISITION_COMPLETED:
-                    next_state = FSMState.READ_METADATA
+                if self.require_status_update == False:
+                    if self.device_datalogging_status == datalogging.DataloggerStatus.ACQUISITION_COMPLETED:
+                        next_state = FSMState.READ_METADATA
 
             elif self.state == FSMState.READ_METADATA:
                 # Starting from here, we have previous data, it's beneficial to be resilient to communication problems
                 if state_entry:
                     self.acquisition_metadata = None
                     self.failure_counter = 0
+                    self.request_failed = False
 
                 if self.acquisition_metadata is not None:
                     if self.acquisition_metadata.config_id != self.actual_config_id:
                         self.logger.error("Data acquired is not the one that was expected. Config ID mismatch. Expected %d, Gotten %d" %
-                                          (self.acquisition_metadata.config_id, self.actual_config_id))
+                                          (self.actual_config_id, self.acquisition_metadata.config_id))
                         next_state = FSMState.WAIT_FOR_REQUEST
                     else:
                         next_state = FSMState.RETRIEVING_DATA
+
                 elif self.request_failed:
                     self.request_failed = False
                     self.failure_counter += 1
                     if self.failure_counter >= self.MAX_FAILURE_WHILE_READING:
+                        self.logger.error("Too many communication error. Giving up reading the acquisition")
                         next_state = FSMState.DATA_RETRIEVAL_FINISHED
 
                 elif not self.request_pending:
@@ -321,6 +328,7 @@ class DataloggingPoller:
                     self.data_read_success = False
                     self.request_failed = False
                     self.failure_counter = 0
+                    self.read_rolling_counter = 0
                     self.received_data_chunk = None
                     self.bytes_received = bytearray()
 
@@ -331,6 +339,7 @@ class DataloggingPoller:
                     self.request_failed = False
                     self.failure_counter += 1
                     if self.failure_counter >= self.MAX_FAILURE_WHILE_READING:
+                        self.logger.error("Too many communication error. Giving up reading the acquisition")
                         next_state = FSMState.DATA_RETRIEVAL_FINISHED
 
                 elif self.received_data_chunk is not None:
@@ -340,12 +349,12 @@ class DataloggingPoller:
 
                     if self.received_data_chunk.acquisition_id != self.acquisition_metadata.acquisition_id:
                         self.logger.error("Data acquired is not the one that was expected. Acquisition ID mismatch. Expected %d, Gotten %d" %
-                                          (self.received_data_chunk.acquisition_id, self.acquisition_metadata.acquisition_id))
+                                          (self.acquisition_metadata.acquisition_id, self.received_data_chunk.acquisition_id))
                         next_state = FSMState.DATA_RETRIEVAL_FINISHED
 
                     elif self.received_data_chunk.rolling_counter != self.read_rolling_counter:
                         self.logger.error("Rolling counter mismatch. Expected %d, gotten %d" %
-                                          (self.received_data_chunk.rolling_counter, self.read_rolling_counter))
+                                          (self.read_rolling_counter, self.received_data_chunk.rolling_counter))
                         next_state = FSMState.DATA_RETRIEVAL_FINISHED
 
                     else:
@@ -357,10 +366,10 @@ class DataloggingPoller:
                             computed_crc = crc32(self.bytes_received)
                             if self.received_data_chunk.crc != computed_crc:
                                 self.logger.error("CRC mismatch for acquisition. Expected 0x%08x, gotten 0x%08x" %
-                                                  (self.received_data_chunk.crc, computed_crc))
+                                                  (computed_crc, self.received_data_chunk.crc))
                                 next_state = FSMState.DATA_RETRIEVAL_FINISHED
                             else:
-                                self.data_read_success = True
+                                self.data_read_success = True   # Yay! Success!
                                 next_state = FSMState.DATA_RETRIEVAL_FINISHED
                         else:
                             if not self.request_pending:
@@ -390,15 +399,20 @@ class DataloggingPoller:
             elif self.state == FSMState.DATA_RETRIEVAL_FINISHED:
                 if state_entry:
                     if not self.data_read_success:
+                        self.logger.error("Failed to read acquisition. Calling callback with success=False")
                         self.mark_active_acquisition_failed_if_any()
                     else:
+                        self.logger.debug("Successfully read the acquisition. Calling callback with success=True")
                         self.mark_active_acquisition_success(self.bytes_received)
+
+                next_state = FSMState.WAIT_FOR_REQUEST
             else:
                 raise RuntimeError('Unknown FSM state %s' % str(self.state))
 
             self.previous_state = self.state
             if next_state != self.state:
-                self.logger.debug("Moving state from %s to %s" % (self.state.name, next_state.name))
+                self.logger.debug("Moving state from %s to %s. Last device status reading is %s" %
+                                  (self.state.name, next_state.name, self.device_datalogging_status.name))
             self.state = next_state
         except Exception as e:
             self.error = True
@@ -464,7 +478,11 @@ class DataloggingPoller:
 
     def process_get_status_success(self, response: Response):
         response_data = cast(protocol_typing.Response.DatalogControl.GetStatus, self.protocol.parse_response(response))
+
+        if self.device_datalogging_status != response_data['status']:
+            self.logger.debug("Device datalogging status changed from %s to %s" % (self.device_datalogging_status.name, response_data['status'].name))
         self.device_datalogging_status = response_data['status']
+        self.require_status_update = False
 
     def process_get_setup_success(self, response: Response):
         if self.state != FSMState.GET_SETUP:

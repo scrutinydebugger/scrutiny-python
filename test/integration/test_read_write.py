@@ -300,6 +300,8 @@ class TestReadWrite(ScrutinyIntegrationTest):
         self.assert_value_received(self.entry_u64, expected_u64_value)
 
     def test_write_oob_values(self):
+        #  TODO : This test failed once for no apparent reason. There might be a race condition or some sort
+        # of timing weakness.
         @dataclass
         class Testcase:
             entry: DatastoreEntry

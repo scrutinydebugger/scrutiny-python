@@ -359,7 +359,7 @@ class DataloggerEmulator:
 
         if self.state in [datalogging.DataloggerStatus.CONFIGURED, datalogging.DataloggerStatus.ARMED, datalogging.DataloggerStatus.TRIGGERED]:
             self.encoder.encode_samples(self.read_samples())
-            self.logger.debug("Read sample")
+            self.logger.debug("Encoding a new sample. Internal counter=%d" % self.encoder.entry_counter)
 
         if self.state == datalogging.DataloggerStatus.ARMED:
             assert self.config is not None
@@ -369,12 +369,13 @@ class DataloggerEmulator:
                 self.entry_counter_at_trigger = self.encoder.get_entry_counter()
                 self.target_byte_count_after_trigger = self.byte_count_at_trigger + round((1.0 - self.config.probe_location) * self.buffer_size)
                 self.state = datalogging.DataloggerStatus.TRIGGERED
-                self.logger.debug("Acquisition triggered. Going to TRIGGERED state")
+                self.logger.debug("Acquisition triggered. Going to TRIGGERED state. Byte counter=%d, target_byte_count_after_trigger=%d" %
+                                  (self.byte_count_at_trigger, self.target_byte_count_after_trigger))
 
         if self.state == datalogging.DataloggerStatus.TRIGGERED:
             assert self.config is not None
             probe_location_ok = self.encoder.get_byte_counter() >= self.target_byte_count_after_trigger
-            timed_out = (time.time() - self.trigger_fulfilled_timestamp) >= self.config.timeout
+            timed_out = (self.config.timeout != 0) and ((time.time() - self.trigger_fulfilled_timestamp) >= self.config.timeout)
             if probe_location_ok or timed_out:
                 self.logger.debug("Acquisition complete. Going to ACQUISITION_COMPLETED state")
                 self.state = datalogging.DataloggerStatus.ACQUISITION_COMPLETED
