@@ -267,12 +267,13 @@ class DataloggingPoller:
                     self.configure_completed = False
 
                 if self.new_request_received:   # New request interrupts the previous one
-                    next_state = FSMState.WAIT_FOR_REQUEST
+                    if not self.request_pending:
+                        next_state = FSMState.WAIT_FOR_REQUEST
 
-                if self.request_failed:
+                elif self.request_failed:
                     next_state = FSMState.IDLE
 
-                if self.configure_completed:
+                elif self.configure_completed:
                     self.configure_completed = False
                     self.dispatch(self.protocol.datalogging_arm_trigger())
                     next_state = FSMState.ARMING
@@ -281,10 +282,14 @@ class DataloggingPoller:
                 if state_entry:
                     self.arm_completed = False
 
-                if self.request_failed:
+                if self.new_request_received:   # New request interrupts the previous one
+                    if not self.request_pending:
+                        next_state = FSMState.WAIT_FOR_REQUEST
+
+                elif self.request_failed:
                     next_state = FSMState.IDLE
 
-                if self.arm_completed:
+                elif self.arm_completed:
                     next_state = FSMState.WAIT_FOR_DATA
 
             elif self.state == FSMState.WAIT_FOR_DATA:
@@ -292,9 +297,10 @@ class DataloggingPoller:
                     self.require_status_update = True
 
                 if self.new_request_received:   # New request interrupts the previous one
-                    next_state = FSMState.WAIT_FOR_REQUEST
+                    if not self.request_pending:
+                        next_state = FSMState.WAIT_FOR_REQUEST
 
-                if self.require_status_update == False:
+                elif self.require_status_update == False:
                     if self.device_datalogging_status == datalogging.DataloggerStatus.ACQUISITION_COMPLETED:
                         next_state = FSMState.READ_METADATA
 
@@ -333,7 +339,8 @@ class DataloggingPoller:
                     self.bytes_received = bytearray()
 
                 if self.new_request_received:   # New request interrupts the previous one
-                    next_state = FSMState.WAIT_FOR_REQUEST
+                    if not self.request_pending:
+                        next_state = FSMState.WAIT_FOR_REQUEST
 
                 elif self.request_failed:
                     self.request_failed = False

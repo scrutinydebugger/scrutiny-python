@@ -13,7 +13,7 @@ from test import logger
 import signal  # For ctrl+c handling
 import struct
 import random
-import logging
+from binascii import hexlify
 
 import scrutiny.server.datalogging.definitions as datalogging
 from scrutiny.server.device.emulated_device import EmulatedDevice
@@ -504,9 +504,12 @@ class TestDeviceHandler(ScrutinyUnitTest):
         self.assertEqual(round_completed, test_round_to_do)  # Make sure test went through.
 
     def receive_datalogging_setup_callback(self, setup: datalogging.DataloggingSetup):
+        logger.debug('receive_datalogging_setup_callback called. setup=%s' % (str(setup)))
         self.datalogging_setup = setup
 
     def acquisition_complete_callback(self, success: bool, data: Optional[bytes]):
+        printable_data = hexlify(data) if data is not None else "<None>"
+        logger.debug('acquisition_complete_callback called. success=%s. data=%s' % (success, printable_data))
         self.acquisition_complete_callback_called = True
         self.acquisition_complete_callback_success = success
         self.acquisition_complete_callback_data = data
@@ -553,12 +556,11 @@ class TestDeviceHandler(ScrutinyUnitTest):
             receive_setup=self.receive_datalogging_setup_callback
         )
 
-        for iteration in range(3):
+        for iteration in range(6):
             self.acquisition_complete_callback_called = False
             logger.debug("[iteration=%d] Wait for connection" % iteration)
-            expected_default_state = datalogging.DataloggerStatus.IDLE if iteration == 0 else datalogging.DataloggerStatus.ACQUISITION_COMPLETED
             # First we wait on connection to be ready with the device
-            timeout = 4
+            timeout = 3
             t1 = time.time()
             connection_completed = False
             while time.time() - t1 < timeout:
@@ -575,7 +577,8 @@ class TestDeviceHandler(ScrutinyUnitTest):
             assert device_info is not None
             self.assertTrue(device_info.supported_feature_map['datalogging'])
             self.assertTrue(self.device_handler.datalogging_poller.is_enabled())
-            self.assertEqual(self.device_handler.get_datalogger_status(), expected_default_state)
+            if iteration == 0:
+                self.assertEqual(self.device_handler.get_datalogger_status(), datalogging.DataloggerStatus.IDLE)
 
             # Next wait for datalogging poller to retrieve the configuration of the datalogging feature
             logger.debug("[iteration=%d] Wait for setup" % iteration)
@@ -594,7 +597,8 @@ class TestDeviceHandler(ScrutinyUnitTest):
             self.device_handler.process()
             time.sleep(0.1)
             self.device_handler.process()
-            self.assertEqual(self.device_handler.get_datalogger_status(), expected_default_state)
+            if iteration == 0:
+                self.assertEqual(self.device_handler.get_datalogger_status(), datalogging.DataloggerStatus.IDLE)
 
             self.emulated_device.write_memory(0x100000, bytes([1, 2, 3, 4, 5, 6, 7, 8]))
             self.emulated_device.write_rpv(0x1000, 0)
@@ -626,8 +630,20 @@ class TestDeviceHandler(ScrutinyUnitTest):
             config.add_signal(datalogging.MemoryLoggableSignal(address=0x100006, size=2))
 
             # Give the acquisition request to the device handler
-            logger.debug("[iteration=%d] Requesting a new acquisition" % iteration)
-            self.device_handler.request_datalogging_acquisition(loop_id, config, self.acquisition_complete_callback)
+            if iteration != 5:
+                # A new request is made mid-loop on iteration 4, so we don't override it
+                logger.debug("[iteration=%d] Requesting a new acquisition" % iteration)
+                self.device_handler.request_datalogging_acquisition(loop_id, config, self.acquisition_complete_callback)
+
+            if iteration == 3:
+                self.device_handler.process()
+                self.assertFalse(self.acquisition_complete_callback_called)
+                logger.debug("[iteration=%d] Requesting a new acquisition to interrupt previous one" % iteration)
+                self.device_handler.request_datalogging_acquisition(loop_id, config, self.acquisition_complete_callback)
+                self.assertTrue(self.acquisition_complete_callback_called)
+                self.assertFalse(self.acquisition_complete_callback_success)
+                self.acquisition_complete_callback_called = False
+                self.acquisition_complete_callback_success = False
 
             # Make sure it is received and that the device is waiting for the trigger to happen
             logger.debug("[iteration=%d] Wait for armed" % iteration)
@@ -639,6 +655,15 @@ class TestDeviceHandler(ScrutinyUnitTest):
                     break
 
             self.assertEqual(self.device_handler.get_datalogger_status(), datalogging.DataloggerStatus.ARMED)
+
+            if iteration == 4:
+                logger.debug("[iteration=%d] Requesting a new acquisition to interrupt previous one" % iteration)
+                self.device_handler.request_datalogging_acquisition(loop_id, config, self.acquisition_complete_callback)
+                self.assertTrue(self.acquisition_complete_callback_called)
+                self.assertFalse(self.acquisition_complete_callback_success)
+                self.acquisition_complete_callback_called = False
+                self.acquisition_complete_callback_success = False
+                continue    #
 
             # Make sure it stays it the same state if the trigger never happens
             t1 = time.time()
