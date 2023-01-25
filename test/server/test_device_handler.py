@@ -615,6 +615,7 @@ class TestDeviceHandler(ScrutinyUnitTest):
             self.assertTrue(self.device_handler.is_ready_for_datalogging_acquisition_request())
             self.assertEqual(self.datalogging_setup.buffer_size, self.emulated_device.datalogger.get_buffer_size())
             self.assertEqual(self.datalogging_setup.encoding, self.emulated_device.datalogger.get_encoding())
+            self.assertEqual(self.datalogging_setup.max_signal_count, self.emulated_device.datalogger.MAX_SIGNAL_COUNT)
 
             # Make sure nothing happens unless somebody require an acquisition
             self.device_handler.process()
