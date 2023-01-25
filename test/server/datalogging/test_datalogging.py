@@ -13,7 +13,7 @@ from test import ScrutinyUnitTest
 
 class TestDatalogging(ScrutinyUnitTest):
 
-    def test_value_validity(self):
+    def test_configuration_value_validity(self):
         config = datalogging.Configuration()
         with self.assertRaises(ValueError):
             config.decimation = 0
@@ -49,7 +49,6 @@ class TestDatalogging(ScrutinyUnitTest):
         config.add_signal(datalogging.TimeLoggableSignal())
         config.add_signal(datalogging.RPVLoggableSignal(0xabcd))
 
-    
 
 if __name__ == '__main__':
     import unittest

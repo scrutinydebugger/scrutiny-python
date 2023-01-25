@@ -7,16 +7,15 @@
 #   Copyright (c) 2021-2023 Scrutiny Debugger
 
 import queue
-from enum import Enum
-from uuid import uuid4
 from dataclasses import dataclass
 import logging
+import math
 
 import scrutiny.server.datalogging.definitions as datalogging
 from scrutiny.server.device.device_handler import DeviceHandler, DataloggingReceiveSetupCallback
 from scrutiny.server.datastore.datastore_entry import DatastoreEntry, DatastoreAliasEntry, DatastoreRPVEntry, DatastoreVariableEntry
 from scrutiny.server.datastore.datastore import Datastore
-from scrutiny.server.device.device_info import ExecLoopType, FixedFreqLoop
+from scrutiny.server.device.device_info import FixedFreqLoop
 from scrutiny.server.datalogging.acquisition import deinterleave_acquisition_data, DataloggingAcquisition
 from scrutiny.core.basic_types import *
 from scrutiny.server.datalogging.datalogging_storage import DataloggingStorage
@@ -25,24 +24,11 @@ from scrutiny.core.typehints import GenericCallback
 from typing import Optional, List, Dict, Callable, Tuple
 
 
-class XAxisType(Enum):
-    IdealTime = 0,
-    MeasuredTime = 1,
-    Signal = 2
-
-
-@dataclass
-class DataloggingSamplingRate:
-    name: str
-    frequency: Optional[float]
-    rate_type: ExecLoopType
-    device_identifier: int
-
-
 class AcquisitionRequestCompletedCallback(GenericCallback):
     callback: Callable[[bool, Optional[DataloggingAcquisition]], None]
 
 
+@dataclass
 class AcquisitionRequest:
     rate_identifier: int
     decimation: int
@@ -50,16 +36,10 @@ class AcquisitionRequest:
     probe_location: float
     trigger_hold_time: float
     trigger_condition: datalogging.TriggerCondition
-    x_axis: XAxisType
+    x_axis_type: datalogging.XAxisType
     x_axis_watchable: Optional[DatastoreEntry]
     entries: List[DatastoreEntry]
     completion_callback: AcquisitionRequestCompletedCallback
-
-
-@dataclass
-class DataloggingDeviceSetup:
-    buffer_size: int
-    encoding: datalogging.Encoding
 
 
 class DataloggingManager:
@@ -71,7 +51,7 @@ class DataloggingManager:
     active_request: Optional[AcquisitionRequest]
     active_request_config: datalogging.Configuration
     logger: logging.Logger
-    datalogging_setup: Optional[DataloggingDeviceSetup]
+    datalogging_setup: Optional[datalogging.DataloggingSetup]
     rpv_map: Optional[Dict[int, RuntimePublishedValue]]
 
     def __init__(self, datastore: Datastore, device_handler: DeviceHandler):
@@ -95,8 +75,9 @@ class DataloggingManager:
         self.rpv_map = None
 
     def request_acquisition(self, request: AcquisitionRequest) -> None:
-        config = self.make_device_config_from_request(request)  # Can raise an exception
+        config, signalmap = self.make_device_config_from_request(request)  # Can raise an exception
         self.acquisition_request_queue.put((request, config))
+        # todo keep the signalmap for later
 
     def process(self) -> None:
         self.device_status = self.device_handler.get_connection_status()
@@ -127,13 +108,11 @@ class DataloggingManager:
                     config=self.active_request_config,
                 )
 
-    def callback_receive_setup(self, buffer_size: int, encoding: datalogging.Encoding):
-        self.datalogging_setup = DataloggingDeviceSetup(
-            buffer_size=buffer_size,
-            encoding=encoding
-        )
+    def callback_receive_setup(self, setup: datalogging.DataloggingSetup):
+        self.datalogging_setup = setup
 
-    def make_device_config_from_request(self, request: AcquisitionRequest) -> datalogging.Configuration:
+    @classmethod
+    def make_device_config_from_request(self, request: AcquisitionRequest) -> Tuple[datalogging.Configuration, Dict[DatastoreEntry, int]]:
         config = datalogging.Configuration()
         # Each of the assignation below can trigger an exception if out of bound
         config.decimation = request.decimation
@@ -142,31 +121,92 @@ class DataloggingManager:
         config.trigger_hold_time = request.trigger_hold_time
         config.trigger_condition = request.trigger_condition
 
-        if request.x_axis == XAxisType.MeasuredTime:
+        entry2signal_map: Dict[DatastoreEntry, int] = {}
+
+        all_entries = request.entries.copy()
+
+        if request.x_axis_type == datalogging.XAxisType.Signal:
+            if not isinstance(request.x_axis_watchable, DatastoreEntry):
+                raise ValueError("X Axis must have a watchable entry")
+            all_entries.append(request.x_axis_watchable)
+
+        signal_count = 0
+        for entry in all_entries:
+            if isinstance(entry, DatastoreAliasEntry):
+                entry_to_log = entry.refentry
+            else:
+                entry_to_log = entry
+
+            if entry_to_log not in entry2signal_map:
+                config.add_signal(self.make_signal_from_watchable(entry_to_log))
+                signal_index = signal_count
+                signal_count += 1
+            else:
+                signal_index = entry2signal_map[entry_to_log]
+            entry2signal_map[entry_to_log] = signal_index
+            entry2signal_map[entry] = signal_index
+
+        # Purposely add time at the end
+        if request.x_axis_type == datalogging.XAxisType.MeasuredTime:
             config.add_signal(datalogging.TimeLoggableSignal())
-        elif request.x_axis == XAxisType.Signal:
-            if request.x_axis_watchable is None:
-                raise ValueError("X Axis must have a watchable")
 
-            config.add_signal(self.make_signal_from_watchable(request.x_axis_watchable))
+        return (config, entry2signal_map)
 
-        for entry in request.entries:
-            config.add_signal(self.make_signal_from_watchable(entry))
-
-        return config
-
-    def make_signal_from_watchable(self, watchable: DatastoreEntry) -> datalogging.LoggableSignal:
+    @classmethod
+    def make_signal_from_watchable(cls, watchable: DatastoreEntry) -> datalogging.LoggableSignal:
         if isinstance(watchable, DatastoreAliasEntry):
             watchable = watchable.refentry
 
         signal: datalogging.LoggableSignal
         if isinstance(watchable, DatastoreVariableEntry):
-            signal = datalogging.MemoryLoggableSignal(watchable.get_address(), watchable.get_size())
+            if watchable.is_bitfield():
+                bitoffset = watchable.get_bitoffset()
+                bitsize = watchable.get_bitsize()
+                assert bitoffset is not None
+                assert bitsize is not None
+
+                if watchable.variable_def.endianness == Endianness.Little:
+                    address = watchable.get_address() + bitoffset // 8
+                    size = math.ceil(bitsize / 8)
+                else:
+                    address = (watchable.get_address() + watchable.get_data_type().get_size_byte()) - bitoffset // 8
+                    size = math.ceil(bitsize / 8)
+
+                signal = datalogging.MemoryLoggableSignal(address, size)
+            else:
+                signal = datalogging.MemoryLoggableSignal(watchable.get_address(), watchable.get_size())
         elif isinstance(watchable, DatastoreRPVEntry):
             signal = datalogging.RPVLoggableSignal(watchable.get_rpv().id)
         else:
             raise ValueError('Cannot make a loggable signal out of this watchable %s' % (watchable.display_path))
         return signal
+
+    @classmethod
+    def make_operand_from_watchable(cls, watchable: DatastoreEntry) -> datalogging.Operand:
+        if isinstance(watchable, DatastoreAliasEntry):
+            watchable = watchable.refentry
+
+        operand: datalogging.Operand
+        if isinstance(watchable, DatastoreVariableEntry):
+            if watchable.is_bitfield():
+                bitoffset = watchable.get_bitoffset()
+                bitsize = watchable.get_bitsize()
+                assert bitoffset is not None
+                assert bitsize is not None
+
+                operand = datalogging.VarBitOperand(
+                    watchable.get_address(),
+                    watchable.get_data_type(),
+                    bitoffset,
+                    bitsize)
+            else:
+                operand = datalogging.VarOperand(watchable.get_address(), watchable.get_data_type())
+        elif isinstance(watchable, DatastoreRPVEntry):
+            operand = datalogging.RPVOperand(watchable.get_rpv().id)
+        else:
+            raise ValueError('Cannot make a Operand out of this watchable %s' % (watchable.display_path))
+
+        return operand
 
     def receive_acquisition_raw_data(self, request: AcquisitionRequest, raw_data: bytes):
         if self.device_status != DeviceHandler.ConnectionStatus.CONNECTED_READY:
@@ -196,8 +236,8 @@ class DataloggingManager:
             encoding=self.datalogging_setup.encoding
         )
 
-    def get_available_sampling_freq(self) -> Optional[List[DataloggingSamplingRate]]:
-        output: List[DataloggingSamplingRate] = []
+    def get_available_sampling_freq(self) -> Optional[List[datalogging.SamplingRate]]:
+        output: List[datalogging.SamplingRate] = []
 
         if self.device_status == DeviceHandler.ConnectionStatus.CONNECTED_READY:
             device_info = self.device_handler.get_device_info()
@@ -206,7 +246,7 @@ class DataloggingManager:
                     for i in range(len(device_info.loops)):
                         loop = device_info.loops[i]
                         if loop.support_datalogging:
-                            rate = DataloggingSamplingRate(
+                            rate = datalogging.SamplingRate(
                                 name=loop.get_name(),
                                 rate_type=loop.get_loop_type(),
                                 device_identifier=i,

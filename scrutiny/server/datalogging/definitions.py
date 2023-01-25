@@ -12,10 +12,29 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
 from scrutiny.core.basic_types import EmbeddedDataType
+from typing import Optional
+from scrutiny.server.device.device_info import ExecLoopType
+
+
+class XAxisType(Enum):
+    """Represent a type of X-Axis that a user can select"""
+    IdealTime = 0,
+    MeasuredTime = 1,
+    Signal = 2
+
+
+@dataclass
+class SamplingRate:
+    """Represent a sampling rate that a use can select"""
+    name: str
+    frequency: Optional[float]
+    rate_type: ExecLoopType
+    device_identifier: int
 
 
 @dataclass
 class AcquisitionMetadata:
+    """Represent the metadata attached to an acquisition given by the device"""
     acquisition_id: int
     config_id: int
     number_of_points: int
@@ -24,10 +43,12 @@ class AcquisitionMetadata:
 
 
 class Encoding(Enum):
+    """Represent a type of data encoding used by the device. Matches the device definition"""
     RAW = 0
 
 
 class DataloggerStatus(Enum):
+    """Represent the state of the device datalogging internal state machine. Matches the device definition"""
     IDLE = 0
     CONFIGURED = 1
     ARMED = 2
@@ -38,6 +59,7 @@ class DataloggerStatus(Enum):
 
 @dataclass
 class DataloggingSetup:
+    """Represent the device datalogging global parameters."""
     buffer_size: int
     encoding: Encoding
 
@@ -45,6 +67,7 @@ class DataloggingSetup:
 
 
 class OperandType(Enum):
+    """Represent a type of operand that can be used for a trigger condition. Matches the device definition"""
     Literal = 0
     Var = 1
     VarBit = 2
@@ -52,13 +75,13 @@ class OperandType(Enum):
 
 
 class Operand(ABC):
-
     @abstractmethod
     def get_type(self) -> OperandType:
         raise NotImplementedError("Not implemented")
 
 
 class LiteralOperand(Operand):
+    """An operand with a literal value"""
     value: float
 
     def __init__(self, value: Union[float, int]):
@@ -69,6 +92,7 @@ class LiteralOperand(Operand):
 
 
 class VarOperand(Operand):
+    """An operand that refers to a variable in memory"""
     address: int
     datatype: EmbeddedDataType
 
@@ -87,6 +111,7 @@ class VarOperand(Operand):
 
 
 class VarBitOperand(Operand):
+    """An operand that refers to a variable in memory that uses bitfields"""
     address: int
     datatype: EmbeddedDataType
     bitoffset: int
@@ -115,6 +140,7 @@ class VarBitOperand(Operand):
 
 
 class RPVOperand(Operand):
+    """An operand that refers to a Runtime Published Value"""
     rpv_id: int
 
     def __init__(self, rpv_id: int):
@@ -133,6 +159,7 @@ class RPVOperand(Operand):
 
 
 class LoggableSignalType(Enum):
+    """Represent a type of loggable signal that can be given to the device. Matches the device definition"""
     MEMORY = 0
     RPV = 1
     TIME = 2
@@ -147,6 +174,7 @@ class LoggableSignal:
 
 
 class MemoryLoggableSignal(LoggableSignal):
+    """A loggable data fetched from memory"""
     address: int
     size: int
 
@@ -165,6 +193,7 @@ class MemoryLoggableSignal(LoggableSignal):
 
 
 class RPVLoggableSignal(LoggableSignal):
+    """A loggable data fetched from Runtime Published Value reading"""
     rpv_id: int
 
     def __init__(self, rpv_id: int):
@@ -177,6 +206,8 @@ class RPVLoggableSignal(LoggableSignal):
 
 
 class TimeLoggableSignal(LoggableSignal):
+    """A loggable data that represent the time, in device time step (100ns)"""
+
     def __init__(self):
         pass
 
@@ -189,6 +220,7 @@ class TimeLoggableSignal(LoggableSignal):
 
 
 class TriggerConditionID(Enum):
+    """The ID of the trigger condition to use. Matches the device definition."""
     AlwaysTrue = 0          # Always true
     Equal = 1               # Operand1 == Operand2
     NotEqual = 2            # Operand1 != Operand2
@@ -241,6 +273,7 @@ class TriggerCondition:
 
 
 class Configuration:
+    """Represent a datalogging configuration that can be sent to the device to launch an acquisition """
     _decimation: int
     _probe_location: float
     _timeout: float
@@ -258,7 +291,7 @@ class Configuration:
 
         self._loggable_signals = []
 
-    def add_signal(self, signal: LoggableSignal):
+    def add_signal(self, signal: LoggableSignal) -> None:
         if not isinstance(signal, LoggableSignal):
             raise ValueError('Requires a valid LoggableSignal object')
 
@@ -269,10 +302,11 @@ class Configuration:
 
     @property
     def decimation(self) -> int:
+        """The acquisition decimation (subsampling factor). A value of 10 will cause the device to log 1 sample each 10 loops iteration."""
         return self._decimation
 
     @decimation.setter
-    def decimation(self, v) -> None:
+    def decimation(self, v: int) -> None:
         v = int(v)
         if v <= 0:
             raise ValueError('Decimation must be a value greater than 0')
@@ -281,6 +315,9 @@ class Configuration:
 
     @property
     def probe_location(self) -> float:
+        """The desired location of the trigger point in the buffer. A value of 0 cause the trigger event to be at the beginning of the data.
+        A value of 1 cause the trigger event to be at the end of the data. Any value between 0 and 1 will be linearly interpolated, causing a value of 0.5
+        to position the trigger event in the middle of the data window"""
         return self._probe_location
 
     @probe_location.setter
@@ -293,6 +330,7 @@ class Configuration:
 
     @property
     def timeout(self) -> float:
+        """Maximum acquisition time in seconds. A value of 0 means no timeout."""
         return self._timeout
 
     @timeout.setter
@@ -305,6 +343,7 @@ class Configuration:
 
     @property
     def trigger_condition(self) -> TriggerCondition:
+        """The trigger condition"""
         return self._trigger_condition
 
     @trigger_condition.setter
@@ -316,6 +355,7 @@ class Configuration:
 
     @property
     def trigger_hold_time(self) -> float:
+        """The amount of time that the trigger condition must be held true before the device mark the sample as the trigger point. Value in seconds"""
         return self._trigger_hold_time
 
     @trigger_hold_time.setter
