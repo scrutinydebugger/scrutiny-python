@@ -180,6 +180,8 @@ class DataloggerEmulator:
         def get_entry_count(self) -> int:
             return len(self.data_deque)
 
+    MAX_SIGNAL_COUNT = 32
+
     logger: logging.Logger
     buffer_size: int
     config: Optional[datalogging.Configuration]
@@ -757,7 +759,8 @@ class EmulatedDevice:
         if subfunction == cmd.DatalogControl.Subfunction.GetSetup:
             response = self.protocol.respond_datalogging_get_setup(
                 buffer_size=self.datalogger.get_buffer_size(),
-                encoding=self.datalogger.get_encoding())
+                encoding=self.datalogger.get_encoding(),
+                max_signal_count=self.datalogger.MAX_SIGNAL_COUNT)
         elif subfunction == cmd.DatalogControl.Subfunction.ConfigureDatalog:
             self.datalogging_read_in_progress = False
             data = cast(protocol_typing.Request.DatalogControl.Configure, data)

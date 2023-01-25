@@ -285,7 +285,7 @@ class Protocol:
         return Request(cmd.CommControl, cmd.CommControl.Subfunction.Disconnect, pack('>L', session_id), response_payload_size=0)
 
     def datalogging_get_setup(self) -> Request:
-        return Request(cmd.DatalogControl, cmd.DatalogControl.Subfunction.GetSetup, response_payload_size=5)
+        return Request(cmd.DatalogControl, cmd.DatalogControl.Subfunction.GetSetup, response_payload_size=6)
 
     def datalogging_configure(self, loop_id: int, config_id: int, config: datalogging.Configuration) -> Request:
         data = pack('>BHHBLBLB',
@@ -808,8 +808,8 @@ class Protocol:
 
         return Response(cmd.MemoryControl, cmd.MemoryControl.Subfunction.WriteRPV, Response.ResponseCode.OK, data)
 
-    def respond_datalogging_get_setup(self, buffer_size: int, encoding: datalogging.Encoding) -> Response:
-        return Response(cmd.DatalogControl, cmd.DatalogControl.Subfunction.GetSetup, Response.ResponseCode.OK, pack('>LB', buffer_size, encoding.value))
+    def respond_datalogging_get_setup(self, buffer_size: int, encoding: datalogging.Encoding, max_signal_count: int) -> Response:
+        return Response(cmd.DatalogControl, cmd.DatalogControl.Subfunction.GetSetup, Response.ResponseCode.OK, pack('>LBB', buffer_size, encoding.value, max_signal_count))
 
     def respond_datalogging_configure(self) -> Response:
         return Response(cmd.DatalogControl, cmd.DatalogControl.Subfunction.ConfigureDatalog, Response.ResponseCode.OK)
@@ -1023,7 +1023,7 @@ class Protocol:
 
                     if subfn == cmd.DatalogControl.Subfunction.GetSetup:
                         data = cast(protocol_typing.Response.DatalogControl.GetSetup, data)
-                        if len(response.payload) != 5:
+                        if len(response.payload) != 6:
                             raise ValueError('Not the right amount of data for a GetSetup response. Got %d expected %d', (len(response.payload), 5))
 
                         data['buffer_size'] = struct.unpack('>L', response.payload[0:4])[0]
@@ -1032,6 +1032,7 @@ class Protocol:
                             raise ValueError('Unknown encoding %d' % encoding_code)
 
                         data['encoding'] = datalogging.Encoding(encoding_code)
+                        data['max_signal_count'] = response.payload[5]
                     elif subfn == cmd.DatalogControl.Subfunction.GetStatus:
                         data = cast(protocol_typing.Response.DatalogControl.GetStatus, data)
                         if len(response.payload) != 1:

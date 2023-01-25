@@ -62,6 +62,7 @@ class DataloggingSetup:
     """Represent the device datalogging global parameters."""
     buffer_size: int
     encoding: Encoding
+    max_signal_count: int
 
 # region Operands
 

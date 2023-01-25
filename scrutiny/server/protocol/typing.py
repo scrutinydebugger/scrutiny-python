@@ -178,6 +178,7 @@ class Response:
         class GetSetup(TypedDict):
             buffer_size: int
             encoding: datalogging.Encoding
+            max_signal_count: int
 
         class GetStatus(TypedDict):
             status: datalogging.DataloggerStatus

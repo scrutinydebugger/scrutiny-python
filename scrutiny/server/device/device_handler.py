@@ -231,6 +231,10 @@ class DeviceHandler:
     def request_datalogging_acquisition(self, loop_id: int, config: datalogging.Configuration, callback: AcquisitionRequestCompletionCallback) -> None:
         self.datalogging_poller.request_acquisition(loop_id=loop_id, config=config, callback=callback)
 
+    def is_ready_for_datalogging_acquisition_request(self) -> bool:
+        """Tells if the device is ready to receive to receive a datalogging acquisition request"""
+        return self.datalogging_poller.is_ready_to_receive_new_request()
+
     def get_device_info(self) -> Optional[DeviceInfo]:
         """Returns all the information we have about the connected device. None if not connected"""
         return copy.copy(self.device_info)

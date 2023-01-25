@@ -610,7 +610,7 @@ class TestProtocolV1_0(ScrutinyUnitTest):
         req = self.proto.datalogging_get_setup()
         self.assert_req_response_bytes(req, request_bytes)
         data = self.proto.parse_request(req)
-        self.check_expected_payload_size(req, 5)
+        self.check_expected_payload_size(req, 6)
 
     def test_req_datalogging_configure(self):
         self.proto.set_address_size_bits(32)
@@ -1299,11 +1299,12 @@ class TestProtocolV1_0(ScrutinyUnitTest):
 
 
     def test_response_datalogging_get_setup(self):
-        response = self.proto.respond_datalogging_get_setup(buffer_size=0x12345678, encoding=datalogging.Encoding.RAW)
-        self.assert_req_response_bytes(response, [0x85, 1, 0, 0, 5, 0x12, 0x34, 0x56, 0x78, 0])
+        response = self.proto.respond_datalogging_get_setup(buffer_size=0x12345678, encoding=datalogging.Encoding.RAW, max_signal_count=32)
+        self.assert_req_response_bytes(response, [0x85, 1, 0, 0, 6, 0x12, 0x34, 0x56, 0x78, 0, 32])
         data = self.proto.parse_response(response)
         self.assertEqual(data['buffer_size'], 0x12345678)
         self.assertEqual(data['encoding'], datalogging.Encoding.RAW)
+        self.assertEqual(data['max_signal_count'], 32)
 
     def test_response_datalogging_configure(self):
         response = self.proto.respond_datalogging_configure()

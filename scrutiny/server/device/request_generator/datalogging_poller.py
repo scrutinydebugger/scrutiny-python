@@ -94,6 +94,7 @@ class DataloggingPoller:
     bytes_received: bytearray
     read_rolling_counter: int
     require_status_update: bool
+    ready_to_receive_request: bool
 
     acquisition_metadata: Optional[AcquisitionMetadata]
     received_data_chunk: Optional[ReceivedChunk]
@@ -144,6 +145,7 @@ class DataloggingPoller:
         self.read_rolling_counter = 0
         self.acquisition_metadata = None
         self.require_status_update = False
+        self.ready_to_receive_request = False
 
     def set_max_response_payload_size(self, max_response_payload_size: int) -> None:
         self.max_response_payload_size = max_response_payload_size
@@ -187,6 +189,13 @@ class DataloggingPoller:
         if not self.max_response_payload_size:
             raise ValueError("Maximum response payload size must be defined first")
 
+        if not self.is_ready_to_receive_new_request():
+            raise RuntimeError("Not ready to receive a new acquisition request")
+
+        assert self.device_setup is not None    # Will be set if is_ready_to_receive_new_request() returns True
+        if len(config.get_signals()) > self.device_setup.max_signal_count:
+            raise ValueError("Too many signals in configuration. Maximum = %d" % self.device_setup.max_signal_count)
+
         self.mark_active_acquisition_failed_if_any()
 
         self.acquisition_request = AcquisitionRequest(
@@ -197,6 +206,9 @@ class DataloggingPoller:
 
         self.new_request_received = True
 
+    def is_ready_to_receive_new_request(self) -> bool:
+        return self.ready_to_receive_request and not self.error
+
     def process(self) -> None:
         """To be called periodically to make the process move forward"""
         if not self.started or not self.enabled:
@@ -206,10 +218,8 @@ class DataloggingPoller:
             self.started = False
             self.set_standby()
             return
-        elif self.error:
-            if self.acquisition_request is not None:
-                self.acquisition_request.completion_callback(False, None)
-                self.acquisition_request = None
+        elif self.error:    # only way out is a reset
+            self.mark_active_acquisition_failed_if_any()
             return
 
         if self.state in [FSMState.WAIT_FOR_DATA]:  # Fast update when waiting for trigger
@@ -231,6 +241,7 @@ class DataloggingPoller:
                 self.device_setup = None
                 self.configure_completed = False
                 self.arm_completed = False
+                self.ready_to_receive_request = False
                 self.update_status_timer.start()
                 next_state = FSMState.GET_SETUP
 
@@ -248,6 +259,9 @@ class DataloggingPoller:
                     self.logger.debug("Datalogging setup received. %s" % (self.device_setup.__dict__))
 
             elif self.state == FSMState.WAIT_FOR_REQUEST:
+                if state_entry:
+                    self.ready_to_receive_request = True
+
                 if not self.request_pending:
                     if self.new_request_received:
                         self.new_request_received = False
@@ -498,7 +512,8 @@ class DataloggingPoller:
         response_data = cast(protocol_typing.Response.DatalogControl.GetSetup, self.protocol.parse_response(response))
         self.device_setup = DataloggingSetup(
             buffer_size=response_data['buffer_size'],
-            encoding=response_data['encoding']
+            encoding=response_data['encoding'],
+            max_signal_count=response_data['max_signal_count']
         )
 
     def process_configure_success(self, response: Response):

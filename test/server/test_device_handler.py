@@ -515,7 +515,7 @@ class TestDeviceHandler(ScrutinyUnitTest):
         self.acquisition_complete_callback_data = data
 
     def test_datalogging_device_disabled(self):
-        """Make sure that the device handler does nothing with datalogging when the device doesn't support it"""
+        # Make sure that the device handler does nothing with datalogging when the device doesn't support it
 
         self.device_handler.set_datalogging_callbacks(
             receive_setup=self.receive_datalogging_setup_callback
@@ -547,7 +547,7 @@ class TestDeviceHandler(ScrutinyUnitTest):
         self.assertIsNone(self.datalogging_setup)   # Should never be set
 
     def test_datalogging_control_normal_behavior(self):
-        """Test the behavior of the datalogging poller."""
+        # Test the behavior of the datalogging poller
 
         # Make sure this is enabled, otherwise, the test is useless and will fail.
         self.assertTrue(self.emulated_device.is_datalogging_enabled())
@@ -555,6 +555,28 @@ class TestDeviceHandler(ScrutinyUnitTest):
         self.device_handler.set_datalogging_callbacks(
             receive_setup=self.receive_datalogging_setup_callback
         )
+
+        config = datalogging.Configuration()
+        config.trigger_hold_time = 0
+        config.timeout = 0
+        config.probe_location = 0.5
+        config.decimation = 1
+        config.trigger_condition = datalogging.TriggerCondition(
+            datalogging.TriggerConditionID.Equal,
+            datalogging.RPVOperand(rpv_id=0x1000),
+            datalogging.LiteralOperand(12345678)
+        )
+        config.add_signal(datalogging.TimeLoggableSignal())
+        config.add_signal(datalogging.RPVLoggableSignal(0x1003))
+        config.add_signal(datalogging.MemoryLoggableSignal(address=0x100000, size=4))
+        config.add_signal(datalogging.MemoryLoggableSignal(address=0x100004, size=2))
+        config.add_signal(datalogging.MemoryLoggableSignal(address=0x100006, size=2))
+
+        # Not ready yet.
+        self.assertFalse(self.device_handler.is_ready_for_datalogging_acquisition_request())
+
+        with self.assertRaises(Exception):
+            self.device_handler.request_datalogging_acquisition(0, config, self.acquisition_complete_callback)
 
         for iteration in range(6):
             self.acquisition_complete_callback_called = False
@@ -586,10 +608,11 @@ class TestDeviceHandler(ScrutinyUnitTest):
             t1 = time.time()
             while time.time() - t1 < timeout:
                 self.device_handler.process()
-                if self.datalogging_setup is not None:  # Expect setup to be read
+                if self.datalogging_setup is not None and self.device_handler.is_ready_for_datalogging_acquisition_request():  # Expect setup to be read
                     break
 
             self.assertIsNotNone(self.datalogging_setup)
+            self.assertTrue(self.device_handler.is_ready_for_datalogging_acquisition_request())
             self.assertEqual(self.datalogging_setup.buffer_size, self.emulated_device.datalogger.get_buffer_size())
             self.assertEqual(self.datalogging_setup.encoding, self.emulated_device.datalogger.get_encoding())
 
@@ -612,22 +635,6 @@ class TestDeviceHandler(ScrutinyUnitTest):
                     loop_id = i
                     break
             assert loop_id is not None
-
-            config = datalogging.Configuration()
-            config.trigger_hold_time = 0
-            config.timeout = 0
-            config.probe_location = 0.5
-            config.decimation = 1
-            config.trigger_condition = datalogging.TriggerCondition(
-                datalogging.TriggerConditionID.Equal,
-                datalogging.RPVOperand(rpv_id=0x1000),
-                datalogging.LiteralOperand(12345678)
-            )
-            config.add_signal(datalogging.TimeLoggableSignal())
-            config.add_signal(datalogging.RPVLoggableSignal(0x1003))
-            config.add_signal(datalogging.MemoryLoggableSignal(address=0x100000, size=4))
-            config.add_signal(datalogging.MemoryLoggableSignal(address=0x100004, size=2))
-            config.add_signal(datalogging.MemoryLoggableSignal(address=0x100006, size=2))
 
             # Give the acquisition request to the device handler
             if iteration != 5:

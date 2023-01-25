@@ -130,7 +130,6 @@ class DataloggingManager:
                 raise ValueError("X Axis must have a watchable entry")
             all_entries.append(request.x_axis_watchable)
 
-        signal_count = 0
         for entry in all_entries:
             if isinstance(entry, DatastoreAliasEntry):
                 entry_to_log = entry.refentry
@@ -139,8 +138,7 @@ class DataloggingManager:
 
             if entry_to_log not in entry2signal_map:
                 config.add_signal(self.make_signal_from_watchable(entry_to_log))
-                signal_index = signal_count
-                signal_count += 1
+                signal_index = len(config.get_signals()) - 1
             else:
                 signal_index = entry2signal_map[entry_to_log]
             entry2signal_map[entry_to_log] = signal_index
@@ -154,6 +152,7 @@ class DataloggingManager:
 
     @classmethod
     def make_signal_from_watchable(cls, watchable: DatastoreEntry) -> datalogging.LoggableSignal:
+        """Makes the definitions of a loggable signal from a datastore watchable entry"""
         if isinstance(watchable, DatastoreAliasEntry):
             watchable = watchable.refentry
 
@@ -165,12 +164,11 @@ class DataloggingManager:
                 assert bitoffset is not None
                 assert bitsize is not None
 
+                size = math.ceil(bitsize / 8)
                 if watchable.variable_def.endianness == Endianness.Little:
                     address = watchable.get_address() + bitoffset // 8
-                    size = math.ceil(bitsize / 8)
                 else:
                     address = (watchable.get_address() + watchable.get_data_type().get_size_byte()) - bitoffset // 8
-                    size = math.ceil(bitsize / 8)
 
                 signal = datalogging.MemoryLoggableSignal(address, size)
             else:
@@ -183,6 +181,8 @@ class DataloggingManager:
 
     @classmethod
     def make_operand_from_watchable(cls, watchable: DatastoreEntry) -> datalogging.Operand:
+        """Makes a datalogging trigger condition operand from a datastore watchable entry"""
+
         if isinstance(watchable, DatastoreAliasEntry):
             watchable = watchable.refentry
 
