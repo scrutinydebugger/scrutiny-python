@@ -16,7 +16,7 @@ from scrutiny.server.device.device_handler import DeviceHandler, DataloggingRece
 from scrutiny.server.datastore.datastore_entry import DatastoreEntry, DatastoreAliasEntry, DatastoreRPVEntry, DatastoreVariableEntry
 from scrutiny.server.datastore.datastore import Datastore
 from scrutiny.server.device.device_info import FixedFreqLoop
-from scrutiny.server.datalogging.acquisition import deinterleave_acquisition_data, DataloggingAcquisition
+from scrutiny.server.datalogging.acquisition import extract_signal_from_data, DataloggingAcquisition
 from scrutiny.core.basic_types import *
 from scrutiny.server.datalogging.datalogging_storage import DataloggingStorage
 from scrutiny.core.typehints import GenericCallback
@@ -229,7 +229,7 @@ class DataloggingManager:
             self.logger.error("Internal Error - RPV map not built")
             return
 
-        deinterleaved_data = deinterleave_acquisition_data(
+        deinterleaved_data = extract_signal_from_data(
             data=raw_data,
             config=self.active_request_config,
             rpv_map=self.rpv_map,

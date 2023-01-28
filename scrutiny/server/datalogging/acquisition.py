@@ -15,6 +15,7 @@ from scrutiny.core.basic_types import *
 from typing import List, Dict, Optional
 import struct
 
+
 class DataSeries:
     """A data series is a series of measurement represented by a series of 64bit floating point value """
     name: str
@@ -86,7 +87,7 @@ class DataloggingAcquisition:
         return self.data
 
 
-def deinterleave_acquisition_data(data: bytes, config: definitions.Configuration, rpv_map: Dict[int, RuntimePublishedValue], encoding: definitions.Encoding) -> List[List[bytes]]:
+def extract_signal_from_data(data: bytes, config: definitions.Configuration, rpv_map: Dict[int, RuntimePublishedValue], encoding: definitions.Encoding) -> List[List[bytes]]:
     """
     Takes data written in the format [s1[n], s2[n], s3[n], s1[n+1], s2[n+1], s3[n+1], s1[n+2] ...]
     and put it in the format [s1[n], s1[n+1], s1[n+2]],  [s2[n], s2[n+1], s2[n+2]], [s3[n], s3[n+1], s3[n+2]]

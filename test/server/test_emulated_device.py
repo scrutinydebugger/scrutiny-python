@@ -8,7 +8,7 @@
 
 from scrutiny.server.device.emulated_device import EmulatedDevice, DataloggerEmulator
 import scrutiny.server.datalogging.definitions as datalogging
-from scrutiny.server.datalogging.acquisition import deinterleave_acquisition_data
+from scrutiny.server.datalogging.acquisition import extract_signal_from_data
 from scrutiny.server.device.links.dummy_link import DummyLink
 from scrutiny.core.codecs import Codecs
 from scrutiny.core.basic_types import *
@@ -165,7 +165,7 @@ class TestEmulatedDatalogger(ScrutinyUnitTest):
         raw_encoding_block_size = 16
         nsamples = self.datalogger.buffer_size // raw_encoding_block_size
 
-        data_inflated = deinterleave_acquisition_data(acquisition_data, self.datalogger.config, rpv_map, datalogging.Encoding.RAW)
+        data_inflated = extract_signal_from_data(acquisition_data, self.datalogger.config, rpv_map, datalogging.Encoding.RAW)
         self.assertEqual(len(data_inflated), 3)  # 3 signals
         for i in range(len(data_inflated)):
             self.assertEqual(len(data_inflated[i]), nsamples)

@@ -27,7 +27,7 @@ from scrutiny.core.codecs import Codecs
 from scrutiny.core.basic_types import *
 from scrutiny.server.device.device_info import *
 from test import ScrutinyUnitTest, logger
-from scrutiny.server.datalogging.acquisition import deinterleave_acquisition_data
+from scrutiny.server.datalogging.acquisition import extract_signal_from_data
 
 from scrutiny.core.typehints import GenericCallback
 from typing import cast, List
@@ -703,7 +703,7 @@ class TestDeviceHandler(ScrutinyUnitTest):
             self.assertTrue(self.acquisition_complete_callback_success)
             self.assertEqual(self.acquisition_complete_callback_data, self.emulated_device.datalogger.get_acquisition_data())
 
-            signals = deinterleave_acquisition_data(
+            signals = extract_signal_from_data(
                 data=self.acquisition_complete_callback_data,
                 config=config,
                 rpv_map=self.emulated_device.get_rpv_definition_map(),
