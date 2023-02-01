@@ -242,6 +242,9 @@ class DeviceHandler:
     def get_datalogger_state(self) -> datalogging.DataloggerState:
         return self.datalogging_poller.get_datalogger_state()
 
+    def get_datalogging_setup(self) -> Optional[datalogging.DataloggingSetup]:
+        return self.datalogging_poller.get_device_setup()
+
     def get_comm_error_count(self) -> int:
         """Returns the number of communication issue we have encountered since startup"""
         return self.comm_broken_count

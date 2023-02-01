@@ -72,11 +72,14 @@ class TestDataloggingIntegration(ScrutinyIntegrationTestWithTestSFD1):
         response = cast(api_typing.S2C.GetDataloggingCapabilities, self.wait_and_load_response(
             cmd=API.Command.Api2Client.GET_DATALOGGING_CAPABILITIES_RESPONSE))
 
-        self.assertEqual(response['buffer_size'], self.emulated_device.datalogger.get_buffer_size())
-        self.assertEqual(response['max_nb_signal'], self.emulated_device.datalogger.MAX_SIGNAL_COUNT)
+        self.assertTrue(response['available'])
+        self.assertIsNotNone(response['capabilities'])
+        capabilities = response['capabilities']
+        self.assertEqual(capabilities['buffer_size'], self.emulated_device.datalogger.get_buffer_size())
+        self.assertEqual(capabilities['max_nb_signal'], self.emulated_device.datalogger.MAX_SIGNAL_COUNT)
 
         if self.emulated_device.datalogger.get_encoding() == self.emulated_device.datalogger.encoding.RAW:
-            self.assertEqual(response['encoding'], 'raw')
+            self.assertEqual(capabilities['encoding'], 'raw')
         else:
             raise NotImplementedError('Unsupported encoding')
 
@@ -98,10 +101,10 @@ class TestDataloggingIntegration(ScrutinyIntegrationTestWithTestSFD1):
 
                 expected_sampling_rates.append(loop_obj)
 
-        self.assertEqual(len(response['sampling_rates']), len(expected_sampling_rates))    # Emulated device has 4 loops, 3 supports datalogging
+        self.assertEqual(len(capabilities['sampling_rates']), len(expected_sampling_rates))    # Emulated device has 4 loops, 3 supports datalogging
 
         for i in range(len(expected_sampling_rates)):
-            self.assertEqual(response['sampling_rates'][i], expected_sampling_rates[i])
+            self.assertEqual(capabilities['sampling_rates'][i], expected_sampling_rates[i])
 
     def test_make_acquisition_normal(self):
         with DataloggingStorage.use_temp_storage():
@@ -213,7 +216,7 @@ class TestDataloggingIntegration(ScrutinyIntegrationTestWithTestSFD1):
                 response = self.wait_and_load_response(cmd=API.Command.Api2Client.LIST_DATALOGGING_ACQUISITION_RESPONSE)
                 response = cast(api_typing.S2C.ListDataloggingAcquisition, response)
 
-                self.assertEqual(response['acquisitions'], iteration+1)
+                self.assertEqual(response['acquisitions'], iteration + 1)
                 acq_summary = response['acquisitions'][0]
                 self.assertEqual(acq_summary['firmware_id'], self.sfd.get_firmware_id_ascii())
                 self.assertEqual(acq_summary['name'], 'potato')
@@ -280,8 +283,6 @@ class TestDataloggingIntegration(ScrutinyIntegrationTestWithTestSFD1):
                 for val in sig:
                     self.assertEqual(expected_val, val)
                     expected_val = (expected_val + 1 * decimation) & 0xFF
-
-            
 
     def tearDown(self) -> None:
         super().tearDown()

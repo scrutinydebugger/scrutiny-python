@@ -144,6 +144,14 @@ class DataloggingAcquisitionData(TypedDict):
     xaxis: DataloggingSignalData
 
 
+class DataloggingCapabilities(TypedDict):
+    encoding: Literal['raw']
+    buffer_size: int
+    max_nb_signal: int
+    sampling_rates: List[SamplingRate]
+    supported_conditions: List[SupportedCondition]
+
+
 class C2S:
     class Echo(BaseC2SMessage):
         payload: str
@@ -193,6 +201,9 @@ class C2S:
         watchables: List[DataloggingAcquisitionRequestSignalDef]
         x_axis_type: Literal['measured_time', 'ideal_time', 'watchable']
         x_axis_watchable: Optional[str]
+
+    class ReadDataloggingAcquisition(BaseC2SMessage):
+        reference_id: str
 
     GetPossibleLinkConfig = Dict[Any, Any]  # Todo
 
@@ -249,11 +260,8 @@ class S2C:
         timestamp: float
 
     class GetDataloggingCapabilities(BaseS2CMessage):
-        encoding: Literal['raw']
-        buffer_size: int
-        max_nb_signal: int
-        sampling_rates: List[SamplingRate]
-        supported_conditions: List[SupportedCondition]
+        available: bool
+        capabilities: Optional[DataloggingCapabilities]
 
     class RequestAcquisition(BaseS2CMessage):
         accepted: bool
@@ -280,7 +288,8 @@ C2SMessage = Union[
     C2S.UnsubscribeWatchable,
     C2S.GetPossibleLinkConfig,
     C2S.WriteValue,
-    C2S.GetDataloggingCapabilities
+    C2S.GetDataloggingCapabilities,
+    C2S.ReadDataloggingAcquisition
 ]
 
 S2CMessage = Union[

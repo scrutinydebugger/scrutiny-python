@@ -29,6 +29,8 @@ from scrutiny.core.alias import Alias
 import scrutiny.server.datalogging.definitions as datalogging
 from test.artifacts import get_artifact
 from test import ScrutinyUnitTest
+import scrutiny.server.api.typing as api_typing
+from typing import cast
 
 # todo
 # - Test rate limiter/data streamer
@@ -42,6 +44,7 @@ class StubbedDeviceHandler:
     reject_link_config: bool
     datalogging_callbacks: Dict[str, GenericCallback]
     datalogger_state: datalogging.DataloggerState
+    datalogging_setup: Optional[datalogging.DataloggingSetup]
 
     def __init__(self, device_id, connection_status=DeviceHandler.ConnectionStatus.UNKNOWN):
         self.device_id = device_id
@@ -56,6 +59,12 @@ class StubbedDeviceHandler:
 
     def set_connection_status(self, connection_status: DeviceHandler.ConnectionStatus) -> None:
         self.connection_status = connection_status
+
+    def set_datalogging_setup(self, setup: Optional[datalogging.DataloggingSetup]) -> None:
+        self.datalogging_setup = setup
+
+    def get_datalogging_setup(self) -> Optional[datalogging.DataloggingSetup]:
+        return self.datalogging_setup
 
     def get_datalogger_state(self) -> datalogging.DataloggerState:
         return self.datalogger_state
@@ -1062,7 +1071,81 @@ class TestAPI(ScrutinyUnitTest):
                         self.assertTrue(entry.refentry.has_pending_target_update())
                         entry.refentry.pop_target_update_request()
                         self.assertFalse(entry.refentry.has_pending_target_update())
+# region Datalogging
 
+# REQUEST_ACQUISITION
+# GET_DATALOGGING_CAPABILITIES
+# LIST_DATALOGGING_ACQUISITION
+# READ_DATALOGGING_ACQUISITION_DATA
+# UPDATE_DATALOGGING_ACQUISITION
+# DELETE_DATALOGGING_ACQUISITION
+
+    def test_get_datalogging_capabilities(self):
+        req: api_typing.C2S.GetDataloggingCapabilities = {
+            'cmd': 'get_datalogging_capabilities'
+        }
+        datalogging_setup = datalogging.DataloggingSetup(
+            buffer_size=256,
+            encoding=datalogging.Encoding.RAW,
+            max_signal_count=32
+        )
+        self.device_handler.set_connection_status(DeviceHandler.ConnectionStatus.CONNECTED_READY)
+        self.device_handler.set_datalogging_setup(datalogging_setup)
+
+        self.send_request(req)
+        response = cast(api_typing.S2C.GetDataloggingCapabilities, self.wait_and_load_response())
+        self.assert_no_error(response)
+        self.assertEqual(response['cmd'], 'get_datalogging_capabilities_response')
+
+        self.assertTrue(response['available'])
+        self.assertIsNotNone(response['capabilities'])
+        capabilities = response['capabilities']
+        self.assertEqual(capabilities['buffer_size'], 256)
+        self.assertEqual(capabilities['encoding'], 0)   # Raw encoding
+        self.assertEqual(capabilities['max_nb_signal'], 32)
+
+        self.assertEqual(len(capabilities['sampling_rates']), 3)
+        self.assertEqual(capabilities['sampling_rates'][0]['identifier'], 0)
+        self.assertEqual(capabilities['sampling_rates'][0]['frequency'], 1000)
+        self.assertEqual(capabilities['sampling_rates'][0]['type'], 'fixed_freq')
+
+        self.assertEqual(capabilities['sampling_rates'][1]['identifier'], 1)
+        self.assertEqual(capabilities['sampling_rates'][1]['frequency'], 10000)
+        self.assertEqual(capabilities['sampling_rates'][1]['type'], 'fixed_freq')
+
+        self.assertEqual(capabilities['sampling_rates'][2]['identifier'], 2)
+        self.assertEqual(capabilities['sampling_rates'][2]['frequency'], None)
+        self.assertEqual(capabilities['sampling_rates'][2]['type'], 'variable_freq')
+
+        expected_conditions = {'eq': 2, 'neq': 2, 'gt': 2, 'get': 2, 'lt': 2, 'let': 2, 'cmt': 2, 'within': 3}
+        for cond in capabilities['supported_conditions']:
+            self.assertIn(cond['name'], expected_conditions)
+            self.assertEqual(cond['nb_operands'], expected_conditions[cond['name']])
+            self.assertIsInstance(cond['pretty_name'], str)
+            self.assertIsInstance(cond['help_str'], str)
+            self.assertGreater(len(cond['pretty_name']), 0)
+            self.assertGreater(len(cond['help_str']), 0)
+
+        self.device_handler.set_connection_status(DeviceHandler.ConnectionStatus.DISCONNECTED)
+        self.send_request(req)
+        response = cast(api_typing.S2C.GetDataloggingCapabilities, self.wait_and_load_response())
+        self.assert_no_error(response)
+        self.assertFalse(response['available'])
+        self.assertIsNone(response['capabilities'])
+
+        self.device_handler.set_connection_status(DeviceHandler.ConnectionStatus.CONNECTED_READY)
+        self.device_handler.set_datalogging_setup(None)  # No setup available yet
+
+        self.send_request(req)
+        response = cast(api_typing.S2C.GetDataloggingCapabilities, self.wait_and_load_response())
+        self.assert_no_error(response)
+        self.assertFalse(response['available'])
+        self.assertIsNone(response['capabilities'])
+
+        self.device_handler.set_datalogging_setup(datalogging_setup)
+
+
+# endregion
 
 if __name__ == '__main__':
     import unittest

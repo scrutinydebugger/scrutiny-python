@@ -74,6 +74,8 @@ class API:
             REQUEST_ACQUISITION = 'request_acquisition'
             LIST_DATALOGGING_ACQUISITION = 'list_datalogging_acquisition'
             READ_DATALOGGING_ACQUISITION_DATA = 'read_datalogging_acquisition_data'
+            UPDATE_DATALOGGING_ACQUISITION = 'update_datalogging_acquisition'
+            DELETE_DATALOGGING_ACQUISITION = 'delete_datalogging_acquisition'
             DEBUG = 'debug'
 
         class Api2Client:
@@ -95,6 +97,8 @@ class API:
             INFORM_NEW_DATALOGGING_ACQUISITION = 'inform_new_datalogging_acquisition'
             LIST_DATALOGGING_ACQUISITION_RESPONSE = 'list_datalogging_acquisition_response'
             READ_DATALOGGING_ACQUISITION_DATA_RESPONSE = 'read_datalogging_acquisition_data_response'
+            UPDATE_DATALOGGING_ACQUISITION_RESPONSE = 'update_datalogging_acquisition_response'
+            DELETE_DATALOGGING_ACQUISITION_RESPONSE = 'delete_datalogging_acquisition_response'
             ERROR_RESPONSE = 'error'
 
     class DataloggingStatus:

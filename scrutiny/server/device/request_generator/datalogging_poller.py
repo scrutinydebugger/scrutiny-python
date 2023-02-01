@@ -172,6 +172,9 @@ class DataloggingPoller:
     def get_datalogger_state(self) -> datalogging.DataloggerState:
         return self.device_datalogging_state
 
+    def get_device_setup(self) -> Optional[datalogging.DataloggingSetup]:
+        return self.device_setup
+
     def set_datalogging_callbacks(self, receive_setup: DataloggingReceiveSetupCallback):
         self.receive_setup_callback = receive_setup
 
