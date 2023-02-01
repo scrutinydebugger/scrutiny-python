@@ -1322,10 +1322,10 @@ class TestProtocolV1_0(ScrutinyUnitTest):
         self.proto.parse_response(response)
 
     def test_response_datalogging_get_status(self):
-        response = self.proto.respond_datalogging_get_status(status=datalogging.DataloggerStatus.CONFIGURED)
-        self.assert_req_response_bytes(response, [0x85, 5, 0, 0, 1, datalogging.DataloggerStatus.CONFIGURED.value])
+        response = self.proto.respond_datalogging_get_status(state=datalogging.DataloggerState.CONFIGURED)
+        self.assert_req_response_bytes(response, [0x85, 5, 0, 0, 1, datalogging.DataloggerState.CONFIGURED.value])
         data = self.proto.parse_response(response)
-        self.assertEqual(data['status'], datalogging.DataloggerStatus.CONFIGURED)
+        self.assertEqual(data['state'], datalogging.DataloggerState.CONFIGURED)
 
     def test_response_datalogging_get_acquisition_metadata(self):
         response = self.proto.respond_datalogging_get_acquisition_metadata(

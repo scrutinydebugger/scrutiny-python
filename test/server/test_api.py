@@ -26,6 +26,7 @@ from scrutiny.server.device.links.dummy_link import DummyLink
 from scrutiny.server.datalogging.datalogging_manager import DataloggingManager
 from scrutiny.core.variable import *
 from scrutiny.core.alias import Alias
+import scrutiny.server.datalogging.definitions as datalogging
 from test.artifacts import get_artifact
 from test import ScrutinyUnitTest
 
@@ -40,6 +41,7 @@ class StubbedDeviceHandler:
     link_config: Dict[Any, Any]
     reject_link_config: bool
     datalogging_callbacks: Dict[str, GenericCallback]
+    datalogger_state: datalogging.DataloggerState
 
     def __init__(self, device_id, connection_status=DeviceHandler.ConnectionStatus.UNKNOWN):
         self.device_id = device_id
@@ -47,12 +49,19 @@ class StubbedDeviceHandler:
         self.link_type = 'none'
         self.link_config = {}
         self.reject_link_config = False
+        self.datalogger_state = datalogging.DataloggerState.IDLE
 
     def get_connection_status(self) -> DeviceHandler.ConnectionStatus:
         return self.connection_status
 
     def set_connection_status(self, connection_status: DeviceHandler.ConnectionStatus) -> None:
         self.connection_status = connection_status
+
+    def get_datalogger_state(self) -> datalogging.DataloggerState:
+        return self.datalogger_state
+
+    def set_datalogger_state(self, state: datalogging.DataloggerState) -> None:
+        self.datalogger_state = state
 
     def get_device_id(self) -> str:
         return self.device_id

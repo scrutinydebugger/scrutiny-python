@@ -102,13 +102,13 @@ class TestEmulatedDatalogger(ScrutinyUnitTest):
         config._trigger_hold_time = 0.1
 
         # BAsic state check
-        self.assertEqual(self.datalogger.state, datalogging.DataloggerStatus.IDLE)
+        self.assertEqual(self.datalogger.state, datalogging.DataloggerState.IDLE)
         self.datalogger.configure(config_id=0x1234, config=config)
-        self.assertEqual(self.datalogger.state, datalogging.DataloggerStatus.CONFIGURED)
+        self.assertEqual(self.datalogger.state, datalogging.DataloggerState.CONFIGURED)
         self.datalogger.arm_trigger()
-        self.assertEqual(self.datalogger.state, datalogging.DataloggerStatus.ARMED)
+        self.assertEqual(self.datalogger.state, datalogging.DataloggerState.ARMED)
         self.datalogger.disarm_trigger()
-        self.assertEqual(self.datalogger.state, datalogging.DataloggerStatus.CONFIGURED)
+        self.assertEqual(self.datalogger.state, datalogging.DataloggerState.CONFIGURED)
 
         # Innit the data and start processing for an aquisition
         self.vals.v100000_f64 = 0
@@ -147,7 +147,7 @@ class TestEmulatedDatalogger(ScrutinyUnitTest):
         self.datalogger.process()   # Now it will see that the hold time has elapsed and trigger will be considered fulfiled
         time.sleep(0.001)
         self.assertTrue(self.datalogger.triggered())
-        self.assertEqual(self.datalogger.state, datalogging.DataloggerStatus.TRIGGERED)
+        self.assertEqual(self.datalogger.state, datalogging.DataloggerState.TRIGGERED)
 
         # Keep processing for a while so we make sure that it stopped at the right moment (depends on probe location)
         for i in range(100):
@@ -158,7 +158,7 @@ class TestEmulatedDatalogger(ScrutinyUnitTest):
             self.datalogger.process()
             time.sleep(0.001)
 
-        self.assertEqual(self.datalogger.state, datalogging.DataloggerStatus.ACQUISITION_COMPLETED)
+        self.assertEqual(self.datalogger.state, datalogging.DataloggerState.ACQUISITION_COMPLETED)
         acquisition_data = self.datalogger.get_acquisition_data()
         rpv_map = self.emulated_device.get_rpv_definition_map()
 

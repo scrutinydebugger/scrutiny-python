@@ -81,7 +81,7 @@ class DataloggingPoller:
     state: FSMState
     previous_state: FSMState
     update_status_timer: Timer
-    device_datalogging_status: datalogging.DataloggerStatus
+    device_datalogging_state: datalogging.DataloggerState
     max_response_payload_size: Optional[int]
 
     arm_completed: bool
@@ -116,7 +116,7 @@ class DataloggingPoller:
         self.enabled = True
         self.receive_setup_callback = None
         self.actual_config_id = 0
-        self.device_datalogging_status = DataloggerStatus.IDLE
+        self.device_datalogging_state = DataloggerState.IDLE
         self.max_response_payload_size = None
         self.update_status_timer = Timer(self.UPDATE_STATUS_INTERVAL_IDLE)
         self.set_standby()
@@ -138,7 +138,7 @@ class DataloggingPoller:
         self.configure_completed = False
         self.arm_completed = False
         self.update_status_timer.stop()
-        self.device_datalogging_status = DataloggerStatus.IDLE
+        self.device_datalogging_state = DataloggerState.IDLE
         self.failure_counter = 0
         self.data_read_success = False
         self.bytes_received = bytearray()
@@ -169,8 +169,8 @@ class DataloggingPoller:
     def is_enabled(self) -> bool:
         return self.enabled
 
-    def get_datalogger_status(self) -> datalogging.DataloggerStatus:
-        return self.device_datalogging_status
+    def get_datalogger_state(self) -> datalogging.DataloggerState:
+        return self.device_datalogging_state
 
     def set_datalogging_callbacks(self, receive_setup: DataloggingReceiveSetupCallback):
         self.receive_setup_callback = receive_setup
@@ -315,7 +315,7 @@ class DataloggingPoller:
                         next_state = FSMState.WAIT_FOR_REQUEST
 
                 elif self.require_status_update == False:
-                    if self.device_datalogging_status == datalogging.DataloggerStatus.ACQUISITION_COMPLETED:
+                    if self.device_datalogging_state == datalogging.DataloggerState.ACQUISITION_COMPLETED:
                         next_state = FSMState.READ_METADATA
 
             elif self.state == FSMState.READ_METADATA:
@@ -433,7 +433,7 @@ class DataloggingPoller:
             self.previous_state = self.state
             if next_state != self.state:
                 self.logger.debug("Moving state from %s to %s. Last device status reading is %s" %
-                                  (self.state.name, next_state.name, self.device_datalogging_status.name))
+                                  (self.state.name, next_state.name, self.device_datalogging_state.name))
             self.state = next_state
         except Exception as e:
             self.error = True
@@ -500,9 +500,9 @@ class DataloggingPoller:
     def process_get_status_success(self, response: Response):
         response_data = cast(protocol_typing.Response.DatalogControl.GetStatus, self.protocol.parse_response(response))
 
-        if self.device_datalogging_status != response_data['status']:
-            self.logger.debug("Device datalogging status changed from %s to %s" % (self.device_datalogging_status.name, response_data['status'].name))
-        self.device_datalogging_status = response_data['status']
+        if self.device_datalogging_state != response_data['state']:
+            self.logger.debug("Device datalogging status changed from %s to %s" % (self.device_datalogging_state.name, response_data['state'].name))
+        self.device_datalogging_state = response_data['state']
         self.require_status_update = False
 
     def process_get_setup_success(self, response: Response):

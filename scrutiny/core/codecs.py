@@ -21,7 +21,7 @@ class BaseCodec(ABC):
         pass
 
     @abstractmethod
-    def decode(self, data: Union[bytes, bytearray], mask: Optional[bytes] = None) -> Encodable:
+    def decode(self, data: Union[bytes, bytearray]) -> Encodable:
         pass
 
     @abstractmethod
@@ -44,7 +44,7 @@ class SIntCodec(BaseCodec):
         endianness_char = '<' if endianness == Endianness.Little else '>'
         self.packstr = endianness_char + self.str_map[size]
 
-    def decode(self, data: Union[bytes, bytearray], mask: Optional[bytes] = None) -> int:
+    def decode(self, data: Union[bytes, bytearray]) -> int:
         return struct.unpack(self.packstr, data)[0]
 
     def encode(self, value: Encodable) -> bytes:
@@ -66,11 +66,11 @@ class UIntCodec(BaseCodec):
         endianness_char = '<' if endianness == Endianness.Little else '>'
         self.packstr = endianness_char + self.str_map[size]
 
-    def decode(self, data: Union[bytes, bytearray], mask: Optional[bytes] = None) -> int:
+    def decode(self, data: Union[bytes, bytearray]) -> int:
         return struct.unpack(self.packstr, data)[0]
 
     def encode(self, value: Encodable) -> bytes:
-        return struct.pack(self.packstr, value)  # todo : Mask
+        return struct.pack(self.packstr, value)
 
 
 class FloatCodec(BaseCodec):
@@ -86,23 +86,23 @@ class FloatCodec(BaseCodec):
         endianness_char = '<' if endianness == Endianness.Little else '>'
         self.packstr = endianness_char + self.str_map[size]
 
-    def decode(self, data: Union[bytes, bytearray], mask: Optional[bytes] = None) -> float:
+    def decode(self, data: Union[bytes, bytearray]) -> float:
         return struct.unpack(self.packstr, data)[0]
 
     def encode(self, value: Encodable) -> bytes:
-        return struct.pack(self.packstr, value)  # todo : Mask
+        return struct.pack(self.packstr, value)
 
 
 class BoolCodec(BaseCodec):
     def __init__(self):
         super().__init__()
 
-    def decode(self, data: Union[bytes, bytearray], mask: Optional[bytes] = None) -> bool:
+    def decode(self, data: Union[bytes, bytearray]) -> bool:
         return True if data[0] != 0 else False
 
     def encode(self, value: Encodable) -> bytes:
         v = 1 if value else 0
-        return struct.pack('B', v)  # todo : Mask
+        return struct.pack('B', v)
 
 
 class Codecs:

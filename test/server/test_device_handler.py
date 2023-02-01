@@ -600,7 +600,7 @@ class TestDeviceHandler(ScrutinyUnitTest):
             self.assertTrue(device_info.supported_feature_map['datalogging'])
             self.assertTrue(self.device_handler.datalogging_poller.is_enabled())
             if iteration == 0:
-                self.assertEqual(self.device_handler.get_datalogger_status(), datalogging.DataloggerStatus.IDLE)
+                self.assertEqual(self.device_handler.get_datalogger_state(), datalogging.DataloggerState.IDLE)
 
             # Next wait for datalogging poller to retrieve the configuration of the datalogging feature
             logger.debug("[iteration=%d] Wait for setup" % iteration)
@@ -622,7 +622,7 @@ class TestDeviceHandler(ScrutinyUnitTest):
             time.sleep(0.1)
             self.device_handler.process()
             if iteration == 0:
-                self.assertEqual(self.device_handler.get_datalogger_status(), datalogging.DataloggerStatus.IDLE)
+                self.assertEqual(self.device_handler.get_datalogger_state(), datalogging.DataloggerState.IDLE)
 
             self.emulated_device.write_memory(0x100000, bytes([1, 2, 3, 4, 5, 6, 7, 8]))
             self.emulated_device.write_rpv(0x1000, 0)
@@ -659,10 +659,10 @@ class TestDeviceHandler(ScrutinyUnitTest):
             t1 = time.time()
             while time.time() - t1 < timeout:
                 self.device_handler.process()
-                if self.device_handler.get_datalogger_status() == datalogging.DataloggerStatus.ARMED:
+                if self.device_handler.get_datalogger_state() == datalogging.DataloggerState.ARMED:
                     break
 
-            self.assertEqual(self.device_handler.get_datalogger_status(), datalogging.DataloggerStatus.ARMED)
+            self.assertEqual(self.device_handler.get_datalogger_state(), datalogging.DataloggerState.ARMED)
 
             if iteration == 4:
                 logger.debug("[iteration=%d] Requesting a new acquisition to interrupt previous one" % iteration)
@@ -679,7 +679,7 @@ class TestDeviceHandler(ScrutinyUnitTest):
                 self.device_handler.process()
                 time.sleep(0.05)
 
-            self.assertEqual(self.device_handler.get_datalogger_status(), datalogging.DataloggerStatus.ARMED)
+            self.assertEqual(self.device_handler.get_datalogger_state(), datalogging.DataloggerState.ARMED)
             self.assertFalse(self.acquisition_complete_callback_called)
             self.assertFalse(self.emulated_device.datalogger.triggered())
 

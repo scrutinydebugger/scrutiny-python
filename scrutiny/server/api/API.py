@@ -20,6 +20,7 @@ from scrutiny.server.device.links import LinkConfig
 from scrutiny.core.sfd_storage import SFDStorage
 from scrutiny.core.variable import EmbeddedDataType
 from scrutiny.core.firmware_description import FirmwareDescription
+import scrutiny.server.datalogging.definitions as datalogging
 
 from .websocket_client_handler import WebsocketClientHandler
 from .dummy_client_handler import DummyClientHandler
@@ -69,6 +70,10 @@ class API:
             SET_LINK_CONFIG = "set_link_config"
             GET_POSSIBLE_LINK_CONFIG = "get_possible_link_config"   # todo
             WRITE_VALUE = "write_value"
+            GET_DATALOGGING_CAPABILITIES = 'get_datalogging_capabilities'
+            REQUEST_ACQUISITION = 'request_acquisition'
+            LIST_DATALOGGING_ACQUISITION = 'list_datalogging_acquisition'
+            READ_DATALOGGING_ACQUISITION_DATA = 'read_datalogging_acquisition_data'
             DEBUG = 'debug'
 
         class Api2Client:
@@ -85,7 +90,20 @@ class API:
             INFORM_SERVER_STATUS = 'inform_server_status'
             WRITE_VALUE_RESPONSE = 'response_write_value'
             INFORM_WRITE_COMPLETION = 'inform_write_completion'
+            GET_DATALOGGING_CAPABILITIES_RESPONSE = 'response_datalogging_capabilities'
+            REQUEST_ACQUISITION_RESPONSE = 'request_acquisition_response'
+            INFORM_NEW_DATALOGGING_ACQUISITION = 'inform_new_datalogging_acquisition'
+            LIST_DATALOGGING_ACQUISITION_RESPONSE = 'list_datalogging_acquisition_response'
+            READ_DATALOGGING_ACQUISITION_DATA_RESPONSE = 'read_datalogging_acquisition_data_response'
             ERROR_RESPONSE = 'error'
+
+    class DataloggingStatus:
+        UNAVAILABLE = 'unavailable'
+        STANDBY = 'standby'
+        WAITING_FOR_TRIGGER = 'waiting_for_trigger'
+        ACQUIRING = 'acquiring'
+        DATA_READY = 'data_ready'
+        ERROR = 'error'
 
     FLUSH_VARS_TIMEOUT: float = 0.1
 
@@ -123,6 +141,15 @@ class API:
         DeviceHandler.ConnectionStatus.CONNECTING: 'connecting',
         DeviceHandler.ConnectionStatus.CONNECTED_NOT_READY: 'connected',
         DeviceHandler.ConnectionStatus.CONNECTED_READY: 'connected_ready'
+    }
+
+    datalogger_state_to_api: Dict[datalogging.DataloggerState, str] = {
+        datalogging.DataloggerState.IDLE: DataloggingStatus.STANDBY,
+        datalogging.DataloggerState.CONFIGURED: DataloggingStatus.STANDBY,
+        datalogging.DataloggerState.ARMED: DataloggingStatus.WAITING_FOR_TRIGGER,
+        datalogging.DataloggerState.TRIGGERED: DataloggingStatus.ACQUIRING,
+        datalogging.DataloggerState.ACQUISITION_COMPLETED: DataloggingStatus.DATA_READY,
+        datalogging.DataloggerState.ERROR: DataloggingStatus.ERROR,
     }
 
     str_to_entry_type: Dict[str, EntryType] = {
@@ -701,7 +728,7 @@ class API:
 
     def craft_inform_server_status_response(self, reqid: Optional[int] = None) -> api_typing.S2C.InformServerStatus:
         # Make a Server to client message that inform the actual state of the server
-        # Qeury the state of all subpart of the software.
+        # Query the state of all subpart of the software.
         sfd = self.sfd_handler.get_loaded_sfd()
         device_link_type = self.device_handler.get_link_type()
         device_comm_link = self.device_handler.get_comm_link()
@@ -732,16 +759,22 @@ class API:
                 'readonly_memory_regions': cast(List[Dict[str, int]], device_info_input.readonly_memory_regions)
             }
 
+            datalogging_status = self.datalogger_state_to_api.get(self.device_handler.get_datalogger_state(), API.DataloggingStatus.UNAVAILABLE)
+        else:
+            datalogging_status = API.DataloggingStatus.STANDBY
+
         if device_comm_link is None:
             link_config = cast(EmptyDict, {})
         else:
             link_config = cast(api_typing.LinkConfig, device_comm_link.get_config())
+
         response: api_typing.S2C.InformServerStatus = {
             'cmd': self.Command.Api2Client.INFORM_SERVER_STATUS,
             'reqid': reqid,
             'device_status': self.device_conn_status_to_str[self.device_handler.get_connection_status()],
             'device_info': device_info_output,
             'loaded_sfd': loaded_sfd,
+            'device_datalogging_status': cast(api_typing.DataloggingStatus, datalogging_status),
             'device_comm_link': {
                 'link_type': cast(api_typing.LinkType, device_link_type),
                 'link_config': link_config

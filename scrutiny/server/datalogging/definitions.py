@@ -47,7 +47,7 @@ class Encoding(Enum):
     RAW = 0
 
 
-class DataloggerStatus(Enum):
+class DataloggerState(Enum):
     """Represent the state of the device datalogging internal state machine. Matches the device definition"""
     IDLE = 0
     CONFIGURED = 1

@@ -820,9 +820,9 @@ class Protocol:
     def respond_datalogging_disarm_trigger(self) -> Response:
         return Response(cmd.DatalogControl, cmd.DatalogControl.Subfunction.DisarmTrigger, Response.ResponseCode.OK)
 
-    def respond_datalogging_get_status(self, status: Union[datalogging.DataloggerStatus, int]) -> Response:
-        status = datalogging.DataloggerStatus(status)
-        return Response(cmd.DatalogControl, cmd.DatalogControl.Subfunction.GetStatus, Response.ResponseCode.OK, pack('B', status.value))
+    def respond_datalogging_get_status(self, state: Union[datalogging.DataloggerState, int]) -> Response:
+        state = datalogging.DataloggerState(state)
+        return Response(cmd.DatalogControl, cmd.DatalogControl.Subfunction.GetStatus, Response.ResponseCode.OK, pack('B', state.value))
 
     def respond_datalogging_get_acquisition_metadata(self, acquisition_id: int, config_id: int, nb_points: int, datasize: int, points_after_trigger: int) -> Response:
         return Response(cmd.DatalogControl, cmd.DatalogControl.Subfunction.GetAcquisitionMetadata, Response.ResponseCode.OK,
@@ -1038,11 +1038,11 @@ class Protocol:
                         if len(response.payload) != 1:
                             raise ValueError('Not the right amount of data for a GetStatus response. Got %d expected %d', (len(response.payload), 1))
 
-                        status_code = response.payload[0]
-                        if status_code not in [v.value for v in datalogging.DataloggerStatus]:
-                            raise ValueError('Unknown datalogger status code %d' % status_code)
+                        state_code = response.payload[0]
+                        if state_code not in [v.value for v in datalogging.DataloggerState]:
+                            raise ValueError('Unknown datalogger status code %d' % state_code)
 
-                        data['status'] = datalogging.DataloggerStatus(status_code)
+                        data['state'] = datalogging.DataloggerState(state_code)
                     elif subfn == cmd.DatalogControl.Subfunction.GetAcquisitionMetadata:
                         data = cast(protocol_typing.Response.DatalogControl.GetAcquisitionMetadata, data)
                         if len(response.payload) != 16:

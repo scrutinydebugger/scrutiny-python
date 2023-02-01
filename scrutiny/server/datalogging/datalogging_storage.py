@@ -84,6 +84,7 @@ class DataloggingStorageManager:
             CREATE TABLE IF NOT EXISTS `acquisitions` (
             `id` INTEGER PRIMARY KEY AUTOINCREMENT,
             `reference_id` VARCHAR(32) UNIQUE NOT NULL,
+            `name` VARCHAR(255) NULL DEFAULT NULL,
             `firmware_id` VARCHAR(32)  NOT NULL,
             `timestamp` TIMESTAMP NOT NULL DEFAULT 'NOW()',
             `x_axis` INTEGER NOT NULL
@@ -158,11 +159,12 @@ class DataloggingStorageManager:
             cursor.execute(
                 """
                 INSERT INTO `acquisitions` 
-                    (`reference_id`, `firmware_id`, `timestamp`, `x_axis`)
-                VALUES (?, ?, ?, ?)
+                    (`reference_id`, `name`, `firmware_id`, `timestamp`, `x_axis`)
+                VALUES (?, ?, ?, ?, ?)
                 """,
                 (
                     acquisition.reference_id,
+                    acquisition.name,
                     acquisition.firmware_id,
                     acquisition.timestamp,
                     xaxis_id
@@ -223,6 +225,7 @@ class DataloggingStorageManager:
                     a.`reference_id` AS `reference_id`,
                     a.`firmware_id` AS `firmware_id`,
                     a.`timestamp` AS `timestamp`,
+                    a.`name` AS `name`,
                     ds.`name` AS `dataseries_name`,
                     ds.`logged_element` AS `logged_element`,
                     ds.`data` AS `data`,
@@ -237,10 +240,11 @@ class DataloggingStorageManager:
                 'reference_id': 0,
                 'firmware_id': 1,
                 'timestamp': 2,
-                'dataseries_name': 3,
-                'logged_element': 4,
-                'data': 5,
-                'x_axis': 6
+                'acquisition_name': 3,
+                'dataseries_name': 4,
+                'logged_element': 5,
+                'data': 6,
+                'x_axis': 7
             }
 
             cursor = conn.cursor()
@@ -253,7 +257,8 @@ class DataloggingStorageManager:
         acq = DataloggingAcquisition(
             reference_id=rows[0][colmap['reference_id']],
             firmware_id=rows[0][colmap['firmware_id']],
-            timestamp=rows[0][colmap['timestamp']]
+            timestamp=rows[0][colmap['timestamp']],
+            name=rows[0][colmap['acquisition_name']]
         )
 
         for row in rows:
@@ -295,6 +300,16 @@ class DataloggingStorageManager:
                 """, (reference_id,))
 
             cursor.execute("DELETE FROM `acquisitions` WHERE reference_id=?", (reference_id,))
+
+            conn.commit()
+
+    def update_name_by_reference_id(self, reference_id: str, name: str):
+        with self.get_session() as conn:
+            cursor = conn.cursor()
+
+            cursor.execute("""
+            UPDATE `acquisitions` set `name`=? where `reference_id`=?
+            """, (name, reference_id))
 
             conn.commit()
 

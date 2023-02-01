@@ -239,8 +239,8 @@ class DeviceHandler:
         """Returns all the information we have about the connected device. None if not connected"""
         return copy.copy(self.device_info)
 
-    def get_datalogger_status(self) -> datalogging.DataloggerStatus:
-        return self.datalogging_poller.get_datalogger_status()
+    def get_datalogger_state(self) -> datalogging.DataloggerState:
+        return self.datalogging_poller.get_datalogger_state()
 
     def get_comm_error_count(self) -> int:
         """Returns the number of communication issue we have encountered since startup"""

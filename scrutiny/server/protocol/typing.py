@@ -181,7 +181,7 @@ class Response:
             max_signal_count: int
 
         class GetStatus(TypedDict):
-            status: datalogging.DataloggerStatus
+            state: datalogging.DataloggerState
 
         class GetAcquisitionMetadata(TypedDict):
             acquisition_id: int

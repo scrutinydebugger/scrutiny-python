@@ -28,7 +28,7 @@ from scrutiny.core.codecs import *
 from scrutiny.server.device.device_info import ExecLoop, VariableFreqLoop, FixedFreqLoop, ExecLoopType
 from scrutiny.server.protocol.crc32 import crc32
 
-from typing import List, Dict, Optional, Union, Any, Tuple, TypedDict, cast, Set, Deque
+from typing import List, Dict, Optional, Union, Any, Tuple, TypedDict, cast, Set, Deque, Callable
 
 
 class RequestLogRecord:
@@ -185,7 +185,7 @@ class DataloggerEmulator:
     logger: logging.Logger
     buffer_size: int
     config: Optional[datalogging.Configuration]
-    state: datalogging.DataloggerStatus
+    state: datalogging.DataloggerState
     remaining_samples: int
     timebase: EmulatedTimebase
     trigger_cmt_last_val: Encodable
@@ -215,7 +215,7 @@ class DataloggerEmulator:
             raise NotImplementedError("Unsupported encoding %s" % self.encoding)
 
         self.config = None
-        self.state = datalogging.DataloggerStatus.IDLE
+        self.state = datalogging.DataloggerState.IDLE
         self.remaining_samples = 0
         self.timebase = EmulatedTimebase()
         self.trigger_cmt_last_val = 0
@@ -234,24 +234,24 @@ class DataloggerEmulator:
         self.config_id = config_id
         self.encoder.configure(config)
 
-        self.state = datalogging.DataloggerStatus.CONFIGURED
+        self.state = datalogging.DataloggerState.CONFIGURED
 
     def arm_trigger(self):
-        if self.state in [datalogging.DataloggerStatus.CONFIGURED, datalogging.DataloggerStatus.TRIGGERED, datalogging.DataloggerStatus.ACQUISITION_COMPLETED]:
-            self.state = datalogging.DataloggerStatus.ARMED
+        if self.state in [datalogging.DataloggerState.CONFIGURED, datalogging.DataloggerState.TRIGGERED, datalogging.DataloggerState.ACQUISITION_COMPLETED]:
+            self.state = datalogging.DataloggerState.ARMED
             self.logger.debug("Trigger Armed. Going to ARMED state")
 
     def disarm_trigger(self):
-        if self.state in [datalogging.DataloggerStatus.ARMED, datalogging.DataloggerStatus.TRIGGERED, datalogging.DataloggerStatus.ACQUISITION_COMPLETED]:
-            self.state = datalogging.DataloggerStatus.CONFIGURED
+        if self.state in [datalogging.DataloggerState.ARMED, datalogging.DataloggerState.TRIGGERED, datalogging.DataloggerState.ACQUISITION_COMPLETED]:
+            self.state = datalogging.DataloggerState.CONFIGURED
             self.logger.debug("Trigger Disarmed. Going to CONFIGURED state")
 
     def set_error(self) -> None:
-        self.state = datalogging.DataloggerStatus.ERROR
+        self.state = datalogging.DataloggerState.ERROR
         self.logger.debug("Going to ERROR state")
 
     def triggered(self) -> bool:
-        return self.state in [datalogging.DataloggerStatus.TRIGGERED, datalogging.DataloggerStatus.ACQUISITION_COMPLETED]
+        return self.state in [datalogging.DataloggerState.TRIGGERED, datalogging.DataloggerState.ACQUISITION_COMPLETED]
 
     def read_samples(self) -> List[SampleType]:
         if self.config is None:
@@ -287,10 +287,16 @@ class DataloggerEmulator:
             mask = 0
             for i in range(operand.bitoffset, operand.bitoffset + operand.bitsize):
                 mask |= (1 << i)
-            mask_codec = UIntCodec(operand.datatype.get_size_byte(), Endianness.Little)
+            uint_codec = UIntCodec(operand.datatype.get_size_byte(), Endianness.Little)
             data = self.device.read_memory(operand.address, operand.datatype.get_size_byte())
             codec = Codecs.get(operand.datatype, Endianness.Little)
-            return codec.decode(data, mask_codec.encode(mask))
+            v = uint_codec.decode(data)
+            v >>= operand.bitoffset
+            v &= mask
+            if isinstance(codec, SIntCodec) and (v & (1 << (operand.bitsize - 1))) > 0:
+                v |= (~mask)
+
+            return codec.decode(uint_codec.encode(v))
 
         raise ValueError('Unknown operand type')
 
@@ -359,28 +365,28 @@ class DataloggerEmulator:
     def process(self) -> None:
         self.timebase.process()
 
-        if self.state in [datalogging.DataloggerStatus.CONFIGURED, datalogging.DataloggerStatus.ARMED, datalogging.DataloggerStatus.TRIGGERED]:
+        if self.state in [datalogging.DataloggerState.CONFIGURED, datalogging.DataloggerState.ARMED, datalogging.DataloggerState.TRIGGERED]:
             self.encoder.encode_samples(self.read_samples())
             self.logger.debug("Encoding a new sample. Internal counter=%d" % self.encoder.entry_counter)
 
-        if self.state == datalogging.DataloggerStatus.ARMED:
+        if self.state == datalogging.DataloggerState.ARMED:
             assert self.config is not None
             if self.check_trigger():
                 self.trigger_fulfilled_timestamp = time.time()
                 self.byte_count_at_trigger = self.encoder.get_byte_counter()
                 self.entry_counter_at_trigger = self.encoder.get_entry_counter()
                 self.target_byte_count_after_trigger = self.byte_count_at_trigger + round((1.0 - self.config.probe_location) * self.buffer_size)
-                self.state = datalogging.DataloggerStatus.TRIGGERED
+                self.state = datalogging.DataloggerState.TRIGGERED
                 self.logger.debug("Acquisition triggered. Going to TRIGGERED state. Byte counter=%d, target_byte_count_after_trigger=%d" %
                                   (self.byte_count_at_trigger, self.target_byte_count_after_trigger))
 
-        if self.state == datalogging.DataloggerStatus.TRIGGERED:
+        if self.state == datalogging.DataloggerState.TRIGGERED:
             assert self.config is not None
             probe_location_ok = self.encoder.get_byte_counter() >= self.target_byte_count_after_trigger
             timed_out = (self.config.timeout != 0) and ((time.time() - self.trigger_fulfilled_timestamp) >= self.config.timeout)
             if probe_location_ok or timed_out:
                 self.logger.debug("Acquisition complete. Going to ACQUISITION_COMPLETED state")
-                self.state = datalogging.DataloggerStatus.ACQUISITION_COMPLETED
+                self.state = datalogging.DataloggerState.ACQUISITION_COMPLETED
                 self.acquisition_id = (self.acquisition_id + 1) & 0xFFFF
 
         else:
@@ -396,7 +402,7 @@ class DataloggerEmulator:
         return self.encoding
 
     def in_error(self) -> bool:
-        return self.state == datalogging.DataloggerStatus.ERROR
+        return self.state == datalogging.DataloggerState.ERROR
 
     def get_acquisition_id(self) -> int:
         return self.acquisition_id
@@ -437,6 +443,7 @@ class EmulatedDevice:
     memory: MemoryContent
     memory_lock: threading.Lock
     rpv_lock: threading.Lock
+    additional_tasks_lock: threading.Lock
     rpvs: Dict[int, RPVValuePair]
     datalogger: DataloggerEmulator
 
@@ -444,6 +451,8 @@ class EmulatedDevice:
     datalogging_read_cursor: int
     datalogging_read_rolling_counter: int
     loops: List[ExecLoop]
+
+    additional_tasks: List[Callable[[], None]]
 
     def __init__(self, link):
         if not isinstance(link, DummyLink) and not isinstance(link, ThreadSafeDummyLink):
@@ -471,6 +480,9 @@ class EmulatedDevice:
         self.memory = MemoryContent()
         self.memory_lock = threading.Lock()
         self.rpv_lock = threading.Lock()
+        self.additional_tasks_lock = threading.Lock()
+
+        self.additional_tasks = []
 
         self.supported_features = {
             'memory_read': True,
@@ -537,6 +549,12 @@ class EmulatedDevice:
 
             if self.is_datalogging_enabled():
                 self.datalogger.process()
+
+            # Some tasks may be required by unit tests to be run in this thread
+            self.additional_tasks_lock.acquire()
+            for task in self.additional_tasks:
+                task()
+            self.additional_tasks_lock.release()
 
             time.sleep(0.01)
 
@@ -780,7 +798,7 @@ class EmulatedDevice:
             self.datalogger.disarm_trigger()
             response = self.protocol.respond_datalogging_disarm_trigger()
         elif subfunction == cmd.DatalogControl.Subfunction.GetAcquisitionMetadata:
-            if self.datalogger.state != datalogging.DataloggerStatus.ACQUISITION_COMPLETED:
+            if self.datalogger.state != datalogging.DataloggerState.ACQUISITION_COMPLETED:
                 response = Response(req.command, req.subfn, ResponseCode.FailureToProceed)
             else:
                 response = self.protocol.respond_datalogging_get_acquisition_metadata(
@@ -791,10 +809,10 @@ class EmulatedDevice:
                     points_after_trigger=self.datalogger.get_points_after_trigger()
                 )
         elif subfunction == cmd.DatalogControl.Subfunction.GetStatus:
-            response = self.protocol.respond_datalogging_get_status(status=self.datalogger.state)
+            response = self.protocol.respond_datalogging_get_status(state=self.datalogger.state)
 
         elif subfunction == cmd.DatalogControl.Subfunction.ReadAcquisition:
-            if self.datalogger.state != datalogging.DataloggerStatus.ACQUISITION_COMPLETED:
+            if self.datalogger.state != datalogging.DataloggerState.ACQUISITION_COMPLETED:
                 response = Response(req.command, req.subfn, ResponseCode.FailureToProceed)
             else:
                 acquired_data = self.datalogger.get_acquisition_data()
@@ -908,6 +926,11 @@ class EmulatedDevice:
         if len(data) > 0 and self.comm_enabled:
             return Request.from_bytes(data)
         return None
+
+    def add_additional_task(self, task: Callable[[], None]) -> None:
+        self.additional_tasks_lock.acquire()
+        self.additional_tasks.append(task)
+        self.additional_tasks_lock.release()
 
     def write_memory(self, address: int, data: Union[bytes, bytearray]) -> None:
         err = None

@@ -51,6 +51,9 @@ class DataSeries:
 class DataloggingAcquisition:
     """Represent an acquisition of multiple signals"""
 
+    name: Optional[str]
+    """A display name associated with the acquisition for easier management"""
+
     reference_id: str
     """ID used to reference the acquisition in the storage"""
 
@@ -66,11 +69,12 @@ class DataloggingAcquisition:
     data: List[DataSeries]
     """List of data series acquired"""
 
-    def __init__(self, firmware_id: str, reference_id: Optional[str] = None, timestamp: Optional[float] = None):
+    def __init__(self, firmware_id: str, reference_id: Optional[str] = None, timestamp: Optional[float] = None, name: Optional[str] = None):
         self.reference_id = reference_id if reference_id is not None else self.make_unique_id()
         self.firmware_id = firmware_id
         self.timestamp = time.time() if timestamp is None else timestamp
         self.xaxis = None
+        self.name = name
         self.data = []
 
     @classmethod

@@ -32,6 +32,7 @@ class TestDataloggingStorage(ScrutinyUnitTest):
             self.assertIsInstance(serie.logged_element, str)
 
     def assert_acquisition_identical(self, a: DataloggingAcquisition, b: DataloggingAcquisition):
+        self.assertEqual(a.name, b.name)
         self.assertEqual(a.firmware_id, b.firmware_id)
         self.assertEqual(a.reference_id, b.reference_id)
         self.assertEqual(a.timestamp, b.timestamp)
@@ -48,7 +49,7 @@ class TestDataloggingStorage(ScrutinyUnitTest):
         self.assertEqual(a.get_data(), b.get_data())
 
     def test_read_write(self):
-        acq1 = DataloggingAcquisition(firmware_id="firmwareid1")
+        acq1 = DataloggingAcquisition(firmware_id="firmwareid1", name="Acquisition #1")
         acq2 = DataloggingAcquisition(firmware_id="firmwareid1")
         acq3 = DataloggingAcquisition(firmware_id="firmwareid2")
 
@@ -95,6 +96,11 @@ class TestDataloggingStorage(ScrutinyUnitTest):
             self.assert_acquisition_identical(acq1, acq1_fetched)
             self.assert_acquisition_identical(acq2, acq2_fetched)
             self.assert_acquisition_identical(acq3, acq3_fetched)
+
+            self.assertEqual(acq3_fetched.name, None)
+            DataloggingStorage.update_name_by_reference_id(acq3.reference_id, "meow")
+            acq3_fetched = DataloggingStorage.read(acq3.reference_id)
+            self.assertEqual(acq3_fetched.name, "meow")
 
             DataloggingStorage.delete(acq2.reference_id)
 
