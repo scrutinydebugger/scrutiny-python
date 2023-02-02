@@ -136,6 +136,7 @@ class DataloggingAcquisitionMetadata(TypedDict):
 class DataloggingSignalData(TypedDict):
     name: str
     data: List[float]
+    logged_element: str
 
 
 class DataloggingAcquisitionData(TypedDict):
@@ -284,7 +285,7 @@ class S2C:
     class ListDataloggingAcquisition(BaseS2CMessage):
         acquisitions: List[DataloggingAcquisitionMetadata]
 
-    class ReadDataloggingAcquisition(BaseS2CMessage):
+    class ReadDataloggingAcquisitionData(BaseS2CMessage):
         acquisition: DataloggingAcquisitionData
 
     class UpdateDataloggingAcquisition(BaseS2CMessage):
@@ -331,6 +332,6 @@ S2CMessage = Union[
     S2C.GetDataloggingCapabilities,
     S2C.InformNewDataloggingAcquisition,
     S2C.ListDataloggingAcquisition,
-    S2C.ReadDataloggingAcquisition,
+    S2C.ReadDataloggingAcquisitionData,
     S2C.DeleteDataloggingAcquisition
 ]

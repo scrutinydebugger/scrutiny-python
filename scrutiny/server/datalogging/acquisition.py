@@ -22,10 +22,10 @@ class DataSeries:
     logged_element: str
     data: List[float]
 
-    def __init__(self, name: str = "unnamed", logged_element: str = ""):
+    def __init__(self, data: List[float] = [], name: str = "unnamed", logged_element: str = ""):
         self.name = name
         self.logged_element = logged_element
-        self.data = []
+        self.data = data
 
     def set_data(self, data: List[float]) -> None:
         self.data = data
