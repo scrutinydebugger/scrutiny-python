@@ -23,7 +23,6 @@ from scrutiny.server.device.device_handler import DeviceHandler
 from scrutiny.server.device.device_info import DeviceInfo, FixedFreqLoop, VariableFreqLoop
 from scrutiny.server.active_sfd_handler import ActiveSFDHandler
 from scrutiny.server.device.links.dummy_link import DummyLink
-from scrutiny.server.datalogging.datalogging_manager import DataloggingManager
 from scrutiny.core.variable import *
 from scrutiny.core.alias import Alias
 import scrutiny.server.datalogging.definitions as datalogging
@@ -31,6 +30,8 @@ from test.artifacts import get_artifact
 from test import ScrutinyUnitTest
 import scrutiny.server.api.typing as api_typing
 from typing import cast
+from scrutiny.server.datalogging.datalogging_storage import DataloggingStorage
+from scrutiny.server.datalogging.acquisition import DataloggingAcquisition, DataSeries
 
 # todo
 # - Test rate limiter/data streamer
@@ -122,7 +123,34 @@ class StubbedDeviceHandler:
             raise Exception('Bad config')
 
 
+class StubbedDataloggingManager:
+    datastore: Datastore
+    fake_device_handler: StubbedDeviceHandler
+    datalogging_setup: datalogging.DataloggingSetup
+
+    def __init__(self, datastore: Datastore, fake_device_handler: StubbedDeviceHandler):
+        self.datastore = datastore
+        self.fake_device_handler = fake_device_handler
+        self.datalogging_setup = datalogging.DataloggingSetup(
+            buffer_size=1024,
+            encoding=datalogging.Encoding.RAW,
+            max_signal_count=32
+        )
+
+    def get_device_setup(self) -> Optional[datalogging.DataloggingSetup]:
+        return self.datalogging_setup
+
+    def set_device_setup(self, setup: Optional[datalogging.DataloggingSetup]) -> None:
+        self.datalogging_setup = setup
+
+
 class TestAPI(ScrutinyUnitTest):
+
+    datastore: Datastore
+    fake_device_handler: StubbedDeviceHandler
+    fake_datalogging_manager: StubbedDataloggingManager
+    sfd_handler: ActiveSFDHandler
+    api: API
 
     def setUp(self):
         self.connections = [DummyConnection(), DummyConnection(), DummyConnection()]
@@ -136,15 +164,15 @@ class TestAPI(ScrutinyUnitTest):
         }
 
         self.datastore = Datastore()
-        self.device_handler = StubbedDeviceHandler('0' * 64, DeviceHandler.ConnectionStatus.DISCONNECTED)
-        self.datalogging_manager = DataloggingManager(self.datastore, self.device_handler)
-        self.sfd_handler = ActiveSFDHandler(device_handler=self.device_handler, datastore=self.datastore, autoload=False)
+        self.fake_device_handler = StubbedDeviceHandler('0' * 64, DeviceHandler.ConnectionStatus.DISCONNECTED)
+        self.fake_datalogging_manager = StubbedDataloggingManager(self.datastore, self.fake_device_handler)
+        self.sfd_handler = ActiveSFDHandler(device_handler=self.fake_device_handler, datastore=self.datastore, autoload=False)
         self.api = API(
             config=config,
             datastore=self.datastore,
-            device_handler=self.device_handler,
+            device_handler=self.fake_device_handler,
             sfd_handler=self.sfd_handler,
-            datalogging_manager=self.datalogging_manager
+            datalogging_manager=self.fake_datalogging_manager
         )
         client_handler = self.api.get_client_handler()
         assert isinstance(client_handler, DummyClientHandler)
@@ -723,7 +751,7 @@ class TestAPI(ScrutinyUnitTest):
 
             self.sfd_handler.request_load_sfd(sfd2.get_firmware_id_ascii())
             self.sfd_handler.process()
-            self.device_handler.set_connection_status(DeviceHandler.ConnectionStatus.CONNECTED_READY)
+            self.fake_device_handler.set_connection_status(DeviceHandler.ConnectionStatus.CONNECTED_READY)
 
             req = {
                 'cmd': 'get_server_status'
@@ -748,7 +776,7 @@ class TestAPI(ScrutinyUnitTest):
             self.assertEqual(response['device_comm_link']['link_config'], {})
             self.assertIn('device_info', response)
             self.assertIsNotNone(response['device_info'])
-            device_info = self.device_handler.get_device_info()
+            device_info = self.fake_device_handler.get_device_info()
             for attr in device_info.get_attributes():
                 if attr not in device_info_exlude_propeties:    # Exclude list
                     self.assertIn(attr, response['device_info'])
@@ -757,7 +785,7 @@ class TestAPI(ScrutinyUnitTest):
             # Redo the test, but with no SFD loaded. We should get None
             self.sfd_handler.reset_active_sfd()
             self.sfd_handler.process()
-            self.device_handler.set_connection_status(DeviceHandler.ConnectionStatus.CONNECTED_READY)
+            self.fake_device_handler.set_connection_status(DeviceHandler.ConnectionStatus.CONNECTED_READY)
 
             req = {
                 'cmd': 'get_server_status'
@@ -779,7 +807,7 @@ class TestAPI(ScrutinyUnitTest):
             self.assertIn('link_config', response['device_comm_link'])
             self.assertEqual(response['device_comm_link']['link_config'], {})
             self.assertIn('device_info', response)
-            device_info = self.device_handler.get_device_info()
+            device_info = self.fake_device_handler.get_device_info()
             for attr in device_info.get_attributes():
                 if attr not in device_info_exlude_propeties:
                     self.assertIn(attr, response['device_info'])
@@ -789,8 +817,8 @@ class TestAPI(ScrutinyUnitTest):
             SFDStorage.uninstall(sfd2.get_firmware_id_ascii())
 
     def test_set_device_link(self):
-        self.assertEqual(self.device_handler.link_type, 'none')
-        self.assertEqual(self.device_handler.link_config, {})
+        self.assertEqual(self.fake_device_handler.link_type, 'none')
+        self.assertEqual(self.fake_device_handler.link_config, {})
 
         # Switch the device link for real
         req = {
@@ -803,8 +831,8 @@ class TestAPI(ScrutinyUnitTest):
         self.send_request(req, 0)
         response = self.wait_and_load_response(timeout=0.5)
         self.assert_no_error(response)
-        self.assertEqual(self.device_handler.link_type, 'dummy')
-        self.assertEqual(self.device_handler.link_config, {'channel_id': 10})
+        self.assertEqual(self.fake_device_handler.link_type, 'dummy')
+        self.assertEqual(self.fake_device_handler.link_config, {'channel_id': 10})
 
         # Simulate that the device handler refused the configuration. Make sure we return a proper error
         req = {
@@ -814,13 +842,13 @@ class TestAPI(ScrutinyUnitTest):
                 'mium': 'mium'
             }
         }
-        self.device_handler.reject_link_config = True   # Emulate a bad config
+        self.fake_device_handler.reject_link_config = True   # Emulate a bad config
         self.send_request(req, 0)
         response = self.wait_and_load_response(timeout=0.5)
         self.assert_is_error(response)
-        self.assertNotEqual(self.device_handler.link_type, 'potato')
-        self.assertNotEqual(self.device_handler.link_config, {'mium': 'mium'})
-        self.device_handler.reject_link_config = False
+        self.assertNotEqual(self.fake_device_handler.link_type, 'potato')
+        self.assertNotEqual(self.fake_device_handler.link_config, {'mium': 'mium'})
+        self.fake_device_handler.reject_link_config = False
 
         # Missing link_config
         req = {
@@ -1074,23 +1102,20 @@ class TestAPI(ScrutinyUnitTest):
 # region Datalogging
 
 # REQUEST_ACQUISITION
-# GET_DATALOGGING_CAPABILITIES
-# LIST_DATALOGGING_ACQUISITION
 # READ_DATALOGGING_ACQUISITION_DATA
-# UPDATE_DATALOGGING_ACQUISITION
-# DELETE_DATALOGGING_ACQUISITION
 
     def test_get_datalogging_capabilities(self):
+        # Check that we can read the datalogging capabilities
         req: api_typing.C2S.GetDataloggingCapabilities = {
             'cmd': 'get_datalogging_capabilities'
         }
-        datalogging_setup = datalogging.DataloggingSetup(
+        datalogging_device_setup = datalogging.DataloggingSetup(
             buffer_size=256,
             encoding=datalogging.Encoding.RAW,
             max_signal_count=32
         )
-        self.device_handler.set_connection_status(DeviceHandler.ConnectionStatus.CONNECTED_READY)
-        self.device_handler.set_datalogging_setup(datalogging_setup)
+
+        self.fake_datalogging_manager.set_device_setup(datalogging_device_setup)
 
         self.send_request(req)
         response = cast(api_typing.S2C.GetDataloggingCapabilities, self.wait_and_load_response())
@@ -1126,15 +1151,7 @@ class TestAPI(ScrutinyUnitTest):
             self.assertGreater(len(cond['pretty_name']), 0)
             self.assertGreater(len(cond['help_str']), 0)
 
-        self.device_handler.set_connection_status(DeviceHandler.ConnectionStatus.DISCONNECTED)
-        self.send_request(req)
-        response = cast(api_typing.S2C.GetDataloggingCapabilities, self.wait_and_load_response())
-        self.assert_no_error(response)
-        self.assertFalse(response['available'])
-        self.assertIsNone(response['capabilities'])
-
-        self.device_handler.set_connection_status(DeviceHandler.ConnectionStatus.CONNECTED_READY)
-        self.device_handler.set_datalogging_setup(None)  # No setup available yet
+        self.fake_datalogging_manager.set_device_setup(None)
 
         self.send_request(req)
         response = cast(api_typing.S2C.GetDataloggingCapabilities, self.wait_and_load_response())
@@ -1142,10 +1159,176 @@ class TestAPI(ScrutinyUnitTest):
         self.assertFalse(response['available'])
         self.assertIsNone(response['capabilities'])
 
-        self.device_handler.set_datalogging_setup(datalogging_setup)
+    def test_list_datalogging_acquisition(self):
+        # Check that we can read the list of acquisition in datalogging storage
+        with SFDStorage.use_temp_folder():
+            sfd1 = SFDStorage.install(get_artifact('test_sfd_1.sfd'), ignore_exist=True)
+            sfd2 = SFDStorage.install(get_artifact('test_sfd_2.sfd'), ignore_exist=True)
 
+            with DataloggingStorage.use_temp_storage():
+                acq1 = DataloggingAcquisition(firmware_id=sfd1.get_firmware_id_ascii(), reference_id="refid1", timestamp=123, name="foo")
+                acq2 = DataloggingAcquisition(firmware_id=sfd1.get_firmware_id_ascii(), reference_id="refid2", timestamp=456, name="bar")
+                acq3 = DataloggingAcquisition(firmware_id=sfd2.get_firmware_id_ascii(), reference_id="refid3", timestamp=789, name="baz")
+                acq4 = DataloggingAcquisition(firmware_id="unknown_sfd", reference_id="refid4", timestamp=555, name="meow")
+                acq1.set_xaxis(DataSeries())
+                acq2.set_xaxis(DataSeries())
+                acq3.set_xaxis(DataSeries())
+                acq4.set_xaxis(DataSeries())
+
+                DataloggingStorage.save(acq1)
+                DataloggingStorage.save(acq2)
+                DataloggingStorage.save(acq3)
+                DataloggingStorage.save(acq4)
+
+                req: api_typing.C2S.ListDataloggingAcquisitions = {
+                    'cmd': 'list_datalogging_acquisitions',
+                }
+
+                self.send_request(req)
+                response = cast(api_typing.S2C.ListDataloggingAcquisition, self.wait_and_load_response())
+                self.assert_no_error(response)
+
+                self.assertEqual(len(response['acquisitions']), 4)
+                self.assertEqual(response['acquisitions'][0]['firmware_id'], sfd1.get_firmware_id_ascii())
+                self.assertEqual(response['acquisitions'][0]['reference_id'], 'refid1')
+                self.assertEqual(response['acquisitions'][0]['timestamp'], 123)
+                self.assertEqual(response['acquisitions'][0]['name'], 'foo')
+                self.assertEqual(response['acquisitions'][0]['firmware_metadata'], sfd1.get_metadata())
+
+                self.assertEqual(response['acquisitions'][1]['firmware_id'], sfd1.get_firmware_id_ascii())
+                self.assertEqual(response['acquisitions'][1]['reference_id'], 'refid2')
+                self.assertEqual(response['acquisitions'][1]['timestamp'], 456)
+                self.assertEqual(response['acquisitions'][1]['name'], 'bar')
+                self.assertEqual(response['acquisitions'][1]['firmware_metadata'], sfd1.get_metadata())
+
+                self.assertEqual(response['acquisitions'][2]['firmware_id'], sfd2.get_firmware_id_ascii())
+                self.assertEqual(response['acquisitions'][2]['reference_id'], 'refid3')
+                self.assertEqual(response['acquisitions'][2]['timestamp'], 789)
+                self.assertEqual(response['acquisitions'][2]['name'], 'baz')
+                self.assertEqual(response['acquisitions'][2]['firmware_metadata'], sfd1.get_metadata())
+
+                self.assertEqual(response['acquisitions'][3]['firmware_id'], "unknown_sfd")
+                self.assertEqual(response['acquisitions'][3]['reference_id'], 'refid4')
+                self.assertEqual(response['acquisitions'][3]['timestamp'], 555)
+                self.assertEqual(response['acquisitions'][3]['name'], 'meow')
+                self.assertEqual(response['acquisitions'][3]['firmware_metadata'], None)
+
+                req: api_typing.C2S.ListDataloggingAcquisitions = {
+                    'cmd': 'list_datalogging_acquisitions',
+                    'firmware_id': sfd1.get_firmware_id_ascii()
+                }
+
+                self.send_request(req)
+                response = cast(api_typing.S2C.ListDataloggingAcquisition, self.wait_and_load_response())
+
+                self.assertEqual(len(response['acquisitions']), 2)
+                self.assertEqual(response['acquisitions'][0]['firmware_id'], sfd1.get_firmware_id_ascii())
+                self.assertEqual(response['acquisitions'][0]['reference_id'], 'refid1')
+                self.assertEqual(response['acquisitions'][0]['timestamp'], 123)
+                self.assertEqual(response['acquisitions'][0]['name'], 'foo')
+                self.assertEqual(response['acquisitions'][0]['firmware_metadata'], sfd1.get_metadata())
+
+                self.assertEqual(response['acquisitions'][1]['firmware_id'], sfd1.get_firmware_id_ascii())
+                self.assertEqual(response['acquisitions'][1]['reference_id'], 'refid2')
+                self.assertEqual(response['acquisitions'][1]['timestamp'], 456)
+                self.assertEqual(response['acquisitions'][1]['name'], 'bar')
+                self.assertEqual(response['acquisitions'][1]['firmware_metadata'], sfd1.get_metadata())
+
+                req: api_typing.C2S.ListDataloggingAcquisitions = {
+                    'cmd': 'list_datalogging_acquisitions',
+                    'firmware_id': None
+                }
+
+                self.send_request(req)
+                response = cast(api_typing.S2C.ListDataloggingAcquisition, self.wait_and_load_response())
+                self.assert_no_error(response)
+                self.assertEqual(len(response['acquisitions']), 4)
+
+                req: api_typing.C2S.ListDataloggingAcquisitions = {
+                    'cmd': 'list_datalogging_acquisitions',
+                    'firmware_id': 'inexistant_id'
+                }
+
+                self.send_request(req)
+                response = cast(api_typing.S2C.ListDataloggingAcquisition, self.wait_and_load_response())
+                self.assert_no_error(response)
+                self.assertEqual(len(response['acquisitions']), 0)
+
+    def test_update_datalogging_acquisition(self):
+        # Rename an acquisition in datalogging storage through API
+        with DataloggingStorage.use_temp_storage():
+            acq1 = DataloggingAcquisition(firmware_id='some_firmware_id', reference_id="refid1", timestamp=123, name="foo")
+            acq1.set_xaxis(DataSeries())
+            acq2 = DataloggingAcquisition(firmware_id='some_firmware_id', reference_id="refid2", timestamp=456, name="bar")
+            acq2.set_xaxis(DataSeries())
+            acq3 = DataloggingAcquisition(firmware_id='some_firmware_id', reference_id="refid3", timestamp=789, name="baz")
+            acq3.set_xaxis(DataSeries())
+            DataloggingStorage.save(acq1)
+            DataloggingStorage.save(acq2)
+            DataloggingStorage.save(acq3)
+
+            req: api_typing.C2S.UpdateDataloggingAcquisition = {
+                'cmd': 'update_datalogging_acquisition',
+                'reference_id': 'refid2',
+                'name': 'new_name!'
+            }
+
+            self.send_request(req)
+            response = cast(api_typing.S2C.UpdateDataloggingAcquisition, self.wait_and_load_response())
+            self.assert_no_error(response)
+            acq2_reloaded = DataloggingStorage.read('refid2')
+            self.assertEqual(acq2_reloaded.name, 'new_name!')
+            self.assertEqual(acq2_reloaded.firmware_id, acq2.firmware_id)
+            self.assertEqual(acq2_reloaded.timestamp, acq2.timestamp)
+
+            req: api_typing.C2S.UpdateDataloggingAcquisition = {
+                'cmd': 'update_datalogging_acquisition',
+                'reference_id': 'bad_ref_id',
+                'name': 'meow'
+            }
+
+            self.send_request(req)
+            self.assert_is_error(self.wait_and_load_response())
+
+    def test_delete_datalogging_acquisition(self):
+        # Rename an acquisition in datalogging storage through API
+        with DataloggingStorage.use_temp_storage():
+            acq1 = DataloggingAcquisition(firmware_id='some_firmware_id', reference_id="refid1", timestamp=123, name="foo")
+            acq1.set_xaxis(DataSeries())
+            acq2 = DataloggingAcquisition(firmware_id='some_firmware_id', reference_id="refid2", timestamp=456, name="bar")
+            acq2.set_xaxis(DataSeries())
+            acq3 = DataloggingAcquisition(firmware_id='some_firmware_id', reference_id="refid3", timestamp=789, name="baz")
+            acq3.set_xaxis(DataSeries())
+            DataloggingStorage.save(acq1)
+            DataloggingStorage.save(acq2)
+            DataloggingStorage.save(acq3)
+
+            self.assertEqual(DataloggingStorage.count(), 3)
+            req: api_typing.C2S.DeleteDataloggingAcquisition = {
+                'cmd': 'delete_datalogging_acquisition',
+                'reference_id': 'refid2',
+            }
+
+            self.send_request(req)
+            response = cast(api_typing.S2C.DeleteDataloggingAcquisition, self.wait_and_load_response())
+            self.assert_no_error(response)
+            self.assertEqual(DataloggingStorage.count(), 2)
+            with self.assertRaises(IndexError):
+                DataloggingStorage.read('refid2')
+
+            DataloggingStorage.read('refid1')
+            DataloggingStorage.read('refid3')
+
+            req: api_typing.C2S.DeleteDataloggingAcquisition = {
+                'cmd': 'update_datalogging_acquisition',
+                'reference_id': 'bad_ref_id'
+            }
+
+            self.send_request(req)
+            self.assert_is_error(self.wait_and_load_response())
 
 # endregion
+
 
 if __name__ == '__main__':
     import unittest

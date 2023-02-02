@@ -153,6 +153,7 @@ class DataloggingCapabilities(TypedDict):
 
 
 class C2S:
+    "Client To Server"
     class Echo(BaseC2SMessage):
         payload: str
 
@@ -205,10 +206,21 @@ class C2S:
     class ReadDataloggingAcquisition(BaseC2SMessage):
         reference_id: str
 
+    class ListDataloggingAcquisitions(BaseC2SMessage):
+        firmware_id: Optional[str]
+
+    class UpdateDataloggingAcquisition(BaseC2SMessage):
+        reference_id: str
+        name: Optional[str]
+
+    class DeleteDataloggingAcquisition(BaseC2SMessage):
+        reference_id: str
+
     GetPossibleLinkConfig = Dict[Any, Any]  # Todo
 
 
 class S2C:
+    "Server To Client"
     class Empty(BaseS2CMessage):
         pass
 
@@ -264,7 +276,7 @@ class S2C:
         capabilities: Optional[DataloggingCapabilities]
 
     class RequestAcquisition(BaseS2CMessage):
-        accepted: bool
+        pass
 
     class InformNewDataloggingAcquisition(BaseS2CMessage):
         reference_id: str
@@ -274,6 +286,12 @@ class S2C:
 
     class ReadDataloggingAcquisition(BaseS2CMessage):
         acquisition: DataloggingAcquisitionData
+
+    class UpdateDataloggingAcquisition(BaseS2CMessage):
+        pass
+
+    class DeleteDataloggingAcquisition(BaseS2CMessage):
+        pass
 
 
 C2SMessage = Union[
@@ -289,7 +307,10 @@ C2SMessage = Union[
     C2S.GetPossibleLinkConfig,
     C2S.WriteValue,
     C2S.GetDataloggingCapabilities,
-    C2S.ReadDataloggingAcquisition
+    C2S.ReadDataloggingAcquisition,
+    C2S.ListDataloggingAcquisitions,
+    C2S.UpdateDataloggingAcquisition,
+    C2S.DeleteDataloggingAcquisition
 ]
 
 S2CMessage = Union[
@@ -310,5 +331,6 @@ S2CMessage = Union[
     S2C.GetDataloggingCapabilities,
     S2C.InformNewDataloggingAcquisition,
     S2C.ListDataloggingAcquisition,
-    S2C.ReadDataloggingAcquisition
+    S2C.ReadDataloggingAcquisition,
+    S2C.DeleteDataloggingAcquisition
 ]
