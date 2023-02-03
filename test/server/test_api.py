@@ -1371,6 +1371,17 @@ class TestAPI(ScrutinyUnitTest):
             response = cast(api_typing.S2C.ReadDataloggingAcquisitionData, self.wait_and_load_response())
             self.assert_is_error(response)
 
+    def send_request_datalogging_acquisition_and_fetch_result(self, req: api_typing.C2S.RequestDataloggingAcquisition) -> api_datalogging.AcquisitionRequest:
+        self.send_request(req)
+        response = cast(api_typing.S2C.RequestDataloggingAcquisition, self.wait_and_load_response())
+        self.assert_no_error(response)
+
+        self.assertFalse(self.fake_datalogging_manager.request_queue.empty())
+        ar = self.fake_datalogging_manager.request_queue.get()
+        self.assertTrue(self.fake_datalogging_manager.request_queue.empty())
+
+        return ar
+
     def test_request_datalogging_acquisition(self):
         with DataloggingStorage.use_temp_storage():
 
@@ -1410,13 +1421,7 @@ class TestAPI(ScrutinyUnitTest):
                 return req
 
             req = create_default_request()
-            self.send_request(req)
-            response = cast(api_typing.S2C.RequestDataloggingAcquisition, self.wait_and_load_response())
-            self.assert_no_error(response)
-
-            self.assertFalse(self.fake_datalogging_manager.request_queue.empty())
-            ar = self.fake_datalogging_manager.request_queue.get()
-            self.assertTrue(self.fake_datalogging_manager.request_queue.empty())
+            ar = self.send_request_datalogging_acquisition_and_fetch_result(req)
 
             self.assertEqual(ar.decimation, 100)
             self.assertEqual(ar.probe_location, 0.7)
@@ -1427,17 +1432,129 @@ class TestAPI(ScrutinyUnitTest):
             self.assertIsNone(ar.x_axis_watchable)
             self.assertEqual(ar.trigger_condition.condition_id, api_datalogging.TriggerConditionID.Equal)
 
-            assert isinstance(ar.trigger_condition.operands[0], api_datalogging.LiteralOperand)
-            assert isinstance(ar.trigger_condition.operands[1], api_datalogging.VarOperand)
-
+            self.assertEqual(ar.trigger_condition.operands[0].type, api_datalogging.TriggerConditionOperandType.LITERAL)
             self.assertEqual(ar.trigger_condition.operands[0].value, 123)
-            self.assertEqual(ar.trigger_condition.operands[1].address, var_entries[0].get_address())
-            self.assertEqual(ar.trigger_condition.operands[1].datatype, var_entries[0].get_data_type())
+            self.assertEqual(ar.trigger_condition.operands[1], api_datalogging.TriggerConditionOperandType.WATCHABLE)
+            self.assertIs(ar.trigger_condition.operands[1].value, var_entries[0])
 
             self.assertIs(ar.entries[0], var_entries[1])
             self.assertIs(ar.entries[1], alias_entries_var[0])
             self.assertIs(ar.entries[2], alias_entries_rpv[0])
             self.assertIs(ar.entries[3], rpv_entries[0])
+
+            # conditions
+            all_conditions = {
+                'true': dict(condition_id=api_datalogging.TriggerConditionID.AlwaysTrue, nb_operands=0),
+                'eq': dict(condition_id=api_datalogging.TriggerConditionID.Equal, nb_operands=2),
+                'lt': dict(condition_id=api_datalogging.TriggerConditionID.LessThan, nb_operands=2),
+                'let': dict(condition_id=api_datalogging.TriggerConditionID.LessOrEqualThan, nb_operands=2),
+                'gt': dict(condition_id=api_datalogging.TriggerConditionID.GreaterThan, nb_operands=2),
+                'get': dict(condition_id=api_datalogging.TriggerConditionID.GreaterOrEqualThan, nb_operands=2),
+                'cmt': dict(condition_id=api_datalogging.TriggerConditionID.ChangeMoreThan, nb_operands=2),
+                'within': dict(condition_id=api_datalogging.TriggerConditionID.IsWithin, nb_operands=3)
+            }
+
+            for api_cond in all_conditions:
+                for nb_operand in range(all_conditions[api_cond]['nb_opernads'] + 1):
+                    req = create_default_request()
+                    req['condition'] = api_cond
+                    req['operands'] = []
+                    for i in range(nb_operand):
+                        req['operands'].append({dict(type='literal', value=i)})
+                    if nb_operand == all_conditions[api_cond]['nb_opernads']:
+                        ar = self.send_request_datalogging_acquisition_and_fetch_result(req)
+                        self.assertEqual(ar.trigger_condition.condition_id, all_conditions[api_cond]['condition_id'])
+                    else:
+                        self.send_request(req)
+                        self.assert_is_error(self.wait_and_load_response())
+
+            req = create_default_request()
+            req['condition'] = 'meow'
+            self.send_request(req)
+            self.assert_is_error(self.wait_and_load_response())
+
+            # x axis
+            # measured time ok
+            req = create_default_request()
+            req['x_axis_type'] = 'measured_time'
+            ar = self.send_request_datalogging_acquisition_and_fetch_result(req)
+            self.assertEqual(ar.x_axis_type, api_datalogging.XAxisType.MeasuredTime)
+            self.assertIsNone(ar.x_axis_watchable)
+
+            # Unexpected x_axis_watchable
+            req = create_default_request()
+            req['x_axis_type'] = 'measured_time'
+            req['x_axis_watchable'] = var_entries[0].get_id()
+            self.send_request(req)
+            self.assert_is_error(self.wait_and_load_response())
+
+            # watchable ok
+            req = create_default_request()
+            req['x_axis_type'] = 'watchable'
+            req['x_axis_watchable'] = rpv_entries[1].get_id()
+            ar = self.send_request_datalogging_acquisition_and_fetch_result(req)
+            self.assertEqual(ar.x_axis_type, api_datalogging.XAxisType.Watchable)
+            self.assertIs(ar.x_axis_watchable, rpv_entries[1])
+
+            # watchable unknown ID
+            req = create_default_request()
+            req['x_axis_type'] = 'watchable'
+            req['x_axis_watchable'] = "unkown_id"
+            self.send_request(req)
+            self.assert_is_error(self.wait_and_load_response())
+
+            # watchable is missing
+            req = create_default_request()
+            req['x_axis_type'] = 'watchable'
+            self.send_request(req)
+            self.assert_is_error(self.wait_and_load_response())
+
+            # unknown type
+            req = create_default_request()
+            req['x_axis_type'] = 'meow'
+            self.send_request(req)
+            self.assert_is_error(self.wait_and_load_response())
+
+            # unknown watchable
+            req = create_default_request()
+            req['watchables'][0]['id'] = 'unknown_id'
+            self.send_request(req)
+            self.assert_is_error(self.wait_and_load_response())
+
+            # Bad decimation
+            for bad_decimation in ['meow', -1, 0, 1.5, None, [1]]:
+                req = create_default_request()
+                req['decimation'] = bad_decimation
+                self.send_request(req)
+                self.assert_is_error(self.wait_and_load_response())
+
+            # Bad decimation
+            for bad_hold_time in ['meow', -1, None, [1]]:
+                req = create_default_request()
+                req['trigger_hold_time'] = bad_hold_time
+                self.send_request(req)
+                self.assert_is_error(self.wait_and_load_response())
+
+            # Bad Timeout
+            for bad_timeout in ['meow', -1, None, [1]]:
+                req = create_default_request()
+                req['timeout'] = bad_timeout
+                self.send_request(req)
+                self.assert_is_error(self.wait_and_load_response())
+
+            # Bad Timeout
+            for bad_probe_location in ['meow', -1, 1.1, 2, [1]]:
+                req = create_default_request()
+                req['probe_location'] = bad_probe_location
+                self.send_request(req)
+                self.assert_is_error(self.wait_and_load_response())
+
+            # Bad Timeout
+            for bad_freq_id in ['meow', -1, 1.1, [1]]:
+                req = create_default_request()
+                req['sampling_rate_id'] = bad_freq_id
+                self.send_request(req)
+                self.assert_is_error(self.wait_and_load_response())
 
 
 # endregion
