@@ -12,39 +12,24 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
 from scrutiny.core.basic_types import EmbeddedDataType
-from typing import Optional
-from scrutiny.server.device.device_info import ExecLoopType
-
-
-class XAxisType(Enum):
-    """Represent a type of X-Axis that a user can select"""
-    IdealTime = 0,
-    MeasuredTime = 1,
-    Signal = 2
-
-
-@dataclass
-class SamplingRate:
-    """Represent a sampling rate that a use can select"""
-    name: str
-    frequency: Optional[float]
-    rate_type: ExecLoopType
-    device_identifier: int
-
-
-@dataclass
-class AcquisitionMetadata:
-    """Represent the metadata attached to an acquisition given by the device"""
-    acquisition_id: int
-    config_id: int
-    number_of_points: int
-    data_size: int
-    points_after_trigger: int
 
 
 class Encoding(Enum):
     """Represent a type of data encoding used by the device. Matches the device definition"""
     RAW = 0
+
+
+class TriggerConditionID(Enum):
+    """The ID of the trigger condition to use. Matches the device definition."""
+    AlwaysTrue = 0          # Always true
+    Equal = 1               # Operand1 == Operand2
+    NotEqual = 2            # Operand1 != Operand2
+    LessThan = 3            # Operand1 < Operand2
+    LessOrEqualThan = 4     # Operand1 <= Operand2
+    GreaterThan = 5         # Operand1 > Operand2
+    GreaterOrEqualThan = 6  # Operand1 >= Operand2
+    ChangeMoreThan = 7      # X=(Operand1[n]-Operand1[n-1]); |X| > |Operand2| && sign(X) == sign(Operand2)
+    IsWithin = 8            # |Operand1 - Operand2| < |Operand3|
 
 
 class DataloggerState(Enum):
@@ -64,7 +49,15 @@ class DataloggingSetup:
     encoding: Encoding
     max_signal_count: int
 
-# region Operands
+
+@dataclass
+class AcquisitionMetadata:
+    """Represent the metadata attached to an acquisition given by the device"""
+    acquisition_id: int
+    config_id: int
+    number_of_points: int
+    data_size: int
+    points_after_trigger: int
 
 
 class OperandType(Enum):
@@ -154,11 +147,6 @@ class RPVOperand(Operand):
         return OperandType.RPV
 
 
-# endregion
-
-# region Loggable Signals
-
-
 class LoggableSignalType(Enum):
     """Represent a type of loggable signal that can be given to the device. Matches the device definition"""
     MEMORY = 0
@@ -214,23 +202,6 @@ class TimeLoggableSignal(LoggableSignal):
 
     def get_type(self) -> LoggableSignalType:
         return LoggableSignalType.TIME
-
-# endregion
-
-# region Trigger Condition
-
-
-class TriggerConditionID(Enum):
-    """The ID of the trigger condition to use. Matches the device definition."""
-    AlwaysTrue = 0          # Always true
-    Equal = 1               # Operand1 == Operand2
-    NotEqual = 2            # Operand1 != Operand2
-    LessThan = 3            # Operand1 < Operand2
-    LessOrEqualThan = 4     # Operand1 <= Operand2
-    GreaterThan = 5         # Operand1 > Operand2
-    GreaterOrEqualThan = 6  # Operand1 >= Operand2
-    ChangeMoreThan = 7      # X=(Operand1[n]-Operand1[n-1]); |X| > |Operand2| && sign(X) == sign(Operand2)
-    IsWithin = 8            # |Operand1 - Operand2| < |Operand3|
 
 
 class TriggerCondition:
@@ -366,4 +337,3 @@ class Configuration:
             raise ValueError('Hold time must be a value greater than 0')
 
         self._trigger_hold_time = v
-# endregion

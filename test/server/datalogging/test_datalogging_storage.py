@@ -10,7 +10,7 @@ from uuid import uuid4
 import random
 from test import ScrutinyUnitTest
 from scrutiny.server.datalogging.datalogging_storage import DataloggingStorage
-from scrutiny.server.datalogging.acquisition import DataloggingAcquisition, DataSeries
+from scrutiny.server.datalogging.definitions.api import DataloggingAcquisition, DataSeries
 
 
 class TestDataloggingStorage(ScrutinyUnitTest):

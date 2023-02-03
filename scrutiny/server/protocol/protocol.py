@@ -18,7 +18,7 @@ from . import Request, Response
 from scrutiny.core.codecs import *
 from scrutiny.core.basic_types import Endianness, RuntimePublishedValue
 import scrutiny.server.protocol.typing as protocol_typing
-import scrutiny.server.datalogging.definitions as datalogging
+import scrutiny.server.datalogging.definitions.device as device_datalogging
 from scrutiny.server.device.device_info import ExecLoop, ExecLoopType, FixedFreqLoop, VariableFreqLoop
 
 
@@ -287,7 +287,7 @@ class Protocol:
     def datalogging_get_setup(self) -> Request:
         return Request(cmd.DatalogControl, cmd.DatalogControl.Subfunction.GetSetup, response_payload_size=6)
 
-    def datalogging_configure(self, loop_id: int, config_id: int, config: datalogging.Configuration) -> Request:
+    def datalogging_configure(self, loop_id: int, config_id: int, config: device_datalogging.Configuration) -> Request:
         data = pack('>BHHBLBLB',
                     loop_id,
                     config_id,
@@ -302,18 +302,18 @@ class Protocol:
         for operand in config.trigger_condition.get_operands():
             operand_type = operand.get_type()
             data += pack('B', operand_type.value)
-            if operand_type == datalogging.OperandType.Literal:
-                operand = cast(datalogging.LiteralOperand, operand)
+            if operand_type == device_datalogging.OperandType.Literal:
+                operand = cast(device_datalogging.LiteralOperand, operand)
                 data += pack('>f', operand.value)
-            elif operand_type == datalogging.OperandType.RPV:
-                operand = cast(datalogging.RPVOperand, operand)
+            elif operand_type == device_datalogging.OperandType.RPV:
+                operand = cast(device_datalogging.RPVOperand, operand)
                 data += pack('>H', operand.rpv_id)
-            elif operand_type == datalogging.OperandType.Var:
-                operand = cast(datalogging.VarOperand, operand)
+            elif operand_type == device_datalogging.OperandType.Var:
+                operand = cast(device_datalogging.VarOperand, operand)
                 data += pack('>B', operand.datatype.value)
                 data += self.encode_address(operand.address)
-            elif operand_type == datalogging.OperandType.VarBit:
-                operand = cast(datalogging.VarBitOperand, operand)
+            elif operand_type == device_datalogging.OperandType.VarBit:
+                operand = cast(device_datalogging.VarBitOperand, operand)
                 data += pack('>B', operand.datatype.value)
                 data += self.encode_address(operand.address)
                 data += pack('>BB', operand.bitoffset, operand.bitsize)
@@ -326,17 +326,17 @@ class Protocol:
             signal_type = signal.get_type()
             data += pack('>B', signal_type.value)
 
-            if signal_type == datalogging.LoggableSignalType.MEMORY:
-                signal = cast(datalogging.MemoryLoggableSignal, signal)
+            if signal_type == device_datalogging.LoggableSignalType.MEMORY:
+                signal = cast(device_datalogging.MemoryLoggableSignal, signal)
                 data += self.encode_address(signal.address)
                 data += pack('>B', signal.size)
 
-            elif signal_type == datalogging.LoggableSignalType.RPV:
-                signal = cast(datalogging.RPVLoggableSignal, signal)
+            elif signal_type == device_datalogging.LoggableSignalType.RPV:
+                signal = cast(device_datalogging.RPVLoggableSignal, signal)
                 data += pack('>H', signal.rpv_id)
 
-            elif signal_type == datalogging.LoggableSignalType.TIME:
-                signal = cast(datalogging.TimeLoggableSignal, signal)
+            elif signal_type == device_datalogging.LoggableSignalType.TIME:
+                signal = cast(device_datalogging.TimeLoggableSignal, signal)
                 # nothing to encode!
             else:
                 raise ValueError("Unknown signal type %s" % signal)
@@ -355,7 +355,7 @@ class Protocol:
     def datalogging_get_acquisition_metadata(self) -> Request:
         return Request(cmd.DatalogControl, cmd.DatalogControl.Subfunction.GetAcquisitionMetadata, response_payload_size=14)
 
-    def datalogging_read_acquisition(self, data_read: int, total_size: int, tx_buffer_size: int, encoding: datalogging.Encoding) -> Request:
+    def datalogging_read_acquisition(self, data_read: int, total_size: int, tx_buffer_size: int, encoding: device_datalogging.Encoding) -> Request:
         payload_max_size = tx_buffer_size
         remaining_count = total_size - data_read
 
@@ -366,7 +366,7 @@ class Protocol:
             raise ValueError('Negative remaining data. total_size=%d, data_read=%d', (total_size, data_read))
 
         expected_response_payload_size = 0
-        if encoding == datalogging.Encoding.RAW:
+        if encoding == device_datalogging.Encoding.RAW:
             if remaining_count < payload_max_size - 8:    # Last block
                 expected_response_payload_size = remaining_count + 8
             else:
@@ -502,14 +502,14 @@ class Protocol:
 
                     data['loop_id'] = req.payload[0]
                     data['config_id'] = unpack('>H', req.payload[1:3])[0]
-                    config = datalogging.Configuration()
+                    config = device_datalogging.Configuration()
                     config.decimation = unpack('>H', req.payload[3:5])[0]
                     config.probe_location = float(req.payload[5]) / 255.0
                     config.timeout = float(unpack('>L', req.payload[6:10])[0]) / 1.0e7
                     condition_id = req.payload[10]
-                    if condition_id not in [v.value for v in datalogging.TriggerConditionID]:
+                    if condition_id not in [v.value for v in device_datalogging.TriggerConditionID]:
                         raise ValueError('Unknown condition ID %d' % condition_id)
-                    config.trigger_condition.condition_id = datalogging.TriggerConditionID(condition_id)
+                    config.trigger_condition.condition_id = device_datalogging.TriggerConditionID(condition_id)
                     config.trigger_hold_time = float(unpack('>L', req.payload[11:15])[0]) / 1.0e7
 
                     operand_count = req.payload[15]
@@ -519,23 +519,23 @@ class Protocol:
                             raise ValueError('Not enough data. cursor = %d' % cursor)
                         operand_type_id = req.payload[cursor]
                         cursor += 1
-                        if operand_type_id not in [v.value for v in datalogging.OperandType]:
+                        if operand_type_id not in [v.value for v in device_datalogging.OperandType]:
                             raise ValueError('Unknown operand type %d' % operand_type_id)
 
-                        operand_type = datalogging.OperandType(operand_type_id)
-                        operand: datalogging.Operand
-                        if operand_type == datalogging.OperandType.Literal:
+                        operand_type = device_datalogging.OperandType(operand_type_id)
+                        operand: device_datalogging.Operand
+                        if operand_type == device_datalogging.OperandType.Literal:
                             if len(req.payload) < cursor + 4:
                                 raise ValueError('Not enough data for operand #%d (Literal). Cursor = %d' % (i, cursor))
-                            operand = datalogging.LiteralOperand(value=struct.unpack('>f', req.payload[cursor:cursor + 4])[0])
+                            operand = device_datalogging.LiteralOperand(value=struct.unpack('>f', req.payload[cursor:cursor + 4])[0])
                             cursor += 4
-                        elif operand_type == datalogging.OperandType.RPV:
+                        elif operand_type == device_datalogging.OperandType.RPV:
                             if len(req.payload) < cursor + 2:
                                 raise ValueError('Not enough data for operand #%d (RPV). Cursor = %d' % (i, cursor))
-                            operand = datalogging.RPVOperand(rpv_id=struct.unpack('>H', req.payload[cursor:cursor + 2])[0])
+                            operand = device_datalogging.RPVOperand(rpv_id=struct.unpack('>H', req.payload[cursor:cursor + 2])[0])
                             cursor += 2
 
-                        elif operand_type == datalogging.OperandType.Var:
+                        elif operand_type == device_datalogging.OperandType.Var:
                             if len(req.payload) < cursor + 1 + self.get_address_size_bytes():
                                 raise ValueError('Not enough data for operand #%d (Var). Cursor = %d' % (i, cursor))
                             datatype_id = req.payload[cursor]
@@ -545,8 +545,8 @@ class Protocol:
                             datatype = EmbeddedDataType(datatype_id)
                             address = self.decode_address(req.payload[cursor:cursor + self.get_address_size_bytes()])
                             cursor += self.get_address_size_bytes()
-                            operand = datalogging.VarOperand(address=address, datatype=datatype)
-                        elif operand_type == datalogging.OperandType.VarBit:
+                            operand = device_datalogging.VarOperand(address=address, datatype=datatype)
+                        elif operand_type == device_datalogging.OperandType.VarBit:
                             if len(req.payload) < cursor + 1 + self.get_address_size_bytes() + 1 + 1:
                                 raise ValueError('Not enough data for operand #%d (VarBit). Cursor = %d' % (i, cursor))
                             datatype_id = req.payload[cursor]
@@ -560,7 +560,7 @@ class Protocol:
                             cursor += 1
                             bitsize = req.payload[cursor]
                             cursor += 1
-                            operand = datalogging.VarBitOperand(address=address, datatype=datatype, bitoffset=bitoffset, bitsize=bitsize)
+                            operand = device_datalogging.VarBitOperand(address=address, datatype=datatype, bitoffset=bitoffset, bitsize=bitsize)
                         else:
                             raise NotImplementedError('Unsupported Operand Type %s' % operand_type)
 
@@ -576,27 +576,27 @@ class Protocol:
                             raise ValueError('Not enough data to read the signal count. cursor = %d' % cursor)
                         signal_type_id = req.payload[cursor]
                         cursor += 1
-                        if signal_type_id not in [v.value for v in datalogging.LoggableSignalType]:
+                        if signal_type_id not in [v.value for v in device_datalogging.LoggableSignalType]:
                             raise ValueError("Unknown signal type for signal #%d. Cursor=%d" % (i, cursor))
-                        signal_type = datalogging.LoggableSignalType(signal_type_id)
+                        signal_type = device_datalogging.LoggableSignalType(signal_type_id)
 
-                        signal: datalogging.LoggableSignal
-                        if signal_type == datalogging.LoggableSignalType.MEMORY:
+                        signal: device_datalogging.LoggableSignal
+                        if signal_type == device_datalogging.LoggableSignalType.MEMORY:
                             if len(req.payload) < cursor + self.get_address_size_bytes() + 1:
                                 raise ValueError('Not enough data for signal #%d (%s). Cursor = %d' % (i, signal_type.name, cursor))
                             address = self.decode_address(req.payload[cursor:cursor + self.get_address_size_bytes()])
                             cursor += self.get_address_size_bytes()
                             memory_size = req.payload[cursor]
                             cursor += 1
-                            signal = datalogging.MemoryLoggableSignal(address=address, size=memory_size)
-                        elif signal_type == datalogging.LoggableSignalType.RPV:
+                            signal = device_datalogging.MemoryLoggableSignal(address=address, size=memory_size)
+                        elif signal_type == device_datalogging.LoggableSignalType.RPV:
                             if len(req.payload) < cursor + 2:
                                 raise ValueError('Not enough data for signal #%d (%s). Cursor = %d' % (i, signal_type.name, cursor))
                             rpv_id = unpack('>H', req.payload[cursor:cursor + 2])[0]
                             cursor += 2
-                            signal = datalogging.RPVLoggableSignal(rpv_id=rpv_id)
-                        elif signal_type == datalogging.LoggableSignalType.TIME:
-                            signal = datalogging.TimeLoggableSignal()
+                            signal = device_datalogging.RPVLoggableSignal(rpv_id=rpv_id)
+                        elif signal_type == device_datalogging.LoggableSignalType.TIME:
+                            signal = device_datalogging.TimeLoggableSignal()
                         else:
                             raise NotImplementedError('Unsupported signal type %s' % (signal_type.name))
 
@@ -808,7 +808,7 @@ class Protocol:
 
         return Response(cmd.MemoryControl, cmd.MemoryControl.Subfunction.WriteRPV, Response.ResponseCode.OK, data)
 
-    def respond_datalogging_get_setup(self, buffer_size: int, encoding: datalogging.Encoding, max_signal_count: int) -> Response:
+    def respond_datalogging_get_setup(self, buffer_size: int, encoding: device_datalogging.Encoding, max_signal_count: int) -> Response:
         return Response(cmd.DatalogControl, cmd.DatalogControl.Subfunction.GetSetup, Response.ResponseCode.OK, pack('>LBB', buffer_size, encoding.value, max_signal_count))
 
     def respond_datalogging_configure(self) -> Response:
@@ -820,8 +820,8 @@ class Protocol:
     def respond_datalogging_disarm_trigger(self) -> Response:
         return Response(cmd.DatalogControl, cmd.DatalogControl.Subfunction.DisarmTrigger, Response.ResponseCode.OK)
 
-    def respond_datalogging_get_status(self, state: Union[datalogging.DataloggerState, int]) -> Response:
-        state = datalogging.DataloggerState(state)
+    def respond_datalogging_get_status(self, state: Union[device_datalogging.DataloggerState, int]) -> Response:
+        state = device_datalogging.DataloggerState(state)
         return Response(cmd.DatalogControl, cmd.DatalogControl.Subfunction.GetStatus, Response.ResponseCode.OK, pack('B', state.value))
 
     def respond_datalogging_get_acquisition_metadata(self, acquisition_id: int, config_id: int, nb_points: int, datasize: int, points_after_trigger: int) -> Response:
@@ -1028,10 +1028,10 @@ class Protocol:
 
                         data['buffer_size'] = struct.unpack('>L', response.payload[0:4])[0]
                         encoding_code = response.payload[4]
-                        if encoding_code not in [v.value for v in datalogging.Encoding]:
+                        if encoding_code not in [v.value for v in device_datalogging.Encoding]:
                             raise ValueError('Unknown encoding %d' % encoding_code)
 
-                        data['encoding'] = datalogging.Encoding(encoding_code)
+                        data['encoding'] = device_datalogging.Encoding(encoding_code)
                         data['max_signal_count'] = response.payload[5]
                     elif subfn == cmd.DatalogControl.Subfunction.GetStatus:
                         data = cast(protocol_typing.Response.DatalogControl.GetStatus, data)
@@ -1039,10 +1039,10 @@ class Protocol:
                             raise ValueError('Not the right amount of data for a GetStatus response. Got %d expected %d', (len(response.payload), 1))
 
                         state_code = response.payload[0]
-                        if state_code not in [v.value for v in datalogging.DataloggerState]:
+                        if state_code not in [v.value for v in device_datalogging.DataloggerState]:
                             raise ValueError('Unknown datalogger status code %d' % state_code)
 
-                        data['state'] = datalogging.DataloggerState(state_code)
+                        data['state'] = device_datalogging.DataloggerState(state_code)
                     elif subfn == cmd.DatalogControl.Subfunction.GetAcquisitionMetadata:
                         data = cast(protocol_typing.Response.DatalogControl.GetAcquisitionMetadata, data)
                         if len(response.payload) != 16:

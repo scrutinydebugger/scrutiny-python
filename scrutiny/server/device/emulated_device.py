@@ -23,7 +23,7 @@ from scrutiny.server.protocol import Protocol, Request, Response, ResponseCode
 import scrutiny.server.protocol.typing as protocol_typing
 from scrutiny.core.memory_content import MemoryContent
 from scrutiny.core.basic_types import RuntimePublishedValue, EmbeddedDataType
-import scrutiny.server.datalogging.definitions as datalogging
+import scrutiny.server.datalogging.definitions.device as device_datalogging
 from scrutiny.core.codecs import *
 from scrutiny.server.device.device_info import ExecLoop, VariableFreqLoop, FixedFreqLoop, ExecLoopType
 from scrutiny.server.protocol.crc32 import crc32
@@ -92,7 +92,7 @@ class DataloggerEmulator:
             raise NotImplementedError("Abstract method")
 
         @abstractmethod
-        def configure(self, config: datalogging.Configuration) -> None:
+        def configure(self, config: device_datalogging.Configuration) -> None:
             raise NotImplementedError("Abstract method")
 
         @abstractmethod
@@ -121,7 +121,7 @@ class DataloggerEmulator:
         buffer_size: int
         write_cursor: int
         read_cursor: int
-        config: Optional[datalogging.Configuration]
+        config: Optional[device_datalogging.Configuration]
         entry_size: int
         rpv_map: Dict[int, RuntimePublishedValue]
         data_deque: Deque[bytearray]
@@ -136,17 +136,17 @@ class DataloggerEmulator:
             self.data_deque = collections.deque(maxlen=0)
             self.reset_write_counters()
 
-        def configure(self, config: datalogging.Configuration) -> None:
+        def configure(self, config: device_datalogging.Configuration) -> None:
             self.config = config
             self.entry_size = 0
             for signal in config.get_signals():
-                if isinstance(signal, datalogging.TimeLoggableSignal):
+                if isinstance(signal, device_datalogging.TimeLoggableSignal):
                     self.entry_size += 4
-                elif isinstance(signal, datalogging.RPVLoggableSignal):
+                elif isinstance(signal, device_datalogging.RPVLoggableSignal):
                     if signal.rpv_id not in self.rpv_map:
                         raise ValueError('RPV ID 0x%04X not in RPV map' % signal.rpv_id)
                     self.entry_size += self.rpv_map[signal.rpv_id].datatype.get_size_byte()
-                elif isinstance(signal, datalogging.MemoryLoggableSignal):
+                elif isinstance(signal, device_datalogging.MemoryLoggableSignal):
                     self.entry_size += signal.size
                 else:
                     raise NotImplementedError("Unknown signal type")
@@ -184,15 +184,15 @@ class DataloggerEmulator:
 
     logger: logging.Logger
     buffer_size: int
-    config: Optional[datalogging.Configuration]
-    state: datalogging.DataloggerState
+    config: Optional[device_datalogging.Configuration]
+    state: device_datalogging.DataloggerState
     remaining_samples: int
     timebase: EmulatedTimebase
     trigger_cmt_last_val: Encodable
     last_trigger_condition_result: bool
     trigger_rising_edge_timestamp: Optional[float]
     trigger_fulfilled_timestamp: float
-    encoding: datalogging.Encoding
+    encoding: device_datalogging.Encoding
     encoder: "DataloggerEmulator.Encoder"
     config_id: int
     target_byte_count_after_trigger: int
@@ -200,7 +200,7 @@ class DataloggerEmulator:
     entry_counter_at_trigger: int
     acquisition_id: int
 
-    def __init__(self, device: "EmulatedDevice", buffer_size: int, encoding: datalogging.Encoding = datalogging.Encoding.RAW):
+    def __init__(self, device: "EmulatedDevice", buffer_size: int, encoding: device_datalogging.Encoding = device_datalogging.Encoding.RAW):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.device = device
         self.buffer_size = buffer_size
@@ -209,13 +209,13 @@ class DataloggerEmulator:
         self.reset()
 
     def reset(self) -> None:
-        if self.encoding == datalogging.Encoding.RAW:
+        if self.encoding == device_datalogging.Encoding.RAW:
             self.encoder = DataloggerEmulator.RawEncoder(rpv_map=self.device.get_rpv_definition_map(), buffer_size=self.buffer_size)
         else:
             raise NotImplementedError("Unsupported encoding %s" % self.encoding)
 
         self.config = None
-        self.state = datalogging.DataloggerState.IDLE
+        self.state = device_datalogging.DataloggerState.IDLE
         self.remaining_samples = 0
         self.timebase = EmulatedTimebase()
         self.trigger_cmt_last_val = 0
@@ -227,31 +227,31 @@ class DataloggerEmulator:
         self.byte_count_at_trigger = 0
         self.entry_counter_at_trigger = 0
 
-    def configure(self, config_id: int, config: datalogging.Configuration) -> None:
+    def configure(self, config_id: int, config: device_datalogging.Configuration) -> None:
         self.logger.debug("Being configured. Config ID=%d" % config_id)
         self.reset()
         self.config = config
         self.config_id = config_id
         self.encoder.configure(config)
 
-        self.state = datalogging.DataloggerState.CONFIGURED
+        self.state = device_datalogging.DataloggerState.CONFIGURED
 
     def arm_trigger(self):
-        if self.state in [datalogging.DataloggerState.CONFIGURED, datalogging.DataloggerState.TRIGGERED, datalogging.DataloggerState.ACQUISITION_COMPLETED]:
-            self.state = datalogging.DataloggerState.ARMED
+        if self.state in [device_datalogging.DataloggerState.CONFIGURED, device_datalogging.DataloggerState.TRIGGERED, device_datalogging.DataloggerState.ACQUISITION_COMPLETED]:
+            self.state = device_datalogging.DataloggerState.ARMED
             self.logger.debug("Trigger Armed. Going to ARMED state")
 
     def disarm_trigger(self):
-        if self.state in [datalogging.DataloggerState.ARMED, datalogging.DataloggerState.TRIGGERED, datalogging.DataloggerState.ACQUISITION_COMPLETED]:
-            self.state = datalogging.DataloggerState.CONFIGURED
+        if self.state in [device_datalogging.DataloggerState.ARMED, device_datalogging.DataloggerState.TRIGGERED, device_datalogging.DataloggerState.ACQUISITION_COMPLETED]:
+            self.state = device_datalogging.DataloggerState.CONFIGURED
             self.logger.debug("Trigger Disarmed. Going to CONFIGURED state")
 
     def set_error(self) -> None:
-        self.state = datalogging.DataloggerState.ERROR
+        self.state = device_datalogging.DataloggerState.ERROR
         self.logger.debug("Going to ERROR state")
 
     def triggered(self) -> bool:
-        return self.state in [datalogging.DataloggerState.TRIGGERED, datalogging.DataloggerState.ACQUISITION_COMPLETED]
+        return self.state in [device_datalogging.DataloggerState.TRIGGERED, device_datalogging.DataloggerState.ACQUISITION_COMPLETED]
 
     def read_samples(self) -> List[SampleType]:
         if self.config is None:
@@ -259,31 +259,31 @@ class DataloggerEmulator:
 
         samples: List["DataloggerEmulator".SampleType] = []
         for signal in self.config.get_signals():
-            if isinstance(signal, datalogging.MemoryLoggableSignal):
+            if isinstance(signal, device_datalogging.MemoryLoggableSignal):
                 samples.append(DataloggerEmulator.MemorySample(data=self.device.read_memory(signal.address, signal.size)))
-            elif isinstance(signal, datalogging.RPVLoggableSignal):
+            elif isinstance(signal, device_datalogging.RPVLoggableSignal):
                 value = self.device.read_rpv(signal.rpv_id)
                 datatype = self.device.get_rpv_definition(signal.rpv_id).datatype
                 samples.append(DataloggerEmulator.RPVSample(data=value, datatype=datatype))
-            elif isinstance(signal, datalogging.TimeLoggableSignal):
+            elif isinstance(signal, device_datalogging.TimeLoggableSignal):
                 samples.append(DataloggerEmulator.TimeSample(self.timebase.get_timestamp()))
             else:
                 raise ValueError('Unknown type of signal')
         return samples
 
-    def fetch_operand(self, operand: datalogging.Operand) -> Encodable:
-        if isinstance(operand, datalogging.LiteralOperand):
+    def fetch_operand(self, operand: device_datalogging.Operand) -> Encodable:
+        if isinstance(operand, device_datalogging.LiteralOperand):
             return operand.value
 
-        if isinstance(operand, datalogging.RPVOperand):
+        if isinstance(operand, device_datalogging.RPVOperand):
             return self.device.read_rpv(operand.rpv_id)
 
-        if isinstance(operand, datalogging.VarOperand):
+        if isinstance(operand, device_datalogging.VarOperand):
             data = self.device.read_memory(operand.address, operand.datatype.get_size_byte())
             codec = Codecs.get(operand.datatype, Endianness.Little)
             return codec.decode(data)
 
-        if isinstance(operand, datalogging.VarBitOperand):
+        if isinstance(operand, device_datalogging.VarBitOperand):
             mask = 0
             for i in range(operand.bitoffset, operand.bitoffset + operand.bitsize):
                 mask |= (1 << i)
@@ -323,31 +323,31 @@ class DataloggerEmulator:
             return False
 
         operands = self.config.trigger_condition.operands
-        if self.config.trigger_condition.condition_id == datalogging.TriggerConditionID.AlwaysTrue:
+        if self.config.trigger_condition.condition_id == device_datalogging.TriggerConditionID.AlwaysTrue:
             return True
 
-        if self.config.trigger_condition.condition_id == datalogging.TriggerConditionID.Equal:
+        if self.config.trigger_condition.condition_id == device_datalogging.TriggerConditionID.Equal:
             return self.fetch_operand(operands[0]) == self.fetch_operand(operands[1])
 
-        if self.config.trigger_condition.condition_id == datalogging.TriggerConditionID.NotEqual:
+        if self.config.trigger_condition.condition_id == device_datalogging.TriggerConditionID.NotEqual:
             return self.fetch_operand(operands[0]) != self.fetch_operand(operands[1])
 
-        if self.config.trigger_condition.condition_id == datalogging.TriggerConditionID.GreaterThan:
+        if self.config.trigger_condition.condition_id == device_datalogging.TriggerConditionID.GreaterThan:
             return self.fetch_operand(operands[0]) > self.fetch_operand(operands[1])
 
-        if self.config.trigger_condition.condition_id == datalogging.TriggerConditionID.GreaterOrEqualThan:
+        if self.config.trigger_condition.condition_id == device_datalogging.TriggerConditionID.GreaterOrEqualThan:
             return self.fetch_operand(operands[0]) >= self.fetch_operand(operands[1])
 
-        if self.config.trigger_condition.condition_id == datalogging.TriggerConditionID.LessThan:
+        if self.config.trigger_condition.condition_id == device_datalogging.TriggerConditionID.LessThan:
             return self.fetch_operand(operands[0]) < self.fetch_operand(operands[1])
 
-        if self.config.trigger_condition.condition_id == datalogging.TriggerConditionID.LessOrEqualThan:
+        if self.config.trigger_condition.condition_id == device_datalogging.TriggerConditionID.LessOrEqualThan:
             return self.fetch_operand(operands[0]) <= self.fetch_operand(operands[1])
 
-        if self.config.trigger_condition.condition_id == datalogging.TriggerConditionID.IsWithin:
+        if self.config.trigger_condition.condition_id == device_datalogging.TriggerConditionID.IsWithin:
             return abs(self.fetch_operand(operands[0]) - self.fetch_operand(operands[1])) <= abs(self.fetch_operand(operands[2]))
 
-        if self.config.trigger_condition.condition_id == datalogging.TriggerConditionID.ChangeMoreThan:
+        if self.config.trigger_condition.condition_id == device_datalogging.TriggerConditionID.ChangeMoreThan:
             v = self.fetch_operand(operands[0])
             diff = v - self.trigger_cmt_last_val
             delta = self.fetch_operand(operands[1])
@@ -365,28 +365,28 @@ class DataloggerEmulator:
     def process(self) -> None:
         self.timebase.process()
 
-        if self.state in [datalogging.DataloggerState.CONFIGURED, datalogging.DataloggerState.ARMED, datalogging.DataloggerState.TRIGGERED]:
+        if self.state in [device_datalogging.DataloggerState.CONFIGURED, device_datalogging.DataloggerState.ARMED, device_datalogging.DataloggerState.TRIGGERED]:
             self.encoder.encode_samples(self.read_samples())
             self.logger.debug("Encoding a new sample. Internal counter=%d" % self.encoder.entry_counter)
 
-        if self.state == datalogging.DataloggerState.ARMED:
+        if self.state == device_datalogging.DataloggerState.ARMED:
             assert self.config is not None
             if self.check_trigger():
                 self.trigger_fulfilled_timestamp = time.time()
                 self.byte_count_at_trigger = self.encoder.get_byte_counter()
                 self.entry_counter_at_trigger = self.encoder.get_entry_counter()
                 self.target_byte_count_after_trigger = self.byte_count_at_trigger + round((1.0 - self.config.probe_location) * self.buffer_size)
-                self.state = datalogging.DataloggerState.TRIGGERED
+                self.state = device_datalogging.DataloggerState.TRIGGERED
                 self.logger.debug("Acquisition triggered. Going to TRIGGERED state. Byte counter=%d, target_byte_count_after_trigger=%d" %
                                   (self.byte_count_at_trigger, self.target_byte_count_after_trigger))
 
-        if self.state == datalogging.DataloggerState.TRIGGERED:
+        if self.state == device_datalogging.DataloggerState.TRIGGERED:
             assert self.config is not None
             probe_location_ok = self.encoder.get_byte_counter() >= self.target_byte_count_after_trigger
             timed_out = (self.config.timeout != 0) and ((time.time() - self.trigger_fulfilled_timestamp) >= self.config.timeout)
             if probe_location_ok or timed_out:
                 self.logger.debug("Acquisition complete. Going to ACQUISITION_COMPLETED state")
-                self.state = datalogging.DataloggerState.ACQUISITION_COMPLETED
+                self.state = device_datalogging.DataloggerState.ACQUISITION_COMPLETED
                 self.acquisition_id = (self.acquisition_id + 1) & 0xFFFF
 
         else:
@@ -398,11 +398,11 @@ class DataloggerEmulator:
     def get_buffer_size(self) -> int:
         return self.buffer_size
 
-    def get_encoding(self) -> datalogging.Encoding:
+    def get_encoding(self) -> device_datalogging.Encoding:
         return self.encoding
 
     def in_error(self) -> bool:
-        return self.state == datalogging.DataloggerState.ERROR
+        return self.state == device_datalogging.DataloggerState.ERROR
 
     def get_acquisition_id(self) -> int:
         return self.acquisition_id
@@ -798,7 +798,7 @@ class EmulatedDevice:
             self.datalogger.disarm_trigger()
             response = self.protocol.respond_datalogging_disarm_trigger()
         elif subfunction == cmd.DatalogControl.Subfunction.GetAcquisitionMetadata:
-            if self.datalogger.state != datalogging.DataloggerState.ACQUISITION_COMPLETED:
+            if self.datalogger.state != device_datalogging.DataloggerState.ACQUISITION_COMPLETED:
                 response = Response(req.command, req.subfn, ResponseCode.FailureToProceed)
             else:
                 response = self.protocol.respond_datalogging_get_acquisition_metadata(
@@ -812,7 +812,7 @@ class EmulatedDevice:
             response = self.protocol.respond_datalogging_get_status(state=self.datalogger.state)
 
         elif subfunction == cmd.DatalogControl.Subfunction.ReadAcquisition:
-            if self.datalogger.state != datalogging.DataloggerState.ACQUISITION_COMPLETED:
+            if self.datalogger.state != device_datalogging.DataloggerState.ACQUISITION_COMPLETED:
                 response = Response(req.command, req.subfn, ResponseCode.FailureToProceed)
             else:
                 acquired_data = self.datalogger.get_acquisition_data()

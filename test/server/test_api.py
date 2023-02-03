@@ -25,13 +25,13 @@ from scrutiny.server.active_sfd_handler import ActiveSFDHandler
 from scrutiny.server.device.links.dummy_link import DummyLink
 from scrutiny.core.variable import *
 from scrutiny.core.alias import Alias
-import scrutiny.server.datalogging.definitions as datalogging
+import scrutiny.server.datalogging.definitions.api as api_datalogging
+import scrutiny.server.datalogging.definitions.device as device_datalogging
 from test.artifacts import get_artifact
 from test import ScrutinyUnitTest
 import scrutiny.server.api.typing as api_typing
 from typing import cast
 from scrutiny.server.datalogging.datalogging_storage import DataloggingStorage
-from scrutiny.server.datalogging.acquisition import DataloggingAcquisition, DataSeries
 
 # todo
 # - Test rate limiter/data streamer
@@ -44,8 +44,8 @@ class StubbedDeviceHandler:
     link_config: Dict[Any, Any]
     reject_link_config: bool
     datalogging_callbacks: Dict[str, GenericCallback]
-    datalogger_state: datalogging.DataloggerState
-    datalogging_setup: Optional[datalogging.DataloggingSetup]
+    datalogger_state: device_datalogging.DataloggerState
+    datalogging_setup: Optional[device_datalogging.DataloggingSetup]
 
     def __init__(self, device_id, connection_status=DeviceHandler.ConnectionStatus.UNKNOWN):
         self.device_id = device_id
@@ -53,7 +53,7 @@ class StubbedDeviceHandler:
         self.link_type = 'none'
         self.link_config = {}
         self.reject_link_config = False
-        self.datalogger_state = datalogging.DataloggerState.IDLE
+        self.datalogger_state = device_datalogging.DataloggerState.IDLE
 
     def get_connection_status(self) -> DeviceHandler.ConnectionStatus:
         return self.connection_status
@@ -61,16 +61,16 @@ class StubbedDeviceHandler:
     def set_connection_status(self, connection_status: DeviceHandler.ConnectionStatus) -> None:
         self.connection_status = connection_status
 
-    def set_datalogging_setup(self, setup: Optional[datalogging.DataloggingSetup]) -> None:
+    def set_datalogging_setup(self, setup: Optional[device_datalogging.DataloggingSetup]) -> None:
         self.datalogging_setup = setup
 
-    def get_datalogging_setup(self) -> Optional[datalogging.DataloggingSetup]:
+    def get_datalogging_setup(self) -> Optional[device_datalogging.DataloggingSetup]:
         return self.datalogging_setup
 
-    def get_datalogger_state(self) -> datalogging.DataloggerState:
+    def get_datalogger_state(self) -> device_datalogging.DataloggerState:
         return self.datalogger_state
 
-    def set_datalogger_state(self, state: datalogging.DataloggerState) -> None:
+    def set_datalogger_state(self, state: device_datalogging.DataloggerState) -> None:
         self.datalogger_state = state
 
     def get_device_id(self) -> str:
@@ -126,21 +126,23 @@ class StubbedDeviceHandler:
 class StubbedDataloggingManager:
     datastore: Datastore
     fake_device_handler: StubbedDeviceHandler
-    datalogging_setup: datalogging.DataloggingSetup
+    datalogging_setup: device_datalogging.DataloggingSetup
+    request_queue: "Queue[api_datalogging.AcquisitionRequest]"
 
     def __init__(self, datastore: Datastore, fake_device_handler: StubbedDeviceHandler):
         self.datastore = datastore
         self.fake_device_handler = fake_device_handler
-        self.datalogging_setup = datalogging.DataloggingSetup(
+        self.datalogging_setup = device_datalogging.DataloggingSetup(
             buffer_size=1024,
-            encoding=datalogging.Encoding.RAW,
+            encoding=device_datalogging.Encoding.RAW,
             max_signal_count=32
         )
+        self.request_queue = Queue()
 
-    def get_device_setup(self) -> Optional[datalogging.DataloggingSetup]:
+    def get_device_setup(self) -> Optional[device_datalogging.DataloggingSetup]:
         return self.datalogging_setup
 
-    def set_device_setup(self, setup: Optional[datalogging.DataloggingSetup]) -> None:
+    def set_device_setup(self, setup: Optional[device_datalogging.DataloggingSetup]) -> None:
         self.datalogging_setup = setup
 
 
@@ -1108,9 +1110,9 @@ class TestAPI(ScrutinyUnitTest):
         req: api_typing.C2S.GetDataloggingCapabilities = {
             'cmd': 'get_datalogging_capabilities'
         }
-        datalogging_device_setup = datalogging.DataloggingSetup(
+        datalogging_device_setup = device_datalogging.DataloggingSetup(
             buffer_size=256,
-            encoding=datalogging.Encoding.RAW,
+            encoding=device_datalogging.Encoding.RAW,
             max_signal_count=32
         )
 
@@ -1165,14 +1167,17 @@ class TestAPI(ScrutinyUnitTest):
             sfd2 = SFDStorage.install(get_artifact('test_sfd_2.sfd'), ignore_exist=True)
 
             with DataloggingStorage.use_temp_storage():
-                acq1 = DataloggingAcquisition(firmware_id=sfd1.get_firmware_id_ascii(), reference_id="refid1", timestamp=123, name="foo")
-                acq2 = DataloggingAcquisition(firmware_id=sfd1.get_firmware_id_ascii(), reference_id="refid2", timestamp=456, name="bar")
-                acq3 = DataloggingAcquisition(firmware_id=sfd2.get_firmware_id_ascii(), reference_id="refid3", timestamp=789, name="baz")
-                acq4 = DataloggingAcquisition(firmware_id="unknown_sfd", reference_id="refid4", timestamp=555, name="meow")
-                acq1.set_xaxis(DataSeries())
-                acq2.set_xaxis(DataSeries())
-                acq3.set_xaxis(DataSeries())
-                acq4.set_xaxis(DataSeries())
+                acq1 = api_datalogging.DataloggingAcquisition(firmware_id=sfd1.get_firmware_id_ascii(),
+                                                              reference_id="refid1", timestamp=123, name="foo")
+                acq2 = api_datalogging.DataloggingAcquisition(firmware_id=sfd1.get_firmware_id_ascii(),
+                                                              reference_id="refid2", timestamp=456, name="bar")
+                acq3 = api_datalogging.DataloggingAcquisition(firmware_id=sfd2.get_firmware_id_ascii(),
+                                                              reference_id="refid3", timestamp=789, name="baz")
+                acq4 = api_datalogging.DataloggingAcquisition(firmware_id="unknown_sfd", reference_id="refid4", timestamp=555, name="meow")
+                acq1.set_xaxis(api_datalogging.DataSeries())
+                acq2.set_xaxis(api_datalogging.DataSeries())
+                acq3.set_xaxis(api_datalogging.DataSeries())
+                acq4.set_xaxis(api_datalogging.DataSeries())
 
                 DataloggingStorage.save(acq1)
                 DataloggingStorage.save(acq2)
@@ -1256,12 +1261,12 @@ class TestAPI(ScrutinyUnitTest):
     def test_update_datalogging_acquisition(self):
         # Rename an acquisition in datalogging storage through API
         with DataloggingStorage.use_temp_storage():
-            acq1 = DataloggingAcquisition(firmware_id='some_firmware_id', reference_id="refid1", timestamp=123, name="foo")
-            acq1.set_xaxis(DataSeries())
-            acq2 = DataloggingAcquisition(firmware_id='some_firmware_id', reference_id="refid2", timestamp=456, name="bar")
-            acq2.set_xaxis(DataSeries())
-            acq3 = DataloggingAcquisition(firmware_id='some_firmware_id', reference_id="refid3", timestamp=789, name="baz")
-            acq3.set_xaxis(DataSeries())
+            acq1 = api_datalogging.DataloggingAcquisition(firmware_id='some_firmware_id', reference_id="refid1", timestamp=123, name="foo")
+            acq1.set_xaxis(api_datalogging.DataSeries())
+            acq2 = api_datalogging.DataloggingAcquisition(firmware_id='some_firmware_id', reference_id="refid2", timestamp=456, name="bar")
+            acq2.set_xaxis(api_datalogging.DataSeries())
+            acq3 = api_datalogging.DataloggingAcquisition(firmware_id='some_firmware_id', reference_id="refid3", timestamp=789, name="baz")
+            acq3.set_xaxis(api_datalogging.DataSeries())
             DataloggingStorage.save(acq1)
             DataloggingStorage.save(acq2)
             DataloggingStorage.save(acq3)
@@ -1292,12 +1297,12 @@ class TestAPI(ScrutinyUnitTest):
     def test_delete_datalogging_acquisition(self):
         # Rename an acquisition in datalogging storage through API
         with DataloggingStorage.use_temp_storage():
-            acq1 = DataloggingAcquisition(firmware_id='some_firmware_id', reference_id="refid1", timestamp=123, name="foo")
-            acq1.set_xaxis(DataSeries())
-            acq2 = DataloggingAcquisition(firmware_id='some_firmware_id', reference_id="refid2", timestamp=456, name="bar")
-            acq2.set_xaxis(DataSeries())
-            acq3 = DataloggingAcquisition(firmware_id='some_firmware_id', reference_id="refid3", timestamp=789, name="baz")
-            acq3.set_xaxis(DataSeries())
+            acq1 = api_datalogging.DataloggingAcquisition(firmware_id='some_firmware_id', reference_id="refid1", timestamp=123, name="foo")
+            acq1.set_xaxis(api_datalogging.DataSeries())
+            acq2 = api_datalogging.DataloggingAcquisition(firmware_id='some_firmware_id', reference_id="refid2", timestamp=456, name="bar")
+            acq2.set_xaxis(api_datalogging.DataSeries())
+            acq3 = api_datalogging.DataloggingAcquisition(firmware_id='some_firmware_id', reference_id="refid3", timestamp=789, name="baz")
+            acq3.set_xaxis(api_datalogging.DataSeries())
             DataloggingStorage.save(acq1)
             DataloggingStorage.save(acq2)
             DataloggingStorage.save(acq3)
@@ -1328,10 +1333,10 @@ class TestAPI(ScrutinyUnitTest):
 
     def test_read_datalogging_acquisition_data(self):
         with DataloggingStorage.use_temp_storage():
-            acq = DataloggingAcquisition(firmware_id='some_firmware_id', reference_id="refid1", timestamp=123, name="foo")
-            acq.set_xaxis(DataSeries([0, 1, 2, 3, 4, 5, 6, 7, 8, 9], name='the x-axis', logged_element='/var/xaxis'))
-            acq.add_data(DataSeries([10, 20, 30, 40, 50, 60, 70, 80, 90], name='serie 1', logged_element='/var/data1'))
-            acq.add_data(DataSeries([100, 200, 300, 400, 500, 600, 700, 800, 900], name='serie 2', logged_element='/var/data2'))
+            acq = api_datalogging.DataloggingAcquisition(firmware_id='some_firmware_id', reference_id="refid1", timestamp=123, name="foo")
+            acq.set_xaxis(api_datalogging.DataSeries([0, 1, 2, 3, 4, 5, 6, 7, 8, 9], name='the x-axis', logged_element='/var/xaxis'))
+            acq.add_data(api_datalogging.DataSeries([10, 20, 30, 40, 50, 60, 70, 80, 90], name='serie 1', logged_element='/var/data1'))
+            acq.add_data(api_datalogging.DataSeries([100, 200, 300, 400, 500, 600, 700, 800, 900], name='serie 2', logged_element='/var/data2'))
             DataloggingStorage.save(acq)
 
             req: api_typing.C2S.ReadDataloggingAcquisition = {
@@ -1366,9 +1371,76 @@ class TestAPI(ScrutinyUnitTest):
             response = cast(api_typing.S2C.ReadDataloggingAcquisitionData, self.wait_and_load_response())
             self.assert_is_error(response)
 
+    def test_request_datalogging_acquisition(self):
+        with DataloggingStorage.use_temp_storage():
+
+            var_entries: List[DatastoreVariableEntry] = self.make_dummy_entries(5, entry_type=EntryType.Var, prefix='var')
+            rpv_entries: List[DatastoreRPVEntry] = self.make_dummy_entries(5, entry_type=EntryType.RuntimePublishedValue, prefix='rpv')
+            alias_entries_var: List[DatastoreAliasEntry] = self.make_dummy_entries(
+                2, entry_type=EntryType.Alias, prefix='alias', alias_bucket=var_entries)
+            alias_entries_rpv: List[DatastoreAliasEntry] = self.make_dummy_entries(
+                3, entry_type=EntryType.Alias, prefix='alias', alias_bucket=rpv_entries)
+
+            # Add entries in the datastore that we will reread through the API
+            self.datastore.add_entries(var_entries)
+            self.datastore.add_entries(rpv_entries)
+            self.datastore.add_entries(alias_entries_var)
+            self.datastore.add_entries(alias_entries_rpv)
+
+            def create_default_request() -> api_typing.C2S.RequestDataloggingAcquisition:
+                req: api_typing.C2S.RequestDataloggingAcquisition = {
+                    'decimation': 100,
+                    'probe_location': 0.7,
+                    'sampling_rate_id': 1,
+                    'timeout': 100.1,
+                    'trigger_hold_time': 0.1,
+                    'x_axis_type': 'ideal_time',
+                    'condition': 'eq',
+                    'operands': [
+                        dict(type='literal', value=123),
+                        dict(type='watchable', value=var_entries[0].get_id())
+                    ],
+                    'watchables': [
+                        dict(id=var_entries[1].get_id(), name='var1'),
+                        dict(id=alias_entries_var[0].get_id(), name='alias_var_1'),
+                        dict(id=alias_entries_rpv[0].get_id(), name='alias_rpv_1'),
+                        dict(id=rpv_entries[0].get_id(), name='rpv0'),
+                    ]
+                }
+                return req
+
+            req = create_default_request()
+            self.send_request(req)
+            response = cast(api_typing.S2C.RequestDataloggingAcquisition, self.wait_and_load_response())
+            self.assert_no_error(response)
+
+            self.assertFalse(self.fake_datalogging_manager.request_queue.empty())
+            ar = self.fake_datalogging_manager.request_queue.get()
+            self.assertTrue(self.fake_datalogging_manager.request_queue.empty())
+
+            self.assertEqual(ar.decimation, 100)
+            self.assertEqual(ar.probe_location, 0.7)
+            self.assertEqual(ar.rate_identifier, 1)
+            self.assertEqual(ar.timeout, 100.1)
+            self.assertEqual(ar.trigger_hold_time, 0.1)
+            self.assertEqual(ar.x_axis_type, api_datalogging.XAxisType.IdealTime)
+            self.assertIsNone(ar.x_axis_watchable)
+            self.assertEqual(ar.trigger_condition.condition_id, api_datalogging.TriggerConditionID.Equal)
+
+            assert isinstance(ar.trigger_condition.operands[0], api_datalogging.LiteralOperand)
+            assert isinstance(ar.trigger_condition.operands[1], api_datalogging.VarOperand)
+
+            self.assertEqual(ar.trigger_condition.operands[0].value, 123)
+            self.assertEqual(ar.trigger_condition.operands[1].address, var_entries[0].get_address())
+            self.assertEqual(ar.trigger_condition.operands[1].datatype, var_entries[0].get_data_type())
+
+            self.assertIs(ar.entries[0], var_entries[1])
+            self.assertIs(ar.entries[1], alias_entries_var[0])
+            self.assertIs(ar.entries[2], alias_entries_rpv[0])
+            self.assertIs(ar.entries[3], rpv_entries[0])
+
+
 # endregion
-
-
 if __name__ == '__main__':
     import unittest
     unittest.main()

@@ -1,11 +1,11 @@
-import scrutiny.server.datalogging.definitions as datalogging
+import scrutiny.server.datalogging.definitions.api as api_datalogging
+import scrutiny.server.datalogging.definitions.device as device_datalogging
 from scrutiny.server.datastore.datastore import *
 from scrutiny.core.variable import Variable
 from scrutiny.core.basic_types import *
 from test import ScrutinyUnitTest
 
-from scrutiny.server.datalogging.acquisition import DataloggingAcquisition
-from scrutiny.server.datalogging.datalogging_manager import DataloggingManager, AcquisitionRequest
+from scrutiny.server.datalogging.datalogging_manager import DataloggingManager
 from typing import List
 
 
@@ -78,20 +78,22 @@ class TestDataloggingManager(ScrutinyUnitTest):
         self.datastore.add_entry(self.alias_rpv2000_f32)
         self.datastore.add_entry(self.alias_var4_s16)
 
-    def completion_callback(self, success: bool, acquisition: Optional[DataloggingAcquisition]) -> None:
+    def completion_callback(self, success: bool, acquisition: Optional[api_datalogging.DataloggingAcquisition]) -> None:
         pass
 
-    def make_test_request(self, operand_watchable: DatastoreEntry, x_axis_type: datalogging.XAxisType, x_axis_watchable: Optional[DatastoreEntry] = None) -> AcquisitionRequest:
-        return AcquisitionRequest(
+    def make_test_request(self, operand_watchable: DatastoreEntry, x_axis_type: api_datalogging.XAxisType, x_axis_watchable: Optional[DatastoreEntry] = None) -> api_datalogging.AcquisitionRequest:
+        return api_datalogging.AcquisitionRequest(
             decimation=2,
             probe_location=0.25,
             rate_identifier=2,   # Loop ID = 2. Number owned by Device Handler (stubbed here)
             timeout=0,
             trigger_hold_time=0.001,
-            trigger_condition=datalogging.TriggerCondition(
-                datalogging.TriggerConditionID.GreaterThan,
-                DataloggingManager.make_operand_from_watchable(operand_watchable),
-                datalogging.LiteralOperand(100)
+            trigger_condition=api_datalogging.TriggerCondition(
+                condition_id=api_datalogging.TriggerConditionID.GreaterThan,
+                operands=[
+                    api_datalogging.TriggerConditionOperand(type=api_datalogging.TriggerConditionOperandType.WATCHABLE, value=operand_watchable),
+                    api_datalogging.TriggerConditionOperand(type=api_datalogging.TriggerConditionOperandType.LITERAL, value=100)
+                ]
             ),
             x_axis_type=x_axis_type,
             x_axis_watchable=x_axis_watchable,
@@ -110,18 +112,18 @@ class TestDataloggingManager(ScrutinyUnitTest):
     def test_convert_to_config(self):
         for i in range(3):
             if i == 0:
-                req = self.make_test_request(operand_watchable=self.var1_u32, x_axis_type=datalogging.XAxisType.MeasuredTime)
+                req = self.make_test_request(operand_watchable=self.var1_u32, x_axis_type=api_datalogging.XAxisType.MeasuredTime)
             elif i == 1:
-                req = self.make_test_request(operand_watchable=self.rpv1000_bool, x_axis_type=datalogging.XAxisType.IdealTime)
+                req = self.make_test_request(operand_watchable=self.rpv1000_bool, x_axis_type=api_datalogging.XAxisType.IdealTime)
             elif i == 2:
                 req = self.make_test_request(operand_watchable=self.alias_var1_u32,
-                                             x_axis_type=datalogging.XAxisType.Signal, x_axis_watchable=self.alias_var1_u32)  # X axis will not add a signal
+                                             x_axis_type=api_datalogging.XAxisType.Watchable, x_axis_watchable=self.alias_var1_u32)  # X axis will not add a signal
             elif i == 3:
                 req = self.make_test_request(operand_watchable=self.alias_rpv2000_f32,
-                                             x_axis_type=datalogging.XAxisType.Signal, x_axis_watchable=self.alias_rpv2000_f32)  # X axis will not add a signal
+                                             x_axis_type=api_datalogging.XAxisType.Watchable, x_axis_watchable=self.alias_rpv2000_f32)  # X axis will not add a signal
             elif i == 4:
                 req = self.make_test_request(operand_watchable=self.alias_var1_u32,
-                                             x_axis_type=datalogging.XAxisType.Signal, x_axis_watchable=self.alias_var4_s16)  # X axis will add a signal
+                                             x_axis_type=api_datalogging.XAxisType.Watchable, x_axis_watchable=self.alias_var4_s16)  # X axis will add a signal
             else:
                 raise NotImplementedError()
 
@@ -146,21 +148,21 @@ class TestDataloggingManager(ScrutinyUnitTest):
 
             operand1 = config.trigger_condition.get_operands()[0]
             operand2 = config.trigger_condition.get_operands()[1]
-            assert isinstance(operand2, datalogging.LiteralOperand)
+            assert isinstance(operand2, device_datalogging.LiteralOperand)
             self.assertEqual(operand2.value, 100)
 
             # 0 is Variable. 2 is Alias ta point to variable
             if i in [0, 2]:
-                assert isinstance(operand1, datalogging.VarBitOperand)
+                assert isinstance(operand1, device_datalogging.VarBitOperand)
                 self.assertEqual(operand1.address, self.var1_u32.get_address())
                 self.assertEqual(operand1.datatype, self.var1_u32.get_data_type())
                 self.assertEqual(operand1.bitoffset, self.var1_u32.get_bitoffset())
                 self.assertEqual(operand1.bitsize, self.var1_u32.get_bitsize())
             elif i in [1, 4]:    # i is RPV
-                assert isinstance(operand1, datalogging.RPVOperand)
+                assert isinstance(operand1, device_datalogging.RPVOperand)
                 self.assertEqual(operand1.rpv_id, self.rpv1000_bool.get_rpv().id)
             elif i == 3:    # i is RPV
-                assert isinstance(operand1, datalogging.RPVOperand)
+                assert isinstance(operand1, device_datalogging.RPVOperand)
                 self.assertEqual(operand1.rpv_id, self.rpv_entries[1].get_rpv().id)
             else:
                 raise NotImplementedError()
@@ -176,9 +178,9 @@ class TestDataloggingManager(ScrutinyUnitTest):
 
             self.assertEqual(len(signals), len_by_iter[i], "i=%d" % i)
 
-            assert isinstance(signals[signalmap[self.var1_u32]], datalogging.MemoryLoggableSignal)
-            assert isinstance(signals[signalmap[self.var2_u32]], datalogging.MemoryLoggableSignal)
-            assert isinstance(signals[signalmap[self.var3_f64]], datalogging.MemoryLoggableSignal)
+            assert isinstance(signals[signalmap[self.var1_u32]], device_datalogging.MemoryLoggableSignal)
+            assert isinstance(signals[signalmap[self.var2_u32]], device_datalogging.MemoryLoggableSignal)
+            assert isinstance(signals[signalmap[self.var3_f64]], device_datalogging.MemoryLoggableSignal)
 
             self.assertEqual(signals[signalmap[self.var1_u32]].address, 0x100001)  # bitoffset 9 cause next memory cell. (little endian)
             self.assertEqual(signals[signalmap[self.var1_u32]].size, 1)    # bitsize 5 becomes 8bits
@@ -189,21 +191,21 @@ class TestDataloggingManager(ScrutinyUnitTest):
             self.assertEqual(signals[signalmap[self.var3_f64]].address, 0x100008)
             self.assertEqual(signals[signalmap[self.var3_f64]].size, 8)
 
-            assert isinstance(signals[signalmap[self.rpv1000_bool]], datalogging.RPVLoggableSignal)
+            assert isinstance(signals[signalmap[self.rpv1000_bool]], device_datalogging.RPVLoggableSignal)
             self.assertEqual(signals[signalmap[self.rpv1000_bool]].rpv_id, 0x1000)
 
-            assert isinstance(signals[signalmap[self.alias_var1_u32]], datalogging.MemoryLoggableSignal)
+            assert isinstance(signals[signalmap[self.alias_var1_u32]], device_datalogging.MemoryLoggableSignal)
             self.assertEqual(signals[signalmap[self.alias_var1_u32]].address, 0x100001)  # bitoffset 9 cause next memory cell. (little endian)
             self.assertEqual(signals[signalmap[self.alias_var1_u32]].size, 1)    # bitsize 5 becomes 8bits
 
-            assert isinstance(signals[signalmap[self.alias_rpv2000_f32]], datalogging.RPVLoggableSignal)
+            assert isinstance(signals[signalmap[self.alias_rpv2000_f32]], device_datalogging.RPVLoggableSignal)
             self.assertEqual(signals[signalmap[self.alias_rpv2000_f32]].rpv_id, 0x2000)
 
             if i == 0:
-                assert isinstance(signals[-1], datalogging.TimeLoggableSignal)   # Measured Time cause this to be inserted
+                assert isinstance(signals[-1], device_datalogging.TimeLoggableSignal)   # Measured Time cause this to be inserted
             elif i == 4:
                 alias = self.alias_var4_s16
-                assert isinstance(signals[signalmap[self.alias_var4_s16]], datalogging.MemoryLoggableSignal)
+                assert isinstance(signals[signalmap[self.alias_var4_s16]], device_datalogging.MemoryLoggableSignal)
                 assert isinstance(alias.refentry, DatastoreVariableEntry)
                 self.assertEqual(signals[signalmap[self.alias_var4_s16]].address, alias.refentry.get_address())
                 self.assertEqual(signals[signalmap[self.alias_var4_s16]].size, alias.refentry.get_data_type().get_size_byte())

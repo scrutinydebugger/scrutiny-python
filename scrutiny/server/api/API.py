@@ -20,7 +20,8 @@ from scrutiny.server.device.links import LinkConfig
 from scrutiny.core.sfd_storage import SFDStorage
 from scrutiny.core.variable import EmbeddedDataType
 from scrutiny.core.firmware_description import FirmwareDescription
-import scrutiny.server.datalogging.definitions as datalogging
+import scrutiny.server.datalogging.definitions.api as api_datalogging
+import scrutiny.server.datalogging.definitions.device as device_datalogging
 
 from .websocket_client_handler import WebsocketClientHandler
 from .dummy_client_handler import DummyClientHandler
@@ -71,7 +72,7 @@ class API:
             GET_POSSIBLE_LINK_CONFIG = "get_possible_link_config"   # todo
             WRITE_VALUE = "write_value"
             GET_DATALOGGING_CAPABILITIES = 'get_datalogging_capabilities'
-            REQUEST_ACQUISITION = 'request_acquisition'
+            REQUEST_DATALOGGING_ACQUISITION = 'request_datalogging_acquisition'
             LIST_DATALOGGING_ACQUISITION = 'list_datalogging_acquisition'
             READ_DATALOGGING_ACQUISITION_DATA = 'read_datalogging_acquisition_data'
             UPDATE_DATALOGGING_ACQUISITION = 'update_datalogging_acquisition'
@@ -93,9 +94,9 @@ class API:
             WRITE_VALUE_RESPONSE = 'response_write_value'
             INFORM_WRITE_COMPLETION = 'inform_write_completion'
             GET_DATALOGGING_CAPABILITIES_RESPONSE = 'response_datalogging_capabilities'
-            REQUEST_ACQUISITION_RESPONSE = 'request_acquisition_response'
             INFORM_NEW_DATALOGGING_ACQUISITION = 'inform_new_datalogging_acquisition'
             LIST_DATALOGGING_ACQUISITION_RESPONSE = 'list_datalogging_acquisition_response'
+            REQUEST_DATALOGGING_ACQUISITION_RESPONSE = 'request_datalogging_acquisition_response'
             READ_DATALOGGING_ACQUISITION_DATA_RESPONSE = 'read_datalogging_acquisition_data_response'
             UPDATE_DATALOGGING_ACQUISITION_RESPONSE = 'update_datalogging_acquisition_response'
             DELETE_DATALOGGING_ACQUISITION_RESPONSE = 'delete_datalogging_acquisition_response'
@@ -147,13 +148,13 @@ class API:
         DeviceHandler.ConnectionStatus.CONNECTED_READY: 'connected_ready'
     }
 
-    datalogger_state_to_api: Dict[datalogging.DataloggerState, str] = {
-        datalogging.DataloggerState.IDLE: DataloggingStatus.STANDBY,
-        datalogging.DataloggerState.CONFIGURED: DataloggingStatus.STANDBY,
-        datalogging.DataloggerState.ARMED: DataloggingStatus.WAITING_FOR_TRIGGER,
-        datalogging.DataloggerState.TRIGGERED: DataloggingStatus.ACQUIRING,
-        datalogging.DataloggerState.ACQUISITION_COMPLETED: DataloggingStatus.DATA_READY,
-        datalogging.DataloggerState.ERROR: DataloggingStatus.ERROR,
+    datalogger_state_to_api: Dict[device_datalogging.DataloggerState, str] = {
+        device_datalogging.DataloggerState.IDLE: DataloggingStatus.STANDBY,
+        device_datalogging.DataloggerState.CONFIGURED: DataloggingStatus.STANDBY,
+        device_datalogging.DataloggerState.ARMED: DataloggingStatus.WAITING_FOR_TRIGGER,
+        device_datalogging.DataloggerState.TRIGGERED: DataloggingStatus.ACQUIRING,
+        device_datalogging.DataloggerState.ACQUISITION_COMPLETED: DataloggingStatus.DATA_READY,
+        device_datalogging.DataloggerState.ERROR: DataloggingStatus.ERROR,
     }
 
     str_to_entry_type: Dict[str, EntryType] = {

@@ -16,7 +16,7 @@ import binascii
 from enum import Enum
 import traceback
 from scrutiny.server.datastore.datastore_entry import DatastoreRPVEntry, EntryType
-import scrutiny.server.datalogging.definitions as datalogging
+import scrutiny.server.datalogging.definitions.device as device_datalogging
 from scrutiny.server.protocol import *
 import scrutiny.server.protocol.typing as protocol_typing
 from scrutiny.server.protocol.comm_handler import CommHandler
@@ -30,14 +30,14 @@ from scrutiny.server.device.request_generator.memory_reader import MemoryReader
 from scrutiny.server.device.request_generator.memory_writer import MemoryWriter
 from scrutiny.server.device.request_generator.datalogging_poller import DataloggingPoller, DataloggingReceiveSetupCallback, AcquisitionRequestCompletionCallback
 from scrutiny.server.device.device_info import DeviceInfo
-
+from scrutiny.core.basic_types import RuntimePublishedValue
 from scrutiny.server.tools import Timer
 from scrutiny.server.datastore.datastore import Datastore
 from scrutiny.server.device.links import AbstractLink, LinkConfig
 from scrutiny.core.firmware_id import PLACEHOLDER as DEFAULT_FIRMWARE_ID
 
 
-from typing import TypedDict, Optional, Callable, Any, Dict, cast
+from typing import TypedDict, Optional, Callable, Any, Dict, cast, List
 from scrutiny.core.typehints import GenericCallback
 
 DEFAULT_FIRMWARE_ID_ASCII = binascii.hexlify(DEFAULT_FIRMWARE_ID).decode('ascii')
@@ -228,7 +228,7 @@ class DeviceHandler:
         """Register callbacks that are called when event related to datalogging are being triggered"""
         self.datalogging_poller.set_datalogging_callbacks(receive_setup)
 
-    def request_datalogging_acquisition(self, loop_id: int, config: datalogging.Configuration, callback: AcquisitionRequestCompletionCallback) -> None:
+    def request_datalogging_acquisition(self, loop_id: int, config: device_datalogging.Configuration, callback: AcquisitionRequestCompletionCallback) -> None:
         self.datalogging_poller.request_acquisition(loop_id=loop_id, config=config, callback=callback)
 
     def is_ready_for_datalogging_acquisition_request(self) -> bool:
@@ -239,10 +239,10 @@ class DeviceHandler:
         """Returns all the information we have about the connected device. None if not connected"""
         return copy.copy(self.device_info)
 
-    def get_datalogger_state(self) -> datalogging.DataloggerState:
+    def get_datalogger_state(self) -> device_datalogging.DataloggerState:
         return self.datalogging_poller.get_datalogger_state()
 
-    def get_datalogging_setup(self) -> Optional[datalogging.DataloggingSetup]:
+    def get_datalogging_setup(self) -> Optional[device_datalogging.DataloggingSetup]:
         return self.datalogging_poller.get_device_setup()
 
     def get_comm_error_count(self) -> int:
@@ -564,11 +564,10 @@ class DeviceHandler:
                     self.logger.debug(str(self.device_info))
                     next_state = self.FsmState.INIT
                 else:
-                    assert self.device_info.runtime_published_values is not None
                     assert self.device_info.supported_feature_map is not None
-                    self.protocol.configure_rpvs(self.device_info.runtime_published_values)
                     if self.device_info.supported_feature_map['datalogging']:
                         self.datalogging_poller.enable()
+
                         self.logger.debug("Enabling datalogging handling")
                         #  TODO enforce memory_read memory_write feature map
                     else:
@@ -583,6 +582,8 @@ class DeviceHandler:
                 assert self.device_info.runtime_published_values is not None
                 for rpv in self.device_info.runtime_published_values:
                     self.datastore.add_entry(DatastoreRPVEntry.make(rpv))
+                self.protocol.configure_rpvs(self.device_info.runtime_published_values)
+                self.datalogging_poller.configure_rpvs(self.device_info.runtime_published_values)
 
                 self.logger.info('Communication with device "%s" (ID: %s) fully ready' % (self.device_display_name, self.device_id))
                 self.logger.debug("Device information : %s" % self.device_info)

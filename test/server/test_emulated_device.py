@@ -7,8 +7,8 @@
 #   Copyright (c) 2021-2023 Scrutiny Debugger
 
 from scrutiny.server.device.emulated_device import EmulatedDevice, DataloggerEmulator
-import scrutiny.server.datalogging.definitions as datalogging
-from scrutiny.server.datalogging.acquisition import extract_signal_from_data
+import scrutiny.server.datalogging.definitions.device as device_datalogging
+from scrutiny.server.datalogging.datalogging_utilities import extract_signal_from_data
 from scrutiny.server.device.links.dummy_link import DummyLink
 from scrutiny.core.codecs import Codecs
 from scrutiny.core.basic_types import *
@@ -88,27 +88,27 @@ class TestEmulatedDatalogger(ScrutinyUnitTest):
         self.vals.rpv1000 = self.emulated_device.read_rpv(0x1000)
 
     def test_basics(self):
-        config = datalogging.Configuration()
+        config = device_datalogging.Configuration()
         config.decimation = 2
         config.probe_location = 0.5
         config.trigger_hold_time = 0.1
         config.timeout = 2
-        config.add_signal(datalogging.TimeLoggableSignal())
-        config.add_signal(datalogging.MemoryLoggableSignal(0x200000, 4))    # uint32
-        config.add_signal(datalogging.RPVLoggableSignal(rpv_id=0x1000))     # float64
-        config.trigger_condition.condition_id = datalogging.TriggerConditionID.Equal
-        config.trigger_condition.operands.append(datalogging.VarOperand(0x100000, EmbeddedDataType.float64))    # float64
-        config.trigger_condition.operands.append(datalogging.RPVOperand(0x1000))    # float64
+        config.add_signal(device_datalogging.TimeLoggableSignal())
+        config.add_signal(device_datalogging.MemoryLoggableSignal(0x200000, 4))    # uint32
+        config.add_signal(device_datalogging.RPVLoggableSignal(rpv_id=0x1000))     # float64
+        config.trigger_condition.condition_id = device_datalogging.TriggerConditionID.Equal
+        config.trigger_condition.operands.append(device_datalogging.VarOperand(0x100000, EmbeddedDataType.float64))    # float64
+        config.trigger_condition.operands.append(device_datalogging.RPVOperand(0x1000))    # float64
         config._trigger_hold_time = 0.1
 
         # BAsic state check
-        self.assertEqual(self.datalogger.state, datalogging.DataloggerState.IDLE)
+        self.assertEqual(self.datalogger.state, device_datalogging.DataloggerState.IDLE)
         self.datalogger.configure(config_id=0x1234, config=config)
-        self.assertEqual(self.datalogger.state, datalogging.DataloggerState.CONFIGURED)
+        self.assertEqual(self.datalogger.state, device_datalogging.DataloggerState.CONFIGURED)
         self.datalogger.arm_trigger()
-        self.assertEqual(self.datalogger.state, datalogging.DataloggerState.ARMED)
+        self.assertEqual(self.datalogger.state, device_datalogging.DataloggerState.ARMED)
         self.datalogger.disarm_trigger()
-        self.assertEqual(self.datalogger.state, datalogging.DataloggerState.CONFIGURED)
+        self.assertEqual(self.datalogger.state, device_datalogging.DataloggerState.CONFIGURED)
 
         # Innit the data and start processing for an aquisition
         self.vals.v100000_f64 = 0
@@ -147,7 +147,7 @@ class TestEmulatedDatalogger(ScrutinyUnitTest):
         self.datalogger.process()   # Now it will see that the hold time has elapsed and trigger will be considered fulfiled
         time.sleep(0.001)
         self.assertTrue(self.datalogger.triggered())
-        self.assertEqual(self.datalogger.state, datalogging.DataloggerState.TRIGGERED)
+        self.assertEqual(self.datalogger.state, device_datalogging.DataloggerState.TRIGGERED)
 
         # Keep processing for a while so we make sure that it stopped at the right moment (depends on probe location)
         for i in range(100):
@@ -158,14 +158,19 @@ class TestEmulatedDatalogger(ScrutinyUnitTest):
             self.datalogger.process()
             time.sleep(0.001)
 
-        self.assertEqual(self.datalogger.state, datalogging.DataloggerState.ACQUISITION_COMPLETED)
+        self.assertEqual(self.datalogger.state, device_datalogging.DataloggerState.ACQUISITION_COMPLETED)
         acquisition_data = self.datalogger.get_acquisition_data()
         rpv_map = self.emulated_device.get_rpv_definition_map()
 
         raw_encoding_block_size = 16
         nsamples = self.datalogger.buffer_size // raw_encoding_block_size
 
-        data_inflated = extract_signal_from_data(acquisition_data, self.datalogger.config, rpv_map, datalogging.Encoding.RAW)
+        data_inflated = extract_signal_from_data(
+            data=acquisition_data,
+            config=self.datalogger.config,
+            rpv_map=rpv_map,
+            encoding=device_datalogging.Encoding.RAW)
+
         self.assertEqual(len(data_inflated), 3)  # 3 signals
         for i in range(len(data_inflated)):
             self.assertEqual(len(data_inflated[i]), nsamples)

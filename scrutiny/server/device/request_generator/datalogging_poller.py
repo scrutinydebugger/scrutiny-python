@@ -15,15 +15,16 @@ import copy
 
 from scrutiny.server.protocol import *
 from scrutiny.server.device.request_dispatcher import RequestDispatcher, SuccessCallback, FailureCallback
-import scrutiny.server.datalogging.definitions as datalogging
+import scrutiny.server.datalogging.definitions.device as device_datalogging
 import scrutiny.server.protocol.typing as protocol_typing
 import scrutiny.server.protocol.commands as cmd
 from scrutiny.server.tools import Timer
-from scrutiny.server.datalogging.definitions import AcquisitionMetadata, DataloggingSetup
 from scrutiny.server.protocol.crc32 import crc32
+from scrutiny.core.basic_types import RuntimePublishedValue
+from scrutiny.server.datalogging.datalogging_utilities import extract_signal_from_data
 
 from scrutiny.core.typehints import GenericCallback
-from typing import Optional, Any, cast, Callable
+from typing import Optional, Any, cast, Callable, List, Dict
 
 
 class FSMState(Enum):
@@ -39,17 +40,17 @@ class FSMState(Enum):
 
 
 class AcquisitionRequestCompletionCallback(GenericCallback):
-    callback: Callable[[bool, Optional[bytes]], None]
+    callback: Callable[[bool, Optional[List[List[bytes]]]], None]
 
 
 class DataloggingReceiveSetupCallback(GenericCallback):
-    callback: Callable[[DataloggingSetup], None]
+    callback: Callable[[device_datalogging.DataloggingSetup], None]
 
 
 @dataclass
 class AcquisitionRequest:
     loop_id: int
-    config: datalogging.Configuration
+    config: device_datalogging.Configuration
     completion_callback: AcquisitionRequestCompletionCallback
 
 
@@ -75,14 +76,15 @@ class DataloggingPoller:
     stop_requested: bool    # Requested to stop polling
     request_pending: bool   # True when we are waiting for a request to complete
     started: bool           # Indicate if enabled or not
-    device_setup: Optional[datalogging.DataloggingSetup]
+    device_setup: Optional[device_datalogging.DataloggingSetup]
     error: bool
     enabled: bool
     state: FSMState
     previous_state: FSMState
     update_status_timer: Timer
-    device_datalogging_state: datalogging.DataloggerState
+    device_datalogging_state: device_datalogging.DataloggerState
     max_response_payload_size: Optional[int]
+    rpv_map: Dict[int, RuntimePublishedValue]
 
     arm_completed: bool
     new_request_received: bool
@@ -96,9 +98,8 @@ class DataloggingPoller:
     require_status_update: bool
     ready_to_receive_request: bool
 
-    acquisition_metadata: Optional[AcquisitionMetadata]
+    acquisition_metadata: Optional[device_datalogging.AcquisitionMetadata]
     received_data_chunk: Optional[ReceivedChunk]
-
     receive_setup_callback: Optional[DataloggingReceiveSetupCallback]
 
     def __init__(self, protocol: Protocol, dispatcher: RequestDispatcher, request_priority: int):
@@ -116,9 +117,10 @@ class DataloggingPoller:
         self.enabled = True
         self.receive_setup_callback = None
         self.actual_config_id = 0
-        self.device_datalogging_state = DataloggerState.IDLE
+        self.device_datalogging_state = device_datalogging.DataloggerState.IDLE
         self.max_response_payload_size = None
         self.update_status_timer = Timer(self.UPDATE_STATUS_INTERVAL_IDLE)
+        self.rpv_map = {}
         self.set_standby()
 
     def set_standby(self):
@@ -138,7 +140,7 @@ class DataloggingPoller:
         self.configure_completed = False
         self.arm_completed = False
         self.update_status_timer.stop()
-        self.device_datalogging_state = DataloggerState.IDLE
+        self.device_datalogging_state = device_datalogging.DataloggerState.IDLE
         self.failure_counter = 0
         self.data_read_success = False
         self.bytes_received = bytearray()
@@ -146,6 +148,13 @@ class DataloggingPoller:
         self.acquisition_metadata = None
         self.require_status_update = False
         self.ready_to_receive_request = False
+
+    def configure_rpvs(self, rpvs: List[RuntimePublishedValue]):
+        self.rpv_map.clear()
+        for rpv in rpvs:
+            self.rpv_map[rpv.id] = rpv
+
+        self.logger.debug("RPV map configured with %d" % len(self.rpv_map))
 
     def set_max_response_payload_size(self, max_response_payload_size: int) -> None:
         self.max_response_payload_size = max_response_payload_size
@@ -169,10 +178,10 @@ class DataloggingPoller:
     def is_enabled(self) -> bool:
         return self.enabled
 
-    def get_datalogger_state(self) -> datalogging.DataloggerState:
+    def get_datalogger_state(self) -> device_datalogging.DataloggerState:
         return self.device_datalogging_state
 
-    def get_device_setup(self) -> Optional[datalogging.DataloggingSetup]:
+    def get_device_setup(self) -> Optional[device_datalogging.DataloggingSetup]:
         return self.device_setup
 
     def set_datalogging_callbacks(self, receive_setup: DataloggingReceiveSetupCallback):
@@ -185,10 +194,25 @@ class DataloggingPoller:
 
     def mark_active_acquisition_success(self, data: bytes) -> None:
         if self.acquisition_request is not None:
-            self.acquisition_request.completion_callback(True, data)
-            self.acquisition_request = None
+            if self.device_setup is None:
+                self.acquisition_request.completion_callback(False, None)
+                self.logger.error("Cannot mark acquisition successfully completed as no device setup is available")
+            else:
+                try:
+                    deinterleaved_data = extract_signal_from_data(
+                        data=data,
+                        config=self.acquisition_request.config,
+                        rpv_map=self.rpv_map,
+                        encoding=self.device_setup.encoding)
+                    self.acquisition_request.completion_callback(True, deinterleaved_data)
+                except Exception as e:
+                    self.logger.error("Failed to parse data received from device datalogging acquisition. %s" % str(e))
+                    self.logger.debug(traceback.format_exc())
+                    self.acquisition_request.completion_callback(False, None)
 
-    def request_acquisition(self, loop_id: int, config: datalogging.Configuration, callback: AcquisitionRequestCompletionCallback) -> None:
+                self.acquisition_request = None
+
+    def request_acquisition(self, loop_id: int, config: device_datalogging.Configuration, callback: AcquisitionRequestCompletionCallback) -> None:
         if not self.max_response_payload_size:
             raise ValueError("Maximum response payload size must be defined first")
 
@@ -318,7 +342,7 @@ class DataloggingPoller:
                         next_state = FSMState.WAIT_FOR_REQUEST
 
                 elif self.require_status_update == False:
-                    if self.device_datalogging_state == datalogging.DataloggerState.ACQUISITION_COMPLETED:
+                    if self.device_datalogging_state == device_datalogging.DataloggerState.ACQUISITION_COMPLETED:
                         next_state = FSMState.READ_METADATA
 
             elif self.state == FSMState.READ_METADATA:
@@ -513,7 +537,7 @@ class DataloggingPoller:
             raise RuntimeError('Received a GetSetup response when none was asked')
 
         response_data = cast(protocol_typing.Response.DatalogControl.GetSetup, self.protocol.parse_response(response))
-        self.device_setup = DataloggingSetup(
+        self.device_setup = device_datalogging.DataloggingSetup(
             buffer_size=response_data['buffer_size'],
             encoding=response_data['encoding'],
             max_signal_count=response_data['max_signal_count']
@@ -535,9 +559,10 @@ class DataloggingPoller:
         if self.state != FSMState.READ_METADATA:
             raise RuntimeError('Received a GetAcquisitionMetadata response when none was asked')
 
-        response_data = cast(protocol_typing.Response.DatalogControl.GetAcquisitionMetadata, self.protocol.parse_response(response))
+        response_data = cast(protocol_typing.Response.DatalogControl.GetAcquisitionMetadata,
+                             self.protocol.parse_response(response))
 
-        self.acquisition_metadata = AcquisitionMetadata(
+        self.acquisition_metadata = device_datalogging.AcquisitionMetadata(
             acquisition_id=response_data['acquisition_id'],
             config_id=response_data['config_id'],
             data_size=response_data['datasize'],

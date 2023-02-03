@@ -10,7 +10,7 @@
 import os
 import appdirs  # type: ignore
 import tempfile
-from scrutiny.server.datalogging.acquisition import DataloggingAcquisition, DataSeries
+from scrutiny.server.datalogging.definitions.api import DataloggingAcquisition, DataSeries
 
 import sqlite3
 from typing import Optional, Dict, List

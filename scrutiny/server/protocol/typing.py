@@ -10,7 +10,7 @@ from typing import TypedDict, Optional, List, Union
 import scrutiny.server.protocol.commands as cmd
 from scrutiny.core.codecs import Encodable
 from scrutiny.core.basic_types import RuntimePublishedValue
-import scrutiny.server.datalogging.definitions as datalogging
+import scrutiny.server.datalogging.definitions.device as device_datalogging
 from scrutiny.server.device.device_info import ExecLoop
 
 
@@ -81,7 +81,7 @@ class Request:
         class Configure(TypedDict):
             loop_id: int
             config_id: int
-            config: datalogging.Configuration
+            config: device_datalogging.Configuration
 
     class CommControl:
         class Discover(TypedDict):
@@ -177,11 +177,11 @@ class Response:
 
         class GetSetup(TypedDict):
             buffer_size: int
-            encoding: datalogging.Encoding
+            encoding: device_datalogging.Encoding
             max_signal_count: int
 
         class GetStatus(TypedDict):
-            state: datalogging.DataloggerState
+            state: device_datalogging.DataloggerState
 
         class GetAcquisitionMetadata(TypedDict):
             acquisition_id: int

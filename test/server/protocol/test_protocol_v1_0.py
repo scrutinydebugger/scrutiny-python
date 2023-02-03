@@ -12,7 +12,7 @@ from scrutiny.server.protocol import Protocol, Request, Response
 from scrutiny.server.protocol import commands as cmd
 from scrutiny.core.basic_types import EmbeddedDataType, RuntimePublishedValue
 import scrutiny.server.protocol.typing as protocol_typing
-import scrutiny.server.datalogging.definitions as datalogging
+import scrutiny.server.datalogging.definitions.device as device_datalogging
 from test import ScrutinyUnitTest
 from scrutiny.server.device.device_info import *
 
@@ -615,20 +615,20 @@ class TestProtocolV1_0(ScrutinyUnitTest):
     def test_req_datalogging_configure(self):
         self.proto.set_address_size_bits(32)
 
-        config = datalogging.Configuration()
+        config = device_datalogging.Configuration()
         config.decimation = 0x1234
         config.probe_location = 0.5
         config.timeout = 2.5              # 2.5sec
         config.trigger_hold_time = 0.001  # 1msec
-        config.trigger_condition = datalogging.TriggerCondition(
-            datalogging.TriggerConditionID.IsWithin,
-            datalogging.RPVOperand(0x1234),
-            datalogging.VarBitOperand(address=0x99887766, datatype=EmbeddedDataType.uint32, bitoffset=5, bitsize=12),
-            datalogging.LiteralOperand(1)
+        config.trigger_condition = device_datalogging.TriggerCondition(
+            device_datalogging.TriggerConditionID.IsWithin,
+            device_datalogging.RPVOperand(0x1234),
+            device_datalogging.VarBitOperand(address=0x99887766, datatype=EmbeddedDataType.uint32, bitoffset=5, bitsize=12),
+            device_datalogging.LiteralOperand(1)
         )
-        config.add_signal(datalogging.MemoryLoggableSignal(0x55443322, 4))
-        config.add_signal(datalogging.TimeLoggableSignal())
-        config.add_signal(datalogging.RPVLoggableSignal(0xabcd))
+        config.add_signal(device_datalogging.MemoryLoggableSignal(0x55443322, 4))
+        config.add_signal(device_datalogging.TimeLoggableSignal())
+        config.add_signal(device_datalogging.RPVLoggableSignal(0xabcd))
 
         req = self.proto.datalogging_configure(loop_id=1, config_id=0xaabb, config=config)
         request_bytes = bytes([5, 2, 0, 43, 1, 0xaa, 0xbb, 0x12, 0x34, 128])   # cmd, subfn, loop_id, config_id, decimation, probe_location
@@ -672,18 +672,18 @@ class TestProtocolV1_0(ScrutinyUnitTest):
 
             self.assertEqual(operand.get_type(), operand2.get_type())
 
-            if isinstance(operand, datalogging.LiteralOperand):
-                assert isinstance(operand2, datalogging.LiteralOperand)
+            if isinstance(operand, device_datalogging.LiteralOperand):
+                assert isinstance(operand2, device_datalogging.LiteralOperand)
                 self.assertEqual(operand.value, operand2.value)
-            elif isinstance(operand, datalogging.RPVOperand):
-                assert isinstance(operand2, datalogging.RPVOperand)
+            elif isinstance(operand, device_datalogging.RPVOperand):
+                assert isinstance(operand2, device_datalogging.RPVOperand)
                 self.assertEqual(operand.rpv_id, operand2.rpv_id)
-            elif isinstance(operand, datalogging.VarOperand):
-                assert isinstance(operand2, datalogging.VarOperand)
+            elif isinstance(operand, device_datalogging.VarOperand):
+                assert isinstance(operand2, device_datalogging.VarOperand)
                 self.assertEqual(operand.address, operand2.address)
                 self.assertEqual(operand.datatype, operand2.datatype)
-            elif isinstance(operand, datalogging.VarBitOperand):
-                assert isinstance(operand2, datalogging.VarBitOperand)
+            elif isinstance(operand, device_datalogging.VarBitOperand):
+                assert isinstance(operand2, device_datalogging.VarBitOperand)
                 self.assertEqual(operand.address, operand2.address)
                 self.assertEqual(operand.datatype, operand2.datatype)
                 self.assertEqual(operand.bitoffset, operand2.bitoffset)
@@ -700,15 +700,15 @@ class TestProtocolV1_0(ScrutinyUnitTest):
 
             self.assertEqual(signal.get_type(), signal2.get_type())
 
-            if isinstance(signal, datalogging.MemoryLoggableSignal):
-                assert isinstance(signal2, datalogging.MemoryLoggableSignal)
+            if isinstance(signal, device_datalogging.MemoryLoggableSignal):
+                assert isinstance(signal2, device_datalogging.MemoryLoggableSignal)
                 self.assertEqual(signal.address, signal2.address)
                 self.assertEqual(signal.size, signal2.size)
-            elif isinstance(signal, datalogging.RPVLoggableSignal):
-                assert isinstance(signal2, datalogging.RPVLoggableSignal)
+            elif isinstance(signal, device_datalogging.RPVLoggableSignal):
+                assert isinstance(signal2, device_datalogging.RPVLoggableSignal)
                 self.assertEqual(signal.rpv_id, signal2.rpv_id)
-            elif isinstance(signal, datalogging.TimeLoggableSignal):
-                assert isinstance(signal2, datalogging.TimeLoggableSignal)
+            elif isinstance(signal, device_datalogging.TimeLoggableSignal):
+                assert isinstance(signal2, device_datalogging.TimeLoggableSignal)
             else:
                 raise ValueError("Unknown signal type %s" % (signal.__class__.__name__))
 
@@ -743,15 +743,15 @@ class TestProtocolV1_0(ScrutinyUnitTest):
     def test_req_datalogging_read_acquisition(self):
         request_bytes = bytes([5, 7, 0, 0])
 
-        req = self.proto.datalogging_read_acquisition(0, 100, tx_buffer_size=108, encoding=datalogging.Encoding.RAW)
+        req = self.proto.datalogging_read_acquisition(0, 100, tx_buffer_size=108, encoding=device_datalogging.Encoding.RAW)
         self.assert_req_response_bytes(req, request_bytes)
         data = self.proto.parse_request(req)
         self.check_expected_payload_size(req, 108)
 
-        req = self.proto.datalogging_read_acquisition(0, 100, tx_buffer_size=50, encoding=datalogging.Encoding.RAW)
+        req = self.proto.datalogging_read_acquisition(0, 100, tx_buffer_size=50, encoding=device_datalogging.Encoding.RAW)
         self.check_expected_payload_size(req, 50)
 
-        req = self.proto.datalogging_read_acquisition(80, 100, tx_buffer_size=100, encoding=datalogging.Encoding.RAW)
+        req = self.proto.datalogging_read_acquisition(80, 100, tx_buffer_size=100, encoding=device_datalogging.Encoding.RAW)
         self.check_expected_payload_size(req, 28)
 # endregion
 
@@ -1299,11 +1299,11 @@ class TestProtocolV1_0(ScrutinyUnitTest):
 
 
     def test_response_datalogging_get_setup(self):
-        response = self.proto.respond_datalogging_get_setup(buffer_size=0x12345678, encoding=datalogging.Encoding.RAW, max_signal_count=32)
+        response = self.proto.respond_datalogging_get_setup(buffer_size=0x12345678, encoding=device_datalogging.Encoding.RAW, max_signal_count=32)
         self.assert_req_response_bytes(response, [0x85, 1, 0, 0, 6, 0x12, 0x34, 0x56, 0x78, 0, 32])
         data = self.proto.parse_response(response)
         self.assertEqual(data['buffer_size'], 0x12345678)
-        self.assertEqual(data['encoding'], datalogging.Encoding.RAW)
+        self.assertEqual(data['encoding'], device_datalogging.Encoding.RAW)
         self.assertEqual(data['max_signal_count'], 32)
 
     def test_response_datalogging_configure(self):
@@ -1322,10 +1322,10 @@ class TestProtocolV1_0(ScrutinyUnitTest):
         self.proto.parse_response(response)
 
     def test_response_datalogging_get_status(self):
-        response = self.proto.respond_datalogging_get_status(state=datalogging.DataloggerState.CONFIGURED)
-        self.assert_req_response_bytes(response, [0x85, 5, 0, 0, 1, datalogging.DataloggerState.CONFIGURED.value])
+        response = self.proto.respond_datalogging_get_status(state=device_datalogging.DataloggerState.CONFIGURED)
+        self.assert_req_response_bytes(response, [0x85, 5, 0, 0, 1, device_datalogging.DataloggerState.CONFIGURED.value])
         data = self.proto.parse_response(response)
-        self.assertEqual(data['state'], datalogging.DataloggerState.CONFIGURED)
+        self.assertEqual(data['state'], device_datalogging.DataloggerState.CONFIGURED)
 
     def test_response_datalogging_get_acquisition_metadata(self):
         response = self.proto.respond_datalogging_get_acquisition_metadata(

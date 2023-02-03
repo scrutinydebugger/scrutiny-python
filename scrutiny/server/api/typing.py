@@ -192,7 +192,7 @@ class C2S:
     class GetDataloggingCapabilities(BaseC2SMessage):
         pass
 
-    class RequestAcquisition(BaseC2SMessage):
+    class RequestDataloggingAcquisition(BaseC2SMessage):
         sampling_rate_id: int
         decimation: int
         timeout: float
@@ -276,7 +276,7 @@ class S2C:
         available: bool
         capabilities: Optional[DataloggingCapabilities]
 
-    class RequestAcquisition(BaseS2CMessage):
+    class RequestDataloggingAcquisition(BaseS2CMessage):
         pass
 
     class InformNewDataloggingAcquisition(BaseS2CMessage):
@@ -308,6 +308,7 @@ C2SMessage = Union[
     C2S.GetPossibleLinkConfig,
     C2S.WriteValue,
     C2S.GetDataloggingCapabilities,
+    C2S.RequestDataloggingAcquisition,
     C2S.ReadDataloggingAcquisition,
     C2S.ListDataloggingAcquisitions,
     C2S.UpdateDataloggingAcquisition,
@@ -330,6 +331,7 @@ S2CMessage = Union[
     S2C.WriteValue,
     S2C.WriteCompletion,
     S2C.GetDataloggingCapabilities,
+    S2C.RequestDataloggingAcquisition,
     S2C.InformNewDataloggingAcquisition,
     S2C.ListDataloggingAcquisition,
     S2C.ReadDataloggingAcquisitionData,

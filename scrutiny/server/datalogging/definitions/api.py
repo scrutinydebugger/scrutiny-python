@@ -1,19 +1,33 @@
-#    acquisition.py
-#        Definitions and helper function to manipulate a datalogging acquisition
-#
-#   - License : MIT - See LICENSE file.
-#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
-#
-#   Copyright (c) 2021-2023 Scrutiny Debugger
 
+from enum import Enum
+from dataclasses import dataclass
+import zlib
+import struct
 import time
 from uuid import uuid4
-import zlib
 
-from scrutiny.server.datalogging import definitions
-from scrutiny.core.basic_types import *
-from typing import List, Dict, Optional
-import struct
+from scrutiny.server.device.device_info import ExecLoopType
+from scrutiny.server.datastore.datastore_entry import DatastoreEntry
+import scrutiny.server.datalogging.definitions.device as device_datalogging
+
+from typing import List, Dict, Optional, Callable, Union
+from scrutiny.core.typehints import GenericCallback
+
+
+class XAxisType(Enum):
+    """Represent a type of X-Axis that a user can select"""
+    IdealTime = 0,
+    MeasuredTime = 1,
+    Watchable = 2
+
+
+@dataclass
+class SamplingRate:
+    """Represent a sampling rate that a use can select"""
+    name: str
+    frequency: Optional[float]
+    rate_type: ExecLoopType
+    device_identifier: int
 
 
 class DataSeries:
@@ -91,38 +105,39 @@ class DataloggingAcquisition:
         return self.data
 
 
-def extract_signal_from_data(data: bytes, config: definitions.Configuration, rpv_map: Dict[int, RuntimePublishedValue], encoding: definitions.Encoding) -> List[List[bytes]]:
-    """
-    Takes data written in the format [s1[n], s2[n], s3[n], s1[n+1], s2[n+1], s3[n+1], s1[n+2] ...]
-    and put it in the format [s1[n], s1[n+1], s1[n+2]],  [s2[n], s2[n+1], s2[n+2]], [s3[n], s3[n+1], s3[n+2]]
-    """
-    data_out: List[List[bytes]] = []
-    signals_def = config.get_signals()
-    for i in range(len(signals_def)):
-        data_out.append([])
+class AcquisitionRequestCompletedCallback(GenericCallback):
+    callback: Callable[[bool, Optional[DataloggingAcquisition]], None]
 
-    if encoding == definitions.Encoding.RAW:
-        cursor = 0
-        while cursor < len(data):
-            for i in range(len(signals_def)):
-                signaldef = signals_def[i]
 
-                if isinstance(signaldef, definitions.MemoryLoggableSignal):
-                    datasize = signaldef.size
-                elif isinstance(signaldef, definitions.RPVLoggableSignal):
-                    if signaldef.rpv_id not in rpv_map:
-                        raise ValueError("RPV 0x%04X not part of given rpv_map" % signaldef.rpv_id)
-                    rpv = rpv_map[signaldef.rpv_id]
-                    datasize = rpv.datatype.get_size_byte()
-                elif isinstance(signaldef, definitions.TimeLoggableSignal):
-                    datasize = 4    # Time is always uint32
-                else:
-                    raise NotImplementedError("Unsupported signal type")
-                if len(data) < cursor + datasize:
-                    raise ValueError('Not enough data in buffer for signal #%d' % i)
-                data_out[i].append(data[cursor:cursor + datasize])
-                cursor += datasize
-    else:
-        raise NotImplementedError('Unsupported encoding %s' % encoding)
+TriggerConditionID = device_datalogging.TriggerConditionID
 
-    return data_out
+
+class TriggerConditionOperandType(Enum):
+    LITERAL = 0
+    WATCHABLE = 1
+
+
+@dataclass
+class TriggerConditionOperand:
+    type: TriggerConditionOperandType
+    value: Union[float, int, DatastoreEntry]
+
+
+@dataclass
+class TriggerCondition:
+    condition_id: TriggerConditionID
+    operands: List[TriggerConditionOperand]
+
+
+@dataclass
+class AcquisitionRequest:
+    rate_identifier: int
+    decimation: int
+    timeout: float
+    probe_location: float
+    trigger_hold_time: float
+    trigger_condition: TriggerCondition  # fixme
+    x_axis_type: XAxisType
+    x_axis_watchable: Optional[DatastoreEntry]
+    entries: List[DatastoreEntry]
+    completion_callback: AcquisitionRequestCompletedCallback
