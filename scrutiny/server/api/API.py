@@ -10,6 +10,7 @@
 import logging
 import traceback
 import math
+from dataclasses import dataclass
 
 from scrutiny.server.datalogging.datalogging_manager import DataloggingManager
 from scrutiny.server.datastore.datastore import Datastore
@@ -32,7 +33,7 @@ from .abstract_client_handler import AbstractClientHandler, ClientHandlerMessage
 from scrutiny.server.device.links.abstract_link import LinkConfig as DeviceLinkConfig
 
 from scrutiny.core.typehints import EmptyDict, GenericCallback
-from typing import Callable, Dict, List, Set, Any, TypedDict, cast, Optional, Literal
+from typing import Callable, Dict, List, Set, Any, TypedDict, cast, Optional, Type, Literal
 
 
 class APIConfig(TypedDict, total=False):
@@ -110,6 +111,11 @@ class API:
         DATA_READY = 'data_ready'
         ERROR = 'error'
 
+    @dataclass
+    class DataloggingSupportedTriggerCondition:
+        condition_id: api_datalogging.TriggerConditionID
+        nb_operands: int
+
     FLUSH_VARS_TIMEOUT: float = 0.1
 
     data_type_to_str: Dict[EmbeddedDataType, str] = {
@@ -157,6 +163,17 @@ class API:
         device_datalogging.DataloggerState.ERROR: DataloggingStatus.ERROR,
     }
 
+    datalogging_supported_conditions: Dict[str, DataloggingSupportedTriggerCondition] = {
+        'true': DataloggingSupportedTriggerCondition(condition_id=api_datalogging.TriggerConditionID.AlwaysTrue, nb_operands=0),
+        'eq': DataloggingSupportedTriggerCondition(condition_id=api_datalogging.TriggerConditionID.Equal, nb_operands=2),
+        'lt': DataloggingSupportedTriggerCondition(condition_id=api_datalogging.TriggerConditionID.LessThan, nb_operands=2),
+        'let': DataloggingSupportedTriggerCondition(condition_id=api_datalogging.TriggerConditionID.LessOrEqualThan, nb_operands=2),
+        'gt': DataloggingSupportedTriggerCondition(condition_id=api_datalogging.TriggerConditionID.GreaterThan, nb_operands=2),
+        'get': DataloggingSupportedTriggerCondition(condition_id=api_datalogging.TriggerConditionID.GreaterOrEqualThan, nb_operands=2),
+        'cmt': DataloggingSupportedTriggerCondition(condition_id=api_datalogging.TriggerConditionID.ChangeMoreThan, nb_operands=2),
+        'within': DataloggingSupportedTriggerCondition(condition_id=api_datalogging.TriggerConditionID.IsWithin, nb_operands=3)
+    }
+
     str_to_entry_type: Dict[str, EntryType] = {
         'var': EntryType.Var,
         'alias': EntryType.Alias,
@@ -186,7 +203,8 @@ class API:
         Command.Client2Api.GET_SERVER_STATUS: 'process_get_server_status',
         Command.Client2Api.SET_LINK_CONFIG: 'process_set_link_config',
         Command.Client2Api.GET_POSSIBLE_LINK_CONFIG: 'process_get_possible_link_config',
-        Command.Client2Api.WRITE_VALUE: 'process_write_value'
+        Command.Client2Api.WRITE_VALUE: 'process_write_value',
+        Command.Client2Api.REQUEST_DATALOGGING_ACQUISITION: 'process_datalogging_request_acquisition'
 
     }
 
@@ -705,7 +723,7 @@ class API:
                         value = float(valstr)
                     except:
                         value = None
-            if value is None or not isinstance(value, int) and not isinstance(value, float) and not isinstance(value, bool):
+            if value is None or not isinstance(value, (int, float, bool)):
                 raise InvalidRequestException(req, 'Invalid "value" field')
             if not math.isfinite(value):
                 raise InvalidRequestException(req, 'Invalid "value" field')
@@ -727,6 +745,169 @@ class API:
             'cmd': self.Command.Api2Client.WRITE_VALUE_RESPONSE,
             'reqid': self.get_req_id(req),
             'watchables': [update['watchable'] for update in req['updates']]
+        }
+
+        self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
+
+    def process_datalogging_request_acquisition(self, conn_id: str, req: api_typing.C2S.RequestDataloggingAcquisition) -> None:
+        if not self.datalogging_manager.is_ready_for_request():
+            raise InvalidRequestException(req, 'Device is not ready to receive a request')
+
+        FieldType = Literal['sampling_rate_id', 'decimation', 'timeout', 'trigger_hold_time',
+                            'probe_location', 'condition', 'operands', 'watchables', 'x_axis_type']
+
+        required_fileds: Dict[FieldType, Type] = {
+            'sampling_rate_id': int,
+            'decimation': int,
+            'timeout': float,
+            'trigger_hold_time': float,
+            'probe_location': float,
+            'condition': str,
+            'operands': list,
+            'watchables': list,
+            'x_axis_type': str
+        }
+
+        field: FieldType
+        for field in required_fileds:
+            if field not in req:
+                raise InvalidRequestException(req, "Missing field %s in request" % field)
+
+            expected_type = required_fileds[field]
+            if expected_type is float and isinstance(req[field], int):
+                req[field] = float(req[field])  # type:ignore
+
+            if expected_type is int and isinstance(req[field], float):
+                assert isinstance(req[field], float)
+                if int(req[field]) - req[field] != 0:   # type:ignore
+                    raise InvalidRequestException(req, 'Field %s must be an integer' % field)
+                req[field] = int(req[field])    # type:ignore
+
+            if not isinstance(req[field], expected_type):
+                raise InvalidRequestException(req, "Invalid field %s" % field)
+
+        if not self.datalogging_manager.is_valid_sample_rate_id(req['sampling_rate_id']):
+            raise InvalidRequestException(req, "Given sampling_rate_id is not supported for this device.")
+
+        if req['decimation'] <= 0:
+            raise InvalidRequestException(req, 'decimation must be a positive integer')
+
+        if req['timeout'] < 0:
+            raise InvalidRequestException(req, 'timeout must be a positive value or zero')
+
+        if req['trigger_hold_time'] < 0:
+            raise InvalidRequestException(req, 'trigger_hold_time must be a positive value or zero')
+
+        if req['probe_location'] < 0 or req['probe_location'] > 1:
+            raise InvalidRequestException(req, 'probe_location must be a value between 0 and 1')
+
+        if req['condition'] not in self.datalogging_supported_conditions.keys():
+            raise InvalidRequestException(req, 'Unknown trigger condition %s')
+
+        if len(req['operands']) != self.datalogging_supported_conditions[req['condition']].nb_operands:
+            raise InvalidRequestException(req, 'Bad number of condition operands for condition %s' % req['condition'])
+
+        axis_type_map = {
+            'ideal_time': api_datalogging.XAxisType.IdealTime,
+            'measured_time': api_datalogging.XAxisType.MeasuredTime,
+            'watchable': api_datalogging.XAxisType.Watchable
+        }
+
+        if req['x_axis_type'] not in axis_type_map:
+            raise InvalidRequestException(req, 'Unsupported X Axis type')
+        x_axis_type = axis_type_map[req['x_axis_type']]
+        x_axis_entry: Optional[DatastoreEntry] = None
+        x_axis_watchable: Optional[api_datalogging.WatchableSignalDefinition] = None
+        if x_axis_type == api_datalogging.XAxisType.Watchable:
+            if 'x_axis_watchable' not in req or not isinstance(req['x_axis_watchable'], dict):
+                raise InvalidRequestException(req, 'Missing a valid x_axis_watchable required when x_axis_type=watchable')
+
+            if 'id' not in req['x_axis_watchable'] or not isinstance(req['x_axis_watchable']['id'], str):
+                raise InvalidRequestException(req, 'Missing x_axis_watchable.watchable field')
+
+            try:
+                x_axis_entry = self.datastore.get_entry(req['x_axis_watchable']['id'])
+            except:
+                pass
+
+            if x_axis_entry is None:
+                raise InvalidRequestException(req, 'Cannot find watchable with given ID %s' % req['x_axis_watchable']['id'])
+
+            x_axis_watchable = api_datalogging.WatchableSignalDefinition(
+                name=None if 'name' not in req['x_axis_watchable'] else str(req['x_axis_watchable']['name']),
+                entry=x_axis_entry
+            )
+
+        operands: List[api_datalogging.TriggerConditionOperand] = []
+
+        for given_operand in req['operands']:
+            if given_operand['type'] == 'literal':
+                if not isinstance(given_operand['value'], (int, float, bool)):
+                    raise InvalidRequestException(req, "Unsupported datatype for operand")
+
+                operands.append(api_datalogging.TriggerConditionOperand(api_datalogging.TriggerConditionOperandType.LITERAL, given_operand['value']))
+            elif given_operand['type'] == 'watchable':
+                if not isinstance(given_operand['value'], str):
+                    raise InvalidRequestException(req, "Unsupported datatype for operand")
+                watchable: Optional[DatastoreEntry] = None
+                try:
+                    watchable = self.datastore.get_entry(given_operand['value'])
+                except:
+                    pass
+
+                if watchable is None:
+                    raise InvalidRequestException(req, "Cannot find watchable with given ID %s" % given_operand['value'])
+
+                operands.append(api_datalogging.TriggerConditionOperand(api_datalogging.TriggerConditionOperandType.WATCHABLE, watchable))
+            else:
+                raise InvalidRequestException(req, 'Unknown operand type')
+
+        watchables_to_log: List[api_datalogging.WatchableSignalDefinition] = []
+        if len(req['watchables']) == 0:
+            raise InvalidRequestException(req, 'Missing watchable to log')
+
+        for signal_def in req['watchables']:
+            if not isinstance(signal_def['id'], str):
+                raise InvalidRequestException(req, 'Invalid watchable ID')
+
+            if not (isinstance(signal_def['name'], str) or signal_def['name'] is None):
+                raise InvalidRequestException(req, 'Invalid watchable ID')
+
+            signal_entry: Optional[DatastoreEntry] = None
+            try:
+                signal_entry = self.datastore.get_entry(signal_def['id'])
+            except:
+                pass
+
+            if signal_entry is None:
+                raise InvalidRequestException(req, "Cannot find watchable with given ID : %s" % signal_def['id'])
+
+            watchables_to_log.append(api_datalogging.WatchableSignalDefinition(
+                name=signal_def['name'],
+                entry=signal_entry
+            ))
+
+        acq_req = api_datalogging.AcquisitionRequest(
+            rate_identifier=req['sampling_rate_id'],
+            decimation=req['decimation'],
+            timeout=req['timeout'],
+            trigger_hold_time=req['trigger_hold_time'],
+            probe_location=req['probe_location'],
+            x_axis_type=x_axis_type,
+            x_axis_watchable=x_axis_watchable,
+            trigger_condition=api_datalogging.TriggerCondition(
+                condition_id=self.datalogging_supported_conditions[req['condition']].condition_id,
+                operands=operands
+            ),
+            watchables=watchables_to_log,
+            completion_callback=api_datalogging.AcquisitionRequestCompletedCallback(lambda x, b: None)
+        )
+
+        self.datalogging_manager.request_acquisition(acq_req)
+
+        response: api_typing.S2C.RequestDataloggingAcquisition = {
+            'cmd': self.Command.Api2Client.REQUEST_DATALOGGING_ACQUISITION_RESPONSE,
+            'reqid': self.get_req_id(req)
         }
 
         self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))

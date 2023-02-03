@@ -49,6 +49,12 @@ class DataloggingManager:
             receive_setup=DataloggingReceiveSetupCallback(self.callback_receive_setup),
         )
 
+    def is_valid_sample_rate_id(self, identifier: int) -> bool:
+        return False    # todo
+
+    def is_ready_for_request(self) -> bool:
+        return True  # todo
+
     def set_disconnected(self):
         self.active_request = None
         self.datalogging_setup = None
@@ -126,18 +132,19 @@ class DataloggingManager:
 
         entry2signal_map: Dict[DatastoreEntry, int] = {}
 
-        all_entries = request.entries.copy()
+        all_watchables = request.watchables.copy()
 
         if request.x_axis_type == api_datalogging.XAxisType.Watchable:
-            if not isinstance(request.x_axis_watchable, DatastoreEntry):
+            if not isinstance(request.x_axis_watchable, api_datalogging.WatchableSignalDefinition):
                 raise ValueError("X Axis must have a watchable entry")
-            all_entries.append(request.x_axis_watchable)
+            all_watchables.append(request.x_axis_watchable)
 
-        for entry in all_entries:
-            if isinstance(entry, DatastoreAliasEntry):
-                entry_to_log = entry.refentry
+        for watchable in all_watchables:
+            entry_to_log: DatastoreEntry
+            if isinstance(watchable.entry, DatastoreAliasEntry):
+                entry_to_log = watchable.entry.refentry
             else:
-                entry_to_log = entry
+                entry_to_log = watchable.entry
 
             if entry_to_log not in entry2signal_map:
                 config.add_signal(self.make_signal_from_watchable(entry_to_log))
@@ -145,7 +152,7 @@ class DataloggingManager:
             else:
                 signal_index = entry2signal_map[entry_to_log]
             entry2signal_map[entry_to_log] = signal_index
-            entry2signal_map[entry] = signal_index
+            entry2signal_map[watchable.entry] = signal_index
 
         # Purposely add time at the end
         if request.x_axis_type == api_datalogging.XAxisType.MeasuredTime:

@@ -145,6 +145,15 @@ class StubbedDataloggingManager:
     def set_device_setup(self, setup: Optional[device_datalogging.DataloggingSetup]) -> None:
         self.datalogging_setup = setup
 
+    def request_acquisition(self, acquisition: api_datalogging.AcquisitionRequest) -> None:
+        self.request_queue.put(acquisition)
+
+    def is_valid_sample_rate_id(self, identifier: int) -> bool:
+        return (identifier >= 0 and identifier < 10)
+
+    def is_ready_for_request(self) -> bool:
+        return True
+
 
 class TestAPI(ScrutinyUnitTest):
 
@@ -1400,6 +1409,7 @@ class TestAPI(ScrutinyUnitTest):
 
             def create_default_request() -> api_typing.C2S.RequestDataloggingAcquisition:
                 req: api_typing.C2S.RequestDataloggingAcquisition = {
+                    'cmd': 'request_datalogging_acquisition',
                     'decimation': 100,
                     'probe_location': 0.7,
                     'sampling_rate_id': 1,
@@ -1434,13 +1444,18 @@ class TestAPI(ScrutinyUnitTest):
 
             self.assertEqual(ar.trigger_condition.operands[0].type, api_datalogging.TriggerConditionOperandType.LITERAL)
             self.assertEqual(ar.trigger_condition.operands[0].value, 123)
-            self.assertEqual(ar.trigger_condition.operands[1], api_datalogging.TriggerConditionOperandType.WATCHABLE)
+            self.assertEqual(ar.trigger_condition.operands[1].type, api_datalogging.TriggerConditionOperandType.WATCHABLE)
             self.assertIs(ar.trigger_condition.operands[1].value, var_entries[0])
 
-            self.assertIs(ar.entries[0], var_entries[1])
-            self.assertIs(ar.entries[1], alias_entries_var[0])
-            self.assertIs(ar.entries[2], alias_entries_rpv[0])
-            self.assertIs(ar.entries[3], rpv_entries[0])
+            self.assertIs(ar.watchables[0].entry, var_entries[1])
+            self.assertIs(ar.watchables[1].entry, alias_entries_var[0])
+            self.assertIs(ar.watchables[2].entry, alias_entries_rpv[0])
+            self.assertIs(ar.watchables[3].entry, rpv_entries[0])
+
+            self.assertEqual(ar.watchables[0].name, 'var1')
+            self.assertEqual(ar.watchables[1].name, 'alias_var_1')
+            self.assertEqual(ar.watchables[2].name, 'alias_rpv_1')
+            self.assertEqual(ar.watchables[3].name, 'rpv0')
 
             # conditions
             all_conditions = {
@@ -1455,13 +1470,13 @@ class TestAPI(ScrutinyUnitTest):
             }
 
             for api_cond in all_conditions:
-                for nb_operand in range(all_conditions[api_cond]['nb_opernads'] + 1):
+                for nb_operand in range(all_conditions[api_cond]['nb_operands'] + 1):
                     req = create_default_request()
                     req['condition'] = api_cond
                     req['operands'] = []
                     for i in range(nb_operand):
-                        req['operands'].append({dict(type='literal', value=i)})
-                    if nb_operand == all_conditions[api_cond]['nb_opernads']:
+                        req['operands'].append(dict(type='literal', value=i))
+                    if nb_operand == all_conditions[api_cond]['nb_operands']:
                         ar = self.send_request_datalogging_acquisition_and_fetch_result(req)
                         self.assertEqual(ar.trigger_condition.condition_id, all_conditions[api_cond]['condition_id'])
                     else:
@@ -1481,25 +1496,35 @@ class TestAPI(ScrutinyUnitTest):
             self.assertEqual(ar.x_axis_type, api_datalogging.XAxisType.MeasuredTime)
             self.assertIsNone(ar.x_axis_watchable)
 
-            # Unexpected x_axis_watchable
-            req = create_default_request()
-            req['x_axis_type'] = 'measured_time'
-            req['x_axis_watchable'] = var_entries[0].get_id()
-            self.send_request(req)
-            self.assert_is_error(self.wait_and_load_response())
-
             # watchable ok
             req = create_default_request()
             req['x_axis_type'] = 'watchable'
-            req['x_axis_watchable'] = rpv_entries[1].get_id()
+            req['x_axis_watchable'] = dict(name="hello", id=rpv_entries[1].get_id())
             ar = self.send_request_datalogging_acquisition_and_fetch_result(req)
             self.assertEqual(ar.x_axis_type, api_datalogging.XAxisType.Watchable)
-            self.assertIs(ar.x_axis_watchable, rpv_entries[1])
+            self.assertIs(ar.x_axis_watchable.entry, rpv_entries[1])
+            self.assertEqual(ar.x_axis_watchable.name, 'hello')
+
+            # watchable no name is ok
+            req = create_default_request()
+            req['x_axis_type'] = 'watchable'
+            req['x_axis_watchable'] = dict(id=rpv_entries[1].get_id())
+            ar = self.send_request_datalogging_acquisition_and_fetch_result(req)
+            self.assertEqual(ar.x_axis_type, api_datalogging.XAxisType.Watchable)
+            self.assertIs(ar.x_axis_watchable.entry, rpv_entries[1])
+            self.assertEqual(ar.x_axis_watchable.name, None)
+
+            # watchable bad format
+            req = create_default_request()
+            req['x_axis_type'] = 'watchable'
+            req['x_axis_watchable'] = "bad format"
+            self.send_request(req)
+            self.assert_is_error(self.wait_and_load_response())
 
             # watchable unknown ID
             req = create_default_request()
             req['x_axis_type'] = 'watchable'
-            req['x_axis_watchable'] = "unkown_id"
+            req['x_axis_watchable'] = dict(watchable='unknown_id')
             self.send_request(req)
             self.assert_is_error(self.wait_and_load_response())
 
@@ -1553,6 +1578,19 @@ class TestAPI(ScrutinyUnitTest):
             for bad_freq_id in ['meow', -1, 1.1, [1]]:
                 req = create_default_request()
                 req['sampling_rate_id'] = bad_freq_id
+                self.send_request(req)
+                self.assert_is_error(self.wait_and_load_response())
+
+                # Bad Timeout
+            for bad_rate_id in ['meow', -1, 11, [1]]:   # Fake datalogging manager consider all sample rate id > 10 to be bad.
+                req = create_default_request()
+                req['sampling_rate_id'] = bad_rate_id
+                self.send_request(req)
+                self.assert_is_error(self.wait_and_load_response())
+
+            for bad_watchable_format in ['meow', -1, 11, [1]]:   # Fake datalogging manager consider all sample rate id > 10 to be bad.
+                req = create_default_request()
+                req['watchables'][0] = bad_watchable_format
                 self.send_request(req)
                 self.assert_is_error(self.wait_and_load_response())
 

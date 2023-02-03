@@ -9,8 +9,8 @@ from uuid import uuid4
 from scrutiny.server.device.device_info import ExecLoopType
 from scrutiny.server.datastore.datastore_entry import DatastoreEntry
 import scrutiny.server.datalogging.definitions.device as device_datalogging
-
 from typing import List, Dict, Optional, Callable, Union
+
 from scrutiny.core.typehints import GenericCallback
 
 
@@ -120,13 +120,19 @@ class TriggerConditionOperandType(Enum):
 @dataclass
 class TriggerConditionOperand:
     type: TriggerConditionOperandType
-    value: Union[float, int, DatastoreEntry]
+    value: Union[float, int, bool, DatastoreEntry]
 
 
 @dataclass
 class TriggerCondition:
     condition_id: TriggerConditionID
     operands: List[TriggerConditionOperand]
+
+
+@dataclass
+class WatchableSignalDefinition:
+    name: Optional[str]
+    entry: DatastoreEntry
 
 
 @dataclass
@@ -138,6 +144,6 @@ class AcquisitionRequest:
     trigger_hold_time: float
     trigger_condition: TriggerCondition  # fixme
     x_axis_type: XAxisType
-    x_axis_watchable: Optional[DatastoreEntry]
-    entries: List[DatastoreEntry]
+    x_axis_watchable: Optional[WatchableSignalDefinition]
+    watchables: List[WatchableSignalDefinition]
     completion_callback: AcquisitionRequestCompletedCallback
