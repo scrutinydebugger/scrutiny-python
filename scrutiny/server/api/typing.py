@@ -150,7 +150,6 @@ class DataloggingCapabilities(TypedDict):
     buffer_size: int
     max_nb_signal: int
     sampling_rates: List[SamplingRate]
-    supported_conditions: List[SupportedCondition]
 
 
 class C2S:

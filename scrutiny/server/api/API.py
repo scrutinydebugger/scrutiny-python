@@ -762,17 +762,18 @@ class API:
         if sampling_rates is None:
             available = False
 
-        rate_type_name_map = {
+        rate_type_name_map:Dict[ExecLoopType, Literal['fixed_freq', 'variable_freq']] = {
             ExecLoopType.FIXED_FREQ : 'fixed_freq',
             ExecLoopType.VARIABLE_FREQ: 'variable_freq'
         }
 
-        encoding_name_map = {
+        encoding_name_map:Dict[device_datalogging.Encoding, Literal['raw']] = {
             device_datalogging.Encoding.RAW : 'raw'
         }
 
-        capabilities:Optional[api_typing.DataloggingCapabilities] = None
         if available:
+            assert sampling_rates is not None
+            assert setup is not None
             output_sampling_rates:List[api_typing.SamplingRate] = []
             for rate in sampling_rates:
                 output_sampling_rates.append({
@@ -781,7 +782,7 @@ class API:
                     'type' : rate_type_name_map[rate.rate_type]
                 })
 
-            capabilities = {
+            capabilities:api_typing.DataloggingCapabilities = {
                 'buffer_size' : setup.buffer_size,
                 'encoding' : encoding_name_map[setup.encoding],
                 'max_nb_signal' : setup.max_signal_count,
@@ -790,8 +791,9 @@ class API:
 
         response:api_typing.S2C.GetDataloggingCapabilities = {
             'cmd' : API.Command.Api2Client.GET_DATALOGGING_CAPABILITIES_RESPONSE,
+            'reqid' : self.get_req_id(req),
             'available' : available,
-            'capabilities' : capabilities
+            'capabilities' : capabilities if available else None
         }
 
         self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
