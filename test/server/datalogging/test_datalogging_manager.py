@@ -81,7 +81,7 @@ class TestDataloggingManager(ScrutinyUnitTest):
     def completion_callback(self, success: bool, acquisition: Optional[api_datalogging.DataloggingAcquisition]) -> None:
         pass
 
-    def make_test_request(self, operand_watchable: DatastoreEntry, x_axis_type: api_datalogging.XAxisType, x_axis_watchable: Optional[DatastoreEntry] = None) -> api_datalogging.AcquisitionRequest:
+    def make_test_request(self, operand_watchable: DatastoreEntry, x_axis_type: api_datalogging.XAxisType, x_axis_entry: Optional[DatastoreEntry] = None) -> api_datalogging.AcquisitionRequest:
         return api_datalogging.AcquisitionRequest(
             decimation=2,
             probe_location=0.25,
@@ -96,16 +96,16 @@ class TestDataloggingManager(ScrutinyUnitTest):
                 ]
             ),
             x_axis_type=x_axis_type,
-            x_axis_watchable=x_axis_watchable,
+            x_axis_signal=api_datalogging.SignalDefinition('x-axis', x_axis_entry),
             completion_callback=self.completion_callback,
-            entries=[
-                self.var1_u32,
-                self.var1_u32,    # Duplicate on purpose
-                self.var2_u32,
-                self.var3_f64,
-                self.rpv1000_bool,
-                self.alias_var1_u32,
-                self.alias_rpv2000_f32
+            signals=[
+                api_datalogging.SignalDefinition('var1_u32', self.var1_u32),
+                api_datalogging.SignalDefinition('var1_u32', self.var1_u32),    # Duplicate on purpose
+                api_datalogging.SignalDefinition('var2_u32', self.var2_u32),
+                api_datalogging.SignalDefinition('var3_f64', self.var3_f64),
+                api_datalogging.SignalDefinition('rpv1000_bool', self.rpv1000_bool),
+                api_datalogging.SignalDefinition('alias_var1_u32', self.alias_var1_u32),
+                api_datalogging.SignalDefinition('alias_rpv2000_f32', self.alias_rpv2000_f32)
             ]
         )
 
@@ -117,13 +117,13 @@ class TestDataloggingManager(ScrutinyUnitTest):
                 req = self.make_test_request(operand_watchable=self.rpv1000_bool, x_axis_type=api_datalogging.XAxisType.IdealTime)
             elif i == 2:
                 req = self.make_test_request(operand_watchable=self.alias_var1_u32,
-                                             x_axis_type=api_datalogging.XAxisType.Watchable, x_axis_watchable=self.alias_var1_u32)  # X axis will not add a signal
+                                             x_axis_type=api_datalogging.XAxisType.Signal, x_axis_entry=self.alias_var1_u32)  # X axis will not add a signal
             elif i == 3:
                 req = self.make_test_request(operand_watchable=self.alias_rpv2000_f32,
-                                             x_axis_type=api_datalogging.XAxisType.Watchable, x_axis_watchable=self.alias_rpv2000_f32)  # X axis will not add a signal
+                                             x_axis_type=api_datalogging.XAxisType.Signal, x_axis_entry=self.alias_rpv2000_f32)  # X axis will not add a signal
             elif i == 4:
                 req = self.make_test_request(operand_watchable=self.alias_var1_u32,
-                                             x_axis_type=api_datalogging.XAxisType.Watchable, x_axis_watchable=self.alias_var4_s16)  # X axis will add a signal
+                                             x_axis_type=api_datalogging.XAxisType.Signal, x_axis_entry=self.alias_var4_s16)  # X axis will add a signal
             else:
                 raise NotImplementedError()
 

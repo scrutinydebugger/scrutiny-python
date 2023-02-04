@@ -1421,7 +1421,7 @@ class TestAPI(ScrutinyUnitTest):
                         dict(type='literal', value=123),
                         dict(type='watchable', value=var_entries[0].get_id())
                     ],
-                    'watchables': [
+                    'signals': [
                         dict(id=var_entries[1].get_id(), name='var1'),
                         dict(id=alias_entries_var[0].get_id(), name='alias_var_1'),
                         dict(id=alias_entries_rpv[0].get_id(), name='alias_rpv_1'),
@@ -1439,7 +1439,7 @@ class TestAPI(ScrutinyUnitTest):
             self.assertEqual(ar.timeout, 100.1)
             self.assertEqual(ar.trigger_hold_time, 0.1)
             self.assertEqual(ar.x_axis_type, api_datalogging.XAxisType.IdealTime)
-            self.assertIsNone(ar.x_axis_watchable)
+            self.assertIsNone(ar.x_axis_signal)
             self.assertEqual(ar.trigger_condition.condition_id, api_datalogging.TriggerConditionID.Equal)
 
             self.assertEqual(ar.trigger_condition.operands[0].type, api_datalogging.TriggerConditionOperandType.LITERAL)
@@ -1447,15 +1447,15 @@ class TestAPI(ScrutinyUnitTest):
             self.assertEqual(ar.trigger_condition.operands[1].type, api_datalogging.TriggerConditionOperandType.WATCHABLE)
             self.assertIs(ar.trigger_condition.operands[1].value, var_entries[0])
 
-            self.assertIs(ar.watchables[0].entry, var_entries[1])
-            self.assertIs(ar.watchables[1].entry, alias_entries_var[0])
-            self.assertIs(ar.watchables[2].entry, alias_entries_rpv[0])
-            self.assertIs(ar.watchables[3].entry, rpv_entries[0])
+            self.assertIs(ar.signals[0].entry, var_entries[1])
+            self.assertIs(ar.signals[1].entry, alias_entries_var[0])
+            self.assertIs(ar.signals[2].entry, alias_entries_rpv[0])
+            self.assertIs(ar.signals[3].entry, rpv_entries[0])
 
-            self.assertEqual(ar.watchables[0].name, 'var1')
-            self.assertEqual(ar.watchables[1].name, 'alias_var_1')
-            self.assertEqual(ar.watchables[2].name, 'alias_rpv_1')
-            self.assertEqual(ar.watchables[3].name, 'rpv0')
+            self.assertEqual(ar.signals[0].name, 'var1')
+            self.assertEqual(ar.signals[1].name, 'alias_var_1')
+            self.assertEqual(ar.signals[2].name, 'alias_rpv_1')
+            self.assertEqual(ar.signals[3].name, 'rpv0')
 
             # conditions
             all_conditions = {
@@ -1494,43 +1494,43 @@ class TestAPI(ScrutinyUnitTest):
             req['x_axis_type'] = 'measured_time'
             ar = self.send_request_datalogging_acquisition_and_fetch_result(req)
             self.assertEqual(ar.x_axis_type, api_datalogging.XAxisType.MeasuredTime)
-            self.assertIsNone(ar.x_axis_watchable)
+            self.assertIsNone(ar.x_axis_signal)
 
             # watchable ok
             req = create_default_request()
-            req['x_axis_type'] = 'watchable'
-            req['x_axis_watchable'] = dict(name="hello", id=rpv_entries[1].get_id())
+            req['x_axis_type'] = 'signal'
+            req['x_axis_signal'] = dict(name="hello", id=rpv_entries[1].get_id())
             ar = self.send_request_datalogging_acquisition_and_fetch_result(req)
-            self.assertEqual(ar.x_axis_type, api_datalogging.XAxisType.Watchable)
-            self.assertIs(ar.x_axis_watchable.entry, rpv_entries[1])
-            self.assertEqual(ar.x_axis_watchable.name, 'hello')
+            self.assertEqual(ar.x_axis_type, api_datalogging.XAxisType.Signal)
+            self.assertIs(ar.x_axis_signal.entry, rpv_entries[1])
+            self.assertEqual(ar.x_axis_signal.name, 'hello')
 
             # watchable no name is ok
             req = create_default_request()
-            req['x_axis_type'] = 'watchable'
-            req['x_axis_watchable'] = dict(id=rpv_entries[1].get_id())
+            req['x_axis_type'] = 'signal'
+            req['x_axis_signal'] = dict(id=rpv_entries[1].get_id())
             ar = self.send_request_datalogging_acquisition_and_fetch_result(req)
-            self.assertEqual(ar.x_axis_type, api_datalogging.XAxisType.Watchable)
-            self.assertIs(ar.x_axis_watchable.entry, rpv_entries[1])
-            self.assertEqual(ar.x_axis_watchable.name, None)
+            self.assertEqual(ar.x_axis_type, api_datalogging.XAxisType.Signal)
+            self.assertIs(ar.x_axis_signal.entry, rpv_entries[1])
+            self.assertEqual(ar.x_axis_signal.name, None)
 
             # watchable bad format
             req = create_default_request()
-            req['x_axis_type'] = 'watchable'
-            req['x_axis_watchable'] = "bad format"
+            req['x_axis_type'] = 'signal'
+            req['x_axis_signal'] = "bad format"
             self.send_request(req)
             self.assert_is_error(self.wait_and_load_response())
 
             # watchable unknown ID
             req = create_default_request()
-            req['x_axis_type'] = 'watchable'
-            req['x_axis_watchable'] = dict(watchable='unknown_id')
+            req['x_axis_type'] = 'signal'
+            req['x_axis_signal'] = dict(watchable='unknown_id')
             self.send_request(req)
             self.assert_is_error(self.wait_and_load_response())
 
             # watchable is missing
             req = create_default_request()
-            req['x_axis_type'] = 'watchable'
+            req['x_axis_type'] = 'signal'
             self.send_request(req)
             self.assert_is_error(self.wait_and_load_response())
 
@@ -1542,7 +1542,7 @@ class TestAPI(ScrutinyUnitTest):
 
             # unknown watchable
             req = create_default_request()
-            req['watchables'][0]['id'] = 'unknown_id'
+            req['signals'][0]['id'] = 'unknown_id'
             self.send_request(req)
             self.assert_is_error(self.wait_and_load_response())
 
@@ -1590,7 +1590,7 @@ class TestAPI(ScrutinyUnitTest):
 
             for bad_watchable_format in ['meow', -1, 11, [1]]:   # Fake datalogging manager consider all sample rate id > 10 to be bad.
                 req = create_default_request()
-                req['watchables'][0] = bad_watchable_format
+                req['signals'][0] = bad_watchable_format
                 self.send_request(req)
                 self.assert_is_error(self.wait_and_load_response())
 

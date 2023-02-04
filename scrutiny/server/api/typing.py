@@ -200,9 +200,9 @@ class C2S:
         probe_location: float
         condition: DataloggingCondition
         operands: List[DataloggingOperand]
-        watchables: List[DataloggingAcquisitionRequestSignalDef]
-        x_axis_type: Literal['measured_time', 'ideal_time', 'watchable']
-        x_axis_watchable: Optional[str]
+        signals: List[DataloggingAcquisitionRequestSignalDef]
+        x_axis_type: Literal['measured_time', 'ideal_time', 'signal']
+        x_axis_signal: Optional[str]
 
     class ReadDataloggingAcquisition(BaseC2SMessage):
         reference_id: str

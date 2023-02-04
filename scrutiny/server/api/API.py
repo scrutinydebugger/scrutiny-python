@@ -754,7 +754,7 @@ class API:
             raise InvalidRequestException(req, 'Device is not ready to receive a request')
 
         FieldType = Literal['sampling_rate_id', 'decimation', 'timeout', 'trigger_hold_time',
-                            'probe_location', 'condition', 'operands', 'watchables', 'x_axis_type']
+                            'probe_location', 'condition', 'operands', 'signals', 'x_axis_type']
 
         required_fileds: Dict[FieldType, Type] = {
             'sampling_rate_id': int,
@@ -764,7 +764,7 @@ class API:
             'probe_location': float,
             'condition': str,
             'operands': list,
-            'watchables': list,
+            'signals': list,
             'x_axis_type': str
         }
 
@@ -810,31 +810,31 @@ class API:
         axis_type_map = {
             'ideal_time': api_datalogging.XAxisType.IdealTime,
             'measured_time': api_datalogging.XAxisType.MeasuredTime,
-            'watchable': api_datalogging.XAxisType.Watchable
+            'signal': api_datalogging.XAxisType.Signal
         }
 
         if req['x_axis_type'] not in axis_type_map:
             raise InvalidRequestException(req, 'Unsupported X Axis type')
         x_axis_type = axis_type_map[req['x_axis_type']]
         x_axis_entry: Optional[DatastoreEntry] = None
-        x_axis_watchable: Optional[api_datalogging.WatchableSignalDefinition] = None
-        if x_axis_type == api_datalogging.XAxisType.Watchable:
-            if 'x_axis_watchable' not in req or not isinstance(req['x_axis_watchable'], dict):
-                raise InvalidRequestException(req, 'Missing a valid x_axis_watchable required when x_axis_type=watchable')
+        x_axis_signal: Optional[api_datalogging.SignalDefinition] = None
+        if x_axis_type == api_datalogging.XAxisType.Signal:
+            if 'x_axis_signal' not in req or not isinstance(req['x_axis_signal'], dict):
+                raise InvalidRequestException(req, 'Missing a valid x_axis_signal required when x_axis_type=watchable')
 
-            if 'id' not in req['x_axis_watchable'] or not isinstance(req['x_axis_watchable']['id'], str):
-                raise InvalidRequestException(req, 'Missing x_axis_watchable.watchable field')
+            if 'id' not in req['x_axis_signal'] or not isinstance(req['x_axis_signal']['id'], str):
+                raise InvalidRequestException(req, 'Missing x_axis_signal.watchable field')
 
             try:
-                x_axis_entry = self.datastore.get_entry(req['x_axis_watchable']['id'])
+                x_axis_entry = self.datastore.get_entry(req['x_axis_signal']['id'])
             except:
                 pass
 
             if x_axis_entry is None:
-                raise InvalidRequestException(req, 'Cannot find watchable with given ID %s' % req['x_axis_watchable']['id'])
+                raise InvalidRequestException(req, 'Cannot find watchable with given ID %s' % req['x_axis_signal']['id'])
 
-            x_axis_watchable = api_datalogging.WatchableSignalDefinition(
-                name=None if 'name' not in req['x_axis_watchable'] else str(req['x_axis_watchable']['name']),
+            x_axis_signal = api_datalogging.SignalDefinition(
+                name=None if 'name' not in req['x_axis_signal'] else str(req['x_axis_signal']['name']),
                 entry=x_axis_entry
             )
 
@@ -862,11 +862,11 @@ class API:
             else:
                 raise InvalidRequestException(req, 'Unknown operand type')
 
-        watchables_to_log: List[api_datalogging.WatchableSignalDefinition] = []
-        if len(req['watchables']) == 0:
+        signals_to_log: List[api_datalogging.SignalDefinition] = []
+        if len(req['signals']) == 0:
             raise InvalidRequestException(req, 'Missing watchable to log')
 
-        for signal_def in req['watchables']:
+        for signal_def in req['signals']:
             if not isinstance(signal_def['id'], str):
                 raise InvalidRequestException(req, 'Invalid watchable ID')
 
@@ -882,7 +882,7 @@ class API:
             if signal_entry is None:
                 raise InvalidRequestException(req, "Cannot find watchable with given ID : %s" % signal_def['id'])
 
-            watchables_to_log.append(api_datalogging.WatchableSignalDefinition(
+            signals_to_log.append(api_datalogging.SignalDefinition(
                 name=signal_def['name'],
                 entry=signal_entry
             ))
@@ -894,12 +894,12 @@ class API:
             trigger_hold_time=req['trigger_hold_time'],
             probe_location=req['probe_location'],
             x_axis_type=x_axis_type,
-            x_axis_watchable=x_axis_watchable,
+            x_axis_signal=x_axis_signal,
             trigger_condition=api_datalogging.TriggerCondition(
                 condition_id=self.datalogging_supported_conditions[req['condition']].condition_id,
                 operands=operands
             ),
-            watchables=watchables_to_log,
+            signals=signals_to_log,
             completion_callback=api_datalogging.AcquisitionRequestCompletedCallback(lambda x, b: None)
         )
 

@@ -18,7 +18,7 @@ class XAxisType(Enum):
     """Represent a type of X-Axis that a user can select"""
     IdealTime = 0,
     MeasuredTime = 1,
-    Watchable = 2
+    Signal = 2
 
 
 @dataclass
@@ -130,7 +130,7 @@ class TriggerCondition:
 
 
 @dataclass
-class WatchableSignalDefinition:
+class SignalDefinition:
     name: Optional[str]
     entry: DatastoreEntry
 
@@ -144,6 +144,6 @@ class AcquisitionRequest:
     trigger_hold_time: float
     trigger_condition: TriggerCondition  # fixme
     x_axis_type: XAxisType
-    x_axis_watchable: Optional[WatchableSignalDefinition]
-    watchables: List[WatchableSignalDefinition]
+    x_axis_signal: Optional[SignalDefinition]
+    signals: List[SignalDefinition]
     completion_callback: AcquisitionRequestCompletedCallback

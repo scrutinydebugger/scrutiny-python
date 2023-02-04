@@ -132,19 +132,19 @@ class DataloggingManager:
 
         entry2signal_map: Dict[DatastoreEntry, int] = {}
 
-        all_watchables = request.watchables.copy()
+        all_signals = request.signals.copy()
 
-        if request.x_axis_type == api_datalogging.XAxisType.Watchable:
-            if not isinstance(request.x_axis_watchable, api_datalogging.WatchableSignalDefinition):
-                raise ValueError("X Axis must have a watchable entry")
-            all_watchables.append(request.x_axis_watchable)
+        if request.x_axis_type == api_datalogging.XAxisType.Signal:
+            if not isinstance(request.x_axis_signal, api_datalogging.SignalDefinition):
+                raise ValueError("X Axis must have a signal definition")
+            all_signals.append(request.x_axis_signal)
 
-        for watchable in all_watchables:
+        for signal in all_signals:
             entry_to_log: DatastoreEntry
-            if isinstance(watchable.entry, DatastoreAliasEntry):
-                entry_to_log = watchable.entry.refentry
+            if isinstance(signal.entry, DatastoreAliasEntry):
+                entry_to_log = signal.entry.refentry
             else:
-                entry_to_log = watchable.entry
+                entry_to_log = signal.entry
 
             if entry_to_log not in entry2signal_map:
                 config.add_signal(self.make_signal_from_watchable(entry_to_log))
@@ -152,7 +152,7 @@ class DataloggingManager:
             else:
                 signal_index = entry2signal_map[entry_to_log]
             entry2signal_map[entry_to_log] = signal_index
-            entry2signal_map[watchable.entry] = signal_index
+            entry2signal_map[signal.entry] = signal_index
 
         # Purposely add time at the end
         if request.x_axis_type == api_datalogging.XAxisType.MeasuredTime:
