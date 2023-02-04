@@ -778,6 +778,7 @@ class API:
             for rate in sampling_rates:
                 output_sampling_rates.append({
                     'identifier' : rate.device_identifier,
+                    'name' : rate.name,
                     'frequency' : rate.frequency,
                     'type' : rate_type_name_map[rate.rate_type]
                 })

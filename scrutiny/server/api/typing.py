@@ -109,6 +109,7 @@ class DataloggingOperand(TypedDict):
 
 class SamplingRate(TypedDict):
     type: Literal['fixed_freq', 'variable_freq']
+    name:str
     frequency: Optional[float]
     identifier: int
 

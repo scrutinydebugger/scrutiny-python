@@ -1162,14 +1162,17 @@ class TestAPI(ScrutinyUnitTest):
 
         self.assertEqual(len(capabilities['sampling_rates']), 3)
         self.assertEqual(capabilities['sampling_rates'][0]['identifier'], 0)
+        self.assertEqual(capabilities['sampling_rates'][0]['name'], 'Fixed Freq 1KHz')
         self.assertEqual(capabilities['sampling_rates'][0]['frequency'], 1000)
         self.assertEqual(capabilities['sampling_rates'][0]['type'], 'fixed_freq')
 
         self.assertEqual(capabilities['sampling_rates'][1]['identifier'], 1)
+        self.assertEqual(capabilities['sampling_rates'][1]['name'], 'Fixed Freq 10KHz')
         self.assertEqual(capabilities['sampling_rates'][1]['frequency'], 10000)
         self.assertEqual(capabilities['sampling_rates'][1]['type'], 'fixed_freq')
 
         self.assertEqual(capabilities['sampling_rates'][2]['identifier'], 2)
+        self.assertEqual(capabilities['sampling_rates'][2]['name'], 'Variable Freq')
         self.assertEqual(capabilities['sampling_rates'][2]['frequency'], None)
         self.assertEqual(capabilities['sampling_rates'][2]['type'], 'variable_freq')
 

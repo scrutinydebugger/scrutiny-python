@@ -69,6 +69,7 @@ class TestDataloggingIntegration(ScrutinyIntegrationTestWithTestSFD1):
             'cmd': API.Command.Client2Api.GET_DATALOGGING_CAPABILITIES
         }
 
+        self.send_request(req)
         response = cast(api_typing.S2C.GetDataloggingCapabilities, self.wait_and_load_response(
             cmd=API.Command.Api2Client.GET_DATALOGGING_CAPABILITIES_RESPONSE))
 
@@ -88,7 +89,7 @@ class TestDataloggingIntegration(ScrutinyIntegrationTestWithTestSFD1):
             loop = self.emulated_device.loops[i]
             if loop.support_datalogging:
                 loop_obj = {
-                    'id': i,
+                    'identifier': i,
                     'name': loop.get_name()
                 }
                 if isinstance(loop, FixedFreqLoop):
@@ -96,6 +97,7 @@ class TestDataloggingIntegration(ScrutinyIntegrationTestWithTestSFD1):
                     loop_obj['type'] = 'fixed_freq'
                 elif isinstance(loop, VariableFreqLoop):
                     loop_obj['type'] = 'variable_freq'
+                    loop_obj['frequency'] = None
                 else:
                     raise NotImplementedError('Unsupported loop type')
 
