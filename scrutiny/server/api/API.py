@@ -23,6 +23,7 @@ from scrutiny.core.variable import EmbeddedDataType
 from scrutiny.core.firmware_description import FirmwareDescription
 import scrutiny.server.datalogging.definitions.api as api_datalogging
 import scrutiny.server.datalogging.definitions.device as device_datalogging
+from scrutiny.server.device.device_info import ExecLoopType
 
 from .websocket_client_handler import WebsocketClientHandler
 from .dummy_client_handler import DummyClientHandler
@@ -94,7 +95,7 @@ class API:
             INFORM_SERVER_STATUS = 'inform_server_status'
             WRITE_VALUE_RESPONSE = 'response_write_value'
             INFORM_WRITE_COMPLETION = 'inform_write_completion'
-            GET_DATALOGGING_CAPABILITIES_RESPONSE = 'response_datalogging_capabilities'
+            GET_DATALOGGING_CAPABILITIES_RESPONSE = 'get_datalogging_capabilities_response'
             INFORM_NEW_DATALOGGING_ACQUISITION = 'inform_new_datalogging_acquisition'
             LIST_DATALOGGING_ACQUISITION_RESPONSE = 'list_datalogging_acquisition_response'
             REQUEST_DATALOGGING_ACQUISITION_RESPONSE = 'request_datalogging_acquisition_response'
@@ -204,6 +205,7 @@ class API:
         Command.Client2Api.SET_LINK_CONFIG: 'process_set_link_config',
         Command.Client2Api.GET_POSSIBLE_LINK_CONFIG: 'process_get_possible_link_config',
         Command.Client2Api.WRITE_VALUE: 'process_write_value',
+        Command.Client2Api.GET_DATALOGGING_CAPABILITIES : 'process_get_datalogging_capabilities',
         Command.Client2Api.REQUEST_DATALOGGING_ACQUISITION: 'process_datalogging_request_acquisition'
 
     }
@@ -745,6 +747,51 @@ class API:
             'cmd': self.Command.Api2Client.WRITE_VALUE_RESPONSE,
             'reqid': self.get_req_id(req),
             'watchables': [update['watchable'] for update in req['updates']]
+        }
+
+        self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
+
+    def process_get_datalogging_capabilities(self, conn_id: str, req: api_typing.C2S.GetDataloggingCapabilities) -> None:
+        setup =  self.datalogging_manager.get_device_setup()
+        sampling_rates = self.datalogging_manager.get_available_sampling_rates()
+
+        available:bool = True
+        if setup is None:
+            available = False
+        
+        if sampling_rates is None:
+            available = False
+
+        rate_type_name_map = {
+            ExecLoopType.FIXED_FREQ : 'fixed_freq',
+            ExecLoopType.VARIABLE_FREQ: 'variable_freq'
+        }
+
+        encoding_name_map = {
+            device_datalogging.Encoding.RAW : 'raw'
+        }
+
+        capabilities:Optional[api_typing.DataloggingCapabilities] = None
+        if available:
+            output_sampling_rates:List[api_typing.SamplingRate] = []
+            for rate in sampling_rates:
+                output_sampling_rates.append({
+                    'identifier' : rate.device_identifier,
+                    'frequency' : rate.frequency,
+                    'type' : rate_type_name_map[rate.rate_type]
+                })
+
+            capabilities = {
+                'buffer_size' : setup.buffer_size,
+                'encoding' : encoding_name_map[setup.encoding],
+                'max_nb_signal' : setup.max_signal_count,
+                'sampling_rates' : output_sampling_rates
+            }
+
+        response:api_typing.S2C.GetDataloggingCapabilities = {
+            'cmd' : API.Command.Api2Client.GET_DATALOGGING_CAPABILITIES_RESPONSE,
+            'available' : available,
+            'capabilities' : capabilities
         }
 
         self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))

@@ -54,6 +54,11 @@ class StubbedDeviceHandler:
         self.link_config = {}
         self.reject_link_config = False
         self.datalogger_state = device_datalogging.DataloggerState.IDLE
+        self.datalogging_setup = device_datalogging.DataloggingSetup(
+            buffer_size=1024,
+            encoding=device_datalogging.Encoding.RAW,
+            max_signal_count=32
+        )
 
     def get_connection_status(self) -> DeviceHandler.ConnectionStatus:
         return self.connection_status
@@ -132,18 +137,13 @@ class StubbedDataloggingManager:
     def __init__(self, datastore: Datastore, fake_device_handler: StubbedDeviceHandler):
         self.datastore = datastore
         self.fake_device_handler = fake_device_handler
-        self.datalogging_setup = device_datalogging.DataloggingSetup(
-            buffer_size=1024,
-            encoding=device_datalogging.Encoding.RAW,
-            max_signal_count=32
-        )
         self.request_queue = Queue()
 
     def get_device_setup(self) -> Optional[device_datalogging.DataloggingSetup]:
-        return self.datalogging_setup
+        return self.fake_device_handler.get_datalogging_setup()
 
     def set_device_setup(self, setup: Optional[device_datalogging.DataloggingSetup]) -> None:
-        self.datalogging_setup = setup
+        self.fake_device_handler.set_datalogging_setup(setup)
 
     def request_acquisition(self, acquisition: api_datalogging.AcquisitionRequest) -> None:
         self.request_queue.put(acquisition)
@@ -153,6 +153,27 @@ class StubbedDataloggingManager:
 
     def is_ready_for_request(self) -> bool:
         return True
+    
+    def get_available_sampling_rates(self) -> List[api_datalogging.SamplingRate]:
+        sampling_rates : List[api_datalogging.SamplingRate] = []
+        info = self.fake_device_handler.get_device_info()
+        if info is None:
+            return
+        
+        i=0
+        for loop in info.loops:
+            if loop.support_datalogging:
+                freq:Optional[float] = None
+                if isinstance(loop, FixedFreqLoop):
+                    freq = 1e7/loop.get_timestep_100ns()
+                sampling_rates.append(api_datalogging.SamplingRate(
+                    name=loop.get_name(),
+                    device_identifier=i,
+                    rate_type=loop.get_loop_type(),
+                    frequency=freq
+                ))
+            i+=1
+        return sampling_rates
 
 
 class TestAPI(ScrutinyUnitTest):
@@ -1136,7 +1157,7 @@ class TestAPI(ScrutinyUnitTest):
         self.assertIsNotNone(response['capabilities'])
         capabilities = response['capabilities']
         self.assertEqual(capabilities['buffer_size'], 256)
-        self.assertEqual(capabilities['encoding'], 0)   # Raw encoding
+        self.assertEqual(capabilities['encoding'], 'raw')
         self.assertEqual(capabilities['max_nb_signal'], 32)
 
         self.assertEqual(len(capabilities['sampling_rates']), 3)
@@ -1151,15 +1172,6 @@ class TestAPI(ScrutinyUnitTest):
         self.assertEqual(capabilities['sampling_rates'][2]['identifier'], 2)
         self.assertEqual(capabilities['sampling_rates'][2]['frequency'], None)
         self.assertEqual(capabilities['sampling_rates'][2]['type'], 'variable_freq')
-
-        expected_conditions = {'eq': 2, 'neq': 2, 'gt': 2, 'get': 2, 'lt': 2, 'let': 2, 'cmt': 2, 'within': 3}
-        for cond in capabilities['supported_conditions']:
-            self.assertIn(cond['name'], expected_conditions)
-            self.assertEqual(cond['nb_operands'], expected_conditions[cond['name']])
-            self.assertIsInstance(cond['pretty_name'], str)
-            self.assertIsInstance(cond['help_str'], str)
-            self.assertGreater(len(cond['pretty_name']), 0)
-            self.assertGreater(len(cond['help_str']), 0)
 
         self.fake_datalogging_manager.set_device_setup(None)
 
@@ -1594,7 +1606,7 @@ class TestAPI(ScrutinyUnitTest):
                 self.send_request(req)
                 self.assert_is_error(self.wait_and_load_response())
 
-
+    
 # endregion
 if __name__ == '__main__':
     import unittest

@@ -241,6 +241,9 @@ class DataloggingManager:
 
         # deinterleaved_data
 
+    def get_device_setup(self) -> device_datalogging.DataloggingSetup:
+        return self.device_handler.get_datalogging_setup()
+
     def get_available_sampling_freq(self) -> Optional[List[api_datalogging.SamplingRate]]:
         output: List[api_datalogging.SamplingRate] = []
 
