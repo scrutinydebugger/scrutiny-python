@@ -50,10 +50,7 @@ class DataloggingManager:
         )
 
     def is_valid_sample_rate_id(self, identifier: int) -> bool:
-        rates = self.get_available_sampling_rates()
-        if rates is None:
-            return False
-        for rate in rates:
+        for rate in self.get_available_sampling_rates():
             if rate.device_identifier == identifier:
                 return True
 
@@ -251,7 +248,7 @@ class DataloggingManager:
     def get_device_setup(self) -> Optional[device_datalogging.DataloggingSetup]:
         return self.device_handler.get_datalogging_setup()
 
-    def get_available_sampling_rates(self) -> Optional[List[api_datalogging.SamplingRate]]:
+    def get_available_sampling_rates(self) -> List[api_datalogging.SamplingRate]:
         output: List[api_datalogging.SamplingRate] = []
 
         if self.device_status == DeviceHandler.ConnectionStatus.CONNECTED_READY:
