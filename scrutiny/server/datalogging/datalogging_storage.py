@@ -252,7 +252,7 @@ class DataloggingStorageManager:
 
             rows = cursor.fetchall()
         if len(rows) == 0:
-            raise LookupError('Cannot find acquisition with ID %s' % reference_id)
+            raise LookupError('No acquisition identified by ID %s' % str(reference_id))
 
         acq = DataloggingAcquisition(
             reference_id=rows[0][colmap['reference_id']],
@@ -300,16 +300,21 @@ class DataloggingStorageManager:
                 """, (reference_id,))
 
             cursor.execute("DELETE FROM `acquisitions` WHERE reference_id=?", (reference_id,))
+            if cursor.rowcount == 0:
+                raise LookupError('No acquisition identified by ID %s' % str(reference_id))
 
             conn.commit()
 
-    def update_name_by_reference_id(self, reference_id: str, name: str):
+    def update_name_by_reference_id(self, reference_id: str, name: str) -> None:
         with self.get_session() as conn:
             cursor = conn.cursor()
 
             cursor.execute("""
             UPDATE `acquisitions` set `name`=? where `reference_id`=?
             """, (name, reference_id))
+
+            if cursor.rowcount == 0:
+                raise LookupError('No acquisition identified by ID %s' % str(reference_id))
 
             conn.commit()
 

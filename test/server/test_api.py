@@ -1233,7 +1233,7 @@ class TestAPI(ScrutinyUnitTest):
                 self.assertEqual(response['acquisitions'][2]['reference_id'], 'refid3')
                 self.assertEqual(response['acquisitions'][2]['timestamp'], 789)
                 self.assertEqual(response['acquisitions'][2]['name'], 'baz')
-                self.assertEqual(response['acquisitions'][2]['firmware_metadata'], sfd1.get_metadata())
+                self.assertEqual(response['acquisitions'][2]['firmware_metadata'], sfd2.get_metadata())
 
                 self.assertEqual(response['acquisitions'][3]['firmware_id'], "unknown_sfd")
                 self.assertEqual(response['acquisitions'][3]['reference_id'], 'refid4')
@@ -1248,7 +1248,9 @@ class TestAPI(ScrutinyUnitTest):
 
                 self.send_request(req)
                 response = cast(api_typing.S2C.ListDataloggingAcquisition, self.wait_and_load_response())
+                self.assert_no_error(response)
 
+                self.assertIn('acquisitions', response)
                 self.assertEqual(len(response['acquisitions']), 2)
                 self.assertEqual(response['acquisitions'][0]['firmware_id'], sfd1.get_firmware_id_ascii())
                 self.assertEqual(response['acquisitions'][0]['reference_id'], 'refid1')
@@ -1341,14 +1343,14 @@ class TestAPI(ScrutinyUnitTest):
             response = cast(api_typing.S2C.DeleteDataloggingAcquisition, self.wait_and_load_response())
             self.assert_no_error(response)
             self.assertEqual(DataloggingStorage.count(), 2)
-            with self.assertRaises(IndexError):
+            with self.assertRaises(LookupError):
                 DataloggingStorage.read('refid2')
 
             DataloggingStorage.read('refid1')
             DataloggingStorage.read('refid3')
 
             req: api_typing.C2S.DeleteDataloggingAcquisition = {
-                'cmd': 'update_datalogging_acquisition',
+                'cmd': 'delete_datalogging_acquisition',
                 'reference_id': 'bad_ref_id'
             }
 

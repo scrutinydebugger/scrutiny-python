@@ -124,7 +124,23 @@ class TestDataloggingStorage(ScrutinyUnitTest):
             self.assertEqual(DataloggingStorage.count(), 0)
             self.assertEqual(DataloggingStorage.list(), [])
 
-            DataloggingStorage.delete("aaaa")   # Assert no error on wrong ID. silent ignore
+    def test_bad_reference_id(self):
+        with DataloggingStorage.use_temp_storage():
+            with self.assertRaises(LookupError):
+                DataloggingStorage.update_name_by_reference_id(
+                    reference_id= 'inexistant_id',
+                    name='hello'
+                )
+    
+            with self.assertRaises(LookupError):
+                DataloggingStorage.delete(
+                    reference_id= 'inexistant_id'
+                )
+            
+            with self.assertRaises(LookupError):
+                DataloggingStorage.read(
+                    reference_id= 'inexistant_id'
+                )
 
 
 if __name__ == '__main__':

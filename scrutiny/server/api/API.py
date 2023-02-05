@@ -12,6 +12,7 @@ import traceback
 import math
 from dataclasses import dataclass
 
+from scrutiny.server.datalogging.datalogging_storage import DataloggingStorage
 from scrutiny.server.datalogging.datalogging_manager import DataloggingManager
 from scrutiny.server.datastore.datastore import Datastore
 from scrutiny.server.datastore.datastore_entry import EntryType, DatastoreEntry, UpdateTargetRequestCallback
@@ -75,7 +76,7 @@ class API:
             WRITE_VALUE = "write_value"
             GET_DATALOGGING_CAPABILITIES = 'get_datalogging_capabilities'
             REQUEST_DATALOGGING_ACQUISITION = 'request_datalogging_acquisition'
-            LIST_DATALOGGING_ACQUISITION = 'list_datalogging_acquisition'
+            LIST_DATALOGGING_ACQUISITION = 'list_datalogging_acquisitions'
             READ_DATALOGGING_ACQUISITION_DATA = 'read_datalogging_acquisition_data'
             UPDATE_DATALOGGING_ACQUISITION = 'update_datalogging_acquisition'
             DELETE_DATALOGGING_ACQUISITION = 'delete_datalogging_acquisition'
@@ -97,7 +98,7 @@ class API:
             INFORM_WRITE_COMPLETION = 'inform_write_completion'
             GET_DATALOGGING_CAPABILITIES_RESPONSE = 'get_datalogging_capabilities_response'
             INFORM_NEW_DATALOGGING_ACQUISITION = 'inform_new_datalogging_acquisition'
-            LIST_DATALOGGING_ACQUISITION_RESPONSE = 'list_datalogging_acquisition_response'
+            LIST_DATALOGGING_ACQUISITION_RESPONSE = 'list_datalogging_acquisitions_response'
             REQUEST_DATALOGGING_ACQUISITION_RESPONSE = 'request_datalogging_acquisition_response'
             READ_DATALOGGING_ACQUISITION_DATA_RESPONSE = 'read_datalogging_acquisition_data_response'
             UPDATE_DATALOGGING_ACQUISITION_RESPONSE = 'update_datalogging_acquisition_response'
@@ -206,7 +207,10 @@ class API:
         Command.Client2Api.GET_POSSIBLE_LINK_CONFIG: 'process_get_possible_link_config',
         Command.Client2Api.WRITE_VALUE: 'process_write_value',
         Command.Client2Api.GET_DATALOGGING_CAPABILITIES : 'process_get_datalogging_capabilities',
-        Command.Client2Api.REQUEST_DATALOGGING_ACQUISITION: 'process_datalogging_request_acquisition'
+        Command.Client2Api.REQUEST_DATALOGGING_ACQUISITION: 'process_datalogging_request_acquisition',
+        Command.Client2Api.LIST_DATALOGGING_ACQUISITION: 'process_list_datalogging_acquisition',
+        Command.Client2Api.UPDATE_DATALOGGING_ACQUISITION: 'process_update_datalogging_acquisition',
+        Command.Client2Api.DELETE_DATALOGGING_ACQUISITION: 'process_delete_datalogging_acquisition'
 
     }
 
@@ -961,6 +965,91 @@ class API:
         }
 
         self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
+
+    def process_list_datalogging_acquisition(self, conn_id: str, req: api_typing.C2S.ListDataloggingAcquisitions) -> None:
+        
+        firmware_id:Optional[str] = None
+        if 'firmware_id' in req:
+            if not isinstance(req['firmware_id'], str) and req['firmware_id'] is not None:
+                raise InvalidRequestException(req, 'Invalid firmware ID')
+            firmware_id = req['firmware_id']
+        acquisitions:List[api_typing.DataloggingAcquisitionMetadata] = []
+
+        reference_id_list = DataloggingStorage.list(firmware_id=firmware_id)
+
+        for reference_id in reference_id_list:
+            acq = DataloggingStorage.read(reference_id)
+            firmware_metadata:Optional[api_typing.SFDMetadata] = None
+            if SFDStorage.is_installed(acq.firmware_id):
+                firmware_metadata = SFDStorage.get_metadata(acq.firmware_id)
+            acquisitions.append({
+                'firmware_id' : acq.firmware_id,
+                'name' : acq.name,
+                'timestamp' : acq.timestamp,
+                'reference_id' : reference_id,
+                'firmware_metadata' : firmware_metadata
+                })
+
+
+        response : api_typing.S2C.ListDataloggingAcquisition = {
+            'cmd' : API.Command.Api2Client.LIST_DATALOGGING_ACQUISITION_RESPONSE,
+            'reqid' : self.get_req_id(req),
+            'acquisitions' : acquisitions
+        }
+
+        self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
+
+
+    def process_update_datalogging_acquisition(self, conn_id: str, req: api_typing.C2S.UpdateDataloggingAcquisition) -> None:
+        if 'reference_id' not in req:
+            raise InvalidRequestException(req, 'Missing acquisition reference ID')
+        
+        if not isinstance(req['reference_id'], str):
+            raise InvalidRequestException(req, 'Invalid reference ID')
+
+        if 'name' in req:
+            if not isinstance(req['name'], str):
+                raise InvalidRequestException(req, 'Invalid name') 
+
+            err:Optional[Exception] = None
+            try:
+                DataloggingStorage.update_name_by_reference_id(req['reference_id'], req['name'])
+            except LookupError as e:
+                err = e
+            
+            if err:
+                raise InvalidRequestException(req, "Failed to update record. %s" % (str(err)))
+
+        response : api_typing.S2C.UpdateDataloggingAcquisition = {
+            'cmd' : API.Command.Api2Client.LIST_DATALOGGING_ACQUISITION_RESPONSE,
+            'reqid' : self.get_req_id(req)
+        }
+
+        self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
+
+    def process_delete_datalogging_acquisition(self, conn_id: str, req: api_typing.C2S.DeleteDataloggingAcquisition) -> None:
+        if 'reference_id' not in req:
+            raise InvalidRequestException(req, 'Missing acquisition reference ID')
+        
+        if not isinstance(req['reference_id'], str):
+            raise InvalidRequestException(req, 'Invalid reference ID')
+
+        err:Optional[Exception] = None
+        try:
+            DataloggingStorage.delete(req['reference_id'])
+        except LookupError as e:
+            err = e
+        
+        if err:
+            raise InvalidRequestException(req, "Failed to delete record. %s" % (str(err)))
+
+        response : api_typing.S2C.DeleteDataloggingAcquisition = {
+            'cmd' : API.Command.Api2Client.LIST_DATALOGGING_ACQUISITION_RESPONSE,
+            'reqid' : self.get_req_id(req),   
+        }
+
+        self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
+
 
     def craft_inform_server_status_response(self, reqid: Optional[int] = None) -> api_typing.S2C.InformServerStatus:
         # Make a Server to client message that inform the actual state of the server

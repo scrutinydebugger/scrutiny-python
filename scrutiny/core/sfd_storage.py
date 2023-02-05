@@ -105,7 +105,7 @@ class SFDStorageManager:
         """Tells if a SFD file with given ID exists in global storage"""
         firmwareid = self.clean_firmware_id(firmwareid)
         if not self.is_valid_firmware_id(firmwareid):
-            raise ValueError('Invalid firmware ID')
+            return False
 
         storage = self.get_storage_dir()
         filename = os.path.join(storage, firmwareid)

@@ -129,7 +129,7 @@ class DataloggingAcquisitionRequestSignalDef(TypedDict):
 class DataloggingAcquisitionMetadata(TypedDict):
     reference_id: str
     name: Optional[str]
-    timestamp: int
+    timestamp: float
     firmware_id: str
     firmware_metadata: Optional[SFDMetadata]
 
