@@ -117,14 +117,18 @@ class TestDataloggingIntegration(ScrutinyIntegrationTestWithTestSFD1):
                     'firmware_id': self.sfd.get_firmware_id_ascii()
                 })
                 response = self.wait_and_load_response(API.Command.Api2Client.LIST_DATALOGGING_ACQUISITION_RESPONSE)
+                self.assert_no_error(response)
                 response = cast(api_typing.S2C.ListDataloggingAcquisition, response)
-                self.assertEqual(response['acquisitions'], iteration)
+                self.assertEqual(len(response['acquisitions']), iteration)
 
                 # Request acquisition
                 loop_id = 1
+                self.assertGreater(len(self.emulated_device.loops), loop_id)
+                self.assertTrue(self.emulated_device.loops[loop_id].support_datalogging)
+                
                 decimation = 2
-                req: api_typing.C2S.RequestAcquisition = {
-                    'cmd': API.Command.Client2Api.REQUEST_ACQUISITION,
+                req: api_typing.C2S.RequestDataloggingAcquisition = {
+                    'cmd': API.Command.Client2Api.REQUEST_DATALOGGING_ACQUISITION,
                     'reqid': 123,
                     'name': 'potato',
                     'decimation': decimation,
@@ -142,14 +146,14 @@ class TestDataloggingIntegration(ScrutinyIntegrationTestWithTestSFD1):
                             'type': 'literal',
                             'value': 1234
                         }],
-                    'watchables': [
+                    'signals': [
                         dict(id=self.entry_u32.get_id(), name='u32'),
                         dict(id=self.entry_float32.get_id(), name='f32'),
                         dict(id=self.entry_alias_rpv1000.get_id(), name='rpv1000'),
                         dict(id=self.entry_alias_uint8.get_id(), name='u8')
                     ],
                     'x_axis_type': 'measured_time',
-                    'x_axis_watchable': None,    # We use time
+                    'x_axis_signal': None,    # We use time
                 }
 
                 self.assertEqual(self.emulated_device.get_rpv_definition(0x1000).datatype, EmbeddedDataType.float64)
@@ -193,7 +197,8 @@ class TestDataloggingIntegration(ScrutinyIntegrationTestWithTestSFD1):
                 self.emulated_device.add_additional_task(ValueUpdateTask(self))  # Will be run in device thread
 
                 self.send_request(req)  # Send the acquisition request here
-                response = cast(api_typing.S2C.RequestAcquisition, self.wait_and_load_response(API.Command.Api2Client.REQUEST_ACQUISITION_RESPONSE))
+                response = cast(api_typing.S2C.RequestDataloggingAcquisition, self.wait_and_load_response(API.Command.Api2Client.REQUEST_DATALOGGING_ACQUISITION_RESPONSE))
+                self.assert_no_error(response)
                 self.assertTrue(response['reqid'], 123)  # echo of request
                 self.assertTrue(response['accepted'])
 
@@ -206,6 +211,7 @@ class TestDataloggingIntegration(ScrutinyIntegrationTestWithTestSFD1):
                 self.assertTrue(self.emulated_device.datalogger.triggered())
 
                 response = self.wait_and_load_response(cmd=API.Command.Api2Client.INFORM_NEW_DATALOGGING_ACQUISITION, timeout=2.0)
+                self.assert_no_error(response)
                 response = cast(api_typing.S2C.InformNewDataloggingAcquisition, response)
                 acq_refid = response['reference_id']
 
@@ -216,6 +222,7 @@ class TestDataloggingIntegration(ScrutinyIntegrationTestWithTestSFD1):
                 })
 
                 response = self.wait_and_load_response(cmd=API.Command.Api2Client.LIST_DATALOGGING_ACQUISITION_RESPONSE)
+                self.assert_no_error(response)
                 response = cast(api_typing.S2C.ListDataloggingAcquisition, response)
 
                 self.assertEqual(response['acquisitions'], iteration + 1)
@@ -227,20 +234,21 @@ class TestDataloggingIntegration(ScrutinyIntegrationTestWithTestSFD1):
 
                 # Let's read the content of that single acquisition
                 self.send_request({
-                    'cmd': API.Command.Client2Api.READ_DATALOGGING_ACQUISITION_DATA,
+                    'cmd': API.Command.Client2Api.READ_DATALOGGING_ACQUISITION_CONTENT,
                     'reqid': 456,
                     'reference_id': acq_refid
                 })
 
-                response = self.wait_and_load_response(cmd=API.Command.Api2Client.READ_DATALOGGING_ACQUISITION_RESPONSE)
-                response = cast(api_typing.S2C.ReadDataloggingAcquisition, response)
+                response = self.wait_and_load_response(cmd=API.Command.Api2Client.READ_DATALOGGING_ACQUISITION_CONTENT_RESPONSE)
+                self.assert_no_error(response)
+                response = cast(api_typing.S2C.ReadDataloggingAcquisitionContent, response)
 
-                self.assertEqual(response['acquisition']['reference_id'], acq_refid)
-                self.assertEqual(len(response['acquisition']['signals']), 4)
+                self.assertEqual(response['reference_id'], acq_refid)
+                self.assertEqual(len(response['signals']), 4)
 
                 # Check that all signals has the same number of points, including x axis
-                all_signals = response['acquisition']['signals']
-                all_signals.append(response['acquisition']['xaxis'])
+                all_signals = response['signals']
+                all_signals.append(response['xaxis'])
                 nb_points = None
                 for signal in all_signals:
                     if nb_points is None:
@@ -248,24 +256,24 @@ class TestDataloggingIntegration(ScrutinyIntegrationTestWithTestSFD1):
                     else:
                         self.assertEqual(len(signal), nb_points)
 
-                self.assertEqual(response['acquisition']['xaxis']['name'], 'time')
-                self.assertEqual(response['acquisition']['signals'][0]['name'], 'u32')
-                self.assertEqual(response['acquisition']['signals'][1]['name'], 'f32')
-                self.assertEqual(response['acquisition']['signals'][2]['name'], 'rpv1000')
-                self.assertEqual(response['acquisition']['signals'][3]['name'], 'u8')
+                self.assertEqual(response['xaxis']['name'], 'time')
+                self.assertEqual(response['signals'][0]['name'], 'u32')
+                self.assertEqual(response['signals'][1]['name'], 'f32')
+                self.assertEqual(response['signals'][2]['name'], 'rpv1000')
+                self.assertEqual(response['signals'][3]['name'], 'u8')
 
-                timediff = diff(response['acquisition']['xaxis']['data'])
+                timediff = diff(response['xaxis']['data'])
                 for val in timediff:
                     self.assertGreater(val, 0)  # Time should always increase
 
-                sig = response['acquisition']['signals'][0]['data']
+                sig = response['signals'][0]['data']
                 expected_val = sig[0]
                 for val in sig:
                     self.assertEqual(expected_val, val)
                     expected_val = (expected_val + 10 * decimation) & 0xFFFFFFFF
 
                 self.assertLess(decimation, 4)  # required for this test to work
-                sig = response['acquisition']['signals'][1]['data']
+                sig = response['signals'][1]['data']
                 expected_val = sig[0]
                 self.assertTrue(expected_val in [0, 100, 200, 300])
                 for val in sig:
@@ -274,13 +282,13 @@ class TestDataloggingIntegration(ScrutinyIntegrationTestWithTestSFD1):
                     if expected_val > 300:
                         expected_val -= 400
 
-                sig = response['acquisition']['signals'][2]['data']
+                sig = response['signals'][2]['data']
                 expected_val = sig[0]
                 for val in sig:
                     self.assertEqual(expected_val, val)
                     expected_val = expected_val + decimation * 5
 
-                sig = response['acquisition']['signals'][3]['data']
+                sig = response['signals'][3]['data']
                 expected_val = sig[0]
                 for val in sig:
                     self.assertEqual(expected_val, val)

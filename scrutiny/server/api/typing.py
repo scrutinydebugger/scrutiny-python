@@ -139,13 +139,6 @@ class DataloggingSignalData(TypedDict):
     data: List[float]
     logged_element: str
 
-
-class DataloggingAcquisitionData(TypedDict):
-    reference_id: str
-    signals: List[DataloggingSignalData]
-    xaxis: DataloggingSignalData
-
-
 class DataloggingCapabilities(TypedDict):
     encoding: Literal['raw']
     buffer_size: int
@@ -204,7 +197,7 @@ class C2S:
         x_axis_type: Literal['measured_time', 'ideal_time', 'signal']
         x_axis_signal: Optional[str]
 
-    class ReadDataloggingAcquisition(BaseC2SMessage):
+    class ReadDataloggingAcquisitionContent(BaseC2SMessage):
         reference_id: str
 
     class ListDataloggingAcquisitions(BaseC2SMessage):
@@ -285,8 +278,10 @@ class S2C:
     class ListDataloggingAcquisition(BaseS2CMessage):
         acquisitions: List[DataloggingAcquisitionMetadata]
 
-    class ReadDataloggingAcquisitionData(BaseS2CMessage):
-        acquisition: DataloggingAcquisitionData
+    class ReadDataloggingAcquisitionContent(BaseS2CMessage):
+        reference_id: str
+        signals: List[DataloggingSignalData]
+        xaxis: DataloggingSignalData
 
     class UpdateDataloggingAcquisition(BaseS2CMessage):
         pass
@@ -309,7 +304,7 @@ C2SMessage = Union[
     C2S.WriteValue,
     C2S.GetDataloggingCapabilities,
     C2S.RequestDataloggingAcquisition,
-    C2S.ReadDataloggingAcquisition,
+    C2S.ReadDataloggingAcquisitionContent,
     C2S.ListDataloggingAcquisitions,
     C2S.UpdateDataloggingAcquisition,
     C2S.DeleteDataloggingAcquisition
@@ -334,6 +329,6 @@ S2CMessage = Union[
     S2C.RequestDataloggingAcquisition,
     S2C.InformNewDataloggingAcquisition,
     S2C.ListDataloggingAcquisition,
-    S2C.ReadDataloggingAcquisitionData,
+    S2C.ReadDataloggingAcquisitionContent,
     S2C.DeleteDataloggingAcquisition
 ]

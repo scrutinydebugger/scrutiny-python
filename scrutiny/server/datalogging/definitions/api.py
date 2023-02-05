@@ -77,8 +77,8 @@ class DataloggingAcquisition:
     timestamp: float
     """Timestamp at which the acquisition has been taken"""
 
-    xaxis: Optional[DataSeries]
-    """The series of data that represent to X-Axis"""
+    xaxis: DataSeries
+    """The series of data that represent the X-Axis"""
 
     data: List[DataSeries]
     """List of data series acquired"""
@@ -87,7 +87,7 @@ class DataloggingAcquisition:
         self.reference_id = reference_id if reference_id is not None else self.make_unique_id()
         self.firmware_id = firmware_id
         self.timestamp = time.time() if timestamp is None else timestamp
-        self.xaxis = None
+        self.xaxis = DataSeries()
         self.name = name
         self.data = []
 

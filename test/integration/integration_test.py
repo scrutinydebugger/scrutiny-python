@@ -166,6 +166,9 @@ class ScrutinyIntegrationTest(ScrutinyUnitTest):
             else:
                 if isinstance(cmd, str):
                     cmd = [cmd]
+                
+                if API.Command.Api2Client.ERROR_RESPONSE not in cmd and response['cmd'] == API.Command.Api2Client.ERROR_RESPONSE:
+                    return response
                 self.assertIn('cmd', response)
                 if response['cmd'] in cmd:
                     rcv_counter += 1

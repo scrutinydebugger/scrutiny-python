@@ -1357,7 +1357,7 @@ class TestAPI(ScrutinyUnitTest):
             self.send_request(req)
             self.assert_is_error(self.wait_and_load_response())
 
-    def test_read_datalogging_acquisition_data(self):
+    def test_read_datalogging_acquisition_content(self):
         with DataloggingStorage.use_temp_storage():
             acq = api_datalogging.DataloggingAcquisition(firmware_id='some_firmware_id', reference_id="refid1", timestamp=123, name="foo")
             acq.set_xaxis(api_datalogging.DataSeries([0, 1, 2, 3, 4, 5, 6, 7, 8, 9], name='the x-axis', logged_element='/var/xaxis'))
@@ -1365,36 +1365,36 @@ class TestAPI(ScrutinyUnitTest):
             acq.add_data(api_datalogging.DataSeries([100, 200, 300, 400, 500, 600, 700, 800, 900], name='serie 2', logged_element='/var/data2'))
             DataloggingStorage.save(acq)
 
-            req: api_typing.C2S.ReadDataloggingAcquisition = {
-                'cmd': 'read_datalogging_acquisition_data',
+            req: api_typing.C2S.ReadDataloggingAcquisitionContent = {
+                'cmd': 'read_datalogging_acquisition_content',
                 'reference_id': 'refid1'
             }
 
             self.send_request(req)
-            response = cast(api_typing.S2C.ReadDataloggingAcquisitionData, self.wait_and_load_response())
+            response = cast(api_typing.S2C.ReadDataloggingAcquisitionContent, self.wait_and_load_response())
             self.assert_no_error(response)
 
-            self.assertEqual(len(response['acquisition']['signals']), 2)
+            self.assertEqual(len(response['signals']), 2)
 
-            self.assertEqual(response['acquisition']['xaxis']['name'], 'the x-axis')
-            self.assertEqual(response['acquisition']['xaxis']['data'], [0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
-            self.assertEqual(response['acquisition']['xaxis']['logged_element'], '/var/xaxis')
+            self.assertEqual(response['xaxis']['name'], 'the x-axis')
+            self.assertEqual(response['xaxis']['data'], [0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
+            self.assertEqual(response['xaxis']['logged_element'], '/var/xaxis')
 
-            self.assertEqual(response['acquisition']['signals'][0]['name'], 'serie 1')
-            self.assertEqual(response['acquisition']['signals'][0]['data'], [10, 20, 30, 40, 50, 60, 70, 80, 90])
-            self.assertEqual(response['acquisition']['signals'][0]['logged_element'], '/var/data1')
+            self.assertEqual(response['signals'][0]['name'], 'serie 1')
+            self.assertEqual(response['signals'][0]['data'], [10, 20, 30, 40, 50, 60, 70, 80, 90])
+            self.assertEqual(response['signals'][0]['logged_element'], '/var/data1')
 
-            self.assertEqual(response['acquisition']['signals'][1]['name'], 'serie 2')
-            self.assertEqual(response['acquisition']['signals'][1]['data'], [100, 200, 300, 400, 500, 600, 700, 800, 900])
-            self.assertEqual(response['acquisition']['signals'][1]['logged_element'], '/var/data2')
+            self.assertEqual(response['signals'][1]['name'], 'serie 2')
+            self.assertEqual(response['signals'][1]['data'], [100, 200, 300, 400, 500, 600, 700, 800, 900])
+            self.assertEqual(response['signals'][1]['logged_element'], '/var/data2')
 
-            req: api_typing.C2S.ReadDataloggingAcquisition = {
-                'cmd': 'read_datalogging_acquisition_data',
+            req: api_typing.C2S.ReadDataloggingAcquisitionContent = {
+                'cmd': 'read_datalogging_acquisition',
                 'reference_id': 'bad_id'
             }
 
             self.send_request(req)
-            response = cast(api_typing.S2C.ReadDataloggingAcquisitionData, self.wait_and_load_response())
+            response = cast(api_typing.S2C.ReadDataloggingAcquisitionContent, self.wait_and_load_response())
             self.assert_is_error(response)
 
     def send_request_datalogging_acquisition_and_fetch_result(self, req: api_typing.C2S.RequestDataloggingAcquisition) -> api_datalogging.AcquisitionRequest:

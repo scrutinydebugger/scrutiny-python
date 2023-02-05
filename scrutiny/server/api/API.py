@@ -77,7 +77,7 @@ class API:
             GET_DATALOGGING_CAPABILITIES = 'get_datalogging_capabilities'
             REQUEST_DATALOGGING_ACQUISITION = 'request_datalogging_acquisition'
             LIST_DATALOGGING_ACQUISITION = 'list_datalogging_acquisitions'
-            READ_DATALOGGING_ACQUISITION_DATA = 'read_datalogging_acquisition_data'
+            READ_DATALOGGING_ACQUISITION_CONTENT = 'read_datalogging_acquisition_content'
             UPDATE_DATALOGGING_ACQUISITION = 'update_datalogging_acquisition'
             DELETE_DATALOGGING_ACQUISITION = 'delete_datalogging_acquisition'
             DEBUG = 'debug'
@@ -100,7 +100,7 @@ class API:
             INFORM_NEW_DATALOGGING_ACQUISITION = 'inform_new_datalogging_acquisition'
             LIST_DATALOGGING_ACQUISITION_RESPONSE = 'list_datalogging_acquisitions_response'
             REQUEST_DATALOGGING_ACQUISITION_RESPONSE = 'request_datalogging_acquisition_response'
-            READ_DATALOGGING_ACQUISITION_DATA_RESPONSE = 'read_datalogging_acquisition_data_response'
+            READ_DATALOGGING_ACQUISITION_CONTENT_RESPONSE = 'read_datalogging_acquisition_content_response'
             UPDATE_DATALOGGING_ACQUISITION_RESPONSE = 'update_datalogging_acquisition_response'
             DELETE_DATALOGGING_ACQUISITION_RESPONSE = 'delete_datalogging_acquisition_response'
             ERROR_RESPONSE = 'error'
@@ -210,7 +210,8 @@ class API:
         Command.Client2Api.REQUEST_DATALOGGING_ACQUISITION: 'process_datalogging_request_acquisition',
         Command.Client2Api.LIST_DATALOGGING_ACQUISITION: 'process_list_datalogging_acquisition',
         Command.Client2Api.UPDATE_DATALOGGING_ACQUISITION: 'process_update_datalogging_acquisition',
-        Command.Client2Api.DELETE_DATALOGGING_ACQUISITION: 'process_delete_datalogging_acquisition'
+        Command.Client2Api.DELETE_DATALOGGING_ACQUISITION: 'process_delete_datalogging_acquisition',
+        Command.Client2Api.READ_DATALOGGING_ACQUISITION_CONTENT: 'process_read_datalogging_acquisition_content'
 
     }
 
@@ -1018,7 +1019,7 @@ class API:
                 err = e
             
             if err:
-                raise InvalidRequestException(req, "Failed to update record. %s" % (str(err)))
+                raise InvalidRequestException(req, "Failed to update acquisition. %s" % (str(err)))
 
         response : api_typing.S2C.UpdateDataloggingAcquisition = {
             'cmd' : API.Command.Api2Client.LIST_DATALOGGING_ACQUISITION_RESPONSE,
@@ -1041,7 +1042,7 @@ class API:
             err = e
         
         if err:
-            raise InvalidRequestException(req, "Failed to delete record. %s" % (str(err)))
+            raise InvalidRequestException(req, "Failed to delete acquisition. %s" % (str(err)))
 
         response : api_typing.S2C.DeleteDataloggingAcquisition = {
             'cmd' : API.Command.Api2Client.LIST_DATALOGGING_ACQUISITION_RESPONSE,
@@ -1050,6 +1051,44 @@ class API:
 
         self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
 
+    def process_read_datalogging_acquisition_content(self, conn_id: str, req: api_typing.C2S.ReadDataloggingAcquisitionContent) -> None:
+        if 'reference_id' not in req:
+            raise InvalidRequestException(req, 'Missing acquisition reference ID')
+        
+        if not isinstance(req['reference_id'], str):
+            raise InvalidRequestException(req, 'Invalid reference ID')
+        
+        err:Optional[Exception] = None
+        acquisition:api_datalogging.DataloggingAcquisition
+        try:
+            acquisition = DataloggingStorage.read(req['reference_id'])
+        except LookupError as e:
+            err = e
+        
+        if err:
+            raise InvalidRequestException(req, "Failed to read acquisition. %s" % (str(err)))
+
+        def dataserie_to_api_signal_data(dataseries:api_datalogging.DataSeries) -> api_typing.DataloggingSignalData:
+            signal : api_typing.DataloggingSignalData = {
+                'name' : dataseries.name,
+                'logged_element' : dataseries.logged_element,
+                'data' : dataseries.get_data()
+            }
+            return signal
+        
+        signals:List[api_typing.DataloggingSignalData] = []
+        for dataserie in  acquisition.get_data():
+            signals.append(dataserie_to_api_signal_data(dataserie))
+
+        response : api_typing.S2C.ReadDataloggingAcquisitionContent = {
+            'cmd' : API.Command.Api2Client.LIST_DATALOGGING_ACQUISITION_RESPONSE,
+            'reqid' : self.get_req_id(req),
+            'reference_id' : acquisition.reference_id,
+            'signals' : signals,
+            'xaxis' : dataserie_to_api_signal_data(acquisition.xaxis)
+        }
+
+        self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
 
     def craft_inform_server_status_response(self, reqid: Optional[int] = None) -> api_typing.S2C.InformServerStatus:
         # Make a Server to client message that inform the actual state of the server

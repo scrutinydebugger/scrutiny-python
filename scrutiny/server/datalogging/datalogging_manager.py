@@ -50,7 +50,14 @@ class DataloggingManager:
         )
 
     def is_valid_sample_rate_id(self, identifier: int) -> bool:
-        return False    # todo
+        rates = self.get_available_sampling_rates()
+        if rates is None:
+            return False
+        for rate in rates:
+            if rate.device_identifier == identifier:
+                return True
+
+        return False 
 
     def is_ready_for_request(self) -> bool:
         return True  # todo
@@ -262,5 +269,5 @@ class DataloggingManager:
                             )
                             if isinstance(loop, FixedFreqLoop):
                                 rate.frequency = loop.get_frequency()
-                            output.append(rate)
+                            output.append(rate)                           
         return output
