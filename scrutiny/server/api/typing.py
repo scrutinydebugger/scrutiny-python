@@ -109,7 +109,7 @@ class DataloggingOperand(TypedDict):
 
 class SamplingRate(TypedDict):
     type: Literal['fixed_freq', 'variable_freq']
-    name:str
+    name: str
     frequency: Optional[float]
     identifier: int
 
@@ -138,6 +138,7 @@ class DataloggingSignalData(TypedDict):
     name: str
     data: List[float]
     logged_element: str
+
 
 class DataloggingCapabilities(TypedDict):
     encoding: Literal['raw']
@@ -186,6 +187,7 @@ class C2S:
         pass
 
     class RequestDataloggingAcquisition(BaseC2SMessage):
+        name: Optional[str]
         sampling_rate_id: int
         decimation: int
         timeout: float
@@ -270,7 +272,8 @@ class S2C:
         capabilities: Optional[DataloggingCapabilities]
 
     class RequestDataloggingAcquisition(BaseS2CMessage):
-        pass
+        success: bool
+        reference_id: Optional[str]
 
     class InformNewDataloggingAcquisition(BaseS2CMessage):
         reference_id: str

@@ -11,6 +11,7 @@ import logging
 import traceback
 import math
 from dataclasses import dataclass
+import functools
 
 from scrutiny.server.datalogging.datalogging_storage import DataloggingStorage
 from scrutiny.server.datalogging.datalogging_manager import DataloggingManager
@@ -206,7 +207,7 @@ class API:
         Command.Client2Api.SET_LINK_CONFIG: 'process_set_link_config',
         Command.Client2Api.GET_POSSIBLE_LINK_CONFIG: 'process_get_possible_link_config',
         Command.Client2Api.WRITE_VALUE: 'process_write_value',
-        Command.Client2Api.GET_DATALOGGING_CAPABILITIES : 'process_get_datalogging_capabilities',
+        Command.Client2Api.GET_DATALOGGING_CAPABILITIES: 'process_get_datalogging_capabilities',
         Command.Client2Api.REQUEST_DATALOGGING_ACQUISITION: 'process_datalogging_request_acquisition',
         Command.Client2Api.LIST_DATALOGGING_ACQUISITION: 'process_list_datalogging_acquisition',
         Command.Client2Api.UPDATE_DATALOGGING_ACQUISITION: 'process_update_datalogging_acquisition',
@@ -757,49 +758,49 @@ class API:
         self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
 
     def process_get_datalogging_capabilities(self, conn_id: str, req: api_typing.C2S.GetDataloggingCapabilities) -> None:
-        setup =  self.datalogging_manager.get_device_setup()
+        setup = self.datalogging_manager.get_device_setup()
         sampling_rates = self.datalogging_manager.get_available_sampling_rates()
 
-        available:bool = True
+        available: bool = True
         if setup is None:
             available = False
-        
+
         if sampling_rates is None:
             available = False
 
-        rate_type_name_map:Dict[ExecLoopType, Literal['fixed_freq', 'variable_freq']] = {
-            ExecLoopType.FIXED_FREQ : 'fixed_freq',
+        rate_type_name_map: Dict[ExecLoopType, Literal['fixed_freq', 'variable_freq']] = {
+            ExecLoopType.FIXED_FREQ: 'fixed_freq',
             ExecLoopType.VARIABLE_FREQ: 'variable_freq'
         }
 
-        encoding_name_map:Dict[device_datalogging.Encoding, Literal['raw']] = {
-            device_datalogging.Encoding.RAW : 'raw'
+        encoding_name_map: Dict[device_datalogging.Encoding, Literal['raw']] = {
+            device_datalogging.Encoding.RAW: 'raw'
         }
 
         if available:
             assert sampling_rates is not None
             assert setup is not None
-            output_sampling_rates:List[api_typing.SamplingRate] = []
+            output_sampling_rates: List[api_typing.SamplingRate] = []
             for rate in sampling_rates:
                 output_sampling_rates.append({
-                    'identifier' : rate.device_identifier,
-                    'name' : rate.name,
-                    'frequency' : rate.frequency,
-                    'type' : rate_type_name_map[rate.rate_type]
+                    'identifier': rate.device_identifier,
+                    'name': rate.name,
+                    'frequency': rate.frequency,
+                    'type': rate_type_name_map[rate.rate_type]
                 })
 
-            capabilities:api_typing.DataloggingCapabilities = {
-                'buffer_size' : setup.buffer_size,
-                'encoding' : encoding_name_map[setup.encoding],
-                'max_nb_signal' : setup.max_signal_count,
-                'sampling_rates' : output_sampling_rates
+            capabilities: api_typing.DataloggingCapabilities = {
+                'buffer_size': setup.buffer_size,
+                'encoding': encoding_name_map[setup.encoding],
+                'max_nb_signal': setup.max_signal_count,
+                'sampling_rates': output_sampling_rates
             }
 
-        response:api_typing.S2C.GetDataloggingCapabilities = {
-            'cmd' : API.Command.Api2Client.GET_DATALOGGING_CAPABILITIES_RESPONSE,
-            'reqid' : self.get_req_id(req),
-            'available' : available,
-            'capabilities' : capabilities if available else None
+        response: api_typing.S2C.GetDataloggingCapabilities = {
+            'cmd': API.Command.Api2Client.GET_DATALOGGING_CAPABILITIES_RESPONSE,
+            'reqid': self.get_req_id(req),
+            'available': available,
+            'capabilities': capabilities if available else None
         }
 
         self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
@@ -942,7 +943,14 @@ class API:
                 entry=signal_entry
             ))
 
+        acq_name: Optional[str] = None
+        if 'name' in req:
+            if req['name'] is not None and not isinstance(req['name'], str):
+                raise InvalidRequestException(req, 'Invalid acquisition name')
+            acq_name = req['name']
+
         acq_req = api_datalogging.AcquisitionRequest(
+            name=acq_name,
             rate_identifier=req['sampling_rate_id'],
             decimation=req['decimation'],
             timeout=req['timeout'],
@@ -954,76 +962,99 @@ class API:
                 condition_id=self.datalogging_supported_conditions[req['condition']].condition_id,
                 operands=operands
             ),
-            signals=signals_to_log,
-            completion_callback=api_datalogging.AcquisitionRequestCompletedCallback(lambda x, b: None)
+            signals=signals_to_log
         )
 
-        self.datalogging_manager.request_acquisition(acq_req)
+        # We use a partial func to passe of req id
+        callback = functools.partial(self.datalogging_acquisition_completion_callback, conn_id, self.get_req_id(req))
 
-        response: api_typing.S2C.RequestDataloggingAcquisition = {
-            'cmd': self.Command.Api2Client.REQUEST_DATALOGGING_ACQUISITION_RESPONSE,
-            'reqid': self.get_req_id(req)
+        self.datalogging_manager.request_acquisition(
+            request=acq_req,
+            callback=api_datalogging.APIAcquisitionRequestCompletionCallback(callback)
+        )
+
+    def datalogging_acquisition_completion_callback(self, requestor_conn_id: str, requestor_reqid: Optional[int], success: bool, acquisition: Optional[api_datalogging.DataloggingAcquisition]) -> None:
+        reference_id: Optional[str] = None
+        if success:
+            assert acquisition is not None
+            reference_id = acquisition.reference_id
+
+        completion_msg: api_typing.S2C.RequestDataloggingAcquisition = {
+            'cmd': API.Command.Api2Client.REQUEST_DATALOGGING_ACQUISITION_RESPONSE,
+            'reqid': requestor_reqid,
+            'success': success,
+            'reference_id': reference_id,
         }
 
-        self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
+        self.client_handler.send(ClientHandlerMessage(conn_id=requestor_conn_id, obj=completion_msg))
+
+        # Inform all client so they can auto load the new data.
+        if success:
+            assert acquisition is not None
+            broadcast_msg: api_typing.S2C.InformNewDataloggingAcquisition = {
+                'cmd': API.Command.Api2Client.INFORM_NEW_DATALOGGING_ACQUISITION,
+                'reqid': None,
+                'reference_id': acquisition.reference_id
+            }
+
+            for conn_id in self.connections:
+                self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=broadcast_msg))
 
     def process_list_datalogging_acquisition(self, conn_id: str, req: api_typing.C2S.ListDataloggingAcquisitions) -> None:
-        
-        firmware_id:Optional[str] = None
+
+        firmware_id: Optional[str] = None
         if 'firmware_id' in req:
             if not isinstance(req['firmware_id'], str) and req['firmware_id'] is not None:
                 raise InvalidRequestException(req, 'Invalid firmware ID')
             firmware_id = req['firmware_id']
-        acquisitions:List[api_typing.DataloggingAcquisitionMetadata] = []
+        acquisitions: List[api_typing.DataloggingAcquisitionMetadata] = []
 
         reference_id_list = DataloggingStorage.list(firmware_id=firmware_id)
 
         for reference_id in reference_id_list:
             acq = DataloggingStorage.read(reference_id)
-            firmware_metadata:Optional[api_typing.SFDMetadata] = None
+            firmware_metadata: Optional[api_typing.SFDMetadata] = None
             if SFDStorage.is_installed(acq.firmware_id):
                 firmware_metadata = SFDStorage.get_metadata(acq.firmware_id)
             acquisitions.append({
-                'firmware_id' : acq.firmware_id,
-                'name' : acq.name,
-                'timestamp' : acq.timestamp,
-                'reference_id' : reference_id,
-                'firmware_metadata' : firmware_metadata
-                })
+                'firmware_id': acq.firmware_id,
+                'name': acq.name,
+                'timestamp': acq.acq_time.timestamp(),
+                'reference_id': reference_id,
+                'firmware_metadata': firmware_metadata
+            })
 
-
-        response : api_typing.S2C.ListDataloggingAcquisition = {
-            'cmd' : API.Command.Api2Client.LIST_DATALOGGING_ACQUISITION_RESPONSE,
-            'reqid' : self.get_req_id(req),
-            'acquisitions' : acquisitions
+        response: api_typing.S2C.ListDataloggingAcquisition = {
+            'cmd': API.Command.Api2Client.LIST_DATALOGGING_ACQUISITION_RESPONSE,
+            'reqid': self.get_req_id(req),
+            'acquisitions': acquisitions
         }
 
         self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
 
-
     def process_update_datalogging_acquisition(self, conn_id: str, req: api_typing.C2S.UpdateDataloggingAcquisition) -> None:
         if 'reference_id' not in req:
             raise InvalidRequestException(req, 'Missing acquisition reference ID')
-        
+
         if not isinstance(req['reference_id'], str):
             raise InvalidRequestException(req, 'Invalid reference ID')
 
         if 'name' in req:
             if not isinstance(req['name'], str):
-                raise InvalidRequestException(req, 'Invalid name') 
+                raise InvalidRequestException(req, 'Invalid name')
 
-            err:Optional[Exception] = None
+            err: Optional[Exception] = None
             try:
                 DataloggingStorage.update_name_by_reference_id(req['reference_id'], req['name'])
             except LookupError as e:
                 err = e
-            
+
             if err:
                 raise InvalidRequestException(req, "Failed to update acquisition. %s" % (str(err)))
 
-        response : api_typing.S2C.UpdateDataloggingAcquisition = {
-            'cmd' : API.Command.Api2Client.LIST_DATALOGGING_ACQUISITION_RESPONSE,
-            'reqid' : self.get_req_id(req)
+        response: api_typing.S2C.UpdateDataloggingAcquisition = {
+            'cmd': API.Command.Api2Client.LIST_DATALOGGING_ACQUISITION_RESPONSE,
+            'reqid': self.get_req_id(req)
         }
 
         self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
@@ -1031,22 +1062,22 @@ class API:
     def process_delete_datalogging_acquisition(self, conn_id: str, req: api_typing.C2S.DeleteDataloggingAcquisition) -> None:
         if 'reference_id' not in req:
             raise InvalidRequestException(req, 'Missing acquisition reference ID')
-        
+
         if not isinstance(req['reference_id'], str):
             raise InvalidRequestException(req, 'Invalid reference ID')
 
-        err:Optional[Exception] = None
+        err: Optional[Exception] = None
         try:
             DataloggingStorage.delete(req['reference_id'])
         except LookupError as e:
             err = e
-        
+
         if err:
             raise InvalidRequestException(req, "Failed to delete acquisition. %s" % (str(err)))
 
-        response : api_typing.S2C.DeleteDataloggingAcquisition = {
-            'cmd' : API.Command.Api2Client.LIST_DATALOGGING_ACQUISITION_RESPONSE,
-            'reqid' : self.get_req_id(req),   
+        response: api_typing.S2C.DeleteDataloggingAcquisition = {
+            'cmd': API.Command.Api2Client.LIST_DATALOGGING_ACQUISITION_RESPONSE,
+            'reqid': self.get_req_id(req),
         }
 
         self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
@@ -1054,38 +1085,38 @@ class API:
     def process_read_datalogging_acquisition_content(self, conn_id: str, req: api_typing.C2S.ReadDataloggingAcquisitionContent) -> None:
         if 'reference_id' not in req:
             raise InvalidRequestException(req, 'Missing acquisition reference ID')
-        
+
         if not isinstance(req['reference_id'], str):
             raise InvalidRequestException(req, 'Invalid reference ID')
-        
-        err:Optional[Exception] = None
-        acquisition:api_datalogging.DataloggingAcquisition
+
+        err: Optional[Exception] = None
+        acquisition: api_datalogging.DataloggingAcquisition
         try:
             acquisition = DataloggingStorage.read(req['reference_id'])
         except LookupError as e:
             err = e
-        
+
         if err:
             raise InvalidRequestException(req, "Failed to read acquisition. %s" % (str(err)))
 
-        def dataserie_to_api_signal_data(dataseries:api_datalogging.DataSeries) -> api_typing.DataloggingSignalData:
-            signal : api_typing.DataloggingSignalData = {
-                'name' : dataseries.name,
-                'logged_element' : dataseries.logged_element,
-                'data' : dataseries.get_data()
+        def dataserie_to_api_signal_data(dataseries: api_datalogging.DataSeries) -> api_typing.DataloggingSignalData:
+            signal: api_typing.DataloggingSignalData = {
+                'name': dataseries.name,
+                'logged_element': dataseries.logged_element,
+                'data': dataseries.get_data()
             }
             return signal
-        
-        signals:List[api_typing.DataloggingSignalData] = []
-        for dataserie in  acquisition.get_data():
+
+        signals: List[api_typing.DataloggingSignalData] = []
+        for dataserie in acquisition.get_data():
             signals.append(dataserie_to_api_signal_data(dataserie))
 
-        response : api_typing.S2C.ReadDataloggingAcquisitionContent = {
-            'cmd' : API.Command.Api2Client.LIST_DATALOGGING_ACQUISITION_RESPONSE,
-            'reqid' : self.get_req_id(req),
-            'reference_id' : acquisition.reference_id,
-            'signals' : signals,
-            'xaxis' : dataserie_to_api_signal_data(acquisition.xaxis)
+        response: api_typing.S2C.ReadDataloggingAcquisitionContent = {
+            'cmd': API.Command.Api2Client.LIST_DATALOGGING_ACQUISITION_RESPONSE,
+            'reqid': self.get_req_id(req),
+            'reference_id': acquisition.reference_id,
+            'signals': signals,
+            'xaxis': dataserie_to_api_signal_data(acquisition.xaxis)
         }
 
         self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))

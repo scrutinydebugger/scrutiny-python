@@ -78,9 +78,6 @@ class TestDataloggingManager(ScrutinyUnitTest):
         self.datastore.add_entry(self.alias_rpv2000_f32)
         self.datastore.add_entry(self.alias_var4_s16)
 
-    def completion_callback(self, success: bool, acquisition: Optional[api_datalogging.DataloggingAcquisition]) -> None:
-        pass
-
     def make_test_request(self, operand_watchable: DatastoreEntry, x_axis_type: api_datalogging.XAxisType, x_axis_entry: Optional[DatastoreEntry] = None) -> api_datalogging.AcquisitionRequest:
         return api_datalogging.AcquisitionRequest(
             decimation=2,
@@ -97,7 +94,6 @@ class TestDataloggingManager(ScrutinyUnitTest):
             ),
             x_axis_type=x_axis_type,
             x_axis_signal=api_datalogging.SignalDefinition('x-axis', x_axis_entry),
-            completion_callback=self.completion_callback,
             signals=[
                 api_datalogging.SignalDefinition('var1_u32', self.var1_u32),
                 api_datalogging.SignalDefinition('var1_u32', self.var1_u32),    # Duplicate on purpose

@@ -29,9 +29,10 @@ import scrutiny.server.datalogging.definitions.api as api_datalogging
 import scrutiny.server.datalogging.definitions.device as device_datalogging
 from test.artifacts import get_artifact
 from test import ScrutinyUnitTest
+from scrutiny.server.datalogging.datalogging_storage import DataloggingStorage
+from datetime import datetime
 import scrutiny.server.api.typing as api_typing
 from typing import cast
-from scrutiny.server.datalogging.datalogging_storage import DataloggingStorage
 
 # todo
 # - Test rate limiter/data streamer
@@ -145,34 +146,40 @@ class StubbedDataloggingManager:
     def set_device_setup(self, setup: Optional[device_datalogging.DataloggingSetup]) -> None:
         self.fake_device_handler.set_datalogging_setup(setup)
 
-    def request_acquisition(self, acquisition: api_datalogging.AcquisitionRequest) -> None:
-        self.request_queue.put(acquisition)
+    def request_acquisition(self, request: api_datalogging.AcquisitionRequest, callback: api_datalogging.APIAcquisitionRequestCompletionCallback) -> None:
+        self.request_queue.put(request)
+        acquisition = api_datalogging.DataloggingAcquisition(
+            firmware_id='fake_firmware_id',
+            name='fakename',
+            reference_id='fake_refid',
+            timestamp=datetime.now())
+        callback(True, acquisition)
 
     def is_valid_sample_rate_id(self, identifier: int) -> bool:
         return (identifier >= 0 and identifier < 10)
 
     def is_ready_for_request(self) -> bool:
         return True
-    
+
     def get_available_sampling_rates(self) -> List[api_datalogging.SamplingRate]:
-        sampling_rates : List[api_datalogging.SamplingRate] = []
+        sampling_rates: List[api_datalogging.SamplingRate] = []
         info = self.fake_device_handler.get_device_info()
         if info is None:
             return
-        
-        i=0
+
+        i = 0
         for loop in info.loops:
             if loop.support_datalogging:
-                freq:Optional[float] = None
+                freq: Optional[float] = None
                 if isinstance(loop, FixedFreqLoop):
-                    freq = 1e7/loop.get_timestep_100ns()
+                    freq = 1e7 / loop.get_timestep_100ns()
                 sampling_rates.append(api_datalogging.SamplingRate(
                     name=loop.get_name(),
                     device_identifier=i,
                     rate_type=loop.get_loop_type(),
                     frequency=freq
                 ))
-            i+=1
+            i += 1
         return sampling_rates
 
 
@@ -214,15 +221,29 @@ class TestAPI(ScrutinyUnitTest):
     def tearDown(self):
         self.api.close()
 
-    def wait_for_response(self, conn_idx=0, timeout=0.4):
-        t1 = time.time()
+    def process_all(self):
         self.api.process()
         self.sfd_handler.process()
+
+    def ensure_no_response_for(self, conn_idx=0, timeout=0.4):
+        t1 = time.time()
+        self.process_all()
         while not self.connections[conn_idx].from_server_available():
             if time.time() - t1 >= timeout:
                 break
-            self.api.process()
-            self.sfd_handler.process()
+            self.process_all()
+            time.sleep(0.01)
+
+        json_str = self.connections[conn_idx].read_from_server()
+        self.assertIsNone(json_str)
+
+    def wait_for_response(self, conn_idx=0, timeout=0.4):
+        t1 = time.time()
+        self.process_all()
+        while not self.connections[conn_idx].from_server_available():
+            if time.time() - t1 >= timeout:
+                break
+            self.process_all()
             time.sleep(0.01)
 
         return self.connections[conn_idx].read_from_server()
@@ -1399,12 +1420,21 @@ class TestAPI(ScrutinyUnitTest):
 
     def send_request_datalogging_acquisition_and_fetch_result(self, req: api_typing.C2S.RequestDataloggingAcquisition) -> api_datalogging.AcquisitionRequest:
         self.send_request(req)
-        response = cast(api_typing.S2C.RequestDataloggingAcquisition, self.wait_and_load_response())
+        response = self.wait_and_load_response()
         self.assert_no_error(response)
+        self.assertIn(response['cmd'], [API.Command.Api2Client.INFORM_NEW_DATALOGGING_ACQUISITION,
+                      API.Command.Api2Client.REQUEST_DATALOGGING_ACQUISITION_RESPONSE])
+        response = self.wait_and_load_response()
+        self.assert_no_error(response)
+        self.assertIn(response['cmd'], [API.Command.Api2Client.INFORM_NEW_DATALOGGING_ACQUISITION,
+                                        API.Command.Api2Client.REQUEST_DATALOGGING_ACQUISITION_RESPONSE])
 
         self.assertFalse(self.fake_datalogging_manager.request_queue.empty())
         ar = self.fake_datalogging_manager.request_queue.get()
         self.assertTrue(self.fake_datalogging_manager.request_queue.empty())
+
+        if self.connections[0].from_server_available():
+            self.connections[0].read_from_server()
 
         return ar
 
@@ -1611,7 +1641,7 @@ class TestAPI(ScrutinyUnitTest):
                 self.send_request(req)
                 self.assert_is_error(self.wait_and_load_response())
 
-    
+
 # endregion
 if __name__ == '__main__':
     import unittest

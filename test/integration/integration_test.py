@@ -152,7 +152,7 @@ class ScrutinyIntegrationTest(ScrutinyUnitTest):
         while time.time() - t1 < timeout:
             self.server.process()
 
-    def wait_and_load_response(self, cmd=None, nbr=1, timeout=0.4):
+    def wait_and_load_response(self, cmd=None, nbr=1, timeout=0.4, ignore_error=False):
         response = None
         t1 = time.time()
         rcv_counter = 0
@@ -166,15 +166,27 @@ class ScrutinyIntegrationTest(ScrutinyUnitTest):
             else:
                 if isinstance(cmd, str):
                     cmd = [cmd]
-                
-                if API.Command.Api2Client.ERROR_RESPONSE not in cmd and response['cmd'] == API.Command.Api2Client.ERROR_RESPONSE:
-                    return response
+
+                if not ignore_error:
+                    if API.Command.Api2Client.ERROR_RESPONSE not in cmd and response['cmd'] == API.Command.Api2Client.ERROR_RESPONSE:
+                        return response
                 self.assertIn('cmd', response)
                 if response['cmd'] in cmd:
                     rcv_counter += 1
 
         self.assertIsNotNone(response)
         return response
+
+    def ensure_no_response_for(self, timeout=0.4):
+        t1 = time.time()
+        self.server.process()
+        while not self.api_conn.from_server_available():
+            if time.time() - t1 >= timeout:
+                break
+            self.server.process()
+            time.sleep(0.01)
+
+        self.assertFalse(self.api_conn.from_server_available())
 
     def process_watchable_update(self, nbr=None, timeout=None):
         response = None

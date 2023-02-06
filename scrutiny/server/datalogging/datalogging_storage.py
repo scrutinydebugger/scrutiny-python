@@ -13,6 +13,7 @@ import tempfile
 from scrutiny.server.datalogging.definitions.api import DataloggingAcquisition, DataSeries
 
 import sqlite3
+from datetime import datetime
 from typing import Optional, Dict, List
 
 
@@ -156,6 +157,10 @@ class DataloggingStorageManager:
             xaxis_id = cursor.lastrowid
             series2id_map[acquisition.xaxis] = xaxis_id
 
+            ts: Optional[int] = None
+            if acquisition.acq_time is not None:
+                ts = int(acquisition.acq_time.timestamp())
+
             cursor.execute(
                 """
                 INSERT INTO `acquisitions` 
@@ -166,7 +171,7 @@ class DataloggingStorageManager:
                     acquisition.reference_id,
                     acquisition.name,
                     acquisition.firmware_id,
-                    acquisition.timestamp,
+                    ts,
                     xaxis_id
                 )
             )
@@ -257,7 +262,7 @@ class DataloggingStorageManager:
         acq = DataloggingAcquisition(
             reference_id=rows[0][colmap['reference_id']],
             firmware_id=rows[0][colmap['firmware_id']],
-            timestamp=rows[0][colmap['timestamp']],
+            acq_time=datetime.fromtimestamp(rows[0][colmap['timestamp']]),
             name=rows[0][colmap['acquisition_name']]
         )
 

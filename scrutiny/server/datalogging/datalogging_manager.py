@@ -9,27 +9,39 @@
 import queue
 import logging
 import math
+from dataclasses import dataclass
+from uuid import uuid4
+from datetime import datetime
+import traceback
 
 import scrutiny.server.datalogging.definitions.api as api_datalogging
 import scrutiny.server.datalogging.definitions.device as device_datalogging
-from scrutiny.server.device.device_handler import DeviceHandler, DataloggingReceiveSetupCallback
+from scrutiny.server.device.device_handler import DeviceHandler, DataloggingReceiveSetupCallback, DeviceAcquisitionRequestCompletionCallback
 from scrutiny.server.datastore.datastore_entry import DatastoreEntry, DatastoreAliasEntry, DatastoreRPVEntry, DatastoreVariableEntry
 from scrutiny.server.datastore.datastore import Datastore
 from scrutiny.server.device.device_info import FixedFreqLoop
 from scrutiny.core.basic_types import *
 from scrutiny.server.datalogging.datalogging_storage import DataloggingStorage
 
-from typing import Optional, List, Dict, Tuple
+from typing import Optional, List, Dict, Tuple, Callable
+from scrutiny.core.typehints import GenericCallback
+
+
+@dataclass
+class DeviceSideAcquisitionRequest:
+    api_request: api_datalogging.AcquisitionRequest
+    device_config: device_datalogging.Configuration
+    entry_signal_map: Dict[DatastoreEntry, int]
+    callback: api_datalogging.APIAcquisitionRequestCompletionCallback
 
 
 class DataloggingManager:
     datastore: Datastore
     device_handler: DeviceHandler
-    acquisition_request_queue: "queue.Queue[Tuple[api_datalogging.AcquisitionRequest, device_datalogging.Configuration]]"
+    acquisition_request_queue: "queue.Queue[DeviceSideAcquisitionRequest]"
     last_device_status: DeviceHandler.ConnectionStatus
     device_status: DeviceHandler.ConnectionStatus
-    active_request: Optional[api_datalogging.AcquisitionRequest]
-    active_request_config: device_datalogging.Configuration
+    active_request: Optional[DeviceSideAcquisitionRequest]
     logger: logging.Logger
     datalogging_setup: Optional[device_datalogging.DataloggingSetup]
     rpv_map: Optional[Dict[int, RuntimePublishedValue]]
@@ -54,7 +66,7 @@ class DataloggingManager:
             if rate.device_identifier == identifier:
                 return True
 
-        return False 
+        return False
 
     def is_ready_for_request(self) -> bool:
         return True  # todo
@@ -64,10 +76,50 @@ class DataloggingManager:
         self.datalogging_setup = None
         self.rpv_map = None
 
-    def request_acquisition(self, request: api_datalogging.AcquisitionRequest) -> None:
-        config, signalmap = self.make_device_config_from_request(request)  # Can raise an exception
-        self.acquisition_request_queue.put((request, config))
-        # todo keep the signalmap for later
+    def request_acquisition(self, request: api_datalogging.AcquisitionRequest, callback: api_datalogging.APIAcquisitionRequestCompletionCallback) -> None:
+        # Converts right away to device side acquisition because we want exception to be raised as early as possible for quik feedback to user
+        config, entry_signal_map = self.make_device_config_from_request(request)  # Can raise an exception
+        self.acquisition_request_queue.put(DeviceSideAcquisitionRequest(
+            api_request=request,
+            device_config=config,
+            entry_signal_map=entry_signal_map,
+            callback=callback))
+
+    def acquisition_complete_callback(self, success: bool, data: Optional[List[List[bytes]]]) -> None:
+        if self.active_request is None:
+            self.logger.error("Received acquisition data but was not expecting it. No active acquisition request")
+            return
+
+        device_info = self.device_handler.get_device_info()
+        if device_info is None or device_info.device_id is None:
+            self.logger.error('Gotten an acquisition but the device information is not available')
+            self.active_request.callback(False, None)
+            return
+
+        acquisition: Optional[api_datalogging.DataloggingAcquisition] = None
+        try:
+            if success:
+                self.logger.info("New acquisition gotten")
+                acquisition = api_datalogging.DataloggingAcquisition(
+                    name=self.active_request.api_request.name,
+                    reference_id=uuid4().hex,
+                    firmware_id=device_info.device_id,
+                    acq_time=datetime.now()
+                )
+
+                DataloggingStorage.save(acquisition)
+
+            else:
+                self.logger.info("Failed to acquire acquisition request")
+        except Exception as e:
+            acquisition = None
+            self.logger.error('Error while processing datalogging acquisition: %s' % str(e))
+            self.logger.debug(traceback.format_exc())
+
+        if acquisition is None:
+            self.active_request.callback(False, None)
+        else:
+            self.active_request.callback(True, acquisition)
 
     def process(self) -> None:
         self.device_status = self.device_handler.get_connection_status()
@@ -92,10 +144,11 @@ class DataloggingManager:
     def process_connected_ready(self):
         if self.active_request is None:
             if not self.acquisition_request_queue.empty():
-                self.active_request, self.active_request_config = self.acquisition_request_queue.get()
+                self.active_request = self.acquisition_request_queue.get()
                 self.device_handler.request_datalogging_acquisition(
-                    loop_id=self.active_request.rate_identifier,
-                    config=self.active_request_config,
+                    loop_id=self.active_request.api_request.rate_identifier,
+                    config=self.active_request.device_config,
+                    callback=DeviceAcquisitionRequestCompletionCallback(self.acquisition_complete_callback)
                 )
 
     def callback_receive_setup(self, setup: device_datalogging.DataloggingSetup):
@@ -222,29 +275,6 @@ class DataloggingManager:
 
         return operand
 
-    def receive_acquisition_raw_data(self, request: api_datalogging.AcquisitionRequest, deinterleaved_data: List[List[bytes]]):
-        if self.device_status != DeviceHandler.ConnectionStatus.CONNECTED_READY:
-            self.logger.warning("Received acquisition data but device is disconnected")
-            return
-
-        if self.active_request is None:
-            self.logger.error("Received acquisition data but was not expecting it. No active acquisition request")
-            return
-
-        if self.active_request_config is None:
-            self.logger.error("Received acquisition data but was not expecting it. No active config")
-            return
-
-        if self.datalogging_setup is None:
-            self.logger.error("Received acquisition data but datalogging format unknown at this point")
-            return
-
-        if self.rpv_map is None:
-            self.logger.error("Internal Error - RPV map not built")
-            return
-
-        # deinterleaved_data
-
     def get_device_setup(self) -> Optional[device_datalogging.DataloggingSetup]:
         return self.device_handler.get_datalogging_setup()
 
@@ -266,5 +296,5 @@ class DataloggingManager:
                             )
                             if isinstance(loop, FixedFreqLoop):
                                 rate.frequency = loop.get_frequency()
-                            output.append(rate)                           
+                            output.append(rate)
         return output

@@ -39,7 +39,7 @@ class FSMState(Enum):
     DATA_RETRIEVAL_FINISHED = auto()
 
 
-class AcquisitionRequestCompletionCallback(GenericCallback):
+class DeviceAcquisitionRequestCompletionCallback(GenericCallback):
     callback: Callable[[bool, Optional[List[List[bytes]]]], None]
 
 
@@ -51,7 +51,7 @@ class DataloggingReceiveSetupCallback(GenericCallback):
 class AcquisitionRequest:
     loop_id: int
     config: device_datalogging.Configuration
-    completion_callback: AcquisitionRequestCompletionCallback
+    completion_callback: DeviceAcquisitionRequestCompletionCallback
 
 
 @dataclass
@@ -212,7 +212,7 @@ class DataloggingPoller:
 
                 self.acquisition_request = None
 
-    def request_acquisition(self, loop_id: int, config: device_datalogging.Configuration, callback: AcquisitionRequestCompletionCallback) -> None:
+    def request_acquisition(self, loop_id: int, config: device_datalogging.Configuration, callback: DeviceAcquisitionRequestCompletionCallback) -> None:
         if not self.max_response_payload_size:
             raise ValueError("Maximum response payload size must be defined first")
 

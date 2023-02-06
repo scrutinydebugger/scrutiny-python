@@ -5,6 +5,7 @@ import zlib
 import struct
 import time
 from uuid import uuid4
+from datetime import datetime
 
 from scrutiny.server.device.device_info import ExecLoopType
 from scrutiny.server.datastore.datastore_entry import DatastoreEntry
@@ -74,8 +75,8 @@ class DataloggingAcquisition:
     firmware_id: str
     """Firmware ID of the device on which the acquisition has been taken"""
 
-    timestamp: float
-    """Timestamp at which the acquisition has been taken"""
+    acq_time: datetime
+    """Time at which the acquisition has been taken"""
 
     xaxis: DataSeries
     """The series of data that represent the X-Axis"""
@@ -83,10 +84,10 @@ class DataloggingAcquisition:
     data: List[DataSeries]
     """List of data series acquired"""
 
-    def __init__(self, firmware_id: str, reference_id: Optional[str] = None, timestamp: Optional[float] = None, name: Optional[str] = None):
+    def __init__(self, firmware_id: str, reference_id: Optional[str] = None, acq_time: Optional[datetime] = None, name: Optional[str] = None):
         self.reference_id = reference_id if reference_id is not None else self.make_unique_id()
         self.firmware_id = firmware_id
-        self.timestamp = time.time() if timestamp is None else timestamp
+        self.acq_time = datetime.now() if acq_time is None else acq_time
         self.xaxis = DataSeries()
         self.name = name
         self.data = []
@@ -105,7 +106,7 @@ class DataloggingAcquisition:
         return self.data
 
 
-class AcquisitionRequestCompletedCallback(GenericCallback):
+class APIAcquisitionRequestCompletionCallback(GenericCallback):
     callback: Callable[[bool, Optional[DataloggingAcquisition]], None]
 
 
@@ -137,6 +138,7 @@ class SignalDefinition:
 
 @dataclass
 class AcquisitionRequest:
+    name: Optional[str]
     rate_identifier: int
     decimation: int
     timeout: float
@@ -146,4 +148,3 @@ class AcquisitionRequest:
     x_axis_type: XAxisType
     x_axis_signal: Optional[SignalDefinition]
     signals: List[SignalDefinition]
-    completion_callback: AcquisitionRequestCompletedCallback

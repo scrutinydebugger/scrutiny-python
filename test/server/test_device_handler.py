@@ -661,7 +661,7 @@ class TestDeviceHandler(ScrutinyUnitTest):
                 if self.device_handler.get_datalogger_state() == device_datalogging.DataloggerState.ARMED:
                     break
 
-            self.assertEqual(self.device_handler.get_datalogger_state(), device_datalogging.DataloggerState.ARMED)
+            self.assertEqual(self.device_handler.get_datalogger_state(), device_datalogging.DataloggerState.ARMED, 'iteration=%d' % iteration)
 
             if iteration == 4:
                 logger.debug("[iteration=%d] Requesting a new acquisition to interrupt previous one" % iteration)
@@ -678,9 +678,9 @@ class TestDeviceHandler(ScrutinyUnitTest):
                 self.device_handler.process()
                 time.sleep(0.05)
 
-            self.assertEqual(self.device_handler.get_datalogger_state(), device_datalogging.DataloggerState.ARMED)
-            self.assertFalse(self.acquisition_complete_callback_called)
-            self.assertFalse(self.emulated_device.datalogger.triggered())
+            self.assertEqual(self.device_handler.get_datalogger_state(), device_datalogging.DataloggerState.ARMED, 'iteration=%d' % iteration)
+            self.assertFalse(self.acquisition_complete_callback_called, 'iteration=%d' % iteration)
+            self.assertFalse(self.emulated_device.datalogger.triggered(), 'iteration=%d' % iteration)
 
             # Now we fulfill the trigger condition,  the acquisition should complete and data be automatically downloaded.
             logger.debug("[iteration=%d] Make trigger condition true" % iteration)
@@ -696,8 +696,8 @@ class TestDeviceHandler(ScrutinyUnitTest):
                     break
             nb_points = self.emulated_device.datalogger.get_nb_points()
             # Make sure acquisition is downloaded and device is in a good state
-            self.assertGreater(nb_points, 0)
-            self.assertTrue(self.emulated_device.datalogger.triggered())
+            self.assertGreater(nb_points, 0, 'iteration=%d' % iteration)
+            self.assertTrue(self.emulated_device.datalogger.triggered(), 'iteration=%d' % iteration)
             self.assertTrue(self.acquisition_complete_callback_called, "Acquired %d points" % nb_points)
             self.assertTrue(self.acquisition_complete_callback_success)
             signals = extract_signal_from_data(
@@ -706,7 +706,7 @@ class TestDeviceHandler(ScrutinyUnitTest):
                 rpv_map=self.emulated_device.get_rpv_definition_map(),
                 encoding=self.datalogging_setup.encoding
             )
-            self.assertEqual(self.acquisition_complete_callback_data, signals)
+            self.assertEqual(self.acquisition_complete_callback_data, signals, 'iteration=%d' % iteration)
 
             self.assertEqual(len(signals), 5)
             for signal in signals:
@@ -714,19 +714,19 @@ class TestDeviceHandler(ScrutinyUnitTest):
 
             # RPV 1003: 8bits val = 123
             for d in signals[1]:
-                self.assertEqual(struct.unpack('>B', d)[0], 123)
+                self.assertEqual(struct.unpack('>B', d)[0], 123, 'iteration=%d' % iteration)
 
             # Memory: 32bits val = 1,2,3,4
             for d in signals[2]:
-                self.assertEqual(d, bytes([1, 2, 3, 4]))
+                self.assertEqual(d, bytes([1, 2, 3, 4]), 'iteration=%d' % iteration)
 
             # Memory: 16bits val = 5,6
             for d in signals[3]:
-                self.assertEqual(d, bytes([5, 6]))
+                self.assertEqual(d, bytes([5, 6]), 'iteration=%d' % iteration)
 
             # Memory: 16bits val = 7,8
             for d in signals[4]:
-                self.assertEqual(d, bytes([7, 8]))
+                self.assertEqual(d, bytes([7, 8]), 'iteration=%d' % iteration)
 
 
 class TestDeviceHandlerMultipleLink(ScrutinyUnitTest):

@@ -28,7 +28,7 @@ from scrutiny.server.device.request_generator.info_poller import InfoPoller, Pro
 from scrutiny.server.device.request_generator.session_initializer import SessionInitializer
 from scrutiny.server.device.request_generator.memory_reader import MemoryReader
 from scrutiny.server.device.request_generator.memory_writer import MemoryWriter
-from scrutiny.server.device.request_generator.datalogging_poller import DataloggingPoller, DataloggingReceiveSetupCallback, AcquisitionRequestCompletionCallback
+from scrutiny.server.device.request_generator.datalogging_poller import DataloggingPoller, DataloggingReceiveSetupCallback, DeviceAcquisitionRequestCompletionCallback
 from scrutiny.server.device.device_info import DeviceInfo
 from scrutiny.core.basic_types import RuntimePublishedValue
 from scrutiny.server.tools import Timer
@@ -228,7 +228,7 @@ class DeviceHandler:
         """Register callbacks that are called when event related to datalogging are being triggered"""
         self.datalogging_poller.set_datalogging_callbacks(receive_setup)
 
-    def request_datalogging_acquisition(self, loop_id: int, config: device_datalogging.Configuration, callback: AcquisitionRequestCompletionCallback) -> None:
+    def request_datalogging_acquisition(self, loop_id: int, config: device_datalogging.Configuration, callback: DeviceAcquisitionRequestCompletionCallback) -> None:
         self.datalogging_poller.request_acquisition(loop_id=loop_id, config=config, callback=callback)
 
     def is_ready_for_datalogging_acquisition_request(self) -> bool:
