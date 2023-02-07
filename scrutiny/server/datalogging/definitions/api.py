@@ -103,9 +103,6 @@ class DataloggingAcquisition:
         self.xaxis = xaxis
 
     def add_data(self, dataserie: DataSeries) -> None:
-        for ds in self.data:
-            if len(ds.get_data()) != len(dataserie.get_data()):
-                raise ValueError('Cannot add dataseries of mismatching length in the same acquisition')
         self.data.append(dataserie)
 
     def get_data(self) -> List[DataSeries]:

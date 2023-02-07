@@ -11,6 +11,7 @@ import random
 from test import ScrutinyUnitTest
 from scrutiny.server.datalogging.datalogging_storage import DataloggingStorage
 from scrutiny.server.datalogging.definitions.api import DataloggingAcquisition, DataSeries
+from datetime import datetime
 
 
 class TestDataloggingStorage(ScrutinyUnitTest):
@@ -23,7 +24,7 @@ class TestDataloggingStorage(ScrutinyUnitTest):
     def assert_acquisition_valid(self, a: DataloggingAcquisition):
         self.assertIsInstance(a.firmware_id, str)
         self.assertIsInstance(a.reference_id, str)
-        self.assertIsInstance(a.timestamp, float)
+        self.assertIsInstance(a.acq_time, datetime)
         self.assertIsInstance(a.xaxis, DataSeries)
         self.assertIsInstance(a.get_data(), list)
         for serie in a.get_data():
@@ -35,7 +36,7 @@ class TestDataloggingStorage(ScrutinyUnitTest):
         self.assertEqual(a.name, b.name)
         self.assertEqual(a.firmware_id, b.firmware_id)
         self.assertEqual(a.reference_id, b.reference_id)
-        self.assertEqual(a.timestamp, b.timestamp)
+        self.assertLess((a.acq_time - b.acq_time).total_seconds(), 1)
 
         data1 = a.get_data()
         data2 = b.get_data()
@@ -128,18 +129,18 @@ class TestDataloggingStorage(ScrutinyUnitTest):
         with DataloggingStorage.use_temp_storage():
             with self.assertRaises(LookupError):
                 DataloggingStorage.update_name_by_reference_id(
-                    reference_id= 'inexistant_id',
+                    reference_id='inexistant_id',
                     name='hello'
                 )
-    
+
             with self.assertRaises(LookupError):
                 DataloggingStorage.delete(
-                    reference_id= 'inexistant_id'
+                    reference_id='inexistant_id'
                 )
-            
+
             with self.assertRaises(LookupError):
                 DataloggingStorage.read(
-                    reference_id= 'inexistant_id'
+                    reference_id='inexistant_id'
                 )
 
 

@@ -134,7 +134,7 @@ class TestEmulatedDatalogger(ScrutinyUnitTest):
             time.sleep(0.001)
         self.assertFalse(self.datalogger.triggered())
 
-        # Trigger condition will be true. Will ne to stay like that for 100msec to get a trigger
+        # Trigger condition will be true. Will need to stay like that for 100msec to get a trigger
         self.vals.v100000_f64 = 100
         self.vals.rpv1000 = 100
 
@@ -194,10 +194,16 @@ class TestEmulatedDatalogger(ScrutinyUnitTest):
             dv2 = data_interpreted[2][j] - data_interpreted[2][j - 1]
 
             if (data_interpreted[1][j] != 200):  # Avoid the discontinuity
-                self.assertEqual(dv1, 1)
+                if data_interpreted[1][j - 1] == 200:
+                    self.assertLessEqual(dv1, 1 * config.decimation, "j=%d" % j)
+                else:
+                    self.assertEqual(dv1, 1 * config.decimation, "j=%d" % j)
 
             if (data_interpreted[2][j] != 100):  # Avoid the discontinuity
-                self.assertEqual(dv2, -1)   # RPV 1000 does steps of -1
+                if data_interpreted[2][j - 1] == 100:
+                    self.assertGreaterEqual(dv1, -1 * config.decimation, "j=%d" % j)
+                else:
+                    self.assertEqual(dv2, -1 * config.decimation, "j=%d" % j)   # RPV 1000 does steps of -1
 
     def tearDown(self):
         self.emulated_device.stop()

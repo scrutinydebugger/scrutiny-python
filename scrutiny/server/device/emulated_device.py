@@ -368,6 +368,7 @@ class DataloggerEmulator:
         self.timebase.process()
 
         if self.state in [device_datalogging.DataloggerState.CONFIGURED, device_datalogging.DataloggerState.ARMED, device_datalogging.DataloggerState.TRIGGERED]:
+            assert self.config is not None
             if self.decimation_counter == 0:
                 self.encoder.encode_samples(self.read_samples())
                 self.logger.debug("Encoding a new sample. Internal counter=%d" % self.encoder.entry_counter)
