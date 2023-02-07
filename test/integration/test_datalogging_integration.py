@@ -113,6 +113,7 @@ class TestDataloggingIntegration(ScrutinyIntegrationTestWithTestSFD1):
     def test_make_acquisition_normal(self):
         with DataloggingStorage.use_temp_storage():
             for iteration in range(3):
+                logger.debug("test_make_acquisition_normal iteration=%d" % iteration)
                 # First make sure there is no acquisition in storage
                 self.send_request({
                     'cmd': API.Command.Client2Api.LIST_DATALOGGING_ACQUISITION,
@@ -212,15 +213,47 @@ class TestDataloggingIntegration(ScrutinyIntegrationTestWithTestSFD1):
 
                 self.assertTrue(self.emulated_device.datalogger.triggered())
 
-                response = self.wait_and_load_response(cmd=API.Command.Api2Client.INFORM_NEW_DATALOGGING_ACQUISITION, timeout=2.0)
-                self.assert_no_error(response)
-                response = cast(api_typing.S2C.InformNewDataloggingAcquisition, response)
-                acq_refid = response['reference_id']
+                acq_refid = None
+                received_req = {
+                    API.Command.Api2Client.INFORM_DATALOGGING_LIST_CHANGED: None,
+                    API.Command.Api2Client.REQUEST_DATALOGGING_ACQUISITION_RESPONSE: None,
+                }
+                for i in range(2):
+                    response = self.wait_and_load_response(
+                        cmd=[
+                            API.Command.Api2Client.INFORM_DATALOGGING_LIST_CHANGED,
+                            API.Command.Api2Client.REQUEST_DATALOGGING_ACQUISITION_RESPONSE
+                        ], timeout=2.0)
+
+                    self.assert_no_error(response)
+                    received_req[response['cmd']] = True
+                    if response['cmd'] == API.Command.Api2Client.INFORM_DATALOGGING_LIST_CHANGED:
+                        response = cast(api_typing.S2C.InformDataloggingListChanged, response)
+                        self.assertEqual(response['action'], 'new')
+                        if acq_refid is not None:
+                            self.assertEqual(acq_refid, response['reference_id'])
+                        else:
+                            acq_refid = response['reference_id']
+
+                    elif response['cmd'] == API.Command.Api2Client.REQUEST_DATALOGGING_ACQUISITION_RESPONSE:
+                        response = cast(api_typing.S2C.RequestDataloggingAcquisition, response)
+                        self.assertEqual(response['reqid'], req['reqid'])
+                        self.assertTrue(response['success'])
+                        if acq_refid is not None:
+                            self.assertEqual(acq_refid, response['reference_id'])
+                        else:
+                            acq_refid = response['reference_id']
+                    else:
+                        raise ValueError("Unexpected response %s" % response)
+
+                # Make sure we received both response above.
+                for k in received_req:
+                    self.assertIsNotNone(received_req[k])
 
                 # We got notified by the server. Now let's poll the datalogging database and see what's in there. We expect a new recording
                 self.send_request({
                     'cmd': API.Command.Client2Api.LIST_DATALOGGING_ACQUISITION,
-                    'firmware_id': self.sfd.get_firmware_id_ascii()
+                    'firmware_id': self.emulated_device.get_firmware_id_ascii()
                 })
 
                 response = self.wait_and_load_response(cmd=API.Command.Api2Client.LIST_DATALOGGING_ACQUISITION_RESPONSE)
@@ -229,10 +262,10 @@ class TestDataloggingIntegration(ScrutinyIntegrationTestWithTestSFD1):
 
                 self.assertEqual(len(response['acquisitions']), iteration + 1)
                 acq_summary = response['acquisitions'][0]
-                self.assertEqual(acq_summary['firmware_id'], self.sfd.get_firmware_id_ascii())
+                self.assertEqual(acq_summary['firmware_id'], self.emulated_device.get_firmware_id_ascii())
                 self.assertEqual(acq_summary['name'], 'potato')
                 self.assertEqual(acq_summary['reference_id'], acq_refid)
-                self.assertEqual(acq_summary['firmware_metadata'], self.sfd.get_metadata())
+                self.assertEqual(acq_summary['firmware_metadata'], None)
 
                 # Let's read the content of that single acquisition
                 self.send_request({

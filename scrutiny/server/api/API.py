@@ -98,7 +98,7 @@ class API:
             WRITE_VALUE_RESPONSE = 'response_write_value'
             INFORM_WRITE_COMPLETION = 'inform_write_completion'
             GET_DATALOGGING_CAPABILITIES_RESPONSE = 'get_datalogging_capabilities_response'
-            INFORM_NEW_DATALOGGING_ACQUISITION = 'inform_new_datalogging_acquisition'
+            INFORM_DATALOGGING_LIST_CHANGED = 'inform_datalogging_list_changed'
             LIST_DATALOGGING_ACQUISITION_RESPONSE = 'list_datalogging_acquisitions_response'
             REQUEST_DATALOGGING_ACQUISITION_RESPONSE = 'request_datalogging_acquisition_response'
             READ_DATALOGGING_ACQUISITION_CONTENT_RESPONSE = 'read_datalogging_acquisition_content_response'
@@ -991,10 +991,11 @@ class API:
         # Inform all client so they can auto load the new data.
         if success:
             assert acquisition is not None
-            broadcast_msg: api_typing.S2C.InformNewDataloggingAcquisition = {
-                'cmd': API.Command.Api2Client.INFORM_NEW_DATALOGGING_ACQUISITION,
+            broadcast_msg: api_typing.S2C.InformDataloggingListChanged = {
+                'cmd': API.Command.Api2Client.INFORM_DATALOGGING_LIST_CHANGED,
                 'reqid': None,
-                'reference_id': acquisition.reference_id
+                'reference_id': acquisition.reference_id,
+                'action': 'new'
             }
 
             for conn_id in self.connections:
@@ -1053,11 +1054,21 @@ class API:
                 raise InvalidRequestException(req, "Failed to update acquisition. %s" % (str(err)))
 
         response: api_typing.S2C.UpdateDataloggingAcquisition = {
-            'cmd': API.Command.Api2Client.LIST_DATALOGGING_ACQUISITION_RESPONSE,
+            'cmd': API.Command.Api2Client.UPDATE_DATALOGGING_ACQUISITION_RESPONSE,
             'reqid': self.get_req_id(req)
         }
 
         self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
+
+        broadcast_msg: api_typing.S2C.InformDataloggingListChanged = {
+            'cmd': API.Command.Api2Client.INFORM_DATALOGGING_LIST_CHANGED,
+            'reqid': None,
+            'reference_id': req['reference_id'],
+            'action': 'update'
+        }
+
+        for conn_id in self.connections:
+            self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=broadcast_msg))
 
     def process_delete_datalogging_acquisition(self, conn_id: str, req: api_typing.C2S.DeleteDataloggingAcquisition) -> None:
         if 'reference_id' not in req:
@@ -1076,11 +1087,21 @@ class API:
             raise InvalidRequestException(req, "Failed to delete acquisition. %s" % (str(err)))
 
         response: api_typing.S2C.DeleteDataloggingAcquisition = {
-            'cmd': API.Command.Api2Client.LIST_DATALOGGING_ACQUISITION_RESPONSE,
+            'cmd': API.Command.Api2Client.DELETE_DATALOGGING_ACQUISITION_RESPONSE,
             'reqid': self.get_req_id(req),
         }
 
         self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
+
+        broadcast_msg: api_typing.S2C.InformDataloggingListChanged = {
+            'cmd': API.Command.Api2Client.INFORM_DATALOGGING_LIST_CHANGED,
+            'reqid': None,
+            'reference_id': req['reference_id'],
+            'action': 'delete'
+        }
+
+        for conn_id in self.connections:
+            self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=broadcast_msg))
 
     def process_read_datalogging_acquisition_content(self, conn_id: str, req: api_typing.C2S.ReadDataloggingAcquisitionContent) -> None:
         if 'reference_id' not in req:
@@ -1112,7 +1133,7 @@ class API:
             signals.append(dataserie_to_api_signal_data(dataserie))
 
         response: api_typing.S2C.ReadDataloggingAcquisitionContent = {
-            'cmd': API.Command.Api2Client.LIST_DATALOGGING_ACQUISITION_RESPONSE,
+            'cmd': API.Command.Api2Client.READ_DATALOGGING_ACQUISITION_CONTENT_RESPONSE,
             'reqid': self.get_req_id(req),
             'reference_id': acquisition.reference_id,
             'signals': signals,

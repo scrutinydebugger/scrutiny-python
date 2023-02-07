@@ -887,6 +887,9 @@ class EmulatedDevice:
     def get_firmware_id(self) -> bytes:
         return self.firmware_id
 
+    def get_firmware_id_ascii(self) -> str:
+        return self.firmware_id.hex().lower()
+
     def is_connected(self) -> bool:
         return self.connected
 

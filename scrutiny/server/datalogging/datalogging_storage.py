@@ -10,6 +10,7 @@
 import os
 import appdirs  # type: ignore
 import tempfile
+import logging
 from scrutiny.server.datalogging.definitions.api import DataloggingAcquisition, DataSeries
 
 import sqlite3
@@ -57,6 +58,7 @@ class DataloggingStorageManager:
     def __init__(self, folder):
         self.folder = folder
         self.temporary_dir = None
+        self.logger = logging.getLogger(self.__class__.__name__)
         os.makedirs(self.folder, exist_ok=True)
 
     def use_temp_storage(self) -> TempStorageWithAutoRestore:
@@ -120,6 +122,7 @@ class DataloggingStorageManager:
         return SQLiteSession(self)
 
     def save(self, acquisition: DataloggingAcquisition):
+        self.logger.debug("Saving acquisition with reference_id=%s" % (str(acquisition.reference_id)))
         if acquisition.xaxis is None:
             raise ValueError("Missing X-Axis")
 

@@ -275,8 +275,9 @@ class S2C:
         success: bool
         reference_id: Optional[str]
 
-    class InformNewDataloggingAcquisition(BaseS2CMessage):
+    class InformDataloggingListChanged(BaseS2CMessage):
         reference_id: str
+        action:Literal['delete', 'new', 'update']
 
     class ListDataloggingAcquisition(BaseS2CMessage):
         acquisitions: List[DataloggingAcquisitionMetadata]
@@ -330,7 +331,7 @@ S2CMessage = Union[
     S2C.WriteCompletion,
     S2C.GetDataloggingCapabilities,
     S2C.RequestDataloggingAcquisition,
-    S2C.InformNewDataloggingAcquisition,
+    S2C.InformDataloggingListChanged,
     S2C.ListDataloggingAcquisition,
     S2C.ReadDataloggingAcquisitionContent,
     S2C.DeleteDataloggingAcquisition

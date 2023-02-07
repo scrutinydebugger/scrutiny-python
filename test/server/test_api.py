@@ -152,7 +152,7 @@ class StubbedDataloggingManager:
             firmware_id='fake_firmware_id',
             name='fakename',
             reference_id='fake_refid',
-            timestamp=datetime.now())
+            acq_time=datetime.now())
         callback(True, acquisition)
 
     def is_valid_sample_rate_id(self, identifier: int) -> bool:
@@ -1213,12 +1213,12 @@ class TestAPI(ScrutinyUnitTest):
 
             with DataloggingStorage.use_temp_storage():
                 acq1 = api_datalogging.DataloggingAcquisition(firmware_id=sfd1.get_firmware_id_ascii(),
-                                                              reference_id="refid1", timestamp=123, name="foo")
+                                                              reference_id="refid1", name="foo")
                 acq2 = api_datalogging.DataloggingAcquisition(firmware_id=sfd1.get_firmware_id_ascii(),
-                                                              reference_id="refid2", timestamp=456, name="bar")
+                                                              reference_id="refid2", name="bar")
                 acq3 = api_datalogging.DataloggingAcquisition(firmware_id=sfd2.get_firmware_id_ascii(),
-                                                              reference_id="refid3", timestamp=789, name="baz")
-                acq4 = api_datalogging.DataloggingAcquisition(firmware_id="unknown_sfd", reference_id="refid4", timestamp=555, name="meow")
+                                                              reference_id="refid3", name="baz")
+                acq4 = api_datalogging.DataloggingAcquisition(firmware_id="unknown_sfd", reference_id="refid4", name="meow")
                 acq1.set_xaxis(api_datalogging.DataSeries())
                 acq2.set_xaxis(api_datalogging.DataSeries())
                 acq3.set_xaxis(api_datalogging.DataSeries())
@@ -1236,29 +1236,29 @@ class TestAPI(ScrutinyUnitTest):
                 self.send_request(req)
                 response = cast(api_typing.S2C.ListDataloggingAcquisition, self.wait_and_load_response())
                 self.assert_no_error(response)
-
+                self.assertEqual(response['cmd'], 'list_datalogging_acquisitions_response')
                 self.assertEqual(len(response['acquisitions']), 4)
                 self.assertEqual(response['acquisitions'][0]['firmware_id'], sfd1.get_firmware_id_ascii())
                 self.assertEqual(response['acquisitions'][0]['reference_id'], 'refid1')
-                self.assertEqual(response['acquisitions'][0]['timestamp'], 123)
+                self.assertEqual(response['acquisitions'][0]['timestamp'], int(acq1.acq_time.timestamp()))
                 self.assertEqual(response['acquisitions'][0]['name'], 'foo')
                 self.assertEqual(response['acquisitions'][0]['firmware_metadata'], sfd1.get_metadata())
 
                 self.assertEqual(response['acquisitions'][1]['firmware_id'], sfd1.get_firmware_id_ascii())
                 self.assertEqual(response['acquisitions'][1]['reference_id'], 'refid2')
-                self.assertEqual(response['acquisitions'][1]['timestamp'], 456)
+                self.assertEqual(response['acquisitions'][1]['timestamp'], int(acq2.acq_time.timestamp()))
                 self.assertEqual(response['acquisitions'][1]['name'], 'bar')
                 self.assertEqual(response['acquisitions'][1]['firmware_metadata'], sfd1.get_metadata())
 
                 self.assertEqual(response['acquisitions'][2]['firmware_id'], sfd2.get_firmware_id_ascii())
                 self.assertEqual(response['acquisitions'][2]['reference_id'], 'refid3')
-                self.assertEqual(response['acquisitions'][2]['timestamp'], 789)
+                self.assertEqual(response['acquisitions'][2]['timestamp'], int(acq3.acq_time.timestamp()))
                 self.assertEqual(response['acquisitions'][2]['name'], 'baz')
                 self.assertEqual(response['acquisitions'][2]['firmware_metadata'], sfd2.get_metadata())
 
                 self.assertEqual(response['acquisitions'][3]['firmware_id'], "unknown_sfd")
                 self.assertEqual(response['acquisitions'][3]['reference_id'], 'refid4')
-                self.assertEqual(response['acquisitions'][3]['timestamp'], 555)
+                self.assertEqual(response['acquisitions'][3]['timestamp'], int(acq4.acq_time.timestamp()))
                 self.assertEqual(response['acquisitions'][3]['name'], 'meow')
                 self.assertEqual(response['acquisitions'][3]['firmware_metadata'], None)
 
@@ -1270,18 +1270,18 @@ class TestAPI(ScrutinyUnitTest):
                 self.send_request(req)
                 response = cast(api_typing.S2C.ListDataloggingAcquisition, self.wait_and_load_response())
                 self.assert_no_error(response)
-
+                self.assertEqual(response['cmd'], 'list_datalogging_acquisitions_response')
                 self.assertIn('acquisitions', response)
                 self.assertEqual(len(response['acquisitions']), 2)
                 self.assertEqual(response['acquisitions'][0]['firmware_id'], sfd1.get_firmware_id_ascii())
                 self.assertEqual(response['acquisitions'][0]['reference_id'], 'refid1')
-                self.assertEqual(response['acquisitions'][0]['timestamp'], 123)
+                self.assertEqual(response['acquisitions'][0]['timestamp'], int(acq1.acq_time.timestamp()))
                 self.assertEqual(response['acquisitions'][0]['name'], 'foo')
                 self.assertEqual(response['acquisitions'][0]['firmware_metadata'], sfd1.get_metadata())
 
                 self.assertEqual(response['acquisitions'][1]['firmware_id'], sfd1.get_firmware_id_ascii())
                 self.assertEqual(response['acquisitions'][1]['reference_id'], 'refid2')
-                self.assertEqual(response['acquisitions'][1]['timestamp'], 456)
+                self.assertEqual(response['acquisitions'][1]['timestamp'], int(acq2.acq_time.timestamp()))
                 self.assertEqual(response['acquisitions'][1]['name'], 'bar')
                 self.assertEqual(response['acquisitions'][1]['firmware_metadata'], sfd1.get_metadata())
 
@@ -1293,6 +1293,7 @@ class TestAPI(ScrutinyUnitTest):
                 self.send_request(req)
                 response = cast(api_typing.S2C.ListDataloggingAcquisition, self.wait_and_load_response())
                 self.assert_no_error(response)
+                self.assertEqual(response['cmd'], 'list_datalogging_acquisitions_response')
                 self.assertEqual(len(response['acquisitions']), 4)
 
                 req: api_typing.C2S.ListDataloggingAcquisitions = {
@@ -1303,16 +1304,17 @@ class TestAPI(ScrutinyUnitTest):
                 self.send_request(req)
                 response = cast(api_typing.S2C.ListDataloggingAcquisition, self.wait_and_load_response())
                 self.assert_no_error(response)
+                self.assertEqual(response['cmd'], 'list_datalogging_acquisitions_response')
                 self.assertEqual(len(response['acquisitions']), 0)
 
     def test_update_datalogging_acquisition(self):
         # Rename an acquisition in datalogging storage through API
         with DataloggingStorage.use_temp_storage():
-            acq1 = api_datalogging.DataloggingAcquisition(firmware_id='some_firmware_id', reference_id="refid1", timestamp=123, name="foo")
+            acq1 = api_datalogging.DataloggingAcquisition(firmware_id='some_firmware_id', reference_id="refid1", name="foo")
             acq1.set_xaxis(api_datalogging.DataSeries())
-            acq2 = api_datalogging.DataloggingAcquisition(firmware_id='some_firmware_id', reference_id="refid2", timestamp=456, name="bar")
+            acq2 = api_datalogging.DataloggingAcquisition(firmware_id='some_firmware_id', reference_id="refid2", name="bar")
             acq2.set_xaxis(api_datalogging.DataSeries())
-            acq3 = api_datalogging.DataloggingAcquisition(firmware_id='some_firmware_id', reference_id="refid3", timestamp=789, name="baz")
+            acq3 = api_datalogging.DataloggingAcquisition(firmware_id='some_firmware_id', reference_id="refid3", name="baz")
             acq3.set_xaxis(api_datalogging.DataSeries())
             DataloggingStorage.save(acq1)
             DataloggingStorage.save(acq2)
@@ -1325,12 +1327,21 @@ class TestAPI(ScrutinyUnitTest):
             }
 
             self.send_request(req)
-            response = cast(api_typing.S2C.UpdateDataloggingAcquisition, self.wait_and_load_response())
-            self.assert_no_error(response)
-            acq2_reloaded = DataloggingStorage.read('refid2')
-            self.assertEqual(acq2_reloaded.name, 'new_name!')
-            self.assertEqual(acq2_reloaded.firmware_id, acq2.firmware_id)
-            self.assertEqual(acq2_reloaded.timestamp, acq2.timestamp)
+            for i in range(2):
+                response = self.wait_and_load_response()
+                if response['cmd'] == API.Command.Api2Client.UPDATE_DATALOGGING_ACQUISITION_RESPONSE:
+                    response = cast(api_typing.S2C.UpdateDataloggingAcquisition, response)
+                    self.assert_no_error(response)
+                    acq2_reloaded = DataloggingStorage.read('refid2')
+                    self.assertEqual(acq2_reloaded.name, 'new_name!')
+                    self.assertEqual(acq2_reloaded.firmware_id, acq2.firmware_id)
+                    self.assertLess((acq2_reloaded.acq_time - acq2.acq_time).total_seconds(), 1)
+                elif response['cmd'] == API.Command.Api2Client.INFORM_DATALOGGING_LIST_CHANGED:
+                    response = cast(api_typing.S2C.InformDataloggingListChanged, response)
+                    self.assertEqual(response['action'], 'update')
+                    self.assertEqual(response['reference_id'], 'refid2')
+                else:
+                    raise ValueError('Unexpected response %s' % response)
 
             req: api_typing.C2S.UpdateDataloggingAcquisition = {
                 'cmd': 'update_datalogging_acquisition',
@@ -1344,11 +1355,11 @@ class TestAPI(ScrutinyUnitTest):
     def test_delete_datalogging_acquisition(self):
         # Rename an acquisition in datalogging storage through API
         with DataloggingStorage.use_temp_storage():
-            acq1 = api_datalogging.DataloggingAcquisition(firmware_id='some_firmware_id', reference_id="refid1", timestamp=123, name="foo")
+            acq1 = api_datalogging.DataloggingAcquisition(firmware_id='some_firmware_id', reference_id="refid1", name="foo")
             acq1.set_xaxis(api_datalogging.DataSeries())
-            acq2 = api_datalogging.DataloggingAcquisition(firmware_id='some_firmware_id', reference_id="refid2", timestamp=456, name="bar")
+            acq2 = api_datalogging.DataloggingAcquisition(firmware_id='some_firmware_id', reference_id="refid2", name="bar")
             acq2.set_xaxis(api_datalogging.DataSeries())
-            acq3 = api_datalogging.DataloggingAcquisition(firmware_id='some_firmware_id', reference_id="refid3", timestamp=789, name="baz")
+            acq3 = api_datalogging.DataloggingAcquisition(firmware_id='some_firmware_id', reference_id="refid3", name="baz")
             acq3.set_xaxis(api_datalogging.DataSeries())
             DataloggingStorage.save(acq1)
             DataloggingStorage.save(acq2)
@@ -1361,14 +1372,23 @@ class TestAPI(ScrutinyUnitTest):
             }
 
             self.send_request(req)
-            response = cast(api_typing.S2C.DeleteDataloggingAcquisition, self.wait_and_load_response())
-            self.assert_no_error(response)
-            self.assertEqual(DataloggingStorage.count(), 2)
-            with self.assertRaises(LookupError):
-                DataloggingStorage.read('refid2')
+            for i in range(2):
+                response = self.wait_and_load_response()
+                if response['cmd'] == API.Command.Api2Client.DELETE_DATALOGGING_ACQUISITION_RESPONSE:
+                    response = cast(api_typing.S2C.DeleteDataloggingAcquisition, response)
+                    self.assert_no_error(response)
+                    self.assertEqual(DataloggingStorage.count(), 2)
+                    with self.assertRaises(LookupError):
+                        DataloggingStorage.read('refid2')
 
-            DataloggingStorage.read('refid1')
-            DataloggingStorage.read('refid3')
+                    DataloggingStorage.read('refid1')
+                    DataloggingStorage.read('refid3')
+                elif response['cmd'] == API.Command.Api2Client.INFORM_DATALOGGING_LIST_CHANGED:
+                    response = cast(api_typing.S2C.InformDataloggingListChanged, response)
+                    self.assertEqual(response['action'], 'delete')
+                    self.assertEqual(response['reference_id'], 'refid2')
+                else:
+                    raise ValueError('Unexpected response %s' % response)
 
             req: api_typing.C2S.DeleteDataloggingAcquisition = {
                 'cmd': 'delete_datalogging_acquisition',
@@ -1380,7 +1400,7 @@ class TestAPI(ScrutinyUnitTest):
 
     def test_read_datalogging_acquisition_content(self):
         with DataloggingStorage.use_temp_storage():
-            acq = api_datalogging.DataloggingAcquisition(firmware_id='some_firmware_id', reference_id="refid1", timestamp=123, name="foo")
+            acq = api_datalogging.DataloggingAcquisition(firmware_id='some_firmware_id', reference_id="refid1", name="foo")
             acq.set_xaxis(api_datalogging.DataSeries([0, 1, 2, 3, 4, 5, 6, 7, 8, 9], name='the x-axis', logged_element='/var/xaxis'))
             acq.add_data(api_datalogging.DataSeries([10, 20, 30, 40, 50, 60, 70, 80, 90], name='serie 1', logged_element='/var/data1'))
             acq.add_data(api_datalogging.DataSeries([100, 200, 300, 400, 500, 600, 700, 800, 900], name='serie 2', logged_element='/var/data2'))
@@ -1394,7 +1414,7 @@ class TestAPI(ScrutinyUnitTest):
             self.send_request(req)
             response = cast(api_typing.S2C.ReadDataloggingAcquisitionContent, self.wait_and_load_response())
             self.assert_no_error(response)
-
+            self.assertEqual(response['cmd'], 'read_datalogging_acquisition_content_response')
             self.assertEqual(len(response['signals']), 2)
 
             self.assertEqual(response['xaxis']['name'], 'the x-axis')
@@ -1422,11 +1442,11 @@ class TestAPI(ScrutinyUnitTest):
         self.send_request(req)
         response = self.wait_and_load_response()
         self.assert_no_error(response)
-        self.assertIn(response['cmd'], [API.Command.Api2Client.INFORM_NEW_DATALOGGING_ACQUISITION,
+        self.assertIn(response['cmd'], [API.Command.Api2Client.INFORM_DATALOGGING_LIST_CHANGED,
                       API.Command.Api2Client.REQUEST_DATALOGGING_ACQUISITION_RESPONSE])
         response = self.wait_and_load_response()
         self.assert_no_error(response)
-        self.assertIn(response['cmd'], [API.Command.Api2Client.INFORM_NEW_DATALOGGING_ACQUISITION,
+        self.assertIn(response['cmd'], [API.Command.Api2Client.INFORM_DATALOGGING_LIST_CHANGED,
                                         API.Command.Api2Client.REQUEST_DATALOGGING_ACQUISITION_RESPONSE])
 
         self.assertFalse(self.fake_datalogging_manager.request_queue.empty())
