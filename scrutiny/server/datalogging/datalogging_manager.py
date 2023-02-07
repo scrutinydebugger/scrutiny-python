@@ -44,8 +44,6 @@ class DataloggingManager:
     device_status: DeviceHandler.ConnectionStatus
     active_request: Optional[DeviceSideAcquisitionRequest]
     logger: logging.Logger
-    datalogging_setup: Optional[device_datalogging.DataloggingSetup]
-    rpv_map: Optional[Dict[int, RuntimePublishedValue]]
 
     def __init__(self, datastore: Datastore, device_handler: DeviceHandler):
         self.datastore = datastore
@@ -55,12 +53,6 @@ class DataloggingManager:
         self.last_device_status = DeviceHandler.ConnectionStatus.UNKNOWN
         self.device_status = DeviceHandler.ConnectionStatus.UNKNOWN
         self.active_request = None
-        self.datalogging_setup = None
-        self.rpv_map = None
-
-        self.device_handler.set_datalogging_callbacks(
-            receive_setup=DataloggingReceiveSetupCallback(self.callback_receive_setup),
-        )
 
     def is_valid_sample_rate_id(self, identifier: int) -> bool:
         for rate in self.get_available_sampling_rates():
@@ -74,8 +66,6 @@ class DataloggingManager:
 
     def set_disconnected(self):
         self.active_request = None
-        self.datalogging_setup = None
-        self.rpv_map = None
 
     def request_acquisition(self, request: api_datalogging.AcquisitionRequest, callback: api_datalogging.APIAcquisitionRequestCompletionCallback) -> None:
         # Converts right away to device side acquisition because we want exception to be raised as early as possible for quik feedback to user
@@ -199,32 +189,22 @@ class DataloggingManager:
             assert device_info.supported_feature_map is not None
             assert device_info.runtime_published_values is not None
             if device_info.supported_feature_map['datalogging'] == True:
-                if self.last_device_status != DeviceHandler.ConnectionStatus.CONNECTED_READY:   # Just connected
-                    self.rpv_map = {}
-                    for rpv in device_info.runtime_published_values:
-                        self.rpv_map[rpv.id] = rpv
-                else:
-                    self.process_connected_ready()
+                if self.active_request is None:  # No request being processed
+                    if not self.acquisition_request_queue.empty():  # A request to be processed pending in the queue
+                        self.active_request = self.acquisition_request_queue.get()
+                        self.device_handler.request_datalogging_acquisition(
+                            loop_id=self.active_request.api_request.rate_identifier,
+                            config=self.active_request.device_config,
+                            callback=DeviceAcquisitionRequestCompletionCallback(self.acquisition_complete_callback)
+                        )
         else:
             self.set_disconnected()
 
         self.last_device_status = self.device_status
 
-    def process_connected_ready(self):
-        if self.active_request is None:
-            if not self.acquisition_request_queue.empty():
-                self.active_request = self.acquisition_request_queue.get()
-                self.device_handler.request_datalogging_acquisition(
-                    loop_id=self.active_request.api_request.rate_identifier,
-                    config=self.active_request.device_config,
-                    callback=DeviceAcquisitionRequestCompletionCallback(self.acquisition_complete_callback)
-                )
-
-    def callback_receive_setup(self, setup: device_datalogging.DataloggingSetup):
-        self.datalogging_setup = setup
-
     @classmethod
     def api_trigger_condition_to_device_trigger_condition(cls, api_cond: api_datalogging.TriggerCondition) -> device_datalogging.TriggerCondition:
+        """Converts a TriggerCondition in the API format to the device format"""
         device_operands: List[device_datalogging.Operand] = []
         for api_operand in api_cond.operands:
             if api_operand.type == api_datalogging.TriggerConditionOperandType.LITERAL:
@@ -248,6 +228,7 @@ class DataloggingManager:
 
     @classmethod
     def make_device_config_from_request(self, request: api_datalogging.AcquisitionRequest) -> Tuple[device_datalogging.Configuration, Dict[DatastoreEntry, int]]:
+        """Converts a Configuration from the API format to the device format"""
         config = device_datalogging.Configuration()
         # Each of the assignation below can trigger an exception if out of bound
         config.decimation = request.decimation
@@ -345,9 +326,11 @@ class DataloggingManager:
         return operand
 
     def get_device_setup(self) -> Optional[device_datalogging.DataloggingSetup]:
+        """Reads the datalogging configuration gotten from the device. May not be available"""
         return self.device_handler.get_datalogging_setup()
 
     def get_sampling_rate(self, identifier: int) -> api_datalogging.SamplingRate:
+        """Get the sampling rate identified by the given identifier. The identifier is known to the device."""
         sampling_rates = self.get_available_sampling_rates()
         candidate: Optional[api_datalogging.SamplingRate] = None
         for sr in sampling_rates:
@@ -359,6 +342,7 @@ class DataloggingManager:
         return candidate
 
     def get_available_sampling_rates(self) -> List[api_datalogging.SamplingRate]:
+        """Get all sampling rates available on the actually connected device """
         output: List[api_datalogging.SamplingRate] = []
 
         if self.device_status == DeviceHandler.ConnectionStatus.CONNECTED_READY:

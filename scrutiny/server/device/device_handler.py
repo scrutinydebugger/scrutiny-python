@@ -224,10 +224,6 @@ class DeviceHandler:
 
         self.operating_mode = mode
 
-    def set_datalogging_callbacks(self, receive_setup: DataloggingReceiveSetupCallback):
-        """Register callbacks that are called when event related to datalogging are being triggered"""
-        self.datalogging_poller.set_datalogging_callbacks(receive_setup)
-
     def request_datalogging_acquisition(self, loop_id: int, config: device_datalogging.Configuration, callback: DeviceAcquisitionRequestCompletionCallback) -> None:
         self.datalogging_poller.request_acquisition(loop_id=loop_id, config=config, callback=callback)
 

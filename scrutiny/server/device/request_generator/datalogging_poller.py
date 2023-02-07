@@ -11,7 +11,6 @@ import logging
 import traceback
 from enum import Enum, auto
 from dataclasses import dataclass
-import copy
 
 from scrutiny.server.protocol import *
 from scrutiny.server.device.request_dispatcher import RequestDispatcher, SuccessCallback, FailureCallback
@@ -100,7 +99,6 @@ class DataloggingPoller:
 
     acquisition_metadata: Optional[device_datalogging.AcquisitionMetadata]
     received_data_chunk: Optional[ReceivedChunk]
-    receive_setup_callback: Optional[DataloggingReceiveSetupCallback]
 
     def __init__(self, protocol: Protocol, dispatcher: RequestDispatcher, request_priority: int):
         self.logger = logging.getLogger(self.__class__.__name__)
@@ -115,7 +113,7 @@ class DataloggingPoller:
 
         self.acquisition_request = None
         self.enabled = True
-        self.receive_setup_callback = None
+        #self.receive_setup_callback = None
         self.actual_config_id = 0
         self.device_datalogging_state = device_datalogging.DataloggerState.IDLE
         self.max_response_payload_size = None
@@ -183,9 +181,6 @@ class DataloggingPoller:
 
     def get_device_setup(self) -> Optional[device_datalogging.DataloggingSetup]:
         return self.device_setup
-
-    def set_datalogging_callbacks(self, receive_setup: DataloggingReceiveSetupCallback):
-        self.receive_setup_callback = receive_setup
 
     def mark_active_acquisition_failed_if_any(self):
         if self.acquisition_request is not None:
@@ -280,8 +275,6 @@ class DataloggingPoller:
                     self.dispatch(self.protocol.datalogging_get_setup())
 
                 if self.device_setup is not None:
-                    if self.receive_setup_callback is not None:
-                        self.receive_setup_callback(copy.copy(self.device_setup))
                     next_state = FSMState.WAIT_FOR_REQUEST
                     self.logger.debug("Datalogging setup received. %s" % (self.device_setup.__dict__))
 

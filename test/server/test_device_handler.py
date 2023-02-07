@@ -54,7 +54,6 @@ class TestDeviceHandler(ScrutinyUnitTest):
         raise KeyboardInterrupt
 
     def setUp(self):
-        self.datalogging_setup = None
         self.acquisition_complete_callback_called = False
         self.acquisition_complete_callback_success = None
         self.acquisition_complete_callback_data = None
@@ -503,10 +502,6 @@ class TestDeviceHandler(ScrutinyUnitTest):
 
         self.assertEqual(round_completed, test_round_to_do)  # Make sure test went through.
 
-    def receive_datalogging_setup_callback(self, setup: device_datalogging.DataloggingSetup):
-        logger.debug('receive_datalogging_setup_callback called. setup=%s' % (str(setup)))
-        self.datalogging_setup = setup
-
     def acquisition_complete_callback(self, success: bool, data: Optional[List[List[bytes]]]):
         logger.debug('acquisition_complete_callback called. success=%s.' % (success))
         self.acquisition_complete_callback_called = True
@@ -515,10 +510,6 @@ class TestDeviceHandler(ScrutinyUnitTest):
 
     def test_datalogging_device_disabled(self):
         # Make sure that the device handler does nothing with datalogging when the device doesn't support it
-
-        self.device_handler.set_datalogging_callbacks(
-            receive_setup=self.receive_datalogging_setup_callback
-        )
 
         self.emulated_device.disable_datalogging()
         self.assertFalse(self.emulated_device.is_datalogging_enabled(), "Datalogging is disabled on emulated device.")
@@ -543,17 +534,13 @@ class TestDeviceHandler(ScrutinyUnitTest):
         while time.time() - t1 < 0.5:
             self.device_handler.process()   # Keep processing to see if datalogging feature will do something (it should not)
 
-        self.assertIsNone(self.datalogging_setup)   # Should never be set
+        self.assertIsNone(self.device_handler.get_datalogging_setup())   # Should never be set
 
     def test_datalogging_control_normal_behavior(self):
         # Test the behavior of the datalogging poller
 
         # Make sure this is enabled, otherwise, the test is useless and will fail.
         self.assertTrue(self.emulated_device.is_datalogging_enabled())
-
-        self.device_handler.set_datalogging_callbacks(
-            receive_setup=self.receive_datalogging_setup_callback
-        )
 
         config = device_datalogging.Configuration()
         config.trigger_hold_time = 0
@@ -605,16 +592,19 @@ class TestDeviceHandler(ScrutinyUnitTest):
             logger.debug("[iteration=%d] Wait for setup" % iteration)
             timeout = 2
             t1 = time.time()
+            datalogging_setup = None
             while time.time() - t1 < timeout:
                 self.device_handler.process()
-                if self.datalogging_setup is not None and self.device_handler.is_ready_for_datalogging_acquisition_request():  # Expect setup to be read
+                datalogging_setup = self.device_handler.get_datalogging_setup()
+                if datalogging_setup is not None and self.device_handler.is_ready_for_datalogging_acquisition_request():  # Expect setup to be read
                     break
 
-            self.assertIsNotNone(self.datalogging_setup)
+            self.assertIsNotNone(datalogging_setup)
+
             self.assertTrue(self.device_handler.is_ready_for_datalogging_acquisition_request())
-            self.assertEqual(self.datalogging_setup.buffer_size, self.emulated_device.datalogger.get_buffer_size())
-            self.assertEqual(self.datalogging_setup.encoding, self.emulated_device.datalogger.get_encoding())
-            self.assertEqual(self.datalogging_setup.max_signal_count, self.emulated_device.datalogger.MAX_SIGNAL_COUNT)
+            self.assertEqual(datalogging_setup.buffer_size, self.emulated_device.datalogger.get_buffer_size())
+            self.assertEqual(datalogging_setup.encoding, self.emulated_device.datalogger.get_encoding())
+            self.assertEqual(datalogging_setup.max_signal_count, self.emulated_device.datalogger.MAX_SIGNAL_COUNT)
 
             # Make sure nothing happens unless somebody require an acquisition
             self.device_handler.process()
@@ -704,7 +694,7 @@ class TestDeviceHandler(ScrutinyUnitTest):
                 data=self.emulated_device.datalogger.get_acquisition_data(),
                 config=config,
                 rpv_map=self.emulated_device.get_rpv_definition_map(),
-                encoding=self.datalogging_setup.encoding
+                encoding=datalogging_setup.encoding
             )
             self.assertEqual(self.acquisition_complete_callback_data, signals, 'iteration=%d' % iteration)
 
