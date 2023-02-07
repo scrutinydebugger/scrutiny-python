@@ -23,7 +23,7 @@ def diff(sig: List[float]) -> List[float]:
     if len(sig) <= 1:
         return []
 
-    out = list(len(sig) - 1)
+    out = [None] * (len(sig) - 1)
     for i in range(1, len(sig)):
         out[i - 1] = sig[i] - sig[i - 1]
     return out
@@ -117,7 +117,7 @@ class TestDataloggingIntegration(ScrutinyIntegrationTestWithTestSFD1):
                 # First make sure there is no acquisition in storage
                 self.send_request({
                     'cmd': API.Command.Client2Api.LIST_DATALOGGING_ACQUISITION,
-                    'firmware_id': self.sfd.get_firmware_id_ascii()
+                    'firmware_id': self.emulated_device.get_firmware_id_ascii()
                 })
                 response = self.wait_and_load_response(API.Command.Api2Client.LIST_DATALOGGING_ACQUISITION_RESPONSE)
                 self.assert_no_error(response)
@@ -305,7 +305,7 @@ class TestDataloggingIntegration(ScrutinyIntegrationTestWithTestSFD1):
                 expected_val = sig[0]
                 for val in sig:
                     self.assertEqual(expected_val, val)
-                    expected_val = (expected_val + 10 * decimation) & 0xFFFFFFFF
+                    expected_val = (expected_val + 10 * decimation) % 0xFFFFFFFF
 
                 self.assertLess(decimation, 4)  # required for this test to work
                 sig = response['signals'][1]['data']
@@ -327,7 +327,7 @@ class TestDataloggingIntegration(ScrutinyIntegrationTestWithTestSFD1):
                 expected_val = sig[0]
                 for val in sig:
                     self.assertEqual(expected_val, val)
-                    expected_val = (expected_val + 1 * decimation) & 0xFF
+                    expected_val = (expected_val + 1 * decimation) % 0xFF
 
     def tearDown(self) -> None:
         super().tearDown()

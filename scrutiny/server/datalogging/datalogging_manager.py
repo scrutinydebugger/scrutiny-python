@@ -22,6 +22,7 @@ from scrutiny.server.datastore.datastore import Datastore
 from scrutiny.server.device.device_info import FixedFreqLoop
 from scrutiny.core.basic_types import *
 from scrutiny.server.datalogging.datalogging_storage import DataloggingStorage
+from scrutiny.core.codecs import Codecs
 
 from typing import Optional, List, Dict, Tuple, Callable
 from scrutiny.core.typehints import GenericCallback
@@ -100,12 +101,62 @@ class DataloggingManager:
         try:
             if success:
                 self.logger.info("New acquisition gotten")
+                assert data is not None
+
+                nb_points: Optional[int] = None
+                for signal_data in data:
+                    if nb_points is None:
+                        nb_points = len(signal_data)
+                    else:
+                        if nb_points != len(signal_data):
+                            raise ValueError('non-matching data length recived in new acquisition')
+
+                if nb_points is None:
+                    raise ValueError('Cannot determine the number of points in the acquisitions')
+
                 acquisition = api_datalogging.DataloggingAcquisition(
                     name=self.active_request.api_request.name,
                     reference_id=uuid4().hex,
                     firmware_id=device_info.device_id,
                     acq_time=datetime.now()
                 )
+
+                for signal in self.active_request.api_request.signals:
+                    parsed_data = self.read_active_request_data_from_raw_data(signal, data)
+                    ds = api_datalogging.DataSeries(
+                        data=parsed_data,
+                        logged_element=signal.entry.display_path
+                    )
+                    if signal.name:
+                        ds.name = signal.name
+                    acquisition.add_data(ds)
+
+                xaxis = api_datalogging.DataSeries()
+                if self.active_request.api_request.x_axis_type == api_datalogging.XAxisType.IdealTime:
+                    sampling_rate = self.get_sampling_rate(self.active_request.api_request.rate_identifier)
+                    if sampling_rate.frequency is None:
+                        raise ValueError('Ideal time X-Axis is not possible with variable frequency loops')
+                    timestep = 1 / sampling_rate.frequency
+                    timestep *= self.active_request.api_request.decimation
+                    xaxis.set_data([i * timestep for i in range(nb_points)])
+                elif self.active_request.api_request.x_axis_type == api_datalogging.XAxisType.MeasuredTime:
+                    time_data = data[-1]
+                    time_codec = Codecs.get(EmbeddedDataType.uint32, endianness=Endianness.Big)
+                    xaxis.set_data([time_codec.decode(sample) * 1e-7 for sample in time_data])
+                elif self.active_request.api_request.x_axis_type == api_datalogging.XAxisType.Signal:
+                    xaxis_signal = self.active_request.api_request.x_axis_signal
+                    assert xaxis_signal is not None
+                    parsed_data = self.read_active_request_data_from_raw_data(xaxis_signal, data)
+                    xaxis.set_data(parsed_data)
+                else:
+                    raise ValueError('Impossible X-Axis type')
+
+                if len(xaxis) != nb_points:
+                    raise ValueError("Failed to find a matching xaxis dataseries")
+
+                xaxis.name = 'time'
+                xaxis.logged_element = 'time'
+                acquisition.set_xaxis(xaxis)
 
                 DataloggingStorage.save(acquisition)
 
@@ -120,6 +171,16 @@ class DataloggingManager:
             self.active_request.callback(False, None)
         else:
             self.active_request.callback(True, acquisition)
+
+    def read_active_request_data_from_raw_data(self, signal: api_datalogging.SignalDefinition, data: List[List[bytes]]) -> List[float]:
+        assert self.active_request is not None
+        loggable_id = self.active_request.entry_signal_map[signal.entry]
+        signal_data = data[loggable_id]
+        parsed_signal_data = []
+        for data_chunk in signal_data:
+            parsed_signal_data.append(float(signal.entry.decode(data_chunk)))
+
+        return parsed_signal_data
 
     def process(self) -> None:
         self.device_status = self.device_handler.get_connection_status()
@@ -277,6 +338,17 @@ class DataloggingManager:
 
     def get_device_setup(self) -> Optional[device_datalogging.DataloggingSetup]:
         return self.device_handler.get_datalogging_setup()
+
+    def get_sampling_rate(self, identifier: int) -> api_datalogging.SamplingRate:
+        sampling_rates = self.get_available_sampling_rates()
+        candidate: Optional[api_datalogging.SamplingRate] = None
+        for sr in sampling_rates:
+            if sr.device_identifier == identifier:
+                candidate = sr
+                break
+        if candidate is None:
+            raise ValueError("Cannot find requested sampling rate")
+        return candidate
 
     def get_available_sampling_rates(self) -> List[api_datalogging.SamplingRate]:
         output: List[api_datalogging.SamplingRate] = []

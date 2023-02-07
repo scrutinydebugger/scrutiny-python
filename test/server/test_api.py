@@ -1327,11 +1327,16 @@ class TestAPI(ScrutinyUnitTest):
             }
 
             self.send_request(req)
+            expected_response = {
+                API.Command.Api2Client.UPDATE_DATALOGGING_ACQUISITION_RESPONSE: None,
+                API.Command.Api2Client.INFORM_DATALOGGING_LIST_CHANGED: None
+            }
             for i in range(2):
                 response = self.wait_and_load_response()
+                self.assert_no_error(response)
+                expected_response[response['cmd']] = True
                 if response['cmd'] == API.Command.Api2Client.UPDATE_DATALOGGING_ACQUISITION_RESPONSE:
                     response = cast(api_typing.S2C.UpdateDataloggingAcquisition, response)
-                    self.assert_no_error(response)
                     acq2_reloaded = DataloggingStorage.read('refid2')
                     self.assertEqual(acq2_reloaded.name, 'new_name!')
                     self.assertEqual(acq2_reloaded.firmware_id, acq2.firmware_id)
@@ -1342,6 +1347,9 @@ class TestAPI(ScrutinyUnitTest):
                     self.assertEqual(response['reference_id'], 'refid2')
                 else:
                     raise ValueError('Unexpected response %s' % response)
+
+            for k in expected_response:
+                self.assertIsNotNone(expected_response[k])
 
             req: api_typing.C2S.UpdateDataloggingAcquisition = {
                 'cmd': 'update_datalogging_acquisition',
@@ -1372,11 +1380,16 @@ class TestAPI(ScrutinyUnitTest):
             }
 
             self.send_request(req)
+            expected_response = {
+                API.Command.Api2Client.DELETE_DATALOGGING_ACQUISITION_RESPONSE: None,
+                API.Command.Api2Client.INFORM_DATALOGGING_LIST_CHANGED: None
+            }
             for i in range(2):
                 response = self.wait_and_load_response()
+                self.assert_no_error(response)
+                expected_response[response['cmd']] = True
                 if response['cmd'] == API.Command.Api2Client.DELETE_DATALOGGING_ACQUISITION_RESPONSE:
                     response = cast(api_typing.S2C.DeleteDataloggingAcquisition, response)
-                    self.assert_no_error(response)
                     self.assertEqual(DataloggingStorage.count(), 2)
                     with self.assertRaises(LookupError):
                         DataloggingStorage.read('refid2')
@@ -1389,6 +1402,9 @@ class TestAPI(ScrutinyUnitTest):
                     self.assertEqual(response['reference_id'], 'refid2')
                 else:
                     raise ValueError('Unexpected response %s' % response)
+
+            for k in expected_response:
+                self.assertIsNotNone(expected_response[k])
 
             req: api_typing.C2S.DeleteDataloggingAcquisition = {
                 'cmd': 'delete_datalogging_acquisition',

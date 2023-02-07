@@ -199,6 +199,7 @@ class DataloggerEmulator:
     byte_count_at_trigger: int
     entry_counter_at_trigger: int
     acquisition_id: int
+    decimation_counter: int
 
     def __init__(self, device: "EmulatedDevice", buffer_size: int, encoding: device_datalogging.Encoding = device_datalogging.Encoding.RAW):
         self.logger = logging.getLogger(self.__class__.__name__)
@@ -226,6 +227,7 @@ class DataloggerEmulator:
         self.target_byte_count_after_trigger = 0
         self.byte_count_at_trigger = 0
         self.entry_counter_at_trigger = 0
+        self.decimation_counter = 0
 
     def configure(self, config_id: int, config: device_datalogging.Configuration) -> None:
         self.logger.debug("Being configured. Config ID=%d" % config_id)
@@ -366,8 +368,12 @@ class DataloggerEmulator:
         self.timebase.process()
 
         if self.state in [device_datalogging.DataloggerState.CONFIGURED, device_datalogging.DataloggerState.ARMED, device_datalogging.DataloggerState.TRIGGERED]:
-            self.encoder.encode_samples(self.read_samples())
-            self.logger.debug("Encoding a new sample. Internal counter=%d" % self.encoder.entry_counter)
+            if self.decimation_counter == 0:
+                self.encoder.encode_samples(self.read_samples())
+                self.logger.debug("Encoding a new sample. Internal counter=%d" % self.encoder.entry_counter)
+            self.decimation_counter += 1
+            if self.decimation_counter >= self.config.decimation:
+                self.decimation_counter = 0
 
         if self.state == device_datalogging.DataloggerState.ARMED:
             assert self.config is not None
