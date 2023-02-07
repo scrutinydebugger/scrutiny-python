@@ -167,10 +167,18 @@ class DataloggingManager:
             self.logger.error('Error while processing datalogging acquisition: %s' % str(e))
             self.logger.debug(traceback.format_exc())
 
-        if acquisition is None:
-            self.active_request.callback(False, None)
-        else:
-            self.active_request.callback(True, acquisition)
+        err: Optional[Exception] = None
+        try:
+            if acquisition is None:
+                self.active_request.callback(False, None)
+            else:
+                self.active_request.callback(True, acquisition)
+        except Exception as e:
+            err = e
+
+        self.active_request = None
+        if err:
+            raise err
 
     def read_active_request_data_from_raw_data(self, signal: api_datalogging.SignalDefinition, data: List[List[bytes]]) -> List[float]:
         assert self.active_request is not None

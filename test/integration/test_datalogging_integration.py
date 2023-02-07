@@ -112,6 +112,37 @@ class TestDataloggingIntegration(ScrutinyIntegrationTestWithTestSFD1):
 
     def test_make_acquisition_normal(self):
         with DataloggingStorage.use_temp_storage():
+            # We will create  a task that the emulated device will run in its thread. This task update some memory region with known pattern.
+            class ValueUpdateTask:
+                def __init__(self, testcase: ScrutinyIntegrationTestWithTestSFD1):
+                    self.last_update = time.time()
+                    self.update_counter = 0
+                    self.u32_addr = testcase.entry_u32.get_address()
+                    self.f32_addr = testcase.entry_float32.get_address()
+                    self.u8_addr = testcase.entry_u8.get_address()
+                    self.device = testcase.emulated_device
+
+                def __call__(self):
+                    t = time.time()
+                    if t - self.last_update > 0.005:
+                        codec_u32 = Codecs.get(EmbeddedDataType.uint32, Endianness.Little)
+                        val = codec_u32.decode(self.device.read_memory(self.u32_addr, 4))
+                        val = (val + 10) & 0xFFFFFFFF
+                        self.device.write_memory(self.u32_addr, codec_u32.encode(val))
+
+                        codec_f32 = Codecs.get(EmbeddedDataType.float32, Endianness.Little)
+                        v = (self.update_counter % 4) * 100
+                        self.device.write_memory(self.f32_addr, codec_f32.encode(v))
+
+                        codec_u8 = Codecs.get(EmbeddedDataType.uint8, Endianness.Little)
+                        val = codec_u8.decode(self.device.read_memory(self.u8_addr, 1))
+                        val = (val + 1) & 0xFF
+                        self.device.write_memory(self.u8_addr, codec_u8.encode(val))
+
+                        self.device.write_rpv(0x1000, self.device.read_rpv(0x1000) + 5)  # RPV 1000 is a float64
+                        self.last_update = t
+                        self.update_counter += 1
+
             for iteration in range(3):
                 logger.debug("test_make_acquisition_normal iteration=%d" % iteration)
                 # First make sure there is no acquisition in storage
@@ -166,38 +197,8 @@ class TestDataloggingIntegration(ScrutinyIntegrationTestWithTestSFD1):
                 self.emulated_device.write_memory(self.entry_u16.get_address(), bytes([0, 0]))
                 self.emulated_device.write_rpv(0x1000, 0)
 
-                # We will create  a task that the emulated device will run in its thread. This task update some memory region with known pattern.
-                class ValueUpdateTask:
-                    def __init__(self, testcase: ScrutinyIntegrationTestWithTestSFD1):
-                        self.last_update = time.time()
-                        self.update_counter = 0
-                        self.u32_addr = testcase.entry_u32.get_address()
-                        self.f32_addr = testcase.entry_float32.get_address()
-                        self.u8_addr = testcase.entry_u8.get_address()
-                        self.device = testcase.emulated_device
-
-                    def __call__(self):
-                        t = time.time()
-                        if t - self.last_update > 0.005:
-                            codec_u32 = Codecs.get(EmbeddedDataType.uint32, Endianness.Little)
-                            val = codec_u32.decode(self.device.read_memory(self.u32_addr, 4))
-                            val = (val + 10) & 0xFFFFFFFF
-                            self.device.write_memory(self.u32_addr, codec_u32.encode(val))
-
-                            codec_f32 = Codecs.get(EmbeddedDataType.float32, Endianness.Little)
-                            v = (self.update_counter % 4) * 100
-                            self.device.write_memory(self.f32_addr, codec_f32.encode(v))
-
-                            codec_u8 = Codecs.get(EmbeddedDataType.uint8, Endianness.Little)
-                            val = codec_u8.decode(self.device.read_memory(self.u8_addr, 1))
-                            val = (val + 1) & 0xFF
-                            self.device.write_memory(self.u8_addr, codec_u8.encode(val))
-
-                            self.device.write_rpv(0x1000, self.device.read_rpv(0x1000) + 5)  # RPV 1000 is a float64
-                            self.last_update = t
-                            self.update_counter += 1
-
-                self.emulated_device.add_additional_task(ValueUpdateTask(self))  # Will be run in device thread
+                if iteration == 0:
+                    self.emulated_device.add_additional_task(ValueUpdateTask(self))  # Will be run in device thread
 
                 self.send_request(req)  # Send the acquisition request here
                 self.ensure_no_response_for(0.2)
@@ -261,11 +262,18 @@ class TestDataloggingIntegration(ScrutinyIntegrationTestWithTestSFD1):
                 response = cast(api_typing.S2C.ListDataloggingAcquisition, response)
 
                 self.assertEqual(len(response['acquisitions']), iteration + 1)
-                acq_summary = response['acquisitions'][0]
-                self.assertEqual(acq_summary['firmware_id'], self.emulated_device.get_firmware_id_ascii())
-                self.assertEqual(acq_summary['name'], 'potato')
-                self.assertEqual(acq_summary['reference_id'], acq_refid)
-                self.assertEqual(acq_summary['firmware_metadata'], None)
+
+                found = False
+                for acq_summary in response['acquisitions']:
+                    if acq_summary['reference_id'] == acq_refid:
+                        found = True
+                        self.assertEqual(acq_summary['firmware_id'], self.emulated_device.get_firmware_id_ascii())
+                        self.assertEqual(acq_summary['name'], 'potato')
+                        self.assertEqual(acq_summary['reference_id'], acq_refid)
+                        self.assertEqual(acq_summary['firmware_metadata'], None)
+                        break
+
+                self.assertTrue(found)
 
                 # Let's read the content of that single acquisition
                 self.send_request({

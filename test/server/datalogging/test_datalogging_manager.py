@@ -80,6 +80,7 @@ class TestDataloggingManager(ScrutinyUnitTest):
 
     def make_test_request(self, operand_watchable: DatastoreEntry, x_axis_type: api_datalogging.XAxisType, x_axis_entry: Optional[DatastoreEntry] = None) -> api_datalogging.AcquisitionRequest:
         return api_datalogging.AcquisitionRequest(
+            name="some_request",
             decimation=2,
             probe_location=0.25,
             rate_identifier=2,   # Loop ID = 2. Number owned by Device Handler (stubbed here)
