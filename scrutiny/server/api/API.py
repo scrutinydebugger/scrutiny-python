@@ -1137,7 +1137,7 @@ class API:
         if err:
             raise InvalidRequestException(req, "Failed to read acquisition. %s" % (str(err)))
 
-        def dataserie_to_api_signal_data(ds: api_datalogging.DataSeries) -> api_typing.DataloggingSignalData:
+        def dataseries_to_api_signal_data(ds: api_datalogging.DataSeries) -> api_typing.DataloggingSignalData:
             signal: api_typing.DataloggingSignalData = {
                 'name': ds.name,
                 'logged_element': ds.logged_element,
@@ -1146,7 +1146,7 @@ class API:
             return signal
 
         def dataseries_to_api_signal_data_with_axis(ds: api_datalogging.DataSeries, axis_index: int) -> api_typing.DataloggingSignalDataWithAxis:
-            signal: api_typing.DataloggingSignalDataWithAxis = cast(api_typing.DataloggingSignalDataWithAxis, dataserie_to_api_signal_data(ds))
+            signal: api_typing.DataloggingSignalDataWithAxis = cast(api_typing.DataloggingSignalDataWithAxis, dataseries_to_api_signal_data(ds))
             signal['axis_index'] = axis_index
             return signal
 
@@ -1158,16 +1158,16 @@ class API:
             yaxis_list.append(yaxis_out)
 
         signals: List[api_typing.DataloggingSignalDataWithAxis] = []
-        for dataserie_with_axis in acquisition.get_data():
-            yaxis_index = yaxis_list.index(acq_axis_2_api_axis_map[dataserie_with_axis.axis])
-            signals.append(dataseries_to_api_signal_data_with_axis(ds=dataserie_with_axis.serie, axis_index=yaxis_index))
+        for dataseries_with_axis in acquisition.get_data():
+            yaxis_index = yaxis_list.index(acq_axis_2_api_axis_map[dataseries_with_axis.axis])
+            signals.append(dataseries_to_api_signal_data_with_axis(ds=dataseries_with_axis.series, axis_index=yaxis_index))
 
         response: api_typing.S2C.ReadDataloggingAcquisitionContent = {
             'cmd': API.Command.Api2Client.READ_DATALOGGING_ACQUISITION_CONTENT_RESPONSE,
             'reqid': self.get_req_id(req),
             'reference_id': acquisition.reference_id,
             'signals': signals,
-            'xdata': dataserie_to_api_signal_data(acquisition.xdata),
+            'xdata': dataseries_to_api_signal_data(acquisition.xdata),
             'yaxis': yaxis_list
         }
 

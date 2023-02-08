@@ -1420,9 +1420,9 @@ class TestAPI(ScrutinyUnitTest):
             axis2 = api_datalogging.AxisDefinition(name="Axis2")
             acq = api_datalogging.DataloggingAcquisition(firmware_id='some_firmware_id', reference_id="refid1", name="foo")
             acq.set_xdata(api_datalogging.DataSeries([0, 1, 2, 3, 4, 5, 6, 7, 8, 9], name='the x-axis', logged_element='/var/xaxis'))
-            acq.add_data(api_datalogging.DataSeries([10, 20, 30, 40, 50, 60, 70, 80, 90], name='serie 1', logged_element='/var/data1'), axis1)
+            acq.add_data(api_datalogging.DataSeries([10, 20, 30, 40, 50, 60, 70, 80, 90], name='series 1', logged_element='/var/data1'), axis1)
             acq.add_data(api_datalogging.DataSeries([100, 200, 300, 400, 500, 600, 700,
-                         800, 900], name='serie 2', logged_element='/var/data2'), axis2)
+                         800, 900], name='series 2', logged_element='/var/data2'), axis2)
             DataloggingStorage.save(acq)
 
             req: api_typing.C2S.ReadDataloggingAcquisitionContent = {
@@ -1444,12 +1444,12 @@ class TestAPI(ScrutinyUnitTest):
             self.assertEqual(response['yaxis'][0]['name'], 'Axis1')
             self.assertEqual(response['yaxis'][1]['name'], 'Axis2')
 
-            self.assertEqual(response['signals'][0]['name'], 'serie 1')
+            self.assertEqual(response['signals'][0]['name'], 'series 1')
             self.assertEqual(response['signals'][0]['data'], [10, 20, 30, 40, 50, 60, 70, 80, 90])
             self.assertEqual(response['signals'][0]['logged_element'], '/var/data1')
             self.assertEqual(response['signals'][0]['axis_index'], 0)
 
-            self.assertEqual(response['signals'][1]['name'], 'serie 2')
+            self.assertEqual(response['signals'][1]['name'], 'series 2')
             self.assertEqual(response['signals'][1]['data'], [100, 200, 300, 400, 500, 600, 700, 800, 900])
             self.assertEqual(response['signals'][1]['logged_element'], '/var/data2')
             self.assertEqual(response['signals'][1]['axis_index'], 1)

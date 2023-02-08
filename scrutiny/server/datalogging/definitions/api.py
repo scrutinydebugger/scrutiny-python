@@ -82,7 +82,7 @@ class DataSeries:
 
 @dataclass
 class DataSeriesWithAxis:
-    serie: DataSeries
+    series: DataSeries
     axis: AxisDefinition
 
 
@@ -125,22 +125,22 @@ class DataloggingAcquisition:
     def set_xdata(self, xdata: DataSeries) -> None:
         self.xdata = xdata
 
-    def add_data(self, dataserie: DataSeries, axis: AxisDefinition = DEFAULT_AXIS) -> None:
-        self.ydata.append(DataSeriesWithAxis(serie=dataserie, axis=axis))
+    def add_data(self, dataseries: DataSeries, axis: AxisDefinition = DEFAULT_AXIS) -> None:
+        self.ydata.append(DataSeriesWithAxis(series=dataseries, axis=axis))
 
     def get_data(self) -> List[DataSeriesWithAxis]:
         return self.ydata
 
     def get_unique_yaxis_list(self) -> List[AxisDefinition]:
         yaxis = set()
-        for dataserie in self.ydata:
-            yaxis.add(dataserie.axis)
+        for dataseries in self.ydata:
+            yaxis.add(dataseries.axis)
 
         return list(yaxis)
 
-    def find_axis_for_dataserie(self, ds: DataSeries) -> AxisDefinition:
+    def find_axis_for_dataseries(self, ds: DataSeries) -> AxisDefinition:
         for a in self.ydata:
-            if a.serie is ds:
+            if a.series is ds:
                 return a.axis
         raise LookupError("Cannot find axis for given dataseries")
 

@@ -166,14 +166,14 @@ class DataloggingStorageManager:
                 cursor.execute(
                     data_series_sql,
                     (
-                        data.serie.name,
-                        data.serie.logged_element,
+                        data.series.name,
+                        data.series.logged_element,
                         axis2id_map[data.axis],
-                        data.serie.get_data_binary()
+                        data.series.get_data_binary()
                     )
                 )
                 assert cursor.lastrowid is not None
-                series2id_map[data.serie] = cursor.lastrowid
+                series2id_map[data.series] = cursor.lastrowid
 
             cursor.execute(
                 data_series_sql,

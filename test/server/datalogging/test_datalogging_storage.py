@@ -19,9 +19,9 @@ from typing import Dict, Optional
 class TestDataloggingStorage(ScrutinyUnitTest):
 
     def make_dummy_data(self, datalen: int) -> DataSeries:
-        serie = DataSeries(name=uuid4().hex, logged_element=uuid4().hex)
-        serie.set_data([random.random() for i in range(datalen)])
-        return serie
+        series = DataSeries(name=uuid4().hex, logged_element=uuid4().hex)
+        series.set_data([random.random() for i in range(datalen)])
+        return series
 
     def assert_acquisition_valid(self, a: DataloggingAcquisition):
         self.assertIsInstance(a.firmware_id, str)
@@ -35,9 +35,9 @@ class TestDataloggingStorage(ScrutinyUnitTest):
 
         self.assertIsInstance(a.get_data(), list)
         for data in a.get_data():
-            self.assertIsInstance(data.serie, DataSeries)
-            self.assertIsInstance(data.serie.name, str)
-            self.assertIsInstance(data.serie.logged_element, str)
+            self.assertIsInstance(data.series, DataSeries)
+            self.assertIsInstance(data.series.name, str)
+            self.assertIsInstance(data.series.logged_element, str)
             self.assertIsInstance(data.axis, AxisDefinition)
 
     def assert_acquisition_identical(self, a: DataloggingAcquisition, b: DataloggingAcquisition):
@@ -56,7 +56,7 @@ class TestDataloggingStorage(ScrutinyUnitTest):
         data2 = b.get_data()
         self.assertEqual(len(data1), len(data2))
         for i in range(len(data1)):
-            self.assert_dataseries_identical(data1[i].serie, data2[i].serie)
+            self.assert_dataseries_identical(data1[i].series, data2[i].series)
             self.assertEqual(data1[i].axis.name, data2[i].axis.name)
 
     def assert_dataseries_identical(self, a: DataSeries, b: DataSeries):
