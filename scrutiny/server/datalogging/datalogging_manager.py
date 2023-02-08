@@ -24,8 +24,7 @@ from scrutiny.core.basic_types import *
 from scrutiny.server.datalogging.datalogging_storage import DataloggingStorage
 from scrutiny.core.codecs import Codecs
 
-from typing import Optional, List, Dict, Tuple, Callable
-from scrutiny.core.typehints import GenericCallback
+from typing import Optional, List, Dict, Tuple, cast
 
 
 @dataclass
@@ -112,6 +111,7 @@ class DataloggingManager:
                 )
 
                 for signal in self.active_request.api_request.signals:
+
                     parsed_data = self.read_active_request_data_from_raw_data(signal, data)
                     ds = api_datalogging.DataSeries(
                         data=parsed_data,
@@ -119,7 +119,7 @@ class DataloggingManager:
                     )
                     if signal.name:
                         ds.name = signal.name
-                    acquisition.add_data(ds)
+                    acquisition.add_data(ds, signal.axis)
 
                 xaxis = api_datalogging.DataSeries()
                 if self.active_request.api_request.x_axis_type == api_datalogging.XAxisType.IdealTime:
@@ -146,7 +146,7 @@ class DataloggingManager:
 
                 xaxis.name = 'time'
                 xaxis.logged_element = 'time'
-                acquisition.set_xaxis(xaxis)
+                acquisition.set_xdata(xaxis)
 
                 DataloggingStorage.save(acquisition)
 
@@ -239,7 +239,7 @@ class DataloggingManager:
 
         entry2signal_map: Dict[DatastoreEntry, int] = {}
 
-        all_signals = request.signals.copy()
+        all_signals: List[api_datalogging.SignalDefinition] = cast(List[api_datalogging.SignalDefinition], request.signals.copy())
 
         if request.x_axis_type == api_datalogging.XAxisType.Signal:
             if not isinstance(request.x_axis_signal, api_datalogging.SignalDefinition):

@@ -1219,10 +1219,10 @@ class TestAPI(ScrutinyUnitTest):
                 acq3 = api_datalogging.DataloggingAcquisition(firmware_id=sfd2.get_firmware_id_ascii(),
                                                               reference_id="refid3", name="baz")
                 acq4 = api_datalogging.DataloggingAcquisition(firmware_id="unknown_sfd", reference_id="refid4", name="meow")
-                acq1.set_xaxis(api_datalogging.DataSeries())
-                acq2.set_xaxis(api_datalogging.DataSeries())
-                acq3.set_xaxis(api_datalogging.DataSeries())
-                acq4.set_xaxis(api_datalogging.DataSeries())
+                acq1.set_xdata(api_datalogging.DataSeries())
+                acq2.set_xdata(api_datalogging.DataSeries())
+                acq3.set_xdata(api_datalogging.DataSeries())
+                acq4.set_xdata(api_datalogging.DataSeries())
 
                 DataloggingStorage.save(acq1)
                 DataloggingStorage.save(acq2)
@@ -1311,11 +1311,11 @@ class TestAPI(ScrutinyUnitTest):
         # Rename an acquisition in datalogging storage through API
         with DataloggingStorage.use_temp_storage():
             acq1 = api_datalogging.DataloggingAcquisition(firmware_id='some_firmware_id', reference_id="refid1", name="foo")
-            acq1.set_xaxis(api_datalogging.DataSeries())
+            acq1.set_xdata(api_datalogging.DataSeries())
             acq2 = api_datalogging.DataloggingAcquisition(firmware_id='some_firmware_id', reference_id="refid2", name="bar")
-            acq2.set_xaxis(api_datalogging.DataSeries())
+            acq2.set_xdata(api_datalogging.DataSeries())
             acq3 = api_datalogging.DataloggingAcquisition(firmware_id='some_firmware_id', reference_id="refid3", name="baz")
-            acq3.set_xaxis(api_datalogging.DataSeries())
+            acq3.set_xdata(api_datalogging.DataSeries())
             DataloggingStorage.save(acq1)
             DataloggingStorage.save(acq2)
             DataloggingStorage.save(acq3)
@@ -1364,11 +1364,11 @@ class TestAPI(ScrutinyUnitTest):
         # Rename an acquisition in datalogging storage through API
         with DataloggingStorage.use_temp_storage():
             acq1 = api_datalogging.DataloggingAcquisition(firmware_id='some_firmware_id', reference_id="refid1", name="foo")
-            acq1.set_xaxis(api_datalogging.DataSeries())
+            acq1.set_xdata(api_datalogging.DataSeries())
             acq2 = api_datalogging.DataloggingAcquisition(firmware_id='some_firmware_id', reference_id="refid2", name="bar")
-            acq2.set_xaxis(api_datalogging.DataSeries())
+            acq2.set_xdata(api_datalogging.DataSeries())
             acq3 = api_datalogging.DataloggingAcquisition(firmware_id='some_firmware_id', reference_id="refid3", name="baz")
-            acq3.set_xaxis(api_datalogging.DataSeries())
+            acq3.set_xdata(api_datalogging.DataSeries())
             DataloggingStorage.save(acq1)
             DataloggingStorage.save(acq2)
             DataloggingStorage.save(acq3)
@@ -1416,10 +1416,13 @@ class TestAPI(ScrutinyUnitTest):
 
     def test_read_datalogging_acquisition_content(self):
         with DataloggingStorage.use_temp_storage():
+            axis1 = api_datalogging.AxisDefinition(name="Axis1")
+            axis2 = api_datalogging.AxisDefinition(name="Axis2")
             acq = api_datalogging.DataloggingAcquisition(firmware_id='some_firmware_id', reference_id="refid1", name="foo")
-            acq.set_xaxis(api_datalogging.DataSeries([0, 1, 2, 3, 4, 5, 6, 7, 8, 9], name='the x-axis', logged_element='/var/xaxis'))
-            acq.add_data(api_datalogging.DataSeries([10, 20, 30, 40, 50, 60, 70, 80, 90], name='serie 1', logged_element='/var/data1'))
-            acq.add_data(api_datalogging.DataSeries([100, 200, 300, 400, 500, 600, 700, 800, 900], name='serie 2', logged_element='/var/data2'))
+            acq.set_xdata(api_datalogging.DataSeries([0, 1, 2, 3, 4, 5, 6, 7, 8, 9], name='the x-axis', logged_element='/var/xaxis'))
+            acq.add_data(api_datalogging.DataSeries([10, 20, 30, 40, 50, 60, 70, 80, 90], name='serie 1', logged_element='/var/data1'), axis1)
+            acq.add_data(api_datalogging.DataSeries([100, 200, 300, 400, 500, 600, 700,
+                         800, 900], name='serie 2', logged_element='/var/data2'), axis2)
             DataloggingStorage.save(acq)
 
             req: api_typing.C2S.ReadDataloggingAcquisitionContent = {
@@ -1433,17 +1436,23 @@ class TestAPI(ScrutinyUnitTest):
             self.assertEqual(response['cmd'], 'read_datalogging_acquisition_content_response')
             self.assertEqual(len(response['signals']), 2)
 
-            self.assertEqual(response['xaxis']['name'], 'the x-axis')
-            self.assertEqual(response['xaxis']['data'], [0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
-            self.assertEqual(response['xaxis']['logged_element'], '/var/xaxis')
+            self.assertEqual(response['xdata']['name'], 'the x-axis')
+            self.assertEqual(response['xdata']['data'], [0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
+            self.assertEqual(response['xdata']['logged_element'], '/var/xaxis')
+
+            self.assertEqual(len(response['yaxis']), 2)
+            self.assertEqual(response['yaxis'][0]['name'], 'Axis1')
+            self.assertEqual(response['yaxis'][1]['name'], 'Axis2')
 
             self.assertEqual(response['signals'][0]['name'], 'serie 1')
             self.assertEqual(response['signals'][0]['data'], [10, 20, 30, 40, 50, 60, 70, 80, 90])
             self.assertEqual(response['signals'][0]['logged_element'], '/var/data1')
+            self.assertEqual(response['signals'][0]['axis_index'], 0)
 
             self.assertEqual(response['signals'][1]['name'], 'serie 2')
             self.assertEqual(response['signals'][1]['data'], [100, 200, 300, 400, 500, 600, 700, 800, 900])
             self.assertEqual(response['signals'][1]['logged_element'], '/var/data2')
+            self.assertEqual(response['signals'][1]['axis_index'], 1)
 
             req: api_typing.C2S.ReadDataloggingAcquisitionContent = {
                 'cmd': 'read_datalogging_acquisition',
@@ -1500,15 +1509,16 @@ class TestAPI(ScrutinyUnitTest):
                     'trigger_hold_time': 0.1,
                     'x_axis_type': 'ideal_time',
                     'condition': 'eq',
+                    'yaxis': [dict(name="Axis1"), dict(name="Axis2")],
                     'operands': [
                         dict(type='literal', value=123),
                         dict(type='watchable', value=var_entries[0].get_id())
                     ],
                     'signals': [
-                        dict(id=var_entries[1].get_id(), name='var1'),
-                        dict(id=alias_entries_var[0].get_id(), name='alias_var_1'),
-                        dict(id=alias_entries_rpv[0].get_id(), name='alias_rpv_1'),
-                        dict(id=rpv_entries[0].get_id(), name='rpv0'),
+                        dict(id=var_entries[1].get_id(), name='var1', axis_index=0),
+                        dict(id=alias_entries_var[0].get_id(), name='alias_var_1', axis_index=0),
+                        dict(id=alias_entries_rpv[0].get_id(), name='alias_rpv_1', axis_index=1),
+                        dict(id=rpv_entries[0].get_id(), name='rpv0', axis_index=1),
                     ]
                 }
                 return req
@@ -1524,6 +1534,10 @@ class TestAPI(ScrutinyUnitTest):
             self.assertEqual(ar.x_axis_type, api_datalogging.XAxisType.IdealTime)
             self.assertIsNone(ar.x_axis_signal)
             self.assertEqual(ar.trigger_condition.condition_id, api_datalogging.TriggerConditionID.Equal)
+            yaxis_list = ar.get_yaxis_list()
+            self.assertEqual(len(yaxis_list), 2)
+            self.assertEqual(yaxis_list[0].name, "Axis1")
+            self.assertEqual(yaxis_list[1].name, "Axis2")
 
             self.assertEqual(ar.trigger_condition.operands[0].type, api_datalogging.TriggerConditionOperandType.LITERAL)
             self.assertEqual(ar.trigger_condition.operands[0].value, 123)
@@ -1539,6 +1553,11 @@ class TestAPI(ScrutinyUnitTest):
             self.assertEqual(ar.signals[1].name, 'alias_var_1')
             self.assertEqual(ar.signals[2].name, 'alias_rpv_1')
             self.assertEqual(ar.signals[3].name, 'rpv0')
+
+            self.assertIs(ar.signals[0].axis, yaxis_list[0])
+            self.assertIs(ar.signals[1].axis, yaxis_list[0])
+            self.assertIs(ar.signals[2].axis, yaxis_list[1])
+            self.assertIs(ar.signals[3].axis, yaxis_list[1])
 
             # conditions
             all_conditions = {
@@ -1674,6 +1693,12 @@ class TestAPI(ScrutinyUnitTest):
             for bad_watchable_format in ['meow', -1, 11, [1]]:   # Fake datalogging manager consider all sample rate id > 10 to be bad.
                 req = create_default_request()
                 req['signals'][0] = bad_watchable_format
+                self.send_request(req)
+                self.assert_is_error(self.wait_and_load_response())
+
+            for bad_axis_index in ['meow', -1, 3, [1]]:
+                req = create_default_request()
+                req['signals'][0]['axis_index'] = bad_axis_index
                 self.send_request(req)
                 self.assert_is_error(self.wait_and_load_response())
 

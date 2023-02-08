@@ -10,8 +10,10 @@ from uuid import uuid4
 import random
 from test import ScrutinyUnitTest
 from scrutiny.server.datalogging.datalogging_storage import DataloggingStorage
-from scrutiny.server.datalogging.definitions.api import DataloggingAcquisition, DataSeries
+from scrutiny.server.datalogging.definitions.api import DataloggingAcquisition, DataSeries, AxisDefinition
 from datetime import datetime
+
+from typing import Dict, Optional
 
 
 class TestDataloggingStorage(ScrutinyUnitTest):
@@ -25,12 +27,18 @@ class TestDataloggingStorage(ScrutinyUnitTest):
         self.assertIsInstance(a.firmware_id, str)
         self.assertIsInstance(a.reference_id, str)
         self.assertIsInstance(a.acq_time, datetime)
-        self.assertIsInstance(a.xaxis, DataSeries)
+        self.assertIsInstance(a.xdata, DataSeries)
+        self.assertIsInstance(a.get_unique_yaxis_list(), list)
+        for yaxis in a.get_unique_yaxis_list():
+            self.assertIsInstance(yaxis, AxisDefinition)
+            self.assertIsInstance(yaxis.name, str)
+
         self.assertIsInstance(a.get_data(), list)
-        for serie in a.get_data():
-            self.assertIsInstance(serie, DataSeries)
-            self.assertIsInstance(serie.name, str)
-            self.assertIsInstance(serie.logged_element, str)
+        for data in a.get_data():
+            self.assertIsInstance(data.serie, DataSeries)
+            self.assertIsInstance(data.serie.name, str)
+            self.assertIsInstance(data.serie.logged_element, str)
+            self.assertIsInstance(data.axis, AxisDefinition)
 
     def assert_acquisition_identical(self, a: DataloggingAcquisition, b: DataloggingAcquisition):
         self.assertEqual(a.name, b.name)
@@ -38,11 +46,18 @@ class TestDataloggingStorage(ScrutinyUnitTest):
         self.assertEqual(a.reference_id, b.reference_id)
         self.assertLess((a.acq_time - b.acq_time).total_seconds(), 1)
 
+        yaxis1 = a.get_unique_yaxis_list()
+        yaxis2 = b.get_unique_yaxis_list()
+        self.assertEqual(len(yaxis1), len(yaxis2))
+        for i in range(len(yaxis1)):
+            self.assertEqual(yaxis1[i].name, yaxis2[i].name)
+
         data1 = a.get_data()
         data2 = b.get_data()
         self.assertEqual(len(data1), len(data2))
         for i in range(len(data1)):
-            self.assert_dataseries_identical(data1[i], data2[i])
+            self.assert_dataseries_identical(data1[i].serie, data2[i].serie)
+            self.assertEqual(data1[i].axis.name, data2[i].axis.name)
 
     def assert_dataseries_identical(self, a: DataSeries, b: DataSeries):
         self.assertEqual(a.name, b.name)
@@ -54,19 +69,22 @@ class TestDataloggingStorage(ScrutinyUnitTest):
         acq2 = DataloggingAcquisition(firmware_id="firmwareid1")
         acq3 = DataloggingAcquisition(firmware_id="firmwareid2")
 
-        acq1.set_xaxis(self.make_dummy_data(50))
-        acq1.add_data(self.make_dummy_data(10))
-        acq1.add_data(self.make_dummy_data(15))
-        acq1.add_data(self.make_dummy_data(20))
+        axis1 = AxisDefinition("Axis-1")
+        axis2 = AxisDefinition("Axis-2")
 
-        acq2.set_xaxis(self.make_dummy_data(50))
-        acq2.add_data(self.make_dummy_data(20))
-        acq2.add_data(self.make_dummy_data(15))
+        acq1.set_xdata(self.make_dummy_data(50))
+        acq1.add_data(self.make_dummy_data(10), axis1)
+        acq1.add_data(self.make_dummy_data(15), axis1)
+        acq1.add_data(self.make_dummy_data(20), axis2)
 
-        acq3.set_xaxis(self.make_dummy_data(50))
-        acq3.add_data(self.make_dummy_data(10))
-        acq3.add_data(self.make_dummy_data(15))
-        acq3.add_data(self.make_dummy_data(20))
+        acq2.set_xdata(self.make_dummy_data(50))    # All on default axis
+        acq2.add_data(self.make_dummy_data(20))     # All on default axis
+        acq2.add_data(self.make_dummy_data(15))     # All on default axis
+
+        acq3.set_xdata(self.make_dummy_data(50))
+        acq3.add_data(self.make_dummy_data(10), axis2)
+        acq3.add_data(self.make_dummy_data(15), axis2)
+        acq3.add_data(self.make_dummy_data(20), axis2)
 
         with DataloggingStorage.use_temp_storage():
             self.assertEqual(DataloggingStorage.count(), 0)

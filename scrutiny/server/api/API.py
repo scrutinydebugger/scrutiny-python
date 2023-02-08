@@ -809,10 +809,11 @@ class API:
         if not self.datalogging_manager.is_ready_for_request():
             raise InvalidRequestException(req, 'Device is not ready to receive a request')
 
-        FieldType = Literal['sampling_rate_id', 'decimation', 'timeout', 'trigger_hold_time',
+        FieldType = Literal['yaxis', 'sampling_rate_id', 'decimation', 'timeout', 'trigger_hold_time',
                             'probe_location', 'condition', 'operands', 'signals', 'x_axis_type']
 
         required_fileds: Dict[FieldType, Type] = {
+            'yaxis': list,
             'sampling_rate_id': int,
             'decimation': int,
             'timeout': float,
@@ -891,7 +892,7 @@ class API:
 
             x_axis_signal = api_datalogging.SignalDefinition(
                 name=None if 'name' not in req['x_axis_signal'] else str(req['x_axis_signal']['name']),
-                entry=x_axis_entry
+                entry=x_axis_entry,
             )
 
         operands: List[api_datalogging.TriggerConditionOperand] = []
@@ -918,16 +919,31 @@ class API:
             else:
                 raise InvalidRequestException(req, 'Unknown operand type')
 
-        signals_to_log: List[api_datalogging.SignalDefinition] = []
+        signals_to_log: List[api_datalogging.SignalDefinitionWithAxis] = []
         if len(req['signals']) == 0:
             raise InvalidRequestException(req, 'Missing watchable to log')
+
+        if not isinstance(req['yaxis'], list):
+            raise InvalidRequestException(req, "Invalid Y-Axis list")
+
+        yaxis_list: List[api_datalogging.AxisDefinition] = []
+        for yaxis in req['yaxis']:
+            if not isinstance(yaxis['name'], str):
+                raise InvalidRequestException(req, "Invalid Y-Axis name")
+            yaxis_list.append(api_datalogging.AxisDefinition(name=yaxis['name']))
 
         for signal_def in req['signals']:
             if not isinstance(signal_def['id'], str):
                 raise InvalidRequestException(req, 'Invalid watchable ID')
 
             if not (isinstance(signal_def['name'], str) or signal_def['name'] is None):
-                raise InvalidRequestException(req, 'Invalid watchable ID')
+                raise InvalidRequestException(req, 'Invalid signal name')
+
+            if not isinstance(signal_def['axis_index'], int):
+                raise InvalidRequestException(req, 'Invalid signal axis ID')
+
+            if signal_def['axis_index'] < 0 or signal_def['axis_index'] >= len(yaxis_list):
+                raise InvalidRequestException(req, 'Invalid signal axis ID')
 
             signal_entry: Optional[DatastoreEntry] = None
             try:
@@ -938,9 +954,10 @@ class API:
             if signal_entry is None:
                 raise InvalidRequestException(req, "Cannot find watchable with given ID : %s" % signal_def['id'])
 
-            signals_to_log.append(api_datalogging.SignalDefinition(
+            signals_to_log.append(api_datalogging.SignalDefinitionWithAxis(
                 name=signal_def['name'],
-                entry=signal_entry
+                entry=signal_entry,
+                axis=yaxis_list[signal_def['axis_index']]
             ))
 
         acq_name: Optional[str] = None
@@ -1120,24 +1137,38 @@ class API:
         if err:
             raise InvalidRequestException(req, "Failed to read acquisition. %s" % (str(err)))
 
-        def dataserie_to_api_signal_data(dataseries: api_datalogging.DataSeries) -> api_typing.DataloggingSignalData:
+        def dataserie_to_api_signal_data(ds: api_datalogging.DataSeries) -> api_typing.DataloggingSignalData:
             signal: api_typing.DataloggingSignalData = {
-                'name': dataseries.name,
-                'logged_element': dataseries.logged_element,
-                'data': dataseries.get_data()
+                'name': ds.name,
+                'logged_element': ds.logged_element,
+                'data': ds.get_data()
             }
             return signal
 
-        signals: List[api_typing.DataloggingSignalData] = []
-        for dataserie in acquisition.get_data():
-            signals.append(dataserie_to_api_signal_data(dataserie))
+        def dataseries_to_api_signal_data_with_axis(ds: api_datalogging.DataSeries, axis_index: int) -> api_typing.DataloggingSignalDataWithAxis:
+            signal: api_typing.DataloggingSignalDataWithAxis = cast(api_typing.DataloggingSignalDataWithAxis, dataserie_to_api_signal_data(ds))
+            signal['axis_index'] = axis_index
+            return signal
+
+        yaxis_list: List[api_typing.DataloggingAxisDef] = []
+        acq_axis_2_api_axis_map: Dict[api_datalogging.AxisDefinition, api_typing.DataloggingAxisDef] = {}
+        for axis in acquisition.get_unique_yaxis_list():
+            yaxis_out: api_typing.DataloggingAxisDef = {'name': axis.name}
+            acq_axis_2_api_axis_map[axis] = yaxis_out
+            yaxis_list.append(yaxis_out)
+
+        signals: List[api_typing.DataloggingSignalDataWithAxis] = []
+        for dataserie_with_axis in acquisition.get_data():
+            yaxis_index = yaxis_list.index(acq_axis_2_api_axis_map[dataserie_with_axis.axis])
+            signals.append(dataseries_to_api_signal_data_with_axis(ds=dataserie_with_axis.serie, axis_index=yaxis_index))
 
         response: api_typing.S2C.ReadDataloggingAcquisitionContent = {
             'cmd': API.Command.Api2Client.READ_DATALOGGING_ACQUISITION_CONTENT_RESPONSE,
             'reqid': self.get_req_id(req),
             'reference_id': acquisition.reference_id,
             'signals': signals,
-            'xaxis': dataserie_to_api_signal_data(acquisition.xaxis)
+            'xdata': dataserie_to_api_signal_data(acquisition.xdata),
+            'yaxis': yaxis_list
         }
 
         self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))

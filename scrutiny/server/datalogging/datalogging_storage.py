@@ -11,7 +11,7 @@ import os
 import appdirs  # type: ignore
 import tempfile
 import logging
-from scrutiny.server.datalogging.definitions.api import DataloggingAcquisition, DataSeries
+from scrutiny.server.datalogging.definitions.api import DataloggingAcquisition, DataSeries, AxisDefinition
 
 import sqlite3
 from datetime import datetime
@@ -80,6 +80,11 @@ class DataloggingStorageManager:
     def get_db_filename(self) -> str:
         return os.path.join(self.get_storage_dir(), self.FILENAME)
 
+    def clear_all(self):
+        filename = self.get_db_filename()
+        if os.path.isfile(filename):
+            os.remove(filename)
+
     def init_db(self, conn: sqlite3.Connection):
         cursor = conn.cursor()
 
@@ -104,7 +109,15 @@ class DataloggingStorageManager:
             `id` INTEGER PRIMARY KEY AUTOINCREMENT,
             `name` VARCHAR(255),
             `logged_element` TEXT,
+            `axis_id` INTEGER NULL,
             `data` BLOB  NOT NULL
+        ) 
+        """)
+
+        cursor.execute(""" 
+            CREATE TABLE IF NOT EXISTS `axis` (
+            `id` INTEGER PRIMARY KEY AUTOINCREMENT,
+            `name` VARCHAR(255)
         ) 
         """)
 
@@ -123,42 +136,57 @@ class DataloggingStorageManager:
 
     def save(self, acquisition: DataloggingAcquisition):
         self.logger.debug("Saving acquisition with reference_id=%s" % (str(acquisition.reference_id)))
-        if acquisition.xaxis is None:
-            raise ValueError("Missing X-Axis")
+        if acquisition.xdata is None:
+            raise ValueError("Missing X-Axis data")
 
         with self.get_session() as conn:
             data_series_sql = """
                 INSERT INTO `dataseries`
-                    (`name`, `logged_element`, `data`)
-                VALUES (?,?,?)
+                    (`name`, `logged_element`, `axis_id`, `data`)
+                VALUES (?,?,?, ?)
+            """
+
+            axis_sql = """
+                INSERT INTO `axis`
+                    (`name`)
+                VALUES (?)
             """
 
             series2id_map: Dict[DataSeries, int] = {}
             cursor = conn.cursor()
 
-            for dataseries in acquisition.get_data():
+            axis2id_map: Dict[AxisDefinition, int] = {}
+            for axis in acquisition.get_unique_yaxis_list():
+                cursor.execute(axis_sql, (axis.name,))
+                assert cursor.lastrowid is not None
+                axis2id_map[axis] = cursor.lastrowid
+
+            for data in acquisition.get_data():
+
                 cursor.execute(
                     data_series_sql,
                     (
-                        dataseries.name,
-                        dataseries.logged_element,
-                        dataseries.get_data_binary()
+                        data.serie.name,
+                        data.serie.logged_element,
+                        axis2id_map[data.axis],
+                        data.serie.get_data_binary()
                     )
                 )
                 assert cursor.lastrowid is not None
-                series2id_map[dataseries] = cursor.lastrowid
+                series2id_map[data.serie] = cursor.lastrowid
 
             cursor.execute(
                 data_series_sql,
                 (
-                    acquisition.xaxis.name,
-                    acquisition.xaxis.logged_element,
-                    acquisition.xaxis.get_data_binary()
+                    acquisition.xdata.name,
+                    acquisition.xdata.logged_element,
+                    None,
+                    acquisition.xdata.get_data_binary()
                 )
             )
             assert cursor.lastrowid is not None
             xaxis_id = cursor.lastrowid
-            series2id_map[acquisition.xaxis] = xaxis_id
+            series2id_map[acquisition.xdata] = xaxis_id
 
             ts: Optional[int] = None
             if acquisition.acq_time is not None:
@@ -234,26 +262,34 @@ class DataloggingStorageManager:
                     a.`firmware_id` AS `firmware_id`,
                     a.`timestamp` AS `timestamp`,
                     a.`name` AS `name`,
+                    ds.`axis_id` AS `axis_id`,
                     ds.`name` AS `dataseries_name`,
                     ds.`logged_element` AS `logged_element`,
                     ds.`data` AS `data`,
-                    CASE WHEN a.x_axis=ds.id THEN 1 ELSE 0 END AS `x_axis`
+                    CASE WHEN a.x_axis=ds.id THEN 1 ELSE 0 END AS `is_xdata`,
+                    axis.`name` AS `axis_name`
                 FROM `acquisitions` AS a
                 LEFT JOIN `acquisitions__dataseries` AS `ad` ON `a`.`id`=`ad`.`acquisition_id`
                 LEFT JOIN `dataseries` AS `ds` ON `ds`.`id`=`ad`.`dataseries_id`
+                LEFT JOIN `axis` AS `axis` ON `axis`.`id`=`ds`.`axis_id`
                 where a.`reference_id`=?
             """
             # SQLite doesn't let us index by name
-            colmap = {
-                'reference_id': 0,
-                'firmware_id': 1,
-                'timestamp': 2,
-                'acquisition_name': 3,
-                'dataseries_name': 4,
-                'logged_element': 5,
-                'data': 6,
-                'x_axis': 7
-            }
+            cols = [
+                'reference_id',
+                'firmware_id',
+                'timestamp',
+                'acquisition_name',
+                'axis_id',
+                'dataseries_name',
+                'logged_element',
+                'data',
+                'is_xdata',
+                'axis_name'
+            ]
+            colmap: Dict[str, int] = {}
+            for i in range(len(cols)):
+                colmap[cols[i]] = i
 
             cursor = conn.cursor()
             cursor.execute(sql, (reference_id,))
@@ -269,7 +305,20 @@ class DataloggingStorageManager:
             name=rows[0][colmap['acquisition_name']]
         )
 
+        axis_id_to_def_map: Dict[int, AxisDefinition] = {}
+
         for row in rows:
+            axis: Optional[AxisDefinition] = None
+            if row[colmap['axis_id']] is not None:
+                if row[colmap['axis_id']] in axis_id_to_def_map:
+                    axis = axis_id_to_def_map[row[colmap['axis_id']]]
+                else:
+                    axis = AxisDefinition(name=row[colmap['axis_name']])
+                    axis_id_to_def_map[row[colmap['axis_id']]] = axis
+
+            if axis is None and not row[colmap['is_xdata']]:
+                raise ValueError('No axis on data that is not the X-Axis')
+
             name = row[colmap['dataseries_name']]
             logged_element = row[colmap['logged_element']]
             data = row[colmap['data']]
@@ -279,12 +328,13 @@ class DataloggingStorageManager:
 
             dataseries = DataSeries(name=name, logged_element=logged_element)
             dataseries.set_data_binary(data)
-            if row[colmap['x_axis']]:
-                acq.set_xaxis(dataseries)
+            if row[colmap['is_xdata']]:
+                acq.set_xdata(dataseries)
             else:
-                acq.add_data(dataseries)
+                assert axis is not None
+                acq.add_data(dataseries, axis)
 
-        if acq.xaxis is None:
+        if acq.xdata is None:
             raise LookupError("No X-Axis in acquisition")
 
         return acq
@@ -292,6 +342,15 @@ class DataloggingStorageManager:
     def delete(self, reference_id: str) -> None:
         with self.get_session() as conn:
             cursor = conn.cursor()
+
+            cursor.execute("""
+                DELETE FROM `axis` WHERE id IN (
+                    SELECT DISTINCT ds.`axis_id` FROM `acquisitions` AS a
+                    INNER JOIN `acquisitions__dataseries` AS ad ON a.id=ad.acquisition_id
+                    INNER JOIN `dataseries` AS ds ON `ad`.`dataseries_id`=`ds`.`id`
+                    WHERE a.reference_id=?
+                )
+                """, (reference_id,))
 
             cursor.execute("""
                 DELETE FROM `dataseries` WHERE id IN (

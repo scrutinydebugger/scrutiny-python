@@ -79,6 +79,12 @@ class TestDataloggingManager(ScrutinyUnitTest):
         self.datastore.add_entry(self.alias_var4_s16)
 
     def make_test_request(self, operand_watchable: DatastoreEntry, x_axis_type: api_datalogging.XAxisType, x_axis_entry: Optional[DatastoreEntry] = None) -> api_datalogging.AcquisitionRequest:
+        yaxis_list = [
+            api_datalogging.AxisDefinition("Axis1"),
+            api_datalogging.AxisDefinition("Axis2"),
+            api_datalogging.AxisDefinition("Axis3")
+        ]
+
         return api_datalogging.AcquisitionRequest(
             name="some_request",
             decimation=2,
@@ -96,13 +102,13 @@ class TestDataloggingManager(ScrutinyUnitTest):
             x_axis_type=x_axis_type,
             x_axis_signal=api_datalogging.SignalDefinition('x-axis', x_axis_entry),
             signals=[
-                api_datalogging.SignalDefinition('var1_u32', self.var1_u32),
-                api_datalogging.SignalDefinition('var1_u32', self.var1_u32),    # Duplicate on purpose
-                api_datalogging.SignalDefinition('var2_u32', self.var2_u32),
-                api_datalogging.SignalDefinition('var3_f64', self.var3_f64),
-                api_datalogging.SignalDefinition('rpv1000_bool', self.rpv1000_bool),
-                api_datalogging.SignalDefinition('alias_var1_u32', self.alias_var1_u32),
-                api_datalogging.SignalDefinition('alias_rpv2000_f32', self.alias_rpv2000_f32)
+                api_datalogging.SignalDefinitionWithAxis('var1_u32', self.var1_u32, axis=yaxis_list[0]),
+                api_datalogging.SignalDefinitionWithAxis('var1_u32', self.var1_u32, axis=yaxis_list[0]),    # Duplicate on purpose
+                api_datalogging.SignalDefinitionWithAxis('var2_u32', self.var2_u32, axis=yaxis_list[1]),
+                api_datalogging.SignalDefinitionWithAxis('var3_f64', self.var3_f64, axis=yaxis_list[1]),
+                api_datalogging.SignalDefinitionWithAxis('rpv1000_bool', self.rpv1000_bool, axis=yaxis_list[2]),
+                api_datalogging.SignalDefinitionWithAxis('alias_var1_u32', self.alias_var1_u32, axis=yaxis_list[2]),
+                api_datalogging.SignalDefinitionWithAxis('alias_rpv2000_f32', self.alias_rpv2000_f32, axis=yaxis_list[2])
             ]
         )
 
@@ -148,7 +154,7 @@ class TestDataloggingManager(ScrutinyUnitTest):
             assert isinstance(operand2, device_datalogging.LiteralOperand)
             self.assertEqual(operand2.value, 100)
 
-            # 0 is Variable. 2 is Alias ta point to variable
+            # 0 is Variable. 2 is Alias that points to variable
             if i in [0, 2]:
                 assert isinstance(operand1, device_datalogging.VarBitOperand)
                 self.assertEqual(operand1.address, self.var1_u32.get_address())

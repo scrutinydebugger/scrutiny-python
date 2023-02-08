@@ -171,6 +171,10 @@ class TestDataloggingIntegration(ScrutinyIntegrationTestWithTestSFD1):
                     'sampling_rate_id': loop_id,
                     'timeout': 0,
                     'condition': 'eq',
+                    'yaxis': [
+                        {'name': 'Axis1'},
+                        {'name': 'Axis2'}
+                    ],
                     'operands': [
                         {
                             'type': 'watchable',
@@ -181,10 +185,10 @@ class TestDataloggingIntegration(ScrutinyIntegrationTestWithTestSFD1):
                             'value': 0x1234
                         }],
                     'signals': [
-                        dict(id=self.entry_u32.get_id(), name='u32'),
-                        dict(id=self.entry_float32.get_id(), name='f32'),
-                        dict(id=self.entry_alias_rpv1000.get_id(), name='rpv1000'),
-                        dict(id=self.entry_alias_uint8.get_id(), name='u8')
+                        dict(id=self.entry_u32.get_id(), name='u32', axis_index=0),
+                        dict(id=self.entry_float32.get_id(), name='f32', axis_index=0),
+                        dict(id=self.entry_alias_rpv1000.get_id(), name='rpv1000', axis_index=1),
+                        dict(id=self.entry_alias_uint8.get_id(), name='u8', axis_index=1)
                     ],
                     'x_axis_type': 'measured_time',
                     'x_axis_signal': None,    # We use time
@@ -291,21 +295,35 @@ class TestDataloggingIntegration(ScrutinyIntegrationTestWithTestSFD1):
 
                 # Check that all signals has the same number of points, including x axis
                 all_signals = response['signals']
-                all_signals.append(response['xaxis'])
+                all_signals.append(response['xdata'])
                 nb_points = None
                 for signal in all_signals:
                     if nb_points is None:
-                        nb_points = len(signal)
+                        nb_points = len(signal['data'])
                     else:
-                        self.assertEqual(len(signal), nb_points)
+                        self.assertEqual(len(signal['data']), nb_points)
 
-                self.assertEqual(response['xaxis']['name'], 'time')
+                self.assertEqual(response['xdata']['name'], 'time')
+                self.assertEqual(len(response['yaxis']), 2)
+                self.assertEqual(response['yaxis'][0]['name'], "Axis1")
+                self.assertEqual(response['yaxis'][1]['name'], "Axis2")
+
                 self.assertEqual(response['signals'][0]['name'], 'u32')
                 self.assertEqual(response['signals'][1]['name'], 'f32')
                 self.assertEqual(response['signals'][2]['name'], 'rpv1000')
                 self.assertEqual(response['signals'][3]['name'], 'u8')
 
-                timediff = diff(response['xaxis']['data'])
+                self.assertEqual(response['signals'][0]['logged_element'], self.entry_u32.get_display_path())
+                self.assertEqual(response['signals'][1]['logged_element'], self.entry_float32.get_display_path())
+                self.assertEqual(response['signals'][2]['logged_element'], self.entry_alias_rpv1000.get_display_path())
+                self.assertEqual(response['signals'][3]['logged_element'], self.entry_alias_uint8.get_display_path())
+
+                self.assertEqual(response['signals'][0]['axis_index'], 0)
+                self.assertEqual(response['signals'][1]['axis_index'], 0)
+                self.assertEqual(response['signals'][2]['axis_index'], 1)
+                self.assertEqual(response['signals'][3]['axis_index'], 1)
+
+                timediff = diff(response['xdata']['data'])
                 for val in timediff:
                     self.assertGreater(val, 0)  # Time should always increase
 

@@ -124,6 +124,11 @@ class SupportedCondition(TypedDict):
 class DataloggingAcquisitionRequestSignalDef(TypedDict):
     id: str
     name: str
+    axis_index: int
+
+
+class DataloggingAxisDef(TypedDict):
+    name: str
 
 
 class DataloggingAcquisitionMetadata(TypedDict):
@@ -138,6 +143,10 @@ class DataloggingSignalData(TypedDict):
     name: str
     data: List[float]
     logged_element: str
+
+
+class DataloggingSignalDataWithAxis(DataloggingSignalData):
+    axis_index: int
 
 
 class DataloggingCapabilities(TypedDict):
@@ -195,6 +204,7 @@ class C2S:
         probe_location: float
         condition: DataloggingCondition
         operands: List[DataloggingOperand]
+        yaxis: List[DataloggingAxisDef]
         signals: List[DataloggingAcquisitionRequestSignalDef]
         x_axis_type: Literal['measured_time', 'ideal_time', 'signal']
         x_axis_signal: Optional[str]
@@ -277,15 +287,16 @@ class S2C:
 
     class InformDataloggingListChanged(BaseS2CMessage):
         reference_id: str
-        action:Literal['delete', 'new', 'update']
+        action: Literal['delete', 'new', 'update']
 
     class ListDataloggingAcquisition(BaseS2CMessage):
         acquisitions: List[DataloggingAcquisitionMetadata]
 
     class ReadDataloggingAcquisitionContent(BaseS2CMessage):
         reference_id: str
-        signals: List[DataloggingSignalData]
-        xaxis: DataloggingSignalData
+        yaxis: List[DataloggingAxisDef]
+        signals: List[DataloggingSignalDataWithAxis]
+        xdata: DataloggingSignalData
 
     class UpdateDataloggingAcquisition(BaseS2CMessage):
         pass

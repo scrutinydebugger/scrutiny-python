@@ -75,15 +75,15 @@ class DataloggingPoller:
     stop_requested: bool    # Requested to stop polling
     request_pending: bool   # True when we are waiting for a request to complete
     started: bool           # Indicate if enabled or not
-    device_setup: Optional[device_datalogging.DataloggingSetup]
-    error: bool
-    enabled: bool
-    state: FSMState
-    previous_state: FSMState
-    update_status_timer: Timer
-    device_datalogging_state: device_datalogging.DataloggerState
-    max_response_payload_size: Optional[int]
-    rpv_map: Dict[int, RuntimePublishedValue]
+    device_setup: Optional[device_datalogging.DataloggingSetup]  # Datalogging capabilities broadcasted by the device
+    error: bool     # Indicate that something went wrong
+    enabled: bool   # Enable flag, does nothing if set to False
+    state: FSMState  # The state of the state machine
+    previous_state: FSMState    # Previous state of the state machine
+    update_status_timer: Timer  # Time to poll for datalogging status periodically
+    device_datalogging_state: device_datalogging.DataloggerState    # The state of the datalogging feature in the device
+    max_response_payload_size: Optional[int]    # Maximum size of a payload that the device can send to the server
+    rpv_map: Dict[int, RuntimePublishedValue]   # Map of RPV ID to their definition.
 
     arm_completed: bool
     new_request_received: bool

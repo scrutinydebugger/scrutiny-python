@@ -3,14 +3,13 @@ from enum import Enum
 from dataclasses import dataclass
 import zlib
 import struct
-import time
 from uuid import uuid4
 from datetime import datetime
 
 from scrutiny.server.device.device_info import ExecLoopType
 from scrutiny.server.datastore.datastore_entry import DatastoreEntry
 import scrutiny.server.datalogging.definitions.device as device_datalogging
-from typing import List, Dict, Optional, Callable, Union
+from typing import List, Dict, Optional, Callable, Union, Set
 
 from scrutiny.core.typehints import GenericCallback
 
@@ -29,6 +28,14 @@ class SamplingRate:
     frequency: Optional[float]
     rate_type: ExecLoopType
     device_identifier: int
+
+
+@dataclass
+class AxisDefinition:
+    name: str
+
+    def __hash__(self):
+        return id(self)
 
 
 class DataSeries:
@@ -66,6 +73,15 @@ class DataSeries:
         return len(self.data)
 
 
+@dataclass
+class DataSeriesWithAxis:
+    serie: DataSeries
+    axis: AxisDefinition
+
+
+DEFAULT_AXIS = AxisDefinition('Default')
+
+
 class DataloggingAcquisition:
     """Represent an acquisition of multiple signals"""
 
@@ -81,32 +97,45 @@ class DataloggingAcquisition:
     acq_time: datetime
     """Time at which the acquisition has been taken"""
 
-    xaxis: DataSeries
+    xdata: DataSeries
     """The series of data that represent the X-Axis"""
 
-    data: List[DataSeries]
+    ydata: List[DataSeriesWithAxis]
     """List of data series acquired"""
 
     def __init__(self, firmware_id: str, reference_id: Optional[str] = None, acq_time: Optional[datetime] = None, name: Optional[str] = None):
         self.reference_id = reference_id if reference_id is not None else self.make_unique_id()
         self.firmware_id = firmware_id
         self.acq_time = datetime.now() if acq_time is None else acq_time
-        self.xaxis = DataSeries()
+        self.xdata = DataSeries()
         self.name = name
-        self.data = []
+        self.ydata = []
 
     @classmethod
     def make_unique_id(self) -> str:
         return uuid4().hex.replace('-', '')
 
-    def set_xaxis(self, xaxis: DataSeries) -> None:
-        self.xaxis = xaxis
+    def set_xdata(self, xdata: DataSeries) -> None:
+        self.xdata = xdata
 
-    def add_data(self, dataserie: DataSeries) -> None:
-        self.data.append(dataserie)
+    def add_data(self, dataserie: DataSeries, axis: AxisDefinition = DEFAULT_AXIS) -> None:
+        self.ydata.append(DataSeriesWithAxis(serie=dataserie, axis=axis))
 
-    def get_data(self) -> List[DataSeries]:
-        return self.data
+    def get_data(self) -> List[DataSeriesWithAxis]:
+        return self.ydata
+
+    def get_unique_yaxis_list(self) -> List[AxisDefinition]:
+        yaxis = set()
+        for dataserie in self.ydata:
+            yaxis.add(dataserie.axis)
+
+        return list(yaxis)
+
+    def find_axis_for_dataserie(self, ds: DataSeries) -> AxisDefinition:
+        for a in self.ydata:
+            if a.serie is ds:
+                return a.axis
+        raise LookupError("Cannot find axis for given dataseries")
 
 
 class APIAcquisitionRequestCompletionCallback(GenericCallback):
@@ -140,6 +169,11 @@ class SignalDefinition:
 
 
 @dataclass
+class SignalDefinitionWithAxis(SignalDefinition):
+    axis: AxisDefinition
+
+
+@dataclass
 class AcquisitionRequest:
     name: Optional[str]
     rate_identifier: int
@@ -150,4 +184,10 @@ class AcquisitionRequest:
     trigger_condition: TriggerCondition  # fixme
     x_axis_type: XAxisType
     x_axis_signal: Optional[SignalDefinition]
-    signals: List[SignalDefinition]
+    signals: List[SignalDefinitionWithAxis]
+
+    def get_yaxis_list(self) -> List[AxisDefinition]:
+        axis_set: Set[AxisDefinition] = set()
+        for signal in self.signals:
+            axis_set.add(signal.axis)
+        return list(axis_set)
