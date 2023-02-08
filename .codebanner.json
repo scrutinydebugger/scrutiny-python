@@ -334,20 +334,32 @@
         "test/server/datalogging/test_datalogging.py": {
             "docstring": "Test datalogging features"
         },
-        "scrutiny/server/datalogging/acquisition.py": {
-            "docstring": "Definitions and helper function to manipulate a datalogging acquisition"
-        },
         "scrutiny/server/datalogging/datalogging_manager.py": {
             "docstring": "The main server components that manages the datalogging feature at high level"
         },
         "scrutiny/server/datalogging/datalogging_storage.py": {
             "docstring": "A storage interface to save and fetch datalogging acquisition from the disk to keep an history of them"
         },
-        "scrutiny/server/datalogging/definitions.py": {
-            "docstring": "Some definitions used across the project for the datalogging feature"
-        },
         "scrutiny/server/device/request_generator/datalogging_poller.py": {
             "docstring": "Component of the Device Handler that handles the datalogging feature within the device. Poll for status, new data and configure the device"
+        },
+        "test/integration/test_datalogging_integration.py": {
+            "docstring": "Test the whole datalogging chain with a request to the API, a server that process the request and a fake device that will do the logging."
+        },
+        "test/server/datalogging/test_datalogging_manager.py": {
+            "docstring": "Test the datalogging manager features"
+        },
+        "scrutiny/cli/commands/clear_datalogging_storage.py": {
+            "docstring": "Make sure that we can read and write to the datalogging storage"
+        },
+        "scrutiny/server/datalogging/datalogging_utilities.py": {
+            "docstring": "Contains some utilities that may be used by more than one module"
+        },
+        "scrutiny/server/datalogging/definitions/device.py": {
+            "docstring": "Contains the definitions related to the datalogging feature on the device side"
+        },
+        "scrutiny/server/datalogging/definitions/api.py": {
+            "docstring": "Contains the definitions related to the datalogging feature on the API side"
         }
     }
 }

@@ -1,5 +1,5 @@
-#    definitions.py
-#        Some definitions used across the project for the datalogging feature
+#    device.py
+#        Contains the definitions related to the datalogging feature on the device side
 #
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)

@@ -1,3 +1,11 @@
+#    test_datalogging_manager.py
+#        Test the datalogging manager features
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021-2023 Scrutiny Debugger
+
 import scrutiny.server.datalogging.definitions.api as api_datalogging
 import scrutiny.server.datalogging.definitions.device as device_datalogging
 from scrutiny.server.datastore.datastore import *

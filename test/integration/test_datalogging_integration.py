@@ -1,3 +1,12 @@
+#    test_datalogging_integration.py
+#        Test the whole datalogging chain with a request to the API, a server that process
+#        the request and a fake device that will do the logging.
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021-2023 Scrutiny Debugger
+
 import struct
 
 from scrutiny.server.api import API

@@ -1,3 +1,10 @@
+#    api.py
+#        Contains the definitions related to the datalogging feature on the API side
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021-2023 Scrutiny Debugger
 
 from enum import Enum
 from dataclasses import dataclass

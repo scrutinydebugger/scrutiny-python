@@ -1,3 +1,11 @@
+#    clear_datalogging_storage.py
+#        Make sure that we can read and write to the datalogging storage
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021-2023 Scrutiny Debugger
+
 import argparse
 
 from .base_command import BaseCommand
