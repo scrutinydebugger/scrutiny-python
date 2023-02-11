@@ -1416,8 +1416,8 @@ class TestAPI(ScrutinyUnitTest):
 
     def test_read_datalogging_acquisition_content(self):
         with DataloggingStorage.use_temp_storage():
-            axis1 = api_datalogging.AxisDefinition(name="Axis1")
-            axis2 = api_datalogging.AxisDefinition(name="Axis2")
+            axis1 = api_datalogging.AxisDefinition(name="Axis1", external_id=0)
+            axis2 = api_datalogging.AxisDefinition(name="Axis2", external_id=1)
             acq = api_datalogging.DataloggingAcquisition(firmware_id='some_firmware_id', reference_id="refid1", name="foo")
             acq.set_xdata(api_datalogging.DataSeries([0, 1, 2, 3, 4, 5, 6, 7, 8, 9], name='the x-axis', logged_element='/var/xaxis'))
             acq.add_data(api_datalogging.DataSeries([10, 20, 30, 40, 50, 60, 70, 80, 90], name='series 1', logged_element='/var/data1'), axis1)
@@ -1442,17 +1442,19 @@ class TestAPI(ScrutinyUnitTest):
 
             self.assertEqual(len(response['yaxis']), 2)
             self.assertEqual(response['yaxis'][0]['name'], 'Axis1')
+            self.assertEqual(response['yaxis'][0]['id'], 0)
             self.assertEqual(response['yaxis'][1]['name'], 'Axis2')
+            self.assertEqual(response['yaxis'][1]['id'], 1)
 
             self.assertEqual(response['signals'][0]['name'], 'series 1')
             self.assertEqual(response['signals'][0]['data'], [10, 20, 30, 40, 50, 60, 70, 80, 90])
             self.assertEqual(response['signals'][0]['logged_element'], '/var/data1')
-            self.assertEqual(response['signals'][0]['axis_index'], 0)
+            self.assertEqual(response['signals'][0]['axis_id'], 0)
 
             self.assertEqual(response['signals'][1]['name'], 'series 2')
             self.assertEqual(response['signals'][1]['data'], [100, 200, 300, 400, 500, 600, 700, 800, 900])
             self.assertEqual(response['signals'][1]['logged_element'], '/var/data2')
-            self.assertEqual(response['signals'][1]['axis_index'], 1)
+            self.assertEqual(response['signals'][1]['axis_id'], 1)
 
             req: api_typing.C2S.ReadDataloggingAcquisitionContent = {
                 'cmd': 'read_datalogging_acquisition',
@@ -1509,16 +1511,16 @@ class TestAPI(ScrutinyUnitTest):
                     'trigger_hold_time': 0.1,
                     'x_axis_type': 'ideal_time',
                     'condition': 'eq',
-                    'yaxis': [dict(name="Axis1"), dict(name="Axis2")],
+                    'yaxis': [dict(name="Axis1", id=0), dict(name="Axis2", id=100)],
                     'operands': [
                         dict(type='literal', value=123),
                         dict(type='watchable', value=var_entries[0].get_id())
                     ],
                     'signals': [
-                        dict(id=var_entries[1].get_id(), name='var1', axis_index=0),
-                        dict(id=alias_entries_var[0].get_id(), name='alias_var_1', axis_index=0),
-                        dict(id=alias_entries_rpv[0].get_id(), name='alias_rpv_1', axis_index=1),
-                        dict(id=rpv_entries[0].get_id(), name='rpv0', axis_index=1),
+                        dict(id=var_entries[1].get_id(), name='var1', axis_id=0),
+                        dict(id=alias_entries_var[0].get_id(), name='alias_var_1', axis_id=0),
+                        dict(id=alias_entries_rpv[0].get_id(), name='alias_rpv_1', axis_id=100),
+                        dict(id=rpv_entries[0].get_id(), name='rpv0', axis_id=100),
                     ]
                 }
                 return req
@@ -1696,11 +1698,23 @@ class TestAPI(ScrutinyUnitTest):
                 self.send_request(req)
                 self.assert_is_error(self.wait_and_load_response())
 
-            for bad_axis_index in ['meow', -1, 3, [1]]:
+            for bad_axis_id in ['meow', -1, 1, [1]]:
                 req = create_default_request()
-                req['signals'][0]['axis_index'] = bad_axis_index
+                req['signals'][0]['axis_id'] = bad_axis_id
                 self.send_request(req)
                 self.assert_is_error(self.wait_and_load_response())
+
+            for bad_axis_id in ['meow', 1.2, [1]]:
+                req = create_default_request()
+                req['yaxis'][0]['id'] = bad_axis_id
+                self.send_request(req)
+                self.assert_is_error(self.wait_and_load_response())
+
+            # duplicate id
+            req = create_default_request()
+            req['yaxis'][0]['id'] = req['yaxis'][1]['id']
+            self.send_request(req)
+            self.assert_is_error(self.wait_and_load_response())
 
 
 # endregion

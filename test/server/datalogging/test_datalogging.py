@@ -7,13 +7,14 @@
 #   Copyright (c) 2021-2023 Scrutiny Debugger
 
 import scrutiny.server.datalogging.definitions.device as device_datalogging
+import scrutiny.server.datalogging.definitions.api as api_datalogging
 from scrutiny.core.basic_types import *
 from test import ScrutinyUnitTest
 
 
 class TestDatalogging(ScrutinyUnitTest):
 
-    def test_configuration_value_validity(self):
+    def test_device_configuration_value_validity(self):
         config = device_datalogging.Configuration()
         with self.assertRaises(ValueError):
             config.decimation = 0
@@ -48,6 +49,18 @@ class TestDatalogging(ScrutinyUnitTest):
         config.add_signal(device_datalogging.MemoryLoggableSignal(0x1234, 4))
         config.add_signal(device_datalogging.TimeLoggableSignal())
         config.add_signal(device_datalogging.RPVLoggableSignal(0xabcd))
+
+    def test_server_acquisition_value_validity(self):
+        acq = api_datalogging.DataloggingAcquisition("abc")
+
+        axis1 = api_datalogging.AxisDefinition(name='axis1', external_id=0)
+        axis2 = api_datalogging.AxisDefinition(name='axis2', external_id=1)
+
+        acq.add_data(api_datalogging.DataSeries([1, 2, 3]), axis1)
+        acq.add_data(api_datalogging.DataSeries([4, 5, 6]), axis2)
+
+        with self.assertRaises(ValueError):
+            acq.add_data(api_datalogging.DataSeries([1, 2, 3]), api_datalogging.AxisDefinition(name='dup_axis1', external_id=0))
 
 
 if __name__ == '__main__':

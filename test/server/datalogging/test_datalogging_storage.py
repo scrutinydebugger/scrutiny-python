@@ -32,6 +32,7 @@ class TestDataloggingStorage(ScrutinyUnitTest):
         for yaxis in a.get_unique_yaxis_list():
             self.assertIsInstance(yaxis, AxisDefinition)
             self.assertIsInstance(yaxis.name, str)
+            self.assertIsInstance(yaxis.external_id, int)
 
         self.assertIsInstance(a.get_data(), list)
         for data in a.get_data():
@@ -58,6 +59,7 @@ class TestDataloggingStorage(ScrutinyUnitTest):
         for i in range(len(data1)):
             self.assert_dataseries_identical(data1[i].series, data2[i].series)
             self.assertEqual(data1[i].axis.name, data2[i].axis.name)
+            self.assertEqual(data1[i].axis.external_id, data2[i].axis.external_id)
 
     def assert_dataseries_identical(self, a: DataSeries, b: DataSeries):
         self.assertEqual(a.name, b.name)
@@ -69,17 +71,17 @@ class TestDataloggingStorage(ScrutinyUnitTest):
         acq2 = DataloggingAcquisition(firmware_id="firmwareid1")
         acq3 = DataloggingAcquisition(firmware_id="firmwareid2")
 
-        axis1 = AxisDefinition("Axis-1")
-        axis2 = AxisDefinition("Axis-2")
+        axis1 = AxisDefinition("Axis-1", 111)
+        axis2 = AxisDefinition("Axis-2", 222)
 
         acq1.set_xdata(self.make_dummy_data(50))
         acq1.add_data(self.make_dummy_data(10), axis1)
         acq1.add_data(self.make_dummy_data(15), axis1)
         acq1.add_data(self.make_dummy_data(20), axis2)
 
-        acq2.set_xdata(self.make_dummy_data(50))    # All on default axis
-        acq2.add_data(self.make_dummy_data(20))     # All on default axis
-        acq2.add_data(self.make_dummy_data(15))     # All on default axis
+        acq2.set_xdata(self.make_dummy_data(50))
+        acq2.add_data(self.make_dummy_data(20), axis2)
+        acq2.add_data(self.make_dummy_data(15), axis2)
 
         acq3.set_xdata(self.make_dummy_data(50))
         acq3.add_data(self.make_dummy_data(10), axis2)

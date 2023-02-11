@@ -124,11 +124,12 @@ class SupportedCondition(TypedDict):
 class DataloggingAcquisitionRequestSignalDef(TypedDict):
     id: str
     name: str
-    axis_index: int
+    axis_id: int
 
 
 class DataloggingAxisDef(TypedDict):
     name: str
+    id: int
 
 
 class DataloggingAcquisitionMetadata(TypedDict):
@@ -146,7 +147,7 @@ class DataloggingSignalData(TypedDict):
 
 
 class DataloggingSignalDataWithAxis(DataloggingSignalData):
-    axis_index: int
+    axis_id: int
 
 
 class DataloggingCapabilities(TypedDict):

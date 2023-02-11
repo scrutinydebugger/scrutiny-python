@@ -117,7 +117,8 @@ class DataloggingStorageManager:
         cursor.execute(""" 
             CREATE TABLE IF NOT EXISTS `axis` (
             `id` INTEGER PRIMARY KEY AUTOINCREMENT,
-            `name` VARCHAR(255)
+            `name` VARCHAR(255),
+            `external_id` INTEGER NOT NULL
         ) 
         """)
 
@@ -148,8 +149,8 @@ class DataloggingStorageManager:
 
             axis_sql = """
                 INSERT INTO `axis`
-                    (`name`)
-                VALUES (?)
+                    (`name`, `external_id`)
+                VALUES (?, ?)
             """
 
             series2id_map: Dict[DataSeries, int] = {}
@@ -157,7 +158,7 @@ class DataloggingStorageManager:
 
             axis2id_map: Dict[AxisDefinition, int] = {}
             for axis in acquisition.get_unique_yaxis_list():
-                cursor.execute(axis_sql, (axis.name,))
+                cursor.execute(axis_sql, (axis.name, axis.external_id))
                 assert cursor.lastrowid is not None
                 axis2id_map[axis] = cursor.lastrowid
 
@@ -267,7 +268,8 @@ class DataloggingStorageManager:
                     ds.`logged_element` AS `logged_element`,
                     ds.`data` AS `data`,
                     CASE WHEN a.x_axis=ds.id THEN 1 ELSE 0 END AS `is_xdata`,
-                    axis.`name` AS `axis_name`
+                    axis.`name` AS `axis_name`,
+                    axis.`external_id` AS `axis_external_id`
                 FROM `acquisitions` AS a
                 LEFT JOIN `acquisitions__dataseries` AS `ad` ON `a`.`id`=`ad`.`acquisition_id`
                 LEFT JOIN `dataseries` AS `ds` ON `ds`.`id`=`ad`.`dataseries_id`
@@ -285,7 +287,8 @@ class DataloggingStorageManager:
                 'logged_element',
                 'data',
                 'is_xdata',
-                'axis_name'
+                'axis_name',
+                'axis_external_id'
             ]
             colmap: Dict[str, int] = {}
             for i in range(len(cols)):
@@ -313,7 +316,7 @@ class DataloggingStorageManager:
                 if row[colmap['axis_id']] in axis_id_to_def_map:
                     axis = axis_id_to_def_map[row[colmap['axis_id']]]
                 else:
-                    axis = AxisDefinition(name=row[colmap['axis_name']])
+                    axis = AxisDefinition(name=row[colmap['axis_name']], external_id=row[colmap['axis_external_id']])
                     axis_id_to_def_map[row[colmap['axis_id']]] = axis
 
             if axis is None and not row[colmap['is_xdata']]:

@@ -88,9 +88,9 @@ class TestDataloggingManager(ScrutinyUnitTest):
 
     def make_test_request(self, operand_watchable: DatastoreEntry, x_axis_type: api_datalogging.XAxisType, x_axis_entry: Optional[DatastoreEntry] = None) -> api_datalogging.AcquisitionRequest:
         yaxis_list = [
-            api_datalogging.AxisDefinition("Axis1"),
-            api_datalogging.AxisDefinition("Axis2"),
-            api_datalogging.AxisDefinition("Axis3")
+            api_datalogging.AxisDefinition("Axis1", external_id=100),
+            api_datalogging.AxisDefinition("Axis2", external_id=200),
+            api_datalogging.AxisDefinition("Axis3", external_id=300)
         ]
 
         return api_datalogging.AcquisitionRequest(

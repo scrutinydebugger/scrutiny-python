@@ -40,6 +40,7 @@ class SamplingRate:
 @dataclass
 class AxisDefinition:
     name: str
+    external_id: int
 
     def __hash__(self):
         return id(self)
@@ -86,9 +87,6 @@ class DataSeriesWithAxis:
     axis: AxisDefinition
 
 
-DEFAULT_AXIS = AxisDefinition('Default')
-
-
 class DataloggingAcquisition:
     """Represent an acquisition of multiple signals"""
 
@@ -125,7 +123,10 @@ class DataloggingAcquisition:
     def set_xdata(self, xdata: DataSeries) -> None:
         self.xdata = xdata
 
-    def add_data(self, dataseries: DataSeries, axis: AxisDefinition = DEFAULT_AXIS) -> None:
+    def add_data(self, dataseries: DataSeries, axis: AxisDefinition) -> None:
+        for data in self.ydata:
+            if data.axis.external_id == axis.external_id and data.axis is not axis:
+                raise ValueError("Two data series are using different Y-Axis with identical external ID.")
         self.ydata.append(DataSeriesWithAxis(series=dataseries, axis=axis))
 
     def get_data(self) -> List[DataSeriesWithAxis]:

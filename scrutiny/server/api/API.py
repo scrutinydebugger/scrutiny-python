@@ -926,11 +926,24 @@ class API:
         if not isinstance(req['yaxis'], list):
             raise InvalidRequestException(req, "Invalid Y-Axis list")
 
-        yaxis_list: List[api_datalogging.AxisDefinition] = []
+        yaxis_map: Dict[int, api_datalogging.AxisDefinition] = {}
         for yaxis in req['yaxis']:
+            if 'name' not in yaxis:
+                raise InvalidRequestException(req, "Missing Y-Axis name")
+
             if not isinstance(yaxis['name'], str):
                 raise InvalidRequestException(req, "Invalid Y-Axis name")
-            yaxis_list.append(api_datalogging.AxisDefinition(name=yaxis['name']))
+
+            if 'id' not in yaxis:
+                raise InvalidRequestException(req, "Missing Y-Axis ID")
+
+            if not isinstance(yaxis['id'], int):
+                raise InvalidRequestException(req, "Invalid Y-Axis ID")
+
+            if (yaxis['id'] in yaxis_map):
+                raise InvalidRequestException(req, "Duplicate Y-Axis ID")
+
+            yaxis_map[yaxis['id']] = api_datalogging.AxisDefinition(name=yaxis['name'], external_id=yaxis['id'])
 
         for signal_def in req['signals']:
             if not isinstance(signal_def['id'], str):
@@ -939,10 +952,10 @@ class API:
             if not (isinstance(signal_def['name'], str) or signal_def['name'] is None):
                 raise InvalidRequestException(req, 'Invalid signal name')
 
-            if not isinstance(signal_def['axis_index'], int):
+            if not isinstance(signal_def['axis_id'], int):
                 raise InvalidRequestException(req, 'Invalid signal axis ID')
 
-            if signal_def['axis_index'] < 0 or signal_def['axis_index'] >= len(yaxis_list):
+            if signal_def['axis_id'] not in yaxis_map:
                 raise InvalidRequestException(req, 'Invalid signal axis ID')
 
             signal_entry: Optional[DatastoreEntry] = None
@@ -957,7 +970,7 @@ class API:
             signals_to_log.append(api_datalogging.SignalDefinitionWithAxis(
                 name=signal_def['name'],
                 entry=signal_entry,
-                axis=yaxis_list[signal_def['axis_index']]
+                axis=yaxis_map[signal_def['axis_id']]
             ))
 
         acq_name: Optional[str] = None
@@ -1145,22 +1158,21 @@ class API:
             }
             return signal
 
-        def dataseries_to_api_signal_data_with_axis(ds: api_datalogging.DataSeries, axis_index: int) -> api_typing.DataloggingSignalDataWithAxis:
+        def dataseries_to_api_signal_data_with_axis(ds: api_datalogging.DataSeries, axis_id: int) -> api_typing.DataloggingSignalDataWithAxis:
             signal: api_typing.DataloggingSignalDataWithAxis = cast(api_typing.DataloggingSignalDataWithAxis, dataseries_to_api_signal_data(ds))
-            signal['axis_index'] = axis_index
+            signal['axis_id'] = axis_id
             return signal
 
         yaxis_list: List[api_typing.DataloggingAxisDef] = []
         acq_axis_2_api_axis_map: Dict[api_datalogging.AxisDefinition, api_typing.DataloggingAxisDef] = {}
         for axis in acquisition.get_unique_yaxis_list():
-            yaxis_out: api_typing.DataloggingAxisDef = {'name': axis.name}
+            yaxis_out: api_typing.DataloggingAxisDef = {'name': axis.name, 'id': axis.external_id}
             acq_axis_2_api_axis_map[axis] = yaxis_out
             yaxis_list.append(yaxis_out)
 
         signals: List[api_typing.DataloggingSignalDataWithAxis] = []
         for dataseries_with_axis in acquisition.get_data():
-            yaxis_index = yaxis_list.index(acq_axis_2_api_axis_map[dataseries_with_axis.axis])
-            signals.append(dataseries_to_api_signal_data_with_axis(ds=dataseries_with_axis.series, axis_index=yaxis_index))
+            signals.append(dataseries_to_api_signal_data_with_axis(ds=dataseries_with_axis.series, axis_id=dataseries_with_axis.axis.external_id))
 
         response: api_typing.S2C.ReadDataloggingAcquisitionContent = {
             'cmd': API.Command.Api2Client.READ_DATALOGGING_ACQUISITION_CONTENT_RESPONSE,
