@@ -11,11 +11,21 @@ import os
 import appdirs  # type: ignore
 import tempfile
 import logging
+import traceback
 from scrutiny.server.datalogging.definitions.api import DataloggingAcquisition, DataSeries, AxisDefinition
+from pathlib import Path
 
 import sqlite3
 from datetime import datetime
-from typing import Optional, Dict, List, Union
+from typing import Optional, Dict, List
+
+
+class BadVersionError(Exception):
+    version: int
+
+    def __init__(self, version, *args, **kwargs):
+        self.version = version
+        super().__init__(*args, **kwargs)
 
 
 class TempStorageWithAutoRestore:
@@ -44,7 +54,6 @@ class SQLiteSession:
 
     def __enter__(self) -> sqlite3.Connection:
         self.conn = sqlite3.connect(self.storage.get_db_filename())
-        self.storage.init_db(self.conn)
         return self.conn
 
     def __exit__(self, type, value, traceback):
@@ -54,16 +63,24 @@ class SQLiteSession:
 
 class DataloggingStorageManager:
     FILENAME = "scrutiny_datalog.sqlite"
+    STORAGE_VERSION = 1  # Update this if the structure of the DB changes. Keep an integer
+
+    folder: str
+    temporary_dir: Optional[tempfile.TemporaryDirectory]
+    logger: logging.Logger
+    unavailable: bool
 
     def __init__(self, folder):
         self.folder = folder
         self.temporary_dir = None
         self.logger = logging.getLogger(self.__class__.__name__)
+        self.unavailable = True
         os.makedirs(self.folder, exist_ok=True)
 
     def use_temp_storage(self) -> TempStorageWithAutoRestore:
         """Require the storage manager to switch to a temporary directory. Used for unit testing"""
-        self.temporary_dir = tempfile.TemporaryDirectory()
+        self.temporary_dir = tempfile.TemporaryDirectory()  # Directory is deleted when this object is destroyed. Need to keep a reference.
+        self.initialize()
         return TempStorageWithAutoRestore(self)
 
     def restore_storage(self) -> None:
@@ -80,13 +97,105 @@ class DataloggingStorageManager:
     def get_db_filename(self) -> str:
         return os.path.join(self.get_storage_dir(), self.FILENAME)
 
-    def clear_all(self):
+    def clear_all(self) -> None:
         filename = self.get_db_filename()
         if os.path.isfile(filename):
             os.remove(filename)
 
-    def init_db(self, conn: sqlite3.Connection):
+    def initialize(self) -> None:
+        self.logger.debug('Initializing datalogging storage. DB file at %s' % self.get_db_filename())
+        self.unavailable = True
+        err: Optional[Exception] = None
+
+        try:
+            try:
+                with SQLiteSession(self) as conn:
+                    self.check_version(conn)
+            except BadVersionError as e:
+                self.backup_db(e.version)
+
+            with SQLiteSession(self) as conn:
+                self.create_db_if_not_exists(conn)
+            self.unavailable = False
+            self.logger.debug('Datalogging storage ready')
+        except Exception as e:
+            self.logger.error('Failed to initialize datalogging storage. Resetting storage at %s. %s' % (self.get_db_filename(), str(e)))
+            self.logger.debug(traceback.format_exc())
+            err = e
+
+        if err:
+            try:
+                self.clear_all()
+                self.logger.debug('Datalogging storage cleared')
+            except Exception as e:
+                self.logger.error("Failed to reset storage. Datalogging storage will not be accessible. %s" % str(e))
+                self.logger.debug(traceback.format_exc())
+                return
+
+            try:
+                with SQLiteSession(self) as conn:
+                    self.create_db_if_not_exists(conn)
+                self.unavailable = False
+                self.logger.debug('Datalogging storage ready')
+            except Exception as e:
+                self.logger.error('Failed to initialize datalogging storage a 2nd time. Datalogging storage will not be accessible. %s' % str(e))
+                self.logger.debug(traceback.format_exc())
+
+    def make_meta_table_if_not_exists(self, conn: sqlite3.Connection) -> None:
         cursor = conn.cursor()
+        cursor.execute(
+            """ 
+            CREATE TABLE IF NOT EXISTS `meta` (
+                `field` VARCHAR(255) PRIMARY KEY,
+                `value` TEXT NOT NULL
+            )
+            """
+        )
+
+    def read_version(self, conn: sqlite3.Connection) -> Optional[int]:
+        self.make_meta_table_if_not_exists(conn)
+
+        cursor = conn.cursor()
+        cursor.execute("SELECT `value` FROM `meta` WHERE `field`='storage_version'")
+        rows = cursor.fetchall()
+        if len(rows) > 1:
+            raise ValueError('More than 1 version was returned by the database.')
+
+        if len(rows) == 0:
+            return None
+
+        return int(rows[0][0])
+
+    def check_version(self, conn: sqlite3.Connection):
+        read_version = self.read_version(conn)
+        if read_version is None:
+            self.write_version(conn)
+        else:
+            if read_version != self.STORAGE_VERSION:
+                self.logger.warning('Storage version mismatch.')
+                raise BadVersionError(read_version, "Read version ws %d. Expected %d" % (read_version, self.STORAGE_VERSION))
+
+    def write_version(self, conn: sqlite3.Connection):
+        conn.cursor().execute("INSERT INTO meta (field, value) VALUES ('storage_version', ?)", (self.STORAGE_VERSION,))
+        conn.commit()
+
+    def backup_db(self, previous_version: int) -> None:
+        storage_file_path = Path(self.get_db_filename())
+        backup_file = os.path.join(storage_file_path.parent, 'datalogging_storage_v%d_backup%s' % (previous_version, storage_file_path.suffix))
+        if os.path.isfile(str(storage_file_path)):
+            try:
+                os.rename(str(storage_file_path), backup_file)
+                self.logger.info("Datalogging storage version will upgrade to V%d. Old file backed up here: %s" %
+                                 (self.STORAGE_VERSION, backup_file))
+            except Exception as e:
+                self.logger.error("Failed to backup old storage. %s" % str(e))
+
+    def create_db_if_not_exists(self, conn: sqlite3.Connection) -> None:
+        cursor = conn.cursor()
+        self.make_meta_table_if_not_exists(conn)
+        read_version = self.read_version(conn)
+        if read_version is None:
+            self.write_version(conn)
 
         cursor.execute(""" 
             CREATE TABLE IF NOT EXISTS `acquisitions` (
@@ -141,9 +250,11 @@ class DataloggingStorageManager:
         conn.commit()
 
     def get_session(self) -> SQLiteSession:
+        if self.unavailable:
+            raise RuntimeError('Datalogging Storage is not accessible.')
         return SQLiteSession(self)
 
-    def save(self, acquisition: DataloggingAcquisition):
+    def save(self, acquisition: DataloggingAcquisition) -> None:
         self.logger.debug("Saving acquisition with reference_id=%s" % (str(acquisition.reference_id)))
         if acquisition.xdata is None:
             raise ValueError("Missing X-Axis data")

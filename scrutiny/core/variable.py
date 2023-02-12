@@ -255,7 +255,6 @@ class Variable:
         """Decode the binary content in memory to a python value"""
 
         if self.bitfield:
-            # todo improve this with bit array maybe.
             assert self.bitsize is not None
             if len(data) > 8:
                 raise NotImplementedError('Does not support bitfield bigger than %dbits' % (8 * 8))

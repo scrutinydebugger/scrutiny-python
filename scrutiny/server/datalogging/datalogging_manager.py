@@ -52,6 +52,7 @@ class DataloggingManager:
         self.last_device_status = DeviceHandler.ConnectionStatus.UNKNOWN
         self.device_status = DeviceHandler.ConnectionStatus.UNKNOWN
         self.active_request = None
+        DataloggingStorage.initialize()
 
     def is_valid_sample_rate_id(self, identifier: int) -> bool:
         for rate in self.get_available_sampling_rates():
