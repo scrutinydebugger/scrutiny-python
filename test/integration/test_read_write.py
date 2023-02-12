@@ -188,21 +188,6 @@ class TestReadWrite(ScrutinyIntegrationTestWithTestSFD1):
         self.assert_value_received(self.entry_u64, expected_u64_value)
 
     def test_write_oob_values(self):
-        #  TODO : To investigate : This test failed few times for no apparent reason. There might be a race condition of some sort
-        # or timing weakness somewhere in here.
-
-        # ======================================================================
-        # FAIL: test_write_oob_values (integration.test_read_write.TestReadWrite)
-        # ----------------------------------------------------------------------
-        # Traceback (most recent call last):
-        #  File "/home/jenkins/workspace/thon_add-support-for-datalogging/test/integration/test_read_write.py", line 300, in test_write_oob_values
-        #    self.assert_value_received(testcase.entry, testcase.outval, msg=assert_msg)
-        #  File "/home/jenkins/workspace/thon_add-support-for-datalogging/test/integration/integration_test.py", line 215, in assert_value_received
-        #    self.assertEqual(self.client_entry_values[id], value, msg)
-        #  File "/home/jenkins/workspace/thon_add-support-for-datalogging/test/__init__.py", line 41, in assertEqual
-        #    super().assertEqual(v1, v2, *args, **kwargs)
-        # AssertionError: -18446744073709551616 != 0 : reqid=34. Testcase=<Testcase entry=<DatastoreVariableEntry:/path1/path2/some_uint64>, inval=-18446744073709551616, outval=0, valid=True>
-
         @dataclass
         class WriteOOBTestcase:
             entry: DatastoreEntry
