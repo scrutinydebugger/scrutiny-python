@@ -36,25 +36,22 @@ class DeviceSideAcquisitionRequest:
 
 
 class DataloggingManager:
-    datastore: Datastore
-    device_handler: DeviceHandler
-    acquisition_request_queue: "queue.Queue[DeviceSideAcquisitionRequest]"
-    last_device_status: DeviceHandler.ConnectionStatus
-    device_status: DeviceHandler.ConnectionStatus
-    active_request: Optional[DeviceSideAcquisitionRequest]
-    logger: logging.Logger
+    datastore: Datastore    # Reference to the server datastore
+    device_handler: DeviceHandler   # Reference to the device handler
+    acquisition_request_queue: "queue.Queue[DeviceSideAcquisitionRequest]"  # The queue in which acquisition requests are put in by the API
+    active_request: Optional[DeviceSideAcquisitionRequest]  # The acquisition request being actively processed. None when no request is processed
+    logger: logging.Logger  # Logger
 
     def __init__(self, datastore: Datastore, device_handler: DeviceHandler):
         self.datastore = datastore
         self.device_handler = device_handler
         self.logger = logging.getLogger(self.__class__.__name__)
         self.acquisition_request_queue = queue.Queue()
-        self.last_device_status = DeviceHandler.ConnectionStatus.UNKNOWN
-        self.device_status = DeviceHandler.ConnectionStatus.UNKNOWN
         self.active_request = None
         DataloggingStorage.initialize()
 
     def is_valid_sample_rate_id(self, identifier: int) -> bool:
+        """Tells if the given sample rate identifier refers to a valid datalogging sample rate"""
         for rate in self.get_available_sampling_rates():
             if rate.device_identifier == identifier:
                 return True
@@ -62,13 +59,14 @@ class DataloggingManager:
         return False
 
     def is_ready_for_request(self) -> bool:
-        return True  # todo
-
-    def set_disconnected(self):
-        self.active_request = None
+        """Tells if the device is in a state where datalogging request can be accepted"""
+        device_connected = self.device_handler.get_connection_status() == DeviceHandler.ConnectionStatus.CONNECTED_READY
+        device_handler_ready = self.device_handler.is_ready_for_datalogging_acquisition_request()
+        return device_connected and device_handler_ready  # device_handler_ready should be enough. Check device_connected because of paranoia
 
     def request_acquisition(self, request: api_datalogging.AcquisitionRequest, callback: api_datalogging.APIAcquisitionRequestCompletionCallback) -> None:
-        # Converts right away to device side acquisition because we want exception to be raised as early as possible for quik feedback to user
+        """Interface for the API to push a request for a new acquisition"""
+        # Converts right away to device side acquisition because we want exception to be raised as early as possible for quick feedback to user
         config, entry_signal_map = self.make_device_config_from_request(request)  # Can raise an exception
         self.acquisition_request_queue.put(DeviceSideAcquisitionRequest(
             api_request=request,
@@ -77,6 +75,7 @@ class DataloggingManager:
             callback=callback))
 
     def acquisition_complete_callback(self, success: bool, data: Optional[List[List[bytes]]]) -> None:
+        """Callback called by the device handler when the acquisition finally gets triggered and data has finished downloaded."""
         if self.active_request is None:
             self.logger.error("Received acquisition data but was not expecting it. No active acquisition request")
             return
@@ -84,15 +83,16 @@ class DataloggingManager:
         device_info = self.device_handler.get_device_info()
         if device_info is None or device_info.device_id is None:
             self.logger.error('Gotten an acquisition but the device information is not available')
-            self.active_request.callback(False, None)
+            self.active_request.callback(False, None)   # Inform the API of the failure
             return
 
         acquisition: Optional[api_datalogging.DataloggingAcquisition] = None
         try:
-            if success:
+            if success:  # The device succeeded to complete the acquisition and fetch the data
                 self.logger.info("New acquisition gotten")
                 assert data is not None
 
+                # Make sure all signal data have the same length.
                 nb_points: Optional[int] = None
                 for signal_data in data:
                     if nb_points is None:
@@ -104,6 +104,7 @@ class DataloggingManager:
                 if nb_points is None:
                     raise ValueError('Cannot determine the number of points in the acquisitions')
 
+                # Crate the acquisition
                 acquisition = api_datalogging.DataloggingAcquisition(
                     name=self.active_request.api_request.name,
                     reference_id=uuid4().hex,
@@ -111,9 +112,9 @@ class DataloggingManager:
                     acq_time=datetime.now()
                 )
 
+                # Now converts binary data into meaningful value using the datastore entries and add to acquisition object
                 for signal in self.active_request.api_request.signals:
-
-                    parsed_data = self.read_active_request_data_from_raw_data(signal, data)
+                    parsed_data = self.read_active_request_data_from_raw_data(signal, data)  # PArse binary data
                     ds = api_datalogging.DataSeries(
                         data=parsed_data,
                         logged_element=signal.entry.display_path
@@ -122,46 +123,54 @@ class DataloggingManager:
                         ds.name = signal.name
                     acquisition.add_data(ds, signal.axis)
 
+                # Add the X-Axis. Either use a measured signal or use a generated one of the user wants IdealTime
                 xaxis = api_datalogging.DataSeries()
                 if self.active_request.api_request.x_axis_type == api_datalogging.XAxisType.IdealTime:
+                    # Ideal time : Generate a time X-Axis based on the sampling rate. Assume the device is running the loop at a reliable fixed rate
                     sampling_rate = self.get_sampling_rate(self.active_request.api_request.rate_identifier)
                     if sampling_rate.frequency is None:
                         raise ValueError('Ideal time X-Axis is not possible with variable frequency loops')
                     timestep = 1 / sampling_rate.frequency
                     timestep *= self.active_request.api_request.decimation
                     xaxis.set_data([i * timestep for i in range(nb_points)])
+                    xaxis.name = 'X-Axis'
+                    xaxis.logged_element = 'Ideal Time'
                 elif self.active_request.api_request.x_axis_type == api_datalogging.XAxisType.MeasuredTime:
+                    # Measured time is appended at the end of the signal list. See make_device_config_from_request
                     time_data = data[-1]
                     time_codec = Codecs.get(EmbeddedDataType.uint32, endianness=Endianness.Big)
                     xaxis.set_data([time_codec.decode(sample) * 1e-7 for sample in time_data])
+                    xaxis.name = 'X-Axis'
+                    xaxis.logged_element = 'Measured Time'
                 elif self.active_request.api_request.x_axis_type == api_datalogging.XAxisType.Signal:
+                    # Any other signal. Use the data as is.
                     xaxis_signal = self.active_request.api_request.x_axis_signal
                     assert xaxis_signal is not None
                     parsed_data = self.read_active_request_data_from_raw_data(xaxis_signal, data)
                     xaxis.set_data(parsed_data)
+                    xaxis.name = 'X-Axis'
+                    xaxis.logged_element = xaxis_signal.entry.get_display_path()
                 else:
                     raise ValueError('Impossible X-Axis type')
 
                 if len(xaxis) != nb_points:
                     raise ValueError("Failed to find a matching xaxis dataseries")
 
-                xaxis.name = 'time'
-                xaxis.logged_element = 'time'
                 acquisition.set_xdata(xaxis)
-
                 DataloggingStorage.save(acquisition)
-
             else:
+                # acquisition will be None here
                 self.logger.info("Failed to acquire acquisition request")
         except Exception as e:
-            acquisition = None
+            acquisition = None  # Checked later to call the callback
             self.logger.error('Error while processing datalogging acquisition: %s' % str(e))
             self.logger.debug(traceback.format_exc())
 
+        # Inform the API about the acquisition being processed.
         err: Optional[Exception] = None
         try:
             if acquisition is None:
-                self.active_request.callback(False, None)
+                self.active_request.callback(False, None)   # Inform the API of the failure
             else:
                 self.active_request.callback(True, acquisition)
         except Exception as e:
@@ -172,6 +181,7 @@ class DataloggingManager:
             raise err
 
     def read_active_request_data_from_raw_data(self, signal: api_datalogging.SignalDefinition, data: List[List[bytes]]) -> List[float]:
+        """Converts a List of binary blocks into a list of numeric values (64 bits float) using the datastore definitions generated by the debug symbols."""
         assert self.active_request is not None
         loggable_id = self.active_request.entry_signal_map[signal.entry]
         signal_data = data[loggable_id]
@@ -182,9 +192,10 @@ class DataloggingManager:
         return parsed_signal_data
 
     def process(self) -> None:
-        self.device_status = self.device_handler.get_connection_status()
+        """Function th ebe called periodically"""
+        device_status = self.device_handler.get_connection_status()
 
-        if self.device_status == DeviceHandler.ConnectionStatus.CONNECTED_READY:
+        if device_status == DeviceHandler.ConnectionStatus.CONNECTED_READY:
             device_info = self.device_handler.get_device_info()
             assert device_info is not None
             assert device_info.supported_feature_map is not None
@@ -199,9 +210,7 @@ class DataloggingManager:
                             callback=DeviceAcquisitionRequestCompletionCallback(self.acquisition_complete_callback)
                         )
         else:
-            self.set_disconnected()
-
-        self.last_device_status = self.device_status
+            self.active_request = None
 
     @classmethod
     def api_trigger_condition_to_device_trigger_condition(cls, api_cond: api_datalogging.TriggerCondition) -> device_datalogging.TriggerCondition:
@@ -240,6 +249,7 @@ class DataloggingManager:
 
         entry2signal_map: Dict[DatastoreEntry, int] = {}
 
+        # Generate a list of LoggableSignal for that the device handler can manage (converts datastore entries into address/size and RPVs).
         all_signals: List[api_datalogging.SignalDefinition] = cast(List[api_datalogging.SignalDefinition], request.signals.copy())
 
         if request.x_axis_type == api_datalogging.XAxisType.Signal:
@@ -259,10 +269,10 @@ class DataloggingManager:
                 signal_index = len(config.get_signals()) - 1
             else:
                 signal_index = entry2signal_map[entry_to_log]
-            entry2signal_map[entry_to_log] = signal_index
-            entry2signal_map[signal.entry] = signal_index
+            entry2signal_map[entry_to_log] = signal_index   # Remember what signal comes from what datastore entry
+            entry2signal_map[signal.entry] = signal_index   # Remember what signal comes from what datastore entry
 
-        # Purposely add time at the end
+        # Purposely add time at the end. It wi
         if request.x_axis_type == api_datalogging.XAxisType.MeasuredTime:
             config.add_signal(device_datalogging.TimeLoggableSignal())
 
@@ -345,8 +355,8 @@ class DataloggingManager:
     def get_available_sampling_rates(self) -> List[api_datalogging.SamplingRate]:
         """Get all sampling rates available on the actually connected device """
         output: List[api_datalogging.SamplingRate] = []
-
-        if self.device_status == DeviceHandler.ConnectionStatus.CONNECTED_READY:
+        device_status = self.device_handler.get_connection_status()
+        if device_status == DeviceHandler.ConnectionStatus.CONNECTED_READY:
             device_info = self.device_handler.get_device_info()
             if device_info is not None:
                 if device_info.loops is not None:

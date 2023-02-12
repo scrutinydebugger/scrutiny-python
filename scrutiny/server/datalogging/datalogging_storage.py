@@ -12,11 +12,11 @@ import appdirs  # type: ignore
 import tempfile
 import logging
 import traceback
-from scrutiny.server.datalogging.definitions.api import DataloggingAcquisition, DataSeries, AxisDefinition
 from pathlib import Path
-
-import sqlite3
 from datetime import datetime
+import sqlite3
+
+from scrutiny.server.datalogging.definitions.api import DataloggingAcquisition, DataSeries, AxisDefinition
 from typing import Optional, Dict, List
 
 
@@ -48,12 +48,12 @@ class SQLiteSession:
     storage: "DataloggingStorageManager"
     conn: Optional[sqlite3.Connection]
 
-    def __init__(self, storage: "DataloggingStorageManager"):
-        self.storage = storage
+    def __init__(self, filename: str):
+        self.filename = filename
         self.conn = None
 
     def __enter__(self) -> sqlite3.Connection:
-        self.conn = sqlite3.connect(self.storage.get_db_filename())
+        self.conn = sqlite3.connect(self.filename)
         return self.conn
 
     def __exit__(self, type, value, traceback):
@@ -62,13 +62,14 @@ class SQLiteSession:
 
 
 class DataloggingStorageManager:
+    """Provides an interface to the filesystem to store and read back datalogging acquisitions. Uses SQLite3 as storage engine"""
     FILENAME = "scrutiny_datalog.sqlite"
     STORAGE_VERSION = 1  # Update this if the structure of the DB changes. Keep an integer
 
-    folder: str
-    temporary_dir: Optional[tempfile.TemporaryDirectory]
-    logger: logging.Logger
-    unavailable: bool
+    folder: str  # Working folder
+    temporary_dir: Optional[tempfile.TemporaryDirectory]    # A temporary work folder mainly used for unit tests
+    logger: logging.Logger  # The logger
+    unavailable: bool       # Flags indicating that the storage can or cannot be used
 
     def __init__(self, folder):
         self.folder = folder
@@ -95,26 +96,30 @@ class DataloggingStorageManager:
             return self.folder
 
     def get_db_filename(self) -> str:
+        """Returns the filename of the database"""
         return os.path.join(self.get_storage_dir(), self.FILENAME)
 
     def clear_all(self) -> None:
+        """Deletes the database content"""
         filename = self.get_db_filename()
         if os.path.isfile(filename):
             os.remove(filename)
+            self.initialize()
 
     def initialize(self) -> None:
+        """Initialize the storage. Make sure the database is accessible and valid. Rebuild it if something is broken"""
         self.logger.debug('Initializing datalogging storage. DB file at %s' % self.get_db_filename())
         self.unavailable = True
         err: Optional[Exception] = None
 
         try:
             try:
-                with SQLiteSession(self) as conn:
+                with SQLiteSession(self.get_db_filename()) as conn:
                     self.check_version(conn)
             except BadVersionError as e:
                 self.backup_db(e.version)
 
-            with SQLiteSession(self) as conn:
+            with SQLiteSession(self.get_db_filename()) as conn:
                 self.create_db_if_not_exists(conn)
             self.unavailable = False
             self.logger.debug('Datalogging storage ready')
@@ -133,7 +138,7 @@ class DataloggingStorageManager:
                 return
 
             try:
-                with SQLiteSession(self) as conn:
+                with SQLiteSession(self.get_db_filename()) as conn:
                     self.create_db_if_not_exists(conn)
                 self.unavailable = False
                 self.logger.debug('Datalogging storage ready')
@@ -142,6 +147,7 @@ class DataloggingStorageManager:
                 self.logger.debug(traceback.format_exc())
 
     def make_meta_table_if_not_exists(self, conn: sqlite3.Connection) -> None:
+        """Creates the metadata table"""
         cursor = conn.cursor()
         cursor.execute(
             """ 
@@ -153,6 +159,7 @@ class DataloggingStorageManager:
         )
 
     def read_version(self, conn: sqlite3.Connection) -> Optional[int]:
+        """Reads the version of the storage from the database. Used for future-proofing"""
         self.make_meta_table_if_not_exists(conn)
 
         cursor = conn.cursor()
@@ -167,6 +174,7 @@ class DataloggingStorageManager:
         return int(rows[0][0])
 
     def check_version(self, conn: sqlite3.Connection):
+        """Check that the version of the storage is the one handled by the code. Future-proofing"""
         read_version = self.read_version(conn)
         if read_version is None:
             self.write_version(conn)
@@ -176,12 +184,16 @@ class DataloggingStorageManager:
                 raise BadVersionError(read_version, "Read version ws %d. Expected %d" % (read_version, self.STORAGE_VERSION))
 
     def write_version(self, conn: sqlite3.Connection):
+        """Writes the actual version to the database metadata"""
         conn.cursor().execute("INSERT INTO meta (field, value) VALUES ('storage_version', ?)", (self.STORAGE_VERSION,))
         conn.commit()
 
     def backup_db(self, previous_version: int) -> None:
+        """Makes a backup of the database and identify the file with the given version number"""
         storage_file_path = Path(self.get_db_filename())
-        backup_file = os.path.join(storage_file_path.parent, 'datalogging_storage_v%d_backup%s' % (previous_version, storage_file_path.suffix))
+        date = datetime.now().strftime(r"%Y%m%d_%H%M%S")
+        backup_file = os.path.join(storage_file_path.parent, '%s_datalogging_storage_v%d_backup%s' %
+                                   (date, previous_version, storage_file_path.suffix))
         if os.path.isfile(str(storage_file_path)):
             try:
                 os.rename(str(storage_file_path), backup_file)
@@ -191,6 +203,7 @@ class DataloggingStorageManager:
                 self.logger.error("Failed to backup old storage. %s" % str(e))
 
     def create_db_if_not_exists(self, conn: sqlite3.Connection) -> None:
+        """Creates the database into the file using CREATE TABLE IF NOT EXISTS"""
         cursor = conn.cursor()
         self.make_meta_table_if_not_exists(conn)
         read_version = self.read_version(conn)
@@ -250,11 +263,13 @@ class DataloggingStorageManager:
         conn.commit()
 
     def get_session(self) -> SQLiteSession:
+        """Open a connection to the active database file if possible"""
         if self.unavailable:
             raise RuntimeError('Datalogging Storage is not accessible.')
-        return SQLiteSession(self)
+        return SQLiteSession(self.get_db_filename())
 
     def save(self, acquisition: DataloggingAcquisition) -> None:
+        """Writes an acquisition to the storage"""
         self.logger.debug("Saving acquisition with reference_id=%s" % (str(acquisition.reference_id)))
         if acquisition.xdata is None:
             raise ValueError("Missing X-Axis data")
@@ -327,6 +342,7 @@ class DataloggingStorageManager:
             conn.commit()
 
     def count(self, firmware_id: Optional[str] = None) -> int:
+        """Returns the number of acquisition saved in the storage"""
         with self.get_session() as conn:
             cursor = conn.cursor()
             nout = 0
@@ -342,6 +358,7 @@ class DataloggingStorageManager:
         return nout
 
     def list(self, firmware_id: Optional[str] = None) -> List[str]:
+        """Return the list of acquisitions available in the storage"""
         with self.get_session() as conn:
             cursor = conn.cursor()
             listout: List[str]
@@ -357,6 +374,7 @@ class DataloggingStorageManager:
         return listout
 
     def read(self, reference_id: str) -> DataloggingAcquisition:
+        """Reads a datalogging acquisition form the storage"""
         with self.get_session() as conn:
             sql = """
                 SELECT 
@@ -408,6 +426,7 @@ class DataloggingStorageManager:
             name=rows[0][colmap['acquisition_name']]
         )
 
+        # Needs to maps AxisDefinition instances to the DB id to avoid duplicates
         yaxis_id_to_def_map: Dict[int, AxisDefinition] = {}
 
         for row in rows:
@@ -439,6 +458,7 @@ class DataloggingStorageManager:
         return acq
 
     def delete(self, reference_id: str) -> None:
+        """Delete a datalogging acquisition from the storage"""
         with self.get_session() as conn:
             cursor = conn.cursor()
 
@@ -463,6 +483,7 @@ class DataloggingStorageManager:
             conn.commit()
 
     def update_acquisition_name(self, reference_id: str, name: str) -> None:
+        """Change the name of an acquisition"""
         with self.get_session() as conn:
             cursor = conn.cursor()
 
@@ -476,6 +497,7 @@ class DataloggingStorageManager:
             conn.commit()
 
     def update_axis_name(self, reference_id: str, axis_id: int, new_name: str) -> None:
+        """Change the name of an axis associated with an acquisition"""
         with self.get_session() as conn:
             cursor = conn.cursor()
 

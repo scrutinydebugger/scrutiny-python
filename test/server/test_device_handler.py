@@ -651,6 +651,7 @@ class TestDeviceHandler(ScrutinyUnitTest):
                 if self.device_handler.get_datalogger_state() == device_datalogging.DataloggerState.ARMED:
                     break
 
+            # This test did fail once for no apparent reason. Stinks of race condition...
             self.assertEqual(self.device_handler.get_datalogger_state(), device_datalogging.DataloggerState.ARMED, 'iteration=%d' % iteration)
 
             if iteration == 4:

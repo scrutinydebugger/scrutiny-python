@@ -194,6 +194,7 @@ class TestCodecs(ScrutinyUnitTest):
         self.assertEqual(Codecs.make_value_valid(EmbeddedDataType.uint32, -500000, bitsize=5), 0)
 
         self.assertEqual(Codecs.make_value_valid(EmbeddedDataType.uint64, 0x10000000000000000), 0xffffffffffffffff)
+        self.assertEqual(Codecs.make_value_valid(EmbeddedDataType.uint64, -0x10000000000000000), 0)
         self.assertEqual(Codecs.make_value_valid(EmbeddedDataType.uint64, -1), 0)
         self.assertEqual(Codecs.make_value_valid(EmbeddedDataType.uint64, 0x234567892), 0x234567892)
         self.assertEqual(Codecs.make_value_valid(EmbeddedDataType.uint64, 2000000, bitsize=5), 31)

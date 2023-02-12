@@ -85,17 +85,17 @@ class DataloggingPoller:
     max_response_payload_size: Optional[int]    # Maximum size of a payload that the device can send to the server
     rpv_map: Dict[int, RuntimePublishedValue]   # Map of RPV ID to their definition.
 
-    arm_completed: bool
-    new_request_received: bool
-    acquisition_request: Optional[AcquisitionRequest]
-    request_failed: bool
-    configure_completed: bool
-    failure_counter: int
-    data_read_success: bool
-    bytes_received: bytearray
-    read_rolling_counter: int
-    require_status_update: bool
-    ready_to_receive_request: bool
+    arm_completed: bool         # Flag indicating the the device trigger was armed. Set by callback, read by FSM
+    new_request_received: bool  # Indicates the the datalogging manager pushed a new request for acquisition.
+    acquisition_request: Optional[AcquisitionRequest]   # The actively processed acquisition request. Set by callback, read by FSM
+    request_failed: bool        # Flag indicating that the previous device request enqueued failed to process. Set by callback, read by FSM
+    configure_completed: bool   # Flag indicating that the configuration stage has been successfully completed. Set by callback, read by FSM
+    failure_counter: int        # Counter of that counts the number of time the device failed to respond to a request
+    data_read_success: bool     # Flag indicating tha the data read request succeeded. Set by callback, read by FSM
+    bytes_received: bytearray   # Number of bytes received so far while reading an acquisition content
+    read_rolling_counter: int   # The rolling counter read from the last read request
+    require_status_update: bool  # Flag indicating that it is time to read the datalogger state
+    ready_to_receive_request: bool  # Flag indicating that the poller is ready to receive an acquisition request form the datalogging manager.
 
     acquisition_metadata: Optional[device_datalogging.AcquisitionMetadata]
     received_data_chunk: Optional[ReceivedChunk]
@@ -163,31 +163,38 @@ class DataloggingPoller:
             self.started = True
 
     def stop(self) -> None:
-        """ Stop the poller """
+        """ Stop the DataloggingPoller """
         self.stop_requested = True
 
     def disable(self) -> None:
+        """Disable the DataloggingPoller"""
         self.enabled = False
         self.stop()
 
     def enable(self) -> None:
+        """Enable the DataloggingPoller"""
         self.enabled = True
 
     def is_enabled(self) -> bool:
+        """Tells if the DataloggingPoller is enabled"""
         return self.enabled
 
     def get_datalogger_state(self) -> device_datalogging.DataloggerState:
+        """Return the last datalogger state read"""
         return self.device_datalogging_state
 
     def get_device_setup(self) -> Optional[device_datalogging.DataloggingSetup]:
+        """Return the datalogging setup structure if available. Contains buffer size, encoding and limits """
         return self.device_setup
 
     def mark_active_acquisition_failed_if_any(self):
+        """Mark the currently processed acquisition request as completed with failure. Will call the completing callback with success=False"""
         if self.acquisition_request is not None:
             self.acquisition_request.completion_callback(False, None)
             self.acquisition_request = None
 
     def mark_active_acquisition_success(self, data: bytes) -> None:
+        """Mark the currently processed acquisition request as completed with success. Will call the completing callback with success=True"""
         if self.acquisition_request is not None:
             if self.device_setup is None:
                 self.acquisition_request.completion_callback(False, None)
@@ -208,6 +215,7 @@ class DataloggingPoller:
                 self.acquisition_request = None
 
     def request_acquisition(self, loop_id: int, config: device_datalogging.Configuration, callback: DeviceAcquisitionRequestCompletionCallback) -> None:
+        """Request a new datalogging acquisition. Will interrupt any other request and will be processed as soon as possible """
         if not self.max_response_payload_size:
             raise ValueError("Maximum response payload size must be defined first")
 
@@ -229,10 +237,12 @@ class DataloggingPoller:
         self.new_request_received = True
 
     def is_ready_to_receive_new_request(self) -> bool:
+        """Tells if request_acquisition() can be called. """
         return self.ready_to_receive_request and not self.error
 
     def process(self) -> None:
         """To be called periodically to make the process move forward"""
+        # Handle conditions that prevent the DataloggingPoller to function
         if not self.started or not self.enabled:
             self.set_standby()
             return
@@ -244,6 +254,7 @@ class DataloggingPoller:
             self.mark_active_acquisition_failed_if_any()
             return
 
+        # Now check if it is time to fetch the datalogger status
         if self.state in [FSMState.WAIT_FOR_DATA]:  # Fast update when waiting for trigger
             self.update_status_timer.set_timeout(self.UPDATE_STATUS_INTERVAL_ACQUIRING)
         else:   # Slow update otherwise
@@ -255,6 +266,7 @@ class DataloggingPoller:
                 self.update_status_timer.start()
 
         try:
+
             state_entry = self.previous_state != self.state
             next_state = self.state
 
@@ -268,13 +280,14 @@ class DataloggingPoller:
                 next_state = FSMState.GET_SETUP
 
             elif self.state == FSMState.GET_SETUP:
+                # We request the device for its datalogging feature configuration (or "setup" to keep vocabulary distinct)
                 if state_entry:
                     self.request_failed = False
 
                 if not self.request_pending and self.device_setup is None:
                     self.dispatch(self.protocol.datalogging_get_setup())
 
-                if self.device_setup is not None:
+                if self.device_setup is not None:   # Set by callback
                     next_state = FSMState.WAIT_FOR_REQUEST
                     self.logger.debug("Datalogging setup received. %s" % (self.device_setup.__dict__))
 
@@ -283,7 +296,7 @@ class DataloggingPoller:
                     self.ready_to_receive_request = True
 
                 if not self.request_pending:
-                    if self.new_request_received:
+                    if self.new_request_received:   # Acquisition request pushed by DataloggingManager.
                         self.new_request_received = False
                         assert self.acquisition_request is not None
 
@@ -304,48 +317,50 @@ class DataloggingPoller:
                     if not self.request_pending:
                         next_state = FSMState.WAIT_FOR_REQUEST
 
-                elif self.request_failed:
+                elif self.request_failed:   # Set by callback
                     next_state = FSMState.IDLE
 
-                elif self.configure_completed:
+                elif self.configure_completed:  # Set by callback
                     self.configure_completed = False
                     self.dispatch(self.protocol.datalogging_arm_trigger())
                     next_state = FSMState.ARMING
 
-            elif self.state == FSMState.ARMING:
+            elif self.state == FSMState.ARMING:  # We arm as soon as configuration phase is complete
                 if state_entry:
                     self.arm_completed = False
 
-                if self.new_request_received:   # New request interrupts the previous one
+                # New request interrupts the previous one. Callback already called at this point. (done directly in request_acquisition())
+                if self.new_request_received:
                     if not self.request_pending:
                         next_state = FSMState.WAIT_FOR_REQUEST
 
-                elif self.request_failed:
+                elif self.request_failed:   # Set by callback
                     next_state = FSMState.IDLE
 
-                elif self.arm_completed:
+                elif self.arm_completed:    # Set by callback
                     next_state = FSMState.WAIT_FOR_DATA
 
-            elif self.state == FSMState.WAIT_FOR_DATA:
+            elif self.state == FSMState.WAIT_FOR_DATA:  # Here we wait for the device to acquire data, it can be long if the trigger condition is never met
                 if state_entry:
+                    # Since the moving forward condition is based on the device state, we need it to be up-to-date.
                     self.require_status_update = True
 
                 if self.new_request_received:   # New request interrupts the previous one
                     if not self.request_pending:
                         next_state = FSMState.WAIT_FOR_REQUEST
 
-                elif self.require_status_update == False:
-                    if self.device_datalogging_state == device_datalogging.DataloggerState.ACQUISITION_COMPLETED:
+                elif self.require_status_update == False:   # Set by GetStatus callback
+                    if self.device_datalogging_state == device_datalogging.DataloggerState.ACQUISITION_COMPLETED:   # We have data!
                         next_state = FSMState.READ_METADATA
 
-            elif self.state == FSMState.READ_METADATA:
-                # Starting from here, we have previous data, it's beneficial to be resilient to communication problems
+            elif self.state == FSMState.READ_METADATA:  # First, we check how much data we need to read so we can split the requests in small chunks
+                # Starting from here, we have data. It's beneficial to be resilient to communication problems to reduce chances of important data loss
                 if state_entry:
                     self.acquisition_metadata = None
                     self.failure_counter = 0
                     self.request_failed = False
 
-                if self.acquisition_metadata is not None:
+                if self.acquisition_metadata is not None:   # Set by success callback
                     if self.acquisition_metadata.config_id != self.actual_config_id:
                         self.logger.error("Data acquired is not the one that was expected. Config ID mismatch. Expected %d, Gotten %d" %
                                           (self.actual_config_id, self.acquisition_metadata.config_id))
@@ -353,17 +368,17 @@ class DataloggingPoller:
                     else:
                         next_state = FSMState.RETRIEVING_DATA
 
-                elif self.request_failed:
+                elif self.request_failed:   # Set by failure callback
                     self.request_failed = False
-                    self.failure_counter += 1
+                    self.failure_counter += 1    # Bit of fault tolerance to increase chances of keeping the data.
                     if self.failure_counter >= self.MAX_FAILURE_WHILE_READING:
                         self.logger.error("Too many communication error. Giving up reading the acquisition")
                         next_state = FSMState.DATA_RETRIEVAL_FINISHED
 
-                elif not self.request_pending:
+                elif not self.request_pending:  # Set by callback
                     self.dispatch(self.protocol.datalogging_get_acquisition_metadata())
 
-            elif self.state == FSMState.RETRIEVING_DATA:
+            elif self.state == FSMState.RETRIEVING_DATA:    # We read the data buffer here. Multiple message exchange will happen
                 if state_entry:
                     self.data_read_success = False
                     self.request_failed = False
@@ -376,14 +391,14 @@ class DataloggingPoller:
                     if not self.request_pending:
                         next_state = FSMState.WAIT_FOR_REQUEST
 
-                elif self.request_failed:
+                elif self.request_failed:   # Set by failure callback
                     self.request_failed = False
                     self.failure_counter += 1
-                    if self.failure_counter >= self.MAX_FAILURE_WHILE_READING:
+                    if self.failure_counter >= self.MAX_FAILURE_WHILE_READING:  # Bit of fault tolerance to increase chances of keeping the data.
                         self.logger.error("Too many communication error. Giving up reading the acquisition")
                         next_state = FSMState.DATA_RETRIEVAL_FINISHED
 
-                elif self.received_data_chunk is not None:
+                elif self.received_data_chunk is not None:  # Set by success callback. We got a data chunk.
                     assert self.max_response_payload_size is not None
                     assert self.acquisition_metadata is not None
                     assert self.device_setup is not None
@@ -398,10 +413,10 @@ class DataloggingPoller:
                                           (self.read_rolling_counter, self.received_data_chunk.rolling_counter))
                         next_state = FSMState.DATA_RETRIEVAL_FINISHED
 
-                    else:
+                    else:   # Safety fields are valid, we can process that chunk of data.
                         self.bytes_received += self.received_data_chunk.data
 
-                        if self.received_data_chunk.finished:
+                        if self.received_data_chunk.finished:   # Last chunk
                             assert self.received_data_chunk.crc is not None  # Enforced by protocol
 
                             computed_crc = crc32(self.bytes_received)
@@ -412,8 +427,9 @@ class DataloggingPoller:
                             else:
                                 self.data_read_success = True   # Yay! Success!
                                 next_state = FSMState.DATA_RETRIEVAL_FINISHED
-                        else:
+                        else:   # Still more chunk to go
                             if not self.request_pending:
+                                # Request another chunk
                                 self.read_rolling_counter = (self.read_rolling_counter + 1) & 0xFF
                                 read_request = self.protocol.datalogging_read_acquisition(
                                     data_read=len(self.bytes_received),
@@ -424,6 +440,7 @@ class DataloggingPoller:
                                 self.dispatch(read_request)
                     self.received_data_chunk = None
                 else:
+                    # We launch the first request here.
                     assert self.max_response_payload_size is not None
                     assert self.acquisition_metadata is not None
                     assert self.device_setup is not None
@@ -438,6 +455,7 @@ class DataloggingPoller:
                         self.dispatch(read_request)
 
             elif self.state == FSMState.DATA_RETRIEVAL_FINISHED:
+                # Here, retrieving data is finished. It can have succeeded or failed, bit it is finished.
                 if state_entry:
                     if not self.data_read_success:
                         self.logger.error("Failed to read acquisition. Calling callback with success=False")
@@ -518,6 +536,7 @@ class DataloggingPoller:
         self.request_pending = False
 
     def process_get_status_success(self, response: Response):
+        """Process the response to GetStatus when the device returns OK code"""
         response_data = cast(protocol_typing.Response.DatalogControl.GetStatus, self.protocol.parse_response(response))
 
         if self.device_datalogging_state != response_data['state']:
@@ -526,6 +545,7 @@ class DataloggingPoller:
         self.require_status_update = False
 
     def process_get_setup_success(self, response: Response):
+        """Process the response to GetSetup when the device returns OK code"""
         if self.state != FSMState.GET_SETUP:
             raise RuntimeError('Received a GetSetup response when none was asked')
 
@@ -537,18 +557,21 @@ class DataloggingPoller:
         )
 
     def process_configure_success(self, response: Response):
+        """Process the response to Configure when the device returns OK code"""
         if self.state != FSMState.CONFIGURING:
             raise RuntimeError('Received a Configure response when none was asked')
 
         self.configure_completed = True
 
     def process_arm_success(self, response: Response):
+        """Process the response to ArmTrigger when the device returns OK code"""
         if self.state != FSMState.ARMING:
             raise RuntimeError('Received a ArmTrigger response when none was asked')
 
         self.arm_completed = True
 
     def process_get_acq_metadata_success(self, response: Response):
+        """Process the response to GetAcquisitionMetadata when the device returns OK code"""
         if self.state != FSMState.READ_METADATA:
             raise RuntimeError('Received a GetAcquisitionMetadata response when none was asked')
 
@@ -564,6 +587,7 @@ class DataloggingPoller:
         )
 
     def process_read_acquisition_success(self, response: Response):
+        """Process the response to ReadAcquisition when the device returns OK code"""
         if self.state != FSMState.RETRIEVING_DATA:
             raise RuntimeError('Received a ReadAcquisition response when none was asked')
 

@@ -39,6 +39,7 @@ class SamplingRate:
 
 @dataclass
 class AxisDefinition:
+    """Represent an axis"""
     name: str
     external_id: int
 

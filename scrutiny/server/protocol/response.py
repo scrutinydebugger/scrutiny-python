@@ -18,7 +18,7 @@ from typing import Union, Type
 
 class Response:
     """
-    Represent a response that can be received freom a device using the Scrutiny embedded protocol
+    Represent a response that can be received from a device using the Scrutiny embedded protocol
     """
     command: Type[BaseCommand]
     subfn: Union[int, Enum]

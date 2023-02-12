@@ -312,7 +312,7 @@ class TestDataloggingIntegration(ScrutinyIntegrationTestWithTestSFD1):
                     else:
                         self.assertEqual(len(signal['data']), nb_points)
 
-                self.assertEqual(response['xdata']['name'], 'time')
+                self.assertEqual(response['xdata']['name'], 'X-Axis')
                 self.assertEqual(len(response['yaxis']), 2)
                 self.assertEqual(response['yaxis'][0]['name'], "Axis1")
                 self.assertEqual(response['yaxis'][0]['id'], 100)

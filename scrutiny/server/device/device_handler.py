@@ -225,6 +225,7 @@ class DeviceHandler:
         self.operating_mode = mode
 
     def request_datalogging_acquisition(self, loop_id: int, config: device_datalogging.Configuration, callback: DeviceAcquisitionRequestCompletionCallback) -> None:
+        """Request the device for a datalogging acquisition. If a request was pending, this one will be aborted and the completion callback will be called with a failure indication. """
         self.datalogging_poller.request_acquisition(loop_id=loop_id, config=config, callback=callback)
 
     def is_ready_for_datalogging_acquisition_request(self) -> bool:
@@ -236,9 +237,11 @@ class DeviceHandler:
         return copy.copy(self.device_info)
 
     def get_datalogger_state(self) -> device_datalogging.DataloggerState:
+        """Return the state of the datalogging state machine within the device"""
         return self.datalogging_poller.get_datalogger_state()
 
     def get_datalogging_setup(self) -> Optional[device_datalogging.DataloggingSetup]:
+        """Get the device datalogging configuration (encoding, buffer size, etc)"""
         return self.datalogging_poller.get_device_setup()
 
     def get_comm_error_count(self) -> int:
