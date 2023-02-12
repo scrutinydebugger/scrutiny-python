@@ -17,7 +17,7 @@ import scrutiny.server.protocol.typing as protocol_typing
 from scrutiny.server.device.request_dispatcher import RequestDispatcher, SuccessCallback, FailureCallback
 from scrutiny.server.datastore.datastore import Datastore
 from scrutiny.server.datastore.datastore_entry import DatastoreEntry
-from scrutiny.core.codecs import Codecs
+from scrutiny.core.codecs import Codecs, Encodable
 
 from typing import Any, List, Tuple, Optional, cast
 
@@ -45,6 +45,7 @@ class MemoryWriter:
     request_of_entry_being_updated: Optional[Request]
     # Update request attached to the entry being updated. It's what'S coming from the API
     target_update_request_being_processed: Optional[UpdateTargetRequest]
+    target_update_value_written: Optional[Encodable]
     watched_entries: List[str]  # List of entries beoing watched by clients. We will pool them to see if they have write request
     write_cursor: int   # Cursor used for round-robin inside the list datastore entries to write
 
@@ -157,7 +158,7 @@ class MemoryWriter:
         if self.entry_being_updated is not None and self.target_update_request_being_processed is not None:
             value_to_write = self.target_update_request_being_processed.get_value()
             if value_to_write is None:
-                self.logger.critical('Value to write is not availble. This should never happen')
+                self.logger.critical('Value to write is not available. This should never happen')
             else:
                 if isinstance(self.entry_being_updated, DatastoreVariableEntry):
                     encoding_succeeded = True
@@ -168,6 +169,7 @@ class MemoryWriter:
                         encoding_succeeded = False
 
                     if encoding_succeeded:
+                        self.target_update_value_written = value_to_write
                         encoded_value, write_mask = self.entry_being_updated.encode(value_to_write)
                         request = self.protocol.write_single_memory_block(
                             address=self.entry_being_updated.get_address(),
@@ -175,6 +177,7 @@ class MemoryWriter:
                             write_mask=write_mask
                         )
                     else:
+                        self.target_update_value_written = None
                         self.target_update_request_being_processed.complete(success=False)
                 elif isinstance(self.entry_being_updated, DatastoreRPVEntry):
                     rpv = self.entry_being_updated.get_rpv()
@@ -184,6 +187,7 @@ class MemoryWriter:
                     except:
                         encoding_succeeded = False
                     if encoding_succeeded:
+                        self.target_update_value_written = value_to_write
                         request = self.protocol.write_runtime_published_values((rpv.id, value_to_write))
                     else:
                         self.target_update_request_being_processed.complete(success=False)
@@ -224,7 +228,8 @@ class MemoryWriter:
                             response_match_request = False
 
                     if response_match_request:
-                        self.entry_being_updated.set_value(self.target_update_request_being_processed.get_value())
+                        assert self.target_update_value_written is not None
+                        self.entry_being_updated.set_value(self.target_update_value_written)
                         self.target_update_request_being_processed.complete(success=True)
                     else:
                         self.target_update_request_being_processed.complete(success=False)
@@ -254,7 +259,8 @@ class MemoryWriter:
                             response_match_request = False
 
                     if response_match_request:
-                        self.entry_being_updated.set_value(self.target_update_request_being_processed.get_value())
+                        assert self.target_update_value_written is not None
+                        self.entry_being_updated.set_value(self.target_update_value_written)
                         self.target_update_request_being_processed.complete(success=True)
                     else:
                         self.target_update_request_being_processed.complete(success=False)
@@ -289,3 +295,4 @@ class MemoryWriter:
         self.entry_being_updated = None
         self.request_of_entry_being_updated = None
         self.target_update_request_being_processed = None
+        self.target_update_value_written = None
