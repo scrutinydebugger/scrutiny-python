@@ -1,12 +1,10 @@
 #    test_datastore.py
-#        Test the Datastore behaviour
+#        Test the Datastore behavior
 #
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
 #
 #   Copyright (c) 2021-2022 Scrutiny Debugger
-
-import unittest
 
 from scrutiny.server.datastore.datastore import Datastore
 from scrutiny.server.datastore.entry_type import EntryType
@@ -14,12 +12,12 @@ from scrutiny.server.datastore.datastore_entry import *
 from scrutiny.core.alias import Alias
 from scrutiny.core.variable import *
 from scrutiny.core.basic_types import *
-
+from test import ScrutinyUnitTest
 
 dummy_callback = lambda *args, **kwargs: None
 
 
-class TestDataStore(unittest.TestCase):
+class TestDataStore(ScrutinyUnitTest):
     def setUp(self):
         self.value_change_callback_call_history = {}
         self.target_update_callback_call_history = {}
@@ -29,6 +27,7 @@ class TestDataStore(unittest.TestCase):
                              'a', 'b', 'c'], location=0x12345678, endianness=Endianness.Little)
         for i in range(n):
             name = '%s_%d' % (prefix, i)
+            entry: DatastoreEntry
             if entry_type == EntryType.Var:
                 entry = DatastoreVariableEntry(name, variable_def=dummy_var)
             elif entry_type == EntryType.Alias:
@@ -396,3 +395,8 @@ class TestDataStore(unittest.TestCase):
         self.assertTargetUpdateCallbackCalled(rpv_entries[1], n=0)
         self.assertTargetUpdateCallbackCalled(alias_rpv_1, n=1)
         self.assertTargetUpdateCallbackCalled(alias_rpv_1_2, n=1)
+
+
+if __name__ == '__main__':
+    import unittest
+    unittest.main()

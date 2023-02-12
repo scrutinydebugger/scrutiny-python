@@ -14,12 +14,10 @@ class DatalogControl(BaseCommand):
     _cmd_id = 5
 
     class Subfunction(Enum):
-        GetAvailableTarget = 1
-        GetBufferSize = 2
-        GetSamplingRates = 3
-        ConfigureDatalog = 4
-        ListRecordings = 5
-        ReadRecordings = 6
-        ArmLog = 7
-        DisarmLog = 8
-        GetLogStatus = 9
+        GetSetup = 1
+        ConfigureDatalog = 2
+        ArmTrigger = 3
+        DisarmTrigger = 4
+        GetStatus = 5
+        GetAcquisitionMetadata = 6
+        ReadAcquisition = 7

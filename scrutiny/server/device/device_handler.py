@@ -16,7 +16,7 @@ import binascii
 from enum import Enum
 import traceback
 from scrutiny.server.datastore.datastore_entry import DatastoreRPVEntry, EntryType
-
+import scrutiny.server.datalogging.definitions.device as device_datalogging
 from scrutiny.server.protocol import *
 import scrutiny.server.protocol.typing as protocol_typing
 from scrutiny.server.protocol.comm_handler import CommHandler
@@ -28,15 +28,16 @@ from scrutiny.server.device.request_generator.info_poller import InfoPoller, Pro
 from scrutiny.server.device.request_generator.session_initializer import SessionInitializer
 from scrutiny.server.device.request_generator.memory_reader import MemoryReader
 from scrutiny.server.device.request_generator.memory_writer import MemoryWriter
+from scrutiny.server.device.request_generator.datalogging_poller import DataloggingPoller, DataloggingReceiveSetupCallback, DeviceAcquisitionRequestCompletionCallback
 from scrutiny.server.device.device_info import DeviceInfo
-
+from scrutiny.core.basic_types import RuntimePublishedValue
 from scrutiny.server.tools import Timer
 from scrutiny.server.datastore.datastore import Datastore
 from scrutiny.server.device.links import AbstractLink, LinkConfig
 from scrutiny.core.firmware_id import PLACEHOLDER as DEFAULT_FIRMWARE_ID
 
 
-from typing import TypedDict, Optional, Callable, Any, Dict, cast
+from typing import TypedDict, Optional, Callable, Any, Dict, cast, List
 from scrutiny.core.typehints import GenericCallback
 
 DEFAULT_FIRMWARE_ID_ASCII = binascii.hexlify(DEFAULT_FIRMWARE_ID).decode('ascii')
@@ -48,14 +49,14 @@ class DisconnectCallback(GenericCallback):
 
 
 class DeviceHandlerConfig(TypedDict, total=False):
-    """DegiceHandler configuration in a dict format that can be laoded from a json file"""
+    """DeviceHandler configuration in a dict format that can be loaded from a json file"""
 
     response_timeout: float
     """Amount of time to wait before considering that a request has timed out"""
 
     heartbeat_timeout: float
-    """Time interval in between heatbeat request. This value will be 
-    overriden if the device requires a smaller interval"""
+    """Time interval in between Heartbeat request. This value will be 
+    overridden if the device requires a smaller interval"""
 
     default_address_size: int
     """Address size to use in the protocol before receiving the size from a device"""
@@ -64,22 +65,22 @@ class DeviceHandlerConfig(TypedDict, total=False):
     """Default protocol version to use before a device broadcast its version"""
 
     max_request_size: int
-    """Maximum payload size to send in the requests. This value can be overriden
-    by the device if it broadcast a smaler limit"""
+    """Maximum payload size to send in the requests. This value can be overridden
+    by the device if it broadcast a smaller limit"""
 
     max_response_size: int
-    """Maximum payload size that can be sent in a response by the device. This value can be overriden
-    by the device if it broadcast a smaler limit"""
+    """Maximum payload size that can be sent in a response by the device. This value can be overridden
+    by the device if it broadcast a smaller limit"""
 
     max_bitrate_bps: int
     """Maximum bitrate to use on the device communication channel.
-    This value can be overriden if the device requires a smaller value"""
+    This value can be overridden if the device requires a smaller value"""
 
     link_type: str
     """The type of communication link to use to talk with a device. udp, serial, dummy, dummy_threadsafe, etc"""
 
     link_config: LinkConfig
-    """The configuration dictionnary that will configure the communication link layer. 
+    """The configuration dictionary that will configure the communication link layer. 
     Unique for each type of link (udp, serial, etc)"""
 
 
@@ -95,17 +96,18 @@ class DeviceHandler:
 
     logger: logging.Logger
     config: DeviceHandlerConfig             # The configuration coming from the user
+    datastore: Datastore    # A reference to the main Datastore
     dispatcher: RequestDispatcher           # The arbiter that receive all request to be sent and decides which one to send (uses a priority queue)
-    device_searcher: DeviceSearcher         # Componenent of the DeviceHandler that search for a new device on the communication link
-    session_initializer: SessionInitializer  # Componenent of the DeviceHandler that try to establish a connection to a found device
-    heartbeat_generator: HeartbeatGenerator  # Componenent of the DeviceHandler that periodically enqueue heartbeat request to keep a session active
-    memory_reader: MemoryReader     # Componenent of the DeviceHandler that polls the device memory to keep the datastore watched entries in sync with the deviec
-    memory_writer: MemoryWriter     # Componenent of the DeviceHandler that fulfill writes requests on datastore entries
-    info_poller: InfoPoller         # Componenent of the DeviceHandler that will gather all device parameters after a connection is established
+    device_searcher: DeviceSearcher         # Component of the DeviceHandler that search for a new device on the communication link
+    session_initializer: SessionInitializer  # Component of the DeviceHandler that try to establish a connection to a found device
+    heartbeat_generator: HeartbeatGenerator  # Component of the DeviceHandler that periodically enqueue heartbeat request to keep a session active
+    memory_reader: MemoryReader     # Component of the DeviceHandler that polls the device memory to keep the datastore watched entries in sync with the device
+    memory_writer: MemoryWriter     # Component of the DeviceHandler that fulfill writes requests on datastore entries
+    info_poller: InfoPoller         # Component of the DeviceHandler that will gather all device parameters after a connection is established
+    datalogging_poller: DataloggingPoller  # Component of the DeviceHandler that will interact with the device datalogging feature
     comm_handler: CommHandler       # Layer that handle the communication with the device. Converts Requests to bytes and bytes to response. Also tells if a request timed out
     protocol: Protocol      # The communication protocol. Encode and decodes request/response payload to meaning ful data
-    datastore: Datastore    # A reference to the main Datastore
-    device_info: Optional[DeviceInfo]   # All the information about the devicegathered by the InfoPoller
+    device_info: Optional[DeviceInfo]   # All the information about the device gathered by the InfoPoller
     comm_broken: bool   # Flag indicating that we lost connection with the device. Resets the communication and the state machine.
     device_id: Optional[str]    # Firmware ID of the device on which we are connected.
     operating_mode: "DeviceHandler.OperatingMode"   # Operating mode - Normal or special modes for unit testing
@@ -134,11 +136,12 @@ class DeviceHandler:
     class RequestPriority:
         """Priority assigned to each type of requests. It will be used by the RequestDispatcher
         internal priority queue"""
-        Disconnect = 6
-        Connect = 5
-        Heatbeat = 4
-        WriteMemory = 3
-        WriteRPV = 3
+        Disconnect = 7
+        Connect = 6
+        Heartbeat = 5
+        WriteMemory = 4
+        WriteRPV = 4
+        Datalogging = 3
         ReadMemory = 2
         ReadRPV = 2
         PollInfo = 1
@@ -177,13 +180,18 @@ class DeviceHandler:
         self.protocol = Protocol(int(major), int(minor))
         self.device_searcher = DeviceSearcher(self.protocol, self.dispatcher, priority=self.RequestPriority.Discover)
         self.session_initializer = SessionInitializer(self.protocol, self.dispatcher, priority=self.RequestPriority.Connect)
-        self.heartbeat_generator = HeartbeatGenerator(self.protocol, self.dispatcher, priority=self.RequestPriority.Heatbeat)
+        self.heartbeat_generator = HeartbeatGenerator(self.protocol, self.dispatcher, priority=self.RequestPriority.Heartbeat)
         self.info_poller = InfoPoller(
             self.protocol,
             self.dispatcher,
             priority=self.RequestPriority.PollInfo,
             protocol_version_callback=ProtocolVersionCallback(self.get_protocol_version_callback),  # Called when protocol version is polled
             comm_param_callback=CommParamCallback(self.get_comm_params_callback),            # Called when communication params are polled
+        )
+        self.datalogging_poller = DataloggingPoller(
+            self.protocol,
+            self.dispatcher,
+            self.RequestPriority.Datalogging
         )
 
         self.memory_reader = MemoryReader(self.protocol, self.dispatcher, self.datastore,
@@ -216,9 +224,25 @@ class DeviceHandler:
 
         self.operating_mode = mode
 
+    def request_datalogging_acquisition(self, loop_id: int, config: device_datalogging.Configuration, callback: DeviceAcquisitionRequestCompletionCallback) -> None:
+        """Request the device for a datalogging acquisition. If a request was pending, this one will be aborted and the completion callback will be called with a failure indication. """
+        self.datalogging_poller.request_acquisition(loop_id=loop_id, config=config, callback=callback)
+
+    def is_ready_for_datalogging_acquisition_request(self) -> bool:
+        """Tells if the device is ready to receive to receive a datalogging acquisition request"""
+        return self.datalogging_poller.is_ready_to_receive_new_request()
+
     def get_device_info(self) -> Optional[DeviceInfo]:
         """Returns all the information we have about the connected device. None if not connected"""
         return copy.copy(self.device_info)
+
+    def get_datalogger_state(self) -> device_datalogging.DataloggerState:
+        """Return the state of the datalogging state machine within the device"""
+        return self.datalogging_poller.get_datalogger_state()
+
+    def get_datalogging_setup(self) -> Optional[device_datalogging.DataloggingSetup]:
+        """Get the device datalogging configuration (encoding, buffer size, etc)"""
+        return self.datalogging_poller.get_device_setup()
 
     def get_comm_error_count(self) -> int:
         """Returns the number of communication issue we have encountered since startup"""
@@ -271,7 +295,7 @@ class DeviceHandler:
                 elif self.config['max_bitrate_bps'] > 0:
                     max_bitrate_bps = self.config['max_bitrate_bps'] > 0
                 else:
-                    raise Exception('Internal error. Missing case hadnling for throttling')
+                    raise Exception('Internal error. Missing case handling for throttling')
 
             self.logger.info('Device has requested a maximum bitrate of %d bps. Activating throttling.' % max_bitrate_bps)
             self.comm_handler.enable_throttling(max_bitrate_bps)
@@ -285,6 +309,7 @@ class DeviceHandler:
         self.memory_reader.set_size_limits(max_request_payload_size=max_request_payload_size, max_response_payload_size=max_response_payload_size)
         self.memory_writer.set_size_limits(max_request_payload_size=max_request_payload_size, max_response_payload_size=max_response_payload_size)
         self.dispatcher.set_size_limits(max_request_payload_size=max_request_payload_size, max_response_payload_size=max_response_payload_size)
+        self.datalogging_poller.set_max_response_payload_size(max_response_payload_size)
         self.protocol.set_address_size_bits(partial_device_info.address_size_bits)
         self.heartbeat_generator.set_interval(max(0.5, float(partial_device_info.heartbeat_timeout_us) / 1000000.0 * 0.75))
 
@@ -348,6 +373,7 @@ class DeviceHandler:
         self.device_searcher.stop()
         self.heartbeat_generator.stop()
         self.info_poller.stop()
+        self.datalogging_poller.stop()
         self.session_initializer.stop()
         self.dispatcher.reset()
         self.memory_reader.stop()
@@ -373,6 +399,7 @@ class DeviceHandler:
         self.memory_reader.set_size_limits(max_request_payload_size=max_request_payload_size, max_response_payload_size=max_response_payload_size)
         self.memory_writer.set_size_limits(max_request_payload_size=max_request_payload_size, max_response_payload_size=max_response_payload_size)
         self.dispatcher.set_size_limits(max_request_payload_size=max_request_payload_size, max_response_payload_size=max_response_payload_size)
+        self.datalogging_poller.set_max_response_payload_size(max_response_payload_size)
 
         self.datastore.clear(entry_type=EntryType.RuntimePublishedValue)    # Device handler own RPVs
         self.protocol.configure_rpvs([])    # Empty list
@@ -405,6 +432,7 @@ class DeviceHandler:
         self.device_searcher.process()
         self.heartbeat_generator.process()
         self.info_poller.process()
+        self.datalogging_poller.process()
         self.session_initializer.process()
         self.memory_reader.process()
         self.memory_writer.process()
@@ -425,6 +453,7 @@ class DeviceHandler:
         """Task to execute when the state machine is in Ready state (connected to a device and successful initialization phase)"""
         if self.operating_mode == self.OperatingMode.Normal:
             if state_entry:
+                self.datalogging_poller.start()  # Will refuse if disabled
                 self.memory_reader.start()
                 self.memory_writer.start()
             # Nothing else to do
@@ -519,7 +548,7 @@ class DeviceHandler:
                 assert self.device_id is not None
                 assert self.device_display_name is not None
                 # Set known info after start, otherwise it will be deleted and data will be missing.
-                self.info_poller.set_known_info(device_id=self.device_id, device_display_name=self.device_display_name)  # To write the device_info
+                self.info_poller.set_known_info(device_id=self.device_id, device_display_name=self.device_display_name)  # To write to the device_info
 
             if self.info_poller.is_in_error():
                 self.logger.info('Impossible to poll data from the device. Restarting communication')
@@ -534,8 +563,15 @@ class DeviceHandler:
                     self.logger.debug(str(self.device_info))
                     next_state = self.FsmState.INIT
                 else:
-                    assert self.device_info.runtime_published_values is not None
-                    self.protocol.configure_rpvs(self.device_info.runtime_published_values)
+                    assert self.device_info.supported_feature_map is not None
+                    if self.device_info.supported_feature_map['datalogging']:
+                        self.datalogging_poller.enable()
+
+                        self.logger.debug("Enabling datalogging handling")
+                        #  TODO enforce memory_read memory_write feature map
+                    else:
+                        self.datalogging_poller.disable()
+                        self.logger.debug("Disabling datalogging handling")
                     next_state = self.FsmState.READY
 
         # ========= [READY] ==========
@@ -545,6 +581,8 @@ class DeviceHandler:
                 assert self.device_info.runtime_published_values is not None
                 for rpv in self.device_info.runtime_published_values:
                     self.datastore.add_entry(DatastoreRPVEntry.make(rpv))
+                self.protocol.configure_rpvs(self.device_info.runtime_published_values)
+                self.datalogging_poller.configure_rpvs(self.device_info.runtime_published_values)
 
                 self.logger.info('Communication with device "%s" (ID: %s) fully ready' % (self.device_display_name, self.device_id))
                 self.logger.debug("Device information : %s" % self.device_info)
@@ -557,6 +595,7 @@ class DeviceHandler:
                 self.fully_connected_ready = False
                 self.memory_reader.stop()
                 self.memory_writer.stop()
+                self.datalogging_poller.stop()
                 next_state = self.FsmState.DISCONNECTING
 
             if self.dispatcher.is_in_error():

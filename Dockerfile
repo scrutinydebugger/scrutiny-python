@@ -14,9 +14,25 @@ RUN apt-get update && apt-get install -y \
     libssl-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# ============================================
 WORKDIR /tmp/
-ARG PYTHON_VERSION="3.10.5"
+
+# ============================================
+ARG PYTHON_VERSION="3.11.1"
+ARG PYTHON_SRC="https://www.python.org/ftp/python/${PYTHON_VERSION}/Python-${PYTHON_VERSION}.tgz"
+
+RUN wget $PYTHON_SRC \
+    && tar -xvzf "Python-${PYTHON_VERSION}.tgz" \
+    && cd "Python-${PYTHON_VERSION}" \
+    && ./configure \
+    && make -j 4 \
+    && make install \
+    && cd .. \
+    && rm "Python-${PYTHON_VERSION}.tgz" \
+    && rm -rf "Python-${PYTHON_VERSION}"
+
+
+# ============================================
+ARG PYTHON_VERSION="3.10.9"
 ARG PYTHON_SRC="https://www.python.org/ftp/python/${PYTHON_VERSION}/Python-${PYTHON_VERSION}.tgz"
 
 RUN wget $PYTHON_SRC \
@@ -30,7 +46,7 @@ RUN wget $PYTHON_SRC \
     && rm -rf "Python-${PYTHON_VERSION}"
 
 # ============================================
-ARG PYTHON_VERSION="3.9.13"
+ARG PYTHON_VERSION="3.9.16"
 ARG PYTHON_SRC="https://www.python.org/ftp/python/${PYTHON_VERSION}/Python-${PYTHON_VERSION}.tgz"
 
 RUN wget $PYTHON_SRC \
@@ -44,7 +60,7 @@ RUN wget $PYTHON_SRC \
     && rm -rf "Python-${PYTHON_VERSION}"
 
 # ============================================
-ARG PYTHON_VERSION="3.8.13"
+ARG PYTHON_VERSION="3.8.16"
 ARG PYTHON_SRC="https://www.python.org/ftp/python/${PYTHON_VERSION}/Python-${PYTHON_VERSION}.tgz"
 
 RUN wget $PYTHON_SRC \

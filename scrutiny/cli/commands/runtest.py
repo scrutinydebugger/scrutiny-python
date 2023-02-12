@@ -42,7 +42,7 @@ class RunTest(BaseCommand):
         format_string = '[%(levelname)s] <%(name)s> %(message)s'
         logging.getLogger().handlers[0].setFormatter(logging.Formatter(format_string))
         if self.requested_log_level is None:
-            logging.getLogger().handlers[0].setLevel(logging.CRITICAL)
+            logging.getLogger().setLevel(logging.CRITICAL)
 
         import test  # load the test module.
         if not hasattr(test, '__scrutiny__'):   # Make sure this is Scrutiny Test folder (in case we run from install dir)

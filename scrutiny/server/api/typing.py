@@ -8,6 +8,7 @@
 
 from typing import TypedDict, Optional, List, Dict, Union, Literal, Any
 from scrutiny.core.typehints import EmptyDict
+from enum import Enum
 
 import scrutiny.core.firmware_description
 import scrutiny.server.device.links.serial_link
@@ -27,6 +28,9 @@ Datatype = Literal[
     'cfloat8', 'cfloat16', 'cfloat32', 'cfloat64', 'cfloat128', 'cfloat256',
     'boolean'
 ]
+
+DataloggingStatus = Literal["unavailable", "standby", "waiting_for_trigger", "acquiring", "data_ready", "error"]
+DataloggingCondition = Literal['eq', 'neq', 'get', 'gt', 'let', 'lt', 'within', 'cmt']
 
 
 class BaseC2SMessage(TypedDict):
@@ -98,7 +102,68 @@ class UpdateRecord(TypedDict):
     value: Any
 
 
+class DataloggingOperand(TypedDict):
+    type: Literal['literal', 'watchable']
+    value: Union[float, str]
+
+
+class SamplingRate(TypedDict):
+    type: Literal['fixed_freq', 'variable_freq']
+    name: str
+    frequency: Optional[float]
+    identifier: int
+
+
+class SupportedCondition(TypedDict):
+    name: str
+    pretty_name: str
+    help_str: str
+    nb_operands: int
+
+
+class DataloggingAcquisitionRequestSignalDef(TypedDict):
+    id: str
+    name: str
+    axis_id: int
+
+
+class DataloggingAxisDef(TypedDict):
+    name: str
+    id: int
+
+
+class DataloggingAcquisitionMetadata(TypedDict):
+    reference_id: str
+    name: Optional[str]
+    timestamp: float
+    firmware_id: str
+    firmware_metadata: Optional[SFDMetadata]
+
+
+class DataloggingSignalData(TypedDict):
+    name: str
+    data: List[float]
+    logged_element: str
+
+
+class DataloggingSignalDataWithAxis(DataloggingSignalData):
+    axis_id: int
+
+
+class DataloggingCapabilities(TypedDict):
+    encoding: Literal['raw']
+    buffer_size: int
+    max_nb_signal: int
+    sampling_rates: List[SamplingRate]
+
+
+class AxisNameUpdateEntry(TypedDict):
+    id: int
+    name: str
+
+
 class C2S:
+    "Client To Server"
     class Echo(BaseC2SMessage):
         payload: str
 
@@ -133,10 +198,42 @@ class C2S:
     class WriteValue(BaseC2SMessage):
         updates: List[UpdateRecord]
 
+    class GetDataloggingCapabilities(BaseC2SMessage):
+        pass
+
+    class RequestDataloggingAcquisition(BaseC2SMessage):
+        name: Optional[str]
+        sampling_rate_id: int
+        decimation: int
+        timeout: float
+        trigger_hold_time: float
+        probe_location: float
+        condition: DataloggingCondition
+        operands: List[DataloggingOperand]
+        yaxis: List[DataloggingAxisDef]
+        signals: List[DataloggingAcquisitionRequestSignalDef]
+        x_axis_type: Literal['measured_time', 'ideal_time', 'signal']
+        x_axis_signal: Optional[str]
+
+    class ReadDataloggingAcquisitionContent(BaseC2SMessage):
+        reference_id: str
+
+    class ListDataloggingAcquisitions(BaseC2SMessage):
+        firmware_id: Optional[str]
+
+    class UpdateDataloggingAcquisition(BaseC2SMessage):
+        reference_id: str
+        name: Optional[str]
+        axis_name: Optional[List[AxisNameUpdateEntry]]
+
+    class DeleteDataloggingAcquisition(BaseC2SMessage):
+        reference_id: str
+
     GetPossibleLinkConfig = Dict[Any, Any]  # Todo
 
 
 class S2C:
+    "Server To Client"
     class Empty(BaseS2CMessage):
         pass
 
@@ -155,6 +252,7 @@ class S2C:
 
     class InformServerStatus(BaseS2CMessage):
         device_status: str
+        device_datalogging_status: DataloggingStatus
         device_info: Optional[DeviceInfo]
         loaded_sfd: Optional[SFDEntry]
         device_comm_link: DeviceCommLinkDef   # Dict is Any,Any.  Should be EmptyDict.
@@ -186,6 +284,33 @@ class S2C:
         status: Literal['ok', 'failed']
         timestamp: float
 
+    class GetDataloggingCapabilities(BaseS2CMessage):
+        available: bool
+        capabilities: Optional[DataloggingCapabilities]
+
+    class RequestDataloggingAcquisition(BaseS2CMessage):
+        success: bool
+        reference_id: Optional[str]
+
+    class InformDataloggingListChanged(BaseS2CMessage):
+        reference_id: Optional[str]
+        action: Literal['delete', 'new', 'update', 'delete_all']
+
+    class ListDataloggingAcquisition(BaseS2CMessage):
+        acquisitions: List[DataloggingAcquisitionMetadata]
+
+    class ReadDataloggingAcquisitionContent(BaseS2CMessage):
+        reference_id: str
+        yaxis: List[DataloggingAxisDef]
+        signals: List[DataloggingSignalDataWithAxis]
+        xdata: DataloggingSignalData
+
+    class UpdateDataloggingAcquisition(BaseS2CMessage):
+        pass
+
+    class DeleteDataloggingAcquisition(BaseS2CMessage):
+        pass
+
 
 C2SMessage = Union[
     C2S.Echo,
@@ -198,7 +323,13 @@ C2SMessage = Union[
     C2S.SubscribeWatchable,
     C2S.UnsubscribeWatchable,
     C2S.GetPossibleLinkConfig,
-    C2S.WriteValue
+    C2S.WriteValue,
+    C2S.GetDataloggingCapabilities,
+    C2S.RequestDataloggingAcquisition,
+    C2S.ReadDataloggingAcquisitionContent,
+    C2S.ListDataloggingAcquisitions,
+    C2S.UpdateDataloggingAcquisition,
+    C2S.DeleteDataloggingAcquisition
 ]
 
 S2CMessage = Union[
@@ -215,5 +346,11 @@ S2CMessage = Union[
     S2C.WatchableUpdate,
     S2C.GetPossibleLinkConfig,
     S2C.WriteValue,
-    S2C.WriteCompletion
+    S2C.WriteCompletion,
+    S2C.GetDataloggingCapabilities,
+    S2C.RequestDataloggingAcquisition,
+    S2C.InformDataloggingListChanged,
+    S2C.ListDataloggingAcquisition,
+    S2C.ReadDataloggingAcquisitionContent,
+    S2C.DeleteDataloggingAcquisition
 ]

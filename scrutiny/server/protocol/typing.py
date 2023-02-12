@@ -6,12 +6,12 @@
 #
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 
-from typing import *
-
+from typing import TypedDict, Optional, List, Union
 import scrutiny.server.protocol.commands as cmd
 from scrutiny.core.codecs import Encodable
 from scrutiny.core.basic_types import RuntimePublishedValue
-from scrutiny.server.protocol.datalog import DatalogConfiguration, DatalogLocation, LogStatus, RecordInfo
+import scrutiny.server.datalogging.definitions.device as device_datalogging
+from scrutiny.server.device.device_info import ExecLoop
 
 
 class BlockAddressLength(TypedDict):
@@ -58,6 +58,9 @@ class Request:
             start: int
             count: int
 
+        class GetLoopDefinition(TypedDict):
+            loop_id: int
+
     class MemoryControl:
         class Read(TypedDict):
             blocks_to_read: List[BlockAddressLength]
@@ -75,11 +78,10 @@ class Request:
             rpvs: List[RPVWriteRequest]
 
     class DatalogControl:
-        class ReadRecordings(TypedDict):
-            record_id: int
-
-        class ConfigureDatalog(TypedDict):
-            configuration: DatalogConfiguration
+        class Configure(TypedDict):
+            loop_id: int
+            config_id: int
+            config: device_datalogging.Configuration
 
     class CommControl:
         class Discover(TypedDict):
@@ -100,14 +102,14 @@ RequestData = Union[
     Request.Empty,
     Request.GetInfo.GetSpecialMemoryRegionLocation,
     Request.GetInfo.GetRuntimePublishedValuesDefinition,
+    Request.GetInfo.GetLoopDefinition,
 
     Request.MemoryControl.Read,
     Request.MemoryControl.Write,
     Request.MemoryControl.ReadRPV,
     Request.MemoryControl.WriteRPV,
 
-    Request.DatalogControl.ReadRecordings,
-    Request.DatalogControl.ConfigureDatalog,
+    Request.DatalogControl.Configure,
 
     Request.CommControl.Discover,
     Request.CommControl.Connect,
@@ -126,9 +128,11 @@ class Response:
             major: int
 
         class GetSupportedFeatures(TypedDict):
+            memory_read: bool
             memory_write: bool
-            datalog_acquire: bool
+            datalogging: bool
             user_command: bool
+            _64bits: bool
 
         class GetSoftwareId(TypedDict):
             software_id: bytes
@@ -149,6 +153,13 @@ class Response:
         class GetRuntimePublishedValuesDefinition(TypedDict):
             rpvs: List[RuntimePublishedValue]
 
+        class GetLoopCount(TypedDict):
+            loop_count: int
+
+        class GetLoopDefinition(TypedDict):
+            loop_id: int
+            loop: ExecLoop
+
     class MemoryControl:
         class Read(TypedDict):
             read_blocks: List[BlockAddressData]
@@ -163,30 +174,28 @@ class Response:
             written_rpv: List[RPVIdSizePair]
 
     class DatalogControl:
-        class GetAvailableTarget(TypedDict):
-            targets: List[DatalogLocation]
 
-        class GetBufferSize(TypedDict):
-            size: int
+        class GetSetup(TypedDict):
+            buffer_size: int
+            encoding: device_datalogging.Encoding
+            max_signal_count: int
 
-        class GetLogStatus(TypedDict):
-            status: LogStatus
+        class GetStatus(TypedDict):
+            state: device_datalogging.DataloggerState
 
-        class ArmLog(TypedDict):
-            record_id: int
+        class GetAcquisitionMetadata(TypedDict):
+            acquisition_id: int
+            config_id: int
+            nb_points: int
+            datasize: int
+            points_after_trigger: int
 
-        class ConfigureDatalog(TypedDict):
-            record_id: int
-
-        class ReadRecordings(TypedDict):
-            record_id: int
+        class ReadAcquisition(TypedDict):
+            finished: bool
+            rolling_counter: int
+            acquisition_id: int
             data: bytes
-
-        class ListRecordings(TypedDict):
-            recordings: List[RecordInfo]
-
-        class GetSamplingRates(TypedDict):
-            sampling_rates: List[float]
+            crc: Optional[int]
 
     class CommControl:
         class Discover(TypedDict):
@@ -221,20 +230,18 @@ ResponseData = Union[
     Response.GetInfo.GetSpecialMemoryRegionLocation,
     Response.GetInfo.GetRuntimePublishedValuesCount,
     Response.GetInfo.GetRuntimePublishedValuesDefinition,
+    Response.GetInfo.GetLoopCount,
+    Response.GetInfo.GetLoopDefinition,
 
     Response.MemoryControl.Read,
     Response.MemoryControl.Write,
     Response.MemoryControl.ReadRPV,
     Response.MemoryControl.WriteRPV,
 
-    Response.DatalogControl.GetAvailableTarget,
-    Response.DatalogControl.GetBufferSize,
-    Response.DatalogControl.GetLogStatus,
-    Response.DatalogControl.ArmLog,
-    Response.DatalogControl.ConfigureDatalog,
-    Response.DatalogControl.ReadRecordings,
-    Response.DatalogControl.ListRecordings,
-    Response.DatalogControl.GetSamplingRates,
+    Response.DatalogControl.GetSetup,
+    Response.DatalogControl.GetStatus,
+    Response.DatalogControl.GetAcquisitionMetadata,
+    Response.DatalogControl.ReadAcquisition,
 
     Response.CommControl.Discover,
     Response.CommControl.Heartbeat,

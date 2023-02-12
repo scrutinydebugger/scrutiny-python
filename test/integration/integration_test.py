@@ -7,15 +7,17 @@
 #
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 
-import unittest
 import time
 import json
 
+from test import ScrutinyUnitTest
+from test.artifacts import get_artifact
 from scrutiny.server.device.emulated_device import EmulatedDevice
 from scrutiny.server.server import ScrutinyServer, ServerConfig
 from scrutiny.server.api.dummy_client_handler import DummyConnection, DummyClientHandler
 from scrutiny.server.api import API
 from scrutiny.server.device.device_handler import DeviceHandler
+from scrutiny.core.firmware_description import FirmwareDescription
 from scrutiny.core.sfd_storage import SFDStorage
 from scrutiny.server.datastore.datastore_entry import *
 from scrutiny.core.basic_types import *
@@ -23,7 +25,18 @@ from scrutiny.core.codecs import *
 from typing import cast, List, Tuple
 
 
-class ScrutinyIntegrationTest(unittest.TestCase):
+class ScrutinyIntegrationTest(ScrutinyUnitTest):
+
+    server: ScrutinyServer
+    emulated_device: EmulatedDevice
+    api_conn: DummyConnection
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self.emulated_device = None
+        self.server = None
+
     def setUp(self):
         err = None
         try:
@@ -58,7 +71,6 @@ class ScrutinyIntegrationTest(unittest.TestCase):
             self.wait_for_device_ready()
 
             self.temp_storage_handler = SFDStorage.use_temp_folder()
-            self.load_test_sfd()
 
             self.client_entry_values = {}
 
@@ -140,7 +152,7 @@ class ScrutinyIntegrationTest(unittest.TestCase):
         while time.time() - t1 < timeout:
             self.server.process()
 
-    def wait_and_load_response(self, cmd=None, nbr=1, timeout=0.4):
+    def wait_and_load_response(self, cmd=None, nbr=1, timeout=0.4, ignore_error=False):
         response = None
         t1 = time.time()
         rcv_counter = 0
@@ -154,12 +166,27 @@ class ScrutinyIntegrationTest(unittest.TestCase):
             else:
                 if isinstance(cmd, str):
                     cmd = [cmd]
+
+                if not ignore_error:
+                    if API.Command.Api2Client.ERROR_RESPONSE not in cmd and response['cmd'] == API.Command.Api2Client.ERROR_RESPONSE:
+                        return response
                 self.assertIn('cmd', response)
                 if response['cmd'] in cmd:
                     rcv_counter += 1
 
         self.assertIsNotNone(response)
         return response
+
+    def ensure_no_response_for(self, timeout=0.4):
+        t1 = time.time()
+        self.server.process()
+        while not self.api_conn.from_server_available():
+            if time.time() - t1 >= timeout:
+                break
+            self.server.process()
+            time.sleep(0.01)
+
+        self.assertFalse(self.api_conn.from_server_available())
 
     def process_watchable_update(self, nbr=None, timeout=None):
         response = None
@@ -182,7 +209,7 @@ class ScrutinyIntegrationTest(unittest.TestCase):
                 self.assertIn('value', update)
                 self.client_entry_values[update['id']] = update['value']
 
-    def assert_value_received(self, entry: DatastoreEntry, value: any, msg=""):
+    def assert_value_received(self, entry: DatastoreEntry, value: Any, msg=""):
         id = entry.get_id()
         self.assertIn(id, self.client_entry_values, msg)
         self.assertEqual(self.client_entry_values[id], value, msg)
@@ -222,7 +249,127 @@ class ScrutinyIntegrationTest(unittest.TestCase):
     def read_device_rpv_entry(self, entry: DatastoreRPVEntry):
         return self.emulated_device.rpvs[entry.rpv.id]['value']
 
+    def do_test_setup_is_working(self):
+        # Make sure that the emulation chain works
+        self.server.process()
+        self.assertEqual(self.server.device_handler.get_connection_status(), DeviceHandler.ConnectionStatus.CONNECTED_READY)
+        self.send_request({'cmd': "echo", 'payload': "hello world"})
+        response = self.wait_and_load_response()
+        self.assert_no_error(response)
+        self.assertIn('payload', response)
+        self.assertEqual(response['payload'], "hello world")
+
     def tearDown(self) -> None:
-        self.emulated_device.stop()
-        self.server.stop()
-        self.temp_storage_handler.restore()
+        if self.emulated_device is not None:
+            self.emulated_device.stop()
+
+        if self.server is not None:
+            self.server.stop()
+
+        if hasattr(self, 'temp_storage_handler'):
+            self.temp_storage_handler.restore()
+
+
+class ScrutinyIntegrationTestWithTestSFD1(ScrutinyIntegrationTest):
+
+    entry_float32: DatastoreVariableEntry
+    entry_float64: DatastoreVariableEntry
+    entry_s8: DatastoreVariableEntry
+    entry_u8: DatastoreVariableEntry
+    entry_s16: DatastoreVariableEntry
+    entry_u16: DatastoreVariableEntry
+    entry_s32: DatastoreVariableEntry
+    entry_u32: DatastoreVariableEntry
+    entry_s64: DatastoreVariableEntry
+    entry_u64: DatastoreVariableEntry
+
+    entry_u64_bit15_35: DatastoreVariableEntry
+
+    entry_rpv1000: DatastoreRPVEntry
+    entry_alias_float32: DatastoreAliasEntry
+    entry_alias_int8: DatastoreAliasEntry
+    entry_alias_uint8: DatastoreAliasEntry
+    entry_alias_rpv1000: DatastoreAliasEntry
+    entry_alias_uint64_15_35: DatastoreAliasEntry
+
+    sfd: FirmwareDescription
+
+    def setUp(self):
+        super().setUp()
+        self.load_test_sfd()
+        return
+
+    def load_test_sfd(self):
+        SFDStorage.install(get_artifact("test_sfd_1.sfd"))
+        self.server.sfd_handler.request_load_sfd('00000000000000000000000000000001')
+        self.server.process()
+        self.sfd = self.server.sfd_handler.get_loaded_sfd()
+        self.assertEqual(self.sfd.get_endianness(), Endianness.Little)
+        self.assertIsNotNone(self.sfd)
+        self.assertEqual(self.sfd.get_firmware_id_ascii(), "00000000000000000000000000000001")
+
+        # Let's make sure that the SFD we loaded matches what this test suite expects
+
+        self.entry_float32 = cast(DatastoreVariableEntry, self.server.datastore.get_entry_by_display_path('/path1/path2/some_float32'))
+        self.assert_datastore_variable_entry(self.entry_float32, 1008, EmbeddedDataType.float32)
+
+        self.entry_float64 = cast(DatastoreVariableEntry, self.server.datastore.get_entry_by_display_path('/path1/path2/some_float64'))
+        self.assert_datastore_variable_entry(self.entry_float64, 1012, EmbeddedDataType.float64)
+
+        self.entry_s8 = cast(DatastoreVariableEntry, self.server.datastore.get_entry_by_display_path('/path1/path2/some_int8'))
+        self.assert_datastore_variable_entry(self.entry_s8, 1020, EmbeddedDataType.sint8)
+
+        self.entry_u8 = cast(DatastoreVariableEntry, self.server.datastore.get_entry_by_display_path('/path1/path2/some_uint8'))
+        self.assert_datastore_variable_entry(self.entry_u8, 1021, EmbeddedDataType.uint8)
+
+        self.entry_s16 = cast(DatastoreVariableEntry, self.server.datastore.get_entry_by_display_path('/path1/path2/some_int16'))
+        self.assert_datastore_variable_entry(self.entry_s16, 1022, EmbeddedDataType.sint16)
+
+        self.entry_u16 = cast(DatastoreVariableEntry, self.server.datastore.get_entry_by_display_path('/path1/path2/some_uint16'))
+        self.assert_datastore_variable_entry(self.entry_u16, 1024, EmbeddedDataType.uint16)
+
+        self.entry_s32 = cast(DatastoreVariableEntry, self.server.datastore.get_entry_by_display_path('/path1/path2/some_int32'))
+        self.assert_datastore_variable_entry(self.entry_s32, 1000, EmbeddedDataType.sint32)
+
+        self.entry_u32 = cast(DatastoreVariableEntry, self.server.datastore.get_entry_by_display_path('/path1/path2/some_uint32'))
+        self.assert_datastore_variable_entry(self.entry_u32, 1004, EmbeddedDataType.uint32)
+
+        self.entry_s64 = cast(DatastoreVariableEntry, self.server.datastore.get_entry_by_display_path('/path1/path2/some_int64'))
+        self.assert_datastore_variable_entry(self.entry_s64, 1032, EmbeddedDataType.sint64)
+
+        self.entry_u64 = cast(DatastoreVariableEntry, self.server.datastore.get_entry_by_display_path('/path1/path2/some_uint64'))
+        self.assert_datastore_variable_entry(self.entry_u64, 1040, EmbeddedDataType.uint64)
+
+        self.entry_u64_bit15_35 = cast(DatastoreVariableEntry, self.server.datastore.get_entry_by_display_path(
+            '/path1/path2/some_uint64_bitfield_15_35'))
+        self.assert_datastore_variable_entry(self.entry_u64_bit15_35, 1040, EmbeddedDataType.uint64)
+        self.assertTrue(self.entry_u64_bit15_35.is_bitfield())
+        self.assertEqual(self.entry_u64_bit15_35.get_bitoffset(), 15)
+        self.assertEqual(self.entry_u64_bit15_35.get_bitsize(), 21)
+
+        self.entry_alias_float32 = cast(DatastoreAliasEntry, self.server.datastore.get_entry_by_display_path('/alias/some_float32'))
+        self.assert_datastore_alias_entry(self.entry_alias_float32, '/path1/path2/some_float32',
+                                          EmbeddedDataType.float32, gain=2.0, offset=1.0, min=0, max=100.0)
+
+        self.entry_alias_int8 = cast(DatastoreAliasEntry, self.server.datastore.get_entry_by_display_path('/alias/some_int8_overflowable'))
+        self.assert_datastore_alias_entry(self.entry_alias_int8, '/path1/path2/some_int8',
+                                          EmbeddedDataType.sint8, gain=0.2, offset=1.0, min=-100, max=100.0)
+
+        self.entry_alias_uint8 = cast(DatastoreAliasEntry, self.server.datastore.get_entry_by_display_path('/alias/some_uint8_overflowable'))
+        self.assert_datastore_alias_entry(self.entry_alias_uint8, "/path1/path2/some_uint8",
+                                          EmbeddedDataType.uint8, gain=0.2, offset=1.0, min=-100, max=100.0)
+        self.entry_alias_rpv1000 = cast(DatastoreAliasEntry, self.server.datastore.get_entry_by_display_path('/alias/rpv/rpv1000_f64'))
+        self.assert_datastore_alias_entry(self.entry_alias_rpv1000, "/rpv/x1000",
+                                          EmbeddedDataType.float64, gain=2.0, offset=1.0, min=-100, max=100.0)
+
+        self.entry_alias_uint64_15_35 = cast(DatastoreAliasEntry, self.server.datastore.get_entry_by_display_path('/alias/bitfields/uint64_15_35'))
+        self.assert_datastore_alias_entry(self.entry_alias_uint64_15_35, "/path1/path2/some_uint64_bitfield_15_35",
+                                          EmbeddedDataType.uint64, gain=2.0, offset=1.0)
+
+        self.entry_rpv1000 = cast(DatastoreRPVEntry, self.server.datastore.get_entry_by_display_path('/rpv/x1000'))
+        self.assert_datastore_rpv_entry(self.entry_rpv1000, 0x1000, EmbeddedDataType.float64)
+
+
+if __name__ == '__main__':
+    import unittest
+    unittest.main()

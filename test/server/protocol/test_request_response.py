@@ -7,12 +7,11 @@
 #
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 
-import unittest
 from scrutiny.server.protocol import Request, Response
-from scrutiny.server.protocol.datalog import DatalogConfiguration
+from test import ScrutinyUnitTest
 
 
-class TestMessage(unittest.TestCase):
+class TestMessage(ScrutinyUnitTest):
     def test_request(self):
         msg = Request(command=1, subfn=0x34, payload=bytes([1, 2, 3, 4]))
         data = msg.to_bytes()
@@ -88,3 +87,8 @@ class TestMessage(unittest.TestCase):
         request_4bytes = Request(command=1, subfn=0x34, payload=b'\x00' * 4)
         self.assertEqual(Request.OVERHEAD_SIZE + 4, request_4bytes.size())
         self.assertEqual(Request.OVERHEAD_SIZE + 4, len(request_4bytes.to_bytes()))
+
+
+if __name__ == '__main__':
+    import unittest
+    unittest.main()

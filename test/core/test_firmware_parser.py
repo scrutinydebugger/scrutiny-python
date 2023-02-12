@@ -6,12 +6,12 @@
 #
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 
-import unittest
 from scrutiny.core.firmware_parser import FirmwareParser
 from test.artifacts import get_artifact
+from test import ScrutinyUnitTest
 
 
-class TestFirmwareParser(unittest.TestCase):
+class TestFirmwareParser(ScrutinyUnitTest):
     def test_get_firmwre_id(self):
         with open(get_artifact('demobin_firmwareid')) as f:
             demobin_firmware_id_ascii = f.read()
@@ -19,3 +19,8 @@ class TestFirmwareParser(unittest.TestCase):
         parser = FirmwareParser(get_artifact('demobin.elf'))
 
         self.assertEqual(parser.get_firmware_id_ascii(), demobin_firmware_id_ascii)
+
+
+if __name__ == '__main__':
+    import unittest
+    unittest.main()

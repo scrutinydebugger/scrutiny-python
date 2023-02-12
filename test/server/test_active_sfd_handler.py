@@ -6,14 +6,13 @@
 #
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 
-import unittest
-
 from scrutiny.server.datastore.entry_type import EntryType
 from scrutiny.server.device.device_handler import DeviceHandler
 from scrutiny.server.active_sfd_handler import ActiveSFDHandler
 from scrutiny.server.datastore.datastore import Datastore
 from scrutiny.core.sfd_storage import SFDStorage
 from test.artifacts import get_artifact
+from test import ScrutinyUnitTest
 
 
 class StubbedDeviceHandler:
@@ -31,7 +30,7 @@ class StubbedDeviceHandler:
         return self.device_id
 
 
-class TestActiveSFDHandler(unittest.TestCase):
+class TestActiveSFDHandler(ScrutinyUnitTest):
 
     def setUp(self):
         SFDStorage.use_temp_folder()
@@ -92,3 +91,8 @@ class TestActiveSFDHandler(unittest.TestCase):
         self.sfd_handler.process()
         self.assertGreater(self.datastore.get_entries_count(EntryType.Var), 0)
         self.assertEqual(self.datastore.get_entries_count(EntryType.Var), len(all_vars))
+
+
+if __name__ == '__main__':
+    import unittest
+    unittest.main()

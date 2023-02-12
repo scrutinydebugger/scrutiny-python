@@ -66,7 +66,7 @@ class SFDStorageManager:
 
     def install(self, filename: str, ignore_exist: bool = False) -> FirmwareDescription:
         """Install a Scrutiny Firmware Description file (SFD) from a filename into the global storage. 
-        Once isntalled, it can be loaded when communication starts with a device that identify
+        Once installed, it can be loaded when communication starts with a device that identify
         itself with an ID that matches this SFD"""
         if not os.path.isfile(filename):
             raise ValueError('File "%s" does not exist' % (filename))
@@ -105,7 +105,7 @@ class SFDStorageManager:
         """Tells if a SFD file with given ID exists in global storage"""
         firmwareid = self.clean_firmware_id(firmwareid)
         if not self.is_valid_firmware_id(firmwareid):
-            raise ValueError('Invalid firmware ID')
+            return False
 
         storage = self.get_storage_dir()
         filename = os.path.join(storage, firmwareid)
@@ -156,5 +156,5 @@ class SFDStorageManager:
         return retval
 
 
-GLOBAL_STORAGE = appdirs.user_data_dir('sfd_storage', 'scrutiny')
+GLOBAL_STORAGE = os.path.join(appdirs.user_data_dir('scrutiny'), 'sfd_storage')
 SFDStorage = SFDStorageManager(GLOBAL_STORAGE)

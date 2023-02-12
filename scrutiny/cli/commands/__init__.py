@@ -11,6 +11,7 @@ from .launch_server import LaunchServer
 from .launch_gui import LaunchGUI
 from .runtest import RunTest
 from .add_alias import AddAlias
+from .clear_datalogging_storage import ClearDataloggingStorage
 
 from typing import List, Dict, Type
 

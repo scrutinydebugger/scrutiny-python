@@ -50,7 +50,7 @@
             "docstring": "CLI Command to remove a Scrutiny Firmware Description file from the scrutiny storage"
         },
         "scrutiny/core/firmware_id.py": {
-            "docstring": "Holds the defaut firmware ID. Used for detection of untagged firmware"
+            "docstring": "Holds the default firmware ID. Used for detection of untagged firmware"
         },
         "scrutiny/core/firmware_description.py": {
             "docstring": "Contains the class that represent a Scrutiny Firmware Description file. \nA .sfd is a file that holds all the data related to a firmware and is identified by a unique ID."
@@ -80,13 +80,13 @@
             "docstring": "Manages the websocket API to talk with the multiple clients. Can be a GUI client or a CLI client"
         },
         "scrutiny/server/api/dummy_client_handler.py": {
-            "docstring": "Stubbed API connector to make API requests in unittests without relying on websockets"
+            "docstring": "Stubbed API connector to make API requests in unit tests without relying on websockets"
         },
         "scrutiny/server/api/value_streamer.py": {
             "docstring": "Take the data from the Datastore and sends it to all clients by respecting bitrate limits and avoiding duplicate date."
         },
         "scrutiny/server/api/websocket_client_handler.py": {
-            "docstring": "Manage the API websocket connections .\n This class has a list of all clients and identifiy them by a unique ID"
+            "docstring": "Manage the API websocket connections .\n This class has a list of all clients and identify them by a unique ID"
         },
         "scrutiny/server/datastore/datastore.py": {
             "docstring": "This class is a container that will hold all the data read from a device (e.g. the variables).\n It's the meeting point of the API (with ValueStreamer) and the DeviceHandler"
@@ -113,7 +113,7 @@
             "docstring": "Connects the CommHandler to a device through UDP"
         },
         "scrutiny/server/device/request_generator/device_searcher.py": {
-            "docstring": "Once enbled, generates DISCOVER requests to find a device at the other end of the communication link."
+            "docstring": "Once enabled, generates DISCOVER requests to find a device at the other end of the communication link."
         },
         "scrutiny/server/device/request_generator/heartbeat_generator.py": {
             "docstring": "Once enabled, generate HEARTBEAT request periodically to keep a connection alive with a device."
@@ -129,9 +129,6 @@
         },
         "scrutiny/server/protocol/crc32.py": {
             "docstring": "Compute a CRC32 for protocol validation"
-        },
-        "scrutiny/server/protocol/datalog.py": {
-            "docstring": "Defines a datalogging configuration that can be read or write from the device."
         },
         "scrutiny/server/protocol/exceptions.py": {
             "docstring": "Some exceptions specific to the protocol"
@@ -179,7 +176,7 @@
             "docstring": "Test the client API through a fake handler"
         },
         "test/server/test_datastore.py": {
-            "docstring": "Test the Datastore behaviour"
+            "docstring": "Test the Datastore behavior"
         },
         "test/server/test_device_handler.py": {
             "docstring": "Test the DeviceHandler that manage the communication with the device at high level."
@@ -191,7 +188,7 @@
             "docstring": "Test the ValueStreamer object that reads the datastore and broadcast variables to all clients."
         },
         "test/server/protocol/test_comm_handler.py": {
-            "docstring": "Test the CommHandler that manage the communication with the deviec a lower level.\n Converts btyes to Request/Response and flag timeouts"
+            "docstring": "Test the CommHandler that manage the communication with the device a lower level.\n Converts bytes to Request/Response and flag timeouts"
         },
         "test/server/protocol/test_crc.py": {
             "docstring": "Make sure the CRC32 is working for the protocol"
@@ -218,7 +215,7 @@
             "docstring": "Provide a tool to manipulate non contiguous chunks of bytes with their addresses.\nRepresent a partial memory snapshot"
         },
         "test/core/test_memory_content.py": {
-            "docstring": "Test the MemoryContent class functionalities. Make sure it correctly wirtes and read and also agglomerate contiguous clusters"
+            "docstring": "Test the MemoryContent class functionalities. Make sure it correctly writes and read and also agglomerate contiguous clusters"
         },
         "scrutiny/core/typehints.py": {
             "docstring": "Contains some definition for type hints that are used across all project"
@@ -248,7 +245,7 @@
             "docstring": "Print a list of all installed Scrutiny Firmware Description files (SFD) installed on this system"
         },
         "scrutiny/server/active_sfd_handler.py": {
-            "docstring": "Manage the loaded SFD file with which the client will interracts."
+            "docstring": "Manage the loaded SFD file with which the client will interact."
         },
         "test/server/test_active_sfd_handler.py": {
             "docstring": "Test the ActiveSFDHandler"
@@ -320,7 +317,7 @@
             "docstring": "Reads a compiled firmware and provide tools to read or write the firmware ID"
         },
         "scrutiny/server/tools/synchronous_websocket_server.py": {
-            "docstring": "Synchornous wrapper around the asynchronous websockets module"
+            "docstring": "Synchronous wrapper around the asynchronous websockets module"
         },
         "test/integration/test_read_write.py": {
             "docstring": "Does some Read and Write through the API and check the memory of the emulated device"
@@ -330,6 +327,39 @@
         },
         "test/server/test_emulated_device.py": {
             "docstring": "Some testcases to make sure the emulated device runs correctly"
+        },
+        "test/server/datalogging/test_datalogging_storage.py": {
+            "docstring": "Test the datalogging storage"
+        },
+        "test/server/datalogging/test_datalogging.py": {
+            "docstring": "Test datalogging features"
+        },
+        "scrutiny/server/datalogging/datalogging_manager.py": {
+            "docstring": "The main server components that manages the datalogging feature at high level"
+        },
+        "scrutiny/server/datalogging/datalogging_storage.py": {
+            "docstring": "A storage interface to save and fetch datalogging acquisition from the disk to keep an history of them"
+        },
+        "scrutiny/server/device/request_generator/datalogging_poller.py": {
+            "docstring": "Component of the Device Handler that handles the datalogging feature within the device. Poll for status, new data and configure the device"
+        },
+        "test/integration/test_datalogging_integration.py": {
+            "docstring": "Test the whole datalogging chain with a request to the API, a server that process the request and a fake device that will do the logging."
+        },
+        "test/server/datalogging/test_datalogging_manager.py": {
+            "docstring": "Test the datalogging manager features"
+        },
+        "scrutiny/cli/commands/clear_datalogging_storage.py": {
+            "docstring": "Make sure that we can read and write to the datalogging storage"
+        },
+        "scrutiny/server/datalogging/datalogging_utilities.py": {
+            "docstring": "Contains some utilities that may be used by more than one module"
+        },
+        "scrutiny/server/datalogging/definitions/device.py": {
+            "docstring": "Contains the definitions related to the datalogging feature on the device side"
+        },
+        "scrutiny/server/datalogging/definitions/api.py": {
+            "docstring": "Contains the definitions related to the datalogging feature on the API side"
         }
     }
 }

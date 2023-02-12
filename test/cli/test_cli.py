@@ -25,6 +25,7 @@ from scrutiny.cli import CLI
 from scrutiny.exceptions import EnvionmentNotSetUpException
 from scrutiny.server.datastore.entry_type import EntryType
 from scrutiny.core.firmware_parser import FirmwareParser
+from test import ScrutinyUnitTest
 
 
 class RedirectStdout:
@@ -40,7 +41,7 @@ class RedirectStdout:
         return self.mystdout.getvalue()
 
 
-class TestCLI(unittest.TestCase):
+class TestCLI(ScrutinyUnitTest):
 
     # Generate some metadata file from command line in temp folder and make sure its content is good
     def test_make_metadata(self):
@@ -302,3 +303,8 @@ class TestCLI(unittest.TestCase):
             self.assertEqual(alias.get_offset(), 2.5)
             self.assertEqual(alias.get_min(), 0.0)
             self.assertEqual(alias.get_max(), 100.0)
+
+
+if __name__ == '__main__':
+    import unittest
+    unittest.main()

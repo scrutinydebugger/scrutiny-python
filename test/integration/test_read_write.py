@@ -8,129 +8,24 @@
 
 import struct
 
-from scrutiny.server.device.emulated_device import EmulatedDevice
-from scrutiny.server.server import ScrutinyServer
-from scrutiny.server.api.dummy_client_handler import DummyConnection
 from scrutiny.server.api import API
-from scrutiny.server.device.device_handler import DeviceHandler
-from scrutiny.core.sfd_storage import SFDStorage
 from scrutiny.server.datastore.datastore_entry import *
-from scrutiny.core.firmware_description import FirmwareDescription
 from scrutiny.core.basic_types import *
 from scrutiny.core.codecs import *
-from test.artifacts import get_artifact
-from typing import cast, List
+from typing import List
 from dataclasses import dataclass
 from binascii import unhexlify
 
-from test.integration.integration_test import ScrutinyIntegrationTest
+from test.integration.integration_test import ScrutinyIntegrationTestWithTestSFD1
 
 
 def d2f(d):
     return struct.unpack('f', struct.pack('f', d))[0]
 
 
-class TestReadWrite(ScrutinyIntegrationTest):
+class TestReadWrite(ScrutinyIntegrationTestWithTestSFD1):
 
-    entry_float32: DatastoreVariableEntry
-    entry_float64: DatastoreVariableEntry
-    entry_s8: DatastoreVariableEntry
-    entry_u8: DatastoreVariableEntry
-    entry_s16: DatastoreVariableEntry
-    entry_u16: DatastoreVariableEntry
-    entry_s32: DatastoreVariableEntry
-    entry_u32: DatastoreVariableEntry
-    entry_s64: DatastoreVariableEntry
-    entry_u64: DatastoreVariableEntry
-
-    entry_u64_bit15_35: DatastoreVariableEntry
-
-    entry_rpv1000: DatastoreRPVEntry
-    entry_alias_float32: DatastoreAliasEntry
-    entry_alias_int8: DatastoreAliasEntry
-    entry_alias_uint8: DatastoreAliasEntry
-    entry_alias_rpv1000: DatastoreAliasEntry
-    entry_alias_uint64_15_35: DatastoreAliasEntry
-
-    server: ScrutinyServer
-    api_conn: DummyConnection
-    emulated_device: EmulatedDevice
-    sfd: FirmwareDescription
-    client_entry_values: Dict[str, any]
-
-    def setUp(self):
-        super().setUp()
-        self.load_test_sfd()
-
-    def load_test_sfd(self):
-        SFDStorage.install(get_artifact("test_sfd_1.sfd"))
-        self.server.sfd_handler.request_load_sfd('00000000000000000000000000000001')
-        self.server.process()
-        self.sfd = self.server.sfd_handler.get_loaded_sfd()
-        self.assertEqual(self.sfd.get_endianness(), Endianness.Little)
-        self.assertIsNotNone(self.sfd)
-        self.assertEqual(self.sfd.get_firmware_id_ascii(), "00000000000000000000000000000001")
-
-        # Let's make sure that the SFD we loaded matches what this test suite expects
-
-        self.entry_float32 = cast(DatastoreVariableEntry, self.server.datastore.get_entry_by_display_path('/path1/path2/some_float32'))
-        self.assert_datastore_variable_entry(self.entry_float32, 1008, EmbeddedDataType.float32)
-
-        self.entry_float64 = cast(DatastoreVariableEntry, self.server.datastore.get_entry_by_display_path('/path1/path2/some_float64'))
-        self.assert_datastore_variable_entry(self.entry_float64, 1012, EmbeddedDataType.float64)
-
-        self.entry_s8 = cast(DatastoreVariableEntry, self.server.datastore.get_entry_by_display_path('/path1/path2/some_int8'))
-        self.assert_datastore_variable_entry(self.entry_s8, 1020, EmbeddedDataType.sint8)
-
-        self.entry_u8 = cast(DatastoreVariableEntry, self.server.datastore.get_entry_by_display_path('/path1/path2/some_uint8'))
-        self.assert_datastore_variable_entry(self.entry_u8, 1021, EmbeddedDataType.uint8)
-
-        self.entry_s16 = cast(DatastoreVariableEntry, self.server.datastore.get_entry_by_display_path('/path1/path2/some_int16'))
-        self.assert_datastore_variable_entry(self.entry_s16, 1022, EmbeddedDataType.sint16)
-
-        self.entry_u16 = cast(DatastoreVariableEntry, self.server.datastore.get_entry_by_display_path('/path1/path2/some_uint16'))
-        self.assert_datastore_variable_entry(self.entry_u16, 1024, EmbeddedDataType.uint16)
-
-        self.entry_s32 = cast(DatastoreVariableEntry, self.server.datastore.get_entry_by_display_path('/path1/path2/some_int32'))
-        self.assert_datastore_variable_entry(self.entry_s32, 1000, EmbeddedDataType.sint32)
-
-        self.entry_u32 = cast(DatastoreVariableEntry, self.server.datastore.get_entry_by_display_path('/path1/path2/some_uint32'))
-        self.assert_datastore_variable_entry(self.entry_u32, 1004, EmbeddedDataType.uint32)
-
-        self.entry_s64 = cast(DatastoreVariableEntry, self.server.datastore.get_entry_by_display_path('/path1/path2/some_int64'))
-        self.assert_datastore_variable_entry(self.entry_s64, 1032, EmbeddedDataType.sint64)
-
-        self.entry_u64 = cast(DatastoreVariableEntry, self.server.datastore.get_entry_by_display_path('/path1/path2/some_uint64'))
-        self.assert_datastore_variable_entry(self.entry_u64, 1040, EmbeddedDataType.uint64)
-
-        self.entry_u64_bit15_35 = cast(DatastoreVariableEntry, self.server.datastore.get_entry_by_display_path(
-            '/path1/path2/some_uint64_bitfield_15_35'))
-        self.assert_datastore_variable_entry(self.entry_u64_bit15_35, 1040, EmbeddedDataType.uint64)
-        self.assertTrue(self.entry_u64_bit15_35.is_bitfield())
-        self.assertEqual(self.entry_u64_bit15_35.get_bitoffset(), 15)
-        self.assertEqual(self.entry_u64_bit15_35.get_bitsize(), 21)
-
-        self.entry_alias_float32 = cast(DatastoreAliasEntry, self.server.datastore.get_entry_by_display_path('/alias/some_float32'))
-        self.assert_datastore_alias_entry(self.entry_alias_float32, '/path1/path2/some_float32',
-                                          EmbeddedDataType.float32, gain=2.0, offset=1.0, min=0, max=100.0)
-
-        self.entry_alias_int8 = cast(DatastoreAliasEntry, self.server.datastore.get_entry_by_display_path('/alias/some_int8_overflowable'))
-        self.assert_datastore_alias_entry(self.entry_alias_int8, '/path1/path2/some_int8',
-                                          EmbeddedDataType.sint8, gain=0.2, offset=1.0, min=-100, max=100.0)
-
-        self.entry_alias_uint8 = cast(DatastoreAliasEntry, self.server.datastore.get_entry_by_display_path('/alias/some_uint8_overflowable'))
-        self.assert_datastore_alias_entry(self.entry_alias_uint8, "/path1/path2/some_uint8",
-                                          EmbeddedDataType.uint8, gain=0.2, offset=1.0, min=-100, max=100.0)
-        self.entry_alias_rpv1000 = cast(DatastoreAliasEntry, self.server.datastore.get_entry_by_display_path('/alias/rpv/rpv1000_f64'))
-        self.assert_datastore_alias_entry(self.entry_alias_rpv1000, "/rpv/x1000",
-                                          EmbeddedDataType.float64, gain=2.0, offset=1.0, min=-100, max=100.0)
-
-        self.entry_alias_uint64_15_35 = cast(DatastoreAliasEntry, self.server.datastore.get_entry_by_display_path('/alias/bitfields/uint64_15_35'))
-        self.assert_datastore_alias_entry(self.entry_alias_uint64_15_35, "/path1/path2/some_uint64_bitfield_15_35",
-                                          EmbeddedDataType.uint64, gain=2.0, offset=1.0)
-
-        self.entry_rpv1000 = cast(DatastoreRPVEntry, self.server.datastore.get_entry_by_display_path('/rpv/x1000'))
-        self.assert_datastore_rpv_entry(self.entry_rpv1000, 0x1000, EmbeddedDataType.float64)
+    client_entry_values: Dict[str, Any]
 
     def init_device_memory(self, entries: List[DatastoreEntry]):
         for entry in entries:
@@ -138,14 +33,7 @@ class TestReadWrite(ScrutinyIntegrationTest):
                 self.emulated_device.write_memory(entry.get_address(), b'\x00' * entry.get_size())
 
     def test_setup_is_working(self):
-        # Make sure that the emulation chain works
-        self.server.process()
-        self.assertEqual(self.server.device_handler.get_connection_status(), DeviceHandler.ConnectionStatus.CONNECTED_READY)
-        self.send_request({'cmd': "echo", 'payload': "hello world"})
-        response = self.wait_and_load_response()
-        self.assert_no_error(response)
-        self.assertIn('payload', response)
-        self.assertEqual(response['payload'], "hello world")
+        self.do_test_setup_is_working()
 
     def test_read(self):
 
@@ -300,8 +188,23 @@ class TestReadWrite(ScrutinyIntegrationTest):
         self.assert_value_received(self.entry_u64, expected_u64_value)
 
     def test_write_oob_values(self):
+        #  TODO : To investigate : This test failed few times for no apparent reason. There might be a race condition of some sort
+        # or timing weakness somewhere in here.
+
+        # ======================================================================
+        # FAIL: test_write_oob_values (integration.test_read_write.TestReadWrite)
+        # ----------------------------------------------------------------------
+        # Traceback (most recent call last):
+        #  File "/home/jenkins/workspace/thon_add-support-for-datalogging/test/integration/test_read_write.py", line 300, in test_write_oob_values
+        #    self.assert_value_received(testcase.entry, testcase.outval, msg=assert_msg)
+        #  File "/home/jenkins/workspace/thon_add-support-for-datalogging/test/integration/integration_test.py", line 215, in assert_value_received
+        #    self.assertEqual(self.client_entry_values[id], value, msg)
+        #  File "/home/jenkins/workspace/thon_add-support-for-datalogging/test/__init__.py", line 41, in assertEqual
+        #    super().assertEqual(v1, v2, *args, **kwargs)
+        # AssertionError: -18446744073709551616 != 0 : reqid=34. Testcase=<Testcase entry=<DatastoreVariableEntry:/path1/path2/some_uint64>, inval=-18446744073709551616, outval=0, valid=True>
+
         @dataclass
-        class Testcase:
+        class WriteOOBTestcase:
             entry: DatastoreEntry
             inval: any
             outval: Optional[Encodable]
@@ -317,63 +220,63 @@ class TestReadWrite(ScrutinyIntegrationTest):
                     self.valid
                 )
 
-        testcases: List[Testcase] = [
-            Testcase(entry=self.entry_s8, inval=-25, outval=-25, valid=True),
-            Testcase(entry=self.entry_s8, inval=0x100, outval=0x7F, valid=True),
-            Testcase(entry=self.entry_s8, inval=-150, outval=-0x80, valid=True),
-            Testcase(entry=self.entry_s8, inval=math.inf, outval=None, valid=False),
-            Testcase(entry=self.entry_s8, inval=-math.inf, outval=None, valid=False),
-            Testcase(entry=self.entry_s8, inval=math.nan, outval=None, valid=False),
-            Testcase(entry=self.entry_s8, inval="meow", outval=None, valid=False),
-            Testcase(entry=self.entry_s8, inval=None, outval=None, valid=False),
+        testcases: List[WriteOOBTestcase] = [
+            WriteOOBTestcase(entry=self.entry_s8, inval=-25, outval=-25, valid=True),
+            WriteOOBTestcase(entry=self.entry_s8, inval=0x100, outval=0x7F, valid=True),
+            WriteOOBTestcase(entry=self.entry_s8, inval=-150, outval=-0x80, valid=True),
+            WriteOOBTestcase(entry=self.entry_s8, inval=math.inf, outval=None, valid=False),
+            WriteOOBTestcase(entry=self.entry_s8, inval=-math.inf, outval=None, valid=False),
+            WriteOOBTestcase(entry=self.entry_s8, inval=math.nan, outval=None, valid=False),
+            WriteOOBTestcase(entry=self.entry_s8, inval="meow", outval=None, valid=False),
+            WriteOOBTestcase(entry=self.entry_s8, inval=None, outval=None, valid=False),
 
-            Testcase(entry=self.entry_u8, inval=50, outval=50, valid=True),
-            Testcase(entry=self.entry_u8, inval=0x101, outval=0xFF, valid=True),
-            Testcase(entry=self.entry_u8, inval=-150, outval=0, valid=True),
-            Testcase(entry=self.entry_u8, inval=math.inf, outval=None, valid=False),
-            Testcase(entry=self.entry_u8, inval=-math.inf, outval=None, valid=False),
-            Testcase(entry=self.entry_u8, inval=math.nan, outval=None, valid=False),
-            Testcase(entry=self.entry_u8, inval="meow", outval=None, valid=False),
-            Testcase(entry=self.entry_u8, inval=None, outval=None, valid=False),
+            WriteOOBTestcase(entry=self.entry_u8, inval=50, outval=50, valid=True),
+            WriteOOBTestcase(entry=self.entry_u8, inval=0x101, outval=0xFF, valid=True),
+            WriteOOBTestcase(entry=self.entry_u8, inval=-150, outval=0, valid=True),
+            WriteOOBTestcase(entry=self.entry_u8, inval=math.inf, outval=None, valid=False),
+            WriteOOBTestcase(entry=self.entry_u8, inval=-math.inf, outval=None, valid=False),
+            WriteOOBTestcase(entry=self.entry_u8, inval=math.nan, outval=None, valid=False),
+            WriteOOBTestcase(entry=self.entry_u8, inval="meow", outval=None, valid=False),
+            WriteOOBTestcase(entry=self.entry_u8, inval=None, outval=None, valid=False),
 
-            Testcase(entry=self.entry_s16, inval=-1000, outval=-1000, valid=True),
-            Testcase(entry=self.entry_s16, inval=0x10000, outval=0x7FFF, valid=True),
-            Testcase(entry=self.entry_s16, inval=-0x10000, outval=-0x8000, valid=True),
+            WriteOOBTestcase(entry=self.entry_s16, inval=-1000, outval=-1000, valid=True),
+            WriteOOBTestcase(entry=self.entry_s16, inval=0x10000, outval=0x7FFF, valid=True),
+            WriteOOBTestcase(entry=self.entry_s16, inval=-0x10000, outval=-0x8000, valid=True),
 
-            Testcase(entry=self.entry_u16, inval=1000, outval=1000, valid=True),
-            Testcase(entry=self.entry_u16, inval=0x10000, outval=0xFFFF, valid=True),
-            Testcase(entry=self.entry_u16, inval=-0x10000, outval=0, valid=True),
+            WriteOOBTestcase(entry=self.entry_u16, inval=1000, outval=1000, valid=True),
+            WriteOOBTestcase(entry=self.entry_u16, inval=0x10000, outval=0xFFFF, valid=True),
+            WriteOOBTestcase(entry=self.entry_u16, inval=-0x10000, outval=0, valid=True),
 
-            Testcase(entry=self.entry_s32, inval=-100000, outval=-100000, valid=True),
-            Testcase(entry=self.entry_s32, inval=0x100000000, outval=0x7FFFFFFF, valid=True),
-            Testcase(entry=self.entry_s32, inval=-0x100000000, outval=-0x80000000, valid=True),
+            WriteOOBTestcase(entry=self.entry_s32, inval=-100000, outval=-100000, valid=True),
+            WriteOOBTestcase(entry=self.entry_s32, inval=0x100000000, outval=0x7FFFFFFF, valid=True),
+            WriteOOBTestcase(entry=self.entry_s32, inval=-0x100000000, outval=-0x80000000, valid=True),
 
-            Testcase(entry=self.entry_u32, inval=100000, outval=100000, valid=True),
-            Testcase(entry=self.entry_u32, inval=0x100000000, outval=0xFFFFFFFF, valid=True),
-            Testcase(entry=self.entry_u32, inval=-0x100000000, outval=0, valid=True),
+            WriteOOBTestcase(entry=self.entry_u32, inval=100000, outval=100000, valid=True),
+            WriteOOBTestcase(entry=self.entry_u32, inval=0x100000000, outval=0xFFFFFFFF, valid=True),
+            WriteOOBTestcase(entry=self.entry_u32, inval=-0x100000000, outval=0, valid=True),
 
-            Testcase(entry=self.entry_s64, inval=-10000000, outval=-10000000, valid=True),
-            Testcase(entry=self.entry_s64, inval=0x10000000000000000, outval=0x7FFFFFFFFFFFFFFF, valid=True),
-            Testcase(entry=self.entry_s64, inval=-0x10000000000000000, outval=-0x8000000000000000, valid=True),
+            WriteOOBTestcase(entry=self.entry_s64, inval=-10000000, outval=-10000000, valid=True),
+            WriteOOBTestcase(entry=self.entry_s64, inval=0x10000000000000000, outval=0x7FFFFFFFFFFFFFFF, valid=True),
+            WriteOOBTestcase(entry=self.entry_s64, inval=-0x10000000000000000, outval=-0x8000000000000000, valid=True),
 
-            Testcase(entry=self.entry_u64, inval=10000000, outval=10000000, valid=True),
-            Testcase(entry=self.entry_u64, inval=0x10000000000000000, outval=0xFFFFFFFFFFFFFFFF, valid=True),
-            Testcase(entry=self.entry_u64, inval=-0x10000000000000000, outval=0, valid=True),
+            WriteOOBTestcase(entry=self.entry_u64, inval=10000000, outval=10000000, valid=True),
+            WriteOOBTestcase(entry=self.entry_u64, inval=0x10000000000000000, outval=0xFFFFFFFFFFFFFFFF, valid=True),
+            WriteOOBTestcase(entry=self.entry_u64, inval=-0x10000000000000000, outval=0, valid=True),
 
-            Testcase(entry=self.entry_alias_int8, inval=10, outval=10, valid=True),
-            Testcase(entry=self.entry_alias_int8, inval=-10, outval=-10, valid=True),
-            Testcase(entry=self.entry_alias_int8, inval=50, outval=0x7F * 0.2 + 1, valid=True),
-            Testcase(entry=self.entry_alias_int8, inval=-50, outval=-0x80 * 0.2 + 1, valid=True),
+            WriteOOBTestcase(entry=self.entry_alias_int8, inval=10, outval=10, valid=True),
+            WriteOOBTestcase(entry=self.entry_alias_int8, inval=-10, outval=-10, valid=True),
+            WriteOOBTestcase(entry=self.entry_alias_int8, inval=50, outval=0x7F * 0.2 + 1, valid=True),
+            WriteOOBTestcase(entry=self.entry_alias_int8, inval=-50, outval=-0x80 * 0.2 + 1, valid=True),
 
-            Testcase(entry=self.entry_alias_uint8, inval=10, outval=10, valid=True),
-            Testcase(entry=self.entry_alias_uint8, inval=100, outval=0xFF * 0.2 + 1, valid=True),
-            Testcase(entry=self.entry_alias_uint8, inval=-10, outval=0 * 0.2 + 1, valid=True),
+            WriteOOBTestcase(entry=self.entry_alias_uint8, inval=10, outval=10, valid=True),
+            WriteOOBTestcase(entry=self.entry_alias_uint8, inval=100, outval=0xFF * 0.2 + 1, valid=True),
+            WriteOOBTestcase(entry=self.entry_alias_uint8, inval=-10, outval=0 * 0.2 + 1, valid=True),
 
-            Testcase(entry=self.entry_u64, inval=0x5555555555555555, outval=0x5555555555555555, valid=True),
-            Testcase(entry=self.entry_u64_bit15_35, inval=0xFFFFFFFFFFFFFFFF, outval=0x1FFFFF, valid=True,
-                     additional_checks=[(self.entry_u64, 0x5555555FFFFFD555)]
-                     ),
-            Testcase(entry=self.entry_u64_bit15_35, inval=-1, outval=0, valid=True),
+            WriteOOBTestcase(entry=self.entry_u64, inval=0x5555555555555555, outval=0x5555555555555555, valid=True),
+            WriteOOBTestcase(entry=self.entry_u64_bit15_35, inval=0xFFFFFFFFFFFFFFFF, outval=0x1FFFFF, valid=True,
+                             additional_checks=[(self.entry_u64, 0x5555555FFFFFD555)]
+                             ),
+            WriteOOBTestcase(entry=self.entry_u64_bit15_35, inval=-1, outval=0, valid=True),
         ]
 
         all_entries = list(set([tc.entry for tc in testcases]))
@@ -416,3 +319,8 @@ class TestReadWrite(ScrutinyIntegrationTest):
 
     def tearDown(self) -> None:
         super().tearDown()
+
+
+if __name__ == '__main__':
+    import unittest
+    unittest.main()

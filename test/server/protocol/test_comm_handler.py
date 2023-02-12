@@ -1,22 +1,22 @@
 #    test_comm_handler.py
-#        Test the CommHandler that manage the communication with the deviec a lower level.
-#        Converts btyes to Request/Response and flag timeouts
+#        Test the CommHandler that manage the communication with the device a lower level.
+#        Converts bytes to Request/Response and flag timeouts
 #
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
 #
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 
-import unittest
 import time
 
 from scrutiny.server.protocol.comm_handler import CommHandler
 from scrutiny.server.protocol import Request, Response
 from scrutiny.server.protocol.commands import DummyCommand
 from scrutiny.server.device.links.dummy_link import DummyLink
+from test import ScrutinyUnitTest
 
 
-class TestCommHandler(unittest.TestCase):
+class TestCommHandler(ScrutinyUnitTest):
     def setUp(self):
         params = {
             'response_timeout': 0.2
@@ -172,3 +172,8 @@ class TestCommHandler(unittest.TestCase):
         self.assertTrue(self.comm_handler.response_available())
         response1_ = self.comm_handler.get_response()
         self.compare_responses(response1_, response1)
+
+
+if __name__ == '__main__':
+    import unittest
+    unittest.main()

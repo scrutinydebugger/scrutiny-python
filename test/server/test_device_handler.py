@@ -6,7 +6,6 @@
 #
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 
-import unittest
 import time
 from scrutiny.core.codecs import Encodable
 from scrutiny.server.datastore.datastore_entry import DatastoreRPVEntry, EntryType
@@ -14,7 +13,9 @@ from test import logger
 import signal  # For ctrl+c handling
 import struct
 import random
+from binascii import hexlify
 
+import scrutiny.server.datalogging.definitions.device as device_datalogging
 from scrutiny.server.device.emulated_device import EmulatedDevice
 from scrutiny.server.device.device_handler import DeviceHandler
 from scrutiny.server.device.links.dummy_link import ThreadSafeDummyLink
@@ -24,6 +25,9 @@ from scrutiny.server.datastore.entry_type import EntryType
 from scrutiny.core.variable import Variable
 from scrutiny.core.codecs import Codecs
 from scrutiny.core.basic_types import *
+from scrutiny.server.device.device_info import *
+from scrutiny.server.datalogging.datalogging_utilities import extract_signal_from_data
+from test import ScrutinyUnitTest, logger
 
 from scrutiny.core.typehints import GenericCallback
 from typing import cast, List
@@ -43,13 +47,16 @@ def generate_random_value(datatype: EmbeddedDataType) -> Encodable:
     return codec.decode(bytestr)
 
 
-class TestDeviceHandler(unittest.TestCase):
+class TestDeviceHandler(ScrutinyUnitTest):
     def ctrlc_handler(self, signal, frame):
         if self.emulated_device is not None:
             self.emulated_device.stop()
         raise KeyboardInterrupt
 
     def setUp(self):
+        self.acquisition_complete_callback_called = False
+        self.acquisition_complete_callback_success = None
+        self.acquisition_complete_callback_data = None
         self.datastore = Datastore()
         config = {
             'link_type': 'thread_safe_dummy',
@@ -151,9 +158,11 @@ class TestDeviceHandler(unittest.TestCase):
         self.assertEqual(info.heartbeat_timeout_us, self.emulated_device.heartbeat_timeout_us)
         self.assertEqual(info.rx_timeout_us, self.emulated_device.rx_timeout_us)
         self.assertEqual(info.address_size_bits, self.emulated_device.address_size_bits)
+        self.assertEqual(info.supported_feature_map['memory_read'], self.emulated_device.supported_features['memory_read'])
         self.assertEqual(info.supported_feature_map['memory_write'], self.emulated_device.supported_features['memory_write'])
-        self.assertEqual(info.supported_feature_map['datalog_acquire'], self.emulated_device.supported_features['datalog_acquire'])
+        self.assertEqual(info.supported_feature_map['datalogging'], self.emulated_device.supported_features['datalogging'])
         self.assertEqual(info.supported_feature_map['user_command'], self.emulated_device.supported_features['user_command'])
+        self.assertEqual(info.supported_feature_map['_64bits'], self.emulated_device.supported_features['_64bits'])
 
         for region in self.emulated_device.forbidden_regions:
             found = False
@@ -169,6 +178,22 @@ class TestDeviceHandler(unittest.TestCase):
                 if region2['start'] == region['start'] and region2['end'] == region['end']:
                     found = True
             self.assertTrue(found)
+
+        self.assertEqual(len(info.loops), len(self.emulated_device.loops))
+
+        for i in range(len(info.loops)):
+            received_loop = info.loops[i]
+            expected_loop = self.emulated_device.loops[i]
+
+            self.assertIsInstance(received_loop, expected_loop.__class__)
+            self.assertEqual(received_loop.get_name(), expected_loop.get_name())
+            self.assertEqual(received_loop.get_loop_type(), expected_loop.get_loop_type())
+            self.assertEqual(received_loop.support_datalogging, expected_loop.support_datalogging)
+
+            if isinstance(received_loop, FixedFreqLoop):
+                assert isinstance(expected_loop, FixedFreqLoop)
+                self.assertEqual(received_loop.get_timestep_100ns(), expected_loop.get_timestep_100ns())
+                self.assertEqual(received_loop.freq, expected_loop.freq)
 
     def test_auto_disconnect_if_comm_interrupted(self):
         timeout = 5     # Should take about 2.5 sec to disconnect With heartbeat at every 2 sec
@@ -304,8 +329,6 @@ class TestDeviceHandler(unittest.TestCase):
         self.datastore.add_entry(vfloat32)
         self.datastore.add_entry(vint64)
         self.datastore.add_entry(vbool)
-
-        dummy_callback = GenericCallback(lambda *args, **kwargs: None)
 
         test_round_to_do = 5
         setup_timeout = 2
@@ -479,8 +502,225 @@ class TestDeviceHandler(unittest.TestCase):
 
         self.assertEqual(round_completed, test_round_to_do)  # Make sure test went through.
 
+    def acquisition_complete_callback(self, success: bool, data: Optional[List[List[bytes]]]):
+        logger.debug('acquisition_complete_callback called. success=%s.' % (success))
+        self.acquisition_complete_callback_called = True
+        self.acquisition_complete_callback_success = success
+        self.acquisition_complete_callback_data = data
 
-class TestDeviceHandlerMultipleLink(unittest.TestCase):
+    def test_datalogging_device_disabled(self):
+        # Make sure that the device handler does nothing with datalogging when the device doesn't support it
+
+        self.emulated_device.disable_datalogging()
+        self.assertFalse(self.emulated_device.is_datalogging_enabled(), "Datalogging is disabled on emulated device.")
+
+        timeout = 4
+        t1 = time.time()
+        connection_completed = False
+        while time.time() - t1 < timeout:
+            self.device_handler.process()
+            time.sleep(0.01)
+            status = self.device_handler.get_connection_status()
+            if status == DeviceHandler.ConnectionStatus.CONNECTED_READY and connection_completed == False:
+                connection_completed = True
+                break
+        self.assertTrue(connection_completed)
+        device_info = self.device_handler.get_device_info()
+        assert device_info is not None
+        self.assertFalse(device_info.supported_feature_map['datalogging'])
+        self.assertFalse(self.device_handler.datalogging_poller.is_enabled())
+
+        t1 = time.time()
+        while time.time() - t1 < 0.5:
+            self.device_handler.process()   # Keep processing to see if datalogging feature will do something (it should not)
+
+        self.assertIsNone(self.device_handler.get_datalogging_setup())   # Should never be set
+
+    def test_datalogging_control_normal_behavior(self):
+        # Test the behavior of the datalogging poller
+
+        # Make sure this is enabled, otherwise, the test is useless and will fail.
+        self.assertTrue(self.emulated_device.is_datalogging_enabled())
+
+        config = device_datalogging.Configuration()
+        config.trigger_hold_time = 0
+        config.timeout = 0
+        config.probe_location = 0.5
+        config.decimation = 1
+        config.trigger_condition = device_datalogging.TriggerCondition(
+            device_datalogging.TriggerConditionID.Equal,
+            device_datalogging.RPVOperand(rpv_id=0x1000),
+            device_datalogging.LiteralOperand(12345678)
+        )
+        config.add_signal(device_datalogging.TimeLoggableSignal())
+        config.add_signal(device_datalogging.RPVLoggableSignal(0x1003))
+        config.add_signal(device_datalogging.MemoryLoggableSignal(address=0x100000, size=4))
+        config.add_signal(device_datalogging.MemoryLoggableSignal(address=0x100004, size=2))
+        config.add_signal(device_datalogging.MemoryLoggableSignal(address=0x100006, size=2))
+
+        # Not ready yet.
+        self.assertFalse(self.device_handler.is_ready_for_datalogging_acquisition_request())
+
+        with self.assertRaises(Exception):
+            self.device_handler.request_datalogging_acquisition(0, config, self.acquisition_complete_callback)
+
+        for iteration in range(6):
+            self.acquisition_complete_callback_called = False
+            logger.debug("[iteration=%d] Wait for connection" % iteration)
+            # First we wait on connection to be ready with the device
+            timeout = 3
+            t1 = time.time()
+            connection_completed = False
+            while time.time() - t1 < timeout:
+                self.device_handler.process()
+                time.sleep(0.01)
+                status = self.device_handler.get_connection_status()
+                if status == DeviceHandler.ConnectionStatus.CONNECTED_READY and connection_completed == False:
+                    connection_completed = True
+                    break
+
+            # Make sure everything is idle after connection
+            self.assertTrue(connection_completed)
+            device_info = self.device_handler.get_device_info()
+            assert device_info is not None
+            self.assertTrue(device_info.supported_feature_map['datalogging'])
+            self.assertTrue(self.device_handler.datalogging_poller.is_enabled())
+            if iteration == 0:
+                self.assertEqual(self.device_handler.get_datalogger_state(), device_datalogging.DataloggerState.IDLE)
+
+            # Next wait for datalogging poller to retrieve the configuration of the datalogging feature
+            logger.debug("[iteration=%d] Wait for setup" % iteration)
+            timeout = 2
+            t1 = time.time()
+            datalogging_setup = None
+            while time.time() - t1 < timeout:
+                self.device_handler.process()
+                datalogging_setup = self.device_handler.get_datalogging_setup()
+                if datalogging_setup is not None and self.device_handler.is_ready_for_datalogging_acquisition_request():  # Expect setup to be read
+                    break
+
+            self.assertIsNotNone(datalogging_setup)
+
+            self.assertTrue(self.device_handler.is_ready_for_datalogging_acquisition_request())
+            self.assertEqual(datalogging_setup.buffer_size, self.emulated_device.datalogger.get_buffer_size())
+            self.assertEqual(datalogging_setup.encoding, self.emulated_device.datalogger.get_encoding())
+            self.assertEqual(datalogging_setup.max_signal_count, self.emulated_device.datalogger.MAX_SIGNAL_COUNT)
+
+            # Make sure nothing happens unless somebody require an acquisition
+            self.device_handler.process()
+            time.sleep(0.1)
+            self.device_handler.process()
+            if iteration == 0:
+                self.assertEqual(self.device_handler.get_datalogger_state(), device_datalogging.DataloggerState.IDLE)
+
+            self.emulated_device.write_memory(0x100000, bytes([1, 2, 3, 4, 5, 6, 7, 8]))
+            self.emulated_device.write_rpv(0x1000, 0)
+            self.emulated_device.write_rpv(0x1003, 123)
+
+            # Prepare a request for acquisition
+            loop_name = "Variable Freq 1"
+            loop_id = None
+            for i in range(len(device_info.loops)):
+                if device_info.loops[i].get_name() == loop_name:
+                    loop_id = i
+                    break
+            assert loop_id is not None
+
+            # Give the acquisition request to the device handler
+            if iteration != 5:
+                # A new request is made mid-loop on iteration 4, so we don't override it
+                logger.debug("[iteration=%d] Requesting a new acquisition" % iteration)
+                self.device_handler.request_datalogging_acquisition(loop_id, config, self.acquisition_complete_callback)
+
+            if iteration == 3:
+                self.device_handler.process()
+                self.assertFalse(self.acquisition_complete_callback_called)
+                logger.debug("[iteration=%d] Requesting a new acquisition to interrupt previous one" % iteration)
+                self.device_handler.request_datalogging_acquisition(loop_id, config, self.acquisition_complete_callback)
+                self.assertTrue(self.acquisition_complete_callback_called)
+                self.assertFalse(self.acquisition_complete_callback_success)
+                self.acquisition_complete_callback_called = False
+                self.acquisition_complete_callback_success = False
+
+            # Make sure it is received and that the device is waiting for the trigger to happen
+            logger.debug("[iteration=%d] Wait for armed" % iteration)
+            timeout = 1
+            t1 = time.time()
+            while time.time() - t1 < timeout:
+                self.device_handler.process()
+                if self.device_handler.get_datalogger_state() == device_datalogging.DataloggerState.ARMED:
+                    break
+
+            # This test did fail once for no apparent reason. Stinks of race condition...
+            self.assertEqual(self.device_handler.get_datalogger_state(), device_datalogging.DataloggerState.ARMED, 'iteration=%d' % iteration)
+
+            if iteration == 4:
+                logger.debug("[iteration=%d] Requesting a new acquisition to interrupt previous one" % iteration)
+                self.device_handler.request_datalogging_acquisition(loop_id, config, self.acquisition_complete_callback)
+                self.assertTrue(self.acquisition_complete_callback_called)
+                self.assertFalse(self.acquisition_complete_callback_success)
+                self.acquisition_complete_callback_called = False
+                self.acquisition_complete_callback_success = False
+                continue    #
+
+            # Make sure it stays it the same state if the trigger never happens
+            t1 = time.time()
+            while time.time() - t1 < 0.5:
+                self.device_handler.process()
+                time.sleep(0.05)
+
+            self.assertEqual(self.device_handler.get_datalogger_state(), device_datalogging.DataloggerState.ARMED, 'iteration=%d' % iteration)
+            self.assertFalse(self.acquisition_complete_callback_called, 'iteration=%d' % iteration)
+            self.assertFalse(self.emulated_device.datalogger.triggered(), 'iteration=%d' % iteration)
+
+            # Now we fulfill the trigger condition,  the acquisition should complete and data be automatically downloaded.
+            logger.debug("[iteration=%d] Make trigger condition true" % iteration)
+            self.emulated_device.write_rpv(0x1000, 12345678)
+
+            logger.debug("[iteration=%d] Wait for acquisition complete" % iteration)
+            timeout = 2
+            t1 = time.time()
+            while time.time() - t1 < timeout:
+                self.device_handler.process()
+                time.sleep(0.01)
+                if self.acquisition_complete_callback_called:
+                    break
+            nb_points = self.emulated_device.datalogger.get_nb_points()
+            # Make sure acquisition is downloaded and device is in a good state
+            self.assertGreater(nb_points, 0, 'iteration=%d' % iteration)
+            self.assertTrue(self.emulated_device.datalogger.triggered(), 'iteration=%d' % iteration)
+            self.assertTrue(self.acquisition_complete_callback_called, "Acquired %d points" % nb_points)
+            self.assertTrue(self.acquisition_complete_callback_success)
+            signals = extract_signal_from_data(
+                data=self.emulated_device.datalogger.get_acquisition_data(),
+                config=config,
+                rpv_map=self.emulated_device.get_rpv_definition_map(),
+                encoding=datalogging_setup.encoding
+            )
+            self.assertEqual(self.acquisition_complete_callback_data, signals, 'iteration=%d' % iteration)
+
+            self.assertEqual(len(signals), 5)
+            for signal in signals:
+                self.assertEqual(len(signal), nb_points)
+
+            # RPV 1003: 8bits val = 123
+            for d in signals[1]:
+                self.assertEqual(struct.unpack('>B', d)[0], 123, 'iteration=%d' % iteration)
+
+            # Memory: 32bits val = 1,2,3,4
+            for d in signals[2]:
+                self.assertEqual(d, bytes([1, 2, 3, 4]), 'iteration=%d' % iteration)
+
+            # Memory: 16bits val = 5,6
+            for d in signals[3]:
+                self.assertEqual(d, bytes([5, 6]), 'iteration=%d' % iteration)
+
+            # Memory: 16bits val = 7,8
+            for d in signals[4]:
+                self.assertEqual(d, bytes([7, 8]), 'iteration=%d' % iteration)
+
+
+class TestDeviceHandlerMultipleLink(ScrutinyUnitTest):
 
     def ctrlc_handler(self, signal, frame):
         if self.emulated_device1 is not None:
@@ -564,3 +804,8 @@ class TestDeviceHandlerMultipleLink(unittest.TestCase):
         # self.assertTrue(self.emulated_device1.is_connected())
         self.assertTrue(self.emulated_device2.is_connected())
         self.assertEqual(self.device_handler.get_comm_error_count(), 0)
+
+
+if __name__ == '__main__':
+    import unittest
+    unittest.main()

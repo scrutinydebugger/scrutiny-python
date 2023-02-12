@@ -6,7 +6,6 @@
 #
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 
-import unittest
 from scrutiny.core.firmware_description import FirmwareDescription
 from scrutiny.core.alias import Alias
 from scrutiny.server.datastore.datastore_entry import *
@@ -14,17 +13,18 @@ from scrutiny.server.datastore.entry_type import EntryType
 from scrutiny.core.variable import *
 from test.artifacts import get_artifact
 from binascii import unhexlify
+from test import ScrutinyUnitTest
 
 from typing import Dict
 
 
-class TestSFD(unittest.TestCase):
+class TestSFD(ScrutinyUnitTest):
 
     def test_load_sfd(self):
         sfd = FirmwareDescription(get_artifact('test_sfd_1.sfd'))   # expects no exception
         sfd.validate()  # Expects no exception
 
-    def test_check_content(self):
+    def test_check_content(self) -> None:
         sfd = FirmwareDescription(get_artifact('test_sfd_1.sfd'))
         self.assertEqual(sfd.get_firmware_id(), unhexlify('00000000000000000000000000000001'))
         self.assertEqual(sfd.get_firmware_id_ascii(), '00000000000000000000000000000001')
@@ -55,6 +55,7 @@ class TestSFD(unittest.TestCase):
         self.assertEqual(var_as_dict["/path1/path2/some_uint32"].get_fullname(), "/path1/path2/some_uint32")
         self.assertTrue(var_as_dict["/path1/path2/some_uint32"].has_enum())
         enum = var_as_dict["/path1/path2/some_uint32"].get_enum()
+        assert enum is not None
         self.assertEqual(enum.get_name(), 'EnumA')
         self.assertEqual(enum.get_value('eVal1'), 0)
         self.assertEqual(enum.get_value('eVal2'), 1)
@@ -103,3 +104,8 @@ class TestSFD(unittest.TestCase):
         self.assertEqual(aliases_as_dict['/alias/some_enum'].get_offset(), 0.0)
         self.assertEqual(aliases_as_dict['/alias/some_enum'].get_min(), float('-inf'))
         self.assertEqual(aliases_as_dict['/alias/some_enum'].get_max(), float('inf'))
+
+
+if __name__ == '__main__':
+    import unittest
+    unittest.main()

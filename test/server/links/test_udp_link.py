@@ -9,11 +9,12 @@
 
 import unittest
 import socket as s
+from test import ScrutinyUnitTest
 
 from scrutiny.server.device.links.udp_link import UdpLink
 
 
-class TestUdpLink(unittest.TestCase):
+class TestUdpLink(ScrutinyUnitTest):
     PORT = 40555
 
     def test_read_write(self):
@@ -79,3 +80,8 @@ class TestUdpLink(unittest.TestCase):
         self.assertFalse(link.operational())
 
         link.destroy()
+
+
+if __name__ == '__main__':
+    import unittest
+    unittest.main()

@@ -6,14 +6,14 @@
 #
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 
-import unittest
 from scrutiny.server.tools import Throttler
 import time
 import math
 from test import logger
+from test import ScrutinyUnitTest
 
 
-class TestThrottler(unittest.TestCase):
+class TestThrottler(ScrutinyUnitTest):
 
     def test_throttler_measurement(self):
         bitrate = 5000
@@ -57,3 +57,8 @@ class TestThrottler(unittest.TestCase):
                 buffer_peak = max(buffer_peak, buffer_estimation[-1])
 
         logger.info('Maximum buffer peak = %dbits' % (math.ceil(buffer_peak)))
+
+
+if __name__ == '__main__':
+    import unittest
+    unittest.main()

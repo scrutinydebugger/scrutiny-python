@@ -6,13 +6,12 @@
 #
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 
-import unittest
-
 from scrutiny.core.basic_types import *
 from scrutiny.core.codecs import *
+from test import ScrutinyUnitTest
 
 
-class TestTypes(unittest.TestCase):
+class TestTypes(ScrutinyUnitTest):
 
     def test_type_size(self):
         self.assertEqual(EmbeddedDataType.sint8.get_size_byte(), 1)
@@ -107,7 +106,7 @@ class TestTypes(unittest.TestCase):
 
         self.assertFalse(EmbeddedDataType.boolean.is_integer())
 
-    def test_is_integer(self):
+    def test_is_float(self):
         self.assertFalse(EmbeddedDataType.sint8.is_float())
         self.assertFalse(EmbeddedDataType.sint16.is_float())
         self.assertFalse(EmbeddedDataType.sint32.is_float())
@@ -139,7 +138,7 @@ class TestTypes(unittest.TestCase):
         self.assertFalse(EmbeddedDataType.boolean.is_float())
 
 
-class TestCodecs(unittest.TestCase):
+class TestCodecs(ScrutinyUnitTest):
     def test_make_valid_sint(self):
         self.assertEqual(Codecs.make_value_valid(EmbeddedDataType.sint8, 128), 127)
         self.assertEqual(Codecs.make_value_valid(EmbeddedDataType.sint8, -129), -128)
@@ -195,6 +194,7 @@ class TestCodecs(unittest.TestCase):
         self.assertEqual(Codecs.make_value_valid(EmbeddedDataType.uint32, -500000, bitsize=5), 0)
 
         self.assertEqual(Codecs.make_value_valid(EmbeddedDataType.uint64, 0x10000000000000000), 0xffffffffffffffff)
+        self.assertEqual(Codecs.make_value_valid(EmbeddedDataType.uint64, -0x10000000000000000), 0)
         self.assertEqual(Codecs.make_value_valid(EmbeddedDataType.uint64, -1), 0)
         self.assertEqual(Codecs.make_value_valid(EmbeddedDataType.uint64, 0x234567892), 0x234567892)
         self.assertEqual(Codecs.make_value_valid(EmbeddedDataType.uint64, 2000000, bitsize=5), 31)
@@ -220,3 +220,8 @@ class TestCodecs(unittest.TestCase):
             Codecs.make_value_valid(EmbeddedDataType.boolean, math.inf)
         with self.assertRaises(ValueError):
             Codecs.make_value_valid(EmbeddedDataType.boolean, -math.inf)
+
+
+if __name__ == '__main__':
+    import unittest
+    unittest.main()

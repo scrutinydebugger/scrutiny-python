@@ -120,7 +120,7 @@ class DatastoreEntry:
     display_path: str
     value: Any
     last_target_update_timestamp: Optional[float]
-    target_update_request_queue: Queue
+    target_update_request_queue: "Queue[UpdateTargetRequest]"
     last_value_update_timestamp: float
 
     def __init__(self, display_path: str):
@@ -316,7 +316,7 @@ class DatastoreVariableEntry(DatastoreEntry):
 
 class DatastoreAliasEntry(DatastoreEntry):
     """
-    Represnet a datastore entry of type Alias.
+    Represent a datastore entry of type Alias.
     It will points to another datastore entry of type != Alias and
     route write/read request to them. 
 
@@ -399,7 +399,7 @@ class DatastoreAliasEntry(DatastoreEntry):
 
 
 class DatastoreRPVEntry(DatastoreEntry):
-    """A datstore entry that represents a Runtime Published Value"""
+    """A datastore entry that represents a Runtime Published Value"""
 
     rpv: RuntimePublishedValue
     codec: BaseCodec

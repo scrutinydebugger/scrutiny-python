@@ -1,5 +1,5 @@
 #    active_sfd_handler.py
-#        Manage the loaded SFD file with which the client will interracts.
+#        Manage the loaded SFD file with which the client will interact.
 #
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)

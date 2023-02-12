@@ -1,5 +1,5 @@
 #    test_memory_content.py
-#        Test the MemoryContent class functionalities. Make sure it correctly wirtes and read
+#        Test the MemoryContent class functionalities. Make sure it correctly writes and read
 #        and also agglomerate contiguous clusters
 #
 #   - License : MIT - See LICENSE file.
@@ -7,13 +7,13 @@
 #
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 
-import unittest
 from scrutiny.core.memory_content import MemoryContent, Cluster
 import tempfile
 import os
+from test import ScrutinyUnitTest
 
 
-class TestCluster(unittest.TestCase):
+class TestCluster(ScrutinyUnitTest):
     def test_read_write_with_data(self):
         cluster = Cluster(start_addr=0x1000, size=100, data=b'\xFF' * 100, has_data=True)
         self.assertEqual(len(cluster), 100)
@@ -80,7 +80,7 @@ class TestCluster(unittest.TestCase):
             cluster.extend(101, bytes([1, 2]))  # One extra byte
 
 
-class TestMemoryContent(unittest.TestCase):
+class TestMemoryContent(ScrutinyUnitTest):
     def assert_clusters(self, clusters, args):
         self.assertEqual(len(clusters), len(args), str(clusters))
 
@@ -409,3 +409,8 @@ class TestMemoryContent(unittest.TestCase):
 
             memcontent = MemoryContent(filename=filename)
             self.assert_clusters(memcontent.get_cluster_list_no_data_by_address(), [(0x00100000, 31), (0x00200000, 10)])
+
+
+if __name__ == '__main__':
+    import unittest
+    unittest.main()

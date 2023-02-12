@@ -6,8 +6,6 @@
 #
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 
-from re import S
-import unittest
 import time
 import random
 import string
@@ -22,12 +20,19 @@ from scrutiny.server.datastore.entry_type import EntryType
 from scrutiny.core.sfd_storage import SFDStorage
 from scrutiny.server.api.dummy_client_handler import DummyConnection, DummyClientHandler
 from scrutiny.server.device.device_handler import DeviceHandler
-from scrutiny.server.device.device_info import DeviceInfo
+from scrutiny.server.device.device_info import DeviceInfo, FixedFreqLoop, VariableFreqLoop
 from scrutiny.server.active_sfd_handler import ActiveSFDHandler
 from scrutiny.server.device.links.dummy_link import DummyLink
 from scrutiny.core.variable import *
 from scrutiny.core.alias import Alias
+import scrutiny.server.datalogging.definitions.api as api_datalogging
+import scrutiny.server.datalogging.definitions.device as device_datalogging
 from test.artifacts import get_artifact
+from test import ScrutinyUnitTest
+from scrutiny.server.datalogging.datalogging_storage import DataloggingStorage
+from datetime import datetime
+import scrutiny.server.api.typing as api_typing
+from typing import cast
 
 # todo
 # - Test rate limiter/data streamer
@@ -39,6 +44,9 @@ class StubbedDeviceHandler:
     link_type: str
     link_config: Dict[Any, Any]
     reject_link_config: bool
+    datalogging_callbacks: Dict[str, GenericCallback]
+    datalogger_state: device_datalogging.DataloggerState
+    datalogging_setup: Optional[device_datalogging.DataloggingSetup]
 
     def __init__(self, device_id, connection_status=DeviceHandler.ConnectionStatus.UNKNOWN):
         self.device_id = device_id
@@ -46,23 +54,44 @@ class StubbedDeviceHandler:
         self.link_type = 'none'
         self.link_config = {}
         self.reject_link_config = False
+        self.datalogger_state = device_datalogging.DataloggerState.IDLE
+        self.datalogging_setup = device_datalogging.DataloggingSetup(
+            buffer_size=1024,
+            encoding=device_datalogging.Encoding.RAW,
+            max_signal_count=32
+        )
 
-    def get_connection_status(self):
+    def get_connection_status(self) -> DeviceHandler.ConnectionStatus:
         return self.connection_status
 
-    def set_connection_status(self, connection_status):
+    def set_connection_status(self, connection_status: DeviceHandler.ConnectionStatus) -> None:
         self.connection_status = connection_status
 
-    def get_device_id(self):
+    def set_datalogging_setup(self, setup: Optional[device_datalogging.DataloggingSetup]) -> None:
+        self.datalogging_setup = setup
+
+    def get_datalogging_setup(self) -> Optional[device_datalogging.DataloggingSetup]:
+        return self.datalogging_setup
+
+    def get_datalogger_state(self) -> device_datalogging.DataloggerState:
+        return self.datalogger_state
+
+    def set_datalogger_state(self, state: device_datalogging.DataloggerState) -> None:
+        self.datalogger_state = state
+
+    def get_device_id(self) -> str:
         return self.device_id
 
-    def get_link_type(self):
+    def set_datalogging_callbacks(self, **kwargs) -> None:
+        self.datalogging_callbacks = kwargs
+
+    def get_link_type(self) -> str:
         return 'dummy'
 
-    def get_comm_link(self):
+    def get_comm_link(self) -> DummyLink:
         return DummyLink()
 
-    def get_device_info(self):
+    def get_device_info(self) -> DeviceInfo:
         info = DeviceInfo()
         info.device_id = self.device_id
         info.display_name = self.__class__.__name__
@@ -78,22 +107,89 @@ class StubbedDeviceHandler:
             'memory_read': True,
             'memory_write': True,
             'datalog_acquire': False,
-            'user_command': False}
+            'user_command': False,
+            '_64bits': True}
         info.forbidden_memory_regions = [{'start': 0x1000, 'end': 0x2000}]
         info.readonly_memory_regions = [{'start': 0x2000, 'end': 0x3000}, {'start': 0x3000, 'end': 0x4000}]
         info.runtime_published_values = []
+        info.loops = [
+            FixedFreqLoop(1000, "Fixed Freq 1KHz"),
+            FixedFreqLoop(10000, "Fixed Freq 10KHz"),
+            VariableFreqLoop("Variable Freq"),
+            VariableFreqLoop("Variable Freq No DL", support_datalogging=False)
+        ]
         return info
 
-    def configure_comm(self, link_type, link_config):
+    def configure_comm(self, link_type: str, link_config: Dict[Any, Any]) -> None:
         self.link_type = link_type
         self.link_config = link_config
 
-    def validate_link_config(self, link_type, link_config):
+    def validate_link_config(self, link_type: str, link_config: Dict[Any, Any]):
         if self.reject_link_config:
             raise Exception('Bad config')
 
 
-class TestAPI(unittest.TestCase):
+class StubbedDataloggingManager:
+    datastore: Datastore
+    fake_device_handler: StubbedDeviceHandler
+    datalogging_setup: device_datalogging.DataloggingSetup
+    request_queue: "Queue[api_datalogging.AcquisitionRequest]"
+
+    def __init__(self, datastore: Datastore, fake_device_handler: StubbedDeviceHandler):
+        self.datastore = datastore
+        self.fake_device_handler = fake_device_handler
+        self.request_queue = Queue()
+
+    def get_device_setup(self) -> Optional[device_datalogging.DataloggingSetup]:
+        return self.fake_device_handler.get_datalogging_setup()
+
+    def set_device_setup(self, setup: Optional[device_datalogging.DataloggingSetup]) -> None:
+        self.fake_device_handler.set_datalogging_setup(setup)
+
+    def request_acquisition(self, request: api_datalogging.AcquisitionRequest, callback: api_datalogging.APIAcquisitionRequestCompletionCallback) -> None:
+        self.request_queue.put(request)
+        acquisition = api_datalogging.DataloggingAcquisition(
+            firmware_id='fake_firmware_id',
+            name='fakename',
+            reference_id='fake_refid',
+            acq_time=datetime.now())
+        callback(True, acquisition)
+
+    def is_valid_sample_rate_id(self, identifier: int) -> bool:
+        return (identifier >= 0 and identifier < 10)
+
+    def is_ready_for_request(self) -> bool:
+        return True
+
+    def get_available_sampling_rates(self) -> List[api_datalogging.SamplingRate]:
+        sampling_rates: List[api_datalogging.SamplingRate] = []
+        info = self.fake_device_handler.get_device_info()
+        if info is None:
+            return
+
+        i = 0
+        for loop in info.loops:
+            if loop.support_datalogging:
+                freq: Optional[float] = None
+                if isinstance(loop, FixedFreqLoop):
+                    freq = 1e7 / loop.get_timestep_100ns()
+                sampling_rates.append(api_datalogging.SamplingRate(
+                    name=loop.get_name(),
+                    device_identifier=i,
+                    rate_type=loop.get_loop_type(),
+                    frequency=freq
+                ))
+            i += 1
+        return sampling_rates
+
+
+class TestAPI(ScrutinyUnitTest):
+
+    datastore: Datastore
+    fake_device_handler: StubbedDeviceHandler
+    fake_datalogging_manager: StubbedDataloggingManager
+    sfd_handler: ActiveSFDHandler
+    api: API
 
     def setUp(self):
         self.connections = [DummyConnection(), DummyConnection(), DummyConnection()]
@@ -107,9 +203,16 @@ class TestAPI(unittest.TestCase):
         }
 
         self.datastore = Datastore()
-        self.device_handler = StubbedDeviceHandler('0' * 64, DeviceHandler.ConnectionStatus.DISCONNECTED)
-        self.sfd_handler = ActiveSFDHandler(device_handler=self.device_handler, datastore=self.datastore, autoload=False)
-        self.api = API(config, self.datastore, device_handler=self.device_handler, sfd_handler=self.sfd_handler)
+        self.fake_device_handler = StubbedDeviceHandler('0' * 64, DeviceHandler.ConnectionStatus.DISCONNECTED)
+        self.fake_datalogging_manager = StubbedDataloggingManager(self.datastore, self.fake_device_handler)
+        self.sfd_handler = ActiveSFDHandler(device_handler=self.fake_device_handler, datastore=self.datastore, autoload=False)
+        self.api = API(
+            config=config,
+            datastore=self.datastore,
+            device_handler=self.fake_device_handler,
+            sfd_handler=self.sfd_handler,
+            datalogging_manager=self.fake_datalogging_manager
+        )
         client_handler = self.api.get_client_handler()
         assert isinstance(client_handler, DummyClientHandler)
         client_handler.set_connections(self.connections)
@@ -118,15 +221,29 @@ class TestAPI(unittest.TestCase):
     def tearDown(self):
         self.api.close()
 
-    def wait_for_response(self, conn_idx=0, timeout=0.4):
-        t1 = time.time()
+    def process_all(self):
         self.api.process()
         self.sfd_handler.process()
+
+    def ensure_no_response_for(self, conn_idx=0, timeout=0.4):
+        t1 = time.time()
+        self.process_all()
         while not self.connections[conn_idx].from_server_available():
             if time.time() - t1 >= timeout:
                 break
-            self.api.process()
-            self.sfd_handler.process()
+            self.process_all()
+            time.sleep(0.01)
+
+        json_str = self.connections[conn_idx].read_from_server()
+        self.assertIsNone(json_str)
+
+    def wait_for_response(self, conn_idx=0, timeout=0.4):
+        t1 = time.time()
+        self.process_all()
+        while not self.connections[conn_idx].from_server_available():
+            if time.time() - t1 >= timeout:
+                break
+            self.process_all()
             time.sleep(0.01)
 
         return self.connections[conn_idx].read_from_server()
@@ -176,7 +293,7 @@ class TestAPI(unittest.TestCase):
 
     def make_random_string(self, n):
         letters = string.ascii_lowercase
-        return''.join(random.choice(letters) for i in range(n))
+        return ''.join(random.choice(letters) for i in range(n))
 
 # ===== Test section ===============
     def test_echo(self):
@@ -678,7 +795,7 @@ class TestAPI(unittest.TestCase):
             SFDStorage.uninstall(sfd2.get_firmware_id_ascii())
 
     def test_get_server_status(self):
-        device_info_exlude_propeties = ['runtime_published_values']
+        device_info_exlude_propeties = ['runtime_published_values', 'loops']
         dummy_sfd1_filename = get_artifact('test_sfd_1.sfd')
         dummy_sfd2_filename = get_artifact('test_sfd_2.sfd')
         with SFDStorage.use_temp_folder():
@@ -687,7 +804,7 @@ class TestAPI(unittest.TestCase):
 
             self.sfd_handler.request_load_sfd(sfd2.get_firmware_id_ascii())
             self.sfd_handler.process()
-            self.device_handler.set_connection_status(DeviceHandler.ConnectionStatus.CONNECTED_READY)
+            self.fake_device_handler.set_connection_status(DeviceHandler.ConnectionStatus.CONNECTED_READY)
 
             req = {
                 'cmd': 'get_server_status'
@@ -712,7 +829,7 @@ class TestAPI(unittest.TestCase):
             self.assertEqual(response['device_comm_link']['link_config'], {})
             self.assertIn('device_info', response)
             self.assertIsNotNone(response['device_info'])
-            device_info = self.device_handler.get_device_info()
+            device_info = self.fake_device_handler.get_device_info()
             for attr in device_info.get_attributes():
                 if attr not in device_info_exlude_propeties:    # Exclude list
                     self.assertIn(attr, response['device_info'])
@@ -721,7 +838,7 @@ class TestAPI(unittest.TestCase):
             # Redo the test, but with no SFD loaded. We should get None
             self.sfd_handler.reset_active_sfd()
             self.sfd_handler.process()
-            self.device_handler.set_connection_status(DeviceHandler.ConnectionStatus.CONNECTED_READY)
+            self.fake_device_handler.set_connection_status(DeviceHandler.ConnectionStatus.CONNECTED_READY)
 
             req = {
                 'cmd': 'get_server_status'
@@ -743,7 +860,7 @@ class TestAPI(unittest.TestCase):
             self.assertIn('link_config', response['device_comm_link'])
             self.assertEqual(response['device_comm_link']['link_config'], {})
             self.assertIn('device_info', response)
-            device_info = self.device_handler.get_device_info()
+            device_info = self.fake_device_handler.get_device_info()
             for attr in device_info.get_attributes():
                 if attr not in device_info_exlude_propeties:
                     self.assertIn(attr, response['device_info'])
@@ -753,8 +870,8 @@ class TestAPI(unittest.TestCase):
             SFDStorage.uninstall(sfd2.get_firmware_id_ascii())
 
     def test_set_device_link(self):
-        self.assertEqual(self.device_handler.link_type, 'none')
-        self.assertEqual(self.device_handler.link_config, {})
+        self.assertEqual(self.fake_device_handler.link_type, 'none')
+        self.assertEqual(self.fake_device_handler.link_config, {})
 
         # Switch the device link for real
         req = {
@@ -767,8 +884,8 @@ class TestAPI(unittest.TestCase):
         self.send_request(req, 0)
         response = self.wait_and_load_response(timeout=0.5)
         self.assert_no_error(response)
-        self.assertEqual(self.device_handler.link_type, 'dummy')
-        self.assertEqual(self.device_handler.link_config, {'channel_id': 10})
+        self.assertEqual(self.fake_device_handler.link_type, 'dummy')
+        self.assertEqual(self.fake_device_handler.link_config, {'channel_id': 10})
 
         # Simulate that the device handler refused the configuration. Make sure we return a proper error
         req = {
@@ -778,13 +895,13 @@ class TestAPI(unittest.TestCase):
                 'mium': 'mium'
             }
         }
-        self.device_handler.reject_link_config = True   # Emulate a bad config
+        self.fake_device_handler.reject_link_config = True   # Emulate a bad config
         self.send_request(req, 0)
         response = self.wait_and_load_response(timeout=0.5)
         self.assert_is_error(response)
-        self.assertNotEqual(self.device_handler.link_type, 'potato')
-        self.assertNotEqual(self.device_handler.link_config, {'mium': 'mium'})
-        self.device_handler.reject_link_config = False
+        self.assertNotEqual(self.fake_device_handler.link_type, 'potato')
+        self.assertNotEqual(self.fake_device_handler.link_config, {'mium': 'mium'})
+        self.fake_device_handler.reject_link_config = False
 
         # Missing link_config
         req = {
@@ -1035,3 +1152,652 @@ class TestAPI(unittest.TestCase):
                         self.assertTrue(entry.refentry.has_pending_target_update())
                         entry.refentry.pop_target_update_request()
                         self.assertFalse(entry.refentry.has_pending_target_update())
+# region Datalogging
+
+# REQUEST_ACQUISITION
+
+    def test_get_datalogging_capabilities(self):
+        # Check that we can read the datalogging capabilities
+        req: api_typing.C2S.GetDataloggingCapabilities = {
+            'cmd': 'get_datalogging_capabilities'
+        }
+        datalogging_device_setup = device_datalogging.DataloggingSetup(
+            buffer_size=256,
+            encoding=device_datalogging.Encoding.RAW,
+            max_signal_count=32
+        )
+
+        self.fake_datalogging_manager.set_device_setup(datalogging_device_setup)
+
+        self.send_request(req)
+        response = cast(api_typing.S2C.GetDataloggingCapabilities, self.wait_and_load_response())
+        self.assert_no_error(response)
+        self.assertEqual(response['cmd'], 'get_datalogging_capabilities_response')
+
+        self.assertTrue(response['available'])
+        self.assertIsNotNone(response['capabilities'])
+        capabilities = response['capabilities']
+        self.assertEqual(capabilities['buffer_size'], 256)
+        self.assertEqual(capabilities['encoding'], 'raw')
+        self.assertEqual(capabilities['max_nb_signal'], 32)
+
+        self.assertEqual(len(capabilities['sampling_rates']), 3)
+        self.assertEqual(capabilities['sampling_rates'][0]['identifier'], 0)
+        self.assertEqual(capabilities['sampling_rates'][0]['name'], 'Fixed Freq 1KHz')
+        self.assertEqual(capabilities['sampling_rates'][0]['frequency'], 1000)
+        self.assertEqual(capabilities['sampling_rates'][0]['type'], 'fixed_freq')
+
+        self.assertEqual(capabilities['sampling_rates'][1]['identifier'], 1)
+        self.assertEqual(capabilities['sampling_rates'][1]['name'], 'Fixed Freq 10KHz')
+        self.assertEqual(capabilities['sampling_rates'][1]['frequency'], 10000)
+        self.assertEqual(capabilities['sampling_rates'][1]['type'], 'fixed_freq')
+
+        self.assertEqual(capabilities['sampling_rates'][2]['identifier'], 2)
+        self.assertEqual(capabilities['sampling_rates'][2]['name'], 'Variable Freq')
+        self.assertEqual(capabilities['sampling_rates'][2]['frequency'], None)
+        self.assertEqual(capabilities['sampling_rates'][2]['type'], 'variable_freq')
+
+        self.fake_datalogging_manager.set_device_setup(None)
+
+        self.send_request(req)
+        response = cast(api_typing.S2C.GetDataloggingCapabilities, self.wait_and_load_response())
+        self.assert_no_error(response)
+        self.assertFalse(response['available'])
+        self.assertIsNone(response['capabilities'])
+
+    def test_list_datalogging_acquisition(self):
+        # Check that we can read the list of acquisition in datalogging storage
+        with SFDStorage.use_temp_folder():
+            sfd1 = SFDStorage.install(get_artifact('test_sfd_1.sfd'), ignore_exist=True)
+            sfd2 = SFDStorage.install(get_artifact('test_sfd_2.sfd'), ignore_exist=True)
+
+            with DataloggingStorage.use_temp_storage():
+                acq1 = api_datalogging.DataloggingAcquisition(firmware_id=sfd1.get_firmware_id_ascii(),
+                                                              reference_id="refid1", name="foo")
+                acq2 = api_datalogging.DataloggingAcquisition(firmware_id=sfd1.get_firmware_id_ascii(),
+                                                              reference_id="refid2", name="bar")
+                acq3 = api_datalogging.DataloggingAcquisition(firmware_id=sfd2.get_firmware_id_ascii(),
+                                                              reference_id="refid3", name="baz")
+                acq4 = api_datalogging.DataloggingAcquisition(firmware_id="unknown_sfd", reference_id="refid4", name="meow")
+                acq1.set_xdata(api_datalogging.DataSeries())
+                acq2.set_xdata(api_datalogging.DataSeries())
+                acq3.set_xdata(api_datalogging.DataSeries())
+                acq4.set_xdata(api_datalogging.DataSeries())
+
+                DataloggingStorage.save(acq1)
+                DataloggingStorage.save(acq2)
+                DataloggingStorage.save(acq3)
+                DataloggingStorage.save(acq4)
+
+                req: api_typing.C2S.ListDataloggingAcquisitions = {
+                    'cmd': 'list_datalogging_acquisitions',
+                }
+
+                self.send_request(req)
+                response = cast(api_typing.S2C.ListDataloggingAcquisition, self.wait_and_load_response())
+                self.assert_no_error(response)
+                self.assertEqual(response['cmd'], 'list_datalogging_acquisitions_response')
+                self.assertEqual(len(response['acquisitions']), 4)
+                self.assertEqual(response['acquisitions'][0]['firmware_id'], sfd1.get_firmware_id_ascii())
+                self.assertEqual(response['acquisitions'][0]['reference_id'], 'refid1')
+                self.assertEqual(response['acquisitions'][0]['timestamp'], int(acq1.acq_time.timestamp()))
+                self.assertEqual(response['acquisitions'][0]['name'], 'foo')
+                self.assertEqual(response['acquisitions'][0]['firmware_metadata'], sfd1.get_metadata())
+
+                self.assertEqual(response['acquisitions'][1]['firmware_id'], sfd1.get_firmware_id_ascii())
+                self.assertEqual(response['acquisitions'][1]['reference_id'], 'refid2')
+                self.assertEqual(response['acquisitions'][1]['timestamp'], int(acq2.acq_time.timestamp()))
+                self.assertEqual(response['acquisitions'][1]['name'], 'bar')
+                self.assertEqual(response['acquisitions'][1]['firmware_metadata'], sfd1.get_metadata())
+
+                self.assertEqual(response['acquisitions'][2]['firmware_id'], sfd2.get_firmware_id_ascii())
+                self.assertEqual(response['acquisitions'][2]['reference_id'], 'refid3')
+                self.assertEqual(response['acquisitions'][2]['timestamp'], int(acq3.acq_time.timestamp()))
+                self.assertEqual(response['acquisitions'][2]['name'], 'baz')
+                self.assertEqual(response['acquisitions'][2]['firmware_metadata'], sfd2.get_metadata())
+
+                self.assertEqual(response['acquisitions'][3]['firmware_id'], "unknown_sfd")
+                self.assertEqual(response['acquisitions'][3]['reference_id'], 'refid4')
+                self.assertEqual(response['acquisitions'][3]['timestamp'], int(acq4.acq_time.timestamp()))
+                self.assertEqual(response['acquisitions'][3]['name'], 'meow')
+                self.assertEqual(response['acquisitions'][3]['firmware_metadata'], None)
+
+                req: api_typing.C2S.ListDataloggingAcquisitions = {
+                    'cmd': 'list_datalogging_acquisitions',
+                    'firmware_id': sfd1.get_firmware_id_ascii()
+                }
+
+                self.send_request(req)
+                response = cast(api_typing.S2C.ListDataloggingAcquisition, self.wait_and_load_response())
+                self.assert_no_error(response)
+                self.assertEqual(response['cmd'], 'list_datalogging_acquisitions_response')
+                self.assertIn('acquisitions', response)
+                self.assertEqual(len(response['acquisitions']), 2)
+                self.assertEqual(response['acquisitions'][0]['firmware_id'], sfd1.get_firmware_id_ascii())
+                self.assertEqual(response['acquisitions'][0]['reference_id'], 'refid1')
+                self.assertEqual(response['acquisitions'][0]['timestamp'], int(acq1.acq_time.timestamp()))
+                self.assertEqual(response['acquisitions'][0]['name'], 'foo')
+                self.assertEqual(response['acquisitions'][0]['firmware_metadata'], sfd1.get_metadata())
+
+                self.assertEqual(response['acquisitions'][1]['firmware_id'], sfd1.get_firmware_id_ascii())
+                self.assertEqual(response['acquisitions'][1]['reference_id'], 'refid2')
+                self.assertEqual(response['acquisitions'][1]['timestamp'], int(acq2.acq_time.timestamp()))
+                self.assertEqual(response['acquisitions'][1]['name'], 'bar')
+                self.assertEqual(response['acquisitions'][1]['firmware_metadata'], sfd1.get_metadata())
+
+                req: api_typing.C2S.ListDataloggingAcquisitions = {
+                    'cmd': 'list_datalogging_acquisitions',
+                    'firmware_id': None
+                }
+
+                self.send_request(req)
+                response = cast(api_typing.S2C.ListDataloggingAcquisition, self.wait_and_load_response())
+                self.assert_no_error(response)
+                self.assertEqual(response['cmd'], 'list_datalogging_acquisitions_response')
+                self.assertEqual(len(response['acquisitions']), 4)
+
+                req: api_typing.C2S.ListDataloggingAcquisitions = {
+                    'cmd': 'list_datalogging_acquisitions',
+                    'firmware_id': 'inexistant_id'
+                }
+
+                self.send_request(req)
+                response = cast(api_typing.S2C.ListDataloggingAcquisition, self.wait_and_load_response())
+                self.assert_no_error(response)
+                self.assertEqual(response['cmd'], 'list_datalogging_acquisitions_response')
+                self.assertEqual(len(response['acquisitions']), 0)
+
+    def test_update_datalogging_acquisition(self):
+        # Rename an acquisition in datalogging storage through API
+        with DataloggingStorage.use_temp_storage():
+            axis1 = api_datalogging.AxisDefinition('Axis1', 0)
+            axis2 = api_datalogging.AxisDefinition('Axis2', 1)
+            acq1 = api_datalogging.DataloggingAcquisition(firmware_id='some_firmware_id', reference_id="refid1", name="foo")
+            acq1.set_xdata(api_datalogging.DataSeries())
+            acq1.add_data(api_datalogging.DataSeries(), axis1)
+            acq1.add_data(api_datalogging.DataSeries(), axis1)
+            acq1.add_data(api_datalogging.DataSeries(), axis2)
+            acq2 = api_datalogging.DataloggingAcquisition(firmware_id='some_firmware_id', reference_id="refid2", name="bar")
+            acq2.set_xdata(api_datalogging.DataSeries())
+            acq3 = api_datalogging.DataloggingAcquisition(firmware_id='some_firmware_id', reference_id="refid3", name="baz")
+            acq3.set_xdata(api_datalogging.DataSeries())
+            DataloggingStorage.save(acq1)
+            DataloggingStorage.save(acq2)
+            DataloggingStorage.save(acq3)
+
+            req: api_typing.C2S.UpdateDataloggingAcquisition = {
+                'cmd': 'update_datalogging_acquisition',
+                'reference_id': 'refid2',
+                'name': 'new_name!'
+            }
+
+            self.send_request(req)
+            expected_response = {
+                API.Command.Api2Client.UPDATE_DATALOGGING_ACQUISITION_RESPONSE: None,
+                API.Command.Api2Client.INFORM_DATALOGGING_LIST_CHANGED: None
+            }
+            for i in range(2):
+                response = self.wait_and_load_response()
+                self.assert_no_error(response)
+                expected_response[response['cmd']] = True
+                if response['cmd'] == API.Command.Api2Client.UPDATE_DATALOGGING_ACQUISITION_RESPONSE:
+                    response = cast(api_typing.S2C.UpdateDataloggingAcquisition, response)
+                    acq2_reloaded = DataloggingStorage.read('refid2')
+                    self.assertEqual(acq2_reloaded.name, 'new_name!')
+                    self.assertEqual(acq2_reloaded.firmware_id, acq2.firmware_id)
+                    self.assertLess((acq2_reloaded.acq_time - acq2.acq_time).total_seconds(), 1)
+                elif response['cmd'] == API.Command.Api2Client.INFORM_DATALOGGING_LIST_CHANGED:
+                    response = cast(api_typing.S2C.InformDataloggingListChanged, response)
+                    self.assertEqual(response['action'], 'update')
+                    self.assertEqual(response['reference_id'], 'refid2')
+                else:
+                    raise ValueError('Unexpected response %s' % response)
+
+            for k in expected_response:
+                self.assertIsNotNone(expected_response[k])
+
+            req: api_typing.C2S.UpdateDataloggingAcquisition = {
+                'cmd': 'update_datalogging_acquisition',
+                'reference_id': 'refid1',
+                'axis_name': [{'id': 0, 'name': 'NewAxis1Name'}]
+            }
+
+            self.send_request(req)
+            expected_response = {
+                API.Command.Api2Client.UPDATE_DATALOGGING_ACQUISITION_RESPONSE: None,
+                API.Command.Api2Client.INFORM_DATALOGGING_LIST_CHANGED: None
+            }
+            for i in range(2):
+                response = self.wait_and_load_response()
+                self.assert_no_error(response)
+                expected_response[response['cmd']] = True
+                if response['cmd'] == API.Command.Api2Client.UPDATE_DATALOGGING_ACQUISITION_RESPONSE:
+                    response = cast(api_typing.S2C.UpdateDataloggingAcquisition, response)
+                    acq1_reloaded = DataloggingStorage.read('refid1')
+                    acq_data = acq1_reloaded.get_data()
+                    self.assertEqual(len(acq_data), 3)
+
+                    self.assertEqual(acq_data[0].axis.name, 'NewAxis1Name')
+                    self.assertEqual(acq_data[1].axis.name, 'NewAxis1Name')
+                    self.assertEqual(acq_data[2].axis.name, 'Axis2')
+                    self.assertEqual(acq1_reloaded.firmware_id, acq2.firmware_id)
+                    self.assertLess((acq1_reloaded.acq_time - acq2.acq_time).total_seconds(), 1)
+                elif response['cmd'] == API.Command.Api2Client.INFORM_DATALOGGING_LIST_CHANGED:
+                    response = cast(api_typing.S2C.InformDataloggingListChanged, response)
+                    self.assertEqual(response['action'], 'update')
+                    self.assertEqual(response['reference_id'], 'refid1')
+                else:
+                    raise ValueError('Unexpected response %s' % response)
+
+            for k in expected_response:
+                self.assertIsNotNone(expected_response[k])
+
+            req: api_typing.C2S.UpdateDataloggingAcquisition = {
+                'cmd': 'update_datalogging_acquisition',
+                'reference_id': 'bad_ref_id',
+                'name': 'meow'
+            }
+
+            self.send_request(req)
+            self.assert_is_error(self.wait_and_load_response())
+
+    def test_delete_datalogging_acquisition(self):
+        # Rename an acquisition in datalogging storage through API
+        with DataloggingStorage.use_temp_storage():
+            acq1 = api_datalogging.DataloggingAcquisition(firmware_id='some_firmware_id', reference_id="refid1", name="foo")
+            acq1.set_xdata(api_datalogging.DataSeries())
+            acq2 = api_datalogging.DataloggingAcquisition(firmware_id='some_firmware_id', reference_id="refid2", name="bar")
+            acq2.set_xdata(api_datalogging.DataSeries())
+            acq3 = api_datalogging.DataloggingAcquisition(firmware_id='some_firmware_id', reference_id="refid3", name="baz")
+            acq3.set_xdata(api_datalogging.DataSeries())
+            DataloggingStorage.save(acq1)
+            DataloggingStorage.save(acq2)
+            DataloggingStorage.save(acq3)
+
+            self.assertEqual(DataloggingStorage.count(), 3)
+            req: api_typing.C2S.DeleteDataloggingAcquisition = {
+                'cmd': 'delete_datalogging_acquisition',
+                'reference_id': 'refid2',
+            }
+
+            self.send_request(req)
+            expected_response = {
+                API.Command.Api2Client.DELETE_DATALOGGING_ACQUISITION_RESPONSE: None,
+                API.Command.Api2Client.INFORM_DATALOGGING_LIST_CHANGED: None
+            }
+            for i in range(2):
+                response = self.wait_and_load_response()
+                self.assert_no_error(response)
+                expected_response[response['cmd']] = True
+                if response['cmd'] == API.Command.Api2Client.DELETE_DATALOGGING_ACQUISITION_RESPONSE:
+                    response = cast(api_typing.S2C.DeleteDataloggingAcquisition, response)
+                    self.assertEqual(DataloggingStorage.count(), 2)
+                    with self.assertRaises(LookupError):
+                        DataloggingStorage.read('refid2')
+
+                    DataloggingStorage.read('refid1')
+                    DataloggingStorage.read('refid3')
+                elif response['cmd'] == API.Command.Api2Client.INFORM_DATALOGGING_LIST_CHANGED:
+                    response = cast(api_typing.S2C.InformDataloggingListChanged, response)
+                    self.assertEqual(response['action'], 'delete')
+                    self.assertEqual(response['reference_id'], 'refid2')
+                else:
+                    raise ValueError('Unexpected response %s' % response)
+
+            for k in expected_response:
+                self.assertIsNotNone(expected_response[k])
+
+            req: api_typing.C2S.DeleteDataloggingAcquisition = {
+                'cmd': 'delete_datalogging_acquisition',
+                'reference_id': 'bad_ref_id'
+            }
+
+            self.send_request(req)
+            self.assert_is_error(self.wait_and_load_response())
+
+    def test_delete_all_datalogging_acquisition(self):
+        # Rename an acquisition in datalogging storage through API
+        with DataloggingStorage.use_temp_storage():
+            acq1 = api_datalogging.DataloggingAcquisition(firmware_id='some_firmware_id', reference_id="refid1", name="foo")
+            acq1.set_xdata(api_datalogging.DataSeries())
+            acq2 = api_datalogging.DataloggingAcquisition(firmware_id='some_firmware_id', reference_id="refid2", name="bar")
+            acq2.set_xdata(api_datalogging.DataSeries())
+            acq3 = api_datalogging.DataloggingAcquisition(firmware_id='some_firmware_id', reference_id="refid3", name="baz")
+            acq3.set_xdata(api_datalogging.DataSeries())
+            DataloggingStorage.save(acq1)
+            DataloggingStorage.save(acq2)
+            DataloggingStorage.save(acq3)
+
+            self.assertEqual(DataloggingStorage.count(), 3)
+            req: api_typing.C2S.DeleteDataloggingAcquisition = {
+                'cmd': 'delete_all_datalogging_acquisition'
+            }
+
+            self.send_request(req)
+            expected_response = {
+                API.Command.Api2Client.DELETE_ALL_DATALOGGING_ACQUISITION_RESPONSE: None,
+                API.Command.Api2Client.INFORM_DATALOGGING_LIST_CHANGED: None
+            }
+            for i in range(2):
+                response = self.wait_and_load_response()
+                self.assert_no_error(response)
+                expected_response[response['cmd']] = True
+                if response['cmd'] == API.Command.Api2Client.DELETE_ALL_DATALOGGING_ACQUISITION_RESPONSE:
+                    response = cast(api_typing.S2C.DeleteDataloggingAcquisition, response)
+                    self.assertEqual(DataloggingStorage.count(), 0)
+                elif response['cmd'] == API.Command.Api2Client.INFORM_DATALOGGING_LIST_CHANGED:
+                    response = cast(api_typing.S2C.InformDataloggingListChanged, response)
+                    self.assertEqual(response['action'], 'delete_all')
+                else:
+                    raise ValueError('Unexpected response %s' % response)
+
+            for k in expected_response:
+                self.assertIsNotNone(expected_response[k])
+
+    def test_read_datalogging_acquisition_content(self):
+        with DataloggingStorage.use_temp_storage():
+            axis1 = api_datalogging.AxisDefinition(name="Axis1", external_id=0)
+            axis2 = api_datalogging.AxisDefinition(name="Axis2", external_id=1)
+            acq = api_datalogging.DataloggingAcquisition(firmware_id='some_firmware_id', reference_id="refid1", name="foo")
+            acq.set_xdata(api_datalogging.DataSeries([0, 1, 2, 3, 4, 5, 6, 7, 8, 9], name='the x-axis', logged_element='/var/xaxis'))
+            acq.add_data(api_datalogging.DataSeries([10, 20, 30, 40, 50, 60, 70, 80, 90], name='series 1', logged_element='/var/data1'), axis1)
+            acq.add_data(api_datalogging.DataSeries([100, 200, 300, 400, 500, 600, 700,
+                         800, 900], name='series 2', logged_element='/var/data2'), axis2)
+            DataloggingStorage.save(acq)
+
+            req: api_typing.C2S.ReadDataloggingAcquisitionContent = {
+                'cmd': 'read_datalogging_acquisition_content',
+                'reference_id': 'refid1'
+            }
+
+            self.send_request(req)
+            response = cast(api_typing.S2C.ReadDataloggingAcquisitionContent, self.wait_and_load_response())
+            self.assert_no_error(response)
+            self.assertEqual(response['cmd'], 'read_datalogging_acquisition_content_response')
+            self.assertEqual(len(response['signals']), 2)
+
+            self.assertEqual(response['xdata']['name'], 'the x-axis')
+            self.assertEqual(response['xdata']['data'], [0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
+            self.assertEqual(response['xdata']['logged_element'], '/var/xaxis')
+
+            self.assertEqual(len(response['yaxis']), 2)
+            self.assertEqual(response['yaxis'][0]['name'], 'Axis1')
+            self.assertEqual(response['yaxis'][0]['id'], 0)
+            self.assertEqual(response['yaxis'][1]['name'], 'Axis2')
+            self.assertEqual(response['yaxis'][1]['id'], 1)
+
+            self.assertEqual(response['signals'][0]['name'], 'series 1')
+            self.assertEqual(response['signals'][0]['data'], [10, 20, 30, 40, 50, 60, 70, 80, 90])
+            self.assertEqual(response['signals'][0]['logged_element'], '/var/data1')
+            self.assertEqual(response['signals'][0]['axis_id'], 0)
+
+            self.assertEqual(response['signals'][1]['name'], 'series 2')
+            self.assertEqual(response['signals'][1]['data'], [100, 200, 300, 400, 500, 600, 700, 800, 900])
+            self.assertEqual(response['signals'][1]['logged_element'], '/var/data2')
+            self.assertEqual(response['signals'][1]['axis_id'], 1)
+
+            req: api_typing.C2S.ReadDataloggingAcquisitionContent = {
+                'cmd': 'read_datalogging_acquisition',
+                'reference_id': 'bad_id'
+            }
+
+            self.send_request(req)
+            response = cast(api_typing.S2C.ReadDataloggingAcquisitionContent, self.wait_and_load_response())
+            self.assert_is_error(response)
+
+    def send_request_datalogging_acquisition_and_fetch_result(self, req: api_typing.C2S.RequestDataloggingAcquisition) -> api_datalogging.AcquisitionRequest:
+        self.send_request(req)
+        response = self.wait_and_load_response()
+        self.assert_no_error(response)
+        self.assertIn(response['cmd'], [API.Command.Api2Client.INFORM_DATALOGGING_LIST_CHANGED,
+                      API.Command.Api2Client.REQUEST_DATALOGGING_ACQUISITION_RESPONSE])
+        response = self.wait_and_load_response()
+        self.assert_no_error(response)
+        self.assertIn(response['cmd'], [API.Command.Api2Client.INFORM_DATALOGGING_LIST_CHANGED,
+                                        API.Command.Api2Client.REQUEST_DATALOGGING_ACQUISITION_RESPONSE])
+
+        self.assertFalse(self.fake_datalogging_manager.request_queue.empty())
+        ar = self.fake_datalogging_manager.request_queue.get()
+        self.assertTrue(self.fake_datalogging_manager.request_queue.empty())
+
+        if self.connections[0].from_server_available():
+            self.connections[0].read_from_server()
+
+        return ar
+
+    def test_request_datalogging_acquisition(self):
+        with DataloggingStorage.use_temp_storage():
+
+            var_entries: List[DatastoreVariableEntry] = self.make_dummy_entries(5, entry_type=EntryType.Var, prefix='var')
+            rpv_entries: List[DatastoreRPVEntry] = self.make_dummy_entries(5, entry_type=EntryType.RuntimePublishedValue, prefix='rpv')
+            alias_entries_var: List[DatastoreAliasEntry] = self.make_dummy_entries(
+                2, entry_type=EntryType.Alias, prefix='alias', alias_bucket=var_entries)
+            alias_entries_rpv: List[DatastoreAliasEntry] = self.make_dummy_entries(
+                3, entry_type=EntryType.Alias, prefix='alias', alias_bucket=rpv_entries)
+
+            # Add entries in the datastore that we will reread through the API
+            self.datastore.add_entries(var_entries)
+            self.datastore.add_entries(rpv_entries)
+            self.datastore.add_entries(alias_entries_var)
+            self.datastore.add_entries(alias_entries_rpv)
+
+            def create_default_request() -> api_typing.C2S.RequestDataloggingAcquisition:
+                req: api_typing.C2S.RequestDataloggingAcquisition = {
+                    'cmd': 'request_datalogging_acquisition',
+                    'decimation': 100,
+                    'probe_location': 0.7,
+                    'sampling_rate_id': 1,
+                    'timeout': 100.1,
+                    'trigger_hold_time': 0.1,
+                    'x_axis_type': 'ideal_time',
+                    'condition': 'eq',
+                    'yaxis': [dict(name="Axis1", id=0), dict(name="Axis2", id=100)],
+                    'operands': [
+                        dict(type='literal', value=123),
+                        dict(type='watchable', value=var_entries[0].get_id())
+                    ],
+                    'signals': [
+                        dict(id=var_entries[1].get_id(), name='var1', axis_id=0),
+                        dict(id=alias_entries_var[0].get_id(), name='alias_var_1', axis_id=0),
+                        dict(id=alias_entries_rpv[0].get_id(), name='alias_rpv_1', axis_id=100),
+                        dict(id=rpv_entries[0].get_id(), name='rpv0', axis_id=100),
+                    ]
+                }
+                return req
+
+            req = create_default_request()
+            ar = self.send_request_datalogging_acquisition_and_fetch_result(req)
+
+            self.assertEqual(ar.decimation, 100)
+            self.assertEqual(ar.probe_location, 0.7)
+            self.assertEqual(ar.rate_identifier, 1)
+            self.assertEqual(ar.timeout, 100.1)
+            self.assertEqual(ar.trigger_hold_time, 0.1)
+            self.assertEqual(ar.x_axis_type, api_datalogging.XAxisType.IdealTime)
+            self.assertIsNone(ar.x_axis_signal)
+            self.assertEqual(ar.trigger_condition.condition_id, api_datalogging.TriggerConditionID.Equal)
+            yaxis_list = ar.get_yaxis_list()
+            self.assertEqual(len(yaxis_list), 2)
+            self.assertEqual(yaxis_list[0].name, "Axis1")
+            self.assertEqual(yaxis_list[1].name, "Axis2")
+
+            self.assertEqual(ar.trigger_condition.operands[0].type, api_datalogging.TriggerConditionOperandType.LITERAL)
+            self.assertEqual(ar.trigger_condition.operands[0].value, 123)
+            self.assertEqual(ar.trigger_condition.operands[1].type, api_datalogging.TriggerConditionOperandType.WATCHABLE)
+            self.assertIs(ar.trigger_condition.operands[1].value, var_entries[0])
+
+            self.assertIs(ar.signals[0].entry, var_entries[1])
+            self.assertIs(ar.signals[1].entry, alias_entries_var[0])
+            self.assertIs(ar.signals[2].entry, alias_entries_rpv[0])
+            self.assertIs(ar.signals[3].entry, rpv_entries[0])
+
+            self.assertEqual(ar.signals[0].name, 'var1')
+            self.assertEqual(ar.signals[1].name, 'alias_var_1')
+            self.assertEqual(ar.signals[2].name, 'alias_rpv_1')
+            self.assertEqual(ar.signals[3].name, 'rpv0')
+
+            self.assertIs(ar.signals[0].axis, yaxis_list[0])
+            self.assertIs(ar.signals[1].axis, yaxis_list[0])
+            self.assertIs(ar.signals[2].axis, yaxis_list[1])
+            self.assertIs(ar.signals[3].axis, yaxis_list[1])
+
+            # conditions
+            all_conditions = {
+                'true': dict(condition_id=api_datalogging.TriggerConditionID.AlwaysTrue, nb_operands=0),
+                'eq': dict(condition_id=api_datalogging.TriggerConditionID.Equal, nb_operands=2),
+                'lt': dict(condition_id=api_datalogging.TriggerConditionID.LessThan, nb_operands=2),
+                'let': dict(condition_id=api_datalogging.TriggerConditionID.LessOrEqualThan, nb_operands=2),
+                'gt': dict(condition_id=api_datalogging.TriggerConditionID.GreaterThan, nb_operands=2),
+                'get': dict(condition_id=api_datalogging.TriggerConditionID.GreaterOrEqualThan, nb_operands=2),
+                'cmt': dict(condition_id=api_datalogging.TriggerConditionID.ChangeMoreThan, nb_operands=2),
+                'within': dict(condition_id=api_datalogging.TriggerConditionID.IsWithin, nb_operands=3)
+            }
+
+            for api_cond in all_conditions:
+                for nb_operand in range(all_conditions[api_cond]['nb_operands'] + 1):
+                    req = create_default_request()
+                    req['condition'] = api_cond
+                    req['operands'] = []
+                    for i in range(nb_operand):
+                        req['operands'].append(dict(type='literal', value=i))
+                    if nb_operand == all_conditions[api_cond]['nb_operands']:
+                        ar = self.send_request_datalogging_acquisition_and_fetch_result(req)
+                        self.assertEqual(ar.trigger_condition.condition_id, all_conditions[api_cond]['condition_id'])
+                    else:
+                        self.send_request(req)
+                        self.assert_is_error(self.wait_and_load_response())
+
+            req = create_default_request()
+            req['condition'] = 'meow'
+            self.send_request(req)
+            self.assert_is_error(self.wait_and_load_response())
+
+            # x axis
+            # measured time ok
+            req = create_default_request()
+            req['x_axis_type'] = 'measured_time'
+            ar = self.send_request_datalogging_acquisition_and_fetch_result(req)
+            self.assertEqual(ar.x_axis_type, api_datalogging.XAxisType.MeasuredTime)
+            self.assertIsNone(ar.x_axis_signal)
+
+            # watchable ok
+            req = create_default_request()
+            req['x_axis_type'] = 'signal'
+            req['x_axis_signal'] = dict(name="hello", id=rpv_entries[1].get_id())
+            ar = self.send_request_datalogging_acquisition_and_fetch_result(req)
+            self.assertEqual(ar.x_axis_type, api_datalogging.XAxisType.Signal)
+            self.assertIs(ar.x_axis_signal.entry, rpv_entries[1])
+            self.assertEqual(ar.x_axis_signal.name, 'hello')
+
+            # watchable no name is ok
+            req = create_default_request()
+            req['x_axis_type'] = 'signal'
+            req['x_axis_signal'] = dict(id=rpv_entries[1].get_id())
+            ar = self.send_request_datalogging_acquisition_and_fetch_result(req)
+            self.assertEqual(ar.x_axis_type, api_datalogging.XAxisType.Signal)
+            self.assertIs(ar.x_axis_signal.entry, rpv_entries[1])
+            self.assertEqual(ar.x_axis_signal.name, None)
+
+            # watchable bad format
+            req = create_default_request()
+            req['x_axis_type'] = 'signal'
+            req['x_axis_signal'] = "bad format"
+            self.send_request(req)
+            self.assert_is_error(self.wait_and_load_response())
+
+            # watchable unknown ID
+            req = create_default_request()
+            req['x_axis_type'] = 'signal'
+            req['x_axis_signal'] = dict(watchable='unknown_id')
+            self.send_request(req)
+            self.assert_is_error(self.wait_and_load_response())
+
+            # watchable is missing
+            req = create_default_request()
+            req['x_axis_type'] = 'signal'
+            self.send_request(req)
+            self.assert_is_error(self.wait_and_load_response())
+
+            # unknown type
+            req = create_default_request()
+            req['x_axis_type'] = 'meow'
+            self.send_request(req)
+            self.assert_is_error(self.wait_and_load_response())
+
+            # unknown watchable
+            req = create_default_request()
+            req['signals'][0]['id'] = 'unknown_id'
+            self.send_request(req)
+            self.assert_is_error(self.wait_and_load_response())
+
+            # Bad decimation
+            for bad_decimation in ['meow', -1, 0, 1.5, None, [1]]:
+                req = create_default_request()
+                req['decimation'] = bad_decimation
+                self.send_request(req)
+                self.assert_is_error(self.wait_and_load_response())
+
+            # Bad decimation
+            for bad_hold_time in ['meow', -1, None, [1]]:
+                req = create_default_request()
+                req['trigger_hold_time'] = bad_hold_time
+                self.send_request(req)
+                self.assert_is_error(self.wait_and_load_response())
+
+            # Bad Timeout
+            for bad_timeout in ['meow', -1, None, [1]]:
+                req = create_default_request()
+                req['timeout'] = bad_timeout
+                self.send_request(req)
+                self.assert_is_error(self.wait_and_load_response())
+
+            # Bad Timeout
+            for bad_probe_location in ['meow', -1, 1.1, 2, [1]]:
+                req = create_default_request()
+                req['probe_location'] = bad_probe_location
+                self.send_request(req)
+                self.assert_is_error(self.wait_and_load_response())
+
+            # Bad Timeout
+            for bad_freq_id in ['meow', -1, 1.1, [1]]:
+                req = create_default_request()
+                req['sampling_rate_id'] = bad_freq_id
+                self.send_request(req)
+                self.assert_is_error(self.wait_and_load_response())
+
+                # Bad Timeout
+            for bad_rate_id in ['meow', -1, 11, [1]]:   # Fake datalogging manager consider all sample rate id > 10 to be bad.
+                req = create_default_request()
+                req['sampling_rate_id'] = bad_rate_id
+                self.send_request(req)
+                self.assert_is_error(self.wait_and_load_response())
+
+            for bad_watchable_format in ['meow', -1, 11, [1]]:   # Fake datalogging manager consider all sample rate id > 10 to be bad.
+                req = create_default_request()
+                req['signals'][0] = bad_watchable_format
+                self.send_request(req)
+                self.assert_is_error(self.wait_and_load_response())
+
+            for bad_axis_id in ['meow', -1, 1, [1]]:
+                req = create_default_request()
+                req['signals'][0]['axis_id'] = bad_axis_id
+                self.send_request(req)
+                self.assert_is_error(self.wait_and_load_response())
+
+            for bad_axis_id in ['meow', 1.2, [1]]:
+                req = create_default_request()
+                req['yaxis'][0]['id'] = bad_axis_id
+                self.send_request(req)
+                self.assert_is_error(self.wait_and_load_response())
+
+            # duplicate id
+            req = create_default_request()
+            req['yaxis'][0]['id'] = req['yaxis'][1]['id']
+            self.send_request(req)
+            self.assert_is_error(self.wait_and_load_response())
+
+
+# endregion
+if __name__ == '__main__':
+    import unittest
+    unittest.main()

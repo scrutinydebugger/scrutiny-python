@@ -7,10 +7,9 @@
 #
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 
-import unittest
 import random
 from dataclasses import dataclass
-from sortedcontainers import SortedSet
+from sortedcontainers import SortedSet  # type: ignore
 
 from scrutiny.server.datastore.datastore import Datastore
 from scrutiny.server.datastore.datastore_entry import *
@@ -22,6 +21,7 @@ import scrutiny.server.protocol.typing as protocol_typing
 from scrutiny.server.protocol.commands import *
 from scrutiny.core.variable import *
 from scrutiny.core.basic_types import *
+from test import ScrutinyUnitTest
 
 from typing import List, Dict, Generator, cast
 from scrutiny.core.typehints import GenericCallback
@@ -70,7 +70,7 @@ def d2f(d):
     return struct.unpack('f', struct.pack('f', d))[0]
 
 
-class TestMemoryReaderBasicReadOperation(unittest.TestCase):
+class TestMemoryReaderBasicReadOperation(ScrutinyUnitTest):
     """
         Test the memory reader for its ability to read memory block using the MemoryControl.Read request.
         Basic read operation only
@@ -329,7 +329,7 @@ class TestMemoryReaderBasicReadOperation(unittest.TestCase):
                 record.complete(success=True, response=response)
 
 
-class TestMemoryReaderComplexReadOperation(unittest.TestCase):
+class TestMemoryReaderComplexReadOperation(ScrutinyUnitTest):
     """
     Test the memory reader for its ability to read memory block using the MemoryControl.Read request.
 
@@ -449,7 +449,7 @@ class TestMemoryReaderComplexReadOperation(unittest.TestCase):
             self.assertEqual(self.callback_count_map[forbidden_entry], 0)
 
 
-class TestRPVReaderBasicReadOperation(unittest.TestCase):
+class TestRPVReaderBasicReadOperation(ScrutinyUnitTest):
     """
         Test the ability to read Runtime Published Values using the MemoryControl.ReadRPV request
     """
@@ -704,7 +704,7 @@ class TestRPVReaderBasicReadOperation(unittest.TestCase):
                 record.complete(success=True, response=response)
 
 
-class TestMemoryAndRPVReader(unittest.TestCase):
+class TestMemoryAndRPVReader(ScrutinyUnitTest):
     """
     Here we test the ability of the MemoryReader to handle mixed subscriptions between RPV and Variables
     """
@@ -819,3 +819,8 @@ class TestMemoryAndRPVReader(unittest.TestCase):
                     print("RPV: 0x%04x - %d" % (self.datastore.get_entry(entry_id).get_rpv().id, n))
 
             self.assert_round_robin()
+
+
+if __name__ == '__main__':
+    import unittest
+    unittest.main()

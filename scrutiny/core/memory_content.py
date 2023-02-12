@@ -198,7 +198,7 @@ class MemoryContent:
 
         x = bisect(self.sorted_keys, addr)
         if x <= 0:
-            raise ValueError('Address out of range')
+            raise ValueError('Address 0x%08x out of range' % (addr))
 
         addr_start = self.sorted_keys[x - 1]
         offset = addr - addr_start
@@ -331,7 +331,7 @@ class MemoryContent:
             i = max(0, written_key_index - 1)
 
         merge_done = 0
-        while i < len(self.sorted_keys):   # Todo, improve speed of this
+        while i < len(self.sorted_keys):
             start_addr1 = self.sorted_keys[i]
             size1 = len(self.clusters[start_addr1])
 

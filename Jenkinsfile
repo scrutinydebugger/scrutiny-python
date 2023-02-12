@@ -13,6 +13,16 @@ pipeline {
             stages {
                 stage('Testing'){
                     parallel{
+                        
+                        stage ('Python 3.11') {
+                            steps {
+                                sh '''
+                                python3.11 -m venv venv-3.11
+                                SCRUTINY_VENV_DIR=venv-3.11 scripts/with-venv.sh scripts/check-python-version.sh 3.11
+                                SCRUTINY_VENV_DIR=venv-3.11 scripts/with-venv.sh scripts/runtests.sh
+                                '''
+                            }
+                        }
                         stage ('Python 3.10') {
                             steps {
                                 sh '''

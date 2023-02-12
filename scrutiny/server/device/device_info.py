@@ -8,6 +8,9 @@
 
 from typing import TypedDict, List, Optional
 from scrutiny.core.basic_types import *
+from enum import Enum
+from dataclasses import dataclass
+from abc import abstractmethod
 
 
 class MemoryRegion(TypedDict):
@@ -16,11 +19,63 @@ class MemoryRegion(TypedDict):
     end: int
 
 
+class ExecLoopType(Enum):
+    FIXED_FREQ = 0
+    VARIABLE_FREQ = 1
+
+
+class ExecLoop:
+    name: str
+    support_datalogging: bool
+
+    def __init__(self, name: str, support_datalogging: bool = True):
+        self.name = name
+        self.support_datalogging = support_datalogging
+
+    def set_name(self, name: str) -> None:
+        self.name = name
+
+    def get_name(self) -> str:
+        return self.name
+
+    @abstractmethod
+    def get_loop_type(self) -> ExecLoopType:
+        raise NotImplementedError('Abstract method')
+
+
+class FixedFreqLoop(ExecLoop):
+    freq: float
+
+    def __init__(self, freq: float, name: str, support_datalogging: bool = True):
+        super().__init__(name, support_datalogging)
+        self.freq = freq
+
+    def get_loop_type(self) -> ExecLoopType:
+        return ExecLoopType.FIXED_FREQ
+
+    def get_timestep_100ns(self) -> int:
+        return round(1e7 / self.freq)
+
+    def get_frequency(self) -> float:
+        return self.freq
+
+
+class VariableFreqLoop(ExecLoop):
+
+    def __init__(self, name: str, support_datalogging: bool = True):
+        super().__init__(name, support_datalogging)
+
+    def get_loop_type(self) -> ExecLoopType:
+        return ExecLoopType.VARIABLE_FREQ
+
+
 class SupportedFeatureMap(TypedDict):
     """Dictionnary of all possible supported features by the device (libscrutiny-embedded)"""
+    memory_read: bool
     memory_write: bool
-    datalog_acquire: bool
+    datalogging: bool
     user_command: bool
+    _64bits: bool
 
 
 class DeviceInfo:
@@ -39,7 +94,8 @@ class DeviceInfo:
         'supported_feature_map',
         'forbidden_memory_regions',
         'readonly_memory_regions',
-        'runtime_published_values'
+        'runtime_published_values',
+        'loops'
     )
 
     device_id: Optional[str]
@@ -83,6 +139,9 @@ class DeviceInfo:
 
     runtime_published_values: Optional[List[RuntimePublishedValue]]
     """List of all RuntimePublishedValues (RPV) registered in the device firmware"""
+
+    loops: Optional[List[ExecLoop]]
+    """List of execution loops (tasks) exposed by the embedded device"""
 
     def get_attributes(self):
         return self.__slots__

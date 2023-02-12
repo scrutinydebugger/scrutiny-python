@@ -6,12 +6,12 @@
 #
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 
-import unittest
 from scrutiny.core.alias import Alias
 from scrutiny.server.datastore.entry_type import EntryType
+from test import ScrutinyUnitTest
 
 
-class TestAlias(unittest.TestCase):
+class TestAlias(ScrutinyUnitTest):
     def test_basics(self):
         with self.assertRaises(Exception):
             Alias.from_dict('aaa', {})
@@ -126,3 +126,8 @@ class TestAlias(unittest.TestCase):
         self.assertEqual(alias.compute_user_to_device(-100), -55)
         self.assertEqual(alias.compute_device_to_user(10), 30.0)
         self.assertEqual(alias.compute_device_to_user(200), 410)
+
+
+if __name__ == '__main__':
+    import unittest
+    unittest.main()

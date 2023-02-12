@@ -7,10 +7,6 @@
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 
 import unittest
-import subprocess
-import json
-import os
-import sys
 
 from scrutiny.core.varmap import VarMap
 from scrutiny.core.basic_types import *
@@ -20,10 +16,11 @@ from scrutiny.core.memory_content import MemoryContent
 from scrutiny.exceptions import EnvionmentNotSetUpException
 from test import SkipOnException
 from test.artifacts import get_artifact
+from test import ScrutinyUnitTest
 
 
-class TestMakeVarMap_LinuxLEx64_Gcc8_3_0(unittest.TestCase):
-
+class TestMakeVarMap_LinuxLEx64_Gcc8_3_0(ScrutinyUnitTest):
+    init_exception: Optional[Exception]
     bin_filename = get_artifact('testappDebianLEx64_gcc8_3_0')
     memdump_filename = get_artifact('testappDebianLEx64_gcc8_3_0.memdump')
 
@@ -221,3 +218,8 @@ class TestMakeVarMap_LinuxLEx64_Gcc8_3_0(unittest.TestCase):
         self.assert_var('/static/file2.cpp/file2ClassBStaticInstance/nestedClassInstance/intInClassBA', EmbeddedDataType.sint32, value_at_loc=-55555)
         self.assert_var('/static/file2.cpp/file2ClassBStaticInstance/nestedClassInstance/classAInstance/intInClassA',
                         EmbeddedDataType.sint32, value_at_loc=-66666)
+
+
+if __name__ == '__main__':
+    import unittest
+    unittest.main()

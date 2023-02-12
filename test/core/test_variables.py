@@ -6,18 +6,18 @@
 #
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 
-import unittest
 import struct
 
 from scrutiny.core.variable import *
 from binascii import unhexlify
+from test import ScrutinyUnitTest
 
 
 def d2f(d):
     return struct.unpack('f', struct.pack('f', d))[0]
 
 
-class TestVariables(unittest.TestCase):
+class TestVariables(ScrutinyUnitTest):
     def test_variable_encode_no_bitfield(self):
         # Floating point
         f32_le = Variable('float32_le', vartype=EmbeddedDataType.float32, path_segments=[], location=0, endianness=Endianness.Little)
@@ -175,7 +175,7 @@ class TestVariables(unittest.TestCase):
         self.assertEqual(bool_le.get_bitfield_mask(), unhexlify('FF'))
         self.assertEqual(bool_be.get_bitfield_mask(), unhexlify('FF'))
 
-    def assert_var_bitfield_mask(self, vartype: EmbeddedDataType, endianness: Endianness, bitoffset: int, bitsize: int, expected_mask: bytes) -> Variable:
+    def assert_var_bitfield_mask(self, vartype: EmbeddedDataType, endianness: Endianness, bitoffset: int, bitsize: int, expected_mask: bytes) -> None:
         v = Variable('aaa', vartype=vartype, path_segments=[],
                      location=0, endianness=endianness, bitoffset=bitoffset, bitsize=bitsize)
         self.assertEqual(v.get_bitfield_mask(), expected_mask)
@@ -250,3 +250,8 @@ class TestVariables(unittest.TestCase):
                      endianness=Endianness.Little, bitoffset=combination[1], bitsize=combination[2])
             Variable('a', vartype=combination[0], path_segments=[], location=0,
                      endianness=Endianness.Big, bitoffset=combination[1], bitsize=combination[2])
+
+
+if __name__ == '__main__':
+    import unittest
+    unittest.main()

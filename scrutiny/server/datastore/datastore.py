@@ -157,7 +157,7 @@ class Datastore:
             callback(entry_id)
 
         if isinstance(entry, DatastoreAliasEntry):
-            # Alias are tricky. When we subscribe to them, another hidden subscribtion to the referenced entry is made here
+            # Alias are tricky. When we subscribe to them, another hidden subscription to the referenced entry is made here
             alias_value_change_callback = functools.partial(self.alias_value_change_callback, watching_entry=entry)
             self.start_watching(
                 entry_id=entry.resolve(),
@@ -255,7 +255,7 @@ class Datastore:
         return list(self.watcher_map[entry_type].keys())
 
     def make_owner_from_alias_entry(self, entry: DatastoreAliasEntry) -> str:
-        """ When somebody subscribre to an alias, the datastore starts watching the pointed entry
+        """ When somebody subscribes to an alias, the datastore starts watching the pointed entry
         This method creates a watcher name based on the alias ID"""
         return 'alias_' + entry.get_id()
 

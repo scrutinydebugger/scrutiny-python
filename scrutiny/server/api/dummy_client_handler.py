@@ -1,5 +1,5 @@
 #    dummy_client_handler.py
-#        Stubbed API connector to make API requests in unittests without relying on websockets
+#        Stubbed API connector to make API requests in unit tests without relying on websockets
 #
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
@@ -21,8 +21,8 @@ from typing import Optional, Dict, List
 class DummyConnection:
 
     conn_id: str
-    client_to_server_queue: queue.Queue
-    server_to_client_queue: queue.Queue
+    client_to_server_queue: "queue.Queue[str]"
+    server_to_client_queue: "queue.Queue[str]"
     opened: bool
 
     def __init__(self, conn_id: Optional[str] = None):
@@ -81,8 +81,8 @@ class DummyConnection:
 
 class DummyClientHandler(AbstractClientHandler):
 
-    rxqueue: queue.Queue
-    txqueue: queue.Queue
+    rxqueue: "queue.Queue[ClientHandlerMessage]"
+    txqueue: "queue.Queue[ClientHandlerMessage]"
     config: Dict[str, str]
     logger: logging.Logger
     stop_requested: bool
