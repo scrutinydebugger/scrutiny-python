@@ -1184,6 +1184,7 @@ class API:
         broadcast_msg: api_typing.S2C.InformDataloggingListChanged = {
             'cmd': API.Command.Api2Client.INFORM_DATALOGGING_LIST_CHANGED,
             'reqid': None,
+            'reference_id': None,
             'action': 'delete_all'
         }
 
