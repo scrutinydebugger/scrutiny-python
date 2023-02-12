@@ -99,6 +99,7 @@ class MemoryWriter:
         self.entry_being_updated = None
         self.request_of_entry_being_updated = None
         self.target_update_request_being_processed = None
+        self.target_update_value_written = None
 
     def clear_config(self) -> None:
         """Erase the configuration coming from the device handler"""
