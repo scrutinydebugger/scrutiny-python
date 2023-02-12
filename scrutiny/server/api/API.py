@@ -416,12 +416,13 @@ class API:
         # Sends RPV first, variable last
         priority = [EntryType.RuntimePublishedValue, EntryType.Alias, EntryType.Var]
 
-        entries = {}
+        entries: Dict[EntryType, List[DatastoreEntry]] = {}
         for entry_type in priority:  # TODO : Improve this not to copy the whole datastore while sending. Use a generator instead
             entries[entry_type] = self.datastore.get_entries_list_by_type(entry_type) if entry_type in type_to_include else []
 
         done = False
 
+        entries_to_send: Dict[EntryType, List[DatastoreEntry]]
         while not done:
             if max_per_response is None:
                 entries_to_send = entries
