@@ -157,6 +157,11 @@ class DataloggingCapabilities(TypedDict):
     sampling_rates: List[SamplingRate]
 
 
+class AxisNameUpdateEntry(TypedDict):
+    id: int
+    name: str
+
+
 class C2S:
     "Client To Server"
     class Echo(BaseC2SMessage):
@@ -219,6 +224,7 @@ class C2S:
     class UpdateDataloggingAcquisition(BaseC2SMessage):
         reference_id: str
         name: Optional[str]
+        axis_name: Optional[List[AxisNameUpdateEntry]]
 
     class DeleteDataloggingAcquisition(BaseC2SMessage):
         reference_id: str

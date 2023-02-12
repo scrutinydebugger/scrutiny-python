@@ -84,7 +84,7 @@ class TestDataloggingStorage(ScrutinyUnitTest):
         acq2.add_data(self.make_dummy_data(15), axis2)
 
         acq3.set_xdata(self.make_dummy_data(50))
-        acq3.add_data(self.make_dummy_data(10), axis2)
+        acq3.add_data(self.make_dummy_data(10), axis1)
         acq3.add_data(self.make_dummy_data(15), axis2)
         acq3.add_data(self.make_dummy_data(20), axis2)
 
@@ -119,9 +119,12 @@ class TestDataloggingStorage(ScrutinyUnitTest):
             self.assert_acquisition_identical(acq3, acq3_fetched)
 
             self.assertEqual(acq3_fetched.name, None)
-            DataloggingStorage.update_name_by_reference_id(acq3.reference_id, "meow")
+            DataloggingStorage.update_acquisition_name(acq3.reference_id, "meow")
+            DataloggingStorage.update_axis_name(acq3.reference_id, axis2.external_id, "woof")
             acq3_fetched = DataloggingStorage.read(acq3.reference_id)
             self.assertEqual(acq3_fetched.name, "meow")
+            self.assertEqual(acq3_fetched.get_data()[1].axis.name, "woof")
+            self.assertEqual(acq3_fetched.get_data()[2].axis.name, "woof")
 
             DataloggingStorage.delete(acq2.reference_id)
 
@@ -148,7 +151,7 @@ class TestDataloggingStorage(ScrutinyUnitTest):
     def test_bad_reference_id(self):
         with DataloggingStorage.use_temp_storage():
             with self.assertRaises(LookupError):
-                DataloggingStorage.update_name_by_reference_id(
+                DataloggingStorage.update_acquisition_name(
                     reference_id='inexistant_id',
                     name='hello'
                 )

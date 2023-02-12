@@ -1310,8 +1310,13 @@ class TestAPI(ScrutinyUnitTest):
     def test_update_datalogging_acquisition(self):
         # Rename an acquisition in datalogging storage through API
         with DataloggingStorage.use_temp_storage():
+            axis1 = api_datalogging.AxisDefinition('Axis1', 0)
+            axis2 = api_datalogging.AxisDefinition('Axis2', 1)
             acq1 = api_datalogging.DataloggingAcquisition(firmware_id='some_firmware_id', reference_id="refid1", name="foo")
             acq1.set_xdata(api_datalogging.DataSeries())
+            acq1.add_data(api_datalogging.DataSeries(), axis1)
+            acq1.add_data(api_datalogging.DataSeries(), axis1)
+            acq1.add_data(api_datalogging.DataSeries(), axis2)
             acq2 = api_datalogging.DataloggingAcquisition(firmware_id='some_firmware_id', reference_id="refid2", name="bar")
             acq2.set_xdata(api_datalogging.DataSeries())
             acq3 = api_datalogging.DataloggingAcquisition(firmware_id='some_firmware_id', reference_id="refid3", name="baz")
@@ -1345,6 +1350,42 @@ class TestAPI(ScrutinyUnitTest):
                     response = cast(api_typing.S2C.InformDataloggingListChanged, response)
                     self.assertEqual(response['action'], 'update')
                     self.assertEqual(response['reference_id'], 'refid2')
+                else:
+                    raise ValueError('Unexpected response %s' % response)
+
+            for k in expected_response:
+                self.assertIsNotNone(expected_response[k])
+
+            req: api_typing.C2S.UpdateDataloggingAcquisition = {
+                'cmd': 'update_datalogging_acquisition',
+                'reference_id': 'refid1',
+                'axis_name': [{'id': 0, 'name': 'NewAxis1Name'}]
+            }
+
+            self.send_request(req)
+            expected_response = {
+                API.Command.Api2Client.UPDATE_DATALOGGING_ACQUISITION_RESPONSE: None,
+                API.Command.Api2Client.INFORM_DATALOGGING_LIST_CHANGED: None
+            }
+            for i in range(2):
+                response = self.wait_and_load_response()
+                self.assert_no_error(response)
+                expected_response[response['cmd']] = True
+                if response['cmd'] == API.Command.Api2Client.UPDATE_DATALOGGING_ACQUISITION_RESPONSE:
+                    response = cast(api_typing.S2C.UpdateDataloggingAcquisition, response)
+                    acq1_reloaded = DataloggingStorage.read('refid1')
+                    acq_data = acq1_reloaded.get_data()
+                    self.assertEqual(len(acq_data), 3)
+
+                    self.assertEqual(acq_data[0].axis.name, 'NewAxis1Name')
+                    self.assertEqual(acq_data[1].axis.name, 'NewAxis1Name')
+                    self.assertEqual(acq_data[2].axis.name, 'Axis2')
+                    self.assertEqual(acq1_reloaded.firmware_id, acq2.firmware_id)
+                    self.assertLess((acq1_reloaded.acq_time - acq2.acq_time).total_seconds(), 1)
+                elif response['cmd'] == API.Command.Api2Client.INFORM_DATALOGGING_LIST_CHANGED:
+                    response = cast(api_typing.S2C.InformDataloggingListChanged, response)
+                    self.assertEqual(response['action'], 'update')
+                    self.assertEqual(response['reference_id'], 'refid1')
                 else:
                     raise ValueError('Unexpected response %s' % response)
 

@@ -1076,12 +1076,39 @@ class API:
 
             err: Optional[Exception] = None
             try:
-                DataloggingStorage.update_name_by_reference_id(req['reference_id'], req['name'])
+                DataloggingStorage.update_acquisition_name(req['reference_id'], req['name'])
             except LookupError as e:
                 err = e
 
             if err:
                 raise InvalidRequestException(req, "Failed to update acquisition. %s" % (str(err)))
+
+        if 'axis_name' in req:
+            if not isinstance(req['axis_name'], list):
+                raise InvalidRequestException(req, 'Invalid axis name list')
+
+            for axis_name_entry in req['axis_name']:
+                if not isinstance(axis_name_entry, dict):
+                    raise InvalidRequestException(req, 'Invalid axis name list')
+
+                if 'id' not in axis_name_entry:
+                    raise InvalidRequestException(req, 'Missing id field')
+
+                if 'name' not in axis_name_entry:
+                    raise InvalidRequestException(req, 'Missing name field')
+
+                err: Optional[Exception] = None
+                try:
+                    DataloggingStorage.update_axis_name(
+                        reference_id=req['reference_id'],
+                        axis_id=axis_name_entry['id'],
+                        new_name=axis_name_entry['name']
+                    )
+                except LookupError as e:
+                    err = e
+
+                if err:
+                    raise InvalidRequestException(req, "Failed to update acquisition. %s" % (str(err)))
 
         response: api_typing.S2C.UpdateDataloggingAcquisition = {
             'cmd': API.Command.Api2Client.UPDATE_DATALOGGING_ACQUISITION_RESPONSE,
