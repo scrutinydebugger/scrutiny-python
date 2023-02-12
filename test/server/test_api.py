@@ -1455,6 +1455,45 @@ class TestAPI(ScrutinyUnitTest):
             self.send_request(req)
             self.assert_is_error(self.wait_and_load_response())
 
+    def test_delete_all_datalogging_acquisition(self):
+        # Rename an acquisition in datalogging storage through API
+        with DataloggingStorage.use_temp_storage():
+            acq1 = api_datalogging.DataloggingAcquisition(firmware_id='some_firmware_id', reference_id="refid1", name="foo")
+            acq1.set_xdata(api_datalogging.DataSeries())
+            acq2 = api_datalogging.DataloggingAcquisition(firmware_id='some_firmware_id', reference_id="refid2", name="bar")
+            acq2.set_xdata(api_datalogging.DataSeries())
+            acq3 = api_datalogging.DataloggingAcquisition(firmware_id='some_firmware_id', reference_id="refid3", name="baz")
+            acq3.set_xdata(api_datalogging.DataSeries())
+            DataloggingStorage.save(acq1)
+            DataloggingStorage.save(acq2)
+            DataloggingStorage.save(acq3)
+
+            self.assertEqual(DataloggingStorage.count(), 3)
+            req: api_typing.C2S.DeleteDataloggingAcquisition = {
+                'cmd': 'delete_all_datalogging_acquisition'
+            }
+
+            self.send_request(req)
+            expected_response = {
+                API.Command.Api2Client.DELETE_ALL_DATALOGGING_ACQUISITION_RESPONSE: None,
+                API.Command.Api2Client.INFORM_DATALOGGING_LIST_CHANGED: None
+            }
+            for i in range(2):
+                response = self.wait_and_load_response()
+                self.assert_no_error(response)
+                expected_response[response['cmd']] = True
+                if response['cmd'] == API.Command.Api2Client.DELETE_ALL_DATALOGGING_ACQUISITION_RESPONSE:
+                    response = cast(api_typing.S2C.DeleteDataloggingAcquisition, response)
+                    self.assertEqual(DataloggingStorage.count(), 0)
+                elif response['cmd'] == API.Command.Api2Client.INFORM_DATALOGGING_LIST_CHANGED:
+                    response = cast(api_typing.S2C.InformDataloggingListChanged, response)
+                    self.assertEqual(response['action'], 'delete_all')
+                else:
+                    raise ValueError('Unexpected response %s' % response)
+
+            for k in expected_response:
+                self.assertIsNotNone(expected_response[k])
+
     def test_read_datalogging_acquisition_content(self):
         with DataloggingStorage.use_temp_storage():
             axis1 = api_datalogging.AxisDefinition(name="Axis1", external_id=0)

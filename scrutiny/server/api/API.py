@@ -81,6 +81,7 @@ class API:
             READ_DATALOGGING_ACQUISITION_CONTENT = 'read_datalogging_acquisition_content'
             UPDATE_DATALOGGING_ACQUISITION = 'update_datalogging_acquisition'
             DELETE_DATALOGGING_ACQUISITION = 'delete_datalogging_acquisition'
+            DELETE_ALL_DATALOGGING_ACQUISITION = 'delete_all_datalogging_acquisition'
             DEBUG = 'debug'
 
         class Api2Client:
@@ -104,6 +105,7 @@ class API:
             READ_DATALOGGING_ACQUISITION_CONTENT_RESPONSE = 'read_datalogging_acquisition_content_response'
             UPDATE_DATALOGGING_ACQUISITION_RESPONSE = 'update_datalogging_acquisition_response'
             DELETE_DATALOGGING_ACQUISITION_RESPONSE = 'delete_datalogging_acquisition_response'
+            DELETE_ALL_DATALOGGING_ACQUISITION_RESPONSE = 'delete_all_datalogging_acquisition_response'
             ERROR_RESPONSE = 'error'
 
     class DataloggingStatus:
@@ -212,6 +214,7 @@ class API:
         Command.Client2Api.LIST_DATALOGGING_ACQUISITION: 'process_list_datalogging_acquisition',
         Command.Client2Api.UPDATE_DATALOGGING_ACQUISITION: 'process_update_datalogging_acquisition',
         Command.Client2Api.DELETE_DATALOGGING_ACQUISITION: 'process_delete_datalogging_acquisition',
+        Command.Client2Api.DELETE_ALL_DATALOGGING_ACQUISITION: 'process_delete_all_datalogging_acquisition',
         Command.Client2Api.READ_DATALOGGING_ACQUISITION_CONTENT: 'process_read_datalogging_acquisition_content'
 
     }
@@ -1156,6 +1159,32 @@ class API:
             'reqid': None,
             'reference_id': req['reference_id'],
             'action': 'delete'
+        }
+
+        for conn_id in self.connections:
+            self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=broadcast_msg))
+
+    def process_delete_all_datalogging_acquisition(self, conn_id: str, req: api_typing.C2S.DeleteDataloggingAcquisition) -> None:
+        err: Optional[Exception] = None
+        try:
+            DataloggingStorage.clear_all()
+        except LookupError as e:
+            err = e
+
+        if err:
+            raise InvalidRequestException(req, "Failed to clear datalogging storage. %s" % (str(err)))
+
+        response: api_typing.S2C.DeleteDataloggingAcquisition = {
+            'cmd': API.Command.Api2Client.DELETE_ALL_DATALOGGING_ACQUISITION_RESPONSE,
+            'reqid': self.get_req_id(req),
+        }
+
+        self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
+
+        broadcast_msg: api_typing.S2C.InformDataloggingListChanged = {
+            'cmd': API.Command.Api2Client.INFORM_DATALOGGING_LIST_CHANGED,
+            'reqid': None,
+            'action': 'delete_all'
         }
 
         for conn_id in self.connections:

@@ -293,8 +293,8 @@ class S2C:
         reference_id: Optional[str]
 
     class InformDataloggingListChanged(BaseS2CMessage):
-        reference_id: str
-        action: Literal['delete', 'new', 'update']
+        reference_id: Optional[str]
+        action: Literal['delete', 'new', 'update', 'delete_all']
 
     class ListDataloggingAcquisition(BaseS2CMessage):
         acquisitions: List[DataloggingAcquisitionMetadata]
