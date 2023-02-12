@@ -1069,12 +1069,12 @@ class API:
 
         if not isinstance(req['reference_id'], str):
             raise InvalidRequestException(req, 'Invalid reference ID')
-
+        err: Optional[Exception]
         if 'name' in req:
             if not isinstance(req['name'], str):
                 raise InvalidRequestException(req, 'Invalid name')
 
-            err: Optional[Exception] = None
+            err = None
             try:
                 DataloggingStorage.update_acquisition_name(req['reference_id'], req['name'])
             except LookupError as e:
@@ -1097,7 +1097,7 @@ class API:
                 if 'name' not in axis_name_entry:
                     raise InvalidRequestException(req, 'Missing name field')
 
-                err: Optional[Exception] = None
+                err = None
                 try:
                     DataloggingStorage.update_axis_name(
                         reference_id=req['reference_id'],
