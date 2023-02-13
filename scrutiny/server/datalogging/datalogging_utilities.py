@@ -4,7 +4,7 @@
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
 #
-#   Copyright (c) 2021-2022 Scrutiny Debugger
+#   Copyright (c) 2021-2023 Scrutiny Debugger
 
 import scrutiny.server.datalogging.definitions.device as device_datalogging
 from scrutiny.core.basic_types import RuntimePublishedValue

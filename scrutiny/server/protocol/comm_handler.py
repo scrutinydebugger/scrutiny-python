@@ -2,13 +2,13 @@
 #        The CommHandler task is to convert Requests and Response from or to a stream of bytes.
 #
 #        This class manage send requests, wait for response, indicates if a response timeout
-#        occured and decodes bytes.
+#        occurred and decodes bytes.
 #        It manages the low level part of the communication protocol with the device
 #
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
 #
-#   Copyright (c) 2021-2022 Scrutiny Debugger
+#   Copyright (c) 2021-2023 Scrutiny Debugger
 
 from queue import Queue
 from scrutiny.server.protocol import Request, Response
