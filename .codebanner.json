@@ -74,7 +74,7 @@
             "docstring": "Simple tool to get the memory ranges of the .elf sections that contains the variables. \nUsed to generate Memdumps for unit testing"
         },
         "scrutiny/server/server.py": {
-            "docstring": "The scrutiny server. Talk with multiple clients through a websocket API and communicate with a device through a given communication link (Serial, UDP, etc)\n Allow the clients to interract with the device"
+            "docstring": "The scrutiny server. Talk with multiple clients through a websocket API and communicate with a device through a given communication link (Serial, UDP, etc)\n Allow the clients to interact with the device"
         },
         "scrutiny/server/api/API.py": {
             "docstring": "Manages the websocket API to talk with the multiple clients. Can be a GUI client or a CLI client"
@@ -125,7 +125,7 @@
             "docstring": "Once enabled, try to establish a working session with a device."
         },
         "scrutiny/server/protocol/comm_handler.py": {
-            "docstring": "The CommHandler task is to convert Requests and Response from or to a stream of bytes.\nThis class manage send requests, wait for response, indicates if a response timeout occured and decodes bytes. \nIt manages the low level part of the communication protocol with the device"
+            "docstring": "The CommHandler task is to convert Requests and Response from or to a stream of bytes.\nThis class manage send requests, wait for response, indicates if a response timeout occurred and decodes bytes. \nIt manages the low level part of the communication protocol with the device"
         },
         "scrutiny/server/protocol/crc32.py": {
             "docstring": "Compute a CRC32 for protocol validation"

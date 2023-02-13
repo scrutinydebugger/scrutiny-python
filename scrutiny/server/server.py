@@ -1,12 +1,12 @@
 #    server.py
 #        The scrutiny server. Talk with multiple clients through a websocket API and communicate
 #        with a device through a given communication link (Serial, UDP, etc)
-#        Allow the clients to interract with the device
+#        Allow the clients to interact with the device
 #
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
 #
-#   Copyright (c) 2021-2022 Scrutiny Debugger
+#   Copyright (c) 2021-2023 Scrutiny Debugger
 
 import time
 import os
