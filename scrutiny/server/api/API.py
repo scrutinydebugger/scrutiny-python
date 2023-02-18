@@ -850,6 +850,8 @@ class API:
         if not self.datalogging_manager.is_valid_sample_rate_id(req['sampling_rate_id']):
             raise InvalidRequestException(req, "Given sampling_rate_id is not supported for this device.")
 
+        sampling_rate = self.datalogging_manager.get_sampling_rate(req['sampling_rate_id'])
+
         if req['decimation'] <= 0:
             raise InvalidRequestException(req, 'decimation must be a positive integer')
 
@@ -898,6 +900,9 @@ class API:
                 name=None if 'name' not in req['x_axis_signal'] else str(req['x_axis_signal']['name']),
                 entry=x_axis_entry,
             )
+        elif x_axis_type == api_datalogging.XAxisType.IdealTime:
+            if sampling_rate.rate_type == ExecLoopType.VARIABLE_FREQ:
+                raise InvalidRequestException(req, 'Cannot use ideal time on variable frequency rate')
 
         operands: List[api_datalogging.TriggerConditionOperand] = []
 

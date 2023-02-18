@@ -19,7 +19,7 @@ import scrutiny.server.datalogging.definitions.device as device_datalogging
 from scrutiny.server.device.device_handler import DeviceHandler, DataloggingReceiveSetupCallback, DeviceAcquisitionRequestCompletionCallback
 from scrutiny.server.datastore.datastore_entry import DatastoreEntry, DatastoreAliasEntry, DatastoreRPVEntry, DatastoreVariableEntry
 from scrutiny.server.datastore.datastore import Datastore
-from scrutiny.server.device.device_info import FixedFreqLoop
+from scrutiny.server.device.device_info import FixedFreqLoop, ExecLoopType
 from scrutiny.core.basic_types import *
 from scrutiny.server.datalogging.datalogging_storage import DataloggingStorage
 from scrutiny.core.codecs import Codecs
@@ -68,6 +68,11 @@ class DataloggingManager:
         """Interface for the API to push a request for a new acquisition"""
         # Converts right away to device side acquisition because we want exception to be raised as early as possible for quick feedback to user
         config, entry_signal_map = self.make_device_config_from_request(request)  # Can raise an exception
+
+        sampling_rate = self.get_sampling_rate(request.rate_identifier)
+        if sampling_rate.rate_type == ExecLoopType.VARIABLE_FREQ and request.x_axis_type == api_datalogging.XAxisType.IdealTime:
+            raise ValueError("Cannot use Ideal Time on variable sampling rate")
+
         self.acquisition_request_queue.put(DeviceSideAcquisitionRequest(
             api_request=request,
             device_config=config,

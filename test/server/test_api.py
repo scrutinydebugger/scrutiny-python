@@ -155,8 +155,30 @@ class StubbedDataloggingManager:
             acq_time=datetime.now())
         callback(True, acquisition)
 
+    def get_sampling_rate(self, identifier: int):
+        info = self.fake_device_handler.get_device_info()
+        if not isinstance(identifier, int) or identifier < 0 or identifier >= len(info.loops):
+            raise ValueError("Bad sampling rate ID")
+        loop = info.loops[identifier]
+        rate = api_datalogging.SamplingRate(
+            name=loop.get_name(),
+            rate_type=loop.get_loop_type(),
+            device_identifier=identifier,
+            frequency=None
+        )
+
+        if loop.get_loop_type() == api_datalogging.ExecLoopType.FIXED_FREQ:
+            loop = cast(FixedFreqLoop, loop)
+            rate.frequency = loop.get_frequency()
+
+        return rate
+
     def is_valid_sample_rate_id(self, identifier: int) -> bool:
-        return (identifier >= 0 and identifier < 10)
+        try:
+            self.get_sampling_rate(identifier)
+        except ValueError:
+            return False
+        return True
 
     def is_ready_for_request(self) -> bool:
         return True
@@ -1793,6 +1815,13 @@ class TestAPI(ScrutinyUnitTest):
             # duplicate id
             req = create_default_request()
             req['yaxis'][0]['id'] = req['yaxis'][1]['id']
+            self.send_request(req)
+            self.assert_is_error(self.wait_and_load_response())
+
+            # ideal time on variable freq
+            req = create_default_request()
+            req['sampling_rate_id'] = 2  # 2 is variable in emulated device
+            req['x_axis_type'] = 'ideal_time'
             self.send_request(req)
             self.assert_is_error(self.wait_and_load_response())
 
