@@ -93,7 +93,6 @@ class TestProtocolV1_0(ScrutinyUnitTest):
 
 # region Request GetInfo
 
-
     def test_req_get_protocol_version(self):
         req = self.proto.get_protocol_version()
         self.assert_req_response_bytes(req, [1, 1, 0, 0])
@@ -157,6 +156,7 @@ class TestProtocolV1_0(ScrutinyUnitTest):
 # endregion
 
 # region Request MemoryControl
+
 
     def test_req_read_single_memory_block_8bits(self):
         self.proto.set_address_size_bits(8)
@@ -731,7 +731,7 @@ class TestProtocolV1_0(ScrutinyUnitTest):
         req = self.proto.datalogging_get_status()
         self.assert_req_response_bytes(req, request_bytes)
         data = self.proto.parse_request(req)
-        self.check_expected_payload_size(req, 1)
+        self.check_expected_payload_size(req, 1 + 4 + 4)
 
     def test_req_datalogging_get_acquisition_metadata(self):
         request_bytes = bytes([5, 6, 0, 0])
@@ -882,6 +882,7 @@ class TestProtocolV1_0(ScrutinyUnitTest):
 # endregion
 
 # region Response MemoryControl
+
 
     def test_response_read_single_memory_block_8bits(self):
         self.proto.set_address_size_bits(8)
@@ -1297,7 +1298,6 @@ class TestProtocolV1_0(ScrutinyUnitTest):
 
 # region Response DatalogControl
 
-
     def test_response_datalogging_get_setup(self):
         response = self.proto.respond_datalogging_get_setup(buffer_size=0x12345678, encoding=device_datalogging.Encoding.RAW, max_signal_count=32)
         self.assert_req_response_bytes(response, [0x85, 1, 0, 0, 6, 0x12, 0x34, 0x56, 0x78, 0, 32])
@@ -1322,10 +1322,16 @@ class TestProtocolV1_0(ScrutinyUnitTest):
         self.proto.parse_response(response)
 
     def test_response_datalogging_get_status(self):
-        response = self.proto.respond_datalogging_get_status(state=device_datalogging.DataloggerState.CONFIGURED)
-        self.assert_req_response_bytes(response, [0x85, 5, 0, 0, 1, device_datalogging.DataloggerState.CONFIGURED.value])
+        response = self.proto.respond_datalogging_get_status(
+            state=device_datalogging.DataloggerState.CONFIGURED,
+            remaining_byte_from_trigger_to_complete=0x12345678,
+            byte_counter_since_trigger=0xFEDCBA98)
+        self.assert_req_response_bytes(response, [0x85, 5, 0, 0, 1 + 4 + 4,
+                                       device_datalogging.DataloggerState.CONFIGURED.value, 0x12, 0x34, 0x56, 0x78, 0xfe, 0xdc, 0xba, 0x98])
         data = self.proto.parse_response(response)
         self.assertEqual(data['state'], device_datalogging.DataloggerState.CONFIGURED)
+        self.assertEqual(data['remaining_byte_from_trigger_to_complete'], 0x12345678)
+        self.assertEqual(data['byte_counter_since_trigger'], 0xFEDCBA98)
 
     def test_response_datalogging_get_acquisition_metadata(self):
         response = self.proto.respond_datalogging_get_acquisition_metadata(
