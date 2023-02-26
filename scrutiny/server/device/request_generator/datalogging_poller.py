@@ -263,7 +263,7 @@ class DataloggingPoller:
         if not self.request_pending:
             if self.require_status_update or self.update_status_timer.is_timed_out():
                 self.dispatch(self.protocol.datalogging_get_status())
-                self.update_status_timer.start()
+                self.update_status_timer.stop()  # Will be reactivated in callback
 
         try:
 
@@ -500,6 +500,7 @@ class DataloggingPoller:
                 subfunction = cmd.DatalogControl.Subfunction(response.subfn)
                 if subfunction == cmd.DatalogControl.Subfunction.GetStatus:
                     self.process_get_status_success(response)
+                    self.update_status_timer.start()
                 elif subfunction == cmd.DatalogControl.Subfunction.GetSetup:
                     self.process_get_setup_success(response)
                 elif subfunction == cmd.DatalogControl.Subfunction.ConfigureDatalog:
