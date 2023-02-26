@@ -1281,9 +1281,9 @@ class API:
                 'readonly_memory_regions': cast(List[Dict[str, int]], device_info_input.readonly_memory_regions)
             }
 
-            datalogging_status = self.datalogger_state_to_api.get(self.device_handler.get_datalogger_state(), API.DataloggingStatus.UNAVAILABLE)
+            datalogger_state = self.datalogger_state_to_api.get(self.device_handler.get_datalogger_state(), API.DataloggingStatus.UNAVAILABLE)
         else:
-            datalogging_status = API.DataloggingStatus.STANDBY
+            datalogger_state = API.DataloggingStatus.STANDBY
 
         if device_comm_link is None:
             link_config = cast(EmptyDict, {})
@@ -1296,7 +1296,10 @@ class API:
             'device_status': self.device_conn_status_to_str[self.device_handler.get_connection_status()],
             'device_info': device_info_output,
             'loaded_sfd': loaded_sfd,
-            'device_datalogging_status': cast(api_typing.DataloggingStatus, datalogging_status),
+            'device_datalogging_status': {
+                'datalogger_state': cast(api_typing.DataloggerState, datalogger_state),
+                'completion_ratio': self.device_handler.get_datalogging_acquisition_completion_ratio()
+            },
             'device_comm_link': {
                 'link_type': cast(api_typing.LinkType, device_link_type),
                 'link_config': link_config

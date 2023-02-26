@@ -82,6 +82,8 @@ class DataloggingPoller:
     previous_state: FSMState    # Previous state of the state machine
     update_status_timer: Timer  # Time to poll for datalogging status periodically
     device_datalogging_state: device_datalogging.DataloggerState    # The state of the datalogging feature in the device
+    # A value between 0 and 1 indicating the percentage of completion of the acquisition. Only valid in TRIGGERED state. None when N/A
+    completion_ratio: Optional[float]
     max_response_payload_size: Optional[int]    # Maximum size of a payload that the device can send to the server
     rpv_map: Dict[int, RuntimePublishedValue]   # Map of RPV ID to their definition.
 
@@ -113,7 +115,6 @@ class DataloggingPoller:
 
         self.acquisition_request = None
         self.enabled = True
-        #self.receive_setup_callback = None
         self.actual_config_id = 0
         self.device_datalogging_state = device_datalogging.DataloggerState.IDLE
         self.max_response_payload_size = None
@@ -146,6 +147,7 @@ class DataloggingPoller:
         self.acquisition_metadata = None
         self.require_status_update = False
         self.ready_to_receive_request = False
+        self.completion_ratio = None
 
     def configure_rpvs(self, rpvs: List[RuntimePublishedValue]):
         self.rpv_map.clear()
@@ -186,6 +188,10 @@ class DataloggingPoller:
     def get_device_setup(self) -> Optional[device_datalogging.DataloggingSetup]:
         """Return the datalogging setup structure if available. Contains buffer size, encoding and limits """
         return self.device_setup
+
+    def get_completion_ratio(self) -> Optional[float]:
+        """Returns a value between 0 and 1 indicating how far the acquisition is frm being completed once the trigger event has been launched"""
+        return self.completion_ratio
 
     def mark_active_acquisition_failed_if_any(self):
         """Mark the currently processed acquisition request as completed with failure. Will call the completing callback with success=False"""
@@ -545,6 +551,11 @@ class DataloggingPoller:
         if self.device_datalogging_state != response_data['state']:
             self.logger.debug("Device datalogging status changed from %s to %s" % (self.device_datalogging_state.name, response_data['state'].name))
         self.device_datalogging_state = response_data['state']
+        self.completion_ratio = None
+        if response_data['byte_counter_since_trigger'] != 0 and response_data['remaining_byte_from_trigger_to_complete'] != 0:
+            self.completion_ratio = response_data['byte_counter_since_trigger'] / response_data['remaining_byte_from_trigger_to_complete']
+            self.completion_ratio = min(max(self.completion_ratio, 0), 1)
+
         self.require_status_update = False
 
     def process_get_setup_success(self, response: Response):

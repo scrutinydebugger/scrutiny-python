@@ -244,6 +244,10 @@ class DeviceHandler:
         """Get the device datalogging configuration (encoding, buffer size, etc)"""
         return self.datalogging_poller.get_device_setup()
 
+    def get_datalogging_acquisition_completion_ratio(self) -> Optional[float]:
+        """Returns a value between 0 and 1 indicating how far the acquisition is frm being completed once the trigger event has been launched"""
+        return self.datalogging_poller.get_completion_ratio()
+
     def get_comm_error_count(self) -> int:
         """Returns the number of communication issue we have encountered since startup"""
         return self.comm_broken_count

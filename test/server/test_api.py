@@ -91,6 +91,9 @@ class StubbedDeviceHandler:
     def get_comm_link(self) -> DummyLink:
         return DummyLink()
 
+    def get_datalogging_acquisition_completion_ratio(self):
+        return 0.5
+
     def get_device_info(self) -> DeviceInfo:
         info = DeviceInfo()
         info.device_id = self.device_id
@@ -817,6 +820,7 @@ class TestAPI(ScrutinyUnitTest):
             SFDStorage.uninstall(sfd2.get_firmware_id_ascii())
 
     def test_get_server_status(self):
+        self.fake_device_handler.set_datalogger_state(device_datalogging.DataloggerState.TRIGGERED)
         device_info_exlude_propeties = ['runtime_published_values', 'loops']
         dummy_sfd1_filename = get_artifact('test_sfd_1.sfd')
         dummy_sfd2_filename = get_artifact('test_sfd_2.sfd')
@@ -839,6 +843,11 @@ class TestAPI(ScrutinyUnitTest):
             self.assertEqual(response['cmd'], 'inform_server_status')
             self.assertIn('device_status', response)
             self.assertEqual(response['device_status'], 'connected_ready')
+            self.assertIn('device_datalogging_status', response)
+            self.assertIn('datalogger_state', response['device_datalogging_status'])
+            self.assertIn('completion_ratio', response['device_datalogging_status'])
+            self.assertEqual(response['device_datalogging_status']['datalogger_state'], 'acquiring')
+            self.assertEqual(response['device_datalogging_status']['completion_ratio'], 0.5)
             self.assertIn('loaded_sfd', response)
             self.assertIn('firmware_id', response['loaded_sfd'])
             self.assertEqual(response['loaded_sfd']['firmware_id'], sfd2.get_firmware_id_ascii())

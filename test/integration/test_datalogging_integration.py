@@ -73,8 +73,11 @@ class TestDataloggingIntegration(ScrutinyIntegrationTestWithTestSFD1):
         self.send_request(req)
         response = cast(api_typing.S2C.InformServerStatus, self.wait_and_load_response(cmd=API.Command.Api2Client.INFORM_SERVER_STATUS))
         self.assertIn('device_datalogging_status', response)
-        assert response['device_datalogging_status'] is not None
-        self.assertEqual(response['device_datalogging_status'], "standby")
+        status = response['device_datalogging_status']
+        assert status is not None
+        self.assertIn('datalogger_state', status)
+        self.assertIn('completion_ratio', status)
+        self.assertEqual(status['datalogger_state'], "standby")
 
         req = {
             'cmd': API.Command.Client2Api.GET_DATALOGGING_CAPABILITIES
