@@ -495,12 +495,12 @@ class DataloggingPoller:
         """Called when a request completes and succeeds"""
         self.logger.debug("Success callback. Request=%s. Response Code=%s, Params=%s" % (request, response.code, params))
 
+        subfunction = cmd.DatalogControl.Subfunction(response.subfn)
         if subfunction == cmd.DatalogControl.Subfunction.GetStatus:
             self.update_status_timer.start()
 
         if response.code == ResponseCode.OK:
             try:
-                subfunction = cmd.DatalogControl.Subfunction(response.subfn)
                 if subfunction == cmd.DatalogControl.Subfunction.GetStatus:
                     self.process_get_status_success(response)
                 elif subfunction == cmd.DatalogControl.Subfunction.GetSetup:
