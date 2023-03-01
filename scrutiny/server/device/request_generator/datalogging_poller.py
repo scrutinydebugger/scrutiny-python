@@ -62,6 +62,9 @@ class ReceivedChunk:
     data: bytes
 
 
+DatalogSubfn = cmd.DatalogControl.Subfunction
+
+
 class DataloggingPoller:
 
     UPDATE_STATUS_INTERVAL_IDLE = 0.5
@@ -73,7 +76,9 @@ class DataloggingPoller:
     protocol: Protocol                  # The actual protocol. Used to build the request payloads
     request_priority: int               # Our dispatcher priority
     stop_requested: bool    # Requested to stop polling
-    request_pending: bool   # True when we are waiting for a request to complete
+    request_pending: Dict[DatalogSubfn, bool]   # True when we are waiting for a request to complete
+    # Flag indicating that the previous device request enqueued failed to process. Set by callback, read by FSM
+    request_failed: Dict[DatalogSubfn, bool]
     started: bool           # Indicate if enabled or not
     device_setup: Optional[device_datalogging.DataloggingSetup]  # Datalogging capabilities broadcasted by the device
     error: bool     # Indicate that something went wrong
@@ -90,7 +95,6 @@ class DataloggingPoller:
     arm_completed: bool         # Flag indicating the the device trigger was armed. Set by callback, read by FSM
     new_request_received: bool  # Indicates the the datalogging manager pushed a new request for acquisition.
     acquisition_request: Optional[AcquisitionRequest]   # The actively processed acquisition request. Set by callback, read by FSM
-    request_failed: bool        # Flag indicating that the previous device request enqueued failed to process. Set by callback, read by FSM
     configure_completed: bool   # Flag indicating that the configuration stage has been successfully completed. Set by callback, read by FSM
     failure_counter: int        # Counter of that counts the number of time the device failed to respond to a request
     data_read_success: bool     # Flag indicating tha the data read request succeeded. Set by callback, read by FSM
@@ -120,6 +124,11 @@ class DataloggingPoller:
         self.max_response_payload_size = None
         self.update_status_timer = Timer(self.UPDATE_STATUS_INTERVAL_IDLE)
         self.rpv_map = {}
+        self.request_pending = {}
+        self.request_failed = {}
+        for subfn in DatalogSubfn:
+            self.request_pending[subfn] = False
+            self.request_failed[subfn] = False
         self.set_standby()
 
     def set_standby(self):
@@ -128,14 +137,15 @@ class DataloggingPoller:
 
         self.started = False
         self.stop_requested = False
-        self.request_pending = False
+        for k in self.request_pending:
+            self.request_pending[k] = False
+            self.request_failed[k] = False
         self.device_setup = None
         self.error = False
         self.state = FSMState.IDLE
         self.previous_state = FSMState.IDLE
         self.new_request_received = False
         self.acquisition_request = None
-        self.request_failed = False
         self.configure_completed = False
         self.arm_completed = False
         self.update_status_timer.stop()
@@ -252,9 +262,10 @@ class DataloggingPoller:
         if not self.started or not self.enabled:
             self.set_standby()
             return
-        elif self.stop_requested and not self.request_pending:
-            self.started = False
-            self.set_standby()
+        elif self.stop_requested:
+            if not self.has_any_request_pending():
+                self.started = False
+                self.set_standby()
             return
         elif self.error:    # only way out is a reset
             self.mark_active_acquisition_failed_if_any()
@@ -266,13 +277,12 @@ class DataloggingPoller:
         else:   # Slow update otherwise
             self.update_status_timer.set_timeout(self.UPDATE_STATUS_INTERVAL_IDLE)
 
-        if not self.request_pending:
+        if not self.request_pending[DatalogSubfn.GetStatus]:
             if self.require_status_update or self.update_status_timer.is_timed_out():
                 self.dispatch(self.protocol.datalogging_get_status())
                 self.update_status_timer.stop()
 
         try:
-
             state_entry = self.previous_state != self.state
             next_state = self.state
 
@@ -288,9 +298,9 @@ class DataloggingPoller:
             elif self.state == FSMState.GET_SETUP:
                 # We request the device for its datalogging feature configuration (or "setup" to keep vocabulary distinct)
                 if state_entry:
-                    self.request_failed = False
+                    self.request_failed[DatalogSubfn.GetSetup] = False
 
-                if not self.request_pending and self.device_setup is None:
+                if not self.request_pending[DatalogSubfn.GetSetup] and self.device_setup is None:
                     self.dispatch(self.protocol.datalogging_get_setup())
 
                 if self.device_setup is not None:   # Set by callback
@@ -301,7 +311,7 @@ class DataloggingPoller:
                 if state_entry:
                     self.ready_to_receive_request = True
 
-                if not self.request_pending:
+                if not self.request_pending[DatalogSubfn.ConfigureDatalog]:
                     if self.new_request_received:   # Acquisition request pushed by DataloggingManager.
                         self.new_request_received = False
                         assert self.acquisition_request is not None
@@ -320,14 +330,15 @@ class DataloggingPoller:
                     self.configure_completed = False
 
                 if self.new_request_received:   # New request interrupts the previous one
-                    if not self.request_pending:
+                    if not self.request_pending[DatalogSubfn.ConfigureDatalog]:
                         next_state = FSMState.WAIT_FOR_REQUEST
 
-                elif self.request_failed:   # Set by callback
+                elif self.request_failed[DatalogSubfn.ConfigureDatalog]:   # Set by callback
                     next_state = FSMState.IDLE
 
                 elif self.configure_completed:  # Set by callback
                     self.configure_completed = False
+                    assert self.request_pending[DatalogSubfn.ConfigureDatalog] == False
                     self.dispatch(self.protocol.datalogging_arm_trigger())
                     next_state = FSMState.ARMING
 
@@ -337,13 +348,14 @@ class DataloggingPoller:
 
                 # New request interrupts the previous one. Callback already called at this point. (done directly in request_acquisition())
                 if self.new_request_received:
-                    if not self.request_pending:
+                    if not self.request_pending[DatalogSubfn.ArmTrigger]:
                         next_state = FSMState.WAIT_FOR_REQUEST
 
-                elif self.request_failed:   # Set by callback
+                elif self.request_failed[DatalogSubfn.ArmTrigger]:   # Set by callback
                     next_state = FSMState.IDLE
 
                 elif self.arm_completed:    # Set by callback
+                    assert self.request_pending[DatalogSubfn.ArmTrigger] == False
                     next_state = FSMState.WAIT_FOR_DATA
 
             elif self.state == FSMState.WAIT_FOR_DATA:  # Here we wait for the device to acquire data, it can be long if the trigger condition is never met
@@ -352,8 +364,7 @@ class DataloggingPoller:
                     self.require_status_update = True
 
                 if self.new_request_received:   # New request interrupts the previous one
-                    if not self.request_pending:
-                        next_state = FSMState.WAIT_FOR_REQUEST
+                    next_state = FSMState.WAIT_FOR_REQUEST
 
                 elif self.require_status_update == False:   # Set by GetStatus callback
                     if self.device_datalogging_state == device_datalogging.DataloggerState.ACQUISITION_COMPLETED:   # We have data!
@@ -364,9 +375,10 @@ class DataloggingPoller:
                 if state_entry:
                     self.acquisition_metadata = None
                     self.failure_counter = 0
-                    self.request_failed = False
+                    self.request_failed[DatalogSubfn.GetAcquisitionMetadata] = False
 
                 if self.acquisition_metadata is not None:   # Set by success callback
+                    assert self.request_pending[DatalogSubfn.GetAcquisitionMetadata] == False
                     if self.acquisition_metadata.config_id != self.actual_config_id:
                         self.logger.error("Data acquired is not the one that was expected. Config ID mismatch. Expected %d, Gotten %d" %
                                           (self.actual_config_id, self.acquisition_metadata.config_id))
@@ -374,31 +386,32 @@ class DataloggingPoller:
                     else:
                         next_state = FSMState.RETRIEVING_DATA
 
-                elif self.request_failed:   # Set by failure callback
-                    self.request_failed = False
+                elif self.request_failed[DatalogSubfn.GetAcquisitionMetadata]:   # Set by failure callback
+                    self.request_failed[DatalogSubfn.GetAcquisitionMetadata] = False
                     self.failure_counter += 1    # Bit of fault tolerance to increase chances of keeping the data.
                     if self.failure_counter >= self.MAX_FAILURE_WHILE_READING:
                         self.logger.error("Too many communication error. Giving up reading the acquisition")
                         next_state = FSMState.DATA_RETRIEVAL_FINISHED
 
-                elif not self.request_pending:  # Set by callback
+                elif not self.request_pending[DatalogSubfn.GetAcquisitionMetadata]:  # Set by callback
                     self.dispatch(self.protocol.datalogging_get_acquisition_metadata())
 
             elif self.state == FSMState.RETRIEVING_DATA:    # We read the data buffer here. Multiple message exchange will happen
                 if state_entry:
                     self.data_read_success = False
-                    self.request_failed = False
+                    self.request_failed[DatalogSubfn.ReadAcquisition] = False
                     self.failure_counter = 0
                     self.read_rolling_counter = 0
                     self.received_data_chunk = None
                     self.bytes_received = bytearray()
 
                 if self.new_request_received:   # New request interrupts the previous one
-                    if not self.request_pending:
+                    if not self.request_pending[DatalogSubfn.ReadAcquisition]:
+                        self.must_send_read_data_request = False
                         next_state = FSMState.WAIT_FOR_REQUEST
 
-                elif self.request_failed:   # Set by failure callback
-                    self.request_failed = False
+                elif self.request_failed[DatalogSubfn.ReadAcquisition]:   # Set by failure callback
+                    self.request_failed[DatalogSubfn.ReadAcquisition] = False
                     self.failure_counter += 1
                     if self.failure_counter >= self.MAX_FAILURE_WHILE_READING:  # Bit of fault tolerance to increase chances of keeping the data.
                         self.logger.error("Too many communication error. Giving up reading the acquisition")
@@ -434,9 +447,10 @@ class DataloggingPoller:
                                 self.data_read_success = True   # Yay! Success!
                                 next_state = FSMState.DATA_RETRIEVAL_FINISHED
                         else:   # Still more chunk to go
-                            if not self.request_pending:
-                                # Request another chunk
+                            # Request another chunk
+                            if not self.request_pending[DatalogSubfn.ReadAcquisition]:
                                 self.read_rolling_counter = (self.read_rolling_counter + 1) & 0xFF
+                                self.logger.debug("Increasing rolling counter: %d" % self.read_rolling_counter)
                                 read_request = self.protocol.datalogging_read_acquisition(
                                     data_read=len(self.bytes_received),
                                     encoding=self.device_setup.encoding,
@@ -445,13 +459,12 @@ class DataloggingPoller:
                                 )
                                 self.dispatch(read_request)
                     self.received_data_chunk = None
-                else:
+                elif len(self.bytes_received) == 0:
                     # We launch the first request here.
                     assert self.max_response_payload_size is not None
                     assert self.acquisition_metadata is not None
                     assert self.device_setup is not None
-
-                    if not self.request_pending:
+                    if not self.request_pending[DatalogSubfn.ReadAcquisition]:
                         read_request = self.protocol.datalogging_read_acquisition(
                             data_read=len(self.bytes_received),
                             encoding=self.device_setup.encoding,
@@ -463,6 +476,7 @@ class DataloggingPoller:
             elif self.state == FSMState.DATA_RETRIEVAL_FINISHED:
                 # Here, retrieving data is finished. It can have succeeded or failed, bit it is finished.
                 if state_entry:
+                    assert self.request_pending[DatalogSubfn.ReadAcquisition] == False
                     if not self.data_read_success:
                         self.logger.error("Failed to read acquisition. Calling callback with success=False")
                         self.mark_active_acquisition_failed_if_any()
@@ -486,38 +500,38 @@ class DataloggingPoller:
 
     def dispatch(self, req: Request) -> None:
         """Sends a request to the request dispatcher and assign the corrects completion callbacks"""
-        if self.request_pending:    # We don't stack request (even if we could)
-            raise RuntimeError("Dispatched a request before having received the previous response")
+        subfn = DatalogSubfn(req.subfn)
+        if self.request_pending[subfn]:    # We don't stack request (even if we could)
+            raise RuntimeError(
+                "Dispatched a request of subfunction %s before having received the previous response of the same subfunction" % subfn.name)
 
         self.dispatcher.register_request(
             req,
             SuccessCallback(self.success_callback),
             FailureCallback(self.failure_callback),
             priority=self.request_priority)
-        self.request_pending = True
-        self.request_failed = False
+        self.request_pending[subfn] = True
+        self.request_failed[subfn] = False
 
     def success_callback(self, request: Request, response: Response, params: Any = None) -> None:
         """Called when a request completes and succeeds"""
         self.logger.debug("Success callback. Request=%s. Response Code=%s, Params=%s" % (request, response.code, params))
 
-        subfunction = cmd.DatalogControl.Subfunction(response.subfn)
-        if subfunction == cmd.DatalogControl.Subfunction.GetStatus:
-            self.update_status_timer.start()
+        subfunction = DatalogSubfn(response.subfn)
 
         if response.code == ResponseCode.OK:
             try:
-                if subfunction == cmd.DatalogControl.Subfunction.GetStatus:
+                if subfunction == DatalogSubfn.GetStatus:
                     self.process_get_status_success(response)
-                elif subfunction == cmd.DatalogControl.Subfunction.GetSetup:
+                elif subfunction == DatalogSubfn.GetSetup:
                     self.process_get_setup_success(response)
-                elif subfunction == cmd.DatalogControl.Subfunction.ConfigureDatalog:
+                elif subfunction == DatalogSubfn.ConfigureDatalog:
                     self.process_configure_success(response)
-                elif subfunction == cmd.DatalogControl.Subfunction.ArmTrigger:
+                elif subfunction == DatalogSubfn.ArmTrigger:
                     self.process_arm_success(response)
-                elif subfunction == cmd.DatalogControl.Subfunction.GetAcquisitionMetadata:
+                elif subfunction == DatalogSubfn.GetAcquisitionMetadata:
                     self.process_get_acq_metadata_success(response)
-                elif subfunction == cmd.DatalogControl.Subfunction.ReadAcquisition:
+                elif subfunction == DatalogSubfn.ReadAcquisition:
                     self.process_read_acquisition_success(response)
 
             except Exception as e:
@@ -525,24 +539,25 @@ class DataloggingPoller:
                 self.logger.error('Cannot process response. %s' % (str(e)))
                 self.logger.debug(traceback.format_exc())
         else:
-            self.request_failed = True
+            self.request_failed[subfunction] = True
             self.logger.error('Request got Nacked. %s' % response.code)
 
-        self.completed()
+        self.completed(request)
 
     def failure_callback(self, request: Request, params: Any = None) -> None:
         """Callback called by the request dispatcher when a request fails to complete"""
         self.logger.debug("Failure callback. Request=%s. Params=%s" % (request, params))
-        subfn = cmd.DatalogControl.Subfunction(request.subfn)
+        subfn = DatalogSubfn(request.subfn)
+        self.request_failed[subfn] = True
 
-        if subfn != cmd.DatalogControl.Subfunction.GetStatus:   # We ignore failures for get status as they are periodic
-            self.request_failed = False
+        self.completed(request)
 
-        self.completed()
-
-    def completed(self) -> None:
+    def completed(self, request: Request) -> None:
         """ Common code between success and failure"""
-        self.request_pending = False
+        subfn = DatalogSubfn(request.subfn)
+        if subfn == DatalogSubfn.GetStatus:
+            self.update_status_timer.start()
+        self.request_pending[subfn] = False
 
     def process_get_status_success(self, response: Response):
         """Process the response to GetStatus when the device returns OK code"""
@@ -613,3 +628,9 @@ class DataloggingPoller:
             rolling_counter=response_data['rolling_counter'],
             data=response_data['data']
         )
+
+    def has_any_request_pending(self) -> bool:
+        for k in self.request_pending:
+            if self.request_pending[k]:
+                return True
+        return False
