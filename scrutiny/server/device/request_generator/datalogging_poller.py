@@ -263,7 +263,7 @@ class DataloggingPoller:
         if not self.request_pending:
             if self.require_status_update or self.update_status_timer.is_timed_out():
                 self.dispatch(self.protocol.datalogging_get_status())
-                self.update_status_timer.start()
+                self.update_status_timer.stop()
 
         try:
 
@@ -495,9 +495,12 @@ class DataloggingPoller:
         """Called when a request completes and succeeds"""
         self.logger.debug("Success callback. Request=%s. Response Code=%s, Params=%s" % (request, response.code, params))
 
+        subfunction = cmd.DatalogControl.Subfunction(response.subfn)
+        if subfunction == cmd.DatalogControl.Subfunction.GetStatus:
+            self.update_status_timer.start()
+
         if response.code == ResponseCode.OK:
             try:
-                subfunction = cmd.DatalogControl.Subfunction(response.subfn)
                 if subfunction == cmd.DatalogControl.Subfunction.GetStatus:
                     self.process_get_status_success(response)
                 elif subfunction == cmd.DatalogControl.Subfunction.GetSetup:
