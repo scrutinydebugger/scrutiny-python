@@ -176,8 +176,10 @@ class DataloggingManager:
         try:
             if acquisition is None:
                 self.active_request.callback(False, None)   # Inform the API of the failure
+                self.logger.debug("Informing API of failure to get the datalogging acquisition")
             else:
                 self.active_request.callback(True, acquisition)
+                self.logger.debug("Informing API of success in getting the datalogging acquisition")
         except Exception as e:
             err = e
 
