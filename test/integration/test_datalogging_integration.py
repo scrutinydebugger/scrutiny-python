@@ -361,13 +361,13 @@ class TestDataloggingIntegration(ScrutinyIntegrationTestWithTestSFD1):
                 expected_val = sig[0]
                 for val in sig:
                     self.assertEqual(expected_val, val)
-                    expected_val = expected_val + decimation * 5
+                    expected_val = expected_val + decimation * 5 * self.entry_alias_rpv1000.aliasdef.get_gain()
 
                 sig = response['signals'][3]['data']
                 expected_val = sig[0]
                 for val in sig:
-                    self.assertEqual(expected_val, val)
-                    expected_val = (expected_val + 1 * decimation) % 0xFF
+                    self.assertAlmostEqual(expected_val, val, 4)
+                    expected_val = (expected_val + 1 * decimation * self.entry_alias_uint8.aliasdef.get_gain()) % 0xFF
 
     def tearDown(self) -> None:
         super().tearDown()
