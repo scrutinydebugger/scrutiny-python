@@ -177,6 +177,7 @@ class DataloggingPoller:
     def stop(self) -> None:
         """ Stop the DataloggingPoller """
         self.stop_requested = True
+        self.logger.debug("Requesting to stop")
 
     def disable(self) -> None:
         """Disable the DataloggingPoller"""
@@ -264,6 +265,7 @@ class DataloggingPoller:
             return
         elif self.stop_requested:
             if not self.has_any_request_pending():
+                self.logger.debug("Stop completed. Going standby")
                 self.started = False
                 self.set_standby()
             return

@@ -119,7 +119,7 @@ class DataloggingManager:
 
                 # Now converts binary data into meaningful value using the datastore entries and add to acquisition object
                 for signal in self.active_request.api_request.signals:
-                    parsed_data = self.read_active_request_data_from_raw_data(signal, data)  # PArse binary data
+                    parsed_data = self.read_active_request_data_from_raw_data(signal, data)  # Parse binary data
                     ds = api_datalogging.DataSeries(
                         data=parsed_data,
                         logged_element=signal.entry.display_path
@@ -143,8 +143,11 @@ class DataloggingManager:
                 elif self.active_request.api_request.x_axis_type == api_datalogging.XAxisType.MeasuredTime:
                     # Measured time is appended at the end of the signal list. See make_device_config_from_request
                     time_data = data[-1]
+                    if (len(time_data)) < 1:
+                        raise ValueError('Bad measured time')
                     time_codec = Codecs.get(EmbeddedDataType.uint32, endianness=Endianness.Big)
-                    xaxis.set_data([time_codec.decode(sample) * 1e-7 for sample in time_data])
+                    first_sample = time_codec.decode(time_data[0])
+                    xaxis.set_data([(time_codec.decode(sample) - first_sample) * 1e-7 for sample in time_data])
                     xaxis.name = 'X-Axis'
                     xaxis.logged_element = 'Measured Time'
                 elif self.active_request.api_request.x_axis_type == api_datalogging.XAxisType.Signal:

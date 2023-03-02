@@ -32,14 +32,20 @@ class RequestQueue:
     dataclass from Python 3.7 just for not comparing the data when selecting priority.
     We will have all the flexibility we need with our own minimalist custom class
     """
+    OVERSIZE_WARNING_LEVEL = 10
+    OVERSIZE_ERROR_LEVEL = 100
+    WARNING_INTERVAL = 2
 
     maxsize: Optional[int]       # Upper limit of queue size
     data: List["RequestRecord"]    # Queue data
     priorities: List[int]        # Element for bisect. Bisect does not support searching on a specific key before python 3.10
+    logger: logging.Logger
+    last_warning_time: Optional[float]
 
     def __init__(self, maxsize: Optional[int] = None):
         self.clear()
         self.maxsize = maxsize
+        self.logger = logging.getLogger(self.__class__.__name__)
 
     def clear(self) -> None:
         """Delete all data inside the queue"""
@@ -54,6 +60,17 @@ class RequestQueue:
         index = bisect.bisect_left(self.priorities, priority)
         self.data.insert(index, item)
         self.priorities.insert(index, priority)
+
+        queue_size = len(self.data)
+        if queue_size >= self.OVERSIZE_WARNING_LEVEL:
+            if self.last_warning_time is None or (time() - self.last_warning_time) > self.WARNING_INTERVAL:
+                self.last_warning_time = time()
+                self.logger.warning("Request queue reached %d" % queue_size)
+
+        if queue_size > self.OVERSIZE_ERROR_LEVEL:
+            error_msg = "Request queue is growing too fast. Size=%d" % queue_size
+            self.logger.critical(error_msg)
+            raise RuntimeError(error_msg)
 
     def pop(self) -> Optional["RequestRecord"]:
         """Pop an element at the exit of the queue"""
