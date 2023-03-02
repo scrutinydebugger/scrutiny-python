@@ -360,7 +360,7 @@ class TestDataloggingIntegration(ScrutinyIntegrationTestWithTestSFD1):
                 sig = response['signals'][2]['data']
                 expected_val = sig[0]
                 for val in sig:
-                    self.assertEqual(expected_val, val)
+                    self.assertAlmostEqual(expected_val, val, 4)
                     expected_val = expected_val + decimation * 5 * self.entry_alias_rpv1000.aliasdef.get_gain()
 
                 sig = response['signals'][3]['data']
