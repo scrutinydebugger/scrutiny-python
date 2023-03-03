@@ -1281,14 +1281,15 @@ class API:
                 'readonly_memory_regions': cast(List[Dict[str, int]], device_info_input.readonly_memory_regions)
             }
 
-            datalogger_state = self.datalogger_state_to_api.get(self.device_handler.get_datalogger_state(), API.DataloggingStatus.UNAVAILABLE)
-        else:
-            datalogger_state = API.DataloggingStatus.STANDBY
-
         if device_comm_link is None:
             link_config = cast(EmptyDict, {})
         else:
             link_config = cast(api_typing.LinkConfig, device_comm_link.get_config())
+
+        datalogger_state_api = API.DataloggingStatus.UNAVAILABLE
+        datalogger_state = self.device_handler.get_datalogger_state()
+        if datalogger_state is not None:
+            datalogger_state_api = self.datalogger_state_to_api.get(datalogger_state, API.DataloggingStatus.UNAVAILABLE)
 
         response: api_typing.S2C.InformServerStatus = {
             'cmd': self.Command.Api2Client.INFORM_SERVER_STATUS,
@@ -1297,7 +1298,7 @@ class API:
             'device_info': device_info_output,
             'loaded_sfd': loaded_sfd,
             'device_datalogging_status': {
-                'datalogger_state': cast(api_typing.DataloggerState, datalogger_state),
+                'datalogger_state': cast(api_typing.DataloggerState, datalogger_state_api),
                 'completion_ratio': self.device_handler.get_datalogging_acquisition_completion_ratio()
             },
             'device_comm_link': {

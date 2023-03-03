@@ -236,7 +236,7 @@ class DeviceHandler:
         """Returns all the information we have about the connected device. None if not connected"""
         return copy.copy(self.device_info)
 
-    def get_datalogger_state(self) -> device_datalogging.DataloggerState:
+    def get_datalogger_state(self) -> Optional[device_datalogging.DataloggerState]:
         """Return the state of the datalogging state machine within the device"""
         return self.datalogging_poller.get_datalogger_state()
 

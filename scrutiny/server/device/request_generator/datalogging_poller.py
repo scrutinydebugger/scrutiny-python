@@ -102,6 +102,7 @@ class DataloggingPoller:
     read_rolling_counter: int   # The rolling counter read from the last read request
     require_status_update: bool  # Flag indicating that it is time to read the datalogger state
     ready_to_receive_request: bool  # Flag indicating that the poller is ready to receive an acquisition request form the datalogging manager.
+    datalogger_state_known: bool
 
     acquisition_metadata: Optional[device_datalogging.AcquisitionMetadata]
     received_data_chunk: Optional[ReceivedChunk]
@@ -158,6 +159,7 @@ class DataloggingPoller:
         self.require_status_update = False
         self.ready_to_receive_request = False
         self.completion_ratio = None
+        self.datalogger_state_known = False
 
     def configure_rpvs(self, rpvs: List[RuntimePublishedValue]):
         self.rpv_map.clear()
@@ -173,6 +175,9 @@ class DataloggingPoller:
         """ Launch polling of data """
         if self.enabled:
             self.started = True
+
+    def is_started(self) -> bool:
+        return self.started and self.enabled and not self.stop_requested
 
     def stop(self) -> None:
         """ Stop the DataloggingPoller """
@@ -192,9 +197,11 @@ class DataloggingPoller:
         """Tells if the DataloggingPoller is enabled"""
         return self.enabled
 
-    def get_datalogger_state(self) -> device_datalogging.DataloggerState:
+    def get_datalogger_state(self) -> Optional[device_datalogging.DataloggerState]:
         """Return the last datalogger state read"""
-        return self.device_datalogging_state
+        if self.datalogger_state_known:
+            return self.device_datalogging_state
+        return None
 
     def get_device_setup(self) -> Optional[device_datalogging.DataloggingSetup]:
         """Return the datalogging setup structure if available. Contains buffer size, encoding and limits """
@@ -568,6 +575,7 @@ class DataloggingPoller:
         if self.device_datalogging_state != response_data['state']:
             self.logger.debug("Device datalogging status changed from %s to %s" % (self.device_datalogging_state.name, response_data['state'].name))
         self.device_datalogging_state = response_data['state']
+        self.datalogger_state_known = True
         self.completion_ratio = None
         if response_data['byte_counter_since_trigger'] != 0 and response_data['remaining_byte_from_trigger_to_complete'] != 0:
             self.completion_ratio = response_data['byte_counter_since_trigger'] / response_data['remaining_byte_from_trigger_to_complete']
