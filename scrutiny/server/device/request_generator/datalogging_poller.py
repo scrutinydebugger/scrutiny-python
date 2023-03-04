@@ -86,7 +86,7 @@ class DataloggingPoller:
     state: FSMState  # The state of the state machine
     previous_state: FSMState    # Previous state of the state machine
     update_status_timer: Timer  # Time to poll for datalogging status periodically
-    device_datalogging_state: device_datalogging.DataloggerState    # The state of the datalogging feature in the device
+    device_datalogging_state: Optional[device_datalogging.DataloggerState]    # The state of the datalogging feature in the device
     # A value between 0 and 1 indicating the percentage of completion of the acquisition. Only valid in TRIGGERED state. None when N/A
     completion_ratio: Optional[float]
     max_response_payload_size: Optional[int]    # Maximum size of a payload that the device can send to the server
@@ -102,7 +102,6 @@ class DataloggingPoller:
     read_rolling_counter: int   # The rolling counter read from the last read request
     require_status_update: bool  # Flag indicating that it is time to read the datalogger state
     ready_to_receive_request: bool  # Flag indicating that the poller is ready to receive an acquisition request form the datalogging manager.
-    datalogger_state_known: bool
 
     acquisition_metadata: Optional[device_datalogging.AcquisitionMetadata]
     received_data_chunk: Optional[ReceivedChunk]
@@ -121,7 +120,6 @@ class DataloggingPoller:
         self.acquisition_request = None
         self.enabled = True
         self.actual_config_id = 0
-        self.device_datalogging_state = device_datalogging.DataloggerState.IDLE
         self.max_response_payload_size = None
         self.update_status_timer = Timer(self.UPDATE_STATUS_INTERVAL_IDLE)
         self.rpv_map = {}
@@ -150,7 +148,7 @@ class DataloggingPoller:
         self.configure_completed = False
         self.arm_completed = False
         self.update_status_timer.stop()
-        self.device_datalogging_state = device_datalogging.DataloggerState.IDLE
+        self.device_datalogging_state = None    # Unknown
         self.failure_counter = 0
         self.data_read_success = False
         self.bytes_received = bytearray()
@@ -159,7 +157,6 @@ class DataloggingPoller:
         self.require_status_update = False
         self.ready_to_receive_request = False
         self.completion_ratio = None
-        self.datalogger_state_known = False
 
     def configure_rpvs(self, rpvs: List[RuntimePublishedValue]):
         self.rpv_map.clear()
@@ -199,9 +196,7 @@ class DataloggingPoller:
 
     def get_datalogger_state(self) -> Optional[device_datalogging.DataloggerState]:
         """Return the last datalogger state read"""
-        if self.datalogger_state_known:
-            return self.device_datalogging_state
-        return None
+        return self.device_datalogging_state
 
     def get_device_setup(self) -> Optional[device_datalogging.DataloggingSetup]:
         """Return the datalogging setup structure if available. Contains buffer size, encoding and limits """
@@ -376,6 +371,9 @@ class DataloggingPoller:
                     next_state = FSMState.WAIT_FOR_REQUEST
 
                 elif self.require_status_update == False:   # Set by GetStatus callback
+                    if self.device_datalogging_state is None:
+                        raise RuntimeError("Datalogger state is None even after being updated")
+
                     if self.device_datalogging_state == device_datalogging.DataloggerState.ACQUISITION_COMPLETED:   # We have data!
                         next_state = FSMState.READ_METADATA
 
@@ -499,8 +497,9 @@ class DataloggingPoller:
 
             self.previous_state = self.state
             if next_state != self.state:
+                device_state_name = self.device_datalogging_state if self.device_datalogging_state is not None else "<None>"
                 self.logger.debug("Moving state from %s to %s. Last device status reading is %s" %
-                                  (self.state.name, next_state.name, self.device_datalogging_state.name))
+                                  (self.state.name, next_state.name, device_state_name))
             self.state = next_state
         except Exception as e:
             self.error = True
@@ -572,10 +571,10 @@ class DataloggingPoller:
         """Process the response to GetStatus when the device returns OK code"""
         response_data = cast(protocol_typing.Response.DatalogControl.GetStatus, self.protocol.parse_response(response))
 
+        datalogging_state_name = self.device_datalogging_state if self.device_datalogging_state is not None else "<None>"
         if self.device_datalogging_state != response_data['state']:
-            self.logger.debug("Device datalogging status changed from %s to %s" % (self.device_datalogging_state.name, response_data['state'].name))
+            self.logger.debug("Device datalogging status changed from %s to %s" % (datalogging_state_name, response_data['state'].name))
         self.device_datalogging_state = response_data['state']
-        self.datalogger_state_known = True
         self.completion_ratio = None
         if response_data['byte_counter_since_trigger'] != 0 and response_data['remaining_byte_from_trigger_to_complete'] != 0:
             self.completion_ratio = response_data['byte_counter_since_trigger'] / response_data['remaining_byte_from_trigger_to_complete']

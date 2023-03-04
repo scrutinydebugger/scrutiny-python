@@ -138,10 +138,13 @@ class StubbedDataloggingManager:
     datalogging_setup: device_datalogging.DataloggingSetup
     request_queue: "Queue[api_datalogging.AcquisitionRequest]"
 
+    callback_queue: "Queue[Tuple[api_datalogging.APIAcquisitionRequestCompletionCallback, bool, api_datalogging.DataloggingAcquisition]]"
+
     def __init__(self, datastore: Datastore, fake_device_handler: StubbedDeviceHandler):
         self.datastore = datastore
         self.fake_device_handler = fake_device_handler
         self.request_queue = Queue()
+        self.callback_queue = Queue()
 
     def get_device_setup(self) -> Optional[device_datalogging.DataloggingSetup]:
         return self.fake_device_handler.get_datalogging_setup()
@@ -156,7 +159,14 @@ class StubbedDataloggingManager:
             name='fakename',
             reference_id='fake_refid',
             acq_time=datetime.now())
-        callback(True, acquisition)
+
+        # Defer callback to a while later because API depends on success of this function to take action.
+        self.callback_queue.put((callback, True, acquisition))
+
+    def process(self) -> None:
+        if not self.callback_queue.empty():
+            callback, success, acquisition = self.callback_queue.get()
+            callback(success, acquisition)
 
     def get_sampling_rate(self, identifier: int):
         info = self.fake_device_handler.get_device_info()
@@ -249,6 +259,7 @@ class TestAPI(ScrutinyUnitTest):
     def process_all(self):
         self.api.process()
         self.sfd_handler.process()
+        self.fake_datalogging_manager.process()
 
     def ensure_no_response_for(self, conn_idx=0, timeout=0.4):
         t1 = time.time()
@@ -1578,14 +1589,24 @@ class TestAPI(ScrutinyUnitTest):
 
     def send_request_datalogging_acquisition_and_fetch_result(self, req: api_typing.C2S.RequestDataloggingAcquisition) -> api_datalogging.AcquisitionRequest:
         self.send_request(req)
-        response = self.wait_and_load_response()
-        self.assert_no_error(response)
-        self.assertIn(response['cmd'], [API.Command.Api2Client.INFORM_DATALOGGING_LIST_CHANGED,
-                      API.Command.Api2Client.REQUEST_DATALOGGING_ACQUISITION_RESPONSE])
-        response = self.wait_and_load_response()
-        self.assert_no_error(response)
-        self.assertIn(response['cmd'], [API.Command.Api2Client.INFORM_DATALOGGING_LIST_CHANGED,
-                                        API.Command.Api2Client.REQUEST_DATALOGGING_ACQUISITION_RESPONSE])
+        request_token = None
+        for i in range(3):
+            response = self.wait_and_load_response()
+            self.assert_no_error(response)
+            self.assertIn(response['cmd'], [
+                API.Command.Api2Client.INFORM_DATALOGGING_LIST_CHANGED,
+                API.Command.Api2Client.REQUEST_DATALOGGING_ACQUISITION_RESPONSE,
+                API.Command.Api2Client.INFORM_DATALOGGING_ACQUISITION_COMPLETE,
+            ])
+
+            if response['cmd'] == API.Command.Api2Client.REQUEST_DATALOGGING_ACQUISITION_RESPONSE:
+                response = cast(api_typing.S2C.RequestDataloggingAcquisition, response)
+                request_token = response['request_token']
+            elif response['cmd'] == API.Command.Api2Client.INFORM_DATALOGGING_ACQUISITION_COMPLETE:
+                response = cast(api_typing.S2C.InformDataloggingAcquisitionComplete, response)
+                self.assertIsNotNone(request_token)
+                self.assertEqual(response['request_token'], request_token)
+                self.assertTrue(response['success'])
 
         self.assertFalse(self.fake_datalogging_manager.request_queue.empty())
         ar = self.fake_datalogging_manager.request_queue.get()

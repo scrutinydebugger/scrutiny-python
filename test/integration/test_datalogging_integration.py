@@ -67,6 +67,7 @@ class TestDataloggingIntegration(ScrutinyIntegrationTestWithTestSFD1):
                 self.emulated_device.write_memory(entry.get_address(), b'\x00' * entry.get_size())
 
     def test_get_datalogger_capabilities(self):
+        self.wait_for(0.5)    # Leave time for the server to poll the datalogger state
         req = {
             'cmd': API.Command.Client2Api.GET_SERVER_STATUS,
         }
@@ -217,7 +218,11 @@ class TestDataloggingIntegration(ScrutinyIntegrationTestWithTestSFD1):
                     self.emulated_device.add_additional_task(ValueUpdateTask(self))  # Will be run in device thread
 
                 self.send_request(req)  # Send the acquisition request here
-                self.ensure_no_response_for(0.2)
+
+                response = self.wait_and_load_response(API.Command.Api2Client.REQUEST_DATALOGGING_ACQUISITION_RESPONSE)
+                self.assert_no_error(response)
+                response = cast(api_typing.S2C.RequestDataloggingAcquisition, response)
+                request_token = response['request_token']
 
                 self.wait_for(1)
                 self.assertFalse(self.emulated_device.datalogger.triggered())
@@ -233,13 +238,13 @@ class TestDataloggingIntegration(ScrutinyIntegrationTestWithTestSFD1):
                 acq_refid = None
                 received_req = {
                     API.Command.Api2Client.INFORM_DATALOGGING_LIST_CHANGED: None,
-                    API.Command.Api2Client.REQUEST_DATALOGGING_ACQUISITION_RESPONSE: None,
+                    API.Command.Api2Client.INFORM_DATALOGGING_ACQUISITION_COMPLETE: None,
                 }
                 for i in range(2):
                     response = self.wait_and_load_response(
                         cmd=[
                             API.Command.Api2Client.INFORM_DATALOGGING_LIST_CHANGED,
-                            API.Command.Api2Client.REQUEST_DATALOGGING_ACQUISITION_RESPONSE
+                            API.Command.Api2Client.INFORM_DATALOGGING_ACQUISITION_COMPLETE
                         ], timeout=2.0)
 
                     self.assert_no_error(response)
@@ -252,10 +257,10 @@ class TestDataloggingIntegration(ScrutinyIntegrationTestWithTestSFD1):
                         else:
                             acq_refid = response['reference_id']
 
-                    elif response['cmd'] == API.Command.Api2Client.REQUEST_DATALOGGING_ACQUISITION_RESPONSE:
-                        response = cast(api_typing.S2C.RequestDataloggingAcquisition, response)
-                        self.assertEqual(response['reqid'], req['reqid'])
+                    elif response['cmd'] == API.Command.Api2Client.INFORM_DATALOGGING_ACQUISITION_COMPLETE:
+                        response = cast(api_typing.S2C.InformDataloggingAcquisitionComplete, response)
                         self.assertTrue(response['success'])
+                        self.assertEqual(response['request_token'], request_token) 
                         if acq_refid is not None:
                             self.assertEqual(acq_refid, response['reference_id'])
                         else:

@@ -579,6 +579,15 @@ class TestDeviceHandler(ScrutinyUnitTest):
                     connection_completed = True
                     break
 
+            timeout = 1
+            t1 = time.time()
+            while time.time() - t1 < timeout:
+                self.device_handler.process()
+                time.sleep(0.01)
+                if self.device_handler.get_datalogger_state() is not None:
+                    break
+
+            self.assertIsNotNone(self.device_handler.get_datalogger_state(), "iteration=%d" % iteration)
             # Make sure everything is idle after connection
             self.assertTrue(connection_completed)
             device_info = self.device_handler.get_device_info()

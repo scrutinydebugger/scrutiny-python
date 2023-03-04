@@ -294,8 +294,12 @@ class S2C:
         capabilities: Optional[DataloggingCapabilities]
 
     class RequestDataloggingAcquisition(BaseS2CMessage):
-        success: bool
+        request_token: str
+
+    class InformDataloggingAcquisitionComplete(BaseS2CMessage):
+        request_token: str
         reference_id: Optional[str]
+        success: bool
 
     class InformDataloggingListChanged(BaseS2CMessage):
         reference_id: Optional[str]
