@@ -182,6 +182,8 @@ class Response:
 
         class GetStatus(TypedDict):
             state: device_datalogging.DataloggerState
+            remaining_byte_from_trigger_to_complete: int
+            byte_counter_since_trigger: int
 
         class GetAcquisitionMetadata(TypedDict):
             acquisition_id: int

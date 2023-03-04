@@ -236,13 +236,17 @@ class DeviceHandler:
         """Returns all the information we have about the connected device. None if not connected"""
         return copy.copy(self.device_info)
 
-    def get_datalogger_state(self) -> device_datalogging.DataloggerState:
+    def get_datalogger_state(self) -> Optional[device_datalogging.DataloggerState]:
         """Return the state of the datalogging state machine within the device"""
         return self.datalogging_poller.get_datalogger_state()
 
     def get_datalogging_setup(self) -> Optional[device_datalogging.DataloggingSetup]:
         """Get the device datalogging configuration (encoding, buffer size, etc)"""
         return self.datalogging_poller.get_device_setup()
+
+    def get_datalogging_acquisition_completion_ratio(self) -> Optional[float]:
+        """Returns a value between 0 and 1 indicating how far the acquisition is frm being completed once the trigger event has been launched"""
+        return self.datalogging_poller.get_completion_ratio()
 
     def get_comm_error_count(self) -> int:
         """Returns the number of communication issue we have encountered since startup"""

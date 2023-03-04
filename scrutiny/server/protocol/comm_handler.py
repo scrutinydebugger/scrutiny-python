@@ -257,9 +257,11 @@ class CommHandler:
                     if self.active_request is not None:  # Just to please mypy
                         # Validate that the response match the request
                         if self.received_response.command != self.active_request.command:
-                            raise Exception("Unexpected Response command ID : %s" % str(self.received_response))
+                            raise Exception("Unexpected Response command ID : %s Expecting: %s" %
+                                            (str(self.received_response), self.active_request.command))
                         if self.received_response.subfn != self.active_request.subfn:
-                            raise Exception("Unexpected Response subfunction : %s" % str(self.received_response))
+                            raise Exception("Unexpected Response subfunction : %s. Expecting: %s" %
+                                            (str(self.received_response), self.active_request.subfn))
                     else:
                         # Should never happen. waiting_response() is checked above
                         raise Exception('Got a response while having no request in process')

@@ -350,7 +350,7 @@ class Protocol:
         return Request(cmd.DatalogControl, cmd.DatalogControl.Subfunction.DisarmTrigger, response_payload_size=0)
 
     def datalogging_get_status(self) -> Request:
-        return Request(cmd.DatalogControl, cmd.DatalogControl.Subfunction.GetStatus, response_payload_size=1)
+        return Request(cmd.DatalogControl, cmd.DatalogControl.Subfunction.GetStatus, response_payload_size=1 + 4 + 4)
 
     def datalogging_get_acquisition_metadata(self) -> Request:
         return Request(cmd.DatalogControl, cmd.DatalogControl.Subfunction.GetAcquisitionMetadata, response_payload_size=14)
@@ -820,9 +820,10 @@ class Protocol:
     def respond_datalogging_disarm_trigger(self) -> Response:
         return Response(cmd.DatalogControl, cmd.DatalogControl.Subfunction.DisarmTrigger, Response.ResponseCode.OK)
 
-    def respond_datalogging_get_status(self, state: Union[device_datalogging.DataloggerState, int]) -> Response:
+    def respond_datalogging_get_status(self, state: Union[device_datalogging.DataloggerState, int], remaining_byte_from_trigger_to_complete: int, byte_counter_since_trigger: int) -> Response:
         state = device_datalogging.DataloggerState(state)
-        return Response(cmd.DatalogControl, cmd.DatalogControl.Subfunction.GetStatus, Response.ResponseCode.OK, pack('B', state.value))
+        data = pack('>BLL', state.value, remaining_byte_from_trigger_to_complete, byte_counter_since_trigger)
+        return Response(cmd.DatalogControl, cmd.DatalogControl.Subfunction.GetStatus, Response.ResponseCode.OK, data)
 
     def respond_datalogging_get_acquisition_metadata(self, acquisition_id: int, config_id: int, nb_points: int, datasize: int, points_after_trigger: int) -> Response:
         return Response(cmd.DatalogControl, cmd.DatalogControl.Subfunction.GetAcquisitionMetadata, Response.ResponseCode.OK,
@@ -1035,14 +1036,18 @@ class Protocol:
                         data['max_signal_count'] = response.payload[5]
                     elif subfn == cmd.DatalogControl.Subfunction.GetStatus:
                         data = cast(protocol_typing.Response.DatalogControl.GetStatus, data)
-                        if len(response.payload) != 1:
-                            raise ValueError('Not the right amount of data for a GetStatus response. Got %d expected %d', (len(response.payload), 1))
+                        expected_size = 1 + 4 + 4
+                        if len(response.payload) != expected_size:
+                            raise ValueError('Not the right amount of data for a GetStatus response. Got %d expected %d',
+                                             (len(response.payload), expected_size))
 
-                        state_code = response.payload[0]
+                        state_code, remaining_bytes, write_counter = unpack('>BLL', response.payload)
                         if state_code not in [v.value for v in device_datalogging.DataloggerState]:
                             raise ValueError('Unknown datalogger status code %d' % state_code)
 
                         data['state'] = device_datalogging.DataloggerState(state_code)
+                        data['remaining_byte_from_trigger_to_complete'] = remaining_bytes
+                        data['byte_counter_since_trigger'] = write_counter
                     elif subfn == cmd.DatalogControl.Subfunction.GetAcquisitionMetadata:
                         data = cast(protocol_typing.Response.DatalogControl.GetAcquisitionMetadata, data)
                         if len(response.payload) != 16:

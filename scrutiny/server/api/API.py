@@ -12,6 +12,7 @@ import traceback
 import math
 from dataclasses import dataclass
 import functools
+from uuid import uuid4
 
 from scrutiny.server.datalogging.datalogging_storage import DataloggingStorage
 from scrutiny.server.datalogging.datalogging_manager import DataloggingManager
@@ -102,6 +103,7 @@ class API:
             INFORM_DATALOGGING_LIST_CHANGED = 'inform_datalogging_list_changed'
             LIST_DATALOGGING_ACQUISITION_RESPONSE = 'list_datalogging_acquisitions_response'
             REQUEST_DATALOGGING_ACQUISITION_RESPONSE = 'request_datalogging_acquisition_response'
+            INFORM_DATALOGGING_ACQUISITION_COMPLETE = 'inform_datalogging_acquisition_complete'
             READ_DATALOGGING_ACQUISITION_CONTENT_RESPONSE = 'read_datalogging_acquisition_content_response'
             UPDATE_DATALOGGING_ACQUISITION_RESPONSE = 'update_datalogging_acquisition_response'
             DELETE_DATALOGGING_ACQUISITION_RESPONSE = 'delete_datalogging_acquisition_response'
@@ -1004,27 +1006,37 @@ class API:
             signals=signals_to_log
         )
 
-        # We use a partial func to passe of req id
-        callback = functools.partial(self.datalogging_acquisition_completion_callback, conn_id, self.get_req_id(req))
+        # We use a partial func to pass the request token and conn id
+        request_token = uuid4().hex
+        callback = functools.partial(self.datalogging_acquisition_completion_callback, conn_id, request_token)
 
         self.datalogging_manager.request_acquisition(
             request=acq_req,
             callback=api_datalogging.APIAcquisitionRequestCompletionCallback(callback)
         )
 
-    def datalogging_acquisition_completion_callback(self, requestor_conn_id: str, requestor_reqid: Optional[int], success: bool, acquisition: Optional[api_datalogging.DataloggingAcquisition]) -> None:
+        response: api_typing.S2C.RequestDataloggingAcquisition = {
+            'cmd': API.Command.Api2Client.REQUEST_DATALOGGING_ACQUISITION_RESPONSE,
+            'reqid': self.get_req_id(req),
+            'request_token': request_token
+        }
+
+        self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
+
+    def datalogging_acquisition_completion_callback(self, requestor_conn_id: str, request_token: str, success: bool, acquisition: Optional[api_datalogging.DataloggingAcquisition]) -> None:
         reference_id: Optional[str] = None
         if success:
             assert acquisition is not None
             reference_id = acquisition.reference_id
 
-        completion_msg: api_typing.S2C.RequestDataloggingAcquisition = {
-            'cmd': API.Command.Api2Client.REQUEST_DATALOGGING_ACQUISITION_RESPONSE,
-            'reqid': requestor_reqid,
+        # Tell the requestor that his request is completed.
+        completion_msg: api_typing.S2C.InformDataloggingAcquisitionComplete = {
+            'cmd': API.Command.Api2Client.INFORM_DATALOGGING_ACQUISITION_COMPLETE,
+            'reqid': None,
             'success': success,
             'reference_id': reference_id,
+            'request_token': request_token
         }
-
         self.client_handler.send(ClientHandlerMessage(conn_id=requestor_conn_id, obj=completion_msg))
 
         # Inform all client so they can auto load the new data.
@@ -1281,14 +1293,15 @@ class API:
                 'readonly_memory_regions': cast(List[Dict[str, int]], device_info_input.readonly_memory_regions)
             }
 
-            datalogging_status = self.datalogger_state_to_api.get(self.device_handler.get_datalogger_state(), API.DataloggingStatus.UNAVAILABLE)
-        else:
-            datalogging_status = API.DataloggingStatus.STANDBY
-
         if device_comm_link is None:
             link_config = cast(EmptyDict, {})
         else:
             link_config = cast(api_typing.LinkConfig, device_comm_link.get_config())
+
+        datalogger_state_api = API.DataloggingStatus.UNAVAILABLE
+        datalogger_state = self.device_handler.get_datalogger_state()
+        if datalogger_state is not None:
+            datalogger_state_api = self.datalogger_state_to_api.get(datalogger_state, API.DataloggingStatus.UNAVAILABLE)
 
         response: api_typing.S2C.InformServerStatus = {
             'cmd': self.Command.Api2Client.INFORM_SERVER_STATUS,
@@ -1296,7 +1309,10 @@ class API:
             'device_status': self.device_conn_status_to_str[self.device_handler.get_connection_status()],
             'device_info': device_info_output,
             'loaded_sfd': loaded_sfd,
-            'device_datalogging_status': cast(api_typing.DataloggingStatus, datalogging_status),
+            'device_datalogging_status': {
+                'datalogger_state': cast(api_typing.DataloggerState, datalogger_state_api),
+                'completion_ratio': self.device_handler.get_datalogging_acquisition_completion_ratio()
+            },
             'device_comm_link': {
                 'link_type': cast(api_typing.LinkType, device_link_type),
                 'link_config': link_config

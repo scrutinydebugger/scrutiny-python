@@ -29,8 +29,13 @@ Datatype = Literal[
     'boolean'
 ]
 
-DataloggingStatus = Literal["unavailable", "standby", "waiting_for_trigger", "acquiring", "data_ready", "error"]
+DataloggerState = Literal["unavailable", "standby", "waiting_for_trigger", "acquiring", "data_ready", "error"]
 DataloggingCondition = Literal['eq', 'neq', 'get', 'gt', 'let', 'lt', 'within', 'cmt']
+
+
+class DataloggingStatus(TypedDict):
+    datalogger_state: DataloggerState
+    completion_ratio: Optional[float]
 
 
 class BaseC2SMessage(TypedDict):
@@ -289,8 +294,12 @@ class S2C:
         capabilities: Optional[DataloggingCapabilities]
 
     class RequestDataloggingAcquisition(BaseS2CMessage):
-        success: bool
+        request_token: str
+
+    class InformDataloggingAcquisitionComplete(BaseS2CMessage):
+        request_token: str
         reference_id: Optional[str]
+        success: bool
 
     class InformDataloggingListChanged(BaseS2CMessage):
         reference_id: Optional[str]

@@ -186,7 +186,6 @@ class DataloggerEmulator:
     buffer_size: int
     config: Optional[device_datalogging.Configuration]
     state: device_datalogging.DataloggerState
-    remaining_samples: int
     timebase: EmulatedTimebase
     trigger_cmt_last_val: Encodable
     last_trigger_condition_result: bool
@@ -217,7 +216,6 @@ class DataloggerEmulator:
 
         self.config = None
         self.state = device_datalogging.DataloggerState.IDLE
-        self.remaining_samples = 0
         self.timebase = EmulatedTimebase()
         self.trigger_cmt_last_val = 0
         self.last_trigger_condition_result = False
@@ -816,7 +814,21 @@ class EmulatedDevice:
                     points_after_trigger=self.datalogger.get_points_after_trigger()
                 )
         elif subfunction == cmd.DatalogControl.Subfunction.GetStatus:
-            response = self.protocol.respond_datalogging_get_status(state=self.datalogger.state)
+
+            if self.datalogger.state == device_datalogging.DataloggerState.TRIGGERED:
+                # Only valid in triggered state. This is where we start counting bytes.
+                byte_counter = self.datalogger.encoder.get_byte_counter()
+                remaining_bytes = self.datalogger.target_byte_count_after_trigger
+            else:
+                # 0/0 will mean no completion percentage available
+                byte_counter = 0
+                remaining_bytes = 0
+
+            response = self.protocol.respond_datalogging_get_status(
+                state=self.datalogger.state,
+                byte_counter_since_trigger=byte_counter,
+                remaining_byte_from_trigger_to_complete=remaining_bytes
+            )
 
         elif subfunction == cmd.DatalogControl.Subfunction.ReadAcquisition:
             if self.datalogger.state != device_datalogging.DataloggerState.ACQUISITION_COMPLETED:

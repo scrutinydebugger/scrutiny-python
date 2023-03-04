@@ -363,7 +363,7 @@ class DatastoreAliasEntry(DatastoreEntry):
 
     def decode(self, data: bytes) -> Encodable:
         """Decode a stream of bytes into a Python value"""
-        return self.refentry.decode(data)
+        return self.aliasdef.compute_device_to_user(self.refentry.decode(data))
 
     def update_target_value(self, value: Any, callback: Optional[UpdateTargetRequestCallback] = None) -> UpdateTargetRequest:
         """
