@@ -260,7 +260,7 @@ class TestDataloggingIntegration(ScrutinyIntegrationTestWithTestSFD1):
                     elif response['cmd'] == API.Command.Api2Client.INFORM_DATALOGGING_ACQUISITION_COMPLETE:
                         response = cast(api_typing.S2C.InformDataloggingAcquisitionComplete, response)
                         self.assertTrue(response['success'])
-                        self.assertEqual(response['request_token'], request_token) 
+                        self.assertEqual(response['request_token'], request_token)
                         if acq_refid is not None:
                             self.assertEqual(acq_refid, response['reference_id'])
                         else:
@@ -320,7 +320,7 @@ class TestDataloggingIntegration(ScrutinyIntegrationTestWithTestSFD1):
                     else:
                         self.assertEqual(len(signal['data']), nb_points)
 
-                self.assertEqual(response['xdata']['name'], 'X-Axis')
+                self.assertEqual(response['xdata']['name'], 'Time (measured)')
                 self.assertEqual(len(response['yaxis']), 2)
                 self.assertEqual(response['yaxis'][0]['name'], "Axis1")
                 self.assertEqual(response['yaxis'][0]['id'], 100)
