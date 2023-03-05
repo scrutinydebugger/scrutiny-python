@@ -138,8 +138,8 @@ class DataloggingManager:
                     timestep = 1 / sampling_rate.frequency
                     timestep *= self.active_request.api_request.decimation
                     xaxis.set_data([i * timestep for i in range(nb_points)])
-                    xaxis.name = 'X-Axis'
-                    xaxis.logged_element = 'Ideal Time'
+                    xaxis.name = 'Time (ideal)'
+                    xaxis.logged_element = 'Time (ideal)'
                 elif self.active_request.api_request.x_axis_type == api_datalogging.XAxisType.MeasuredTime:
                     # Measured time is appended at the end of the signal list. See make_device_config_from_request
                     time_data = data[-1]
@@ -148,15 +148,15 @@ class DataloggingManager:
                     time_codec = Codecs.get(EmbeddedDataType.uint32, endianness=Endianness.Big)
                     first_sample = time_codec.decode(time_data[0])
                     xaxis.set_data([(time_codec.decode(sample) - first_sample) * 1e-7 for sample in time_data])
-                    xaxis.name = 'X-Axis'
-                    xaxis.logged_element = 'Measured Time'
+                    xaxis.name = 'Time (measured)'
+                    xaxis.logged_element = 'Time (measured)'
                 elif self.active_request.api_request.x_axis_type == api_datalogging.XAxisType.Signal:
                     # Any other signal. Use the data as is.
                     xaxis_signal = self.active_request.api_request.x_axis_signal
                     assert xaxis_signal is not None
                     parsed_data = self.read_active_request_data_from_raw_data(xaxis_signal, data)
                     xaxis.set_data(parsed_data)
-                    xaxis.name = 'X-Axis'
+                    xaxis.name = xaxis_signal.name
                     xaxis.logged_element = xaxis_signal.entry.get_display_path()
                 else:
                     raise ValueError('Impossible X-Axis type')
