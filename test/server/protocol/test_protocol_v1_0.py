@@ -93,6 +93,7 @@ class TestProtocolV1_0(ScrutinyUnitTest):
 
 # region Request GetInfo
 
+
     def test_req_get_protocol_version(self):
         req = self.proto.get_protocol_version()
         self.assert_req_response_bytes(req, [1, 1, 0, 0])
@@ -156,7 +157,6 @@ class TestProtocolV1_0(ScrutinyUnitTest):
 # endregion
 
 # region Request MemoryControl
-
 
     def test_req_read_single_memory_block_8bits(self):
         self.proto.set_address_size_bits(8)
@@ -612,6 +612,12 @@ class TestProtocolV1_0(ScrutinyUnitTest):
         data = self.proto.parse_request(req)
         self.check_expected_payload_size(req, 6)
 
+    def test_req_datalogging_reset_datalogger(self):
+        req = self.proto.datalogging_reset_datalogger()
+        self.assert_req_response_bytes(req, bytes([5, 8, 0, 0]))
+        self.proto.parse_request(req)
+        self.check_expected_payload_size(req, 0)
+
     def test_req_datalogging_configure(self):
         self.proto.set_address_size_bits(32)
 
@@ -882,7 +888,6 @@ class TestProtocolV1_0(ScrutinyUnitTest):
 # endregion
 
 # region Response MemoryControl
-
 
     def test_response_read_single_memory_block_8bits(self):
         self.proto.set_address_size_bits(8)
@@ -1298,6 +1303,7 @@ class TestProtocolV1_0(ScrutinyUnitTest):
 
 # region Response DatalogControl
 
+
     def test_response_datalogging_get_setup(self):
         response = self.proto.respond_datalogging_get_setup(buffer_size=0x12345678, encoding=device_datalogging.Encoding.RAW, max_signal_count=32)
         self.assert_req_response_bytes(response, [0x85, 1, 0, 0, 6, 0x12, 0x34, 0x56, 0x78, 0, 32])
@@ -1309,6 +1315,11 @@ class TestProtocolV1_0(ScrutinyUnitTest):
     def test_response_datalogging_configure(self):
         response = self.proto.respond_datalogging_configure()
         self.assert_req_response_bytes(response, [0x85, 2, 0, 0, 0])
+        self.proto.parse_response(response)
+
+    def test_response_datalogging_configure(self):
+        response = self.proto.respond_datalogging_reset_datalogger()
+        self.assert_req_response_bytes(response, [0x85, 8, 0, 0, 0])
         self.proto.parse_response(response)
 
     def test_response_datalogging_arm_trigger(self):

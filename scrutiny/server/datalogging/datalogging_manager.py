@@ -94,7 +94,7 @@ class DataloggingManager:
         acquisition: Optional[api_datalogging.DataloggingAcquisition] = None
         try:
             if success:  # The device succeeded to complete the acquisition and fetch the data
-                self.logger.info("New acquisition gotten")
+                self.logger.info("New datalogging acquisition ready")
                 assert data is not None
 
                 # Make sure all signal data have the same length.
@@ -104,7 +104,7 @@ class DataloggingManager:
                         nb_points = len(signal_data)
                     else:
                         if nb_points != len(signal_data):
-                            raise ValueError('non-matching data length recived in new acquisition')
+                            raise ValueError('Non-matching data length recived in new acquisition')
 
                 if nb_points is None:
                     raise ValueError('Cannot determine the number of points in the acquisitions')
@@ -154,6 +154,8 @@ class DataloggingManager:
                     # Any other signal. Use the data as is.
                     xaxis_signal = self.active_request.api_request.x_axis_signal
                     assert xaxis_signal is not None
+                    if xaxis_signal.name is None:
+                        xaxis_signal.name = "X-Axis"
                     parsed_data = self.read_active_request_data_from_raw_data(xaxis_signal, data)
                     xaxis.set_data(parsed_data)
                     xaxis.name = xaxis_signal.name
