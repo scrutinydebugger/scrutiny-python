@@ -42,6 +42,8 @@ class DataloggingManager:
     active_request: Optional[DeviceSideAcquisitionRequest]  # The acquisition request being actively processed. None when no request is processed
     logger: logging.Logger  # Logger
 
+    TIME_PRECISION_DIGIT = 9    # Device precision is 1e-7. 9 digits is more than enough.
+
     def __init__(self, datastore: Datastore, device_handler: DeviceHandler):
         self.datastore = datastore
         self.device_handler = device_handler
@@ -137,7 +139,7 @@ class DataloggingManager:
                         raise ValueError('Ideal time X-Axis is not possible with variable frequency loops')
                     timestep = 1 / sampling_rate.frequency
                     timestep *= self.active_request.api_request.decimation
-                    xaxis.set_data([i * timestep for i in range(nb_points)])
+                    xaxis.set_data([round(i * timestep, self.TIME_PRECISION_DIGIT) for i in range(nb_points)])
                     xaxis.name = 'Time (ideal)'
                     xaxis.logged_element = 'Time (ideal)'
                 elif self.active_request.api_request.x_axis_type == api_datalogging.XAxisType.MeasuredTime:
