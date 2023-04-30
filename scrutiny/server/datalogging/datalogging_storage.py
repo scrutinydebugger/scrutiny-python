@@ -101,6 +101,8 @@ class DataloggingStorageManager:
 
     def clear_all(self) -> None:
         """Deletes the database content"""
+        # This method should work without prior initialization.
+        # It's a fallback solution to restore a corrupted storage
         filename = self.get_db_filename()
         if os.path.isfile(filename):
             os.remove(filename)

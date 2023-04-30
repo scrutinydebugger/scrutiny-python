@@ -34,10 +34,10 @@ class DisplayFieldSize:
             self.dataseries_name = max(self.dataseries_name, len(name))
 
 
-class ListDataloggingAcquisitions(BaseCommand):
-    _cmd_name_ = 'list-datalogging-acquisitions'
+class ListDatalog(BaseCommand):
+    _cmd_name_ = 'list-datalog'
     _brief_ = 'List all the acquisition stored in the server database'
-    _group_ = 'Server'
+    _group_ = 'Datalogging'
 
     parser: argparse.ArgumentParser
     parsed_args: Optional[argparse.Namespace] = None

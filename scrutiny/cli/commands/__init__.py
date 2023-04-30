@@ -11,8 +11,9 @@ from .launch_server import LaunchServer
 from .launch_gui import LaunchGUI
 from .runtest import RunTest
 from .add_alias import AddAlias
-from .clear_datalogging_storage import ClearDataloggingStorage
-from .list_datalogging_acquisitions import ListDataloggingAcquisitions
+from .delete_datalog import DeleteDatalog
+from .list_datalog import ListDatalog
+from .export_datalog import ExportDatalog
 
 from typing import List, Dict, Type
 
