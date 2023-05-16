@@ -1789,36 +1789,29 @@ class TestAPI(ScrutinyUnitTest):
                 self.send_request(req)
                 self.assert_is_error(self.wait_and_load_response())
 
-            # Bad decimation
-            for bad_hold_time in ['meow', -1, None, [1]]:
+            # Bad hold time
+            for bad_hold_time in ['meow', -1, None, [1], (2**32) * 1e-7]:  # max value
                 req = create_default_request()
                 req['trigger_hold_time'] = bad_hold_time
                 self.send_request(req)
                 self.assert_is_error(self.wait_and_load_response())
 
             # Bad Timeout
-            for bad_timeout in ['meow', -1, None, [1]]:
+            for bad_timeout in ['meow', -1, None, [1], (2**32) * 1e-7]:
                 req = create_default_request()
                 req['timeout'] = bad_timeout
                 self.send_request(req)
                 self.assert_is_error(self.wait_and_load_response())
 
-            # Bad Timeout
+            # Bad Probe location
             for bad_probe_location in ['meow', -1, 1.1, 2, [1]]:
                 req = create_default_request()
                 req['probe_location'] = bad_probe_location
                 self.send_request(req)
                 self.assert_is_error(self.wait_and_load_response())
 
-            # Bad Timeout
-            for bad_freq_id in ['meow', -1, 1.1, [1]]:
-                req = create_default_request()
-                req['sampling_rate_id'] = bad_freq_id
-                self.send_request(req)
-                self.assert_is_error(self.wait_and_load_response())
-
-                # Bad Timeout
-            for bad_rate_id in ['meow', -1, 11, [1]]:   # Fake datalogging manager consider all sample rate id > 10 to be bad.
+            # Bad sampling rate
+            for bad_rate_id in ['meow', -1, 11, 1.3, [1]]:   # Fake datalogging manager consider all sample rate id > 10 to be bad.
                 req = create_default_request()
                 req['sampling_rate_id'] = bad_rate_id
                 self.send_request(req)
