@@ -70,7 +70,7 @@ class ListDatalog(BaseCommand):
                 acq_name=acq.name if acq.name else "",
                 firmware_fullname='%s (<Unknown firmware>)' % acq.firmware_id,
                 dataseries_name=dataseries_name,
-                acq_time=acq.acq_time.strftime(r'%Y-%m-%d %H:%m:%S')
+                acq_time=acq.acq_time.strftime(r'%Y-%m-%d %H:%M:%S')
             )
             index += 1
 

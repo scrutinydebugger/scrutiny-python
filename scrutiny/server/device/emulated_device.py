@@ -795,6 +795,9 @@ class EmulatedDevice:
                     response = Response(req.command, req.subfn, code=ResponseCode.InvalidRequest)
                 else:
                     response = self.protocol.respond_datalogging_configure()
+        elif subfunction == cmd.DatalogControl.Subfunction.ResetDatalogger:
+            self.datalogger.reset()
+            response = self.protocol.respond_datalogging_reset_datalogger()
         elif subfunction == cmd.DatalogControl.Subfunction.ArmTrigger:
             self.datalogging_read_in_progress = False
             self.datalogger.arm_trigger()

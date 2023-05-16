@@ -38,7 +38,7 @@ class ExportDatalog(BaseCommand):
                 writer = csv.writer(f, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
                 writer.writerow(['Acquisition Name', acquisition.name])
                 writer.writerow(['Acquisition ID', acquisition.reference_id])
-                writer.writerow(['Acquisition time', acquisition.acq_time.strftime(r"%Y-%m-%d %H:%m:%S")])
+                writer.writerow(['Acquisition time', acquisition.acq_time.strftime(r"%Y-%m-%d %H:%M:%S")])
                 writer.writerow(['Firmware ID', acquisition.firmware_id])
                 firmware_name = 'N/A'
                 if SFDStorage.is_installed(acquisition.firmware_id):

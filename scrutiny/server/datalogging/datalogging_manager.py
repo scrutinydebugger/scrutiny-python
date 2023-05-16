@@ -215,14 +215,18 @@ class DataloggingManager:
             assert device_info.supported_feature_map is not None
             assert device_info.runtime_published_values is not None
             if device_info.supported_feature_map['datalogging'] == True:
-                if self.active_request is None:  # No request being processed
-                    if not self.acquisition_request_queue.empty():  # A request to be processed pending in the queue
-                        self.active_request = self.acquisition_request_queue.get()
-                        self.device_handler.request_datalogging_acquisition(
-                            loop_id=self.active_request.api_request.rate_identifier,
-                            config=self.active_request.device_config,
-                            callback=DeviceAcquisitionRequestCompletionCallback(self.acquisition_complete_callback)
-                        )
+                if not self.acquisition_request_queue.empty():  # A request to be processed pending in the queue
+                    if self.active_request is None:  # No request being processed
+                        if self.device_handler.is_ready_for_datalogging_acquisition_request():
+                            self.active_request = self.acquisition_request_queue.get()
+                            self.device_handler.request_datalogging_acquisition(
+                                loop_id=self.active_request.api_request.rate_identifier,
+                                config=self.active_request.device_config,
+                                callback=DeviceAcquisitionRequestCompletionCallback(self.acquisition_complete_callback)
+                            )
+                    else:
+                        if not self.device_handler.datalogging_cancel_in_progress():
+                            self.device_handler.cancel_datalogging_acquisition()    # device_handler should call acquisition_complete_callback when cancel is complete
         else:
             self.active_request = None
 

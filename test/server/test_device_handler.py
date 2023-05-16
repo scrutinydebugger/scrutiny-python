@@ -645,6 +645,18 @@ class TestDeviceHandler(ScrutinyUnitTest):
                 self.device_handler.process()
                 self.assertFalse(self.acquisition_complete_callback_called)
                 logger.debug("[iteration=%d] Requesting a new acquisition to interrupt previous one" % iteration)
+
+                with self.assertRaises(RuntimeError):
+                    self.device_handler.request_datalogging_acquisition(loop_id, config, self.acquisition_complete_callback)
+
+                self.device_handler.cancel_datalogging_acquisition()
+                self.assertTrue(self.device_handler.datalogging_cancel_in_progress())
+                timeout = 1
+                t1 = time.time()
+                while self.device_handler.datalogging_cancel_in_progress() and time.time() - t1 < timeout:
+                    self.device_handler.process()
+                self.assertFalse(self.device_handler.datalogging_cancel_in_progress())
+
                 self.device_handler.request_datalogging_acquisition(loop_id, config, self.acquisition_complete_callback)
                 self.assertTrue(self.acquisition_complete_callback_called)
                 self.assertFalse(self.acquisition_complete_callback_success)
@@ -665,6 +677,17 @@ class TestDeviceHandler(ScrutinyUnitTest):
 
             if iteration == 4:
                 logger.debug("[iteration=%d] Requesting a new acquisition to interrupt previous one" % iteration)
+                with self.assertRaises(RuntimeError):
+                    self.device_handler.request_datalogging_acquisition(loop_id, config, self.acquisition_complete_callback)
+
+                self.device_handler.cancel_datalogging_acquisition()
+                self.assertTrue(self.device_handler.datalogging_cancel_in_progress())
+                timeout = 1
+                t1 = time.time()
+                while self.device_handler.datalogging_cancel_in_progress() and time.time() - t1 < timeout:
+                    self.device_handler.process()
+                self.assertFalse(self.device_handler.datalogging_cancel_in_progress())
+
                 self.device_handler.request_datalogging_acquisition(loop_id, config, self.acquisition_complete_callback)
                 self.assertTrue(self.acquisition_complete_callback_called)
                 self.assertFalse(self.acquisition_complete_callback_success)

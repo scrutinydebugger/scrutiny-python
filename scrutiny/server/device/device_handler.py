@@ -228,6 +228,14 @@ class DeviceHandler:
         """Request the device for a datalogging acquisition. If a request was pending, this one will be aborted and the completion callback will be called with a failure indication. """
         self.datalogging_poller.request_acquisition(loop_id=loop_id, config=config, callback=callback)
 
+    def cancel_datalogging_acquisition(self) -> None:
+        """Cancel active acquisition if any"""
+        self.datalogging_poller.cancel_acquisition_request()
+
+    def datalogging_cancel_in_progress(self) -> bool:
+        """Tells if a request cancel is in progress"""
+        return self.datalogging_poller.cancel_in_progress()
+
     def is_ready_for_datalogging_acquisition_request(self) -> bool:
         """Tells if the device is ready to receive to receive a datalogging acquisition request"""
         return self.datalogging_poller.is_ready_to_receive_new_request()

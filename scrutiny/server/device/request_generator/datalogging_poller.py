@@ -94,14 +94,14 @@ class DataloggingPoller:
     rpv_map: Dict[int, RuntimePublishedValue]   # Map of RPV ID to their definition.
 
     arm_completed: bool         # Flag indicating the the device trigger was armed. Set by callback, read by FSM
-    new_request_received: bool  # Indicates the the datalogging manager pushed a new request for acquisition.
+    cancel_requested: bool       # INdicates that the user wants to cancel the active acquisition
     acquisition_request: Optional[AcquisitionRequest]   # The actively processed acquisition request. Set by callback, read by FSM
     configure_completed: bool   # Flag indicating that the configuration stage has been successfully completed. Set by callback, read by FSM
     failure_counter: int        # Counter of that counts the number of time the device failed to respond to a request
     bytes_received: bytearray   # Number of bytes received so far while reading an acquisition content
     read_rolling_counter: int   # The rolling counter read from the last read request
     require_status_update: bool  # Flag indicating that it is time to read the datalogger state
-    ready_to_receive_request: bool  # Flag indicating that the poller is ready to receive an acquisition request form the datalogging manager.
+    setup_completed: bool       # Flag indicating that the poller is ready to receive an acquisition request form the datalogging manager.
     reset_completed: bool      # Indicate that the requested reset command has completed successfully.
 
     acquisition_metadata: Optional[device_datalogging.AcquisitionMetadata]
@@ -144,7 +144,7 @@ class DataloggingPoller:
         self.error = False
         self.state = FSMState.IDLE
         self.previous_state = FSMState.IDLE
-        self.new_request_received = False
+        self.cancel_requested = False
         self.acquisition_request = None
         self.configure_completed = False
         self.arm_completed = False
@@ -155,7 +155,7 @@ class DataloggingPoller:
         self.read_rolling_counter = 0
         self.acquisition_metadata = None
         self.require_status_update = False
-        self.ready_to_receive_request = False
+        self.setup_completed = False
         self.completion_ratio = None
 
     def configure_rpvs(self, rpvs: List[RuntimePublishedValue]):
@@ -231,7 +231,7 @@ class DataloggingPoller:
                     self.logger.debug(traceback.format_exc())
                     self.acquisition_request.completion_callback(False, None)
 
-                self.acquisition_request = None
+            self.acquisition_request = None
 
     def request_acquisition(self, loop_id: int, config: device_datalogging.Configuration, callback: DeviceAcquisitionRequestCompletionCallback) -> None:
         """Request a new datalogging acquisition. Will interrupt any other request and will be processed as soon as possible """
@@ -245,7 +245,8 @@ class DataloggingPoller:
         if len(config.get_signals()) > self.device_setup.max_signal_count:
             raise ValueError("Too many signals in configuration. Maximum = %d" % self.device_setup.max_signal_count)
 
-        self.mark_active_acquisition_failed_if_any()
+        if self.acquisition_request is not None:
+            raise RuntimeError("Cannot request for a new acquisition while one is being acquired")
 
         self.acquisition_request = AcquisitionRequest(
             loop_id=loop_id,
@@ -253,11 +254,18 @@ class DataloggingPoller:
             completion_callback=callback
         )
 
-        self.new_request_received = True
+    def cancel_acquisition_request(self) -> None:
+        """Request the state machine to cancel the active request and go through a device datalogger reset"""
+        if self.acquisition_request is not None:
+            self.cancel_requested = True
+
+    def cancel_in_progress(self) -> bool:
+        """Tells if a cancel as been requested and is still processing"""
+        return self.cancel_requested
 
     def is_ready_to_receive_new_request(self) -> bool:
         """Tells if request_acquisition() can be called. """
-        return self.ready_to_receive_request and not self.error
+        return self.setup_completed and not self.error and not self.cancel_requested
 
     def process(self) -> None:
         """To be called periodically to make the process move forward"""
@@ -293,7 +301,7 @@ class DataloggingPoller:
             if self.state == FSMState.IDLE:
                 self.mark_active_acquisition_failed_if_any()
                 self.device_setup = None
-                self.ready_to_receive_request = False
+                self.setup_completed = False
                 if self.update_status_timer.is_stopped():
                     self.update_status_timer.start()
                 next_state = FSMState.GET_SETUP
@@ -328,11 +336,12 @@ class DataloggingPoller:
                     elif not self.request_pending[DatalogSubfn.ResetDatalogger]:
                         self.dispatch(self.protocol.datalogging_reset_datalogger())
                 else:
+                    self.cancel_requested = False
                     next_state = FSMState.WAIT_FOR_REQUEST
 
             elif self.state == FSMState.WAIT_FOR_REQUEST:
                 if state_entry:
-                    self.ready_to_receive_request = True
+                    self.setup_completed = True
                     self.require_status_update = True
 
                 if self.require_status_update == False:  # Avoid loop between WAIT_REQUEST and REQUEST_RESET
@@ -340,10 +349,7 @@ class DataloggingPoller:
                         next_state = FSMState.REQUEST_RESET
 
                     elif not self.request_pending[DatalogSubfn.ConfigureDatalog]:
-                        if self.new_request_received:   # Acquisition request pushed by DataloggingManager.
-                            self.new_request_received = False
-                            assert self.acquisition_request is not None
-
+                        if self.acquisition_request is not None:   # Acquisition request pushed by DataloggingManager.
                             # Validation token associated with acquisition by the device.
                             self.actual_config_id = (self.actual_config_id + 1) & 0xFFFF
                             request = self.protocol.datalogging_configure(
@@ -358,7 +364,7 @@ class DataloggingPoller:
                 if state_entry:
                     self.configure_completed = False
 
-                if self.new_request_received:   # New request interrupts the previous one
+                if self.cancel_requested:
                     if not self.request_pending[DatalogSubfn.ConfigureDatalog]:
                         next_state = FSMState.REQUEST_RESET
 
@@ -376,7 +382,7 @@ class DataloggingPoller:
                     self.arm_completed = False
 
                 # New request interrupts the previous one. Callback already called at this point. (done directly in request_acquisition())
-                if self.new_request_received:
+                if self.cancel_requested:
                     if not self.request_pending[DatalogSubfn.ArmTrigger]:
                         next_state = FSMState.REQUEST_RESET
 
@@ -392,7 +398,7 @@ class DataloggingPoller:
                     # Since the moving forward condition is based on the device state, we need it to be up-to-date.
                     self.require_status_update = True
 
-                if self.new_request_received:   # New request interrupts the previous one
+                if self.cancel_requested:   # New request interrupts the previous one
                     next_state = FSMState.REQUEST_RESET
 
                 elif self.device_datalogging_state == device_datalogging.DataloggerState.ERROR:
@@ -442,7 +448,7 @@ class DataloggingPoller:
                     self.received_data_chunk = None
                     self.bytes_received = bytearray()
 
-                if self.new_request_received:   # New request interrupts the previous one
+                if self.cancel_requested:   # New request interrupts the previous one
                     if not self.request_pending[DatalogSubfn.ReadAcquisition]:
                         self.must_send_read_data_request = False
                         next_state = FSMState.REQUEST_RESET
