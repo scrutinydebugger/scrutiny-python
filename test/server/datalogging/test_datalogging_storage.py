@@ -11,9 +11,10 @@ import random
 from test import ScrutinyUnitTest
 from scrutiny.server.datalogging.datalogging_storage import DataloggingStorage
 from scrutiny.server.datalogging.definitions.api import DataloggingAcquisition, DataSeries, AxisDefinition
-from datetime import datetime
+from datetime import datetime, timedelta
+import time
 
-from typing import Dict, Optional
+from typing import *
 
 
 class TestDataloggingStorage(ScrutinyUnitTest):
@@ -165,6 +166,32 @@ class TestDataloggingStorage(ScrutinyUnitTest):
                 DataloggingStorage.read(
                     reference_id='inexistant_id'
                 )
+
+    def test_read_meta(self):
+        with DataloggingStorage.use_temp_storage():
+            self.assertIsInstance(DataloggingStorage.get_db_version(), int)
+            self.assertIsNone(DataloggingStorage.get_timerange())
+
+            acq1 = DataloggingAcquisition(firmware_id="firmwareid1", name="Acquisition #1")
+            axis1 = AxisDefinition("Axis-1", 111)
+            acq1.set_xdata(self.make_dummy_data(50))
+            acq1.add_data(self.make_dummy_data(10), axis1)
+            DataloggingStorage.save(acq1)
+
+            time.sleep(3)
+
+            acq2 = DataloggingAcquisition(firmware_id="firmwareid1", name="Acquisition #1")
+            acq2.set_xdata(self.make_dummy_data(50))
+            acq2.add_data(self.make_dummy_data(10), axis1)
+            DataloggingStorage.save(acq2)
+
+            timerange = DataloggingStorage.get_timerange()
+            self.assertIsInstance(timerange, tuple)
+            self.assertEqual(len(timerange), 2)
+            self.assertIsInstance(timerange[0], datetime)
+            self.assertIsInstance(timerange[1], datetime)
+            self.assertNotEqual(timerange[0], timerange[1])
+            self.assertLess(timerange[1] - timerange[0], timedelta(seconds=5))
 
 
 if __name__ == '__main__':

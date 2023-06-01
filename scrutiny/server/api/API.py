@@ -745,7 +745,7 @@ class API:
 
             try:
                 entry = self.datastore.get_entry(update['watchable'])
-            except Exception as e:
+            except KeyError:
                 raise InvalidRequestException(req, 'Unknown watchable ID %s' % update['watchable'])
 
             if not self.datastore.is_watching(entry, conn_id):
