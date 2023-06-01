@@ -95,14 +95,20 @@ class ListDatalog(BaseCommand):
 
             self.print_line(header, sizes)
             all_entries.sort(key=lambda x: x.acq_time)
+            index = 0
             for entry in all_entries:
+                entry.index = index
                 self.print_line(entry, sizes)
+                index += 1
 
         return 0
 
     def print_line(self, entry: DisplayEntry, sizes: DisplayFieldSize):
         assert self.parsed_args is not None
         SEPARATOR_SIZE = 4
+        delta = sizes.index - len(str(entry.index))
+        print(str(entry.index) + ' ' * (delta + SEPARATOR_SIZE), end="")
+
         delta = sizes.acq_time - len(str(entry.acq_time))
         print(str(entry.acq_time) + ' ' * (delta + SEPARATOR_SIZE), end="")
 
