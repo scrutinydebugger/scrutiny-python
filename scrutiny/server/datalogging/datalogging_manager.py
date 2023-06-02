@@ -170,7 +170,8 @@ class DataloggingManager:
                     raise ValueError("Failed to find a matching xaxis dataseries")
 
                 acquisition.set_xdata(xaxis)
-                acquisition.set_trigger_index(metadata.number_of_points - metadata.points_after_trigger)
+                trigger_index = max(0, min(metadata.number_of_points - metadata.points_after_trigger, metadata.number_of_points - 1))
+                acquisition.set_trigger_index(trigger_index)
                 DataloggingStorage.save(acquisition)
             else:
                 # acquisition will be None here

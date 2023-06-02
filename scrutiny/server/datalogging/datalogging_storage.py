@@ -271,7 +271,7 @@ class DataloggingStorageManager:
             raise RuntimeError('Datalogging Storage is not accessible.')
         return SQLiteSession(self.get_db_filename())
 
-    def get_db_version(self) -> int | None:
+    def get_db_version(self) -> Optional[int]:
         with self.get_session() as conn:
             return self.read_version(conn)
 
