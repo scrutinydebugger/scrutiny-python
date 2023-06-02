@@ -1545,6 +1545,7 @@ class TestAPI(ScrutinyUnitTest):
             acq.add_data(api_datalogging.DataSeries([10, 20, 30, 40, 50, 60, 70, 80, 90], name='series 1', logged_element='/var/data1'), axis1)
             acq.add_data(api_datalogging.DataSeries([100, 200, 300, 400, 500, 600, 700,
                          800, 900], name='series 2', logged_element='/var/data2'), axis2)
+            acq.set_trigger_index(3)
             DataloggingStorage.save(acq)
 
             req: api_typing.C2S.ReadDataloggingAcquisitionContent = {
@@ -1561,6 +1562,8 @@ class TestAPI(ScrutinyUnitTest):
             self.assertEqual(response['xdata']['name'], 'the x-axis')
             self.assertEqual(response['xdata']['data'], [0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
             self.assertEqual(response['xdata']['logged_element'], '/var/xaxis')
+
+            self.assertEqual(response['trigger_index'], 3)
 
             self.assertEqual(len(response['yaxis']), 2)
             self.assertEqual(response['yaxis'][0]['name'], 'Axis1')

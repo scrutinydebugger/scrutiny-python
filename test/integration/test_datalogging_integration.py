@@ -342,6 +342,11 @@ class TestDataloggingIntegration(ScrutinyIntegrationTestWithTestSFD1):
                 self.assertEqual(response['signals'][2]['axis_id'], 200)
                 self.assertEqual(response['signals'][3]['axis_id'], 200)
 
+                nbpoints = len(response['xdata']['data'])
+                index_target = req['probe_location'] * nbpoints - 1
+                self.assertLessEqual(response['trigger_index'], math.ceil(index_target + 0.5))
+                self.assertGreaterEqual(response['trigger_index'], math.floor(index_target - 0.5))
+
                 timediff = diff(response['xdata']['data'])
                 for val in timediff:
                     self.assertGreater(val, 0)  # Time should always increase

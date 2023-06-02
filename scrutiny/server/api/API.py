@@ -1261,6 +1261,7 @@ class API:
             'cmd': API.Command.Api2Client.READ_DATALOGGING_ACQUISITION_CONTENT_RESPONSE,
             'reqid': self.get_req_id(req),
             'reference_id': acquisition.reference_id,
+            'trigger_index': acquisition.trigger_index,
             'signals': signals,
             'xdata': dataseries_to_api_signal_data(acquisition.xdata),
             'yaxis': yaxis_list

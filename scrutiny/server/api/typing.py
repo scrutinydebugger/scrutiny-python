@@ -310,6 +310,7 @@ class S2C:
 
     class ReadDataloggingAcquisitionContent(BaseS2CMessage):
         reference_id: str
+        trigger_index: Optional[int]
         yaxis: List[DataloggingAxisDef]
         signals: List[DataloggingSignalDataWithAxis]
         xdata: DataloggingSignalData

@@ -218,7 +218,8 @@ class DataloggingStorageManager:
             `reference_id` VARCHAR(32) UNIQUE NOT NULL,
             `name` VARCHAR(255) NULL DEFAULT NULL,
             `firmware_id` VARCHAR(32)  NOT NULL,
-            `timestamp` TIMESTAMP NOT NULL DEFAULT 'NOW()'
+            `timestamp` TIMESTAMP NOT NULL DEFAULT 'NOW()',
+            `trigger_index` INTEGER NULL
         ) 
         """)
 
@@ -289,14 +290,15 @@ class DataloggingStorageManager:
             cursor.execute(
                 """
                 INSERT INTO `acquisitions` 
-                    (`reference_id`, `name`, `firmware_id`, `timestamp`)
-                VALUES (?, ?, ?, ?)
+                    (`reference_id`, `name`, `firmware_id`, `timestamp`, `trigger_index`)
+                VALUES (?, ?, ?, ?, ?)
                 """,
                 (
                     acquisition.reference_id,
                     acquisition.name,
                     acquisition.firmware_id,
-                    ts
+                    ts,
+                    acquisition.trigger_index
                 )
             )
 
@@ -388,6 +390,7 @@ class DataloggingStorageManager:
                     `acq`.`firmware_id` AS `firmware_id`,
                     `acq`.`timestamp` AS `timestamp`,
                     `acq`.`name` AS `name`,
+                    `acq`.`trigger_index` as `trigger_index`,
                     `axis`.`name` AS `axis_name`,
                     `axis`.`external_id` AS `axis_external_id`,
                     `axis`.`is_xaxis` AS `is_xaxis`,
@@ -406,6 +409,7 @@ class DataloggingStorageManager:
                 'firmware_id',
                 'timestamp',
                 'acquisition_name',
+                'trigger_index',
                 'axis_name',
                 'axis_external_id',
                 'is_xaxis',
@@ -460,6 +464,8 @@ class DataloggingStorageManager:
 
         if acq.xdata is None:
             raise LookupError("No X-Axis in acquisition")
+
+        acq.set_trigger_index(rows[0][colmap['trigger_index']])
 
         return acq
 

@@ -47,6 +47,7 @@ class TestDataloggingStorage(ScrutinyUnitTest):
         self.assertEqual(a.firmware_id, b.firmware_id)
         self.assertEqual(a.reference_id, b.reference_id)
         self.assertLess((a.acq_time - b.acq_time).total_seconds(), 1)
+        self.assertEqual(a.trigger_index, b.trigger_index)
 
         yaxis1 = a.get_unique_yaxis_list()
         yaxis2 = b.get_unique_yaxis_list()
@@ -76,11 +77,13 @@ class TestDataloggingStorage(ScrutinyUnitTest):
         axis2 = AxisDefinition("Axis-2", 222)
 
         acq1.set_xdata(self.make_dummy_data(50))
+        acq1.set_trigger_index(25)
         acq1.add_data(self.make_dummy_data(10), axis1)
         acq1.add_data(self.make_dummy_data(15), axis1)
         acq1.add_data(self.make_dummy_data(20), axis2)
 
         acq2.set_xdata(self.make_dummy_data(50))
+        acq2.set_trigger_index(0)
         acq2.add_data(self.make_dummy_data(20), axis2)
         acq2.add_data(self.make_dummy_data(15), axis2)
 

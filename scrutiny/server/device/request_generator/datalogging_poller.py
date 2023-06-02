@@ -40,7 +40,7 @@ class FSMState(Enum):
 
 
 class DeviceAcquisitionRequestCompletionCallback(GenericCallback):
-    callback: Callable[[bool, Optional[List[List[bytes]]]], None]
+    callback: Callable[[bool, Optional[List[List[bytes]]], Optional[device_datalogging.AcquisitionMetadata]], None]
 
 
 class DataloggingReceiveSetupCallback(GenericCallback):
@@ -209,14 +209,14 @@ class DataloggingPoller:
     def mark_active_acquisition_failed_if_any(self):
         """Mark the currently processed acquisition request as completed with failure. Will call the completing callback with success=False"""
         if self.acquisition_request is not None:
-            self.acquisition_request.completion_callback(False, None)
+            self.acquisition_request.completion_callback(False, None, None)
             self.acquisition_request = None
 
-    def mark_active_acquisition_success(self, data: bytes) -> None:
+    def mark_active_acquisition_success(self, data: bytes, acquisition_meta: device_datalogging.AcquisitionMetadata) -> None:
         """Mark the currently processed acquisition request as completed with success. Will call the completing callback with success=True"""
         if self.acquisition_request is not None:
             if self.device_setup is None:
-                self.acquisition_request.completion_callback(False, None)
+                self.acquisition_request.completion_callback(False, None, None)
                 self.logger.error("Cannot mark acquisition successfully completed as no device setup is available")
             else:
                 try:
@@ -225,11 +225,11 @@ class DataloggingPoller:
                         config=self.acquisition_request.config,
                         rpv_map=self.rpv_map,
                         encoding=self.device_setup.encoding)
-                    self.acquisition_request.completion_callback(True, deinterleaved_data)
+                    self.acquisition_request.completion_callback(True, deinterleaved_data, acquisition_meta)
                 except Exception as e:
                     self.logger.error("Failed to parse data received from device datalogging acquisition. %s" % str(e))
                     self.logger.debug(traceback.format_exc())
-                    self.acquisition_request.completion_callback(False, None)
+                    self.acquisition_request.completion_callback(False, None, None)
 
             self.acquisition_request = None
 
@@ -522,8 +522,9 @@ class DataloggingPoller:
                 # Here, retrieving data is finished. It can have succeeded or failed, bit it is finished.
                 if state_entry:
                     assert self.request_pending[DatalogSubfn.ReadAcquisition] == False
+                    assert self.acquisition_metadata is not None
                     self.logger.debug("Successfully read the acquisition. Calling callback with success=True")
-                    self.mark_active_acquisition_success(self.bytes_received)
+                    self.mark_active_acquisition_success(self.bytes_received, self.acquisition_metadata)
 
                 next_state = FSMState.REQUEST_RESET  # Make sure to restart in a known state. Reset even if everything was fine
             else:

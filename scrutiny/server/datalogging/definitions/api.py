@@ -109,13 +109,21 @@ class DataloggingAcquisition:
     ydata: List[DataSeriesWithAxis]
     """List of data series acquired"""
 
-    def __init__(self, firmware_id: str, reference_id: Optional[str] = None, acq_time: Optional[datetime] = None, name: Optional[str] = None):
+    trigger_index: Optional[int]
+    """Sample index of the trigger"""
+
+    def __init__(self,
+                 firmware_id: str,
+                 reference_id: Optional[str] = None,
+                 acq_time: Optional[datetime] = None,
+                 name: Optional[str] = None):
         self.reference_id = reference_id if reference_id is not None else self.make_unique_id()
         self.firmware_id = firmware_id
         self.acq_time = datetime.now() if acq_time is None else acq_time
         self.xdata = DataSeries()
         self.name = name
         self.ydata = []
+        self.trigger_index = None
 
     @classmethod
     def make_unique_id(self) -> str:
@@ -145,6 +153,19 @@ class DataloggingAcquisition:
             if a.series is ds:
                 return a.axis
         raise LookupError("Cannot find axis for given dataseries")
+
+    def set_trigger_index(self, val: Optional[int]) -> None:
+        if val is not None:
+            if not isinstance(val, int):
+                raise ValueError("trigger index must be an integer")
+
+            if val < 0:
+                raise ValueError("trigger index must be a positive value")
+
+            if val >= len(self.xdata.get_data()):
+                raise ValueError("Trigger index cannot be further than the x-axis data length")
+
+        self.trigger_index = val
 
 
 class APIAcquisitionRequestCompletionCallback(GenericCallback):

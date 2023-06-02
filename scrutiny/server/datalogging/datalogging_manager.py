@@ -81,7 +81,7 @@ class DataloggingManager:
             entry_signal_map=entry_signal_map,
             callback=callback))
 
-    def acquisition_complete_callback(self, success: bool, data: Optional[List[List[bytes]]]) -> None:
+    def acquisition_complete_callback(self, success: bool, data: Optional[List[List[bytes]]], metadata: Optional[device_datalogging.AcquisitionMetadata]) -> None:
         """Callback called by the device handler when the acquisition finally gets triggered and data has finished downloaded."""
         if self.active_request is None:
             self.logger.error("Received acquisition data but was not expecting it. No active acquisition request")
@@ -98,6 +98,7 @@ class DataloggingManager:
             if success:  # The device succeeded to complete the acquisition and fetch the data
                 self.logger.info("New datalogging acquisition ready")
                 assert data is not None
+                assert metadata is not None
 
                 # Make sure all signal data have the same length.
                 nb_points: Optional[int] = None
@@ -169,6 +170,7 @@ class DataloggingManager:
                     raise ValueError("Failed to find a matching xaxis dataseries")
 
                 acquisition.set_xdata(xaxis)
+                acquisition.set_trigger_index(metadata.number_of_points - metadata.points_after_trigger)
                 DataloggingStorage.save(acquisition)
             else:
                 # acquisition will be None here

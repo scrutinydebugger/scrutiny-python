@@ -97,7 +97,7 @@ class ListDatalog(BaseCommand):
             all_entries.sort(key=lambda x: x.acq_time)
             index = 0
             for entry in all_entries:
-                entry.index = index
+                entry.index = str(index)
                 self.print_line(entry, sizes)
                 index += 1
 
