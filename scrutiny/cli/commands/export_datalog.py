@@ -48,12 +48,18 @@ class ExportDatalog(BaseCommand):
                 writer.writerow([])
 
                 header_row = [acquisition.xdata.name] + [ydata.series.name for ydata in acquisition.ydata]
+                if acquisition.trigger_index is not None:
+                    header_row.append('Trigger')
+
                 writer.writerow(header_row)
                 for ydata in acquisition.ydata:
                     if len(acquisition.xdata.data) != len(ydata.series.data):
                         logging.error("Data of series %s does not have the same length as the X-Axis" % ydata.series.name)
 
                 for i in range(len(acquisition.xdata.data)):
-                    writer.writerow([acquisition.xdata.data[i]] + [ydata.series.data[i] for ydata in acquisition.ydata])
+                    trigger_val = []
+                    if acquisition.trigger_index is not None:
+                        trigger_val = [0 if i < acquisition.trigger_index else 1]
+                    writer.writerow([acquisition.xdata.data[i]] + [ydata.series.data[i] for ydata in acquisition.ydata] + trigger_val)
 
         return 0
