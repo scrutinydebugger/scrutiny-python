@@ -86,7 +86,11 @@ class MemoryWriter:
 
     def stop(self) -> None:
         """Stops the memory writer from polling the datastore and updating the device"""
+        self.logger.debug('Stop requested')
         self.stop_requested = True
+
+    def fully_stopped(self) -> bool:
+        return self.started == False and not self.stop_requested
 
     def set_standby(self) -> None:
         """Put the state machine into standby and clear all internal buffers so that the logic restarts from the beginning"""

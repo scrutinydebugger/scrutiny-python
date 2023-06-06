@@ -62,6 +62,7 @@ class HeartbeatGenerator:
 
     def stop(self) -> None:
         """Disable the heartbeat generator. Will stop sending request and FSM will go idle"""
+        self.logger.debug('Stop requested')
         self.started = False
 
     def reset(self) -> None:

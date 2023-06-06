@@ -105,7 +105,11 @@ class InfoPoller:
 
     def stop(self) -> None:
         """ Stop the poller """
+        self.logger.debug('Stop requested')
         self.stop_requested = True
+
+    def fully_stopped(self):
+        return self.started == False and self.stop_requested == False
 
     def done(self) -> bool:
         """Returns True when data is finished to be gathered from the device"""

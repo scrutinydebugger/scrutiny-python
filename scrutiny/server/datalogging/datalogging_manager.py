@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from uuid import uuid4
 from datetime import datetime
 import traceback
+import time
 
 import scrutiny.server.datalogging.definitions.api as api_datalogging
 import scrutiny.server.datalogging.definitions.device as device_datalogging
@@ -228,6 +229,9 @@ class DataloggingManager:
                                 config=self.active_request.device_config,
                                 callback=DeviceAcquisitionRequestCompletionCallback(self.acquisition_complete_callback)
                             )
+                        else:
+                            if self.device_handler.datalogging_in_error():
+                                self.device_handler.reset_datalogging()
                     else:
                         if not self.device_handler.datalogging_cancel_in_progress():
                             self.device_handler.cancel_datalogging_acquisition()    # device_handler should call acquisition_complete_callback when cancel is complete

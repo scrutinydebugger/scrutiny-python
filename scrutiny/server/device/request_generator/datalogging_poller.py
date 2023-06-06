@@ -117,7 +117,7 @@ class DataloggingPoller:
 
     def reset(self):
         """Put back the datalogging poller to its startup state"""
-
+        self.logger.debug('Reset called')
         self.acquisition_request = None
         self.enabled = True
         self.actual_config_id = 0
@@ -126,6 +126,7 @@ class DataloggingPoller:
         self.rpv_map = {}
         self.request_pending = {}
         self.request_failed = {}
+        self.reset_completed = False
         for subfn in DatalogSubfn:
             self.request_pending[subfn] = False
             self.request_failed[subfn] = False
@@ -176,10 +177,16 @@ class DataloggingPoller:
     def is_started(self) -> bool:
         return self.started and self.enabled and not self.stop_requested
 
+    def is_in_error(self) -> bool:
+        return self.error
+
+    def fully_stopped(self):
+        return not self.started and not self.stop_requested
+
     def stop(self) -> None:
         """ Stop the DataloggingPoller """
+        self.logger.debug('Stop requested')
         self.stop_requested = True
-        self.logger.debug("Requesting to stop")
 
     def disable(self) -> None:
         """Disable the DataloggingPoller"""
@@ -239,6 +246,9 @@ class DataloggingPoller:
             raise ValueError("Maximum response payload size must be defined first")
 
         if not self.is_ready_to_receive_new_request():
+            if not self.started:
+                raise RuntimeError("Datalogging poller is not started")
+
             raise RuntimeError("Not ready to receive a new acquisition request")
 
         assert self.device_setup is not None    # Will be set if is_ready_to_receive_new_request() returns True
@@ -265,7 +275,7 @@ class DataloggingPoller:
 
     def is_ready_to_receive_new_request(self) -> bool:
         """Tells if request_acquisition() can be called. """
-        return self.setup_completed and not self.error and not self.cancel_requested
+        return self.started and self.setup_completed and not self.error and not self.cancel_requested and not self.stop_requested
 
     def process(self) -> None:
         """To be called periodically to make the process move forward"""
@@ -274,10 +284,11 @@ class DataloggingPoller:
             self.set_standby()
             return
         elif self.stop_requested:
+            self.mark_active_acquisition_failed_if_any()
             if not self.has_any_request_pending():
                 self.logger.debug("Stop completed. Going standby")
-                self.started = False
                 self.set_standby()
+
             return
         elif self.error:    # only way out is a reset
             self.mark_active_acquisition_failed_if_any()
@@ -344,7 +355,12 @@ class DataloggingPoller:
                     self.setup_completed = True
                     self.require_status_update = True
 
-                if self.require_status_update == False:  # Avoid loop between WAIT_REQUEST and REQUEST_RESET
+                # No need to ask the device for a reset. But we need to tell the user of the completion failure
+                if self.cancel_requested:
+                    self.mark_active_acquisition_failed_if_any()
+                    self.cancel_requested = False
+
+                elif self.require_status_update == False:  # Avoid loop between WAIT_REQUEST and REQUEST_RESET
                     if self.device_datalogging_state == device_datalogging.DataloggerState.ERROR:
                         next_state = FSMState.REQUEST_RESET
 

@@ -79,7 +79,6 @@ class TestDeviceHandler(ScrutinyUnitTest):
     def disconnect_callback(self, clean_disconnect):
         self.disconnect_callback_called = True
         self.disconnect_was_clean = clean_disconnect
-        self.device_handler.stop_comm()
 
     def test_connect_disconnect_normal(self):
         self.disconnect_callback_called = False

@@ -49,6 +49,7 @@ class DeviceSearcher:
 
     def stop(self) -> None:
         """ Stop the search. No more request emitted and state machine will stop"""
+        self.logger.debug('Stop requested')
         self.started = False
 
     def reset(self) -> None:

@@ -52,7 +52,11 @@ class SessionInitializer:
 
     def stop(self) -> None:
         """Stops the session initializer from trying to establish a connection"""
+        self.logger.debug('Stop requested')
         self.stop_requested = True
+
+    def fully_stopped(self) -> bool:
+        return self.started == False and self.stop_requested == False
 
     def reset(self) -> None:
         """Put back the session initializer to its startup state"""
@@ -80,6 +84,7 @@ class SessionInitializer:
     def process(self) -> None:
         """To be called periodically"""
         if not self.started:
+            self.reset()
             return
         if self.error:
             if self.stop_requested:

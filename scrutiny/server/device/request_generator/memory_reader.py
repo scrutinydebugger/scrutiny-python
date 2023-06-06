@@ -175,7 +175,11 @@ class MemoryReader:
 
     def stop(self) -> None:
         """Stops the memory readers from polling the device"""
+        self.logger.debug('Stop requested')
         self.stop_requested = True
+
+    def fully_stopped(self) -> bool:
+        return self.started == False and self.stop_requested == False
 
     def reset(self) -> None:
         """Put back the memory reader to its startup state"""
