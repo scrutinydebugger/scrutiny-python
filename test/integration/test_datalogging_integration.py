@@ -133,7 +133,7 @@ class TestDataloggingIntegration(ScrutinyIntegrationTestWithTestSFD1):
         for i in range(len(expected_sampling_rates)):
             self.assertEqual(capabilities['sampling_rates'][i], expected_sampling_rates[i])
 
-    def test_make_acquisition_normal(self):
+    def test_make_acquisition_normal_multiple_connect_disconnect(self):
         # We will create  a task that the emulated device will run in its thread. This task update some memory region with known pattern.
         class ValueUpdateTask:
             def __init__(self, testcase: ScrutinyIntegrationTestWithTestSFD1):
