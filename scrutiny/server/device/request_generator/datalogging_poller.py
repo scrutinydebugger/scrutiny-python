@@ -40,7 +40,7 @@ class FSMState(Enum):
 
 
 class DeviceAcquisitionRequestCompletionCallback(GenericCallback):
-    callback: Callable[[bool, Optional[List[List[bytes]]], Optional[device_datalogging.AcquisitionMetadata]], None]
+    callback: Callable[[bool, str, Optional[List[List[bytes]]], Optional[device_datalogging.AcquisitionMetadata]], None]
 
 
 class DataloggingReceiveSetupCallback(GenericCallback):
@@ -118,7 +118,7 @@ class DataloggingPoller:
     def reset(self):
         """Put back the datalogging poller to its startup state"""
         self.logger.debug('Reset called')
-        self.mark_active_acquisition_failed_if_any()    # Call user callback if required
+        self.mark_active_acquisition_failed_if_any("Datalogger has been reset")    # Call user callback if required
         self.acquisition_request = None
         self.enabled = True
         self.actual_config_id = 0
@@ -135,7 +135,7 @@ class DataloggingPoller:
 
     def set_standby(self):
         """Put back the datalogging poller to an idle state without destroying important internal values"""
-        self.mark_active_acquisition_failed_if_any()
+        self.mark_active_acquisition_failed_if_any("Datalogger is disabled")
 
         self.started = False
         self.stop_requested = False
@@ -214,17 +214,17 @@ class DataloggingPoller:
         """Returns a value between 0 and 1 indicating how far the acquisition is frm being completed once the trigger event has been launched"""
         return self.completion_ratio
 
-    def mark_active_acquisition_failed_if_any(self):
+    def mark_active_acquisition_failed_if_any(self, detail: str = ""):
         """Mark the currently processed acquisition request as completed with failure. Will call the completing callback with success=False"""
         if self.acquisition_request is not None:
-            self.acquisition_request.completion_callback(False, None, None)
+            self.acquisition_request.completion_callback(False, detail, None, None)
             self.acquisition_request = None
 
     def mark_active_acquisition_success(self, data: bytes, acquisition_meta: device_datalogging.AcquisitionMetadata) -> None:
         """Mark the currently processed acquisition request as completed with success. Will call the completing callback with success=True"""
         if self.acquisition_request is not None:
             if self.device_setup is None:
-                self.acquisition_request.completion_callback(False, None, None)
+                self.acquisition_request.completion_callback(False, "Device configuration is not available", None, None)
                 self.logger.error("Cannot mark acquisition successfully completed as no device setup is available")
             else:
                 try:
@@ -233,11 +233,11 @@ class DataloggingPoller:
                         config=self.acquisition_request.config,
                         rpv_map=self.rpv_map,
                         encoding=self.device_setup.encoding)
-                    self.acquisition_request.completion_callback(True, deinterleaved_data, acquisition_meta)
+                    self.acquisition_request.completion_callback(True, "", deinterleaved_data, acquisition_meta)
                 except Exception as e:
                     self.logger.error("Failed to parse data received from device datalogging acquisition. %s" % str(e))
                     self.logger.debug(traceback.format_exc())
-                    self.acquisition_request.completion_callback(False, None, None)
+                    self.acquisition_request.completion_callback(False, "Data received from the device cannot be parsed", None, None)
 
             self.acquisition_request = None
 
@@ -285,14 +285,14 @@ class DataloggingPoller:
             self.set_standby()
             return
         elif self.stop_requested:
-            self.mark_active_acquisition_failed_if_any()
+            self.mark_active_acquisition_failed_if_any("Communication with the device is being stopped")
             if not self.has_any_request_pending():
                 self.logger.debug("Stop completed. Going standby")
                 self.set_standby()
 
             return
         elif self.error:    # only way out is a reset
-            self.mark_active_acquisition_failed_if_any()
+            self.mark_active_acquisition_failed_if_any("Datalogging module made an error")
             return
 
         # Now check if it is time to fetch the datalogger status
@@ -311,7 +311,7 @@ class DataloggingPoller:
             next_state = self.state
 
             if self.state == FSMState.IDLE:
-                self.mark_active_acquisition_failed_if_any()
+                self.mark_active_acquisition_failed_if_any("Datalogging state machine is being reset")
                 self.device_setup = None
                 self.setup_completed = False
                 if self.update_status_timer.is_stopped():
@@ -335,7 +335,10 @@ class DataloggingPoller:
 
             elif self.state == FSMState.REQUEST_RESET:
                 if state_entry:
-                    self.mark_active_acquisition_failed_if_any()
+                    msg = "Datalogger has been reset"
+                    if self.cancel_requested:
+                        msg = "Acquisition got canceled"
+                    self.mark_active_acquisition_failed_if_any(msg)
                     self.reset_completed = False
                     self.request_failed[DatalogSubfn.ResetDatalogger] = False
                     if self.request_pending[DatalogSubfn.ResetDatalogger]:
@@ -358,7 +361,7 @@ class DataloggingPoller:
 
                 # No need to ask the device for a reset. But we need to tell the user of the completion failure
                 if self.cancel_requested:
-                    self.mark_active_acquisition_failed_if_any()
+                    self.mark_active_acquisition_failed_if_any("Acquisition got canceled")
                     self.cancel_requested = False
 
                 elif self.require_status_update == False:  # Avoid loop between WAIT_REQUEST and REQUEST_RESET

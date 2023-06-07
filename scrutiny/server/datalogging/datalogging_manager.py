@@ -100,7 +100,7 @@ class DataloggingManager:
             entry_signal_map=entry_signal_map,
             callback=callback))
 
-    def acquisition_complete_callback(self, success: bool, data: Optional[List[List[bytes]]], metadata: Optional[device_datalogging.AcquisitionMetadata]) -> None:
+    def acquisition_complete_callback(self, success: bool, detail_msg: str, data: Optional[List[List[bytes]]], metadata: Optional[device_datalogging.AcquisitionMetadata]) -> None:
         """Callback called by the device handler when the acquisition finally gets triggered and data has finished downloaded."""
         if self.active_request is None:
             self.logger.error("Received acquisition data but was not expecting it. No active acquisition request")
@@ -109,7 +109,10 @@ class DataloggingManager:
         device_info = self.device_handler.get_device_info()
         if device_info is None or device_info.device_id is None:
             self.logger.error('Gotten an acquisition but the device information is not available')
-            self.active_request.callback(False, None)   # Inform the API of the failure
+            msg = "Internal error"
+            if self.device_handler.get_connection_status() != DeviceHandler.ConnectionStatus.CONNECTED_READY:
+                msg = "Device is disconnected"
+            self.active_request.callback(False, msg, None)   # Inform the API of the failure
             return
 
         acquisition: Optional[api_datalogging.DataloggingAcquisition] = None
@@ -205,10 +208,10 @@ class DataloggingManager:
         err: Optional[Exception] = None
         try:
             if acquisition is None:
-                self.active_request.callback(False, None)   # Inform the API of the failure
+                self.active_request.callback(False, detail_msg, None)   # Inform the API of the failure
                 self.logger.debug("Informing API of failure to get the datalogging acquisition")
             else:
-                self.active_request.callback(True, acquisition)
+                self.active_request.callback(True, detail_msg, acquisition)
                 self.logger.debug("Informing API of success in getting the datalogging acquisition")
         except Exception as e:
             err = e
@@ -318,7 +321,7 @@ class DataloggingManager:
         elif self.state == FsmState.SHUTDOWN_CLEAR_PENDING_REQUEST:
             while not self.acquisition_request_queue.empty():
                 req = self.acquisition_request_queue.get()
-                req.callback(False, None)   # Not executed
+                req.callback(False, "Device is not available", None)   # Not executed
             next_state = FsmState.INIT
         else:
             self.logger.error("Unknown FSM state %s" % self.state)

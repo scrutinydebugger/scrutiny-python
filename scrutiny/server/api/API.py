@@ -1031,7 +1031,7 @@ class API:
 
         self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
 
-    def datalogging_acquisition_completion_callback(self, requestor_conn_id: str, request_token: str, success: bool, acquisition: Optional[api_datalogging.DataloggingAcquisition]) -> None:
+    def datalogging_acquisition_completion_callback(self, requestor_conn_id: str, request_token: str, success: bool, detail_msg: str, acquisition: Optional[api_datalogging.DataloggingAcquisition]) -> None:
         reference_id: Optional[str] = None
         if success:
             assert acquisition is not None
@@ -1043,7 +1043,8 @@ class API:
             'reqid': None,
             'success': success,
             'reference_id': reference_id,
-            'request_token': request_token
+            'request_token': request_token,
+            'detail_msg': detail_msg
         }
         self.client_handler.send(ClientHandlerMessage(conn_id=requestor_conn_id, obj=completion_msg))
 

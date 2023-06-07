@@ -58,6 +58,7 @@ class TestDeviceHandler(ScrutinyUnitTest):
         self.acquisition_complete_callback_success = None
         self.acquisition_complete_callback_data = None
         self.acquisition_complete_callback_metadata = None
+        self.acquisition_complete_callback_details = None
         self.datastore = Datastore()
         config = {
             'link_type': 'thread_safe_dummy',
@@ -502,12 +503,13 @@ class TestDeviceHandler(ScrutinyUnitTest):
 
         self.assertEqual(round_completed, test_round_to_do)  # Make sure test went through.
 
-    def acquisition_complete_callback(self, success: bool, data: Optional[List[List[bytes]]], metadata: Optional[device_datalogging.AcquisitionMetadata]):
+    def acquisition_complete_callback(self, success: bool, details: str, data: Optional[List[List[bytes]]], metadata: Optional[device_datalogging.AcquisitionMetadata]):
         logger.debug('acquisition_complete_callback called. success=%s.' % (success))
         self.acquisition_complete_callback_called = True
         self.acquisition_complete_callback_success = success
         self.acquisition_complete_callback_data = data
         self.acquisition_complete_callback_metadata = metadata
+        self.acquisition_complete_callback_details = details
 
     def test_datalogging_device_disabled(self):
         # Make sure that the device handler does nothing with datalogging when the device doesn't support it
@@ -732,6 +734,7 @@ class TestDeviceHandler(ScrutinyUnitTest):
             )
             self.assertEqual(self.acquisition_complete_callback_data, signals, 'iteration=%d' % iteration)
             self.assertEqual(self.acquisition_complete_callback_metadata.data_size, len(self.emulated_device.datalogger.get_acquisition_data()))
+            self.assertIsInstance(self.acquisition_complete_callback_details, str)
             trigger_point_precision = 1 / self.acquisition_complete_callback_metadata.number_of_points
             computed_trigger_position = 1 - self.acquisition_complete_callback_metadata.points_after_trigger / self.acquisition_complete_callback_metadata.number_of_points
             self.assertLessEqual(computed_trigger_position, config.probe_location + trigger_point_precision)

@@ -166,7 +166,7 @@ class StubbedDataloggingManager:
     def process(self) -> None:
         if not self.callback_queue.empty():
             callback, success, acquisition = self.callback_queue.get()
-            callback(success, acquisition)
+            callback(success, "dummy msg", acquisition)
 
     def get_sampling_rate(self, identifier: int):
         info = self.fake_device_handler.get_device_info()

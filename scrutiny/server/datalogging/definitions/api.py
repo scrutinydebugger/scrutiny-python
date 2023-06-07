@@ -169,7 +169,7 @@ class DataloggingAcquisition:
 
 
 class APIAcquisitionRequestCompletionCallback(GenericCallback):
-    callback: Callable[[bool, Optional[DataloggingAcquisition]], None]
+    callback: Callable[[bool, str, Optional[DataloggingAcquisition]], None]
 
 
 TriggerConditionID = device_datalogging.TriggerConditionID
