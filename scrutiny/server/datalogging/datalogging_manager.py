@@ -106,21 +106,18 @@ class DataloggingManager:
             self.logger.error("Received acquisition data but was not expecting it. No active acquisition request")
             return
 
-        device_info = self.device_handler.get_device_info()
-        if device_info is None or device_info.device_id is None:
-            self.logger.error('Gotten an acquisition but the device information is not available')
-            msg = "Internal error"
-            if self.device_handler.get_connection_status() != DeviceHandler.ConnectionStatus.CONNECTED_READY:
-                msg = "Device is disconnected"
-            self.active_request.callback(False, msg, None)   # Inform the API of the failure
-            return
-
         acquisition: Optional[api_datalogging.DataloggingAcquisition] = None
         try:
             if success:  # The device succeeded to complete the acquisition and fetch the data
                 self.logger.info("New datalogging acquisition ready")
                 assert data is not None
                 assert metadata is not None
+
+                device_info = self.device_handler.get_device_info()
+                if device_info is None or device_info.device_id is None:
+                    self.logger.error('Gotten an acquisition but the device information is not available')
+                    self.active_request.callback(False, "Internal error", None)   # Inform the API of the failure
+                    return
 
                 # Make sure all signal data have the same length.
                 nb_points: Optional[int] = None
@@ -198,7 +195,7 @@ class DataloggingManager:
                 DataloggingStorage.save(acquisition)
             else:
                 # acquisition will be None here
-                self.logger.info("Failed to acquire acquisition request")
+                self.logger.info("Failed to acquire acquisition. " + str(detail_msg))
         except Exception as e:
             acquisition = None  # Checked later to call the callback
             self.logger.error('Error while processing datalogging acquisition: %s' % str(e))
@@ -208,6 +205,8 @@ class DataloggingManager:
         err: Optional[Exception] = None
         try:
             if acquisition is None:
+                if self.device_handler.get_connection_status() != DeviceHandler.ConnectionStatus.CONNECTED_READY:
+                    detail_msg = "Device disconnected"  # Override of error message for user convenience
                 self.active_request.callback(False, detail_msg, None)   # Inform the API of the failure
                 self.logger.debug("Informing API of failure to get the datalogging acquisition")
             else:
@@ -269,6 +268,9 @@ class DataloggingManager:
                 next_state = FsmState.CLEAR_ERROR
             elif device_status != DeviceHandler.ConnectionStatus.CONNECTED_READY:
                 next_state = FsmState.SHUTDOWN_WAIT_REQ_PROCESSED
+            elif self.active_request is not None and not self.device_handler.datalogging_request_in_progress():
+                next_state = FsmState.SHUTDOWN_WAIT_REQ_PROCESSED
+                # Request will be nacked in SHUTDOWN_WAIT_REQ_PROCESSED state
             else:
                 if not self.acquisition_request_queue.empty():  # A request to be processed pending in the queue
                     if self.active_request is None:  # No request being processed
@@ -312,6 +314,10 @@ class DataloggingManager:
             if self.device_handler.datalogging_in_error():
                 next_state = FsmState.CLEAR_ERROR
             elif self.active_request is None:
+                next_state = FsmState.SHUTDOWN_CLEAR_PENDING_REQUEST
+            elif not self.device_handler.datalogging_request_in_progress():
+                self.logger.error("Datalogging request pending, but the device handler is not processing it.")
+                self.active_request.callback(False, "Datalogger is being reset", None)
                 next_state = FsmState.SHUTDOWN_CLEAR_PENDING_REQUEST
             else:
                 if not self.device_handler.datalogging_cancel_in_progress():

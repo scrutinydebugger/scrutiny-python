@@ -246,6 +246,9 @@ class DeviceHandler:
         """Tells if the datalogging submodule is in error"""
         return self.datalogging_poller.is_in_error()
 
+    def datalogging_request_in_progress(self) -> bool:
+        return self.datalogging_poller.request_in_progress()
+
     def reset_datalogging(self) -> bool:
         """Forcefully reset the datalogging feature"""
         return self.datalogging_poller.reset()

@@ -274,6 +274,9 @@ class DataloggingPoller:
         """Tells if a cancel as been requested and is still processing"""
         return self.cancel_requested
 
+    def request_in_progress(self) -> bool:
+        return self.acquisition_request is not None
+
     def is_ready_to_receive_new_request(self) -> bool:
         """Tells if request_acquisition() can be called. """
         return self.started and self.setup_completed and not self.error and not self.cancel_requested and not self.stop_requested
@@ -285,7 +288,7 @@ class DataloggingPoller:
             self.set_standby()
             return
         elif self.stop_requested:
-            self.mark_active_acquisition_failed_if_any("Communication with the device is being stopped")
+            self.mark_active_acquisition_failed_if_any("Datalogging has been asked to stop")
             if not self.has_any_request_pending():
                 self.logger.debug("Stop completed. Going standby")
                 self.set_standby()
