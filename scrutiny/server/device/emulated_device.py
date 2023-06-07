@@ -957,6 +957,11 @@ class EmulatedDevice:
         self.additional_tasks.append(task)
         self.additional_tasks_lock.release()
 
+    def clear_addition_tasks(self):
+        self.additional_tasks_lock.acquire()
+        self.additional_tasks.clear()
+        self.additional_tasks_lock.release()
+
     def write_memory(self, address: int, data: Union[bytes, bytearray]) -> None:
         err = None
         self.memory_lock.acquire()
