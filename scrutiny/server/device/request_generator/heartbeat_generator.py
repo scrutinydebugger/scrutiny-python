@@ -65,6 +65,10 @@ class HeartbeatGenerator:
         self.logger.debug('Stop requested')
         self.started = False
 
+    def fully_stopped(self):
+        """Indicates that this submodule is stopped and has no pending state"""
+        return self.started == False
+
     def reset(self) -> None:
         """Put the heartbeat generator in its startup state"""
         self.pending = False
@@ -99,23 +103,24 @@ class HeartbeatGenerator:
         self.logger.debug("Success callback. Request=%s. Response Code=%s, Params=%s" % (request, response.code, params))
 
         expected_challenge_response = self.protocol.heartbeat_expected_challenge_response(self.challenge)
-        if response.code == ResponseCode.OK:
-            try:
-                response_data = cast(protocol_typing.Response.CommControl.Heartbeat, self.protocol.parse_response(response))
+        if self.started:
+            if response.code == ResponseCode.OK:
+                try:
+                    response_data = cast(protocol_typing.Response.CommControl.Heartbeat, self.protocol.parse_response(response))
 
-                if response_data['session_id'] == self.session_id:
-                    if response_data['challenge_response'] == expected_challenge_response:  # Make sure the device is not sending a buffered response
-                        self.last_heartbeat_timestamp = time.time()  # This is the indicator that the device is alive
+                    if response_data['session_id'] == self.session_id:
+                        if response_data['challenge_response'] == expected_challenge_response:  # Make sure the device is not sending a buffered response
+                            self.last_heartbeat_timestamp = time.time()  # This is the indicator that the device is alive
+                        else:
+                            self.logger.error('Heartbeat challenge response is not good. Got %s, expected %s' %
+                                              (response_data['challenge_response'], expected_challenge_response))
                     else:
-                        self.logger.error('Heartbeat challenge response is not good. Got %s, expected %s' %
-                                          (response_data['challenge_response'], expected_challenge_response))
-                else:
-                    self.logger.error('Heartbeat session ID echo not good. Got %s, expected %s' % (response_data['session_id'], self.session_id))
-            except:
-                self.logger.error('Heartbeat response data is invalid')
-                self.logger.debug(traceback.format_exc())
-        else:
-            self.logger.error('Heartbeat request got Nacked. %s' % response.code)
+                        self.logger.error('Heartbeat session ID echo not good. Got %s, expected %s' % (response_data['session_id'], self.session_id))
+                except:
+                    self.logger.error('Heartbeat response data is invalid')
+                    self.logger.debug(traceback.format_exc())
+            else:
+                self.logger.error('Heartbeat request got Nacked. %s' % response.code)
 
         self.completed()
 
@@ -126,5 +131,5 @@ class HeartbeatGenerator:
 
     def completed(self) -> None:
         """ Common code between success and failure"""
-        self.challenge = (self.challenge + 1) & 0xFFFF  # NExt challenge
+        self.challenge = (self.challenge + 1) & 0xFFFF  # Next challenge
         self.pending = False

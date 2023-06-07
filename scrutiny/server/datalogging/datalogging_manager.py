@@ -13,11 +13,11 @@ from dataclasses import dataclass
 from uuid import uuid4
 from datetime import datetime
 import traceback
-import time
+import enum
 
 import scrutiny.server.datalogging.definitions.api as api_datalogging
 import scrutiny.server.datalogging.definitions.device as device_datalogging
-from scrutiny.server.device.device_handler import DeviceHandler, DataloggingReceiveSetupCallback, DeviceAcquisitionRequestCompletionCallback
+from scrutiny.server.device.device_handler import DeviceHandler, DeviceAcquisitionRequestCompletionCallback
 from scrutiny.server.datastore.datastore_entry import DatastoreEntry, DatastoreAliasEntry, DatastoreRPVEntry, DatastoreVariableEntry
 from scrutiny.server.datastore.datastore import Datastore
 from scrutiny.server.device.device_info import FixedFreqLoop, ExecLoopType
@@ -26,6 +26,17 @@ from scrutiny.server.datalogging.datalogging_storage import DataloggingStorage
 from scrutiny.core.codecs import Codecs
 
 from typing import Optional, List, Dict, Tuple, cast
+
+
+class FsmState(enum.Enum):
+    INIT = enum.auto()
+    WAIT_DEVICE_CONNECTED = enum.auto()
+    WAIT_DATALOGGING_READY = enum.auto()
+    DEVICE_CONNECTED_WITH_DATALOGGING = enum.auto()
+    DEVICE_CONNECTED_NO_DATALOGGING = enum.auto()
+    CLEAR_ERROR = enum.auto()
+    SHUTDOWN_WAIT_REQ_PROCESSED = enum.auto()
+    SHUTDOWN_CLEAR_PENDING_REQUEST = enum.auto()
 
 
 @dataclass
@@ -42,6 +53,8 @@ class DataloggingManager:
     acquisition_request_queue: "queue.Queue[DeviceSideAcquisitionRequest]"  # The queue in which acquisition requests are put in by the API
     active_request: Optional[DeviceSideAcquisitionRequest]  # The acquisition request being actively processed. None when no request is processed
     logger: logging.Logger  # Logger
+    state: FsmState
+    previous_state: FsmState
 
     TIME_PRECISION_DIGIT = 9    # Device precision is 1e-7. 9 digits is more than enough.
 
@@ -51,6 +64,8 @@ class DataloggingManager:
         self.logger = logging.getLogger(self.__class__.__name__)
         self.acquisition_request_queue = queue.Queue()
         self.active_request = None
+        self.state = FsmState.INIT
+        self.previous_state = FsmState.INIT
         DataloggingStorage.initialize()
 
     def is_valid_sample_rate_id(self, identifier: int) -> bool:
@@ -75,6 +90,9 @@ class DataloggingManager:
         sampling_rate = self.get_sampling_rate(request.rate_identifier)
         if sampling_rate.rate_type == ExecLoopType.VARIABLE_FREQ and request.x_axis_type == api_datalogging.XAxisType.IdealTime:
             raise ValueError("Cannot use Ideal Time on variable sampling rate")
+
+        if self.device_handler.get_connection_status() != DeviceHandler.ConnectionStatus.CONNECTED_READY:
+            raise RuntimeError("No device connected")
 
         self.acquisition_request_queue.put(DeviceSideAcquisitionRequest(
             api_request=request,
@@ -214,29 +232,103 @@ class DataloggingManager:
         """Function th ebe called periodically"""
         device_status = self.device_handler.get_connection_status()
 
-        if device_status == DeviceHandler.ConnectionStatus.CONNECTED_READY:
-            device_info = self.device_handler.get_device_info()
-            assert device_info is not None
-            assert device_info.supported_feature_map is not None
-            assert device_info.runtime_published_values is not None
-            if device_info.supported_feature_map['datalogging'] == True:
+        state_entry = (self.state != self.previous_state)
+        next_state = self.state
+
+        # =========== INIT =========
+        if self.state == FsmState.INIT:
+            self.active_request = None
+            next_state = FsmState.WAIT_DEVICE_CONNECTED
+
+        # =========== WAIT_DEVICE_CONNECTED =========
+        elif self.state == FsmState.WAIT_DEVICE_CONNECTED:
+            if device_status == DeviceHandler.ConnectionStatus.CONNECTED_READY:
+                device_info = self.device_handler.get_device_info()
+                assert device_info is not None
+                assert device_info.supported_feature_map is not None
+                if device_info.supported_feature_map['datalogging'] == True:
+                    next_state = FsmState.WAIT_DATALOGGING_READY
+                else:
+                    next_state = FsmState.DEVICE_CONNECTED_NO_DATALOGGING
+
+        # =========== WAIT_DATALOGGING_READY =========
+        elif self.state == FsmState.WAIT_DATALOGGING_READY:
+            if self.device_handler.datalogging_in_error():
+                next_state = FsmState.CLEAR_ERROR
+            elif device_status != DeviceHandler.ConnectionStatus.CONNECTED_READY:
+                next_state = FsmState.SHUTDOWN_WAIT_REQ_PROCESSED
+            elif self.device_handler.is_ready_for_datalogging_acquisition_request():
+                next_state = FsmState.DEVICE_CONNECTED_WITH_DATALOGGING
+
+        # =========== DEVICE_CONNECTED_WITH_DATALOGGING =========
+        elif self.state == FsmState.DEVICE_CONNECTED_WITH_DATALOGGING:
+            if self.device_handler.datalogging_in_error():
+                next_state = FsmState.CLEAR_ERROR
+            elif device_status != DeviceHandler.ConnectionStatus.CONNECTED_READY:
+                next_state = FsmState.SHUTDOWN_WAIT_REQ_PROCESSED
+            else:
                 if not self.acquisition_request_queue.empty():  # A request to be processed pending in the queue
                     if self.active_request is None:  # No request being processed
                         if self.device_handler.is_ready_for_datalogging_acquisition_request():
                             self.active_request = self.acquisition_request_queue.get()
+                            # We rely on the device handler to call our callback regardless
+                            # of what will happen. Success, failure, error, external reset.
                             self.device_handler.request_datalogging_acquisition(
                                 loop_id=self.active_request.api_request.rate_identifier,
                                 config=self.active_request.device_config,
                                 callback=DeviceAcquisitionRequestCompletionCallback(self.acquisition_complete_callback)
                             )
                         else:
-                            if self.device_handler.datalogging_in_error():
-                                self.device_handler.reset_datalogging()
+                            # Cause of not ready:
+                            # - not started : Device status will not be CONNECTED_READY, will exit cleanly
+                            # - setup not completed : not possible as we waited on this before going here
+                            # - error : Condition for that, will go to CLEAR_ERROR
+                            # - cancel_requested : We wait until cancel is completed and active_request is set to None by the callback
+                            # - stop_requested : Only happens if the device is not CONNECTED_READY. Will cleanly exit
+                            pass
                     else:
                         if not self.device_handler.datalogging_cancel_in_progress():
-                            self.device_handler.cancel_datalogging_acquisition()    # device_handler should call acquisition_complete_callback when cancel is complete
+                            self.logger.debug("Interrupting previous request with new one.")
+                            self.device_handler.cancel_datalogging_acquisition()
+
+        # =========== DEVICE_CONNECTED_NO_DATALOGGING =========
+        elif self.state == FsmState.DEVICE_CONNECTED_NO_DATALOGGING:
+            if self.device_handler.datalogging_in_error():
+                next_state = FsmState.CLEAR_ERROR
+            elif device_status != DeviceHandler.ConnectionStatus.CONNECTED_READY:
+                next_state = FsmState.SHUTDOWN_WAIT_REQ_PROCESSED
+
+        # =========== CLEAR_ERROR =========
+        elif self.state == FsmState.CLEAR_ERROR:
+            self.logger.error("Resetting device handler datalogging module")
+            self.device_handler.reset_datalogging()
+            next_state = FsmState.SHUTDOWN_WAIT_REQ_PROCESSED
+
+        # =========== SHUTDOWN_WAIT_REQ_PROCESSED =========
+        elif self.state == FsmState.SHUTDOWN_WAIT_REQ_PROCESSED:
+            if self.device_handler.datalogging_in_error():
+                next_state = FsmState.CLEAR_ERROR
+            elif self.active_request is None:
+                next_state = FsmState.SHUTDOWN_CLEAR_PENDING_REQUEST
+            else:
+                if not self.device_handler.datalogging_cancel_in_progress():
+                    self.device_handler.cancel_datalogging_acquisition()    # Should trigger the callback and set active_Request to None
+
+        # =========== SHUTDOWN_CLEAR_PENDING_REQUEST =========
+        elif self.state == FsmState.SHUTDOWN_CLEAR_PENDING_REQUEST:
+            while not self.acquisition_request_queue.empty():
+                req = self.acquisition_request_queue.get()
+                req.callback(False, None)   # Not executed
+            next_state = FsmState.INIT
         else:
-            self.active_request = None
+            self.logger.error("Unknown FSM state %s" % self.state)
+            next_state = FsmState.INIT
+
+        if next_state != self.state:
+            self.logger.debug("Moving FSM from %s to %s" % (self.state.name, next_state.name))
+
+        self.previous_state = self.state
+        self.state = next_state
 
     @classmethod
     def api_trigger_condition_to_device_trigger_condition(cls, api_cond: api_datalogging.TriggerCondition) -> device_datalogging.TriggerCondition:

@@ -112,12 +112,13 @@ class DataloggingPoller:
         self.dispatcher = dispatcher
         self.protocol = protocol
         self.request_priority = request_priority
-
+        self.acquisition_request = None
         self.reset()
 
     def reset(self):
         """Put back the datalogging poller to its startup state"""
         self.logger.debug('Reset called')
+        self.mark_active_acquisition_failed_if_any()    # Call user callback if required
         self.acquisition_request = None
         self.enabled = True
         self.actual_config_id = 0
@@ -164,7 +165,7 @@ class DataloggingPoller:
         for rpv in rpvs:
             self.rpv_map[rpv.id] = rpv
 
-        self.logger.debug("RPV map configured with %d" % len(self.rpv_map))
+        self.logger.debug("RPV map configured with %d RPV" % len(self.rpv_map))
 
     def set_max_response_payload_size(self, max_response_payload_size: int) -> None:
         self.max_response_payload_size = max_response_payload_size

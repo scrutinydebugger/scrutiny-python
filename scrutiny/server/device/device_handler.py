@@ -517,8 +517,8 @@ class DeviceHandler:
                 self.wait_clean_state_timestamp = time.time()
 
             fully_stopped = True
-            # device_searcher is stateless
-            # heartbeat_generator is stateless
+            fully_stopped = fully_stopped and self.device_searcher.fully_stopped()
+            fully_stopped = fully_stopped and self.heartbeat_generator.fully_stopped()
             fully_stopped = fully_stopped and self.info_poller.fully_stopped()
             fully_stopped = fully_stopped and self.datalogging_poller.fully_stopped()
             fully_stopped = fully_stopped and self.session_initializer.fully_stopped()
@@ -529,6 +529,14 @@ class DeviceHandler:
                 next_state = self.FsmState.DISCOVERING
 
             if time.time() - self.wait_clean_state_timestamp > self.WAIT_CLEAN_STATE_TIMEOUT:
+                if not self.device_searcher.fully_stopped():
+                    self.logger.error("Device searcher is not stopping. Forcefully resetting.")
+                    self.device_searcher.reset()
+
+                if not self.heartbeat_generator.fully_stopped():
+                    self.logger.error("Heartbeat Generator is not stopping. Forcefully resetting.")
+                    self.heartbeat_generator.reset()
+
                 if not self.datalogging_poller.fully_stopped():
                     self.logger.error("Datalogging Poller is not stopping. Forcefully resetting.")
                     self.datalogging_poller.reset()
