@@ -300,6 +300,7 @@ class S2C:
         request_token: str
         reference_id: Optional[str]
         success: bool
+        detail_msg: str
 
     class InformDataloggingListChanged(BaseS2CMessage):
         reference_id: Optional[str]
@@ -310,6 +311,7 @@ class S2C:
 
     class ReadDataloggingAcquisitionContent(BaseS2CMessage):
         reference_id: str
+        trigger_index: Optional[int]
         yaxis: List[DataloggingAxisDef]
         signals: List[DataloggingSignalDataWithAxis]
         xdata: DataloggingSignalData

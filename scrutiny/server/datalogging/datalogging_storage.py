@@ -17,7 +17,7 @@ from datetime import datetime
 import sqlite3
 
 from scrutiny.server.datalogging.definitions.api import DataloggingAcquisition, DataSeries, AxisDefinition
-from typing import Optional, Dict, List
+from typing import *
 
 
 class BadVersionError(Exception):
@@ -101,6 +101,8 @@ class DataloggingStorageManager:
 
     def clear_all(self) -> None:
         """Deletes the database content"""
+        # This method should work without prior initialization.
+        # It's a fallback solution to restore a corrupted storage
         filename = self.get_db_filename()
         if os.path.isfile(filename):
             os.remove(filename)
@@ -216,7 +218,8 @@ class DataloggingStorageManager:
             `reference_id` VARCHAR(32) UNIQUE NOT NULL,
             `name` VARCHAR(255) NULL DEFAULT NULL,
             `firmware_id` VARCHAR(32)  NOT NULL,
-            `timestamp` TIMESTAMP NOT NULL DEFAULT 'NOW()'
+            `timestamp` TIMESTAMP NOT NULL DEFAULT 'NOW()',
+            `trigger_index` INTEGER NULL
         ) 
         """)
 
@@ -268,6 +271,10 @@ class DataloggingStorageManager:
             raise RuntimeError('Datalogging Storage is not accessible.')
         return SQLiteSession(self.get_db_filename())
 
+    def get_db_version(self) -> Optional[int]:
+        with self.get_session() as conn:
+            return self.read_version(conn)
+
     def save(self, acquisition: DataloggingAcquisition) -> None:
         """Writes an acquisition to the storage"""
         self.logger.debug("Saving acquisition with reference_id=%s" % (str(acquisition.reference_id)))
@@ -283,14 +290,15 @@ class DataloggingStorageManager:
             cursor.execute(
                 """
                 INSERT INTO `acquisitions` 
-                    (`reference_id`, `name`, `firmware_id`, `timestamp`)
-                VALUES (?, ?, ?, ?)
+                    (`reference_id`, `name`, `firmware_id`, `timestamp`, `trigger_index`)
+                VALUES (?, ?, ?, ?, ?)
                 """,
                 (
                     acquisition.reference_id,
                     acquisition.name,
                     acquisition.firmware_id,
-                    ts
+                    ts,
+                    acquisition.trigger_index
                 )
             )
 
@@ -382,6 +390,7 @@ class DataloggingStorageManager:
                     `acq`.`firmware_id` AS `firmware_id`,
                     `acq`.`timestamp` AS `timestamp`,
                     `acq`.`name` AS `name`,
+                    `acq`.`trigger_index` as `trigger_index`,
                     `axis`.`name` AS `axis_name`,
                     `axis`.`external_id` AS `axis_external_id`,
                     `axis`.`is_xaxis` AS `is_xaxis`,
@@ -400,6 +409,7 @@ class DataloggingStorageManager:
                 'firmware_id',
                 'timestamp',
                 'acquisition_name',
+                'trigger_index',
                 'axis_name',
                 'axis_external_id',
                 'is_xaxis',
@@ -454,6 +464,8 @@ class DataloggingStorageManager:
 
         if acq.xdata is None:
             raise LookupError("No X-Axis in acquisition")
+
+        acq.set_trigger_index(rows[0][colmap['trigger_index']])
 
         return acq
 
@@ -513,6 +525,34 @@ class DataloggingStorageManager:
                 raise LookupError('No acquisition identified by ID %s' % str(reference_id))
 
             conn.commit()
+
+    def get_size(self) -> int:
+        return os.path.getsize(self.get_db_filename())
+
+    def get_timerange(self) -> Optional[Tuple[datetime, datetime]]:
+        with self.get_session() as conn:
+            cursor = conn.cursor()
+
+            cursor.execute("""
+                SELECT 
+                    MAX(`timestamp`) as newest,
+                    MIN(`timestamp`) as oldest
+                FROM `acquisitions`
+            """)
+
+            rows = cursor.fetchall()
+            if len(rows) == 0:
+                return None
+
+            if len(rows) != 1:
+                raise RuntimeError("Got more than 1 row, this is not supposed to happen")
+
+            if rows[0][0] is None or rows[0][1] is None:
+                return None
+
+            newest = datetime.fromtimestamp(rows[0][0])
+            oldest = datetime.fromtimestamp(rows[0][1])
+            return oldest, newest
 
 
 GLOBAL_STORAGE = appdirs.user_data_dir('scrutiny')

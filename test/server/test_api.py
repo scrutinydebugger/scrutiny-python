@@ -166,7 +166,7 @@ class StubbedDataloggingManager:
     def process(self) -> None:
         if not self.callback_queue.empty():
             callback, success, acquisition = self.callback_queue.get()
-            callback(success, acquisition)
+            callback(success, "dummy msg", acquisition)
 
     def get_sampling_rate(self, identifier: int):
         info = self.fake_device_handler.get_device_info()
@@ -1545,6 +1545,7 @@ class TestAPI(ScrutinyUnitTest):
             acq.add_data(api_datalogging.DataSeries([10, 20, 30, 40, 50, 60, 70, 80, 90], name='series 1', logged_element='/var/data1'), axis1)
             acq.add_data(api_datalogging.DataSeries([100, 200, 300, 400, 500, 600, 700,
                          800, 900], name='series 2', logged_element='/var/data2'), axis2)
+            acq.set_trigger_index(3)
             DataloggingStorage.save(acq)
 
             req: api_typing.C2S.ReadDataloggingAcquisitionContent = {
@@ -1561,6 +1562,8 @@ class TestAPI(ScrutinyUnitTest):
             self.assertEqual(response['xdata']['name'], 'the x-axis')
             self.assertEqual(response['xdata']['data'], [0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
             self.assertEqual(response['xdata']['logged_element'], '/var/xaxis')
+
+            self.assertEqual(response['trigger_index'], 3)
 
             self.assertEqual(len(response['yaxis']), 2)
             self.assertEqual(response['yaxis'][0]['name'], 'Axis1')
@@ -1789,36 +1792,29 @@ class TestAPI(ScrutinyUnitTest):
                 self.send_request(req)
                 self.assert_is_error(self.wait_and_load_response())
 
-            # Bad decimation
-            for bad_hold_time in ['meow', -1, None, [1]]:
+            # Bad hold time
+            for bad_hold_time in ['meow', -1, None, [1], (2**32) * 1e-7]:  # max value
                 req = create_default_request()
                 req['trigger_hold_time'] = bad_hold_time
                 self.send_request(req)
                 self.assert_is_error(self.wait_and_load_response())
 
             # Bad Timeout
-            for bad_timeout in ['meow', -1, None, [1]]:
+            for bad_timeout in ['meow', -1, None, [1], (2**32) * 1e-7]:
                 req = create_default_request()
                 req['timeout'] = bad_timeout
                 self.send_request(req)
                 self.assert_is_error(self.wait_and_load_response())
 
-            # Bad Timeout
+            # Bad Probe location
             for bad_probe_location in ['meow', -1, 1.1, 2, [1]]:
                 req = create_default_request()
                 req['probe_location'] = bad_probe_location
                 self.send_request(req)
                 self.assert_is_error(self.wait_and_load_response())
 
-            # Bad Timeout
-            for bad_freq_id in ['meow', -1, 1.1, [1]]:
-                req = create_default_request()
-                req['sampling_rate_id'] = bad_freq_id
-                self.send_request(req)
-                self.assert_is_error(self.wait_and_load_response())
-
-                # Bad Timeout
-            for bad_rate_id in ['meow', -1, 11, [1]]:   # Fake datalogging manager consider all sample rate id > 10 to be bad.
+            # Bad sampling rate
+            for bad_rate_id in ['meow', -1, 11, 1.3, [1]]:   # Fake datalogging manager consider all sample rate id > 10 to be bad.
                 req = create_default_request()
                 req['sampling_rate_id'] = bad_rate_id
                 self.send_request(req)

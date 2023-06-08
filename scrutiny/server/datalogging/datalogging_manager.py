@@ -13,10 +13,11 @@ from dataclasses import dataclass
 from uuid import uuid4
 from datetime import datetime
 import traceback
+import enum
 
 import scrutiny.server.datalogging.definitions.api as api_datalogging
 import scrutiny.server.datalogging.definitions.device as device_datalogging
-from scrutiny.server.device.device_handler import DeviceHandler, DataloggingReceiveSetupCallback, DeviceAcquisitionRequestCompletionCallback
+from scrutiny.server.device.device_handler import DeviceHandler, DeviceAcquisitionRequestCompletionCallback
 from scrutiny.server.datastore.datastore_entry import DatastoreEntry, DatastoreAliasEntry, DatastoreRPVEntry, DatastoreVariableEntry
 from scrutiny.server.datastore.datastore import Datastore
 from scrutiny.server.device.device_info import FixedFreqLoop, ExecLoopType
@@ -25,6 +26,17 @@ from scrutiny.server.datalogging.datalogging_storage import DataloggingStorage
 from scrutiny.core.codecs import Codecs
 
 from typing import Optional, List, Dict, Tuple, cast
+
+
+class FsmState(enum.Enum):
+    INIT = enum.auto()
+    WAIT_DEVICE_CONNECTED = enum.auto()
+    WAIT_DATALOGGING_READY = enum.auto()
+    DEVICE_CONNECTED_WITH_DATALOGGING = enum.auto()
+    DEVICE_CONNECTED_NO_DATALOGGING = enum.auto()
+    CLEAR_ERROR = enum.auto()
+    SHUTDOWN_WAIT_REQ_PROCESSED = enum.auto()
+    SHUTDOWN_CLEAR_PENDING_REQUEST = enum.auto()
 
 
 @dataclass
@@ -41,6 +53,10 @@ class DataloggingManager:
     acquisition_request_queue: "queue.Queue[DeviceSideAcquisitionRequest]"  # The queue in which acquisition requests are put in by the API
     active_request: Optional[DeviceSideAcquisitionRequest]  # The acquisition request being actively processed. None when no request is processed
     logger: logging.Logger  # Logger
+    state: FsmState
+    previous_state: FsmState
+
+    TIME_PRECISION_DIGIT = 9    # Device precision is 1e-7. 9 digits is more than enough.
 
     def __init__(self, datastore: Datastore, device_handler: DeviceHandler):
         self.datastore = datastore
@@ -48,6 +64,8 @@ class DataloggingManager:
         self.logger = logging.getLogger(self.__class__.__name__)
         self.acquisition_request_queue = queue.Queue()
         self.active_request = None
+        self.state = FsmState.INIT
+        self.previous_state = FsmState.INIT
         DataloggingStorage.initialize()
 
     def is_valid_sample_rate_id(self, identifier: int) -> bool:
@@ -73,29 +91,33 @@ class DataloggingManager:
         if sampling_rate.rate_type == ExecLoopType.VARIABLE_FREQ and request.x_axis_type == api_datalogging.XAxisType.IdealTime:
             raise ValueError("Cannot use Ideal Time on variable sampling rate")
 
+        if self.device_handler.get_connection_status() != DeviceHandler.ConnectionStatus.CONNECTED_READY:
+            raise RuntimeError("No device connected")
+
         self.acquisition_request_queue.put(DeviceSideAcquisitionRequest(
             api_request=request,
             device_config=config,
             entry_signal_map=entry_signal_map,
             callback=callback))
 
-    def acquisition_complete_callback(self, success: bool, data: Optional[List[List[bytes]]]) -> None:
+    def acquisition_complete_callback(self, success: bool, detail_msg: str, data: Optional[List[List[bytes]]], metadata: Optional[device_datalogging.AcquisitionMetadata]) -> None:
         """Callback called by the device handler when the acquisition finally gets triggered and data has finished downloaded."""
         if self.active_request is None:
             self.logger.error("Received acquisition data but was not expecting it. No active acquisition request")
             return
 
-        device_info = self.device_handler.get_device_info()
-        if device_info is None or device_info.device_id is None:
-            self.logger.error('Gotten an acquisition but the device information is not available')
-            self.active_request.callback(False, None)   # Inform the API of the failure
-            return
-
         acquisition: Optional[api_datalogging.DataloggingAcquisition] = None
         try:
             if success:  # The device succeeded to complete the acquisition and fetch the data
-                self.logger.info("New acquisition gotten")
+                self.logger.info("New datalogging acquisition ready")
                 assert data is not None
+                assert metadata is not None
+
+                device_info = self.device_handler.get_device_info()
+                if device_info is None or device_info.device_id is None:
+                    self.logger.error('Gotten an acquisition but the device information is not available')
+                    self.active_request.callback(False, "Internal error", None)   # Inform the API of the failure
+                    return
 
                 # Make sure all signal data have the same length.
                 nb_points: Optional[int] = None
@@ -104,7 +126,7 @@ class DataloggingManager:
                         nb_points = len(signal_data)
                     else:
                         if nb_points != len(signal_data):
-                            raise ValueError('non-matching data length recived in new acquisition')
+                            raise ValueError('Non-matching data length recived in new acquisition')
 
                 if nb_points is None:
                     raise ValueError('Cannot determine the number of points in the acquisitions')
@@ -137,9 +159,9 @@ class DataloggingManager:
                         raise ValueError('Ideal time X-Axis is not possible with variable frequency loops')
                     timestep = 1 / sampling_rate.frequency
                     timestep *= self.active_request.api_request.decimation
-                    xaxis.set_data([i * timestep for i in range(nb_points)])
-                    xaxis.name = 'X-Axis'
-                    xaxis.logged_element = 'Ideal Time'
+                    xaxis.set_data([round(i * timestep, self.TIME_PRECISION_DIGIT) for i in range(nb_points)])
+                    xaxis.name = 'Time (ideal)'
+                    xaxis.logged_element = 'Time (ideal)'
                 elif self.active_request.api_request.x_axis_type == api_datalogging.XAxisType.MeasuredTime:
                     # Measured time is appended at the end of the signal list. See make_device_config_from_request
                     time_data = data[-1]
@@ -148,15 +170,17 @@ class DataloggingManager:
                     time_codec = Codecs.get(EmbeddedDataType.uint32, endianness=Endianness.Big)
                     first_sample = time_codec.decode(time_data[0])
                     xaxis.set_data([(time_codec.decode(sample) - first_sample) * 1e-7 for sample in time_data])
-                    xaxis.name = 'X-Axis'
-                    xaxis.logged_element = 'Measured Time'
+                    xaxis.name = 'Time (measured)'
+                    xaxis.logged_element = 'Time (measured)'
                 elif self.active_request.api_request.x_axis_type == api_datalogging.XAxisType.Signal:
                     # Any other signal. Use the data as is.
                     xaxis_signal = self.active_request.api_request.x_axis_signal
                     assert xaxis_signal is not None
+                    if xaxis_signal.name is None:
+                        xaxis_signal.name = "X-Axis"
                     parsed_data = self.read_active_request_data_from_raw_data(xaxis_signal, data)
                     xaxis.set_data(parsed_data)
-                    xaxis.name = 'X-Axis'
+                    xaxis.name = xaxis_signal.name
                     xaxis.logged_element = xaxis_signal.entry.get_display_path()
                 else:
                     raise ValueError('Impossible X-Axis type')
@@ -165,10 +189,13 @@ class DataloggingManager:
                     raise ValueError("Failed to find a matching xaxis dataseries")
 
                 acquisition.set_xdata(xaxis)
+                # -1 because index is 0 based.   -1 because we have the number of points AFTER the trigger, excluding the trigger.  So total of -2
+                trigger_index = max(0, min(metadata.number_of_points - metadata.points_after_trigger, metadata.number_of_points - 2))
+                acquisition.set_trigger_index(trigger_index)
                 DataloggingStorage.save(acquisition)
             else:
                 # acquisition will be None here
-                self.logger.info("Failed to acquire acquisition request")
+                self.logger.info("Failed to acquire acquisition. " + str(detail_msg))
         except Exception as e:
             acquisition = None  # Checked later to call the callback
             self.logger.error('Error while processing datalogging acquisition: %s' % str(e))
@@ -178,10 +205,12 @@ class DataloggingManager:
         err: Optional[Exception] = None
         try:
             if acquisition is None:
-                self.active_request.callback(False, None)   # Inform the API of the failure
+                if self.device_handler.get_connection_status() != DeviceHandler.ConnectionStatus.CONNECTED_READY:
+                    detail_msg = "Device disconnected"  # Override of error message for user convenience
+                self.active_request.callback(False, detail_msg, None)   # Inform the API of the failure
                 self.logger.debug("Informing API of failure to get the datalogging acquisition")
             else:
-                self.active_request.callback(True, acquisition)
+                self.active_request.callback(True, detail_msg, acquisition)
                 self.logger.debug("Informing API of success in getting the datalogging acquisition")
         except Exception as e:
             err = e
@@ -205,22 +234,110 @@ class DataloggingManager:
         """Function th ebe called periodically"""
         device_status = self.device_handler.get_connection_status()
 
-        if device_status == DeviceHandler.ConnectionStatus.CONNECTED_READY:
-            device_info = self.device_handler.get_device_info()
-            assert device_info is not None
-            assert device_info.supported_feature_map is not None
-            assert device_info.runtime_published_values is not None
-            if device_info.supported_feature_map['datalogging'] == True:
-                if self.active_request is None:  # No request being processed
-                    if not self.acquisition_request_queue.empty():  # A request to be processed pending in the queue
-                        self.active_request = self.acquisition_request_queue.get()
-                        self.device_handler.request_datalogging_acquisition(
-                            loop_id=self.active_request.api_request.rate_identifier,
-                            config=self.active_request.device_config,
-                            callback=DeviceAcquisitionRequestCompletionCallback(self.acquisition_complete_callback)
-                        )
-        else:
+        state_entry = (self.state != self.previous_state)
+        next_state = self.state
+
+        # =========== INIT =========
+        if self.state == FsmState.INIT:
             self.active_request = None
+            next_state = FsmState.WAIT_DEVICE_CONNECTED
+
+        # =========== WAIT_DEVICE_CONNECTED =========
+        elif self.state == FsmState.WAIT_DEVICE_CONNECTED:
+            if device_status == DeviceHandler.ConnectionStatus.CONNECTED_READY:
+                device_info = self.device_handler.get_device_info()
+                assert device_info is not None
+                assert device_info.supported_feature_map is not None
+                if device_info.supported_feature_map['datalogging'] == True:
+                    next_state = FsmState.WAIT_DATALOGGING_READY
+                else:
+                    next_state = FsmState.DEVICE_CONNECTED_NO_DATALOGGING
+
+        # =========== WAIT_DATALOGGING_READY =========
+        elif self.state == FsmState.WAIT_DATALOGGING_READY:
+            if self.device_handler.datalogging_in_error():
+                next_state = FsmState.CLEAR_ERROR
+            elif device_status != DeviceHandler.ConnectionStatus.CONNECTED_READY:
+                next_state = FsmState.SHUTDOWN_WAIT_REQ_PROCESSED
+            elif self.device_handler.is_ready_for_datalogging_acquisition_request():
+                next_state = FsmState.DEVICE_CONNECTED_WITH_DATALOGGING
+
+        # =========== DEVICE_CONNECTED_WITH_DATALOGGING =========
+        elif self.state == FsmState.DEVICE_CONNECTED_WITH_DATALOGGING:
+            if self.device_handler.datalogging_in_error():
+                next_state = FsmState.CLEAR_ERROR
+            elif device_status != DeviceHandler.ConnectionStatus.CONNECTED_READY:
+                next_state = FsmState.SHUTDOWN_WAIT_REQ_PROCESSED
+            elif self.active_request is not None and not self.device_handler.datalogging_request_in_progress():
+                next_state = FsmState.SHUTDOWN_WAIT_REQ_PROCESSED
+                # Request will be nacked in SHUTDOWN_WAIT_REQ_PROCESSED state
+            else:
+                if not self.acquisition_request_queue.empty():  # A request to be processed pending in the queue
+                    if self.active_request is None:  # No request being processed
+                        if self.device_handler.is_ready_for_datalogging_acquisition_request():
+                            self.active_request = self.acquisition_request_queue.get()
+                            # We rely on the device handler to call our callback regardless
+                            # of what will happen. Success, failure, error, external reset.
+                            self.device_handler.request_datalogging_acquisition(
+                                loop_id=self.active_request.api_request.rate_identifier,
+                                config=self.active_request.device_config,
+                                callback=DeviceAcquisitionRequestCompletionCallback(self.acquisition_complete_callback)
+                            )
+                        else:
+                            # Cause of not ready:
+                            # - not started : Device status will not be CONNECTED_READY, will exit cleanly
+                            # - setup not completed : not possible as we waited on this before going here
+                            # - error : Condition for that, will go to CLEAR_ERROR
+                            # - cancel_requested : We wait until cancel is completed and active_request is set to None by the callback
+                            # - stop_requested : Only happens if the device is not CONNECTED_READY. Will cleanly exit
+                            pass
+                    else:
+                        if not self.device_handler.datalogging_cancel_in_progress():
+                            self.logger.debug("Interrupting previous request with new one.")
+                            self.device_handler.cancel_datalogging_acquisition()
+
+        # =========== DEVICE_CONNECTED_NO_DATALOGGING =========
+        elif self.state == FsmState.DEVICE_CONNECTED_NO_DATALOGGING:
+            if self.device_handler.datalogging_in_error():
+                next_state = FsmState.CLEAR_ERROR
+            elif device_status != DeviceHandler.ConnectionStatus.CONNECTED_READY:
+                next_state = FsmState.SHUTDOWN_WAIT_REQ_PROCESSED
+
+        # =========== CLEAR_ERROR =========
+        elif self.state == FsmState.CLEAR_ERROR:
+            self.logger.error("Resetting device handler datalogging module")
+            self.device_handler.reset_datalogging()
+            next_state = FsmState.SHUTDOWN_WAIT_REQ_PROCESSED
+
+        # =========== SHUTDOWN_WAIT_REQ_PROCESSED =========
+        elif self.state == FsmState.SHUTDOWN_WAIT_REQ_PROCESSED:
+            if self.device_handler.datalogging_in_error():
+                next_state = FsmState.CLEAR_ERROR
+            elif self.active_request is None:
+                next_state = FsmState.SHUTDOWN_CLEAR_PENDING_REQUEST
+            elif not self.device_handler.datalogging_request_in_progress():
+                self.logger.error("Datalogging request pending, but the device handler is not processing it.")
+                self.active_request.callback(False, "Datalogger is being reset", None)
+                next_state = FsmState.SHUTDOWN_CLEAR_PENDING_REQUEST
+            else:
+                if not self.device_handler.datalogging_cancel_in_progress():
+                    self.device_handler.cancel_datalogging_acquisition()    # Should trigger the callback and set active_Request to None
+
+        # =========== SHUTDOWN_CLEAR_PENDING_REQUEST =========
+        elif self.state == FsmState.SHUTDOWN_CLEAR_PENDING_REQUEST:
+            while not self.acquisition_request_queue.empty():
+                req = self.acquisition_request_queue.get()
+                req.callback(False, "Device is not available", None)   # Not executed
+            next_state = FsmState.INIT
+        else:
+            self.logger.error("Unknown FSM state %s" % self.state)
+            next_state = FsmState.INIT
+
+        if next_state != self.state:
+            self.logger.debug("Moving FSM from %s to %s" % (self.state.name, next_state.name))
+
+        self.previous_state = self.state
+        self.state = next_state
 
     @classmethod
     def api_trigger_condition_to_device_trigger_condition(cls, api_cond: api_datalogging.TriggerCondition) -> device_datalogging.TriggerCondition:

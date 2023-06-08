@@ -745,7 +745,7 @@ class API:
 
             try:
                 entry = self.datastore.get_entry(update['watchable'])
-            except Exception as e:
+            except KeyError:
                 raise InvalidRequestException(req, 'Unknown watchable ID %s' % update['watchable'])
 
             if not self.datastore.is_watching(entry, conn_id):
@@ -857,11 +857,19 @@ class API:
         if req['decimation'] <= 0:
             raise InvalidRequestException(req, 'decimation must be a positive integer')
 
+        max_timeout = math.floor((2**32 - 1) * 1e-7)  # 100ns represented in sec
         if req['timeout'] < 0:
             raise InvalidRequestException(req, 'timeout must be a positive value or zero')
 
+        if req['timeout'] > max_timeout:
+            raise InvalidRequestException(req, 'timeout must be smaller than %ds' % int(max_timeout))
+
+        max_hold_time = math.floor((2**32 - 1) * 1e-7)   # 100ns represented in sec
         if req['trigger_hold_time'] < 0:
             raise InvalidRequestException(req, 'trigger_hold_time must be a positive value or zero')
+
+        if req['trigger_hold_time'] > max_hold_time:
+            raise InvalidRequestException(req, 'trigger_hold_time must be a smaller than %ds' % int(max_hold_time))
 
         if req['probe_location'] < 0 or req['probe_location'] > 1:
             raise InvalidRequestException(req, 'probe_location must be a value between 0 and 1')
@@ -1023,7 +1031,7 @@ class API:
 
         self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
 
-    def datalogging_acquisition_completion_callback(self, requestor_conn_id: str, request_token: str, success: bool, acquisition: Optional[api_datalogging.DataloggingAcquisition]) -> None:
+    def datalogging_acquisition_completion_callback(self, requestor_conn_id: str, request_token: str, success: bool, detail_msg: str, acquisition: Optional[api_datalogging.DataloggingAcquisition]) -> None:
         reference_id: Optional[str] = None
         if success:
             assert acquisition is not None
@@ -1035,7 +1043,8 @@ class API:
             'reqid': None,
             'success': success,
             'reference_id': reference_id,
-            'request_token': request_token
+            'request_token': request_token,
+            'detail_msg': detail_msg
         }
         self.client_handler.send(ClientHandlerMessage(conn_id=requestor_conn_id, obj=completion_msg))
 
@@ -1253,6 +1262,7 @@ class API:
             'cmd': API.Command.Api2Client.READ_DATALOGGING_ACQUISITION_CONTENT_RESPONSE,
             'reqid': self.get_req_id(req),
             'reference_id': acquisition.reference_id,
+            'trigger_index': acquisition.trigger_index,
             'signals': signals,
             'xdata': dataseries_to_api_signal_data(acquisition.xdata),
             'yaxis': yaxis_list

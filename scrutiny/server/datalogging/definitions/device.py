@@ -246,13 +246,24 @@ class TriggerCondition:
 
 class Configuration:
     """Represent a datalogging configuration that can be sent to the device to launch an acquisition """
+
     _decimation: int
+    """Subsampling. Divide the sampling frequency"""
+
     _probe_location: float
+    """Location of the trigger point in the buffer. Value from 0 to 1 where 0 is leftmost and 1 is rightmost"""
+
     _timeout: float
+    """Acquisition timeout in seconds. Device will stop acquiring if it stays in Acquiring state for this amount of time. Ignored if 0"""
+
     _trigger_condition: TriggerCondition
+    """The condition that triggers the trigger graph"""
+
     _trigger_hold_time: float
+    """Amount of time, in seconds, that the trigger condition must be true for the trigger to triggered"""
 
     _loggable_signals: List[LoggableSignal]
+    """List of signals to log during the acquisition"""
 
     def __init__(self):
         self._decimation = 1

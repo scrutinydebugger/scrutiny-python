@@ -1,7 +1,7 @@
 #    device_handler.py
 #        Manage the communication with the device at high level.
 #        Try to establish a connection, once it succeed, reads the device configuration.
-#
+#        
 #        Will keep the communication ongoing and will request for memory dump based on the
 #        Datastore state
 #
@@ -13,6 +13,7 @@
 import copy
 import logging
 import binascii
+import time
 from enum import Enum
 import traceback
 from scrutiny.server.datastore.datastore_entry import DatastoreRPVEntry, EntryType
@@ -121,6 +122,7 @@ class DeviceHandler:
     disconnect_complete: bool   # Flags indicating that a disconnect request has been completed
     comm_broken_count: int      # Counter keeping track of how many time we had communication issues
     fully_connected_ready: bool  # Indicates that the DeviceHandler is connected to a device and the initialization phase is correctly completed
+    wait_clean_state_timestamp: float  # Timestamp to detect subcomponents that might be stuck
 
     DEFAULT_PARAMS: DeviceHandlerConfig = {
         'response_timeout': 1.0,    # If a response take more than this delay to be received after a request is sent, drop the response.
@@ -131,6 +133,7 @@ class DeviceHandler:
         'max_response_size': 1024,
         'max_bitrate_bps': 0
     }
+    WAIT_CLEAN_STATE_TIMEOUT = 0.5
 
     # Low number = Low priority
     class RequestPriority:
@@ -158,11 +161,12 @@ class DeviceHandler:
     class FsmState(Enum):
         """The Device Handler State Machine states"""
         INIT = 0
-        DISCOVERING = 1
-        CONNECTING = 2
-        POLLING_INFO = 3
-        READY = 4
-        DISCONNECTING = 5
+        WAIT_CLEAN_STATE = 1
+        DISCOVERING = 2
+        CONNECTING = 3
+        POLLING_INFO = 4
+        READY = 5
+        DISCONNECTING = 6
 
     class OperatingMode(Enum):
         """Tells the main function of the device handler. Modes different from Normal are meant for unit tests"""
@@ -207,6 +211,8 @@ class DeviceHandler:
         self.comm_broken = False
         self.device_id = None
         self.operating_mode = self.OperatingMode.Normal
+        self.wait_clean_state_timestamp = time.time()
+        self.active_request_record = None
 
         if 'link_type' in self.config and 'link_config' in self.config:
             self.configure_comm(self.config['link_type'], self.config['link_config'])
@@ -227,6 +233,25 @@ class DeviceHandler:
     def request_datalogging_acquisition(self, loop_id: int, config: device_datalogging.Configuration, callback: DeviceAcquisitionRequestCompletionCallback) -> None:
         """Request the device for a datalogging acquisition. If a request was pending, this one will be aborted and the completion callback will be called with a failure indication. """
         self.datalogging_poller.request_acquisition(loop_id=loop_id, config=config, callback=callback)
+
+    def cancel_datalogging_acquisition(self) -> None:
+        """Cancel active acquisition if any"""
+        self.datalogging_poller.cancel_acquisition_request()
+
+    def datalogging_cancel_in_progress(self) -> bool:
+        """Tells if a request cancel is in progress"""
+        return self.datalogging_poller.cancel_in_progress()
+
+    def datalogging_in_error(self) -> bool:
+        """Tells if the datalogging submodule is in error"""
+        return self.datalogging_poller.is_in_error()
+
+    def datalogging_request_in_progress(self) -> bool:
+        return self.datalogging_poller.request_in_progress()
+
+    def reset_datalogging(self) -> bool:
+        """Forcefully reset the datalogging feature"""
+        return self.datalogging_poller.reset()
 
     def is_ready_for_datalogging_acquisition_request(self) -> bool:
         """Tells if the device is ready to receive to receive a datalogging acquisition request"""
@@ -367,6 +392,9 @@ class DeviceHandler:
         if self.comm_broken and self.device_id is not None:
             self.logger.info('Communication with device stopped. Searching for a new device')
 
+        if self.active_request_record is not None:
+            self.active_request_record.complete(False)
+
         self.connected = False
         self.fsm_state = self.FsmState.INIT
         self.last_fsm_state = self.FsmState.INIT
@@ -485,6 +513,53 @@ class DeviceHandler:
         if self.fsm_state == self.FsmState.INIT:
             self.reset_comm()
             if self.comm_handler.is_open():
+                next_state = self.FsmState.WAIT_CLEAN_STATE
+
+        elif self.fsm_state == self.FsmState.WAIT_CLEAN_STATE:
+            if state_entry:
+                self.wait_clean_state_timestamp = time.time()
+
+            fully_stopped = True
+            fully_stopped = fully_stopped and self.device_searcher.fully_stopped()
+            fully_stopped = fully_stopped and self.heartbeat_generator.fully_stopped()
+            fully_stopped = fully_stopped and self.info_poller.fully_stopped()
+            fully_stopped = fully_stopped and self.datalogging_poller.fully_stopped()
+            fully_stopped = fully_stopped and self.session_initializer.fully_stopped()
+            fully_stopped = fully_stopped and self.memory_reader.fully_stopped()
+            fully_stopped = fully_stopped and self.memory_writer.fully_stopped()
+
+            if fully_stopped:
+                next_state = self.FsmState.DISCOVERING
+
+            if time.time() - self.wait_clean_state_timestamp > self.WAIT_CLEAN_STATE_TIMEOUT:
+                if not self.device_searcher.fully_stopped():
+                    self.logger.error("Device searcher is not stopping. Forcefully resetting.")
+                    self.device_searcher.reset()
+
+                if not self.heartbeat_generator.fully_stopped():
+                    self.logger.error("Heartbeat Generator is not stopping. Forcefully resetting.")
+                    self.heartbeat_generator.reset()
+
+                if not self.datalogging_poller.fully_stopped():
+                    self.logger.error("Datalogging Poller is not stopping. Forcefully resetting.")
+                    self.datalogging_poller.reset()
+
+                if not self.info_poller.fully_stopped():
+                    self.logger.error("Info Poller is not stopping. Forcefully resetting.")
+                    self.info_poller.reset()
+
+                if not self.session_initializer.fully_stopped():
+                    self.logger.error("Session initializer not stopping. Forcefully resetting.")
+                    self.session_initializer.reset()
+
+                if not self.memory_reader.fully_stopped():
+                    self.logger.error("Memory reader not stopping. Forcefully resetting.")
+                    self.memory_reader.reset()
+
+                if not self.memory_writer.fully_stopped():
+                    self.logger.error("Memory writer not stopping. Forcefully resetting.")
+                    self.memory_writer.reset()
+
                 next_state = self.FsmState.DISCOVERING
 
         # ============= [DISCOVERING] =====================

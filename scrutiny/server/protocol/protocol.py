@@ -287,6 +287,9 @@ class Protocol:
     def datalogging_get_setup(self) -> Request:
         return Request(cmd.DatalogControl, cmd.DatalogControl.Subfunction.GetSetup, response_payload_size=6)
 
+    def datalogging_reset_datalogger(self) -> Request:
+        return Request(cmd.DatalogControl, cmd.DatalogControl.Subfunction.ResetDatalogger, response_payload_size=0)
+
     def datalogging_configure(self, loop_id: int, config_id: int, config: device_datalogging.Configuration) -> Request:
         data = pack('>BHHBLBLB',
                     loop_id,
@@ -810,6 +813,9 @@ class Protocol:
 
     def respond_datalogging_get_setup(self, buffer_size: int, encoding: device_datalogging.Encoding, max_signal_count: int) -> Response:
         return Response(cmd.DatalogControl, cmd.DatalogControl.Subfunction.GetSetup, Response.ResponseCode.OK, pack('>LBB', buffer_size, encoding.value, max_signal_count))
+
+    def respond_datalogging_reset_datalogger(self) -> Response:
+        return Response(cmd.DatalogControl, cmd.DatalogControl.Subfunction.ResetDatalogger, Response.ResponseCode.OK)
 
     def respond_datalogging_configure(self) -> Response:
         return Response(cmd.DatalogControl, cmd.DatalogControl.Subfunction.ConfigureDatalog, Response.ResponseCode.OK)

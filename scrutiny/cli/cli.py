@@ -33,6 +33,7 @@ class CLI:
         self.parser.add_argument('command', help='Command to execute')
         self.parser.add_argument('--loglevel', help='Log level to use', default=None, metavar='LEVEL')
         self.parser.add_argument('--logfile', help='File to write logs', default=None, metavar='FILENAME')
+        self.parser.add_argument('--disable_loggers', help='list of loggers to disable', default=None, metavar='LOGGERS')
 
     def make_command_list_help(self) -> str:
         """Return a string meant to be displayed in the command line explaining the possible commands"""
@@ -78,6 +79,9 @@ class CLI:
             logging_level = getattr(logging, logging_level_str.upper())
             format_string = '[%(levelname)s] %(message)s'
             logging.basicConfig(level=logging_level, filename=cargs.logfile, format=format_string)
+            if cargs.disable_loggers is not None:
+                for logger_name in cargs.disable_loggers.split(','):
+                    logging.getLogger(logger_name).disabled = True
 
             for cmd in self.command_list:
                 if cmd.get_name() == cargs.command:

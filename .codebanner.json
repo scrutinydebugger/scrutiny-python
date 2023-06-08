@@ -349,9 +349,6 @@
         "test/server/datalogging/test_datalogging_manager.py": {
             "docstring": "Test the datalogging manager features"
         },
-        "scrutiny/cli/commands/clear_datalogging_storage.py": {
-            "docstring": "Make sure that we can read and write to the datalogging storage"
-        },
         "scrutiny/server/datalogging/datalogging_utilities.py": {
             "docstring": "Contains some utilities that may be used by more than one module"
         },
@@ -360,6 +357,18 @@
         },
         "scrutiny/server/datalogging/definitions/api.py": {
             "docstring": "Contains the definitions related to the datalogging feature on the API side"
+        },
+        "scrutiny/cli/commands/datalog_info.py": {
+            "docstring": "Command that return some information about datalogging such as storage location, size, number of acquisitions"
+        },
+        "scrutiny/cli/commands/list_datalog.py": {
+            "docstring": "List all the datalogging acquisition stored on this server"
+        },
+        "scrutiny/cli/commands/delete_datalog.py": {
+            "docstring": "Delete a single or all datalogging acquisitions"
+        },
+        "scrutiny/cli/commands/export_datalog.py": {
+            "docstring": "Extract a datalogging acquisition and export it into a common format, such as CSV"
         }
     }
 }

@@ -49,7 +49,12 @@ class DeviceSearcher:
 
     def stop(self) -> None:
         """ Stop the search. No more request emitted and state machine will stop"""
+        self.logger.debug('Stop requested')
         self.started = False
+
+    def fully_stopped(self):
+        """Indicates that this submodule is stopped and has no pending state"""
+        return self.started == False
 
     def reset(self) -> None:
         """ Restart the search from the beginning"""
@@ -114,18 +119,19 @@ class DeviceSearcher:
         # Called by the dispatcher when a request is completed and succeeded
         self.logger.debug("Success callback. Request=%s. Response Code=%s, Params=%s" % (request, response.code, params))
 
-        if response.code == ResponseCode.OK:
-            try:
-                response_data = cast(protocol_typing.Response.CommControl.Discover, self.protocol.parse_response(response))
-                self.found_device_timestamp = time.time()
-                self.found_device = response_data
-            except Exception as e:
-                self.logger.error('Discover request got a response with invalid data.')
-                self.logger.debug(traceback.format_exc())
+        if self.started:
+            if response.code == ResponseCode.OK:
+                try:
+                    response_data = cast(protocol_typing.Response.CommControl.Discover, self.protocol.parse_response(response))
+                    self.found_device_timestamp = time.time()
+                    self.found_device = response_data
+                except Exception as e:
+                    self.logger.error('Discover request got a response with invalid data.')
+                    self.logger.debug(traceback.format_exc())
+                    self.found_device = None
+            else:
+                self.logger.error('Discover request got Nacked. %s' % response.code)
                 self.found_device = None
-        else:
-            self.logger.error('Discover request got Nacked. %s' % response.code)
-            self.found_device = None
 
         self.completed()
 
