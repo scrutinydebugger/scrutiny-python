@@ -1,3 +1,11 @@
+#    export_datalog.py
+#        Extract a datalogging acquisition and export it into a common format, such as CSV
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021-2023 Scrutiny Debugger
+
 import argparse
 import logging
 
