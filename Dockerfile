@@ -1,4 +1,4 @@
-FROM ubuntu:20.04
+FROM ubuntu:20.04 as build-tests
 
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -74,3 +74,11 @@ RUN wget $PYTHON_SRC \
     && rm -rf "Python-${PYTHON_VERSION}"
 
 # ============================================
+
+
+FROM python:3.10.0 as runtime
+WORKDIR /app
+COPY . .
+RUN bash scripts/activate-venv.sh
+RUN bash scripts/with-venv.sh pip3 install ipdb
+CMD "bash scripts/with-venv.sh scrutiny launch-server --config config/udp.json --log=INFO"

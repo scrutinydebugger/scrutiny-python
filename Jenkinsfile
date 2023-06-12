@@ -7,6 +7,7 @@ pipeline {
             agent {
                 dockerfile {
                     args '-e HOME=/tmp -e BUILD_CONTEXT=ci'
+                    additionalBuildArgs '--target build-tests'
                     reuseNode true
                 }
             }
