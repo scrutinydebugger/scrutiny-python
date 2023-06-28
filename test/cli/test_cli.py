@@ -161,7 +161,8 @@ class TestCLI(ScrutinyUnitTest):
 
                 cli.run(['make-metadata', '--version', '1.2.3.4', '--project-name', 'testname',
                         '--author', 'unittest', '--output', tempdirname], except_failed=True)
-                cli.run(['get-firmware-id', temp_bin, '--output', tempdirname, '--apply'], except_failed=True)
+                cli.run(['get-firmware-id', temp_bin, '--output', tempdirname], except_failed=True)
+                cli.run(['tag-firmware-id', temp_bin, '--inplace'], except_failed=True)
                 cli.run(['elf2varmap', temp_bin, '--output', tempdirname], except_failed=True)
                 cli.run(['add-alias', tempdirname, '--file', alias_file_1], except_failed=True)
                 cli.run(['uninstall-sfd', demobin_firmware_id, '--quiet'], except_failed=True)

@@ -18,11 +18,11 @@ class CommControl(BaseCommand):
 
     class Subfunction(Enum):
         Discover = 1
-        """Request for a device to identify itself with his firmwre ID and name"""
+        """Request for a device to identify itself with his firmware ID and name"""
 
         Heartbeat = 2
         """Keep a connection to a device alive. Meaning the device will refuse any other 
-        incoming Connect request as long hearbeat are being sent """
+        incoming Connect request as long heartbeat are being sent """
 
         GetParams = 3
         """Request for the device communication parameters"""

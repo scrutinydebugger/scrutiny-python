@@ -104,7 +104,7 @@ class TestProtocolV1_0(ScrutinyUnitTest):
         req = self.proto.get_software_id()
         self.assert_req_response_bytes(req, [1, 2, 0, 0])
         data = self.proto.parse_request(req)
-        self.check_expected_payload_size(req, 32)
+        self.check_expected_payload_size(req, 16)
 
     def test_req_get_supported_features(self):
         req = self.proto.get_supported_features()

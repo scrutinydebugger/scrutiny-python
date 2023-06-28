@@ -132,7 +132,7 @@ class Protocol:
         return Request(cmd.GetInfo, cmd.GetInfo.Subfunction.GetProtocolVersion, response_payload_size=2)
 
     def get_software_id(self) -> Request:
-        return Request(cmd.GetInfo, cmd.GetInfo.Subfunction.GetSoftwareId, response_payload_size=32)
+        return Request(cmd.GetInfo, cmd.GetInfo.Subfunction.GetSoftwareId, response_payload_size=16)
 
     def get_supported_features(self) -> Request:
         return Request(cmd.GetInfo, cmd.GetInfo.Subfunction.GetSupportedFeatures, response_payload_size=1)
@@ -363,10 +363,10 @@ class Protocol:
         remaining_count = total_size - data_read
 
         if payload_max_size - 8 < 0:
-            raise ValueError('Negative max payload size. tx_buffer_size=%d', (tx_buffer_size))
+            raise ValueError('Negative max payload size. tx_buffer_size=%d' % (tx_buffer_size))
 
         if remaining_count < 0:
-            raise ValueError('Negative remaining data. total_size=%d, data_read=%d', (total_size, data_read))
+            raise ValueError('Negative remaining data. total_size=%d, data_read=%d' % (total_size, data_read))
 
         expected_response_payload_size = 0
         if encoding == device_datalogging.Encoding.RAW:
@@ -1002,12 +1002,12 @@ class Protocol:
                             id, = unpack('>H', response.payload[cursor:cursor + 2])
                             cursor += 2
                             if id not in self.rpv_map:
-                                raise Exception('Unknown RuntimePublishedValue of ID 0x%x', id)
+                                raise Exception('Unknown RuntimePublishedValue of ID 0x%x' % id)
                             rpv = self.rpv_map[id]
                             typesize = rpv.datatype.get_size_byte()
                             assert typesize is not None
                             if len(response.payload) - cursor < typesize:
-                                raise Exception('Incomplete data for RPV with ID 0x%x', id)
+                                raise Exception('Incomplete data for RPV with ID 0x%x' % id)
 
                             codec = Codecs.get(rpv.datatype, Endianness.Big)
                             val = codec.decode(response.payload[cursor:cursor + typesize])
@@ -1031,7 +1031,7 @@ class Protocol:
                     if subfn == cmd.DatalogControl.Subfunction.GetSetup:
                         data = cast(protocol_typing.Response.DatalogControl.GetSetup, data)
                         if len(response.payload) != 6:
-                            raise ValueError('Not the right amount of data for a GetSetup response. Got %d expected %d', (len(response.payload), 5))
+                            raise ValueError('Not the right amount of data for a GetSetup response. Got %d expected %d' % (len(response.payload), 5))
 
                         data['buffer_size'] = struct.unpack('>L', response.payload[0:4])[0]
                         encoding_code = response.payload[4]
@@ -1044,7 +1044,7 @@ class Protocol:
                         data = cast(protocol_typing.Response.DatalogControl.GetStatus, data)
                         expected_size = 1 + 4 + 4
                         if len(response.payload) != expected_size:
-                            raise ValueError('Not the right amount of data for a GetStatus response. Got %d expected %d',
+                            raise ValueError('Not the right amount of data for a GetStatus response. Got %d expected %d' %
                                              (len(response.payload), expected_size))
 
                         state_code, remaining_bytes, write_counter = unpack('>BLL', response.payload)
@@ -1057,7 +1057,7 @@ class Protocol:
                     elif subfn == cmd.DatalogControl.Subfunction.GetAcquisitionMetadata:
                         data = cast(protocol_typing.Response.DatalogControl.GetAcquisitionMetadata, data)
                         if len(response.payload) != 16:
-                            raise ValueError('Not the right amount of data for a GetAcquisitionMetadata response. Got %d expected %d',
+                            raise ValueError('Not the right amount of data for a GetAcquisitionMetadata response. Got %d expected %d' %
                                              (len(response.payload), 16))
 
                         data['acquisition_id'] = struct.unpack('>H', response.payload[0:2])[0]
@@ -1068,7 +1068,7 @@ class Protocol:
                     elif subfn == cmd.DatalogControl.Subfunction.ReadAcquisition:
                         data = cast(protocol_typing.Response.DatalogControl.ReadAcquisition, data)
                         if len(response.payload) < 8:
-                            raise ValueError('Not enough data for a GetAcquisitionMetadata response. Got %d expected at least %d',
+                            raise ValueError('Not enough data for a GetAcquisitionMetadata response. Got %d expected at least %d' %
                                              (len(response.payload), 8))
 
                         data['finished'] = response.payload[0] != 0
