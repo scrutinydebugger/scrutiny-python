@@ -161,7 +161,8 @@ class FirmwareDescription:
         elif Datastore.is_rpv_path(alias.get_target()):
             return EntryType.RuntimePublishedValue
         else:
-            raise Exception('Alias %s does not seems to point towards a valid Variable or Runtime Published Value' % alias.get_fullpath())
+            raise Exception('Alias %s is referencing %s which is not a valid Variable or Runtime Published Value' %
+                            (alias.get_fullpath(), alias.get_target()))
 
     @classmethod
     def read_varmap_from_filesystem(cls, path: str) -> VarMap:

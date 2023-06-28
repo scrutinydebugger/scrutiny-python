@@ -32,8 +32,6 @@ class GetFirmwareId(BaseCommand):
         self.parser = argparse.ArgumentParser(prog=self.get_prog())
         self.parser.add_argument('filename', help='The binary fimware to read')
         self.parser.add_argument('--output', default=None, help='The output path of the firmwareid file')
-        self.parser.add_argument('--apply', action='store_true',
-                                 help='When set, tag the firmware binary file with the new firmware-id hash by replacing the compiled placeholder.')
 
     def run(self) -> Optional[int]:
         from scrutiny.core.firmware_parser import FirmwareParser
