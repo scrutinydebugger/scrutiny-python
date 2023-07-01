@@ -112,16 +112,16 @@
         "scrutiny/server/device/links/udp_link.py": {
             "docstring": "Connects the CommHandler to a device through UDP"
         },
-        "scrutiny/server/device/request_generator/device_searcher.py": {
+        "scrutiny/server/device/submodules/device_searcher.py": {
             "docstring": "Once enabled, generates DISCOVER requests to find a device at the other end of the communication link."
         },
-        "scrutiny/server/device/request_generator/heartbeat_generator.py": {
+        "scrutiny/server/device/submodules/heartbeat_generator.py": {
             "docstring": "Once enabled, generate HEARTBEAT request periodically to keep a connection alive with a device."
         },
-        "scrutiny/server/device/request_generator/info_poller.py": {
+        "scrutiny/server/device/submodules/info_poller.py": {
             "docstring": "Once enabled, successively poll all pollable data from a device through the Scrutiny protocol. Also call callbacks method when specific data is read e.g. Protocol version, buffer size, etc"
         },
-        "scrutiny/server/device/request_generator/session_initializer.py": {
+        "scrutiny/server/device/submodules/session_initializer.py": {
             "docstring": "Once enabled, try to establish a working session with a device."
         },
         "scrutiny/server/protocol/comm_handler.py": {
@@ -226,13 +226,13 @@
         "scrutiny/server/device/links/abstract_link.py": {
             "docstring": "Base class for all device communication link (serial, udp, other)"
         },
-        "scrutiny/server/device/request_generator/memory_reader.py": {
+        "scrutiny/server/device/submodules/memory_reader.py": {
             "docstring": "Synchronize the datastore with the device\nPoll for entries that are watched and update the datastore with data read from the device. "
         },
         "test/server/test_memory_reader.py": {
             "docstring": "Make sure the memory_Reader correctly reads the device memory to fills the datastore entries that are watch"
         },
-        "scrutiny/server/device/request_generator/memory_writer.py": {
+        "scrutiny/server/device/submodules/memory_writer.py": {
             "docstring": "Synchronize the datastore with the device\nPoll for entries that are watched and update the device with value change request coming from the user in the datastore."
         },
         "test/core/test_variables.py": {
@@ -340,7 +340,7 @@
         "scrutiny/server/datalogging/datalogging_storage.py": {
             "docstring": "A storage interface to save and fetch datalogging acquisition from the disk to keep an history of them"
         },
-        "scrutiny/server/device/request_generator/datalogging_poller.py": {
+        "scrutiny/server/device/submodules/datalogging_poller.py": {
             "docstring": "Component of the Device Handler that handles the datalogging feature within the device. Poll for status, new data and configure the device"
         },
         "test/integration/test_datalogging_integration.py": {

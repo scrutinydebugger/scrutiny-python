@@ -257,6 +257,7 @@ class S2C:
 
     class InformServerStatus(BaseS2CMessage):
         device_status: str
+        device_session_id: Optional[str]
         device_datalogging_status: DataloggingStatus
         device_info: Optional[DeviceInfo]
         loaded_sfd: Optional[SFDEntry]
