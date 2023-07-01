@@ -11,6 +11,7 @@ import random
 import string
 import json
 import math
+from uuid import uuid4
 from scrutiny.core.basic_types import RuntimePublishedValue
 
 from scrutiny.server.api.API import API
@@ -41,6 +42,7 @@ from typing import cast
 class StubbedDeviceHandler:
     connection_status: DeviceHandler.ConnectionStatus
     device_id: str
+    server_session_id: Optional[str]
     link_type: str
     link_config: Dict[Any, Any]
     reject_link_config: bool
@@ -50,6 +52,7 @@ class StubbedDeviceHandler:
 
     def __init__(self, device_id, connection_status=DeviceHandler.ConnectionStatus.UNKNOWN):
         self.device_id = device_id
+        self.server_session_id = None
         self.connection_status = connection_status
         self.link_type = 'none'
         self.link_config = {}
@@ -65,7 +68,14 @@ class StubbedDeviceHandler:
         return self.connection_status
 
     def set_connection_status(self, connection_status: DeviceHandler.ConnectionStatus) -> None:
+        if connection_status == DeviceHandler.ConnectionStatus.CONNECTED_READY and self.connection_status != DeviceHandler.ConnectionStatus.CONNECTED_READY:
+            self.server_session_id = uuid4().hex
+        elif connection_status != DeviceHandler.ConnectionStatus.CONNECTED_READY:
+            self.server_session_id = None
         self.connection_status = connection_status
+
+    def comm_session_id(self) -> Optional[str]:
+        return self.server_session_id
 
     def set_datalogging_setup(self, setup: Optional[device_datalogging.DataloggingSetup]) -> None:
         self.datalogging_setup = setup
@@ -848,12 +858,14 @@ class TestAPI(ScrutinyUnitTest):
             }
 
             self.send_request(req, 0)
-            response = self.wait_and_load_response(timeout=0.5)
+            response = cast(api_typing.S2C.InformServerStatus, self.wait_and_load_response(timeout=0.5))
             self.assert_no_error(response)
 
             self.assertEqual(response['cmd'], 'inform_server_status')
             self.assertIn('device_status', response)
             self.assertEqual(response['device_status'], 'connected_ready')
+            self.assertIn('device_session_id', response)
+            self.assertIsNotNone(response['device_session_id'])
             self.assertIn('device_datalogging_status', response)
             self.assertIn('datalogger_state', response['device_datalogging_status'])
             self.assertIn('completion_ratio', response['device_datalogging_status'])
@@ -887,11 +899,13 @@ class TestAPI(ScrutinyUnitTest):
             }
 
             self.send_request(req, 0)
-            response = self.wait_and_load_response(timeout=0.5)
+            response = cast(api_typing.S2C.InformServerStatus, self.wait_and_load_response(timeout=0.5))
             self.assert_no_error(response)
 
             self.assertEqual(response['cmd'], 'inform_server_status')
             self.assertIn('device_status', response)
+            self.assertIn('device_session_id', response)
+            self.assertIsNotNone(response['device_session_id'])
             self.assertEqual(response['device_status'], 'connected_ready')
             self.assertIn('loaded_sfd', response)
             self.assertIsNone(response['loaded_sfd'])
@@ -910,6 +924,13 @@ class TestAPI(ScrutinyUnitTest):
 
             SFDStorage.uninstall(sfd1.get_firmware_id_ascii())
             SFDStorage.uninstall(sfd2.get_firmware_id_ascii())
+
+            self.fake_device_handler.set_connection_status(DeviceHandler.ConnectionStatus.DISCONNECTED)
+            self.send_request(req, 0)
+            response = cast(api_typing.S2C.InformServerStatus, self.wait_and_load_response(timeout=0.5))
+            self.assert_no_error(response)
+            self.assertIn('device_session_id', response)
+            self.assertIsNone(response['device_session_id'])    # Expected None when not connected
 
     def test_set_device_link(self):
         self.assertEqual(self.fake_device_handler.link_type, 'none')

@@ -123,11 +123,14 @@ class TestDeviceHandler(ScrutinyUnitTest):
             self.assertEqual(self.device_handler.get_comm_error_count(), 0)
 
             if status == DeviceHandler.ConnectionStatus.CONNECTED_READY:
+                self.assertIsNotNone(self.device_handler.comm_session_id())
                 connection_successful = True
                 if hold_time_set == False:
                     hold_time_set = True
                     timeout = hold_time
                     t1 = time.time()
+            else:
+                self.assertIsNone(self.device_handler.comm_session_id())
 
             if connection_successful:
                 self.assertTrue(status == DeviceHandler.ConnectionStatus.CONNECTED_READY)

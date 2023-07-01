@@ -1317,6 +1317,7 @@ class API:
             'cmd': self.Command.Api2Client.INFORM_SERVER_STATUS,
             'reqid': reqid,
             'device_status': self.device_conn_status_to_str[self.device_handler.get_connection_status()],
+            'device_session_id': self.device_handler.comm_session_id(),  # str when connected_ready. None when not connected_ready
             'device_info': device_info_output,
             'loaded_sfd': loaded_sfd,
             'device_datalogging_status': {
