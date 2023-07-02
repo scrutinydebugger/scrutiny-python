@@ -11,7 +11,7 @@ import logging
 import queue
 import functools
 
-localhost = 'localhost'
+localhost = '127.0.0.1'  # CI does not have ipv6
 
 
 class TestClient(unittest.TestCase):
