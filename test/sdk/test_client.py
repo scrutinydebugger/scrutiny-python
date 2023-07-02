@@ -11,6 +11,8 @@ import logging
 import queue
 import functools
 
+localhost = '127.0.0.1'
+
 
 class TestClient(unittest.TestCase):
     def setUp(self) -> None:
@@ -41,7 +43,7 @@ class TestClient(unittest.TestCase):
 
     def server_thread(self):
         self.server = SynchronousWebsocketServer(connect_callback=self.connect_callback, disconnect_callback=self.disconnect_callback)
-        self.port = self.server.start('localhost', 0)
+        self.port = self.server.start(localhost, 0)
         self.server_started.set()
         while not self.exit_requested.is_set():
             require_sync_before = False
@@ -86,14 +88,14 @@ class TestClient(unittest.TestCase):
 
             # Connect client1
             logging.debug("Connecting")
-            client1.connect('localhost', self.port)
+            client1.connect(localhost, self.port)
             self.assertEqual(client1.server_state, ServerState.Connected)
             self.assertEqual(client2.server_state, ServerState.Disconnected)
             self.wait_for_server()
             ws1 = self.last_connect_ws
 
             # Connect client2
-            client2.connect('localhost', self.port)
+            client2.connect(localhost, self.port)
             self.wait_for_server()
             ws2 = self.last_connect_ws
             self.assertEqual(client1.server_state, ServerState.Connected)

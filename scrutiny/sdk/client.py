@@ -210,8 +210,7 @@ class ScrutinyClient:
             raise sdk_exceptions.ConnectionError(f"Disconnected from server. {error}")
 
     def _rxt_recv(self, timeout: Optional[float] = None) -> Optional[dict]:
-
-        # No need to lock conn_lock here. Important is while disconnection
+        # No need to lock conn_lock here. Important is during disconnection
         error: Optional[Exception] = None
         obj: Optional[dict] = None
 
@@ -235,7 +234,7 @@ class ScrutinyClient:
 
         return obj
 
-    def watch(self, path: str) -> WatchableHandle:
+    def get(self, path: str) -> WatchableHandle:
         return WatchableHandle()
 
     def __del__(self):
