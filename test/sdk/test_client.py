@@ -11,7 +11,7 @@ import logging
 import queue
 import functools
 
-localhost = '127.0.0.1'
+localhost = 'localhost'
 
 
 class TestClient(unittest.TestCase):
@@ -28,7 +28,10 @@ class TestClient(unittest.TestCase):
 
         self.thread = threading.Thread(target=self.server_thread)
         self.thread.start()
-        self.server_started.wait()
+        self.server_started.wait(timeout=1)
+
+        if not self.server_started.is_set():
+            raise RuntimeError("Cannot start server")
 
     def tearDown(self) -> None:
         self.exit_requested.set()
