@@ -1,3 +1,8 @@
+__all__ = [
+    'ServerState',
+    'DeviceState'
+]
+
 import enum
 
 
@@ -12,4 +17,3 @@ class DeviceState(enum.Enum):
     Disconnected = enum.auto()
     Connecting = enum.auto()
     Connected = enum.auto()
-

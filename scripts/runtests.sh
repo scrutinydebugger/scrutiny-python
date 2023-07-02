@@ -1,5 +1,5 @@
 #!/bin/bash
-set -exo pipefail
+set -euxo pipefail
 
-python3 -m scrutiny runtest || exit 1
-python3 -m mypy scrutiny || exit 1
+python3 -m scrutiny runtest
+python3 -m mypy scrutiny
