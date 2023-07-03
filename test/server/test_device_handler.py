@@ -445,7 +445,7 @@ class TestDeviceHandler(ScrutinyUnitTest):
                     self.assertEqual(self.datastore.get_entries_count(EntryType.Alias), 0)
                     self.assertEqual(self.datastore.get_entries_count(EntryType.RuntimePublishedValue), len(self.emulated_device.rpvs))
 
-                    all_entries = cast(List[DatastoreRPVEntry], self.datastore.get_entries_list_by_type(EntryType.RuntimePublishedValue))
+                    all_entries = cast(List[DatastoreRPVEntry], list(self.datastore.get_all_entries(EntryType.RuntimePublishedValue)))
 
                     for entry in all_entries:
                         assert isinstance(entry, DatastoreRPVEntry)

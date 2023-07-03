@@ -92,8 +92,9 @@ class DeviceCommLinkDef(TypedDict):
     link_config: LinkConfig
 
 
-class GetWatchableList_Filter(TypedDict):
+class GetWatchableList_Filter(TypedDict, total=False):
     type: WatchableType
+    name: str
 
 
 class WatchableCount(TypedDict):
@@ -284,10 +285,12 @@ class S2C:
 
     class WriteValue(BaseS2CMessage):
         watchables: List[str]
+        request_token: str
 
     class WriteCompletion(BaseS2CMessage):
         watchable: str
-        status: Literal['ok', 'failed']
+        success: bool
+        request_token: str
         timestamp: float
 
     class GetDataloggingCapabilities(BaseS2CMessage):

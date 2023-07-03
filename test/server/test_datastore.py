@@ -103,19 +103,19 @@ class TestDataStore(ScrutinyUnitTest):
         for entry in ds_entries:
             self.assertIn(entry, entries)
 
-        ds_entries = list(ds.get_entries_list_by_type(EntryType.Var))
+        ds_entries = list(ds.get_all_entries(EntryType.Var))
         self.assertEqual(len(ds_entries), 4)
         for entry in ds_entries:
             self.assertEqual(entry.get_type(), EntryType.Var)
             self.assertIn(entry, entries)
 
-        ds_entries = list(ds.get_entries_list_by_type(EntryType.Alias))
+        ds_entries = list(ds.get_all_entries(EntryType.Alias))
         self.assertEqual(len(ds_entries), 2)
         for entry in ds_entries:
             self.assertEqual(entry.get_type(), EntryType.Alias)
             self.assertIn(entry, entries)
 
-        ds_entries = list(ds.get_entries_list_by_type(EntryType.RuntimePublishedValue))
+        ds_entries = list(ds.get_all_entries(EntryType.RuntimePublishedValue))
         self.assertEqual(len(ds_entries), 5)
         for entry in ds_entries:
             self.assertEqual(entry.get_type(), EntryType.RuntimePublishedValue)

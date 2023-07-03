@@ -458,7 +458,75 @@ class TestAPI(ScrutinyUnitTest):
 
         self.assertEqual(len(expected_entries_in_response), 0)
 
+    def test_get_watchable_list_with_name_filter(self):
+        var_entries = self.make_dummy_entries(5, entry_type=EntryType.Var, prefix='includeme_var')
+        alias_entries = self.make_dummy_entries(2, entry_type=EntryType.Alias, prefix='includeme_alias', alias_bucket=var_entries)
+        rpv_entries = self.make_dummy_entries(8, entry_type=EntryType.RuntimePublishedValue, prefix='includeme_rpv')
+
+        expected_entries_in_response = {}
+        for entry in var_entries:
+            expected_entries_in_response[entry.get_id()] = entry
+        for entry in alias_entries:
+            expected_entries_in_response[entry.get_id()] = entry
+        for entry in rpv_entries:
+            expected_entries_in_response[entry.get_id()] = entry
+        # Add entries in the datastore that we will reread through the API
+        self.datastore.add_entries(var_entries)
+        self.datastore.add_entries(alias_entries)
+        self.datastore.add_entries(rpv_entries)
+
+        self.datastore.add_entries(self.make_dummy_entries(5, entry_type=EntryType.Var, prefix='excludeme_var'))
+        self.datastore.add_entries(self.make_dummy_entries(5, entry_type=EntryType.Alias, prefix='excludeme_alias', alias_bucket=var_entries))
+        self.datastore.add_entries(self.make_dummy_entries(5, entry_type=EntryType.RuntimePublishedValue, prefix='excludeme_rpv'))
+
+        req = {
+            'cmd': 'get_watchable_list',
+            'filter': {
+                'name': 'includeme*'
+            }
+        }
+        self.send_request(req)
+        response = self.wait_and_load_response()
+        self.assert_no_error(response)
+
+        self.assert_get_watchable_list_response_format(response)
+
+        self.assertEqual(response['done'], True)
+        self.assertEqual(response['qty']['var'], 5)
+        self.assertEqual(response['qty']['alias'], 2)
+        self.assertEqual(response['qty']['rpv'], 8)
+        self.assertEqual(len(response['content']['var']), 5)
+        self.assertEqual(len(response['content']['alias']), 2)
+        self.assertEqual(len(response['content']['rpv']), 8)
+
+        # Put all entries in a single list, paired with the name of the parent key.
+        all_entries_same_level = []
+        all_entries_same_level += [(EntryType.Var, entry) for entry in response['content']['var']]
+        all_entries_same_level += [(EntryType.Alias, entry) for entry in response['content']['alias']]
+        all_entries_same_level += [(EntryType.RuntimePublishedValue, entry) for entry in response['content']['rpv']]
+
+        # We make sure that the list is exact.
+        for item in all_entries_same_level:
+            entrytype = item[0]
+            api_entry = item[1]
+
+            self.assertIn('id', api_entry)
+            self.assertIn('display_path', api_entry)
+
+            self.assertIn(api_entry['id'], expected_entries_in_response)
+            entry: DatastoreEntry = expected_entries_in_response[api_entry['id']]
+
+            self.assertEqual(entry.get_id(), api_entry['id'])
+            self.assertEqual(entry.get_type(), entrytype)
+            self.assertEqual(API.get_datatype_name(entry.get_data_type()), api_entry['datatype'])
+            self.assertEqual(entry.get_display_path(), api_entry['display_path'])
+
+            del expected_entries_in_response[api_entry['id']]
+
+        self.assertEqual(len(expected_entries_in_response), 0)
+
     # Fetch list of var/alias and sets all sort of type filter.
+
     def test_get_watchable_list_with_type_filter(self):
         self.do_test_get_watchable_list_with_type_filter(None)
         self.do_test_get_watchable_list_with_type_filter('')
@@ -558,6 +626,7 @@ class TestAPI(ScrutinyUnitTest):
         var_entries = self.make_dummy_entries(nVar, entry_type=EntryType.Var, prefix='var')
         alias_entries = self.make_dummy_entries(nAlias, entry_type=EntryType.Alias, prefix='alias', alias_bucket=var_entries)
         rpv_entries = self.make_dummy_entries(nRpv, entry_type=EntryType.RuntimePublishedValue, prefix='rpv')
+
         expected_entries_in_response = {}
 
         for entry in var_entries:
@@ -1030,14 +1099,44 @@ class TestAPI(ScrutinyUnitTest):
 
         self.assertIn(response['cmd'], 'response_write_value')
         self.assertIn('watchables', response)
+        self.assertIn('request_token', response)
+        self.assertIsInstance(response['request_token'], str)
+        self.assertGreater(len(response['request_token']), 0)
         self.assertEqual(len(response['watchables']), 2)
         self.assertIn(subscribed_entry1.get_id(), response['watchables'])
         self.assertIn(subscribed_entry2.get_id(), response['watchables'])
 
+        request_token = response['request_token']
+
         self.assertTrue(subscribed_entry1.has_pending_target_update())
-        self.assertEqual(subscribed_entry1.pop_target_update_request().get_value(), 1234)
         self.assertTrue(subscribed_entry2.has_pending_target_update())
-        self.assertEqual(subscribed_entry2.pop_target_update_request().get_value(), 3.1415926)
+        req1 = subscribed_entry1.pop_target_update_request()
+        req2 = subscribed_entry2.pop_target_update_request()
+
+        self.assertEqual(req1.get_value(), 1234)
+        self.assertEqual(req2.get_value(), 3.1415926)
+
+        req1.complete(True)
+        req2.complete(False)
+
+        for i in range(2):
+            response = self.wait_and_load_response()
+            self.assert_no_error(response, 'i=%d' % i)
+
+            self.assertEqual(response['cmd'], 'inform_write_completion', 'i=%d' % i)
+            self.assertIn('watchable', response, 'i=%d' % i)
+            self.assertIn('success', response, 'i=%d' % i)
+            self.assertIn('request_token', response, 'i=%d' % i)
+            self.assertIn('timestamp', response, 'i=%d' % i)
+
+            if response['watchable'] == subscribed_entry1.get_id():
+                self.assertEqual(response['success'], True, 'i=%d' % i)
+                self.assertEqual(response['request_token'], request_token, 'i=%d' % i)
+                self.assertEqual(response['timestamp'], req1.get_completion_timestamp(), 'i=%d' % i)
+            elif response['watchable'] == subscribed_entry2.get_id():
+                self.assertEqual(response['success'], False, 'i=%d' % i)
+                self.assertEqual(response['request_token'], request_token, 'i=%d' % i)
+                self.assertEqual(response['timestamp'], req2.get_completion_timestamp(), 'i=%d' % i)
 
     def test_subscribe_watchable_bad_ID(self):
         req = {
@@ -1087,43 +1186,6 @@ class TestAPI(ScrutinyUnitTest):
         response = self.wait_and_load_response()
         self.assert_is_error(response)
         self.assertEqual(response['reqid'], 555)
-
-    def test_notified_on_successful_write(self):
-        entries = self.make_dummy_entries(10, entry_type=EntryType.Var, prefix='var')
-        self.datastore.add_entries(entries)
-
-        subscribed_entry1 = entries[2]
-        subscribed_entry2 = entries[5]
-        req = {
-            'cmd': 'subscribe_watchable',
-            'watchables': [subscribed_entry1.get_id(), subscribed_entry2.get_id()]
-        }
-
-        self.send_request(req, 0)
-        response = self.wait_and_load_response()
-        self.assert_no_error(response)
-
-        entry1_update_request = subscribed_entry1.update_target_value(1234, self.api.entry_target_update_callback)
-        entry1_update_request.complete(success=True)
-
-        entry2_update_request = subscribed_entry2.update_target_value(4567, self.api.entry_target_update_callback)
-        entry2_update_request.complete(success=False)
-
-        for i in range(2):
-            response = self.wait_and_load_response()
-            self.assert_no_error(response, 'i=%d' % i)
-
-            self.assertEqual(response['cmd'], 'inform_write_completion', 'i=%d' % i)
-            self.assertIn('watchable', response, 'i=%d' % i)
-            self.assertIn('status', response, 'i=%d' % i)
-            self.assertIn('timestamp', response, 'i=%d' % i)
-
-            if response['watchable'] == subscribed_entry1.get_id():
-                self.assertEqual(response['status'], 'ok', 'i=%d' % i)
-                self.assertEqual(response['timestamp'], entry1_update_request.get_completion_timestamp(), 'i=%d' % i)
-            elif response['watchable'] == subscribed_entry2.get_id():
-                self.assertEqual(response['status'], 'failed', 'i=%d' % i)
-                self.assertEqual(response['timestamp'], entry2_update_request.get_completion_timestamp(), 'i=%d' % i)
 
     def test_write_watchable_bad_values(self):
         varf32 = Variable('dummyf32', vartype=EmbeddedDataType.float32, path_segments=[

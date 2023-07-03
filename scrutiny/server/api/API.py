@@ -13,6 +13,8 @@ import math
 from dataclasses import dataclass
 import functools
 from uuid import uuid4
+from fnmatch import fnmatch
+import itertools
 
 from scrutiny.server.datalogging.datalogging_storage import DataloggingStorage
 from scrutiny.server.datalogging.datalogging_manager import DataloggingManager
@@ -37,7 +39,7 @@ from .abstract_client_handler import AbstractClientHandler, ClientHandlerMessage
 from scrutiny.server.device.links.abstract_link import LinkConfig as DeviceLinkConfig
 
 from scrutiny.core.typehints import EmptyDict, GenericCallback
-from typing import Callable, Dict, List, Set, Any, TypedDict, cast, Optional, Type, Literal
+from typing import *
 
 
 class APIConfig(TypedDict, total=False):
@@ -398,13 +400,15 @@ class API:
     def process_get_watchable_list(self, conn_id: str, req: api_typing.C2S.GetWatchableList) -> None:
         # Improvement : This may be a big response. Generate multi-packet response in a worker thread
         # Not asynchronous by choice
-        max_per_response = None
+        default_max_per_response = 1000
+        max_per_response = default_max_per_response
         if 'max_per_response' in req:
             if not isinstance(req['max_per_response'], int):
                 raise InvalidRequestException(req, 'Invalid max_per_response content')
 
-            max_per_response = req['max_per_response']
+            max_per_response = req['max_per_response'] if req['max_per_response'] is not None else default_max_per_response
 
+        name_filter: Optional[str] = None
         type_to_include: List[EntryType] = []
         if self.is_dict_with_key(cast(Dict, req), 'filter'):
             if self.is_dict_with_key(cast(Dict, req['filter']), 'type'):
@@ -415,55 +419,81 @@ class API:
 
                         type_to_include.append(self.str_to_entry_type[t])
 
+            if 'name' in req['filter']:
+                name_filter = req['filter']['name']
+
         if len(type_to_include) == 0:
             type_to_include = [EntryType.Var, EntryType.Alias, EntryType.RuntimePublishedValue]
 
         # Sends RPV first, variable last
         priority = [EntryType.RuntimePublishedValue, EntryType.Alias, EntryType.Var]
+        entries_generator: Dict[EntryType, Generator[DatastoreEntry, None, None]] = {}
 
-        entries: Dict[EntryType, List[DatastoreEntry]] = {}
-        for entry_type in priority:  # TODO : Improve this not to copy the whole datastore while sending. Use a generator instead
-            entries[entry_type] = self.datastore.get_entries_list_by_type(entry_type) if entry_type in type_to_include else []
+        def filtered_generator(gen: Generator[DatastoreEntry, None, None]) -> Generator[DatastoreEntry, None, None]:
+            if name_filter is None:
+                yield from gen
+            else:
+                for entry in gen:
+                    if fnmatch(entry.display_path, name_filter):
+                        yield entry
+
+        def empty_generator() -> Generator[DatastoreEntry, None, None]:
+            yield from []
+
+        for entry_type in priority:
+            gen = self.datastore.get_all_entries(entry_type) if entry_type in type_to_include else empty_generator()
+            entries_generator[entry_type] = filtered_generator(gen)
 
         done = False
+        batch_content: Dict[EntryType, List[DatastoreEntry]]
+        remainders: Dict[EntryType, List[DatastoreEntry]] = {
+            EntryType.RuntimePublishedValue: [],
+            EntryType.Alias: [],
+            EntryType.Var: []
+        }
 
-        entries_to_send: Dict[EntryType, List[DatastoreEntry]]
         while not done:
-            if max_per_response is None:
-                entries_to_send = entries
-                done = True
-            else:
-                count = 0
-                entries_to_send = {
-                    EntryType.RuntimePublishedValue: [],
-                    EntryType.Alias: [],
-                    EntryType.Var: []
-                }
+            batch_count = 0
+            batch_content = {
+                EntryType.RuntimePublishedValue: [],
+                EntryType.Alias: [],
+                EntryType.Var: []
+            }
 
-                for entry_type in priority:
-                    n = min(max_per_response - count, len(entries[entry_type]))
-                    entries_to_send[entry_type] = entries[entry_type][0:n]
-                    entries[entry_type] = entries[entry_type][n:]
-                    count += n
+            stopiter_count = 0
+            for entry_type in priority:
+                possible_remainder = max_per_response - batch_count
+                batch_content[entry_type] += remainders[entry_type][0:possible_remainder]
+                remainder_consumed = len(batch_content[entry_type])
+                remainders[entry_type] = remainders[entry_type][remainder_consumed:]
+                batch_count += remainder_consumed
 
-                remaining = 0
-                for entry_type in entries:
-                    remaining += len(entries[entry_type])
+                slice_stop = max_per_response - batch_count
+                the_slice = list(itertools.islice(entries_generator[entry_type], slice_stop))
+                batch_content[entry_type] += the_slice
+                batch_count += len(the_slice)
 
-                done = (remaining == 0)
+                if len(remainders[entry_type]) == 0:
+                    try:
+                        peek = next(entries_generator[entry_type])
+                        remainders[entry_type].append(peek)
+                    except StopIteration:
+                        stopiter_count += 1
+
+            done = (stopiter_count == len(priority))
 
             response: api_typing.S2C.GetWatchableList = {
                 'cmd': self.Command.Api2Client.GET_WATCHABLE_LIST_RESPONSE,
                 'reqid': self.get_req_id(req),
                 'qty': {
-                    'var': len(entries_to_send[EntryType.Var]),
-                    'alias': len(entries_to_send[EntryType.Alias]),
-                    'rpv': len(entries_to_send[EntryType.RuntimePublishedValue])
+                    'var': len(batch_content[EntryType.Var]),
+                    'alias': len(batch_content[EntryType.Alias]),
+                    'rpv': len(batch_content[EntryType.RuntimePublishedValue])
                 },
                 'content': {
-                    'var': [self.make_datastore_entry_definition_no_type(x) for x in entries_to_send[EntryType.Var]],
-                    'alias': [self.make_datastore_entry_definition_no_type(x) for x in entries_to_send[EntryType.Alias]],
-                    'rpv': [self.make_datastore_entry_definition_no_type(x) for x in entries_to_send[EntryType.RuntimePublishedValue]]
+                    'var': [self.make_datastore_entry_definition_no_type(x) for x in batch_content[EntryType.Var]],
+                    'alias': [self.make_datastore_entry_definition_no_type(x) for x in batch_content[EntryType.Alias]],
+                    'rpv': [self.make_datastore_entry_definition_no_type(x) for x in batch_content[EntryType.RuntimePublishedValue]]
                 },
                 'done': done
             }
@@ -751,13 +781,16 @@ class API:
             if not self.datastore.is_watching(entry, conn_id):
                 raise InvalidRequestException(req, 'Cannot update entry %s without being subscribed to it' % entry.get_id())
 
+        request_token = uuid4().hex
+        callback = UpdateTargetRequestCallback(functools.partial(self.entry_target_update_callback, request_token))
         for update in req['updates']:
             entry = self.datastore.get_entry(update['watchable'])
-            entry.update_target_value(update['value'], callback=UpdateTargetRequestCallback(self.entry_target_update_callback))
+            entry.update_target_value(update['value'], callback=callback)
 
         response: api_typing.S2C.WriteValue = {
             'cmd': self.Command.Api2Client.WRITE_VALUE_RESPONSE,
             'reqid': self.get_req_id(req),
+            'request_token': request_token,
             'watchables': [update['watchable'] for update in req['updates']]
         }
 
@@ -1337,7 +1370,7 @@ class API:
         self.streamer.publish(datastore_entry, conn_id)
         self.stream_all_we_can()
 
-    def entry_target_update_callback(self, success: bool, datastore_entry: DatastoreEntry, timestamp: float) -> None:
+    def entry_target_update_callback(self, request_token: str, success: bool, datastore_entry: DatastoreEntry, timestamp: float) -> None:
         # This callback is given to the datastore when we make a write request (target update request)
         # It will be called once the request is completed.
         watchers = self.datastore.get_watchers(datastore_entry)
@@ -1346,7 +1379,8 @@ class API:
             'cmd': self.Command.Api2Client.INFORM_WRITE_COMPLETION,
             'reqid': None,
             'watchable': datastore_entry.get_id(),
-            'status': "ok" if success else "failed",
+            'request_token': request_token,
+            'success': success,
             'timestamp': timestamp
         }
 
