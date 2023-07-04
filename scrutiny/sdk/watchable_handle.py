@@ -29,7 +29,7 @@ class WatchableHandle:
     _valid: bool
     _value: Optional[ValType]
     _last_value_update: Optional[datetime]
-    _write_queue: queue.Queue["WriteRequest"]
+    _write_queue: "queue.Queue[WriteRequest]"
 
     def __init__(self, client: "ScrutinyClient", display_path: str):
         self._client = client
