@@ -127,7 +127,7 @@ class API:
 
     FLUSH_VARS_TIMEOUT: float = 0.1
 
-    data_type_to_str: Dict[EmbeddedDataType, str] = {
+    DATATYPE2APISTR: Dict[EmbeddedDataType, str] = {
         EmbeddedDataType.sint8: 'sint8',
         EmbeddedDataType.sint16: 'sint16',
         EmbeddedDataType.sint32: 'sint32',
@@ -154,6 +154,8 @@ class API:
         EmbeddedDataType.cfloat256: 'cfloat256',
         EmbeddedDataType.boolean: 'boolean'
     }
+
+    APISTR2DATATYPE = {v: k for k, v in DATATYPE2APISTR.items()}
 
     device_conn_status_to_str: Dict[DeviceHandler.ConnectionStatus, str] = {
         DeviceHandler.ConnectionStatus.UNKNOWN: 'unknown',
@@ -260,10 +262,10 @@ class API:
 
     @classmethod
     def get_datatype_name(cls, datatype: EmbeddedDataType) -> str:
-        if datatype not in cls.data_type_to_str:
+        if datatype not in cls.DATATYPE2APISTR:
             raise ValueError('Unknown datatype : %s' % (str(datatype)))
 
-        return cls.data_type_to_str[datatype]
+        return cls.DATATYPE2APISTR[datatype]
 
     def sfd_loaded_callback(self, sfd: FirmwareDescription):
         # Called when a SFD is loaded after a device connection

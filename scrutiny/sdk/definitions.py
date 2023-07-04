@@ -1,19 +1,27 @@
 __all__ = [
     'ServerState',
-    'DeviceState'
+    'DeviceState',
+    'WatchableType'
 ]
 
 import enum
 
 
 class ServerState(enum.Enum):
-    Disconnected = enum.auto()
-    Connecting = enum.auto()
-    Connected = enum.auto()
-    Error = enum.auto()
+    Disconnected = 0
+    Connecting = 1
+    Connected = 2
+    Error = -1
 
 
 class DeviceState(enum.Enum):
-    Disconnected = enum.auto()
-    Connecting = enum.auto()
-    Connected = enum.auto()
+    Disconnected = 0
+    Connecting = 1
+    Connected = 2
+
+
+class WatchableType(enum.Enum):
+    NA = 0
+    Variable = 1
+    RuntimePulishedValue = 2
+    Alias = 3

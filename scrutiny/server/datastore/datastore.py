@@ -213,7 +213,7 @@ class Datastore:
             for entry_id in watched_entries_id:
                 self.stop_watching(entry_id, watcher)
 
-    def get_all_entries(self, entry_type: Optional[EntryType] = None) -> Generator[Tuple[DatastoreEntry, bool], None, None]:
+    def get_all_entries(self, entry_type: Optional[EntryType] = None) -> Generator[DatastoreEntry, None, None]:
         """ Fetch all entries of a given type. All types if None"""
         entry_types = EntryType.all() if entry_type is None else [entry_type]
         for entry_type in entry_types:
