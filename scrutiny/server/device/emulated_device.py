@@ -556,10 +556,9 @@ class EmulatedDevice:
                 self.datalogger.process()
 
             # Some tasks may be required by unit tests to be run in this thread
-            self.additional_tasks_lock.acquire()
-            for task in self.additional_tasks:
-                task()
-            self.additional_tasks_lock.release()
+            with self.additional_tasks_lock:
+                for task in self.additional_tasks:
+                    task()
 
             time.sleep(0.01)
 
@@ -953,24 +952,20 @@ class EmulatedDevice:
         return None
 
     def add_additional_task(self, task: Callable[[], None]) -> None:
-        self.additional_tasks_lock.acquire()
-        self.additional_tasks.append(task)
-        self.additional_tasks_lock.release()
+        with self.additional_tasks_lock:
+            self.additional_tasks.append(task)
 
     def clear_addition_tasks(self):
-        self.additional_tasks_lock.acquire()
-        self.additional_tasks.clear()
-        self.additional_tasks_lock.release()
+        with self.additional_tasks_lock:
+            self.additional_tasks.clear()
 
     def write_memory(self, address: int, data: Union[bytes, bytearray]) -> None:
         err = None
-        self.memory_lock.acquire()
-        try:
-            self.memory.write(address, data)
-        except Exception as e:
-            err = e
-        finally:
-            self.memory_lock.release()
+        with self.memory_lock:
+            try:
+                self.memory.write(address, data)
+            except Exception as e:
+                err = e
 
         if err:
             raise err
@@ -979,30 +974,26 @@ class EmulatedDevice:
         err = None
         assert len(mask) == len(data), "Data and mask must be the same length"
 
-        self.memory_lock.acquire()
-        try:
-            memdata = bytearray(self.memory.read(address, len(data)))
-            for i in range(len(data)):
-                memdata[i] &= (data[i] | (~mask[i]))
-                memdata[i] |= (data[i] & (mask[i]))
-            self.memory.write(address, memdata)
-        except Exception as e:
-            err = e
-        finally:
-            self.memory_lock.release()
+        with self.memory_lock:
+            try:
+                memdata = bytearray(self.memory.read(address, len(data)))
+                for i in range(len(data)):
+                    memdata[i] &= (data[i] | (~mask[i]))
+                    memdata[i] |= (data[i] & (mask[i]))
+                self.memory.write(address, memdata)
+            except Exception as e:
+                err = e
 
         if err:
             raise err
 
     def read_memory(self, address: int, length: int) -> bytes:
-        self.memory_lock.acquire()
-        err = None
-        try:
-            data = self.memory.read(address, length)
-        except Exception as e:
-            err = e
-        finally:
-            self.memory_lock.release()
+        with self.memory_lock:
+            err = None
+            try:
+                data = self.memory.read(address, length)
+            except Exception as e:
+                err = e
 
         if err:
             raise err
@@ -1022,14 +1013,12 @@ class EmulatedDevice:
     def get_rpvs(self) -> List[RuntimePublishedValue]:
         output: List[RuntimePublishedValue] = []
         err = None
-        self.rpv_lock.acquire()
-        try:
-            for id in self.rpvs:
-                output.append(self.rpvs[id]['definition'])
-        except Exception as e:
-            err = e
-        finally:
-            self.rpv_lock.release()
+        with self.rpv_lock:
+            try:
+                for id in self.rpvs:
+                    output.append(self.rpvs[id]['definition'])
+            except Exception as e:
+                err = e
 
         if err:
             raise err
@@ -1041,13 +1030,11 @@ class EmulatedDevice:
             raise ValueError('Unknown RuntimePublishedValue with ID 0x%04X' % rpv_id)
 
         err = None
-        self.rpv_lock.acquire()
-        try:
-            self.rpvs[rpv_id]['value'] = value
-        except Exception as e:
-            err = e
-        finally:
-            self.rpv_lock.release()
+        with self.rpv_lock:
+            try:
+                self.rpvs[rpv_id]['value'] = value
+            except Exception as e:
+                err = e
 
         if err:
             raise err
@@ -1055,13 +1042,11 @@ class EmulatedDevice:
     def read_rpv(self, rpv_id) -> Encodable:
         val: Encodable
         err = None
-        self.rpv_lock.acquire()
-        try:
-            val = self.rpvs[rpv_id]['value']
-        except Exception as e:
-            err = e
-        finally:
-            self.rpv_lock.release()
+        with self.rpv_lock:
+            try:
+                val = self.rpvs[rpv_id]['value']
+            except Exception as e:
+                err = e
 
         if err:
             raise err
