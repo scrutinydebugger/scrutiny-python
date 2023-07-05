@@ -237,7 +237,7 @@ class ScrutinyClient:
         print(msg)
         self._request_status_timer.start()
 
-    def _wt_process_next_server_status_update(self):
+    def _wt_process_next_server_status_update(self) -> None:
         if self._request_status_timer.is_stopped():
             self._request_status_timer.start()
 
@@ -245,18 +245,16 @@ class ScrutinyClient:
             req = self._make_request(API.Command.Client2Api.GET_SERVER_STATUS)
             self._send(req)  # No callback, we have a continuous listener
 
-    def _wt_check_callbacks_timeouts(self):
+    def _wt_check_callbacks_timeouts(self) -> None:
         now = datetime.now()
-        self._main_lock.acquire()
-        reqids = list(self._callback_storage.keys())
-        self._main_lock.release()
+        with self._main_lock:
+            reqids = list(self._callback_storage.keys())
 
         for reqid in reqids:
-            self._main_lock.acquire()
-            callback_entry: Optional[CallbackStorageEntry] = None
-            if reqid in self._callback_storage:
-                callback_entry = self._callback_storage[reqid]
-            self._main_lock.release()
+            with self._main_lock:
+                callback_entry: Optional[CallbackStorageEntry] = None
+                if reqid in self._callback_storage:
+                    callback_entry = self._callback_storage[reqid]
 
             if callback_entry is None:
                 continue
@@ -270,18 +268,21 @@ class ScrutinyClient:
                     pass
                 callback_entry._future._mark_completed(CallbackState.TimedOut)
 
-                self._main_lock.acquire()
-                if reqid in self._callback_storage:
-                    del self._callback_storage[reqid]
-                self._main_lock.release()
+                with self._main_lock:
+                    if reqid in self._callback_storage:
+                        del self._callback_storage[reqid]
 
     def _wt_process_server_msg(self, cmd: str, msg: dict, reqid: Optional[int]) -> None:
         if cmd == API.Command.Api2Client.INFORM_SERVER_STATUS:
             self._wt_process_inform_server_status(cast(api_typing.S2C.InformServerStatus, msg), reqid)
 
     def _wt_process_callbacks(self, cmd: str, msg: dict, reqid: int) -> None:
-        if reqid in self._callback_storage:
-            callback_entry = self._callback_storage[reqid]
+        callback_entry: Optional[CallbackStorageEntry] = None
+        with self._main_lock:
+            if reqid in self._callback_storage:
+                callback_entry = self._callback_storage[reqid]
+
+        if callback_entry is not None:
             error: Optional[Exception] = None
 
             if cmd == API.Command.Api2Client.ERROR_RESPONSE:
@@ -313,54 +314,52 @@ class ScrutinyClient:
                 elif callback_entry._future.state == CallbackState.Pending:
                     callback_entry._future._mark_completed(CallbackState.OK)
 
-            self._main_lock.acquire()
-            del self._callback_storage[reqid]
-            self._main_lock.release()
+            with self._main_lock:
+                if reqid in self._callback_storage:
+                    del self._callback_storage[reqid]
 
-    def _wt_disconnect(self):
+    def _wt_disconnect(self) -> None:
         """Disconnect from a Scrutiny server, called by the Worker Thread .
             Does not throw an exception in case of broken pipe
         """
 
-        self._conn_lock.acquire()
-        if self._conn is not None:
-            self._logger.info(f"Disconnecting from server at {self._hostname}:{self._port}")
-            try:
-                self._conn.close()
-            except (websockets.exceptions.WebSocketException, socket.error):
-                self._logger.debug("Failed to close the websocket")
-                self._logger.debug(traceback.format_exc())
+        with self._conn_lock:
+            if self._conn is not None:
+                self._logger.info(f"Disconnecting from server at {self._hostname}:{self._port}")
+                try:
+                    self._conn.close()
+                except (websockets.exceptions.WebSocketException, socket.error):
+                    self._logger.debug("Failed to close the websocket")
+                    self._logger.debug(traceback.format_exc())
 
-        self._conn = None
-        self._conn_lock.release()
+            self._conn = None
 
-        self._main_lock.acquire()
-        self._hostname = None
-        self._port = None
-        self._server_state = ServerState.Disconnected
-        self._device_link_state = DeviceLinkState.NA
+        with self._main_lock:
+            self._hostname = None
+            self._port = None
+            self._server_state = ServerState.Disconnected
+            self._device_link_state = DeviceLinkState.NA
 
-        for watchable in self._watchable_storage.values():
-            watchable._set_invalid(ValueStatus.ServerGone)
-        self._watchable_storage.clear()
+            for watchable in self._watchable_storage.values():
+                watchable._set_invalid(ValueStatus.ServerGone)
+            self._watchable_storage.clear()
 
-        for callback_entry in self._callback_storage.values():
-            if callback_entry._future.state == CallbackState.Pending:
-                callback_entry._future._mark_completed(CallbackState.Cancelled)
-        self._callback_storage.clear()
-
-        self._main_lock.release()
+            for callback_entry in self._callback_storage.values():
+                if callback_entry._future.state == CallbackState.Pending:
+                    callback_entry._future._mark_completed(CallbackState.Cancelled)
+            self._callback_storage.clear()
 
     def _register_callback(self, reqid: int, callback: ApiResponseCallback, timeout: float) -> ApiResponseFuture:
         future = ApiResponseFuture(reqid, default_wait_timeout=timeout + 0.5)    # Allow some margin for thread to mark it timed out
-        self._main_lock.acquire()
-        self._callback_storage[reqid] = CallbackStorageEntry(
+        callback_entry = CallbackStorageEntry(
             reqid=reqid,
             callback=callback,
             future=future,
             timeout=timeout
         )
-        self._main_lock.release()
+
+        with self._main_lock:
+            self._callback_storage[reqid] = callback_entry
         return future
 
     def _send(self,
@@ -385,21 +384,18 @@ class ScrutinyClient:
 
             future = self._register_callback(obj['reqid'], callback, timeout=timeout)
 
-        self._conn_lock.acquire()
-        if self._conn is None:
-            self._conn_lock.release()
-            raise sdk_exceptions.ConnectionError(f"Disconnected from server")
+        with self._conn_lock:
+            if self._conn is None:
+                raise sdk_exceptions.ConnectionError(f"Disconnected from server")
 
-        try:
-            data = json.dumps(obj).encode(self._encoding)
-            self._conn.send(data)
-        except TimeoutError:
-            pass
-        except (websockets.exceptions.WebSocketException, socket.error) as e:
-            error = e
-            self._logger.debug(traceback.format_exc())
-        finally:
-            self._conn_lock.release()
+            try:
+                data = json.dumps(obj).encode(self._encoding)
+                self._conn.send(data)
+            except TimeoutError:
+                pass
+            except (websockets.exceptions.WebSocketException, socket.error) as e:
+                error = e
+                self._logger.debug(traceback.format_exc())
 
         if error:
             self.disconnect()
@@ -433,12 +429,11 @@ class ScrutinyClient:
         return obj
 
     def _make_request(self, command: str, data: Optional[dict] = None) -> api_typing.C2SMessage:
-        self._main_lock.acquire()
-        reqid = self._reqid
-        self._reqid += 1
-        if self._reqid >= 2**32 - 1:
-            self._reqid = 0
-        self._main_lock.release()
+        with self._main_lock:
+            reqid = self._reqid
+            self._reqid += 1
+            if self._reqid >= 2**32 - 1:
+                self._reqid = 0
 
         cmd: api_typing.BaseC2SMessage = {
             'cmd': command,
@@ -466,33 +461,27 @@ class ScrutinyClient:
         """
         self.disconnect()
 
-        self._main_lock.acquire()
-
-        self._hostname = hostname
-        self._port = port
-        uri = f'ws://{self._hostname}:{self._port}'
-        connect_error: Optional[Exception] = None
-        self._logger.info(f"Connecting to {uri}")
-        try:
-            self._server_state = ServerState.Connecting
-            self._conn_lock.acquire()
-            self._conn = websockets.sync.client.connect(uri, **kwargs)
-            self._server_state = ServerState.Connected
-
-            self._start_worker_thread()
-        except (websockets.exceptions.WebSocketException, socket.error) as e:
-            self._logger.debug(traceback.format_exc())
-            connect_error = e
-        finally:
-            self._conn_lock.release()
-
-        self._main_lock.release()
+        with self._main_lock:
+            self._hostname = hostname
+            self._port = port
+            uri = f'ws://{self._hostname}:{self._port}'
+            connect_error: Optional[Exception] = None
+            self._logger.info(f"Connecting to {uri}")
+            with self._conn_lock:
+                try:
+                    self._server_state = ServerState.Connecting
+                    self._conn = websockets.sync.client.connect(uri, **kwargs)
+                    self._server_state = ServerState.Connected
+                    self._start_worker_thread()
+                except (websockets.exceptions.WebSocketException, socket.error) as e:
+                    self._logger.debug(traceback.format_exc())
+                    connect_error = e
 
         if connect_error is not None:
             self.disconnect()
             raise sdk_exceptions.ConnectionError(f'Failed to connect to the server at "{uri}". Error: {connect_error}')
 
-    def disconnect(self):
+    def disconnect(self) -> None:
         if self._worker_thread is None:
             self._wt_disconnect()  # Can call safely from this thread
             return
@@ -515,10 +504,10 @@ class ScrutinyClient:
             raise ValueError("Glob wildcards are not allowed")
 
         cached_watchable: Optional[WatchableHandle] = None
-        self._main_lock.acquire()
-        if path in self._watchable_storage:
-            cached_watchable = self._watchable_storage[path]
-        self._main_lock.release()
+        with self._main_lock:
+            if path in self._watchable_storage:
+                cached_watchable = self._watchable_storage[path]
+
         if cached_watchable is not None:
             return cached_watchable
 
@@ -590,17 +579,15 @@ class ScrutinyClient:
         if future.state != CallbackState.OK:
             raise sdk_exceptions.OperationFailure(f"Failed to get the watchable definition. {future.error_str}")
 
-        self._main_lock.acquire()
-        self._watchable_storage[watchable.display_path] = watchable
-        self._main_lock.release()
+        with self._main_lock:
+            self._watchable_storage[watchable.display_path] = watchable
 
         return watchable
 
     def wait_new_value_for_all(self, timeout: int = 5) -> None:
         timestamp_map: Dict[str, Optional[datetime]] = {}
-        self._main_lock.acquire()
-        watchable_storage_copy = self._watchable_storage.copy()  # Shallow copy
-        self._main_lock.release()
+        with self._main_lock:
+            watchable_storage_copy = self._watchable_storage.copy()  # Shallow copy
 
         for display_path in watchable_storage_copy:
             timestamp_map[display_path] = watchable_storage_copy[display_path].last_update_timestamp
@@ -617,21 +604,18 @@ class ScrutinyClient:
 
     @property
     def server_state(self) -> ServerState:
-        self._main_lock.acquire()
-        val = self._server_state  # Can be modified by the worker_thread
-        self._main_lock.release()
+        with self._main_lock:
+            val = self._server_state  # Can be modified by the worker_thread
         return val
 
     @property
     def hostname(self) -> Optional[str]:
-        self._main_lock.acquire()
-        val = self._hostname  # Can be modified by the worker_thread
-        self._main_lock.release()
+        with self._main_lock:
+            val = self._hostname  # Can be modified by the worker_thread
         return val
 
     @property
     def port(self) -> Optional[int]:
-        self._main_lock.acquire()
-        val = self._port  # Can be modified by the worker_thread
-        self._main_lock.release()
+        with self._main_lock:
+            val = self._port  # Can be modified by the worker_thread
         return val

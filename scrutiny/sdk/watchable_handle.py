@@ -45,35 +45,32 @@ class WatchableHandle:
         return f'<{self.__class__.__name__} "{self._shortname}" [{self._datatype.name}] at {addr}>'
 
     def _configure(self, watchable_type: WatchableType, datatype: EmbeddedDataType, server_id: str) -> None:
-        self._lock.acquire()
-        self._watchable_type = watchable_type
-        self._datatype = datatype
-        self._server_id = server_id
-        self._status = ValueStatus.NeverSet
-        self._value = None
-        self._last_value_update = None
-        self._lock.release()
+        with self._lock:
+            self._watchable_type = watchable_type
+            self._datatype = datatype
+            self._server_id = server_id
+            self._status = ValueStatus.NeverSet
+            self._value = None
+            self._last_value_update = None
 
     def _update_value(self, val: ValType) -> None:
-        self._lock.acquire()
-        if self._status != ValueStatus.ServerGone:
-            self._status = ValueStatus.Valid
-            self._value = val
-            self._last_value_update = datetime.now()
-        else:
-            self._value = None
-        self._lock.release()
+        with self._lock:
+            if self._status != ValueStatus.ServerGone:
+                self._status = ValueStatus.Valid
+                self._value = val
+                self._last_value_update = datetime.now()
+            else:
+                self._value = None
 
     def _set_invalid(self, status: ValueStatus):
         assert status != ValueStatus.Valid
 
-        self._lock.acquire()
-        self._value = None
-        self._status = status
-        self._server_id = None
-        self._watchable_type = WatchableType.NA
-        self._datatype = EmbeddedDataType.NA
-        self._lock.release()
+        with self._lock:
+            self._value = None
+            self._status = status
+            self._server_id = None
+            self._watchable_type = WatchableType.NA
+            self._datatype = EmbeddedDataType.NA
 
     def wait_update(self, timeout=3, since_timestamp: Optional[datetime] = None) -> None:
         t = time.time()
@@ -97,10 +94,9 @@ class WatchableHandle:
             raise sdk_exceptions.TimeoutException(f'Value of {self._shortname} did not update in {timeout}s')
 
     def _read(self) -> ValType:
-        self._lock.acquire()
-        val = self._value
-        val_status = self._status
-        self._lock.release()
+        with self._lock:
+            val = self._value
+            val_status = self._status
 
         if val is None or val_status != ValueStatus.Valid:
             if val_status == ValueStatus.NeverSet:
