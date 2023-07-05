@@ -202,7 +202,7 @@
         "test/server/test_request_dispatcher.py": {
             "docstring": "Test the request dispatcher.\nPriorities, throttling, size limits."
         },
-        "test/server/test_server_tools.py": {
+        "test/tools/test_tools.py": {
             "docstring": "Test various tools for the Python server application"
         },
         "scrutiny/server/tools/throttler.py": {

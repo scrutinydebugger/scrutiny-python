@@ -12,12 +12,12 @@ import logging
 import json
 
 from scrutiny.server.api.abstract_client_handler import AbstractClientHandler, ClientHandlerConfig, ClientHandlerMessage
-from scrutiny.server.tools.synchronous_websocket_server import SynchronousWebsocketServer
+from scrutiny.tools.synchronous_websocket_server import SynchronousWebsocketServer
 
 from typing import Dict, Any, Optional
 from scrutiny.core.typehints import GenericCallback
 
-#WebsocketType = websockets.server.WebSocketServerProtocol
+# WebsocketType = websockets.server.WebSocketServerProtocol
 WebsocketType = Any  # todo fix this
 
 

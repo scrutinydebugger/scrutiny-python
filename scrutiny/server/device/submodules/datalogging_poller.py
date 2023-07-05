@@ -17,7 +17,7 @@ from scrutiny.server.device.request_dispatcher import RequestDispatcher, Success
 import scrutiny.server.datalogging.definitions.device as device_datalogging
 import scrutiny.server.protocol.typing as protocol_typing
 import scrutiny.server.protocol.commands as cmd
-from scrutiny.server.tools import Timer
+from scrutiny.tools import Timer
 from scrutiny.server.protocol.crc32 import crc32
 from scrutiny.core.basic_types import RuntimePublishedValue
 from scrutiny.server.datalogging.datalogging_utilities import extract_signal_from_data

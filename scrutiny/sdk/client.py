@@ -5,6 +5,7 @@ from scrutiny.sdk.definitions import *
 from scrutiny.sdk.watchable_handle import WatchableHandle
 import scrutiny.sdk.exceptions as sdk_exceptions
 from scrutiny.core.basic_types import *
+from scrutiny.tools.timer import Timer
 
 from scrutiny.server.api import typing as api_typing
 from scrutiny.server.api import API
@@ -19,7 +20,7 @@ import websockets.exceptions
 import json
 import time
 import enum
-from datetime import datetime
+from datetime import datetime, timedelta
 from dataclasses import dataclass
 
 from typing import *
@@ -40,7 +41,7 @@ class ApiResponseCallbackReturnCode(enum.Enum):
     Finished = enum.auto()
 
 
-ApiResponseCallback = Callable[[Optional[api_typing.S2CMessage]], Optional[ApiResponseCallbackReturnCode]]
+ApiResponseCallback = Callable[[CallbackState, Optional[api_typing.S2CMessage]], Optional[ApiResponseCallbackReturnCode]]
 
 
 class ApiResponseFuture:
@@ -48,12 +49,14 @@ class ApiResponseFuture:
     _reqid: int
     _processed_event: threading.Event
     _error: Optional[Exception]
+    _default_wait_timeout: float
 
-    def __init__(self, reqid: int):
+    def __init__(self, reqid: int, default_wait_timeout: float):
         self._state = CallbackState.Pending
         self._reqid = reqid
         self._processed_event = threading.Event()
         self._error = None
+        self._default_wait_timeout = default_wait_timeout
 
     def _mark_completed(self, new_state: CallbackState, error: Optional[Exception] = None):
         # No need for lock here. The state will change once.
@@ -62,18 +65,17 @@ class ApiResponseFuture:
         self._state = new_state
         self._processed_event.set()
 
-    def wait(self, timeout: float) -> None:
+    def wait(self, timeout: Optional[float] = None) -> None:
         # This will be called by the user thread
-        while not self._processed_event.is_set():
+        if timeout is None:
+            timeout = self._default_wait_timeout
+        while True:
             self._processed_event.wait(timeout)
-            if not self._processed_event.is_set():
-                self._state = CallbackState.TimedOut
-                break
 
             if self._state == CallbackState.WaitAnother:
                 self._processed_event.clear()
-            elif self._state == CallbackState.Pending:
-                raise RuntimeError(f"Callback for request ID {self._reqid} has completed but state is still pending")
+            else:
+                break
 
     @property
     def state(self) -> CallbackState:
@@ -87,6 +89,8 @@ class ApiResponseFuture:
     def error_str(self) -> str:
         if self._error is not None:
             return str(self._error)
+        elif self._state == CallbackState.Pending:
+            return 'Not processed yet'
         elif self._state == CallbackState.Cancelled:
             return 'Cancelled'
         elif self._state == CallbackState.TimedOut:
@@ -98,15 +102,20 @@ class CallbackStorageEntry:
     _reqid: int
     _callback: ApiResponseCallback
     _future: ApiResponseFuture
+    _creation_timestamp: datetime
+    _timeout: float
 
-    def __init__(self, reqid: int, callback: ApiResponseCallback, future: ApiResponseFuture):
+    def __init__(self, reqid: int, callback: ApiResponseCallback, future: ApiResponseFuture, timeout: float):
         self._reqid = reqid
         self._callback = callback
         self._future = future
+        self._creation_timestamp = datetime.now()
+        self._timeout = timeout
 
 
 class ScrutinyClient:
     RxMessageCallback = Callable[["ScrutinyClient", object], None]
+    _UPDATE_SERVER_STATUS_INTERVAL = 2
 
     @dataclass
     class ThreadingEvents:
@@ -123,6 +132,7 @@ class ScrutinyClient:
 
     _name: Optional[str]
     _server_state: ServerState
+    _device_link_state: DeviceLinkState
     _hostname: Optional[str]
     _port: Optional[int]
     _logger: logging.Logger
@@ -131,6 +141,7 @@ class ScrutinyClient:
     _rx_message_callbacks: List[RxMessageCallback]
     _reqid: int
     _timeout: float
+    _request_status_timer: Timer
 
     _worker_thread: Optional[threading.Thread]
     _threading_events: ThreadingEvents
@@ -152,6 +163,7 @@ class ScrutinyClient:
 
         self._name = name
         self._server_state = ServerState.Disconnected
+        self._device_link_state = DeviceLinkState.NA
         self._hostname = None
         self._port = None
         self._encoding = 'utf8'
@@ -163,6 +175,7 @@ class ScrutinyClient:
         self._main_lock = threading.Lock()
         self._reqid = 0
         self._timeout = timeout
+        self._request_status_timer = Timer(self._UPDATE_SERVER_STATUS_INTERVAL)
 
         self._watchable_storage = {}
         self._callback_storage = {}
@@ -186,13 +199,19 @@ class ScrutinyClient:
     def _worker_thread_task(self, started_event: threading.Event) -> None:
         started_event.set()
 
+        self._request_status_timer.start()
         # _conn will be None after a disconnect
         while not self._threading_events.stop_worker_thread.is_set() and self._conn is not None:
             try:
+                self._wt_process_next_server_status_update()
+                if self._request_status_timer.is_timed_out():
+                    # self._send()   todo
+                    self._request_status_timer.start()
 
-                msg = self._rxt_recv(timeout=0.001)
+                msg = self._wt_recv(timeout=0.001)
                 if msg is not None:
                     self._threading_events.msg_received.set()
+                    # These callbacks are mainly for testing.
                     for callback in self._rx_message_callbacks:
                         callback(self, msg)
 
@@ -201,39 +220,14 @@ class ScrutinyClient:
 
                     if cmd is None:
                         self._logger.error('Got a message without a "cmd" field')
+                        self._logger.debug(msg)
                     else:
+                        self._wt_process_server_msg(cmd, msg, reqid)
+
                         if reqid is not None:
-                            if reqid in self._callback_storage:
-                                callback_entry = self._callback_storage[reqid]
-                                error: Optional[Exception] = None
-                                rc: Optional[ApiResponseCallbackReturnCode] = None
-                                try:
-                                    self._logger.debug(f"Processing {cmd} callback for request ID {reqid}")
-                                    rc = callback_entry._callback(msg)
-                                except KeyboardInterrupt:
-                                    raise
-                                except sdk_exceptions.ConnectionError:
-                                    raise
-                                except Exception as e:
-                                    error = e
+                            self._wt_process_callbacks(cmd, msg, reqid)
 
-                                if error is not None:
-                                    self._logger.error(f"Callback raised an exception. cmd={cmd}, reqid={reqid}. {error}")
-                                    self._logger.debug(traceback.format_exc())
-                                    callback_entry._future._mark_completed(CallbackState.CallbackError, error=error)
-                                elif cmd == API.Command.Api2Client.ERROR_RESPONSE:
-                                    error = Exception(msg.get('msg', "No error message provided"))
-                                    self._logger.error(f"Server returned an error response. reqid={reqid}. {error}")
-                                    callback_entry._future._mark_completed(CallbackState.ServerError, error=error)
-                                elif rc is not None:
-                                    if rc == ApiResponseCallbackReturnCode.WaitAnother:
-                                        callback_entry._future._mark_completed(CallbackState.WaitAnother)
-
-                                if callback_entry._future.state == CallbackState.Pending:
-                                    callback_entry._future._mark_completed(CallbackState.OK)
-
-                                if callback_entry._future.state != CallbackState.WaitAnother:
-                                    del self._callback_storage[reqid]
+                self._wt_check_callbacks_timeouts()
 
             except sdk_exceptions.ConnectionError as e:
                 self._logger.error(f"Connection error in worker thread: {e}")
@@ -250,6 +244,217 @@ class ScrutinyClient:
             time.sleep(0.005)
         self._logger.debug('RX thread stopped')
         self._threading_events.stop_worker_thread.clear()
+
+    def _wt_process_inform_server_status(self, msg: api_typing.S2C.InformServerStatus, reqid: Optional[int]):
+        print(msg)
+        self._request_status_timer.start()
+
+    def _wt_process_next_server_status_update(self):
+        if self._request_status_timer.is_stopped():
+            self._request_status_timer.start()
+
+        if self._request_status_timer.is_timed_out():
+            req = self._make_request(API.Command.Client2Api.GET_SERVER_STATUS)
+            self._send(req)  # No callback, we have a continuous listener
+
+    def _wt_check_callbacks_timeouts(self):
+        now = datetime.now()
+        reqids = list(self._callback_storage.keys())
+        for reqid in reqids:
+            callback_entry = self._callback_storage[reqid]
+            if now - callback_entry._creation_timestamp > timedelta(seconds=callback_entry._timeout):
+                try:
+                    callback_entry._callback(CallbackState.TimedOut, None)
+                except (KeyboardInterrupt, sdk_exceptions.ConnectionError):
+                    raise
+                except Exception:
+                    pass
+                callback_entry._future._mark_completed(CallbackState.TimedOut)
+                del self._callback_storage[reqid]
+
+    def _wt_process_server_msg(self, cmd: str, msg: dict, reqid: Optional[int]) -> None:
+        if cmd == API.Command.Api2Client.INFORM_SERVER_STATUS:
+            self._wt_process_inform_server_status(cast(api_typing.S2C.InformServerStatus, msg), reqid)
+
+    def _wt_process_callbacks(self, cmd: str, msg: dict, reqid: int) -> None:
+        if reqid in self._callback_storage:
+            callback_entry = self._callback_storage[reqid]
+            error: Optional[Exception] = None
+            rc: Optional[ApiResponseCallbackReturnCode] = None
+
+            if cmd == API.Command.Api2Client.ERROR_RESPONSE:
+                error = Exception(msg.get('msg', "No error message provided"))
+                self._logger.error(f"Server returned an error response. reqid={reqid}. {error}")
+
+                try:
+                    callback_entry._callback(CallbackState.ServerError, msg)
+                except (KeyboardInterrupt, sdk_exceptions.ConnectionError):
+                    raise
+                except Exception:
+                    pass
+                finally:
+                    callback_entry._future._mark_completed(CallbackState.ServerError, error=error)
+            else:
+                try:
+                    self._logger.debug(f"Running {cmd} callback for request ID {reqid}")
+                    rc = callback_entry._callback(CallbackState.OK, msg)
+                except (KeyboardInterrupt, sdk_exceptions.ConnectionError):
+                    raise
+                except Exception as e:
+                    error = e
+
+            if error is not None:
+                self._logger.error(f"Callback raised an exception. cmd={cmd}, reqid={reqid}. {error}")
+                self._logger.debug(traceback.format_exc())
+                callback_entry._future._mark_completed(CallbackState.CallbackError, error=error)
+            elif rc is not None:
+                if rc == ApiResponseCallbackReturnCode.WaitAnother:
+                    callback_entry._future._mark_completed(CallbackState.WaitAnother)
+
+            if callback_entry._future.state == CallbackState.Pending:
+                callback_entry._future._mark_completed(CallbackState.OK)
+
+            if callback_entry._future.state != CallbackState.WaitAnother:
+                del self._callback_storage[reqid]
+
+    def _wt_disconnect(self):
+        """Disconnect from a Scrutiny server, called by the Worker Thread .
+            Does not throw an exception in case of broken pipe
+        """
+
+        self._conn_lock.acquire()
+        if self._conn is not None:
+            self._logger.info(f"Disconnecting from server at {self._hostname}:{self._port}")
+            try:
+                self._conn.close()
+            except (websockets.exceptions.WebSocketException, socket.error):
+                self._logger.debug("Failed to close the websocket")
+                self._logger.debug(traceback.format_exc())
+
+        self._conn = None
+        self._conn_lock.release()
+
+        self._main_lock.acquire()
+        self._hostname = None
+        self._port = None
+        self._server_state = ServerState.Disconnected
+        self._device_link_state = DeviceLinkState.NA
+
+        for watchable in self._watchable_storage.values():
+            watchable._set_invalid(ValueStatus.ServerGone)
+        self._watchable_storage.clear()
+
+        for callback_entry in self._callback_storage.values():
+            if callback_entry._future.state == CallbackState.Pending:
+                callback_entry._future._mark_completed(CallbackState.Cancelled)
+        self._callback_storage.clear()
+
+        self._main_lock.release()
+
+    def _register_callback(self, reqid: int, callback: ApiResponseCallback, timeout: float) -> ApiResponseFuture:
+        future = ApiResponseFuture(reqid, default_wait_timeout=timeout + 0.5)    # Allow some margin for thread to mark it timed out
+        self._main_lock.acquire()
+        self._callback_storage[reqid] = CallbackStorageEntry(
+            reqid=reqid,
+            callback=callback,
+            future=future,
+            timeout=timeout
+        )
+        self._main_lock.release()
+        return future
+
+    def _send(self,
+              obj: api_typing.C2SMessage,
+              callback: Optional[ApiResponseCallback] = None,
+              timeout: Optional[float] = None
+              ) -> Optional[ApiResponseFuture]:
+        """Sends a message to the API"""
+
+        error: Optional[Exception] = None
+        future: Optional[ApiResponseFuture] = None
+
+        if timeout is None:
+            timeout = self._timeout
+
+        if not isinstance(obj, dict):
+            raise TypeError(f'ScrutinyClient only sends data under the form of a dictionary. Received {obj.__class__.__name__}')
+
+        if callback is not None:
+            if 'reqid' not in obj:
+                raise RuntimeError("Missing reqid in request")
+
+            future = self._register_callback(obj['reqid'], callback, timeout=timeout)
+
+        self._conn_lock.acquire()
+        if self._conn is None:
+            self._conn_lock.release()
+            raise sdk_exceptions.ConnectionError(f"Disconnected from server")
+
+        try:
+            data = json.dumps(obj).encode(self._encoding)
+            self._conn.send(data)
+        except TimeoutError:
+            pass
+        except (websockets.exceptions.WebSocketException, socket.error) as e:
+            error = e
+            self._logger.debug(traceback.format_exc())
+        finally:
+            self._conn_lock.release()
+
+        if error:
+            self.disconnect()
+            raise sdk_exceptions.ConnectionError(f"Disconnected from server. {error}")
+
+        return future
+
+    def _wt_recv(self, timeout: Optional[float] = None) -> Optional[dict]:
+        # No need to lock conn_lock here. Important is during disconnection
+        error: Optional[Exception] = None
+        obj: Optional[dict] = None
+
+        if self._conn is None:
+            raise sdk_exceptions.ConnectionError(f"Disconnected from server")
+
+        try:
+            data = self._conn.recv(timeout=timeout)
+            if isinstance(data, bytes):
+                data = data.decode(self._encoding)
+            obj = json.loads(data)
+        except TimeoutError:
+            pass
+        except (websockets.exceptions.WebSocketException, socket.error) as e:
+            error = e
+            self._logger.debug(traceback.format_exc())
+
+        if error:
+            self._wt_disconnect()
+            raise sdk_exceptions.ConnectionError(f"Disconnected from server. {error}")
+
+        return obj
+
+    def _make_request(self, command: str, data: Optional[dict] = None) -> api_typing.C2SMessage:
+        self._main_lock.acquire()
+        reqid = self._reqid
+        self._reqid += 1
+        if self._reqid >= 2**32 - 1:
+            self._reqid = 0
+        self._main_lock.release()
+
+        cmd: api_typing.BaseC2SMessage = {
+            'cmd': command,
+            'reqid': reqid
+        }
+
+        if data is None:
+            data = {}
+        cmd.update(data)    # type: ignore
+
+        return cmd
+
+    def __del__(self):
+        self.disconnect()
+
+    # === User API ====
 
     def connect(self, hostname: str, port: int, **kwargs) -> None:
         """Connect to a Scrutiny server through a websocket.
@@ -302,133 +507,6 @@ class ScrutinyClient:
 
         self._stop_worker_thread()
 
-    def _wt_disconnect(self):
-        """Disconnect from a Scrutiny server, called by the Worker Thread .
-            Does not throw an exception in case of broken pipe
-        """
-
-        self._conn_lock.acquire()
-        if self._conn is not None:
-            self._logger.info(f"Disconnecting from server at {self._hostname}:{self._port}")
-            try:
-                self._conn.close()
-            except (websockets.exceptions.WebSocketException, socket.error):
-                self._logger.debug("Failed to close the websocket")
-                self._logger.debug(traceback.format_exc())
-
-        self._conn = None
-        self._conn_lock.release()
-
-        self._main_lock.acquire()
-        self._hostname = None
-        self._port = None
-        self._server_state = ServerState.Disconnected
-
-        for watchable in self._watchable_storage.values():
-            watchable._set_invalid()
-        self._watchable_storage.clear()
-
-        for callback_entry in self._callback_storage.values():
-            if callback_entry._future.state == CallbackState.Pending:
-                callback_entry._future._mark_completed(CallbackState.Cancelled)
-        self._callback_storage.clear()
-
-        self._main_lock.release()
-
-    def _register_callback(self, reqid: int, callback: ApiResponseCallback) -> ApiResponseFuture:
-        future = ApiResponseFuture(reqid)
-        self._callback_storage[reqid] = CallbackStorageEntry(
-            reqid=reqid,
-            callback=callback,
-            future=future
-        )
-        return future
-
-    def _send(self, obj: api_typing.C2SMessage, callback: Optional[ApiResponseCallback] = None) -> Optional[ApiResponseFuture]:
-        """Sends binary payload
-
-        :raises ``scrutiny.sdk.exceptions.ConnectionError``: In case of failure
-        :raises ``TypeError``: If the input is not a dictionary
-        """
-        error: Optional[Exception] = None
-        future: Optional[ApiResponseFuture] = None
-
-        if not isinstance(obj, dict):
-            raise TypeError(f'ScrutinyClient only sends data under the form of a dictionary. Received {obj.__class__.__name__}')
-
-        if callback is not None:
-            if 'reqid' not in obj:
-                raise RuntimeError("Missing reqid in request")
-
-            future = self._register_callback(obj['reqid'], callback)
-
-        self._conn_lock.acquire()
-        if self._conn is None:
-            self._conn_lock.release()
-            raise sdk_exceptions.ConnectionError(f"Disconnected from server")
-
-        try:
-            data = json.dumps(obj).encode(self._encoding)
-            self._conn.send(data)
-        except TimeoutError:
-            pass
-        except (websockets.exceptions.WebSocketException, socket.error) as e:
-            error = e
-            self._logger.debug(traceback.format_exc())
-        finally:
-            self._conn_lock.release()
-
-        if error:
-            self.disconnect()
-            raise sdk_exceptions.ConnectionError(f"Disconnected from server. {error}")
-
-        return future
-
-    def _rxt_recv(self, timeout: Optional[float] = None) -> Optional[dict]:
-        # No need to lock conn_lock here. Important is during disconnection
-        error: Optional[Exception] = None
-        obj: Optional[dict] = None
-
-        if self._conn is None:
-            raise sdk_exceptions.ConnectionError(f"Disconnected from server")
-
-        try:
-            data = self._conn.recv(timeout=timeout)
-            if isinstance(data, bytes):
-                data = data.decode(self._encoding)
-            obj = json.loads(data)
-        except TimeoutError:
-            pass
-        except (websockets.exceptions.WebSocketException, socket.error) as e:
-            error = e
-            self._logger.debug(traceback.format_exc())
-
-        if error:
-            self._wt_disconnect()
-            raise sdk_exceptions.ConnectionError(f"Disconnected from server. {error}")
-
-        return obj
-
-    def _make_request(self, command: str, data: Optional[dict] = None) -> api_typing.C2SMessage:
-        cmd: api_typing.BaseC2SMessage = {
-            'cmd': command,
-            'reqid': self._reqid
-        }
-
-        self._reqid += 1
-        if self._reqid >= 2**32 - 1:
-            self._reqid = 0
-        if data is None:
-            data = {}
-        cmd.update(data)    # type: ignore
-
-        return cmd
-
-    def __del__(self):
-        self.disconnect()
-
-    # === User API ====
-
     def watch(self, path: str, pause=False) -> WatchableHandle:
         if not isinstance(path, str):
             raise ValueError("Path must be a string")
@@ -436,11 +514,15 @@ class ScrutinyClient:
         if '*' in path:
             raise ValueError("Glob wildcards are not allowed")
 
+        cached_watchable: Optional[WatchableHandle] = None
+        self._main_lock.acquire()
         if path in self._watchable_storage:
-            return self._watchable_storage[path]
+            cached_watchable = self._watchable_storage[path]
+        self._main_lock.release()
+        if cached_watchable is not None:
+            return cached_watchable
 
         watchable = WatchableHandle(self, path)
-
         req = self._make_request(API.Command.Client2Api.GET_WATCHABLE_LIST, {
             'max_per_response': 2,
             'filter': {
@@ -448,8 +530,9 @@ class ScrutinyClient:
             }
         })
 
-        def get_watchable_callback(response: Optional[api_typing.S2CMessage]) -> None:
-            if response is not None:
+        # The watchable will be written by this callback from the worker thread. The watchable object is thread-safe.
+        def wt_get_watchable_callback(state: CallbackState, response: Optional[api_typing.S2CMessage]) -> None:
+            if response is not None and state == CallbackState.OK:
                 response = cast(api_typing.S2C.GetWatchableList, response)
                 total = response['qty']['alias'] + response['qty']['rpv'] + response['qty']['var']
                 if total == 0:
@@ -485,10 +568,10 @@ class ScrutinyClient:
                     if field not in content:
                         raise sdk_exceptions.BadResponseError(f"Missing field {field} in watchable definition")
 
-                if content['datatype'] not in API.APISTR2DATATYPE:
+                if content['datatype'] not in API.APISTR_2_DATATYPE:
                     raise RuntimeError(f"Unknown datatype {content['datatype']}")
 
-                datatype = EmbeddedDataType(API.APISTR2DATATYPE[content['datatype']])
+                datatype = EmbeddedDataType(API.APISTR_2_DATATYPE[content['datatype']])
 
                 if path != content['display_path']:
                     raise sdk_exceptions.BadResponseError(
@@ -500,28 +583,33 @@ class ScrutinyClient:
                     server_id=content['id']
                 )
 
-        future = self._send(req, get_watchable_callback)
+        future = self._send(req, wt_get_watchable_callback)
         assert future is not None
-        future.wait(self._timeout)
+        future.wait()
 
         if future.state != CallbackState.OK:
             raise sdk_exceptions.OperationFailure(f"Failed to get the watchable definition. {future.error_str}")
 
+        self._main_lock.acquire()
         self._watchable_storage[watchable.display_path] = watchable
+        self._main_lock.release()
 
         return watchable
 
     def wait_new_value_for_all(self, timeout: int = 5) -> None:
         timestamp_map: Dict[str, Optional[datetime]] = {}
-        for display_path in self._watchable_storage:
-            timestamp_map[display_path] = self._watchable_storage[display_path].last_update_timestamp
+        self._main_lock.acquire()
+        watchable_storage_copy = self._watchable_storage.copy()  # Shallow copy
+        self._main_lock.release()
+
+        for display_path in watchable_storage_copy:
+            timestamp_map[display_path] = watchable_storage_copy[display_path].last_update_timestamp
 
         tstart = time.time()
-        for display_path in self._watchable_storage:
+        for display_path in watchable_storage_copy:
             timeout_remainder = max(round(timeout - (time.time() - tstart), 2), 0)
-
             # Wait update will throw if the server has gone away as the _disconnect method will set all watchables "invalid"
-            self._watchable_storage[display_path].wait_update(since_timestamp=timestamp_map[display_path], timeout=timeout_remainder)
+            watchable_storage_copy[display_path].wait_update(since_timestamp=timestamp_map[display_path], timeout=timeout_remainder)
 
     @property
     def name(self) -> str:

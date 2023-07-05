@@ -1,6 +1,6 @@
 #    comm_handler.py
 #        The CommHandler task is to convert Requests and Response from or to a stream of bytes.
-#        
+#
 #        This class manage send requests, wait for response, indicates if a response timeout
 #        occurred and decodes bytes.
 #        It manages the low level part of the communication protocol with the device
@@ -12,14 +12,13 @@
 
 from queue import Queue
 from scrutiny.server.protocol import Request, Response
-from scrutiny.server.tools import Timer
+from scrutiny.tools import Timer, Throttler
 from enum import Enum
 from copy import copy
 import logging
 import struct
 from binascii import hexlify
 import time
-from scrutiny.server.tools import Throttler
 from scrutiny.server.device.links import AbstractLink, LinkConfig
 import traceback
 

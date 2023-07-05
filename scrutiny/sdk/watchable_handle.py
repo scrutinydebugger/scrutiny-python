@@ -3,6 +3,7 @@ import queue
 import threading
 from datetime import datetime
 import time
+import enum
 
 from scrutiny.sdk.definitions import *
 from scrutiny.core.basic_types import *
@@ -26,7 +27,8 @@ class WatchableHandle:
     _datatype: EmbeddedDataType
     _watchable_type: WatchableType
     _server_id: Optional[str]
-    _valid: bool
+    _status: ValueStatus
+
     _value: Optional[ValType]
     _last_value_update: Optional[datetime]
     _write_queue: "queue.Queue[WriteRequest]"
@@ -36,7 +38,7 @@ class WatchableHandle:
         self._display_path = display_path
         self._shortname = display_path.split('/')[-1]
         self._lock = threading.Lock()
-        self._set_invalid()
+        self._set_invalid(ValueStatus.NeverSet)
 
     def __repr__(self):
         addr = "0x%0.8x" % id(self)
@@ -47,24 +49,27 @@ class WatchableHandle:
         self._watchable_type = watchable_type
         self._datatype = datatype
         self._server_id = server_id
-        self._valid = True
+        self._status = ValueStatus.NeverSet
         self._value = None
         self._last_value_update = None
         self._lock.release()
 
     def _update_value(self, val: ValType) -> None:
         self._lock.acquire()
-        if self._valid:
+        if self._status != ValueStatus.ServerGone:
+            self._status = ValueStatus.Valid
             self._value = val
             self._last_value_update = datetime.now()
         else:
             self._value = None
         self._lock.release()
 
-    def _set_invalid(self):
+    def _set_invalid(self, status: ValueStatus):
+        assert status != ValueStatus.Valid
+
         self._lock.acquire()
         self._value = None
-        self._valid = False
+        self._status = status
         self._server_id = None
         self._watchable_type = WatchableType.NA
         self._datatype = EmbeddedDataType.NA
@@ -75,12 +80,17 @@ class WatchableHandle:
         entry_timestamp = self._last_value_update if since_timestamp is None else since_timestamp
         happened = False
         while time.time() - t < timeout:
-            if entry_timestamp is not None:
-                self._read()    # Will throw if the server has gone away
+
+            if self._status != ValueStatus.NeverSet and self._status != ValueStatus.Valid:
+                if self._status == ValueStatus.ServerGone:
+                    raise sdk_exceptions.InvalidValueError("Server has gone away")
+                else:
+                    raise RuntimeError("Unknown value status")
 
             if entry_timestamp != self._last_value_update:
                 happened = True
                 break
+
             time.sleep(0.02)
 
         if not happened:
@@ -89,11 +99,16 @@ class WatchableHandle:
     def _read(self) -> ValType:
         self._lock.acquire()
         val = self._value
-        val_valid = self._valid
+        val_status = self._status
         self._lock.release()
 
-        if val is None or val_valid == False:
-            reason = 'Never set' if self._last_value_update is None else 'Server has gone away'
+        if val is None or val_status != ValueStatus.Valid:
+            if val_status == ValueStatus.NeverSet:
+                reason = 'Never set'
+            elif val_status == ValueStatus.ServerGone:
+                reason = "Server has gone away"
+            else:
+                raise RuntimeError(f"Unknown value status {val_status}")
             raise sdk_exceptions.InvalidValueError(f"Value of {self._shortname} is unusable. {reason}")
 
         return val
@@ -115,6 +130,10 @@ class WatchableHandle:
     @property
     def display_path(self) -> str:
         return self._display_path
+
+    @property
+    def name(self) -> str:
+        return self._shortname
 
     @property
     def get_type(self) -> WatchableType:

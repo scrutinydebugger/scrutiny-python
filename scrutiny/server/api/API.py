@@ -127,7 +127,7 @@ class API:
 
     FLUSH_VARS_TIMEOUT: float = 0.1
 
-    DATATYPE2APISTR: Dict[EmbeddedDataType, str] = {
+    DATATYPE_2_APISTR: Dict[EmbeddedDataType, str] = {
         EmbeddedDataType.sint8: 'sint8',
         EmbeddedDataType.sint16: 'sint16',
         EmbeddedDataType.sint32: 'sint32',
@@ -155,9 +155,9 @@ class API:
         EmbeddedDataType.boolean: 'boolean'
     }
 
-    APISTR2DATATYPE = {v: k for k, v in DATATYPE2APISTR.items()}
+    APISTR_2_DATATYPE = {v: k for k, v in DATATYPE_2_APISTR.items()}
 
-    device_conn_status_to_str: Dict[DeviceHandler.ConnectionStatus, str] = {
+    DEVICE_CONN_STATUS_2_APISTR: Dict[DeviceHandler.ConnectionStatus, str] = {
         DeviceHandler.ConnectionStatus.UNKNOWN: 'unknown',
         DeviceHandler.ConnectionStatus.DISCONNECTED: 'disconnected',
         DeviceHandler.ConnectionStatus.CONNECTING: 'connecting',
@@ -165,7 +165,9 @@ class API:
         DeviceHandler.ConnectionStatus.CONNECTED_READY: 'connected_ready'
     }
 
-    datalogger_state_to_api: Dict[device_datalogging.DataloggerState, str] = {
+    APISTR_2_DEVICE_CONN_STATUS = {v: k for k, v in DEVICE_CONN_STATUS_2_APISTR.items()}
+
+    DATALOGGER_STATE_2_APISTR: Dict[device_datalogging.DataloggerState, str] = {
         device_datalogging.DataloggerState.IDLE: DataloggingStatus.STANDBY,
         device_datalogging.DataloggerState.CONFIGURED: DataloggingStatus.STANDBY,
         device_datalogging.DataloggerState.ARMED: DataloggingStatus.WAITING_FOR_TRIGGER,
@@ -173,6 +175,8 @@ class API:
         device_datalogging.DataloggerState.ACQUISITION_COMPLETED: DataloggingStatus.DATA_READY,
         device_datalogging.DataloggerState.ERROR: DataloggingStatus.ERROR,
     }
+
+    APISTR_2_DATALOGGER_STATE = {v: k for k, v in DATALOGGER_STATE_2_APISTR.items()}
 
     datalogging_supported_conditions: Dict[str, DataloggingSupportedTriggerCondition] = {
         'true': DataloggingSupportedTriggerCondition(condition_id=api_datalogging.TriggerConditionID.AlwaysTrue, nb_operands=0),
@@ -185,11 +189,13 @@ class API:
         'within': DataloggingSupportedTriggerCondition(condition_id=api_datalogging.TriggerConditionID.IsWithin, nb_operands=3)
     }
 
-    str_to_entry_type: Dict[str, EntryType] = {
+    APISTR_2_ENTRY_TYPE: Dict[str, EntryType] = {
         'var': EntryType.Var,
         'alias': EntryType.Alias,
         'rpv': EntryType.RuntimePublishedValue
     }
+
+    ENTRY_TYPE_2_APISTR = {v: k for k, v in APISTR_2_ENTRY_TYPE.items()}
 
     datastore: Datastore
     device_handler: DeviceHandler
@@ -262,10 +268,10 @@ class API:
 
     @classmethod
     def get_datatype_name(cls, datatype: EmbeddedDataType) -> str:
-        if datatype not in cls.DATATYPE2APISTR:
+        if datatype not in cls.DATATYPE_2_APISTR:
             raise ValueError('Unknown datatype : %s' % (str(datatype)))
 
-        return cls.DATATYPE2APISTR[datatype]
+        return cls.DATATYPE_2_APISTR[datatype]
 
     def sfd_loaded_callback(self, sfd: FirmwareDescription):
         # Called when a SFD is loaded after a device connection
@@ -416,10 +422,10 @@ class API:
             if self.is_dict_with_key(cast(Dict, req['filter']), 'type'):
                 if isinstance(req['filter']['type'], list):
                     for t in req['filter']['type']:
-                        if t not in self.str_to_entry_type:
+                        if t not in self.APISTR_2_ENTRY_TYPE:
                             raise InvalidRequestException(req, 'Unsupported type filter :"%s"' % (t))
 
-                        type_to_include.append(self.str_to_entry_type[t])
+                        type_to_include.append(self.APISTR_2_ENTRY_TYPE[t])
 
             if 'name' in req['filter']:
                 name_filter = req['filter']['name']
@@ -1346,12 +1352,12 @@ class API:
         datalogger_state_api = API.DataloggingStatus.UNAVAILABLE
         datalogger_state = self.device_handler.get_datalogger_state()
         if datalogger_state is not None:
-            datalogger_state_api = self.datalogger_state_to_api.get(datalogger_state, API.DataloggingStatus.UNAVAILABLE)
+            datalogger_state_api = self.DATALOGGER_STATE_2_APISTR.get(datalogger_state, API.DataloggingStatus.UNAVAILABLE)
 
         response: api_typing.S2C.InformServerStatus = {
             'cmd': self.Command.Api2Client.INFORM_SERVER_STATUS,
             'reqid': reqid,
-            'device_status': self.device_conn_status_to_str[self.device_handler.get_connection_status()],
+            'device_status': self.DEVICE_CONN_STATUS_2_APISTR[self.device_handler.get_connection_status()],
             'device_session_id': self.device_handler.comm_session_id(),  # str when connected_ready. None when not connected_ready
             'device_info': device_info_output,
             'loaded_sfd': loaded_sfd,

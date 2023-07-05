@@ -28,3 +28,7 @@ class ApiError(ScrutinySDKException):
 
 class BadResponseError(ApiError):
     pass
+
+
+class ErrorResponseException(ApiError):
+    pass

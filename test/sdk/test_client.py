@@ -2,7 +2,7 @@ import unittest
 
 from scrutiny.sdk import ServerState
 from scrutiny.sdk.client import ScrutinyClient
-from scrutiny.server.tools.synchronous_websocket_server import SynchronousWebsocketServer
+from scrutiny.tools.synchronous_websocket_server import SynchronousWebsocketServer
 
 import threading
 import json
