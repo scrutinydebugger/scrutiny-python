@@ -33,15 +33,9 @@ class CallbackState(enum.Enum):
     Cancelled = enum.auto()
     ServerError = enum.auto()
     CallbackError = enum.auto()
-    WaitAnother = enum.auto()
 
 
-class ApiResponseCallbackReturnCode(enum.Enum):
-    WaitAnother = enum.auto()
-    Finished = enum.auto()
-
-
-ApiResponseCallback = Callable[[CallbackState, Optional[api_typing.S2CMessage]], Optional[ApiResponseCallbackReturnCode]]
+ApiResponseCallback = Callable[[CallbackState, Optional[api_typing.S2CMessage]], None]
 
 
 class ApiResponseFuture:
@@ -69,13 +63,7 @@ class ApiResponseFuture:
         # This will be called by the user thread
         if timeout is None:
             timeout = self._default_wait_timeout
-        while True:
-            self._processed_event.wait(timeout)
-
-            if self._state == CallbackState.WaitAnother:
-                self._processed_event.clear()
-            else:
-                break
+        self._processed_event.wait(timeout)
 
     @property
     def state(self) -> CallbackState:
@@ -259,9 +247,20 @@ class ScrutinyClient:
 
     def _wt_check_callbacks_timeouts(self):
         now = datetime.now()
+        self._main_lock.acquire()
         reqids = list(self._callback_storage.keys())
+        self._main_lock.release()
+
         for reqid in reqids:
-            callback_entry = self._callback_storage[reqid]
+            self._main_lock.acquire()
+            callback_entry: Optional[CallbackStorageEntry] = None
+            if reqid in self._callback_storage:
+                callback_entry = self._callback_storage[reqid]
+            self._main_lock.release()
+
+            if callback_entry is None:
+                continue
+
             if now - callback_entry._creation_timestamp > timedelta(seconds=callback_entry._timeout):
                 try:
                     callback_entry._callback(CallbackState.TimedOut, None)
@@ -270,7 +269,11 @@ class ScrutinyClient:
                 except Exception:
                     pass
                 callback_entry._future._mark_completed(CallbackState.TimedOut)
-                del self._callback_storage[reqid]
+
+                self._main_lock.acquire()
+                if reqid in self._callback_storage:
+                    del self._callback_storage[reqid]
+                self._main_lock.release()
 
     def _wt_process_server_msg(self, cmd: str, msg: dict, reqid: Optional[int]) -> None:
         if cmd == API.Command.Api2Client.INFORM_SERVER_STATUS:
@@ -280,7 +283,6 @@ class ScrutinyClient:
         if reqid in self._callback_storage:
             callback_entry = self._callback_storage[reqid]
             error: Optional[Exception] = None
-            rc: Optional[ApiResponseCallbackReturnCode] = None
 
             if cmd == API.Command.Api2Client.ERROR_RESPONSE:
                 error = Exception(msg.get('msg', "No error message provided"))
@@ -297,25 +299,23 @@ class ScrutinyClient:
             else:
                 try:
                     self._logger.debug(f"Running {cmd} callback for request ID {reqid}")
-                    rc = callback_entry._callback(CallbackState.OK, msg)
+                    callback_entry._callback(CallbackState.OK, msg)
                 except (KeyboardInterrupt, sdk_exceptions.ConnectionError):
                     raise
                 except Exception as e:
                     error = e
 
-            if error is not None:
-                self._logger.error(f"Callback raised an exception. cmd={cmd}, reqid={reqid}. {error}")
-                self._logger.debug(traceback.format_exc())
-                callback_entry._future._mark_completed(CallbackState.CallbackError, error=error)
-            elif rc is not None:
-                if rc == ApiResponseCallbackReturnCode.WaitAnother:
-                    callback_entry._future._mark_completed(CallbackState.WaitAnother)
+                if error is not None:
+                    self._logger.error(f"Callback raised an exception. cmd={cmd}, reqid={reqid}. {error}")
+                    self._logger.debug(traceback.format_exc())
+                    callback_entry._future._mark_completed(CallbackState.CallbackError, error=error)
 
-            if callback_entry._future.state == CallbackState.Pending:
-                callback_entry._future._mark_completed(CallbackState.OK)
+                elif callback_entry._future.state == CallbackState.Pending:
+                    callback_entry._future._mark_completed(CallbackState.OK)
 
-            if callback_entry._future.state != CallbackState.WaitAnother:
-                del self._callback_storage[reqid]
+            self._main_lock.acquire()
+            del self._callback_storage[reqid]
+            self._main_lock.release()
 
     def _wt_disconnect(self):
         """Disconnect from a Scrutiny server, called by the Worker Thread .
