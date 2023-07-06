@@ -113,12 +113,19 @@ class API:
             ERROR_RESPONSE = 'error'
 
     class DataloggingStatus:
-        UNAVAILABLE = 'unavailable'
-        STANDBY = 'standby'
-        WAITING_FOR_TRIGGER = 'waiting_for_trigger'
-        ACQUIRING = 'acquiring'
-        DATA_READY = 'data_ready'
-        ERROR = 'error'
+        UNAVAILABLE: api_typing.DataloggerState = 'unavailable'
+        STANDBY: api_typing.DataloggerState = 'standby'
+        WAITING_FOR_TRIGGER: api_typing.DataloggerState = 'waiting_for_trigger'
+        ACQUIRING: api_typing.DataloggerState = 'acquiring'
+        DATA_READY: api_typing.DataloggerState = 'data_ready'
+        ERROR: api_typing.DataloggerState = 'error'
+
+    class DeviceCommStatus:
+        UNKNOWN: api_typing.DeviceCommStatus = 'unknown'
+        DISCONNECTED: api_typing.DeviceCommStatus = 'disconnected'
+        CONNECTING: api_typing.DeviceCommStatus = 'connecting'
+        CONNECTED: api_typing.DeviceCommStatus = 'connected'
+        CONNECTED_READY: api_typing.DeviceCommStatus = 'connected_ready'
 
     @dataclass
     class DataloggingSupportedTriggerCondition:
@@ -127,7 +134,7 @@ class API:
 
     FLUSH_VARS_TIMEOUT: float = 0.1
 
-    DATATYPE_2_APISTR: Dict[EmbeddedDataType, str] = {
+    DATATYPE_2_APISTR: Dict[EmbeddedDataType, api_typing.Datatype] = {
         EmbeddedDataType.sint8: 'sint8',
         EmbeddedDataType.sint16: 'sint16',
         EmbeddedDataType.sint32: 'sint32',
@@ -155,19 +162,20 @@ class API:
         EmbeddedDataType.boolean: 'boolean'
     }
 
-    APISTR_2_DATATYPE = {v: k for k, v in DATATYPE_2_APISTR.items()}
+    APISTR_2_DATATYPE: Dict[api_typing.Datatype, EmbeddedDataType] = {v: k for k, v in DATATYPE_2_APISTR.items()}
 
-    DEVICE_CONN_STATUS_2_APISTR: Dict[DeviceHandler.ConnectionStatus, str] = {
-        DeviceHandler.ConnectionStatus.UNKNOWN: 'unknown',
-        DeviceHandler.ConnectionStatus.DISCONNECTED: 'disconnected',
-        DeviceHandler.ConnectionStatus.CONNECTING: 'connecting',
-        DeviceHandler.ConnectionStatus.CONNECTED_NOT_READY: 'connected',
-        DeviceHandler.ConnectionStatus.CONNECTED_READY: 'connected_ready'
+    DEVICE_CONN_STATUS_2_APISTR: Dict[DeviceHandler.ConnectionStatus, api_typing.DeviceCommStatus] = {
+        DeviceHandler.ConnectionStatus.UNKNOWN: DeviceCommStatus.UNKNOWN,
+        DeviceHandler.ConnectionStatus.DISCONNECTED: DeviceCommStatus.DISCONNECTED,
+        DeviceHandler.ConnectionStatus.CONNECTING: DeviceCommStatus.CONNECTING,
+        DeviceHandler.ConnectionStatus.CONNECTED_NOT_READY: DeviceCommStatus.CONNECTED,
+        DeviceHandler.ConnectionStatus.CONNECTED_READY: DeviceCommStatus.CONNECTED_READY
     }
 
-    APISTR_2_DEVICE_CONN_STATUS = {v: k for k, v in DEVICE_CONN_STATUS_2_APISTR.items()}
+    APISTR_2_DEVICE_CONN_STATUS: Dict[api_typing.DeviceCommStatus, DeviceHandler.ConnectionStatus] = {
+        v: k for k, v in DEVICE_CONN_STATUS_2_APISTR.items()}
 
-    DATALOGGER_STATE_2_APISTR: Dict[device_datalogging.DataloggerState, str] = {
+    DATALOGGER_STATE_2_APISTR: Dict[device_datalogging.DataloggerState, api_typing.DataloggerState] = {
         device_datalogging.DataloggerState.IDLE: DataloggingStatus.STANDBY,
         device_datalogging.DataloggerState.CONFIGURED: DataloggingStatus.STANDBY,
         device_datalogging.DataloggerState.ARMED: DataloggingStatus.WAITING_FOR_TRIGGER,
@@ -176,11 +184,13 @@ class API:
         device_datalogging.DataloggerState.ERROR: DataloggingStatus.ERROR,
     }
 
-    APISTR_2_DATALOGGER_STATE = {v: k for k, v in DATALOGGER_STATE_2_APISTR.items()}
+    APISTR_2_DATALOGGER_STATE: Dict[api_typing.DataloggerState, device_datalogging.DataloggerState] = {
+        v: k for k, v in DATALOGGER_STATE_2_APISTR.items()}
 
-    datalogging_supported_conditions: Dict[str, DataloggingSupportedTriggerCondition] = {
+    datalogging_supported_conditions: Dict[api_typing.DataloggingCondition, DataloggingSupportedTriggerCondition] = {
         'true': DataloggingSupportedTriggerCondition(condition_id=api_datalogging.TriggerConditionID.AlwaysTrue, nb_operands=0),
         'eq': DataloggingSupportedTriggerCondition(condition_id=api_datalogging.TriggerConditionID.Equal, nb_operands=2),
+        'neq': DataloggingSupportedTriggerCondition(condition_id=api_datalogging.TriggerConditionID.NotEqual, nb_operands=2),
         'lt': DataloggingSupportedTriggerCondition(condition_id=api_datalogging.TriggerConditionID.LessThan, nb_operands=2),
         'let': DataloggingSupportedTriggerCondition(condition_id=api_datalogging.TriggerConditionID.LessOrEqualThan, nb_operands=2),
         'gt': DataloggingSupportedTriggerCondition(condition_id=api_datalogging.TriggerConditionID.GreaterThan, nb_operands=2),
@@ -189,13 +199,13 @@ class API:
         'within': DataloggingSupportedTriggerCondition(condition_id=api_datalogging.TriggerConditionID.IsWithin, nb_operands=3)
     }
 
-    APISTR_2_ENTRY_TYPE: Dict[str, EntryType] = {
+    APISTR_2_ENTRY_TYPE: Dict[api_typing.WatchableType, EntryType] = {
         'var': EntryType.Var,
         'alias': EntryType.Alias,
         'rpv': EntryType.RuntimePublishedValue
     }
 
-    ENTRY_TYPE_2_APISTR = {v: k for k, v in APISTR_2_ENTRY_TYPE.items()}
+    ENTRY_TYPE_2_APISTR: Dict[EntryType, api_typing.WatchableType] = {v: k for k, v in APISTR_2_ENTRY_TYPE.items()}
 
     datastore: Datastore
     device_handler: DeviceHandler
@@ -1339,7 +1349,7 @@ class API:
                 'address_size_bits': cast(int, device_info_input.address_size_bits),
                 'protocol_major': cast(int, device_info_input.protocol_major),
                 'protocol_minor': cast(int, device_info_input.protocol_minor),
-                'supported_feature_map': cast(Dict[str, bool], device_info_input.supported_feature_map),
+                'supported_feature_map': cast(Dict[api_typing.SupportedFeature, bool], device_info_input.supported_feature_map),
                 'forbidden_memory_regions': cast(List[Dict[str, int]], device_info_input.forbidden_memory_regions),
                 'readonly_memory_regions': cast(List[Dict[str, int]], device_info_input.readonly_memory_regions)
             }

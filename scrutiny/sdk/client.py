@@ -6,7 +6,7 @@ from scrutiny.sdk.watchable_handle import WatchableHandle
 import scrutiny.sdk.exceptions as sdk_exceptions
 from scrutiny.core.basic_types import *
 from scrutiny.tools.timer import Timer
-
+import scrutiny.sdk._api_parser as api_parser
 from scrutiny.server.api import typing as api_typing
 from scrutiny.server.api import API
 
@@ -120,7 +120,6 @@ class ScrutinyClient:
 
     _name: Optional[str]
     _server_state: ServerState
-    _device_link_state: DeviceLinkState
     _hostname: Optional[str]
     _port: Optional[int]
     _logger: logging.Logger
@@ -151,7 +150,6 @@ class ScrutinyClient:
 
         self._name = name
         self._server_state = ServerState.Disconnected
-        self._device_link_state = DeviceLinkState.NA
         self._hostname = None
         self._port = None
         self._encoding = 'utf8'
@@ -338,7 +336,6 @@ class ScrutinyClient:
             self._hostname = None
             self._port = None
             self._server_state = ServerState.Disconnected
-            self._device_link_state = DeviceLinkState.NA
 
             for watchable in self._watchable_storage.values():
                 watchable._set_invalid(ValueStatus.ServerGone)
@@ -523,53 +520,12 @@ class ScrutinyClient:
         def wt_get_watchable_callback(state: CallbackState, response: Optional[api_typing.S2CMessage]) -> None:
             if response is not None and state == CallbackState.OK:
                 response = cast(api_typing.S2C.GetWatchableList, response)
-                total = response['qty']['alias'] + response['qty']['rpv'] + response['qty']['var']
-                if total == 0:
-                    raise sdk_exceptions.NameNotFoundError(f'No watchable element matches the path {path} on the server')
-
-                if total > 1:
-                    raise sdk_exceptions.BadResponseError(f"More than one item were returned by the server that matched the path {path}")
-
-                watchable_type: WatchableType = WatchableType.NA
-                content: Any = None
-                if response['qty']['alias'] == 1:
-                    watchable_type = WatchableType.Alias
-                    content = response.get('content', {}).get('alias', None)
-                elif response['qty']['rpv']:
-                    watchable_type = WatchableType.RuntimePulishedValue
-                    content = response.get('content', {}).get('rpv', None)
-                elif response['qty']['var']:
-                    watchable_type = WatchableType.Variable
-                    content = response.get('content', {}).get('var', None)
-                else:
-                    raise sdk_exceptions.BadResponseError('Unknown watchable type')
-
-                if content is None or not isinstance(content, list):
-                    raise sdk_exceptions.BadResponseError("Missing watchable definition in API response")
-
-                if len(content) != 1:
-                    raise sdk_exceptions.BadResponseError("Incoherent element quantity in API response.")
-
-                content = cast(dict, content[0])
-
-                required_fields = ['id', 'display_path', 'datatype']
-                for field in required_fields:
-                    if field not in content:
-                        raise sdk_exceptions.BadResponseError(f"Missing field {field} in watchable definition")
-
-                if content['datatype'] not in API.APISTR_2_DATATYPE:
-                    raise RuntimeError(f"Unknown datatype {content['datatype']}")
-
-                datatype = EmbeddedDataType(API.APISTR_2_DATATYPE[content['datatype']])
-
-                if path != content['display_path']:
-                    raise sdk_exceptions.BadResponseError(
-                        f"The display path of the element returned by the server does not matched the requested path. Got {content['display_path']} but expected {path}")
+                parsed_content = api_parser.parse_get_watchable_single_element(response, path)
 
                 watchable._configure(
-                    watchable_type=watchable_type,
-                    datatype=datatype,
-                    server_id=content['id']
+                    watchable_type=parsed_content.watchable_type,
+                    datatype=parsed_content.datatype,
+                    server_id=parsed_content.server_id
                 )
 
         future = self._send(req, wt_get_watchable_callback)
