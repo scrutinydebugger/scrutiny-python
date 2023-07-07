@@ -54,7 +54,9 @@ def _check_response_dict(cmd: str, d: Any, name: str, types: Union[Type, Iterabl
                 f'Field {part_name} is expected to be of type "{typename}" but found "{gotten_type}" in message "{cmd}"')
 
 
-def _fetch_dict_val(d: Any, path: str, wanted_type: Type[T], default: Optional[T]) -> Optional[T]:
+def _fetch_dict_val(d: Any, path: str, wanted_type: Type[T], default: Optional[T], allow_none=True) -> Optional[T]:
+    if d is None:
+        return default
     assert isinstance(d, dict)
     parts = path.split('.')
     key = parts[0]
@@ -67,6 +69,10 @@ def _fetch_dict_val(d: Any, path: str, wanted_type: Type[T], default: Optional[T
         return default
 
     if len(next_parts) == 0:
+        if d[key] is None:
+            if allow_none:
+                return None
+            raise sdk_exceptions.BadResponseError(f'Field {key} cannot be None')
         return wanted_type(d[key])
     else:
         return _fetch_dict_val(d[key], '.'.join(next_parts), wanted_type=wanted_type, default=default)
@@ -157,7 +163,7 @@ def parse_inform_server_status(response: api_typing.S2C.InformServerStatus) -> s
     NoneType: Type = type(None)
 
     _check_response_dict(cmd, response, 'device_status', str)
-    _check_response_dict(cmd, response, 'device_session_id', str)
+    _check_response_dict(cmd, response, 'device_session_id', (str, NoneType))
 
     def _device_status_from_api(api_val: api_typing.DeviceCommStatus) -> sdk_definitions.DeviceCommState:
         if api_val == API.DeviceCommStatus.UNKNOWN:
@@ -192,17 +198,33 @@ def parse_inform_server_status(response: api_typing.S2C.InformServerStatus) -> s
         _check_response_dict(cmd, response, 'device_info.forbidden_memory_regions', list)
         _check_response_dict(cmd, response, 'device_info.readonly_memory_regions', list)
 
+        forbidden_regions: List[sdk_definitions.MemoryRegion] = []
         for region in response['device_info']['forbidden_memory_regions']:
             _check_response_dict(cmd, region, 'start', int)
             _check_response_dict(cmd, region, 'end', int)
             if region['end'] <= region['start']:
                 raise sdk_exceptions.BadResponseError(f'Received a forbidden memory region with incoherent start and end in message "{cmd}"')
+            size = region['end'] - region['start'] + 1
+            if size <= 0:
+                raise sdk_exceptions.BadResponseError(f'Got a forbidden memory region with an invalid size "{cmd}"')
+            forbidden_regions.append(sdk_definitions.MemoryRegion(
+                start=region['start'],
+                size=size
+            ))
 
+        readonly_regions: List[sdk_definitions.MemoryRegion] = []
         for region in response['device_info']['readonly_memory_regions']:
             _check_response_dict(cmd, region, 'start', int)
             _check_response_dict(cmd, region, 'end', int)
             if region['end'] <= region['start']:
                 raise sdk_exceptions.BadResponseError(f'Received a readonly memory region with incoherent start and end in message "{cmd}"')
+            size = region['end'] - region['start'] + 1
+            if size <= 0:
+                raise sdk_exceptions.BadResponseError(f'Got a readonly memory region with an invalid size "{cmd}"')
+            readonly_regions.append(sdk_definitions.MemoryRegion(
+                start=region['start'],
+                size=size
+            ))
 
         if response['device_info']['address_size_bits'] not in get_args(sdk_definitions.AddressSize):
             raise sdk_exceptions.BadResponseError(f"Unexpected address size {response['device_info']['address_size_bits']}")
@@ -224,8 +246,8 @@ def parse_inform_server_status(response: api_typing.S2C.InformServerStatus) -> s
                 user_command=response['device_info']['supported_feature_map']['user_command'],
                 sixtyfour_bits=response['device_info']['supported_feature_map']['_64bits'],
             ),
-            forbidden_memory_regions=cast(List[sdk_definitions.MemoryRegion], response['device_info']['forbidden_memory_regions']),
-            readonly_memory_regions=cast(List[sdk_definitions.MemoryRegion], response['device_info']['readonly_memory_regions'])
+            forbidden_memory_regions=forbidden_regions,
+            readonly_memory_regions=readonly_regions
         )
 
     sfd: Optional[sdk_definitions.SFDInfo] = None
@@ -305,16 +327,16 @@ def parse_inform_server_status(response: api_typing.S2C.InformServerStatus) -> s
         _check_response_dict(cmd, response, 'device_comm_link.link_config.parity', str)
 
         api_stopbits = serial_config['stopbits']
-        if api_stopbits not in ('1', '1.5', '2') or api_stopbits not in get_args(sdk_definitions.SerialStopBits):
-            raise sdk_exceptions.BadResponseError('Unsupported stop bit value "{api_stopbit}" in message {cmd}')
+        if api_stopbits not in ('1', '1.5', '2'):
+            raise sdk_exceptions.BadResponseError(f'Unsupported stop bit value "{api_stopbits}" in message {cmd}')
 
         api_parity = serial_config['parity']
-        if api_parity not in ('none', 'even', 'odd', 'mark', 'space') or api_parity not in get_args(sdk_definitions.SerialParity):
-            raise sdk_exceptions.BadResponseError('Unsupported parity value "{api_stopbit}" in message {cmd}')
+        if api_parity not in ('none', 'even', 'odd', 'mark', 'space'):
+            raise sdk_exceptions.BadResponseError(f'Unsupported parity value "{api_parity}" in message {cmd}')
 
         api_databits = serial_config['databits']
-        if api_databits not in (5, 6, 7, 8) or api_parity not in get_args(sdk_definitions.SerialDataBits):
-            raise sdk_exceptions.BadResponseError('Unsupported number of databits value "{api_databits}" in message {cmd}')
+        if api_databits not in (5, 6, 7, 8):
+            raise sdk_exceptions.BadResponseError(f'Unsupported number of databits value "{api_databits}" in message {cmd}')
 
         link_config = sdk_definitions.SerialLinkConfig(
             port=serial_config['portname'],

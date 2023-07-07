@@ -4,9 +4,11 @@ import unittest
 import scrutiny.sdk._api_parser as parser
 from scrutiny.core.basic_types import *
 from scrutiny.sdk.definitions import *
+import scrutiny.server.api.typing as api_typing
 import scrutiny.sdk.exceptions as sdk_exceptions
 from copy import copy
 from datetime import datetime
+import logging
 
 
 class TestApiParser(unittest.TestCase):
@@ -90,8 +92,8 @@ class TestApiParser(unittest.TestCase):
             del msg['content']['rpv']
             parser.parse_get_watchable_single_element(msg, requested_path)
 
-    def test_parse_inform_Server_Status(self):
-        def base():
+    def test_parse_inform_server_Status(self):
+        def base() -> api_typing.S2C.InformServerStatus:
             return {
                 "cmd": "inform_server_status",
                 "reqid": 2,
@@ -167,6 +169,18 @@ class TestApiParser(unittest.TestCase):
         self.assertEqual(info.device.supported_features.user_command, False)
         self.assertEqual(info.device.supported_features.sixtyfour_bits, True)
 
+        self.assertEqual(len(info.device.forbidden_memory_regions), 2)
+        self.assertEqual(info.device.forbidden_memory_regions[0].start, 0x1000)
+        self.assertEqual(info.device.forbidden_memory_regions[0].end, 0x1FFF)
+        self.assertEqual(info.device.forbidden_memory_regions[0].size, 0x1000)
+        self.assertEqual(info.device.forbidden_memory_regions[1].start, 0x4000)
+        self.assertEqual(info.device.forbidden_memory_regions[1].end, 0x4FFF)
+        self.assertEqual(info.device.forbidden_memory_regions[1].size, 0x1000)
+        self.assertEqual(len(info.device.readonly_memory_regions), 1)
+        self.assertEqual(info.device.readonly_memory_regions[0].start, 0x8000)
+        self.assertEqual(info.device.readonly_memory_regions[0].end, 0x8FFF)
+        self.assertEqual(info.device.readonly_memory_regions[0].size, 0x1000)
+
         self.assertIsNotNone(info.sfd)
         self.assertEqual(info.sfd.firmware_id, "b5c76f482e39e9d6a9115db5b8b7dc35")
         self.assertEqual(info.sfd.metadata.project_name, "Some project")
@@ -187,3 +201,152 @@ class TestApiParser(unittest.TestCase):
         assert isinstance(info.device_link.config, UDPLinkConfig)
         self.assertEqual(info.device_link.config.host, "localhost")
         self.assertEqual(info.device_link.config.port, 12345)
+
+        features = ['memory_write', 'datalogging', 'user_command', '_64bits']
+        vals = [1, 'asd', None, [], {}]
+        for feature in features:
+            for val in vals:
+                logging.debug(f"feature={feature}, val={val}")
+                with self.assertRaises(sdk_exceptions.BadResponseError):
+                    msg = base()
+                    msg['device_info']['supported_feature_map'][feature] = val
+                    parser.parse_inform_server_status(msg)
+
+        for feature in features:
+            logging.debug(f"feature={feature}")
+            with self.assertRaises(sdk_exceptions.BadResponseError):
+                msg = base()
+                del msg['device_info']['supported_feature_map'][feature]
+                parser.parse_inform_server_status(msg)
+
+        ##
+        msg = base()
+        msg['device_status'] = "unknown"
+        msg['loaded_sfd'] = None
+        msg['device_info'] = None
+        msg['device_session_id'] = None
+        msg['device_comm_link']["link_type"] = 'none'
+        msg['device_comm_link']["link_config"] = None
+        info = parser.parse_inform_server_status(msg)
+
+        self.assertIsNone(info.device)
+        self.assertIsNone(info.sfd)
+        self.assertIsNone(info.device_link.config)
+        self.assertEqual(info.device_session_id, None)
+        self.assertEqual(info.device_comm_state, DeviceCommState.NA)
+
+        with self.assertRaises(sdk_exceptions.BadResponseError):
+            msg = base()
+            msg['device_status'] = "asd"
+            parser.parse_inform_server_status(msg)
+
+        with self.assertRaises(sdk_exceptions.BadResponseError):
+            msg = base()
+            msg["device_info"]['forbidden_memory_regions'][0]['end'] = msg["device_info"]['forbidden_memory_regions'][0]['start'] - 1
+            info = parser.parse_inform_server_status(msg)
+
+        with self.assertRaises(sdk_exceptions.BadResponseError):
+            msg = base()
+            msg["device_info"]['readonly_memory_regions'][0]['end'] = msg["device_info"]['readonly_memory_regions'][0]['start'] - 1
+            info = parser.parse_inform_server_status(msg)
+
+        fields = ['max_tx_data_size', 'max_rx_data_size', 'max_bitrate_bps', 'rx_timeout_us', 'heartbeat_timeout_us',
+                  'address_size_bits', 'protocol_major', 'protocol_minor']
+        for field in fields:
+            vals = [None, 'asd', 1.5, [], {},]   # bad values
+            for val in vals:
+                logging.debug(f"field={field}, val={val}")
+                with self.assertRaises(sdk_exceptions.BadResponseError):
+                    msg = base()
+                    msg["device_info"][field] = val
+                    info = parser.parse_inform_server_status(msg)
+
+        fields = ["project_name", "author", "version"]
+        for field in fields:
+            msg = base()
+            msg['loaded_sfd']['metadata'][field] = None
+            info = parser.parse_inform_server_status(msg)
+            self.assertIsNone(getattr(info.sfd.metadata, field), f"field={field}")
+
+            msg = base()
+            msg['loaded_sfd']['metadata']["generation_info"] = None
+            info = parser.parse_inform_server_status(msg)
+            self.assertIsNone(info.sfd.metadata.generation_info.python_version)
+            self.assertIsNone(info.sfd.metadata.generation_info.scrutiny_version)
+            self.assertIsNone(info.sfd.metadata.generation_info.system_type)
+            self.assertIsNone(info.sfd.metadata.generation_info.timestamp)
+
+        msg = base()
+        msg["device_datalogging_status"]["completion_ratio"] = None
+        info = parser.parse_inform_server_status(msg)
+        self.assertIsNone(info.datalogging.completion_ratio)
+
+        with self.assertRaises(sdk_exceptions.BadResponseError):
+            msg = base()
+            msg["device_comm_link"]["link_type"] = 'serial'
+            # We forgot to update the config.
+            parser.parse_inform_server_status(msg)
+
+        msg = base()
+        msg["device_comm_link"]["link_type"] = 'serial'
+        msg["device_comm_link"]["link_config"] = {
+            "baudrate": 9600,
+            "databits": 8,
+            "parity": 'even',
+            "portname": '/dev/ttyO1',
+            'stopbits': '2'
+        }
+        # We forgot to update the config.
+        info = parser.parse_inform_server_status(msg)
+
+        self.assertEqual(info.device_link.type, DeviceLinkType.Serial)
+        self.assertEqual(info.device_link.config.baudrate, 9600)
+        self.assertEqual(info.device_link.config.databits, 8)
+        self.assertEqual(info.device_link.config.parity, 'even')
+        self.assertEqual(info.device_link.config.port, '/dev/ttyO1')
+        self.assertEqual(info.device_link.config.stopbits, '2')
+
+        serial_base = copy(msg)
+
+        field_vals = {
+            'baudrate': [None, 1.5, [], {}, 'asd'],
+            'databits': [None, -1, 1.5, [], {}, 0, 'asd'],
+            'parity': ['xx', 1, -1, None, [], {}],
+            'portname': [1, None, [], {}],
+            'stopbits': [None, -1, 1.5, [], {}, 0, 'asd']
+        }
+
+        for field, vals in field_vals.items():
+            for val in vals:
+                msg = copy(serial_base)
+                logging.debug(f"field={field}, val={val}")
+                with self.assertRaises(sdk_exceptions.BadResponseError):
+                    msg["device_comm_link"]["link_config"][field] = val
+                    parser.parse_inform_server_status(msg)
+
+        for field in field_vals:
+            msg = copy(serial_base)
+            logging.debug(f"field={field}")
+            with self.assertRaises(sdk_exceptions.BadResponseError):
+                del msg["device_comm_link"]["link_config"][field]
+                parser.parse_inform_server_status(msg)
+
+        field_vals = {
+            'host': [None, 1, 1.5, [], {}],
+            'port': [None, 1.5, [], {}, 'asd']
+        }
+
+        for field, vals in field_vals.items():
+            for val in vals:
+                msg = base()
+                logging.debug(f"field={field}, val={val}")
+                with self.assertRaises(sdk_exceptions.BadResponseError):
+                    msg["device_comm_link"]["link_config"][field] = val
+                    parser.parse_inform_server_status(msg)
+
+        for field in field_vals:
+            msg = base()
+            logging.debug(f"field={field}")
+            with self.assertRaises(sdk_exceptions.BadResponseError):
+                del msg["device_comm_link"]["link_config"][field]
+                parser.parse_inform_server_status(msg)
