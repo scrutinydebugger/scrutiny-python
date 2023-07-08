@@ -1,6 +1,7 @@
 import unittest
 
 from scrutiny.core.basic_types import *
+import scrutiny.sdk.definitions as sdk_definitions
 from scrutiny.sdk import ServerState
 from scrutiny.sdk.client import ScrutinyClient
 import scrutiny.server.datalogging.definitions.device as device_datalogging
@@ -45,9 +46,10 @@ class FakeDeviceHandler:
             }
         )
         self.datalogger_state = device_datalogging.DataloggerState.IDLE
+        self.datalogging_completion_ratio = None
         self.device_conn_status = DeviceHandler.ConnectionStatus.DISCONNECTED
         self.comm_session_id = None
-        self.datalogging_completion_ratio = None
+        self.set_connection_status(DeviceHandler.ConnectionStatus.CONNECTED_READY)
 
         self.device_info = DeviceInfo()
         self.device_info.device_id = "xyz"
@@ -67,12 +69,12 @@ class FakeDeviceHandler:
             '_64bits': True
         }
         self.device_info.forbidden_memory_regions = [
-            {'start': 0x100000, 'end': 0x100000 + 128},
-            {'start': 0x200000, 'end': 0x200000 + 256}
+            {'start': 0x100000, 'end': 0x100000 + 128 - 1},
+            {'start': 0x200000, 'end': 0x200000 + 256 - 1}
         ]
         self.device_info.readonly_memory_regions = [
-            {'start': 0x300000, 'end': 0x300000 + 128},
-            {'start': 0x400000, 'end': 0x400000 + 256}
+            {'start': 0x300000, 'end': 0x300000 + 128 - 1},
+            {'start': 0x400000, 'end': 0x400000 + 256 - 1}
         ]
         self.device_info.runtime_published_values = [
             RuntimePublishedValue(0x1000, EmbeddedDataType.float32),
@@ -107,6 +109,8 @@ class FakeDeviceHandler:
                 self.comm_session_id = uuid4().hex
         else:
             self.comm_session_id = None
+
+        self.device_conn_status = status
 
     def get_comm_session_id(self):
         return self.comm_session_id
@@ -243,3 +247,68 @@ class TestClient(unittest.TestCase):
     def test_hold_5_sec(self):
         # Make sure the testing environment and all stubbed classes are stable.
         time.sleep(5)
+
+    def test_get_status(self):
+        time.sleep(0.5)  # Should be enough to read the status
+        self.assertEqual(self.client.server_state, ServerState.Connected)
+        server_info = self.client.server
+        self.assertIsNotNone(server_info)
+        assert server_info is not None
+
+        self.assertEqual(server_info.device_comm_state, sdk_definitions.DeviceCommState.ConnectedReady)
+        self.assertEqual(server_info.device_session_id, self.device_handler.get_comm_session_id())
+        self.assertIsNotNone(server_info.device_session_id)
+
+        assert server_info is not None
+        self.assertIsNotNone(server_info.device)
+        self.assertEqual(server_info.device.device_id, "xyz")
+        self.assertEqual(server_info.device.display_name, "fake device")
+        self.assertEqual(server_info.device.max_tx_data_size, 256)
+        self.assertEqual(server_info.device.max_rx_data_size, 128)
+        self.assertEqual(server_info.device.max_bitrate_bps, 10000)
+        self.assertEqual(server_info.device.rx_timeout_us, 50)
+        self.assertEqual(server_info.device.heartbeat_timeout, 5)
+        self.assertEqual(server_info.device.address_size_bits, 32)
+        self.assertEqual(server_info.device.protocol_major, 1)
+        self.assertEqual(server_info.device.protocol_minor, 0)
+
+        self.assertEqual(server_info.device.supported_features.memory_write, True)
+        self.assertEqual(server_info.device.supported_features.datalogging, True)
+        self.assertEqual(server_info.device.supported_features.sixtyfour_bits, True)
+        self.assertEqual(server_info.device.supported_features.user_command, True)
+
+        self.assertEqual(len(server_info.device.forbidden_memory_regions), 2)
+        self.assertEqual(server_info.device.forbidden_memory_regions[0].start, 0x100000)
+        self.assertEqual(server_info.device.forbidden_memory_regions[0].end, 0x100000 + 128 - 1)
+        self.assertEqual(server_info.device.forbidden_memory_regions[0].size, 128)
+        self.assertEqual(server_info.device.forbidden_memory_regions[1].start, 0x200000)
+        self.assertEqual(server_info.device.forbidden_memory_regions[1].end, 0x200000 + 256 - 1)
+        self.assertEqual(server_info.device.forbidden_memory_regions[1].size, 256)
+
+        self.assertEqual(len(server_info.device.readonly_memory_regions), 2)
+        self.assertEqual(server_info.device.readonly_memory_regions[0].start, 0x300000)
+        self.assertEqual(server_info.device.readonly_memory_regions[0].end, 0x300000 + 128 - 1)
+        self.assertEqual(server_info.device.readonly_memory_regions[0].size, 128)
+        self.assertEqual(server_info.device.readonly_memory_regions[1].start, 0x400000)
+        self.assertEqual(server_info.device.readonly_memory_regions[1].end, 0x400000 + 256 - 1)
+        self.assertEqual(server_info.device.readonly_memory_regions[1].size, 256)
+
+        self.assertEqual(server_info.device_link.type, sdk_definitions.DeviceLinkType.UDP)
+        self.assertIsInstance(server_info.device_link.config, sdk_definitions.UDPLinkConfig)
+        assert isinstance(server_info.device_link.config, sdk_definitions.UDPLinkConfig)
+        self.assertEqual(server_info.device_link.config.host, '127.0.0.1')
+        self.assertEqual(server_info.device_link.config.port, 5555)
+
+        self.assertIsNone(server_info.datalogging.completion_ratio)
+        self.assertEqual(server_info.datalogging.state, sdk_definitions.DataloggerState.Standby)
+
+        self.assertIsNone(server_info.sfd)
+
+        with self.assertRaises(Exception):
+            server_info.device = None
+            
+        with self.assertRaises(Exception):
+            server_info.device.display_name = "hello"
+
+        self.client.wait_server_status_update()
+        self.assertIsNot(self.client.server, server_info)   # Make sure we have anew object with a new reference.

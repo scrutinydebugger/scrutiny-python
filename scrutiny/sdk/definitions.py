@@ -61,7 +61,7 @@ class DeviceLinkType(enum.Enum):
     # SPI = 5 # Todo
 
 
-@dataclass
+@dataclass(frozen=True)
 class SupportedFeatureMap:
     memory_write: bool
     datalogging: bool
@@ -69,7 +69,7 @@ class SupportedFeatureMap:
     sixtyfour_bits: bool
 
 
-@dataclass
+@dataclass(frozen=True)
 class MemoryRegion:
     start: int
     size: int
@@ -79,13 +79,13 @@ class MemoryRegion:
         return max(self.start, self.start + self.size - 1)
 
 
-@dataclass
+@dataclass(frozen=True)
 class DataloggingInfo:
     state: DataloggerState
     completion_ratio: Optional[float]
 
 
-@dataclass
+@dataclass(frozen=True)
 class DeviceInfo:
     device_id: str
     display_name: str
@@ -102,7 +102,7 @@ class DeviceInfo:
     readonly_memory_regions: List[MemoryRegion]
 
 
-@dataclass
+@dataclass(frozen=True)
 class SFDGenerationInfo:
     timestamp: Optional[datetime]
     python_version: Optional[str]
@@ -110,7 +110,7 @@ class SFDGenerationInfo:
     system_type: Optional[str]
 
 
-@dataclass
+@dataclass(frozen=True)
 class SFDMetadata:
     project_name: Optional[str]
     author: Optional[str]
@@ -118,25 +118,25 @@ class SFDMetadata:
     generation_info: Optional[SFDGenerationInfo]
 
 
-@dataclass
+@dataclass(frozen=True)
 class SFDInfo:
     firmware_id: str
     metadata: SFDMetadata
 
 
-@dataclass
+@dataclass(frozen=True)
 class UDPLinkConfig:
     host: str
     port: int
 
 
-@dataclass
+@dataclass(frozen=True)
 class TCPLinkConfig:
     host: str
     port: int
 
 
-@dataclass
+@dataclass(frozen=True)
 class SerialLinkConfig:
     port: str
     baudrate: int
@@ -148,13 +148,13 @@ class SerialLinkConfig:
 SupportedLinkConfig = Union[UDPLinkConfig, TCPLinkConfig, SerialLinkConfig]
 
 
-@dataclass
+@dataclass(frozen=True)
 class DeviceLinkInfo:
     type: DeviceLinkType
     config: Optional[SupportedLinkConfig]
 
 
-@dataclass
+@dataclass(frozen=True)
 class ServerInfo:
     device_comm_state: DeviceCommState
     device_session_id: Optional[str]

@@ -22,6 +22,7 @@ import time
 import enum
 from datetime import datetime, timedelta
 from dataclasses import dataclass
+from copy import deepcopy
 
 from typing import *
 
@@ -52,7 +53,7 @@ class ApiResponseFuture:
         self._error = None
         self._default_wait_timeout = default_wait_timeout
 
-    def _mark_completed(self, new_state: CallbackState, error: Optional[Exception] = None):
+    def _wt_mark_completed(self, new_state: CallbackState, error: Optional[Exception] = None):
         # No need for lock here. The state will change once.
         # But be careful, this will be called by the sdk thread, not the user thread
         self._error = error
@@ -117,6 +118,7 @@ class ScrutinyClient:
             self.disconnect = threading.Event()
             self.disconnected = threading.Event()
             self.msg_received = threading.Event()
+            self.server_status_updated = threading.Event()
 
     _name: Optional[str]
     _server_state: ServerState
@@ -138,6 +140,7 @@ class ScrutinyClient:
 
     _callback_storage: Dict[int, CallbackStorageEntry]
     _watchable_storage: Dict[str, WatchableHandle]
+    _server_info: Optional[ServerInfo]
 
     def __init__(self,
                  name: Optional[str] = None,
@@ -164,6 +167,7 @@ class ScrutinyClient:
         self._timeout = timeout
         self._request_status_timer = Timer(self._UPDATE_SERVER_STATUS_INTERVAL)
         self._require_status_update = False
+        self._server_info = None
 
         self._watchable_storage = {}
         self._callback_storage = {}
@@ -232,8 +236,11 @@ class ScrutinyClient:
         self._threading_events.stop_worker_thread.clear()
 
     def _wt_process_inform_server_status(self, msg: api_typing.S2C.InformServerStatus, reqid: Optional[int]):
-        print(msg)
         self._request_status_timer.start()
+        info = api_parser.parse_inform_server_status(msg)
+        with self._main_lock:
+            self._server_info = info
+            self._threading_events.server_status_updated.set()
 
     def _wt_process_next_server_status_update(self) -> None:
         if self._request_status_timer.is_timed_out() or self._require_status_update:
@@ -263,7 +270,7 @@ class ScrutinyClient:
                     raise
                 except Exception:
                     pass
-                callback_entry._future._mark_completed(CallbackState.TimedOut)
+                callback_entry._future._wt_mark_completed(CallbackState.TimedOut)
 
                 with self._main_lock:
                     if reqid in self._callback_storage:
@@ -293,7 +300,7 @@ class ScrutinyClient:
                 except Exception:
                     pass
                 finally:
-                    callback_entry._future._mark_completed(CallbackState.ServerError, error=error)
+                    callback_entry._future._wt_mark_completed(CallbackState.ServerError, error=error)
             else:
                 try:
                     self._logger.debug(f"Running {cmd} callback for request ID {reqid}")
@@ -306,10 +313,10 @@ class ScrutinyClient:
                 if error is not None:
                     self._logger.error(f"Callback raised an exception. cmd={cmd}, reqid={reqid}. {error}")
                     self._logger.debug(traceback.format_exc())
-                    callback_entry._future._mark_completed(CallbackState.CallbackError, error=error)
+                    callback_entry._future._wt_mark_completed(CallbackState.CallbackError, error=error)
 
                 elif callback_entry._future.state == CallbackState.Pending:
-                    callback_entry._future._mark_completed(CallbackState.OK)
+                    callback_entry._future._wt_mark_completed(CallbackState.OK)
 
             with self._main_lock:
                 if reqid in self._callback_storage:
@@ -335,6 +342,7 @@ class ScrutinyClient:
             self._hostname = None
             self._port = None
             self._server_state = ServerState.Disconnected
+            self._server_info = None
 
             for watchable in self._watchable_storage.values():
                 watchable._set_invalid(ValueStatus.ServerGone)
@@ -342,7 +350,7 @@ class ScrutinyClient:
 
             for callback_entry in self._callback_storage.values():
                 if callback_entry._future.state == CallbackState.Pending:
-                    callback_entry._future._mark_completed(CallbackState.Cancelled)
+                    callback_entry._future._wt_mark_completed(CallbackState.Cancelled)
             self._callback_storage.clear()
 
     def _register_callback(self, reqid: int, callback: ApiResponseCallback, timeout: float) -> ApiResponseFuture:
@@ -551,6 +559,13 @@ class ScrutinyClient:
             # Wait update will throw if the server has gone away as the _disconnect method will set all watchables "invalid"
             watchable_storage_copy[display_path].wait_update(since_timestamp=timestamp_map[display_path], timeout=timeout_remainder)
 
+    def wait_server_status_update(self, timeout: int = _UPDATE_SERVER_STATUS_INTERVAL + 0.5):
+        self._threading_events.server_status_updated.clear()
+        self._threading_events.server_status_updated.wait(timeout=timeout)
+
+        if not self._threading_events.server_status_updated.is_set():
+            raise sdk_exceptions.TimeoutException(f"Server status did not update within a {timeout} seconds delay")
+
     @property
     def name(self) -> str:
         return '' if self._name is None else self.name
@@ -560,6 +575,14 @@ class ScrutinyClient:
         with self._main_lock:
             val = self._server_state  # Can be modified by the worker_thread
         return val
+
+    @property
+    def server(self) -> Optional[ServerInfo]:
+        # server_info is readonly and only it,s reference gets changed when updated.
+        # We can safely return a reference here. The user can't mess it up
+        with self._main_lock:
+            info = self._server_info
+        return info
 
     @property
     def hostname(self) -> Optional[str]:
