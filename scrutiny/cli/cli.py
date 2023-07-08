@@ -92,7 +92,7 @@ class CLI:
             os.chdir(self.workdir)
             code = 0
             try:
-                code = cmd_instance.run()  # Existance of cmd_instance is garanteed as per above check of valid name
+                code = cmd_instance.run()  # Existence of cmd_instance is guaranteed as per above check of valid name
                 if code is None:
                     code = 0
             except Exception as e:

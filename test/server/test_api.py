@@ -74,7 +74,7 @@ class StubbedDeviceHandler:
             self.server_session_id = None
         self.connection_status = connection_status
 
-    def comm_session_id(self) -> Optional[str]:
+    def get_comm_session_id(self) -> Optional[str]:
         return self.server_session_id
 
     def set_datalogging_setup(self, setup: Optional[device_datalogging.DataloggingSetup]) -> None:
@@ -117,7 +117,6 @@ class StubbedDeviceHandler:
         info.protocol_major = 1
         info.protocol_minor = 0
         info.supported_feature_map = {
-            'memory_read': True,
             'memory_write': True,
             'datalog_acquire': False,
             'user_command': False,

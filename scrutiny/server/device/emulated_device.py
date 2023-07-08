@@ -490,7 +490,6 @@ class EmulatedDevice:
         self.additional_tasks = []
 
         self.supported_features = {
-            'memory_read': True,
             'memory_write': True,
             'datalogging': True,
             'user_command': False,

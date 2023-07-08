@@ -115,7 +115,7 @@ class CommHandler:
         self.bitcount_time = time.time()
 
     def get_link(self) -> Optional[AbstractLink]:
-        """REturn the Link object used to talk with the device."""
+        """Return the Link object used to talk with the device."""
         return self.link
 
     def get_link_type(self) -> str:

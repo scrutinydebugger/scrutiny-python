@@ -129,6 +129,7 @@ class ScrutinyClient:
     _reqid: int
     _timeout: float
     _request_status_timer: Timer
+    _require_status_update: bool
 
     _worker_thread: Optional[threading.Thread]
     _threading_events: ThreadingEvents
@@ -162,6 +163,7 @@ class ScrutinyClient:
         self._reqid = 0
         self._timeout = timeout
         self._request_status_timer = Timer(self._UPDATE_SERVER_STATUS_INTERVAL)
+        self._require_status_update = False
 
         self._watchable_storage = {}
         self._callback_storage = {}
@@ -183,6 +185,7 @@ class ScrutinyClient:
             self._worker_thread = None
 
     def _worker_thread_task(self, started_event: threading.Event) -> None:
+        self._require_status_update = True  # Bootstrap status update loop
         started_event.set()
 
         self._request_status_timer.start()
@@ -190,9 +193,6 @@ class ScrutinyClient:
         while not self._threading_events.stop_worker_thread.is_set() and self._conn is not None:
             try:
                 self._wt_process_next_server_status_update()
-                if self._request_status_timer.is_timed_out():
-                    # self._send()   todo
-                    self._request_status_timer.start()
 
                 msg = self._wt_recv(timeout=0.001)
                 if msg is not None:
@@ -236,10 +236,9 @@ class ScrutinyClient:
         self._request_status_timer.start()
 
     def _wt_process_next_server_status_update(self) -> None:
-        if self._request_status_timer.is_stopped():
-            self._request_status_timer.start()
-
-        if self._request_status_timer.is_timed_out():
+        if self._request_status_timer.is_timed_out() or self._require_status_update:
+            self._require_status_update = False
+            self._request_status_timer.stop()
             req = self._make_request(API.Command.Client2Api.GET_SERVER_STATUS)
             self._send(req)  # No callback, we have a continuous listener
 
@@ -511,9 +510,7 @@ class ScrutinyClient:
         watchable = WatchableHandle(self, path)
         req = self._make_request(API.Command.Client2Api.GET_WATCHABLE_LIST, {
             'max_per_response': 2,
-            'filter': {
-                'name': path
-            }
+            'filter': {'name': path}
         })
 
         # The watchable will be written by this callback from the worker thread. The watchable object is thread-safe.

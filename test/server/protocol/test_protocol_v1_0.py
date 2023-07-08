@@ -93,7 +93,6 @@ class TestProtocolV1_0(ScrutinyUnitTest):
 
 # region Request GetInfo
 
-
     def test_req_get_protocol_version(self):
         req = self.proto.get_protocol_version()
         self.assert_req_response_bytes(req, [1, 1, 0, 0])
@@ -157,6 +156,7 @@ class TestProtocolV1_0(ScrutinyUnitTest):
 # endregion
 
 # region Request MemoryControl
+
 
     def test_req_read_single_memory_block_8bits(self):
         self.proto.set_address_size_bits(8)
@@ -791,11 +791,10 @@ class TestProtocolV1_0(ScrutinyUnitTest):
         self.assertEqual(data['software_id'], 'hello'.encode('ascii'))
 
     def test_response_get_supported_features(self):
-        response = self.proto.respond_supported_features(memory_read=True, memory_write=False, datalogging=False, user_command=True, _64bits=True)
-        self.assert_req_response_bytes(response, [0x81, 3, 0, 0, 1, 0x98])
+        response = self.proto.respond_supported_features(memory_write=True, datalogging=False, user_command=True, _64bits=True)
+        self.assert_req_response_bytes(response, [0x81, 3, 0, 0, 1, 0xB0])
         data = self.proto.parse_response(response)
-        self.assertEqual(data['memory_read'], True)
-        self.assertEqual(data['memory_write'], False)
+        self.assertEqual(data['memory_write'], True)
         self.assertEqual(data['datalogging'], False)
         self.assertEqual(data['user_command'], True)
         self.assertEqual(data['_64bits'], True)
@@ -888,6 +887,7 @@ class TestProtocolV1_0(ScrutinyUnitTest):
 # endregion
 
 # region Response MemoryControl
+
 
     def test_response_read_single_memory_block_8bits(self):
         self.proto.set_address_size_bits(8)
@@ -1302,7 +1302,6 @@ class TestProtocolV1_0(ScrutinyUnitTest):
 
 
 # region Response DatalogControl
-
 
     def test_response_datalogging_get_setup(self):
         response = self.proto.respond_datalogging_get_setup(buffer_size=0x12345678, encoding=device_datalogging.Encoding.RAW, max_signal_count=32)

@@ -123,14 +123,14 @@ class TestDeviceHandler(ScrutinyUnitTest):
             self.assertEqual(self.device_handler.get_comm_error_count(), 0)
 
             if status == DeviceHandler.ConnectionStatus.CONNECTED_READY:
-                self.assertIsNotNone(self.device_handler.comm_session_id())
+                self.assertIsNotNone(self.device_handler.get_comm_session_id())
                 connection_successful = True
                 if hold_time_set == False:
                     hold_time_set = True
                     timeout = hold_time
                     t1 = time.time()
             else:
-                self.assertIsNone(self.device_handler.comm_session_id())
+                self.assertIsNone(self.device_handler.get_comm_session_id())
 
             if connection_successful:
                 self.assertTrue(status == DeviceHandler.ConnectionStatus.CONNECTED_READY)
@@ -162,7 +162,6 @@ class TestDeviceHandler(ScrutinyUnitTest):
         self.assertEqual(info.heartbeat_timeout_us, self.emulated_device.heartbeat_timeout_us)
         self.assertEqual(info.rx_timeout_us, self.emulated_device.rx_timeout_us)
         self.assertEqual(info.address_size_bits, self.emulated_device.address_size_bits)
-        self.assertEqual(info.supported_feature_map['memory_read'], self.emulated_device.supported_features['memory_read'])
         self.assertEqual(info.supported_feature_map['memory_write'], self.emulated_device.supported_features['memory_write'])
         self.assertEqual(info.supported_feature_map['datalogging'], self.emulated_device.supported_features['datalogging'])
         self.assertEqual(info.supported_feature_map['user_command'], self.emulated_device.supported_features['user_command'])

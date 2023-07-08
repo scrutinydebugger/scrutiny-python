@@ -111,7 +111,6 @@ class TestApiParser(unittest.TestCase):
                     "protocol_major": 1,
                     "protocol_minor": 0,
                     "supported_feature_map": {
-                        "memory_read": True,
                         "memory_write": True,
                         "datalogging": True,
                         "user_command": False,
@@ -338,6 +337,7 @@ class TestApiParser(unittest.TestCase):
 
         for field, vals in field_vals.items():
             for val in vals:
+
                 msg = base()
                 logging.debug(f"field={field}, val={val}")
                 with self.assertRaises(sdk_exceptions.BadResponseError):

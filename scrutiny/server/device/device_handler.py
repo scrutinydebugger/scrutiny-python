@@ -381,7 +381,7 @@ class DeviceHandler:
 
         return self.ConnectionStatus.UNKNOWN
 
-    def comm_session_id(self) -> Optional[str]:
+    def get_comm_session_id(self) -> Optional[str]:
         """Return a unique ID string for the actual device connection. None if connection status is not CONNECTED_READY"""
         if self.fully_connected_ready:
             assert self.server_session_id is not None
