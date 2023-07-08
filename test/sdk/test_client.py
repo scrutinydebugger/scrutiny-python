@@ -304,11 +304,15 @@ class TestClient(unittest.TestCase):
 
         self.assertIsNone(server_info.sfd)
 
+        # Make sure the class is readonly.
         with self.assertRaises(Exception):
             server_info.device = None
-            
         with self.assertRaises(Exception):
             server_info.device.display_name = "hello"
+        with self.assertRaises(Exception):
+            server_info.datalogging = None
+        with self.assertRaises(Exception):
+            server_info.datalogging.state = None
 
         self.client.wait_server_status_update()
-        self.assertIsNot(self.client.server, server_info)   # Make sure we have anew object with a new reference.
+        self.assertIsNot(self.client.server, server_info)   # Make sure we have a new object with a new reference.
