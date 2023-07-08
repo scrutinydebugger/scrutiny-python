@@ -1,9 +1,8 @@
 import unittest
 
 from scrutiny.core.basic_types import *
-import scrutiny.sdk.definitions as sdk_definitions
-from scrutiny.sdk import ServerState
 from scrutiny.sdk.client import ScrutinyClient
+import scrutiny.sdk as sdk
 import scrutiny.server.datalogging.definitions.device as device_datalogging
 
 from scrutiny.server.api import API
@@ -250,12 +249,12 @@ class TestClient(unittest.TestCase):
 
     def test_get_status(self):
         time.sleep(0.5)  # Should be enough to read the status
-        self.assertEqual(self.client.server_state, ServerState.Connected)
+        self.assertEqual(self.client.server_state, sdk.ServerState.Connected)
         server_info = self.client.server
         self.assertIsNotNone(server_info)
         assert server_info is not None
 
-        self.assertEqual(server_info.device_comm_state, sdk_definitions.DeviceCommState.ConnectedReady)
+        self.assertEqual(server_info.device_comm_state, sdk.DeviceCommState.ConnectedReady)
         self.assertEqual(server_info.device_session_id, self.device_handler.get_comm_session_id())
         self.assertIsNotNone(server_info.device_session_id)
 
@@ -293,14 +292,14 @@ class TestClient(unittest.TestCase):
         self.assertEqual(server_info.device.readonly_memory_regions[1].end, 0x400000 + 256 - 1)
         self.assertEqual(server_info.device.readonly_memory_regions[1].size, 256)
 
-        self.assertEqual(server_info.device_link.type, sdk_definitions.DeviceLinkType.UDP)
-        self.assertIsInstance(server_info.device_link.config, sdk_definitions.UDPLinkConfig)
-        assert isinstance(server_info.device_link.config, sdk_definitions.UDPLinkConfig)
+        self.assertEqual(server_info.device_link.type, sdk.DeviceLinkType.UDP)
+        self.assertIsInstance(server_info.device_link.config, sdk.UDPLinkConfig)
+        assert isinstance(server_info.device_link.config, sdk.UDPLinkConfig)
         self.assertEqual(server_info.device_link.config.host, '127.0.0.1')
         self.assertEqual(server_info.device_link.config.port, 5555)
 
         self.assertIsNone(server_info.datalogging.completion_ratio)
-        self.assertEqual(server_info.datalogging.state, sdk_definitions.DataloggerState.Standby)
+        self.assertEqual(server_info.datalogging.state, sdk.DataloggerState.Standby)
 
         self.assertIsNone(server_info.sfd)
 
@@ -316,3 +315,7 @@ class TestClient(unittest.TestCase):
 
         self.client.wait_server_status_update()
         self.assertIsNot(self.client.server, server_info)   # Make sure we have a new object with a new reference.
+
+    def test_watch_var(self):
+        with self.assertRaises(sdk.exceptions.OperationFailure):
+            self.client.watch('/i/do/not/exist')

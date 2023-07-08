@@ -559,7 +559,7 @@ class ScrutinyClient:
             # Wait update will throw if the server has gone away as the _disconnect method will set all watchables "invalid"
             watchable_storage_copy[display_path].wait_update(since_timestamp=timestamp_map[display_path], timeout=timeout_remainder)
 
-    def wait_server_status_update(self, timeout: int = _UPDATE_SERVER_STATUS_INTERVAL + 0.5):
+    def wait_server_status_update(self, timeout: float = _UPDATE_SERVER_STATUS_INTERVAL + 0.5):
         self._threading_events.server_status_updated.clear()
         self._threading_events.server_status_updated.wait(timeout=timeout)
 
