@@ -30,7 +30,8 @@ class WatchableHandle:
     _status: ValueStatus
 
     _value: Optional[ValType]
-    _last_value_update: Optional[datetime]
+    _last_value_dt: Optional[datetime]
+    _update_counter: int
     _write_queue: "queue.Queue[WriteRequest]"
 
     def __init__(self, client: "ScrutinyClient", display_path: str):
@@ -38,6 +39,7 @@ class WatchableHandle:
         self._display_path = display_path
         self._shortname = display_path.split('/')[-1]
         self._lock = threading.Lock()
+        self._update_counter = 0
         self._set_invalid(ValueStatus.NeverSet)
 
     def __repr__(self):
@@ -51,14 +53,16 @@ class WatchableHandle:
             self._server_id = server_id
             self._status = ValueStatus.NeverSet
             self._value = None
-            self._last_value_update = None
+            self._last_value_dt = None
+            self._update_counter = 0
 
     def _update_value(self, val: ValType) -> None:
         with self._lock:
             if self._status != ValueStatus.ServerGone:
                 self._status = ValueStatus.Valid
                 self._value = val
-                self._last_value_update = datetime.now()
+                self._last_value_dt = datetime.now()
+                self._update_counter += 1   # unbounded in size in python 3
             else:
                 self._value = None
 
@@ -71,27 +75,6 @@ class WatchableHandle:
             self._server_id = None
             self._watchable_type = WatchableType.NA
             self._datatype = EmbeddedDataType.NA
-
-    def wait_update(self, timeout=3, since_timestamp: Optional[datetime] = None) -> None:
-        t = time.time()
-        entry_timestamp = self._last_value_update if since_timestamp is None else since_timestamp
-        happened = False
-        while time.time() - t < timeout:
-
-            if self._status != ValueStatus.NeverSet and self._status != ValueStatus.Valid:
-                if self._status == ValueStatus.ServerGone:
-                    raise sdk_exceptions.InvalidValueError("Server has gone away")
-                else:
-                    raise RuntimeError("Unknown value status")
-
-            if entry_timestamp != self._last_value_update:
-                happened = True
-                break
-
-            time.sleep(0.02)
-
-        if not happened:
-            raise sdk_exceptions.TimeoutException(f'Value of {self._shortname} did not update in {timeout}s')
 
     def _read(self) -> ValType:
         with self._lock:
@@ -109,8 +92,36 @@ class WatchableHandle:
 
         return val
 
+    def _write(self, val: ValType) -> WriteRequest:
+        write_request = WriteRequest(self, val)
+        self._write_queue.put(write_request)
+        return write_request
+
+    def wait_update(self, timeout=3, previous_counter: Optional[int] = None) -> None:
+        """Wait for the value to be updated by the server"""
+        t = time.time()
+        entry_counter = self._update_counter if previous_counter is None else previous_counter
+        happened = False
+        while time.time() - t < timeout:
+
+            if self._status != ValueStatus.NeverSet and self._status != ValueStatus.Valid:
+                if self._status == ValueStatus.ServerGone:
+                    raise sdk_exceptions.InvalidValueError("Server has gone away")
+                else:
+                    raise RuntimeError("Unknown value status")
+
+            if entry_counter != self._update_counter:
+                happened = True
+                break
+
+            time.sleep(0.02)
+
+        if not happened:
+            raise sdk_exceptions.TimeoutException(f'Value of {self._shortname} did not update in {timeout}s')
+
     @property
     def value(self) -> ValType:
+        """The last value received for this watchable"""
         return self._read()
 
     @value.setter
@@ -118,35 +129,47 @@ class WatchableHandle:
         write_request = self._write(val)
         write_request.wait_for_completion()
 
-    def _write(self, val: ValType) -> WriteRequest:
-        write_request = WriteRequest(self, val)
-        self._write_queue.put(write_request)
-        return write_request
-
     @property
     def display_path(self) -> str:
+        """Contains the watchable full tree path"""
         return self._display_path
 
     @property
     def name(self) -> str:
+        """Contains the watchable name, e.g. the basename in the display_path"""
         return self._shortname
 
     @property
-    def get_type(self) -> WatchableType:
+    def type(self) -> WatchableType:
+        """The watchable type. Variable, Alias or RuntimePublishedValue"""
         return self._watchable_type
 
     @property
     def value_bool(self) -> bool:
+        """The value casted as bool"""
         return bool(self.value)
 
     @property
     def value_int(self) -> int:
+        """The value casted as int"""
         return int(self.value)
 
     @property
     def value_float(self) -> float:
+        """The value casted as float"""
         return float(self.value)
 
     @property
     def last_update_timestamp(self) -> Optional[datetime]:
-        return self._last_value_update
+        """Time of the last value update. Not reliable for change detection"""
+        return self._last_value_dt
+
+    @property
+    def datatype(self) -> EmbeddedDataType:
+        """The data type of the device element pointed by this watchable"""
+        return self._datatype
+
+    @property
+    def update_counter(self) -> int:
+        """Number of value update gotten since creation of the handle. Can be safely used for change detection"""
+        return self._update_counter

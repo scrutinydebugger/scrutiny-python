@@ -143,6 +143,12 @@ class ScrutinyClient:
     _watchable_path_to_id_map: Dict[str, str]
     _server_info: Optional[ServerInfo]
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.disconnect()
+
     def __init__(self,
                  name: Optional[str] = None,
                  rx_message_callbacks: Optional[List[RxMessageCallback]] = None,
@@ -240,6 +246,7 @@ class ScrutinyClient:
     def _wt_process_inform_server_status(self, msg: api_typing.S2C.InformServerStatus, reqid: Optional[int]):
         self._request_status_timer.start()
         info = api_parser.parse_inform_server_status(msg)
+        self._logger.debug('Updating server status')
         with self._main_lock:
             self._server_info = info
             self._threading_events.server_status_updated.set()
@@ -256,6 +263,8 @@ class ScrutinyClient:
             if watchable is None:
                 self._logger.error(f"Got watchable update for unknown watchable {update.server_id}")
                 continue
+            else:
+                self._logger.debug(f"Updating value of {update.server_id}")
 
             watchable._update_value(update.value)
 
@@ -413,8 +422,9 @@ class ScrutinyClient:
                 raise sdk_exceptions.ConnectionError(f"Disconnected from server")
 
             try:
-                data = json.dumps(obj).encode(self._encoding)
-                self._conn.send(data)
+                s = json.dumps(obj)
+                self._logger.debug(f"Sending {s}")
+                self._conn.send(s.encode(self._encoding))
             except TimeoutError:
                 pass
             except (websockets.exceptions.WebSocketException, socket.error) as e:
@@ -439,6 +449,7 @@ class ScrutinyClient:
             data = self._conn.recv(timeout=timeout)
             if isinstance(data, bytes):
                 data = data.decode(self._encoding)
+            self._logger.debug(f"Received {data}")
             obj = json.loads(data)
         except TimeoutError:
             pass
@@ -475,7 +486,7 @@ class ScrutinyClient:
 
     # === User API ====
 
-    def connect(self, hostname: str, port: int, **kwargs) -> None:
+    def connect(self, hostname: str, port: int, **kwargs) -> "ScrutinyClient":
         """Connect to a Scrutiny server through a websocket.
 
         :param hostname: The hostname or ip address of the server
@@ -504,6 +515,8 @@ class ScrutinyClient:
         if connect_error is not None:
             self.disconnect()
             raise sdk_exceptions.ConnectionError(f'Failed to connect to the server at "{uri}". Error: {connect_error}')
+
+        return self
 
     def disconnect(self) -> None:
         if self._worker_thread is None:
@@ -593,18 +606,18 @@ class ScrutinyClient:
         return watchable
 
     def wait_new_value_for_all(self, timeout: int = 5) -> None:
-        timestamp_map: Dict[str, Optional[datetime]] = {}
+        counter_map: Dict[str, Optional[int]] = {}
         with self._main_lock:
             watchable_storage_copy = self._watchable_storage.copy()  # Shallow copy
 
         for server_id in watchable_storage_copy:
-            timestamp_map[server_id] = watchable_storage_copy[server_id].last_update_timestamp
+            counter_map[server_id] = watchable_storage_copy[server_id]._update_counter
 
         tstart = time.time()
         for server_id in watchable_storage_copy:
             timeout_remainder = max(round(timeout - (time.time() - tstart), 2), 0)
             # Wait update will throw if the server has gone away as the _disconnect method will set all watchables "invalid"
-            watchable_storage_copy[server_id].wait_update(since_timestamp=timestamp_map[server_id], timeout=timeout_remainder)
+            watchable_storage_copy[server_id].wait_update(previous_counter=counter_map[server_id], timeout=timeout_remainder)
 
     def wait_server_status_update(self, timeout: float = _UPDATE_SERVER_STATUS_INTERVAL + 0.5):
         self._threading_events.server_status_updated.clear()

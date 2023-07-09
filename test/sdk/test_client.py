@@ -4,6 +4,9 @@ from scrutiny.core.basic_types import *
 from scrutiny.sdk.client import ScrutinyClient
 import scrutiny.sdk as sdk
 import scrutiny.server.datalogging.definitions.device as device_datalogging
+from scrutiny.core.variable import Variable as core_Variable
+from scrutiny.core.alias import Alias as core_Alias
+
 
 from scrutiny.server.api import API
 from scrutiny.server.api import APIConfig
@@ -159,7 +162,7 @@ class TestClient(unittest.TestCase):
     sfd_handler: FakeActiveSFDHandler
     api: API
 
-    func_queue: "queue.Queue[Callable, threading.Event]"
+    func_queue: "queue.Queue[Callable, threading.Event, float]"
     server_exit_requested: threading.Event
     server_started: threading.Event
     sync_complete: threading.Event
@@ -169,6 +172,7 @@ class TestClient(unittest.TestCase):
     def setUp(self):
         self.func_queue = queue.Queue()
         self.datastore = datastore.Datastore()
+        self.fill_datastore()
         self.device_handler = FakeDeviceHandler(self.datastore)
         self.datalogging_manager = FakeDataloggingManager(self.datastore, self.device_handler)
         self.sfd_handler = FakeActiveSFDHandler(device_handler=self.device_handler, datastore=self.datastore)
@@ -207,6 +211,20 @@ class TestClient(unittest.TestCase):
         self.server_exit_requested.set()
         self.thread.join()
 
+    def fill_datastore(self):
+        rpv1000 = datastore.DatastoreRPVEntry('/rpv/x1000', RuntimePublishedValue(0x1000, EmbeddedDataType.float32))
+        var1 = datastore.DatastoreVariableEntry('/a/b/var1', core_Variable('var1', vartype=EmbeddedDataType.uint32,
+                                                path_segments=['a', 'b'], location=0x1234, endianness=Endianness.Little))
+        var2 = datastore.DatastoreVariableEntry('/a/b/var2', core_Variable('var2', vartype=EmbeddedDataType.boolean,
+                                                path_segments=['a', 'b'], location=0x4568, endianness=Endianness.Little))
+        alias_var1 = datastore.DatastoreAliasEntry(core_Alias('/a/b/alias_var1', var1.display_path, var1.get_type()), var1)
+        alias_rpv1000 = datastore.DatastoreAliasEntry(core_Alias('/a/b/alias_rpv1000', rpv1000.display_path, rpv1000.get_type()), rpv1000)
+        self.datastore.add_entry(rpv1000)
+        self.datastore.add_entry(var1)
+        self.datastore.add_entry(var2)
+        self.datastore.add_entry(alias_var1)
+        self.datastore.add_entry(alias_rpv1000)
+
     def wait_for_server(self, n=2):
         time.sleep(0)
         for i in range(n):
@@ -215,32 +233,36 @@ class TestClient(unittest.TestCase):
             self.sync_complete.wait()
             self.assertFalse(self.require_sync.is_set())
 
-    def execute_in_server_thread(self, func, timeout=2):
+    def execute_in_server_thread(self, func, timeout=2, wait=True, delay: float = 0):
         completed = threading.Event()
-        self.func_queue.put((func, completed))
-        completed.wait(timeout)
+        self.func_queue.put((func, completed, delay))
+        if wait:
+            completed.wait(timeout)
 
     def server_thread(self):
         self.api.start_listening()
         self.server_started.set()
 
-        while not self.server_exit_requested.is_set():
-            require_sync_before = False
-            if self.require_sync.is_set():
-                require_sync_before = True
+        try:
+            while not self.server_exit_requested.is_set():
+                require_sync_before = False
+                if self.require_sync.is_set():
+                    require_sync_before = True
 
-            if not self.func_queue.empty():
-                func, event = self.func_queue.get()
-                func()
-                event.set()
-            self.api.process()
+                if not self.func_queue.empty():
+                    func, event, delay = self.func_queue.get()
+                    if delay > 0:
+                        time.sleep(delay)
+                    func()
+                    event.set()
+                self.api.process()
 
-            if require_sync_before:
-                self.require_sync.clear()
-                self.sync_complete.set()
-            time.sleep(0.005)
-
-        self.api.close()
+                if require_sync_before:
+                    self.require_sync.clear()
+                    self.sync_complete.set()
+                time.sleep(0.005)
+        finally:
+            self.api.close()
 
     def test_hold_5_sec(self):
         # Make sure the testing environment and all stubbed classes are stable.
@@ -315,25 +337,78 @@ class TestClient(unittest.TestCase):
         self.client.wait_server_status_update()
         self.assertIsNot(self.client.server, server_info)   # Make sure we have a new object with a new reference.
 
-    def fill_datastore(self):
-        entry1 = datastore.DatastoreRPVEntry('/rpv/x1000', RuntimePublishedValue(0x1000, EmbeddedDataType.float32))
-        self.datastore.add_entry(entry1)
-
     def set_entry_val(self, path, val):
         self.datastore.get_entry_by_display_path(path).set_value(val)
 
-    def test_watch_var(self):
+    def test_fetch_watcahble_info(self):
+
+        rpv1000 = self.client.watch('/rpv/x1000')
+        var1 = self.client.watch('/a/b/var1')
+        var2 = self.client.watch('/a/b/var2')
+        alias_var1 = self.client.watch('/a/b/alias_var1')
+        alias_rpv1000 = self.client.watch('/a/b/alias_rpv1000')
+
+        self.assertEqual(rpv1000.type, sdk.WatchableType.RuntimePulishedValue)
+        self.assertEqual(rpv1000.display_path, '/rpv/x1000')
+        self.assertEqual(rpv1000.name, 'x1000')
+        self.assertEqual(rpv1000.datatype, sdk.EmbeddedDataType.float32)
+
+        self.assertEqual(var1.type, sdk.WatchableType.Variable)
+        self.assertEqual(var1.display_path, '/a/b/var1')
+        self.assertEqual(var1.name, 'var1')
+        self.assertEqual(var1.datatype, sdk.EmbeddedDataType.uint32)
+
+        self.assertEqual(var2.type, sdk.WatchableType.Variable)
+        self.assertEqual(var2.display_path, '/a/b/var2')
+        self.assertEqual(var2.name, 'var2')
+        self.assertEqual(var2.datatype, sdk.EmbeddedDataType.boolean)
+
+        self.assertEqual(alias_var1.type, sdk.WatchableType.Alias)
+        self.assertEqual(alias_var1.display_path, '/a/b/alias_var1')
+        self.assertEqual(alias_var1.name, 'alias_var1')
+        self.assertEqual(alias_var1.datatype, sdk.EmbeddedDataType.uint32)
+
+        self.assertEqual(alias_rpv1000.type, sdk.WatchableType.Alias)
+        self.assertEqual(alias_rpv1000.display_path, '/a/b/alias_rpv1000')
+        self.assertEqual(alias_rpv1000.name, 'alias_rpv1000')
+        self.assertEqual(alias_rpv1000.datatype, sdk.EmbeddedDataType.float32)
+
+    def test_watch_non_existent(self):
         with self.assertRaises(sdk.exceptions.OperationFailure):
             self.client.watch('/i/do/not/exist')
 
-        self.execute_in_server_thread(self.fill_datastore)
-
+    def test_cannot_read_without_first_val(self):
         rpv1000 = self.client.watch('/rpv/x1000')
         with self.assertRaises(sdk.exceptions.InvalidValueError):
-            self.assertIsNone(rpv1000.value)
+            x = rpv1000.value   # Value never set
+
+    def test_read_single_val(self):
+        rpv1000 = self.client.watch('/rpv/x1000')
 
         for i in range(10):
             val = float(i) + 0.5
-            self.execute_in_server_thread(partial(self.set_entry_val, '/rpv/x1000', val))
+            self.execute_in_server_thread(partial(self.set_entry_val, '/rpv/x1000', val), wait=False, delay=0.02)
             rpv1000.wait_update()
             self.assertEqual(rpv1000.value, val)
+
+    def test_read_multiple_val(self):
+        rpv1000 = self.client.watch('/rpv/x1000')
+        var1 = self.client.watch('/a/b/var1')
+        var2 = self.client.watch('/a/b/var2')
+        alias_var1 = self.client.watch('/a/b/alias_var1')
+        alias_rpv1000 = self.client.watch('/a/b/alias_rpv1000')
+
+        def update_all(vals: Tuple[float, int, bool]):
+            self.datastore.get_entry_by_display_path(rpv1000.display_path).set_value(vals[0])
+            self.datastore.get_entry_by_display_path(var1.display_path).set_value(vals[1])
+            self.datastore.get_entry_by_display_path(var2.display_path).set_value(vals[2])
+
+        for i in range(10):
+            vals = (float(i) + 0.5, i * 100, i % 2 == 0)
+            self.execute_in_server_thread(partial(update_all, vals), wait=False, delay=0.02)
+            self.client.wait_new_value_for_all()
+            self.assertEqual(rpv1000.value, vals[0])
+            self.assertEqual(var1.value, vals[1])
+            self.assertEqual(var2.value, vals[2])
+            self.assertEqual(alias_var1.value, vals[1])
+            self.assertEqual(alias_rpv1000.value, vals[0])

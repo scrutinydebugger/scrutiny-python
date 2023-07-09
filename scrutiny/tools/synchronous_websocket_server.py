@@ -52,6 +52,14 @@ class SynchronousWebsocketServer:
 
         try:
             async for message in websocket:
+                if self.logger.isEnabledFor(logging.DEBUG):
+                    if isinstance(message, str):
+                        s = message
+                    elif isinstance(message, bytes):
+                        s = message.decode('utf8')
+                    else:
+                        s = message
+                    self.logger.debug("Receiving %s" % s)
                 self.rxqueue.put((websocket, message))   # Possible improvement : Handle queue full scenario.
         except websockets.exceptions.ConnectionClosedError:
             pass
@@ -64,6 +72,14 @@ class SynchronousWebsocketServer:
         while not self.txqueue.empty():
             (websocket, message) = self.txqueue.get()
             try:
+                if self.logger.isEnabledFor(logging.DEBUG):
+                    if isinstance(message, str):
+                        s = message
+                    elif isinstance(message, bytes):
+                        s = message.decode('utf8')
+                    else:
+                        s = message
+                    self.logger.debug("Sending %s" % s)
                 self.loop.run_until_complete(asyncio.ensure_future(websocket.send(message), loop=self.loop))
             except websockets.exceptions.ConnectionClosedOK:
                 pass    # Client is disconnected. Disconnect callback not called yet.
