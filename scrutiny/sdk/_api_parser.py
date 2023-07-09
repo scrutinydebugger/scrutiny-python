@@ -16,6 +16,12 @@ class WatchableConfiguration:
     server_id: str
 
 
+@dataclass
+class WatchableUpdate:
+    server_id: str
+    value: Union[bool, int, float]
+
+
 T = TypeVar('T', str, int, float)
 
 
@@ -362,3 +368,24 @@ def parse_inform_server_status(response: api_typing.S2C.InformServerStatus) -> s
         sfd=sfd,
         device_link=device_link
     )
+
+
+def parse_watchable_update(response: api_typing.S2C.WatchableUpdate) -> List[WatchableUpdate]:
+    assert isinstance(response, dict)
+    assert 'cmd' in response
+    cmd = response['cmd']
+    assert cmd == API.Command.Api2Client.WATCHABLE_UPDATE
+
+    outlist: List[WatchableUpdate] = []
+
+    _check_response_dict(cmd, response, 'updates', list)
+
+    for element in response['updates']:
+        _check_response_dict(cmd, element, 'id', str)
+        _check_response_dict(cmd, element, 'value', [float, int, bool])
+        outlist.append(WatchableUpdate(
+            server_id=element['id'],
+            value=element['value'],
+        ))
+
+    return outlist

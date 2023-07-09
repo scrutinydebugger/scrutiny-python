@@ -140,6 +140,7 @@ class ScrutinyClient:
 
     _callback_storage: Dict[int, CallbackStorageEntry]
     _watchable_storage: Dict[str, WatchableHandle]
+    _watchable_path_to_id_map: Dict[str, str]
     _server_info: Optional[ServerInfo]
 
     def __init__(self,
@@ -170,6 +171,7 @@ class ScrutinyClient:
         self._server_info = None
 
         self._watchable_storage = {}
+        self._watchable_path_to_id_map = {}
         self._callback_storage = {}
 
     def _start_worker_thread(self) -> None:
@@ -242,6 +244,21 @@ class ScrutinyClient:
             self._server_info = info
             self._threading_events.server_status_updated.set()
 
+    def _wt_process_watchable_update(self, msg: api_typing.S2C.WatchableUpdate, reqid: Optional[int]) -> None:
+        updates = api_parser.parse_watchable_update(msg)
+
+        for update in updates:
+            with self._main_lock:
+                watchable: Optional[WatchableHandle] = None
+                if update.server_id in self._watchable_storage:
+                    watchable = self._watchable_storage[update.server_id]
+
+            if watchable is None:
+                self._logger.error(f"Got watchable update for unknown watchable {update.server_id}")
+                continue
+
+            watchable._update_value(update.value)
+
     def _wt_process_next_server_status_update(self) -> None:
         if self._request_status_timer.is_timed_out() or self._require_status_update:
             self._require_status_update = False
@@ -277,7 +294,9 @@ class ScrutinyClient:
                         del self._callback_storage[reqid]
 
     def _wt_process_server_msg(self, cmd: str, msg: dict, reqid: Optional[int]) -> None:
-        if cmd == API.Command.Api2Client.INFORM_SERVER_STATUS:
+        if cmd == API.Command.Api2Client.WATCHABLE_UPDATE:
+            self._wt_process_watchable_update(cast(api_typing.S2C.WatchableUpdate, msg), reqid)
+        elif cmd == API.Command.Api2Client.INFORM_SERVER_STATUS:
             self._wt_process_inform_server_status(cast(api_typing.S2C.InformServerStatus, msg), reqid)
 
     def _wt_process_callbacks(self, cmd: str, msg: dict, reqid: int) -> None:
@@ -347,6 +366,7 @@ class ScrutinyClient:
             for watchable in self._watchable_storage.values():
                 watchable._set_invalid(ValueStatus.ServerGone)
             self._watchable_storage.clear()
+            self._watchable_path_to_id_map.clear()
 
             for callback_entry in self._callback_storage.values():
                 if callback_entry._future.state == CallbackState.Pending:
@@ -509,8 +529,10 @@ class ScrutinyClient:
 
         cached_watchable: Optional[WatchableHandle] = None
         with self._main_lock:
-            if path in self._watchable_storage:
-                cached_watchable = self._watchable_storage[path]
+            if path in self._watchable_path_to_id_map:
+                server_id = self._watchable_path_to_id_map[path]
+                if server_id in self._watchable_storage:
+                    cached_watchable = self._watchable_storage[path]
 
         if cached_watchable is not None:
             return cached_watchable
@@ -540,8 +562,33 @@ class ScrutinyClient:
         if future.state != CallbackState.OK:
             raise sdk_exceptions.OperationFailure(f"Failed to get the watchable definition. {future.error_str}")
 
+        def wt_subscribe_callback(state: CallbackState, response: Optional[api_typing.S2CMessage]):
+            if response is not None and state == CallbackState.OK:
+                response = cast(api_typing.S2C.SubscribeWatchable, response)
+                if len(response['watchables']) != 1:
+                    raise sdk_exceptions.BadResponseError(
+                        f'The server did confirmed the subscription of {len(response["watchables"])} while we requested only for 1')
+
+                if response['watchables'][0] != watchable._server_id:
+                    raise sdk_exceptions.BadResponseError(
+                        f'The server did not confirm the subscription for the right watchable. Got {response["watchables"][0]}, expected {watchable._server_id}')
+
+        req = self._make_request(API.Command.Client2Api.SUBSCRIBE_WATCHABLE, {
+            'watchables': [
+                watchable._server_id
+            ]
+        })
+        future = self._send(req, wt_subscribe_callback)
+        assert future is not None
+        future.wait()
+
+        if future.state != CallbackState.OK:
+            raise sdk_exceptions.OperationFailure(f"Failed to subscribe to the watchable. {future.error_str}")
+
+        assert watchable._server_id is not None
         with self._main_lock:
-            self._watchable_storage[watchable.display_path] = watchable
+            self._watchable_path_to_id_map[watchable.display_path] = watchable._server_id
+            self._watchable_storage[watchable._server_id] = watchable
 
         return watchable
 
@@ -550,14 +597,14 @@ class ScrutinyClient:
         with self._main_lock:
             watchable_storage_copy = self._watchable_storage.copy()  # Shallow copy
 
-        for display_path in watchable_storage_copy:
-            timestamp_map[display_path] = watchable_storage_copy[display_path].last_update_timestamp
+        for server_id in watchable_storage_copy:
+            timestamp_map[server_id] = watchable_storage_copy[server_id].last_update_timestamp
 
         tstart = time.time()
-        for display_path in watchable_storage_copy:
+        for server_id in watchable_storage_copy:
             timeout_remainder = max(round(timeout - (time.time() - tstart), 2), 0)
             # Wait update will throw if the server has gone away as the _disconnect method will set all watchables "invalid"
-            watchable_storage_copy[display_path].wait_update(since_timestamp=timestamp_map[display_path], timeout=timeout_remainder)
+            watchable_storage_copy[server_id].wait_update(since_timestamp=timestamp_map[server_id], timeout=timeout_remainder)
 
     def wait_server_status_update(self, timeout: float = _UPDATE_SERVER_STATUS_INTERVAL + 0.5):
         self._threading_events.server_status_updated.clear()

@@ -7,14 +7,15 @@ import scrutiny.server.datalogging.definitions.device as device_datalogging
 
 from scrutiny.server.api import API
 from scrutiny.server.api import APIConfig
-from scrutiny.server.datastore.datastore import Datastore
+import scrutiny.server.datastore.datastore as datastore
 from scrutiny.server.api.websocket_client_handler import WebsocketClientHandler
 from scrutiny.server.device.device_handler import DeviceHandler
 
 from scrutiny.core.firmware_description import FirmwareDescription
 from scrutiny.server.device.links.udp_link import UdpLink
 from scrutiny.server.device.links.abstract_link import AbstractLink
-from scrutiny.server.device.device_info import DeviceInfo, FixedFreqLoop, VariableFreqLoop
+import scrutiny.server.device.device_info as server_device
+
 
 import threading
 import time
@@ -34,7 +35,7 @@ class FakeDeviceHandler:
     device_conn_status: DeviceHandler.ConnectionStatus
     comm_session_id: Optional[str]
     datalogging_completion_ratio: Optional[float]
-    device_info: DeviceInfo
+    device_info: server_device.DeviceInfo
 
     def __init__(self, *args, **kwargs):
         self.link_type = 'udp'
@@ -50,7 +51,7 @@ class FakeDeviceHandler:
         self.comm_session_id = None
         self.set_connection_status(DeviceHandler.ConnectionStatus.CONNECTED_READY)
 
-        self.device_info = DeviceInfo()
+        self.device_info = server_device.DeviceInfo()
         self.device_info.device_id = "xyz"
         self.device_info.display_name = "fake device"
         self.device_info.max_tx_data_size = 256
@@ -75,15 +76,13 @@ class FakeDeviceHandler:
             {'start': 0x300000, 'end': 0x300000 + 128 - 1},
             {'start': 0x400000, 'end': 0x400000 + 256 - 1}
         ]
-        self.device_info.runtime_published_values = [
-            RuntimePublishedValue(0x1000, EmbeddedDataType.float32),
-            RuntimePublishedValue(0x1001, EmbeddedDataType.uint16),
-            RuntimePublishedValue(0x1002, EmbeddedDataType.sint64),
-        ]
+
+        self.device_info.runtime_published_values = []    # Required to have a value for API to consider data valid
+
         self.device_info.loops = [
-            FixedFreqLoop(10000, "10khz loop", support_datalogging=True),
-            FixedFreqLoop(100, "100hz loop", support_datalogging=False),
-            VariableFreqLoop("variable freq loop", support_datalogging=True)
+            server_device.FixedFreqLoop(10000, "10khz loop", support_datalogging=True),
+            server_device.FixedFreqLoop(100, "100hz loop", support_datalogging=False),
+            server_device.VariableFreqLoop("variable freq loop", support_datalogging=True)
         ]
 
     def get_link_type(self):
@@ -154,7 +153,7 @@ class FakeActiveSFDHandler:
 
 
 class TestClient(unittest.TestCase):
-    datastore: Datastore
+    datastore: "datastore.Datastore"
     device_handler: FakeDeviceHandler
     datalogging_manager: FakeDataloggingManager
     sfd_handler: FakeActiveSFDHandler
@@ -169,7 +168,7 @@ class TestClient(unittest.TestCase):
 
     def setUp(self):
         self.func_queue = queue.Queue()
-        self.datastore = Datastore()
+        self.datastore = datastore.Datastore()
         self.device_handler = FakeDeviceHandler(self.datastore)
         self.datalogging_manager = FakeDataloggingManager(self.datastore, self.device_handler)
         self.sfd_handler = FakeActiveSFDHandler(device_handler=self.device_handler, datastore=self.datastore)
@@ -316,6 +315,25 @@ class TestClient(unittest.TestCase):
         self.client.wait_server_status_update()
         self.assertIsNot(self.client.server, server_info)   # Make sure we have a new object with a new reference.
 
+    def fill_datastore(self):
+        entry1 = datastore.DatastoreRPVEntry('/rpv/x1000', RuntimePublishedValue(0x1000, EmbeddedDataType.float32))
+        self.datastore.add_entry(entry1)
+
+    def set_entry_val(self, path, val):
+        self.datastore.get_entry_by_display_path(path).set_value(val)
+
     def test_watch_var(self):
         with self.assertRaises(sdk.exceptions.OperationFailure):
             self.client.watch('/i/do/not/exist')
+
+        self.execute_in_server_thread(self.fill_datastore)
+
+        rpv1000 = self.client.watch('/rpv/x1000')
+        with self.assertRaises(sdk.exceptions.InvalidValueError):
+            self.assertIsNone(rpv1000.value)
+
+        for i in range(10):
+            val = float(i) + 0.5
+            self.execute_in_server_thread(partial(self.set_entry_val, '/rpv/x1000', val))
+            rpv1000.wait_update()
+            self.assertEqual(rpv1000.value, val)
