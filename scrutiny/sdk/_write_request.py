@@ -26,8 +26,8 @@ class WriteRequest:
         self._watchable = watchable
         self._failure_reason = ""
 
-    def _mark_complete(self, success: bool, failure_reason: str, timestamp: Optional[datetime] = None, ):
-        self.success = success
+    def _mark_complete(self, success: bool, failure_reason: str = "", timestamp: Optional[datetime] = None, ):
+        self._success = success
         self._failure_reason = failure_reason
         if timestamp is None:
             self._completion_timestamp = datetime.now()

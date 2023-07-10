@@ -760,6 +760,9 @@ class API:
             raise InvalidRequestException(req, 'Invalid "updates" field')
 
         for update in req['updates']:
+            if 'batch_index' not in update:
+                raise InvalidRequestException(req, 'Missing "batch_index" field')
+
             if 'watchable' not in update:
                 raise InvalidRequestException(req, 'Missing "watchable" field')
 
@@ -768,6 +771,9 @@ class API:
 
             if not isinstance(update['watchable'], str):
                 raise InvalidRequestException(req, 'Invalid "watchable" field')
+
+            if not isinstance(update['batch_index'], int):
+                raise InvalidRequestException(req, 'Invalid "batch_index" field')
 
             value = update['value']
             if isinstance(value, str):
@@ -799,9 +805,12 @@ class API:
             if not self.datastore.is_watching(entry, conn_id):
                 raise InvalidRequestException(req, 'Cannot update entry %s without being subscribed to it' % entry.get_id())
 
+        if len(set(update['batch_index'] for update in req['updates'])) != len(req['updates']):
+            raise InvalidRequestException(req, "Duplicate batch_index in request")
+
         request_token = uuid4().hex
-        callback = UpdateTargetRequestCallback(functools.partial(self.entry_target_update_callback, request_token))
         for update in req['updates']:
+            callback = UpdateTargetRequestCallback(functools.partial(self.entry_target_update_callback, request_token, update['batch_index']))
             entry = self.datastore.get_entry(update['watchable'])
             entry.update_target_value(update['value'], callback=callback)
 
@@ -809,7 +818,7 @@ class API:
             'cmd': self.Command.Api2Client.WRITE_VALUE_RESPONSE,
             'reqid': self.get_req_id(req),
             'request_token': request_token,
-            'watchables': [update['watchable'] for update in req['updates']]
+            'count': len(req['updates'])
         }
 
         self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
@@ -1388,7 +1397,7 @@ class API:
         self.streamer.publish(datastore_entry, conn_id)
         self.stream_all_we_can()
 
-    def entry_target_update_callback(self, request_token: str, success: bool, datastore_entry: DatastoreEntry, timestamp: float) -> None:
+    def entry_target_update_callback(self, request_token: str, batch_index: int, success: bool, datastore_entry: DatastoreEntry, timestamp: float) -> None:
         # This callback is given to the datastore when we make a write request (target update request)
         # It will be called once the request is completed.
         watchers = self.datastore.get_watchers(datastore_entry)
@@ -1398,6 +1407,7 @@ class API:
             'reqid': None,
             'watchable': datastore_entry.get_id(),
             'request_token': request_token,
+            'batch_index': batch_index,
             'success': success,
             'timestamp': timestamp
         }

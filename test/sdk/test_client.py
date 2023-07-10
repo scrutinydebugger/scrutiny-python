@@ -19,19 +19,36 @@ from scrutiny.server.device.links.udp_link import UdpLink
 from scrutiny.server.device.links.abstract_link import AbstractLink
 import scrutiny.server.device.device_info as server_device
 
-
 import threading
 import time
 import queue
 from functools import partial
 from uuid import uuid4
+from dataclasses import dataclass
+import logging
+import traceback
 
 from typing import *
 
 localhost = "127.0.0.1"
 
+# TODO : write, unsubscribe on delete
+
+
+@dataclass
+class WriteMemoryLog:
+    address: int
+    data: bytes
+
+
+@dataclass
+class WriteRPVLog:
+    rpv_id: int
+    data: bytes
+
 
 class FakeDeviceHandler:
+    datastore: "datastore.Datastore"
     link_type: Literal['none', 'udp', 'serial']
     link: AbstractLink
     datalogger_state: device_datalogging.DataloggerState
@@ -39,8 +56,10 @@ class FakeDeviceHandler:
     comm_session_id: Optional[str]
     datalogging_completion_ratio: Optional[float]
     device_info: server_device.DeviceInfo
+    write_logs: List[Union[WriteMemoryLog, WriteRPVLog]]
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, datastore: "datastore.Datastore"):
+        self.datastore = datastore
         self.link_type = 'udp'
         self.link = UdpLink(
             {
@@ -53,6 +72,7 @@ class FakeDeviceHandler:
         self.device_conn_status = DeviceHandler.ConnectionStatus.DISCONNECTED
         self.comm_session_id = None
         self.set_connection_status(DeviceHandler.ConnectionStatus.CONNECTED_READY)
+        self.write_logs = []
 
         self.device_info = server_device.DeviceInfo()
         self.device_info.device_id = "xyz"
@@ -118,6 +138,27 @@ class FakeDeviceHandler:
 
     def get_datalogging_acquisition_completion_ratio(self):
         return self.datalogging_completion_ratio
+
+    def process(self):
+        for entry in self.datastore.get_all_entries():
+            if entry.has_pending_target_update():
+                request = entry.pop_target_update_request()
+                try:
+                    refentry = entry
+                    if isinstance(entry, datastore.DatastoreAliasEntry):
+                        refentry = entry.resolve()
+
+                    data, mask = refentry.encode(request.value)
+                    if isinstance(refentry, datastore.DatastoreVariableEntry):
+                        self.write_logs.append(WriteMemoryLog(address=refentry.get_address(), data=data))
+                    elif isinstance(refentry, datastore.DatastoreRPVEntry):
+                        self.write_logs.append(WriteRPVLog(rpv_id=refentry.rpv.id, data=data))
+                    entry.set_value_from_data(data)
+                    request.complete(True)
+                except Exception as e:
+                    request.complete(False)
+                    logging.error(str(e))
+                    logging.debug(traceback.format_exc())
 
 
 class FakeDataloggingManager:
@@ -255,6 +296,8 @@ class TestClient(unittest.TestCase):
                         time.sleep(delay)
                     func()
                     event.set()
+
+                self.device_handler.process()
                 self.api.process()
 
                 if require_sync_before:
@@ -412,3 +455,18 @@ class TestClient(unittest.TestCase):
             self.assertEqual(var2.value, vals[2])
             self.assertEqual(alias_var1.value, vals[1])
             self.assertEqual(alias_rpv1000.value, vals[0])
+
+    def test_write_single_val(self):
+        var1 = self.client.watch('/a/b/var1')
+        counter = var1.update_counter
+        var1.value = 0x789456
+
+        self.assertEqual(var1.value, 0x789456)
+        self.assertEqual(len(self.device_handler.write_logs), 1)
+        self.assertIsInstance(self.device_handler.write_logs[0], WriteMemoryLog)
+        assert isinstance(self.device_handler.write_logs[0], WriteMemoryLog)
+
+        self.assertEqual(self.device_handler.write_logs[0].address, 0x1234)
+        self.assertEqual(self.device_handler.write_logs[0].data, bytes(bytearray([0x56, 0x94, 0x78, 0x00])))  # little endian
+        var1.wait_update(previous_counter=counter)
+        self.assertEqual(var1.value, 0x789456)

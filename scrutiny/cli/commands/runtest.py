@@ -11,6 +11,7 @@ from .base_command import BaseCommand
 import unittest
 import logging
 from typing import Optional, List
+import traceback
 
 
 class RunTest(BaseCommand):
@@ -48,12 +49,18 @@ class RunTest(BaseCommand):
         if not hasattr(test, '__scrutiny__'):   # Make sure this is Scrutiny Test folder (in case we run from install dir)
             logging.getLogger(self._cmd_name_).critical('No unit tests available. Are you running from an installed module?')
         else:
-            loader = unittest.TestLoader()
-            if args.module is None:
-                suite = loader.discover(test_root)
-            else:
-                suite = loader.loadTestsFromName(args.module)
+            try:
+                loader = unittest.TestLoader()
+                if args.module is None:
+                    suite = loader.discover(test_root)
+                else:
+                    suite = loader.loadTestsFromName(args.module)
 
-            result = unittest.TextTestRunner(verbosity=int(args.verbosity)).run(suite)
-            success = len(result.errors) == 0 and len(result.failures) == 0
+                result = unittest.TextTestRunner(verbosity=int(args.verbosity)).run(suite)
+                success = len(result.errors) == 0 and len(result.failures) == 0
+            except:
+                # Exception ar eprinted as errors, but errors are disabled in the unit test to avoid confusion on negative test
+                # So unrecoverable error such as importError and syntax errors needs to be printed
+                traceback.print_exc(file=sys.stderr)
+                success = False
         return 0 if success else -1

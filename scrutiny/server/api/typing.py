@@ -106,6 +106,7 @@ class WatchableCount(TypedDict):
 
 
 class UpdateRecord(TypedDict):
+    batch_index: int
     watchable: str
     value: Any
 
@@ -286,10 +287,11 @@ class S2C:
     GetPossibleLinkConfig = Dict[Any, Any]  # TODO
 
     class WriteValue(BaseS2CMessage):
-        watchables: List[str]
+        count: int
         request_token: str
 
     class WriteCompletion(BaseS2CMessage):
+        batch_index: int
         watchable: str
         success: bool
         request_token: str

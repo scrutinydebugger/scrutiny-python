@@ -31,8 +31,8 @@ class WatchableHandle:
 
     _value: Optional[ValType]
     _last_value_dt: Optional[datetime]
+    _last_write_dt: Optional[datetime]
     _update_counter: int
-    _write_queue: "queue.Queue[WriteRequest]"
 
     def __init__(self, client: "ScrutinyClient", display_path: str):
         self._client = client
@@ -55,6 +55,13 @@ class WatchableHandle:
             self._value = None
             self._last_value_dt = None
             self._update_counter = 0
+
+    def _set_last_write_datetime(self, dt: Optional[datetime] = None) -> None:
+        if dt is None:
+            dt = datetime.now()
+
+        with self._lock:
+            self._last_write_dt = dt
 
     def _update_value(self, val: ValType) -> None:
         with self._lock:
@@ -94,7 +101,7 @@ class WatchableHandle:
 
     def _write(self, val: ValType) -> WriteRequest:
         write_request = WriteRequest(self, val)
-        self._write_queue.put(write_request)
+        self._client._enqueue_write_request(write_request)
         return write_request
 
     def wait_update(self, timeout=3, previous_counter: Optional[int] = None) -> None:
@@ -163,6 +170,11 @@ class WatchableHandle:
     def last_update_timestamp(self) -> Optional[datetime]:
         """Time of the last value update. Not reliable for change detection"""
         return self._last_value_dt
+
+    @property
+    def last_write_timestamp(self) -> Optional[datetime]:
+        """Time of the last successful write operation."""
+        return self._last_write_dt
 
     @property
     def datatype(self) -> EmbeddedDataType:

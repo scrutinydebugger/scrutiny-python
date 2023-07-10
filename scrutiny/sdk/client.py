@@ -7,6 +7,7 @@ import scrutiny.sdk.exceptions as sdk_exceptions
 from scrutiny.core.basic_types import *
 from scrutiny.tools.timer import Timer
 import scrutiny.sdk._api_parser as api_parser
+from scrutiny.sdk._write_request import WriteRequest
 from scrutiny.server.api import typing as api_typing
 from scrutiny.server.api import API
 
@@ -22,7 +23,7 @@ import time
 import enum
 from datetime import datetime, timedelta
 from dataclasses import dataclass
-from copy import deepcopy
+import queue
 
 from typing import *
 
@@ -37,6 +38,8 @@ class CallbackState(enum.Enum):
 
 
 ApiResponseCallback = Callable[[CallbackState, Optional[api_typing.S2CMessage]], None]
+
+T = TypeVar('T')
 
 
 class ApiResponseFuture:
@@ -102,9 +105,17 @@ class CallbackStorageEntry:
         self._timeout = timeout
 
 
+@dataclass
+class PendingBatchWrite:
+    update_dict: Dict[int, WriteRequest]
+    confirmation: api_parser.WriteConfirmation
+    creation_timestamp: float
+
+
 class ScrutinyClient:
     RxMessageCallback = Callable[["ScrutinyClient", object], None]
     _UPDATE_SERVER_STATUS_INTERVAL = 2
+    _MAX_WRITE_REQUEST_BATCH_SIZE = 20
 
     @dataclass
     class ThreadingEvents:
@@ -130,8 +141,11 @@ class ScrutinyClient:
     _rx_message_callbacks: List[RxMessageCallback]
     _reqid: int
     _timeout: float
+    _write_timeout: float
     _request_status_timer: Timer
     _require_status_update: bool
+    _write_request_queue: "queue.Queue[WriteRequest]"
+    _pending_batch_writes: Dict[str, PendingBatchWrite]
 
     _worker_thread: Optional[threading.Thread]
     _threading_events: ThreadingEvents
@@ -152,7 +166,8 @@ class ScrutinyClient:
     def __init__(self,
                  name: Optional[str] = None,
                  rx_message_callbacks: Optional[List[RxMessageCallback]] = None,
-                 timeout=3
+                 timeout=3,
+                 write_timeout=3
                  ):
         logger_name = self.__class__.__name__
         if name is not None:
@@ -172,9 +187,12 @@ class ScrutinyClient:
         self._main_lock = threading.Lock()
         self._reqid = 0
         self._timeout = timeout
+        self._write_timeout = write_timeout
         self._request_status_timer = Timer(self._UPDATE_SERVER_STATUS_INTERVAL)
         self._require_status_update = False
         self._server_info = None
+        self._write_request_queue = queue.Queue()
+        self._pending_batch_writes = {}
 
         self._watchable_storage = {}
         self._watchable_path_to_id_map = {}
@@ -220,18 +238,25 @@ class ScrutinyClient:
                         self._logger.error('Got a message without a "cmd" field')
                         self._logger.debug(msg)
                     else:
-                        self._wt_process_server_msg(cmd, msg, reqid)
+                        try:
+                            self._wt_process_server_msg(cmd, msg, reqid)
+                        except sdk_exceptions.BadResponseError as e:
+                            self._logger.error(f"Bad response from server. {e}")
+                            self._logger.debug(traceback.format_exc())
 
                         if reqid is not None:
                             self._wt_process_callbacks(cmd, msg, reqid)
 
                 self._wt_check_callbacks_timeouts()
 
+                self._wt_process_write_requests()
+
             except sdk_exceptions.ConnectionError as e:
                 self._logger.error(f"Connection error in worker thread: {e}")
                 self._wt_disconnect()    # Will set _conn to None
             except Exception as e:
                 self._logger.error(f"Unhandled exception in worker thread: {e}")
+                self._logger.debug(traceback.format_exc())
                 self._wt_disconnect()    # Will set _conn to None
 
             if self._threading_events.disconnect.is_set():
@@ -243,7 +268,7 @@ class ScrutinyClient:
         self._logger.debug('RX thread stopped')
         self._threading_events.stop_worker_thread.clear()
 
-    def _wt_process_inform_server_status(self, msg: api_typing.S2C.InformServerStatus, reqid: Optional[int]):
+    def _wt_process_msg_inform_server_status(self, msg: api_typing.S2C.InformServerStatus, reqid: Optional[int]):
         self._request_status_timer.start()
         info = api_parser.parse_inform_server_status(msg)
         self._logger.debug('Updating server status')
@@ -251,7 +276,7 @@ class ScrutinyClient:
             self._server_info = info
             self._threading_events.server_status_updated.set()
 
-    def _wt_process_watchable_update(self, msg: api_typing.S2C.WatchableUpdate, reqid: Optional[int]) -> None:
+    def _wt_process_msg_watchable_update(self, msg: api_typing.S2C.WatchableUpdate, reqid: Optional[int]) -> None:
         updates = api_parser.parse_watchable_update(msg)
 
         for update in updates:
@@ -267,6 +292,24 @@ class ScrutinyClient:
                 self._logger.debug(f"Updating value of {update.server_id}")
 
             watchable._update_value(update.value)
+
+    def _wt_process_msg_inform_write_completion(self, msg: api_typing.S2C.WriteCompletion, reqid: Optional[int]) -> None:
+        completion = api_parser.parse_write_completion(msg)
+
+        if completion.request_token not in self._pending_batch_writes:
+            return   # Maybe triggered by another client. Silently ignore.
+
+        batch_write = self._pending_batch_writes[completion.request_token]
+        if completion.batch_index not in batch_write.update_dict:
+            self._logger.error("The server returned a write completion with an unknown batch_index")
+            return
+
+        write_request = batch_write.update_dict[completion.batch_index]
+        if completion.success:
+            write_request._watchable._set_last_write_datetime()
+            write_request._mark_complete(True)
+        else:
+            write_request._mark_complete(False, "Server failed to write to the device")
 
     def _wt_process_next_server_status_update(self) -> None:
         if self._request_status_timer.is_timed_out() or self._require_status_update:
@@ -304,9 +347,11 @@ class ScrutinyClient:
 
     def _wt_process_server_msg(self, cmd: str, msg: dict, reqid: Optional[int]) -> None:
         if cmd == API.Command.Api2Client.WATCHABLE_UPDATE:
-            self._wt_process_watchable_update(cast(api_typing.S2C.WatchableUpdate, msg), reqid)
+            self._wt_process_msg_watchable_update(cast(api_typing.S2C.WatchableUpdate, msg), reqid)
         elif cmd == API.Command.Api2Client.INFORM_SERVER_STATUS:
-            self._wt_process_inform_server_status(cast(api_typing.S2C.InformServerStatus, msg), reqid)
+            self._wt_process_msg_inform_server_status(cast(api_typing.S2C.InformServerStatus, msg), reqid)
+        elif cmd == API.Command.Api2Client.INFORM_WRITE_COMPLETION:
+            self._wt_process_msg_inform_write_completion(cast(api_typing.S2C.WriteCompletion, msg), reqid)
 
     def _wt_process_callbacks(self, cmd: str, msg: dict, reqid: int) -> None:
         callback_entry: Optional[CallbackStorageEntry] = None
@@ -349,6 +394,61 @@ class ScrutinyClient:
             with self._main_lock:
                 if reqid in self._callback_storage:
                     del self._callback_storage[reqid]
+
+    def _wt_process_write_requests(self) -> None:
+        # Note _pending_batch_writes is always accessed from worker thread
+        api_req = self._make_request(API.Command.Client2Api.WRITE_VALUE, {'updates': []})
+        api_req = cast(api_typing.C2S.WriteValue, api_req)
+
+        # Clear old requests.
+        # No need for lock here. The _request_queue crosses time domain boundaries
+        now = time.time()
+        if len(self._pending_batch_writes) > 0:
+            tokens = list(self._pending_batch_writes.keys())
+            for token in tokens:
+                pending_batch = self._pending_batch_writes[token]
+                if now - pending_batch.creation_timestamp > self._write_timeout:
+                    for request in pending_batch.update_dict.values():  # Completed request are already removed of that dict.
+                        request._mark_complete(False, "Timed out")
+                    del self._pending_batch_writes[token]
+
+        # Process new requests
+        n = 0
+        batch_dict: Dict[int, WriteRequest] = {}
+        while not self._write_request_queue.empty():
+            request = self._write_request_queue.get()
+
+            api_req['updates'].append({
+                'batch_index': n,
+                'watchable': request._watchable._server_id,
+                'value': request._value
+            })
+            batch_dict[n] = request
+            n += 1
+
+            if n >= self._MAX_WRITE_REQUEST_BATCH_SIZE:
+                break
+
+        if len(api_req['updates']) == 0:
+            return
+
+        def _wt_write_response_callback(state: CallbackState, response: Optional[api_typing.S2CMessage]) -> None:
+            if response is not None and state == CallbackState.OK:
+                confirmation = api_parser.parse_write_value_response(response)
+
+                if confirmation.count != len(batch_dict):
+                    request._mark_complete(False, f"Count mismatch in request and server confirmation.")
+                else:
+                    self._pending_batch_writes[confirmation.request_token] = PendingBatchWrite(
+                        update_dict=batch_dict,
+                        confirmation=confirmation,
+                        creation_timestamp=time.time()
+                    )
+            else:
+                request._mark_complete(False, state.name)
+
+        self._send(api_req, _wt_write_response_callback)
+        # We don't need the future object here because the WriteRequest act as one.
 
     def _wt_disconnect(self) -> None:
         """Disconnect from a Scrutiny server, called by the Worker Thread .
@@ -480,6 +580,9 @@ class ScrutinyClient:
         cmd.update(data)    # type: ignore
 
         return cmd
+
+    def _enqueue_write_request(self, request: WatchableHandle):
+        self._write_request_queue.put(request)
 
     def __del__(self):
         self.disconnect()

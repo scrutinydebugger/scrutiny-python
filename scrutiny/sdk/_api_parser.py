@@ -22,6 +22,21 @@ class WatchableUpdate:
     value: Union[bool, int, float]
 
 
+@dataclass
+class WriteCompletion:
+    request_token: str
+    watchable: str
+    success: bool
+    timestamp: datetime
+    batch_index: int
+
+
+@dataclass
+class WriteConfirmation:
+    request_token: str
+    count: int
+
+
 T = TypeVar('T', str, int, float)
 
 
@@ -389,3 +404,39 @@ def parse_watchable_update(response: api_typing.S2C.WatchableUpdate) -> List[Wat
         ))
 
     return outlist
+
+
+def parse_write_value_response(response: api_typing.S2C.WriteValue) -> WriteConfirmation:
+    assert isinstance(response, dict)
+    assert 'cmd' in response
+    cmd = response['cmd']
+    assert cmd == API.Command.Api2Client.WRITE_VALUE_RESPONSE
+
+    _check_response_dict(cmd, response, 'request_token', str)
+    _check_response_dict(cmd, response, 'count', int)
+
+    return WriteConfirmation(
+        request_token=response['request_token'],
+        count=response['count']
+    )
+
+
+def parse_write_completion(response: api_typing.S2C.WriteCompletion) -> WriteCompletion:
+    assert isinstance(response, dict)
+    assert 'cmd' in response
+    cmd = response['cmd']
+    assert cmd == API.Command.Api2Client.INFORM_WRITE_COMPLETION
+
+    _check_response_dict(cmd, response, 'watchable', str)
+    _check_response_dict(cmd, response, 'success', bool)
+    _check_response_dict(cmd, response, 'request_token', str)
+    _check_response_dict(cmd, response, 'timestamp', float)
+    _check_response_dict(cmd, response, 'batch_index', int)
+
+    return WriteCompletion(
+        request_token=response['request_token'],
+        watchable=response['watchable'],
+        success=response['success'],
+        timestamp=datetime.fromtimestamp(response['timestamp']),
+        batch_index=response['batch_index']
+    )
