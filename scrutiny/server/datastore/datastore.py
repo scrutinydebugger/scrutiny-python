@@ -41,6 +41,7 @@ class Datastore:
     watcher_map: Dict[EntryType, Dict[str, Set[str]]]
     global_watch_callbacks: List[WatchCallback]
     global_unwatch_callbacks: List[WatchCallback]
+    target_update_request_queue: "List[UpdateTargetRequest]"
 
     MAX_ENTRY: int = 1000000
 
@@ -52,6 +53,7 @@ class Datastore:
         self.entries = {}
         self.watcher_map = {}
         self.displaypath2idmap = {}
+        self.target_update_request_queue = []
         for entry_type in EntryType.all():
             self.entries[entry_type] = {}
             self.watcher_map[entry_type] = {}
@@ -244,9 +246,48 @@ class Datastore:
 
     def update_target_value(self, entry_id: Union[DatastoreEntry, str], value: Any, callback: UpdateTargetRequestCallback) -> UpdateTargetRequest:
         """Enqueue a write request on the datastore entry. Will be picked up by the device side to be executed"""
-        entry_id = self.interpret_entry_id(entry_id)
-        entry = self.get_entry(entry_id)
-        return entry.update_target_value(value, callback=callback)
+        if isinstance(entry_id, DatastoreEntry):
+            entry = entry_id
+        else:
+            entry = self.get_entry(entry_id)
+        update_request = UpdateTargetRequest(value, entry=entry, callback=callback)
+
+        if isinstance(entry, DatastoreAliasEntry):
+            new_value = entry.aliasdef.compute_user_to_device(value)
+            nested_callback = UpdateTargetRequestCallback(functools.partial(self.alias_target_update_callback, update_request))
+            new_request = self.update_target_value(entry.resolve(), new_value, callback=nested_callback)
+            if new_request.is_complete():  # Edge case if failed to enqueue request.
+                new_request.complete(success=update_request.is_complete())
+            return update_request
+        else:
+            self.target_update_request_queue.append(update_request)
+
+        return update_request
+
+    def alias_target_update_callback(self, alias_request: UpdateTargetRequest, success: bool, entry: DatastoreEntry, timestamp: float):
+        """Callback used by an alias to grab the result of the target update and apply it to its own"""
+        # entry is a var or a RPV
+        alias_request.complete(success=success)
+
+    def pop_target_update_request(self) -> Optional[UpdateTargetRequest]:
+        """ Returns the next write request to be processed and removes it form the queue"""
+        try:
+            return self.target_update_request_queue.pop(0)
+        except IndexError:
+            return None
+
+    def peek_target_update_request(self) -> Optional[UpdateTargetRequest]:
+        """ Returns the next write request to be processed without removing it from the queue"""
+        try:
+            return self.target_update_request_queue[0]
+        except IndexError:
+            return None
+
+    def has_pending_target_update(self) -> bool:
+        return len(self.target_update_request_queue) > 0
+
+    def get_pending_target_update_count(self) -> int:
+        return len(self.target_update_request_queue)
 
     def get_watched_entries_id(self, entry_type: EntryType) -> List[str]:
         """ Get a list of all watched entries ID of a given type."""

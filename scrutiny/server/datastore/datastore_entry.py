@@ -223,30 +223,6 @@ class DatastoreEntry:
         """Sets the timestamp of the last successful completed target value update (write)"""
         self.last_target_update_timestamp = val
 
-    def update_target_value(self, value: Any, callback: Optional[UpdateTargetRequestCallback] = None) -> UpdateTargetRequest:
-        """
-         Request a write operation on the device to get this entry updated.
-         The request foes into a queue and we wait for the MemoryWriter to pick it up and mark the
-         request completed by calling request.complete(success=true/false)
-         """
-        update_request = UpdateTargetRequest(value, entry=self, callback=callback)
-        try:
-            self.target_update_request_queue.put_nowait(update_request)
-        except queue.Full:
-            update_request.complete(success=False)  # In case the queue is full, request fails right away without trying.
-        return update_request
-
-    def has_pending_target_update(self) -> bool:
-        """Returns True if there is a pending target update request (write request)"""
-        return not self.target_update_request_queue.empty()
-
-    def pop_target_update_request(self) -> Optional[UpdateTargetRequest]:
-        """ Returns the next write request to be processed"""
-        try:
-            return self.target_update_request_queue.get_nowait()
-        except:
-            return None
-
 
 class DatastoreVariableEntry(DatastoreEntry):
     """
@@ -364,21 +340,6 @@ class DatastoreAliasEntry(DatastoreEntry):
         """Decode a stream of bytes into a Python value"""
         return self.aliasdef.compute_device_to_user(self.refentry.decode(data))
 
-    def update_target_value(self, value: Any, callback: Optional[UpdateTargetRequestCallback] = None) -> UpdateTargetRequest:
-        """
-         Request a write operation on the device to get this entry updated.
-         The request foes into a queue and we wait for the MemoryWriter to pick it up and mark the
-         request completed by calling request.complete(success=true/false)
-         """
-        # A write request is a little tricky.  We make a new write request on the pointed entry.
-        # Then we use the completion callback of this new request to mark the first request as completed.
-        alias_request = super().update_target_value(value, callback)
-        new_value = self.aliasdef.compute_user_to_device(value)
-        nested_callback = UpdateTargetRequestCallback(functools.partial(self.alias_target_update_callback, alias_request))
-        new_request = self.refentry.update_target_value(new_value, callback=nested_callback)
-        if alias_request.is_complete():  # Edge case if failed to enqueue request.
-            new_request.complete(success=alias_request.is_complete())
-        return alias_request
 
     def alias_target_update_callback(self, alias_request: UpdateTargetRequest, success: bool, entry: DatastoreEntry, timestamp: float):
         """Callback used by an alias to grab the result of the target update and apply it to its own"""

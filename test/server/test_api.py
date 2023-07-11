@@ -145,15 +145,15 @@ class StubbedDataloggingManager:
     datastore: Datastore
     fake_device_handler: StubbedDeviceHandler
     datalogging_setup: device_datalogging.DataloggingSetup
-    request_queue: "Queue[api_datalogging.AcquisitionRequest]"
+    request_queue: "queue.Queue[api_datalogging.AcquisitionRequest]"
 
-    callback_queue: "Queue[Tuple[api_datalogging.APIAcquisitionRequestCompletionCallback, bool, api_datalogging.DataloggingAcquisition]]"
+    callback_queue: "queue.Queue[Tuple[api_datalogging.APIAcquisitionRequestCompletionCallback, bool, api_datalogging.DataloggingAcquisition]]"
 
     def __init__(self, datastore: Datastore, fake_device_handler: StubbedDeviceHandler):
         self.datastore = datastore
         self.fake_device_handler = fake_device_handler
-        self.request_queue = Queue()
-        self.callback_queue = Queue()
+        self.request_queue = queue.Queue()
+        self.callback_queue = queue.Queue()
 
     def get_device_setup(self) -> Optional[device_datalogging.DataloggingSetup]:
         return self.fake_device_handler.get_datalogging_setup()
@@ -1091,9 +1091,7 @@ class TestAPI(ScrutinyUnitTest):
             ]
         }
 
-        self.assertFalse(subscribed_entry1.has_pending_target_update())
-        self.assertFalse(subscribed_entry2.has_pending_target_update())
-
+        self.assertIsNone(self.datastore.pop_target_update_request())
         self.send_request(req, 0)
         response = self.wait_and_load_response()
         self.assert_no_error(response)
@@ -1107,11 +1105,13 @@ class TestAPI(ScrutinyUnitTest):
 
         request_token = response['request_token']
 
-        self.assertTrue(subscribed_entry1.has_pending_target_update())
-        self.assertTrue(subscribed_entry2.has_pending_target_update())
-        req1 = subscribed_entry1.pop_target_update_request()
-        req2 = subscribed_entry2.pop_target_update_request()
+        req1 = self.datastore.pop_target_update_request()
+        req2 = self.datastore.pop_target_update_request()
 
+        self.assertIsNotNone(req1)
+        self.assertIsNotNone(req2)
+
+        # Expect them to be in order.
         self.assertEqual(req1.get_value(), 1234)
         self.assertEqual(req2.get_value(), 3.1415926)
 
@@ -1268,20 +1268,22 @@ class TestAPI(ScrutinyUnitTest):
                 error_msg = "Reqid = %d. Entry=%s.  Testcase=%s" % (reqid, entry.get_display_path(), testcase)
                 if not testcase['valid']:
                     self.assert_is_error(response, error_msg)
-                    self.assertFalse(entry.has_pending_target_update())
+                    self.assertFalse(self.datastore.has_pending_target_update())
                 else:
                     self.assert_no_error(response, error_msg)
-                    self.assertTrue(entry.has_pending_target_update())
-                    self.assertEqual(entry.pop_target_update_request().get_value(), testcase['outval'], error_msg)
-                    self.assertFalse(entry.has_pending_target_update())
-
+                    self.assertTrue(self.datastore.has_pending_target_update())
+                    update_request = self.datastore.pop_target_update_request()
                     if isinstance(entry, DatastoreAliasEntry):
-                        self.assertTrue(entry.refentry.has_pending_target_update())
-                        entry.refentry.pop_target_update_request()
-                        self.assertFalse(entry.refentry.has_pending_target_update())
+                        self.assertEqual(update_request.get_value(), entry.aliasdef.compute_user_to_device(testcase['outval']), error_msg)
+                    else:
+                        self.assertEqual(update_request.get_value(), testcase['outval'], error_msg)
+                    self.assertFalse(self.datastore.has_pending_target_update())
+
+
 # region Datalogging
 
 # REQUEST_ACQUISITION
+
 
     def test_get_datalogging_capabilities(self):
         # Check that we can read the datalogging capabilities

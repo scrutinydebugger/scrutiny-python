@@ -39,6 +39,7 @@ localhost = "127.0.0.1"
 class WriteMemoryLog:
     address: int
     data: bytes
+    mask: Optional[bytes]
 
 
 @dataclass
@@ -140,25 +141,25 @@ class FakeDeviceHandler:
         return self.datalogging_completion_ratio
 
     def process(self):
-        for entry in self.datastore.get_all_entries():
-            if entry.has_pending_target_update():
-                request = entry.pop_target_update_request()
-                try:
-                    refentry = entry
-                    if isinstance(entry, datastore.DatastoreAliasEntry):
-                        refentry = entry.resolve()
+        update_request = self.datastore.pop_target_update_request()
+        if update_request is not None:
+            try:
+                entry = update_request.entry
+                refentry = entry
+                if isinstance(entry, datastore.DatastoreAliasEntry):
+                    refentry = entry.resolve()
 
-                    data, mask = refentry.encode(request.value)
-                    if isinstance(refentry, datastore.DatastoreVariableEntry):
-                        self.write_logs.append(WriteMemoryLog(address=refentry.get_address(), data=data))
-                    elif isinstance(refentry, datastore.DatastoreRPVEntry):
-                        self.write_logs.append(WriteRPVLog(rpv_id=refentry.rpv.id, data=data))
-                    entry.set_value_from_data(data)
-                    request.complete(True)
-                except Exception as e:
-                    request.complete(False)
-                    logging.error(str(e))
-                    logging.debug(traceback.format_exc())
+                data, mask = refentry.encode(update_request.value)
+                if isinstance(refentry, datastore.DatastoreVariableEntry):
+                    self.write_logs.append(WriteMemoryLog(address=refentry.get_address(), data=data, mask=mask))
+                elif isinstance(refentry, datastore.DatastoreRPVEntry):
+                    self.write_logs.append(WriteRPVLog(rpv_id=refentry.rpv.id, data=data))
+                entry.set_value_from_data(data)
+                update_request.complete(True)
+            except Exception as e:
+                update_request.complete(False)
+                logging.error(str(e))
+                logging.debug(traceback.format_exc())
 
 
 class FakeDataloggingManager:
@@ -468,5 +469,6 @@ class TestClient(unittest.TestCase):
 
         self.assertEqual(self.device_handler.write_logs[0].address, 0x1234)
         self.assertEqual(self.device_handler.write_logs[0].data, bytes(bytearray([0x56, 0x94, 0x78, 0x00])))  # little endian
+        self.assertIsNone(self.device_handler.write_logs[0].mask)
         var1.wait_update(previous_counter=counter)
         self.assertEqual(var1.value, 0x789456)

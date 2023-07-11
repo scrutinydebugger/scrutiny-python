@@ -815,8 +815,7 @@ class API:
         request_token = uuid4().hex
         for update in req['updates']:
             callback = UpdateTargetRequestCallback(functools.partial(self.entry_target_update_callback, request_token, update['batch_index']))
-            entry = self.datastore.get_entry(update['watchable'])
-            entry.update_target_value(update['value'], callback=callback)
+            self.datastore.update_target_value(update['watchable'], update['value'], callback=callback)
 
         response: api_typing.S2C.WriteValue = {
             'cmd': self.Command.Api2Client.WRITE_VALUE_RESPONSE,

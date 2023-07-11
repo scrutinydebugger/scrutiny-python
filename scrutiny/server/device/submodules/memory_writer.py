@@ -46,8 +46,6 @@ class MemoryWriter:
     # Update request attached to the entry being updated. It's what'S coming from the API
     target_update_request_being_processed: Optional[UpdateTargetRequest]
     target_update_value_written: Optional[Encodable]
-    watched_entries: List[str]  # List of entries beoing watched by clients. We will pool them to see if they have write request
-    write_cursor: int   # Cursor used for round-robin inside the list datastore entries to write
 
     def __init__(self, protocol: Protocol, dispatcher: RequestDispatcher, datastore: Datastore, request_priority: int):
         self.logger = logging.getLogger(self.__class__.__name__)
@@ -98,8 +96,6 @@ class MemoryWriter:
         self.request_pending = False
         self.started = False
 
-        self.watched_entries = []
-        self.write_cursor = 0
         self.entry_being_updated = None
         self.request_of_entry_being_updated = None
         self.target_update_request_being_processed = None
@@ -146,19 +142,11 @@ class MemoryWriter:
         """
         request: Optional[Request] = None
 
-        if self.write_cursor >= len(self.watched_entries):
-            self.watched_entries = self.datastore.get_watched_entries_id(EntryType.Var)
-            self.watched_entries += self.datastore.get_watched_entries_id(EntryType.RuntimePublishedValue)
-            self.write_cursor = 0
-
         if self.entry_being_updated is None:
-            while self.write_cursor < len(self.watched_entries):
-                entry = self.datastore.get_entry(self.watched_entries[self.write_cursor])
-                self.write_cursor += 1
-                if entry.has_pending_target_update():
-                    self.entry_being_updated = entry
-                    self.target_update_request_being_processed = entry.pop_target_update_request()
-                    break
+            update_request = self.datastore.pop_target_update_request()
+            if update_request is not None:
+                self.target_update_request_being_processed = update_request
+                self.entry_being_updated = update_request.entry
 
         if self.entry_being_updated is not None and self.target_update_request_being_processed is not None:
             value_to_write = self.target_update_request_being_processed.get_value()

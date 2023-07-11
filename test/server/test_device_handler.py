@@ -32,6 +32,8 @@ from test import ScrutinyUnitTest, logger
 from scrutiny.core.typehints import GenericCallback
 from typing import cast, List
 
+no_callback = UpdateTargetRequestCallback(lambda *args, **kwargs: None)
+
 
 def d2f(d):
     return struct.unpack('f', struct.pack('f', d))[0]
@@ -243,7 +245,7 @@ class TestDeviceHandler(ScrutinyUnitTest):
 
         self.assertTrue(connection_lost)
 
-    def test_auto_diconnect_and_reconnect_on_broken_link(self):
+    def test_auto_disconnect_and_reconnect_on_broken_link(self):
         timeout = 5     # Should take about 2.5 sec to disconnect With heartbeat at every 2 sec
         t1 = time.time()
         connection_completed = False
@@ -373,9 +375,9 @@ class TestDeviceHandler(ScrutinyUnitTest):
                         self.assertEqual(vint64.get_value(), 0x123456789abcdef, 'round=%d' % round_completed)
                         self.assertEqual(vbool.get_value(), True, 'round=%d' % round_completed)
 
-                        vfloat32.update_target_value(2.7)
-                        vint64.update_target_value(0x1122334455667788)
-                        vbool.update_target_value(False)
+                        self.datastore.update_target_value(vfloat32, 2.7, no_callback)
+                        self.datastore.update_target_value(vint64, 0x1122334455667788, no_callback)
+                        self.datastore.update_target_value(vbool, False, no_callback)
 
                         write_time = time.time()
                         state = 'write_memory'
@@ -459,7 +461,7 @@ class TestDeviceHandler(ScrutinyUnitTest):
                     for entry in all_entries:
                         rpv = entry.get_rpv()
                         written_values[rpv.id] = generate_random_value(rpv.datatype)
-                        entry.update_target_value(written_values[rpv.id])
+                        self.datastore.update_target_value(entry, written_values[rpv.id], no_callback)
 
                     state = 'wait_for_update_and_validate'
 
