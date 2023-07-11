@@ -12,8 +12,7 @@ import time
 import abc
 import re
 from scrutiny.core.basic_types import RuntimePublishedValue
-from queue import Queue
-import math
+import queue
 
 from scrutiny.server.datastore.entry_type import EntryType
 from scrutiny.core.variable import Variable, VariableEnum, EmbeddedDataType
@@ -120,7 +119,7 @@ class DatastoreEntry:
     display_path: str
     value: Any
     last_target_update_timestamp: Optional[float]
-    target_update_request_queue: "Queue[UpdateTargetRequest]"
+    target_update_request_queue: "queue.Queue[UpdateTargetRequest]"
     last_value_update_timestamp: float
 
     def __init__(self, display_path: str):
@@ -131,39 +130,39 @@ class DatastoreEntry:
         self.display_path = display_path
         self.last_target_update_timestamp = None
         self.last_value_update_timestamp = time.time()
-        self.target_update_request_queue = Queue()
+        self.target_update_request_queue = queue.Queue()
         self.value = 0
 
     @abc.abstractmethod
     def get_data_type(self) -> EmbeddedDataType:
         """Returns the device data type"""
-        raise NotImplementedError("Abstract class")
+        raise NotImplementedError("Abstract method")
 
     @abc.abstractmethod
     def get_type(self) -> EntryType:
         """Return the datastore entry type"""
-        raise NotImplementedError("Abstract class")
+        raise NotImplementedError("Abstract method")
 
     @abc.abstractmethod
     def has_enum(self) -> bool:
         """Returns True if the entry has an enum"""
-        raise NotImplementedError("Abstract class")
+        raise NotImplementedError("Abstract method")
 
     @abc.abstractmethod
     def get_enum(self) -> VariableEnum:
         """Returns the enum attached to the entry. Raise an exception if there is None"""
-        raise NotImplementedError("Abstract class")
+        raise NotImplementedError("Abstract method")
 
     @abc.abstractmethod
     def encode(self, value: Encodable) -> Tuple[bytes, Optional[bytes]]:
         """Encode the value to a stream of bytes and a data mask. 
         Returns as tuple : (data, mask)"""
-        raise NotImplementedError("Abstract class")
+        raise NotImplementedError("Abstract method")
 
     @abc.abstractmethod
     def decode(self, data: bytes) -> Encodable:
         """Decode a stream of bytes into a Python value"""
-        raise NotImplementedError("Abstract class")
+        raise NotImplementedError("Abstract method")
 
     def get_id(self) -> str:
         """Returns the datastore entry ID"""
@@ -233,7 +232,7 @@ class DatastoreEntry:
         update_request = UpdateTargetRequest(value, entry=self, callback=callback)
         try:
             self.target_update_request_queue.put_nowait(update_request)
-        except:
+        except queue.Full:
             update_request.complete(success=False)  # In case the queue is full, request fails right away without trying.
         return update_request
 

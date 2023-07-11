@@ -1079,10 +1079,12 @@ class TestAPI(ScrutinyUnitTest):
             'cmd': 'write_value',
             'updates': [
                 {
+                    'batch_index': 0,
                     'watchable': subscribed_entry1.get_id(),
                     'value': 1234
                 },
                 {
+                    'batch_index': 1,
                     'watchable': subscribed_entry2.get_id(),
                     'value': 3.1415926
                 }
@@ -1097,13 +1099,11 @@ class TestAPI(ScrutinyUnitTest):
         self.assert_no_error(response)
 
         self.assertIn(response['cmd'], 'response_write_value')
-        self.assertIn('watchables', response)
+        self.assertIn('count', response)
         self.assertIn('request_token', response)
         self.assertIsInstance(response['request_token'], str)
         self.assertGreater(len(response['request_token']), 0)
-        self.assertEqual(len(response['watchables']), 2)
-        self.assertIn(subscribed_entry1.get_id(), response['watchables'])
-        self.assertIn(subscribed_entry2.get_id(), response['watchables'])
+        self.assertEqual(response['count'], 2)
 
         request_token = response['request_token']
 
@@ -1155,6 +1155,7 @@ class TestAPI(ScrutinyUnitTest):
             'reqid': 555,
             'updates': [
                 {
+                    'batch_index': 0,
                     'watchable': 'qwerty',
                     'value': 1234
                 }
@@ -1175,6 +1176,7 @@ class TestAPI(ScrutinyUnitTest):
             'reqid': 555,
             'updates': [
                 {
+                    'batch_index': 0,
                     'watchable': entries[0].get_id(),
                     'value': 1234
                 }
@@ -1254,6 +1256,7 @@ class TestAPI(ScrutinyUnitTest):
                     'reqid': reqid,
                     'updates': [
                         {
+                            'batch_index': 0,
                             'watchable': entry.get_id(),
                             'value': testcase['inval']
                         }

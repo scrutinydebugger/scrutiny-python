@@ -79,7 +79,7 @@ class TestReadWrite(ScrutinyIntegrationTestWithTestSFD1):
         # Write f32 var
         write_req = {
             'cmd': API.Command.Client2Api.WRITE_VALUE,
-            'updates': [dict(watchable=self.entry_float32.get_id(), value=d2f(999.99))]
+            'updates': [dict(watchable=self.entry_float32.get_id(), value=d2f(999.99), batch_index=0)]
         }
 
         self.send_request(write_req)
@@ -97,7 +97,7 @@ class TestReadWrite(ScrutinyIntegrationTestWithTestSFD1):
         # Alias min/max applies only in write
         write_req = {
             'cmd': API.Command.Client2Api.WRITE_VALUE,
-            'updates': [dict(watchable=self.entry_alias_float32.get_id(), value=d2f(888.88))]
+            'updates': [dict(watchable=self.entry_alias_float32.get_id(), value=d2f(888.88), batch_index=0)]
         }
 
         self.send_request(write_req)
@@ -113,7 +113,7 @@ class TestReadWrite(ScrutinyIntegrationTestWithTestSFD1):
         # Write f64 RPV
         write_req = {
             'cmd': API.Command.Client2Api.WRITE_VALUE,
-            'updates': [dict(watchable=self.entry_rpv1000.get_id(), value=math.sqrt(3))]
+            'updates': [dict(watchable=self.entry_rpv1000.get_id(), value=math.sqrt(3), batch_index=0)]
         }
 
         self.send_request(write_req)
@@ -129,7 +129,7 @@ class TestReadWrite(ScrutinyIntegrationTestWithTestSFD1):
         # Alias min/max applies only in write
         write_req = {
             'cmd': API.Command.Client2Api.WRITE_VALUE,
-            'updates': [dict(watchable=self.entry_alias_rpv1000.get_id(), value=-150)]
+            'updates': [dict(watchable=self.entry_alias_rpv1000.get_id(), value=-150, batch_index=0)]
         }
 
         self.send_request(write_req)
@@ -161,7 +161,7 @@ class TestReadWrite(ScrutinyIntegrationTestWithTestSFD1):
         # Write Bitfield var
         write_req = {
             'cmd': API.Command.Client2Api.WRITE_VALUE,
-            'updates': [dict(watchable=self.entry_u64_bit15_35.get_id(), value=val)]
+            'updates': [dict(watchable=self.entry_u64_bit15_35.get_id(), value=val, batch_index=0)]
         }
 
         self.send_request(write_req)
@@ -282,7 +282,7 @@ class TestReadWrite(ScrutinyIntegrationTestWithTestSFD1):
             req = {
                 'cmd': API.Command.Client2Api.WRITE_VALUE,
                 'reqid': reqid,
-                'updates': [dict(watchable=testcase.entry.get_id(), value=testcase.inval)]
+                'updates': [dict(watchable=testcase.entry.get_id(), value=testcase.inval, batch_index=0)]
             }
 
             self.send_request(req)

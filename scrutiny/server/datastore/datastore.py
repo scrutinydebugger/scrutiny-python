@@ -28,10 +28,10 @@ class Datastore:
     the device handler writes variable and RPV (Runtime Published Values) into the datastore
     and the user subscribe to value change by setting a callback in the datastore through the API.
 
-    The datastore manges entry per type. There is 3 types : Variable, RPV, Alias.
+    The datastore manages entries per type. There is 3 types : Variable, RPV, Alias.
     We can do most operation on all entries of one type. This per-type management is required because
-    from the outside, there are differences. Mainly, RPV are added and removed the the datastore by the device
-    handler when a connection is made. Alias and variable are added when a Firmware Description is loaded. 
+    from the outside, there are differences. Mainly, RPV are added and removed to the datastore by the device
+    handler when a connection is made. Aliases and variables are added when a Firmware Description is loaded. 
     It's the same as having 3 datastore, one for each type.
     """
 

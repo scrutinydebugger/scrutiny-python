@@ -753,6 +753,10 @@ class API:
     def process_write_value(self, conn_id: str, req: api_typing.C2S.WriteValue) -> None:
         # We first fetch the entries as it will raise an exception if the ID does not exist
         # We don't want to trigger a write if an entry is bad in the request
+        #
+        # Important to consider that we can get a batch with multiple write to the same entry,
+        # and they need to be reported correctly + written in the correct order.
+
         if 'updates' not in req:
             raise InvalidRequestException(req, 'Missing "updates" field')
 

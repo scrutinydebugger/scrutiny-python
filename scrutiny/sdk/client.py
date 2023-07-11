@@ -310,6 +310,7 @@ class ScrutinyClient:
             write_request._mark_complete(True)
         else:
             write_request._mark_complete(False, "Server failed to write to the device")
+        del batch_write.update_dict[completion.batch_index]
 
     def _wt_process_next_server_status_update(self) -> None:
         if self._request_status_timer.is_timed_out() or self._require_status_update:
@@ -412,12 +413,17 @@ class ScrutinyClient:
                         request._mark_complete(False, "Timed out")
                     del self._pending_batch_writes[token]
 
+                # Once a batch is fully processed, meaning all requests have been treated and removed
+                # We can prune the remaining empty batch
+                if len(pending_batch.update_dict) == 0:
+                    del self._pending_batch_writes[token]
+
         # Process new requests
         n = 0
         batch_dict: Dict[int, WriteRequest] = {}
         while not self._write_request_queue.empty():
             request = self._write_request_queue.get()
-
+            assert request._watchable._server_id is not None
             api_req['updates'].append({
                 'batch_index': n,
                 'watchable': request._watchable._server_id,
@@ -434,7 +440,7 @@ class ScrutinyClient:
 
         def _wt_write_response_callback(state: CallbackState, response: Optional[api_typing.S2CMessage]) -> None:
             if response is not None and state == CallbackState.OK:
-                confirmation = api_parser.parse_write_value_response(response)
+                confirmation = api_parser.parse_write_value_response(cast(api_typing.S2C.WriteValue, response))
 
                 if confirmation.count != len(batch_dict):
                     request._mark_complete(False, f"Count mismatch in request and server confirmation.")
@@ -581,7 +587,7 @@ class ScrutinyClient:
 
         return cmd
 
-    def _enqueue_write_request(self, request: WatchableHandle):
+    def _enqueue_write_request(self, request: WriteRequest):
         self._write_request_queue.put(request)
 
     def __del__(self):
