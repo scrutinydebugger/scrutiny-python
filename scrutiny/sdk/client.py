@@ -127,8 +127,8 @@ class BatchWriteContext:
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         if exc_type is None:
-            self.client.flush_batch_write(self)
-            self.client.wait_write_batch_complete(self)
+            self.client._flush_batch_write(self)
+            self.client._wait_write_batch_complete(self)
 
 
 class ScrutinyClient:
@@ -626,6 +626,32 @@ class ScrutinyClient:
         else:
             self._enqueue_write_request(request)
 
+    def _flush_batch_write(self, batch_write_context: BatchWriteContext) -> None:
+        for request in batch_write_context.requests:
+            self._enqueue_write_request(request)
+
+    def _wait_write_batch_complete(self, batch: BatchWriteContext) -> None:
+        tstart = time.time()
+
+        incomplete_count: Optional[int] = None
+        try:
+            for write_request in batch.requests:
+                remaining_time = max(0, batch.timeout - (time.time() - tstart))
+                write_request.wait_for_completion(timeout=remaining_time)
+            timed_out = False
+        except sdk_exceptions.TimeoutException:
+            timed_out = True
+
+        if timed_out:
+            incomplete_count = 0
+            for request in batch.requests:
+                if not request.completed:
+                    incomplete_count += 1
+
+            if incomplete_count > 0:
+                raise sdk_exceptions.TimeoutException(
+                    f"Incomplete batch write. {incomplete_count} write requests not completed in {batch.timeout} sec. ")
+
     # === User API ====
 
     def connect(self, hostname: str, port: int, **kwargs) -> "ScrutinyClient":
@@ -778,32 +804,6 @@ class ScrutinyClient:
         batch_context = BatchWriteContext(self, timeout)
         self._active_batch_context = batch_context
         return batch_context
-
-    def flush_batch_write(self, batch_write_context: BatchWriteContext) -> None:
-        for request in batch_write_context.requests:
-            self._enqueue_write_request(request)
-
-    def wait_write_batch_complete(self, batch: BatchWriteContext) -> None:
-        tstart = time.time()
-
-        incomplete_count: Optional[int] = None
-        try:
-            for write_request in batch.requests:
-                remaining_time = max(0, batch.timeout - (time.time() - tstart))
-                write_request.wait_for_completion(timeout=remaining_time)
-            timed_out = False
-        except sdk_exceptions.TimeoutException:
-            timed_out = True
-
-        if timed_out:
-            incomplete_count = 0
-            for request in batch.requests:
-                if not request.completed:
-                    incomplete_count += 1
-
-            if incomplete_count > 0:
-                raise sdk_exceptions.TimeoutException(
-                    f"Incomplete batch write. {incomplete_count} write requests not completed in {batch.timeout} sec. ")
 
     @property
     def name(self) -> str:
