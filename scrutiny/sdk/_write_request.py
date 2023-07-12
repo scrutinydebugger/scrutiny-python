@@ -55,3 +55,11 @@ class WriteRequest:
     @property
     def completion_timestamp(self) -> Optional[datetime]:
         return self._completion_timestamp
+
+    @property
+    def failure_reason(self) -> str:
+        return self._failure_reason
+
+    @property
+    def watchable(self) -> "WatchableHandle":
+        return self._watchable

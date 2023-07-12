@@ -562,3 +562,51 @@ class TestClient(unittest.TestCase):
             self.assertEqual(self.device_handler.write_logs[index].data, struct.pack('>f', 1.23456))  # RPVs are always big endian
             alias_rpv1000.wait_update(previous_counter=counter_alias_rpv1000)
             index += 1
+
+    def test_batch_write(self):
+        # We make sure we can
+        rpv1000 = self.client.watch('/rpv/x1000')
+        var1 = self.client.watch('/a/b/var1')
+
+        with self.client.batch_write(timeout=3):
+            rpv1000.value = 1.234
+            var1.value = 0x11223344  # Write twice the same var in the batch should cause 2 write operations.
+            var1.value = 0x55667788
+            rpv1000.value = 2.345
+            rpv1000.value = 3.456
+
+            time.sleep(0.2)  # Let time for the server thread to process the request if any is sent by error.
+            self.assertEqual(len(self.device_handler.write_logs), 0)    # No write until with __exit__ the with block
+
+        index = 0
+        self.assertIsInstance(self.device_handler.write_logs[index], WriteRPVLog)
+        assert isinstance(self.device_handler.write_logs[index], WriteRPVLog)
+        self.assertEqual(self.device_handler.write_logs[index].rpv_id, 0x1000)
+        self.assertEqual(self.device_handler.write_logs[index].data, struct.pack('>f', 1.234))  # RPVs are always big endian
+        index += 1
+
+        self.assertIsInstance(self.device_handler.write_logs[index], WriteMemoryLog)
+        assert isinstance(self.device_handler.write_logs[index], WriteMemoryLog)
+        self.assertEqual(self.device_handler.write_logs[index].address, 0x1234)
+        self.assertEqual(self.device_handler.write_logs[index].data, bytes(bytearray([0x44, 0x33, 0x22, 0x11])))  # little endian
+        self.assertIsNone(self.device_handler.write_logs[index].mask)
+        index += 1
+
+        self.assertIsInstance(self.device_handler.write_logs[index], WriteMemoryLog)
+        assert isinstance(self.device_handler.write_logs[index], WriteMemoryLog)
+        self.assertEqual(self.device_handler.write_logs[index].address, 0x1234)
+        self.assertEqual(self.device_handler.write_logs[index].data, bytes(bytearray([0x88, 0x77, 0x66, 0x55])))  # little endian
+        self.assertIsNone(self.device_handler.write_logs[index].mask)
+        index += 1
+
+        self.assertIsInstance(self.device_handler.write_logs[index], WriteRPVLog)
+        assert isinstance(self.device_handler.write_logs[index], WriteRPVLog)
+        self.assertEqual(self.device_handler.write_logs[index].rpv_id, 0x1000)
+        self.assertEqual(self.device_handler.write_logs[index].data, struct.pack('>f', 2.345))  # RPVs are always big endian
+        index += 1
+
+        self.assertIsInstance(self.device_handler.write_logs[index], WriteRPVLog)
+        assert isinstance(self.device_handler.write_logs[index], WriteRPVLog)
+        self.assertEqual(self.device_handler.write_logs[index].rpv_id, 0x1000)
+        self.assertEqual(self.device_handler.write_logs[index].data, struct.pack('>f', 3.456))  # RPVs are always big endian
+        index += 1

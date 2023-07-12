@@ -106,10 +106,29 @@ class CallbackStorageEntry:
 
 
 @dataclass
-class PendingBatchWrite:
+class PendingAPIBatchWrite:
     update_dict: Dict[int, WriteRequest]
     confirmation: api_parser.WriteConfirmation
     creation_timestamp: float
+
+
+class BatchWriteContext:
+    client: "ScrutinyClient"
+    timeout: float
+    requests: List[WriteRequest]
+
+    def __init__(self, client: "ScrutinyClient", timeout: float):
+        self.client = client
+        self.timeout = timeout
+        self.requests = []
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if exc_type is None:
+            self.client.flush_batch_write(self)
+            self.client.wait_write_batch_complete(self)
 
 
 class ScrutinyClient:
@@ -145,7 +164,7 @@ class ScrutinyClient:
     _request_status_timer: Timer
     _require_status_update: bool
     _write_request_queue: "queue.Queue[WriteRequest]"
-    _pending_batch_writes: Dict[str, PendingBatchWrite]
+    _pending_api_batch_writes: Dict[str, PendingAPIBatchWrite]
 
     _worker_thread: Optional[threading.Thread]
     _threading_events: ThreadingEvents
@@ -156,6 +175,8 @@ class ScrutinyClient:
     _watchable_storage: Dict[str, WatchableHandle]
     _watchable_path_to_id_map: Dict[str, str]
     _server_info: Optional[ServerInfo]
+
+    _active_batch_context: Optional[BatchWriteContext]
 
     def __enter__(self):
         return self
@@ -192,11 +213,13 @@ class ScrutinyClient:
         self._require_status_update = False
         self._server_info = None
         self._write_request_queue = queue.Queue()
-        self._pending_batch_writes = {}
+        self._pending_api_batch_writes = {}
 
         self._watchable_storage = {}
         self._watchable_path_to_id_map = {}
         self._callback_storage = {}
+
+        self._active_batch_context = None
 
     def _start_worker_thread(self) -> None:
         self._threading_events.stop_worker_thread.clear()
@@ -296,10 +319,10 @@ class ScrutinyClient:
     def _wt_process_msg_inform_write_completion(self, msg: api_typing.S2C.WriteCompletion, reqid: Optional[int]) -> None:
         completion = api_parser.parse_write_completion(msg)
 
-        if completion.request_token not in self._pending_batch_writes:
+        if completion.request_token not in self._pending_api_batch_writes:
             return   # Maybe triggered by another client. Silently ignore.
 
-        batch_write = self._pending_batch_writes[completion.request_token]
+        batch_write = self._pending_api_batch_writes[completion.request_token]
         if completion.batch_index not in batch_write.update_dict:
             self._logger.error("The server returned a write completion with an unknown batch_index")
             return
@@ -397,26 +420,26 @@ class ScrutinyClient:
                     del self._callback_storage[reqid]
 
     def _wt_process_write_requests(self) -> None:
-        # Note _pending_batch_writes is always accessed from worker thread
+        # Note _pending_api_batch_writes is always accessed from worker thread
         api_req = self._make_request(API.Command.Client2Api.WRITE_VALUE, {'updates': []})
         api_req = cast(api_typing.C2S.WriteValue, api_req)
 
         # Clear old requests.
         # No need for lock here. The _request_queue crosses time domain boundaries
         now = time.time()
-        if len(self._pending_batch_writes) > 0:
-            tokens = list(self._pending_batch_writes.keys())
+        if len(self._pending_api_batch_writes) > 0:
+            tokens = list(self._pending_api_batch_writes.keys())
             for token in tokens:
-                pending_batch = self._pending_batch_writes[token]
+                pending_batch = self._pending_api_batch_writes[token]
                 if now - pending_batch.creation_timestamp > self._write_timeout:
                     for request in pending_batch.update_dict.values():  # Completed request are already removed of that dict.
                         request._mark_complete(False, "Timed out")
-                    del self._pending_batch_writes[token]
+                    del self._pending_api_batch_writes[token]
 
                 # Once a batch is fully processed, meaning all requests have been treated and removed
                 # We can prune the remaining empty batch
                 if len(pending_batch.update_dict) == 0:
-                    del self._pending_batch_writes[token]
+                    del self._pending_api_batch_writes[token]
 
         # Process new requests
         n = 0
@@ -445,7 +468,7 @@ class ScrutinyClient:
                 if confirmation.count != len(batch_dict):
                     request._mark_complete(False, f"Count mismatch in request and server confirmation.")
                 else:
-                    self._pending_batch_writes[confirmation.request_token] = PendingBatchWrite(
+                    self._pending_api_batch_writes[confirmation.request_token] = PendingAPIBatchWrite(
                         update_dict=batch_dict,
                         confirmation=confirmation,
                         creation_timestamp=time.time()
@@ -593,6 +616,16 @@ class ScrutinyClient:
     def __del__(self):
         self.disconnect()
 
+    def _is_batch_write_in_progress(self) -> bool:
+        return self._active_batch_context is not None
+
+    def _process_write_request(self, request: WriteRequest):
+        if self._is_batch_write_in_progress():
+            assert self._active_batch_context is not None
+            self._active_batch_context.requests.append(request)
+        else:
+            self._enqueue_write_request(request)
+
     # === User API ====
 
     def connect(self, hostname: str, port: int, **kwargs) -> "ScrutinyClient":
@@ -734,6 +767,43 @@ class ScrutinyClient:
 
         if not self._threading_events.server_status_updated.is_set():
             raise sdk_exceptions.TimeoutException(f"Server status did not update within a {timeout} seconds delay")
+
+    def batch_write(self, timeout: Optional[float] = None) -> BatchWriteContext:
+        if self._active_batch_context is not None:
+            raise sdk_exceptions.OperationFailure("Batch write cannot be nested")
+
+        if timeout is None:
+            timeout = self._write_timeout
+
+        batch_context = BatchWriteContext(self, timeout)
+        self._active_batch_context = batch_context
+        return batch_context
+
+    def flush_batch_write(self, batch_write_context: BatchWriteContext) -> None:
+        for request in batch_write_context.requests:
+            self._enqueue_write_request(request)
+
+    def wait_write_batch_complete(self, batch: BatchWriteContext) -> None:
+        tstart = time.time()
+
+        incomplete_count: Optional[int] = None
+        try:
+            for write_request in batch.requests:
+                remaining_time = max(0, batch.timeout - (time.time() - tstart))
+                write_request.wait_for_completion(timeout=remaining_time)
+            timed_out = False
+        except sdk_exceptions.TimeoutException:
+            timed_out = True
+
+        if timed_out:
+            incomplete_count = 0
+            for request in batch.requests:
+                if not request.completed:
+                    incomplete_count += 1
+
+            if incomplete_count > 0:
+                raise sdk_exceptions.TimeoutException(
+                    f"Incomplete batch write. {incomplete_count} write requests not completed in {batch.timeout} sec. ")
 
     @property
     def name(self) -> str:
