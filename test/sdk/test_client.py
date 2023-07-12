@@ -6,6 +6,7 @@ import scrutiny.sdk as sdk
 import scrutiny.server.datalogging.definitions.device as device_datalogging
 from scrutiny.core.variable import Variable as core_Variable
 from scrutiny.core.alias import Alias as core_Alias
+from scrutiny.core.codecs import Codecs
 
 
 from scrutiny.server.api import API
@@ -27,10 +28,15 @@ from uuid import uuid4
 from dataclasses import dataclass
 import logging
 import traceback
+import struct
 
 from typing import *
 
 localhost = "127.0.0.1"
+
+
+def d2f(d):
+    return struct.unpack('f', struct.pack('f', d))[0]
 
 # TODO : write, unsubscribe on delete
 
@@ -145,15 +151,21 @@ class FakeDeviceHandler:
         if update_request is not None:
             try:
                 entry = update_request.entry
-                refentry = entry
                 if isinstance(entry, datastore.DatastoreAliasEntry):
-                    refentry = entry.resolve()
+                    entry = entry.resolve()
+                bitsize = None
+                if isinstance(entry, datastore.DatastoreVariableEntry):
+                    bitsize = entry.get_bitsize()
+                value = Codecs.make_value_valid(entry.get_data_type(), update_request.value, bitsize=bitsize)
 
-                data, mask = refentry.encode(update_request.value)
-                if isinstance(refentry, datastore.DatastoreVariableEntry):
-                    self.write_logs.append(WriteMemoryLog(address=refentry.get_address(), data=data, mask=mask))
-                elif isinstance(refentry, datastore.DatastoreRPVEntry):
-                    self.write_logs.append(WriteRPVLog(rpv_id=refentry.rpv.id, data=data))
+                data, mask = entry.encode(value)
+                if isinstance(entry, datastore.DatastoreVariableEntry):
+                    self.write_logs.append(WriteMemoryLog(address=entry.get_address(), data=data, mask=mask))
+                elif isinstance(entry, datastore.DatastoreRPVEntry):
+                    self.write_logs.append(WriteRPVLog(rpv_id=entry.rpv.id, data=data))
+                else:
+                    raise NotImplementedError("Should not happen")
+
                 entry.set_value_from_data(data)
                 update_request.complete(True)
             except Exception as e:
@@ -472,3 +484,81 @@ class TestClient(unittest.TestCase):
         self.assertIsNone(self.device_handler.write_logs[0].mask)
         var1.wait_update(previous_counter=counter)
         self.assertEqual(var1.value, 0x789456)
+
+    def test_write_multiple_val(self):
+        rpv1000 = self.client.watch('/rpv/x1000')
+        var1 = self.client.watch('/a/b/var1')
+        var2 = self.client.watch('/a/b/var2')
+        alias_var1 = self.client.watch('/a/b/alias_var1')
+        alias_rpv1000 = self.client.watch('/a/b/alias_rpv1000')
+
+        # Can prune the test for debug
+        do_var1 = True
+        do_var2 = True
+        do_rpv1000 = True
+        do_alias_var1 = True
+        do_alias_rpv1000 = True
+
+        # Check the counter to validate the update of the watchable after the write.
+        counter_var1 = var1.update_counter
+        counter_var2 = var2.update_counter
+        counter_rpv1000 = rpv1000.update_counter
+        counter_alias_var1 = alias_var1.update_counter
+        counter_alias_rpv1000 = alias_rpv1000.update_counter
+
+        if do_var1:
+            var1.value = 0x11223344
+        if do_var2:
+            var2.value = True
+        if do_rpv1000:
+            rpv1000.value = 3.1415926
+        if do_alias_var1:
+            alias_var1.value = 0x55667788
+        if do_alias_rpv1000:
+            alias_rpv1000.value = 1.23456
+
+        index = 0
+        if do_var1:
+            self.assertIsInstance(self.device_handler.write_logs[index], WriteMemoryLog)
+            assert isinstance(self.device_handler.write_logs[index], WriteMemoryLog)
+            self.assertEqual(self.device_handler.write_logs[index].address, 0x1234)
+            self.assertEqual(self.device_handler.write_logs[index].data, bytes(bytearray([0x44, 0x33, 0x22, 0x11])))  # little endian
+            self.assertIsNone(self.device_handler.write_logs[index].mask)
+            var1.wait_update(previous_counter=counter_var1)
+            index += 1
+
+        if do_var2:
+            self.assertIsInstance(self.device_handler.write_logs[index], WriteMemoryLog)
+            assert isinstance(self.device_handler.write_logs[index], WriteMemoryLog)
+            self.assertEqual(self.device_handler.write_logs[index].address, 0x4568)
+            self.assertEqual(self.device_handler.write_logs[index].data, bytes(bytearray([1])))  # little endian
+            self.assertIsNone(self.device_handler.write_logs[index].mask)
+            var2.wait_update(previous_counter=counter_var2)
+            index += 1
+
+        if do_rpv1000:
+            self.assertIsInstance(self.device_handler.write_logs[index], WriteRPVLog)
+            assert isinstance(self.device_handler.write_logs[index], WriteRPVLog)
+            self.assertEqual(self.device_handler.write_logs[index].rpv_id, 0x1000)
+            self.assertEqual(self.device_handler.write_logs[index].data, struct.pack('>f', 3.1415926))  # RPVs are always big endian
+            rpv1000.wait_update(previous_counter=counter_rpv1000)
+            index += 1
+
+        # Alias points to var1
+        if do_alias_var1:
+            self.assertIsInstance(self.device_handler.write_logs[index], WriteMemoryLog)
+            assert isinstance(self.device_handler.write_logs[index], WriteMemoryLog)
+            self.assertEqual(self.device_handler.write_logs[index].address, 0x1234)
+            self.assertEqual(self.device_handler.write_logs[index].data, bytes(bytearray([0x88, 0x77, 0x66, 0x55])))  # little endian
+            self.assertIsNone(self.device_handler.write_logs[index].mask)
+            alias_var1.wait_update(previous_counter=counter_alias_var1)
+            index += 1
+
+        # Alias points to rpv1000
+        if do_alias_rpv1000:
+            self.assertIsInstance(self.device_handler.write_logs[index], WriteRPVLog)
+            assert isinstance(self.device_handler.write_logs[index], WriteRPVLog)
+            self.assertEqual(self.device_handler.write_logs[index].rpv_id, 0x1000)
+            self.assertEqual(self.device_handler.write_logs[index].data, struct.pack('>f', 1.23456))  # RPVs are always big endian
+            alias_rpv1000.wait_update(previous_counter=counter_alias_rpv1000)
+            index += 1

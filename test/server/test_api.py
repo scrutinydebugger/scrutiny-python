@@ -1224,14 +1224,16 @@ class TestAPI(ScrutinyUnitTest):
         self.assert_no_error(response)
 
         class TestCaseDef(TypedDict, total=False):
-            inval: any
-            outval: any
+            inval: Any
+            outval: Any
             valid: bool
+            exceptions: Dict[DatastoreEntry, Any]
 
         testcases: List[TestCaseDef] = [
             dict(inval=math.nan, valid=False),
             dict(inval=None, valid=False),
             dict(inval="asdasd", valid=False),
+
             dict(inval=int(123), valid=True, outval=int(123)),
             dict(inval="1234", valid=True, outval=1234),
             dict(inval="-2000.2", valid=True, outval=-2000.2),
@@ -1274,6 +1276,7 @@ class TestAPI(ScrutinyUnitTest):
                     self.assertTrue(self.datastore.has_pending_target_update())
                     update_request = self.datastore.pop_target_update_request()
                     if isinstance(entry, DatastoreAliasEntry):
+                        self.assertIs(update_request.entry, entry.refentry)
                         self.assertEqual(update_request.get_value(), entry.aliasdef.compute_user_to_device(testcase['outval']), error_msg)
                     else:
                         self.assertEqual(update_request.get_value(), testcase['outval'], error_msg)

@@ -282,7 +282,7 @@ class DatastoreVariableEntry(DatastoreEntry):
     def encode(self, value: Encodable) -> Tuple[bytes, Optional[bytes]]:
         """Encode the value to a stream of bytes and a data mask. 
         Returns as tuple : (data, mask)"""
-        return self.variable_def.encode(value)  # Returns a typle of (data, mask)
+        return self.variable_def.encode(value)  # Returns a tuple of (data, mask)
 
     def decode(self, data: bytes) -> Encodable:
         """Decode a stream of bytes into a Python value"""
@@ -339,7 +339,6 @@ class DatastoreAliasEntry(DatastoreEntry):
     def decode(self, data: bytes) -> Encodable:
         """Decode a stream of bytes into a Python value"""
         return self.aliasdef.compute_device_to_user(self.refentry.decode(data))
-
 
     def alias_target_update_callback(self, alias_request: UpdateTargetRequest, success: bool, entry: DatastoreEntry, timestamp: float):
         """Callback used by an alias to grab the result of the target update and apply it to its own"""
