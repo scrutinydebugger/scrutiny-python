@@ -486,7 +486,7 @@ class ScrutinyClient:
         if self._server_info is not None:
             if self._last_device_session_id is not None:
                 if self._last_device_session_id != self._server_info.device_session_id:
-                    self._wt_clear_all_watchables()
+                    self._wt_clear_all_watchables(ValueStatus.DeviceGone)
                     self._logger.info(f"Device is gone. Session ID: {self._last_device_session_id}")
             else:
                 if self._server_info.device_session_id is not None:
@@ -522,16 +522,17 @@ class ScrutinyClient:
             self._server_info = None
             self._last_device_session_id = None
 
-            self._wt_clear_all_watchables()
+            self._wt_clear_all_watchables(ValueStatus.ServerGone)
 
             for callback_entry in self._callback_storage.values():
                 if callback_entry._future.state == CallbackState.Pending:
                     callback_entry._future._wt_mark_completed(CallbackState.Cancelled)
             self._callback_storage.clear()
 
-    def _wt_clear_all_watchables(self) -> None:
+    def _wt_clear_all_watchables(self, new_status:ValueStatus) -> None:
+        assert new_status is not ValueStatus.Valid
         for watchable in self._watchable_storage.values():
-            watchable._set_invalid(ValueStatus.ServerGone)
+            watchable._set_invalid(new_status)
         self._watchable_storage.clear()
         self._watchable_path_to_id_map.clear()
 

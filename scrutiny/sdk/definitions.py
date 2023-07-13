@@ -33,6 +33,7 @@ class ValueStatus(enum.Enum):
     Valid = 1
     NeverSet = 2
     ServerGone = 3
+    DeviceGone = 4
 
 
 class DeviceCommState(enum.Enum):
