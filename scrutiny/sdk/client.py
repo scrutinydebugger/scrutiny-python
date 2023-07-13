@@ -177,6 +177,7 @@ class ScrutinyClient:
     _server_info: Optional[ServerInfo]
 
     _active_batch_context: Optional[BatchWriteContext]
+    _last_device_session_id: Optional[str]
 
     def __enter__(self):
         return self
@@ -218,6 +219,7 @@ class ScrutinyClient:
         self._watchable_storage = {}
         self._watchable_path_to_id_map = {}
         self._callback_storage = {}
+        self._last_device_session_id = None
 
         self._active_batch_context = None
 
@@ -249,30 +251,11 @@ class ScrutinyClient:
 
                 msg = self._wt_recv(timeout=0.001)
                 if msg is not None:
-                    self._threading_events.msg_received.set()
-                    # These callbacks are mainly for testing.
-                    for callback in self._rx_message_callbacks:
-                        callback(self, msg)
-
-                    reqid: Optional[int] = msg.get('reqid', None)
-                    cmd: Optional[str] = msg.get('cmd', None)
-
-                    if cmd is None:
-                        self._logger.error('Got a message without a "cmd" field')
-                        self._logger.debug(msg)
-                    else:
-                        try:
-                            self._wt_process_server_msg(cmd, msg, reqid)
-                        except sdk_exceptions.BadResponseError as e:
-                            self._logger.error(f"Bad response from server. {e}")
-                            self._logger.debug(traceback.format_exc())
-
-                        if reqid is not None:
-                            self._wt_process_callbacks(cmd, msg, reqid)
+                    self.wt_process_rx_api_message(msg)
 
                 self._wt_check_callbacks_timeouts()
-
                 self._wt_process_write_requests()
+                self._wt_process_device_state()
 
             except sdk_exceptions.ConnectionError as e:
                 self._logger.error(f"Connection error in worker thread: {e}")
@@ -369,13 +352,32 @@ class ScrutinyClient:
                     if reqid in self._callback_storage:
                         del self._callback_storage[reqid]
 
-    def _wt_process_server_msg(self, cmd: str, msg: dict, reqid: Optional[int]) -> None:
-        if cmd == API.Command.Api2Client.WATCHABLE_UPDATE:
-            self._wt_process_msg_watchable_update(cast(api_typing.S2C.WatchableUpdate, msg), reqid)
-        elif cmd == API.Command.Api2Client.INFORM_SERVER_STATUS:
-            self._wt_process_msg_inform_server_status(cast(api_typing.S2C.InformServerStatus, msg), reqid)
-        elif cmd == API.Command.Api2Client.INFORM_WRITE_COMPLETION:
-            self._wt_process_msg_inform_write_completion(cast(api_typing.S2C.WriteCompletion, msg), reqid)
+    def wt_process_rx_api_message(self, msg: dict) -> None:
+        self._threading_events.msg_received.set()
+        # These callbacks are mainly for testing.
+        for callback in self._rx_message_callbacks:
+            callback(self, msg)
+
+        reqid: Optional[int] = msg.get('reqid', None)
+        cmd: Optional[str] = msg.get('cmd', None)
+
+        if cmd is None:
+            self._logger.error('Got a message without a "cmd" field')
+            self._logger.debug(msg)
+        else:
+            try:
+                if cmd == API.Command.Api2Client.WATCHABLE_UPDATE:
+                    self._wt_process_msg_watchable_update(cast(api_typing.S2C.WatchableUpdate, msg), reqid)
+                elif cmd == API.Command.Api2Client.INFORM_SERVER_STATUS:
+                    self._wt_process_msg_inform_server_status(cast(api_typing.S2C.InformServerStatus, msg), reqid)
+                elif cmd == API.Command.Api2Client.INFORM_WRITE_COMPLETION:
+                    self._wt_process_msg_inform_write_completion(cast(api_typing.S2C.WriteCompletion, msg), reqid)
+            except sdk_exceptions.BadResponseError as e:
+                self._logger.error(f"Bad message from server. {e}")
+                self._logger.debug(traceback.format_exc())
+
+            if reqid is not None:
+                self._wt_process_callbacks(cmd, msg, reqid)
 
     def _wt_process_callbacks(self, cmd: str, msg: dict, reqid: int) -> None:
         callback_entry: Optional[CallbackStorageEntry] = None
@@ -479,6 +481,24 @@ class ScrutinyClient:
         self._send(api_req, _wt_write_response_callback)
         # We don't need the future object here because the WriteRequest act as one.
 
+    def _wt_process_device_state(self) -> None:
+        """Check the state of the device and take action when it changes"""
+        if self._server_info is not None:
+            if self._last_device_session_id is not None:
+                if self._last_device_session_id != self._server_info.device_session_id:
+                    self._wt_clear_all_watchables()
+                    self._logger.info(f"Device is gone. Session ID: {self._last_device_session_id}")
+            else:
+                if self._server_info.device_session_id is not None:
+                    device_name = "<unnamed>"
+                    if self._server_info.device is not None:
+                        device_name = self._server_info.device.display_name
+                    self._logger.info(f"Connected to device. Name:{device_name} - Session ID: {self._server_info.device_session_id} ")
+
+            self._last_device_session_id = self._server_info.device_session_id
+        else:
+            self._last_device_session_id = None
+
     def _wt_disconnect(self) -> None:
         """Disconnect from a Scrutiny server, called by the Worker Thread .
             Does not throw an exception in case of broken pipe
@@ -500,16 +520,20 @@ class ScrutinyClient:
             self._port = None
             self._server_state = ServerState.Disconnected
             self._server_info = None
+            self._last_device_session_id = None
 
-            for watchable in self._watchable_storage.values():
-                watchable._set_invalid(ValueStatus.ServerGone)
-            self._watchable_storage.clear()
-            self._watchable_path_to_id_map.clear()
+            self._wt_clear_all_watchables()
 
             for callback_entry in self._callback_storage.values():
                 if callback_entry._future.state == CallbackState.Pending:
                     callback_entry._future._wt_mark_completed(CallbackState.Cancelled)
             self._callback_storage.clear()
+
+    def _wt_clear_all_watchables(self) -> None:
+        for watchable in self._watchable_storage.values():
+            watchable._set_invalid(ValueStatus.ServerGone)
+        self._watchable_storage.clear()
+        self._watchable_path_to_id_map.clear()
 
     def _register_callback(self, reqid: int, callback: ApiResponseCallback, timeout: float) -> ApiResponseFuture:
         future = ApiResponseFuture(reqid, default_wait_timeout=timeout + 0.5)    # Allow some margin for thread to mark it timed out

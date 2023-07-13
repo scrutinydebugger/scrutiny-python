@@ -20,7 +20,7 @@ from scrutiny.server.datalogging.datalogging_storage import DataloggingStorage
 from scrutiny.server.datalogging.datalogging_manager import DataloggingManager
 from scrutiny.server.datastore.datastore import Datastore
 from scrutiny.server.datastore.datastore_entry import EntryType, DatastoreEntry, UpdateTargetRequestCallback
-from scrutiny.server.device.device_handler import DeviceHandler
+from scrutiny.server.device.device_handler import DeviceHandler, DeviceStateChangedCallback
 from scrutiny.server.active_sfd_handler import ActiveSFDHandler, SFDLoadedCallback, SFDUnloadedCallback
 from scrutiny.server.device.links import LinkConfig
 from scrutiny.core.sfd_storage import SFDStorage
@@ -275,6 +275,7 @@ class API:
 
         self.sfd_handler.register_sfd_loaded_callback(SFDLoadedCallback(self.sfd_loaded_callback))
         self.sfd_handler.register_sfd_unloaded_callback(SFDUnloadedCallback(self.sfd_unloaded_callback))
+        self.device_handler.register_device_state_change_callback(DeviceStateChangedCallback(self.device_state_changed_callback))
 
     @classmethod
     def get_datatype_name(cls, datatype: EmbeddedDataType) -> str:
@@ -292,6 +293,12 @@ class API:
         # Called when a SFD is unloaded (device disconnected)
         for conn_id in self.connections:
             self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=self.craft_inform_server_status_response()))
+
+    def device_state_changed_callback(self, new_status: DeviceHandler.ConnectionStatus):
+        """Called when the device state changes"""
+        if new_status in [DeviceHandler.ConnectionStatus.DISCONNECTED, DeviceHandler.ConnectionStatus.CONNECTED_READY]:
+            for conn_id in self.connections:
+                self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=self.craft_inform_server_status_response()))
 
     def get_client_handler(self) -> AbstractClientHandler:
         return self.client_handler

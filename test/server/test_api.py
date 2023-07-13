@@ -20,7 +20,7 @@ from scrutiny.server.datastore.datastore_entry import *
 from scrutiny.server.datastore.entry_type import EntryType
 from scrutiny.core.sfd_storage import SFDStorage
 from scrutiny.server.api.dummy_client_handler import DummyConnection, DummyClientHandler
-from scrutiny.server.device.device_handler import DeviceHandler
+from scrutiny.server.device.device_handler import DeviceHandler, DeviceStateChangedCallback
 from scrutiny.server.device.device_info import DeviceInfo, FixedFreqLoop, VariableFreqLoop
 from scrutiny.server.active_sfd_handler import ActiveSFDHandler
 from scrutiny.server.device.links.dummy_link import DummyLink
@@ -49,6 +49,7 @@ class StubbedDeviceHandler:
     datalogging_callbacks: Dict[str, GenericCallback]
     datalogger_state: device_datalogging.DataloggerState
     datalogging_setup: Optional[device_datalogging.DataloggingSetup]
+    device_state_change_callbacks: List[DeviceStateChangedCallback]
 
     def __init__(self, device_id, connection_status=DeviceHandler.ConnectionStatus.UNKNOWN):
         self.device_id = device_id
@@ -63,6 +64,7 @@ class StubbedDeviceHandler:
             encoding=device_datalogging.Encoding.RAW,
             max_signal_count=32
         )
+        self.device_state_change_callbacks = []
 
     def get_connection_status(self) -> DeviceHandler.ConnectionStatus:
         return self.connection_status
@@ -72,7 +74,13 @@ class StubbedDeviceHandler:
             self.server_session_id = uuid4().hex
         elif connection_status != DeviceHandler.ConnectionStatus.CONNECTED_READY:
             self.server_session_id = None
+
+        must_call_callbacks = self.connection_status != connection_status
         self.connection_status = connection_status
+
+        if must_call_callbacks:
+            for callback in self.device_state_change_callbacks:
+                callback(connection_status)
 
     def get_comm_session_id(self) -> Optional[str]:
         return self.server_session_id
@@ -139,6 +147,9 @@ class StubbedDeviceHandler:
     def validate_link_config(self, link_type: str, link_config: Dict[Any, Any]):
         if self.reject_link_config:
             raise Exception('Bad config')
+
+    def register_device_state_change_callback(self, callback):
+        self.device_state_change_callbacks.append(callback)
 
 
 class StubbedDataloggingManager:
@@ -1000,6 +1011,25 @@ class TestAPI(ScrutinyUnitTest):
             self.assertIn('device_session_id', response)
             self.assertIsNone(response['device_session_id'])    # Expected None when not connected
 
+    def test_server_status_sent_on_device_state_change(self):
+
+        # API consider a connection active after the first message
+        self.send_request(dict(cmd='echo', payload="123"))
+        self.wait_and_load_response()
+
+        self.assertEqual(self.fake_device_handler.get_connection_status(), DeviceHandler.ConnectionStatus.DISCONNECTED)
+        self.fake_device_handler.set_connection_status(DeviceHandler.ConnectionStatus.CONNECTED_READY)
+        msg = cast(api_typing.S2C.InformServerStatus, self.wait_and_load_response())
+        self.assert_no_error(msg)
+        self.assertEqual(msg['cmd'], API.Command.Api2Client.INFORM_SERVER_STATUS)
+        self.assertEqual(msg['device_status'], API.DeviceCommStatus.CONNECTED_READY)
+
+        self.fake_device_handler.set_connection_status(DeviceHandler.ConnectionStatus.DISCONNECTED)
+        msg = cast(api_typing.S2C.InformServerStatus, self.wait_and_load_response())
+        self.assert_no_error(msg)
+        self.assertEqual(msg['cmd'], API.Command.Api2Client.INFORM_SERVER_STATUS)
+        self.assertEqual(msg['device_status'], API.DeviceCommStatus.DISCONNECTED)
+
     def test_set_device_link(self):
         self.assertEqual(self.fake_device_handler.link_type, 'none')
         self.assertEqual(self.fake_device_handler.link_config, {})
@@ -1286,7 +1316,6 @@ class TestAPI(ScrutinyUnitTest):
 # region Datalogging
 
 # REQUEST_ACQUISITION
-
 
     def test_get_datalogging_capabilities(self):
         # Check that we can read the datalogging capabilities

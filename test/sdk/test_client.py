@@ -3,6 +3,7 @@ import unittest
 from scrutiny.core.basic_types import *
 from scrutiny.sdk.client import ScrutinyClient
 import scrutiny.sdk as sdk
+from scrutiny.sdk.watchable_handle import WatchableHandle
 import scrutiny.server.datalogging.definitions.device as device_datalogging
 from scrutiny.core.variable import Variable as core_Variable
 from scrutiny.core.alias import Alias as core_Alias
@@ -13,7 +14,7 @@ from scrutiny.server.api import API
 from scrutiny.server.api import APIConfig
 import scrutiny.server.datastore.datastore as datastore
 from scrutiny.server.api.websocket_client_handler import WebsocketClientHandler
-from scrutiny.server.device.device_handler import DeviceHandler
+from scrutiny.server.device.device_handler import DeviceHandler, DeviceStateChangedCallback
 
 from scrutiny.core.firmware_description import FirmwareDescription
 from scrutiny.server.device.links.udp_link import UdpLink
@@ -38,7 +39,7 @@ localhost = "127.0.0.1"
 def d2f(d):
     return struct.unpack('f', struct.pack('f', d))[0]
 
-# TODO : write, unsubscribe on delete
+# TODO : write failure, unsubscribe on delete
 
 
 @dataclass
@@ -64,6 +65,7 @@ class FakeDeviceHandler:
     datalogging_completion_ratio: Optional[float]
     device_info: server_device.DeviceInfo
     write_logs: List[Union[WriteMemoryLog, WriteRPVLog]]
+    device_state_change_callbacks: List[DeviceStateChangedCallback]
 
     def __init__(self, datastore: "datastore.Datastore"):
         self.datastore = datastore
@@ -78,6 +80,7 @@ class FakeDeviceHandler:
         self.datalogging_completion_ratio = None
         self.device_conn_status = DeviceHandler.ConnectionStatus.DISCONNECTED
         self.comm_session_id = None
+        self.device_state_change_callbacks = []
         self.set_connection_status(DeviceHandler.ConnectionStatus.CONNECTED_READY)
         self.write_logs = []
 
@@ -138,7 +141,15 @@ class FakeDeviceHandler:
         else:
             self.comm_session_id = None
 
+        must_call_callbacks = self.device_conn_status != status
         self.device_conn_status = status
+
+        if must_call_callbacks:
+            for callback in self.device_state_change_callbacks:
+                callback(self.device_conn_status)
+
+    def register_device_state_change_callback(self, callback: DeviceStateChangedCallback) -> None:
+        self.device_state_change_callbacks.append(callback)
 
     def get_comm_session_id(self):
         return self.comm_session_id
@@ -287,11 +298,31 @@ class TestClient(unittest.TestCase):
             self.sync_complete.wait()
             self.assertFalse(self.require_sync.is_set())
 
+    def wait_true(self, func, timeout=2, error_str=None):
+        success = False
+        t = time.time()
+        while time.time() - t < timeout:
+            if func():
+                success = True
+                break
+        if not success:
+            if error_str is None:
+                error_str = f"function did not return true within {timeout} sec"
+            raise TimeoutError(error_str)
+
     def execute_in_server_thread(self, func, timeout=2, wait=True, delay: float = 0):
         completed = threading.Event()
         self.func_queue.put((func, completed, delay))
         if wait:
             completed.wait(timeout)
+
+    def set_entry_val(self, path, val):
+        self.datastore.get_entry_by_display_path(path).set_value(val)
+
+    def set_value_and_wait_update(self, watchable: WatchableHandle, val: Any, timeout=2):
+        counter = watchable.update_counter
+        self.execute_in_server_thread(partial(self.set_entry_val, watchable.display_path, val))
+        watchable.wait_update(previous_counter=counter, timeout=timeout)
 
     def server_thread(self):
         self.api.start_listening()
@@ -392,9 +423,6 @@ class TestClient(unittest.TestCase):
 
         self.client.wait_server_status_update()
         self.assertIsNot(self.client.server, server_info)   # Make sure we have a new object with a new reference.
-
-    def set_entry_val(self, path, val):
-        self.datastore.get_entry_by_display_path(path).set_value(val)
 
     def test_fetch_watcahble_info(self):
 
@@ -610,3 +638,46 @@ class TestClient(unittest.TestCase):
         self.assertEqual(self.device_handler.write_logs[index].rpv_id, 0x1000)
         self.assertEqual(self.device_handler.write_logs[index].data, struct.pack('>f', 3.456))  # RPVs are always big endian
         index += 1
+
+    def test_invalidate_watchables_on_device_change(self):
+        rpv1000 = self.client.watch('/rpv/x1000')
+        var1 = self.client.watch('/a/b/var1')
+        alias_var1 = self.client.watch('/a/b/alias_var1')
+
+        def disconnect_device():
+            self.device_handler.set_connection_status(DeviceHandler.ConnectionStatus.DISCONNECTED)
+
+        def reconnect_device():
+            self.device_handler.set_connection_status(DeviceHandler.ConnectionStatus.CONNECTED_READY)
+
+        alias_var1_counter = alias_var1.update_counter
+        self.set_value_and_wait_update(rpv1000, 1.234)
+        self.set_value_and_wait_update(var1, 0x1234)
+        alias_var1.wait_update(previous_counter=alias_var1_counter)
+
+        self.execute_in_server_thread(disconnect_device)
+        self.wait_for_server()
+
+        def status_check(commstate):
+            return self.client.server.device_comm_state == commstate
+
+        self.wait_true(partial(status_check, sdk.DeviceCommState.Disconnected))
+
+        with self.assertRaises(sdk.exceptions.InvalidValueError):
+            rpv1000.value
+        with self.assertRaises(sdk.exceptions.InvalidValueError):
+            var1.value
+        with self.assertRaises(sdk.exceptions.InvalidValueError):
+            alias_var1.value
+
+        self.execute_in_server_thread(reconnect_device)
+        self.wait_for_server()
+        time.sleep(0.1)  # Leave time for our thread to receive the message
+        self.wait_true(partial(status_check, sdk.DeviceCommState.ConnectedReady))
+
+        with self.assertRaises(sdk.exceptions.InvalidValueError):
+            rpv1000.value
+        with self.assertRaises(sdk.exceptions.InvalidValueError):
+            var1.value
+        with self.assertRaises(sdk.exceptions.InvalidValueError):
+            alias_var1.value

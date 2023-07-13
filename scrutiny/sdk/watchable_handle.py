@@ -102,6 +102,8 @@ class WatchableHandle:
     def _write(self, val: ValType) -> WriteRequest:
         write_request = WriteRequest(self, val)
         self._client._process_write_request(write_request)
+        if not self._client._is_batch_write_in_progress():
+            write_request.wait_for_completion()
         return write_request
 
     def wait_update(self, timeout=3, previous_counter: Optional[int] = None) -> None:
@@ -133,9 +135,7 @@ class WatchableHandle:
 
     @value.setter
     def value(self, val: ValType) -> None:
-        write_request = self._write(val)
-        if not self._client._is_batch_write_in_progress():
-            write_request.wait_for_completion()
+        self._write(val)
 
     @property
     def display_path(self) -> str:
