@@ -34,6 +34,7 @@ class ValueStatus(enum.Enum):
     NeverSet = 2
     ServerGone = 3
     DeviceGone = 4
+    SFDUnloaded = 4
 
 
 class DeviceCommState(enum.Enum):

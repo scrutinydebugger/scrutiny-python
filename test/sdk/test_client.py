@@ -20,6 +20,7 @@ from scrutiny.core.firmware_description import FirmwareDescription
 from scrutiny.server.device.links.udp_link import UdpLink
 from scrutiny.server.device.links.abstract_link import AbstractLink
 import scrutiny.server.device.device_info as server_device
+from test.artifacts import get_artifact
 
 import threading
 import time
@@ -30,6 +31,7 @@ from dataclasses import dataclass
 import logging
 import traceback
 import struct
+from datetime import datetime
 
 from typing import *
 
@@ -198,7 +200,7 @@ class FakeActiveSFDHandler:
     def __init__(self, *args, **kwargs):
         self.loaded_callbacks = []
         self.unloaded_callbacks = []
-        self.loaded_sfd = None
+        self.loaded_sfd = FirmwareDescription(get_artifact('test_sfd_1.sfd'))
 
     def register_sfd_loaded_callback(self, callback):
         self.loaded_callbacks.append(callback)
@@ -211,10 +213,10 @@ class FakeActiveSFDHandler:
         for cb in self.loaded_callbacks:
             cb(sfd)
 
-    def unload(self, sfd: FirmwareDescription) -> None:
+    def unload(self) -> None:
         self.loaded_sfd = None
         for cb in self.unloaded_callbacks:
-            cb(sfd)
+            cb()
 
     def get_loaded_sfd(self) -> Optional[FirmwareDescription]:
         return self.loaded_sfd
@@ -356,7 +358,7 @@ class TestClient(unittest.TestCase):
         time.sleep(5)
 
     def test_get_status(self):
-        time.sleep(0.5)  # Should be enough to read the status
+        self.client.wait_server_status_update()
         self.assertEqual(self.client.server_state, sdk.ServerState.Connected)
         server_info = self.client.server
         self.assertIsNotNone(server_info)
@@ -409,7 +411,18 @@ class TestClient(unittest.TestCase):
         self.assertIsNone(server_info.datalogging.completion_ratio)
         self.assertEqual(server_info.datalogging.state, sdk.DataloggerState.Standby)
 
-        self.assertIsNone(server_info.sfd)
+        self.assertIsNotNone(server_info.sfd)
+        assert server_info.sfd is not None
+        sfd = FirmwareDescription(get_artifact('test_sfd_1.sfd'))
+        self.assertEqual(server_info.sfd.firmware_id, sfd.get_firmware_id_ascii())
+        self.assertEqual(server_info.sfd.metadata.author, sfd.metadata['author'])
+        self.assertEqual(server_info.sfd.metadata.project_name, sfd.metadata['project_name'])
+        self.assertEqual(server_info.sfd.metadata.version, sfd.metadata['version'])
+
+        self.assertEqual(server_info.sfd.metadata.generation_info.python_version, sfd.metadata['generation_info']['python_version'])
+        self.assertEqual(server_info.sfd.metadata.generation_info.scrutiny_version, sfd.metadata['generation_info']['scrutiny_version'])
+        self.assertEqual(server_info.sfd.metadata.generation_info.system_type, sfd.metadata['generation_info']['system_type'])
+        self.assertEqual(server_info.sfd.metadata.generation_info.timestamp, datetime.fromtimestamp(sfd.metadata['generation_info']['time']))
 
         # Make sure the class is readonly.
         with self.assertRaises(Exception):
@@ -677,6 +690,49 @@ class TestClient(unittest.TestCase):
 
         with self.assertRaises(sdk.exceptions.InvalidValueError):
             rpv1000.value
+        with self.assertRaises(sdk.exceptions.InvalidValueError):
+            var1.value
+        with self.assertRaises(sdk.exceptions.InvalidValueError):
+            alias_var1.value
+
+    def test_invalidate_watchables_on_sfd_unload(self):
+        self.client.wait_server_status_update()
+
+        rpv1000 = self.client.watch('/rpv/x1000')
+        var1 = self.client.watch('/a/b/var1')
+        alias_var1 = self.client.watch('/a/b/alias_var1')
+
+        def sfd_loaded_check():
+            return self.client.server.sfd is not None
+
+        def sfd_unloaded_check():
+            return self.client.server.sfd is None
+
+        def unload_sfd():
+            self.sfd_handler.unload()
+
+        def reload_sfd():
+            self.sfd_handler.load(FirmwareDescription(get_artifact('test_sfd_1.sfd')))
+
+        alias_var1_counter = alias_var1.update_counter
+        self.set_value_and_wait_update(rpv1000, 1.234)
+        self.set_value_and_wait_update(var1, 0x1234)
+        alias_var1.wait_update(previous_counter=alias_var1_counter)
+
+        self.execute_in_server_thread(unload_sfd)
+        self.wait_true(sfd_unloaded_check)
+
+        rpv1000.value   # RPV still accessible
+
+        with self.assertRaises(sdk.exceptions.InvalidValueError):
+            var1.value
+        with self.assertRaises(sdk.exceptions.InvalidValueError):
+            alias_var1.value
+
+        self.execute_in_server_thread(reload_sfd)
+        self.wait_true(sfd_loaded_check)
+
+        rpv1000.value
         with self.assertRaises(sdk.exceptions.InvalidValueError):
             var1.value
         with self.assertRaises(sdk.exceptions.InvalidValueError):

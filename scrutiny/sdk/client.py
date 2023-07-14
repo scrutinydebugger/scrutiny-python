@@ -178,6 +178,7 @@ class ScrutinyClient:
 
     _active_batch_context: Optional[BatchWriteContext]
     _last_device_session_id: Optional[str]
+    _last_sfd_firmware_id: Optional[str]
 
     def __enter__(self):
         return self
@@ -220,6 +221,7 @@ class ScrutinyClient:
         self._watchable_path_to_id_map = {}
         self._callback_storage = {}
         self._last_device_session_id = None
+        self._last_sfd_firmware_id = None
 
         self._active_batch_context = None
 
@@ -484,6 +486,7 @@ class ScrutinyClient:
     def _wt_process_device_state(self) -> None:
         """Check the state of the device and take action when it changes"""
         if self._server_info is not None:
+            # ====  Check Device conn
             if self._last_device_session_id is not None:
                 if self._last_device_session_id != self._server_info.device_session_id:
                     self._wt_clear_all_watchables(ValueStatus.DeviceGone)
@@ -495,9 +498,21 @@ class ScrutinyClient:
                         device_name = self._server_info.device.display_name
                     self._logger.info(f"Connected to device. Name:{device_name} - Session ID: {self._server_info.device_session_id} ")
 
+                    # ====  Check SFD
+            new_firmware_id = self._server_info.sfd.firmware_id if self._server_info.sfd is not None else None
+            if self._last_sfd_firmware_id is not None:
+                if new_firmware_id is None:
+                    self._wt_clear_all_watchables(ValueStatus.SFDUnloaded, [WatchableType.Alias, WatchableType.Variable])   # RPVs are still there.
+                    self._logger.info(f"SFD unloaded. Firmware ID: {self._last_sfd_firmware_id}")
+            else:
+                if new_firmware_id is not None:
+                    self._logger.info(f"SFD loaded. Firmware ID: {new_firmware_id}")
+
             self._last_device_session_id = self._server_info.device_session_id
+            self._last_sfd_firmware_id = new_firmware_id
         else:
             self._last_device_session_id = None
+            self._last_sfd_firmware_id = None
 
     def _wt_disconnect(self) -> None:
         """Disconnect from a Scrutiny server, called by the Worker Thread .
@@ -529,12 +544,18 @@ class ScrutinyClient:
                     callback_entry._future._wt_mark_completed(CallbackState.Cancelled)
             self._callback_storage.clear()
 
-    def _wt_clear_all_watchables(self, new_status:ValueStatus) -> None:
+    def _wt_clear_all_watchables(self, new_status: ValueStatus, watchable_types: Optional[List[WatchableType]] = None) -> None:
         assert new_status is not ValueStatus.Valid
-        for watchable in self._watchable_storage.values():
-            watchable._set_invalid(new_status)
-        self._watchable_storage.clear()
-        self._watchable_path_to_id_map.clear()
+        if watchable_types is None:
+            watchable_types = [WatchableType.Alias, WatchableType.Variable, WatchableType.RuntimePulishedValue]
+        server_ids = list(self._watchable_storage.keys())
+        for server_id in server_ids:
+            watchable = self._watchable_storage[server_id]
+            if watchable.type in watchable_types:
+                watchable._set_invalid(new_status)
+                if watchable.display_path in self._watchable_path_to_id_map:
+                    del self._watchable_path_to_id_map[watchable.display_path]
+                del self._watchable_storage[server_id]
 
     def _register_callback(self, reqid: int, callback: ApiResponseCallback, timeout: float) -> ApiResponseFuture:
         future = ApiResponseFuture(reqid, default_wait_timeout=timeout + 0.5)    # Allow some margin for thread to mark it timed out

@@ -95,6 +95,8 @@ class WatchableHandle:
                 reason = "Server has gone away"
             elif val_status == ValueStatus.DeviceGone:
                 reason = "Device has been disconnected"
+            elif val_status == ValueStatus.SFDUnloaded:
+                reason = "Firmware Description File has been unloaded"
             else:
                 raise RuntimeError(f"Unknown value status {val_status}")
             raise sdk_exceptions.InvalidValueError(f"Value of {self._shortname} is unusable. {reason}")

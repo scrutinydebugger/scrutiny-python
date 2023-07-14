@@ -37,6 +37,11 @@ class WriteRequest:
         self._completed_event.set()
 
     def wait_for_completion(self, timeout: float = 2):
+        """Wait for the write request to get completed. 
+
+        :raises sdk.TimeoutException: If the request does not complete within the allowed time
+        :raises sdk.OperationFailure: If the request complete with a failure state
+        """
         self._completed_event.wait(timeout=timeout)
         if not self._completed:
             raise sdk_exceptions.TimeoutException(f"Write did not complete. {self._watchable.display_path}")
@@ -46,20 +51,25 @@ class WriteRequest:
 
     @property
     def completed(self) -> bool:
+        """Indicates whether the write request has completed or not"""
         return self._completed_event.is_set()
 
     @property
     def is_success(self) -> bool:
+        """Indicates whether the write request has successfully completed or not"""
         return self._success
 
     @property
     def completion_timestamp(self) -> Optional[datetime]:
+        """The time at which the write request has been completed. None if not completed yet"""
         return self._completion_timestamp
 
     @property
     def failure_reason(self) -> str:
+        """When the write request failed, this property contains the reason for the failure. Empty string if not completed or succeeded"""
         return self._failure_reason
 
     @property
     def watchable(self) -> "WatchableHandle":
+        """A reference to the watchable handle that is being written by this write request"""
         return self._watchable
