@@ -673,11 +673,19 @@ class DeviceHandler:
                         self.datalogging_poller.enable()
 
                         self.logger.debug("Enabling datalogging handling")
-                        #  TODO enforce memory_read memory_write feature map
                     else:
                         self.datalogging_poller.disable()
                         self.logger.debug("Disabling datalogging handling")
                     next_state = self.FsmState.READY
+
+                    self.memory_writer.allow_memory_write(self.device_info.supported_feature_map['memory_write'])
+                    assert self.device_info.forbidden_memory_regions is not None
+                    assert self.device_info.readonly_memory_regions is not None
+
+                    for region in self.device_info.forbidden_memory_regions:
+                        self.memory_writer.add_forbidden_region(region['start'], region['end'] - region['start'] + 1)
+                    for region in self.device_info.readonly_memory_regions:
+                        self.memory_writer.add_readonly_region(region['start'], region['end'] - region['start'] + 1)
 
         # ========= [READY] ==========
         elif self.fsm_state == self.FsmState.READY:

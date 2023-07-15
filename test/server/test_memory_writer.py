@@ -130,6 +130,122 @@ class TestMemoryWriterBasicReadOperation(ScrutinyUnitTest):
         self.assertTrue(update_request.is_complete())
         self.assertTrue(update_request.is_failed())
 
+    def test_write_readonly(self):
+        ds = Datastore()
+        ds.add_entries(list(make_dummy_var_entries(address=1000, n=1, vartype=EmbeddedDataType.float32)))
+        ds.add_entries(list(make_dummy_var_entries(address=2000, n=1, vartype=EmbeddedDataType.float32)))
+        ds.add_entries(list(make_dummy_var_entries(address=3000, n=1, vartype=EmbeddedDataType.float32)))
+        ds.add_entries(list(make_dummy_var_entries(address=4000, n=1, vartype=EmbeddedDataType.float32)))
+        entries = cast(List[DatastoreVariableEntry], list(ds.get_all_entries()))
+        entries.sort(key=lambda x: x.get_address())
+
+        regions = [
+            (990, 10),
+            (1990, 11),
+            (3003, 1),
+            (4004, 10)
+        ]
+
+        allowed_write = [True, False, False, True]
+
+        dispatcher = RequestDispatcher()
+        protocol = Protocol(1, 0)
+        protocol.set_address_size_bits(32)
+        writer = MemoryWriter(protocol, dispatcher=dispatcher, datastore=ds, request_priority=0)
+        for region in regions:
+            writer.add_readonly_region(start_addr=region[0], size=region[1])
+        writer.start()
+
+        for i in range(4):
+            entry_to_write = entries[i]
+            writer.process()
+            dispatcher.process()
+            self.assertIsNone(dispatcher.pop_next())
+            entry_to_write.set_value(0)
+            update_request = ds.update_target_value(entry_to_write, d2f(3.1415926), no_callback)
+            self.assertTrue(ds.has_pending_target_update())
+            writer.process()
+            dispatcher.process()
+
+            record = dispatcher.pop_next()
+            if allowed_write[i]:
+                self.assertIsNotNone(record)
+
+                request_data = cast(protocol_typing.Request.MemoryControl.Write, protocol.parse_request(record.request))
+                block_in_response = []
+                for block in request_data['blocks_to_write']:
+                    block_in_response.append((block['address'], len(block['data'])))
+
+                response = protocol.respond_write_memory_blocks(block_in_response)
+
+                record.complete(True, response)
+                self.assertFalse(ds.has_pending_target_update())
+                self.assertTrue(update_request.is_complete())
+                self.assertTrue(update_request.is_success())
+            else:
+                self.assertIsNone(record)
+                self.assertFalse(ds.has_pending_target_update())
+                self.assertTrue(update_request.is_complete())
+                self.assertFalse(update_request.is_success())
+
+    def test_write_forbidden(self):
+        ds = Datastore()
+        ds.add_entries(list(make_dummy_var_entries(address=1000, n=1, vartype=EmbeddedDataType.float32)))
+        ds.add_entries(list(make_dummy_var_entries(address=2000, n=1, vartype=EmbeddedDataType.float32)))
+        ds.add_entries(list(make_dummy_var_entries(address=3000, n=1, vartype=EmbeddedDataType.float32)))
+        ds.add_entries(list(make_dummy_var_entries(address=4000, n=1, vartype=EmbeddedDataType.float32)))
+        entries = cast(List[DatastoreVariableEntry], list(ds.get_all_entries()))
+        entries.sort(key=lambda x: x.get_address())
+
+        regions = [
+            (990, 10),
+            (1990, 11),
+            (3003, 1),
+            (4004, 10)
+        ]
+
+        allowed_write = [True, False, False, True]
+
+        dispatcher = RequestDispatcher()
+        protocol = Protocol(1, 0)
+        protocol.set_address_size_bits(32)
+        writer = MemoryWriter(protocol, dispatcher=dispatcher, datastore=ds, request_priority=0)
+        for region in regions:
+            writer.add_forbidden_region(start_addr=region[0], size=region[1])
+        writer.start()
+
+        for i in range(4):
+            entry_to_write = entries[i]
+            writer.process()
+            dispatcher.process()
+            self.assertIsNone(dispatcher.pop_next())
+            entry_to_write.set_value(0)
+            update_request = ds.update_target_value(entry_to_write, d2f(3.1415926), no_callback)
+            self.assertTrue(ds.has_pending_target_update())
+            writer.process()
+            dispatcher.process()
+
+            record = dispatcher.pop_next()
+            if allowed_write[i]:
+                self.assertIsNotNone(record)
+
+                request_data = cast(protocol_typing.Request.MemoryControl.Write, protocol.parse_request(record.request))
+                block_in_response = []
+                for block in request_data['blocks_to_write']:
+                    block_in_response.append((block['address'], len(block['data'])))
+
+                response = protocol.respond_write_memory_blocks(block_in_response)
+
+                record.complete(True, response)
+                self.assertFalse(ds.has_pending_target_update())
+                self.assertTrue(update_request.is_complete())
+                self.assertTrue(update_request.is_success())
+            else:
+                self.assertIsNone(record)
+                self.assertFalse(ds.has_pending_target_update())
+                self.assertTrue(update_request.is_complete())
+                self.assertFalse(update_request.is_success())
+
     # Update multiple entries. Make sure that all entries has been updated.
 
     def test_multiple_var_write(self):

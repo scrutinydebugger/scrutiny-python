@@ -30,12 +30,14 @@ class ScrutinyIntegrationTest(ScrutinyUnitTest):
     server: ScrutinyServer
     emulated_device: EmulatedDevice
     api_conn: DummyConnection
+    prestart_callback: Callable
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
         self.emulated_device = None
         self.server = None
+        self.prestart_callback = None
 
     def setUp(self):
         err = None
@@ -55,17 +57,16 @@ class ScrutinyIntegrationTest(ScrutinyUnitTest):
                 "autoload_sfd": False,
             }
 
-            # Server part
             self.server = ScrutinyServer(server_config)
-            self.server.init()
-
-            # Device part
             self.emulated_device = EmulatedDevice(self.server.device_handler.get_comm_link())
-            self.emulated_device.start()
-
-            # Client part
             self.api_conn = DummyConnection()
-            self.api_conn.open()
+
+            if self.prestart_callback is not None:
+                self.prestart_callback()
+
+            self.server.init()  # Server
+            self.emulated_device.start()    # Device
+            self.api_conn.open()    # Client
             cast(DummyClientHandler, self.server.api.get_client_handler()).set_connections([self.api_conn])
 
             self.wait_for_device_ready()
@@ -219,9 +220,11 @@ class ScrutinyIntegrationTest(ScrutinyUnitTest):
 
     def assert_no_error(self, response, msg=None):
         self.assertIsNotNone(response)
+        self.assertIn('cmd', response)
         if 'cmd' in response:
             if 'msg' in response and msg is None:
                 msg = response['msg']
+
             self.assertNotEqual(response['cmd'], API.Command.Api2Client.ERROR_RESPONSE, msg)
 
     def assert_is_error(self, response, msg=""):
@@ -244,10 +247,10 @@ class ScrutinyIntegrationTest(ScrutinyUnitTest):
             self.assertEqual(valdict[expected[0].get_id()], expected[1])
 
     def read_device_var_entry(self, entry: DatastoreVariableEntry):
-        return self.emulated_device.read_memory(entry.get_address(), entry.get_data_type().get_size_byte())
+        return self.emulated_device.read_memory(entry.get_address(), entry.get_data_type().get_size_byte(), check_access_rights=False)
 
     def read_device_rpv_entry(self, entry: DatastoreRPVEntry):
-        return self.emulated_device.rpvs[entry.rpv.id]['value']
+        return self.emulated_device.read_rpv(entry.rpv.id)
 
     def do_test_setup_is_working(self):
         # Make sure that the emulation chain works

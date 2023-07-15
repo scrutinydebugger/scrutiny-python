@@ -83,6 +83,10 @@ class WatchableHandle:
             self._watchable_type = WatchableType.NA
             self._datatype = EmbeddedDataType.NA
 
+    def _is_dead(self) -> bool:
+        return self._status != ValueStatus.Valid and self._status != ValueStatus.NeverSet
+
+
     def _read(self) -> ValType:
         with self._lock:
             val = self._value

@@ -9,9 +9,10 @@ import scrutiny.sdk.exceptions as sdk_exceptions
 from copy import copy
 from datetime import datetime
 import logging
+from test import ScrutinyUnitTest
 
 
-class TestApiParser(unittest.TestCase):
+class TestApiParser(ScrutinyUnitTest):
     def test_parse_get_single_watchable(self):
         requested_path = '/a/b/c'
 

@@ -105,7 +105,7 @@ class UpdateTargetRequest:
         return self.value
 
 
-class DatastoreEntry:
+class DatastoreEntry(abc.ABC):
     """
     Represent an entry in the datastore that can be written and read.
     it has a unique ID and a display path used for GUI tree-like rendering.

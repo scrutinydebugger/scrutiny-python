@@ -21,6 +21,7 @@ from scrutiny.server.device.links.udp_link import UdpLink
 from scrutiny.server.device.links.abstract_link import AbstractLink
 import scrutiny.server.device.device_info as server_device
 from test.artifacts import get_artifact
+from test import ScrutinyUnitTest
 
 import threading
 import time
@@ -222,7 +223,7 @@ class FakeActiveSFDHandler:
         return self.loaded_sfd
 
 
-class TestClient(unittest.TestCase):
+class TestClient(ScrutinyUnitTest):
     datastore: "datastore.Datastore"
     device_handler: FakeDeviceHandler
     datalogging_manager: FakeDataloggingManager

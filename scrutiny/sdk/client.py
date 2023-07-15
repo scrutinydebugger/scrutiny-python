@@ -1,3 +1,4 @@
+# TODO : Pause reading
 __all__ = ['Client']
 
 
@@ -439,6 +440,10 @@ class ScrutinyClient:
                     for request in pending_batch.update_dict.values():  # Completed request are already removed of that dict.
                         request._mark_complete(False, "Timed out")
                     del self._pending_api_batch_writes[token]
+                else:
+                    for request in pending_batch.update_dict.values():  # Completed request are already removed of that dict.
+                        if request.watchable._is_dead():
+                            request._mark_complete(False, f"{request.watchable.name} is not available anymore")
 
                 # Once a batch is fully processed, meaning all requests have been treated and removed
                 # We can prune the remaining empty batch
@@ -733,6 +738,7 @@ class ScrutinyClient:
         return self
 
     def disconnect(self) -> None:
+        """Disconnect from the server"""
         if self._worker_thread is None:
             self._wt_disconnect()  # Can call safely from this thread
             return
@@ -748,6 +754,7 @@ class ScrutinyClient:
         self._stop_worker_thread()
 
     def watch(self, path: str, pause=False) -> WatchableHandle:
+        """Starts watching a watchable element identified by its display path (tree-like path)"""
         if not isinstance(path, str):
             raise ValueError("Path must be a string")
 
@@ -820,6 +827,7 @@ class ScrutinyClient:
         return watchable
 
     def wait_new_value_for_all(self, timeout: int = 5) -> None:
+        """Wait for all watched elements to be updated at least once after the call to this method"""
         counter_map: Dict[str, Optional[int]] = {}
         with self._main_lock:
             watchable_storage_copy = self._watchable_storage.copy()  # Shallow copy
@@ -834,6 +842,7 @@ class ScrutinyClient:
             watchable_storage_copy[server_id].wait_update(previous_counter=counter_map[server_id], timeout=timeout_remainder)
 
     def wait_server_status_update(self, timeout: float = _UPDATE_SERVER_STATUS_INTERVAL + 0.5):
+        """Wait for the a server status update"""
         self._threading_events.server_status_updated.clear()
         self._threading_events.server_status_updated.wait(timeout=timeout)
 
@@ -853,16 +862,20 @@ class ScrutinyClient:
 
     @property
     def name(self) -> str:
+
         return '' if self._name is None else self.name
 
     @property
     def server_state(self) -> ServerState:
+        """The server communication state"""
         with self._main_lock:
             val = self._server_state  # Can be modified by the worker_thread
         return val
 
     @property
     def server(self) -> Optional[ServerInfo]:
+        """Information about everything going on the server side"""
+
         # server_info is readonly and only it,s reference gets changed when updated.
         # We can safely return a reference here. The user can't mess it up
         with self._main_lock:
@@ -871,12 +884,14 @@ class ScrutinyClient:
 
     @property
     def hostname(self) -> Optional[str]:
+        """Hostname of the server used for websocket connection"""
         with self._main_lock:
             val = self._hostname  # Can be modified by the worker_thread
         return val
 
     @property
     def port(self) -> Optional[int]:
+        """Port of the websocket"""
         with self._main_lock:
             val = self._port  # Can be modified by the worker_thread
         return val
