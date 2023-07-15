@@ -42,7 +42,7 @@ localhost = "127.0.0.1"
 def d2f(d):
     return struct.unpack('f', struct.pack('f', d))[0]
 
-# TODO : write failure, unsubscribe on delete
+# TODO : unsubscribe on delete
 
 
 @dataclass
@@ -69,6 +69,8 @@ class FakeDeviceHandler:
     device_info: server_device.DeviceInfo
     write_logs: List[Union[WriteMemoryLog, WriteRPVLog]]
     device_state_change_callbacks: List[DeviceStateChangedCallback]
+
+    write_allowed: bool
 
     def __init__(self, datastore: "datastore.Datastore"):
         self.datastore = datastore
@@ -120,6 +122,10 @@ class FakeDeviceHandler:
             server_device.FixedFreqLoop(100, "100hz loop", support_datalogging=False),
             server_device.VariableFreqLoop("variable freq loop", support_datalogging=True)
         ]
+        self.write_allowed = True
+
+    def force_all_write_failure(self):
+        self.write_allowed = False
 
     def get_link_type(self):
         return self.link_type
@@ -163,29 +169,32 @@ class FakeDeviceHandler:
     def process(self):
         update_request = self.datastore.pop_target_update_request()
         if update_request is not None:
-            try:
-                entry = update_request.entry
-                if isinstance(entry, datastore.DatastoreAliasEntry):
-                    entry = entry.resolve()
-                bitsize = None
-                if isinstance(entry, datastore.DatastoreVariableEntry):
-                    bitsize = entry.get_bitsize()
-                value = Codecs.make_value_valid(entry.get_data_type(), update_request.value, bitsize=bitsize)
-
-                data, mask = entry.encode(value)
-                if isinstance(entry, datastore.DatastoreVariableEntry):
-                    self.write_logs.append(WriteMemoryLog(address=entry.get_address(), data=data, mask=mask))
-                elif isinstance(entry, datastore.DatastoreRPVEntry):
-                    self.write_logs.append(WriteRPVLog(rpv_id=entry.rpv.id, data=data))
-                else:
-                    raise NotImplementedError("Should not happen")
-
-                entry.set_value_from_data(data)
-                update_request.complete(True)
-            except Exception as e:
+            if not self.write_allowed:
                 update_request.complete(False)
-                logging.error(str(e))
-                logging.debug(traceback.format_exc())
+            else:
+                try:
+                    entry = update_request.entry
+                    if isinstance(entry, datastore.DatastoreAliasEntry):
+                        entry = entry.resolve()
+                    bitsize = None
+                    if isinstance(entry, datastore.DatastoreVariableEntry):
+                        bitsize = entry.get_bitsize()
+                    value = Codecs.make_value_valid(entry.get_data_type(), update_request.value, bitsize=bitsize)
+
+                    data, mask = entry.encode(value)
+                    if isinstance(entry, datastore.DatastoreVariableEntry):
+                        self.write_logs.append(WriteMemoryLog(address=entry.get_address(), data=data, mask=mask))
+                    elif isinstance(entry, datastore.DatastoreRPVEntry):
+                        self.write_logs.append(WriteRPVLog(rpv_id=entry.rpv.id, data=data))
+                    else:
+                        raise NotImplementedError("Should not happen")
+
+                    entry.set_value_from_data(data)
+                    update_request.complete(True)
+                except Exception as e:
+                    update_request.complete(False)
+                    logging.error(str(e))
+                    logging.debug(traceback.format_exc())
 
 
 class FakeDataloggingManager:
@@ -359,6 +368,7 @@ class TestClient(ScrutinyUnitTest):
         time.sleep(5)
 
     def test_get_status(self):
+        # Make sure we can read the status of the server correctly
         self.client.wait_server_status_update()
         self.assertEqual(self.client.server_state, sdk.ServerState.Connected)
         server_info = self.client.server
@@ -438,8 +448,8 @@ class TestClient(ScrutinyUnitTest):
         self.client.wait_server_status_update()
         self.assertIsNot(self.client.server, server_info)   # Make sure we have a new object with a new reference.
 
-    def test_fetch_watcahble_info(self):
-
+    def test_fetch_watchable_info(self):
+        # Make sure we can correctly read the information about a watchables
         rpv1000 = self.client.watch('/rpv/x1000')
         var1 = self.client.watch('/a/b/var1')
         var2 = self.client.watch('/a/b/var2')
@@ -472,15 +482,18 @@ class TestClient(ScrutinyUnitTest):
         self.assertEqual(alias_rpv1000.datatype, sdk.EmbeddedDataType.float32)
 
     def test_watch_non_existent(self):
+        # Make sure we can't watch something that doesn't exist
         with self.assertRaises(sdk.exceptions.OperationFailure):
             self.client.watch('/i/do/not/exist')
 
     def test_cannot_read_without_first_val(self):
+        # Make sure we can't read a watchable until a value is set at least once.
         rpv1000 = self.client.watch('/rpv/x1000')
         with self.assertRaises(sdk.exceptions.InvalidValueError):
             x = rpv1000.value   # Value never set
 
     def test_read_single_val(self):
+        # Make sure we can read the value of a single watchable
         rpv1000 = self.client.watch('/rpv/x1000')
 
         for i in range(10):
@@ -490,6 +503,7 @@ class TestClient(ScrutinyUnitTest):
             self.assertEqual(rpv1000.value, val)
 
     def test_read_multiple_val(self):
+        # Make sure we can read multiple watchables of different types
         rpv1000 = self.client.watch('/rpv/x1000')
         var1 = self.client.watch('/a/b/var1')
         var2 = self.client.watch('/a/b/var2')
@@ -512,6 +526,7 @@ class TestClient(ScrutinyUnitTest):
             self.assertEqual(alias_rpv1000.value, vals[0])
 
     def test_write_single_val(self):
+        # Make sure we can write a single watchable
         var1 = self.client.watch('/a/b/var1')
         counter = var1.update_counter
         var1.value = 0x789456
@@ -528,6 +543,7 @@ class TestClient(ScrutinyUnitTest):
         self.assertEqual(var1.value, 0x789456)
 
     def test_write_multiple_val(self):
+        # Make sure it is possible to write multiple watchables of different types all together
         rpv1000 = self.client.watch('/rpv/x1000')
         var1 = self.client.watch('/a/b/var1')
         var2 = self.client.watch('/a/b/var2')
@@ -606,7 +622,7 @@ class TestClient(ScrutinyUnitTest):
             index += 1
 
     def test_batch_write(self):
-        # We make sure we can
+        # We make sure we can write multiple watchable without waiting for each completion before sending the next request
         rpv1000 = self.client.watch('/rpv/x1000')
         var1 = self.client.watch('/a/b/var1')
 
@@ -654,6 +670,7 @@ class TestClient(ScrutinyUnitTest):
         index += 1
 
     def test_invalidate_watchables_on_device_change(self):
+        # Make sure ALL watchables are not usable after the device disconnect and reconnect
         rpv1000 = self.client.watch('/rpv/x1000')
         var1 = self.client.watch('/a/b/var1')
         alias_var1 = self.client.watch('/a/b/alias_var1')
@@ -697,6 +714,8 @@ class TestClient(ScrutinyUnitTest):
             alias_var1.value
 
     def test_invalidate_watchables_on_sfd_unload(self):
+        # Make sure watchables coming from the SFD (variables and aliases) are
+        # not usable after the SFD is unloaded on the server side
         self.client.wait_server_status_update()
 
         rpv1000 = self.client.watch('/rpv/x1000')
@@ -738,3 +757,21 @@ class TestClient(ScrutinyUnitTest):
             var1.value
         with self.assertRaises(sdk.exceptions.InvalidValueError):
             alias_var1.value
+
+    def test_report_write_failure(self):
+        var1 = self.client.watch('/a/b/var1')
+
+        def force_write_failure(self: "TestClient"):
+            self.device_handler.force_all_write_failure()
+
+        self.execute_in_server_thread(partial(force_write_failure, self))
+        with self.assertRaises(sdk.exceptions.OperationFailure):
+            var1.value = 0x789456
+
+    def test_unsubscribe_on_unwatch(self):
+        # todo
+        pass
+
+    def test_unsubscribe_on_delete(self):
+        # todo
+        pass
