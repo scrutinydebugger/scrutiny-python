@@ -769,9 +769,42 @@ class TestClient(ScrutinyUnitTest):
             var1.value = 0x789456
 
     def test_unsubscribe_on_unwatch(self):
-        # todo
-        pass
+        var1 = self.client.watch('/a/b/var1')
+        self.execute_in_server_thread(partial(self.set_entry_val, var1.display_path, 0x13245678))
+        time.sleep(0.5)
+        self.assertEqual(var1.value, 0x13245678)
+        var1.unwatch()
+        update_counter = var1.update_counter
+        self.execute_in_server_thread(partial(self.set_entry_val, var1.display_path, 0xabcd1234))
+        time.sleep(0.5)
+        self.assertEqual(update_counter, var1.update_counter)
 
-    def test_unsubscribe_on_delete(self):
+        with self.assertRaises(sdk.exceptions.InvalidValueError):
+            var1.value
+
+    def test_handle_cannot_be_reused_after_unwatch(self):
+        var1 = self.client.watch('/a/b/var1')
+        self.execute_in_server_thread(partial(self.set_entry_val, var1.display_path, 0x11111111))
+        time.sleep(0.5)
+        self.assertEqual(var1.value, 0x11111111)
+        var1.unwatch()
+
+        var1_2 = self.client.watch(var1.display_path)
+        self.execute_in_server_thread(partial(self.set_entry_val, var1.display_path, 0x22222222))
+        time.sleep(0.5)
+        self.assertEqual(var1_2.value, 0x22222222)
+
+        # Read and write of the unwatched handle are not possible
+        with self.assertRaises(sdk.exceptions.InvalidValueError):
+            var1.value
+        with self.assertRaises(sdk.exceptions.OperationFailure):
+            var1.value = 0x33333333
+
+        # But read and write of new handle is possible and working
+        var1_2.value = 0x44444444
+        self.assertEqual(var1_2.value, 0x44444444)
+        self.assertEqual(self.datastore.get_entry_by_display_path(var1_2.display_path).get_value(), 0x44444444)
+
+    def test_unwatch_on_delete(self):
         # todo
         pass
