@@ -589,7 +589,7 @@ class ScrutinyClient:
               callback: Optional[ApiResponseCallback] = None,
               timeout: Optional[float] = None
               ) -> Optional[ApiResponseFuture]:
-        """Sends a message to the API"""
+        """Sends a message to the API. Return a future if a callback is specified. If no timeout is given, uses the default timeout value"""
 
         error: Optional[Exception] = None
         future: Optional[ApiResponseFuture] = None
@@ -935,6 +935,28 @@ class ScrutinyClient:
         batch_context = BatchWriteContext(self, timeout)
         self._active_batch_context = batch_context
         return batch_context
+
+    def get_installed_sfds(self) -> Dict[str, sdk.SFDInfo]:
+        req = self._make_request(API.Command.Client2Api.GET_INSTALLED_SFD)
+
+        @dataclass
+        class Container:
+            obj: Optional[Dict[str, sdk.SFDInfo]]
+
+        cb_data: Container = Container(obj=None)  # Force pass by ref
+
+        def callback(state: CallbackState, response: Optional[api_typing.S2CMessage]) -> None:
+            if response is not None and state == CallbackState.OK:
+                cb_data.obj = api_parser.parse_get_installed_sfds_response(cast(api_typing.S2C.GetInstalledSFD, response))
+
+        future = self._send(req, callback)
+        assert future is not None
+        future.wait()
+        if future.state != CallbackState.OK or cb_data.obj is None:
+            raise sdk.exceptions.OperationFailure(
+                f"Failed to get the list of Scrutiny Firmware Description file installed on the server. {future.error_str}")
+
+        return cb_data.obj
 
     @property
     def name(self) -> str:

@@ -358,3 +358,7 @@ class TestApiParser(ScrutinyUnitTest):
             with self.assertRaises(sdk_exceptions.BadResponseError):
                 del msg["device_comm_link"]["link_config"][field]
                 parser.parse_inform_server_status(msg)
+
+
+if __name__ == '__main__':
+    unittest.main()

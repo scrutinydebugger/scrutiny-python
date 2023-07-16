@@ -16,6 +16,7 @@ import scrutiny.server.datalogging.definitions.device as device_datalogging
 from scrutiny.core.variable import Variable as core_Variable
 from scrutiny.core.alias import Alias as core_Alias
 from scrutiny.core.codecs import Codecs
+from scrutiny.core.sfd_storage import SFDStorage
 
 
 from scrutiny.server.api import API
@@ -355,6 +356,9 @@ class TestClient(ScrutinyUnitTest):
                     require_sync_before = True
 
                 if not self.func_queue.empty():
+                    func: Callable
+                    event: threading.Event
+                    delay: float
                     func, event, delay = self.func_queue.get()
                     if delay > 0:
                         time.sleep(delay)
@@ -812,3 +816,38 @@ class TestClient(ScrutinyUnitTest):
         var1_2.value = 0x44444444
         self.assertEqual(var1_2.value, 0x44444444)
         self.assertEqual(self.datastore.get_entry_by_display_path(var1_2.display_path).get_value(), 0x44444444)
+
+    def test_get_installed_sfds(self):
+        with SFDStorage.use_temp_folder():
+            sfd1 = SFDStorage.install(get_artifact('test_sfd_1.sfd'), ignore_exist=True)
+            sfd2 = SFDStorage.install(get_artifact('test_sfd_2.sfd'), ignore_exist=True)
+
+            installed = self.client.get_installed_sfds()
+            self.assertEqual(len(installed), 2)
+            self.assertIn(sfd1.get_firmware_id_ascii(), installed)
+            self.assertIn(sfd2.get_firmware_id_ascii(), installed)
+
+            installed1 = installed[sfd1.get_firmware_id_ascii()]
+            installed2 = installed[sfd2.get_firmware_id_ascii()]
+
+            self.assertEqual(installed1.firmware_id, sfd1.get_firmware_id_ascii())
+            self.assertEqual(installed1.metadata.author, sfd1.get_metadata()['author'])
+            self.assertEqual(installed1.metadata.project_name, sfd1.get_metadata()['project_name'])
+            self.assertEqual(installed1.metadata.version, sfd1.get_metadata()['version'])
+            self.assertEqual(installed1.metadata.generation_info.python_version, sfd1.get_metadata()['generation_info']['python_version'])
+            self.assertEqual(installed1.metadata.generation_info.scrutiny_version, sfd1.get_metadata()['generation_info']['scrutiny_version'])
+            self.assertEqual(installed1.metadata.generation_info.system_type, sfd1.get_metadata()['generation_info']['system_type'])
+            self.assertEqual(installed1.metadata.generation_info.timestamp, datetime.fromtimestamp(sfd1.get_metadata()['generation_info']['time']))
+
+            self.assertEqual(installed2.firmware_id, sfd2.get_firmware_id_ascii())
+            self.assertEqual(installed2.metadata.author, sfd2.get_metadata()['author'])
+            self.assertEqual(installed2.metadata.project_name, sfd2.get_metadata()['project_name'])
+            self.assertEqual(installed2.metadata.version, sfd2.get_metadata()['version'])
+            self.assertEqual(installed2.metadata.generation_info.python_version, sfd2.get_metadata()['generation_info']['python_version'])
+            self.assertEqual(installed2.metadata.generation_info.scrutiny_version, sfd2.get_metadata()['generation_info']['scrutiny_version'])
+            self.assertEqual(installed2.metadata.generation_info.system_type, sfd2.get_metadata()['generation_info']['system_type'])
+            self.assertEqual(installed2.metadata.generation_info.timestamp, datetime.fromtimestamp(sfd2.get_metadata()['generation_info']['time']))
+
+
+if __name__ == '__main__':
+    unittest.main()
