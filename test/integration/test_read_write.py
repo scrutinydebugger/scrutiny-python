@@ -9,12 +9,15 @@
 import struct
 
 from scrutiny.server.api import API
+from scrutiny.server.api import typing as api_typing
 from scrutiny.server.datastore.datastore_entry import *
 from scrutiny.core.basic_types import *
 from scrutiny.core.codecs import *
+from scrutiny.server.protocol import commands as protocol_commands
 from typing import List
 from dataclasses import dataclass
 from binascii import unhexlify
+from typing import *
 
 from test.integration.integration_test import ScrutinyIntegrationTestWithTestSFD1
 
@@ -31,9 +34,6 @@ class TestReadWrite(ScrutinyIntegrationTestWithTestSFD1):
         for entry in entries:
             if isinstance(entry, DatastoreVariableEntry):
                 self.emulated_device.write_memory(entry.get_address(), b'\x00' * entry.get_size())
-
-    def test_setup_is_working(self):
-        self.do_test_setup_is_working()
 
     def test_read(self):
 
@@ -79,7 +79,7 @@ class TestReadWrite(ScrutinyIntegrationTestWithTestSFD1):
         # Write f32 var
         write_req = {
             'cmd': API.Command.Client2Api.WRITE_VALUE,
-            'updates': [dict(watchable=self.entry_float32.get_id(), value=d2f(999.99))]
+            'updates': [dict(watchable=self.entry_float32.get_id(), value=d2f(999.99), batch_index=0)]
         }
 
         self.send_request(write_req)
@@ -97,7 +97,7 @@ class TestReadWrite(ScrutinyIntegrationTestWithTestSFD1):
         # Alias min/max applies only in write
         write_req = {
             'cmd': API.Command.Client2Api.WRITE_VALUE,
-            'updates': [dict(watchable=self.entry_alias_float32.get_id(), value=d2f(888.88))]
+            'updates': [dict(watchable=self.entry_alias_float32.get_id(), value=d2f(888.88), batch_index=0)]
         }
 
         self.send_request(write_req)
@@ -113,7 +113,7 @@ class TestReadWrite(ScrutinyIntegrationTestWithTestSFD1):
         # Write f64 RPV
         write_req = {
             'cmd': API.Command.Client2Api.WRITE_VALUE,
-            'updates': [dict(watchable=self.entry_rpv1000.get_id(), value=math.sqrt(3))]
+            'updates': [dict(watchable=self.entry_rpv1000.get_id(), value=math.sqrt(3), batch_index=0)]
         }
 
         self.send_request(write_req)
@@ -129,7 +129,7 @@ class TestReadWrite(ScrutinyIntegrationTestWithTestSFD1):
         # Alias min/max applies only in write
         write_req = {
             'cmd': API.Command.Client2Api.WRITE_VALUE,
-            'updates': [dict(watchable=self.entry_alias_rpv1000.get_id(), value=-150)]
+            'updates': [dict(watchable=self.entry_alias_rpv1000.get_id(), value=-150, batch_index=0)]
         }
 
         self.send_request(write_req)
@@ -161,7 +161,7 @@ class TestReadWrite(ScrutinyIntegrationTestWithTestSFD1):
         # Write Bitfield var
         write_req = {
             'cmd': API.Command.Client2Api.WRITE_VALUE,
-            'updates': [dict(watchable=self.entry_u64_bit15_35.get_id(), value=val)]
+            'updates': [dict(watchable=self.entry_u64_bit15_35.get_id(), value=val, batch_index=0)]
         }
 
         self.send_request(write_req)
@@ -282,7 +282,7 @@ class TestReadWrite(ScrutinyIntegrationTestWithTestSFD1):
             req = {
                 'cmd': API.Command.Client2Api.WRITE_VALUE,
                 'reqid': reqid,
-                'updates': [dict(watchable=testcase.entry.get_id(), value=testcase.inval)]
+                'updates': [dict(watchable=testcase.entry.get_id(), value=testcase.inval, batch_index=0)]
             }
 
             self.send_request(req)
@@ -301,6 +301,363 @@ class TestReadWrite(ScrutinyIntegrationTestWithTestSFD1):
                     for check in testcase.additional_checks:
                         assert_msg = "reqid=%d. Testcase=%s (extra_check:%s=%s)" % (reqid, testcase, check[0].get_display_path(), check[1])
                         self.assert_value_received(check[0], check[1], msg=assert_msg)
+
+    def tearDown(self) -> None:
+        super().tearDown()
+
+
+class TestWriteMemoryNotAllowed(ScrutinyIntegrationTestWithTestSFD1):
+
+    def setUp(self):
+        def disable_write(self: "TestWriteMemoryNotAllowed"):
+            self.emulated_device.supported_features['memory_write'] = False
+        self.prestart_callback = functools.partial(disable_write, self)
+
+        super().setUp()
+
+    def init_device_memory(self, entries: List[DatastoreEntry]):
+        for entry in entries:
+            if isinstance(entry, DatastoreVariableEntry):
+                self.emulated_device.write_memory(entry.get_address(), b'\x00' * entry.get_size(), check_access_rights=False)
+
+    def test_write_var_not_allowed(self):
+        # In this test we make sure a write request is denied by the server when the device disables write.
+        all_entries: List[DatastoreEntry] = [self.entry_float32, self.entry_alias_float32, self.entry_rpv1000, self.entry_alias_rpv1000]
+        self.init_device_memory(all_entries)
+
+        subscribe_cmd = {
+            'cmd': API.Command.Client2Api.SUBSCRIBE_WATCHABLE,
+            # One of each type
+            'watchables': [entry.get_id() for entry in all_entries]
+        }
+
+        self.send_request(subscribe_cmd)
+        response = self.wait_and_load_response()
+        self.assert_no_error(response)
+
+        self.emulated_device.write_memory(self.entry_float32.get_address(), struct.pack("<f", d2f(-3.1415926)), check_access_rights=False)
+        self.process_watchable_update(nbr=len(all_entries) * 2)
+        self.assert_value_received(self.entry_float32, d2f(-3.1415926))
+
+        # Write f32 var
+        write_req = {
+            'cmd': API.Command.Client2Api.WRITE_VALUE,
+            'updates': [dict(watchable=self.entry_float32.get_id(), value=d2f(999.99), batch_index=0)]
+        }
+
+        self.send_request(write_req)
+        response = self.wait_and_load_response(cmd=API.Command.Api2Client.WRITE_VALUE_RESPONSE)
+        self.assert_no_error(response)
+        self.assertEqual(response['cmd'], API.Command.Api2Client.WRITE_VALUE_RESPONSE)
+        response = self.wait_and_load_response(cmd=API.Command.Api2Client.INFORM_WRITE_COMPLETION)
+        self.assert_no_error(response)
+        self.assertEqual(response['cmd'], API.Command.Api2Client.INFORM_WRITE_COMPLETION)
+        response = cast(api_typing.S2C.WriteCompletion, response)
+        self.assertEqual(response['success'], False)
+
+        new_val = struct.unpack('<f', self.read_device_var_entry(self.entry_float32))[0]
+        self.assertEqual(new_val, d2f(-3.1415926))  # Unchanged
+        self.empty_api_rx_queue()
+        self.process_watchable_update(nbr=len(all_entries) * 2)
+        self.assert_value_received(self.entry_float32, d2f(-3.1415926))
+        self.assert_value_received(self.entry_alias_float32, d2f(d2f(-3.1415926) * 2 + 1))
+
+        # Make sure that the device received no write request. Ensure it has been blocked by the server, not the device
+        device_request_history = self.emulated_device.get_request_history()
+        for record in device_request_history:
+            if record.request.command == protocol_commands.MemoryControl:
+                self.assertNotEqual(record.request.subfn, protocol_commands.MemoryControl.Subfunction.Write)
+                self.assertNotEqual(record.request.subfn, protocol_commands.MemoryControl.Subfunction.WriteMasked)
+
+    def test_write_rpv_allowed(self):
+        # In this test we make sure a write request is denied by the server when the device disables write.
+        all_entries: List[DatastoreEntry] = [self.entry_float32, self.entry_alias_float32, self.entry_rpv1000, self.entry_alias_rpv1000]
+        self.init_device_memory(all_entries)
+
+        subscribe_cmd = {
+            'cmd': API.Command.Client2Api.SUBSCRIBE_WATCHABLE,
+            # One of each type
+            'watchables': [entry.get_id() for entry in all_entries]
+        }
+
+        self.send_request(subscribe_cmd)
+        response = self.wait_and_load_response()
+        self.assert_no_error(response)
+
+        self.emulated_device.write_rpv(0x1000, 3.1415926)
+        self.process_watchable_update(nbr=len(all_entries) * 2)
+        self.assert_value_received(self.entry_rpv1000, 3.1415926)
+
+        # Write f64 var
+        write_req = {
+            'cmd': API.Command.Client2Api.WRITE_VALUE,
+            'updates': [dict(watchable=self.entry_rpv1000.get_id(), value=999.99, batch_index=0)]
+        }
+
+        self.send_request(write_req)
+        response = self.wait_and_load_response(cmd=API.Command.Api2Client.WRITE_VALUE_RESPONSE)
+        self.assert_no_error(response)
+        self.assertEqual(response['cmd'], API.Command.Api2Client.WRITE_VALUE_RESPONSE)
+        response = self.wait_and_load_response(cmd=API.Command.Api2Client.INFORM_WRITE_COMPLETION)
+        self.assert_no_error(response)
+        self.assertEqual(response['cmd'], API.Command.Api2Client.INFORM_WRITE_COMPLETION)
+        response = cast(api_typing.S2C.WriteCompletion, response)
+        self.assertEqual(response['success'], True)
+
+        new_val = self.read_device_rpv_entry(self.entry_rpv1000)
+        self.assertEqual(new_val, 999.99)  # Changed
+        self.empty_api_rx_queue()
+        self.process_watchable_update(nbr=len(all_entries) * 2)
+        self.assert_value_received(self.entry_rpv1000, 999.99)
+
+    def tearDown(self) -> None:
+        super().tearDown()
+
+
+class TestWriteMemoryInReadonlyRegions(ScrutinyIntegrationTestWithTestSFD1):
+
+    def setUp(self):
+        def setup_regions(self: "TestWriteMemoryNotAllowed"):
+            # entry_float32 should be denied, but entry_float64 should go through
+            # Address and size of entry_float32 at /path1/path2/some_float32 in test SFD
+            self.emulated_device.add_readonly_region(1008, 1008 + 4 - 1)
+        self.prestart_callback = functools.partial(setup_regions, self)
+
+        super().setUp()
+
+    def init_device_memory(self, entries: List[DatastoreEntry]):
+        for entry in entries:
+            if isinstance(entry, DatastoreVariableEntry):
+                self.emulated_device.write_memory(entry.get_address(), b'\x00' * entry.get_size(), check_access_rights=False)
+
+    def test_write_var_not_allowed(self):
+        # In this test we make sure a write request is denied by the server when the device disables write.
+        all_entries: List[DatastoreEntry] = [self.entry_float32, self.entry_float64,
+                                             self.entry_alias_float32, self.entry_rpv1000, self.entry_alias_rpv1000]
+        self.init_device_memory(all_entries)
+
+        subscribe_cmd = {
+            'cmd': API.Command.Client2Api.SUBSCRIBE_WATCHABLE,
+            # One of each type
+            'watchables': [entry.get_id() for entry in all_entries]
+        }
+
+        self.send_request(subscribe_cmd)
+        response = self.wait_and_load_response()
+        self.assert_no_error(response)
+
+        self.emulated_device.write_memory(self.entry_float32.get_address(), struct.pack("<f", d2f(-3.1415926)), check_access_rights=False)
+        self.process_watchable_update(nbr=len(all_entries) * 2)
+        self.assert_value_received(self.entry_float32, d2f(-3.1415926))
+
+        # Write f32 var
+        write_req = {
+            'cmd': API.Command.Client2Api.WRITE_VALUE,
+            'updates': [dict(watchable=self.entry_float32.get_id(), value=d2f(999.99), batch_index=0)]
+        }
+
+        self.send_request(write_req)
+        response = self.wait_and_load_response(cmd=API.Command.Api2Client.WRITE_VALUE_RESPONSE)
+        self.assert_no_error(response)
+        self.assertEqual(response['cmd'], API.Command.Api2Client.WRITE_VALUE_RESPONSE)
+        response = self.wait_and_load_response(cmd=API.Command.Api2Client.INFORM_WRITE_COMPLETION)
+        self.assert_no_error(response)
+        self.assertEqual(response['cmd'], API.Command.Api2Client.INFORM_WRITE_COMPLETION)
+        response = cast(api_typing.S2C.WriteCompletion, response)
+        self.assertEqual(response['success'], False)
+
+        new_val = struct.unpack('<f', self.read_device_var_entry(self.entry_float32))[0]
+        self.assertEqual(new_val, d2f(-3.1415926))  # Unchanged
+        self.empty_api_rx_queue()
+        self.process_watchable_update(nbr=len(all_entries) * 2)
+        self.assert_value_received(self.entry_float32, d2f(-3.1415926))
+        self.assert_value_received(self.entry_alias_float32, d2f(d2f(-3.1415926) * 2 + 1))
+
+        # Make sure that the device received no write request. Ensure it has been blocked by the server, not the device
+        device_request_history = self.emulated_device.get_request_history()
+        for record in device_request_history:
+            if record.request.command == protocol_commands.MemoryControl:
+                self.assertNotEqual(record.request.subfn, protocol_commands.MemoryControl.Subfunction.Write)
+                self.assertNotEqual(record.request.subfn, protocol_commands.MemoryControl.Subfunction.WriteMasked)
+
+        write_req = {
+            'cmd': API.Command.Client2Api.WRITE_VALUE,
+            'updates': [dict(watchable=self.entry_float64.get_id(), value=999.99, batch_index=0)]
+        }
+
+        self.send_request(write_req)
+        response = self.wait_and_load_response(cmd=API.Command.Api2Client.WRITE_VALUE_RESPONSE)
+        self.assert_no_error(response)
+        self.assertEqual(response['cmd'], API.Command.Api2Client.WRITE_VALUE_RESPONSE)
+        response = self.wait_and_load_response(cmd=API.Command.Api2Client.INFORM_WRITE_COMPLETION)
+        self.assert_no_error(response)
+        self.assertEqual(response['cmd'], API.Command.Api2Client.INFORM_WRITE_COMPLETION)
+        response = cast(api_typing.S2C.WriteCompletion, response)
+        self.assertEqual(response['success'], True)
+
+        newval = struct.unpack('<d', self.read_device_var_entry(self.entry_float64))[0]
+        self.assertEqual(newval, 999.99)
+
+    def test_write_rpv_allowed(self):
+        # In this test we make sure a write request is denied by the server when the device disables write.
+        all_entries: List[DatastoreEntry] = [self.entry_float32, self.entry_alias_float32, self.entry_rpv1000, self.entry_alias_rpv1000]
+        self.init_device_memory(all_entries)
+
+        subscribe_cmd = {
+            'cmd': API.Command.Client2Api.SUBSCRIBE_WATCHABLE,
+            # One of each type
+            'watchables': [entry.get_id() for entry in all_entries]
+        }
+
+        self.send_request(subscribe_cmd)
+        response = self.wait_and_load_response()
+        self.assert_no_error(response)
+
+        self.emulated_device.write_rpv(0x1000, 3.1415926)
+        self.process_watchable_update(nbr=len(all_entries) * 2)
+        self.assert_value_received(self.entry_rpv1000, 3.1415926)
+
+        # Write f64 var
+        write_req = {
+            'cmd': API.Command.Client2Api.WRITE_VALUE,
+            'updates': [dict(watchable=self.entry_rpv1000.get_id(), value=999.99, batch_index=0)]
+        }
+
+        self.send_request(write_req)
+        response = self.wait_and_load_response(cmd=API.Command.Api2Client.WRITE_VALUE_RESPONSE)
+        self.assert_no_error(response)
+        self.assertEqual(response['cmd'], API.Command.Api2Client.WRITE_VALUE_RESPONSE)
+        response = self.wait_and_load_response(cmd=API.Command.Api2Client.INFORM_WRITE_COMPLETION)
+        self.assert_no_error(response)
+        self.assertEqual(response['cmd'], API.Command.Api2Client.INFORM_WRITE_COMPLETION)
+        response = cast(api_typing.S2C.WriteCompletion, response)
+        self.assertEqual(response['success'], True)
+
+        new_val = self.read_device_rpv_entry(self.entry_rpv1000)
+        self.assertEqual(new_val, 999.99)  # Changed
+        self.empty_api_rx_queue()
+        self.process_watchable_update(nbr=len(all_entries) * 2)
+        self.assert_value_received(self.entry_rpv1000, 999.99)
+
+    def tearDown(self) -> None:
+        super().tearDown()
+
+
+class TestWriteMemoryInForbiddenRegions(ScrutinyIntegrationTestWithTestSFD1):
+
+    def setUp(self):
+        def setup_regions(self: "TestWriteMemoryNotAllowed"):
+            # entry_float32 should be denied, but entry_float64 should go through
+            # Address and size of entry_float32 at /path1/path2/some_float32 in test SFD
+            self.emulated_device.add_forbidden_region(1008, 1008 + 4 - 1)
+        self.prestart_callback = functools.partial(setup_regions, self)
+
+        super().setUp()
+
+    def init_device_memory(self, entries: List[DatastoreEntry]):
+        for entry in entries:
+            if isinstance(entry, DatastoreVariableEntry):
+                self.emulated_device.write_memory(entry.get_address(), b'\x00' * entry.get_size(), check_access_rights=False)
+
+    def test_write_var_not_allowed(self):
+        # In this test we make sure a write request is denied by the server when the device disables write.
+        all_entries: List[DatastoreEntry] = [self.entry_float32, self.entry_float64,
+                                             self.entry_alias_float32, self.entry_rpv1000, self.entry_alias_rpv1000]
+        self.init_device_memory(all_entries)
+
+        subscribe_cmd = {
+            'cmd': API.Command.Client2Api.SUBSCRIBE_WATCHABLE,
+            # One of each type
+            'watchables': [entry.get_id() for entry in all_entries]
+        }
+
+        self.send_request(subscribe_cmd)
+        response = self.wait_and_load_response()
+        self.assert_no_error(response)
+
+        # Write f32 var
+        write_req = {
+            'cmd': API.Command.Client2Api.WRITE_VALUE,
+            'updates': [dict(watchable=self.entry_float32.get_id(), value=d2f(999.99), batch_index=0)]
+        }
+
+        self.send_request(write_req)
+        response = self.wait_and_load_response(cmd=API.Command.Api2Client.WRITE_VALUE_RESPONSE)
+        self.assert_no_error(response)
+        self.assertEqual(response['cmd'], API.Command.Api2Client.WRITE_VALUE_RESPONSE)
+        response = self.wait_and_load_response(cmd=API.Command.Api2Client.INFORM_WRITE_COMPLETION)
+        self.assert_no_error(response)
+        self.assertEqual(response['cmd'], API.Command.Api2Client.INFORM_WRITE_COMPLETION)
+        response = cast(api_typing.S2C.WriteCompletion, response)
+        self.assertEqual(response['success'], False)
+
+        self.empty_api_rx_queue()
+
+        # Make sure that the device received no write request. Ensure it has been blocked by the server, not the device
+        device_request_history = self.emulated_device.get_request_history()
+        for record in device_request_history:
+            if record.request.command == protocol_commands.MemoryControl:
+                self.assertNotEqual(record.request.subfn, protocol_commands.MemoryControl.Subfunction.Write)
+                self.assertNotEqual(record.request.subfn, protocol_commands.MemoryControl.Subfunction.WriteMasked)
+
+        write_req = {
+            'cmd': API.Command.Client2Api.WRITE_VALUE,
+            'updates': [dict(watchable=self.entry_float64.get_id(), value=999.99, batch_index=0)]
+        }
+
+        self.send_request(write_req)
+        response = self.wait_and_load_response(cmd=API.Command.Api2Client.WRITE_VALUE_RESPONSE)
+        self.assert_no_error(response)
+        self.assertEqual(response['cmd'], API.Command.Api2Client.WRITE_VALUE_RESPONSE)
+        response = self.wait_and_load_response(cmd=API.Command.Api2Client.INFORM_WRITE_COMPLETION)
+        self.assert_no_error(response)
+        self.assertEqual(response['cmd'], API.Command.Api2Client.INFORM_WRITE_COMPLETION)
+        response = cast(api_typing.S2C.WriteCompletion, response)
+        self.assertEqual(response['success'], True)
+
+        newval = struct.unpack('<d', self.read_device_var_entry(self.entry_float64))[0]
+        self.assertEqual(newval, 999.99)
+
+    def test_write_rpv_allowed(self):
+        # In this test we make sure a write request is denied by the server when the device disables write.
+        all_entries: List[DatastoreEntry] = [self.entry_float32, self.entry_alias_float32, self.entry_rpv1000, self.entry_alias_rpv1000]
+        self.init_device_memory(all_entries)
+
+        subscribe_cmd = {
+            'cmd': API.Command.Client2Api.SUBSCRIBE_WATCHABLE,
+            # One of each type
+            'watchables': [entry.get_id() for entry in all_entries]
+        }
+
+        self.send_request(subscribe_cmd)
+        response = self.wait_and_load_response()
+        self.assert_no_error(response)
+
+        self.emulated_device.write_rpv(0x1000, 3.1415926)
+        self.process_watchable_update(nbr=len(all_entries) * 2)
+        self.assert_value_received(self.entry_rpv1000, 3.1415926)
+
+        # Write f64 var
+        write_req = {
+            'cmd': API.Command.Client2Api.WRITE_VALUE,
+            'updates': [dict(watchable=self.entry_rpv1000.get_id(), value=999.99, batch_index=0)]
+        }
+
+        self.send_request(write_req)
+        response = self.wait_and_load_response(cmd=API.Command.Api2Client.WRITE_VALUE_RESPONSE)
+        self.assert_no_error(response)
+        self.assertEqual(response['cmd'], API.Command.Api2Client.WRITE_VALUE_RESPONSE)
+        response = self.wait_and_load_response(cmd=API.Command.Api2Client.INFORM_WRITE_COMPLETION)
+        self.assert_no_error(response)
+        self.assertEqual(response['cmd'], API.Command.Api2Client.INFORM_WRITE_COMPLETION)
+        response = cast(api_typing.S2C.WriteCompletion, response)
+        self.assertEqual(response['success'], True)
+
+        new_val = self.read_device_rpv_entry(self.entry_rpv1000)
+        self.assertEqual(new_val, 999.99)  # Changed
+        self.empty_api_rx_queue()
+        self.process_watchable_update(nbr=len(all_entries) * 2)
+        self.assert_value_received(self.entry_rpv1000, 999.99)
 
     def tearDown(self) -> None:
         super().tearDown()

@@ -12,12 +12,12 @@ import logging
 import json
 
 from scrutiny.server.api.abstract_client_handler import AbstractClientHandler, ClientHandlerConfig, ClientHandlerMessage
-from scrutiny.server.tools.synchronous_websocket_server import SynchronousWebsocketServer
+from scrutiny.tools.synchronous_websocket_server import SynchronousWebsocketServer
 
 from typing import Dict, Any, Optional
 from scrutiny.core.typehints import GenericCallback
 
-#WebsocketType = websockets.server.WebSocketServerProtocol
+# WebsocketType = websockets.server.WebSocketServerProtocol
 WebsocketType = Any  # todo fix this
 
 
@@ -33,6 +33,7 @@ class WebsocketClientHandler(AbstractClientHandler):
     logger: logging.Logger
     id2ws_map: Dict[str, WebsocketType]
     ws2id_map: Dict[WebsocketType, str]
+    port: Optional[int]
 
     def __init__(self, config: ClientHandlerConfig):
         self.config = config
@@ -56,6 +57,9 @@ class WebsocketClientHandler(AbstractClientHandler):
         del self.id2ws_map[wsid]
         self.logger.info('Client disconnected (ID=%s). %d clients remainings' % (wsid, len(self.ws2id_map)))
 
+    def get_port(self) -> Optional[int]:
+        return self.port
+
     def is_connection_active(self, conn_id: str) -> bool:
         return True if conn_id in self.id2ws_map else False
 
@@ -64,7 +68,7 @@ class WebsocketClientHandler(AbstractClientHandler):
 
     def start(self) -> None:
         self.logger.info('Starting websocket listener on %s:%s' % (self.config['host'], self.config['port']))
-        self.server.start(self.config['host'], int(self.config['port']))
+        self.port = self.server.start(self.config['host'], int(self.config['port']))
 
     def stop(self) -> None:
         self.logger.info('Stopping websocket listener')

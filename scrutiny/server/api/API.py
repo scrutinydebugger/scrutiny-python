@@ -13,12 +13,14 @@ import math
 from dataclasses import dataclass
 import functools
 from uuid import uuid4
+from fnmatch import fnmatch
+import itertools
 
 from scrutiny.server.datalogging.datalogging_storage import DataloggingStorage
 from scrutiny.server.datalogging.datalogging_manager import DataloggingManager
 from scrutiny.server.datastore.datastore import Datastore
 from scrutiny.server.datastore.datastore_entry import EntryType, DatastoreEntry, UpdateTargetRequestCallback
-from scrutiny.server.device.device_handler import DeviceHandler
+from scrutiny.server.device.device_handler import DeviceHandler, DeviceStateChangedCallback
 from scrutiny.server.active_sfd_handler import ActiveSFDHandler, SFDLoadedCallback, SFDUnloadedCallback
 from scrutiny.server.device.links import LinkConfig
 from scrutiny.core.sfd_storage import SFDStorage
@@ -37,7 +39,7 @@ from .abstract_client_handler import AbstractClientHandler, ClientHandlerMessage
 from scrutiny.server.device.links.abstract_link import LinkConfig as DeviceLinkConfig
 
 from scrutiny.core.typehints import EmptyDict, GenericCallback
-from typing import Callable, Dict, List, Set, Any, TypedDict, cast, Optional, Type, Literal
+from typing import *
 
 
 class APIConfig(TypedDict, total=False):
@@ -111,12 +113,19 @@ class API:
             ERROR_RESPONSE = 'error'
 
     class DataloggingStatus:
-        UNAVAILABLE = 'unavailable'
-        STANDBY = 'standby'
-        WAITING_FOR_TRIGGER = 'waiting_for_trigger'
-        ACQUIRING = 'acquiring'
-        DATA_READY = 'data_ready'
-        ERROR = 'error'
+        UNAVAILABLE: api_typing.DataloggerState = 'unavailable'
+        STANDBY: api_typing.DataloggerState = 'standby'
+        WAITING_FOR_TRIGGER: api_typing.DataloggerState = 'waiting_for_trigger'
+        ACQUIRING: api_typing.DataloggerState = 'acquiring'
+        DATA_READY: api_typing.DataloggerState = 'data_ready'
+        ERROR: api_typing.DataloggerState = 'error'
+
+    class DeviceCommStatus:
+        UNKNOWN: api_typing.DeviceCommStatus = 'unknown'
+        DISCONNECTED: api_typing.DeviceCommStatus = 'disconnected'
+        CONNECTING: api_typing.DeviceCommStatus = 'connecting'
+        CONNECTED: api_typing.DeviceCommStatus = 'connected'
+        CONNECTED_READY: api_typing.DeviceCommStatus = 'connected_ready'
 
     @dataclass
     class DataloggingSupportedTriggerCondition:
@@ -125,7 +134,7 @@ class API:
 
     FLUSH_VARS_TIMEOUT: float = 0.1
 
-    data_type_to_str: Dict[EmbeddedDataType, str] = {
+    DATATYPE_2_APISTR: Dict[EmbeddedDataType, api_typing.Datatype] = {
         EmbeddedDataType.sint8: 'sint8',
         EmbeddedDataType.sint16: 'sint16',
         EmbeddedDataType.sint32: 'sint32',
@@ -153,15 +162,20 @@ class API:
         EmbeddedDataType.boolean: 'boolean'
     }
 
-    device_conn_status_to_str: Dict[DeviceHandler.ConnectionStatus, str] = {
-        DeviceHandler.ConnectionStatus.UNKNOWN: 'unknown',
-        DeviceHandler.ConnectionStatus.DISCONNECTED: 'disconnected',
-        DeviceHandler.ConnectionStatus.CONNECTING: 'connecting',
-        DeviceHandler.ConnectionStatus.CONNECTED_NOT_READY: 'connected',
-        DeviceHandler.ConnectionStatus.CONNECTED_READY: 'connected_ready'
+    APISTR_2_DATATYPE: Dict[api_typing.Datatype, EmbeddedDataType] = {v: k for k, v in DATATYPE_2_APISTR.items()}
+
+    DEVICE_CONN_STATUS_2_APISTR: Dict[DeviceHandler.ConnectionStatus, api_typing.DeviceCommStatus] = {
+        DeviceHandler.ConnectionStatus.UNKNOWN: DeviceCommStatus.UNKNOWN,
+        DeviceHandler.ConnectionStatus.DISCONNECTED: DeviceCommStatus.DISCONNECTED,
+        DeviceHandler.ConnectionStatus.CONNECTING: DeviceCommStatus.CONNECTING,
+        DeviceHandler.ConnectionStatus.CONNECTED_NOT_READY: DeviceCommStatus.CONNECTED,
+        DeviceHandler.ConnectionStatus.CONNECTED_READY: DeviceCommStatus.CONNECTED_READY
     }
 
-    datalogger_state_to_api: Dict[device_datalogging.DataloggerState, str] = {
+    APISTR_2_DEVICE_CONN_STATUS: Dict[api_typing.DeviceCommStatus, DeviceHandler.ConnectionStatus] = {
+        v: k for k, v in DEVICE_CONN_STATUS_2_APISTR.items()}
+
+    DATALOGGER_STATE_2_APISTR: Dict[device_datalogging.DataloggerState, api_typing.DataloggerState] = {
         device_datalogging.DataloggerState.IDLE: DataloggingStatus.STANDBY,
         device_datalogging.DataloggerState.CONFIGURED: DataloggingStatus.STANDBY,
         device_datalogging.DataloggerState.ARMED: DataloggingStatus.WAITING_FOR_TRIGGER,
@@ -170,9 +184,13 @@ class API:
         device_datalogging.DataloggerState.ERROR: DataloggingStatus.ERROR,
     }
 
-    datalogging_supported_conditions: Dict[str, DataloggingSupportedTriggerCondition] = {
+    APISTR_2_DATALOGGER_STATE: Dict[api_typing.DataloggerState, device_datalogging.DataloggerState] = {
+        v: k for k, v in DATALOGGER_STATE_2_APISTR.items()}
+
+    datalogging_supported_conditions: Dict[api_typing.DataloggingCondition, DataloggingSupportedTriggerCondition] = {
         'true': DataloggingSupportedTriggerCondition(condition_id=api_datalogging.TriggerConditionID.AlwaysTrue, nb_operands=0),
         'eq': DataloggingSupportedTriggerCondition(condition_id=api_datalogging.TriggerConditionID.Equal, nb_operands=2),
+        'neq': DataloggingSupportedTriggerCondition(condition_id=api_datalogging.TriggerConditionID.NotEqual, nb_operands=2),
         'lt': DataloggingSupportedTriggerCondition(condition_id=api_datalogging.TriggerConditionID.LessThan, nb_operands=2),
         'let': DataloggingSupportedTriggerCondition(condition_id=api_datalogging.TriggerConditionID.LessOrEqualThan, nb_operands=2),
         'gt': DataloggingSupportedTriggerCondition(condition_id=api_datalogging.TriggerConditionID.GreaterThan, nb_operands=2),
@@ -181,11 +199,13 @@ class API:
         'within': DataloggingSupportedTriggerCondition(condition_id=api_datalogging.TriggerConditionID.IsWithin, nb_operands=3)
     }
 
-    str_to_entry_type: Dict[str, EntryType] = {
+    APISTR_2_ENTRY_TYPE: Dict[api_typing.WatchableType, EntryType] = {
         'var': EntryType.Var,
         'alias': EntryType.Alias,
         'rpv': EntryType.RuntimePublishedValue
     }
+
+    ENTRY_TYPE_2_APISTR: Dict[EntryType, api_typing.WatchableType] = {v: k for k, v in APISTR_2_ENTRY_TYPE.items()}
 
     datastore: Datastore
     device_handler: DeviceHandler
@@ -255,13 +275,14 @@ class API:
 
         self.sfd_handler.register_sfd_loaded_callback(SFDLoadedCallback(self.sfd_loaded_callback))
         self.sfd_handler.register_sfd_unloaded_callback(SFDUnloadedCallback(self.sfd_unloaded_callback))
+        self.device_handler.register_device_state_change_callback(DeviceStateChangedCallback(self.device_state_changed_callback))
 
     @classmethod
     def get_datatype_name(cls, datatype: EmbeddedDataType) -> str:
-        if datatype not in cls.data_type_to_str:
+        if datatype not in cls.DATATYPE_2_APISTR:
             raise ValueError('Unknown datatype : %s' % (str(datatype)))
 
-        return cls.data_type_to_str[datatype]
+        return cls.DATATYPE_2_APISTR[datatype]
 
     def sfd_loaded_callback(self, sfd: FirmwareDescription):
         # Called when a SFD is loaded after a device connection
@@ -272,6 +293,12 @@ class API:
         # Called when a SFD is unloaded (device disconnected)
         for conn_id in self.connections:
             self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=self.craft_inform_server_status_response()))
+
+    def device_state_changed_callback(self, new_status: DeviceHandler.ConnectionStatus):
+        """Called when the device state changes"""
+        if new_status in [DeviceHandler.ConnectionStatus.DISCONNECTED, DeviceHandler.ConnectionStatus.CONNECTED_READY]:
+            for conn_id in self.connections:
+                self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=self.craft_inform_server_status_response()))
 
     def get_client_handler(self) -> AbstractClientHandler:
         return self.client_handler
@@ -398,72 +425,100 @@ class API:
     def process_get_watchable_list(self, conn_id: str, req: api_typing.C2S.GetWatchableList) -> None:
         # Improvement : This may be a big response. Generate multi-packet response in a worker thread
         # Not asynchronous by choice
-        max_per_response = None
+        default_max_per_response = 1000
+        max_per_response = default_max_per_response
         if 'max_per_response' in req:
             if not isinstance(req['max_per_response'], int):
                 raise InvalidRequestException(req, 'Invalid max_per_response content')
 
-            max_per_response = req['max_per_response']
+            max_per_response = req['max_per_response'] if req['max_per_response'] is not None else default_max_per_response
 
+        name_filter: Optional[str] = None
         type_to_include: List[EntryType] = []
         if self.is_dict_with_key(cast(Dict, req), 'filter'):
             if self.is_dict_with_key(cast(Dict, req['filter']), 'type'):
                 if isinstance(req['filter']['type'], list):
                     for t in req['filter']['type']:
-                        if t not in self.str_to_entry_type:
+                        if t not in self.APISTR_2_ENTRY_TYPE:
                             raise InvalidRequestException(req, 'Unsupported type filter :"%s"' % (t))
 
-                        type_to_include.append(self.str_to_entry_type[t])
+                        type_to_include.append(self.APISTR_2_ENTRY_TYPE[t])
+
+            if 'name' in req['filter']:
+                name_filter = req['filter']['name']
 
         if len(type_to_include) == 0:
             type_to_include = [EntryType.Var, EntryType.Alias, EntryType.RuntimePublishedValue]
 
         # Sends RPV first, variable last
         priority = [EntryType.RuntimePublishedValue, EntryType.Alias, EntryType.Var]
+        entries_generator: Dict[EntryType, Generator[DatastoreEntry, None, None]] = {}
 
-        entries: Dict[EntryType, List[DatastoreEntry]] = {}
-        for entry_type in priority:  # TODO : Improve this not to copy the whole datastore while sending. Use a generator instead
-            entries[entry_type] = self.datastore.get_entries_list_by_type(entry_type) if entry_type in type_to_include else []
+        def filtered_generator(gen: Generator[DatastoreEntry, None, None]) -> Generator[DatastoreEntry, None, None]:
+            if name_filter is None:
+                yield from gen
+            else:
+                for entry in gen:
+                    if fnmatch(entry.display_path, name_filter):
+                        yield entry
+
+        def empty_generator() -> Generator[DatastoreEntry, None, None]:
+            yield from []
+
+        for entry_type in priority:
+            gen = self.datastore.get_all_entries(entry_type) if entry_type in type_to_include else empty_generator()
+            entries_generator[entry_type] = filtered_generator(gen)
 
         done = False
+        batch_content: Dict[EntryType, List[DatastoreEntry]]
+        remainders: Dict[EntryType, List[DatastoreEntry]] = {
+            EntryType.RuntimePublishedValue: [],
+            EntryType.Alias: [],
+            EntryType.Var: []
+        }
 
-        entries_to_send: Dict[EntryType, List[DatastoreEntry]]
         while not done:
-            if max_per_response is None:
-                entries_to_send = entries
-                done = True
-            else:
-                count = 0
-                entries_to_send = {
-                    EntryType.RuntimePublishedValue: [],
-                    EntryType.Alias: [],
-                    EntryType.Var: []
-                }
+            batch_count = 0
+            batch_content = {
+                EntryType.RuntimePublishedValue: [],
+                EntryType.Alias: [],
+                EntryType.Var: []
+            }
 
-                for entry_type in priority:
-                    n = min(max_per_response - count, len(entries[entry_type]))
-                    entries_to_send[entry_type] = entries[entry_type][0:n]
-                    entries[entry_type] = entries[entry_type][n:]
-                    count += n
+            stopiter_count = 0
+            for entry_type in priority:
+                possible_remainder = max_per_response - batch_count
+                batch_content[entry_type] += remainders[entry_type][0:possible_remainder]
+                remainder_consumed = len(batch_content[entry_type])
+                remainders[entry_type] = remainders[entry_type][remainder_consumed:]
+                batch_count += remainder_consumed
 
-                remaining = 0
-                for entry_type in entries:
-                    remaining += len(entries[entry_type])
+                slice_stop = max_per_response - batch_count
+                the_slice = list(itertools.islice(entries_generator[entry_type], slice_stop))
+                batch_content[entry_type] += the_slice
+                batch_count += len(the_slice)
 
-                done = (remaining == 0)
+                if len(remainders[entry_type]) == 0:
+                    try:
+                        peek = next(entries_generator[entry_type])
+                        remainders[entry_type].append(peek)
+                    except StopIteration:
+                        stopiter_count += 1
+
+            done = (stopiter_count == len(priority))
 
             response: api_typing.S2C.GetWatchableList = {
                 'cmd': self.Command.Api2Client.GET_WATCHABLE_LIST_RESPONSE,
                 'reqid': self.get_req_id(req),
                 'qty': {
-                    'var': len(entries_to_send[EntryType.Var]),
-                    'alias': len(entries_to_send[EntryType.Alias]),
-                    'rpv': len(entries_to_send[EntryType.RuntimePublishedValue])
+                    'var': len(batch_content[EntryType.Var]),
+                    'alias': len(batch_content[EntryType.Alias]),
+                    'rpv': len(batch_content[EntryType.RuntimePublishedValue])
                 },
                 'content': {
-                    'var': [self.make_datastore_entry_definition_no_type(x) for x in entries_to_send[EntryType.Var]],
-                    'alias': [self.make_datastore_entry_definition_no_type(x) for x in entries_to_send[EntryType.Alias]],
-                    'rpv': [self.make_datastore_entry_definition_no_type(x) for x in entries_to_send[EntryType.RuntimePublishedValue]]
+                    'var': [self.make_datastore_entry_definition_no_type(x) for x in batch_content[EntryType.Var]],
+                    'alias': [self.make_datastore_entry_definition_no_type(x) for x in batch_content[EntryType.Alias]],
+                    'rpv': [self.make_datastore_entry_definition_no_type(x) for x in batch_content[EntryType.RuntimePublishedValue]]
                 },
                 'done': done
             }
@@ -705,6 +760,10 @@ class API:
     def process_write_value(self, conn_id: str, req: api_typing.C2S.WriteValue) -> None:
         # We first fetch the entries as it will raise an exception if the ID does not exist
         # We don't want to trigger a write if an entry is bad in the request
+        #
+        # Important to consider that we can get a batch with multiple write to the same entry,
+        # and they need to be reported correctly + written in the correct order.
+
         if 'updates' not in req:
             raise InvalidRequestException(req, 'Missing "updates" field')
 
@@ -712,6 +771,9 @@ class API:
             raise InvalidRequestException(req, 'Invalid "updates" field')
 
         for update in req['updates']:
+            if 'batch_index' not in update:
+                raise InvalidRequestException(req, 'Missing "batch_index" field')
+
             if 'watchable' not in update:
                 raise InvalidRequestException(req, 'Missing "watchable" field')
 
@@ -720,6 +782,9 @@ class API:
 
             if not isinstance(update['watchable'], str):
                 raise InvalidRequestException(req, 'Invalid "watchable" field')
+
+            if not isinstance(update['batch_index'], int):
+                raise InvalidRequestException(req, 'Invalid "batch_index" field')
 
             value = update['value']
             if isinstance(value, str):
@@ -751,14 +816,19 @@ class API:
             if not self.datastore.is_watching(entry, conn_id):
                 raise InvalidRequestException(req, 'Cannot update entry %s without being subscribed to it' % entry.get_id())
 
+        if len(set(update['batch_index'] for update in req['updates'])) != len(req['updates']):
+            raise InvalidRequestException(req, "Duplicate batch_index in request")
+
+        request_token = uuid4().hex
         for update in req['updates']:
-            entry = self.datastore.get_entry(update['watchable'])
-            entry.update_target_value(update['value'], callback=UpdateTargetRequestCallback(self.entry_target_update_callback))
+            callback = UpdateTargetRequestCallback(functools.partial(self.entry_target_update_callback, request_token, update['batch_index']))
+            self.datastore.update_target_value(update['watchable'], update['value'], callback=callback)
 
         response: api_typing.S2C.WriteValue = {
             'cmd': self.Command.Api2Client.WRITE_VALUE_RESPONSE,
             'reqid': self.get_req_id(req),
-            'watchables': [update['watchable'] for update in req['updates']]
+            'request_token': request_token,
+            'count': len(req['updates'])
         }
 
         self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
@@ -1298,7 +1368,7 @@ class API:
                 'address_size_bits': cast(int, device_info_input.address_size_bits),
                 'protocol_major': cast(int, device_info_input.protocol_major),
                 'protocol_minor': cast(int, device_info_input.protocol_minor),
-                'supported_feature_map': cast(Dict[str, bool], device_info_input.supported_feature_map),
+                'supported_feature_map': cast(Dict[api_typing.SupportedFeature, bool], device_info_input.supported_feature_map),
                 'forbidden_memory_regions': cast(List[Dict[str, int]], device_info_input.forbidden_memory_regions),
                 'readonly_memory_regions': cast(List[Dict[str, int]], device_info_input.readonly_memory_regions)
             }
@@ -1311,13 +1381,13 @@ class API:
         datalogger_state_api = API.DataloggingStatus.UNAVAILABLE
         datalogger_state = self.device_handler.get_datalogger_state()
         if datalogger_state is not None:
-            datalogger_state_api = self.datalogger_state_to_api.get(datalogger_state, API.DataloggingStatus.UNAVAILABLE)
+            datalogger_state_api = self.DATALOGGER_STATE_2_APISTR.get(datalogger_state, API.DataloggingStatus.UNAVAILABLE)
 
         response: api_typing.S2C.InformServerStatus = {
             'cmd': self.Command.Api2Client.INFORM_SERVER_STATUS,
             'reqid': reqid,
-            'device_status': self.device_conn_status_to_str[self.device_handler.get_connection_status()],
-            'device_session_id': self.device_handler.comm_session_id(),  # str when connected_ready. None when not connected_ready
+            'device_status': self.DEVICE_CONN_STATUS_2_APISTR[self.device_handler.get_connection_status()],
+            'device_session_id': self.device_handler.get_comm_session_id(),  # str when connected_ready. None when not connected_ready
             'device_info': device_info_output,
             'loaded_sfd': loaded_sfd,
             'device_datalogging_status': {
@@ -1337,7 +1407,7 @@ class API:
         self.streamer.publish(datastore_entry, conn_id)
         self.stream_all_we_can()
 
-    def entry_target_update_callback(self, success: bool, datastore_entry: DatastoreEntry, timestamp: float) -> None:
+    def entry_target_update_callback(self, request_token: str, batch_index: int, success: bool, datastore_entry: DatastoreEntry, timestamp: float) -> None:
         # This callback is given to the datastore when we make a write request (target update request)
         # It will be called once the request is completed.
         watchers = self.datastore.get_watchers(datastore_entry)
@@ -1346,7 +1416,9 @@ class API:
             'cmd': self.Command.Api2Client.INFORM_WRITE_COMPLETION,
             'reqid': None,
             'watchable': datastore_entry.get_id(),
-            'status': "ok" if success else "failed",
+            'request_token': request_token,
+            'batch_index': batch_index,
+            'success': success,
             'timestamp': timestamp
         }
 

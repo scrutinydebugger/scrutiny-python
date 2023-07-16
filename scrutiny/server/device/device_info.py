@@ -71,7 +71,6 @@ class VariableFreqLoop(ExecLoop):
 
 class SupportedFeatureMap(TypedDict):
     """Dictionnary of all possible supported features by the device (libscrutiny-embedded)"""
-    memory_read: bool
     memory_write: bool
     datalogging: bool
     user_command: bool

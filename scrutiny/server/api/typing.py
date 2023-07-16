@@ -21,6 +21,7 @@ SerialLinkConfig = scrutiny.server.device.links.serial_link.SerialConfig
 UdpLinkConfig = scrutiny.server.device.links.udp_link.UdpConfig
 LinkConfig = Union[EmptyDict, UdpLinkConfig, SerialLinkConfig]
 LinkType = Literal['none', 'udp', 'serial', 'dummy', 'thread_safe_dummy']
+SupportedFeature = Literal['memory_write', 'datalogging', 'user_command', '_64bits']
 Datatype = Literal[
     'sint8', 'sint16', 'sint32', 'sint64', 'sint128', 'sint256',
     'uint8', 'uint16', 'uint32', 'uint64', 'uint128', 'uint256',
@@ -29,8 +30,9 @@ Datatype = Literal[
     'boolean'
 ]
 
+DeviceCommStatus = Literal['unknown', 'disconnected', 'connecting', 'connected', 'connected_ready']
 DataloggerState = Literal["unavailable", "standby", "waiting_for_trigger", "acquiring", "data_ready", "error"]
-DataloggingCondition = Literal['eq', 'neq', 'get', 'gt', 'let', 'lt', 'within', 'cmt']
+DataloggingCondition = Literal['true', 'eq', 'neq', 'get', 'gt', 'let', 'lt', 'within', 'cmt']
 
 
 class DataloggingStatus(TypedDict):
@@ -77,7 +79,7 @@ class DeviceInfo(TypedDict):
     address_size_bits: int
     protocol_major: int
     protocol_minor: int
-    supported_feature_map: Dict[str, bool]
+    supported_feature_map: Dict[SupportedFeature, bool]
     forbidden_memory_regions: List[Dict[str, int]]
     readonly_memory_regions: List[Dict[str, int]]
 
@@ -92,8 +94,9 @@ class DeviceCommLinkDef(TypedDict):
     link_config: LinkConfig
 
 
-class GetWatchableList_Filter(TypedDict):
+class GetWatchableList_Filter(TypedDict, total=False):
     type: WatchableType
+    name: str
 
 
 class WatchableCount(TypedDict):
@@ -103,6 +106,7 @@ class WatchableCount(TypedDict):
 
 
 class UpdateRecord(TypedDict):
+    batch_index: int
     watchable: str
     value: Any
 
@@ -256,7 +260,7 @@ class S2C:
         firmware_id: Optional[str]
 
     class InformServerStatus(BaseS2CMessage):
-        device_status: str
+        device_status: DeviceCommStatus
         device_session_id: Optional[str]
         device_datalogging_status: DataloggingStatus
         device_info: Optional[DeviceInfo]
@@ -283,11 +287,14 @@ class S2C:
     GetPossibleLinkConfig = Dict[Any, Any]  # TODO
 
     class WriteValue(BaseS2CMessage):
-        watchables: List[str]
+        count: int
+        request_token: str
 
     class WriteCompletion(BaseS2CMessage):
+        batch_index: int
         watchable: str
-        status: Literal['ok', 'failed']
+        success: bool
+        request_token: str
         timestamp: float
 
     class GetDataloggingCapabilities(BaseS2CMessage):

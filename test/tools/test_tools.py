@@ -1,4 +1,4 @@
-#    test_server_tools.py
+#    test_tools.py
 #        Test various tools for the Python server application
 #
 #   - License : MIT - See LICENSE file.
@@ -6,7 +6,7 @@
 #
 #   Copyright (c) 2021-2023 Scrutiny Debugger
 
-from scrutiny.server.tools import Throttler
+from scrutiny.tools import Throttler
 import time
 import math
 from test import logger

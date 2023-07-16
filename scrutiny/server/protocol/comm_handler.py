@@ -12,14 +12,13 @@
 
 from queue import Queue
 from scrutiny.server.protocol import Request, Response
-from scrutiny.server.tools import Timer
+from scrutiny.tools import Timer, Throttler
 from enum import Enum
 from copy import copy
 import logging
 import struct
 from binascii import hexlify
 import time
-from scrutiny.server.tools import Throttler
 from scrutiny.server.device.links import AbstractLink, LinkConfig
 import traceback
 
@@ -116,7 +115,7 @@ class CommHandler:
         self.bitcount_time = time.time()
 
     def get_link(self) -> Optional[AbstractLink]:
-        """REturn the Link object used to talk with the device."""
+        """Return the Link object used to talk with the device."""
         return self.link
 
     def get_link_type(self) -> str:

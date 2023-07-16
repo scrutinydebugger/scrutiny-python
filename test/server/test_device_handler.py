@@ -32,6 +32,8 @@ from test import ScrutinyUnitTest, logger
 from scrutiny.core.typehints import GenericCallback
 from typing import cast, List
 
+no_callback = UpdateTargetRequestCallback(lambda *args, **kwargs: None)
+
 
 def d2f(d):
     return struct.unpack('f', struct.pack('f', d))[0]
@@ -123,14 +125,14 @@ class TestDeviceHandler(ScrutinyUnitTest):
             self.assertEqual(self.device_handler.get_comm_error_count(), 0)
 
             if status == DeviceHandler.ConnectionStatus.CONNECTED_READY:
-                self.assertIsNotNone(self.device_handler.comm_session_id())
+                self.assertIsNotNone(self.device_handler.get_comm_session_id())
                 connection_successful = True
                 if hold_time_set == False:
                     hold_time_set = True
                     timeout = hold_time
                     t1 = time.time()
             else:
-                self.assertIsNone(self.device_handler.comm_session_id())
+                self.assertIsNone(self.device_handler.get_comm_session_id())
 
             if connection_successful:
                 self.assertTrue(status == DeviceHandler.ConnectionStatus.CONNECTED_READY)
@@ -162,7 +164,6 @@ class TestDeviceHandler(ScrutinyUnitTest):
         self.assertEqual(info.heartbeat_timeout_us, self.emulated_device.heartbeat_timeout_us)
         self.assertEqual(info.rx_timeout_us, self.emulated_device.rx_timeout_us)
         self.assertEqual(info.address_size_bits, self.emulated_device.address_size_bits)
-        self.assertEqual(info.supported_feature_map['memory_read'], self.emulated_device.supported_features['memory_read'])
         self.assertEqual(info.supported_feature_map['memory_write'], self.emulated_device.supported_features['memory_write'])
         self.assertEqual(info.supported_feature_map['datalogging'], self.emulated_device.supported_features['datalogging'])
         self.assertEqual(info.supported_feature_map['user_command'], self.emulated_device.supported_features['user_command'])
@@ -244,7 +245,7 @@ class TestDeviceHandler(ScrutinyUnitTest):
 
         self.assertTrue(connection_lost)
 
-    def test_auto_diconnect_and_reconnect_on_broken_link(self):
+    def test_auto_disconnect_and_reconnect_on_broken_link(self):
         timeout = 5     # Should take about 2.5 sec to disconnect With heartbeat at every 2 sec
         t1 = time.time()
         connection_completed = False
@@ -374,9 +375,9 @@ class TestDeviceHandler(ScrutinyUnitTest):
                         self.assertEqual(vint64.get_value(), 0x123456789abcdef, 'round=%d' % round_completed)
                         self.assertEqual(vbool.get_value(), True, 'round=%d' % round_completed)
 
-                        vfloat32.update_target_value(2.7)
-                        vint64.update_target_value(0x1122334455667788)
-                        vbool.update_target_value(False)
+                        self.datastore.update_target_value(vfloat32, 2.7, no_callback)
+                        self.datastore.update_target_value(vint64, 0x1122334455667788, no_callback)
+                        self.datastore.update_target_value(vbool, False, no_callback)
 
                         write_time = time.time()
                         state = 'write_memory'
@@ -445,7 +446,7 @@ class TestDeviceHandler(ScrutinyUnitTest):
                     self.assertEqual(self.datastore.get_entries_count(EntryType.Alias), 0)
                     self.assertEqual(self.datastore.get_entries_count(EntryType.RuntimePublishedValue), len(self.emulated_device.rpvs))
 
-                    all_entries = cast(List[DatastoreRPVEntry], self.datastore.get_entries_list_by_type(EntryType.RuntimePublishedValue))
+                    all_entries = cast(List[DatastoreRPVEntry], list(self.datastore.get_all_entries(EntryType.RuntimePublishedValue)))
 
                     for entry in all_entries:
                         assert isinstance(entry, DatastoreRPVEntry)
@@ -460,7 +461,7 @@ class TestDeviceHandler(ScrutinyUnitTest):
                     for entry in all_entries:
                         rpv = entry.get_rpv()
                         written_values[rpv.id] = generate_random_value(rpv.datatype)
-                        entry.update_target_value(written_values[rpv.id])
+                        self.datastore.update_target_value(entry, written_values[rpv.id], no_callback)
 
                     state = 'wait_for_update_and_validate'
 

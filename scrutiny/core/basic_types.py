@@ -6,8 +6,15 @@
 #
 #   Copyright (c) 2021-2023 Scrutiny Debugger
 
-from enum import Enum
+__all__ = [
+    'Endianness',
+    'DataTypeType',
+    'DataTypeSize',
+    'EmbeddedDataType',
+    'RuntimePublishedValue'
+]
 
+from enum import Enum
 from typing import Union
 
 
@@ -23,6 +30,7 @@ class DataTypeType(Enum):
     _boolean = (3 << 4)
     _cfloat = (4 << 4)
     _struct = (5 << 4)
+    _NA = 0xF
 
 
 class DataTypeSize(Enum):
@@ -72,6 +80,7 @@ class EmbeddedDataType(Enum):
     boolean = DataTypeType._boolean.value | DataTypeSize._8.value
 
     struct = DataTypeType._struct.value | DataTypeSize._NA.value
+    NA = DataTypeType._NA.value | DataTypeSize._NA.value
 
     def get_size_bit(self) -> int:
         v = self.get_size_byte()

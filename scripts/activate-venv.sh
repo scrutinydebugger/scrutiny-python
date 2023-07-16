@@ -37,3 +37,5 @@ if ! diff "$PY_MODULE_ROOT/setup.py" "$SCRUTINY_VENV_ROOT/cache/setup.py" 2>&1 >
     mkdir -p "$SCRUTINY_VENV_ROOT/cache/"
     cp "$PY_MODULE_ROOT/setup.py" "$SCRUTINY_VENV_ROOT/cache/setup.py"
 fi
+
+set +e

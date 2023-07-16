@@ -6,17 +6,21 @@
 #
 #   Copyright (c) 2021-2023 Scrutiny Debugger
 
-import websockets           # type: ignore
-import websockets.server    # type: ignore
+import websockets
+import websockets.server
+import websockets.exceptions
 import queue
 import asyncio
 import logging
 
-from typing import Any, Optional, Tuple
+from typing import Any, Optional, Tuple, Callable
 from scrutiny.core.typehints import GenericCallback
 
-#WebsocketType = websockets.server.WebSocketServerProtocol
-WebsocketType = Any  # todo fix this
+WebsocketType = websockets.server.WebSocketServerProtocol
+
+
+ConnectCallback = Callable[[WebsocketType], None]
+DiconnectCallback = Callable[[WebsocketType], None]
 
 
 class SynchronousWebsocketServer:
@@ -28,11 +32,11 @@ class SynchronousWebsocketServer:
     txqueue: "queue.Queue[Tuple[WebsocketType, Any]]"
     loop: asyncio.AbstractEventLoop
     logger: logging.Logger
-    connect_callback: Optional[GenericCallback]
-    disconnect_callback: Optional[GenericCallback]
+    connect_callback: Optional[ConnectCallback]
+    disconnect_callback: Optional[DiconnectCallback]
    # ws_server: Optional[websockets.server.Serve]
 
-    def __init__(self, connect_callback: Optional[GenericCallback] = None, disconnect_callback: Optional[GenericCallback] = None):
+    def __init__(self, connect_callback: Optional[ConnectCallback] = None, disconnect_callback: Optional[DiconnectCallback] = None):
         self.rxqueue = queue.Queue()
         self.txqueue = queue.Queue()
         self.loop = asyncio.new_event_loop()
@@ -48,6 +52,14 @@ class SynchronousWebsocketServer:
 
         try:
             async for message in websocket:
+                if self.logger.isEnabledFor(logging.DEBUG):
+                    if isinstance(message, str):
+                        s = message
+                    elif isinstance(message, bytes):
+                        s = message.decode('utf8')
+                    else:
+                        s = message
+                    self.logger.debug("Receiving %s" % s)
                 self.rxqueue.put((websocket, message))   # Possible improvement : Handle queue full scenario.
         except websockets.exceptions.ConnectionClosedError:
             pass
@@ -60,6 +72,14 @@ class SynchronousWebsocketServer:
         while not self.txqueue.empty():
             (websocket, message) = self.txqueue.get()
             try:
+                if self.logger.isEnabledFor(logging.DEBUG):
+                    if isinstance(message, str):
+                        s = message
+                    elif isinstance(message, bytes):
+                        s = message.decode('utf8')
+                    else:
+                        s = message
+                    self.logger.debug("Sending %s" % s)
                 self.loop.run_until_complete(asyncio.ensure_future(websocket.send(message), loop=self.loop))
             except websockets.exceptions.ConnectionClosedOK:
                 pass    # Client is disconnected. Disconnect callback not called yet.
@@ -71,12 +91,13 @@ class SynchronousWebsocketServer:
             self.loop.call_soon(self.loop.stop)
             self.loop.run_forever()
 
-    def start(self, host: str, port: int) -> None:
+    def start(self, host: str, port: int) -> int:
         """Start the websocket server and listen on the given host/port combination"""
         # Warning. websockets source code says that loop argument might be deprecated.
         self.ws_server = websockets.serve(self.server_routine, host, port, loop=self.loop)  # type: ignore
         assert self.ws_server is not None  # make mypy happy
         self.loop.run_until_complete(self.ws_server)    # Initialize websockets async server
+        return self.ws_server.ws_server.server.sockets[0].getsockname()[1]
 
     def stop(self) -> None:
         """Stop the websocket server"""

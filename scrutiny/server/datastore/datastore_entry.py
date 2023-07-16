@@ -12,8 +12,7 @@ import time
 import abc
 import re
 from scrutiny.core.basic_types import RuntimePublishedValue
-from queue import Queue
-import math
+import queue
 
 from scrutiny.server.datastore.entry_type import EntryType
 from scrutiny.core.variable import Variable, VariableEnum, EmbeddedDataType
@@ -106,7 +105,7 @@ class UpdateTargetRequest:
         return self.value
 
 
-class DatastoreEntry:
+class DatastoreEntry(abc.ABC):
     """
     Represent an entry in the datastore that can be written and read.
     it has a unique ID and a display path used for GUI tree-like rendering.
@@ -120,7 +119,7 @@ class DatastoreEntry:
     display_path: str
     value: Any
     last_target_update_timestamp: Optional[float]
-    target_update_request_queue: "Queue[UpdateTargetRequest]"
+    target_update_request_queue: "queue.Queue[UpdateTargetRequest]"
     last_value_update_timestamp: float
 
     def __init__(self, display_path: str):
@@ -131,39 +130,39 @@ class DatastoreEntry:
         self.display_path = display_path
         self.last_target_update_timestamp = None
         self.last_value_update_timestamp = time.time()
-        self.target_update_request_queue = Queue()
+        self.target_update_request_queue = queue.Queue()
         self.value = 0
 
     @abc.abstractmethod
     def get_data_type(self) -> EmbeddedDataType:
         """Returns the device data type"""
-        raise NotImplementedError("Abstract class")
+        raise NotImplementedError("Abstract method")
 
     @abc.abstractmethod
     def get_type(self) -> EntryType:
         """Return the datastore entry type"""
-        raise NotImplementedError("Abstract class")
+        raise NotImplementedError("Abstract method")
 
     @abc.abstractmethod
     def has_enum(self) -> bool:
         """Returns True if the entry has an enum"""
-        raise NotImplementedError("Abstract class")
+        raise NotImplementedError("Abstract method")
 
     @abc.abstractmethod
     def get_enum(self) -> VariableEnum:
         """Returns the enum attached to the entry. Raise an exception if there is None"""
-        raise NotImplementedError("Abstract class")
+        raise NotImplementedError("Abstract method")
 
     @abc.abstractmethod
     def encode(self, value: Encodable) -> Tuple[bytes, Optional[bytes]]:
         """Encode the value to a stream of bytes and a data mask. 
         Returns as tuple : (data, mask)"""
-        raise NotImplementedError("Abstract class")
+        raise NotImplementedError("Abstract method")
 
     @abc.abstractmethod
     def decode(self, data: bytes) -> Encodable:
         """Decode a stream of bytes into a Python value"""
-        raise NotImplementedError("Abstract class")
+        raise NotImplementedError("Abstract method")
 
     def get_id(self) -> str:
         """Returns the datastore entry ID"""
@@ -224,30 +223,6 @@ class DatastoreEntry:
         """Sets the timestamp of the last successful completed target value update (write)"""
         self.last_target_update_timestamp = val
 
-    def update_target_value(self, value: Any, callback: Optional[UpdateTargetRequestCallback] = None) -> UpdateTargetRequest:
-        """
-         Request a write operation on the device to get this entry updated.
-         The request foes into a queue and we wait for the MemoryWriter to pick it up and mark the
-         request completed by calling request.complete(success=true/false)
-         """
-        update_request = UpdateTargetRequest(value, entry=self, callback=callback)
-        try:
-            self.target_update_request_queue.put_nowait(update_request)
-        except:
-            update_request.complete(success=False)  # In case the queue is full, request fails right away without trying.
-        return update_request
-
-    def has_pending_target_update(self) -> bool:
-        """Returns True if there is a pending target update request (write request)"""
-        return not self.target_update_request_queue.empty()
-
-    def pop_target_update_request(self) -> Optional[UpdateTargetRequest]:
-        """ Returns the next write request to be processed"""
-        try:
-            return self.target_update_request_queue.get_nowait()
-        except:
-            return None
-
 
 class DatastoreVariableEntry(DatastoreEntry):
     """
@@ -307,7 +282,7 @@ class DatastoreVariableEntry(DatastoreEntry):
     def encode(self, value: Encodable) -> Tuple[bytes, Optional[bytes]]:
         """Encode the value to a stream of bytes and a data mask. 
         Returns as tuple : (data, mask)"""
-        return self.variable_def.encode(value)  # Returns a typle of (data, mask)
+        return self.variable_def.encode(value)  # Returns a tuple of (data, mask)
 
     def decode(self, data: bytes) -> Encodable:
         """Decode a stream of bytes into a Python value"""
@@ -364,22 +339,6 @@ class DatastoreAliasEntry(DatastoreEntry):
     def decode(self, data: bytes) -> Encodable:
         """Decode a stream of bytes into a Python value"""
         return self.aliasdef.compute_device_to_user(self.refentry.decode(data))
-
-    def update_target_value(self, value: Any, callback: Optional[UpdateTargetRequestCallback] = None) -> UpdateTargetRequest:
-        """
-         Request a write operation on the device to get this entry updated.
-         The request foes into a queue and we wait for the MemoryWriter to pick it up and mark the
-         request completed by calling request.complete(success=true/false)
-         """
-        # A write request is a little tricky.  We make a new write request on the pointed entry.
-        # Then we use the completion callback of this new request to mark the first request as completed.
-        alias_request = super().update_target_value(value, callback)
-        new_value = self.aliasdef.compute_user_to_device(value)
-        nested_callback = UpdateTargetRequestCallback(functools.partial(self.alias_target_update_callback, alias_request))
-        new_request = self.refentry.update_target_value(new_value, callback=nested_callback)
-        if alias_request.is_complete():  # Edge case if failed to enqueue request.
-            new_request.complete(success=alias_request.is_complete())
-        return alias_request
 
     def alias_target_update_callback(self, alias_request: UpdateTargetRequest, success: bool, entry: DatastoreEntry, timestamp: float):
         """Callback used by an alias to grab the result of the target update and apply it to its own"""

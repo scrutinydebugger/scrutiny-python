@@ -39,6 +39,7 @@ class MemoryWriter:
     max_response_payload_size: int  # Maximum size for a response payload gotten from the InfoPoller
     forbidden_regions: List[Tuple[int, int]]    # List of memory regions to avoid. Gotten from InfoPoller
     readonly_regions: List[Tuple[int, int]]     # List of memory region that can only be read. Gotten from InfoPoller
+    memory_write_allowed: bool  # Indicates if writing to memory is allowed.
 
     entry_being_updated: Optional[DatastoreEntry]   # The datastore entry updated by the actual pending request. None if no request is pending
     # When an entry is being written, this request is the pending request. None if nothing is being done
@@ -46,8 +47,6 @@ class MemoryWriter:
     # Update request attached to the entry being updated. It's what'S coming from the API
     target_update_request_being_processed: Optional[UpdateTargetRequest]
     target_update_value_written: Optional[Encodable]
-    watched_entries: List[str]  # List of entries beoing watched by clients. We will pool them to see if they have write request
-    write_cursor: int   # Cursor used for round-robin inside the list datastore entries to write
 
     def __init__(self, protocol: Protocol, dispatcher: RequestDispatcher, datastore: Datastore, request_priority: int):
         self.logger = logging.getLogger(self.__class__.__name__)
@@ -73,12 +72,18 @@ class MemoryWriter:
 
     def add_forbidden_region(self, start_addr: int, size: int) -> None:
         """Add a memory region to avoid touching. They normally are broadcasted by the device itself"""
-        self.forbidden_regions.append((start_addr, size))
+        if size > 0:
+            self.forbidden_regions.append((start_addr, size))
+        else:
+            self.logger.warning('Adding a forbidden region with non-positive size %d' % size)
 
     def add_readonly_region(self, start_addr: int, size: int) -> None:
         """Add a memory region tthat can only be read. We will avoid any write to them. 
         They normally are broadcasted by the device itself"""
-        self.readonly_regions.append((start_addr, size))
+        if size > 0:
+            self.readonly_regions.append((start_addr, size))
+        else:
+            self.logger.warning('Adding a read only region with non-positive size %d' % size)
 
     def start(self) -> None:
         """Enable the memory writer to poll the datastore and update the device"""
@@ -98,8 +103,6 @@ class MemoryWriter:
         self.request_pending = False
         self.started = False
 
-        self.watched_entries = []
-        self.write_cursor = 0
         self.entry_being_updated = None
         self.request_of_entry_being_updated = None
         self.target_update_request_being_processed = None
@@ -111,6 +114,10 @@ class MemoryWriter:
         self.max_response_payload_size = self.DEFAULT_MAX_RESPONSE_PAYLOAD_SIZE
         self.forbidden_regions = []
         self.readonly_regions = []
+        self.memory_write_allowed = True
+
+    def allow_memory_write(self, val: bool) -> None:
+        self.memory_write_allowed = val
 
     def reset(self) -> None:
         """Put back the memory writer to its startup state"""
@@ -146,18 +153,38 @@ class MemoryWriter:
         """
         request: Optional[Request] = None
 
-        if self.write_cursor >= len(self.watched_entries):
-            self.watched_entries = self.datastore.get_watched_entries_id(EntryType.Var)
-            self.watched_entries += self.datastore.get_watched_entries_id(EntryType.RuntimePublishedValue)
-            self.write_cursor = 0
-
         if self.entry_being_updated is None:
-            while self.write_cursor < len(self.watched_entries):
-                entry = self.datastore.get_entry(self.watched_entries[self.write_cursor])
-                self.write_cursor += 1
-                if entry.has_pending_target_update():
-                    self.entry_being_updated = entry
-                    self.target_update_request_being_processed = entry.pop_target_update_request()
+            while True:
+                update_request = self.datastore.pop_target_update_request()
+
+                if update_request is not None:
+                    # Make sure we have the right to write to that memory region. Fails right away if we don't
+                    allowed = True
+                    if isinstance(update_request.entry, DatastoreVariableEntry):
+                        assert update_request.entry.__class__ != DatastoreEntry  # for mypy
+                        allowed = self.memory_write_allowed
+                        address = update_request.entry.get_address()
+                        # We don't check for bitfield size because the device will access the whole word anyway
+                        size = update_request.entry.get_data_type().get_size_byte()
+                        for region in self.readonly_regions:
+                            if self.region_touches(address, size, region[0], region[1]):
+                                allowed = False
+                        for region in self.forbidden_regions:
+                            if self.region_touches(address, size, region[0], region[1]):
+                                allowed = False
+
+                        if not allowed:
+                            self.logger.debug("Refusing write request %s accessing address 0x%08x with size %d" %
+                                              (update_request.entry.display_path, update_request.entry.get_address(), update_request.entry.get_size()))
+                    if allowed:
+                        self.target_update_request_being_processed = update_request
+                        self.entry_being_updated = update_request.entry
+                        break
+                    else:
+                        # Fails right away
+                        update_request.complete(False)
+
+                else:
                     break
 
         if self.entry_being_updated is not None and self.target_update_request_being_processed is not None:
@@ -200,6 +227,18 @@ class MemoryWriter:
                     raise RuntimeError('entry_being_updated should be of type %s' % self.entry_being_updated.__class__.__name__)
                 self.request_of_entry_being_updated = request
         return request
+
+    def region_touches(self, address1: int, size1: int, address2: int, size2: int) -> bool:
+        if size1 <= 0 or size2 <= 0:
+            return False
+
+        if address1 >= address2 + size2:
+            return False
+
+        if address2 >= address1 + size1:
+            return False
+
+        return True
 
     def success_callback(self, request: Request, response: Response, params: Any = None) -> None:
         """Called when a request completes and succeeds"""

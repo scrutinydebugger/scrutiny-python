@@ -31,6 +31,10 @@ from scrutiny.server.protocol.crc32 import crc32
 from typing import List, Dict, Optional, Union, Any, Tuple, TypedDict, cast, Set, Deque, Callable
 
 
+class NotAllowedException(Exception):
+    pass
+
+
 class RequestLogRecord:
     __slots__ = ('request', 'response')
 
@@ -424,11 +428,17 @@ class DataloggerEmulator:
         return self.encoder.get_entry_counter() - self.entry_counter_at_trigger
 
 
+class MemoryRegion(TypedDict):
+    start: int
+    end: int
+
+
 class EmulatedDevice:
     logger: logging.Logger
     link: Union[DummyLink, ThreadSafeDummyLink]
     firmware_id: bytes
     request_history: List[RequestLogRecord]
+    request_history_lock: threading.Lock
     protocol: Protocol
     comm_enabled: bool
     connected: bool
@@ -442,8 +452,8 @@ class EmulatedDevice:
     rx_timeout_us: int
     address_size_bits: int
     supported_features: Dict[str, bool]
-    forbidden_regions: List[Dict[str, int]]
-    readonly_regions: List[Dict[str, int]]
+    forbidden_regions: List[MemoryRegion]
+    readonly_regions: List[MemoryRegion]
     session_id: Optional[int]
     memory: MemoryContent
     memory_lock: threading.Lock
@@ -486,11 +496,11 @@ class EmulatedDevice:
         self.memory_lock = threading.Lock()
         self.rpv_lock = threading.Lock()
         self.additional_tasks_lock = threading.Lock()
+        self.request_history_lock = threading.Lock()
 
         self.additional_tasks = []
 
         self.supported_features = {
-            'memory_read': True,
             'memory_write': True,
             'datalogging': True,
             'user_command': False,
@@ -505,14 +515,8 @@ class EmulatedDevice:
             0x1004: {'definition': RuntimePublishedValue(id=0x1004, datatype=EmbeddedDataType.boolean), 'value': True}
         }
 
-        self.forbidden_regions = [
-            {'start': 0x100, 'end': 0x1FF},
-            {'start': 0x1000, 'end': 0x10FF}]
-
-        self.readonly_regions = [
-            {'start': 0x200, 'end': 0x2FF},
-            {'start': 0x800, 'end': 0x8FF},
-            {'start': 0x900, 'end': 0x9FF}]
+        self.forbidden_regions = []
+        self.readonly_regions = []
 
         self.protocol.configure_rpvs([self.rpvs[id]['definition'] for id in self.rpvs])
 
@@ -550,16 +554,16 @@ class EmulatedDevice:
                     self.logger.error('Exception while processing Request %s. Error is : %s' % (str(request), str(e)))
                     self.logger.debug(traceback.format_exc())
 
-                self.request_history.append(RequestLogRecord(request=request, response=response))
+                with self.request_history_lock:
+                    self.request_history.append(RequestLogRecord(request=request, response=response))
 
             if self.is_datalogging_enabled():
                 self.datalogger.process()
 
             # Some tasks may be required by unit tests to be run in this thread
-            self.additional_tasks_lock.acquire()
-            for task in self.additional_tasks:
-                task()
-            self.additional_tasks_lock.release()
+            with self.additional_tasks_lock:
+                for task in self.additional_tasks:
+                    task()
 
             time.sleep(0.01)
 
@@ -736,20 +740,30 @@ class EmulatedDevice:
         elif subfunction == cmd.MemoryControl.Subfunction.Write:
             data = cast(protocol_typing.Request.MemoryControl.Write, data)
             response_blocks_write = []
-            for block_to_write in data['blocks_to_write']:
-                self.write_memory(block_to_write['address'], block_to_write['data'])
-                response_blocks_write.append((block_to_write['address'], len(block_to_write['data'])))
+            try:
+                for block_to_write in data['blocks_to_write']:
+                    self.write_memory(block_to_write['address'], block_to_write['data'])
+                    response_blocks_write.append((block_to_write['address'], len(block_to_write['data'])))
 
-            response = self.protocol.respond_write_memory_blocks(response_blocks_write)
+                response = self.protocol.respond_write_memory_blocks(response_blocks_write)
+            except Exception as e:
+                self.logger.warning("Failed to write memory: %s" % e)
+                self.logger.debug(traceback.format_exc())
+                response = Response(req.command, subfunction, ResponseCode.FailureToProceed)
 
         elif subfunction == cmd.MemoryControl.Subfunction.WriteMasked:
             data = cast(protocol_typing.Request.MemoryControl.WriteMasked, data)
             response_blocks_write = []
-            for block_to_write in data['blocks_to_write']:
-                self.write_memory_masked(block_to_write['address'], block_to_write['data'], block_to_write['write_mask'])
-                response_blocks_write.append((block_to_write['address'], len(block_to_write['data'])))
+            try:
+                for block_to_write in data['blocks_to_write']:
+                    self.write_memory_masked(block_to_write['address'], block_to_write['data'], block_to_write['write_mask'])
+                    response_blocks_write.append((block_to_write['address'], len(block_to_write['data'])))
 
-            response = self.protocol.respond_write_memory_blocks_masked(response_blocks_write)
+                response = self.protocol.respond_write_memory_blocks_masked(response_blocks_write)
+            except Exception as e:
+                self.logger.warning("Failed to write memory: %s" % e)
+                self.logger.debug(traceback.format_exc())
+                response = Response(req.command, subfunction, ResponseCode.FailureToProceed)
 
         elif subfunction == cmd.MemoryControl.Subfunction.ReadRPV:
             data = cast(protocol_typing.Request.MemoryControl.ReadRPV, data)
@@ -937,10 +951,13 @@ class EmulatedDevice:
         return self.supported_features['datalogging']
 
     def clear_request_history(self) -> None:
-        self.request_history = []
+        with self.request_history_lock:
+            self.request_history = []
 
     def get_request_history(self) -> List[RequestLogRecord]:
-        return self.request_history
+        with self.request_history_lock:
+            history = self.request_history.copy()
+        return history
 
     def send(self, response: Response) -> None:
         if self.comm_enabled:
@@ -953,59 +970,82 @@ class EmulatedDevice:
         return None
 
     def add_additional_task(self, task: Callable[[], None]) -> None:
-        self.additional_tasks_lock.acquire()
-        self.additional_tasks.append(task)
-        self.additional_tasks_lock.release()
+        with self.additional_tasks_lock:
+            self.additional_tasks.append(task)
 
     def clear_addition_tasks(self):
-        self.additional_tasks_lock.acquire()
-        self.additional_tasks.clear()
-        self.additional_tasks_lock.release()
+        with self.additional_tasks_lock:
+            self.additional_tasks.clear()
 
-    def write_memory(self, address: int, data: Union[bytes, bytearray]) -> None:
-        err = None
-        self.memory_lock.acquire()
-        try:
+    def add_forbidden_region(self, start: int, end: int) -> None:
+        self.forbidden_regions.append({'start': start, 'end': end})
+
+    def add_readonly_region(self, start: int, end: int) -> None:
+        self.readonly_regions.append({'start': start, 'end': end})
+
+    def write_memory(self, address: int, data: Union[bytes, bytearray], check_access_rights=True) -> None:
+        if check_access_rights:
+            for region in self.forbidden_regions:
+                if self.regions_touches(region['start'], region['end'] - region['start'] + 1, address, len(data)):
+                    raise NotAllowedException("Write from %d with size %d touches a forbidden memory region that span from %d to %d" %
+                                              (address, len(data), region['start'], region['end']))
+
+            for region in self.readonly_regions:
+                if self.regions_touches(region['start'], region['end'] - region['start'] + 1, address, len(data)):
+                    raise NotAllowedException("Write from %d with size %d touches a readonly memory region that span from %d to %d" %
+                                              (address, len(data), region['start'], region['end']))
+            
+            if self.supported_features['memory_write'] == False:
+                raise NotAllowedException("Writing to memory is not allowed")
+
+        with self.memory_lock:
             self.memory.write(address, data)
-        except Exception as e:
-            err = e
-        finally:
-            self.memory_lock.release()
 
-        if err:
-            raise err
-
-    def write_memory_masked(self, address: int, data: Union[bytes, bytearray], mask=Union[bytes, bytearray]) -> None:
-        err = None
+    def write_memory_masked(self, address: int, data: Union[bytes, bytearray], mask=Union[bytes, bytearray], check_access_rights=True) -> None:
         assert len(mask) == len(data), "Data and mask must be the same length"
+        if check_access_rights:
+            for region in self.forbidden_regions:
+                if self.regions_touches(region['start'], region['end'] - region['start'] + 1, address, len(data)):
+                    raise NotAllowedException("Write from %d with size %d touches a forbidden memory region that span from %d to %d" %
+                                              (address, len(data), region['start'], region['end']))
 
-        self.memory_lock.acquire()
-        try:
+            for region in self.readonly_regions:
+                if self.regions_touches(region['start'], region['end'] - region['start'] + 1, address, len(data)):
+                    raise NotAllowedException("Write from %d with size %d touches a readonly memory region that span from %d to %d" %
+                                              (address, len(data), region['start'], region['end']))
+            
+            if self.supported_features['memory_write'] == False:
+                raise NotAllowedException("Writing to memory is not allowed")
+
+        with self.memory_lock:
             memdata = bytearray(self.memory.read(address, len(data)))
             for i in range(len(data)):
                 memdata[i] &= (data[i] | (~mask[i]))
                 memdata[i] |= (data[i] & (mask[i]))
             self.memory.write(address, memdata)
-        except Exception as e:
-            err = e
-        finally:
-            self.memory_lock.release()
 
-        if err:
-            raise err
+    def regions_touches(self, address1: int, size1: int, address2: int, size2: int) -> bool:
+        if size1 <= 0 or size2 <= 0:
+            return False
 
-    def read_memory(self, address: int, length: int) -> bytes:
-        self.memory_lock.acquire()
-        err = None
-        try:
+        if address1 >= address2 + size2:
+            return False
+
+        if address2 >= address1 + size1:
+            return False
+
+        return True
+
+    def read_memory(self, address: int, length: int, check_access_rights=True) -> bytes:
+        if check_access_rights:
+            for region in self.forbidden_regions:
+                if self.regions_touches(region['start'], region['end'] - region['start'] + 1, address, length):
+                    raise NotAllowedException("Read from %d with size %d touches a forbidden memory region that span from %d to %d" %
+                                              (address, length, region['start'], region['end']))
+
+        with self.memory_lock:
             data = self.memory.read(address, length)
-        except Exception as e:
-            err = e
-        finally:
-            self.memory_lock.release()
 
-        if err:
-            raise err
         return data
 
     def get_rpv_definition(self, rpv_id) -> RuntimePublishedValue:
@@ -1021,18 +1061,9 @@ class EmulatedDevice:
 
     def get_rpvs(self) -> List[RuntimePublishedValue]:
         output: List[RuntimePublishedValue] = []
-        err = None
-        self.rpv_lock.acquire()
-        try:
+        with self.rpv_lock:
             for id in self.rpvs:
                 output.append(self.rpvs[id]['definition'])
-        except Exception as e:
-            err = e
-        finally:
-            self.rpv_lock.release()
-
-        if err:
-            raise err
 
         return output
 
@@ -1040,31 +1071,12 @@ class EmulatedDevice:
         if rpv_id not in self.rpvs:
             raise ValueError('Unknown RuntimePublishedValue with ID 0x%04X' % rpv_id)
 
-        err = None
-        self.rpv_lock.acquire()
-        try:
+        with self.rpv_lock:
             self.rpvs[rpv_id]['value'] = value
-        except Exception as e:
-            err = e
-        finally:
-            self.rpv_lock.release()
-
-        if err:
-            raise err
 
     def read_rpv(self, rpv_id) -> Encodable:
-        val: Encodable
-        err = None
-        self.rpv_lock.acquire()
-        try:
+        with self.rpv_lock:
             val = self.rpvs[rpv_id]['value']
-        except Exception as e:
-            err = e
-        finally:
-            self.rpv_lock.release()
-
-        if err:
-            raise err
 
         if rpv_id not in self.rpvs:
             raise ValueError('Unknown RuntimePublishedValue with ID 0x%04X' % rpv_id)

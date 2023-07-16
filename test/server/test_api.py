@@ -20,7 +20,7 @@ from scrutiny.server.datastore.datastore_entry import *
 from scrutiny.server.datastore.entry_type import EntryType
 from scrutiny.core.sfd_storage import SFDStorage
 from scrutiny.server.api.dummy_client_handler import DummyConnection, DummyClientHandler
-from scrutiny.server.device.device_handler import DeviceHandler
+from scrutiny.server.device.device_handler import DeviceHandler, DeviceStateChangedCallback
 from scrutiny.server.device.device_info import DeviceInfo, FixedFreqLoop, VariableFreqLoop
 from scrutiny.server.active_sfd_handler import ActiveSFDHandler
 from scrutiny.server.device.links.dummy_link import DummyLink
@@ -49,6 +49,7 @@ class StubbedDeviceHandler:
     datalogging_callbacks: Dict[str, GenericCallback]
     datalogger_state: device_datalogging.DataloggerState
     datalogging_setup: Optional[device_datalogging.DataloggingSetup]
+    device_state_change_callbacks: List[DeviceStateChangedCallback]
 
     def __init__(self, device_id, connection_status=DeviceHandler.ConnectionStatus.UNKNOWN):
         self.device_id = device_id
@@ -63,6 +64,7 @@ class StubbedDeviceHandler:
             encoding=device_datalogging.Encoding.RAW,
             max_signal_count=32
         )
+        self.device_state_change_callbacks = []
 
     def get_connection_status(self) -> DeviceHandler.ConnectionStatus:
         return self.connection_status
@@ -72,9 +74,15 @@ class StubbedDeviceHandler:
             self.server_session_id = uuid4().hex
         elif connection_status != DeviceHandler.ConnectionStatus.CONNECTED_READY:
             self.server_session_id = None
+
+        must_call_callbacks = self.connection_status != connection_status
         self.connection_status = connection_status
 
-    def comm_session_id(self) -> Optional[str]:
+        if must_call_callbacks:
+            for callback in self.device_state_change_callbacks:
+                callback(connection_status)
+
+    def get_comm_session_id(self) -> Optional[str]:
         return self.server_session_id
 
     def set_datalogging_setup(self, setup: Optional[device_datalogging.DataloggingSetup]) -> None:
@@ -117,7 +125,6 @@ class StubbedDeviceHandler:
         info.protocol_major = 1
         info.protocol_minor = 0
         info.supported_feature_map = {
-            'memory_read': True,
             'memory_write': True,
             'datalog_acquire': False,
             'user_command': False,
@@ -141,20 +148,23 @@ class StubbedDeviceHandler:
         if self.reject_link_config:
             raise Exception('Bad config')
 
+    def register_device_state_change_callback(self, callback):
+        self.device_state_change_callbacks.append(callback)
+
 
 class StubbedDataloggingManager:
     datastore: Datastore
     fake_device_handler: StubbedDeviceHandler
     datalogging_setup: device_datalogging.DataloggingSetup
-    request_queue: "Queue[api_datalogging.AcquisitionRequest]"
+    request_queue: "queue.Queue[api_datalogging.AcquisitionRequest]"
 
-    callback_queue: "Queue[Tuple[api_datalogging.APIAcquisitionRequestCompletionCallback, bool, api_datalogging.DataloggingAcquisition]]"
+    callback_queue: "queue.Queue[Tuple[api_datalogging.APIAcquisitionRequestCompletionCallback, bool, api_datalogging.DataloggingAcquisition]]"
 
     def __init__(self, datastore: Datastore, fake_device_handler: StubbedDeviceHandler):
         self.datastore = datastore
         self.fake_device_handler = fake_device_handler
-        self.request_queue = Queue()
-        self.callback_queue = Queue()
+        self.request_queue = queue.Queue()
+        self.callback_queue = queue.Queue()
 
     def get_device_setup(self) -> Optional[device_datalogging.DataloggingSetup]:
         return self.fake_device_handler.get_datalogging_setup()
@@ -458,7 +468,75 @@ class TestAPI(ScrutinyUnitTest):
 
         self.assertEqual(len(expected_entries_in_response), 0)
 
+    def test_get_watchable_list_with_name_filter(self):
+        var_entries = self.make_dummy_entries(5, entry_type=EntryType.Var, prefix='includeme_var')
+        alias_entries = self.make_dummy_entries(2, entry_type=EntryType.Alias, prefix='includeme_alias', alias_bucket=var_entries)
+        rpv_entries = self.make_dummy_entries(8, entry_type=EntryType.RuntimePublishedValue, prefix='includeme_rpv')
+
+        expected_entries_in_response = {}
+        for entry in var_entries:
+            expected_entries_in_response[entry.get_id()] = entry
+        for entry in alias_entries:
+            expected_entries_in_response[entry.get_id()] = entry
+        for entry in rpv_entries:
+            expected_entries_in_response[entry.get_id()] = entry
+        # Add entries in the datastore that we will reread through the API
+        self.datastore.add_entries(var_entries)
+        self.datastore.add_entries(alias_entries)
+        self.datastore.add_entries(rpv_entries)
+
+        self.datastore.add_entries(self.make_dummy_entries(5, entry_type=EntryType.Var, prefix='excludeme_var'))
+        self.datastore.add_entries(self.make_dummy_entries(5, entry_type=EntryType.Alias, prefix='excludeme_alias', alias_bucket=var_entries))
+        self.datastore.add_entries(self.make_dummy_entries(5, entry_type=EntryType.RuntimePublishedValue, prefix='excludeme_rpv'))
+
+        req = {
+            'cmd': 'get_watchable_list',
+            'filter': {
+                'name': 'includeme*'
+            }
+        }
+        self.send_request(req)
+        response = self.wait_and_load_response()
+        self.assert_no_error(response)
+
+        self.assert_get_watchable_list_response_format(response)
+
+        self.assertEqual(response['done'], True)
+        self.assertEqual(response['qty']['var'], 5)
+        self.assertEqual(response['qty']['alias'], 2)
+        self.assertEqual(response['qty']['rpv'], 8)
+        self.assertEqual(len(response['content']['var']), 5)
+        self.assertEqual(len(response['content']['alias']), 2)
+        self.assertEqual(len(response['content']['rpv']), 8)
+
+        # Put all entries in a single list, paired with the name of the parent key.
+        all_entries_same_level = []
+        all_entries_same_level += [(EntryType.Var, entry) for entry in response['content']['var']]
+        all_entries_same_level += [(EntryType.Alias, entry) for entry in response['content']['alias']]
+        all_entries_same_level += [(EntryType.RuntimePublishedValue, entry) for entry in response['content']['rpv']]
+
+        # We make sure that the list is exact.
+        for item in all_entries_same_level:
+            entrytype = item[0]
+            api_entry = item[1]
+
+            self.assertIn('id', api_entry)
+            self.assertIn('display_path', api_entry)
+
+            self.assertIn(api_entry['id'], expected_entries_in_response)
+            entry: DatastoreEntry = expected_entries_in_response[api_entry['id']]
+
+            self.assertEqual(entry.get_id(), api_entry['id'])
+            self.assertEqual(entry.get_type(), entrytype)
+            self.assertEqual(API.get_datatype_name(entry.get_data_type()), api_entry['datatype'])
+            self.assertEqual(entry.get_display_path(), api_entry['display_path'])
+
+            del expected_entries_in_response[api_entry['id']]
+
+        self.assertEqual(len(expected_entries_in_response), 0)
+
     # Fetch list of var/alias and sets all sort of type filter.
+
     def test_get_watchable_list_with_type_filter(self):
         self.do_test_get_watchable_list_with_type_filter(None)
         self.do_test_get_watchable_list_with_type_filter('')
@@ -558,6 +636,7 @@ class TestAPI(ScrutinyUnitTest):
         var_entries = self.make_dummy_entries(nVar, entry_type=EntryType.Var, prefix='var')
         alias_entries = self.make_dummy_entries(nAlias, entry_type=EntryType.Alias, prefix='alias', alias_bucket=var_entries)
         rpv_entries = self.make_dummy_entries(nRpv, entry_type=EntryType.RuntimePublishedValue, prefix='rpv')
+
         expected_entries_in_response = {}
 
         for entry in var_entries:
@@ -932,6 +1011,25 @@ class TestAPI(ScrutinyUnitTest):
             self.assertIn('device_session_id', response)
             self.assertIsNone(response['device_session_id'])    # Expected None when not connected
 
+    def test_server_status_sent_on_device_state_change(self):
+
+        # API consider a connection active after the first message
+        self.send_request(dict(cmd='echo', payload="123"))
+        self.wait_and_load_response()
+
+        self.assertEqual(self.fake_device_handler.get_connection_status(), DeviceHandler.ConnectionStatus.DISCONNECTED)
+        self.fake_device_handler.set_connection_status(DeviceHandler.ConnectionStatus.CONNECTED_READY)
+        msg = cast(api_typing.S2C.InformServerStatus, self.wait_and_load_response())
+        self.assert_no_error(msg)
+        self.assertEqual(msg['cmd'], API.Command.Api2Client.INFORM_SERVER_STATUS)
+        self.assertEqual(msg['device_status'], API.DeviceCommStatus.CONNECTED_READY)
+
+        self.fake_device_handler.set_connection_status(DeviceHandler.ConnectionStatus.DISCONNECTED)
+        msg = cast(api_typing.S2C.InformServerStatus, self.wait_and_load_response())
+        self.assert_no_error(msg)
+        self.assertEqual(msg['cmd'], API.Command.Api2Client.INFORM_SERVER_STATUS)
+        self.assertEqual(msg['device_status'], API.DeviceCommStatus.DISCONNECTED)
+
     def test_set_device_link(self):
         self.assertEqual(self.fake_device_handler.link_type, 'none')
         self.assertEqual(self.fake_device_handler.link_config, {})
@@ -1011,33 +1109,63 @@ class TestAPI(ScrutinyUnitTest):
             'cmd': 'write_value',
             'updates': [
                 {
+                    'batch_index': 0,
                     'watchable': subscribed_entry1.get_id(),
                     'value': 1234
                 },
                 {
+                    'batch_index': 1,
                     'watchable': subscribed_entry2.get_id(),
                     'value': 3.1415926
                 }
             ]
         }
 
-        self.assertFalse(subscribed_entry1.has_pending_target_update())
-        self.assertFalse(subscribed_entry2.has_pending_target_update())
-
+        self.assertIsNone(self.datastore.pop_target_update_request())
         self.send_request(req, 0)
         response = self.wait_and_load_response()
         self.assert_no_error(response)
 
         self.assertIn(response['cmd'], 'response_write_value')
-        self.assertIn('watchables', response)
-        self.assertEqual(len(response['watchables']), 2)
-        self.assertIn(subscribed_entry1.get_id(), response['watchables'])
-        self.assertIn(subscribed_entry2.get_id(), response['watchables'])
+        self.assertIn('count', response)
+        self.assertIn('request_token', response)
+        self.assertIsInstance(response['request_token'], str)
+        self.assertGreater(len(response['request_token']), 0)
+        self.assertEqual(response['count'], 2)
 
-        self.assertTrue(subscribed_entry1.has_pending_target_update())
-        self.assertEqual(subscribed_entry1.pop_target_update_request().get_value(), 1234)
-        self.assertTrue(subscribed_entry2.has_pending_target_update())
-        self.assertEqual(subscribed_entry2.pop_target_update_request().get_value(), 3.1415926)
+        request_token = response['request_token']
+
+        req1 = self.datastore.pop_target_update_request()
+        req2 = self.datastore.pop_target_update_request()
+
+        self.assertIsNotNone(req1)
+        self.assertIsNotNone(req2)
+
+        # Expect them to be in order.
+        self.assertEqual(req1.get_value(), 1234)
+        self.assertEqual(req2.get_value(), 3.1415926)
+
+        req1.complete(True)
+        req2.complete(False)
+
+        for i in range(2):
+            response = self.wait_and_load_response()
+            self.assert_no_error(response, 'i=%d' % i)
+
+            self.assertEqual(response['cmd'], 'inform_write_completion', 'i=%d' % i)
+            self.assertIn('watchable', response, 'i=%d' % i)
+            self.assertIn('success', response, 'i=%d' % i)
+            self.assertIn('request_token', response, 'i=%d' % i)
+            self.assertIn('timestamp', response, 'i=%d' % i)
+
+            if response['watchable'] == subscribed_entry1.get_id():
+                self.assertEqual(response['success'], True, 'i=%d' % i)
+                self.assertEqual(response['request_token'], request_token, 'i=%d' % i)
+                self.assertEqual(response['timestamp'], req1.get_completion_timestamp(), 'i=%d' % i)
+            elif response['watchable'] == subscribed_entry2.get_id():
+                self.assertEqual(response['success'], False, 'i=%d' % i)
+                self.assertEqual(response['request_token'], request_token, 'i=%d' % i)
+                self.assertEqual(response['timestamp'], req2.get_completion_timestamp(), 'i=%d' % i)
 
     def test_subscribe_watchable_bad_ID(self):
         req = {
@@ -1057,6 +1185,7 @@ class TestAPI(ScrutinyUnitTest):
             'reqid': 555,
             'updates': [
                 {
+                    'batch_index': 0,
                     'watchable': 'qwerty',
                     'value': 1234
                 }
@@ -1077,6 +1206,7 @@ class TestAPI(ScrutinyUnitTest):
             'reqid': 555,
             'updates': [
                 {
+                    'batch_index': 0,
                     'watchable': entries[0].get_id(),
                     'value': 1234
                 }
@@ -1087,43 +1217,6 @@ class TestAPI(ScrutinyUnitTest):
         response = self.wait_and_load_response()
         self.assert_is_error(response)
         self.assertEqual(response['reqid'], 555)
-
-    def test_notified_on_successful_write(self):
-        entries = self.make_dummy_entries(10, entry_type=EntryType.Var, prefix='var')
-        self.datastore.add_entries(entries)
-
-        subscribed_entry1 = entries[2]
-        subscribed_entry2 = entries[5]
-        req = {
-            'cmd': 'subscribe_watchable',
-            'watchables': [subscribed_entry1.get_id(), subscribed_entry2.get_id()]
-        }
-
-        self.send_request(req, 0)
-        response = self.wait_and_load_response()
-        self.assert_no_error(response)
-
-        entry1_update_request = subscribed_entry1.update_target_value(1234, self.api.entry_target_update_callback)
-        entry1_update_request.complete(success=True)
-
-        entry2_update_request = subscribed_entry2.update_target_value(4567, self.api.entry_target_update_callback)
-        entry2_update_request.complete(success=False)
-
-        for i in range(2):
-            response = self.wait_and_load_response()
-            self.assert_no_error(response, 'i=%d' % i)
-
-            self.assertEqual(response['cmd'], 'inform_write_completion', 'i=%d' % i)
-            self.assertIn('watchable', response, 'i=%d' % i)
-            self.assertIn('status', response, 'i=%d' % i)
-            self.assertIn('timestamp', response, 'i=%d' % i)
-
-            if response['watchable'] == subscribed_entry1.get_id():
-                self.assertEqual(response['status'], 'ok', 'i=%d' % i)
-                self.assertEqual(response['timestamp'], entry1_update_request.get_completion_timestamp(), 'i=%d' % i)
-            elif response['watchable'] == subscribed_entry2.get_id():
-                self.assertEqual(response['status'], 'failed', 'i=%d' % i)
-                self.assertEqual(response['timestamp'], entry2_update_request.get_completion_timestamp(), 'i=%d' % i)
 
     def test_write_watchable_bad_values(self):
         varf32 = Variable('dummyf32', vartype=EmbeddedDataType.float32, path_segments=[
@@ -1161,14 +1254,16 @@ class TestAPI(ScrutinyUnitTest):
         self.assert_no_error(response)
 
         class TestCaseDef(TypedDict, total=False):
-            inval: any
-            outval: any
+            inval: Any
+            outval: Any
             valid: bool
+            exceptions: Dict[DatastoreEntry, Any]
 
         testcases: List[TestCaseDef] = [
             dict(inval=math.nan, valid=False),
             dict(inval=None, valid=False),
             dict(inval="asdasd", valid=False),
+
             dict(inval=int(123), valid=True, outval=int(123)),
             dict(inval="1234", valid=True, outval=1234),
             dict(inval="-2000.2", valid=True, outval=-2000.2),
@@ -1193,6 +1288,7 @@ class TestAPI(ScrutinyUnitTest):
                     'reqid': reqid,
                     'updates': [
                         {
+                            'batch_index': 0,
                             'watchable': entry.get_id(),
                             'value': testcase['inval']
                         }
@@ -1204,17 +1300,19 @@ class TestAPI(ScrutinyUnitTest):
                 error_msg = "Reqid = %d. Entry=%s.  Testcase=%s" % (reqid, entry.get_display_path(), testcase)
                 if not testcase['valid']:
                     self.assert_is_error(response, error_msg)
-                    self.assertFalse(entry.has_pending_target_update())
+                    self.assertFalse(self.datastore.has_pending_target_update())
                 else:
                     self.assert_no_error(response, error_msg)
-                    self.assertTrue(entry.has_pending_target_update())
-                    self.assertEqual(entry.pop_target_update_request().get_value(), testcase['outval'], error_msg)
-                    self.assertFalse(entry.has_pending_target_update())
-
+                    self.assertTrue(self.datastore.has_pending_target_update())
+                    update_request = self.datastore.pop_target_update_request()
                     if isinstance(entry, DatastoreAliasEntry):
-                        self.assertTrue(entry.refentry.has_pending_target_update())
-                        entry.refentry.pop_target_update_request()
-                        self.assertFalse(entry.refentry.has_pending_target_update())
+                        self.assertIs(update_request.entry, entry.refentry)
+                        self.assertEqual(update_request.get_value(), entry.aliasdef.compute_user_to_device(testcase['outval']), error_msg)
+                    else:
+                        self.assertEqual(update_request.get_value(), testcase['outval'], error_msg)
+                    self.assertFalse(self.datastore.has_pending_target_update())
+
+
 # region Datalogging
 
 # REQUEST_ACQUISITION

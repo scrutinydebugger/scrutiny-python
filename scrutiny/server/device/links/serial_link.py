@@ -106,12 +106,12 @@ class SerialLink(AbstractLink):
         self.config = cast(SerialConfig, {
             'portname': config['portname'],
             'baudrate': config['baudrate'],
-            'stopbits': config['stopbits'] if 'stopbits' in config else 1,
+            'stopbits': config['stopbits'] if 'stopbits' in config else "1",
             'databits': config['databits'] if 'databits' in config else 8,
             'parity': config['parity'] if 'parity' in config else 'none',
         })
 
-    def get_config(self):
+    def get_config(self) -> LinkConfig:
         return cast(LinkConfig, self.config)
 
     def initialize(self) -> None:

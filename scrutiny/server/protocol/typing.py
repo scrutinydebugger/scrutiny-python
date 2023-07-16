@@ -128,7 +128,6 @@ class Response:
             major: int
 
         class GetSupportedFeatures(TypedDict):
-            memory_read: bool
             memory_write: bool
             datalogging: bool
             user_command: bool
