@@ -1,3 +1,11 @@
+#    watchable_handle.py
+#        A handle on a watchable element (Variable, Alias, RPV). This handle is created by
+#        the client when watching
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021-2023 Scrutiny Debugger
 
 import threading
 from datetime import datetime

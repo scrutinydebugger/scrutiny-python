@@ -1,3 +1,10 @@
+#    _api_parser.py
+#        Internal parsing function for the Scrutiny server API messages
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021-2023 Scrutiny Debugger
 
 import scrutiny.sdk.definitions as sdk_definitions
 import scrutiny.sdk.exceptions as sdk_exceptions

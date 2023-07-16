@@ -1,3 +1,10 @@
+#    write_request.py
+#        A object representing a request to write a watchable element.
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021-2023 Scrutiny Debugger
 
 import threading
 from datetime import datetime
@@ -10,29 +17,30 @@ if TYPE_CHECKING:
 
 
 class WriteRequest:
-    _value: Union[int, bool, float]
-    _success: bool
-    _completion_timestamp: Optional[datetime]
-    _completed_event: threading.Event
-    _watchable: "WatchableHandle"
-    _failure_reason: str
+    _value: Union[int, bool, float]  # Value to be written
+    _success: bool  # If the request has been successfully completed
+    _completion_datetime: Optional[datetime]   # datetime of the completion. None if incomplete
+    _completed_event: threading.Event   # Event that gets set upon completion of the request
+    _watchable: "WatchableHandle"       # Watchable targeted by this update request
+    _failure_reason: str    # Textual description of the reason of the failure to complete. Empty string if incomplete or succeeded
 
     def __init__(self, watchable: "WatchableHandle", val: Union[int, bool, float]):
         self._value = val
         self._completed = False
         self._success = False
-        self._completion_timestamp = None
+        self._completion_datetime = None
         self._completed_event = threading.Event()
         self._watchable = watchable
         self._failure_reason = ""
 
-    def _mark_complete(self, success: bool, failure_reason: str = "", timestamp: Optional[datetime] = None, ):
+    def _mark_complete(self, success: bool, failure_reason: str = "", timestamp: Optional[datetime] = None):
+        # Put a request in "completed" state. Expected to be called by the client worker thread
         self._success = success
         self._failure_reason = failure_reason
         if timestamp is None:
-            self._completion_timestamp = datetime.now()
+            self._completion_datetime = datetime.now()
         else:
-            self._completion_timestamp = timestamp
+            self._completion_datetime = timestamp
         self._completed = True
         self._completed_event.set()
 
@@ -60,9 +68,9 @@ class WriteRequest:
         return self._success
 
     @property
-    def completion_timestamp(self) -> Optional[datetime]:
+    def completion_datetime(self) -> Optional[datetime]:
         """The time at which the write request has been completed. None if not completed yet"""
-        return self._completion_timestamp
+        return self._completion_datetime
 
     @property
     def failure_reason(self) -> str:

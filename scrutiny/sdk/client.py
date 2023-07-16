@@ -1,9 +1,16 @@
-# TODO : Pause reading
+#    client.py
+#        A client that can talk with the Scrutiny server
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021-2023 Scrutiny Debugger
+
 __all__ = ['Client']
 
 
 import scrutiny.sdk as sdk
-import scrutiny.sdk._api_parser
+from scrutiny.sdk import _api_parser as api_parser
 from scrutiny.sdk.definitions import *
 from scrutiny.sdk.watchable_handle import WatchableHandle
 from scrutiny.core.basic_types import *
@@ -109,7 +116,7 @@ class CallbackStorageEntry:
 @dataclass
 class PendingAPIBatchWrite:
     update_dict: Dict[int, WriteRequest]
-    confirmation: sdk._api_parser.WriteConfirmation
+    confirmation: api_parser.WriteConfirmation
     creation_timestamp: float
 
 
@@ -279,14 +286,14 @@ class ScrutinyClient:
 
     def _wt_process_msg_inform_server_status(self, msg: api_typing.S2C.InformServerStatus, reqid: Optional[int]):
         self._request_status_timer.start()
-        info = sdk._api_parser.parse_inform_server_status(msg)
+        info = api_parser.parse_inform_server_status(msg)
         self._logger.debug('Updating server status')
         with self._main_lock:
             self._server_info = info
             self._threading_events.server_status_updated.set()
 
     def _wt_process_msg_watchable_update(self, msg: api_typing.S2C.WatchableUpdate, reqid: Optional[int]) -> None:
-        updates = sdk._api_parser.parse_watchable_update(msg)
+        updates = api_parser.parse_watchable_update(msg)
 
         for update in updates:
             with self._main_lock:
@@ -303,7 +310,7 @@ class ScrutinyClient:
             watchable._update_value(update.value)
 
     def _wt_process_msg_inform_write_completion(self, msg: api_typing.S2C.WriteCompletion, reqid: Optional[int]) -> None:
-        completion = sdk._api_parser.parse_write_completion(msg)
+        completion = api_parser.parse_write_completion(msg)
 
         if completion.request_token not in self._pending_api_batch_writes:
             return   # Maybe triggered by another client. Silently ignore.
@@ -474,7 +481,7 @@ class ScrutinyClient:
 
         def _wt_write_response_callback(state: CallbackState, response: Optional[api_typing.S2CMessage]) -> None:
             if response is not None and state == CallbackState.OK:
-                confirmation = sdk._api_parser.parse_write_value_response(cast(api_typing.S2C.WriteValue, response))
+                confirmation = api_parser.parse_write_value_response(cast(api_typing.S2C.WriteValue, response))
 
                 if confirmation.count != len(batch_dict):
                     request._mark_complete(False, f"Count mismatch in request and server confirmation.")
@@ -784,7 +791,7 @@ class ScrutinyClient:
         def wt_get_watchable_callback(state: CallbackState, response: Optional[api_typing.S2CMessage]) -> None:
             if response is not None and state == CallbackState.OK:
                 response = cast(api_typing.S2C.GetWatchableList, response)
-                parsed_content = sdk._api_parser.parse_get_watchable_single_element(response, path)
+                parsed_content = api_parser.parse_get_watchable_single_element(response, path)
 
                 watchable._configure(
                     watchable_type=parsed_content.watchable_type,

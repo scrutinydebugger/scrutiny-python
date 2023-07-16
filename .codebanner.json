@@ -205,12 +205,6 @@
         "test/tools/test_tools.py": {
             "docstring": "Test various tools for the Python server application"
         },
-        "scrutiny/server/tools/throttler.py": {
-            "docstring": "Allow to do some throttling to reduce the transmission speed"
-        },
-        "scrutiny/server/tools/timer.py": {
-            "docstring": "Minimalist class to make measurement of time easier."
-        },
         "scrutiny/core/memory_content.py": {
             "docstring": "Provide a tool to manipulate non contiguous chunks of bytes with their addresses.\nRepresent a partial memory snapshot"
         },
@@ -316,9 +310,6 @@
         "scrutiny/core/firmware_parser.py": {
             "docstring": "Reads a compiled firmware and provide tools to read or write the firmware ID"
         },
-        "scrutiny/server/tools/synchronous_websocket_server.py": {
-            "docstring": "Synchronous wrapper around the asynchronous websockets module"
-        },
         "test/integration/test_read_write.py": {
             "docstring": "Does some Read and Write through the API and check the memory of the emulated device"
         },
@@ -369,6 +360,39 @@
         },
         "scrutiny/cli/commands/export_datalog.py": {
             "docstring": "Extract a datalogging acquisition and export it into a common format, such as CSV"
+        },
+        "test/sdk/test_api_parser.py": {
+            "docstring": "Test suite for the parsing function used by the client"
+        },
+        "test/sdk/test_client.py": {
+            "docstring": "Test suite for the SDK client"
+        },
+        "scrutiny/tools/timer.py": {
+            "docstring": "Minimalist class to make measurement of time easier."
+        },
+        "scrutiny/tools/throttler.py": {
+            "docstring": "Allow to do some throttling to reduce the transmission speed"
+        },
+        "scrutiny/tools/synchronous_websocket_server.py": {
+            "docstring": "Synchronous wrapper around the asynchronous websockets module"
+        },
+        "scrutiny/sdk/exceptions.py": {
+            "docstring": "Definitions of all exceptions used across the Scrutiny SDK"
+        },
+        "scrutiny/sdk/watchable_handle.py": {
+            "docstring": "A handle on a watchable element (Variable, Alias, RPV). This handle is created by the client when watching"
+        },
+        "scrutiny/sdk/definitions.py": {
+            "docstring": "Global definitions of types, constants, enums used across the Scrutiny SDK"
+        },
+        "scrutiny/sdk/client.py": {
+            "docstring": "A client that can talk with the Scrutiny server"
+        },
+        "scrutiny/sdk/_api_parser.py": {
+            "docstring": "Internal parsing function for the Scrutiny server API messages"
+        },
+        "scrutiny/sdk/write_request.py": {
+            "docstring": "A object representing a request to write a watchable element."
         }
     }
 }
