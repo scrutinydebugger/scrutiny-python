@@ -2,13 +2,13 @@
 __all__ = ['Client']
 
 
+import scrutiny.sdk as sdk
+import scrutiny.sdk._api_parser
 from scrutiny.sdk.definitions import *
 from scrutiny.sdk.watchable_handle import WatchableHandle
-import scrutiny.sdk.exceptions as sdk_exceptions
 from scrutiny.core.basic_types import *
 from scrutiny.tools.timer import Timer
-import scrutiny.sdk._api_parser as api_parser
-from scrutiny.sdk._write_request import WriteRequest
+from scrutiny.sdk.write_request import WriteRequest
 from scrutiny.server.api import typing as api_typing
 from scrutiny.server.api import API
 
@@ -109,7 +109,7 @@ class CallbackStorageEntry:
 @dataclass
 class PendingAPIBatchWrite:
     update_dict: Dict[int, WriteRequest]
-    confirmation: api_parser.WriteConfirmation
+    confirmation: sdk._api_parser.WriteConfirmation
     creation_timestamp: float
 
 
@@ -260,7 +260,7 @@ class ScrutinyClient:
                 self._wt_process_write_requests()
                 self._wt_process_device_state()
 
-            except sdk_exceptions.ConnectionError as e:
+            except sdk.exceptions.ConnectionError as e:
                 self._logger.error(f"Connection error in worker thread: {e}")
                 self._wt_disconnect()    # Will set _conn to None
             except Exception as e:
@@ -279,14 +279,14 @@ class ScrutinyClient:
 
     def _wt_process_msg_inform_server_status(self, msg: api_typing.S2C.InformServerStatus, reqid: Optional[int]):
         self._request_status_timer.start()
-        info = api_parser.parse_inform_server_status(msg)
+        info = sdk._api_parser.parse_inform_server_status(msg)
         self._logger.debug('Updating server status')
         with self._main_lock:
             self._server_info = info
             self._threading_events.server_status_updated.set()
 
     def _wt_process_msg_watchable_update(self, msg: api_typing.S2C.WatchableUpdate, reqid: Optional[int]) -> None:
-        updates = api_parser.parse_watchable_update(msg)
+        updates = sdk._api_parser.parse_watchable_update(msg)
 
         for update in updates:
             with self._main_lock:
@@ -303,7 +303,7 @@ class ScrutinyClient:
             watchable._update_value(update.value)
 
     def _wt_process_msg_inform_write_completion(self, msg: api_typing.S2C.WriteCompletion, reqid: Optional[int]) -> None:
-        completion = api_parser.parse_write_completion(msg)
+        completion = sdk._api_parser.parse_write_completion(msg)
 
         if completion.request_token not in self._pending_api_batch_writes:
             return   # Maybe triggered by another client. Silently ignore.
@@ -345,7 +345,7 @@ class ScrutinyClient:
             if now - callback_entry._creation_timestamp > timedelta(seconds=callback_entry._timeout):
                 try:
                     callback_entry._callback(CallbackState.TimedOut, None)
-                except (KeyboardInterrupt, sdk_exceptions.ConnectionError):
+                except (KeyboardInterrupt, sdk.exceptions.ConnectionError):
                     raise
                 except Exception:
                     pass
@@ -375,7 +375,7 @@ class ScrutinyClient:
                     self._wt_process_msg_inform_server_status(cast(api_typing.S2C.InformServerStatus, msg), reqid)
                 elif cmd == API.Command.Api2Client.INFORM_WRITE_COMPLETION:
                     self._wt_process_msg_inform_write_completion(cast(api_typing.S2C.WriteCompletion, msg), reqid)
-            except sdk_exceptions.BadResponseError as e:
+            except sdk.exceptions.BadResponseError as e:
                 self._logger.error(f"Bad message from server. {e}")
                 self._logger.debug(traceback.format_exc())
 
@@ -397,7 +397,7 @@ class ScrutinyClient:
 
                 try:
                     callback_entry._callback(CallbackState.ServerError, msg)
-                except (KeyboardInterrupt, sdk_exceptions.ConnectionError):
+                except (KeyboardInterrupt, sdk.exceptions.ConnectionError):
                     raise
                 except Exception:
                     pass
@@ -407,7 +407,7 @@ class ScrutinyClient:
                 try:
                     self._logger.debug(f"Running {cmd} callback for request ID {reqid}")
                     callback_entry._callback(CallbackState.OK, msg)
-                except (KeyboardInterrupt, sdk_exceptions.ConnectionError):
+                except (KeyboardInterrupt, sdk.exceptions.ConnectionError):
                     raise
                 except Exception as e:
                     error = e
@@ -455,24 +455,26 @@ class ScrutinyClient:
         batch_dict: Dict[int, WriteRequest] = {}
         while not self._write_request_queue.empty():
             request = self._write_request_queue.get()
-            assert request._watchable._server_id is not None
-            api_req['updates'].append({
-                'batch_index': n,
-                'watchable': request._watchable._server_id,
-                'value': request._value
-            })
-            batch_dict[n] = request
-            n += 1
+            if request._watchable._server_id is not None:
+                api_req['updates'].append({
+                    'batch_index': n,
+                    'watchable': request._watchable._server_id,
+                    'value': request._value
+                })
+                batch_dict[n] = request
+                n += 1
 
-            if n >= self._MAX_WRITE_REQUEST_BATCH_SIZE:
-                break
+                if n >= self._MAX_WRITE_REQUEST_BATCH_SIZE:
+                    break
+            else:
+                request._mark_complete(False, "Watchable has been made invalid")
 
         if len(api_req['updates']) == 0:
             return
 
         def _wt_write_response_callback(state: CallbackState, response: Optional[api_typing.S2CMessage]) -> None:
             if response is not None and state == CallbackState.OK:
-                confirmation = api_parser.parse_write_value_response(cast(api_typing.S2C.WriteValue, response))
+                confirmation = sdk._api_parser.parse_write_value_response(cast(api_typing.S2C.WriteValue, response))
 
                 if confirmation.count != len(batch_dict):
                     request._mark_complete(False, f"Count mismatch in request and server confirmation.")
@@ -599,7 +601,7 @@ class ScrutinyClient:
 
         with self._conn_lock:
             if self._conn is None:
-                raise sdk_exceptions.ConnectionError(f"Disconnected from server")
+                raise sdk.exceptions.ConnectionError(f"Disconnected from server")
 
             try:
                 s = json.dumps(obj)
@@ -613,7 +615,7 @@ class ScrutinyClient:
 
         if error:
             self.disconnect()
-            raise sdk_exceptions.ConnectionError(f"Disconnected from server. {error}")
+            raise sdk.exceptions.ConnectionError(f"Disconnected from server. {error}")
 
         return future
 
@@ -623,7 +625,7 @@ class ScrutinyClient:
         obj: Optional[dict] = None
 
         if self._conn is None:
-            raise sdk_exceptions.ConnectionError(f"Disconnected from server")
+            raise sdk.exceptions.ConnectionError(f"Disconnected from server")
 
         try:
             data = self._conn.recv(timeout=timeout)
@@ -639,7 +641,7 @@ class ScrutinyClient:
 
         if error:
             self._wt_disconnect()
-            raise sdk_exceptions.ConnectionError(f"Disconnected from server. {error}")
+            raise sdk.exceptions.ConnectionError(f"Disconnected from server. {error}")
 
         return obj
 
@@ -690,7 +692,7 @@ class ScrutinyClient:
                 remaining_time = max(0, batch.timeout - (time.time() - tstart))
                 write_request.wait_for_completion(timeout=remaining_time)
             timed_out = False
-        except sdk_exceptions.TimeoutException:
+        except sdk.exceptions.TimeoutException:
             timed_out = True
 
         if timed_out:
@@ -700,7 +702,7 @@ class ScrutinyClient:
                     incomplete_count += 1
 
             if incomplete_count > 0:
-                raise sdk_exceptions.TimeoutException(
+                raise sdk.exceptions.TimeoutException(
                     f"Incomplete batch write. {incomplete_count} write requests not completed in {batch.timeout} sec. ")
 
     # === User API ====
@@ -733,7 +735,7 @@ class ScrutinyClient:
 
         if connect_error is not None:
             self.disconnect()
-            raise sdk_exceptions.ConnectionError(f'Failed to connect to the server at "{uri}". Error: {connect_error}')
+            raise sdk.exceptions.ConnectionError(f'Failed to connect to the server at "{uri}". Error: {connect_error}')
 
         return self
 
@@ -753,7 +755,8 @@ class ScrutinyClient:
 
         self._stop_worker_thread()
 
-    def watch(self, path: str, pause=False) -> WatchableHandle:
+    # todo pause
+    def watch(self, path: str) -> WatchableHandle:
         """Starts watching a watchable element identified by its display path (tree-like path)"""
         if not isinstance(path, str):
             raise ValueError("Path must be a string")
@@ -781,7 +784,7 @@ class ScrutinyClient:
         def wt_get_watchable_callback(state: CallbackState, response: Optional[api_typing.S2CMessage]) -> None:
             if response is not None and state == CallbackState.OK:
                 response = cast(api_typing.S2C.GetWatchableList, response)
-                parsed_content = api_parser.parse_get_watchable_single_element(response, path)
+                parsed_content = sdk._api_parser.parse_get_watchable_single_element(response, path)
 
                 watchable._configure(
                     watchable_type=parsed_content.watchable_type,
@@ -794,17 +797,17 @@ class ScrutinyClient:
         future.wait()
 
         if future.state != CallbackState.OK:
-            raise sdk_exceptions.OperationFailure(f"Failed to get the watchable definition. {future.error_str}")
+            raise sdk.exceptions.OperationFailure(f"Failed to get the watchable definition. {future.error_str}")
 
         def wt_subscribe_callback(state: CallbackState, response: Optional[api_typing.S2CMessage]):
             if response is not None and state == CallbackState.OK:
                 response = cast(api_typing.S2C.SubscribeWatchable, response)
                 if len(response['watchables']) != 1:
-                    raise sdk_exceptions.BadResponseError(
-                        f'The server did confirmed the subscription of {len(response["watchables"])} while we requested only for 1')
+                    raise sdk.exceptions.BadResponseError(
+                        f'The server did confirm the subscription of {len(response["watchables"])} while we requested only for 1')
 
                 if response['watchables'][0] != watchable._server_id:
-                    raise sdk_exceptions.BadResponseError(
+                    raise sdk.exceptions.BadResponseError(
                         f'The server did not confirm the subscription for the right watchable. Got {response["watchables"][0]}, expected {watchable._server_id}')
 
         req = self._make_request(API.Command.Client2Api.SUBSCRIBE_WATCHABLE, {
@@ -817,7 +820,7 @@ class ScrutinyClient:
         future.wait()
 
         if future.state != CallbackState.OK:
-            raise sdk_exceptions.OperationFailure(f"Failed to subscribe to the watchable. {future.error_str}")
+            raise sdk.exceptions.OperationFailure(f"Failed to subscribe to the watchable. {future.error_str}")
 
         assert watchable._server_id is not None
         with self._main_lock:
@@ -825,6 +828,72 @@ class ScrutinyClient:
             self._watchable_storage[watchable._server_id] = watchable
 
         return watchable
+
+    def unwatch(self, path: str) -> None:
+        """Stop watching a watchable element identified by its display path (tree-like path)
+
+        :param path: The tree-like path of the watchable element
+
+        :raises ValueError: If path is not valid
+        :raises NameNotFoundError: If the required path is not presently being watched
+        :raises TimeoutException: If no response from the server is received
+        :raises OperationFailureException: If the subscription cancellation failed in any way
+        """
+        if not isinstance(path, str):
+            raise ValueError("Path must be a string")
+
+        if '*' in path:
+            raise ValueError("Glob wildcards are not allowed")
+
+        watchable: Optional[WatchableHandle] = None
+        with self._main_lock:
+            if path in self._watchable_path_to_id_map:
+                server_id = self._watchable_path_to_id_map[path]
+                if server_id in self._watchable_storage:
+                    watchable = self._watchable_storage[server_id]
+
+        if watchable is None:
+            raise sdk.exceptions.NameNotFoundError(f"Cannot unwatch {path} as it is not being watched.")
+
+        req = self._make_request(API.Command.Client2Api.UNSUBSCRIBE_WATCHABLE, {
+            'watchables': [
+                watchable._server_id
+            ]
+        })
+
+        def wt_unsubscribe_callback(state: CallbackState, response: Optional[api_typing.S2CMessage]):
+            if response is not None and state == CallbackState.OK and watchable is not None:
+                response = cast(api_typing.S2C.UnsubscribeWatchable, response)
+                if len(response['watchables']) != 1:
+                    raise sdk.exceptions.BadResponseError(
+                        f'The server did cancel the subscription of {len(response["watchables"])} while we requested only for 1')
+
+                if response['watchables'][0] != watchable._server_id:
+                    raise sdk.exceptions.BadResponseError(
+                        f'The server did not cancel the subscription for the right watchable. Got {response["watchables"][0]}, expected {watchable._server_id}')
+
+        future = self._send(req, wt_unsubscribe_callback)
+        assert future is not None
+        error: Optional[Exception] = None
+        try:
+            future.wait()
+        except sdk.exceptions.TimeoutException as e:
+            error = e
+        finally:
+            with self._main_lock:
+                if watchable.display_path in self._watchable_path_to_id_map:
+                    del self._watchable_path_to_id_map[watchable.display_path]
+
+                if watchable._server_id in self._watchable_storage:
+                    del self._watchable_storage[watchable._server_id]
+
+            watchable._set_invalid(ValueStatus.NotWatched)
+
+        if error:
+            raise error
+
+        if future.state != CallbackState.OK:
+            raise sdk.exceptions.OperationFailure(f"Failed to unsubscribe to the watchable. {future.error_str}")
 
     def wait_new_value_for_all(self, timeout: int = 5) -> None:
         """Wait for all watched elements to be updated at least once after the call to this method"""
@@ -847,11 +916,11 @@ class ScrutinyClient:
         self._threading_events.server_status_updated.wait(timeout=timeout)
 
         if not self._threading_events.server_status_updated.is_set():
-            raise sdk_exceptions.TimeoutException(f"Server status did not update within a {timeout} seconds delay")
+            raise sdk.exceptions.TimeoutException(f"Server status did not update within a {timeout} seconds delay")
 
     def batch_write(self, timeout: Optional[float] = None) -> BatchWriteContext:
         if self._active_batch_context is not None:
-            raise sdk_exceptions.OperationFailure("Batch write cannot be nested")
+            raise sdk.exceptions.OperationFailure("Batch write cannot be nested")
 
         if timeout is None:
             timeout = self._write_timeout

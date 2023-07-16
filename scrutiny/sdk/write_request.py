@@ -1,7 +1,7 @@
 
 import threading
 from datetime import datetime
-import scrutiny.sdk.exceptions as sdk_exceptions
+import scrutiny.sdk as sdk
 
 from typing import *
 
@@ -44,10 +44,10 @@ class WriteRequest:
         """
         self._completed_event.wait(timeout=timeout)
         if not self._completed:
-            raise sdk_exceptions.TimeoutException(f"Write did not complete. {self._watchable.display_path}")
+            raise sdk.exceptions.TimeoutException(f"Write did not complete. {self._watchable.display_path}")
 
         if not self._success:
-            raise sdk_exceptions.OperationFailure(f"Write of {self._watchable.display_path} failed. {self._failure_reason}")
+            raise sdk.exceptions.OperationFailure(f"Write of {self._watchable.display_path} failed. {self._failure_reason}")
 
     @property
     def completed(self) -> bool:

@@ -1,14 +1,12 @@
 
-import queue
 import threading
 from datetime import datetime
 import time
-import enum
 
 from scrutiny.sdk.definitions import *
 from scrutiny.core.basic_types import *
 import scrutiny.sdk.exceptions as sdk_exceptions
-from scrutiny.sdk._write_request import WriteRequest
+from scrutiny.sdk.write_request import WriteRequest
 from typing import *
 
 if TYPE_CHECKING:
@@ -86,7 +84,6 @@ class WatchableHandle:
     def _is_dead(self) -> bool:
         return self._status != ValueStatus.Valid and self._status != ValueStatus.NeverSet
 
-
     def _read(self) -> ValType:
         with self._lock:
             val = self._value
@@ -101,6 +98,8 @@ class WatchableHandle:
                 reason = "Device has been disconnected"
             elif val_status == ValueStatus.SFDUnloaded:
                 reason = "Firmware Description File has been unloaded"
+            elif val_status == ValueStatus.NotWatched:
+                reason = "Not watched"
             else:
                 raise RuntimeError(f"Unknown value status {val_status}")
             raise sdk_exceptions.InvalidValueError(f"Value of {self._shortname} is unusable. {reason}")
@@ -113,6 +112,9 @@ class WatchableHandle:
         if not self._client._is_batch_write_in_progress():
             write_request.wait_for_completion()
         return write_request
+
+    def unwatch(self) -> None:
+        self._client.unwatch(self._display_path)
 
     def wait_update(self, timeout=3, previous_counter: Optional[int] = None) -> None:
         """Wait for the value to be updated by the server"""

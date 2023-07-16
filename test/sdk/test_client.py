@@ -804,7 +804,3 @@ class TestClient(ScrutinyUnitTest):
         var1_2.value = 0x44444444
         self.assertEqual(var1_2.value, 0x44444444)
         self.assertEqual(self.datastore.get_entry_by_display_path(var1_2.display_path).get_value(), 0x44444444)
-
-    def test_unwatch_on_delete(self):
-        # todo
-        pass
