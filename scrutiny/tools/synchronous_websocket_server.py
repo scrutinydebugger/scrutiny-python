@@ -61,7 +61,7 @@ class SynchronousWebsocketServer:
                         s = message
                     self.logger.debug("Receiving %s" % s)
                 self.rxqueue.put((websocket, message))   # Possible improvement : Handle queue full scenario.
-        except websockets.exceptions.ConnectionClosedError:
+        except (websockets.exceptions.ConnectionClosedOK, websockets.exceptions.ConnectionClosedError):
             pass
         finally:
             if self.disconnect_callback is not None:
@@ -81,7 +81,7 @@ class SynchronousWebsocketServer:
                         s = message
                     self.logger.debug("Sending %s" % s)
                 self.loop.run_until_complete(asyncio.ensure_future(websocket.send(message), loop=self.loop))
-            except websockets.exceptions.ConnectionClosedOK:
+            except (websockets.exceptions.ConnectionClosedOK, websockets.exceptions.ConnectionClosedError):
                 pass    # Client is disconnected. Disconnect callback not called yet.
 
     def process(self, nloop: int = 5) -> None:
