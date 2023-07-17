@@ -45,6 +45,25 @@ class ValueStatus(enum.Enum):
     SFDUnloaded = 4
     NotWatched = 5
 
+    def _get_error(self) -> str:
+        error = ""
+        if self == ValueStatus.Valid:
+            pass
+        elif self == ValueStatus.NeverSet:
+            error = 'Never set'
+        elif self == ValueStatus.ServerGone:
+            error = "Server has gone away"
+        elif self == ValueStatus.DeviceGone:
+            error = "Device has been disconnected"
+        elif self == ValueStatus.SFDUnloaded:
+            error = "Firmware Description File has been unloaded"
+        elif self == ValueStatus.NotWatched:
+            error = "Not watched"
+        else:
+            raise RuntimeError(f"Unknown value status {self}")
+
+        return error
+
 
 class DeviceCommState(enum.Enum):
     NA = 0

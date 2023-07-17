@@ -98,19 +98,7 @@ class WatchableHandle:
             val_status = self._status
 
         if val is None or val_status != ValueStatus.Valid:
-            if val_status == ValueStatus.NeverSet:
-                reason = 'Never set'
-            elif val_status == ValueStatus.ServerGone:
-                reason = "Server has gone away"
-            elif val_status == ValueStatus.DeviceGone:
-                reason = "Device has been disconnected"
-            elif val_status == ValueStatus.SFDUnloaded:
-                reason = "Firmware Description File has been unloaded"
-            elif val_status == ValueStatus.NotWatched:
-                reason = "Not watched"
-            else:
-                raise RuntimeError(f"Unknown value status {val_status}")
-            raise sdk_exceptions.InvalidValueError(f"Value of {self._shortname} is unusable. {reason}")
+            raise sdk_exceptions.InvalidValueError(f"Value of {self._shortname} is unusable. {val_status._get_error()}")
 
         return val
 
@@ -132,10 +120,7 @@ class WatchableHandle:
         while time.time() - t < timeout:
 
             if self._status != ValueStatus.NeverSet and self._status != ValueStatus.Valid:
-                if self._status == ValueStatus.ServerGone:
-                    raise sdk_exceptions.InvalidValueError("Server has gone away")
-                else:
-                    raise RuntimeError("Unknown value status")
+                raise sdk_exceptions.InvalidValueError(self._status._get_error())
 
             if entry_counter != self._update_counter:
                 happened = True

@@ -44,7 +44,7 @@ class WriteRequest:
         self._completed = True
         self._completed_event.set()
 
-    def wait_for_completion(self, timeout: float = 2):
+    def wait_for_completion(self, timeout: float = 5):
         """Wait for the write request to get completed. 
 
         :raises sdk.TimeoutException: If the request does not complete within the allowed time

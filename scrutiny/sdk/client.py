@@ -118,6 +118,7 @@ class PendingAPIBatchWrite:
     update_dict: Dict[int, WriteRequest]
     confirmation: api_parser.WriteConfirmation
     creation_timestamp: float
+    timeout: float
 
 
 class BatchWriteContext:
@@ -139,10 +140,14 @@ class BatchWriteContext:
             self.client._wait_write_batch_complete(self)
 
 
+class FlushPoint:
+    pass
+
+
 class ScrutinyClient:
     RxMessageCallback = Callable[["ScrutinyClient", object], None]
     _UPDATE_SERVER_STATUS_INTERVAL = 2
-    _MAX_WRITE_REQUEST_BATCH_SIZE = 20
+    _MAX_WRITE_REQUEST_BATCH_SIZE = 500
 
     @dataclass
     class ThreadingEvents:
@@ -171,7 +176,7 @@ class ScrutinyClient:
     _write_timeout: float
     _request_status_timer: Timer
     _require_status_update: bool
-    _write_request_queue: "queue.Queue[WriteRequest]"
+    _write_request_queue: "queue.Queue[Union[WriteRequest, FlushPoint, BatchWriteContext]]"
     _pending_api_batch_writes: Dict[str, PendingAPIBatchWrite]
 
     _worker_thread: Optional[threading.Thread]
@@ -197,8 +202,8 @@ class ScrutinyClient:
     def __init__(self,
                  name: Optional[str] = None,
                  rx_message_callbacks: Optional[List[RxMessageCallback]] = None,
-                 timeout=3,
-                 write_timeout=3
+                 timeout=4,
+                 write_timeout=5
                  ):
         logger_name = self.__class__.__name__
         if name is not None:
@@ -443,9 +448,9 @@ class ScrutinyClient:
             tokens = list(self._pending_api_batch_writes.keys())
             for token in tokens:
                 pending_batch = self._pending_api_batch_writes[token]
-                if now - pending_batch.creation_timestamp > self._write_timeout:
+                if now - pending_batch.creation_timestamp > pending_batch.timeout:
                     for request in pending_batch.update_dict.values():  # Completed request are already removed of that dict.
-                        request._mark_complete(False, "Timed out")
+                        request._mark_complete(False, f"Timed out ({pending_batch.timeout} seconds)")
                     del self._pending_api_batch_writes[token]
                 else:
                     for request in pending_batch.update_dict.values():  # Completed request are already removed of that dict.
@@ -461,20 +466,42 @@ class ScrutinyClient:
         n = 0
         batch_dict: Dict[int, WriteRequest] = {}
         while not self._write_request_queue.empty():
-            request = self._write_request_queue.get()
-            if request._watchable._server_id is not None:
-                api_req['updates'].append({
-                    'batch_index': n,
-                    'watchable': request._watchable._server_id,
-                    'value': request._value
-                })
-                batch_dict[n] = request
-                n += 1
-
-                if n >= self._MAX_WRITE_REQUEST_BATCH_SIZE:
+            obj = self._write_request_queue.get()
+            if isinstance(obj, FlushPoint):
+                break
+            requests: List[WriteRequest] = []
+            batch_timeout = self._write_timeout
+            if isinstance(obj, BatchWriteContext):
+                if n != 0:
+                    raise RuntimeError("Missing FlushPoint before Batch")
+                if len(obj.requests) > self._MAX_WRITE_REQUEST_BATCH_SIZE:
+                    for request in obj.requests:
+                        request._mark_complete(False, "Batch too big")
                     break
+                requests = obj.requests
+                batch_timeout = obj.timeout
+            elif isinstance(obj, WriteRequest):
+                requests = [obj]
             else:
-                request._mark_complete(False, "Watchable has been made invalid")
+                raise RuntimeError("Unsupported element in write queue")
+
+            for request in requests:
+                if n < self._MAX_WRITE_REQUEST_BATCH_SIZE:
+                    if request._watchable._server_id is not None:
+                        api_req['updates'].append({
+                            'batch_index': n,
+                            'watchable': request._watchable._server_id,
+                            'value': request._value
+                        })
+                        batch_dict[n] = request
+                        n += 1
+                    else:
+                        request._mark_complete(False, "Watchable has been made invalid")
+                else:
+                    request._mark_complete(False, "Batch overflowed")   # Should never happen because we enforce n==0 on batch
+
+            if n >= self._MAX_WRITE_REQUEST_BATCH_SIZE:
+                break
 
         if len(api_req['updates']) == 0:
             return
@@ -489,12 +516,13 @@ class ScrutinyClient:
                     self._pending_api_batch_writes[confirmation.request_token] = PendingAPIBatchWrite(
                         update_dict=batch_dict,
                         confirmation=confirmation,
-                        creation_timestamp=time.time()
+                        creation_timestamp=time.time(),
+                        timeout=batch_timeout
                     )
             else:
                 request._mark_complete(False, state.name)
 
-        self._send(api_req, _wt_write_response_callback)
+        self._send(api_req, _wt_write_response_callback, timeout=batch_timeout)
         # We don't need the future object here because the WriteRequest act as one.
 
     def _wt_process_device_state(self) -> None:
@@ -537,7 +565,7 @@ class ScrutinyClient:
             if self._conn is not None:
                 self._logger.info(f"Disconnecting from server at {self._hostname}:{self._port}")
                 try:
-                    self._conn.close()
+                    self._conn.close_socket()
                 except (websockets.exceptions.WebSocketException, socket.error):
                     self._logger.debug("Failed to close the websocket")
                     self._logger.debug(traceback.format_exc())
@@ -670,7 +698,7 @@ class ScrutinyClient:
 
         return cmd
 
-    def _enqueue_write_request(self, request: WriteRequest):
+    def _enqueue_write_request(self, request: Union[WriteRequest, BatchWriteContext, FlushPoint]):
         self._write_request_queue.put(request)
 
     def __del__(self):
@@ -687,8 +715,8 @@ class ScrutinyClient:
             self._enqueue_write_request(request)
 
     def _flush_batch_write(self, batch_write_context: BatchWriteContext) -> None:
-        for request in batch_write_context.requests:
-            self._enqueue_write_request(request)
+        self._enqueue_write_request(FlushPoint())   # Flush Point required because Python thread-safe queue has no peek() method.
+        self._enqueue_write_request(batch_write_context)
 
     def _wait_write_batch_complete(self, batch: BatchWriteContext) -> None:
         tstart = time.time()
