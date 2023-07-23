@@ -195,7 +195,7 @@ class Protocol:
         block_list = [(address, length)]
         return self.read_memory_blocks(block_list)
 
-    def read_memory_blocks(self, block_list) -> Request:
+    def read_memory_blocks(self, block_list: List[Tuple[int, int]]) -> Request:
         data = bytes()
         total_length = 0
         for block in block_list:

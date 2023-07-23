@@ -331,7 +331,7 @@ class TestMemoryReaderBasicReadOperation(ScrutinyUnitTest):
 
 class TestMemoryReaderComplexReadOperation(ScrutinyUnitTest):
     """
-    Test the memory reader for its ability to read memory block using the MemoryControl.Read request.
+    Test the memory reader for its ability to read memory block by entries using the MemoryControl.Read request.
 
     Here we make a complex pattern of variables to read.
     Different types,  different blocks, forbidden regions, request and response size limit.
@@ -449,11 +449,105 @@ class TestMemoryReaderComplexReadOperation(ScrutinyUnitTest):
             self.assertEqual(self.callback_count_map[forbidden_entry], 0)
 
 
+class TestRawMemoryRead(ScrutinyUnitTest):
+    @dataclass
+    class CallbackDataContainer:
+        call_count: int = 0
+        success: Optional[bool] = None
+        data: Optional[bytes] = None
+        error: Optional[str] = None
+
+    def the_callback(self, request, success, data, error, container: CallbackDataContainer,):
+        container.call_count += 1
+        container.success = success
+        container.data = data
+        container.error = error
+
+    def setUp(self):
+        self.ds = Datastore()
+        self.dispatcher = RequestDispatcher()
+        self.protocol = Protocol(1, 0)
+        self.reader = MemoryReader(protocol=self.protocol, dispatcher=self.dispatcher, datastore=self.ds, request_priority=0)
+        self.reader.set_max_request_payload_size(128)
+        self.reader.set_max_response_payload_size(128)
+        self.reader.start()
+
+    def test_simple_read(self):
+        for i in range(3):
+            self.reader.process()
+        self.assertIsNone(self.dispatcher.pop_next())
+
+        callback_data = self.CallbackDataContainer()
+        self.reader.request_memory_read(0x1000, 257, callback=functools.partial(self.the_callback, container=callback_data))
+        payload = bytes([random.randint(0, 255) for i in range(257)])
+
+        for i in range(3):
+            cursor = i * 128
+            size = 128 if i < 2 else 1
+
+            self.reader.process()
+            record = self.dispatcher.pop_next()
+            self.assertIsNotNone(record)
+            self.assertEqual(record.request.command, MemoryControl)
+            self.assertEqual(MemoryControl.Subfunction(record.request.subfn), MemoryControl.Subfunction.Read)
+            request_data = cast(protocol_typing.Request.MemoryControl.Read, self.protocol.parse_request(record.request))
+            self.assertEqual(len(request_data['blocks_to_read']), 1)
+            self.assertEqual(request_data['blocks_to_read'][0]['address'], 0x1000 + cursor)
+            self.assertEqual(request_data['blocks_to_read'][0]['length'], size)
+            response = self.protocol.respond_read_memory_blocks([(0x1000 + cursor, payload[cursor:cursor + 128])])
+            record.complete(True, response)
+            if i < 2:
+                self.assertEqual(callback_data.call_count, 0)
+            else:
+                self.assertEqual(callback_data.call_count, 1)
+                self.assertTrue(callback_data.success)
+                self.assertEqual(callback_data.data, payload)
+                self.assertIsNotNone(callback_data.error)
+
+    def test_read_failure(self):
+        for i in range(3):
+            self.reader.process()
+        self.assertIsNone(self.dispatcher.pop_next())
+
+        callback_data = self.CallbackDataContainer()
+        self.reader.request_memory_read(0x1000, 257, callback=functools.partial(self.the_callback, container=callback_data))
+        payload = bytes([random.randint(0, 255) for i in range(257)])
+
+        for i in range(2):
+            cursor = i * 128
+            size = 128 if i < 2 else 1
+
+            self.reader.process()
+            record = self.dispatcher.pop_next()
+            self.assertIsNotNone(record)
+            self.assertEqual(record.request.command, MemoryControl)
+            self.assertEqual(MemoryControl.Subfunction(record.request.subfn), MemoryControl.Subfunction.Read)
+            request_data = cast(protocol_typing.Request.MemoryControl.Read, self.protocol.parse_request(record.request))
+            self.assertEqual(len(request_data['blocks_to_read']), 1)
+            self.assertEqual(request_data['blocks_to_read'][0]['address'], 0x1000 + cursor)
+            self.assertEqual(request_data['blocks_to_read'][0]['length'], size)
+            response = self.protocol.respond_read_memory_blocks([(0x1000 + cursor, payload[cursor:cursor + 128])])
+
+            if i == 0:
+                record.complete(True, response)
+            else:
+                record.complete(False)
+
+            if i < 1:
+                self.assertEqual(callback_data.call_count, 0)
+            else:
+                self.assertEqual(callback_data.call_count, 1)
+                self.assertFalse(callback_data.success)     # Failure detection
+                self.assertIsNone(callback_data.data)
+                self.assertIsNotNone(callback_data.error)
+                self.assertGreater(len(callback_data.error), 0)
+
+
 class TestRPVReaderBasicReadOperation(ScrutinyUnitTest):
     """
         Test the ability to read Runtime Published Values using the MemoryControl.ReadRPV request
     """
-    # Make sure that the entries are sortable by ID with the thirdparty SortedSet object
+    # Make sure that the entries are sortable by ID with the third party SortedSet object
 
     def test_sorted_set(self):
         theset = SortedSet()

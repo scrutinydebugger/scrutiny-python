@@ -16,6 +16,13 @@ __all__ = [
 
 from enum import Enum
 from typing import Union
+from dataclasses import dataclass
+
+
+@dataclass(frozen=True)
+class MemoryRegion:
+    start: int
+    size: int
 
 
 class Endianness(Enum):

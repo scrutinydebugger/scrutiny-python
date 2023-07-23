@@ -9,7 +9,7 @@
 #   Copyright (c) 2021-2023 Scrutiny Debugger
 
 import logging
-from scrutiny.server.datastore.datastore_entry import DatastoreRPVEntry, DatastoreVariableEntry, EntryType, UpdateTargetRequest
+from scrutiny.server.datastore.datastore_entry import DatastoreRPVEntry, DatastoreVariableEntry, UpdateTargetRequest
 
 from scrutiny.server.protocol import *
 import scrutiny.server.protocol.commands as cmd
@@ -18,8 +18,37 @@ from scrutiny.server.device.request_dispatcher import RequestDispatcher, Success
 from scrutiny.server.datastore.datastore import Datastore
 from scrutiny.server.datastore.datastore_entry import DatastoreEntry
 from scrutiny.core.codecs import Codecs, Encodable
+from scrutiny.core.typehints import GenericCallback
+import time
+from typing import Any, List, Tuple, Optional, cast, Callable
 
-from typing import Any, List, Tuple, Optional, cast
+
+class RawMemoryWriteRequestCompletionCallback(GenericCallback):
+    callback: Callable[["RawMemoryWriteRequest", bool, str], None]
+
+
+class RawMemoryWriteRequest:
+    address: int
+    data: bytes
+    completed: bool
+    success: bool
+    completion_callback: Optional[RawMemoryWriteRequestCompletionCallback]
+    completion_timestamp: Optional[float]
+
+    def __init__(self, address: int, data: bytes, callback: Optional[RawMemoryWriteRequestCompletionCallback] = None):
+        self.address = address
+        self.data = data
+        self.completed = False
+        self.success = False
+        self.completion_callback = callback
+        self.completion_timestamp = None
+
+    def set_completed(self, success: bool, failure_reason: str = "") -> None:
+        self.completed = True
+        self.success = success
+        self.completion_timestamp = time.time()
+        if self.completion_callback is not None:
+            self.completion_callback(self, success, failure_reason)
 
 
 class MemoryWriter:
