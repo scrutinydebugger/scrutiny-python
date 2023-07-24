@@ -487,6 +487,7 @@ class MemoryReader:
                         for entry in self.entries_in_pending_read_var_request:
                             raw_data = temp_memory.read(entry.get_address(), entry.get_size())
                             entry.set_value_from_data(raw_data)
+                            self.entries_in_pending_read_var_request = []
                     except (KeyboardInterrupt, SystemExit):
                         raise
                     except Exception as e:
