@@ -131,6 +131,7 @@ class MemoryReader:
 
     DEFAULT_MAX_REQUEST_PAYLOAD_SIZE: int = 1024
     DEFAULT_MAX_RESPONSE_PAYLOAD_SIZE: int = 1024
+    MAX_RAW_READ_SIZE = 2**14 - 1
 
     logger: logging.Logger
     dispatcher: RequestDispatcher       # We put the request in here, and we know they'll go out
@@ -248,6 +249,14 @@ class MemoryReader:
         self.rpv_read_cursor = 0
         self.entries_in_pending_read_var_request = []
         self.entries_in_pending_read_rpv_request = {}
+
+        if isinstance(self.active_raw_read_request, RawMemoryReadRequest):
+            self.active_raw_read_request.set_completed(False, None, "Stopping")
+
+        if isinstance(self.raw_read_request_queue, queue.Queue):
+            while not self.raw_read_request_queue.empty():
+                self.raw_read_request_queue.get().set_completed(False, None, "No device to read")
+
         self.raw_read_request_queue = queue.Queue()
         self.clear_active_raw_read_request()
 
@@ -438,7 +447,16 @@ class MemoryReader:
                     is_in_forbidden_region = True
                     break
 
-            if is_in_forbidden_region:
+            if self.active_raw_read_request.size > self.MAX_RAW_READ_SIZE:    # Hard limit
+                self.active_raw_read_request.set_completed(False, None, "Size too big")
+                self.clear_active_raw_read_request()
+            elif self.active_raw_read_request.size < 0 or self.active_raw_read_request.address < 0:
+                self.active_raw_read_request.set_completed(False, None, "Bad request")
+                self.clear_active_raw_read_request()
+            elif self.active_raw_read_request.address + self.active_raw_read_request.size >= 2**self.protocol.get_address_size_bits():
+                self.active_raw_read_request.set_completed(False, None, "Read out of bound")
+                self.clear_active_raw_read_request()
+            elif is_in_forbidden_region:
                 self.active_raw_read_request.set_completed(False, None, "Forbidden region")
                 self.clear_active_raw_read_request()
 

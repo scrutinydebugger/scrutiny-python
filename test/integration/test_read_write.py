@@ -78,7 +78,7 @@ class TestReadWrite(ScrutinyIntegrationTestWithTestSFD1):
 
         # Write f32 var
         write_req = {
-            'cmd': API.Command.Client2Api.WRITE_VALUE,
+            'cmd': API.Command.Client2Api.WRITE_WATCHABLE,
             'updates': [dict(watchable=self.entry_float32.get_id(), value=d2f(999.99), batch_index=0)]
         }
 
@@ -96,7 +96,7 @@ class TestReadWrite(ScrutinyIntegrationTestWithTestSFD1):
         # Max 100. Gain 2, offset 1
         # Alias min/max applies only in write
         write_req = {
-            'cmd': API.Command.Client2Api.WRITE_VALUE,
+            'cmd': API.Command.Client2Api.WRITE_WATCHABLE,
             'updates': [dict(watchable=self.entry_alias_float32.get_id(), value=d2f(888.88), batch_index=0)]
         }
 
@@ -112,7 +112,7 @@ class TestReadWrite(ScrutinyIntegrationTestWithTestSFD1):
 
         # Write f64 RPV
         write_req = {
-            'cmd': API.Command.Client2Api.WRITE_VALUE,
+            'cmd': API.Command.Client2Api.WRITE_WATCHABLE,
             'updates': [dict(watchable=self.entry_rpv1000.get_id(), value=math.sqrt(3), batch_index=0)]
         }
 
@@ -128,7 +128,7 @@ class TestReadWrite(ScrutinyIntegrationTestWithTestSFD1):
         # Write f64 RPV Alias. Min -100. Gain 2. Offset 1
         # Alias min/max applies only in write
         write_req = {
-            'cmd': API.Command.Client2Api.WRITE_VALUE,
+            'cmd': API.Command.Client2Api.WRITE_WATCHABLE,
             'updates': [dict(watchable=self.entry_alias_rpv1000.get_id(), value=-150, batch_index=0)]
         }
 
@@ -160,7 +160,7 @@ class TestReadWrite(ScrutinyIntegrationTestWithTestSFD1):
 
         # Write Bitfield var
         write_req = {
-            'cmd': API.Command.Client2Api.WRITE_VALUE,
+            'cmd': API.Command.Client2Api.WRITE_WATCHABLE,
             'updates': [dict(watchable=self.entry_u64_bit15_35.get_id(), value=val, batch_index=0)]
         }
 
@@ -280,13 +280,13 @@ class TestReadWrite(ScrutinyIntegrationTestWithTestSFD1):
         for testcase in testcases:
             reqid += 1
             req = {
-                'cmd': API.Command.Client2Api.WRITE_VALUE,
+                'cmd': API.Command.Client2Api.WRITE_WATCHABLE,
                 'reqid': reqid,
                 'updates': [dict(watchable=testcase.entry.get_id(), value=testcase.inval, batch_index=0)]
             }
 
             self.send_request(req)
-            response = self.wait_and_load_response([API.Command.Api2Client.WRITE_VALUE_RESPONSE, API.Command.Api2Client.ERROR_RESPONSE])
+            response = self.wait_and_load_response([API.Command.Api2Client.WRITE_WATCHABLE_RESPONSE, API.Command.Api2Client.ERROR_RESPONSE])
 
             assert_msg = "reqid=%d. Testcase=%s" % (reqid, testcase)
             if not testcase.valid:
@@ -341,14 +341,14 @@ class TestWriteMemoryNotAllowed(ScrutinyIntegrationTestWithTestSFD1):
 
         # Write f32 var
         write_req = {
-            'cmd': API.Command.Client2Api.WRITE_VALUE,
+            'cmd': API.Command.Client2Api.WRITE_WATCHABLE,
             'updates': [dict(watchable=self.entry_float32.get_id(), value=d2f(999.99), batch_index=0)]
         }
 
         self.send_request(write_req)
-        response = self.wait_and_load_response(cmd=API.Command.Api2Client.WRITE_VALUE_RESPONSE)
+        response = self.wait_and_load_response(cmd=API.Command.Api2Client.WRITE_WATCHABLE_RESPONSE)
         self.assert_no_error(response)
-        self.assertEqual(response['cmd'], API.Command.Api2Client.WRITE_VALUE_RESPONSE)
+        self.assertEqual(response['cmd'], API.Command.Api2Client.WRITE_WATCHABLE_RESPONSE)
         response = self.wait_and_load_response(cmd=API.Command.Api2Client.INFORM_WRITE_COMPLETION)
         self.assert_no_error(response)
         self.assertEqual(response['cmd'], API.Command.Api2Client.INFORM_WRITE_COMPLETION)
@@ -390,14 +390,14 @@ class TestWriteMemoryNotAllowed(ScrutinyIntegrationTestWithTestSFD1):
 
         # Write f64 var
         write_req = {
-            'cmd': API.Command.Client2Api.WRITE_VALUE,
+            'cmd': API.Command.Client2Api.WRITE_WATCHABLE,
             'updates': [dict(watchable=self.entry_rpv1000.get_id(), value=999.99, batch_index=0)]
         }
 
         self.send_request(write_req)
-        response = self.wait_and_load_response(cmd=API.Command.Api2Client.WRITE_VALUE_RESPONSE)
+        response = self.wait_and_load_response(cmd=API.Command.Api2Client.WRITE_WATCHABLE_RESPONSE)
         self.assert_no_error(response)
-        self.assertEqual(response['cmd'], API.Command.Api2Client.WRITE_VALUE_RESPONSE)
+        self.assertEqual(response['cmd'], API.Command.Api2Client.WRITE_WATCHABLE_RESPONSE)
         response = self.wait_and_load_response(cmd=API.Command.Api2Client.INFORM_WRITE_COMPLETION)
         self.assert_no_error(response)
         self.assertEqual(response['cmd'], API.Command.Api2Client.INFORM_WRITE_COMPLETION)
@@ -452,14 +452,14 @@ class TestWriteMemoryInReadonlyRegions(ScrutinyIntegrationTestWithTestSFD1):
 
         # Write f32 var
         write_req = {
-            'cmd': API.Command.Client2Api.WRITE_VALUE,
+            'cmd': API.Command.Client2Api.WRITE_WATCHABLE,
             'updates': [dict(watchable=self.entry_float32.get_id(), value=d2f(999.99), batch_index=0)]
         }
 
         self.send_request(write_req)
-        response = self.wait_and_load_response(cmd=API.Command.Api2Client.WRITE_VALUE_RESPONSE)
+        response = self.wait_and_load_response(cmd=API.Command.Api2Client.WRITE_WATCHABLE_RESPONSE)
         self.assert_no_error(response)
-        self.assertEqual(response['cmd'], API.Command.Api2Client.WRITE_VALUE_RESPONSE)
+        self.assertEqual(response['cmd'], API.Command.Api2Client.WRITE_WATCHABLE_RESPONSE)
         response = self.wait_and_load_response(cmd=API.Command.Api2Client.INFORM_WRITE_COMPLETION)
         self.assert_no_error(response)
         self.assertEqual(response['cmd'], API.Command.Api2Client.INFORM_WRITE_COMPLETION)
@@ -481,14 +481,14 @@ class TestWriteMemoryInReadonlyRegions(ScrutinyIntegrationTestWithTestSFD1):
                 self.assertNotEqual(record.request.subfn, protocol_commands.MemoryControl.Subfunction.WriteMasked)
 
         write_req = {
-            'cmd': API.Command.Client2Api.WRITE_VALUE,
+            'cmd': API.Command.Client2Api.WRITE_WATCHABLE,
             'updates': [dict(watchable=self.entry_float64.get_id(), value=999.99, batch_index=0)]
         }
 
         self.send_request(write_req)
-        response = self.wait_and_load_response(cmd=API.Command.Api2Client.WRITE_VALUE_RESPONSE)
+        response = self.wait_and_load_response(cmd=API.Command.Api2Client.WRITE_WATCHABLE_RESPONSE)
         self.assert_no_error(response)
-        self.assertEqual(response['cmd'], API.Command.Api2Client.WRITE_VALUE_RESPONSE)
+        self.assertEqual(response['cmd'], API.Command.Api2Client.WRITE_WATCHABLE_RESPONSE)
         response = self.wait_and_load_response(cmd=API.Command.Api2Client.INFORM_WRITE_COMPLETION)
         self.assert_no_error(response)
         self.assertEqual(response['cmd'], API.Command.Api2Client.INFORM_WRITE_COMPLETION)
@@ -519,14 +519,14 @@ class TestWriteMemoryInReadonlyRegions(ScrutinyIntegrationTestWithTestSFD1):
 
         # Write f64 var
         write_req = {
-            'cmd': API.Command.Client2Api.WRITE_VALUE,
+            'cmd': API.Command.Client2Api.WRITE_WATCHABLE,
             'updates': [dict(watchable=self.entry_rpv1000.get_id(), value=999.99, batch_index=0)]
         }
 
         self.send_request(write_req)
-        response = self.wait_and_load_response(cmd=API.Command.Api2Client.WRITE_VALUE_RESPONSE)
+        response = self.wait_and_load_response(cmd=API.Command.Api2Client.WRITE_WATCHABLE_RESPONSE)
         self.assert_no_error(response)
-        self.assertEqual(response['cmd'], API.Command.Api2Client.WRITE_VALUE_RESPONSE)
+        self.assertEqual(response['cmd'], API.Command.Api2Client.WRITE_WATCHABLE_RESPONSE)
         response = self.wait_and_load_response(cmd=API.Command.Api2Client.INFORM_WRITE_COMPLETION)
         self.assert_no_error(response)
         self.assertEqual(response['cmd'], API.Command.Api2Client.INFORM_WRITE_COMPLETION)
@@ -577,14 +577,14 @@ class TestWriteMemoryInForbiddenRegions(ScrutinyIntegrationTestWithTestSFD1):
 
         # Write f32 var
         write_req = {
-            'cmd': API.Command.Client2Api.WRITE_VALUE,
+            'cmd': API.Command.Client2Api.WRITE_WATCHABLE,
             'updates': [dict(watchable=self.entry_float32.get_id(), value=d2f(999.99), batch_index=0)]
         }
 
         self.send_request(write_req)
-        response = self.wait_and_load_response(cmd=API.Command.Api2Client.WRITE_VALUE_RESPONSE)
+        response = self.wait_and_load_response(cmd=API.Command.Api2Client.WRITE_WATCHABLE_RESPONSE)
         self.assert_no_error(response)
-        self.assertEqual(response['cmd'], API.Command.Api2Client.WRITE_VALUE_RESPONSE)
+        self.assertEqual(response['cmd'], API.Command.Api2Client.WRITE_WATCHABLE_RESPONSE)
         response = self.wait_and_load_response(cmd=API.Command.Api2Client.INFORM_WRITE_COMPLETION)
         self.assert_no_error(response)
         self.assertEqual(response['cmd'], API.Command.Api2Client.INFORM_WRITE_COMPLETION)
@@ -601,14 +601,14 @@ class TestWriteMemoryInForbiddenRegions(ScrutinyIntegrationTestWithTestSFD1):
                 self.assertNotEqual(record.request.subfn, protocol_commands.MemoryControl.Subfunction.WriteMasked)
 
         write_req = {
-            'cmd': API.Command.Client2Api.WRITE_VALUE,
+            'cmd': API.Command.Client2Api.WRITE_WATCHABLE,
             'updates': [dict(watchable=self.entry_float64.get_id(), value=999.99, batch_index=0)]
         }
 
         self.send_request(write_req)
-        response = self.wait_and_load_response(cmd=API.Command.Api2Client.WRITE_VALUE_RESPONSE)
+        response = self.wait_and_load_response(cmd=API.Command.Api2Client.WRITE_WATCHABLE_RESPONSE)
         self.assert_no_error(response)
-        self.assertEqual(response['cmd'], API.Command.Api2Client.WRITE_VALUE_RESPONSE)
+        self.assertEqual(response['cmd'], API.Command.Api2Client.WRITE_WATCHABLE_RESPONSE)
         response = self.wait_and_load_response(cmd=API.Command.Api2Client.INFORM_WRITE_COMPLETION)
         self.assert_no_error(response)
         self.assertEqual(response['cmd'], API.Command.Api2Client.INFORM_WRITE_COMPLETION)
@@ -639,14 +639,14 @@ class TestWriteMemoryInForbiddenRegions(ScrutinyIntegrationTestWithTestSFD1):
 
         # Write f64 var
         write_req = {
-            'cmd': API.Command.Client2Api.WRITE_VALUE,
+            'cmd': API.Command.Client2Api.WRITE_WATCHABLE,
             'updates': [dict(watchable=self.entry_rpv1000.get_id(), value=999.99, batch_index=0)]
         }
 
         self.send_request(write_req)
-        response = self.wait_and_load_response(cmd=API.Command.Api2Client.WRITE_VALUE_RESPONSE)
+        response = self.wait_and_load_response(cmd=API.Command.Api2Client.WRITE_WATCHABLE_RESPONSE)
         self.assert_no_error(response)
-        self.assertEqual(response['cmd'], API.Command.Api2Client.WRITE_VALUE_RESPONSE)
+        self.assertEqual(response['cmd'], API.Command.Api2Client.WRITE_WATCHABLE_RESPONSE)
         response = self.wait_and_load_response(cmd=API.Command.Api2Client.INFORM_WRITE_COMPLETION)
         self.assert_no_error(response)
         self.assertEqual(response['cmd'], API.Command.Api2Client.INFORM_WRITE_COMPLETION)

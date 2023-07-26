@@ -238,6 +238,14 @@ class C2S:
     class DeleteDataloggingAcquisition(BaseC2SMessage):
         reference_id: str
 
+    class ReadMemory(BaseC2SMessage):
+        address: int
+        size: int
+
+    class WriteMemory(BaseC2SMessage):
+        address: int
+        data: str
+
     GetPossibleLinkConfig = Dict[Any, Any]  # Todo
 
 
@@ -330,6 +338,23 @@ class S2C:
     class DeleteDataloggingAcquisition(BaseS2CMessage):
         pass
 
+    class ReadMemory(BaseS2CMessage):
+        request_token: str
+
+    class ReadMemoryComplete(BaseS2CMessage):
+        request_token: str
+        success: bool
+        data: Optional[str]
+        detail_msg: Optional[str]
+
+    class WriteMemory(BaseS2CMessage):
+        request_token: str
+
+    class WriteMemoryComplete(BaseS2CMessage):
+        request_token: str
+        success: bool
+        detail_msg: str
+
 
 C2SMessage = Union[
     C2S.Echo,
@@ -348,7 +373,9 @@ C2SMessage = Union[
     C2S.ReadDataloggingAcquisitionContent,
     C2S.ListDataloggingAcquisitions,
     C2S.UpdateDataloggingAcquisition,
-    C2S.DeleteDataloggingAcquisition
+    C2S.DeleteDataloggingAcquisition,
+    C2S.ReadMemory,
+    C2S.WriteMemory,
 ]
 
 S2CMessage = Union[
@@ -371,5 +398,9 @@ S2CMessage = Union[
     S2C.InformDataloggingListChanged,
     S2C.ListDataloggingAcquisition,
     S2C.ReadDataloggingAcquisitionContent,
-    S2C.DeleteDataloggingAcquisition
+    S2C.DeleteDataloggingAcquisition,
+    S2C.ReadMemory,
+    S2C.ReadMemoryComplete,
+    S2C.WriteMemory,
+    S2C.WriteMemoryComplete
 ]
