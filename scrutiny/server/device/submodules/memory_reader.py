@@ -165,6 +165,8 @@ class MemoryReader:
         self.request_priority = request_priority
         self.datastore.add_watch_callback(WatchCallback(self.the_watch_callback))
         self.datastore.add_unwatch_callback(WatchCallback(self.the_unwatch_callback))
+        self.active_raw_read_request = None
+        self.raw_read_request_queue = queue.Queue()
 
         self.reset()
 
@@ -250,14 +252,12 @@ class MemoryReader:
         self.entries_in_pending_read_var_request = []
         self.entries_in_pending_read_rpv_request = {}
 
-        if isinstance(self.active_raw_read_request, RawMemoryReadRequest):
+        if self.active_raw_read_request is not None:
             self.active_raw_read_request.set_completed(False, None, "Stopping")
 
-        if isinstance(self.raw_read_request_queue, queue.Queue):
-            while not self.raw_read_request_queue.empty():
-                self.raw_read_request_queue.get().set_completed(False, None, "No device to read")
+        while not self.raw_read_request_queue.empty():
+            self.raw_read_request_queue.get().set_completed(False, None, "No device to read")
 
-        self.raw_read_request_queue = queue.Queue()
         self.clear_active_raw_read_request()
 
     def clear_config(self) -> None:
