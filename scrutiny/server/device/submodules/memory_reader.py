@@ -139,7 +139,7 @@ class MemoryReader:
     request_priority: int               # Our dispatcher priority
     datastore: Datastore    # The datastore the look for entries to update
     stop_requested: bool    # Requested to stop polling
-    request_pending: bool   # True when we are waiting for a request to complete
+    pending_request: Optional[Request]   # Contains the request being waited on. None if there is none
     started: bool           # Indicate if enabled or not
     max_request_payload_size: int   # Maximum size for a request payload gotten from the InfoPoller
     max_response_payload_size: int  # Maximum size for a response payload gotten from the InfoPoller
@@ -241,7 +241,7 @@ class MemoryReader:
     def set_standby(self) -> None:
         """Put the state machine into standby and clear all internal buffers so that the logic restarts from the beginning"""
         self.stop_requested = False
-        self.request_pending = False
+        self.pending_request = None
         self.started = False
         self.actual_read_type = ReadType.Variable    # Alternate between RPV and Mem
 
@@ -253,10 +253,10 @@ class MemoryReader:
         self.entries_in_pending_read_rpv_request = {}
 
         if self.active_raw_read_request is not None:
-            self.active_raw_read_request.set_completed(False, None, "Stopping")
+            self.active_raw_read_request.set_completed(False, None, "Stopping communication with device")
 
         while not self.raw_read_request_queue.empty():
-            self.raw_read_request_queue.get().set_completed(False, None, "No device to read")
+            self.raw_read_request_queue.get().set_completed(False, None, "Stopping communication with device")
 
         self.clear_active_raw_read_request()
 
@@ -271,12 +271,12 @@ class MemoryReader:
         if not self.started:
             self.set_standby()
             return
-        elif self.stop_requested and not self.request_pending:
+        elif self.stop_requested and self.pending_request is None:
             self.set_standby()
             return
 
         read_type_considered: Set[ReadType] = set()
-        while not self.request_pending and len(read_type_considered) < len(ReadType):
+        while self.pending_request is None and len(read_type_considered) < len(ReadType):
             read_type_considered.add(self.actual_read_type)
 
             # We want to read everything in a round robin scheme. But we need to read memory and RPV as much without discrimination
@@ -290,7 +290,7 @@ class MemoryReader:
                     self.entries_in_pending_read_var_request = var_entries_in_request
 
                 # if there's nothing to send or that we completed one round
-                if wrapped_to_beginning or self.request_pending == False:
+                if wrapped_to_beginning or self.pending_request is None:
                     self.actual_read_type = ReadType.RuntimePublishedValues
 
             elif self.actual_read_type == ReadType.RuntimePublishedValues:
@@ -302,7 +302,7 @@ class MemoryReader:
                     for entry in rpv_entries_in_request:
                         self.entries_in_pending_read_rpv_request[entry.get_rpv().id] = entry
 
-                if wrapped_to_beginning or self.request_pending == False:
+                if wrapped_to_beginning or self.pending_request is None:
                     self.actual_read_type = ReadType.RawMemRead
 
             elif self.actual_read_type == ReadType.RawMemRead:
@@ -311,7 +311,7 @@ class MemoryReader:
                     self.logger.debug('Registering a MemoryRead request. %s' % (request))
                     self.dispatch(request)
 
-                if done or self.request_pending == False:
+                if done or self.pending_request is None:
                     self.actual_read_type = ReadType.Variable  # Next type
 
             else:
@@ -325,7 +325,7 @@ class MemoryReader:
             failure_callback=FailureCallback(self.failure_callback),
             priority=self.request_priority
         )
-        self.request_pending = True
+        self.pending_request = request
 
     def make_next_var_entries_request(self) -> Tuple[Optional[Request], List[DatastoreVariableEntry], bool]:
         """
@@ -351,12 +351,9 @@ class MemoryReader:
 
             # Check for forbidden region. They disallow read and write
             is_in_forbidden_region = False
-            for region in self.forbidden_regions:
-                region_end = region.start + region.size - 1
-                entry_start = candidate_entry.get_address()
-                entry_end = entry_start + candidate_entry.get_size() - 1
-
-                if not (entry_end < region.start or entry_start > region_end):
+            candidate_region = MemoryRegion(start=candidate_entry.get_address(), size=candidate_entry.get_size())
+            for forbidden_region in self.forbidden_regions:
+                if candidate_region.touches(forbidden_region):
                     is_in_forbidden_region = True
                     break
 
@@ -440,10 +437,9 @@ class MemoryReader:
             self.active_raw_read_request = self.raw_read_request_queue.get()
 
             is_in_forbidden_region = False
-            for region in self.forbidden_regions:
-                req_end = self.active_raw_read_request.address + self.active_raw_read_request.size - 1
-                region_end = region.start + region.size - 1
-                if not (req_end < region.start or self.active_raw_read_request.address > region_end):
+            candidate_region = MemoryRegion(start=self.active_raw_read_request.address, size=self.active_raw_read_request.size)
+            for forbidden_region in self.forbidden_regions:
+                if candidate_region.touches(forbidden_region):
                     is_in_forbidden_region = True
                     break
 
@@ -476,6 +472,7 @@ class MemoryReader:
     def success_callback(self, request: Request, response: Response, params: Any = None) -> None:
         """Called when a request completes and succeeds"""
         self.logger.debug("Success callback. Response=%s, Params=%s" % (response, params))
+        assert request == self.pending_request
         if request.command == cmd.MemoryControl:
             subfn = cmd.MemoryControl.Subfunction(response.subfn)
             if subfn == cmd.MemoryControl.Subfunction.Read:
@@ -596,4 +593,4 @@ class MemoryReader:
 
     def read_completed(self) -> None:
         """Common code after success and failure callbacks"""
-        self.request_pending = False
+        self.pending_request = None

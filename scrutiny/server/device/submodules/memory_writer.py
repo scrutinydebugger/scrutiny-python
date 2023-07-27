@@ -19,8 +19,10 @@ from scrutiny.server.datastore.datastore import Datastore
 from scrutiny.server.datastore.datastore_entry import DatastoreEntry
 from scrutiny.core.codecs import Codecs, Encodable
 from scrutiny.core.typehints import GenericCallback
+from scrutiny.core.basic_types import MemoryRegion
 import time
-from typing import Any, List, Tuple, Optional, cast, Callable
+import queue
+from typing import Any, List, Optional, cast, Callable
 
 
 class RawMemoryWriteRequestCompletionCallback(GenericCallback):
@@ -62,20 +64,22 @@ class MemoryWriter:
     request_priority: int               # Our dispatcher priority
     datastore: Datastore    # The datastore the look for entries to update
     stop_requested: bool    # Requested to stop polling
-    request_pending: bool   # True when we are waiting for a request to complete
+    pending_request: Optional[Request]   # The request presently being sent
     started: bool           # Indicate if enabled or not
     max_request_payload_size: int   # Maximum size for a request payload gotten from the InfoPoller
     max_response_payload_size: int  # Maximum size for a response payload gotten from the InfoPoller
-    forbidden_regions: List[Tuple[int, int]]    # List of memory regions to avoid. Gotten from InfoPoller
-    readonly_regions: List[Tuple[int, int]]     # List of memory region that can only be read. Gotten from InfoPoller
+    forbidden_regions: List[MemoryRegion]    # List of memory regions to avoid. Gotten from InfoPoller
+    readonly_regions: List[MemoryRegion]     # List of memory region that can only be read. Gotten from InfoPoller
     memory_write_allowed: bool  # Indicates if writing to memory is allowed.
 
     entry_being_updated: Optional[DatastoreEntry]   # The datastore entry updated by the actual pending request. None if no request is pending
-    # When an entry is being written, this request is the pending request. None if nothing is being done
-    request_of_entry_being_updated: Optional[Request]
     # Update request attached to the entry being updated. It's what'S coming from the API
     target_update_request_being_processed: Optional[UpdateTargetRequest]
     target_update_value_written: Optional[Encodable]
+
+    raw_write_request_queue: "queue.Queue[RawMemoryWriteRequest]"
+    active_raw_write_request: Optional[RawMemoryWriteRequest]
+    active_raw_write_request_remaining_data: Optional[bytes]
 
     def __init__(self, protocol: Protocol, dispatcher: RequestDispatcher, datastore: Datastore, request_priority: int):
         self.logger = logging.getLogger(self.__class__.__name__)
@@ -83,6 +87,10 @@ class MemoryWriter:
         self.protocol = protocol
         self.datastore = datastore
         self.request_priority = request_priority
+
+        self.raw_write_request_queue = queue.Queue()
+        self.active_raw_write_request = None
+        self.target_update_request_being_processed = None
 
         self.reset()
 
@@ -102,7 +110,7 @@ class MemoryWriter:
     def add_forbidden_region(self, start_addr: int, size: int) -> None:
         """Add a memory region to avoid touching. They normally are broadcasted by the device itself"""
         if size > 0:
-            self.forbidden_regions.append((start_addr, size))
+            self.forbidden_regions.append(MemoryRegion(start=start_addr, size=size))
         else:
             self.logger.warning('Adding a forbidden region with non-positive size %d' % size)
 
@@ -110,9 +118,19 @@ class MemoryWriter:
         """Add a memory region tthat can only be read. We will avoid any write to them. 
         They normally are broadcasted by the device itself"""
         if size > 0:
-            self.readonly_regions.append((start_addr, size))
+            self.readonly_regions.append(MemoryRegion(start=start_addr, size=size))
         else:
             self.logger.warning('Adding a read only region with non-positive size %d' % size)
+
+    def request_memory_write(self, address: int, data: bytes, callback: Optional[RawMemoryWriteRequestCompletionCallback] = None) -> RawMemoryWriteRequest:
+        """Request the reader to write an arbitrary memory region with a callback to be called upon completion"""
+        request = RawMemoryWriteRequest(
+            address=address,
+            data=data,
+            callback=callback
+        )
+        self.raw_write_request_queue.put(request)
+        return request
 
     def start(self) -> None:
         """Enable the memory writer to poll the datastore and update the device"""
@@ -129,13 +147,21 @@ class MemoryWriter:
     def set_standby(self) -> None:
         """Put the state machine into standby and clear all internal buffers so that the logic restarts from the beginning"""
         self.stop_requested = False
-        self.request_pending = False
+        self.pending_request = None
         self.started = False
 
-        self.entry_being_updated = None
-        self.request_of_entry_being_updated = None
-        self.target_update_request_being_processed = None
-        self.target_update_value_written = None
+        # Clear all pendings request and inform the external world that they failed.
+        if self.active_raw_write_request is not None:
+            self.active_raw_write_request.set_completed(False, "Stopping communication with device")
+
+        while not self.raw_write_request_queue.empty():
+            self.raw_write_request_queue.get().set_completed(False, "Stopping communication with device")
+
+        if self.target_update_request_being_processed is not None:
+            self.target_update_request_being_processed.complete(False)
+
+        self.clear_active_entry_write_request()
+        self.clear_active_raw_write_request()
 
     def clear_config(self) -> None:
         """Erase the configuration coming from the device handler"""
@@ -148,6 +174,15 @@ class MemoryWriter:
     def allow_memory_write(self, val: bool) -> None:
         self.memory_write_allowed = val
 
+    def clear_active_raw_write_request(self) -> None:
+        self.active_raw_write_request = None
+        self.active_raw_write_request_remaining_data = None
+
+    def clear_active_entry_write_request(self) -> None:
+        self.entry_being_updated = None
+        self.target_update_request_being_processed = None
+        self.target_update_value_written = None
+
     def reset(self) -> None:
         """Put back the memory writer to its startup state"""
         self.set_standby()
@@ -158,23 +193,65 @@ class MemoryWriter:
         if not self.started:
             self.set_standby()
             return
-        elif self.stop_requested and not self.request_pending:
+        elif self.stop_requested and not self.pending_request:
             self.set_standby()
             return
 
-        if not self.request_pending:
-            request = self.make_next_memory_write_request()
-            if request is not None:
-                self.logger.debug('Registering a MemoryWrite request. %s' % (request))
-                self.dispatcher.register_request(
-                    request=request,
-                    success_callback=SuccessCallback(self.success_callback),
-                    failure_callback=FailureCallback(self.failure_callback),
-                    priority=self.request_priority
-                )
-                self.request_pending = True
+        if not self.pending_request:
+            # We give priority to raw write request. Maybe both type of request should use the same queue to solve the priority question?
+            request: Optional[Request] = None
+            if self.active_raw_write_request is not None or not self.raw_write_request_queue.empty():
+                assert self.entry_being_updated is None
+                request = self.make_next_raw_memory_write_request()
+            elif self.entry_being_updated is not None or self.datastore.has_pending_target_update():
+                assert self.active_raw_write_request is None
+                request = self.make_next_entry_write_request()
 
-    def make_next_memory_write_request(self) -> Optional[Request]:
+            if request is not None:
+                self.dispatch(request)
+
+    def make_next_raw_memory_write_request(self) -> Optional[Request]:
+        """Writes a memory block in the device based on a write request tied to no datastore entry. Just a raw write (coming from the API)"""
+        request: Optional[Request] = None
+
+        while self.active_raw_write_request is None:
+            if self.raw_write_request_queue.empty():
+                break
+            self.clear_active_raw_write_request()
+            self.active_raw_write_request = self.raw_write_request_queue.get()
+
+            is_in_forbidden_region = False
+            is_in_readonly_region = False
+            candidate_region = MemoryRegion(start=self.active_raw_write_request.address, size=len(self.active_raw_write_request.data))
+            for readonly_region in self.readonly_regions:
+                if candidate_region.touches(readonly_region):
+                    is_in_readonly_region = True
+                    break
+            for forbidden_region in self.forbidden_regions:
+                if candidate_region.touches(forbidden_region):
+                    is_in_forbidden_region = True
+                    break
+
+            if is_in_forbidden_region:
+                self.active_raw_write_request.set_completed(False, "Forbidden")
+                self.clear_active_raw_write_request()
+            elif is_in_readonly_region:
+                self.active_raw_write_request.set_completed(False, "Read only")
+                self.clear_active_raw_write_request()
+            else:
+                self.active_raw_write_request_remaining_data = self.active_raw_write_request.data   # bytes are immutable. Makes a copy
+
+        if self.active_raw_write_request is not None:
+            assert self.active_raw_write_request_remaining_data is not None
+            cursor = len(self.active_raw_write_request.data) - len(self.active_raw_write_request_remaining_data)
+            n_to_write = min(self.max_request_payload_size, len(self.active_raw_write_request_remaining_data))
+            block = (self.active_raw_write_request.address + cursor, self.active_raw_write_request_remaining_data[:n_to_write])
+            self.active_raw_write_request_remaining_data = self.active_raw_write_request_remaining_data[n_to_write:]
+            request = self.protocol.write_memory_blocks([block])
+
+        return request
+
+    def make_next_entry_write_request(self) -> Optional[Request]:
         """
         This method generate a write request by moving in a list of watched variable entries
         It works in a round-robin scheme and will send write request 1 by 1, without agglomeration.
@@ -186,35 +263,36 @@ class MemoryWriter:
             while True:
                 update_request = self.datastore.pop_target_update_request()
 
-                if update_request is not None:
-                    # Make sure we have the right to write to that memory region. Fails right away if we don't
-                    allowed = True
-                    if isinstance(update_request.entry, DatastoreVariableEntry):
-                        assert update_request.entry.__class__ != DatastoreEntry  # for mypy
-                        allowed = self.memory_write_allowed
-                        address = update_request.entry.get_address()
-                        # We don't check for bitfield size because the device will access the whole word anyway
-                        size = update_request.entry.get_data_type().get_size_byte()
-                        for region in self.readonly_regions:
-                            if self.region_touches(address, size, region[0], region[1]):
-                                allowed = False
-                        for region in self.forbidden_regions:
-                            if self.region_touches(address, size, region[0], region[1]):
-                                allowed = False
-
-                        if not allowed:
-                            self.logger.debug("Refusing write request %s accessing address 0x%08x with size %d" %
-                                              (update_request.entry.display_path, update_request.entry.get_address(), update_request.entry.get_size()))
-                    if allowed:
-                        self.target_update_request_being_processed = update_request
-                        self.entry_being_updated = update_request.entry
-                        break
-                    else:
-                        # Fails right away
-                        update_request.complete(False)
-
-                else:
+                if update_request is None:
                     break
+                # Make sure we have the right to write to that memory region. Fails right away if we don't
+                allowed = True
+                if isinstance(update_request.entry, DatastoreVariableEntry):
+                    assert update_request.entry.__class__ != DatastoreEntry  # for mypy
+                    allowed = self.memory_write_allowed
+                    address = update_request.entry.get_address()
+                    # We don't check for bitfield size because the device will access the whole word anyway
+                    size = update_request.entry.get_data_type().get_size_byte()
+                    candidate_region = MemoryRegion(start=address, size=size)
+                    for readonly_region in self.readonly_regions:
+                        if candidate_region.touches(readonly_region):
+                            allowed = False
+                            break
+                    for forbidden_region in self.forbidden_regions:
+                        if candidate_region.touches(forbidden_region):
+                            allowed = False
+                            break
+
+                    if not allowed:
+                        self.logger.debug("Refusing write request %s accessing address 0x%08x with size %d" %
+                                          (update_request.entry.display_path, update_request.entry.get_address(), update_request.entry.get_size()))
+                if allowed:
+                    self.target_update_request_being_processed = update_request
+                    self.entry_being_updated = update_request.entry
+                    break
+                else:
+                    # Fails right away
+                    update_request.complete(False)
 
         if self.entry_being_updated is not None and self.target_update_request_being_processed is not None:
             value_to_write = self.target_update_request_being_processed.get_value()
@@ -254,96 +332,94 @@ class MemoryWriter:
                         self.target_update_request_being_processed.complete(success=False)
                 else:
                     raise RuntimeError('entry_being_updated should be of type %s' % self.entry_being_updated.__class__.__name__)
-                self.request_of_entry_being_updated = request
+
         return request
-
-    def region_touches(self, address1: int, size1: int, address2: int, size2: int) -> bool:
-        if size1 <= 0 or size2 <= 0:
-            return False
-
-        if address1 >= address2 + size2:
-            return False
-
-        if address2 >= address1 + size1:
-            return False
-
-        return True
 
     def success_callback(self, request: Request, response: Response, params: Any = None) -> None:
         """Called when a request completes and succeeds"""
         self.logger.debug("Success callback. Response=%s, Params=%s" % (response, params))
+        assert request == self.pending_request, "Processing a request that we are not supposed to. This should not happen"
+
         subfn = cmd.MemoryControl.Subfunction(response.subfn)
         if subfn == cmd.MemoryControl.Subfunction.Write or subfn == cmd.MemoryControl.Subfunction.WriteMasked:
-            self.success_callback_memory_write(request, response, params)
+            if self.entry_being_updated is not None:
+                self.success_callback_var_write(request, response, params)
+            elif self.active_raw_write_request is not None:
+                self.success_callback_raw_memory_write(request, response, params)
+            else:
+                self.logger.warning("Received a WriteMemory response but none was expected")
         elif subfn == cmd.MemoryControl.Subfunction.WriteRPV:
-            self.success_callback_rpv_write(request, response, params)
+            if self.entry_being_updated is not None:
+                self.success_callback_rpv_write(request, response, params)
+            else:
+                self.logger.warning("Received a WriteRPV response but none was expected")
         else:
             self.logger.critical('Got a response for a request we did not send. Not supposed to happen!')
 
         self.completed()
 
-    def success_callback_memory_write(self, request: Request, response: Response, params: Any = None) -> None:
+    def success_callback_var_write(self, request: Request, response: Response, params: Any = None) -> None:
         """Called when a memory write request completes and succeeds"""
+        assert self.entry_being_updated is not None
+        assert self.target_update_request_being_processed is not None
+
         if response.code == ResponseCode.OK:
-            if request == self.request_of_entry_being_updated:
-                request_data = cast(protocol_typing.Request.MemoryControl.Write, self.protocol.parse_request(request))
-                response_data = cast(protocol_typing.Response.MemoryControl.Write, self.protocol.parse_response(response))
+            request_data = cast(protocol_typing.Request.MemoryControl.Write, self.protocol.parse_request(request))
+            response_data = cast(protocol_typing.Response.MemoryControl.Write, self.protocol.parse_response(response))
 
-                if self.entry_being_updated is not None and self.target_update_request_being_processed is not None:
-                    response_match_request = True
-                    if len(request_data['blocks_to_write']) != 1 or len(response_data['written_blocks']) != 1:
-                        response_match_request = False
-                    else:
-                        if request_data['blocks_to_write'][0]['address'] != response_data['written_blocks'][0]['address']:
-                            response_match_request = False
-
-                        if len(request_data['blocks_to_write'][0]['data']) != response_data['written_blocks'][0]['length']:
-                            response_match_request = False
-
-                    if response_match_request:
-                        assert self.target_update_value_written is not None
-                        self.entry_being_updated.set_value(self.target_update_value_written)
-                        self.target_update_request_being_processed.complete(success=True)
-                    else:
-                        self.target_update_request_being_processed.complete(success=False)
-                        self.logger.error('Received a WriteMemory response that does not match the request')
-                else:
-                    self.logger.warning('Received a WriteMemory response but no datastore entry was being updated.')
+            response_match_request = True
+            if len(request_data['blocks_to_write']) != 1 or len(response_data['written_blocks']) != 1:
+                response_match_request = False
             else:
-                self.logger.critical('Received a WriteMemory response for the wrong request. This should not happen')
+                if request_data['blocks_to_write'][0]['address'] != response_data['written_blocks'][0]['address']:
+                    response_match_request = False
+
+                if len(request_data['blocks_to_write'][0]['data']) != response_data['written_blocks'][0]['length']:
+                    response_match_request = False
+
+            if response_match_request:
+                assert self.target_update_value_written is not None
+                self.entry_being_updated.set_value(self.target_update_value_written)
+                self.target_update_request_being_processed.complete(success=True)
+            else:
+                self.target_update_request_being_processed.complete(success=False)
+                self.logger.error('Received a WriteMemory response that does not match the request')
         else:
             self.logger.warning('Response for WriteMemory has been refused with response code %s.' % response.code)
+            self.target_update_request_being_processed.complete(False)
+
+        self.clear_active_entry_write_request()
+
+    def success_callback_raw_memory_write(self, request: Request, response: Response, params: Any = None) -> None:
+        pass
 
     def success_callback_rpv_write(self, request: Request, response: Response, params: Any = None) -> None:
         """Called when a RPV write request completes and succeeds"""
-        self.logger.debug("Success callback. Response=%s, Params=%s" % (response, params))
+        assert self.entry_being_updated is not None
+        assert self.target_update_request_being_processed is not None
 
         if response.code == ResponseCode.OK:
-            if request == self.request_of_entry_being_updated:
-                request_data = cast(protocol_typing.Request.MemoryControl.WriteRPV, self.protocol.parse_request(request))
-                response_data = cast(protocol_typing.Response.MemoryControl.WriteRPV, self.protocol.parse_response(response))
+            request_data = cast(protocol_typing.Request.MemoryControl.WriteRPV, self.protocol.parse_request(request))
+            response_data = cast(protocol_typing.Response.MemoryControl.WriteRPV, self.protocol.parse_response(response))
 
-                if self.entry_being_updated is not None and self.target_update_request_being_processed is not None:
-                    response_match_request = True
-                    if len(request_data['rpvs']) != 1 or len(response_data['written_rpv']) != 1:
-                        response_match_request = False
-                    else:
-                        if request_data['rpvs'][0]['id'] != response_data['written_rpv'][0]['id']:
-                            response_match_request = False
-
-                    if response_match_request:
-                        assert self.target_update_value_written is not None
-                        self.entry_being_updated.set_value(self.target_update_value_written)
-                        self.target_update_request_being_processed.complete(success=True)
-                    else:
-                        self.target_update_request_being_processed.complete(success=False)
-                        self.logger.error('Received a WriteRPV response that does not match the request')
-                else:
-                    self.logger.warning('Received a WriteRPV response but no datastore entry was being updated.')
+            response_match_request = True
+            if len(request_data['rpvs']) != 1 or len(response_data['written_rpv']) != 1:
+                response_match_request = False
             else:
-                self.logger.critical('Received a WriteRPV response for the wrong request. This should not happen')
+                if request_data['rpvs'][0]['id'] != response_data['written_rpv'][0]['id']:
+                    response_match_request = False
+
+            if response_match_request:
+                self.entry_being_updated.set_value(self.target_update_value_written)
+                self.target_update_request_being_processed.complete(success=True)
+            else:
+                self.target_update_request_being_processed.complete(success=False)
+                self.logger.error('Received a WriteRPV response that does not match the request')
         else:
             self.logger.warning('Response for WriteRPV has been refused with response code %s.' % response.code)
+            self.target_update_request_being_processed.complete(success=False)
+
+        self.clear_active_entry_write_request()
 
     def failure_callback(self, request: Request, params: Any = None) -> None:
         """Callback called by the request dispatcher when a request fails to complete"""
@@ -359,13 +435,25 @@ class MemoryWriter:
 
         if self.target_update_request_being_processed is not None:
             self.target_update_request_being_processed.complete(success=False)
+            self.clear_active_entry_write_request()
+
+        if self.active_raw_write_request is not None:
+            self.active_raw_write_request.set_completed(False, "Request failed")
+            self.clear_active_raw_write_request()
 
         self.completed()
 
     def completed(self) -> None:
         """Common code after success and failure callbacks"""
-        self.request_pending = False
-        self.entry_being_updated = None
-        self.request_of_entry_being_updated = None
-        self.target_update_request_being_processed = None
-        self.target_update_value_written = None
+        self.pending_request = None
+
+    def dispatch(self, request: Request) -> None:
+        """Sends a request to the request dispatcher and assign the corrects completion callbacks"""
+        self.logger.debug('Registering a MemoryWrite request. %s' % (request))
+        self.dispatcher.register_request(
+            request=request,
+            success_callback=SuccessCallback(self.success_callback),
+            failure_callback=FailureCallback(self.failure_callback),
+            priority=self.request_priority
+        )
+        self.pending_request = request

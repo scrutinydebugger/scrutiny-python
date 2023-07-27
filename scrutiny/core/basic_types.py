@@ -24,6 +24,18 @@ class MemoryRegion:
     start: int
     size: int
 
+    def touches(self, other: "MemoryRegion") -> bool:
+        if self.size <= 0 or other.size <= 0:
+            return False
+
+        if self.start >= other.start + other.size:
+            return False
+
+        if other.start >= self.start + self.size:
+            return False
+
+        return True
+
 
 class Endianness(Enum):
     Little = 0
