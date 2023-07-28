@@ -10,6 +10,7 @@ import enum
 from typing import *
 from dataclasses import dataclass
 from datetime import datetime
+from scrutiny.core.basic_types import MemoryRegion
 
 AddressSize = Literal[8, 16, 32, 64, 128]
 SerialStopBits = Literal['1', '1.5', '2']
@@ -97,16 +98,6 @@ class SupportedFeatureMap:
     datalogging: bool
     user_command: bool
     sixtyfour_bits: bool
-
-
-@dataclass(frozen=True)
-class MemoryRegion:
-    start: int
-    size: int
-
-    @property
-    def end(self) -> int:
-        return max(self.start, self.start + self.size - 1)
 
 
 @dataclass(frozen=True)

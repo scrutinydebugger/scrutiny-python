@@ -215,6 +215,9 @@ class ScrutinyIntegrationTest(ScrutinyUnitTest):
         self.assertIn(id, self.client_entry_values, msg)
         self.assertEqual(self.client_entry_values[id], value, msg)
 
+    def assert_value_never_received(self, entry: DatastoreEntry, msg=""):
+        self.assertNotIn(entry.get_id(), self.client_entry_values, msg)
+
     def send_request(self, req):
         self.api_conn.write_to_server(json.dumps(req))
 

@@ -468,7 +468,7 @@ class TestRawMemoryRead(ScrutinyUnitTest):
         self.dispatcher = RequestDispatcher()
         self.protocol = Protocol(1, 0)
         self.reader = MemoryReader(protocol=self.protocol, dispatcher=self.dispatcher, datastore=self.ds, request_priority=0)
-        self.reader.set_max_request_payload_size(128)
+        self.reader.set_max_request_payload_size(256)
         self.reader.set_max_response_payload_size(128)
         self.reader.start()
 
@@ -538,6 +538,57 @@ class TestRawMemoryRead(ScrutinyUnitTest):
                 self.assertIsNone(callback_data.data)
                 self.assertIsNotNone(callback_data.error)
                 self.assertGreater(len(callback_data.error), 0)
+
+    def test_read_failure_by_nack(self):
+        for i in range(3):
+            self.reader.process()
+        self.assertIsNone(self.dispatcher.pop_next())
+
+        callback_data = self.CallbackDataContainer()
+        self.reader.request_memory_read(0x1000, 257, callback=functools.partial(self.the_callback, container=callback_data))
+        payload = bytes([random.randint(0, 255) for i in range(257)])
+
+        for i in range(2):
+            cursor = i * 128
+            size = 128 if i < 2 else 1
+
+            self.reader.process()
+            record = self.dispatcher.pop_next()
+            self.assertIsNotNone(record)
+            self.assertEqual(record.request.command, MemoryControl)
+            self.assertEqual(MemoryControl.Subfunction(record.request.subfn), MemoryControl.Subfunction.Read)
+            request_data = cast(protocol_typing.Request.MemoryControl.Read, self.protocol.parse_request(record.request))
+            self.assertEqual(len(request_data['blocks_to_read']), 1)
+            self.assertEqual(request_data['blocks_to_read'][0]['address'], 0x1000 + cursor)
+            self.assertEqual(request_data['blocks_to_read'][0]['length'], size)
+
+            if i == 0:
+                response = self.protocol.respond_read_memory_blocks([(0x1000 + cursor, payload[cursor:cursor + 128])])
+                record.complete(True, response)
+                self.assertEqual(callback_data.call_count, 0)
+            else:
+                response = Response(record.request.command, record.request.subfn, Response.ResponseCode.FailureToProceed)
+                record.complete(True, response)
+                self.assertEqual(callback_data.call_count, 1)
+                self.assertFalse(callback_data.success)     # Failure detection
+                self.assertIsNone(callback_data.data)
+                self.assertIsNotNone(callback_data.error)
+                self.assertGreater(len(callback_data.error), 0)
+
+    def test_read_forbidden_early_fail(self):
+        for i in range(3):
+            self.reader.process()
+        self.assertIsNone(self.dispatcher.pop_next())
+
+        callback_data = self.CallbackDataContainer()
+        self.reader.add_forbidden_region(0x1000 - 10, 11)
+        self.reader.request_memory_read(0x1000, 257, callback=functools.partial(self.the_callback, container=callback_data))
+        self.reader.process()
+        self.assertEqual(callback_data.call_count, 1)
+        self.assertFalse(callback_data.success)     # Failure detection
+        self.assertIsNone(callback_data.data)
+        self.assertIsNotNone(callback_data.error)
+        self.assertGreater(len(callback_data.error), 0)
 
     def test_read_multiple_blocks(self):
         max_response_size = 128

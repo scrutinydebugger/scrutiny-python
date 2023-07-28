@@ -391,7 +391,37 @@ class MemoryWriter:
         self.clear_active_entry_write_request()
 
     def success_callback_raw_memory_write(self, request: Request, response: Response, params: Any = None) -> None:
-        pass
+        assert self.active_raw_write_request is not None
+        assert self.active_raw_write_request_remaining_data is not None
+
+        if response.code == ResponseCode.OK:
+            request_data = cast(protocol_typing.Request.MemoryControl.Write, self.protocol.parse_request(request))
+            response_data = cast(protocol_typing.Response.MemoryControl.Write, self.protocol.parse_response(response))
+
+            response_match_request = True
+            if len(request_data['blocks_to_write']) != 1 or len(response_data['written_blocks']) != 1:
+                response_match_request = False
+            else:
+                if request_data['blocks_to_write'][0]['address'] != response_data['written_blocks'][0]['address']:
+                    response_match_request = False
+
+                if len(request_data['blocks_to_write'][0]['data']) != response_data['written_blocks'][0]['length']:
+                    response_match_request = False
+
+            if response_match_request:
+                if len(self.active_raw_write_request_remaining_data) == 0:
+                    self.active_raw_write_request.set_completed(success=True)
+                    self.clear_active_raw_write_request()
+                else:
+                    pass  # Do nothing. More data to write for that request.
+            else:
+                self.active_raw_write_request.set_completed(success=False, failure_reason="Communication error")
+                self.clear_active_raw_write_request()
+                self.logger.error('Received a WriteMemory response that does not match the request')
+        else:
+            self.logger.warning('Response for WriteMemory has been refused with response code %s.' % response.code)
+            self.active_raw_write_request.set_completed(success=False, failure_reason="Refused by the device")
+            self.clear_active_raw_write_request()
 
     def success_callback_rpv_write(self, request: Request, response: Response, params: Any = None) -> None:
         """Called when a RPV write request completes and succeeds"""

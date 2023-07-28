@@ -30,6 +30,7 @@ from scrutiny.core.firmware_description import FirmwareDescription
 import scrutiny.server.datalogging.definitions.api as api_datalogging
 import scrutiny.server.datalogging.definitions.device as device_datalogging
 from scrutiny.server.device.device_info import ExecLoopType
+from scrutiny.core.basic_types import MemoryRegion
 
 from .websocket_client_handler import WebsocketClientHandler
 from .dummy_client_handler import DummyClientHandler
@@ -1418,6 +1419,13 @@ class API:
                 "metadata": sfd.get_metadata()
             }
 
+        def make_memory_region_map(regions: Optional[List[MemoryRegion]]) -> List[Dict[Literal['start', 'end', 'size'], int]]:
+            output: List[Dict[Literal['start', 'end', 'size'], int]] = []
+            if regions is not None:
+                for region in regions:
+                    output.append({'start': region.start, 'end': region.end, 'size': region.size})
+            return output
+
         device_info_output: Optional[api_typing.DeviceInfo] = None
         if device_info_input is not None and device_info_input.all_ready():
             device_info_output = {
@@ -1432,8 +1440,8 @@ class API:
                 'protocol_major': cast(int, device_info_input.protocol_major),
                 'protocol_minor': cast(int, device_info_input.protocol_minor),
                 'supported_feature_map': cast(Dict[api_typing.SupportedFeature, bool], device_info_input.supported_feature_map),
-                'forbidden_memory_regions': cast(List[Dict[str, int]], device_info_input.forbidden_memory_regions),
-                'readonly_memory_regions': cast(List[Dict[str, int]], device_info_input.readonly_memory_regions)
+                'forbidden_memory_regions': make_memory_region_map(device_info_input.forbidden_memory_regions),
+                'readonly_memory_regions': make_memory_region_map(device_info_input.readonly_memory_regions)
             }
 
         if device_comm_link is None:

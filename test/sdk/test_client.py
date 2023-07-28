@@ -125,12 +125,12 @@ class FakeDeviceHandler:
             '_64bits': True
         }
         self.device_info.forbidden_memory_regions = [
-            {'start': 0x100000, 'end': 0x100000 + 128 - 1},
-            {'start': 0x200000, 'end': 0x200000 + 256 - 1}
+            MemoryRegion(0x100000, 128),
+            MemoryRegion(0x200000, 256)
         ]
         self.device_info.readonly_memory_regions = [
-            {'start': 0x300000, 'end': 0x300000 + 128 - 1},
-            {'start': 0x400000, 'end': 0x400000 + 256 - 1}
+            MemoryRegion(0x300000, 128),
+            MemoryRegion(0x400000, 256)
         ]
 
         self.device_info.runtime_published_values = []    # Required to have a value for API to consider data valid
@@ -343,12 +343,12 @@ class TestClient(ScrutinyUnitTest):
         self.datastore.add_entry(alias_var1)
         self.datastore.add_entry(alias_rpv1000)
 
-    def wait_for_server(self, n=2):
+    def wait_for_server(self, n=2, timeout=2):
         time.sleep(0)
         for i in range(n):
             self.sync_complete.clear()
             self.require_sync.set()
-            self.sync_complete.wait()
+            self.sync_complete.wait(timeout=timeout)
             self.assertFalse(self.require_sync.is_set())
 
     def wait_true(self, func, timeout=2, error_str=None):

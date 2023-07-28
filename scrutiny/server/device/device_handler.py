@@ -685,9 +685,10 @@ class DeviceHandler:
                     assert self.device_info.readonly_memory_regions is not None
 
                     for region in self.device_info.forbidden_memory_regions:
-                        self.memory_writer.add_forbidden_region(region['start'], region['end'] - region['start'] + 1)
+                        self.memory_writer.add_forbidden_region(region.start, region.size)
+                        self.memory_reader.add_forbidden_region(region.start, region.size)
                     for region in self.device_info.readonly_memory_regions:
-                        self.memory_writer.add_readonly_region(region['start'], region['end'] - region['start'] + 1)
+                        self.memory_writer.add_readonly_region(region.start, region.size)
 
         # ========= [READY] ==========
         elif self.fsm_state == self.FsmState.READY:

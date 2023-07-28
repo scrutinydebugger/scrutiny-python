@@ -13,12 +13,6 @@ from dataclasses import dataclass
 from abc import abstractmethod
 
 
-class MemoryRegion(TypedDict):
-    """Describe a region in memory with a start and end address"""
-    start: int
-    end: int
-
-
 class ExecLoopType(Enum):
     FIXED_FREQ = 0
     VARIABLE_FREQ = 1

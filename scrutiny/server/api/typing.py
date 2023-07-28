@@ -80,8 +80,8 @@ class DeviceInfo(TypedDict):
     protocol_major: int
     protocol_minor: int
     supported_feature_map: Dict[SupportedFeature, bool]
-    forbidden_memory_regions: List[Dict[str, int]]
-    readonly_memory_regions: List[Dict[str, int]]
+    forbidden_memory_regions: List[Dict[Literal['start', 'size', 'end'], int]]
+    readonly_memory_regions: List[Dict[Literal['start', 'size', 'end'], int]]
 
 
 class SFDEntry(TypedDict):

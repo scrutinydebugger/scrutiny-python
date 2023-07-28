@@ -13,7 +13,7 @@ import string
 import json
 import math
 from uuid import uuid4
-from scrutiny.core.basic_types import RuntimePublishedValue
+from scrutiny.core.basic_types import RuntimePublishedValue, MemoryRegion
 from base64 import b64encode
 
 from scrutiny.server.api.API import API
@@ -134,8 +134,8 @@ class StubbedDeviceHandler:
             'datalog_acquire': False,
             'user_command': False,
             '_64bits': True}
-        info.forbidden_memory_regions = [{'start': 0x1000, 'end': 0x2000}]
-        info.readonly_memory_regions = [{'start': 0x2000, 'end': 0x3000}, {'start': 0x3000, 'end': 0x4000}]
+        info.forbidden_memory_regions = [MemoryRegion(0x1000, 0x500)]
+        info.readonly_memory_regions = [MemoryRegion(0x2000, 0x600), MemoryRegion(0x3000, 0x700)]
         info.runtime_published_values = []
         info.loops = [
             FixedFreqLoop(1000, "Fixed Freq 1KHz"),
@@ -980,7 +980,21 @@ class TestAPI(ScrutinyUnitTest):
             for attr in device_info.get_attributes():
                 if attr not in device_info_exlude_propeties:    # Exclude list
                     self.assertIn(attr, response['device_info'])
-                    self.assertEqual(getattr(device_info, attr), response['device_info'][attr])
+
+                    if attr not in ['readonly_memory_regions', 'forbidden_memory_regions']:
+                        self.assertEqual(getattr(device_info, attr), response['device_info'][attr])
+                    else:
+                        region_list = getattr(device_info, attr)
+                        self.assertEqual(len(region_list), len(response['device_info'][attr]))
+
+                        for i in range(len(region_list)):
+                            self.assertIn('start', response['device_info'][attr][i])
+                            self.assertIn('size', response['device_info'][attr][i])
+                            self.assertIn('end', response['device_info'][attr][i])
+
+                            self.assertEqual(region_list[i].start, response['device_info'][attr][i]['start'])
+                            self.assertEqual(region_list[i].size, response['device_info'][attr][i]['size'])
+                            self.assertEqual(region_list[i].end, response['device_info'][attr][i]['end'])
 
             # Redo the test, but with no SFD loaded. We should get None
             self.sfd_handler.reset_active_sfd()
@@ -1013,7 +1027,20 @@ class TestAPI(ScrutinyUnitTest):
             for attr in device_info.get_attributes():
                 if attr not in device_info_exlude_propeties:
                     self.assertIn(attr, response['device_info'])
-                    self.assertEqual(getattr(device_info, attr), response['device_info'][attr])
+                    if attr not in ['readonly_memory_regions', 'forbidden_memory_regions']:
+                        self.assertEqual(getattr(device_info, attr), response['device_info'][attr])
+                    else:
+                        region_list = getattr(device_info, attr)
+                        self.assertEqual(len(region_list), len(response['device_info'][attr]))
+
+                        for i in range(len(region_list)):
+                            self.assertIn('start', response['device_info'][attr][i])
+                            self.assertIn('size', response['device_info'][attr][i])
+                            self.assertIn('end', response['device_info'][attr][i])
+
+                            self.assertEqual(region_list[i].start, response['device_info'][attr][i]['start'])
+                            self.assertEqual(region_list[i].size, response['device_info'][attr][i]['size'])
+                            self.assertEqual(region_list[i].end, response['device_info'][attr][i]['end'])
 
             SFDStorage.uninstall(sfd1.get_firmware_id_ascii())
             SFDStorage.uninstall(sfd2.get_firmware_id_ascii())

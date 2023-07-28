@@ -11,7 +11,8 @@ __all__ = [
     'DataTypeType',
     'DataTypeSize',
     'EmbeddedDataType',
-    'RuntimePublishedValue'
+    'RuntimePublishedValue',
+    'MemoryRegion'
 ]
 
 from enum import Enum
@@ -35,6 +36,10 @@ class MemoryRegion:
             return False
 
         return True
+
+    @property
+    def end(self) -> int:
+        return max(self.start, self.start + self.size - 1)
 
 
 class Endianness(Enum):
