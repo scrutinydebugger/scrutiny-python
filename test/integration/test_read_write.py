@@ -425,6 +425,9 @@ class TestWriteMemoryNotAllowed(ScrutinyIntegrationTestWithTestSFD1):
                 self.assertNotEqual(record.request.subfn, protocol_commands.MemoryControl.Subfunction.Write)
                 self.assertNotEqual(record.request.subfn, protocol_commands.MemoryControl.Subfunction.WriteMasked)
 
+        # No request should be made to the device. The server knows about the no-write flag
+        self.assertEqual(len(self.emulated_device.failed_write_request_list), 0)
+
     def test_write_rpv_allowed(self):
         # In this test we make sure a write request is denied by the server when the device disables write.
         all_entries: List[DatastoreEntry] = [self.entry_float32, self.entry_alias_float32, self.entry_rpv1000, self.entry_alias_rpv1000]
@@ -554,6 +557,9 @@ class TestWriteMemoryInReadonlyRegions(ScrutinyIntegrationTestWithTestSFD1):
         newval = struct.unpack('<d', self.read_device_var_entry(self.entry_float64))[0]
         self.assertEqual(newval, 999.99)
 
+        # No request should be made to the device. The server knows about the readonly region
+        self.assertEqual(len(self.emulated_device.failed_write_request_list), 0)
+
     def test_write_rpv_allowed(self):
         # In this test we make sure a write request is denied by the server when the device disables write.
         all_entries: List[DatastoreEntry] = [self.entry_float32, self.entry_alias_float32, self.entry_rpv1000, self.entry_alias_rpv1000]
@@ -673,6 +679,9 @@ class TestWriteMemoryInForbiddenRegions(ScrutinyIntegrationTestWithTestSFD1):
 
         newval = struct.unpack('<d', self.read_device_var_entry(self.entry_float64))[0]
         self.assertEqual(newval, 999.99)
+
+        # No request should be made to the device. The server knows about the forbidden region
+        self.assertEqual(len(self.emulated_device.failed_write_request_list), 0)
 
     def test_write_rpv_allowed(self):
         # In this test we make sure a write request is denied by the server when the device disables write.
