@@ -131,7 +131,7 @@ class UdpLink(AbstractLink):
         assert self.sock is not None  # for mypy
         try:
             self.sock.sendto(data, (self.config['host'], self.config['port']))
-        except:
+        except Exception:
             self.bound = False
 
     def initialized(self) -> bool:
@@ -156,7 +156,7 @@ class UdpLink(AbstractLink):
         port = -1
         try:
             port = int(config['port'])
-        except:
+        except Exception:
             raise ValueError('Port is not a valid integer')
 
         if port <= 0 or port >= 0x10000:

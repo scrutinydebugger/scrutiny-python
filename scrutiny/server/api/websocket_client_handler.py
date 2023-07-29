@@ -100,7 +100,7 @@ class WebsocketClientHandler(AbstractClientHandler):
         # Returns to the API messages received associated with the client connection unique ID
         try:
             (websocket, msg) = self.server.rxqueue.get_nowait()
-        except:
+        except Exception:
             return None
 
         if websocket not in self.ws2id_map:

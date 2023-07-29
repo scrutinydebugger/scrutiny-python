@@ -503,14 +503,10 @@ class MemoryReader:
                             raw_data = temp_memory.read(entry.get_address(), entry.get_size())
                             entry.set_value_from_data(raw_data)
                             self.entries_in_pending_read_var_request = []
-                    except (KeyboardInterrupt, SystemExit):
-                        raise
                     except Exception as e:
                         self.logger.critical('Error while writing datastore. %s' % str(e))
                         self.logger.debug(traceback.format_exc())
-                except (KeyboardInterrupt, SystemExit):
-                    raise
-                except:
+                except Exception:
                     self.logger.error('Response for ReadMemory read request is malformed and must be discared.')
                     self.logger.debug(traceback.format_exc())
             else:
@@ -539,9 +535,6 @@ class MemoryReader:
                     if len(self.active_raw_read_request_data) >= self.active_raw_read_request.size:
                         self.active_raw_read_request.set_completed(True, self.active_raw_read_request_data)
                         self.clear_active_raw_read_request()
-
-                except (KeyboardInterrupt, SystemExit):
-                    raise
                 except Exception as e:
                     self.logger.error('Response for ReadMemory read request is malformed and must be discarded. ' + str(e))
                     self.logger.debug(traceback.format_exc())
@@ -560,14 +553,10 @@ class MemoryReader:
                         else:
                             entry = self.entries_in_pending_read_rpv_request[read_rpv['id']]
                             entry.set_value(read_rpv['data'])
-                except (KeyboardInterrupt, SystemExit):
-                    raise
                 except Exception as e:
                     self.logger.critical('Error while writing datastore. %s' % str(e))
                     self.logger.debug(traceback.format_exc())
-            except (KeyboardInterrupt, SystemExit):
-                raise
-            except:
+            except Exception:
                 self.logger.error('Response for ReadRPV read request is malformed and must be discared.')
                 self.logger.debug(traceback.format_exc())
         else:

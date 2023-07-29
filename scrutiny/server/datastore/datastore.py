@@ -190,7 +190,7 @@ class Datastore:
 
         try:
             self.watcher_map[entry.get_type()][entry_id].remove(watcher)
-        except:
+        except Exception:
             pass
 
         try:
@@ -201,7 +201,7 @@ class Datastore:
                     # Special handling for Aliases.
                     # If nobody watches this alias, then we can remove the internal subscription to the referenced entry
                     self.stop_watching(entry.resolve(), self.make_owner_from_alias_entry(entry))
-        except:
+        except Exception:
             pass
 
         entry.unregister_value_change_callback(watcher)

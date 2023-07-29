@@ -58,7 +58,7 @@ class RunTest(BaseCommand):
 
                 result = unittest.TextTestRunner(verbosity=int(args.verbosity)).run(suite)
                 success = len(result.errors) == 0 and len(result.failures) == 0
-            except:
+            except Exception:
                 # Exception ar eprinted as errors, but errors are disabled in the unit test to avoid confusion on negative test
                 # So unrecoverable error such as importError and syntax errors needs to be printed
                 traceback.print_exc(file=sys.stderr)

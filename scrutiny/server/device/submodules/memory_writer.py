@@ -304,7 +304,7 @@ class MemoryWriter:
                     try:
                         value_to_write = Codecs.make_value_valid(self.entry_being_updated.get_data_type(),
                                                                  value_to_write, bitsize=self.entry_being_updated.get_bitsize())
-                    except:
+                    except Exception:
                         encoding_succeeded = False
 
                     if encoding_succeeded:
@@ -323,7 +323,7 @@ class MemoryWriter:
                     encoding_succeeded = True
                     try:
                         value_to_write = Codecs.make_value_valid(rpv.datatype, value_to_write)  # No bitsize on RPV
-                    except:
+                    except Exception:
                         encoding_succeeded = False
                     if encoding_succeeded:
                         self.target_update_value_written = value_to_write

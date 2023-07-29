@@ -38,7 +38,7 @@ class ValueStreamer:
         # This is called by the datastore set_value callback
         try:
             self.entry_to_publish[conn_id].add(entry)
-        except:
+        except Exception:
             pass
 
     def get_stream_chunk(self, conn_id: str) -> List[DatastoreEntry]:

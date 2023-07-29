@@ -353,7 +353,7 @@ class S2C:
     class WriteMemoryComplete(BaseS2CMessage):
         request_token: str
         success: bool
-        detail_msg: str
+        detail_msg: Optional[str]
 
 
 C2SMessage = Union[

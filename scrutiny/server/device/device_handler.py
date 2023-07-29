@@ -298,6 +298,9 @@ class DeviceHandler:
     def read_memory(self, address: int, size: int, callback: Optional[RawMemoryReadRequestCompletionCallback] = None) -> RawMemoryReadRequest:
         return self.memory_reader.request_memory_read(address, size, callback)
 
+    def write_memory(self, address:int, data:bytes, callback:Optional[RawMemoryWriteRequestCompletionCallback]=None) -> RawMemoryWriteRequest:
+        return self.memory_writer.request_memory_write(address, data, callback)
+
     def get_comm_params_callback(self, partial_device_info: DeviceInfo):
         """Callback given to InfoPoller to be called whenever the GetParams command completes."""
         # In the POLLING_INFO stage, there is a point where we will have gotten the communication params.

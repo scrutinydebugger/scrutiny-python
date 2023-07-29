@@ -77,17 +77,17 @@ class ListSFD(BaseCommand):
 
                 try:
                     entry.project_name = metadata['project_name']
-                except:
+                except Exception:
                     pass
 
                 try:
                     entry.version = metadata['version']
-                except:
+                except Exception:
                     pass
 
                 try:
                     entry.author = metadata['author']
-                except:
+                except Exception:
                     pass
 
                 padding = max(padding, entry.get_len_for_padding())

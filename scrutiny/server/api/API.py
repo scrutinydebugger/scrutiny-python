@@ -15,13 +15,14 @@ import functools
 from uuid import uuid4
 from fnmatch import fnmatch
 import itertools
-from base64 import b64encode
+from base64 import b64encode, b64decode
+import binascii
 
 from scrutiny.server.datalogging.datalogging_storage import DataloggingStorage
 from scrutiny.server.datalogging.datalogging_manager import DataloggingManager
 from scrutiny.server.datastore.datastore import Datastore
 from scrutiny.server.datastore.datastore_entry import EntryType, DatastoreEntry, UpdateTargetRequestCallback
-from scrutiny.server.device.device_handler import DeviceHandler, DeviceStateChangedCallback, RawMemoryReadRequestCompletionCallback, RawMemoryReadRequest
+from scrutiny.server.device.device_handler import DeviceHandler, DeviceStateChangedCallback, RawMemoryReadRequestCompletionCallback, RawMemoryReadRequest, RawMemoryWriteRequestCompletionCallback, RawMemoryWriteRequest
 from scrutiny.server.active_sfd_handler import ActiveSFDHandler, SFDLoadedCallback, SFDUnloadedCallback
 from scrutiny.server.device.links import LinkConfig
 from scrutiny.core.sfd_storage import SFDStorage
@@ -246,7 +247,8 @@ class API:
         Command.Client2Api.DELETE_DATALOGGING_ACQUISITION: 'process_delete_datalogging_acquisition',
         Command.Client2Api.DELETE_ALL_DATALOGGING_ACQUISITION: 'process_delete_all_datalogging_acquisition',
         Command.Client2Api.READ_DATALOGGING_ACQUISITION_CONTENT: 'process_read_datalogging_acquisition_content',
-        Command.Client2Api.READ_MEMORY: "process_read_memory"
+        Command.Client2Api.READ_MEMORY: "process_read_memory",
+        Command.Client2Api.WRITE_MEMORY: "process_write_memory"
     }
 
     def __init__(self,
@@ -808,7 +810,7 @@ class API:
                 else:
                     try:
                         value = float(valstr)
-                    except:
+                    except Exception:
                         value = None
             if value is None or not isinstance(value, (int, float, bool)):
                 raise InvalidRequestException(req, 'Invalid "value" field')
@@ -873,6 +875,43 @@ class API:
 
         self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
 
+    def process_write_memory(self, conn_id: str, req: api_typing.C2S.WriteMemory) -> None:
+        if 'address' not in req:
+            raise InvalidRequestException(req, 'Missing "address" field')
+
+        if 'data' not in req:
+            raise InvalidRequestException(req, 'Missing "data" field')
+
+        if not isinstance(req['address'], int):
+            raise InvalidRequestException(req, '"address" field is not an integer')
+
+        if not isinstance(req['data'], str):
+            raise InvalidRequestException(req, '"data" field is not a string')
+
+        try:
+            data = b64decode(req['data'], validate=True)
+        except binascii.Error:
+            raise InvalidRequestException(req, '"data" field is not a valid base64 string')
+
+        if req['address'] < 0:
+            raise InvalidRequestException(req, '"address" field is not valid')
+
+        if len(data) <= 0:
+            raise InvalidRequestException(req, '"data" field is not valid')
+
+        request_token = uuid4().hex
+        callback = functools.partial(self.write_raw_memory_callback, request_token=request_token, conn_id=conn_id)
+
+        self.device_handler.write_memory(req['address'], data, callback=RawMemoryWriteRequestCompletionCallback(callback))
+
+        response: api_typing.S2C.WriteMemory = {
+            'cmd': self.Command.Api2Client.WRITE_MEMORY_RESPONSE,
+            'reqid': self.get_req_id(req),
+            'request_token': request_token
+        }
+
+        self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
+
     def read_raw_memory_callback(self, request: RawMemoryReadRequest, success: bool, data: Optional[bytes], error: str, conn_id: str, request_token: str) -> None:
         data_out: Optional[str] = None
         if data is not None and success:
@@ -884,6 +923,17 @@ class API:
             'request_token': request_token,
             'success': success,
             'data': data_out,
+            'detail_msg': error if success == False else None,
+        }
+
+        self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
+
+    def write_raw_memory_callback(self, request: RawMemoryWriteRequest, success: bool, error: str, conn_id: str, request_token: str) -> None:
+        response: api_typing.S2C.WriteMemoryComplete = {
+            'cmd': self.Command.Api2Client.INFORM_MEMORY_WRITE_COMPLETE,
+            'reqid': None,
+            'request_token': request_token,
+            'success': success,
             'detail_msg': error if success == False else None,
         }
 
@@ -1029,7 +1079,7 @@ class API:
 
             try:
                 x_axis_entry = self.datastore.get_entry(req['x_axis_signal']['id'])
-            except:
+            except Exception:
                 pass
 
             if x_axis_entry is None:
@@ -1057,7 +1107,7 @@ class API:
                 watchable: Optional[DatastoreEntry] = None
                 try:
                     watchable = self.datastore.get_entry(given_operand['value'])
-                except:
+                except Exception:
                     pass
 
                 if watchable is None:
@@ -1109,7 +1159,7 @@ class API:
             signal_entry: Optional[DatastoreEntry] = None
             try:
                 signal_entry = self.datastore.get_entry(signal_def['id'])
-            except:
+            except Exception:
                 pass
 
             if signal_entry is None:

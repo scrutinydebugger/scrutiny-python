@@ -123,7 +123,7 @@ class ScrutinyServer:
             while True:
                 self.process()
                 time.sleep(0.01)
-        except KeyboardInterrupt:
+        except (KeyboardInterrupt, SystemExit):
             self.close_all()
         except Exception as e:
             self.logger.error(str(e))

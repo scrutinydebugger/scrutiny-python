@@ -55,6 +55,14 @@ class MemoryReadCompletion:
     timestamp: float
 
 
+@dataclass
+class MemoryWriteCompletion:
+    request_token: str
+    success: bool
+    error: str
+    timestamp: float
+
+
 T = TypeVar('T', str, int, float, bool)
 
 
@@ -503,20 +511,39 @@ def parse_memory_read_completion(response: api_typing.S2C.ReadMemoryComplete) ->
 
     _check_response_dict(cmd, response, 'request_token', str)
     _check_response_dict(cmd, response, 'success', bool)
-    _check_response_dict(cmd, response, 'data', str)
-
-    data = _fetch_dict_val_no_none(response, 'data', str, "")
-    try:
-        data_bin = b64decode(data, validate=True)
-    except binascii.Error as e:
-        raise sdk.exceptions.BadResponseError(f"Server returned a invalid base64 data block. {e}")
+    success = _fetch_dict_val_no_none(response, 'success', bool, False)
+    data_bin: Optional[bytes] = None
+    if success:
+        data = _fetch_dict_val_no_none(response, 'data', str, "")
+        try:
+            data_bin = b64decode(data, validate=True)
+        except binascii.Error as e:
+            raise sdk.exceptions.BadResponseError(f"Server returned a invalid base64 data block. {e}")
 
     detail_msg = _fetch_dict_val(response, 'detail_msg', str, "")
 
     return MemoryReadCompletion(
         request_token=_fetch_dict_val_no_none(response, 'request_token', str, ""),
-        success=_fetch_dict_val_no_none(response, 'success', bool, False),
+        success=success,
         data=data_bin,
+        error=detail_msg if detail_msg is not None else "",
+        timestamp=time.time()
+    )
+
+
+def parse_memory_write_completion(response: api_typing.S2C.WriteMemoryComplete) -> MemoryWriteCompletion:
+    assert isinstance(response, dict)
+    assert 'cmd' in response
+    cmd = response['cmd']
+    assert cmd == API.Command.Api2Client.INFORM_MEMORY_WRITE_COMPLETE
+
+    _check_response_dict(cmd, response, 'request_token', str)
+    _check_response_dict(cmd, response, 'success', bool)
+    detail_msg = _fetch_dict_val(response, 'detail_msg', str, "")
+
+    return MemoryWriteCompletion(
+        request_token=_fetch_dict_val_no_none(response, 'request_token', str, ""),
+        success=_fetch_dict_val_no_none(response, 'success', bool, False),
         error=detail_msg if detail_msg is not None else "",
         timestamp=time.time()
     )
