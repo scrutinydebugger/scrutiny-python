@@ -435,10 +435,10 @@ class InfoPoller:
                 response_data = cast(protocol_typing.Response.GetInfo.GetSpecialMemoryRegionLocation, response_data)
                 if self.info.forbidden_memory_regions is None:
                     self.info.forbidden_memory_regions = []
-                forbidden_entry: MemoryRegion = {
-                    'start': response_data['start'],
-                    'end': response_data['end']
-                }
+                forbidden_entry = MemoryRegion(
+                    start=response_data['start'],
+                    size=response_data['end'] - response_data['start'] + 1
+                )
                 self.info.forbidden_memory_regions.append(forbidden_entry)
 
             elif self.fsm_state == self.FsmState.GetReadOnlyMemoryRegions:
@@ -446,10 +446,10 @@ class InfoPoller:
                 if self.info.readonly_memory_regions is None:
                     self.info.readonly_memory_regions = []
 
-                readonly_entry: MemoryRegion = {
-                    'start': response_data['start'],
-                    'end': response_data['end']
-                }
+                readonly_entry = MemoryRegion(
+                    start=response_data['start'],
+                    size=response_data['end'] - response_data['start'] + 1
+                )
                 self.info.readonly_memory_regions.append(readonly_entry)
 
             elif self.fsm_state == self.FsmState.GetRPVCount:

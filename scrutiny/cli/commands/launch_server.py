@@ -46,7 +46,7 @@ class LaunchServer(BaseCommand):
         server = ScrutinyServer(args.config)
         try:
             server.run()
-        except:
+        except Exception:
             # The server logs its own error in run(). No need to print it twice.
             # We will return a non-success error code. It will be picked up by the CLI.
             success = False

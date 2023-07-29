@@ -116,7 +116,7 @@ class HeartbeatGenerator:
                                               (response_data['challenge_response'], expected_challenge_response))
                     else:
                         self.logger.error('Heartbeat session ID echo not good. Got %s, expected %s' % (response_data['session_id'], self.session_id))
-                except:
+                except Exception:
                     self.logger.error('Heartbeat response data is invalid')
                     self.logger.debug(traceback.format_exc())
             else:

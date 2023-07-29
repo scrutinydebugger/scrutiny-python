@@ -211,7 +211,7 @@ class AcquisitionRequest:
     timeout: float
     probe_location: float
     trigger_hold_time: float
-    trigger_condition: TriggerCondition  # fixme
+    trigger_condition: TriggerCondition
     x_axis_type: XAxisType
     x_axis_signal: Optional[SignalDefinition]
     signals: List[SignalDefinitionWithAxis]

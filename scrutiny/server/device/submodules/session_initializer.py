@@ -113,7 +113,7 @@ class SessionInitializer:
                 self.logger.info('The connection request was accepted by the device')
                 self.session_id = response_data['session_id']
                 self.success = True
-            except:
+            except Exception:
                 self.logger.warning('Connection request to the device was acknowledged by the device but response data was malformed')
                 self.logger.debug(traceback.format_exc())
                 self.error = True

@@ -7,12 +7,14 @@
 #   Copyright (c) 2021-2023 Scrutiny Debugger
 
 import time
+import queue
 import random
 import string
 import json
 import math
 from uuid import uuid4
-from scrutiny.core.basic_types import RuntimePublishedValue
+from scrutiny.core.basic_types import RuntimePublishedValue, MemoryRegion
+from base64 import b64encode
 
 from scrutiny.server.api.API import API
 from scrutiny.server.datastore.datastore import Datastore
@@ -20,7 +22,7 @@ from scrutiny.server.datastore.datastore_entry import *
 from scrutiny.server.datastore.entry_type import EntryType
 from scrutiny.core.sfd_storage import SFDStorage
 from scrutiny.server.api.dummy_client_handler import DummyConnection, DummyClientHandler
-from scrutiny.server.device.device_handler import DeviceHandler, DeviceStateChangedCallback
+from scrutiny.server.device.device_handler import DeviceHandler, DeviceStateChangedCallback, RawMemoryReadRequest, RawMemoryWriteRequest, RawMemoryReadRequestCompletionCallback, RawMemoryWriteRequestCompletionCallback
 from scrutiny.server.device.device_info import DeviceInfo, FixedFreqLoop, VariableFreqLoop
 from scrutiny.server.active_sfd_handler import ActiveSFDHandler
 from scrutiny.server.device.links.dummy_link import DummyLink
@@ -51,6 +53,9 @@ class StubbedDeviceHandler:
     datalogging_setup: Optional[device_datalogging.DataloggingSetup]
     device_state_change_callbacks: List[DeviceStateChangedCallback]
 
+    read_memory_queue: "queue.Queue[RawMemoryReadRequest]"
+    write_memory_queue: "queue.Queue[RawMemoryWriteRequest]"
+
     def __init__(self, device_id, connection_status=DeviceHandler.ConnectionStatus.UNKNOWN):
         self.device_id = device_id
         self.server_session_id = None
@@ -65,6 +70,8 @@ class StubbedDeviceHandler:
             max_signal_count=32
         )
         self.device_state_change_callbacks = []
+        self.read_memory_queue = queue.Queue()
+        self.write_memory_queue = queue.Queue()
 
     def get_connection_status(self) -> DeviceHandler.ConnectionStatus:
         return self.connection_status
@@ -129,8 +136,8 @@ class StubbedDeviceHandler:
             'datalog_acquire': False,
             'user_command': False,
             '_64bits': True}
-        info.forbidden_memory_regions = [{'start': 0x1000, 'end': 0x2000}]
-        info.readonly_memory_regions = [{'start': 0x2000, 'end': 0x3000}, {'start': 0x3000, 'end': 0x4000}]
+        info.forbidden_memory_regions = [MemoryRegion(0x1000, 0x500)]
+        info.readonly_memory_regions = [MemoryRegion(0x2000, 0x600), MemoryRegion(0x3000, 0x700)]
         info.runtime_published_values = []
         info.loops = [
             FixedFreqLoop(1000, "Fixed Freq 1KHz"),
@@ -150,6 +157,24 @@ class StubbedDeviceHandler:
 
     def register_device_state_change_callback(self, callback):
         self.device_state_change_callbacks.append(callback)
+
+    def read_memory(self, address: int, size: int, callback: Optional[RawMemoryReadRequestCompletionCallback]):
+        req = RawMemoryReadRequest(
+            address=address,
+            size=size,
+            callback=callback
+        )
+        self.read_memory_queue.put(req)
+        return req
+
+    def write_memory(self, address: int, data: bytes, callback: Optional[RawMemoryWriteRequestCompletionCallback]):
+        req = RawMemoryWriteRequest(
+            address=address,
+            data=data,
+            callback=callback
+        )
+        self.write_memory_queue.put(req)
+        return req
 
 
 class StubbedDataloggingManager:
@@ -966,7 +991,21 @@ class TestAPI(ScrutinyUnitTest):
             for attr in device_info.get_attributes():
                 if attr not in device_info_exlude_propeties:    # Exclude list
                     self.assertIn(attr, response['device_info'])
-                    self.assertEqual(getattr(device_info, attr), response['device_info'][attr])
+
+                    if attr not in ['readonly_memory_regions', 'forbidden_memory_regions']:
+                        self.assertEqual(getattr(device_info, attr), response['device_info'][attr])
+                    else:
+                        region_list = getattr(device_info, attr)
+                        self.assertEqual(len(region_list), len(response['device_info'][attr]))
+
+                        for i in range(len(region_list)):
+                            self.assertIn('start', response['device_info'][attr][i])
+                            self.assertIn('size', response['device_info'][attr][i])
+                            self.assertIn('end', response['device_info'][attr][i])
+
+                            self.assertEqual(region_list[i].start, response['device_info'][attr][i]['start'])
+                            self.assertEqual(region_list[i].size, response['device_info'][attr][i]['size'])
+                            self.assertEqual(region_list[i].end, response['device_info'][attr][i]['end'])
 
             # Redo the test, but with no SFD loaded. We should get None
             self.sfd_handler.reset_active_sfd()
@@ -999,7 +1038,20 @@ class TestAPI(ScrutinyUnitTest):
             for attr in device_info.get_attributes():
                 if attr not in device_info_exlude_propeties:
                     self.assertIn(attr, response['device_info'])
-                    self.assertEqual(getattr(device_info, attr), response['device_info'][attr])
+                    if attr not in ['readonly_memory_regions', 'forbidden_memory_regions']:
+                        self.assertEqual(getattr(device_info, attr), response['device_info'][attr])
+                    else:
+                        region_list = getattr(device_info, attr)
+                        self.assertEqual(len(region_list), len(response['device_info'][attr]))
+
+                        for i in range(len(region_list)):
+                            self.assertIn('start', response['device_info'][attr][i])
+                            self.assertIn('size', response['device_info'][attr][i])
+                            self.assertIn('end', response['device_info'][attr][i])
+
+                            self.assertEqual(region_list[i].start, response['device_info'][attr][i]['start'])
+                            self.assertEqual(region_list[i].size, response['device_info'][attr][i]['size'])
+                            self.assertEqual(region_list[i].end, response['device_info'][attr][i]['end'])
 
             SFDStorage.uninstall(sfd1.get_firmware_id_ascii())
             SFDStorage.uninstall(sfd2.get_firmware_id_ascii())
@@ -1106,7 +1158,7 @@ class TestAPI(ScrutinyUnitTest):
         self.assert_no_error(response)
 
         req = {
-            'cmd': 'write_value',
+            'cmd': 'write_watchable',
             'updates': [
                 {
                     'batch_index': 0,
@@ -1126,7 +1178,7 @@ class TestAPI(ScrutinyUnitTest):
         response = self.wait_and_load_response()
         self.assert_no_error(response)
 
-        self.assertIn(response['cmd'], 'response_write_value')
+        self.assertIn(response['cmd'], 'response_write_watchable')
         self.assertIn('count', response)
         self.assertIn('request_token', response)
         self.assertIsInstance(response['request_token'], str)
@@ -1181,7 +1233,7 @@ class TestAPI(ScrutinyUnitTest):
 
     def test_write_watchable_bad_ID(self):
         req = {
-            'cmd': 'write_value',
+            'cmd': 'write_watchable',
             'reqid': 555,
             'updates': [
                 {
@@ -1202,7 +1254,7 @@ class TestAPI(ScrutinyUnitTest):
         self.datastore.add_entries(entries)
 
         req = {
-            'cmd': 'write_value',
+            'cmd': 'write_watchable',
             'reqid': 555,
             'updates': [
                 {
@@ -1284,7 +1336,7 @@ class TestAPI(ScrutinyUnitTest):
             for testcase in testcases:
                 reqid += 1
                 req = {
-                    'cmd': 'write_value',
+                    'cmd': 'write_watchable',
                     'reqid': reqid,
                     'updates': [
                         {
@@ -1312,6 +1364,212 @@ class TestAPI(ScrutinyUnitTest):
                         self.assertEqual(update_request.get_value(), testcase['outval'], error_msg)
                     self.assertFalse(self.datastore.has_pending_target_update())
 
+    def test_read_memory(self):
+        read_size = 256
+        read_address = 0x1000
+
+        req = {
+            'cmd': 'read_memory',
+            "address": read_address,
+            "size": read_size
+        }
+
+        self.send_request(req, 0)
+        response = cast(api_typing.S2C.ReadMemory, self.wait_and_load_response(timeout=0.5))
+        self.assert_no_error(response)
+
+        self.assertEqual(response['cmd'], 'response_read_memory')
+        self.assertIn('request_token', response)
+        request_token = response['request_token']
+        self.assertFalse(self.fake_device_handler.read_memory_queue.empty())
+        read_request = self.fake_device_handler.read_memory_queue.get()
+        self.assertTrue(self.fake_device_handler.read_memory_queue.empty())
+        self.assertEqual(read_request.address, read_address)
+        self.assertEqual(read_request.size, read_size)
+        self.assertIsNotNone(read_request.completion_callback)
+        payload = bytes([random.randint(0, 255) for x in range(read_request.size)])
+        read_request.completion_callback(read_request, True, payload, "")
+
+        response = cast(api_typing.S2C.ReadMemoryComplete, self.wait_and_load_response(timeout=0.5))
+        self.assertIn('request_token', response)
+        self.assertIn('data', response)
+        self.assertIn('success', response)
+        self.assertIn('request_token', response)
+        self.assertEqual(response['cmd'], "inform_memory_read_complete")
+        self.assertEqual(response['request_token'], request_token)
+        self.assertEqual(response['success'], True)
+        self.assertEqual(response['data'], b64encode(payload).decode('ascii'))
+
+    def test_read_memory_failure(self):
+        read_size = 256
+        read_address = 0x1000
+
+        req = {
+            'cmd': 'read_memory',
+            "address": read_address,
+            "size": read_size
+        }
+
+        self.send_request(req, 0)
+        response = cast(api_typing.S2C.ReadMemory, self.wait_and_load_response(timeout=0.5))
+        self.assert_no_error(response)
+
+        self.assertEqual(response['cmd'], 'response_read_memory')
+        self.assertIn('request_token', response)
+        request_token = response['request_token']
+        self.assertFalse(self.fake_device_handler.read_memory_queue.empty())
+        read_request = self.fake_device_handler.read_memory_queue.get()
+        self.assertTrue(self.fake_device_handler.read_memory_queue.empty())
+        self.assertEqual(read_request.address, read_address)
+        self.assertEqual(read_request.size, read_size)
+        self.assertIsNotNone(read_request.completion_callback)
+
+        read_request.completion_callback(read_request, False, None, "")  # Simulate failure
+
+        response = cast(api_typing.S2C.ReadMemoryComplete, self.wait_and_load_response(timeout=0.5))
+        self.assertIn('request_token', response)
+        self.assertIn('data', response)
+        self.assertIn('success', response)
+        self.assertIn('request_token', response)
+        self.assertEqual(response['cmd'], "inform_memory_read_complete")
+        self.assertEqual(response['request_token'], request_token)
+        self.assertEqual(response['success'], False)
+        self.assertIsNone(response['data'])
+
+    def test_read_memory_bad_values(self):
+        self.send_request({
+            'cmd': 'read_memory'
+        })
+        self.assert_is_error(self.wait_and_load_response(timeout=0.5))
+
+        self.send_request({
+            'cmd': 'read_memory',
+            "address": 0
+        })
+        self.assert_is_error(self.wait_and_load_response(timeout=0.5))
+
+        self.send_request({
+            'cmd': 'read_memory',
+            "size": 100
+        })
+        self.assert_is_error(self.wait_and_load_response(timeout=0.5))
+
+        for addr in [-1, "", None, 1.2]:
+            self.send_request({
+                'cmd': 'read_memory',
+                "address": addr,
+                "size": 100
+            })
+            self.assert_is_error(self.wait_and_load_response(timeout=0.5))
+
+        for size in [-1, "", None, 1.2]:
+            self.send_request({
+                'cmd': 'read_memory',
+                "address": 100,
+                "size": size
+            })
+            self.assert_is_error(self.wait_and_load_response(timeout=0.5))
+
+    def test_write_memory(self):
+        payload = bytes([random.randint(0, 255) for i in range(256)])
+        write_address = 0x1000
+
+        req = {
+            'cmd': 'write_memory',
+            "address": write_address,
+            "data": b64encode(payload).decode('ascii')
+        }
+
+        self.send_request(req, 0)
+        response = cast(api_typing.S2C.WriteMemory, self.wait_and_load_response(timeout=0.5))
+        self.assert_no_error(response)
+
+        self.assertEqual(response['cmd'], 'response_write_memory')
+        self.assertIn('request_token', response)
+        request_token = response['request_token']
+        self.assertFalse(self.fake_device_handler.write_memory_queue.empty())
+        write_request = self.fake_device_handler.write_memory_queue.get()
+        self.assertTrue(self.fake_device_handler.write_memory_queue.empty())
+        self.assertEqual(write_request.address, write_address)
+        self.assertEqual(write_request.data, payload)
+        self.assertIsNotNone(write_request.completion_callback)
+        write_request.completion_callback(write_request, True, "")
+
+        response = cast(api_typing.S2C.WriteMemoryComplete, self.wait_and_load_response(timeout=0.5))
+        self.assertIn('request_token', response)
+        self.assertIn('success', response)
+        self.assertIn('request_token', response)
+        self.assertEqual(response['cmd'], "inform_memory_write_complete")
+        self.assertEqual(response['request_token'], request_token)
+        self.assertEqual(response['success'], True)
+
+    def test_write_memory_failure(self):
+        payload = bytes([random.randint(0, 255) for i in range(256)])
+        write_address = 0x1000
+
+        req = {
+            'cmd': 'write_memory',
+            "address": write_address,
+            "data": b64encode(payload).decode('ascii')
+        }
+
+        self.send_request(req, 0)
+        response = cast(api_typing.S2C.WriteMemory, self.wait_and_load_response(timeout=0.5))
+        self.assert_no_error(response)
+
+        self.assertEqual(response['cmd'], 'response_write_memory')
+        self.assertIn('request_token', response)
+        request_token = response['request_token']
+        self.assertFalse(self.fake_device_handler.write_memory_queue.empty())
+        write_request = self.fake_device_handler.write_memory_queue.get()
+        self.assertTrue(self.fake_device_handler.write_memory_queue.empty())
+        self.assertEqual(write_request.address, write_address)
+        self.assertEqual(write_request.data, payload)
+        self.assertIsNotNone(write_request.completion_callback)
+
+        write_request.completion_callback(write_request, False, "")  # Simulate failure
+
+        response = cast(api_typing.S2C.WriteMemoryComplete, self.wait_and_load_response(timeout=0.5))
+        self.assertIn('request_token', response)
+        self.assertIn('success', response)
+        self.assertIn('request_token', response)
+        self.assertEqual(response['cmd'], "inform_memory_write_complete")
+        self.assertEqual(response['request_token'], request_token)
+        self.assertEqual(response['success'], False)
+
+    def test_write_memory_bad_values(self):
+        self.send_request({
+            'cmd': 'write_memory'
+        })
+        self.assert_is_error(self.wait_and_load_response(timeout=0.5))
+
+        self.send_request({
+            'cmd': 'write_memory',
+            "address": 0
+        })
+        self.assert_is_error(self.wait_and_load_response(timeout=0.5))
+
+        self.send_request({
+            'cmd': 'write_memory',
+            "data": b64encode(bytes([1, 2, 3])).decode('ascii')
+        })
+        self.assert_is_error(self.wait_and_load_response(timeout=0.5))
+
+        for addr in [-1, "", None, 1.2]:
+            self.send_request({
+                'cmd': 'write_memory',
+                "address": addr,
+                "data": b64encode(bytes([1, 2, 3])).decode('ascii')
+            })
+            self.assert_is_error(self.wait_and_load_response(timeout=0.5))
+
+        for data in [1, "", None, 1.2, b64encode(bytes()).decode('ascii')]:
+            self.send_request({
+                'cmd': 'write_memory',
+                "address": 100,
+                "data": data
+            })
+            self.assert_is_error(self.wait_and_load_response(timeout=0.5))
 
 # region Datalogging
 

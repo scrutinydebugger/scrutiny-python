@@ -76,7 +76,7 @@ class TestDummyConnectionHandler(ScrutinyUnitTest):
 
         try:
             return self.handler.recv()
-        except:
+        except Exception:
             pass
 
     def wait_conn_recv_from_server(self, conn, timeout=0.4):
@@ -88,7 +88,7 @@ class TestDummyConnectionHandler(ScrutinyUnitTest):
 
         try:
             return conn.read_from_server()
-        except:
+        except Exception:
             pass
 
     def test_client_to_server(self):

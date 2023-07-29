@@ -14,7 +14,7 @@ import random
 import traceback
 import collections
 from dataclasses import dataclass
-from binascii import hexlify
+
 
 from scrutiny.core.codecs import Encodable
 import scrutiny.server.protocol.commands as cmd
@@ -22,7 +22,7 @@ from scrutiny.server.device.links.dummy_link import DummyLink, ThreadSafeDummyLi
 from scrutiny.server.protocol import Protocol, Request, Response, ResponseCode
 import scrutiny.server.protocol.typing as protocol_typing
 from scrutiny.core.memory_content import MemoryContent
-from scrutiny.core.basic_types import RuntimePublishedValue, EmbeddedDataType
+from scrutiny.core.basic_types import RuntimePublishedValue, EmbeddedDataType, MemoryRegion
 import scrutiny.server.datalogging.definitions.device as device_datalogging
 from scrutiny.core.codecs import *
 from scrutiny.server.device.device_info import ExecLoop, VariableFreqLoop, FixedFreqLoop, ExecLoopType
@@ -428,11 +428,6 @@ class DataloggerEmulator:
         return self.encoder.get_entry_counter() - self.entry_counter_at_trigger
 
 
-class MemoryRegion(TypedDict):
-    start: int
-    end: int
-
-
 class EmulatedDevice:
     logger: logging.Logger
     link: Union[DummyLink, ThreadSafeDummyLink]
@@ -461,6 +456,7 @@ class EmulatedDevice:
     additional_tasks_lock: threading.Lock
     rpvs: Dict[int, RPVValuePair]
     datalogger: DataloggerEmulator
+    display_name: str
 
     datalogging_read_in_progress: bool
     datalogging_read_cursor: int
@@ -468,6 +464,8 @@ class EmulatedDevice:
     loops: List[ExecLoop]
 
     additional_tasks: List[Callable[[], None]]
+    failed_read_request_list: List[Request]
+    failed_write_request_list: List[Request]
 
     def __init__(self, link):
         if not isinstance(link, DummyLink) and not isinstance(link, ThreadSafeDummyLink):
@@ -490,6 +488,7 @@ class EmulatedDevice:
         self.heartbeat_timeout_us = 3000000   # Will destroy session if no heartbeat is received at this rate (microseconds)
         self.rx_timeout_us = 50000     # For byte chunk reassembly (microseconds)
         self.address_size_bits = 32
+        self.display_name = 'EmulatedDevice'
 
         self.session_id = None
         self.memory = MemoryContent()
@@ -517,6 +516,8 @@ class EmulatedDevice:
 
         self.forbidden_regions = []
         self.readonly_regions = []
+        self.failed_read_request_list = []
+        self.failed_write_request_list = []
 
         self.protocol.configure_rpvs([self.rpvs[id]['definition'] for id in self.rpvs])
 
@@ -610,7 +611,7 @@ class EmulatedDevice:
         if subfunction == cmd.CommControl.Subfunction.Discover:
             data = cast(protocol_typing.Request.CommControl.Discover, data)
             if data['magic'] == cmd.CommControl.DISCOVER_MAGIC:
-                response = self.protocol.respond_comm_discover(self.firmware_id, 'EmulatedDevice')
+                response = self.protocol.respond_comm_discover(self.firmware_id, self.display_name)
             else:
                 self.logger.error('Received as Discover request with invalid payload')
 
@@ -687,7 +688,7 @@ class EmulatedDevice:
                 return Response(req.command, subfunction, ResponseCode.Overflow)
 
             region = region_list[data['region_index']]
-            response = self.protocol.respond_special_memory_region_location(data['region_type'], data['region_index'], region['start'], region['end'])
+            response = self.protocol.respond_special_memory_region_location(data['region_type'], data['region_index'], region.start, region.end)
 
         elif subfunction == cmd.GetInfo.Subfunction.GetRuntimePublishedValuesCount:
             response = self.protocol.respond_get_rpv_count(count=len(self.rpvs))
@@ -733,6 +734,7 @@ class EmulatedDevice:
                     response_blocks_read.append((block_to_read['address'], memdata))
                 response = self.protocol.respond_read_memory_blocks(response_blocks_read)
             except Exception as e:
+                self.failed_read_request_list.append(req)
                 self.logger.warning("Failed to read memory: %s" % e)
                 self.logger.debug(traceback.format_exc())
                 response = Response(req.command, subfunction, ResponseCode.FailureToProceed)
@@ -747,6 +749,7 @@ class EmulatedDevice:
 
                 response = self.protocol.respond_write_memory_blocks(response_blocks_write)
             except Exception as e:
+                self.failed_write_request_list.append(req)
                 self.logger.warning("Failed to write memory: %s" % e)
                 self.logger.debug(traceback.format_exc())
                 response = Response(req.command, subfunction, ResponseCode.FailureToProceed)
@@ -761,6 +764,7 @@ class EmulatedDevice:
 
                 response = self.protocol.respond_write_memory_blocks_masked(response_blocks_write)
             except Exception as e:
+                self.failed_write_request_list.append(req)
                 self.logger.warning("Failed to write memory: %s" % e)
                 self.logger.debug(traceback.format_exc())
                 response = Response(req.command, subfunction, ResponseCode.FailureToProceed)
@@ -977,24 +981,24 @@ class EmulatedDevice:
         with self.additional_tasks_lock:
             self.additional_tasks.clear()
 
-    def add_forbidden_region(self, start: int, end: int) -> None:
-        self.forbidden_regions.append({'start': start, 'end': end})
+    def add_forbidden_region(self, start: int, size: int) -> None:
+        self.forbidden_regions.append(MemoryRegion(start=start, size=size))
 
-    def add_readonly_region(self, start: int, end: int) -> None:
-        self.readonly_regions.append({'start': start, 'end': end})
+    def add_readonly_region(self, start: int, size: int) -> None:
+        self.readonly_regions.append(MemoryRegion(start=start, size=size))
 
     def write_memory(self, address: int, data: Union[bytes, bytearray], check_access_rights=True) -> None:
         if check_access_rights:
             for region in self.forbidden_regions:
-                if self.regions_touches(region['start'], region['end'] - region['start'] + 1, address, len(data)):
-                    raise NotAllowedException("Write from %d with size %d touches a forbidden memory region that span from %d to %d" %
-                                              (address, len(data), region['start'], region['end']))
+                if region.touches(MemoryRegion(address, len(data))):
+                    raise NotAllowedException("Write from 0x%08x with size %d touches a forbidden memory region that span from 0x%08x to 0x%08x" %
+                                              (address, len(data), region.start, region.end))
 
             for region in self.readonly_regions:
-                if self.regions_touches(region['start'], region['end'] - region['start'] + 1, address, len(data)):
-                    raise NotAllowedException("Write from %d with size %d touches a readonly memory region that span from %d to %d" %
-                                              (address, len(data), region['start'], region['end']))
-            
+                if region.touches(MemoryRegion(address, len(data))):
+                    raise NotAllowedException("Write from 0x%08x with size %d touches a readonly memory region that span from 0x%08x to 0x%08x" %
+                                              (address, len(data), region.start, region.end))
+
             if self.supported_features['memory_write'] == False:
                 raise NotAllowedException("Writing to memory is not allowed")
 
@@ -1005,15 +1009,15 @@ class EmulatedDevice:
         assert len(mask) == len(data), "Data and mask must be the same length"
         if check_access_rights:
             for region in self.forbidden_regions:
-                if self.regions_touches(region['start'], region['end'] - region['start'] + 1, address, len(data)):
-                    raise NotAllowedException("Write from %d with size %d touches a forbidden memory region that span from %d to %d" %
-                                              (address, len(data), region['start'], region['end']))
+                if region.touches(MemoryRegion(address, len(data))):
+                    raise NotAllowedException("Write from 0x%08x with size %d touches a forbidden memory region that span from 0x%08x to 0x%08x" %
+                                              (address, len(data), region.start, region.end))
 
             for region in self.readonly_regions:
-                if self.regions_touches(region['start'], region['end'] - region['start'] + 1, address, len(data)):
-                    raise NotAllowedException("Write from %d with size %d touches a readonly memory region that span from %d to %d" %
-                                              (address, len(data), region['start'], region['end']))
-            
+                if region.touches(MemoryRegion(address, len(data))):
+                    raise NotAllowedException("Write from 0x%08x with size %d touches a readonly memory region that span from 0x%08x to 0x%08x" %
+                                              (address, len(data), region.start, region.end))
+
             if self.supported_features['memory_write'] == False:
                 raise NotAllowedException("Writing to memory is not allowed")
 
@@ -1024,24 +1028,12 @@ class EmulatedDevice:
                 memdata[i] |= (data[i] & (mask[i]))
             self.memory.write(address, memdata)
 
-    def regions_touches(self, address1: int, size1: int, address2: int, size2: int) -> bool:
-        if size1 <= 0 or size2 <= 0:
-            return False
-
-        if address1 >= address2 + size2:
-            return False
-
-        if address2 >= address1 + size1:
-            return False
-
-        return True
-
     def read_memory(self, address: int, length: int, check_access_rights=True) -> bytes:
         if check_access_rights:
             for region in self.forbidden_regions:
-                if self.regions_touches(region['start'], region['end'] - region['start'] + 1, address, length):
-                    raise NotAllowedException("Read from %d with size %d touches a forbidden memory region that span from %d to %d" %
-                                              (address, length, region['start'], region['end']))
+                if region.touches(MemoryRegion(address, length)):
+                    raise NotAllowedException("Read from 0x%08x with size %d touches a forbidden memory region that span from 0x%08x to 0x%08x" %
+                                              (address, length, region.start, region.end))
 
         with self.memory_lock:
             data = self.memory.read(address, length)

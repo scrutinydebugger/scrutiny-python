@@ -51,7 +51,7 @@ class MakeMetadata(BaseCommand):
 
         try:
             scrutiny_version = scrutiny.__version__
-        except:
+        except Exception:
             scrutiny_version = '0.0.0'
 
         metadata: MetadataType = {

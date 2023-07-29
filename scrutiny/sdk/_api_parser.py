@@ -13,6 +13,9 @@ from scrutiny.server.api.API import API
 from scrutiny.server.api import typing as api_typing
 from dataclasses import dataclass
 from datetime import datetime
+from base64 import b64decode
+import binascii
+import time
 
 
 @dataclass
@@ -43,7 +46,24 @@ class WriteConfirmation:
     count: int
 
 
-T = TypeVar('T', str, int, float)
+@dataclass
+class MemoryReadCompletion:
+    request_token: str
+    success: bool
+    data: Optional[bytes]
+    error: str
+    timestamp: float
+
+
+@dataclass
+class MemoryWriteCompletion:
+    request_token: str
+    success: bool
+    error: str
+    timestamp: float
+
+
+T = TypeVar('T', str, int, float, bool)
 
 
 def _check_response_dict(cmd: str, d: Any, name: str, types: Union[Type, Iterable[Type]], previous_parts: str = '') -> None:
@@ -103,6 +123,10 @@ def _fetch_dict_val(d: Any, path: str, wanted_type: Type[T], default: Optional[T
         return wanted_type(d[key])
     else:
         return _fetch_dict_val(d[key], '.'.join(next_parts), wanted_type=wanted_type, default=default)
+
+
+def _fetch_dict_val_no_none(d: Any, path: str, wanted_type: Type[T], default: T) -> T:
+    return cast(T, _fetch_dict_val(d, path, wanted_type, default, allow_none=False))
 
 
 def parse_get_watchable_single_element(response: api_typing.S2C.GetWatchableList, requested_path: str) -> WatchableConfiguration:
@@ -416,7 +440,7 @@ def parse_write_value_response(response: api_typing.S2C.WriteValue) -> WriteConf
     assert isinstance(response, dict)
     assert 'cmd' in response
     cmd = response['cmd']
-    assert cmd == API.Command.Api2Client.WRITE_VALUE_RESPONSE
+    assert cmd == API.Command.Api2Client.WRITE_WATCHABLE_RESPONSE
 
     _check_response_dict(cmd, response, 'request_token', str)
     _check_response_dict(cmd, response, 'count', int)
@@ -477,3 +501,49 @@ def parse_get_installed_sfds_response(response: api_typing.S2C.GetInstalledSFD) 
         )
 
     return output
+
+
+def parse_memory_read_completion(response: api_typing.S2C.ReadMemoryComplete) -> MemoryReadCompletion:
+    assert isinstance(response, dict)
+    assert 'cmd' in response
+    cmd = response['cmd']
+    assert cmd == API.Command.Api2Client.INFORM_MEMORY_READ_COMPLETE
+
+    _check_response_dict(cmd, response, 'request_token', str)
+    _check_response_dict(cmd, response, 'success', bool)
+    success = _fetch_dict_val_no_none(response, 'success', bool, False)
+    data_bin: Optional[bytes] = None
+    if success:
+        data = _fetch_dict_val_no_none(response, 'data', str, "")
+        try:
+            data_bin = b64decode(data, validate=True)
+        except binascii.Error as e:
+            raise sdk.exceptions.BadResponseError(f"Server returned a invalid base64 data block. {e}")
+
+    detail_msg = _fetch_dict_val(response, 'detail_msg', str, "")
+
+    return MemoryReadCompletion(
+        request_token=_fetch_dict_val_no_none(response, 'request_token', str, ""),
+        success=success,
+        data=data_bin,
+        error=detail_msg if detail_msg is not None else "",
+        timestamp=time.time()
+    )
+
+
+def parse_memory_write_completion(response: api_typing.S2C.WriteMemoryComplete) -> MemoryWriteCompletion:
+    assert isinstance(response, dict)
+    assert 'cmd' in response
+    cmd = response['cmd']
+    assert cmd == API.Command.Api2Client.INFORM_MEMORY_WRITE_COMPLETE
+
+    _check_response_dict(cmd, response, 'request_token', str)
+    _check_response_dict(cmd, response, 'success', bool)
+    detail_msg = _fetch_dict_val(response, 'detail_msg', str, "")
+
+    return MemoryWriteCompletion(
+        request_token=_fetch_dict_val_no_none(response, 'request_token', str, ""),
+        success=_fetch_dict_val_no_none(response, 'success', bool, False),
+        error=detail_msg if detail_msg is not None else "",
+        timestamp=time.time()
+    )

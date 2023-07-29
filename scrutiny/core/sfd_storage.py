@@ -150,7 +150,7 @@ class SFDStorageManager:
                 raise Exception('regex not match')
 
             retval = True
-        except:
+        except Exception:
             pass
 
         return retval

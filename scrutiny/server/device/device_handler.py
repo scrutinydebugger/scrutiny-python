@@ -1,7 +1,7 @@
 #    device_handler.py
 #        Manage the communication with the device at high level.
 #        Try to establish a connection, once it succeed, reads the device configuration.
-#        
+#
 #        Will keep the communication ongoing and will request for memory dump based on the
 #        Datastore state
 #
@@ -28,11 +28,10 @@ from scrutiny.server.device.submodules.device_searcher import DeviceSearcher
 from scrutiny.server.device.submodules.heartbeat_generator import HeartbeatGenerator
 from scrutiny.server.device.submodules.info_poller import InfoPoller, ProtocolVersionCallback, CommParamCallback
 from scrutiny.server.device.submodules.session_initializer import SessionInitializer
-from scrutiny.server.device.submodules.memory_reader import MemoryReader
-from scrutiny.server.device.submodules.memory_writer import MemoryWriter
-from scrutiny.server.device.submodules.datalogging_poller import DataloggingPoller, DataloggingReceiveSetupCallback, DeviceAcquisitionRequestCompletionCallback
+from scrutiny.server.device.submodules.memory_reader import MemoryReader, RawMemoryReadRequestCompletionCallback, RawMemoryReadRequest
+from scrutiny.server.device.submodules.memory_writer import MemoryWriter, RawMemoryWriteRequestCompletionCallback, RawMemoryWriteRequest
+from scrutiny.server.device.submodules.datalogging_poller import DataloggingPoller, DeviceAcquisitionRequestCompletionCallback
 from scrutiny.server.device.device_info import DeviceInfo
-from scrutiny.core.basic_types import RuntimePublishedValue
 from scrutiny.tools import Timer
 from scrutiny.server.datastore.datastore import Datastore
 from scrutiny.server.device.links import AbstractLink, LinkConfig
@@ -295,6 +294,12 @@ class DeviceHandler:
     def get_throttling_bitrate(self) -> Optional[float]:
         """Returns the target mean bitrate that the throttling will try to limit to. None if throttling is not enabled"""
         return self.comm_handler.get_throttling_bitrate()
+
+    def read_memory(self, address: int, size: int, callback: Optional[RawMemoryReadRequestCompletionCallback] = None) -> RawMemoryReadRequest:
+        return self.memory_reader.request_memory_read(address, size, callback)
+
+    def write_memory(self, address:int, data:bytes, callback:Optional[RawMemoryWriteRequestCompletionCallback]=None) -> RawMemoryWriteRequest:
+        return self.memory_writer.request_memory_write(address, data, callback)
 
     def get_comm_params_callback(self, partial_device_info: DeviceInfo):
         """Callback given to InfoPoller to be called whenever the GetParams command completes."""
@@ -683,9 +688,10 @@ class DeviceHandler:
                     assert self.device_info.readonly_memory_regions is not None
 
                     for region in self.device_info.forbidden_memory_regions:
-                        self.memory_writer.add_forbidden_region(region['start'], region['end'] - region['start'] + 1)
+                        self.memory_writer.add_forbidden_region(region.start, region.size)
+                        self.memory_reader.add_forbidden_region(region.start, region.size)
                     for region in self.device_info.readonly_memory_regions:
-                        self.memory_writer.add_readonly_region(region['start'], region['end'] - region['start'] + 1)
+                        self.memory_writer.add_readonly_region(region.start, region.size)
 
         # ========= [READY] ==========
         elif self.fsm_state == self.FsmState.READY:

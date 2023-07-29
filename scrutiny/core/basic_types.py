@@ -11,11 +11,35 @@ __all__ = [
     'DataTypeType',
     'DataTypeSize',
     'EmbeddedDataType',
-    'RuntimePublishedValue'
+    'RuntimePublishedValue',
+    'MemoryRegion'
 ]
 
 from enum import Enum
 from typing import Union
+from dataclasses import dataclass
+
+
+@dataclass(frozen=True)
+class MemoryRegion:
+    start: int
+    size: int
+
+    def touches(self, other: "MemoryRegion") -> bool:
+        if self.size <= 0 or other.size <= 0:
+            return False
+
+        if self.start >= other.start + other.size:
+            return False
+
+        if other.start >= self.start + self.size:
+            return False
+
+        return True
+
+    @property
+    def end(self) -> int:
+        return max(self.start, self.start + self.size - 1)
 
 
 class Endianness(Enum):

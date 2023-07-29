@@ -17,13 +17,13 @@ from scrutiny.core.variable import Variable as core_Variable
 from scrutiny.core.alias import Alias as core_Alias
 from scrutiny.core.codecs import Codecs
 from scrutiny.core.sfd_storage import SFDStorage
-
+from scrutiny.core.memory_content import MemoryContent
 
 from scrutiny.server.api import API
 from scrutiny.server.api import APIConfig
 import scrutiny.server.datastore.datastore as datastore
 from scrutiny.server.api.websocket_client_handler import WebsocketClientHandler
-from scrutiny.server.device.device_handler import DeviceHandler, DeviceStateChangedCallback
+from scrutiny.server.device.device_handler import DeviceHandler, DeviceStateChangedCallback, RawMemoryReadRequest, RawMemoryWriteRequest
 
 from scrutiny.core.firmware_description import FirmwareDescription
 from scrutiny.server.device.links.udp_link import UdpLink
@@ -31,6 +31,7 @@ from scrutiny.server.device.links.abstract_link import AbstractLink
 import scrutiny.server.device.device_info as server_device
 from test.artifacts import get_artifact
 from test import ScrutinyUnitTest
+import random
 
 import threading
 import time
@@ -51,7 +52,11 @@ localhost = "127.0.0.1"
 def d2f(d):
     return struct.unpack('f', struct.pack('f', d))[0]
 
-# TODO : unsubscribe on delete
+
+@dataclass
+class ReadMemoryLog:
+    address: int
+    size: int
 
 
 @dataclass
@@ -77,9 +82,14 @@ class FakeDeviceHandler:
     datalogging_completion_ratio: Optional[float]
     device_info: server_device.DeviceInfo
     write_logs: List[Union[WriteMemoryLog, WriteRPVLog]]
+    read_logs: List[ReadMemoryLog]
     device_state_change_callbacks: List[DeviceStateChangedCallback]
+    read_memory_queue: "queue.Queue[RawMemoryReadRequest]"
+    write_memory_queue: "queue.Queue[RawMemoryWriteRequest]"
+    fake_mem: MemoryContent
 
     write_allowed: bool
+    read_allowed: bool
 
     def __init__(self, datastore: "datastore.Datastore"):
         self.datastore = datastore
@@ -97,6 +107,7 @@ class FakeDeviceHandler:
         self.device_state_change_callbacks = []
         self.set_connection_status(DeviceHandler.ConnectionStatus.CONNECTED_READY)
         self.write_logs = []
+        self.read_logs = []
 
         self.device_info = server_device.DeviceInfo()
         self.device_info.device_id = "xyz"
@@ -116,12 +127,12 @@ class FakeDeviceHandler:
             '_64bits': True
         }
         self.device_info.forbidden_memory_regions = [
-            {'start': 0x100000, 'end': 0x100000 + 128 - 1},
-            {'start': 0x200000, 'end': 0x200000 + 256 - 1}
+            MemoryRegion(0x100000, 128),
+            MemoryRegion(0x200000, 256)
         ]
         self.device_info.readonly_memory_regions = [
-            {'start': 0x300000, 'end': 0x300000 + 128 - 1},
-            {'start': 0x400000, 'end': 0x400000 + 256 - 1}
+            MemoryRegion(0x300000, 128),
+            MemoryRegion(0x400000, 256)
         ]
 
         self.device_info.runtime_published_values = []    # Required to have a value for API to consider data valid
@@ -132,9 +143,17 @@ class FakeDeviceHandler:
             server_device.VariableFreqLoop("variable freq loop", support_datalogging=True)
         ]
         self.write_allowed = True
+        self.read_allowed = True
+        self.read_memory_queue = queue.Queue()
+        self.write_memory_queue = queue.Queue()
+
+        self.fake_mem = MemoryContent()
 
     def force_all_write_failure(self):
         self.write_allowed = False
+
+    def force_all_read_failure(self):
+        self.read_allowed = False
 
     def get_link_type(self):
         return self.link_type
@@ -204,6 +223,52 @@ class FakeDeviceHandler:
                     update_request.complete(False)
                     logging.error(str(e))
                     logging.debug(traceback.format_exc())
+
+        while not self.read_memory_queue.empty():
+            request = self.read_memory_queue.get()
+            self.read_logs.append(ReadMemoryLog(request.address, request.size))
+            if not self.read_allowed:
+                request.set_completed(False, None, str("Not allowed"))
+            else:
+                try:
+                    data = self.fake_mem.read(request.address, request.size)
+                    request.set_completed(True, data)
+                except Exception as e:
+                    request.set_completed(False, None, str(e))
+                    logging.error(str(e))
+                    logging.debug(traceback.format_exc())
+
+        while not self.write_memory_queue.empty():
+            request = self.write_memory_queue.get()
+            self.write_logs.append(WriteMemoryLog(request.address, request.data, None))
+            if not self.write_allowed:
+                request.set_completed(False, str("Not allowed"))
+            else:
+                try:
+                    data = self.fake_mem.write(request.address, request.data)
+                    request.set_completed(True)
+                except Exception as e:
+                    request.set_completed(False, str(e))
+                    logging.error(str(e))
+                    logging.debug(traceback.format_exc())
+
+    def read_memory(self, address: int, size: int, callback: Optional[RawMemoryReadRequest]):
+        req = RawMemoryReadRequest(
+            address=address,
+            size=size,
+            callback=callback
+        )
+        self.read_memory_queue.put(req)
+        return req
+
+    def write_memory(self, address: int, data: bytes, callback: Optional[RawMemoryWriteRequest]):
+        req = RawMemoryWriteRequest(
+            address=address,
+            data=data,
+            callback=callback
+        )
+        self.write_memory_queue.put(req)
+        return req
 
 
 class FakeDataloggingManager:
@@ -311,12 +376,12 @@ class TestClient(ScrutinyUnitTest):
         self.datastore.add_entry(alias_var1)
         self.datastore.add_entry(alias_rpv1000)
 
-    def wait_for_server(self, n=2):
+    def wait_for_server(self, n=2, timeout=2):
         time.sleep(0)
         for i in range(n):
             self.sync_complete.clear()
             self.require_sync.set()
-            self.sync_complete.wait()
+            self.sync_complete.wait(timeout=timeout)
             self.assertFalse(self.require_sync.is_set())
 
     def wait_true(self, func, timeout=2, error_str=None):
@@ -847,6 +912,49 @@ class TestClient(ScrutinyUnitTest):
             self.assertEqual(installed2.metadata.generation_info.scrutiny_version, sfd2.get_metadata()['generation_info']['scrutiny_version'])
             self.assertEqual(installed2.metadata.generation_info.system_type, sfd2.get_metadata()['generation_info']['system_type'])
             self.assertEqual(installed2.metadata.generation_info.timestamp, datetime.fromtimestamp(sfd2.get_metadata()['generation_info']['time']))
+
+    def test_read_memory(self):
+        ref_data = bytes([random.randint(0, 255) for i in range(600)])
+
+        def write_mem():
+            self.device_handler.fake_mem.write(0x10000, ref_data)
+        self.execute_in_server_thread(write_mem)
+
+        data = self.client.read_memory(0x10000, len(ref_data), timeout=2)
+        self.assertEqual(data, ref_data)
+        self.assertEqual(len(self.client._memory_read_completion_dict), 0)  # Check internal state is clean
+
+        self.assertEqual(len(self.device_handler.read_logs), 1)
+
+    def test_read_memory_failure(self):
+        ref_data = bytes([random.randint(0, 255) for i in range(600)])
+
+        def init_device():
+            self.device_handler.force_all_read_failure()
+        self.execute_in_server_thread(init_device)
+
+        with self.assertRaises(sdk.exceptions.OperationFailure):
+            self.client.read_memory(0x10000, len(ref_data), timeout=2)
+
+    def test_write_memory(self):
+        data = bytes([random.randint(0, 255) for i in range(600)])
+
+        self.client.write_memory(0x10000, data, timeout=2)
+        read_data = self.device_handler.fake_mem.read(0x10000, len(data))
+        self.assertEqual(data, read_data)
+        self.assertEqual(len(self.client._memory_write_completion_dict), 0)  # Check internal state is clean
+
+        self.assertEqual(len(self.device_handler.write_logs), 1)
+
+    def test_write_memory_failure(self):
+
+        def init_device():
+            self.device_handler.force_all_write_failure()
+        self.execute_in_server_thread(init_device)
+
+        with self.assertRaises(sdk.exceptions.OperationFailure):
+            data = bytes([random.randint(0, 255) for i in range(600)])
+            self.client.write_memory(0x10000, data, timeout=2)
 
 
 if __name__ == '__main__':

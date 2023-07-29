@@ -162,7 +162,7 @@ class ElfDwarfVarExtractor:
                         newname = cuname.get_display_name()
                         if len(newname) > cls.MAX_CU_DISPLAY_NAME_LENGTH:
                             raise Exception('Name too long')
-                    except:
+                    except Exception:
                         newname = cuname.make_unique_numbered_name(name_set)
 
                     name_set.add(newname)
@@ -204,7 +204,7 @@ class ElfDwarfVarExtractor:
     def is_external(self, die):
         try:
             return die.attributes['DW_AT_external'].value
-        except:
+        except Exception:
             return False
 
     def get_core_base_type(self, encoding, bytesize):
@@ -542,7 +542,7 @@ class ElfDwarfVarExtractor:
                     raise ValueError('die location is too small')
 
                 return VariableLocation.from_bytes(dieloc[1:], self.endianness)
-        except:
+        except Exception:
             return None
 
     # Process a variable die.
@@ -587,7 +587,7 @@ class ElfDwarfVarExtractor:
                     name = self.get_linkage_name(parent)
                 else:
                     name = self.get_name(parent)
-            except:
+            except Exception:
                 if 'DW_AT_specification' in parent.attributes:
                     parent2 = self.get_die_at_spec(parent)
                     name = self.get_name(parent2)
@@ -605,7 +605,7 @@ class ElfDwarfVarExtractor:
             name = self.get_name(die)
             if segments[-1] == name:
                 segments.pop()
-        except:
+        except Exception:
             pass
         return segments
 

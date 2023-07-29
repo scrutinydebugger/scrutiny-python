@@ -331,7 +331,7 @@ class TestMemoryReaderBasicReadOperation(ScrutinyUnitTest):
 
 class TestMemoryReaderComplexReadOperation(ScrutinyUnitTest):
     """
-    Test the memory reader for its ability to read memory block using the MemoryControl.Read request.
+    Test the memory reader for its ability to read memory block by entries using the MemoryControl.Read request.
 
     Here we make a complex pattern of variables to read.
     Different types,  different blocks, forbidden regions, request and response size limit.
@@ -449,11 +449,202 @@ class TestMemoryReaderComplexReadOperation(ScrutinyUnitTest):
             self.assertEqual(self.callback_count_map[forbidden_entry], 0)
 
 
+class TestRawMemoryRead(ScrutinyUnitTest):
+    @dataclass
+    class CallbackDataContainer:
+        call_count: int = 0
+        success: Optional[bool] = None
+        data: Optional[bytes] = None
+        error: Optional[str] = None
+
+    def the_callback(self, request, success, data, error, container: CallbackDataContainer,):
+        container.call_count += 1
+        container.success = success
+        container.data = data
+        container.error = error
+
+    def setUp(self):
+        self.ds = Datastore()
+        self.dispatcher = RequestDispatcher()
+        self.protocol = Protocol(1, 0)
+        self.reader = MemoryReader(protocol=self.protocol, dispatcher=self.dispatcher, datastore=self.ds, request_priority=0)
+        self.reader.set_max_request_payload_size(256)
+        self.reader.set_max_response_payload_size(128)
+        self.reader.start()
+
+    def test_simple_read(self):
+        for i in range(3):
+            self.reader.process()
+        self.assertIsNone(self.dispatcher.pop_next())
+
+        callback_data = self.CallbackDataContainer()
+        self.reader.request_memory_read(0x1000, 257, callback=functools.partial(self.the_callback, container=callback_data))
+        payload = bytes([random.randint(0, 255) for i in range(257)])
+
+        for i in range(3):
+            cursor = i * 128
+            size = 128 if i < 2 else 1
+
+            self.reader.process()
+            record = self.dispatcher.pop_next()
+            self.assertIsNotNone(record)
+            self.assertEqual(record.request.command, MemoryControl)
+            self.assertEqual(MemoryControl.Subfunction(record.request.subfn), MemoryControl.Subfunction.Read)
+            request_data = cast(protocol_typing.Request.MemoryControl.Read, self.protocol.parse_request(record.request))
+            self.assertEqual(len(request_data['blocks_to_read']), 1)
+            self.assertEqual(request_data['blocks_to_read'][0]['address'], 0x1000 + cursor)
+            self.assertEqual(request_data['blocks_to_read'][0]['length'], size)
+            response = self.protocol.respond_read_memory_blocks([(0x1000 + cursor, payload[cursor:cursor + 128])])
+            record.complete(True, response)
+            if i < 2:
+                self.assertEqual(callback_data.call_count, 0)
+            else:
+                self.assertEqual(callback_data.call_count, 1)
+                self.assertTrue(callback_data.success)
+                self.assertEqual(callback_data.data, payload)
+                self.assertIsNotNone(callback_data.error)
+
+    def test_read_failure(self):
+        for i in range(3):
+            self.reader.process()
+        self.assertIsNone(self.dispatcher.pop_next())
+
+        callback_data = self.CallbackDataContainer()
+        self.reader.request_memory_read(0x1000, 257, callback=functools.partial(self.the_callback, container=callback_data))
+        payload = bytes([random.randint(0, 255) for i in range(257)])
+
+        for i in range(2):
+            cursor = i * 128
+            size = 128 if i < 2 else 1
+
+            self.reader.process()
+            record = self.dispatcher.pop_next()
+            self.assertIsNotNone(record)
+            self.assertEqual(record.request.command, MemoryControl)
+            self.assertEqual(MemoryControl.Subfunction(record.request.subfn), MemoryControl.Subfunction.Read)
+            request_data = cast(protocol_typing.Request.MemoryControl.Read, self.protocol.parse_request(record.request))
+            self.assertEqual(len(request_data['blocks_to_read']), 1)
+            self.assertEqual(request_data['blocks_to_read'][0]['address'], 0x1000 + cursor)
+            self.assertEqual(request_data['blocks_to_read'][0]['length'], size)
+            response = self.protocol.respond_read_memory_blocks([(0x1000 + cursor, payload[cursor:cursor + 128])])
+
+            if i == 0:
+                record.complete(True, response)
+                self.assertEqual(callback_data.call_count, 0)
+            else:
+                record.complete(False)
+                self.assertEqual(callback_data.call_count, 1)
+                self.assertFalse(callback_data.success)     # Failure detection
+                self.assertIsNone(callback_data.data)
+                self.assertIsNotNone(callback_data.error)
+                self.assertGreater(len(callback_data.error), 0)
+
+    def test_read_failure_by_nack(self):
+        for i in range(3):
+            self.reader.process()
+        self.assertIsNone(self.dispatcher.pop_next())
+
+        callback_data = self.CallbackDataContainer()
+        self.reader.request_memory_read(0x1000, 257, callback=functools.partial(self.the_callback, container=callback_data))
+        payload = bytes([random.randint(0, 255) for i in range(257)])
+
+        for i in range(2):
+            cursor = i * 128
+            size = 128 if i < 2 else 1
+
+            self.reader.process()
+            record = self.dispatcher.pop_next()
+            self.assertIsNotNone(record)
+            self.assertEqual(record.request.command, MemoryControl)
+            self.assertEqual(MemoryControl.Subfunction(record.request.subfn), MemoryControl.Subfunction.Read)
+            request_data = cast(protocol_typing.Request.MemoryControl.Read, self.protocol.parse_request(record.request))
+            self.assertEqual(len(request_data['blocks_to_read']), 1)
+            self.assertEqual(request_data['blocks_to_read'][0]['address'], 0x1000 + cursor)
+            self.assertEqual(request_data['blocks_to_read'][0]['length'], size)
+
+            if i == 0:
+                response = self.protocol.respond_read_memory_blocks([(0x1000 + cursor, payload[cursor:cursor + 128])])
+                record.complete(True, response)
+                self.assertEqual(callback_data.call_count, 0)
+            else:
+                response = Response(record.request.command, record.request.subfn, Response.ResponseCode.FailureToProceed)
+                record.complete(True, response)
+                self.assertEqual(callback_data.call_count, 1)
+                self.assertFalse(callback_data.success)     # Failure detection
+                self.assertIsNone(callback_data.data)
+                self.assertIsNotNone(callback_data.error)
+                self.assertGreater(len(callback_data.error), 0)
+
+    def test_read_forbidden_early_fail(self):
+        for i in range(3):
+            self.reader.process()
+        self.assertIsNone(self.dispatcher.pop_next())
+
+        callback_data = self.CallbackDataContainer()
+        self.reader.add_forbidden_region(0x1000 - 10, 11)
+        self.reader.request_memory_read(0x1000, 257, callback=functools.partial(self.the_callback, container=callback_data))
+        self.reader.process()
+        self.assertEqual(callback_data.call_count, 1)
+        self.assertFalse(callback_data.success)     # Failure detection
+        self.assertIsNone(callback_data.data)
+        self.assertIsNotNone(callback_data.error)
+        self.assertGreater(len(callback_data.error), 0)
+
+    def test_read_multiple_blocks(self):
+        max_response_size = 128
+        for i in range(3):
+            self.reader.process()
+        self.assertIsNone(self.dispatcher.pop_next())
+
+        callback_data = self.CallbackDataContainer()
+        self.reader.request_memory_read(0x1000, 257, callback=functools.partial(self.the_callback, container=callback_data))
+        self.reader.request_memory_read(0x2000, 125, callback=functools.partial(self.the_callback, container=callback_data))
+        self.reader.request_memory_read(0x3000, 400, callback=functools.partial(self.the_callback, container=callback_data))
+        payload1 = bytes([random.randint(0, 255) for i in range(257)])
+        payload2 = bytes([random.randint(0, 255) for i in range(125)])
+        payload3 = bytes([random.randint(0, 255) for i in range(400)])
+
+        for msg in range(3):
+            if msg == 0:
+                payload = payload1
+                address = 0x1000
+            elif msg == 1:
+                payload = payload2
+                address = 0x2000
+            elif msg == 2:
+                payload = payload3
+                address = 0x3000
+
+            nchunk = math.ceil(len(payload) / max_response_size)
+            for i in range(nchunk):
+                cursor = i * max_response_size
+                size = min(max_response_size, len(payload) - cursor)
+
+                self.reader.process()
+                record = self.dispatcher.pop_next()
+                self.assertIsNotNone(record)
+                self.assertEqual(record.request.command, MemoryControl)
+                self.assertEqual(MemoryControl.Subfunction(record.request.subfn), MemoryControl.Subfunction.Read)
+                request_data = cast(protocol_typing.Request.MemoryControl.Read, self.protocol.parse_request(record.request))
+                self.assertEqual(len(request_data['blocks_to_read']), 1)
+                self.assertEqual(request_data['blocks_to_read'][0]['address'], address + cursor)
+                self.assertEqual(request_data['blocks_to_read'][0]['length'], size)
+                response = self.protocol.respond_read_memory_blocks([(address + cursor, payload[cursor:cursor + max_response_size])])
+                record.complete(True, response)
+                if i < nchunk - 1:
+                    self.assertEqual(callback_data.call_count, msg)
+                else:
+                    self.assertEqual(callback_data.call_count, msg + 1)
+                    self.assertTrue(callback_data.success)
+                    self.assertEqual(callback_data.data, payload)
+                    self.assertIsNotNone(callback_data.error)
+
+
 class TestRPVReaderBasicReadOperation(ScrutinyUnitTest):
     """
         Test the ability to read Runtime Published Values using the MemoryControl.ReadRPV request
     """
-    # Make sure that the entries are sortable by ID with the thirdparty SortedSet object
+    # Make sure that the entries are sortable by ID with the third party SortedSet object
 
     def test_sorted_set(self):
         theset = SortedSet()
@@ -704,10 +895,23 @@ class TestRPVReaderBasicReadOperation(ScrutinyUnitTest):
                 record.complete(success=True, response=response)
 
 
-class TestMemoryAndRPVReader(ScrutinyUnitTest):
+class TestAllTypesOfReadMixed(ScrutinyUnitTest):
     """
-    Here we test the ability of the MemoryReader to handle mixed subscriptions between RPV and Variables
+    Here we test the ability of the MemoryReader to handle mixed subscriptions between RPV, Variables and raw requests
     """
+
+    @dataclass
+    class CallbackDataContainer:
+        call_count: int = 0
+        success: Optional[bool] = None
+        data: Optional[bytes] = None
+        error: Optional[str] = None
+
+    def raw_read_callback(self, request, success, data, error, container: CallbackDataContainer,):
+        container.call_count += 1
+        container.success = success
+        container.data = data
+        container.error = error
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -801,8 +1005,14 @@ class TestMemoryAndRPVReader(ScrutinyUnitTest):
         for entry in var_entries:
             self.datastore.start_watching(entry, 'unittest', value_change_callback=self.update_callback)
 
+        raw_read_data_container = self.CallbackDataContainer()
+        raw_read_request_size = round(reader.max_response_payload_size * 1.5)    # we aim for 2 requests
         debug = False
-        for i in range(20):
+        for i in range(50):
+            if i == 20:
+
+                reader.request_memory_read(0x10000, raw_read_request_size, callback=functools.partial(
+                    self.raw_read_callback, container=raw_read_data_container))
             reader.process()
             dispatcher.process()
             req_record = dispatcher.pop_next()
@@ -819,6 +1029,11 @@ class TestMemoryAndRPVReader(ScrutinyUnitTest):
                     print("RPV: 0x%04x - %d" % (self.datastore.get_entry(entry_id).get_rpv().id, n))
 
             self.assert_round_robin()
+
+        # Ake sure that our read has been executed in through all these requests
+        self.assertEqual(raw_read_data_container.call_count, 1)
+        self.assertTrue(raw_read_data_container.success, 1)
+        self.assertEqual(len(raw_read_data_container.data), raw_read_request_size)
 
 
 if __name__ == '__main__':

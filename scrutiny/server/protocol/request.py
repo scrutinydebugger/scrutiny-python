@@ -100,7 +100,7 @@ class Request:
         try:
             enum_instance = self.command.Subfunction(self.subfn)
             subfn_name = '%s(%d)' % (enum_instance.name, enum_instance.value)
-        except:
+        except Exception:
             subfn_name = '%d' % self.subfn
 
         s = '<%s: %s(0x%02X), subfn=%s. %d bytes of data >' % (

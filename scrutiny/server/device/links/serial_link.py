@@ -84,7 +84,7 @@ class SerialLink(AbstractLink):
         """ Converts a data bist input (str or number) to a pyserial constant"""
         try:
             s = int(s)
-        except:
+        except Exception:
             raise ValueError('databits is not a valid integer')
 
         if s not in cls.INT_TO_DATABITS:
@@ -190,7 +190,7 @@ class SerialLink(AbstractLink):
         baudrate = -1
         try:
             baudrate = int(config['baudrate'])
-        except:
+        except Exception:
             raise ValueError('baudrate is not a valid integer')
 
         if baudrate <= 0:

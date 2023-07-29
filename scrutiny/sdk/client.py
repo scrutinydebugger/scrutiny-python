@@ -31,6 +31,7 @@ import time
 import enum
 from datetime import datetime, timedelta
 from dataclasses import dataclass
+from base64 import b64encode
 import queue
 
 from typing import *
@@ -148,6 +149,8 @@ class ScrutinyClient:
     RxMessageCallback = Callable[["ScrutinyClient", object], None]
     _UPDATE_SERVER_STATUS_INTERVAL = 2
     _MAX_WRITE_REQUEST_BATCH_SIZE = 500
+    _MEMORY_READ_DATA_LIFTEIME = 30
+    _MEMORY_WRITE_DATA_LIFTEIME = 30
 
     @dataclass
     class ThreadingEvents:
@@ -178,6 +181,8 @@ class ScrutinyClient:
     _require_status_update: bool
     _write_request_queue: "queue.Queue[Union[WriteRequest, FlushPoint, BatchWriteContext]]"
     _pending_api_batch_writes: Dict[str, PendingAPIBatchWrite]
+    _memory_read_completion_dict: Dict[str, api_parser.MemoryReadCompletion]
+    _memory_write_completion_dict: Dict[str, api_parser.MemoryWriteCompletion]
 
     _worker_thread: Optional[threading.Thread]
     _threading_events: ThreadingEvents
@@ -229,6 +234,8 @@ class ScrutinyClient:
         self._server_info = None
         self._write_request_queue = queue.Queue()
         self._pending_api_batch_writes = {}
+        self._memory_read_completion_dict = {}
+        self._memory_write_completion_dict = {}
 
         self._watchable_storage = {}
         self._watchable_path_to_id_map = {}
@@ -269,7 +276,8 @@ class ScrutinyClient:
                     self.wt_process_rx_api_message(msg)
 
                 self._wt_check_callbacks_timeouts()
-                self._wt_process_write_requests()
+                self._check_deferred_response_timeouts()
+                self._wt_process_write_watchable_requests()
                 self._wt_process_device_state()
 
             except sdk.exceptions.ConnectionError as e:
@@ -333,6 +341,22 @@ class ScrutinyClient:
             write_request._mark_complete(False, "Server failed to write to the device")
         del batch_write.update_dict[completion.batch_index]
 
+    def _wt_process_msg_inform_memory_read_complete(self, msg: api_typing.S2C.ReadMemoryComplete, reqid: Optional[int]) -> None:
+        completion = api_parser.parse_memory_read_completion(msg)
+        with self._main_lock:
+            if completion.request_token not in self._memory_read_completion_dict:
+                self._memory_read_completion_dict[completion.request_token] = completion
+            else:
+                self._logger.error(f"Received duplicate memory read completion with request token {completion.request_token}")
+
+    def _wt_process_msg_inform_memory_write_complete(self, msg: api_typing.S2C.WriteMemoryComplete, reqid: Optional[int]) -> None:
+        completion = api_parser.parse_memory_write_completion(msg)
+        with self._main_lock:
+            if completion.request_token not in self._memory_write_completion_dict:
+                self._memory_write_completion_dict[completion.request_token] = completion
+            else:
+                self._logger.error(f"Received duplicate memory write completion with request token {completion.request_token}")
+
     def _wt_process_next_server_status_update(self) -> None:
         if self._request_status_timer.is_timed_out() or self._require_status_update:
             self._require_status_update = False
@@ -357,7 +381,7 @@ class ScrutinyClient:
             if now - callback_entry._creation_timestamp > timedelta(seconds=callback_entry._timeout):
                 try:
                     callback_entry._callback(CallbackState.TimedOut, None)
-                except (KeyboardInterrupt, sdk.exceptions.ConnectionError):
+                except (sdk.exceptions.ConnectionError):
                     raise
                 except Exception:
                     pass
@@ -366,6 +390,18 @@ class ScrutinyClient:
                 with self._main_lock:
                     if reqid in self._callback_storage:
                         del self._callback_storage[reqid]
+
+    def _check_deferred_response_timeouts(self) -> None:
+        with self._main_lock:
+            keys = list(self._memory_read_completion_dict.keys())
+            for k in keys:
+                if time.time() - self._memory_read_completion_dict[k].timestamp > self._MEMORY_READ_DATA_LIFTEIME:
+                    del self._memory_read_completion_dict[k]
+
+            keys = list(self._memory_write_completion_dict.keys())
+            for k in keys:
+                if time.time() - self._memory_write_completion_dict[k].timestamp > self._MEMORY_WRITE_DATA_LIFTEIME:
+                    del self._memory_write_completion_dict[k]
 
     def wt_process_rx_api_message(self, msg: dict) -> None:
         self._threading_events.msg_received.set()
@@ -387,6 +423,10 @@ class ScrutinyClient:
                     self._wt_process_msg_inform_server_status(cast(api_typing.S2C.InformServerStatus, msg), reqid)
                 elif cmd == API.Command.Api2Client.INFORM_WRITE_COMPLETION:
                     self._wt_process_msg_inform_write_completion(cast(api_typing.S2C.WriteCompletion, msg), reqid)
+                elif cmd == API.Command.Api2Client.INFORM_MEMORY_READ_COMPLETE:
+                    self._wt_process_msg_inform_memory_read_complete(cast(api_typing.S2C.ReadMemoryComplete, msg), reqid)
+                elif cmd == API.Command.Api2Client.INFORM_MEMORY_WRITE_COMPLETE:
+                    self._wt_process_msg_inform_memory_write_complete(cast(api_typing.S2C.WriteMemoryComplete, msg), reqid)
             except sdk.exceptions.BadResponseError as e:
                 self._logger.error(f"Bad message from server. {e}")
                 self._logger.debug(traceback.format_exc())
@@ -409,7 +449,7 @@ class ScrutinyClient:
 
                 try:
                     callback_entry._callback(CallbackState.ServerError, msg)
-                except (KeyboardInterrupt, sdk.exceptions.ConnectionError):
+                except (sdk.exceptions.ConnectionError):
                     raise
                 except Exception:
                     pass
@@ -419,7 +459,7 @@ class ScrutinyClient:
                 try:
                     self._logger.debug(f"Running {cmd} callback for request ID {reqid}")
                     callback_entry._callback(CallbackState.OK, msg)
-                except (KeyboardInterrupt, sdk.exceptions.ConnectionError):
+                except (sdk.exceptions.ConnectionError):
                     raise
                 except Exception as e:
                     error = e
@@ -436,9 +476,9 @@ class ScrutinyClient:
                 if reqid in self._callback_storage:
                     del self._callback_storage[reqid]
 
-    def _wt_process_write_requests(self) -> None:
+    def _wt_process_write_watchable_requests(self) -> None:
         # Note _pending_api_batch_writes is always accessed from worker thread
-        api_req = self._make_request(API.Command.Client2Api.WRITE_VALUE, {'updates': []})
+        api_req = self._make_request(API.Command.Client2Api.WRITE_WATCHABLE, {'updates': []})
         api_req = cast(api_typing.C2S.WriteValue, api_req)
 
         # Clear old requests.
@@ -506,7 +546,7 @@ class ScrutinyClient:
         if len(api_req['updates']) == 0:
             return
 
-        def _wt_write_response_callback(state: CallbackState, response: Optional[api_typing.S2CMessage]) -> None:
+        def _wt_write_watchable_response_callback(state: CallbackState, response: Optional[api_typing.S2CMessage]) -> None:
             if response is not None and state == CallbackState.OK:
                 confirmation = api_parser.parse_write_value_response(cast(api_typing.S2C.WriteValue, response))
 
@@ -522,7 +562,7 @@ class ScrutinyClient:
             else:
                 request._mark_complete(False, state.name)
 
-        self._send(api_req, _wt_write_response_callback, timeout=batch_timeout)
+        self._send(api_req, _wt_write_watchable_response_callback, timeout=batch_timeout)
         # We don't need the future object here because the WriteRequest act as one.
 
     def _wt_process_device_state(self) -> None:
@@ -985,6 +1025,106 @@ class ScrutinyClient:
                 f"Failed to get the list of Scrutiny Firmware Description file installed on the server. {future.error_str}")
 
         return cb_data.obj
+
+    def read_memory(self, address: int, size: int, timeout: Optional[float] = None) -> bytes:
+        time_start = time.time()
+        if timeout is None:
+            timeout = self._timeout
+
+        req = self._make_request(API.Command.Client2Api.READ_MEMORY, {
+            'address': address,
+            'size': size
+        })
+
+        @dataclass
+        class Container:
+            obj: Optional[str]
+        cb_data: Container = Container(obj=None)  # Force pass by ref
+
+        def callback(state: CallbackState, response: Optional[api_typing.S2CMessage]) -> None:
+            if response is not None and state == CallbackState.OK:
+                response = cast(api_typing.S2C.ReadMemory, response)
+                if 'request_token' not in response:
+                    raise sdk.exceptions.BadResponseError('Missing request token in response')
+                cb_data.obj = cast(str, response['request_token'])
+
+        future = self._send(req, callback, timeout)
+        assert future is not None
+        future.wait()
+        if future.state != CallbackState.OK or cb_data.obj is None:
+            raise sdk.exceptions.OperationFailure(f"Failed to read the device memory. {future.error_str}")
+
+        remaining_time = max(0, timeout - (time_start - time.time()))
+        request_token = cb_data.obj
+
+        t = time.time()
+        # No lock here because we have a 1 producer, 1 consumer scenario and are waiting. We don't write
+        while request_token not in self._memory_read_completion_dict:
+            if time.time() - t >= remaining_time:
+                break
+            time.sleep(0.002)
+
+        with self._main_lock:
+            if request_token not in self._memory_read_completion_dict:
+                raise sdk.exceptions.TimeoutException(
+                    "Did not get memory read result after %0.2f seconds. (address=0x%08X, size=%d)" % (timeout, address, size))
+
+            completion = self._memory_read_completion_dict[request_token]
+            del self._memory_read_completion_dict[request_token]
+
+        if not completion.success or completion.data is None:
+            raise sdk.exceptions.OperationFailure(f"Failed to read the device memory. {completion.error}")
+
+        return completion.data
+
+    def write_memory(self, address: int, data: bytes, timeout: Optional[float] = None) -> None:
+        time_start = time.time()
+        if timeout is None:
+            timeout = self._timeout
+
+        req = self._make_request(API.Command.Client2Api.WRITE_MEMORY, {
+            'address': address,
+            'data': b64encode(data).decode('ascii')
+        })
+
+        @dataclass
+        class Container:
+            obj: Optional[str]
+        cb_data: Container = Container(obj=None)  # Force pass by ref
+
+        def callback(state: CallbackState, response: Optional[api_typing.S2CMessage]) -> None:
+            if response is not None and state == CallbackState.OK:
+                response = cast(api_typing.S2C.WriteMemory, response)
+                if 'request_token' not in response:
+                    raise sdk.exceptions.BadResponseError('Missing request token in response')
+                cb_data.obj = cast(str, response['request_token'])
+
+        future = self._send(req, callback, timeout)
+        assert future is not None
+        future.wait()
+        if future.state != CallbackState.OK or cb_data.obj is None:
+            raise sdk.exceptions.OperationFailure(f"Failed to write the device memory. {future.error_str}")
+
+        remaining_time = max(0, timeout - (time_start - time.time()))
+        request_token = cb_data.obj
+
+        t = time.time()
+        # No lock here because we have a 1 producer, 1 consumer scenario and are waiting. We don't write
+        while request_token not in self._memory_write_completion_dict:
+            if time.time() - t >= remaining_time:
+                break
+            time.sleep(0.002)
+
+        with self._main_lock:
+            if request_token not in self._memory_write_completion_dict:
+                raise sdk.exceptions.TimeoutException(
+                    "Did not get memory write completion confirmation after %0.2f seconds. (address=0x%08X, size=%d)" % (timeout, address, len(data)))
+
+            completion = self._memory_write_completion_dict[request_token]
+            del self._memory_write_completion_dict[request_token]
+
+        if not completion.success:
+            raise sdk.exceptions.OperationFailure(f"Failed to write the device memory. {completion.error}")
 
     @property
     def name(self) -> str:

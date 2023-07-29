@@ -15,12 +15,14 @@ import functools
 from uuid import uuid4
 from fnmatch import fnmatch
 import itertools
+from base64 import b64encode, b64decode
+import binascii
 
 from scrutiny.server.datalogging.datalogging_storage import DataloggingStorage
 from scrutiny.server.datalogging.datalogging_manager import DataloggingManager
 from scrutiny.server.datastore.datastore import Datastore
 from scrutiny.server.datastore.datastore_entry import EntryType, DatastoreEntry, UpdateTargetRequestCallback
-from scrutiny.server.device.device_handler import DeviceHandler, DeviceStateChangedCallback
+from scrutiny.server.device.device_handler import DeviceHandler, DeviceStateChangedCallback, RawMemoryReadRequestCompletionCallback, RawMemoryReadRequest, RawMemoryWriteRequestCompletionCallback, RawMemoryWriteRequest
 from scrutiny.server.active_sfd_handler import ActiveSFDHandler, SFDLoadedCallback, SFDUnloadedCallback
 from scrutiny.server.device.links import LinkConfig
 from scrutiny.core.sfd_storage import SFDStorage
@@ -29,6 +31,7 @@ from scrutiny.core.firmware_description import FirmwareDescription
 import scrutiny.server.datalogging.definitions.api as api_datalogging
 import scrutiny.server.datalogging.definitions.device as device_datalogging
 from scrutiny.server.device.device_info import ExecLoopType
+from scrutiny.core.basic_types import MemoryRegion
 
 from .websocket_client_handler import WebsocketClientHandler
 from .dummy_client_handler import DummyClientHandler
@@ -77,7 +80,7 @@ class API:
             GET_SERVER_STATUS = 'get_server_status'
             SET_LINK_CONFIG = "set_link_config"
             GET_POSSIBLE_LINK_CONFIG = "get_possible_link_config"   # todo
-            WRITE_VALUE = "write_value"
+            WRITE_WATCHABLE = "write_watchable"
             GET_DATALOGGING_CAPABILITIES = 'get_datalogging_capabilities'
             REQUEST_DATALOGGING_ACQUISITION = 'request_datalogging_acquisition'
             LIST_DATALOGGING_ACQUISITION = 'list_datalogging_acquisitions'
@@ -85,6 +88,8 @@ class API:
             UPDATE_DATALOGGING_ACQUISITION = 'update_datalogging_acquisition'
             DELETE_DATALOGGING_ACQUISITION = 'delete_datalogging_acquisition'
             DELETE_ALL_DATALOGGING_ACQUISITION = 'delete_all_datalogging_acquisition'
+            READ_MEMORY = "read_memory"
+            WRITE_MEMORY = "write_memory"
             DEBUG = 'debug'
 
         class Api2Client:
@@ -99,7 +104,7 @@ class API:
             GET_POSSIBLE_LINK_CONFIG_RESPONSE = "response_get_possible_link_config"
             SET_LINK_CONFIG_RESPONSE = 'set_link_config_response'
             INFORM_SERVER_STATUS = 'inform_server_status'
-            WRITE_VALUE_RESPONSE = 'response_write_value'
+            WRITE_WATCHABLE_RESPONSE = 'response_write_watchable'
             INFORM_WRITE_COMPLETION = 'inform_write_completion'
             GET_DATALOGGING_CAPABILITIES_RESPONSE = 'get_datalogging_capabilities_response'
             INFORM_DATALOGGING_LIST_CHANGED = 'inform_datalogging_list_changed'
@@ -110,6 +115,10 @@ class API:
             UPDATE_DATALOGGING_ACQUISITION_RESPONSE = 'update_datalogging_acquisition_response'
             DELETE_DATALOGGING_ACQUISITION_RESPONSE = 'delete_datalogging_acquisition_response'
             DELETE_ALL_DATALOGGING_ACQUISITION_RESPONSE = 'delete_all_datalogging_acquisition_response'
+            READ_MEMORY_RESPONSE = "response_read_memory"
+            INFORM_MEMORY_READ_COMPLETE = "inform_memory_read_complete"
+            WRITE_MEMORY_RESPONSE = "response_write_memory"
+            INFORM_MEMORY_WRITE_COMPLETE = "inform_memory_write_complete"
             ERROR_RESPONSE = 'error'
 
     class DataloggingStatus:
@@ -230,15 +239,16 @@ class API:
         Command.Client2Api.GET_SERVER_STATUS: 'process_get_server_status',
         Command.Client2Api.SET_LINK_CONFIG: 'process_set_link_config',
         Command.Client2Api.GET_POSSIBLE_LINK_CONFIG: 'process_get_possible_link_config',
-        Command.Client2Api.WRITE_VALUE: 'process_write_value',
+        Command.Client2Api.WRITE_WATCHABLE: 'process_write_value',
         Command.Client2Api.GET_DATALOGGING_CAPABILITIES: 'process_get_datalogging_capabilities',
         Command.Client2Api.REQUEST_DATALOGGING_ACQUISITION: 'process_datalogging_request_acquisition',
         Command.Client2Api.LIST_DATALOGGING_ACQUISITION: 'process_list_datalogging_acquisition',
         Command.Client2Api.UPDATE_DATALOGGING_ACQUISITION: 'process_update_datalogging_acquisition',
         Command.Client2Api.DELETE_DATALOGGING_ACQUISITION: 'process_delete_datalogging_acquisition',
         Command.Client2Api.DELETE_ALL_DATALOGGING_ACQUISITION: 'process_delete_all_datalogging_acquisition',
-        Command.Client2Api.READ_DATALOGGING_ACQUISITION_CONTENT: 'process_read_datalogging_acquisition_content'
-
+        Command.Client2Api.READ_DATALOGGING_ACQUISITION_CONTENT: 'process_read_datalogging_acquisition_content',
+        Command.Client2Api.READ_MEMORY: "process_read_memory",
+        Command.Client2Api.WRITE_MEMORY: "process_write_memory"
     }
 
     def __init__(self,
@@ -756,7 +766,7 @@ class API:
 
         self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
 
-    #  ===  WRITE_VALUE ===
+    #  ===  WRITE_WATCHABLE ===
     def process_write_value(self, conn_id: str, req: api_typing.C2S.WriteValue) -> None:
         # We first fetch the entries as it will raise an exception if the ID does not exist
         # We don't want to trigger a write if an entry is bad in the request
@@ -800,7 +810,7 @@ class API:
                 else:
                     try:
                         value = float(valstr)
-                    except:
+                    except Exception:
                         value = None
             if value is None or not isinstance(value, (int, float, bool)):
                 raise InvalidRequestException(req, 'Invalid "value" field')
@@ -825,13 +835,111 @@ class API:
             self.datastore.update_target_value(update['watchable'], update['value'], callback=callback)
 
         response: api_typing.S2C.WriteValue = {
-            'cmd': self.Command.Api2Client.WRITE_VALUE_RESPONSE,
+            'cmd': self.Command.Api2Client.WRITE_WATCHABLE_RESPONSE,
             'reqid': self.get_req_id(req),
             'request_token': request_token,
             'count': len(req['updates'])
         }
 
         self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
+
+    def process_read_memory(self, conn_id: str, req: api_typing.C2S.ReadMemory) -> None:
+        if 'address' not in req:
+            raise InvalidRequestException(req, 'Missing "address" field')
+
+        if 'size' not in req:
+            raise InvalidRequestException(req, 'Missing "size" field')
+
+        if not isinstance(req['address'], int):
+            raise InvalidRequestException(req, '"address" field is not an integer')
+
+        if not isinstance(req['size'], int):
+            raise InvalidRequestException(req, '"size" field is not an integer')
+
+        if req['address'] < 0:
+            raise InvalidRequestException(req, '"address" field is not valid')
+
+        if req['size'] <= 0:
+            raise InvalidRequestException(req, '"size" field is not valid')
+
+        request_token = uuid4().hex
+        callback = functools.partial(self.read_raw_memory_callback, request_token=request_token, conn_id=conn_id)
+
+        self.device_handler.read_memory(req['address'], req['size'], callback=RawMemoryReadRequestCompletionCallback(callback))
+
+        response: api_typing.S2C.ReadMemory = {
+            'cmd': self.Command.Api2Client.READ_MEMORY_RESPONSE,
+            'reqid': self.get_req_id(req),
+            'request_token': request_token
+        }
+
+        self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
+
+    def process_write_memory(self, conn_id: str, req: api_typing.C2S.WriteMemory) -> None:
+        if 'address' not in req:
+            raise InvalidRequestException(req, 'Missing "address" field')
+
+        if 'data' not in req:
+            raise InvalidRequestException(req, 'Missing "data" field')
+
+        if not isinstance(req['address'], int):
+            raise InvalidRequestException(req, '"address" field is not an integer')
+
+        if not isinstance(req['data'], str):
+            raise InvalidRequestException(req, '"data" field is not a string')
+
+        try:
+            data = b64decode(req['data'], validate=True)
+        except binascii.Error:
+            raise InvalidRequestException(req, '"data" field is not a valid base64 string')
+
+        if req['address'] < 0:
+            raise InvalidRequestException(req, '"address" field is not valid')
+
+        if len(data) <= 0:
+            raise InvalidRequestException(req, '"data" field is not valid')
+
+        request_token = uuid4().hex
+        callback = functools.partial(self.write_raw_memory_callback, request_token=request_token, conn_id=conn_id)
+
+        self.device_handler.write_memory(req['address'], data, callback=RawMemoryWriteRequestCompletionCallback(callback))
+
+        response: api_typing.S2C.WriteMemory = {
+            'cmd': self.Command.Api2Client.WRITE_MEMORY_RESPONSE,
+            'reqid': self.get_req_id(req),
+            'request_token': request_token
+        }
+
+        self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
+
+    def read_raw_memory_callback(self, request: RawMemoryReadRequest, success: bool, data: Optional[bytes], error: str, conn_id: str, request_token: str) -> None:
+        data_out: Optional[str] = None
+        if data is not None and success:
+            data_out = b64encode(data).decode('ascii')
+
+        response: api_typing.S2C.ReadMemoryComplete = {
+            'cmd': self.Command.Api2Client.INFORM_MEMORY_READ_COMPLETE,
+            'reqid': None,
+            'request_token': request_token,
+            'success': success,
+            'data': data_out,
+            'detail_msg': error if success == False else None,
+        }
+
+        self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
+
+    def write_raw_memory_callback(self, request: RawMemoryWriteRequest, success: bool, error: str, conn_id: str, request_token: str) -> None:
+        response: api_typing.S2C.WriteMemoryComplete = {
+            'cmd': self.Command.Api2Client.INFORM_MEMORY_WRITE_COMPLETE,
+            'reqid': None,
+            'request_token': request_token,
+            'success': success,
+            'detail_msg': error if success == False else None,
+        }
+
+        self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
+
+    # === GET_DATALOGGING_CAPABILITIES ===
 
     def process_get_datalogging_capabilities(self, conn_id: str, req: api_typing.C2S.GetDataloggingCapabilities) -> None:
         setup = self.datalogging_manager.get_device_setup()
@@ -881,6 +989,7 @@ class API:
 
         self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
 
+    # === DATALOGGING_REQUEST_ACQUISITION ==
     def process_datalogging_request_acquisition(self, conn_id: str, req: api_typing.C2S.RequestDataloggingAcquisition) -> None:
         if not self.datalogging_manager.is_ready_for_request():
             raise InvalidRequestException(req, 'Device is not ready to receive a request')
@@ -970,7 +1079,7 @@ class API:
 
             try:
                 x_axis_entry = self.datastore.get_entry(req['x_axis_signal']['id'])
-            except:
+            except Exception:
                 pass
 
             if x_axis_entry is None:
@@ -998,7 +1107,7 @@ class API:
                 watchable: Optional[DatastoreEntry] = None
                 try:
                     watchable = self.datastore.get_entry(given_operand['value'])
-                except:
+                except Exception:
                     pass
 
                 if watchable is None:
@@ -1050,7 +1159,7 @@ class API:
             signal_entry: Optional[DatastoreEntry] = None
             try:
                 signal_entry = self.datastore.get_entry(signal_def['id'])
-            except:
+            except Exception:
                 pass
 
             if signal_entry is None:
@@ -1131,6 +1240,7 @@ class API:
             for conn_id in self.connections:
                 self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=broadcast_msg))
 
+    # === LIST_DATALOGGING_ACQUISITION ===
     def process_list_datalogging_acquisition(self, conn_id: str, req: api_typing.C2S.ListDataloggingAcquisitions) -> None:
 
         firmware_id: Optional[str] = None
@@ -1163,6 +1273,7 @@ class API:
 
         self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
 
+    # === UPDATE_DATALOGGING_ACQUISITION ===
     def process_update_datalogging_acquisition(self, conn_id: str, req: api_typing.C2S.UpdateDataloggingAcquisition) -> None:
         if 'reference_id' not in req:
             raise InvalidRequestException(req, 'Missing acquisition reference ID')
@@ -1227,6 +1338,7 @@ class API:
         for conn_id in self.connections:
             self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=broadcast_msg))
 
+    # === DELETE_DATALOGGING_ACQUISITION ===
     def process_delete_datalogging_acquisition(self, conn_id: str, req: api_typing.C2S.DeleteDataloggingAcquisition) -> None:
         if 'reference_id' not in req:
             raise InvalidRequestException(req, 'Missing acquisition reference ID')
@@ -1260,6 +1372,7 @@ class API:
         for conn_id in self.connections:
             self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=broadcast_msg))
 
+    # === DELETE_ALL_DATALOGGING_ACQUISITION ===
     def process_delete_all_datalogging_acquisition(self, conn_id: str, req: api_typing.C2S.DeleteDataloggingAcquisition) -> None:
         err: Optional[Exception] = None
         try:
@@ -1287,6 +1400,7 @@ class API:
         for conn_id in self.connections:
             self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=broadcast_msg))
 
+    # === READ_DATALOGGING_ACQUISITION_CONTENT ===
     def process_read_datalogging_acquisition_content(self, conn_id: str, req: api_typing.C2S.ReadDataloggingAcquisitionContent) -> None:
         if 'reference_id' not in req:
             raise InvalidRequestException(req, 'Missing acquisition reference ID')
@@ -1355,6 +1469,13 @@ class API:
                 "metadata": sfd.get_metadata()
             }
 
+        def make_memory_region_map(regions: Optional[List[MemoryRegion]]) -> List[Dict[Literal['start', 'end', 'size'], int]]:
+            output: List[Dict[Literal['start', 'end', 'size'], int]] = []
+            if regions is not None:
+                for region in regions:
+                    output.append({'start': region.start, 'end': region.end, 'size': region.size})
+            return output
+
         device_info_output: Optional[api_typing.DeviceInfo] = None
         if device_info_input is not None and device_info_input.all_ready():
             device_info_output = {
@@ -1369,8 +1490,8 @@ class API:
                 'protocol_major': cast(int, device_info_input.protocol_major),
                 'protocol_minor': cast(int, device_info_input.protocol_minor),
                 'supported_feature_map': cast(Dict[api_typing.SupportedFeature, bool], device_info_input.supported_feature_map),
-                'forbidden_memory_regions': cast(List[Dict[str, int]], device_info_input.forbidden_memory_regions),
-                'readonly_memory_regions': cast(List[Dict[str, int]], device_info_input.readonly_memory_regions)
+                'forbidden_memory_regions': make_memory_region_map(device_info_input.forbidden_memory_regions),
+                'readonly_memory_regions': make_memory_region_map(device_info_input.readonly_memory_regions)
             }
 
         if device_comm_link is None:
