@@ -24,7 +24,7 @@ if ! pip3 show wheel 2>&1 >/dev/null; then
     pip3 install --upgrade setuptools
 fi
 
-MODULE_FEATURE=""
+MODULE_FEATURE="[dev]"
 if ! [[ -z "${BUILD_CONTEXT+x}" ]]; then
     if [[ "$BUILD_CONTEXT" == "ci" ]]; then
         MODULE_FEATURE="[test]" # Will cause testing tools to be installed.
