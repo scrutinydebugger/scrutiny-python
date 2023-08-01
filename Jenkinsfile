@@ -21,6 +21,7 @@ pipeline {
                                 python3.11 -m venv venv-3.11
                                 SCRUTINY_VENV_DIR=venv-3.11 scripts/with-venv.sh scripts/check-python-version.sh 3.11
                                 SCRUTINY_VENV_DIR=venv-3.11 scripts/with-venv.sh scripts/runtests.sh htmlcov_3.11
+                                tarx -cvzf htmlcov_3.11.tgz htmlcov_3.11
                                 '''
                             }
                         }
@@ -30,6 +31,7 @@ pipeline {
                                 python3.10 -m venv venv-3.10
                                 SCRUTINY_VENV_DIR=venv-3.10 scripts/with-venv.sh scripts/check-python-version.sh 3.10
                                 SCRUTINY_VENV_DIR=venv-3.10 scripts/with-venv.sh scripts/runtests.sh htmlcov_3.10
+                                tarx -cvzf htmlcov_3.10.tgz htmlcov_3.10
                                 '''
                             }
                         }
@@ -39,6 +41,7 @@ pipeline {
                                 python3.9 -m venv venv-3.9
                                 SCRUTINY_VENV_DIR=venv-3.9 scripts/with-venv.sh scripts/check-python-version.sh 3.9
                                 SCRUTINY_VENV_DIR=venv-3.9 scripts/with-venv.sh scripts/runtests.sh htmlcov_3.9
+                                tarx -cvzf htmlcov_3.9.tgz htmlcov_3.9
                                 '''
                             }
                         }
