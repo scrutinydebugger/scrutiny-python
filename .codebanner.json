@@ -244,18 +244,6 @@
         "test/server/test_active_sfd_handler.py": {
             "docstring": "Test the ActiveSFDHandler"
         },
-        "scrutiny/cli/commands/launch_gui.py": {
-            "docstring": "CLI command to launch the Graphical User Interface"
-        },
-        "scrutiny/gui/ext2contenttype.py": {
-            "docstring": "Maps file extension to their respective HTTP Content-Type header"
-        },
-        "scrutiny/gui/gui_client.py": {
-            "docstring": "Represent the GUI application. Allows to launch through Chromium Embedded Framework or in a web browser with local server"
-        },
-        "scrutiny/gui/scrutiny_gui_http_server.py": {
-            "docstring": "Local web server for serving the local GUI in a browser"
-        },
         "scrutiny/exceptions.py": {
             "docstring": "Some exceptions specific to this module"
         },
@@ -393,6 +381,9 @@
         },
         "scrutiny/sdk/write_request.py": {
             "docstring": "A object representing a request to write a watchable element."
+        },
+        "test/integration/test_interract_with_device.py": {
+            "docstring": "Make sure we can do some API calls related to the device that are not read/writes."
         }
     }
 }

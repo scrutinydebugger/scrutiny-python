@@ -1,3 +1,10 @@
+#    test_interract_with_device.py
+#        Make sure we can do some API calls related to the device that are not read/writes.
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021-2023 Scrutiny Debugger
 
 from scrutiny.server.api import API
 from scrutiny.server.api import typing as api_typing

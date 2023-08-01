@@ -8,7 +8,6 @@ from .uninstall_sfd import UninstallSFD
 from .list_sfd import ListSFD
 from .elf2varmap import Elf2VarMap
 from .launch_server import LaunchServer
-from .launch_gui import LaunchGUI
 from .runtest import RunTest
 from .add_alias import AddAlias
 from .delete_datalog import DeleteDatalog
