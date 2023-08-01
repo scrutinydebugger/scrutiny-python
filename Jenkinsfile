@@ -20,7 +20,7 @@ pipeline {
                                 sh '''
                                 python3.11 -m venv venv-3.11
                                 SCRUTINY_VENV_DIR=venv-3.11 scripts/with-venv.sh scripts/check-python-version.sh 3.11
-                                SCRUTINY_VENV_DIR=venv-3.11 scripts/with-venv.sh scripts/runtests.sh
+                                SCRUTINY_VENV_DIR=venv-3.11 scripts/with-venv.sh scripts/runtests.sh htmlcov_3.11
                                 '''
                             }
                         }
@@ -29,7 +29,7 @@ pipeline {
                                 sh '''
                                 python3.10 -m venv venv-3.10
                                 SCRUTINY_VENV_DIR=venv-3.10 scripts/with-venv.sh scripts/check-python-version.sh 3.10
-                                SCRUTINY_VENV_DIR=venv-3.10 scripts/with-venv.sh scripts/runtests.sh
+                                SCRUTINY_VENV_DIR=venv-3.10 scripts/with-venv.sh scripts/runtests.sh htmlcov_3.10
                                 '''
                             }
                         }
@@ -38,7 +38,7 @@ pipeline {
                                 sh '''
                                 python3.9 -m venv venv-3.9
                                 SCRUTINY_VENV_DIR=venv-3.9 scripts/with-venv.sh scripts/check-python-version.sh 3.9
-                                SCRUTINY_VENV_DIR=venv-3.9 scripts/with-venv.sh scripts/runtests.sh
+                                SCRUTINY_VENV_DIR=venv-3.9 scripts/with-venv.sh scripts/runtests.sh htmlcov_3.9
                                 '''
                             }
                         }
@@ -47,11 +47,20 @@ pipeline {
                                 sh '''
                                 python3.8 -m venv venv-3.8
                                 SCRUTINY_VENV_DIR=venv-3.8 scripts/with-venv.sh scripts/check-python-version.sh 3.8
-                                SCRUTINY_VENV_DIR=venv-3.8 scripts/with-venv.sh scripts/runtests.sh
+                                SCRUTINY_VENV_DIR=venv-3.8 scripts/with-venv.sh scripts/runtests.sh htmlcov_3.8
                                 '''
                             }
                         }
                     }
+                }
+            }
+            post {
+                always {
+                    archiveArtifacts artifacts: 'htmlcov_3.8/**', fingerprint: true
+                    archiveArtifacts artifacts: 'htmlcov_3.9/**', fingerprint: true
+                    archiveArtifacts artifacts: 'htmlcov_3.10/**', fingerprint: true
+                    archiveArtifacts artifacts: 'htmlcov_3.11/**', fingerprint: true
+                    
                 }
             }
         }
