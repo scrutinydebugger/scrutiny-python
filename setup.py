@@ -8,9 +8,6 @@
 
 from setuptools import setup, find_packages
 import scrutiny
-import platform
-import logging
-
 
 dependencies = [
     'appdirs>=1.4.4',
@@ -23,7 +20,7 @@ dependencies = [
 setup(
     name=scrutiny.__name__,
     python_requires='>3.8',
-    description='Scrutiny debug framework',
+    description='Scrutiny debugger Python framework',
     url='https://github.com/scrutinydebugger/scrutiny-python',
     version=scrutiny.__version__,
     author=scrutiny.__author__,
@@ -35,8 +32,8 @@ setup(
     setup_requires=[],
     install_requires=dependencies,
     extras_require={
-        'test': ['mypy'],
-        'dev': ['mypy', 'ipdb', 'autopep8']
+        'test': ['mypy', 'coverage'],
+        'dev': ['mypy', 'ipdb', 'autopep8', 'coverage']
     },
     entry_points={
         "console_scripts": [
