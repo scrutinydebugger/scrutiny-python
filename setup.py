@@ -26,8 +26,7 @@ setup(
     author=scrutiny.__author__,
     license=scrutiny.__license__,
 
-    packages=find_packages(),
-    include_package_data=True,  # look for MANIFEST.in for each package
+    packages=find_packages(where='.', exclude=["tests", "tests.*"], include=['scrutiny', "scrutiny.*"]),
 
     setup_requires=[],
     install_requires=dependencies,
