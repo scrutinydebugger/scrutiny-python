@@ -1,7 +1,7 @@
 #    device_handler.py
 #        Manage the communication with the device at high level.
 #        Try to establish a connection, once it succeed, reads the device configuration.
-#        
+#
 #        Will keep the communication ongoing and will request for memory dump based on the
 #        Datastore state
 #
@@ -298,7 +298,7 @@ class DeviceHandler:
     def read_memory(self, address: int, size: int, callback: Optional[RawMemoryReadRequestCompletionCallback] = None) -> RawMemoryReadRequest:
         return self.memory_reader.request_memory_read(address, size, callback)
 
-    def write_memory(self, address:int, data:bytes, callback:Optional[RawMemoryWriteRequestCompletionCallback]=None) -> RawMemoryWriteRequest:
+    def write_memory(self, address: int, data: bytes, callback: Optional[RawMemoryWriteRequestCompletionCallback] = None) -> RawMemoryWriteRequest:
         return self.memory_writer.request_memory_write(address, data, callback)
 
     def get_comm_params_callback(self, partial_device_info: DeviceInfo):
