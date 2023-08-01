@@ -560,7 +560,7 @@ class API:
         # Check existence of all watchable before doing anything.
         for watchable in req['watchables']:
             try:
-                self.datastore.get_entry(watchable)  # Will raise an exception if not existant
+                self.datastore.get_entry(watchable)  # Will raise an exception if not existent
             except KeyError as e:
                 raise InvalidRequestException(req, 'Unknown watchable ID : %s' % str(watchable))
 
@@ -588,7 +588,7 @@ class API:
         # Check existence of all entries before doing anything
         for watchable in req['watchables']:
             try:
-                self.datastore.get_entry(watchable)  # Will raise an exception if not existant
+                self.datastore.get_entry(watchable)  # Will raise an exception if not existent
             except KeyError as e:
                 raise InvalidRequestException(req, 'Unknown watchable ID : %s' % str(watchable))
 
@@ -635,7 +635,7 @@ class API:
 
     #  ===  LOAD_SFD ===
     def process_load_sfd(self, conn_id: str, req: api_typing.C2S.LoadSFD):
-        # Forcibly load a Scrutiny Firmware Descritpion through API
+        # Forcibly load a Scrutiny Firmware Description through API
         if 'firmware_id' not in req and not isinstance(req['firmware_id'], str):
             raise InvalidRequestException(req, 'Invalid firmware_id')
 

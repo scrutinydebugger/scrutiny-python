@@ -298,7 +298,7 @@ class DeviceHandler:
     def read_memory(self, address: int, size: int, callback: Optional[RawMemoryReadRequestCompletionCallback] = None) -> RawMemoryReadRequest:
         return self.memory_reader.request_memory_read(address, size, callback)
 
-    def write_memory(self, address:int, data:bytes, callback:Optional[RawMemoryWriteRequestCompletionCallback]=None) -> RawMemoryWriteRequest:
+    def write_memory(self, address: int, data: bytes, callback: Optional[RawMemoryWriteRequestCompletionCallback] = None) -> RawMemoryWriteRequest:
         return self.memory_writer.request_memory_write(address, data, callback)
 
     def get_comm_params_callback(self, partial_device_info: DeviceInfo):
@@ -802,7 +802,7 @@ class DeviceHandler:
                     self.comm_handler.clear_timeout()
                     self.active_request_record.complete(success=False)
 
-                elif self.comm_handler.waiting_response():      # We are still wiating for a resonse
+                elif self.comm_handler.waiting_response():      # We are still waiting for a response
                     if self.comm_handler.response_available():  # We got a response! yay
                         response = self.comm_handler.get_response()
 

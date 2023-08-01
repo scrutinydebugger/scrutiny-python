@@ -561,7 +561,7 @@ class DataloggingPoller:
             self.state = next_state
         except Exception as e:
             self.error = True
-            self.logger.error("State machine error: %s" % (str(e)))
+            self.logger.critical("State machine error: %s" % (str(e)))
             self.logger.debug(traceback.format_exc())
 
     def dispatch(self, req: Request) -> None:

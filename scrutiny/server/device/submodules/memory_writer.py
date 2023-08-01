@@ -115,7 +115,7 @@ class MemoryWriter:
             self.logger.warning('Adding a forbidden region with non-positive size %d' % size)
 
     def add_readonly_region(self, start_addr: int, size: int) -> None:
-        """Add a memory region tthat can only be read. We will avoid any write to them. 
+        """Add a memory region that can only be read. We will avoid any write to them. 
         They normally are broadcasted by the device itself"""
         if size > 0:
             self.readonly_regions.append(MemoryRegion(start=start_addr, size=size))
@@ -150,7 +150,7 @@ class MemoryWriter:
         self.pending_request = None
         self.started = False
 
-        # Clear all pendings request and inform the external world that they failed.
+        # Clear all pending request and inform the external world that they failed.
         if self.active_raw_write_request is not None:
             self.active_raw_write_request.set_completed(False, "Stopping communication with device")
 

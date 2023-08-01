@@ -126,7 +126,7 @@ class DataloggingManager:
                         nb_points = len(signal_data)
                     else:
                         if nb_points != len(signal_data):
-                            raise ValueError('Non-matching data length recived in new acquisition')
+                            raise ValueError('Non-matching data length received in new acquisition')
 
                 if nb_points is None:
                     raise ValueError('Cannot determine the number of points in the acquisitions')

@@ -21,7 +21,7 @@ from typing import Any, Optional, cast
 
 class HeartbeatGenerator:
     """
-    Poll the device with periodics heartbeat message to know if it is still there and alive.
+    Poll the device with periodic heartbeat message to know if it is still there and alive.
     """
     logger: logging.Logger
     dispatcher: RequestDispatcher   # We put the request in here, and we know they'll go out

@@ -471,7 +471,7 @@ class EmulatedDevice:
         if not isinstance(link, DummyLink) and not isinstance(link, ThreadSafeDummyLink):
             raise ValueError('EmulatedDevice expects a DummyLink object')
         self.logger = logging.getLogger(self.__class__.__name__)
-        self.link = link    # Preopened link.
+        self.link = link    # Pre opened link.
         self.firmware_id = bytes(range(16))
         self.request_history = []
         self.protocol = Protocol(1, 0)

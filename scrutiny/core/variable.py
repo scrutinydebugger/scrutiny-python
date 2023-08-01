@@ -281,7 +281,7 @@ class Variable:
 
     def encode(self, value: Encodable) -> Tuple[bytes, Optional[bytes]]:
         """
-        Converts a python balue to a binary content that can be written in memory.
+        Converts a python value to a binary content that can be written in memory.
         The write mask is used for bitfields
         """
         codec = Codecs.get(self.vartype, endianness=self.endianness)

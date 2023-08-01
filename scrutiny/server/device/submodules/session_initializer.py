@@ -106,7 +106,7 @@ class SessionInitializer:
             self.connection_pending = True
 
     def success_callback(self, request: Request, response: Response, params: Any = None) -> None:
-        """Calleback called by the request dispatcher when a request succeeds to complete"""
+        """Callback called by the request dispatcher when a request succeeds to complete"""
         if response.code == ResponseCode.OK:
             try:
                 response_data = cast(protocol_typing.Response.CommControl.Connect, self.protocol.parse_response(response))
@@ -122,7 +122,7 @@ class SessionInitializer:
         self.completed()
 
     def failure_callback(self, request: Request, params: Any = None) -> None:
-        """Calleback called by the request dispatcher when a request fails to complete"""
+        """Callback called by the request dispatcher when a request fails to complete"""
         self.logger.error('The connection request to device did not complete')
         self.error = True
 

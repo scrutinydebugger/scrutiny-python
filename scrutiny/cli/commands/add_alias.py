@@ -18,7 +18,7 @@ import traceback
 class AddAlias(BaseCommand):
     _cmd_name_ = 'add-alias'
     _brief_ = 'Append an alias to a SFD file or in making SFD work folder. Definition can be passed with a file or command line arguments.'
-    _group_ = 'Build Toochain'
+    _group_ = 'Build Toolchain'
 
     args: List[str]
     parser: argparse.ArgumentParser
@@ -35,7 +35,7 @@ class AddAlias(BaseCommand):
         self.parser.add_argument('--target', help='The target of the alias')
         self.parser.add_argument('--gain', help='The gain to apply when reading the alias')
         self.parser.add_argument('--offset', help='The offset to apply when reading the alias')
-        self.parser.add_argument('--min', help='The mimimum value for this alias')
+        self.parser.add_argument('--min', help='The minimum value for this alias')
         self.parser.add_argument('--max', help='The maximum value for this alias')
 
     def run(self) -> Optional[int]:
@@ -65,7 +65,7 @@ class AddAlias(BaseCommand):
             varmap = sfd.varmap
             all_alliases = sfd.get_aliases()
         else:
-            raise Exception('Inexistant destination for alias %s' % args.destination)
+            raise Exception('Inexistent destination for alias %s' % args.destination)
 
         if args.file is not None:
             with open(args.file, 'rb') as f:

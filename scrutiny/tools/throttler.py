@@ -15,7 +15,7 @@ class Throttler:
     It measure the bitrate and tells us if we should wait or go ahead when we
     need to send data.
 
-    It works with to low pass filter, one fast to get an instanteneous measurement of the bitrate. 
+    It works with to low pass filter, one fast to get an instantaneous measurement of the bitrate. 
     One slow to get a long-term (relatively speaking) measurement of the bitrate. We allow data 
     transfer only when both of these filters are below the target.
     """
@@ -36,9 +36,9 @@ class Throttler:
         self.enabled = False
         self.mean_bitrate = mean_bitrate
         self.bitrate_estimation_window = bitrate_estimation_window
-        # 1 sec time constant, but we can't be smaller than the window  (otherwise usntable)
+        # 1 sec time constant, but we can't be smaller than the window  (otherwise unstable)
         self.slow_tau = max(1.0, self.bitrate_estimation_window)
-        # 0.05 sec time constant, but we can't be smaller than the window (otherwise usntable)
+        # 0.05 sec time constant, but we can't be smaller than the window (otherwise unstable)
         self.fast_tau = max(0.05, self.bitrate_estimation_window)
         self.reset()
 
@@ -127,7 +127,7 @@ class Throttler:
         if not self.enabled:
             return True
 
-        return self.mean_bitrate > 0  # This was originally designed to prevent burst. It is not dneeded, but we keep the interface
+        return self.mean_bitrate > 0  # This was originally designed to prevent burst. It is not needed, but we keep the interface
 
     def consume_bandwidth(self, delta_bandwidth: int) -> None:
         """ Indicates to the throttler that data has been sent"""

@@ -149,8 +149,8 @@ class ScrutinyClient:
     RxMessageCallback = Callable[["ScrutinyClient", object], None]
     _UPDATE_SERVER_STATUS_INTERVAL = 2
     _MAX_WRITE_REQUEST_BATCH_SIZE = 500
-    _MEMORY_READ_DATA_LIFTEIME = 30
-    _MEMORY_WRITE_DATA_LIFTEIME = 30
+    _MEMORY_READ_DATA_LIFETIME = 30
+    _MEMORY_WRITE_DATA_LIFETIME = 30
 
     @dataclass
     class ThreadingEvents:
@@ -395,12 +395,12 @@ class ScrutinyClient:
         with self._main_lock:
             keys = list(self._memory_read_completion_dict.keys())
             for k in keys:
-                if time.time() - self._memory_read_completion_dict[k].timestamp > self._MEMORY_READ_DATA_LIFTEIME:
+                if time.time() - self._memory_read_completion_dict[k].timestamp > self._MEMORY_READ_DATA_LIFETIME:
                     del self._memory_read_completion_dict[k]
 
             keys = list(self._memory_write_completion_dict.keys())
             for k in keys:
-                if time.time() - self._memory_write_completion_dict[k].timestamp > self._MEMORY_WRITE_DATA_LIFTEIME:
+                if time.time() - self._memory_write_completion_dict[k].timestamp > self._MEMORY_WRITE_DATA_LIFETIME:
                     del self._memory_write_completion_dict[k]
 
     def wt_process_rx_api_message(self, msg: dict) -> None:
@@ -629,7 +629,7 @@ class ScrutinyClient:
     def _wt_clear_all_watchables(self, new_status: ValueStatus, watchable_types: Optional[List[WatchableType]] = None) -> None:
         assert new_status is not ValueStatus.Valid
         if watchable_types is None:
-            watchable_types = [WatchableType.Alias, WatchableType.Variable, WatchableType.RuntimePulishedValue]
+            watchable_types = [WatchableType.Alias, WatchableType.Variable, WatchableType.RuntimePublishedValue]
         server_ids = list(self._watchable_storage.keys())
         for server_id in server_ids:
             watchable = self._watchable_storage[server_id]

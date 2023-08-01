@@ -99,7 +99,7 @@ class Protocol:
         if major == 999 and minor == 123:
             pass  # Special version for unit test
 
-        elif major != 1 or minor != 0:  # For futur
+        elif major != 1 or minor != 0:  # For future
             raise NotImplementedError('Protocol version %d.%d is not supported' % (major, minor))
 
         if major != self.version_major or minor != self.version_minor:
@@ -414,7 +414,7 @@ class Protocol:
                     block_size = (2 + self.get_address_size_bytes())
                     if len(req.payload) % block_size != 0:
                         raise Exception(
-                            'Request data length is not a multiple of %d bytes (addres[%d] + length[2])' % (block_size, self.get_address_size_bytes()))
+                            'Request data length is not a multiple of %d bytes (address[%d] + length[2])' % (block_size, self.get_address_size_bytes()))
                     nblock = int(len(req.payload) / block_size)
                     data['blocks_to_read'] = []
                     for i in range(nblock):

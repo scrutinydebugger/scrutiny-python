@@ -1,6 +1,6 @@
 #    comm_handler.py
 #        The CommHandler task is to convert Requests and Response from or to a stream of bytes.
-#        
+#
 #        This class manage send requests, wait for response, indicates if a response timeout
 #        occurred and decodes bytes.
 #        It manages the low level part of the communication protocol with the device
@@ -90,7 +90,7 @@ class CommHandler:
     def enable_throttling(self, bitrate: float) -> None:
         """Enable throttling on communication.
         Overall bitrate (incoming and outgoing data included) will try to be respected.
-        This does not take in account the protocol overhwad. Just the payload sum.
+        This does not take in account the protocol overhead. Just the payload sum.
         """
         self.throttler.set_bitrate(bitrate)
         self.throttler.enable()
@@ -176,7 +176,7 @@ class CommHandler:
             self.opened = False
 
     def is_open(self):
-        """Return True if the communciation channel is open with the device"""
+        """Return True if the communication channel is open with the device"""
         return self.opened
 
     def close(self) -> None:
@@ -188,7 +188,7 @@ class CommHandler:
         self.opened = False
 
     def is_operational(self) -> bool:
-        """Return True if the communication channel is presently in a healty state."""
+        """Return True if the communication channel is presently in a healthy state."""
         if self.link is None:
             return False
 
@@ -236,7 +236,7 @@ class CommHandler:
 
         self.rx_data.data_buffer += data    # Add data to receive buffer
 
-        if len(self.rx_data.data_buffer) >= 5:  # We have a valid command,subcommand, code and length (16btis)
+        if len(self.rx_data.data_buffer) >= 5:  # We have a valid command,subcommand, code and length (16bits)
             if self.rx_data.length is None:
                 self.rx_data.length, = struct.unpack('>H', self.rx_data.data_buffer[3:5])   # Read the data length
 
@@ -327,7 +327,7 @@ class CommHandler:
     def reset_rx(self) -> None:
         """ 
         Make sure we can send a new request.
-        Also clear the received resposne so that response_available() return False
+        Also clear the received response so that response_available() return False
         """
         self.active_request = None
         self.pending_request = None
@@ -349,13 +349,13 @@ class CommHandler:
     def waiting_response(self) -> bool:
         """Return True if there is a pending request waiting for a response. 
         Will return False if the pending request does time out"""
-        # We are waiting response if a request is active, meaning it has been sent and reponse has not been acknowledge by the application
+        # We are waiting response if a request is active, meaning it has been sent and response has not been acknowledge by the application
         if not self.opened:
             return False
         return (self.active_request is not None or self.pending_request is not None)
 
     def reset(self) -> None:
-        """Put bacj the CommHandler to its startup state"""
+        """Put back the CommHandler to its startup state"""
         self.reset_rx()
         self.clear_timeout()
 
