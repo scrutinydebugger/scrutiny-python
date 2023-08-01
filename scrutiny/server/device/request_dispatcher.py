@@ -142,7 +142,7 @@ class RequestRecord:
 
 class RequestDispatcher:
     """Uses a priority queue to buffer all pending Scrutiny Protocol requests and 
-    decide which one is the enxt to go out."""
+    decide which one is the next to go out."""
 
     request_queue: RequestQueue
     """PriorityQueue for requests"""
@@ -165,7 +165,7 @@ class RequestDispatcher:
         self.request_queue.clear()
 
     def is_in_error(self) -> bool:
-        """Returns True if an error occured. Will happen if a request has been enqueued that either 
+        """Returns True if an error occurred. Will happen if a request has been enqueued that either 
         has a request or an expected response size bigger than what the device can handle"""
         return self.critical_error
 

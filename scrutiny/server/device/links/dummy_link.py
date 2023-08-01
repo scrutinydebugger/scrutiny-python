@@ -14,7 +14,7 @@ from typing import Dict, Any, Optional
 class ThreadSafeDummyLink(AbstractLink):
     """
     Thread safe fake communication channel that implement the 
-    required interface to talk with a device. Used for unit teststing
+    required interface to talk with a device. Used for unit testing
     """
     to_device_data: bytes
     from_device_data: bytes
@@ -106,7 +106,7 @@ class ThreadSafeDummyLink(AbstractLink):
 class DummyLink(AbstractLink):
     """
     Non-thread safe fake communication channel that implement the 
-    required interface to talk with a device. Used for unit teststing
+    required interface to talk with a device. Used for unit testing
     """
     to_device_data: bytes
     from_device_data: bytes
@@ -117,7 +117,7 @@ class DummyLink(AbstractLink):
 
     @classmethod
     def make(cls, config: LinkConfig = {}) -> "DummyLink":
-        """Construct a dummyLink object based on a configuration dictionnary"""
+        """Construct a dummyLink object based on a configuration dictionary"""
         if 'channel_id' in config:
             if config['channel_id'] not in cls.INSTANCES:
                 cls.INSTANCES[config['channel_id']] = cls(config)

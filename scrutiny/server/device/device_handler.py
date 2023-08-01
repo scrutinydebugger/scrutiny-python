@@ -802,7 +802,7 @@ class DeviceHandler:
                     self.comm_handler.clear_timeout()
                     self.active_request_record.complete(success=False)
 
-                elif self.comm_handler.waiting_response():      # We are still wiating for a resonse
+                elif self.comm_handler.waiting_response():      # We are still waiting for a response
                     if self.comm_handler.response_available():  # We got a response! yay
                         response = self.comm_handler.get_response()
 

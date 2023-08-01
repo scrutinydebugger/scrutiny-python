@@ -46,7 +46,7 @@ class SynchronousWebsocketServer:
         self.logger = logging.getLogger(self.__class__.__name__)
 
     async def server_routine(self, websocket: WebsocketType, path: str):
-        """ The routine given to the websckets module. Executed for each websocket"""
+        """ The routine given to the websockets module. Executed for each websocket"""
         if self.connect_callback is not None:
             self.connect_callback(websocket)
 

@@ -34,7 +34,7 @@ class CommParamCallback(GenericCallback):
 
 
 class InfoPoller:
-    """Class that will successfuly sends polling request to the device
+    """Class that will successfully sends polling request to the device
     to gather all of its internal parameters. Will fill a DeviceInformation structure"""
 
     logger: logging.Logger
@@ -116,7 +116,7 @@ class InfoPoller:
         return self.fsm_state == self.FsmState.Done
 
     def is_in_error(self) -> bool:
-        """Returns true if an error occured and the state machine went to error state"""
+        """Returns true if an error occurred and the state machine went to error state"""
         return self.fsm_state == self.FsmState.Error
 
     def reset(self) -> None:
@@ -344,7 +344,7 @@ class InfoPoller:
             pass
 
         else:
-            self.logger.error('State Machine went into an unkwon state : %s' % self.fsm_state)
+            self.logger.error('State Machine went into an unknown state : %s' % self.fsm_state)
             next_state = self.FsmState.Error
 
         if next_state != self.fsm_state:
@@ -473,7 +473,7 @@ class InfoPoller:
                 # We poll for loop id from 0 to N by step of 1. So it should match the count.
                 elif response_data['loop_id'] != len(self.info.loops):
                     self.fsm_state == self.FsmState.Error
-                    self.error_message = "Received the loop definition for an unexpect loop id"
+                    self.error_message = "Received the loop definition for an unexpected loop id"
                 else:
                     self.info.loops.append(response_data['loop'])
 

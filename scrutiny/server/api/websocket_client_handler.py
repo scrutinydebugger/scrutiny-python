@@ -51,11 +51,11 @@ class WebsocketClientHandler(AbstractClientHandler):
         self.logger.info('New client connected (ID=%s). %d clients total' % (wsid, len(self.ws2id_map)))
 
     def unregister(self, websocket: WebsocketType) -> None:
-        # Callback on websocket diconnection.
+        # Callback on websocket disconnection.
         wsid = self.ws2id_map[websocket]
         del self.ws2id_map[websocket]
         del self.id2ws_map[wsid]
-        self.logger.info('Client disconnected (ID=%s). %d clients remainings' % (wsid, len(self.ws2id_map)))
+        self.logger.info('Client disconnected (ID=%s). %d clients remaining' % (wsid, len(self.ws2id_map)))
 
     def get_port(self) -> Optional[int]:
         return self.port

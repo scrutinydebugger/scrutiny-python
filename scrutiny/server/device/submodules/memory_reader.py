@@ -507,7 +507,7 @@ class MemoryReader:
                         self.logger.critical('Error while writing datastore. %s' % str(e))
                         self.logger.debug(traceback.format_exc())
                 except Exception:
-                    self.logger.error('Response for ReadMemory read request is malformed and must be discared.')
+                    self.logger.error('Response for ReadMemory read request is malformed and must be discarded.')
                     self.logger.debug(traceback.format_exc())
             else:
                 self.logger.warning('Response for ReadMemory has been refused with response code %s.' % response.code)
@@ -557,7 +557,7 @@ class MemoryReader:
                     self.logger.critical('Error while writing datastore. %s' % str(e))
                     self.logger.debug(traceback.format_exc())
             except Exception:
-                self.logger.error('Response for ReadRPV read request is malformed and must be discared.')
+                self.logger.error('Response for ReadRPV read request is malformed and must be discarded.')
                 self.logger.debug(traceback.format_exc())
         else:
             self.logger.warning('Response for ReadRPV has been refused with response code %s.' % response.code)

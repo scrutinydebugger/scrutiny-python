@@ -34,7 +34,7 @@ class DeviceState(enum.Enum):
 class WatchableType(enum.Enum):
     NA = 0
     Variable = 1
-    RuntimePulishedValue = 2
+    RuntimePublishedValue = 2
     Alias = 3
 
 

@@ -254,7 +254,7 @@ class VarMap:
 
     def get_var_def(self, fullname: str) -> VariableEntry:
         if not self.has_var(fullname):
-            raise ValueError('%s not in Variable Decsription File' % fullname)
+            raise ValueError('%s not in Variable Description File' % fullname)
         return self.variables[fullname]
 
     def get_bitsize(self, vardef: VariableEntry) -> Optional[int]:

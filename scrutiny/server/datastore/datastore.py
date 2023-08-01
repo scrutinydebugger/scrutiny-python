@@ -72,7 +72,7 @@ class Datastore:
             self.displaypath2idmap[type_to_clear] = {}
 
     def add_entries_quiet(self, entries: List[DatastoreEntry]):
-        """ Add many entries without raisong exceptions. Silently remove failing ones"""
+        """ Add many entries without raising exceptions. Silently remove failing ones"""
         for entry in entries:
             self.add_entry_quiet(entry)
 

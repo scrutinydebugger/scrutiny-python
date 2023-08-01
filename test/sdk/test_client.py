@@ -533,7 +533,7 @@ class TestClient(ScrutinyUnitTest):
         alias_var1 = self.client.watch('/a/b/alias_var1')
         alias_rpv1000 = self.client.watch('/a/b/alias_rpv1000')
 
-        self.assertEqual(rpv1000.type, sdk.WatchableType.RuntimePulishedValue)
+        self.assertEqual(rpv1000.type, sdk.WatchableType.RuntimePublishedValue)
         self.assertEqual(rpv1000.display_path, '/rpv/x1000')
         self.assertEqual(rpv1000.name, 'x1000')
         self.assertEqual(rpv1000.datatype, sdk.EmbeddedDataType.float32)

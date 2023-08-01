@@ -222,7 +222,7 @@ class FirmwareDescription:
 
     def validate(self) -> None:
         if not hasattr(self, 'metadata') or not hasattr(self, 'varmap') or not hasattr(self, 'firmwareid'):
-            raise Exception('Firmware Descritpion not loaded correctly')
+            raise Exception('Firmware Description not loaded correctly')
 
         self.validate_metadata()
         self.validate_firmware_id()

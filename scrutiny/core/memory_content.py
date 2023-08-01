@@ -140,7 +140,7 @@ class MemoryContent:
     It keeps many non-contiguous memory chunk with data. 
     Basic operation such as read,write, delete are possible.  
 
-    All chunks of data that are contiguous are automatically agllomerated 
+    All chunks of data that are contiguous are automatically agglomerated 
     into a single chunk
 
     We will use the agglomeration feature of this class to converts
@@ -327,7 +327,7 @@ class MemoryContent:
         if written_key_index is None:
             i = 0
         else:
-            # Speed optimisation if we know the range that might need agglomeration
+            # Speed optimization if we know the range that might need agglomeration
             i = max(0, written_key_index - 1)
 
         merge_done = 0

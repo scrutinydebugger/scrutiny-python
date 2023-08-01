@@ -105,7 +105,7 @@ class VarOperand(Operand):
 
 
 class VarBitOperand(Operand):
-    """An operand that refers to a variable in memory that uses bitfields"""
+    """An operand that refers to a variable in memory that uses bitfield"""
     address: int
     datatype: EmbeddedDataType
     bitoffset: int

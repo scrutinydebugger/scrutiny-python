@@ -164,7 +164,7 @@ def parse_get_watchable_single_element(response: api_typing.S2C.GetWatchableList
         watchable_type = sdk.WatchableType.Alias
         typekey = 'alias'
     elif response['qty']['rpv']:
-        watchable_type = sdk.WatchableType.RuntimePulishedValue
+        watchable_type = sdk.WatchableType.RuntimePublishedValue
         content = response['content']['rpv']
         typekey = 'rpv'
     elif response['qty']['var']:
