@@ -2,5 +2,5 @@ __pycache__
 /build*/
 /venv*/
 *.egg-info/
-htmlcov
-.coverage
+htmlcov*
+.coverage*
