@@ -48,6 +48,7 @@ pipeline {
                                 python3.8 -m venv venv-3.8
                                 SCRUTINY_VENV_DIR=venv-3.8 scripts/with-venv.sh scripts/check-python-version.sh 3.8
                                 SCRUTINY_VENV_DIR=venv-3.8 scripts/with-venv.sh scripts/runtests.sh htmlcov_3.8
+                                tarx -cvzf htmlcov_3.8.tgz htmlcov_3.8
                                 '''
                             }
                         }
@@ -56,11 +57,10 @@ pipeline {
             }
             post {
                 always {
-                    archiveArtifacts artifacts: 'htmlcov_3.8/**', fingerprint: true
-                    archiveArtifacts artifacts: 'htmlcov_3.9/**', fingerprint: true
-                    archiveArtifacts artifacts: 'htmlcov_3.10/**', fingerprint: true
-                    archiveArtifacts artifacts: 'htmlcov_3.11/**', fingerprint: true
-                    
+                    archiveArtifacts artifacts: 'htmlcov_3.8.tgz', fingerprint: true
+                    archiveArtifacts artifacts: 'htmlcov_3.9.tgz', fingerprint: true
+                    archiveArtifacts artifacts: 'htmlcov_3.10.tgz', fingerprint: true
+                    archiveArtifacts artifacts: 'htmlcov_3.11.tgz', fingerprint: true
                 }
             }
         }
