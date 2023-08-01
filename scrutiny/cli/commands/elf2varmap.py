@@ -18,7 +18,7 @@ from typing import Optional, List
 class Elf2VarMap(BaseCommand):
     _cmd_name_ = 'elf2varmap'
     _brief_ = 'Extract the variables definition from an ELF file through DWARF debugging symbols.'
-    _group_ = 'Build Toochain'
+    _group_ = 'Build Toolchain'
 
     args: List[str]
     parser: argparse.ArgumentParser

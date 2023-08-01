@@ -18,8 +18,8 @@ from typing import Optional, List
 
 class MakeMetadata(BaseCommand):
     _cmd_name_ = 'make-metadata'
-    _brief_ = 'Generate a .json file containing the metadatas used inside a SFD (Scrutiny Firmware Description)'
-    _group_ = 'Build Toochain'
+    _brief_ = 'Generate a .json file containing the metadata used inside a SFD (Scrutiny Firmware Description)'
+    _group_ = 'Build Toolchain'
 
     DEFAULT_NAME = 'metadata.json'
 

@@ -17,7 +17,7 @@ from typing import Optional, List
 class TagFirmwareID(BaseCommand):
     _cmd_name_ = 'tag-firmware-id'
     _brief_ = 'Writes the firmware id into a freshly compiled binary'
-    _group_ = 'Build Toochain'
+    _group_ = 'Build Toolchain'
 
     args: List[str]
     parser: argparse.ArgumentParser
