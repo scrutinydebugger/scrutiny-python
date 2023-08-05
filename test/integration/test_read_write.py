@@ -293,6 +293,8 @@ class TestReadWrite(ScrutinyIntegrationTestWithTestSFD1):
                 self.assert_is_error(response, msg=assert_msg)
             else:
                 self.assert_no_error(response, msg=assert_msg)
+                write_completion = self.wait_and_load_response([API.Command.Api2Client.INFORM_WRITE_COMPLETION])
+                self.assertEqual(write_completion['request_token'], response['request_token'])
                 self.empty_api_rx_queue()
                 self.process_watchable_update(nbr=len(all_entries) * 2)
                 self.assert_value_received(testcase.entry, testcase.outval, msg=assert_msg)
