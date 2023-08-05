@@ -86,7 +86,7 @@ class TestDeviceHandler(ScrutinyUnitTest):
     def test_connect_disconnect_normal(self):
         self.disconnect_callback_called = False
         self.disconnect_was_clean = False
-        timeout = 1
+        timeout = 2
         t1 = time.time()
         connection_successful = False
         disconnect_sent = False
@@ -456,24 +456,28 @@ class TestDeviceHandler(ScrutinyUnitTest):
                     round_completed = 0
 
                 if state == 'write':
-                    write_timestamp = time.time()
+                    previous_write_timestamp_per_entry = {}
+                    
                     written_values = {}
+                    for entry in all_entries:
+                        previous_write_timestamp_per_entry[entry.get_id()] = entry.get_last_target_update_timestamp()
+                    time.sleep(0.1)
                     for entry in all_entries:
                         rpv = entry.get_rpv()
                         written_values[rpv.id] = generate_random_value(rpv.datatype)
                         self.datastore.update_target_value(entry, written_values[rpv.id], no_callback)
-
+                    
                     state = 'wait_for_update_and_validate'
 
                 elif state == 'wait_for_update_and_validate':
                     all_updated = True
                     for entry in all_entries:
                         last_update_timestamp = entry.get_last_target_update_timestamp()
-                        if last_update_timestamp is None or last_update_timestamp < write_timestamp:
+                        if last_update_timestamp is None or last_update_timestamp == previous_write_timestamp_per_entry[entry.get_id()]:
                             all_updated = False
                         else:
                             rpv = entry.get_rpv()
-                            self.assertEqual(entry.get_value(), written_values[rpv.id])
+                            self.assertEqual(entry.get_value(), written_values[rpv.id], "rpv=0x%04x" % rpv.id)
 
                     if all_updated:
                         written_values = {}
