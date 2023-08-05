@@ -10,3 +10,4 @@ python3 -m coverage run --data-file ${COV_DATAFILE} -m scrutiny runtest --loglev
 python3 -m mypy scrutiny
 python3 -m coverage report --data-file ${COV_DATAFILE}
 python3 -m coverage html --data-file ${COV_DATAFILE} -d $HTML_COVDIR
+  
