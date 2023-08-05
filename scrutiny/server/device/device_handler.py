@@ -424,14 +424,8 @@ class DeviceHandler:
         self.device_id = None
         self.device_info = None
         self.comm_broken = False
-        self.device_searcher.stop()
-        self.heartbeat_generator.stop()
-        self.info_poller.stop()
-        self.datalogging_poller.stop()
-        self.session_initializer.stop()
+        self.stop_all_submodules()
         self.dispatcher.reset()
-        self.memory_reader.stop()
-        self.memory_writer.stop()
         self.device_session_id = None
         self.server_session_id = None
         self.disconnection_requested = False
@@ -645,11 +639,13 @@ class DeviceHandler:
                 self.logger.error('Failed to initialize session.')
                 self.comm_broken = True
             elif self.disconnection_requested:
+                self.stop_all_submodules()
                 next_state = self.FsmState.DISCONNECTING
 
         # ========= [POLLING_INFO] =======
         elif self.fsm_state == self.FsmState.POLLING_INFO:
             if self.disconnection_requested:
+                self.stop_all_submodules()
                 next_state = self.FsmState.DISCONNECTING
 
             if state_entry:
@@ -713,11 +709,9 @@ class DeviceHandler:
             self.fully_connected_ready = True
 
             if self.disconnection_requested:
+                self.stop_all_submodules()
                 self.server_session_id = None
                 self.fully_connected_ready = False
-                self.memory_reader.stop()
-                self.memory_writer.stop()
-                self.datalogging_poller.stop()
                 next_state = self.FsmState.DISCONNECTING
 
             if self.dispatcher.is_in_error():
@@ -826,3 +820,14 @@ class DeviceHandler:
                         done = False    # There might be another request pending. Send right away
 
             self.comm_handler.process()      # Process new transmission now.
+
+
+    def stop_all_submodules(self):
+        self.memory_reader.stop()
+        self.memory_writer.stop()
+        self.datalogging_poller.stop()
+        self.info_poller.stop()
+        self.heartbeat_generator.stop()
+        self.device_searcher.stop()
+        self.session_initializer.stop()
+        
