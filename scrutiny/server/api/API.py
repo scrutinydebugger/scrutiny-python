@@ -1126,6 +1126,9 @@ class API:
 
         yaxis_map: Dict[int, api_datalogging.AxisDefinition] = {}
         for yaxis in req['yaxis']:
+            if not isinstance(yaxis, dict):
+                raise InvalidRequestException(req, "Invalid Y-Axis")
+
             if 'name' not in yaxis:
                 raise InvalidRequestException(req, "Missing Y-Axis name")
 
@@ -1144,6 +1147,9 @@ class API:
             yaxis_map[yaxis['id']] = api_datalogging.AxisDefinition(name=yaxis['name'], external_id=yaxis['id'])
 
         for signal_def in req['signals']:
+            if not isinstance(signal_def, dict):
+                raise InvalidRequestException(req, "Invalid signal definition")
+            
             if not isinstance(signal_def['id'], str):
                 raise InvalidRequestException(req, 'Invalid watchable ID')
 
