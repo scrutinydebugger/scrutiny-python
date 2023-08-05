@@ -461,7 +461,7 @@ class TestDeviceHandler(ScrutinyUnitTest):
                     written_values = {}
                     for entry in all_entries:
                         previous_write_timestamp_per_entry[entry.get_id()] = entry.get_last_target_update_timestamp()
-                    time.sleep(0.1)
+                    time.sleep(0.05)
                     for entry in all_entries:
                         rpv = entry.get_rpv()
                         written_values[rpv.id] = generate_random_value(rpv.datatype)
@@ -485,19 +485,24 @@ class TestDeviceHandler(ScrutinyUnitTest):
 
                 elif state == 'write_from_device':
                     written_values = {}
-                    write_from_device_timestamp = time.time()
                     for rpv in self.emulated_device.get_rpvs():
                         written_values[rpv.id] = generate_random_value(rpv.datatype)
                         self.emulated_device.write_rpv(rpv.id, written_values[rpv.id])
+                    
+                    time.sleep(0.05)
+                    previous_write_timestamp_per_entry ={}
+                    for entry in all_entries:
+                        previous_write_timestamp_per_entry[entry.get_id()] = entry.get_value_change_timestamp()
                     state = 'wait_for_update_and_read'
 
                 elif state == 'wait_for_update_and_read':
                     all_updated = True
                     for entry in all_entries:
                         rpv = entry.get_rpv()
-                        if entry.get_value_change_timestamp() < write_from_device_timestamp:
+                        if entry.get_value_change_timestamp() == previous_write_timestamp_per_entry[entry.get_id()]:
                             all_updated = False
                         else:
+
                             self.assertEqual(entry.get_value(), written_values[rpv.id])
 
                     if all_updated:
