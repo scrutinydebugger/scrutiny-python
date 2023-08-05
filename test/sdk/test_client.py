@@ -819,7 +819,7 @@ class TestClient(ScrutinyUnitTest):
 
         self.execute_in_server_thread(unload_sfd)
         self.wait_true(sfd_unloaded_check)
-        time.sleep(0.1) # There is a small delay between sfd unloaded is confirmed and watcahbles invalidated. Leave the sDK thread clean that.
+        self.client.wait_process()
 
         rpv1000.value   # RPV still accessible
 
@@ -830,7 +830,8 @@ class TestClient(ScrutinyUnitTest):
 
         self.execute_in_server_thread(reload_sfd)
         self.wait_true(sfd_loaded_check)
-
+        self.client.wait_process()
+        
         rpv1000.value
         with self.assertRaises(sdk.exceptions.InvalidValueError):
             var1.value

@@ -393,8 +393,10 @@ class TestDataloggingIntegration(ScrutinyIntegrationTestWithTestSFD1):
                         self.assertAlmostEqual(expected_val, val, 4)
                         expected_val = (expected_val + 1 * decimation * self.entry_alias_uint8.aliasdef.get_gain()) % 0xFF
 
+            self.server.device_handler.expect_no_timeout = False
             self.emulated_device.force_disconnect()
             self.wait_device_disconnected()
+            self.server.device_handler.expect_no_timeout = True
 
     def tearDown(self) -> None:
         super().tearDown()
