@@ -1892,14 +1892,24 @@ class TestAPI(ScrutinyUnitTest):
                 'cmd': 'delete_all_datalogging_acquisition'
             }
 
+            db_init_count = DataloggingStorage.get_init_count()
             self.send_request(req)
+            t = time.time()
+            timeout = 5
+            while time.time() - t < timeout:
+                self.process_all()
+                if DataloggingStorage.get_init_count() != db_init_count:
+                    break
+            if db_init_count == DataloggingStorage.get_init_count():
+                raise Exception("Failed to clear the database")
+            
             expected_response = {
                 API.Command.Api2Client.DELETE_ALL_DATALOGGING_ACQUISITION_RESPONSE: None,
                 API.Command.Api2Client.INFORM_DATALOGGING_LIST_CHANGED: None
             }
-            time.sleep(0.5) # Allow some time for the server to do the deletion. Some testing agent can have a slow disk
+
             for i in range(2):
-                response = self.wait_and_load_response(timeout=1.0) 
+                response = self.wait_and_load_response() 
                 self.assert_no_error(response)
                 expected_response[response['cmd']] = True
                 if response['cmd'] == API.Command.Api2Client.DELETE_ALL_DATALOGGING_ACQUISITION_RESPONSE:
