@@ -1897,8 +1897,9 @@ class TestAPI(ScrutinyUnitTest):
                 API.Command.Api2Client.DELETE_ALL_DATALOGGING_ACQUISITION_RESPONSE: None,
                 API.Command.Api2Client.INFORM_DATALOGGING_LIST_CHANGED: None
             }
+            time.sleep(0.5) # Allow some time for the server to do the deletion. Some testing agent can have a slow disk
             for i in range(2):
-                response = self.wait_and_load_response()
+                response = self.wait_and_load_response(timeout=1.0) 
                 self.assert_no_error(response)
                 expected_response[response['cmd']] = True
                 if response['cmd'] == API.Command.Api2Client.DELETE_ALL_DATALOGGING_ACQUISITION_RESPONSE:
