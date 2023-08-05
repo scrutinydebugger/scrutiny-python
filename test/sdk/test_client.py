@@ -342,6 +342,7 @@ class TestClient(ScrutinyUnitTest):
             datalogging_manager=self.datalogging_manager,
             enable_debug=False)
 
+        self.api.handle_unexpected_errors = False
         self.server_exit_requested = threading.Event()
         self.server_started = threading.Event()
         self.sync_complete = threading.Event()
@@ -831,7 +832,7 @@ class TestClient(ScrutinyUnitTest):
         self.execute_in_server_thread(reload_sfd)
         self.wait_true(sfd_loaded_check)
         self.client.wait_process()
-        
+
         rpv1000.value
         with self.assertRaises(sdk.exceptions.InvalidValueError):
             var1.value
