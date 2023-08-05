@@ -770,6 +770,7 @@ class TestClient(ScrutinyUnitTest):
             return self.client.server.device_comm_state == commstate
 
         self.wait_true(partial(status_check, sdk.DeviceCommState.Disconnected))
+        time.sleep(0.1)
 
         with self.assertRaises(sdk.exceptions.InvalidValueError):
             rpv1000.value
