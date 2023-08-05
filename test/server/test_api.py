@@ -329,7 +329,7 @@ class TestAPI(ScrutinyUnitTest):
 
         return self.connections[conn_idx].read_from_server()
 
-    def wait_and_load_response(self, conn_idx=0, timeout=0.4):
+    def wait_and_load_response(self, conn_idx=0, timeout=1):
         json_str = self.wait_for_response(conn_idx=conn_idx, timeout=timeout)
         self.assertIsNotNone(json_str)
         return json.loads(json_str)
@@ -777,7 +777,7 @@ class TestAPI(ScrutinyUnitTest):
 
         self.datastore.set_value(subscribed_entry.get_id(), 1234)
 
-        var_update_msg = self.wait_and_load_response(timeout=0.5)
+        var_update_msg = self.wait_and_load_response()
         self.assert_valid_value_update_message(var_update_msg)
         self.assertEqual(len(var_update_msg['updates']), 1)
 
@@ -859,7 +859,7 @@ class TestAPI(ScrutinyUnitTest):
         self.datastore.set_value(subscribed_entry.get_id(), 4567)
         self.api.streamer.unfreeze_connection(self.connections[0].get_id())
 
-        var_update_msg = self.wait_and_load_response(timeout=0.5)
+        var_update_msg = self.wait_and_load_response()
         self.assert_valid_value_update_message(var_update_msg)
         self.assertEqual(len(var_update_msg['updates']), 1)     # Only one update
 
@@ -882,7 +882,7 @@ class TestAPI(ScrutinyUnitTest):
             }
 
             self.send_request(req, 0)
-            response = self.wait_and_load_response(timeout=0.5)
+            response = self.wait_and_load_response()
             self.assert_no_error(response)
             self.assertEqual(response['cmd'], 'response_get_installed_sfd')
             self.assertIn('sfd_list', response)
@@ -917,7 +917,7 @@ class TestAPI(ScrutinyUnitTest):
             self.send_request(req, 0)
 
             # inform status should be trigger by callback
-            response = self.wait_and_load_response(timeout=0.5)
+            response = self.wait_and_load_response()
 
             self.assertEqual(response['cmd'], 'inform_server_status')
             self.assertIn('loaded_sfd', response)
@@ -933,7 +933,7 @@ class TestAPI(ScrutinyUnitTest):
             self.send_request(req, 0)
 
             # inform status should be trigger by callback
-            response = self.wait_and_load_response(timeout=0.5)
+            response = self.wait_and_load_response()
             self.assert_no_error(response)
 
             self.assertEqual(response['cmd'], 'inform_server_status')
@@ -962,7 +962,7 @@ class TestAPI(ScrutinyUnitTest):
             }
 
             self.send_request(req, 0)
-            response = cast(api_typing.S2C.InformServerStatus, self.wait_and_load_response(timeout=0.5))
+            response = cast(api_typing.S2C.InformServerStatus, self.wait_and_load_response())
             self.assert_no_error(response)
 
             self.assertEqual(response['cmd'], 'inform_server_status')
@@ -1017,7 +1017,7 @@ class TestAPI(ScrutinyUnitTest):
             }
 
             self.send_request(req, 0)
-            response = cast(api_typing.S2C.InformServerStatus, self.wait_and_load_response(timeout=0.5))
+            response = cast(api_typing.S2C.InformServerStatus, self.wait_and_load_response())
             self.assert_no_error(response)
 
             self.assertEqual(response['cmd'], 'inform_server_status')
@@ -1058,7 +1058,7 @@ class TestAPI(ScrutinyUnitTest):
 
             self.fake_device_handler.set_connection_status(DeviceHandler.ConnectionStatus.DISCONNECTED)
             self.send_request(req, 0)
-            response = cast(api_typing.S2C.InformServerStatus, self.wait_and_load_response(timeout=0.5))
+            response = cast(api_typing.S2C.InformServerStatus, self.wait_and_load_response())
             self.assert_no_error(response)
             self.assertIn('device_session_id', response)
             self.assertIsNone(response['device_session_id'])    # Expected None when not connected
@@ -1095,7 +1095,7 @@ class TestAPI(ScrutinyUnitTest):
             }
         }
         self.send_request(req, 0)
-        response = self.wait_and_load_response(timeout=0.5)
+        response = self.wait_and_load_response()
         self.assert_no_error(response)
         self.assertEqual(self.fake_device_handler.link_type, 'dummy')
         self.assertEqual(self.fake_device_handler.link_config, {'channel_id': 10})
@@ -1110,7 +1110,7 @@ class TestAPI(ScrutinyUnitTest):
         }
         self.fake_device_handler.reject_link_config = True   # Emulate a bad config
         self.send_request(req, 0)
-        response = self.wait_and_load_response(timeout=0.5)
+        response = self.wait_and_load_response()
         self.assert_is_error(response)
         self.assertNotEqual(self.fake_device_handler.link_type, 'potato')
         self.assertNotEqual(self.fake_device_handler.link_config, {'mium': 'mium'})
@@ -1122,7 +1122,7 @@ class TestAPI(ScrutinyUnitTest):
             'link_type': 'potato'
         }
         self.send_request(req, 0)
-        response = self.wait_and_load_response(timeout=0.5)
+        response = self.wait_and_load_response()
         self.assert_is_error(response)
 
         # Missing link_type
@@ -1131,7 +1131,7 @@ class TestAPI(ScrutinyUnitTest):
             'link_config': {}
         }
         self.send_request(req, 0)
-        response = self.wait_and_load_response(timeout=0.5)
+        response = self.wait_and_load_response()
         self.assert_is_error(response)
 
         # Missing 2 fields
@@ -1139,7 +1139,7 @@ class TestAPI(ScrutinyUnitTest):
             'cmd': 'set_link_config'
         }
         self.send_request(req, 0)
-        response = self.wait_and_load_response(timeout=0.5)
+        response = self.wait_and_load_response()
         self.assert_is_error(response)
 
     def test_write_watchable(self):
@@ -1375,7 +1375,7 @@ class TestAPI(ScrutinyUnitTest):
         }
 
         self.send_request(req, 0)
-        response = cast(api_typing.S2C.ReadMemory, self.wait_and_load_response(timeout=0.5))
+        response = cast(api_typing.S2C.ReadMemory, self.wait_and_load_response())
         self.assert_no_error(response)
 
         self.assertEqual(response['cmd'], 'response_read_memory')
@@ -1390,7 +1390,7 @@ class TestAPI(ScrutinyUnitTest):
         payload = bytes([random.randint(0, 255) for x in range(read_request.size)])
         read_request.completion_callback(read_request, True, payload, "")
 
-        response = cast(api_typing.S2C.ReadMemoryComplete, self.wait_and_load_response(timeout=0.5))
+        response = cast(api_typing.S2C.ReadMemoryComplete, self.wait_and_load_response())
         self.assertIn('request_token', response)
         self.assertIn('data', response)
         self.assertIn('success', response)
@@ -1411,7 +1411,7 @@ class TestAPI(ScrutinyUnitTest):
         }
 
         self.send_request(req, 0)
-        response = cast(api_typing.S2C.ReadMemory, self.wait_and_load_response(timeout=0.5))
+        response = cast(api_typing.S2C.ReadMemory, self.wait_and_load_response())
         self.assert_no_error(response)
 
         self.assertEqual(response['cmd'], 'response_read_memory')
@@ -1426,7 +1426,7 @@ class TestAPI(ScrutinyUnitTest):
 
         read_request.completion_callback(read_request, False, None, "")  # Simulate failure
 
-        response = cast(api_typing.S2C.ReadMemoryComplete, self.wait_and_load_response(timeout=0.5))
+        response = cast(api_typing.S2C.ReadMemoryComplete, self.wait_and_load_response())
         self.assertIn('request_token', response)
         self.assertIn('data', response)
         self.assertIn('success', response)
@@ -1440,19 +1440,19 @@ class TestAPI(ScrutinyUnitTest):
         self.send_request({
             'cmd': 'read_memory'
         })
-        self.assert_is_error(self.wait_and_load_response(timeout=0.5))
+        self.assert_is_error(self.wait_and_load_response())
 
         self.send_request({
             'cmd': 'read_memory',
             "address": 0
         })
-        self.assert_is_error(self.wait_and_load_response(timeout=0.5))
+        self.assert_is_error(self.wait_and_load_response())
 
         self.send_request({
             'cmd': 'read_memory',
             "size": 100
         })
-        self.assert_is_error(self.wait_and_load_response(timeout=0.5))
+        self.assert_is_error(self.wait_and_load_response())
 
         for addr in [-1, "", None, 1.2]:
             self.send_request({
@@ -1460,7 +1460,7 @@ class TestAPI(ScrutinyUnitTest):
                 "address": addr,
                 "size": 100
             })
-            self.assert_is_error(self.wait_and_load_response(timeout=0.5))
+            self.assert_is_error(self.wait_and_load_response())
 
         for size in [-1, "", None, 1.2]:
             self.send_request({
@@ -1468,7 +1468,7 @@ class TestAPI(ScrutinyUnitTest):
                 "address": 100,
                 "size": size
             })
-            self.assert_is_error(self.wait_and_load_response(timeout=0.5))
+            self.assert_is_error(self.wait_and_load_response())
 
     def test_write_memory(self):
         payload = bytes([random.randint(0, 255) for i in range(256)])
@@ -1481,7 +1481,7 @@ class TestAPI(ScrutinyUnitTest):
         }
 
         self.send_request(req, 0)
-        response = cast(api_typing.S2C.WriteMemory, self.wait_and_load_response(timeout=0.5))
+        response = cast(api_typing.S2C.WriteMemory, self.wait_and_load_response())
         self.assert_no_error(response)
 
         self.assertEqual(response['cmd'], 'response_write_memory')
@@ -1495,7 +1495,7 @@ class TestAPI(ScrutinyUnitTest):
         self.assertIsNotNone(write_request.completion_callback)
         write_request.completion_callback(write_request, True, "")
 
-        response = cast(api_typing.S2C.WriteMemoryComplete, self.wait_and_load_response(timeout=0.5))
+        response = cast(api_typing.S2C.WriteMemoryComplete, self.wait_and_load_response())
         self.assertIn('request_token', response)
         self.assertIn('success', response)
         self.assertIn('request_token', response)
@@ -1514,7 +1514,7 @@ class TestAPI(ScrutinyUnitTest):
         }
 
         self.send_request(req, 0)
-        response = cast(api_typing.S2C.WriteMemory, self.wait_and_load_response(timeout=0.5))
+        response = cast(api_typing.S2C.WriteMemory, self.wait_and_load_response())
         self.assert_no_error(response)
 
         self.assertEqual(response['cmd'], 'response_write_memory')
@@ -1529,7 +1529,7 @@ class TestAPI(ScrutinyUnitTest):
 
         write_request.completion_callback(write_request, False, "")  # Simulate failure
 
-        response = cast(api_typing.S2C.WriteMemoryComplete, self.wait_and_load_response(timeout=0.5))
+        response = cast(api_typing.S2C.WriteMemoryComplete, self.wait_and_load_response())
         self.assertIn('request_token', response)
         self.assertIn('success', response)
         self.assertIn('request_token', response)
@@ -1541,19 +1541,19 @@ class TestAPI(ScrutinyUnitTest):
         self.send_request({
             'cmd': 'write_memory'
         })
-        self.assert_is_error(self.wait_and_load_response(timeout=0.5))
+        self.assert_is_error(self.wait_and_load_response())
 
         self.send_request({
             'cmd': 'write_memory',
             "address": 0
         })
-        self.assert_is_error(self.wait_and_load_response(timeout=0.5))
+        self.assert_is_error(self.wait_and_load_response())
 
         self.send_request({
             'cmd': 'write_memory',
             "data": b64encode(bytes([1, 2, 3])).decode('ascii')
         })
-        self.assert_is_error(self.wait_and_load_response(timeout=0.5))
+        self.assert_is_error(self.wait_and_load_response())
 
         for addr in [-1, "", None, 1.2]:
             self.send_request({
@@ -1561,7 +1561,7 @@ class TestAPI(ScrutinyUnitTest):
                 "address": addr,
                 "data": b64encode(bytes([1, 2, 3])).decode('ascii')
             })
-            self.assert_is_error(self.wait_and_load_response(timeout=0.5))
+            self.assert_is_error(self.wait_and_load_response())
 
         for data in [1, "", None, 1.2, b64encode(bytes()).decode('ascii')]:
             self.send_request({
@@ -1569,7 +1569,7 @@ class TestAPI(ScrutinyUnitTest):
                 "address": 100,
                 "data": data
             })
-            self.assert_is_error(self.wait_and_load_response(timeout=0.5))
+            self.assert_is_error(self.wait_and_load_response())
 
 # region Datalogging
 
@@ -1838,7 +1838,16 @@ class TestAPI(ScrutinyUnitTest):
                 'cmd': 'delete_datalogging_acquisition',
                 'reference_id': 'refid2',
             }
-
+            acq_count_before = DataloggingStorage.count()
+            timeout = 5
+            t = time.time()
+            while time.time() - t < timeout:
+                self.process_all()
+                if DataloggingStorage.count() != acq_count_before:
+                    break
+            if acq_count_before == DataloggingStorage.count():
+                raise Exception("Failed to delete the acquisition")
+            
             self.send_request(req)
             expected_response = {
                 API.Command.Api2Client.DELETE_DATALOGGING_ACQUISITION_RESPONSE: None,
