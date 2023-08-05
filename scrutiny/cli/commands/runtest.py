@@ -40,7 +40,7 @@ class RunTest(BaseCommand):
         test_root = os.path.realpath(os.path.join(os.path.dirname(scrutiny.__file__), '../test'))
         sys.path.insert(0, test_root)   # So that "import test" correctly load scrutiny test env if cpython has its own unit tests available in the path
 
-        format_string = '[%(levelname)s] <%(name)s> %(message)s'
+        format_string = '%(asctime)s [%(levelname)s] <%(name)s> %(message)s'
         logging.getLogger().handlers[0].setFormatter(logging.Formatter(format_string))
         if self.requested_log_level is None:
             logging.getLogger().setLevel(logging.CRITICAL)
