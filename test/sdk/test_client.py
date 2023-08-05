@@ -810,7 +810,7 @@ class TestClient(ScrutinyUnitTest):
 
         def reload_sfd():
             self.sfd_handler.load(FirmwareDescription(get_artifact('test_sfd_1.sfd')))
-
+        
         alias_var1_counter = alias_var1.update_counter
         self.set_value_and_wait_update(rpv1000, 1.234)
         self.set_value_and_wait_update(var1, 0x1234)
@@ -818,6 +818,7 @@ class TestClient(ScrutinyUnitTest):
 
         self.execute_in_server_thread(unload_sfd)
         self.wait_true(sfd_unloaded_check)
+        time.sleep(0.1) # There is a small delay between sfd unloaded is confirmed and watcahbles invalidated. Leave the sDK thread clean that.
 
         rpv1000.value   # RPV still accessible
 

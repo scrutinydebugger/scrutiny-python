@@ -428,8 +428,6 @@ class TestDeviceHandler(ScrutinyUnitTest):
         round_completed = 0
         t1 = time.time()
         all_entries = []
-        write_timestamp = 0
-        write_from_device_timestamp = 0
         state = 'wait_for_connection'
 
         while time.time() - t1 < timeout and round_completed < test_round_to_do:

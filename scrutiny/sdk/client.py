@@ -1142,7 +1142,7 @@ class ScrutinyClient:
     def server(self) -> Optional[ServerInfo]:
         """Information about everything going on the server side"""
 
-        # server_info is readonly and only it,s reference gets changed when updated.
+        # server_info is readonly and only its reference gets changed when updated.
         # We can safely return a reference here. The user can't mess it up
         with self._main_lock:
             info = self._server_info
