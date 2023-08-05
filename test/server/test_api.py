@@ -293,6 +293,7 @@ class TestAPI(ScrutinyUnitTest):
             sfd_handler=self.sfd_handler,
             datalogging_manager=self.fake_datalogging_manager
         )
+        self.api.handle_unexpected_errors = False
         client_handler = self.api.get_client_handler()
         assert isinstance(client_handler, DummyClientHandler)
         client_handler.set_connections(self.connections)
