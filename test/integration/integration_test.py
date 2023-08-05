@@ -51,7 +51,7 @@ class ScrutinyIntegrationTest(ScrutinyUnitTest):
                 "device_config": {
                     'link_type': 'thread_safe_dummy',
                     'link_config': {},
-                    'response_timeout': 0.25,
+                    'response_timeout': 1,
                     'heartbeat_timeout': 2
                 },
                 "autoload_sfd": False,

@@ -65,7 +65,7 @@ class TestDeviceHandler(ScrutinyUnitTest):
         config = {
             'link_type': 'thread_safe_dummy',
             'link_config': {},
-            'response_timeout': 0.25,
+            'response_timeout': 1,
             'heartbeat_timeout': 2
         }
 
@@ -429,6 +429,7 @@ class TestDeviceHandler(ScrutinyUnitTest):
         t1 = time.time()
         all_entries = []
         state = 'wait_for_connection'
+        connected = False
 
         while time.time() - t1 < timeout and round_completed < test_round_to_do:
             self.device_handler.process()
@@ -437,6 +438,7 @@ class TestDeviceHandler(ScrutinyUnitTest):
             self.assertEqual(self.device_handler.get_comm_error_count(), 0)
 
             if status == DeviceHandler.ConnectionStatus.CONNECTED_READY:
+                connected = True
                 if state == 'wait_for_connection':
                     timeout = hold_timeout
 
@@ -511,6 +513,9 @@ class TestDeviceHandler(ScrutinyUnitTest):
                     round_completed += 1
                     time.sleep(0.02)
                     state = 'write'
+            else:
+                if connected:
+                    raise Exception("Lost connection to device")
 
         self.assertEqual(round_completed, test_round_to_do)  # Make sure test went through.
 
@@ -786,7 +791,7 @@ class TestDeviceHandlerMultipleLink(ScrutinyUnitTest):
 
         self.datastore = Datastore()
         config = {
-            'response_timeout': 0.25,
+            'response_timeout': 1,
             'heartbeat_timeout': 2
         }
 
