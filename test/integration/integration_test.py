@@ -58,6 +58,7 @@ class ScrutinyIntegrationTest(ScrutinyUnitTest):
             }
 
             self.server = ScrutinyServer(server_config)
+            self.server.device_handler.expect_no_timeout = True # Will throw an exception on comm timeout
             self.emulated_device = EmulatedDevice(self.server.device_handler.get_comm_link())
             self.api_conn = DummyConnection()
 

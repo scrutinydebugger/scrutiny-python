@@ -70,6 +70,7 @@ class TestDeviceHandler(ScrutinyUnitTest):
         }
 
         self.device_handler = DeviceHandler(config, self.datastore)
+        self.device_handler.expect_no_timeout = True
         self.link = self.device_handler.get_comm_link()
         self.emulated_device = EmulatedDevice(self.link)
         self.emulated_device.start()
@@ -201,6 +202,7 @@ class TestDeviceHandler(ScrutinyUnitTest):
                 self.assertEqual(received_loop.freq, expected_loop.freq)
 
     def test_auto_disconnect_if_comm_interrupted(self):
+        self.device_handler.expect_no_timeout = False
         timeout = 5     # Should take about 2.5 sec to disconnect With heartbeat at every 2 sec
         t1 = time.time()
         connection_completed = False
@@ -224,6 +226,7 @@ class TestDeviceHandler(ScrutinyUnitTest):
 
     def test_auto_disconnect_if_device_disconnect(self):
         # Should behave exactly the same as test_auto_disconnect_if_comm_interrupted
+        self.device_handler.expect_no_timeout = False
         timeout = 5     # Should take about 2.5 sec to disconnect With heartbeat at every 2 sec
         t1 = time.time()
         connection_completed = False
