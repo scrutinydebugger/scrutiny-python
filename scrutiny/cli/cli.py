@@ -79,7 +79,7 @@ class CLI:
             logging_level = getattr(logging, logging_level_str.upper())
             format_string = ""
             if logging_level == logging.DEBUG:
-                format_string += "%(relativeCreated)s "
+                format_string += "%(relativeCreated)s "    
             format_string += '[%(levelname)s] %(message)s'
             logging.basicConfig(level=logging_level, filename=cargs.logfile, format=format_string)
             if cargs.disable_loggers is not None:
@@ -88,7 +88,7 @@ class CLI:
 
             for cmd in self.command_list:
                 if cmd.get_name() == cargs.command:
-                    cmd_instance = cmd(command_cargs, requested_log_level=logging_level)
+                    cmd_instance = cmd(command_cargs, requested_log_level=cargs.loglevel)
                     break
 
             current_workdir = os.getcwd()
