@@ -258,7 +258,7 @@ class FakeDeviceHandler:
             size=size,
             callback=callback
         )
-        self.read_memory_queue.put(req)
+        self.read_memory_queue.put(req, block=False)
         return req
 
     def write_memory(self, address: int, data: bytes, callback: Optional[RawMemoryWriteRequest]):
@@ -267,7 +267,7 @@ class FakeDeviceHandler:
             data=data,
             callback=callback
         )
-        self.write_memory_queue.put(req)
+        self.write_memory_queue.put(req, block=False)
         return req
 
 
@@ -398,7 +398,7 @@ class TestClient(ScrutinyUnitTest):
 
     def execute_in_server_thread(self, func, timeout=2, wait=True, delay: float = 0):
         completed = threading.Event()
-        self.func_queue.put((func, completed, delay))
+        self.func_queue.put((func, completed, delay), block=False)
         if wait:
             completed.wait(timeout)
 
