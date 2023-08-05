@@ -1839,6 +1839,8 @@ class TestAPI(ScrutinyUnitTest):
                 'reference_id': 'refid2',
             }
             acq_count_before = DataloggingStorage.count()
+            self.send_request(req)
+            
             timeout = 5
             t = time.time()
             while time.time() - t < timeout:
@@ -1848,7 +1850,6 @@ class TestAPI(ScrutinyUnitTest):
             if acq_count_before == DataloggingStorage.count():
                 raise Exception("Failed to delete the acquisition")
             
-            self.send_request(req)
             expected_response = {
                 API.Command.Api2Client.DELETE_DATALOGGING_ACQUISITION_RESPONSE: None,
                 API.Command.Api2Client.INFORM_DATALOGGING_LIST_CHANGED: None
