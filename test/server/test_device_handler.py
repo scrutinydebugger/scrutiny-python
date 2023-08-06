@@ -492,26 +492,41 @@ class TestDeviceHandler(ScrutinyUnitTest):
                         written_values[rpv.id] = generate_random_value(rpv.datatype)
                         self.emulated_device.write_rpv(rpv.id, written_values[rpv.id])
                     
-                    time.sleep(0.05)
                     previous_write_timestamp_per_entry ={}
                     for entry in all_entries:
                         previous_write_timestamp_per_entry[entry.get_id()] = entry.get_value_change_timestamp()
-                    state = 'wait_for_update_and_read'
+                    state = 'wait_for_update_1'
 
-                elif state == 'wait_for_update_and_read':
+                elif state == 'wait_for_update_1':
+                    # purge any old values that would have been in transit between the device and the datastore.
                     all_updated = True
                     for entry in all_entries:
                         rpv = entry.get_rpv()
                         if entry.get_value_change_timestamp() == previous_write_timestamp_per_entry[entry.get_id()]:
                             all_updated = False
-                        else:
-                            self.assertEqual(entry.get_value(), written_values[rpv.id])
+                        
+                    if all_updated:
+                        # We reload new timestamps for the enxt round robin pass.
+                        previous_write_timestamp_per_entry = {}
+                        for entry in all_entries:
+                            previous_write_timestamp_per_entry[entry.get_id()] = entry.get_value_change_timestamp()
+                        state = 'wait_for_update_2'
+
+                elif state == 'wait_for_update_2':
+                    all_updated = True
+                    for entry in all_entries:
+                        rpv = entry.get_rpv()
+                        if entry.get_value_change_timestamp() == previous_write_timestamp_per_entry[entry.get_id()]:
+                            all_updated = False
 
                     if all_updated:
                         state = 'done'
-                        written_values = {}
 
                 elif state == 'done':
+                    for entry in all_entries:
+                        rpv = entry.get_rpv()
+                        self.assertEqual(entry.get_value(), written_values[rpv.id], "rpv 0x%04x" % rpv.id)
+                    written_values = {}
                     round_completed += 1
                     time.sleep(0.02)
                     state = 'write'
