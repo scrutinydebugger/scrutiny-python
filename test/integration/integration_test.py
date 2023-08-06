@@ -71,7 +71,7 @@ class ScrutinyIntegrationTest(ScrutinyUnitTest):
             self.api_conn.open()    # Client
             cast(DummyClientHandler, self.server.api.get_client_handler()).set_connections([self.api_conn])
 
-            self.wait_for_device_ready()
+            self.wait_for_device_ready(timeout=2)
 
             self.temp_storage_handler = SFDStorage.use_temp_folder()
 
@@ -110,7 +110,7 @@ class ScrutinyIntegrationTest(ScrutinyUnitTest):
         if offset is not None:
             self.assertEqual(entry.aliasdef.offset, offset)
 
-    def wait_for_device_ready(self, timeout=1.0):
+    def wait_for_device_ready(self, timeout):
         t1 = time.time()
         self.server.process()
         timed_out = False
