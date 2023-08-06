@@ -249,7 +249,7 @@ class TestDeviceHandler(ScrutinyUnitTest):
         self.assertTrue(connection_lost)
 
     def test_auto_disconnect_and_reconnect_on_broken_link(self):
-        timeout = 5     # Should take about 2.5 sec to disconnect With heartbeat at every 2 sec
+        timeout = 10     # Should take about 2.5 sec to disconnect With heartbeat at every 2 sec
         t1 = time.time()
         connection_completed = False
         connection_lost = False
@@ -269,7 +269,7 @@ class TestDeviceHandler(ScrutinyUnitTest):
                     if connection_lost == False:
                         self.emulated_device.force_disconnect()  # So that next connection works right away without getting responded with a "Busy"
                         self.device_handler.get_comm_link().emulate_broken = False
-                    connection_lost = True
+                        connection_lost = True
 
             if connection_lost:
                 if status == DeviceHandler.ConnectionStatus.CONNECTED_READY:

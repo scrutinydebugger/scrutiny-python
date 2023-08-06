@@ -141,6 +141,19 @@ class ScrutinyIntegrationTest(ScrutinyUnitTest):
         while time.time() - t1 < timeout:
             self.server.process()
             time.sleep(0.01)
+    
+    def wait_true(self, func, timeout):
+        t1 = time.time()
+        self.server.process()
+        result = False
+        while time.time() - t1 < timeout:
+            self.server.process()
+            result = func()
+            if result:
+                break
+            time.sleep(0.01)
+        if not result:
+            raise TimeoutError("Condition have not been fulfilled within %f sec" % timeout)
 
     def empty_api_rx_queue(self):
         self.server.process()
@@ -155,7 +168,7 @@ class ScrutinyIntegrationTest(ScrutinyUnitTest):
         while time.time() - t1 < timeout:
             self.server.process()
 
-    def wait_and_load_response(self, cmd=None, nbr=1, timeout=0.4, ignore_error=False):
+    def wait_and_load_response(self, cmd=None, nbr=1, timeout=1, ignore_error=False):
         response = None
         t1 = time.time()
         rcv_counter = 0

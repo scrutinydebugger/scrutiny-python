@@ -77,7 +77,10 @@ class TestDataloggingIntegration(ScrutinyIntegrationTestWithTestSFD1):
                 self.emulated_device.write_memory(entry.get_address(), b'\x00' * entry.get_size())
 
     def test_get_datalogger_capabilities(self):
-        self.wait_for(0.5)    # Leave time for the server to poll the datalogger state
+        def is_datalogging_ready():
+            return self.server.device_handler.get_datalogger_state() is not None
+        self.wait_true(is_datalogging_ready, 1)    # Leave time for the server to poll the datalogger state
+        self.assertIsNotNone(self.server.device_handler.get_datalogging_setup())
         req = {
             'cmd': API.Command.Client2Api.GET_SERVER_STATUS,
         }

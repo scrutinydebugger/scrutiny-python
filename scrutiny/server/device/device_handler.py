@@ -169,12 +169,13 @@ class DeviceHandler:
     class FsmState(Enum):
         """The Device Handler State Machine states"""
         INIT = 0
-        WAIT_CLEAN_STATE = 1
-        DISCOVERING = 2
-        CONNECTING = 3
-        POLLING_INFO = 4
-        READY = 5
-        DISCONNECTING = 6
+        WAIT_COMM_LINK = 1
+        WAIT_CLEAN_STATE = 2
+        DISCOVERING = 3
+        CONNECTING = 4
+        POLLING_INFO = 5
+        READY = 6
+        DISCONNECTING = 7
 
     class OperatingMode(Enum):
         """Tells the main function of the device handler. Modes different from Normal are meant for unit tests"""
@@ -540,6 +541,9 @@ class DeviceHandler:
         next_state: "DeviceHandler.FsmState" = self.fsm_state
         if self.fsm_state == self.FsmState.INIT:
             self.reset_comm()
+            next_state = self.FsmState.WAIT_COMM_LINK
+        
+        elif self.fsm_state == self.FsmState.WAIT_COMM_LINK:
             if self.comm_handler.is_open():
                 next_state = self.FsmState.WAIT_CLEAN_STATE
 
