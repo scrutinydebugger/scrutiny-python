@@ -70,12 +70,14 @@ class DataloggingStorageManager:
     temporary_dir: Optional[tempfile.TemporaryDirectory]    # A temporary work folder mainly used for unit tests
     logger: logging.Logger  # The logger
     unavailable: bool       # Flags indicating that the storage can or cannot be used
+    init_count:int
 
     def __init__(self, folder):
         self.folder = folder
         self.temporary_dir = None
         self.logger = logging.getLogger(self.__class__.__name__)
         self.unavailable = True
+        self.init_count = 0
         os.makedirs(self.folder, exist_ok=True)
 
     def use_temp_storage(self) -> TempStorageWithAutoRestore:
@@ -124,6 +126,7 @@ class DataloggingStorageManager:
             with SQLiteSession(self.get_db_filename()) as conn:
                 self.create_db_if_not_exists(conn)
             self.unavailable = False
+            self.init_count += 1
             self.logger.debug('Datalogging storage ready')
         except Exception as e:
             self.logger.error('Failed to initialize datalogging storage. Resetting storage at %s. %s' % (self.get_db_filename(), str(e)))
@@ -203,6 +206,9 @@ class DataloggingStorageManager:
                                  (self.STORAGE_VERSION, backup_file))
             except Exception as e:
                 self.logger.error("Failed to backup old storage. %s" % str(e))
+    
+    def get_init_count(self):
+        return self.init_count
 
     def create_db_if_not_exists(self, conn: sqlite3.Connection) -> None:
         """Creates the database into the file using CREATE TABLE IF NOT EXISTS"""

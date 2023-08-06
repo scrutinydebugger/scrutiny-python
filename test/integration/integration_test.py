@@ -51,13 +51,15 @@ class ScrutinyIntegrationTest(ScrutinyUnitTest):
                 "device_config": {
                     'link_type': 'thread_safe_dummy',
                     'link_config': {},
-                    'response_timeout': 0.25,
+                    'response_timeout': 1,
                     'heartbeat_timeout': 2
                 },
                 "autoload_sfd": False,
             }
 
             self.server = ScrutinyServer(server_config)
+            self.server.device_handler.expect_no_timeout = True     # Will throw an exception on comm timeout
+            self.server.api.handle_unexpected_errors = False        # Will throw an exception if one is raised during request process
             self.emulated_device = EmulatedDevice(self.server.device_handler.get_comm_link())
             self.api_conn = DummyConnection()
 
@@ -69,7 +71,7 @@ class ScrutinyIntegrationTest(ScrutinyUnitTest):
             self.api_conn.open()    # Client
             cast(DummyClientHandler, self.server.api.get_client_handler()).set_connections([self.api_conn])
 
-            self.wait_for_device_ready()
+            self.wait_for_device_ready(timeout=2)
 
             self.temp_storage_handler = SFDStorage.use_temp_folder()
 
@@ -108,7 +110,7 @@ class ScrutinyIntegrationTest(ScrutinyUnitTest):
         if offset is not None:
             self.assertEqual(entry.aliasdef.offset, offset)
 
-    def wait_for_device_ready(self, timeout=1.0):
+    def wait_for_device_ready(self, timeout):
         t1 = time.time()
         self.server.process()
         timed_out = False
@@ -139,6 +141,19 @@ class ScrutinyIntegrationTest(ScrutinyUnitTest):
         while time.time() - t1 < timeout:
             self.server.process()
             time.sleep(0.01)
+    
+    def wait_true(self, func, timeout):
+        t1 = time.time()
+        self.server.process()
+        result = False
+        while time.time() - t1 < timeout:
+            self.server.process()
+            result = func()
+            if result:
+                break
+            time.sleep(0.01)
+        if not result:
+            raise TimeoutError("Condition have not been fulfilled within %f sec" % timeout)
 
     def empty_api_rx_queue(self):
         self.server.process()
@@ -153,7 +168,7 @@ class ScrutinyIntegrationTest(ScrutinyUnitTest):
         while time.time() - t1 < timeout:
             self.server.process()
 
-    def wait_and_load_response(self, cmd=None, nbr=1, timeout=0.4, ignore_error=False):
+    def wait_and_load_response(self, cmd=None, nbr=1, timeout=1, ignore_error=False):
         response = None
         t1 = time.time()
         rcv_counter = 0

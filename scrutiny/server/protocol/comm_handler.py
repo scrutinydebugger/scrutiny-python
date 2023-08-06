@@ -294,7 +294,7 @@ class CommHandler:
                 if not err:
                     self.tx_bitcount += datasize_bits
                     self.throttler.consume_bandwidth(datasize_bits)
-                    self.response_timer.start()
+                    self.response_timer.start(self.params['response_timeout'])
             elif not self.throttler.possible(approx_delta_bandwidth):
                 self.logger.critical("Throttling doesn't allow to send request. Dropping %s" % self.pending_request)
                 self.pending_request = None

@@ -225,6 +225,7 @@ class API:
     client_handler: AbstractClientHandler
     sfd_handler: ActiveSFDHandler
     datalogging_manager: DataloggingManager
+    handle_unexpected_errors:bool   # Always true, except during unit tests
 
     # The method to call for each command
     ApiRequestCallbacks: Dict[str, str] = {
@@ -275,6 +276,7 @@ class API:
         self.connections = set()            # Keep a list of all clients connections
         self.streamer = ValueStreamer()     # The value streamer takes cares of publishing values to the client without polling.
         self.req_count = 0
+        self.handle_unexpected_errors = True
 
         self.enable_debug = enable_debug
 
@@ -409,10 +411,13 @@ class API:
             self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
         except Exception as e:
             # Unknown internal error
-            self.logger.error('[Conn:%s] Unexpected error while processing request #%d. %s' % (conn_id, self.req_count, str(e)))
-            self.logger.debug(traceback.format_exc())
-            response = self.make_error_response(req, 'Internal error')
-            self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
+            if self.handle_unexpected_errors:
+                self.logger.error('[Conn:%s] Unexpected error while processing request #%d. %s' % (conn_id, self.req_count, str(e)))
+                self.logger.debug(traceback.format_exc())
+                response = self.make_error_response(req, 'Internal error')
+                self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
+            else:
+                raise e
 
     def process_debug(self, conn_id: str, req: Dict[Any, Any]) -> None:
         # Start ipdb tracing upon reception of a "debug" message (if enabled)
@@ -1126,6 +1131,9 @@ class API:
 
         yaxis_map: Dict[int, api_datalogging.AxisDefinition] = {}
         for yaxis in req['yaxis']:
+            if not isinstance(yaxis, dict):
+                raise InvalidRequestException(req, "Invalid Y-Axis")
+
             if 'name' not in yaxis:
                 raise InvalidRequestException(req, "Missing Y-Axis name")
 
@@ -1144,6 +1152,9 @@ class API:
             yaxis_map[yaxis['id']] = api_datalogging.AxisDefinition(name=yaxis['name'], external_id=yaxis['id'])
 
         for signal_def in req['signals']:
+            if not isinstance(signal_def, dict):
+                raise InvalidRequestException(req, "Invalid signal definition")
+            
             if not isinstance(signal_def['id'], str):
                 raise InvalidRequestException(req, 'Invalid watchable ID')
 

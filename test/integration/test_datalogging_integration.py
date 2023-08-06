@@ -77,7 +77,10 @@ class TestDataloggingIntegration(ScrutinyIntegrationTestWithTestSFD1):
                 self.emulated_device.write_memory(entry.get_address(), b'\x00' * entry.get_size())
 
     def test_get_datalogger_capabilities(self):
-        self.wait_for(0.5)    # Leave time for the server to poll the datalogger state
+        def is_datalogging_ready():
+            return self.server.device_handler.get_datalogger_state() is not None
+        self.wait_true(is_datalogging_ready, 1)    # Leave time for the server to poll the datalogger state
+        self.assertIsNotNone(self.server.device_handler.get_datalogging_setup())
         req = {
             'cmd': API.Command.Client2Api.GET_SERVER_STATUS,
         }
@@ -393,8 +396,10 @@ class TestDataloggingIntegration(ScrutinyIntegrationTestWithTestSFD1):
                         self.assertAlmostEqual(expected_val, val, 4)
                         expected_val = (expected_val + 1 * decimation * self.entry_alias_uint8.aliasdef.get_gain()) % 0xFF
 
+            self.server.device_handler.expect_no_timeout = False
             self.emulated_device.force_disconnect()
             self.wait_device_disconnected()
+            self.server.device_handler.expect_no_timeout = True
 
     def tearDown(self) -> None:
         super().tearDown()

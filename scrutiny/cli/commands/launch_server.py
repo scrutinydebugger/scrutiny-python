@@ -34,7 +34,7 @@ class LaunchServer(BaseCommand):
 
         # For server, we will add more details to logging message.
         format_string = '%(asctime)s.%(msecs)03d [%(levelname)s] <%(name)s> %(message)s'
-        time_format = '%Y-%m-%d %H:%M:%S'
+        time_format = r'%Y-%m-%d %H:%M:%S'
         logging.getLogger().handlers[0].setFormatter(logging.Formatter(format_string, time_format))
 
         websockets_loggers = ['websockets.server', 'websockets.protocol', 'asyncio']

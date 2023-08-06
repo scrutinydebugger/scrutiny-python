@@ -98,7 +98,7 @@ class DataloggingManager:
             api_request=request,
             device_config=config,
             entry_signal_map=entry_signal_map,
-            callback=callback))
+            callback=callback), block=False)
 
     def acquisition_complete_callback(self, success: bool, detail_msg: str, data: Optional[List[List[bytes]]], metadata: Optional[device_datalogging.AcquisitionMetadata]) -> None:
         """Callback called by the device handler when the acquisition finally gets triggered and data has finished downloaded."""

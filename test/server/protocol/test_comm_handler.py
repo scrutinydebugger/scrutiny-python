@@ -19,7 +19,7 @@ from test import ScrutinyUnitTest
 class TestCommHandler(ScrutinyUnitTest):
     def setUp(self):
         params = {
-            'response_timeout': 0.2
+            'response_timeout': 1
         }
 
         self.comm_handler = CommHandler(params)

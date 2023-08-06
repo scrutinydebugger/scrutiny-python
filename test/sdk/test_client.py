@@ -258,7 +258,7 @@ class FakeDeviceHandler:
             size=size,
             callback=callback
         )
-        self.read_memory_queue.put(req)
+        self.read_memory_queue.put(req, block=False)
         return req
 
     def write_memory(self, address: int, data: bytes, callback: Optional[RawMemoryWriteRequest]):
@@ -267,7 +267,7 @@ class FakeDeviceHandler:
             data=data,
             callback=callback
         )
-        self.write_memory_queue.put(req)
+        self.write_memory_queue.put(req, block=False)
         return req
 
 
@@ -342,6 +342,7 @@ class TestClient(ScrutinyUnitTest):
             datalogging_manager=self.datalogging_manager,
             enable_debug=False)
 
+        self.api.handle_unexpected_errors = False
         self.server_exit_requested = threading.Event()
         self.server_started = threading.Event()
         self.sync_complete = threading.Event()
@@ -398,7 +399,7 @@ class TestClient(ScrutinyUnitTest):
 
     def execute_in_server_thread(self, func, timeout=2, wait=True, delay: float = 0):
         completed = threading.Event()
-        self.func_queue.put((func, completed, delay))
+        self.func_queue.put((func, completed, delay), block=False)
         if wait:
             completed.wait(timeout)
 
@@ -770,6 +771,7 @@ class TestClient(ScrutinyUnitTest):
             return self.client.server.device_comm_state == commstate
 
         self.wait_true(partial(status_check, sdk.DeviceCommState.Disconnected))
+        time.sleep(0.1)
 
         with self.assertRaises(sdk.exceptions.InvalidValueError):
             rpv1000.value
@@ -810,7 +812,7 @@ class TestClient(ScrutinyUnitTest):
 
         def reload_sfd():
             self.sfd_handler.load(FirmwareDescription(get_artifact('test_sfd_1.sfd')))
-
+        
         alias_var1_counter = alias_var1.update_counter
         self.set_value_and_wait_update(rpv1000, 1.234)
         self.set_value_and_wait_update(var1, 0x1234)
@@ -818,6 +820,7 @@ class TestClient(ScrutinyUnitTest):
 
         self.execute_in_server_thread(unload_sfd)
         self.wait_true(sfd_unloaded_check)
+        self.client.wait_process()
 
         rpv1000.value   # RPV still accessible
 
@@ -828,6 +831,7 @@ class TestClient(ScrutinyUnitTest):
 
         self.execute_in_server_thread(reload_sfd)
         self.wait_true(sfd_loaded_check)
+        self.client.wait_process()
 
         rpv1000.value
         with self.assertRaises(sdk.exceptions.InvalidValueError):

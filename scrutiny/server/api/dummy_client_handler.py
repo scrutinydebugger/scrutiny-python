@@ -46,13 +46,11 @@ class DummyConnection:
 
     def write_to_client(self, msg: str) -> None:
         if self.opened:
-            if not self.server_to_client_queue.full():
-                self.server_to_client_queue.put(msg)
+            self.server_to_client_queue.put(msg, block=False)
 
     def write_to_server(self, msg: str) -> None:
         if self.opened:
-            if not self.client_to_server_queue.full():
-                self.client_to_server_queue.put(msg)
+            self.client_to_server_queue.put(msg, block=False)
 
     def read_from_server(self) -> Optional[str]:
         if self.opened:

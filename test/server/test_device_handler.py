@@ -65,11 +65,12 @@ class TestDeviceHandler(ScrutinyUnitTest):
         config = {
             'link_type': 'thread_safe_dummy',
             'link_config': {},
-            'response_timeout': 0.25,
+            'response_timeout': 1,
             'heartbeat_timeout': 2
         }
 
         self.device_handler = DeviceHandler(config, self.datastore)
+        self.device_handler.expect_no_timeout = True
         self.link = self.device_handler.get_comm_link()
         self.emulated_device = EmulatedDevice(self.link)
         self.emulated_device.start()
@@ -86,7 +87,7 @@ class TestDeviceHandler(ScrutinyUnitTest):
     def test_connect_disconnect_normal(self):
         self.disconnect_callback_called = False
         self.disconnect_was_clean = False
-        timeout = 1
+        timeout = 2
         t1 = time.time()
         connection_successful = False
         disconnect_sent = False
@@ -201,6 +202,7 @@ class TestDeviceHandler(ScrutinyUnitTest):
                 self.assertEqual(received_loop.freq, expected_loop.freq)
 
     def test_auto_disconnect_if_comm_interrupted(self):
+        self.device_handler.expect_no_timeout = False
         timeout = 5     # Should take about 2.5 sec to disconnect With heartbeat at every 2 sec
         t1 = time.time()
         connection_completed = False
@@ -224,6 +226,7 @@ class TestDeviceHandler(ScrutinyUnitTest):
 
     def test_auto_disconnect_if_device_disconnect(self):
         # Should behave exactly the same as test_auto_disconnect_if_comm_interrupted
+        self.device_handler.expect_no_timeout = False
         timeout = 5     # Should take about 2.5 sec to disconnect With heartbeat at every 2 sec
         t1 = time.time()
         connection_completed = False
@@ -246,7 +249,7 @@ class TestDeviceHandler(ScrutinyUnitTest):
         self.assertTrue(connection_lost)
 
     def test_auto_disconnect_and_reconnect_on_broken_link(self):
-        timeout = 5     # Should take about 2.5 sec to disconnect With heartbeat at every 2 sec
+        timeout = 10     # Should take about 2.5 sec to disconnect With heartbeat at every 2 sec
         t1 = time.time()
         connection_completed = False
         connection_lost = False
@@ -266,7 +269,7 @@ class TestDeviceHandler(ScrutinyUnitTest):
                     if connection_lost == False:
                         self.emulated_device.force_disconnect()  # So that next connection works right away without getting responded with a "Busy"
                         self.device_handler.get_comm_link().emulate_broken = False
-                    connection_lost = True
+                        connection_lost = True
 
             if connection_lost:
                 if status == DeviceHandler.ConnectionStatus.CONNECTED_READY:
@@ -428,9 +431,8 @@ class TestDeviceHandler(ScrutinyUnitTest):
         round_completed = 0
         t1 = time.time()
         all_entries = []
-        write_timestamp = 0
-        write_from_device_timestamp = 0
         state = 'wait_for_connection'
+        connected = False
 
         while time.time() - t1 < timeout and round_completed < test_round_to_do:
             self.device_handler.process()
@@ -439,6 +441,7 @@ class TestDeviceHandler(ScrutinyUnitTest):
             self.assertEqual(self.device_handler.get_comm_error_count(), 0)
 
             if status == DeviceHandler.ConnectionStatus.CONNECTED_READY:
+                connected = True
                 if state == 'wait_for_connection':
                     timeout = hold_timeout
 
@@ -456,24 +459,28 @@ class TestDeviceHandler(ScrutinyUnitTest):
                     round_completed = 0
 
                 if state == 'write':
-                    write_timestamp = time.time()
+                    previous_write_timestamp_per_entry = {}
+                    
                     written_values = {}
+                    for entry in all_entries:
+                        previous_write_timestamp_per_entry[entry.get_id()] = entry.get_last_target_update_timestamp()
+                    time.sleep(0.05)
                     for entry in all_entries:
                         rpv = entry.get_rpv()
                         written_values[rpv.id] = generate_random_value(rpv.datatype)
                         self.datastore.update_target_value(entry, written_values[rpv.id], no_callback)
-
+                    
                     state = 'wait_for_update_and_validate'
 
                 elif state == 'wait_for_update_and_validate':
                     all_updated = True
                     for entry in all_entries:
                         last_update_timestamp = entry.get_last_target_update_timestamp()
-                        if last_update_timestamp is None or last_update_timestamp < write_timestamp:
+                        if last_update_timestamp is None or last_update_timestamp == previous_write_timestamp_per_entry[entry.get_id()]:
                             all_updated = False
                         else:
                             rpv = entry.get_rpv()
-                            self.assertEqual(entry.get_value(), written_values[rpv.id])
+                            self.assertEqual(entry.get_value(), written_values[rpv.id], "rpv=0x%04x" % rpv.id)
 
                     if all_updated:
                         written_values = {}
@@ -481,29 +488,51 @@ class TestDeviceHandler(ScrutinyUnitTest):
 
                 elif state == 'write_from_device':
                     written_values = {}
-                    write_from_device_timestamp = time.time()
                     for rpv in self.emulated_device.get_rpvs():
                         written_values[rpv.id] = generate_random_value(rpv.datatype)
                         self.emulated_device.write_rpv(rpv.id, written_values[rpv.id])
-                    state = 'wait_for_update_and_read'
+                    
+                    previous_write_timestamp_per_entry ={}
+                    for entry in all_entries:
+                        previous_write_timestamp_per_entry[entry.get_id()] = entry.get_value_change_timestamp()
+                    state = 'wait_for_update_1'
 
-                elif state == 'wait_for_update_and_read':
+                elif state == 'wait_for_update_1':
+                    # purge any old values that would have been in transit between the device and the datastore.
                     all_updated = True
                     for entry in all_entries:
                         rpv = entry.get_rpv()
-                        if entry.get_value_change_timestamp() < write_from_device_timestamp:
+                        if entry.get_value_change_timestamp() == previous_write_timestamp_per_entry[entry.get_id()]:
                             all_updated = False
-                        else:
-                            self.assertEqual(entry.get_value(), written_values[rpv.id])
+                        
+                    if all_updated:
+                        # We reload new timestamps for the enxt round robin pass.
+                        previous_write_timestamp_per_entry = {}
+                        for entry in all_entries:
+                            previous_write_timestamp_per_entry[entry.get_id()] = entry.get_value_change_timestamp()
+                        state = 'wait_for_update_2'
+
+                elif state == 'wait_for_update_2':
+                    all_updated = True
+                    for entry in all_entries:
+                        rpv = entry.get_rpv()
+                        if entry.get_value_change_timestamp() == previous_write_timestamp_per_entry[entry.get_id()]:
+                            all_updated = False
 
                     if all_updated:
                         state = 'done'
-                        written_values = {}
 
                 elif state == 'done':
+                    for entry in all_entries:
+                        rpv = entry.get_rpv()
+                        self.assertEqual(entry.get_value(), written_values[rpv.id], "rpv 0x%04x" % rpv.id)
+                    written_values = {}
                     round_completed += 1
                     time.sleep(0.02)
                     state = 'write'
+            else:
+                if connected:
+                    raise Exception("Lost connection to device")
 
         self.assertEqual(round_completed, test_round_to_do)  # Make sure test went through.
 
@@ -779,7 +808,7 @@ class TestDeviceHandlerMultipleLink(ScrutinyUnitTest):
 
         self.datastore = Datastore()
         config = {
-            'response_timeout': 0.25,
+            'response_timeout': 1,
             'heartbeat_timeout': 2
         }
 

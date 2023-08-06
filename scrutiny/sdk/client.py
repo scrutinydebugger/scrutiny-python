@@ -158,6 +158,8 @@ class ScrutinyClient:
         disconnect: threading.Event
         disconnected: threading.Event
         msg_received: threading.Event
+        sync_complete:threading.Event
+        require_sync:threading.Event
 
         def __init__(self):
             self.stop_worker_thread = threading.Event()
@@ -165,6 +167,8 @@ class ScrutinyClient:
             self.disconnected = threading.Event()
             self.msg_received = threading.Event()
             self.server_status_updated = threading.Event()
+            self.sync_complete = threading.Event()
+            self.require_sync = threading.Event()
 
     _name: Optional[str]
     _server_state: ServerState
@@ -268,7 +272,11 @@ class ScrutinyClient:
         self._request_status_timer.start()
         # _conn will be None after a disconnect
         while not self._threading_events.stop_worker_thread.is_set() and self._conn is not None:
+            require_sync_before = False
             try:
+                if self._threading_events.require_sync.is_set():
+                    require_sync_before = True
+
                 self._wt_process_next_server_status_update()
 
                 msg = self._wt_recv(timeout=0.001)
@@ -292,6 +300,10 @@ class ScrutinyClient:
                 self._logger.debug(f"User required to disconnect")
                 self._wt_disconnect()  # Will set _conn to None
                 self._threading_events.disconnected.set()
+
+            if require_sync_before:
+                self._threading_events.require_sync.clear()
+                self._threading_events.sync_complete.set()
 
             time.sleep(0.005)
         self._logger.debug('RX thread stopped')
@@ -1026,6 +1038,14 @@ class ScrutinyClient:
 
         return cb_data.obj
 
+    def wait_process(self, timeout:Optional[float]=None):
+        """Wait for the SDK thread to execute fully at least once. Usefull for testing"""
+        if timeout is None:
+            timeout = self._timeout 
+        self._threading_events.sync_complete.clear()
+        self._threading_events.require_sync.set()
+        self._threading_events.sync_complete.wait(timeout=timeout)
+
     def read_memory(self, address: int, size: int, timeout: Optional[float] = None) -> bytes:
         time_start = time.time()
         if timeout is None:
@@ -1142,7 +1162,7 @@ class ScrutinyClient:
     def server(self) -> Optional[ServerInfo]:
         """Information about everything going on the server side"""
 
-        # server_info is readonly and only it,s reference gets changed when updated.
+        # server_info is readonly and only its reference gets changed when updated.
         # We can safely return a reference here. The user can't mess it up
         with self._main_lock:
             info = self._server_info

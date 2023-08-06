@@ -77,7 +77,10 @@ class CLI:
         try:
             logging_level_str = cargs.loglevel if cargs.loglevel else self.default_log_level
             logging_level = getattr(logging, logging_level_str.upper())
-            format_string = '[%(levelname)s] %(message)s'
+            format_string = ""
+            if logging_level == logging.DEBUG:
+                format_string += "%(relativeCreated)s "    
+            format_string += '[%(levelname)s] %(message)s'
             logging.basicConfig(level=logging_level, filename=cargs.logfile, format=format_string)
             if cargs.disable_loggers is not None:
                 for logger_name in cargs.disable_loggers.split(','):
