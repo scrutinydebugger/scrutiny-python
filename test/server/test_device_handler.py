@@ -505,7 +505,6 @@ class TestDeviceHandler(ScrutinyUnitTest):
                         if entry.get_value_change_timestamp() == previous_write_timestamp_per_entry[entry.get_id()]:
                             all_updated = False
                         else:
-
                             self.assertEqual(entry.get_value(), written_values[rpv.id])
 
                     if all_updated:

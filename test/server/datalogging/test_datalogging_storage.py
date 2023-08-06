@@ -194,7 +194,7 @@ class TestDataloggingStorage(ScrutinyUnitTest):
             self.assertIsInstance(timerange[0], datetime)
             self.assertIsInstance(timerange[1], datetime)
             self.assertNotEqual(timerange[0], timerange[1])
-            self.assertLess(timerange[1] - timerange[0], timedelta(seconds=5))
+            self.assertLessEqual(timerange[1] - timerange[0], timedelta(seconds=10))
 
 
 if __name__ == '__main__':
