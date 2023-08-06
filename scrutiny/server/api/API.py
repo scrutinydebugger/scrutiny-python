@@ -298,16 +298,19 @@ class API:
 
     def sfd_loaded_callback(self, sfd: FirmwareDescription):
         # Called when a SFD is loaded after a device connection
+        self.logger.debug("SFD Loaded callback called")
         for conn_id in self.connections:
             self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=self.craft_inform_server_status_response()))
 
     def sfd_unloaded_callback(self):
         # Called when a SFD is unloaded (device disconnected)
+        self.logger.debug("SFD unloaded callback called")
         for conn_id in self.connections:
             self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=self.craft_inform_server_status_response()))
 
     def device_state_changed_callback(self, new_status: DeviceHandler.ConnectionStatus):
         """Called when the device state changes"""
+        self.logger.debug("Device state change callback called")
         if new_status in [DeviceHandler.ConnectionStatus.DISCONNECTED, DeviceHandler.ConnectionStatus.CONNECTED_READY]:
             for conn_id in self.connections:
                 self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=self.craft_inform_server_status_response()))

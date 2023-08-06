@@ -112,6 +112,7 @@ class ActiveSFDHandler:
         if not SFDStorage.is_installed(firmware_id):
             raise Exception('Firmware ID %s is not installed' % firmware_id)
 
+        self.logger.debug("Requested to load SFD for firmware %s" % firmware_id)
         self.requested_firmware_id = firmware_id
 
     def _load_sfd(self, firmware_id: str, verbose=True) -> None:
