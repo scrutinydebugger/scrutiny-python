@@ -60,7 +60,7 @@ class SynchronousWebsocketServer:
                     else:
                         s = message
                     self.logger.debug("Receiving %s" % s)
-                self.rxqueue.put((websocket, message), block=False)   # Possible improvement : Handle queue full scenario.
+                self.rxqueue.put((websocket, message))   # Possible improvement : Handle queue full scenario.
         except (websockets.exceptions.ConnectionClosedOK, websockets.exceptions.ConnectionClosedError):
             pass
         finally:
