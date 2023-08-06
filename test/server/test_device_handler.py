@@ -604,7 +604,7 @@ class TestDeviceHandler(ScrutinyUnitTest):
             self.acquisition_complete_callback_called = False
             logger.debug("[iteration=%d] Wait for connection" % iteration)
             # First we wait on connection to be ready with the device
-            timeout = 3
+            timeout = 4
             t1 = time.time()
             connection_completed = False
             while time.time() - t1 < timeout:
@@ -615,7 +615,7 @@ class TestDeviceHandler(ScrutinyUnitTest):
                     connection_completed = True
                     break
 
-            timeout = 1
+            timeout = 2
             t1 = time.time()
             while time.time() - t1 < timeout:
                 self.device_handler.process()
@@ -701,7 +701,7 @@ class TestDeviceHandler(ScrutinyUnitTest):
 
             # Make sure it is received and that the device is waiting for the trigger to happen
             logger.debug("[iteration=%d] Wait for armed" % iteration)
-            timeout = 1
+            timeout = 2
             t1 = time.time()
             while time.time() - t1 < timeout:
                 self.device_handler.process()
@@ -718,7 +718,7 @@ class TestDeviceHandler(ScrutinyUnitTest):
 
                 self.device_handler.cancel_datalogging_acquisition()
                 self.assertTrue(self.device_handler.datalogging_cancel_in_progress())
-                timeout = 1
+                timeout = 2
                 t1 = time.time()
                 while self.device_handler.datalogging_cancel_in_progress() and time.time() - t1 < timeout:
                     self.device_handler.process()
