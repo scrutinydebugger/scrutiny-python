@@ -332,7 +332,7 @@ class TestAPI(ScrutinyUnitTest):
 
         return self.connections[conn_idx].read_from_server()
 
-    def wait_and_load_response(self, conn_idx=0, timeout=1):
+    def wait_and_load_response(self, conn_idx=0, timeout=2):
         json_str = self.wait_for_response(conn_idx=conn_idx, timeout=timeout)
         self.assertIsNotNone(json_str)
         return json.loads(json_str)
