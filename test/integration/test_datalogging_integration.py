@@ -170,7 +170,7 @@ class TestDataloggingIntegration(ScrutinyIntegrationTestWithTestSFD1):
 
         for session_iteration in range(3):
             with DataloggingStorage.use_temp_storage():
-                self.wait_for_datalogging_ready(3)
+                self.wait_for_datalogging_ready(timeout=3)
                 for iteration in range(3):
                     logger.debug("test_make_acquisition_normal session=%d, iteration=%d" % (session_iteration, iteration))
                     # First make sure there is no acquisition in storage
@@ -233,6 +233,7 @@ class TestDataloggingIntegration(ScrutinyIntegrationTestWithTestSFD1):
                         self.emulated_device.clear_addition_tasks()
                         self.emulated_device.add_additional_task(ValueUpdateTask(self))  # Will be run in device thread
 
+                    config_id_before = self.emulated_device.datalogger.config_id
                     self.send_request(req)  # Send the acquisition request here
 
                     response = self.wait_and_load_response(API.Command.Api2Client.REQUEST_DATALOGGING_ACQUISITION_RESPONSE)
@@ -240,16 +241,20 @@ class TestDataloggingIntegration(ScrutinyIntegrationTestWithTestSFD1):
                     response = cast(api_typing.S2C.RequestDataloggingAcquisition, response)
                     request_token = response['request_token']
 
-                    self.wait_for(1)
+                    def config_id_changed():
+                        return config_id_before != self.emulated_device.datalogger.config_id
+                    self.wait_true(config_id_changed, timeout=2)
+                    self.assertNotEqual(self.emulated_device.datalogger.config_id, config_id_before)
                     self.assertFalse(self.emulated_device.datalogger.triggered())
                     self.assertFalse(self.api_conn.from_server_available())
                     # This line should trigger the acquisition
                     self.emulated_device.write_memory(self.entry_u16.get_address(), Codecs.get(
                         EmbeddedDataType.uint16, Endianness.Little).encode(0x1234))
-                    self.wait_for(req['trigger_hold_time'] + 0.1)  # Leave some time for the device thread to catch the change.
+                    self.wait_for(req['trigger_hold_time'])  # Leave some time for the device thread to catch the change.
                     logger.debug("ID = %s. Address=%d" % (self.entry_u16.get_id(), self.entry_u16.get_address()))
                     logger.debug('data=%s' % hexlify(self.emulated_device.read_memory(self.entry_u16.get_address(), 2)))
 
+                    self.wait_true(self.emulated_device.datalogger.triggered, timeout=1)
                     self.assertTrue(self.emulated_device.datalogger.triggered())
 
                     acq_refid = None

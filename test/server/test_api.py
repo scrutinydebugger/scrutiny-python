@@ -36,6 +36,7 @@ from scrutiny.server.datalogging.datalogging_storage import DataloggingStorage
 from datetime import datetime
 import scrutiny.server.api.typing as api_typing
 from typing import cast
+import logging
 
 # todo
 # - Test rate limiter/data streamer
@@ -86,6 +87,7 @@ class StubbedDeviceHandler:
         self.connection_status = connection_status
 
         if must_call_callbacks:
+            logging.debug("Triggering device state change callback")
             for callback in self.device_state_change_callbacks:
                 callback(connection_status)
 
@@ -319,7 +321,7 @@ class TestAPI(ScrutinyUnitTest):
         json_str = self.connections[conn_idx].read_from_server()
         self.assertIsNone(json_str)
 
-    def wait_for_response(self, conn_idx=0, timeout=0.4):
+    def wait_for_response(self, conn_idx=0, timeout=1):
         t1 = time.time()
         self.process_all()
         while not self.connections[conn_idx].from_server_available():
@@ -330,7 +332,7 @@ class TestAPI(ScrutinyUnitTest):
 
         return self.connections[conn_idx].read_from_server()
 
-    def wait_and_load_response(self, conn_idx=0, timeout=1):
+    def wait_and_load_response(self, conn_idx=0, timeout=2):
         json_str = self.wait_for_response(conn_idx=conn_idx, timeout=timeout)
         self.assertIsNotNone(json_str)
         return json.loads(json_str)
@@ -957,7 +959,7 @@ class TestAPI(ScrutinyUnitTest):
             self.sfd_handler.request_load_sfd(sfd2.get_firmware_id_ascii())
             self.sfd_handler.process()
             self.fake_device_handler.set_connection_status(DeviceHandler.ConnectionStatus.CONNECTED_READY)
-
+            
             req = {
                 'cmd': 'get_server_status'
             }
@@ -1010,8 +1012,10 @@ class TestAPI(ScrutinyUnitTest):
 
             # Redo the test, but with no SFD loaded. We should get None
             self.sfd_handler.reset_active_sfd()
+            response  = self.wait_and_load_response()    # unloading an SFD should trigger an "inform_server_status" message
+            self.assert_no_error(response)
+            self.assertEqual(response['cmd'], 'inform_server_status')
             self.sfd_handler.process()
-            self.fake_device_handler.set_connection_status(DeviceHandler.ConnectionStatus.CONNECTED_READY)
 
             req = {
                 'cmd': 'get_server_status'
@@ -1058,11 +1062,18 @@ class TestAPI(ScrutinyUnitTest):
             SFDStorage.uninstall(sfd2.get_firmware_id_ascii())
 
             self.fake_device_handler.set_connection_status(DeviceHandler.ConnectionStatus.DISCONNECTED)
+            response = cast(api_typing.S2C.InformServerStatus, self.wait_and_load_response())
+            self.assert_no_error(response)
+            self.assertIn('device_session_id', response)
+            self.assertIsNone(response['device_session_id'])    # Expected None when not connected
+
             self.send_request(req, 0)
             response = cast(api_typing.S2C.InformServerStatus, self.wait_and_load_response())
             self.assert_no_error(response)
             self.assertIn('device_session_id', response)
             self.assertIsNone(response['device_session_id'])    # Expected None when not connected
+
+            self.assertIsNone(self.wait_for_response(timeout=0.1))
 
     def test_server_status_sent_on_device_state_change(self):
 
