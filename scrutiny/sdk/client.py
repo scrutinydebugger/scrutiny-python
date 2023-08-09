@@ -138,7 +138,11 @@ class BatchWriteContext:
     def __exit__(self, exc_type, exc_val, exc_tb):
         if exc_type is None:
             self.client._flush_batch_write(self)
-            self.client._wait_write_batch_complete(self)
+            try:
+                self.client._wait_write_batch_complete(self)
+            finally:
+                self.client._end_batch()
+        self.client._end_batch()
 
 
 class FlushPoint:
@@ -158,8 +162,8 @@ class ScrutinyClient:
         disconnect: threading.Event
         disconnected: threading.Event
         msg_received: threading.Event
-        sync_complete:threading.Event
-        require_sync:threading.Event
+        sync_complete: threading.Event
+        require_sync: threading.Event
 
         def __init__(self):
             self.stop_worker_thread = threading.Event()
@@ -770,6 +774,9 @@ class ScrutinyClient:
         self._enqueue_write_request(FlushPoint())   # Flush Point required because Python thread-safe queue has no peek() method.
         self._enqueue_write_request(batch_write_context)
 
+    def _end_batch(self):
+        self._active_batch_context = None
+
     def _wait_write_batch_complete(self, batch: BatchWriteContext) -> None:
         tstart = time.time()
 
@@ -1006,6 +1013,7 @@ class ScrutinyClient:
             raise sdk.exceptions.TimeoutException(f"Server status did not update within a {timeout} seconds delay")
 
     def batch_write(self, timeout: Optional[float] = None) -> BatchWriteContext:
+        """Starts a batch write. Every watchable write will"""
         if self._active_batch_context is not None:
             raise sdk.exceptions.OperationFailure("Batch write cannot be nested")
 
@@ -1017,6 +1025,7 @@ class ScrutinyClient:
         return batch_context
 
     def get_installed_sfds(self) -> Dict[str, sdk.SFDInfo]:
+        """Gets the list of Scrutiny Firmware Description file installed on the server"""
         req = self._make_request(API.Command.Client2Api.GET_INSTALLED_SFD)
 
         @dataclass
@@ -1038,15 +1047,16 @@ class ScrutinyClient:
 
         return cb_data.obj
 
-    def wait_process(self, timeout:Optional[float]=None):
-        """Wait for the SDK thread to execute fully at least once. Usefull for testing"""
+    def wait_process(self, timeout: Optional[float] = None):
+        """Wait for the SDK thread to execute fully at least once. Useful for testing"""
         if timeout is None:
-            timeout = self._timeout 
+            timeout = self._timeout
         self._threading_events.sync_complete.clear()
         self._threading_events.require_sync.set()
         self._threading_events.sync_complete.wait(timeout=timeout)
 
     def read_memory(self, address: int, size: int, timeout: Optional[float] = None) -> bytes:
+        """Read the device memory synchronously."""
         time_start = time.time()
         if timeout is None:
             timeout = self._timeout
@@ -1098,6 +1108,7 @@ class ScrutinyClient:
         return completion.data
 
     def write_memory(self, address: int, data: bytes, timeout: Optional[float] = None) -> None:
+        """Write the device memory synchronously. This method will exit once the write is completed otherwise will throw an exception in case of failure"""
         time_start = time.time()
         if timeout is None:
             timeout = self._timeout

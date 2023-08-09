@@ -112,7 +112,7 @@ class WatchableHandle:
     def unwatch(self) -> None:
         self._client.unwatch(self._display_path)
 
-    def wait_update(self, timeout=3, previous_counter: Optional[int] = None) -> None:
+    def wait_update(self, timeout: float = 3, previous_counter: Optional[int] = None) -> None:
         """Wait for the value to be updated by the server"""
         t = time.time()
         entry_counter = self._update_counter if previous_counter is None else previous_counter

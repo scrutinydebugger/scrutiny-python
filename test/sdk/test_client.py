@@ -714,6 +714,8 @@ class TestClient(ScrutinyUnitTest):
             time.sleep(0.2)  # Let time for the server thread to process the request if any is sent by error.
             self.assertEqual(len(self.device_handler.write_logs), 0)    # No write until with __exit__ the with block
 
+        self.assertFalse(self.client._is_batch_write_in_progress())
+
         index = 0
         self.assertIsInstance(self.device_handler.write_logs[index], WriteRPVLog)
         assert isinstance(self.device_handler.write_logs[index], WriteRPVLog)
@@ -812,7 +814,7 @@ class TestClient(ScrutinyUnitTest):
 
         def reload_sfd():
             self.sfd_handler.load(FirmwareDescription(get_artifact('test_sfd_1.sfd')))
-        
+
         alias_var1_counter = alias_var1.update_counter
         self.set_value_and_wait_update(rpv1000, 1.234)
         self.set_value_and_wait_update(var1, 0x1234)

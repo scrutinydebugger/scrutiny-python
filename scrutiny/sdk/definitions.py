@@ -183,3 +183,22 @@ class ServerInfo:
     datalogging: DataloggingInfo
     sfd: Optional[SFDInfo]
     device_link: DeviceLinkInfo
+
+
+class SmaplingRateType(enum.Enum):
+    FixedFrequency = 1
+    VariableFrequency = 2
+
+
+@dataclass
+class SamplingRate:
+    frequency: float
+    name: float
+    type: SmaplingRateType
+
+
+@dataclass
+class DataloggingCapabilities:
+    buffer_size: int
+    max_nb_signal: int
+    sampling_rates: List[SamplingRate]
