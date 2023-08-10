@@ -185,20 +185,29 @@ class ServerInfo:
     device_link: DeviceLinkInfo
 
 
-class SmaplingRateType(enum.Enum):
-    FixedFrequency = 1
-    VariableFrequency = 2
+class DataloggingEncoding(enum.Enum):
+    RAW = 1
 
 
-@dataclass
+@dataclass(frozen=True)
 class SamplingRate:
+    identifier: int
+    name: str
+
+
+@dataclass(frozen=True)
+class FixedFreqSamplingRate(SamplingRate):
     frequency: float
-    name: float
-    type: SmaplingRateType
 
 
-@dataclass
+@dataclass(frozen=True)
+class VariableFreqSamplingRate(SamplingRate):
+    pass
+
+
+@dataclass(frozen=True)
 class DataloggingCapabilities:
+    encoding: DataloggingEncoding
     buffer_size: int
     max_nb_signal: int
     sampling_rates: List[SamplingRate]

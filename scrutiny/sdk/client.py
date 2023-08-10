@@ -1157,6 +1157,29 @@ class ScrutinyClient:
         if not completion.success:
             raise sdk.exceptions.OperationFailure(f"Failed to write the device memory. {completion.error}")
 
+    def get_datalogging_capabilities(self) -> sdk.DataloggingCapabilities:
+        req = self._make_request(API.Command.Client2Api.GET_DATALOGGING_CAPABILITIES)
+
+        @dataclass
+        class Container:
+            obj: Optional[sdk.DataloggingCapabilities]
+        cb_data: Container = Container(obj=None)  # Force pass by ref
+
+        def callback(state: CallbackState, response: Optional[api_typing.S2CMessage]) -> None:
+            if response is not None and state == CallbackState.OK:
+                cb_data.obj = api_parser.parse_get_datalogging_capabilities_response(cast(api_typing.S2C.GetDataloggingCapabilities, response))
+        future = self._send(req, callback)
+        assert future is not None
+        future.wait()
+
+        if future.state != CallbackState.OK:
+            raise sdk.exceptions.OperationFailure(f"Failed to read the datalogging capabilities. {future.error_str}")
+
+        if cb_data.obj is None:
+            raise sdk.exceptions.OperationFailure(f"Datalogging capabilities are not available at this moment.")
+
+        return cb_data.obj
+
     @property
     def name(self) -> str:
 

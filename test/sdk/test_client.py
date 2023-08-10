@@ -13,6 +13,7 @@ from scrutiny.sdk.client import ScrutinyClient
 import scrutiny.sdk as sdk
 from scrutiny.sdk.watchable_handle import WatchableHandle
 import scrutiny.server.datalogging.definitions.device as device_datalogging
+import scrutiny.server.datalogging.definitions.api as api_datalogging
 from scrutiny.core.variable import Variable as core_Variable
 from scrutiny.core.alias import Alias as core_Alias
 from scrutiny.core.codecs import Codecs
@@ -270,10 +271,50 @@ class FakeDeviceHandler:
         self.write_memory_queue.put(req, block=False)
         return req
 
+    def get_datalogging_setup(self) -> device_datalogging.DataloggingSetup:
+        return device_datalogging.DataloggingSetup(
+            buffer_size=4096,
+            encoding=device_datalogging.Encoding.RAW,
+            max_signal_count=32
+        )
+
 
 class FakeDataloggingManager:
-    def __init__(self, *args, **kwargs):
-        pass
+    datastore: "datastore.Datastore"
+    device_handler: FakeDeviceHandler
+
+    def __init__(self, datastore, device_handler):
+        self.datastore = datastore
+        self.device_handler = device_handler
+
+    def get_device_setup(self):
+        return self.device_handler.get_datalogging_setup()
+
+    def get_available_sampling_rates(self) -> List[api_datalogging.SamplingRate]:
+        rates: List[api_datalogging.SamplingRate] = []
+
+        rates.append(api_datalogging.SamplingRate(
+            name="ffloop0",
+            rate_type=api_datalogging.ExecLoopType.FIXED_FREQ,
+            device_identifier=0,
+            frequency=1000
+        ))
+
+        rates.append(api_datalogging.SamplingRate(
+            name="ffloop1",
+            rate_type=api_datalogging.ExecLoopType.FIXED_FREQ,
+            device_identifier=1,
+            frequency=9999
+        ))
+
+        rates.append(api_datalogging.SamplingRate(
+            name="vfloop0",
+            rate_type=api_datalogging.ExecLoopType.VARIABLE_FREQ,
+            device_identifier=2,
+            frequency=None
+        ))
+
+        return rates
 
 
 class FakeActiveSFDHandler:
@@ -961,6 +1002,31 @@ class TestClient(ScrutinyUnitTest):
         with self.assertRaises(sdk.exceptions.OperationFailure):
             data = bytes([random.randint(0, 255) for i in range(600)])
             self.client.write_memory(0x10000, data, timeout=2)
+
+    def test_read_datalogging_capabilities(self):
+        capabilities = self.client.get_datalogging_capabilities()
+
+        self.assertEqual(capabilities.buffer_size, 4096)
+        self.assertEqual(capabilities.max_nb_signal, 32)
+        self.assertEqual(capabilities.encoding, sdk.DataloggingEncoding.RAW)
+        self.assertEqual(len(capabilities.sampling_rates), 3)
+
+        self.assertIsInstance(capabilities.sampling_rates[0], sdk.FixedFreqSamplingRate)
+        assert isinstance(capabilities.sampling_rates[0], sdk.FixedFreqSamplingRate)
+        self.assertEqual(capabilities.sampling_rates[0].identifier, 0)
+        self.assertEqual(capabilities.sampling_rates[0].name, 'ffloop0')
+        self.assertEqual(capabilities.sampling_rates[0].frequency, 1000)
+
+        self.assertIsInstance(capabilities.sampling_rates[1], sdk.FixedFreqSamplingRate)
+        assert isinstance(capabilities.sampling_rates[1], sdk.FixedFreqSamplingRate)
+        self.assertEqual(capabilities.sampling_rates[1].identifier, 1)
+        self.assertEqual(capabilities.sampling_rates[1].name, 'ffloop1')
+        self.assertEqual(capabilities.sampling_rates[1].frequency, 9999)
+
+        self.assertIsInstance(capabilities.sampling_rates[2], sdk.VariableFreqSamplingRate)
+        assert isinstance(capabilities.sampling_rates[2], sdk.VariableFreqSamplingRate)
+        self.assertEqual(capabilities.sampling_rates[2].identifier, 2)
+        self.assertEqual(capabilities.sampling_rates[2].name, 'vfloop0')
 
 
 if __name__ == '__main__':

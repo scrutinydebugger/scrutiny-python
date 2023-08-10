@@ -216,6 +216,20 @@ class API:
 
     ENTRY_TYPE_2_APISTR: Dict[EntryType, api_typing.WatchableType] = {v: k for k, v in APISTR_2_ENTRY_TYPE.items()}
 
+    APISTR_2_DATALOGGING_ENCONDING: Dict[api_typing.DataloggingEncoding, device_datalogging.Encoding] = {
+        'raw': device_datalogging.Encoding.RAW
+    }
+
+    DATALOGGING_ENCONDING_2_APISTR: Dict[device_datalogging.Encoding, api_typing.DataloggingEncoding] = {
+        v: k for k, v in APISTR_2_DATALOGGING_ENCONDING.items()}
+
+    APISTR_2_LOOP_TYPE: Dict[api_typing.LoopType, ExecLoopType] = {
+        'fixed_freq': ExecLoopType.FIXED_FREQ,
+        'variable_freq': ExecLoopType.VARIABLE_FREQ
+    }
+
+    LOOP_TYPE_2_APISTR: Dict[ExecLoopType, api_typing.LoopType] = {v: k for k, v in APISTR_2_LOOP_TYPE.items()}
+
     datastore: Datastore
     device_handler: DeviceHandler
     logger: logging.Logger
@@ -225,7 +239,7 @@ class API:
     client_handler: AbstractClientHandler
     sfd_handler: ActiveSFDHandler
     datalogging_manager: DataloggingManager
-    handle_unexpected_errors:bool   # Always true, except during unit tests
+    handle_unexpected_errors: bool   # Always true, except during unit tests
 
     # The method to call for each command
     ApiRequestCallbacks: Dict[str, str] = {
@@ -960,15 +974,6 @@ class API:
         if sampling_rates is None:
             available = False
 
-        rate_type_name_map: Dict[ExecLoopType, Literal['fixed_freq', 'variable_freq']] = {
-            ExecLoopType.FIXED_FREQ: 'fixed_freq',
-            ExecLoopType.VARIABLE_FREQ: 'variable_freq'
-        }
-
-        encoding_name_map: Dict[device_datalogging.Encoding, Literal['raw']] = {
-            device_datalogging.Encoding.RAW: 'raw'
-        }
-
         if available:
             assert sampling_rates is not None
             assert setup is not None
@@ -978,12 +983,12 @@ class API:
                     'identifier': rate.device_identifier,
                     'name': rate.name,
                     'frequency': rate.frequency,
-                    'type': rate_type_name_map[rate.rate_type]
+                    'type': self.LOOP_TYPE_2_APISTR[rate.rate_type]
                 })
 
             capabilities: api_typing.DataloggingCapabilities = {
                 'buffer_size': setup.buffer_size,
-                'encoding': encoding_name_map[setup.encoding],
+                'encoding': self.DATALOGGING_ENCONDING_2_APISTR[setup.encoding],
                 'max_nb_signal': setup.max_signal_count,
                 'sampling_rates': output_sampling_rates
             }
@@ -1157,7 +1162,7 @@ class API:
         for signal_def in req['signals']:
             if not isinstance(signal_def, dict):
                 raise InvalidRequestException(req, "Invalid signal definition")
-            
+
             if not isinstance(signal_def['id'], str):
                 raise InvalidRequestException(req, 'Invalid watchable ID')
 

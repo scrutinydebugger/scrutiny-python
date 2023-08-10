@@ -100,7 +100,7 @@ class TestApiParser(ScrutinyUnitTest):
             del msg['content']['rpv']
             parser.parse_get_watchable_single_element(msg, requested_path)
 
-    def test_parse_inform_server_Status(self):
+    def test_parse_inform_server_status(self):
         def base() -> api_typing.S2C.InformServerStatus:
             return {
                 "cmd": "inform_server_status",
@@ -358,6 +358,76 @@ class TestApiParser(ScrutinyUnitTest):
             with self.assertRaises(sdk_exceptions.BadResponseError):
                 del msg["device_comm_link"]["link_config"][field]
                 parser.parse_inform_server_status(msg)
+
+    def test_parse_datalogging_capabilities(self):
+        def base() -> api_typing.S2C.GetDataloggingCapabilities:
+            return {
+                "cmd": "get_datalogging_capabilities_response",
+                "reqid": None,
+                "available": True,
+                "capabilities": {
+                    "buffer_size": 4096,
+                    "encoding": 'raw',
+                    "max_nb_signal": 32,
+                    "sampling_rates": [
+                        {
+                            "identifier": 0,
+                            "name": "loop0",
+                            "frequency": 1000,
+                            "type": "fixed_freq"
+                        },
+                        {
+                            "identifier": 1,
+                            "name": "loop1",
+                            "frequency": None,
+                            "type": "variable_freq"
+                        }
+                    ]
+                }
+            }
+
+        msg = base()
+        capabilities = parser.parse_get_datalogging_capabilities_response(msg)
+
+        self.assertIsNotNone(capabilities)
+        self.assertEqual(capabilities.buffer_size, 4096)
+        self.assertEqual(capabilities.encoding, DataloggingEncoding.RAW)
+        self.assertEqual(capabilities.max_nb_signal, 32)
+        self.assertEqual(len(capabilities.sampling_rates), 2)
+
+        self.assertIsInstance(capabilities.sampling_rates[0], FixedFreqSamplingRate)
+        assert isinstance(capabilities.sampling_rates[0], FixedFreqSamplingRate)
+        self.assertEqual(capabilities.sampling_rates[0].name, "loop0")
+        self.assertEqual(capabilities.sampling_rates[0].identifier, 0)
+        self.assertEqual(capabilities.sampling_rates[0].frequency, 1000.0)
+
+        self.assertIsInstance(capabilities.sampling_rates[1], VariableFreqSamplingRate)
+        self.assertEqual(capabilities.sampling_rates[1].name, "loop1")
+        self.assertEqual(capabilities.sampling_rates[1].identifier, 1)
+
+        msg = base()
+        msg["available"] = False
+        self.assertIsNone(parser.parse_get_datalogging_capabilities_response(msg))
+
+        msg = base()
+        msg["available"] = False
+        msg["capabilities"] = None
+        self.assertIsNone(parser.parse_get_datalogging_capabilities_response(msg))
+
+        msg = base()
+        msg["capabilities"] = "asd"
+        with self.assertRaises(sdk_exceptions.BadResponseError):
+            self.assertIsNone(parser.parse_get_datalogging_capabilities_response(msg))
+
+        msg = base()
+        msg["capabilities"]["encoding"] = "asd"
+        with self.assertRaises(sdk_exceptions.BadResponseError):
+            self.assertIsNone(parser.parse_get_datalogging_capabilities_response(msg))
+
+        msg = base()
+        msg["capabilities"]["sampling_rates"][0]["type"] = "asdasd"
+        with self.assertRaises(sdk_exceptions.BadResponseError):
+            self.assertIsNone(parser.parse_get_datalogging_capabilities_response(msg))
 
 
 if __name__ == '__main__':
