@@ -701,10 +701,13 @@ class DeviceHandler:
                     self.datalogging_poller.disable()
                     next_state = self.FsmState.READY
             else:
-                if self.datalogging_poller.get_device_setup() is not None:
+                if self.datalogging_poller.is_ready_to_receive_new_request():
                     next_state = self.FsmState.READY
                 elif self.datalogging_poller.is_in_error():
                     self.logger.error('Datalogging failed to initialize properly')
+                    next_state = self.FsmState.INIT
+                elif not self.datalogging_poller.is_started() or not self.datalogging_poller.is_enabled():
+                    self.logger.error('Datalogging poller got disabled unexpectedly')
                     next_state = self.FsmState.INIT
 
         # ========= [READY] ==========
