@@ -688,6 +688,7 @@ class DeviceHandler:
                     for region in self.device_info.readonly_memory_regions:
                         self.memory_writer.add_readonly_region(region.start, region.size)
 
+        # ========= [WAIT_DATALOGGING_READY] ==========
         elif self.fsm_state == self.FsmState.WAIT_DATALOGGING_READY:
             if state_entry:
                 assert self.device_info is not None

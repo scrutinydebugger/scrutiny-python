@@ -91,6 +91,7 @@ class FakeDeviceHandler:
 
     write_allowed: bool
     read_allowed: bool
+    emulate_datalogging_not_ready: bool
 
     def __init__(self, datastore: "datastore.Datastore"):
         self.datastore = datastore
@@ -149,12 +150,16 @@ class FakeDeviceHandler:
         self.write_memory_queue = queue.Queue()
 
         self.fake_mem = MemoryContent()
+        self.emulate_datalogging_not_ready = False
 
     def force_all_write_failure(self):
         self.write_allowed = False
 
     def force_all_read_failure(self):
         self.read_allowed = False
+
+    def force_datalogging_not_ready(self):
+        self.emulate_datalogging_not_ready = True
 
     def get_link_type(self):
         return self.link_type
@@ -272,6 +277,9 @@ class FakeDeviceHandler:
         return req
 
     def get_datalogging_setup(self) -> device_datalogging.DataloggingSetup:
+        if self.emulate_datalogging_not_ready:
+            return None
+
         return device_datalogging.DataloggingSetup(
             buffer_size=4096,
             encoding=device_datalogging.Encoding.RAW,
@@ -1027,6 +1035,12 @@ class TestClient(ScrutinyUnitTest):
         assert isinstance(capabilities.sampling_rates[2], sdk.VariableFreqSamplingRate)
         self.assertEqual(capabilities.sampling_rates[2].identifier, 2)
         self.assertEqual(capabilities.sampling_rates[2].name, 'vfloop0')
+
+    def test_read_datalogging_capabilities_not_available(self):
+        self.device_handler.force_datalogging_not_ready()
+
+        with self.assertRaises(sdk.exceptions.OperationFailure):
+            self.client.get_datalogging_capabilities()
 
 
 if __name__ == '__main__':
