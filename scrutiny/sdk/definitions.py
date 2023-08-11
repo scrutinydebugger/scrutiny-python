@@ -12,6 +12,36 @@ from dataclasses import dataclass
 from datetime import datetime
 from scrutiny.core.basic_types import MemoryRegion
 
+__all__ = [
+    'AddressSize',
+    'SerialStopBits',
+    'SerialDataBits',
+    'SerialParity',
+    'ServerState',
+    'DeviceState',
+    'WatchableType',
+    'ValueStatus',
+    'DeviceCommState',
+    'DataloggerState',
+    'DeviceLinkType',
+    'SupportedFeatureMap',
+    'DataloggingInfo',
+    'DeviceInfo',
+    'SFDGenerationInfo',
+    'SFDMetadata',
+    'SFDInfo',
+    'UDPLinkConfig',
+    'TCPLinkConfig',
+    'SerialLinkConfig',
+    'DeviceLinkInfo',
+    'ServerInfo',
+    'DataloggingEncoding',
+    'SamplingRate',
+    'FixedFreqSamplingRate',
+    'VariableFreqSamplingRate',
+    'DataloggingCapabilities'
+]
+
 AddressSize = Literal[8, 16, 32, 64, 128]
 SerialStopBits = Literal['1', '1.5', '2']
 SerialDataBits = Literal[5, 6, 7, 8]

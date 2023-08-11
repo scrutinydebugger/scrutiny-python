@@ -1180,9 +1180,34 @@ class ScrutinyClient:
 
         return cb_data.obj
 
+    def read_datalogging_acquisition(self, reference_id: str) -> sdk.datalogging.DataloggingAcquisition:
+        req = self._make_request(API.Command.Client2Api.READ_DATALOGGING_ACQUISITION_CONTENT, {
+            'reference_id': reference_id
+        })
+
+        @dataclass
+        class Container:
+            obj: Optional[sdk.datalogging.DataloggingAcquisition]
+        cb_data: Container = Container(obj=None)  # Force pass by ref
+
+        def callback(state: CallbackState, response: Optional[api_typing.S2CMessage]) -> None:
+            if response is not None and state == CallbackState.OK:
+                cb_data.obj = api_parser.parse_read_datalogging_acquisition_content_response(
+                    cast(api_typing.S2C.ReadDataloggingAcquisitionContent, response)
+                )
+        future = self._send(req, callback)
+        assert future is not None
+        future.wait()
+
+        if future.state != CallbackState.OK:
+            raise sdk.exceptions.OperationFailure(
+                f"Failed to read the datalogging acquisition with reference ID '{reference_id}'. {future.error_str}")
+
+        assert cb_data.obj is not None
+        return cb_data.obj
+
     @property
     def name(self) -> str:
-
         return '' if self._name is None else self.name
 
     @property

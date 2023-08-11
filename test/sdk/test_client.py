@@ -46,7 +46,7 @@ from dataclasses import dataclass
 import logging
 import traceback
 import struct
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from typing import *
 
@@ -1065,10 +1065,39 @@ class TestClient(ScrutinyUnitTest):
             acq.add_data(ds1, axis1)
             acq.add_data(ds2, axis1)
             acq.add_data(ds3, axis2)
+            acq.set_trigger_index(3)
 
             DataloggingStorage.save(acq)
 
-            # acquisition = self.client.read_datalogging_acquisition(reference_id)
+            acq2 = self.client.read_datalogging_acquisition(reference_id)
+
+            self.assertIsNot(acq, acq2)
+            self.assertEqual(acq2.reference_id, acq.reference_id)
+            self.assertEqual(acq2.firmware_id, acq.firmware_id)
+            self.assertEqual(acq2.name, acq.name)
+            self.assertEqual(acq2.firmware_id, acq.firmware_id)
+            self.assertEqual(acq2.trigger_index, acq.trigger_index)
+            self.assertLessEqual(abs(acq2.acq_time - acq.acq_time), timedelta(seconds=1))
+
+            self.assertEqual(acq2.xdata.name, acq.xdata.name)
+            self.assertEqual(acq2.xdata.logged_element, acq.xdata.logged_element)
+            self.assertEqual(acq2.xdata.get_data(), acq.xdata.get_data())
+
+            data2 = acq2.get_data()
+            data1 = acq.get_data()
+
+            self.assertEqual(len(data2), len(data1))
+
+            data1.sort(key=lambda x: x.series.name)
+            data2.sort(key=lambda x: x.series.name)
+
+            for i in range(len(data1)):
+                self.assertEqual(data1[i].axis.name, data2[i].axis.name)
+                self.assertEqual(data1[i].axis.external_id, data2[i].axis.external_id)
+
+                self.assertEqual(data1[i].series.name, data2[i].series.name)
+                self.assertEqual(data1[i].series.logged_element, data2[i].series.logged_element)
+                self.assertEqual(data1[i].series.get_data(), data2[i].series.get_data())
 
 
 if __name__ == '__main__':

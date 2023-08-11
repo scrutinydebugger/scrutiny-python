@@ -1466,6 +1466,9 @@ class API:
         response: api_typing.S2C.ReadDataloggingAcquisitionContent = {
             'cmd': API.Command.Api2Client.READ_DATALOGGING_ACQUISITION_CONTENT_RESPONSE,
             'reqid': self.get_req_id(req),
+            'firmware_id': acquisition.firmware_id,
+            'name': '' if acquisition.name is None else acquisition.name,
+            'timestamp': acquisition.acq_time.timestamp(),
             'reference_id': acquisition.reference_id,
             'trigger_index': acquisition.trigger_index,
             'signals': signals,

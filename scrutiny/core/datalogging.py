@@ -15,6 +15,13 @@ from datetime import datetime
 
 from typing import *
 
+__all__ = [
+    'AxisDefinition',
+    'DataSeries',
+    'DataSeriesWithAxis',
+    'DataloggingAcquisition'
+]
+
 
 @dataclass
 class AxisDefinition:

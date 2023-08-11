@@ -607,3 +607,66 @@ def parse_get_datalogging_capabilities_response(response: api_typing.S2C.GetData
         max_nb_signal=response['capabilities']['max_nb_signal'],
         sampling_rates=sampling_rates
     )
+
+
+def parse_read_datalogging_acquisition_content_response(response: api_typing.S2C.ReadDataloggingAcquisitionContent) -> sdk.datalogging.DataloggingAcquisition:
+    assert isinstance(response, dict)
+    assert 'cmd' in response
+    cmd = response['cmd']
+    assert cmd == API.Command.Api2Client.READ_DATALOGGING_ACQUISITION_CONTENT_RESPONSE
+
+    _check_response_dict(cmd, response, 'reference_id', str)
+    _check_response_dict(cmd, response, 'firmware_id', str)
+    _check_response_dict(cmd, response, 'timestamp', float)
+    _check_response_dict(cmd, response, 'name', str)
+    _check_response_dict(cmd, response, 'trigger_index', (int, type(None)))
+    _check_response_dict(cmd, response, 'yaxis', list)
+    _check_response_dict(cmd, response, 'signals', list)
+    _check_response_dict(cmd, response, 'xdata.name', str)
+    _check_response_dict(cmd, response, 'xdata.data', list)
+    _check_response_dict(cmd, response, 'xdata.logged_element', str)
+
+    acquisition = sdk.datalogging.DataloggingAcquisition(
+        firmware_id=response['firmware_id'],
+        reference_id=response['reference_id'],
+        acq_time=datetime.fromtimestamp(response['timestamp']),
+        name=response['name']
+    )
+
+    axis_map: Dict[str, sdk.datalogging.AxisDefinition] = {}
+    for yaxis in response['yaxis']:
+        _check_response_dict(cmd, yaxis, 'id', int)
+        _check_response_dict(cmd, yaxis, 'name', str)
+        axis_map[yaxis['id']] = sdk.datalogging.AxisDefinition(external_id=yaxis['id'], name=yaxis['name'])
+
+    for el in response['xdata']['data']:
+        if not isinstance(el, float):
+            raise sdk.exceptions.BadResponseError('X-Axis data is not all numerical')
+
+    for sig in response['signals']:
+        _check_response_dict(cmd, sig, 'axis_id', int)
+        _check_response_dict(cmd, sig, 'logged_element', str)
+        _check_response_dict(cmd, sig, 'name', str)
+        _check_response_dict(cmd, sig, 'data', list)
+        for el in sig['data']:
+            if not isinstance(el, float):
+                raise sdk.exceptions.BadResponseError(f'Dataseries {sig["name"]} data is not all numerical')
+        if sig['axis_id'] not in axis_map:
+            raise sdk.exceptions.BadResponseError(f'Dataseries {sig["name"]} refer to a non-existent Y-Axis')
+        ds = sdk.datalogging.DataSeries(
+            data=sig['data'],
+            name=sig['name'],
+            logged_element=sig['logged_element']
+        )
+        acquisition.add_data(ds, axis=axis_map[sig['axis_id']])
+
+    xdata = sdk.datalogging.DataSeries(
+        data=response['xdata']['data'],
+        name=response['xdata']['name'],
+        logged_element=response['xdata']['logged_element']
+    )
+
+    acquisition.set_xdata(xdata)
+    acquisition.set_trigger_index(response['trigger_index'])
+
+    return acquisition
