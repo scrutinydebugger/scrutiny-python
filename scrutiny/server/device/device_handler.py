@@ -677,7 +677,7 @@ class DeviceHandler:
                     next_state = self.FsmState.INIT
                 else:
                     next_state = self.FsmState.WAIT_DATALOGGING_READY
-
+                    assert self.device_info.supported_feature_map is not None
                     self.memory_writer.allow_memory_write(self.device_info.supported_feature_map['memory_write'])
                     assert self.device_info.forbidden_memory_regions is not None
                     assert self.device_info.readonly_memory_regions is not None
@@ -690,6 +690,7 @@ class DeviceHandler:
 
         elif self.fsm_state == self.FsmState.WAIT_DATALOGGING_READY:
             if state_entry:
+                assert self.device_info is not None
                 assert self.device_info.supported_feature_map is not None
                 if self.device_info.supported_feature_map['datalogging']:
                     self.logger.debug("Enabling datalogging handling")
