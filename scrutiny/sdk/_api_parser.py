@@ -633,7 +633,7 @@ def parse_read_datalogging_acquisition_content_response(response: api_typing.S2C
         name=response['name']
     )
 
-    axis_map: Dict[str, sdk.datalogging.AxisDefinition] = {}
+    axis_map: Dict[int, sdk.datalogging.AxisDefinition] = {}
     for yaxis in response['yaxis']:
         _check_response_dict(cmd, yaxis, 'id', int)
         _check_response_dict(cmd, yaxis, 'name', str)

@@ -33,6 +33,7 @@ __all__ = [
     'UDPLinkConfig',
     'TCPLinkConfig',
     'SerialLinkConfig',
+    'SupportedLinkConfig',
     'DeviceLinkInfo',
     'ServerInfo',
     'DataloggingEncoding',
