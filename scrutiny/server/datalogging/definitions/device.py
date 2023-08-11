@@ -1,5 +1,6 @@
 #    device.py
-#        Contains the definitions related to the datalogging feature on the device side
+#        Contains the definitions related to the datalogging feature on the device side. Shared
+#        between the DataloggingManager and the DeviceHandler
 #
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)

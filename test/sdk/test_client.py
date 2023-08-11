@@ -19,6 +19,9 @@ from scrutiny.core.alias import Alias as core_Alias
 from scrutiny.core.codecs import Codecs
 from scrutiny.core.sfd_storage import SFDStorage
 from scrutiny.core.memory_content import MemoryContent
+from scrutiny.server.datalogging.datalogging_storage import DataloggingStorage
+from scrutiny.core import datalogging as datalogging
+
 
 from scrutiny.server.api import API
 from scrutiny.server.api import APIConfig
@@ -1041,6 +1044,31 @@ class TestClient(ScrutinyUnitTest):
 
         with self.assertRaises(sdk.exceptions.OperationFailure):
             self.client.get_datalogging_capabilities()
+
+    def test_read_datalogging_acquisition(self):
+        with DataloggingStorage.use_temp_storage():
+            reference_id = 'foo.bar.baz'
+            acq = datalogging.DataloggingAcquisition(
+                firmware_id='foo',
+                reference_id=reference_id,
+                acq_time=datetime.now(),
+                name="test acquisition"
+            )
+            axis1 = datalogging.AxisDefinition("Axis1", 0)
+            axis2 = datalogging.AxisDefinition("Axis2", 1)
+
+            xdata = datalogging.DataSeries([0, 10, 20, 30, 40, 50], "x-axis", "my/xaxis")
+            ds1 = datalogging.DataSeries([-1, -0.5, 0, 0.5, 1], "data1", "path/to/data1")
+            ds2 = datalogging.DataSeries([-10, -5, 0, 5, 10], "data2", "path/to/data2")
+            ds3 = datalogging.DataSeries([0.1, 0.2, 0.3, 0.1, 0.2], "data3", "path/to/data3")
+            acq.set_xdata(xdata)
+            acq.add_data(ds1, axis1)
+            acq.add_data(ds2, axis1)
+            acq.add_data(ds3, axis2)
+
+            DataloggingStorage.save(acq)
+
+            # acquisition = self.client.read_datalogging_acquisition(reference_id)
 
 
 if __name__ == '__main__':

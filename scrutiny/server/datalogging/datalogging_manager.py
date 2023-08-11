@@ -24,6 +24,7 @@ from scrutiny.server.device.device_info import FixedFreqLoop, ExecLoopType
 from scrutiny.core.basic_types import *
 from scrutiny.server.datalogging.datalogging_storage import DataloggingStorage
 from scrutiny.core.codecs import Codecs
+from scrutiny.core.datalogging import DataloggingAcquisition, DataSeries, AxisDefinition
 
 from typing import Optional, List, Dict, Tuple, cast
 
@@ -106,7 +107,7 @@ class DataloggingManager:
             self.logger.error("Received acquisition data but was not expecting it. No active acquisition request")
             return
 
-        acquisition: Optional[api_datalogging.DataloggingAcquisition] = None
+        acquisition: Optional[DataloggingAcquisition] = None
         try:
             if success:  # The device succeeded to complete the acquisition and fetch the data
                 self.logger.info("New datalogging acquisition ready")
@@ -132,7 +133,7 @@ class DataloggingManager:
                     raise ValueError('Cannot determine the number of points in the acquisitions')
 
                 # Crate the acquisition
-                acquisition = api_datalogging.DataloggingAcquisition(
+                acquisition = DataloggingAcquisition(
                     name=self.active_request.api_request.name,
                     reference_id=uuid4().hex,
                     firmware_id=device_info.device_id,
@@ -142,7 +143,7 @@ class DataloggingManager:
                 # Now converts binary data into meaningful value using the datastore entries and add to acquisition object
                 for signal in self.active_request.api_request.signals:
                     parsed_data = self.read_active_request_data_from_raw_data(signal, data)  # Parse binary data
-                    ds = api_datalogging.DataSeries(
+                    ds = DataSeries(
                         data=parsed_data,
                         logged_element=signal.entry.display_path
                     )
@@ -151,7 +152,7 @@ class DataloggingManager:
                     acquisition.add_data(ds, signal.axis)
 
                 # Add the X-Axis. Either use a measured signal or use a generated one of the user wants IdealTime
-                xaxis = api_datalogging.DataSeries()
+                xaxis = DataSeries()
                 if self.active_request.api_request.x_axis_type == api_datalogging.XAxisType.IdealTime:
                     # Ideal time : Generate a time X-Axis based on the sampling rate. Assume the device is running the loop at a reliable fixed rate
                     sampling_rate = self.get_sampling_rate(self.active_request.api_request.rate_identifier)

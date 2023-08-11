@@ -28,6 +28,7 @@ from scrutiny.server.active_sfd_handler import ActiveSFDHandler
 from scrutiny.server.device.links.dummy_link import DummyLink
 from scrutiny.core.variable import *
 from scrutiny.core.alias import Alias
+import scrutiny.core.datalogging as core_datalogging
 import scrutiny.server.datalogging.definitions.api as api_datalogging
 import scrutiny.server.datalogging.definitions.device as device_datalogging
 from test.artifacts import get_artifact
@@ -185,7 +186,7 @@ class StubbedDataloggingManager:
     datalogging_setup: device_datalogging.DataloggingSetup
     request_queue: "queue.Queue[api_datalogging.AcquisitionRequest]"
 
-    callback_queue: "queue.Queue[Tuple[api_datalogging.APIAcquisitionRequestCompletionCallback, bool, api_datalogging.DataloggingAcquisition]]"
+    callback_queue: "queue.Queue[Tuple[api_datalogging.APIAcquisitionRequestCompletionCallback, bool, core_datalogging.DataloggingAcquisition]]"
 
     def __init__(self, datastore: Datastore, fake_device_handler: StubbedDeviceHandler):
         self.datastore = datastore
@@ -201,7 +202,7 @@ class StubbedDataloggingManager:
 
     def request_acquisition(self, request: api_datalogging.AcquisitionRequest, callback: api_datalogging.APIAcquisitionRequestCompletionCallback) -> None:
         self.request_queue.put(request)
-        acquisition = api_datalogging.DataloggingAcquisition(
+        acquisition = core_datalogging.DataloggingAcquisition(
             firmware_id='fake_firmware_id',
             name='fakename',
             reference_id='fake_refid',
@@ -959,7 +960,7 @@ class TestAPI(ScrutinyUnitTest):
             self.sfd_handler.request_load_sfd(sfd2.get_firmware_id_ascii())
             self.sfd_handler.process()
             self.fake_device_handler.set_connection_status(DeviceHandler.ConnectionStatus.CONNECTED_READY)
-            
+
             req = {
                 'cmd': 'get_server_status'
             }
@@ -1012,7 +1013,7 @@ class TestAPI(ScrutinyUnitTest):
 
             # Redo the test, but with no SFD loaded. We should get None
             self.sfd_handler.reset_active_sfd()
-            response  = self.wait_and_load_response()    # unloading an SFD should trigger an "inform_server_status" message
+            response = self.wait_and_load_response()    # unloading an SFD should trigger an "inform_server_status" message
             self.assert_no_error(response)
             self.assertEqual(response['cmd'], 'inform_server_status')
             self.sfd_handler.process()
@@ -1643,17 +1644,17 @@ class TestAPI(ScrutinyUnitTest):
             sfd2 = SFDStorage.install(get_artifact('test_sfd_2.sfd'), ignore_exist=True)
 
             with DataloggingStorage.use_temp_storage():
-                acq1 = api_datalogging.DataloggingAcquisition(firmware_id=sfd1.get_firmware_id_ascii(),
-                                                              reference_id="refid1", name="foo")
-                acq2 = api_datalogging.DataloggingAcquisition(firmware_id=sfd1.get_firmware_id_ascii(),
-                                                              reference_id="refid2", name="bar")
-                acq3 = api_datalogging.DataloggingAcquisition(firmware_id=sfd2.get_firmware_id_ascii(),
-                                                              reference_id="refid3", name="baz")
-                acq4 = api_datalogging.DataloggingAcquisition(firmware_id="unknown_sfd", reference_id="refid4", name="meow")
-                acq1.set_xdata(api_datalogging.DataSeries())
-                acq2.set_xdata(api_datalogging.DataSeries())
-                acq3.set_xdata(api_datalogging.DataSeries())
-                acq4.set_xdata(api_datalogging.DataSeries())
+                acq1 = core_datalogging.DataloggingAcquisition(firmware_id=sfd1.get_firmware_id_ascii(),
+                                                               reference_id="refid1", name="foo")
+                acq2 = core_datalogging.DataloggingAcquisition(firmware_id=sfd1.get_firmware_id_ascii(),
+                                                               reference_id="refid2", name="bar")
+                acq3 = core_datalogging.DataloggingAcquisition(firmware_id=sfd2.get_firmware_id_ascii(),
+                                                               reference_id="refid3", name="baz")
+                acq4 = core_datalogging.DataloggingAcquisition(firmware_id="unknown_sfd", reference_id="refid4", name="meow")
+                acq1.set_xdata(core_datalogging.DataSeries())
+                acq2.set_xdata(core_datalogging.DataSeries())
+                acq3.set_xdata(core_datalogging.DataSeries())
+                acq4.set_xdata(core_datalogging.DataSeries())
 
                 DataloggingStorage.save(acq1)
                 DataloggingStorage.save(acq2)
@@ -1741,17 +1742,17 @@ class TestAPI(ScrutinyUnitTest):
     def test_update_datalogging_acquisition(self):
         # Rename an acquisition in datalogging storage through API
         with DataloggingStorage.use_temp_storage():
-            axis1 = api_datalogging.AxisDefinition('Axis1', 0)
-            axis2 = api_datalogging.AxisDefinition('Axis2', 1)
-            acq1 = api_datalogging.DataloggingAcquisition(firmware_id='some_firmware_id', reference_id="refid1", name="foo")
-            acq1.set_xdata(api_datalogging.DataSeries())
-            acq1.add_data(api_datalogging.DataSeries(), axis1)
-            acq1.add_data(api_datalogging.DataSeries(), axis1)
-            acq1.add_data(api_datalogging.DataSeries(), axis2)
-            acq2 = api_datalogging.DataloggingAcquisition(firmware_id='some_firmware_id', reference_id="refid2", name="bar")
-            acq2.set_xdata(api_datalogging.DataSeries())
-            acq3 = api_datalogging.DataloggingAcquisition(firmware_id='some_firmware_id', reference_id="refid3", name="baz")
-            acq3.set_xdata(api_datalogging.DataSeries())
+            axis1 = core_datalogging.AxisDefinition('Axis1', 0)
+            axis2 = core_datalogging.AxisDefinition('Axis2', 1)
+            acq1 = core_datalogging.DataloggingAcquisition(firmware_id='some_firmware_id', reference_id="refid1", name="foo")
+            acq1.set_xdata(core_datalogging.DataSeries())
+            acq1.add_data(core_datalogging.DataSeries(), axis1)
+            acq1.add_data(core_datalogging.DataSeries(), axis1)
+            acq1.add_data(core_datalogging.DataSeries(), axis2)
+            acq2 = core_datalogging.DataloggingAcquisition(firmware_id='some_firmware_id', reference_id="refid2", name="bar")
+            acq2.set_xdata(core_datalogging.DataSeries())
+            acq3 = core_datalogging.DataloggingAcquisition(firmware_id='some_firmware_id', reference_id="refid3", name="baz")
+            acq3.set_xdata(core_datalogging.DataSeries())
             DataloggingStorage.save(acq1)
             DataloggingStorage.save(acq2)
             DataloggingStorage.save(acq3)
@@ -1835,12 +1836,12 @@ class TestAPI(ScrutinyUnitTest):
     def test_delete_datalogging_acquisition(self):
         # Rename an acquisition in datalogging storage through API
         with DataloggingStorage.use_temp_storage():
-            acq1 = api_datalogging.DataloggingAcquisition(firmware_id='some_firmware_id', reference_id="refid1", name="foo")
-            acq1.set_xdata(api_datalogging.DataSeries())
-            acq2 = api_datalogging.DataloggingAcquisition(firmware_id='some_firmware_id', reference_id="refid2", name="bar")
-            acq2.set_xdata(api_datalogging.DataSeries())
-            acq3 = api_datalogging.DataloggingAcquisition(firmware_id='some_firmware_id', reference_id="refid3", name="baz")
-            acq3.set_xdata(api_datalogging.DataSeries())
+            acq1 = core_datalogging.DataloggingAcquisition(firmware_id='some_firmware_id', reference_id="refid1", name="foo")
+            acq1.set_xdata(core_datalogging.DataSeries())
+            acq2 = core_datalogging.DataloggingAcquisition(firmware_id='some_firmware_id', reference_id="refid2", name="bar")
+            acq2.set_xdata(core_datalogging.DataSeries())
+            acq3 = core_datalogging.DataloggingAcquisition(firmware_id='some_firmware_id', reference_id="refid3", name="baz")
+            acq3.set_xdata(core_datalogging.DataSeries())
             DataloggingStorage.save(acq1)
             DataloggingStorage.save(acq2)
             DataloggingStorage.save(acq3)
@@ -1852,7 +1853,7 @@ class TestAPI(ScrutinyUnitTest):
             }
             acq_count_before = DataloggingStorage.count()
             self.send_request(req)
-            
+
             timeout = 5
             t = time.time()
             while time.time() - t < timeout:
@@ -1861,7 +1862,7 @@ class TestAPI(ScrutinyUnitTest):
                     break
             if acq_count_before == DataloggingStorage.count():
                 raise Exception("Failed to delete the acquisition")
-            
+
             expected_response = {
                 API.Command.Api2Client.DELETE_DATALOGGING_ACQUISITION_RESPONSE: None,
                 API.Command.Api2Client.INFORM_DATALOGGING_LIST_CHANGED: None
@@ -1899,12 +1900,12 @@ class TestAPI(ScrutinyUnitTest):
     def test_delete_all_datalogging_acquisition(self):
         # Rename an acquisition in datalogging storage through API
         with DataloggingStorage.use_temp_storage():
-            acq1 = api_datalogging.DataloggingAcquisition(firmware_id='some_firmware_id', reference_id="refid1", name="foo")
-            acq1.set_xdata(api_datalogging.DataSeries())
-            acq2 = api_datalogging.DataloggingAcquisition(firmware_id='some_firmware_id', reference_id="refid2", name="bar")
-            acq2.set_xdata(api_datalogging.DataSeries())
-            acq3 = api_datalogging.DataloggingAcquisition(firmware_id='some_firmware_id', reference_id="refid3", name="baz")
-            acq3.set_xdata(api_datalogging.DataSeries())
+            acq1 = core_datalogging.DataloggingAcquisition(firmware_id='some_firmware_id', reference_id="refid1", name="foo")
+            acq1.set_xdata(core_datalogging.DataSeries())
+            acq2 = core_datalogging.DataloggingAcquisition(firmware_id='some_firmware_id', reference_id="refid2", name="bar")
+            acq2.set_xdata(core_datalogging.DataSeries())
+            acq3 = core_datalogging.DataloggingAcquisition(firmware_id='some_firmware_id', reference_id="refid3", name="baz")
+            acq3.set_xdata(core_datalogging.DataSeries())
             DataloggingStorage.save(acq1)
             DataloggingStorage.save(acq2)
             DataloggingStorage.save(acq3)
@@ -1924,14 +1925,14 @@ class TestAPI(ScrutinyUnitTest):
                     break
             if db_init_count == DataloggingStorage.get_init_count():
                 raise Exception("Failed to clear the database")
-            
+
             expected_response = {
                 API.Command.Api2Client.DELETE_ALL_DATALOGGING_ACQUISITION_RESPONSE: None,
                 API.Command.Api2Client.INFORM_DATALOGGING_LIST_CHANGED: None
             }
 
             for i in range(2):
-                response = self.wait_and_load_response() 
+                response = self.wait_and_load_response()
                 self.assert_no_error(response)
                 expected_response[response['cmd']] = True
                 if response['cmd'] == API.Command.Api2Client.DELETE_ALL_DATALOGGING_ACQUISITION_RESPONSE:
@@ -1948,12 +1949,12 @@ class TestAPI(ScrutinyUnitTest):
 
     def test_read_datalogging_acquisition_content(self):
         with DataloggingStorage.use_temp_storage():
-            axis1 = api_datalogging.AxisDefinition(name="Axis1", external_id=0)
-            axis2 = api_datalogging.AxisDefinition(name="Axis2", external_id=1)
-            acq = api_datalogging.DataloggingAcquisition(firmware_id='some_firmware_id', reference_id="refid1", name="foo")
-            acq.set_xdata(api_datalogging.DataSeries([0, 1, 2, 3, 4, 5, 6, 7, 8, 9], name='the x-axis', logged_element='/var/xaxis'))
-            acq.add_data(api_datalogging.DataSeries([10, 20, 30, 40, 50, 60, 70, 80, 90], name='series 1', logged_element='/var/data1'), axis1)
-            acq.add_data(api_datalogging.DataSeries([100, 200, 300, 400, 500, 600, 700,
+            axis1 = core_datalogging.AxisDefinition(name="Axis1", external_id=0)
+            axis2 = core_datalogging.AxisDefinition(name="Axis2", external_id=1)
+            acq = core_datalogging.DataloggingAcquisition(firmware_id='some_firmware_id', reference_id="refid1", name="foo")
+            acq.set_xdata(core_datalogging.DataSeries([0, 1, 2, 3, 4, 5, 6, 7, 8, 9], name='the x-axis', logged_element='/var/xaxis'))
+            acq.add_data(core_datalogging.DataSeries([10, 20, 30, 40, 50, 60, 70, 80, 90], name='series 1', logged_element='/var/data1'), axis1)
+            acq.add_data(core_datalogging.DataSeries([100, 200, 300, 400, 500, 600, 700,
                          800, 900], name='series 2', logged_element='/var/data2'), axis2)
             acq.set_trigger_index(3)
             DataloggingStorage.save(acq)

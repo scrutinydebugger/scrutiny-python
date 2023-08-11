@@ -16,7 +16,7 @@ from pathlib import Path
 from datetime import datetime
 import sqlite3
 
-from scrutiny.server.datalogging.definitions.api import DataloggingAcquisition, DataSeries, AxisDefinition
+from scrutiny.core.datalogging import DataloggingAcquisition, DataSeries, AxisDefinition
 from typing import *
 
 
@@ -70,7 +70,7 @@ class DataloggingStorageManager:
     temporary_dir: Optional[tempfile.TemporaryDirectory]    # A temporary work folder mainly used for unit tests
     logger: logging.Logger  # The logger
     unavailable: bool       # Flags indicating that the storage can or cannot be used
-    init_count:int
+    init_count: int
 
     def __init__(self, folder):
         self.folder = folder
@@ -206,7 +206,7 @@ class DataloggingStorageManager:
                                  (self.STORAGE_VERSION, backup_file))
             except Exception as e:
                 self.logger.error("Failed to backup old storage. %s" % str(e))
-    
+
     def get_init_count(self):
         return self.init_count
 

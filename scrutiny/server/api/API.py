@@ -32,6 +32,8 @@ import scrutiny.server.datalogging.definitions.api as api_datalogging
 import scrutiny.server.datalogging.definitions.device as device_datalogging
 from scrutiny.server.device.device_info import ExecLoopType
 from scrutiny.core.basic_types import MemoryRegion
+import scrutiny.core.datalogging as core_datalogging
+
 
 from .websocket_client_handler import WebsocketClientHandler
 from .dummy_client_handler import DummyClientHandler
@@ -1437,7 +1439,7 @@ class API:
         if err:
             raise InvalidRequestException(req, "Failed to read acquisition. %s" % (str(err)))
 
-        def dataseries_to_api_signal_data(ds: api_datalogging.DataSeries) -> api_typing.DataloggingSignalData:
+        def dataseries_to_api_signal_data(ds: core_datalogging.DataSeries) -> api_typing.DataloggingSignalData:
             signal: api_typing.DataloggingSignalData = {
                 'name': ds.name,
                 'logged_element': ds.logged_element,
@@ -1445,7 +1447,7 @@ class API:
             }
             return signal
 
-        def dataseries_to_api_signal_data_with_axis(ds: api_datalogging.DataSeries, axis_id: int) -> api_typing.DataloggingSignalDataWithAxis:
+        def dataseries_to_api_signal_data_with_axis(ds: core_datalogging.DataSeries, axis_id: int) -> api_typing.DataloggingSignalDataWithAxis:
             signal: api_typing.DataloggingSignalDataWithAxis = cast(api_typing.DataloggingSignalDataWithAxis, dataseries_to_api_signal_data(ds))
             signal['axis_id'] = axis_id
             return signal
