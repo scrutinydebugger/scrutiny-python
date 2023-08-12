@@ -149,6 +149,6 @@ class DataloggingAcquisition:
                 raise ValueError("trigger index must be a positive value")
 
             if val >= len(self.xdata.get_data()):
-                raise ValueError("Trigger index cannot be further than the x-axis data length")
+                raise ValueError("Trigger index cannot be greater than the x-axis data length")
 
         self.trigger_index = val

@@ -639,22 +639,31 @@ def parse_read_datalogging_acquisition_content_response(response: api_typing.S2C
         _check_response_dict(cmd, yaxis, 'name', str)
         axis_map[yaxis['id']] = sdk.datalogging.AxisDefinition(external_id=yaxis['id'], name=yaxis['name'])
 
-    for el in response['xdata']['data']:
-        if not isinstance(el, float):
-            raise sdk.exceptions.BadResponseError('X-Axis data is not all numerical')
+    xaxis_data: Optional[List[float]] = None
+    try:
+        xaxis_data = [float(x) for x in response['xdata']['data']]
+    except Exception:
+        raise sdk.exceptions.BadResponseError('X-Axis data is not all numerical')
+
+    assert xaxis_data is not None
 
     for sig in response['signals']:
         _check_response_dict(cmd, sig, 'axis_id', int)
         _check_response_dict(cmd, sig, 'logged_element', str)
         _check_response_dict(cmd, sig, 'name', str)
         _check_response_dict(cmd, sig, 'data', list)
-        for el in sig['data']:
-            if not isinstance(el, float):
-                raise sdk.exceptions.BadResponseError(f'Dataseries {sig["name"]} data is not all numerical')
+
+        yaxis_data: Optional[List[float]] = None
+        try:
+            yaxis_data = [float(x) for x in sig['data']]
+        except Exception:
+            raise sdk.exceptions.BadResponseError(f'Dataseries {sig["name"]} data is not all numerical')
+        assert yaxis_data is not None
+
         if sig['axis_id'] not in axis_map:
             raise sdk.exceptions.BadResponseError(f'Dataseries {sig["name"]} refer to a non-existent Y-Axis')
         ds = sdk.datalogging.DataSeries(
-            data=sig['data'],
+            data=yaxis_data,
             name=sig['name'],
             logged_element=sig['logged_element']
         )
@@ -667,6 +676,9 @@ def parse_read_datalogging_acquisition_content_response(response: api_typing.S2C
     )
 
     acquisition.set_xdata(xdata)
-    acquisition.set_trigger_index(response['trigger_index'])
+    try:
+        acquisition.set_trigger_index(response['trigger_index'])
+    except Exception:
+        raise sdk.exceptions.BadResponseError(f'Given Trigger index is not valid. {response["trigger_index"]}')
 
     return acquisition

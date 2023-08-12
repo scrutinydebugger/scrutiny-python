@@ -12,11 +12,12 @@ import scrutiny.sdk._api_parser as parser
 from scrutiny.core.basic_types import *
 from scrutiny.sdk.definitions import *
 import scrutiny.server.api.typing as api_typing
-import scrutiny.sdk.exceptions as sdk_exceptions
+from scrutiny import sdk
 from copy import copy
-from datetime import datetime
+from datetime import datetime, timedelta
 import logging
 from test import ScrutinyUnitTest
+from typing import *
 
 
 class TestApiParser(ScrutinyUnitTest):
@@ -52,50 +53,50 @@ class TestApiParser(ScrutinyUnitTest):
         self.assertEqual(res.server_id, 'theid')
         self.assertEqual(res.watchable_type, WatchableType.Alias)
 
-        with self.assertRaises(sdk_exceptions.BadResponseError):
+        with self.assertRaises(sdk.exceptions.BadResponseError):
             parser.parse_get_watchable_single_element(base(), 'xxx')
 
-        with self.assertRaises(sdk_exceptions.BadResponseError):
+        with self.assertRaises(sdk.exceptions.BadResponseError):
             msg = base()
             msg['done'] = False
             parser.parse_get_watchable_single_element(msg, requested_path)
 
-        with self.assertRaises(sdk_exceptions.NameNotFoundError):
+        with self.assertRaises(sdk.exceptions.NameNotFoundError):
             msg = base()
             msg['qty']['var'] = 0
             parser.parse_get_watchable_single_element(msg, requested_path)
 
-        with self.assertRaises(sdk_exceptions.BadResponseError):
+        with self.assertRaises(sdk.exceptions.BadResponseError):
             msg = base()
             msg['qty']['alias'] = 1
             parser.parse_get_watchable_single_element(msg, requested_path)
 
-        with self.assertRaises(sdk_exceptions.BadResponseError):
+        with self.assertRaises(sdk.exceptions.BadResponseError):
             msg = base()
             msg['content']['var'].append({'id': 'xxx', "display_path": '/q/w/e', "datatype": "uint32"})
             parser.parse_get_watchable_single_element(msg, requested_path)
 
-        with self.assertRaises(sdk_exceptions.BadResponseError):
+        with self.assertRaises(sdk.exceptions.BadResponseError):
             msg = base()
             msg['content']['alias'].append({'id': 'xxx', "display_path": '/q/w/e', "datatype": "uint32"})
             parser.parse_get_watchable_single_element(msg, requested_path)
 
-        with self.assertRaises(sdk_exceptions.BadResponseError):
+        with self.assertRaises(sdk.exceptions.BadResponseError):
             msg = base()
             msg['content']['var'][0]['id'] = None
             parser.parse_get_watchable_single_element(msg, requested_path)
 
-        with self.assertRaises(sdk_exceptions.BadResponseError):
+        with self.assertRaises(sdk.exceptions.BadResponseError):
             msg = base()
             msg['content']['var'][0]['datatype'] = 'asdas'
             parser.parse_get_watchable_single_element(msg, requested_path)
 
-        with self.assertRaises(sdk_exceptions.BadResponseError):
+        with self.assertRaises(sdk.exceptions.BadResponseError):
             msg = base()
             del msg['qty']['rpv']
             parser.parse_get_watchable_single_element(msg, requested_path)
 
-        with self.assertRaises(sdk_exceptions.BadResponseError):
+        with self.assertRaises(sdk.exceptions.BadResponseError):
             msg = base()
             del msg['content']['rpv']
             parser.parse_get_watchable_single_element(msg, requested_path)
@@ -214,14 +215,14 @@ class TestApiParser(ScrutinyUnitTest):
         for feature in features:
             for val in vals:
                 logging.debug(f"feature={feature}, val={val}")
-                with self.assertRaises(sdk_exceptions.BadResponseError):
+                with self.assertRaises(sdk.exceptions.BadResponseError):
                     msg = base()
                     msg['device_info']['supported_feature_map'][feature] = val
                     parser.parse_inform_server_status(msg)
 
         for feature in features:
             logging.debug(f"feature={feature}")
-            with self.assertRaises(sdk_exceptions.BadResponseError):
+            with self.assertRaises(sdk.exceptions.BadResponseError):
                 msg = base()
                 del msg['device_info']['supported_feature_map'][feature]
                 parser.parse_inform_server_status(msg)
@@ -242,17 +243,17 @@ class TestApiParser(ScrutinyUnitTest):
         self.assertEqual(info.device_session_id, None)
         self.assertEqual(info.device_comm_state, DeviceCommState.NA)
 
-        with self.assertRaises(sdk_exceptions.BadResponseError):
+        with self.assertRaises(sdk.exceptions.BadResponseError):
             msg = base()
             msg['device_status'] = "asd"
             parser.parse_inform_server_status(msg)
 
-        with self.assertRaises(sdk_exceptions.BadResponseError):
+        with self.assertRaises(sdk.exceptions.BadResponseError):
             msg = base()
             msg["device_info"]['forbidden_memory_regions'][0]['end'] = msg["device_info"]['forbidden_memory_regions'][0]['start'] - 1
             info = parser.parse_inform_server_status(msg)
 
-        with self.assertRaises(sdk_exceptions.BadResponseError):
+        with self.assertRaises(sdk.exceptions.BadResponseError):
             msg = base()
             msg["device_info"]['readonly_memory_regions'][0]['end'] = msg["device_info"]['readonly_memory_regions'][0]['start'] - 1
             info = parser.parse_inform_server_status(msg)
@@ -263,7 +264,7 @@ class TestApiParser(ScrutinyUnitTest):
             vals = [None, 'asd', 1.5, [], {},]   # bad values
             for val in vals:
                 logging.debug(f"field={field}, val={val}")
-                with self.assertRaises(sdk_exceptions.BadResponseError):
+                with self.assertRaises(sdk.exceptions.BadResponseError):
                     msg = base()
                     msg["device_info"][field] = val
                     info = parser.parse_inform_server_status(msg)
@@ -288,7 +289,7 @@ class TestApiParser(ScrutinyUnitTest):
         info = parser.parse_inform_server_status(msg)
         self.assertIsNone(info.datalogging.completion_ratio)
 
-        with self.assertRaises(sdk_exceptions.BadResponseError):
+        with self.assertRaises(sdk.exceptions.BadResponseError):
             msg = base()
             msg["device_comm_link"]["link_type"] = 'serial'
             # We forgot to update the config.
@@ -327,14 +328,14 @@ class TestApiParser(ScrutinyUnitTest):
             for val in vals:
                 msg = copy(serial_base)
                 logging.debug(f"field={field}, val={val}")
-                with self.assertRaises(sdk_exceptions.BadResponseError):
+                with self.assertRaises(sdk.exceptions.BadResponseError):
                     msg["device_comm_link"]["link_config"][field] = val
                     parser.parse_inform_server_status(msg)
 
         for field in field_vals:
             msg = copy(serial_base)
             logging.debug(f"field={field}")
-            with self.assertRaises(sdk_exceptions.BadResponseError):
+            with self.assertRaises(sdk.exceptions.BadResponseError):
                 del msg["device_comm_link"]["link_config"][field]
                 parser.parse_inform_server_status(msg)
 
@@ -348,14 +349,14 @@ class TestApiParser(ScrutinyUnitTest):
 
                 msg = base()
                 logging.debug(f"field={field}, val={val}")
-                with self.assertRaises(sdk_exceptions.BadResponseError):
+                with self.assertRaises(sdk.exceptions.BadResponseError):
                     msg["device_comm_link"]["link_config"][field] = val
                     parser.parse_inform_server_status(msg)
 
         for field in field_vals:
             msg = base()
             logging.debug(f"field={field}")
-            with self.assertRaises(sdk_exceptions.BadResponseError):
+            with self.assertRaises(sdk.exceptions.BadResponseError):
                 del msg["device_comm_link"]["link_config"][field]
                 parser.parse_inform_server_status(msg)
 
@@ -416,18 +417,173 @@ class TestApiParser(ScrutinyUnitTest):
 
         msg = base()
         msg["capabilities"] = "asd"
-        with self.assertRaises(sdk_exceptions.BadResponseError):
+        with self.assertRaises(sdk.exceptions.BadResponseError):
             self.assertIsNone(parser.parse_get_datalogging_capabilities_response(msg))
 
         msg = base()
         msg["capabilities"]["encoding"] = "asd"
-        with self.assertRaises(sdk_exceptions.BadResponseError):
+        with self.assertRaises(sdk.exceptions.BadResponseError):
             self.assertIsNone(parser.parse_get_datalogging_capabilities_response(msg))
 
         msg = base()
         msg["capabilities"]["sampling_rates"][0]["type"] = "asdasd"
-        with self.assertRaises(sdk_exceptions.BadResponseError):
+        with self.assertRaises(sdk.exceptions.BadResponseError):
             self.assertIsNone(parser.parse_get_datalogging_capabilities_response(msg))
+
+    def test_parse_read_datalogging_acquisition_content(self):
+        now = datetime.now()
+
+        def base() -> api_typing.S2C.ReadDataloggingAcquisitionContent:
+            return {
+                "cmd": "read_datalogging_acquisition_content_response",
+                "reqid": None,
+                "firmware_id": "foo",
+                "name": "acquisition 123",
+                "reference_id": "bar.baz",
+                "trigger_index": 5,
+                "timestamp": now.timestamp(),
+                "xdata": {
+                    "name": "Xaxis",
+                    "logged_element": "path/to/xaxis/item",
+                    "data": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+                },
+                "yaxis": [
+                    {"id": 0, "name": "Y-Axis1"},
+                    {"id": 1, "name": "Y-Axis2"},
+                ],
+                "signals": [
+                    {
+                        "axis_id": 0,
+                        "name": "signal1",
+                        "logged_element": "/path/to/signal1",
+                        "data": [0, 10, 20, 30, 40, 50, 60, 70, 80, 90]
+                    },
+                    {
+                        "axis_id": 0,
+                        "name": "signal2",
+                        "logged_element": "/path/to/signal2",
+                        "data": [0, -10, -20, -30, -40, -50, -60, -70, -80, -90]
+                    },
+                    {
+                        "axis_id": 1,
+                        "name": "signal3",
+                        "logged_element": "/path/to/signal3",
+                        "data": [-4.5, -3.5, -2.5, -1.5, -0.5, 0.5, 1.5, 2.5, 3.5, 4.5]
+                    }
+                ]
+            }
+
+        msg = base()
+        acq = parser.parse_read_datalogging_acquisition_content_response(msg)
+
+        self.assertIsInstance(acq, sdk.datalogging.DataloggingAcquisition)
+        self.assertEqual(acq.firmware_id, "foo")
+        self.assertEqual(acq.name, "acquisition 123")
+        self.assertEqual(acq.reference_id, "bar.baz")
+        self.assertLessEqual(abs(acq.acq_time - now), timedelta(seconds=1))
+
+        self.assertEqual(acq.xdata.name, "Xaxis")
+        self.assertEqual(acq.xdata.logged_element, "path/to/xaxis/item")
+        self.assertEqual(acq.xdata.get_data(), [0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0])
+
+        yaxes = acq.get_unique_yaxis_list()
+        self.assertEqual(len(yaxes), 2)
+        yaxes.sort(key=lambda x: x.external_id)
+        self.assertEqual(yaxes[0].external_id, 0)
+        self.assertEqual(yaxes[0].name, "Y-Axis1")
+        self.assertEqual(yaxes[1].external_id, 1)
+        self.assertEqual(yaxes[1].name, "Y-Axis2")
+        yaxes_map: Dict[int, sdk.datalogging.AxisDefinition] = {}
+        for yaxis in yaxes:
+            yaxes_map[yaxis.external_id] = yaxis
+
+        data = acq.get_data()
+        self.assertEqual(len(data), 3)
+        data.sort(key=lambda x: x.series.name)
+
+        self.assertIn(data[0].axis.external_id, yaxes_map)
+        self.assertEqual(yaxes_map[data[0].axis.external_id].name, "Y-Axis1")
+        self.assertEqual(data[0].series.name, "signal1")
+        self.assertEqual(data[0].series.logged_element, "/path/to/signal1")
+
+        self.assertIn(data[1].axis.external_id, yaxes_map)
+        self.assertEqual(yaxes_map[data[1].axis.external_id].name, "Y-Axis1")
+        self.assertEqual(data[1].series.name, "signal2")
+        self.assertEqual(data[1].series.logged_element, "/path/to/signal2")
+
+        self.assertIn(data[2].axis.external_id, yaxes_map)
+        self.assertEqual(yaxes_map[data[2].axis.external_id].name, "Y-Axis2")
+        self.assertEqual(data[2].series.name, "signal3")
+        self.assertEqual(data[2].series.logged_element, "/path/to/signal3")
+
+        for field in ['firmware_id', 'name', 'reference_id', 'trigger_index', 'timestamp', 'xdata', 'yaxis', 'signals']:
+            msg = base()
+            del msg[field]
+            with self.assertRaises(sdk.exceptions.BadResponseError, msg=f"Field : {field}"):
+                parser.parse_read_datalogging_acquisition_content_response(msg)
+
+        for field in ['name', 'logged_element', 'data']:
+            msg = base()
+            del msg['xdata'][field]
+            with self.assertRaises(sdk.exceptions.BadResponseError, msg=f"Field : {field}"):
+                parser.parse_read_datalogging_acquisition_content_response(msg)
+
+        for field in ['axis_id', 'name', 'logged_element', 'data']:
+            msg = base()
+            for i in range(len(msg['signals'])):
+                del msg['signals'][i][field]
+                with self.assertRaises(sdk.exceptions.BadResponseError, msg=f"Field : {field}"):
+                    parser.parse_read_datalogging_acquisition_content_response(msg)
+
+        for val in [10000, -1, "asd", 1.1, {}, []]:
+            msg = base()
+            msg['trigger_index'] = val
+            with self.assertRaises(sdk.exceptions.BadResponseError, msg=f"val={val}"):
+                parser.parse_read_datalogging_acquisition_content_response(msg)
+
+        for i in range(3):
+            for val in [3, -1, "asd", 1.1, None, {}, []]:
+                msg = base()
+                msg['signals'][i]["axis_id"] = val
+                with self.assertRaises(sdk.exceptions.BadResponseError, msg=f"val={val}"):
+                    parser.parse_read_datalogging_acquisition_content_response(msg)
+
+            for val in [3, None, {}, []]:
+                msg = base()
+                msg['signals'][i]["logged_element"] = val
+                with self.assertRaises(sdk.exceptions.BadResponseError, msg=f"val={val}"):
+                    parser.parse_read_datalogging_acquisition_content_response(msg)
+
+            for val in [3, None, {}, []]:
+                msg = base()
+                msg['signals'][i]["name"] = val
+                with self.assertRaises(sdk.exceptions.BadResponseError, msg=f"val={val}"):
+                    parser.parse_read_datalogging_acquisition_content_response(msg)
+
+            for val in [3, None, "asd", {}]:
+                msg = base()
+                msg['signals'][i]["data"] = val
+                with self.assertRaises(sdk.exceptions.BadResponseError, msg=f"val={val}"):
+                    parser.parse_read_datalogging_acquisition_content_response(msg)
+
+            for val in [None, "asd", {}]:
+                msg = base()
+                msg['signals'][i]["data"][0] = val
+                with self.assertRaises(sdk.exceptions.BadResponseError, msg=f"val={val}"):
+                    parser.parse_read_datalogging_acquisition_content_response(msg)
+
+        for i in range(2):
+            for val in [None, "asd", {}, [], 1.1]:
+                msg = base()
+                msg['yaxis'][i]['id'] = val
+                with self.assertRaises(sdk.exceptions.BadResponseError, msg=f"val={val}"):
+                    parser.parse_read_datalogging_acquisition_content_response(msg)
+
+            for val in [None, 1, {}, [], 1.1]:
+                msg = base()
+                msg['yaxis'][i]['name'] = val
+                with self.assertRaises(sdk.exceptions.BadResponseError, msg=f"val={val}"):
+                    parser.parse_read_datalogging_acquisition_content_response(msg)
 
 
 if __name__ == '__main__':
