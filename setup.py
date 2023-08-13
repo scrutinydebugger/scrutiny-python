@@ -26,7 +26,7 @@ setup(
     author=scrutiny.__author__,
     license=scrutiny.__license__,
 
-    packages=find_packages(where='.', exclude=["tests", "tests.*"], include=['scrutiny', "scrutiny.*"]),
+    packages=find_packages(where='.', exclude=["test", "test.*"], include=['scrutiny', "scrutiny.*"]),
 
     setup_requires=[],
     install_requires=dependencies,

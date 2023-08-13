@@ -17,7 +17,7 @@ from datetime import datetime
 import sqlite3
 
 from scrutiny.core.datalogging import DataloggingAcquisition, DataSeries, AxisDefinition
-from typing import *
+from typing import List, Dict, Optional, Tuple
 
 
 class BadVersionError(Exception):
@@ -233,7 +233,7 @@ class DataloggingStorageManager:
             CREATE TABLE IF NOT EXISTS `axis` (
             `id` INTEGER PRIMARY KEY AUTOINCREMENT,
             `acquisition_id` INTEGER NOT NULL,
-            `external_id` INTEGER NOT NULL,
+            `axis_id` INTEGER NOT NULL,
             `is_xaxis` INTEGER NOT NULL,
             `name` VARCHAR(255)
         ) 
@@ -255,8 +255,8 @@ class DataloggingStorageManager:
         """)
 
         cursor.execute(""" 
-            CREATE INDEX IF NOT EXISTS `idx_axis_ref_external_id` 
-            ON `axis` (`acquisition_id`, `external_id`)
+            CREATE INDEX IF NOT EXISTS `idx_axis_ref_axis_id` 
+            ON `axis` (`acquisition_id`, `axis_id`)
         """)
 
         cursor.execute(""" 
@@ -314,15 +314,15 @@ class DataloggingStorageManager:
 
             axis_sql = """
                 INSERT INTO `axis`
-                    (`acquisition_id`, `external_id`, `name`, 'is_xaxis' )
+                    (`acquisition_id`, `axis_id`, `name`, 'is_xaxis' )
                 VALUES (?,?,?,?)
                 """
             axis_to_id_map: Dict[AxisDefinition, int] = {}
             all_axis = acquisition.get_unique_yaxis_list()
             for axis in all_axis:
-                if axis.external_id == -1:
+                if axis.axis_id == -1:
                     raise ValueError("Axis External ID cannot be -1, reserved value.")
-                cursor.execute(axis_sql, (acquisition_db_id, axis.external_id, axis.name, 0))
+                cursor.execute(axis_sql, (acquisition_db_id, axis.axis_id, axis.name, 0))
                 if cursor.lastrowid is None:
                     raise RuntimeError('Failed to insert axis %s in DB', str(axis.name))
                 axis_to_id_map[axis] = cursor.lastrowid
@@ -398,7 +398,7 @@ class DataloggingStorageManager:
                     `acq`.`name` AS `name`,
                     `acq`.`trigger_index` as `trigger_index`,
                     `axis`.`name` AS `axis_name`,
-                    `axis`.`external_id` AS `axis_external_id`,
+                    `axis`.`axis_id` AS `axis_axis_id`,
                     `axis`.`is_xaxis` AS `is_xaxis`,
                     `ds`.`axis_id` AS `axis_id`,
                     `ds`.`name` AS `dataseries_name`,
@@ -417,7 +417,7 @@ class DataloggingStorageManager:
                 'acquisition_name',
                 'trigger_index',
                 'axis_name',
-                'axis_external_id',
+                'axis_axis_id',
                 'is_xaxis',
                 'axis_id',
                 'dataseries_name',
@@ -462,7 +462,7 @@ class DataloggingStorageManager:
                     if row[colmap['axis_id']] in yaxis_id_to_def_map:
                         axis = yaxis_id_to_def_map[row[colmap['axis_id']]]
                     else:
-                        axis = AxisDefinition(name=row[colmap['axis_name']], external_id=row[colmap['axis_external_id']])
+                        axis = AxisDefinition(name=row[colmap['axis_name']], axis_id=row[colmap['axis_axis_id']])
                         yaxis_id_to_def_map[row[colmap['axis_id']]] = axis
                     acq.add_data(dataseries, axis)
                 else:
@@ -523,7 +523,7 @@ class DataloggingStorageManager:
             UPDATE `axis` SET `name`=? WHERE `id` IN (
                 SELECT `axis`.`id` FROM `axis` 
                 INNER JOIN `acquisitions` AS `acq` ON `acq`.`id`=`axis`.`acquisition_id`
-                WHERE `acq`.`reference_id`=? AND `axis`.`external_id`=?
+                WHERE `acq`.`reference_id`=? AND `axis`.`axis_id`=?
             )
             """, (new_name, reference_id, axis_id))
 

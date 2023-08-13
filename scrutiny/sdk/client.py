@@ -34,7 +34,7 @@ from dataclasses import dataclass
 from base64 import b64encode
 import queue
 
-from typing import *
+from typing import List, Dict, Optional, Callable, cast, Union, TypeVar
 
 
 class CallbackState(enum.Enum):
@@ -1157,12 +1157,12 @@ class ScrutinyClient:
         if not completion.success:
             raise sdk.exceptions.OperationFailure(f"Failed to write the device memory. {completion.error}")
 
-    def get_datalogging_capabilities(self) -> sdk.DataloggingCapabilities:
+    def get_datalogging_capabilities(self) -> sdk.datalogging.DataloggingCapabilities:
         req = self._make_request(API.Command.Client2Api.GET_DATALOGGING_CAPABILITIES)
 
         @dataclass
         class Container:
-            obj: Optional[sdk.DataloggingCapabilities]
+            obj: Optional[sdk.datalogging.DataloggingCapabilities]
         cb_data: Container = Container(obj=None)  # Force pass by ref
 
         def callback(state: CallbackState, response: Optional[api_typing.S2CMessage]) -> None:

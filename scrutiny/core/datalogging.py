@@ -13,7 +13,7 @@ from uuid import uuid4
 from dataclasses import dataclass
 from datetime import datetime
 
-from typing import *
+from typing import List, Optional
 
 __all__ = [
     'AxisDefinition',
@@ -27,14 +27,14 @@ __all__ = [
 class AxisDefinition:
     """Represent an axis"""
     name: str
-    external_id: int
+    axis_id: int
 
     def __hash__(self):
         return id(self)
 
 
 class DataSeries:
-    """A data series is a series of measurement represented by a series of 64bit floating point value """
+    """A data series is a series of measurement represented by a series of 64 bits floating point value """
     name: str
     logged_element: str
     data: List[float]
@@ -120,7 +120,7 @@ class DataloggingAcquisition:
 
     def add_data(self, dataseries: DataSeries, axis: AxisDefinition) -> None:
         for data in self.ydata:
-            if data.axis.external_id == axis.external_id and data.axis is not axis:
+            if data.axis.axis_id == axis.axis_id and data.axis is not axis:
                 raise ValueError("Two data series are using different Y-Axis with identical external ID.")
         self.ydata.append(DataSeriesWithAxis(series=dataseries, axis=axis))
 
@@ -143,10 +143,10 @@ class DataloggingAcquisition:
     def set_trigger_index(self, val: Optional[int]) -> None:
         if val is not None:
             if not isinstance(val, int):
-                raise ValueError("trigger index must be an integer")
+                raise ValueError("Trigger index must be an integer")
 
             if val < 0:
-                raise ValueError("trigger index must be a positive value")
+                raise ValueError("Trigger index must be a positive value")
 
             if val >= len(self.xdata.get_data()):
                 raise ValueError("Trigger index cannot be greater than the x-axis data length")

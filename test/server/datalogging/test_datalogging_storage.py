@@ -6,6 +6,7 @@
 #
 #   Copyright (c) 2021-2023 Scrutiny Debugger
 
+import unittest
 from uuid import uuid4
 import random
 from test import ScrutinyUnitTest
@@ -13,8 +14,6 @@ from scrutiny.server.datalogging.datalogging_storage import DataloggingStorage
 from scrutiny.core.datalogging import DataloggingAcquisition, DataSeries, AxisDefinition
 from datetime import datetime, timedelta
 import time
-
-from typing import *
 
 
 class TestDataloggingStorage(ScrutinyUnitTest):
@@ -33,7 +32,7 @@ class TestDataloggingStorage(ScrutinyUnitTest):
         for yaxis in a.get_unique_yaxis_list():
             self.assertIsInstance(yaxis, AxisDefinition)
             self.assertIsInstance(yaxis.name, str)
-            self.assertIsInstance(yaxis.external_id, int)
+            self.assertIsInstance(yaxis.axis_id, int)
 
         self.assertIsInstance(a.get_data(), list)
         for data in a.get_data():
@@ -61,7 +60,7 @@ class TestDataloggingStorage(ScrutinyUnitTest):
         for i in range(len(data1)):
             self.assert_dataseries_identical(data1[i].series, data2[i].series)
             self.assertEqual(data1[i].axis.name, data2[i].axis.name)
-            self.assertEqual(data1[i].axis.external_id, data2[i].axis.external_id)
+            self.assertEqual(data1[i].axis.axis_id, data2[i].axis.axis_id)
 
     def assert_dataseries_identical(self, a: DataSeries, b: DataSeries):
         self.assertEqual(a.name, b.name)
@@ -124,7 +123,7 @@ class TestDataloggingStorage(ScrutinyUnitTest):
 
             self.assertEqual(acq3_fetched.name, None)
             DataloggingStorage.update_acquisition_name(acq3.reference_id, "meow")
-            DataloggingStorage.update_axis_name(acq3.reference_id, axis2.external_id, "woof")
+            DataloggingStorage.update_axis_name(acq3.reference_id, axis2.axis_id, "woof")
             acq3_fetched = DataloggingStorage.read(acq3.reference_id)
             self.assertEqual(acq3_fetched.name, "meow")
             self.assertEqual(acq3_fetched.get_data()[1].axis.name, "woof")
@@ -198,5 +197,4 @@ class TestDataloggingStorage(ScrutinyUnitTest):
 
 
 if __name__ == '__main__':
-    import unittest
     unittest.main()

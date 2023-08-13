@@ -12,7 +12,9 @@ import scrutiny.sdk._api_parser as parser
 from scrutiny.core.basic_types import *
 from scrutiny.sdk.definitions import *
 import scrutiny.server.api.typing as api_typing
-from scrutiny import sdk
+import scrutiny.sdk
+import scrutiny.sdk.datalogging
+sdk = scrutiny.sdk  # Workaround for vscode linter an submodule on alias
 from copy import copy
 from datetime import datetime, timedelta
 import logging
@@ -392,17 +394,17 @@ class TestApiParser(ScrutinyUnitTest):
 
         self.assertIsNotNone(capabilities)
         self.assertEqual(capabilities.buffer_size, 4096)
-        self.assertEqual(capabilities.encoding, DataloggingEncoding.RAW)
+        self.assertEqual(capabilities.encoding, sdk.datalogging.DataloggingEncoding.RAW)
         self.assertEqual(capabilities.max_nb_signal, 32)
         self.assertEqual(len(capabilities.sampling_rates), 2)
 
-        self.assertIsInstance(capabilities.sampling_rates[0], FixedFreqSamplingRate)
-        assert isinstance(capabilities.sampling_rates[0], FixedFreqSamplingRate)
+        self.assertIsInstance(capabilities.sampling_rates[0], sdk.datalogging.FixedFreqSamplingRate)
+        assert isinstance(capabilities.sampling_rates[0], sdk.datalogging.FixedFreqSamplingRate)
         self.assertEqual(capabilities.sampling_rates[0].name, "loop0")
         self.assertEqual(capabilities.sampling_rates[0].identifier, 0)
         self.assertEqual(capabilities.sampling_rates[0].frequency, 1000.0)
 
-        self.assertIsInstance(capabilities.sampling_rates[1], VariableFreqSamplingRate)
+        self.assertIsInstance(capabilities.sampling_rates[1], sdk.datalogging.VariableFreqSamplingRate)
         self.assertEqual(capabilities.sampling_rates[1].name, "loop1")
         self.assertEqual(capabilities.sampling_rates[1].identifier, 1)
 
@@ -488,31 +490,31 @@ class TestApiParser(ScrutinyUnitTest):
 
         yaxes = acq.get_unique_yaxis_list()
         self.assertEqual(len(yaxes), 2)
-        yaxes.sort(key=lambda x: x.external_id)
-        self.assertEqual(yaxes[0].external_id, 0)
+        yaxes.sort(key=lambda x: x.axis_id)
+        self.assertEqual(yaxes[0].axis_id, 0)
         self.assertEqual(yaxes[0].name, "Y-Axis1")
-        self.assertEqual(yaxes[1].external_id, 1)
+        self.assertEqual(yaxes[1].axis_id, 1)
         self.assertEqual(yaxes[1].name, "Y-Axis2")
         yaxes_map: Dict[int, sdk.datalogging.AxisDefinition] = {}
         for yaxis in yaxes:
-            yaxes_map[yaxis.external_id] = yaxis
+            yaxes_map[yaxis.axis_id] = yaxis
 
         data = acq.get_data()
         self.assertEqual(len(data), 3)
         data.sort(key=lambda x: x.series.name)
 
-        self.assertIn(data[0].axis.external_id, yaxes_map)
-        self.assertEqual(yaxes_map[data[0].axis.external_id].name, "Y-Axis1")
+        self.assertIn(data[0].axis.axis_id, yaxes_map)
+        self.assertEqual(yaxes_map[data[0].axis.axis_id].name, "Y-Axis1")
         self.assertEqual(data[0].series.name, "signal1")
         self.assertEqual(data[0].series.logged_element, "/path/to/signal1")
 
-        self.assertIn(data[1].axis.external_id, yaxes_map)
-        self.assertEqual(yaxes_map[data[1].axis.external_id].name, "Y-Axis1")
+        self.assertIn(data[1].axis.axis_id, yaxes_map)
+        self.assertEqual(yaxes_map[data[1].axis.axis_id].name, "Y-Axis1")
         self.assertEqual(data[1].series.name, "signal2")
         self.assertEqual(data[1].series.logged_element, "/path/to/signal2")
 
-        self.assertIn(data[2].axis.external_id, yaxes_map)
-        self.assertEqual(yaxes_map[data[2].axis.external_id].name, "Y-Axis2")
+        self.assertIn(data[2].axis.axis_id, yaxes_map)
+        self.assertEqual(yaxes_map[data[2].axis.axis_id].name, "Y-Axis2")
         self.assertEqual(data[2].series.name, "signal3")
         self.assertEqual(data[2].series.logged_element, "/path/to/signal3")
 

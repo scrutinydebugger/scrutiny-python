@@ -44,7 +44,7 @@ from .abstract_client_handler import AbstractClientHandler, ClientHandlerMessage
 from scrutiny.server.device.links.abstract_link import LinkConfig as DeviceLinkConfig
 
 from scrutiny.core.typehints import EmptyDict, GenericCallback
-from typing import *
+from typing import List, Dict, Set, Optional, Callable, Any, TypedDict, cast, Generator, Literal, Type
 
 
 class APIConfig(TypedDict, total=False):
@@ -1159,7 +1159,7 @@ class API:
             if (yaxis['id'] in yaxis_map):
                 raise InvalidRequestException(req, "Duplicate Y-Axis ID")
 
-            yaxis_map[yaxis['id']] = api_datalogging.AxisDefinition(name=yaxis['name'], external_id=yaxis['id'])
+            yaxis_map[yaxis['id']] = api_datalogging.AxisDefinition(name=yaxis['name'], axis_id=yaxis['id'])
 
         for signal_def in req['signals']:
             if not isinstance(signal_def, dict):
@@ -1455,13 +1455,13 @@ class API:
         yaxis_list: List[api_typing.DataloggingAxisDef] = []
         acq_axis_2_api_axis_map: Dict[api_datalogging.AxisDefinition, api_typing.DataloggingAxisDef] = {}
         for axis in acquisition.get_unique_yaxis_list():
-            yaxis_out: api_typing.DataloggingAxisDef = {'name': axis.name, 'id': axis.external_id}
+            yaxis_out: api_typing.DataloggingAxisDef = {'name': axis.name, 'id': axis.axis_id}
             acq_axis_2_api_axis_map[axis] = yaxis_out
             yaxis_list.append(yaxis_out)
 
         signals: List[api_typing.DataloggingSignalDataWithAxis] = []
         for dataseries_with_axis in acquisition.get_data():
-            signals.append(dataseries_to_api_signal_data_with_axis(ds=dataseries_with_axis.series, axis_id=dataseries_with_axis.axis.external_id))
+            signals.append(dataseries_to_api_signal_data_with_axis(ds=dataseries_with_axis.series, axis_id=dataseries_with_axis.axis.axis_id))
 
         response: api_typing.S2C.ReadDataloggingAcquisitionContent = {
             'cmd': API.Command.Api2Client.READ_DATALOGGING_ACQUISITION_CONTENT_RESPONSE,

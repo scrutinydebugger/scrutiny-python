@@ -1949,8 +1949,8 @@ class TestAPI(ScrutinyUnitTest):
 
     def test_read_datalogging_acquisition_content(self):
         with DataloggingStorage.use_temp_storage():
-            axis1 = core_datalogging.AxisDefinition(name="Axis1", external_id=0)
-            axis2 = core_datalogging.AxisDefinition(name="Axis2", external_id=1)
+            axis1 = core_datalogging.AxisDefinition(name="Axis1", axis_id=0)
+            axis2 = core_datalogging.AxisDefinition(name="Axis2", axis_id=1)
             acq = core_datalogging.DataloggingAcquisition(firmware_id='some_firmware_id', reference_id="refid1", name="foo")
             acq.set_xdata(core_datalogging.DataSeries([0, 1, 2, 3, 4, 5, 6, 7, 8, 9], name='the x-axis', logged_element='/var/xaxis'))
             acq.add_data(core_datalogging.DataSeries([10, 20, 30, 40, 50, 60, 70, 80, 90], name='series 1', logged_element='/var/data1'), axis1)

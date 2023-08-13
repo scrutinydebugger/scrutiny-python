@@ -9,8 +9,8 @@
 from scrutiny.server.api import API
 from scrutiny.server.api import typing as api_typing
 from scrutiny.core.basic_types import *
-from typing import *
 import functools
+from typing import *
 
 from test.integration.integration_test import ScrutinyIntegrationTestWithTestSFD1
 

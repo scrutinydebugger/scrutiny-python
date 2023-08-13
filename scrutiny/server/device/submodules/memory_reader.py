@@ -23,7 +23,7 @@ from scrutiny.server.datastore.datastore_entry import *
 from scrutiny.core.memory_content import MemoryContent, Cluster
 from scrutiny.core.basic_types import MemoryRegion
 
-from typing import cast, Set
+from typing import cast, Set, List
 
 
 class RawMemoryReadRequestCompletionCallback(GenericCallback):

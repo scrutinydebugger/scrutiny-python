@@ -18,7 +18,7 @@ from scrutiny.server.datastore.entry_type import EntryType
 from scrutiny.core.variable import Variable, VariableEnum, EmbeddedDataType
 from scrutiny.core.codecs import *
 
-from typing import Any, Optional, Dict, Callable, Tuple, List
+from typing import Any, Optional, Dict, Callable, Tuple
 from scrutiny.core.typehints import GenericCallback
 from scrutiny.core.alias import Alias
 

@@ -9,9 +9,11 @@
 import unittest
 
 from scrutiny.core.basic_types import *
-from scrutiny.sdk.client import ScrutinyClient
-import scrutiny.sdk as sdk
 from scrutiny.sdk.watchable_handle import WatchableHandle
+import scrutiny.sdk
+import scrutiny.sdk.datalogging
+sdk = scrutiny.sdk
+from scrutiny.sdk.client import ScrutinyClient
 import scrutiny.server.datalogging.definitions.device as device_datalogging
 import scrutiny.server.datalogging.definitions.api as api_datalogging
 from scrutiny.core.variable import Variable as core_Variable
@@ -20,7 +22,6 @@ from scrutiny.core.codecs import Codecs
 from scrutiny.core.sfd_storage import SFDStorage
 from scrutiny.core.memory_content import MemoryContent
 from scrutiny.server.datalogging.datalogging_storage import DataloggingStorage
-from scrutiny.core import datalogging as datalogging
 
 
 from scrutiny.server.api import API
@@ -1019,23 +1020,23 @@ class TestClient(ScrutinyUnitTest):
 
         self.assertEqual(capabilities.buffer_size, 4096)
         self.assertEqual(capabilities.max_nb_signal, 32)
-        self.assertEqual(capabilities.encoding, sdk.DataloggingEncoding.RAW)
+        self.assertEqual(capabilities.encoding, sdk.datalogging.DataloggingEncoding.RAW)
         self.assertEqual(len(capabilities.sampling_rates), 3)
 
-        self.assertIsInstance(capabilities.sampling_rates[0], sdk.FixedFreqSamplingRate)
-        assert isinstance(capabilities.sampling_rates[0], sdk.FixedFreqSamplingRate)
+        self.assertIsInstance(capabilities.sampling_rates[0], sdk.datalogging.FixedFreqSamplingRate)
+        assert isinstance(capabilities.sampling_rates[0], sdk.datalogging.FixedFreqSamplingRate)
         self.assertEqual(capabilities.sampling_rates[0].identifier, 0)
         self.assertEqual(capabilities.sampling_rates[0].name, 'ffloop0')
         self.assertEqual(capabilities.sampling_rates[0].frequency, 1000)
 
-        self.assertIsInstance(capabilities.sampling_rates[1], sdk.FixedFreqSamplingRate)
-        assert isinstance(capabilities.sampling_rates[1], sdk.FixedFreqSamplingRate)
+        self.assertIsInstance(capabilities.sampling_rates[1], sdk.datalogging.FixedFreqSamplingRate)
+        assert isinstance(capabilities.sampling_rates[1], sdk.datalogging.FixedFreqSamplingRate)
         self.assertEqual(capabilities.sampling_rates[1].identifier, 1)
         self.assertEqual(capabilities.sampling_rates[1].name, 'ffloop1')
         self.assertEqual(capabilities.sampling_rates[1].frequency, 9999)
 
-        self.assertIsInstance(capabilities.sampling_rates[2], sdk.VariableFreqSamplingRate)
-        assert isinstance(capabilities.sampling_rates[2], sdk.VariableFreqSamplingRate)
+        self.assertIsInstance(capabilities.sampling_rates[2], sdk.datalogging.VariableFreqSamplingRate)
+        assert isinstance(capabilities.sampling_rates[2], sdk.datalogging.VariableFreqSamplingRate)
         self.assertEqual(capabilities.sampling_rates[2].identifier, 2)
         self.assertEqual(capabilities.sampling_rates[2].name, 'vfloop0')
 
@@ -1048,19 +1049,19 @@ class TestClient(ScrutinyUnitTest):
     def test_read_datalogging_acquisition(self):
         with DataloggingStorage.use_temp_storage():
             reference_id = 'foo.bar.baz'
-            acq = datalogging.DataloggingAcquisition(
+            acq = sdk.datalogging.DataloggingAcquisition(
                 firmware_id='foo',
                 reference_id=reference_id,
                 acq_time=datetime.now(),
                 name="test acquisition"
             )
-            axis1 = datalogging.AxisDefinition("Axis1", 0)
-            axis2 = datalogging.AxisDefinition("Axis2", 1)
+            axis1 = sdk.datalogging.AxisDefinition("Axis1", 0)
+            axis2 = sdk.datalogging.AxisDefinition("Axis2", 1)
 
-            xdata = datalogging.DataSeries([0, 10, 20, 30, 40, 50], "x-axis", "my/xaxis")
-            ds1 = datalogging.DataSeries([-1, -0.5, 0, 0.5, 1], "data1", "path/to/data1")
-            ds2 = datalogging.DataSeries([-10, -5, 0, 5, 10], "data2", "path/to/data2")
-            ds3 = datalogging.DataSeries([0.1, 0.2, 0.3, 0.1, 0.2], "data3", "path/to/data3")
+            xdata = sdk.datalogging.DataSeries([0, 10, 20, 30, 40, 50], "x-axis", "my/xaxis")
+            ds1 = sdk.datalogging.DataSeries([-1, -0.5, 0, 0.5, 1], "data1", "path/to/data1")
+            ds2 = sdk.datalogging.DataSeries([-10, -5, 0, 5, 10], "data2", "path/to/data2")
+            ds3 = sdk.datalogging.DataSeries([0.1, 0.2, 0.3, 0.1, 0.2], "data3", "path/to/data3")
             acq.set_xdata(xdata)
             acq.add_data(ds1, axis1)
             acq.add_data(ds2, axis1)
@@ -1093,7 +1094,7 @@ class TestClient(ScrutinyUnitTest):
 
             for i in range(len(data1)):
                 self.assertEqual(data1[i].axis.name, data2[i].axis.name)
-                self.assertEqual(data1[i].axis.external_id, data2[i].axis.external_id)
+                self.assertEqual(data1[i].axis.axis_id, data2[i].axis.axis_id)
 
                 self.assertEqual(data1[i].series.name, data2[i].series.name)
                 self.assertEqual(data1[i].series.logged_element, data2[i].series.logged_element)

@@ -7,10 +7,11 @@
 #   Copyright (c) 2021-2023 Scrutiny Debugger
 
 import enum
-from typing import *
 from dataclasses import dataclass
 from datetime import datetime
 from scrutiny.core.basic_types import MemoryRegion
+
+from typing import List, Optional, Literal, Union
 
 __all__ = [
     'AddressSize',
@@ -35,12 +36,7 @@ __all__ = [
     'SerialLinkConfig',
     'SupportedLinkConfig',
     'DeviceLinkInfo',
-    'ServerInfo',
-    'DataloggingEncoding',
-    'SamplingRate',
-    'FixedFreqSamplingRate',
-    'VariableFreqSamplingRate',
-    'DataloggingCapabilities'
+    'ServerInfo'
 ]
 
 AddressSize = Literal[8, 16, 32, 64, 128]
@@ -214,31 +210,3 @@ class ServerInfo:
     datalogging: DataloggingInfo
     sfd: Optional[SFDInfo]
     device_link: DeviceLinkInfo
-
-
-class DataloggingEncoding(enum.Enum):
-    RAW = 1
-
-
-@dataclass(frozen=True)
-class SamplingRate:
-    identifier: int
-    name: str
-
-
-@dataclass(frozen=True)
-class FixedFreqSamplingRate(SamplingRate):
-    frequency: float
-
-
-@dataclass(frozen=True)
-class VariableFreqSamplingRate(SamplingRate):
-    pass
-
-
-@dataclass(frozen=True)
-class DataloggingCapabilities:
-    encoding: DataloggingEncoding
-    buffer_size: int
-    max_nb_signal: int
-    sampling_rates: List[SamplingRate]

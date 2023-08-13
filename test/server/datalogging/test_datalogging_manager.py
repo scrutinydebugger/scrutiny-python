@@ -8,6 +8,7 @@
 
 import scrutiny.server.datalogging.definitions.api as api_datalogging
 import scrutiny.server.datalogging.definitions.device as device_datalogging
+from scrutiny.core import datalogging as core_datalogging
 from scrutiny.server.datastore.datastore import *
 from scrutiny.core.variable import Variable
 from scrutiny.core.basic_types import *
@@ -88,9 +89,9 @@ class TestDataloggingManager(ScrutinyUnitTest):
 
     def make_test_request(self, operand_watchable: DatastoreEntry, x_axis_type: api_datalogging.XAxisType, x_axis_entry: Optional[DatastoreEntry] = None) -> api_datalogging.AcquisitionRequest:
         yaxis_list = [
-            api_datalogging.AxisDefinition("Axis1", external_id=100),
-            api_datalogging.AxisDefinition("Axis2", external_id=200),
-            api_datalogging.AxisDefinition("Axis3", external_id=300)
+            core_datalogging.AxisDefinition("Axis1", axis_id=100),
+            core_datalogging.AxisDefinition("Axis2", axis_id=200),
+            core_datalogging.AxisDefinition("Axis3", axis_id=300)
         ]
 
         return api_datalogging.AcquisitionRequest(

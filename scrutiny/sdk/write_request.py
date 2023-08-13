@@ -10,7 +10,7 @@ import threading
 from datetime import datetime
 import scrutiny.sdk as sdk
 
-from typing import *
+from typing import Optional, Union, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from scrutiny.sdk.watchable_handle import WatchableHandle

@@ -15,7 +15,7 @@ from scrutiny.sdk.definitions import *
 from scrutiny.core.basic_types import *
 import scrutiny.sdk.exceptions as sdk_exceptions
 from scrutiny.sdk.write_request import WriteRequest
-from typing import *
+from typing import Optional, Union, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from scrutiny.sdk.client import ScrutinyClient

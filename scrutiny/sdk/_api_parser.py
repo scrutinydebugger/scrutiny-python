@@ -6,8 +6,9 @@
 #
 #   Copyright (c) 2021-2023 Scrutiny Debugger
 
-import scrutiny.sdk as sdk
-from typing import *
+import scrutiny.sdk
+import scrutiny.sdk.datalogging
+sdk = scrutiny.sdk  # Workaround for vscode linter an submodule on alias
 from scrutiny.core.basic_types import *
 from scrutiny.server.api.API import API
 from scrutiny.server.api import typing as api_typing
@@ -16,6 +17,8 @@ from datetime import datetime
 from base64 import b64decode
 import binascii
 import time
+
+from typing import List, Dict, Optional, Any, cast, Literal, Type, Union, TypeVar, Iterable, get_args
 
 
 @dataclass
@@ -549,7 +552,7 @@ def parse_memory_write_completion(response: api_typing.S2C.WriteMemoryComplete) 
     )
 
 
-def parse_get_datalogging_capabilities_response(response: api_typing.S2C.GetDataloggingCapabilities) -> Optional[sdk.DataloggingCapabilities]:
+def parse_get_datalogging_capabilities_response(response: api_typing.S2C.GetDataloggingCapabilities) -> Optional[sdk.datalogging.DataloggingCapabilities]:
     assert isinstance(response, dict)
     assert 'cmd' in response
     cmd = response['cmd']
@@ -566,33 +569,33 @@ def parse_get_datalogging_capabilities_response(response: api_typing.S2C.GetData
     _check_response_dict(cmd, response, 'capabilities.max_nb_signal', int)
     _check_response_dict(cmd, response, 'capabilities.sampling_rates', list)
 
-    api_to_sdk_encoding_map: Dict[api_typing.DataloggingEncoding, sdk.DataloggingEncoding] = {
-        'raw': sdk.DataloggingEncoding.RAW,
+    api_to_sdk_encoding_map: Dict[api_typing.DataloggingEncoding, sdk.datalogging.DataloggingEncoding] = {
+        'raw': sdk.datalogging.DataloggingEncoding.RAW,
     }
 
     encoding = response['capabilities']['encoding']
     if encoding not in api_to_sdk_encoding_map:
         raise sdk.exceptions.BadResponseError(f'Datalogging encoding is not supported: "{encoding}"')
 
-    sampling_rates: List[sdk.SamplingRate] = []
+    sampling_rates: List[sdk.datalogging.SamplingRate] = []
     for rate_entry in response['capabilities']['sampling_rates']:
         _check_response_dict(cmd, rate_entry, 'identifier', int)
         _check_response_dict(cmd, rate_entry, 'name', str)
 
         _check_response_dict(cmd, rate_entry, 'type', str)
 
-        rate: sdk.SamplingRate
+        rate: sdk.datalogging.SamplingRate
         if rate_entry['type'] == 'fixed_freq':
             _check_response_dict(cmd, rate_entry, 'frequency', (float, int))
             assert rate_entry['frequency'] is not None
 
-            rate = sdk.FixedFreqSamplingRate(
+            rate = sdk.datalogging.FixedFreqSamplingRate(
                 identifier=rate_entry['identifier'],
                 name=rate_entry['name'],
                 frequency=float(rate_entry['frequency']),
             )
         elif rate_entry['type'] == 'variable_freq':
-            rate = sdk.VariableFreqSamplingRate(
+            rate = sdk.datalogging.VariableFreqSamplingRate(
                 identifier=rate_entry['identifier'],
                 name=rate_entry['name'],
             )
@@ -601,7 +604,7 @@ def parse_get_datalogging_capabilities_response(response: api_typing.S2C.GetData
 
         sampling_rates.append(rate)
 
-    return sdk.DataloggingCapabilities(
+    return sdk.datalogging.DataloggingCapabilities(
         buffer_size=response['capabilities']['buffer_size'],
         encoding=api_to_sdk_encoding_map[encoding],
         max_nb_signal=response['capabilities']['max_nb_signal'],
@@ -637,7 +640,7 @@ def parse_read_datalogging_acquisition_content_response(response: api_typing.S2C
     for yaxis in response['yaxis']:
         _check_response_dict(cmd, yaxis, 'id', int)
         _check_response_dict(cmd, yaxis, 'name', str)
-        axis_map[yaxis['id']] = sdk.datalogging.AxisDefinition(external_id=yaxis['id'], name=yaxis['name'])
+        axis_map[yaxis['id']] = sdk.datalogging.AxisDefinition(axis_id=yaxis['id'], name=yaxis['name'])
 
     xaxis_data: Optional[List[float]] = None
     try:
