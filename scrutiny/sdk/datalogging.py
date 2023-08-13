@@ -5,6 +5,8 @@ from scrutiny.sdk.watchable_handle import WatchableHandle
 import enum
 from typing import List, Dict, Union, Optional
 
+from scrutiny.server.api import API
+
 
 class DataloggingEncoding(enum.Enum):
     RAW = 1
@@ -102,7 +104,10 @@ class _SignalAxisPair(_Signal):
 
 @dataclass(init=False)
 class DataloggingRequest:
-    _sampling_rate: Union[int, str]
+
+    MAX_TIMEOUT = 2**32
+
+    _sampling_rate: int
     _trigger_condition: TriggerCondition
     _x_axis_type: XAxisType
     _x_axis_signal: Optional[_Signal]
@@ -117,10 +122,29 @@ class DataloggingRequest:
     _next_axis_id: int
 
     def __init__(self,
-                 sampling_rate: Union[int, str],
+                 sampling_rate: int,
                  decimation: int = 1,
-                 timeout: float = 0,
+                 timeout: float = 0.0,
                  name: str = ''):
+
+        if not isinstance(sampling_rate, int):
+            raise TypeError('sampling_rate must be a int')
+
+        if not isinstance(decimation, int):
+            raise TypeError('decimation must be a int')
+
+        if decimation <= 0:
+            raise ValueError('decimation must be a positive integer')
+
+        if isinstance(timeout, int):
+            timeout = float(timeout)
+        if not isinstance(timeout, float):
+            raise TypeError('timeout must be a float')
+        if timeout < 0 or timeout > API.DATALOGGING_MAX_TIMEOUT:
+            raise ValueError(f"timeout must be a number between 0 and {API.DATALOGGING_MAX_TIMEOUT}")
+
+        if not isinstance(name, str):
+            raise TypeError('name must be a string')
 
         self._sampling_rate = sampling_rate
         self._trigger_condition = TriggerCondition.AlwaysTrue
@@ -138,6 +162,8 @@ class DataloggingRequest:
         self._axes = {}
 
     def add_axis(self, name: str) -> AxisDefinition:
+        if not isinstance(name, str):
+            raise TypeError("name must be a string")
         axis = AxisDefinition(axis_id=self._next_axis_id, name=name)
         self._next_axis_id += 1
         self._axes[axis.axis_id] = axis
@@ -148,7 +174,7 @@ class DataloggingRequest:
                    axis: Union[AxisDefinition, int],
                    name: Optional[str] = None
                    ) -> None:
-        if isinstance(axis, int):
+        if isinstance(axis, int) and not isinstance(axis, bool):
             if axis not in self._axes:
                 raise IndexError(f"No axis with index {axis}")
             assert self._axes[axis].axis_id == axis
@@ -208,6 +234,20 @@ class DataloggingRequest:
             if not isinstance(operands[i], (float, int, WatchableHandle, str)):
                 raise TypeError(
                     f"Operand {i+1} must be a constant (float), a path to the element (string) or a watchable handle. Got {operands[i].__class__.__name__}")
+
+        if isinstance(position, int) and not isinstance(position, bool):
+            position = float(position)
+        if not isinstance(position, float):
+            raise TypeError('position must be a float')
+        if position < 0 or position > 1:
+            raise ValueError(f"position must be a number between 0 and 1")
+
+        if isinstance(hold_time, int) and not isinstance(hold_time, bool):
+            hold_time = float(hold_time)
+        if not isinstance(hold_time, float):
+            raise TypeError('hold_time must be a float')
+        if hold_time < 0 or hold_time > API.DATALOGGING_MAX_HOLD_TIME:
+            raise ValueError(f"hold_time must be a number between 0 and {API.DATALOGGING_MAX_HOLD_TIME}")
 
         self._trigger_condition = condition
         self._trigger_position = position

@@ -144,6 +144,8 @@ class API:
         nb_operands: int
 
     FLUSH_VARS_TIMEOUT: float = 0.1
+    DATALOGGING_MAX_TIMEOUT: int = math.floor((2**32 - 1) * 1e-7)  # 100ns represented in sec
+    DATALOGGING_MAX_HOLD_TIME: int = math.floor((2**32 - 1) * 1e-7)   # 100ns represented in sec
 
     DATATYPE_2_APISTR: Dict[EmbeddedDataType, api_typing.Datatype] = {
         EmbeddedDataType.sint8: 'sint8',
@@ -1051,19 +1053,17 @@ class API:
         if req['decimation'] <= 0:
             raise InvalidRequestException(req, 'decimation must be a positive integer')
 
-        max_timeout = math.floor((2**32 - 1) * 1e-7)  # 100ns represented in sec
         if req['timeout'] < 0:
             raise InvalidRequestException(req, 'timeout must be a positive value or zero')
 
-        if req['timeout'] > max_timeout:
-            raise InvalidRequestException(req, 'timeout must be smaller than %ds' % int(max_timeout))
+        if req['timeout'] > self.DATALOGGING_MAX_TIMEOUT:
+            raise InvalidRequestException(req, 'timeout must be smaller than %ds' % int(self.DATALOGGING_MAX_TIMEOUT))
 
-        max_hold_time = math.floor((2**32 - 1) * 1e-7)   # 100ns represented in sec
         if req['trigger_hold_time'] < 0:
             raise InvalidRequestException(req, 'trigger_hold_time must be a positive value or zero')
 
-        if req['trigger_hold_time'] > max_hold_time:
-            raise InvalidRequestException(req, 'trigger_hold_time must be a smaller than %ds' % int(max_hold_time))
+        if req['trigger_hold_time'] > self.DATALOGGING_MAX_HOLD_TIME:
+            raise InvalidRequestException(req, 'trigger_hold_time must be a smaller than %ds' % int(self.DATALOGGING_MAX_HOLD_TIME))
 
         if req['probe_location'] < 0 or req['probe_location'] > 1:
             raise InvalidRequestException(req, 'probe_location must be a value between 0 and 1')
