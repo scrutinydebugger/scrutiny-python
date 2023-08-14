@@ -23,14 +23,11 @@ __all__ = [
 ]
 
 
-@dataclass
+@dataclass(frozen=True)
 class AxisDefinition:
     """Represent an axis"""
     name: str
     axis_id: int
-
-    def __hash__(self):
-        return id(self)
 
 
 class DataSeries:
@@ -68,7 +65,7 @@ class DataSeries:
         return len(self.data)
 
 
-@dataclass
+@dataclass(frozen=True)
 class DataSeriesWithAxis:
     series: DataSeries
     axis: AxisDefinition

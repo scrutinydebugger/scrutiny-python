@@ -19,6 +19,7 @@ if TYPE_CHECKING:
 class WriteRequest:
     _value: Union[int, bool, float]  # Value to be written
     _success: bool  # If the request has been successfully completed
+    _completed: bool    # Indicates if the write request has been processed (regardless of success state)
     _completion_datetime: Optional[datetime]   # datetime of the completion. None if incomplete
     _completed_event: threading.Event   # Event that gets set upon completion of the request
     _watchable: "WatchableHandle"       # Watchable targeted by this update request

@@ -623,7 +623,7 @@ def parse_read_datalogging_acquisition_content_response(response: api_typing.S2C
     _check_response_dict(cmd, response, 'timestamp', float)
     _check_response_dict(cmd, response, 'name', str)
     _check_response_dict(cmd, response, 'trigger_index', (int, type(None)))
-    _check_response_dict(cmd, response, 'yaxis', list)
+    _check_response_dict(cmd, response, 'yaxes', list)
     _check_response_dict(cmd, response, 'signals', list)
     _check_response_dict(cmd, response, 'xdata.name', str)
     _check_response_dict(cmd, response, 'xdata.data', list)
@@ -637,7 +637,7 @@ def parse_read_datalogging_acquisition_content_response(response: api_typing.S2C
     )
 
     axis_map: Dict[int, sdk.datalogging.AxisDefinition] = {}
-    for yaxis in response['yaxis']:
+    for yaxis in response['yaxes']:
         _check_response_dict(cmd, yaxis, 'id', int)
         _check_response_dict(cmd, yaxis, 'name', str)
         axis_map[yaxis['id']] = sdk.datalogging.AxisDefinition(axis_id=yaxis['id'], name=yaxis['name'])
@@ -685,3 +685,14 @@ def parse_read_datalogging_acquisition_content_response(response: api_typing.S2C
         raise sdk.exceptions.BadResponseError(f'Given Trigger index is not valid. {response["trigger_index"]}')
 
     return acquisition
+
+
+def parse_request_datalogging_acquisition_response(response: api_typing.S2C.RequestDataloggingAcquisition) -> str:
+    assert isinstance(response, dict)
+    assert 'cmd' in response
+    cmd = response['cmd']
+    assert cmd == API.Command.Api2Client.REQUEST_DATALOGGING_ACQUISITION_RESPONSE
+
+    _check_response_dict(cmd, response, 'request_token', str)
+
+    return response['request_token']

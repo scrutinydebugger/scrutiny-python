@@ -294,10 +294,18 @@ class FakeDeviceHandler:
 class FakeDataloggingManager:
     datastore: "datastore.Datastore"
     device_handler: FakeDeviceHandler
+    acquisition_request_queue: "queue.Queue[Tuple[api_datalogging.AcquisitionRequest, api_datalogging.APIAcquisitionRequestCompletionCallback]]"
+
+    SAMPLING_RATES = [
+        api_datalogging.SamplingRate("100Hz", 100, api_datalogging.ExecLoopType.FIXED_FREQ, device_identifier=0),
+        api_datalogging.SamplingRate("10KHz", 10000, api_datalogging.ExecLoopType.FIXED_FREQ, device_identifier=1),
+        api_datalogging.SamplingRate("Variable", None, api_datalogging.ExecLoopType.VARIABLE_FREQ, device_identifier=2),
+    ]
 
     def __init__(self, datastore, device_handler):
         self.datastore = datastore
         self.device_handler = device_handler
+        self.acquisition_request_queue = queue.Queue()
 
     def get_device_setup(self):
         return self.device_handler.get_datalogging_setup()
@@ -327,6 +335,35 @@ class FakeDataloggingManager:
         ))
 
         return rates
+
+    def is_ready_for_request(self) -> bool:
+        return True
+
+    def is_valid_sample_rate_id(self, rate_id: int) -> bool:
+        return rate_id in [sr.device_identifier for sr in self.SAMPLING_RATES]
+
+    def get_sampling_rate(self, rate_id: int) -> api_datalogging.SamplingRate:
+        candidate: Optional[api_datalogging.SamplingRate] = None
+        for sr in self.SAMPLING_RATES:
+            if sr.device_identifier == rate_id:
+                candidate = sr
+                break
+        if candidate is None:
+            raise ValueError("Cannot find requested sampling rate")
+        return candidate
+
+    def request_acquisition(self,
+                            request: api_datalogging.AcquisitionRequest,
+                            callback: api_datalogging.APIAcquisitionRequestCompletionCallback
+                            ) -> None:
+        sampling_rate = self.get_sampling_rate(request.rate_identifier)
+        if sampling_rate.rate_type == api_datalogging.ExecLoopType.VARIABLE_FREQ and request.x_axis_type == api_datalogging.XAxisType.IdealTime:
+            raise ValueError("Cannot use Ideal Time on variable sampling rate")
+
+        if self.device_handler.get_connection_status() != DeviceHandler.ConnectionStatus.CONNECTED_READY:
+            raise RuntimeError("No device connected")
+
+        self.acquisition_request_queue.put((request, callback), block=False)
 
 
 class FakeActiveSFDHandler:
@@ -1099,6 +1136,51 @@ class TestClient(ScrutinyUnitTest):
                 self.assertEqual(data1[i].series.name, data2[i].series.name)
                 self.assertEqual(data1[i].series.logged_element, data2[i].series.logged_element)
                 self.assertEqual(data1[i].series.get_data(), data2[i].series.get_data())
+
+    def test_request_datalogging_acquisition(self):
+        var1 = self.client.watch('/a/b/var1')
+        var2 = self.client.watch('/a/b/var2')
+
+        config = sdk.datalogging.DataloggingConfig(sampling_rate=0, decimation=1, timeout=0, name="unittest")
+        config.configure_trigger(sdk.datalogging.TriggerCondition.Equal, [var1, 3.14159], position=0.75, hold_time=0)
+        config.configure_xaxis(sdk.datalogging.XAxisType.MeasuredTime)
+        axis1 = config.add_axis('Axis 1')
+        axis2 = config.add_axis('Axis 2')
+        config.add_signal(var1, axis1, name="MyVar1")
+        config.add_signal(var2, axis1, name="MyVar2")
+        config.add_signal('/a/b/alias_rpv1000', axis2, name="MyAliasRPV1000")
+
+        request = self.client.datalogging_request(config)
+        self.assertFalse(request.completed)
+        self.assertFalse(request.is_success)
+        self.assertIsNone(request.completion_datetime)
+        self.assertIsNone(request.acquisition)
+
+        def check_request_arrived():
+            return not self.datalogging_manager.acquisition_request_queue.empty()
+        self.wait_true(check_request_arrived)
+
+        server_request, callback = self.datalogging_manager.acquisition_request_queue.get(block=False)
+
+        self.assertEqual(server_request.name, config._name)
+        self.assertEqual(server_request.decimation, config._decimation)
+        self.assertEqual(server_request.timeout, config._timeout)
+        self.assertEqual(server_request.rate_identifier, config._sampling_rate)
+
+        self.assertEqual(server_request.probe_location, config._trigger_position)
+        self.assertEqual(server_request.trigger_hold_time, config._trigger_hold_time)
+        self.assertEqual(server_request.trigger_condition.condition_id, device_datalogging.TriggerConditionID.Equal)
+        self.assertEqual(len(server_request.trigger_condition.operands), 2)
+        self.assertEqual(server_request.trigger_condition.operands[0].type, api_datalogging.TriggerConditionOperandType.WATCHABLE)
+        self.assertIsInstance(server_request.trigger_condition.operands[0].value, datastore.DatastoreEntry)
+        assert isinstance(server_request.trigger_condition.operands[0].value, datastore.DatastoreEntry)
+        self.assertEqual(server_request.trigger_condition.operands[0].value.get_display_path(), var1.display_path)
+        self.assertEqual(server_request.trigger_condition.operands[1].type, api_datalogging.TriggerConditionOperandType.LITERAL)
+        self.assertEqual(server_request.trigger_condition.operands[1].value, 3.14159)
+
+        self.assertEqual(server_request.x_axis_type, api_datalogging.XAxisType.MeasuredTime)
+        self.assertCountEqual(server_request.get_yaxis_list(), [api_datalogging.AxisDefinition(
+            "Axis 1", 0), api_datalogging.AxisDefinition("Axis 2", 1)])
 
 
 if __name__ == '__main__':

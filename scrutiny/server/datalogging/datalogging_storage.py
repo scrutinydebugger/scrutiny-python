@@ -245,6 +245,7 @@ class DataloggingStorageManager:
             `name` VARCHAR(255),
             `logged_element` TEXT,
             `axis_id` INTEGER NULL,
+            `position` INTEGER NOT NULL,
             `data` BLOB  NOT NULL
         ) 
         """)
@@ -334,23 +335,26 @@ class DataloggingStorageManager:
 
             data_series_sql = """
                 INSERT INTO `dataseries`
-                    (`name`, `logged_element`, `axis_id`, `data`)
-                VALUES (?,?,?,?)
+                    (`name`, `logged_element`, `axis_id`, `data`, `position`)
+                VALUES (?,?,?,?, ?)
             """
-
+            position = 0
             for data in acquisition.get_data():
                 cursor.execute(data_series_sql, (
                     data.series.name,
                     data.series.logged_element,
                     axis_to_id_map[data.axis],
-                    data.series.get_data_binary())
+                    data.series.get_data_binary(),
+                    position)
                 )
+                position += 1
 
             cursor.execute(data_series_sql, (
                 acquisition.xdata.name,
                 acquisition.xdata.logged_element,
                 x_axis_db_id,
-                acquisition.xdata.get_data_binary())
+                acquisition.xdata.get_data_binary(),
+                position)
             )
 
             conn.commit()
@@ -407,7 +411,8 @@ class DataloggingStorageManager:
                 FROM `acquisitions` AS `acq`
                 LEFT JOIN `axis` AS `axis` ON `axis`.`acquisition_id`=`acq`.`id`
                 INNER JOIN `dataseries` AS `ds` ON `ds`.`axis_id`=`axis`.`id`
-                where `acq`.`reference_id`=?
+                WHERE `acq`.`reference_id`=?
+                ORDER BY `ds`.`position`
             """
             # SQLite doesn't let us index by name
             cols = [

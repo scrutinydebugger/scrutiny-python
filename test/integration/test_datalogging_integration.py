@@ -199,24 +199,24 @@ class TestDataloggingIntegration(ScrutinyIntegrationTestWithTestSFD1):
                         'sampling_rate_id': loop_id,
                         'timeout': 0,
                         'condition': 'eq',
-                        'yaxis': [
+                        'yaxes': [
                             {'name': 'Axis1', 'id': 100},
                             {'name': 'Axis2', 'id': 200}
                         ],
                         'operands': [
                             {
                                 'type': 'watchable',
-                                'value': self.entry_u16.get_id()
+                                'value': self.entry_u16.get_display_path()
                             },
                             {
                                 'type': 'literal',
                                 'value': 0x1234
                             }],
                         'signals': [
-                            dict(id=self.entry_u32.get_id(), name='u32', axis_id=100),
-                            dict(id=self.entry_float32.get_id(), name='f32', axis_id=100),
-                            dict(id=self.entry_alias_rpv1000.get_id(), name='rpv1000', axis_id=200),
-                            dict(id=self.entry_alias_uint8.get_id(), name='u8', axis_id=200)
+                            dict(path=self.entry_u32.get_display_path(), name='u32', axis_id=100),
+                            dict(path=self.entry_float32.get_display_path(), name='f32', axis_id=100),
+                            dict(path=self.entry_alias_rpv1000.get_display_path(), name='rpv1000', axis_id=200),
+                            dict(path=self.entry_alias_uint8.get_display_path(), name='u8', axis_id=200)
                         ],
                         'x_axis_type': 'measured_time',
                         'x_axis_signal': None,    # We use time
@@ -343,26 +343,29 @@ class TestDataloggingIntegration(ScrutinyIntegrationTestWithTestSFD1):
                             self.assertEqual(len(signal['data']), nb_points)
 
                     self.assertEqual(response['xdata']['name'], 'Time (measured)')
-                    self.assertEqual(len(response['yaxis']), 2)
-                    self.assertEqual(response['yaxis'][0]['name'], "Axis1")
-                    self.assertEqual(response['yaxis'][0]['id'], 100)
-                    self.assertEqual(response['yaxis'][1]['name'], "Axis2")
-                    self.assertEqual(response['yaxis'][1]['id'], 200)
+                    self.assertCountEqual(response['yaxes'], [dict(name="Axis1", id=100), dict(name="Axis2", id=200)])
 
-                    self.assertEqual(response['signals'][0]['name'], 'u32')
-                    self.assertEqual(response['signals'][1]['name'], 'f32')
-                    self.assertEqual(response['signals'][2]['name'], 'rpv1000')
-                    self.assertEqual(response['signals'][3]['name'], 'u8')
+                    all_names = [x['name'] for x in response['signals']]
 
-                    self.assertEqual(response['signals'][0]['logged_element'], self.entry_u32.get_display_path())
-                    self.assertEqual(response['signals'][1]['logged_element'], self.entry_float32.get_display_path())
-                    self.assertEqual(response['signals'][2]['logged_element'], self.entry_alias_rpv1000.get_display_path())
-                    self.assertEqual(response['signals'][3]['logged_element'], self.entry_alias_uint8.get_display_path())
+                    idx_u32 = all_names.index('u32')
+                    idx_f32 = all_names.index('f32')
+                    idx_rpv1000 = all_names.index('rpv1000')
+                    idx_u8 = all_names.index('u8')
 
-                    self.assertEqual(response['signals'][0]['axis_id'], 100)
-                    self.assertEqual(response['signals'][1]['axis_id'], 100)
-                    self.assertEqual(response['signals'][2]['axis_id'], 200)
-                    self.assertEqual(response['signals'][3]['axis_id'], 200)
+                    self.assertEqual(response['signals'][idx_u32]['name'], 'u32')
+                    self.assertEqual(response['signals'][idx_f32]['name'], 'f32')
+                    self.assertEqual(response['signals'][idx_rpv1000]['name'], 'rpv1000')
+                    self.assertEqual(response['signals'][idx_u8]['name'], 'u8')
+
+                    self.assertEqual(response['signals'][idx_u32]['logged_element'], self.entry_u32.get_display_path())
+                    self.assertEqual(response['signals'][idx_f32]['logged_element'], self.entry_float32.get_display_path())
+                    self.assertEqual(response['signals'][idx_rpv1000]['logged_element'], self.entry_alias_rpv1000.get_display_path())
+                    self.assertEqual(response['signals'][idx_u8]['logged_element'], self.entry_alias_uint8.get_display_path())
+
+                    self.assertEqual(response['signals'][idx_u32]['axis_id'], 100)
+                    self.assertEqual(response['signals'][idx_f32]['axis_id'], 100)
+                    self.assertEqual(response['signals'][idx_rpv1000]['axis_id'], 200)
+                    self.assertEqual(response['signals'][idx_u8]['axis_id'], 200)
 
                     nbpoints = len(response['xdata']['data'])
                     index_target = req['probe_location'] * nbpoints - 1
@@ -373,14 +376,14 @@ class TestDataloggingIntegration(ScrutinyIntegrationTestWithTestSFD1):
                     for val in timediff:
                         self.assertGreater(val, 0)  # Time should always increase
 
-                    sig = response['signals'][0]['data']
+                    sig = response['signals'][idx_u32]['data']
                     expected_val = sig[0]
                     for val in sig:
                         self.assertEqual(expected_val, val)
                         expected_val = (expected_val + 10 * decimation) % 0xFFFFFFFF
 
                     self.assertLess(decimation, 4)  # required for this test to work
-                    sig = response['signals'][1]['data']
+                    sig = response['signals'][idx_f32]['data']
                     expected_val = sig[0]
                     self.assertTrue(expected_val in [0, 100, 200, 300])
                     for val in sig:
@@ -389,13 +392,13 @@ class TestDataloggingIntegration(ScrutinyIntegrationTestWithTestSFD1):
                         if expected_val > 300:
                             expected_val -= 400
 
-                    sig = response['signals'][2]['data']
+                    sig = response['signals'][idx_rpv1000]['data']
                     expected_val = sig[0]
                     for val in sig:
                         self.assertAlmostEqual(expected_val, val, 4)
                         expected_val = expected_val + decimation * 5 * self.entry_alias_rpv1000.aliasdef.get_gain()
 
-                    sig = response['signals'][3]['data']
+                    sig = response['signals'][idx_u8]['data']
                     expected_val = sig[0]
                     for val in sig:
                         self.assertAlmostEqual(expected_val, val, 4)

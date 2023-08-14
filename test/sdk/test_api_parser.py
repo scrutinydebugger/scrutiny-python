@@ -449,7 +449,7 @@ class TestApiParser(ScrutinyUnitTest):
                     "logged_element": "path/to/xaxis/item",
                     "data": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
                 },
-                "yaxis": [
+                "yaxes": [
                     {"id": 0, "name": "Y-Axis1"},
                     {"id": 1, "name": "Y-Axis2"},
                 ],
@@ -518,7 +518,7 @@ class TestApiParser(ScrutinyUnitTest):
         self.assertEqual(data[2].series.name, "signal3")
         self.assertEqual(data[2].series.logged_element, "/path/to/signal3")
 
-        for field in ['firmware_id', 'name', 'reference_id', 'trigger_index', 'timestamp', 'xdata', 'yaxis', 'signals']:
+        for field in ['firmware_id', 'name', 'reference_id', 'trigger_index', 'timestamp', 'xdata', 'yaxes', 'signals']:
             msg = base()
             del msg[field]
             with self.assertRaises(sdk.exceptions.BadResponseError, msg=f"Field : {field}"):
@@ -577,13 +577,13 @@ class TestApiParser(ScrutinyUnitTest):
         for i in range(2):
             for val in [None, "asd", {}, [], 1.1]:
                 msg = base()
-                msg['yaxis'][i]['id'] = val
+                msg['yaxes'][i]['id'] = val
                 with self.assertRaises(sdk.exceptions.BadResponseError, msg=f"val={val}"):
                     parser.parse_read_datalogging_acquisition_content_response(msg)
 
             for val in [None, 1, {}, [], 1.1]:
                 msg = base()
-                msg['yaxis'][i]['name'] = val
+                msg['yaxes'][i]['name'] = val
                 with self.assertRaises(sdk.exceptions.BadResponseError, msg=f"val={val}"):
                     parser.parse_read_datalogging_acquisition_content_response(msg)
 

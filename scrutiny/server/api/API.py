@@ -1011,11 +1011,11 @@ class API:
         if not self.datalogging_manager.is_ready_for_request():
             raise InvalidRequestException(req, 'Device is not ready to receive a request')
 
-        FieldType = Literal['yaxis', 'sampling_rate_id', 'decimation', 'timeout', 'trigger_hold_time',
+        FieldType = Literal['yaxes', 'sampling_rate_id', 'decimation', 'timeout', 'trigger_hold_time',
                             'probe_location', 'condition', 'operands', 'signals', 'x_axis_type']
 
         required_fileds: Dict[FieldType, Type] = {
-            'yaxis': list,
+            'yaxes': list,
             'sampling_rate_id': int,
             'decimation': int,
             'timeout': float,
@@ -1089,16 +1089,19 @@ class API:
             if 'x_axis_signal' not in req or not isinstance(req['x_axis_signal'], dict):
                 raise InvalidRequestException(req, 'Missing a valid x_axis_signal required when x_axis_type=watchable')
 
-            if 'id' not in req['x_axis_signal'] or not isinstance(req['x_axis_signal']['id'], str):
-                raise InvalidRequestException(req, 'Missing x_axis_signal.watchable field')
+            if 'path' not in req['x_axis_signal']:
+                raise InvalidRequestException(req, 'Missing x_axis_signal.path field')
+
+            if not isinstance(req['x_axis_signal']['path'], str):
+                raise InvalidRequestException(req, 'Invalid x_axis_signal.path field')
 
             try:
-                x_axis_entry = self.datastore.get_entry(req['x_axis_signal']['id'])
+                x_axis_entry = self.datastore.get_entry_by_display_path(req['x_axis_signal']['path'])
             except Exception:
                 pass
 
             if x_axis_entry is None:
-                raise InvalidRequestException(req, 'Cannot find watchable with given ID %s' % req['x_axis_signal']['id'])
+                raise InvalidRequestException(req, 'Cannot find watchable with given path %s' % req['x_axis_signal']['path'])
 
             x_axis_signal = api_datalogging.SignalDefinition(
                 name=None if 'name' not in req['x_axis_signal'] else str(req['x_axis_signal']['name']),
@@ -1121,7 +1124,7 @@ class API:
                     raise InvalidRequestException(req, "Unsupported datatype for operand")
                 watchable: Optional[DatastoreEntry] = None
                 try:
-                    watchable = self.datastore.get_entry(given_operand['value'])
+                    watchable = self.datastore.get_entry_by_display_path(given_operand['value'])
                 except Exception:
                     pass
 
@@ -1136,11 +1139,11 @@ class API:
         if len(req['signals']) == 0:
             raise InvalidRequestException(req, 'Missing watchable to log')
 
-        if not isinstance(req['yaxis'], list):
+        if not isinstance(req['yaxes'], list):
             raise InvalidRequestException(req, "Invalid Y-Axis list")
 
         yaxis_map: Dict[int, api_datalogging.AxisDefinition] = {}
-        for yaxis in req['yaxis']:
+        for yaxis in req['yaxes']:
             if not isinstance(yaxis, dict):
                 raise InvalidRequestException(req, "Invalid Y-Axis")
 
@@ -1165,26 +1168,32 @@ class API:
             if not isinstance(signal_def, dict):
                 raise InvalidRequestException(req, "Invalid signal definition")
 
-            if not isinstance(signal_def['id'], str):
-                raise InvalidRequestException(req, 'Invalid watchable ID')
-
-            if not (isinstance(signal_def['name'], str) or signal_def['name'] is None):
-                raise InvalidRequestException(req, 'Invalid signal name')
-
-            if not isinstance(signal_def['axis_id'], int):
-                raise InvalidRequestException(req, 'Invalid signal axis ID')
-
-            if signal_def['axis_id'] not in yaxis_map:
-                raise InvalidRequestException(req, 'Invalid signal axis ID')
-
             signal_entry: Optional[DatastoreEntry] = None
+            if 'path' not in signal_def:
+                raise InvalidRequestException(req, 'Missing signal watchable path')
+
+            if not isinstance(signal_def['path'], str):
+                raise InvalidRequestException(req, 'Invalid signal watchable path')
+
             try:
-                signal_entry = self.datastore.get_entry(signal_def['id'])
+                signal_entry = self.datastore.get_entry_by_display_path(signal_def['path'])
             except Exception:
                 pass
 
             if signal_entry is None:
-                raise InvalidRequestException(req, "Cannot find watchable with given ID : %s" % signal_def['id'])
+                raise InvalidRequestException(req, "Cannot find watchable with given path : %s" % signal_def['path'])
+
+            if 'name' not in signal_def:
+                signal_def['name'] = None
+
+            if not (isinstance(signal_def['name'], str) or signal_def['name'] is None):
+                raise InvalidRequestException(req, 'Invalid signal name')
+
+            if 'axis_id' not in signal_def or not isinstance(signal_def['axis_id'], int):
+                raise InvalidRequestException(req, 'Invalid signal axis ID')
+
+            if signal_def['axis_id'] not in yaxis_map:
+                raise InvalidRequestException(req, 'Invalid signal axis ID')
 
             signals_to_log.append(api_datalogging.SignalDefinitionWithAxis(
                 name=signal_def['name'],
@@ -1473,7 +1482,7 @@ class API:
             'trigger_index': acquisition.trigger_index,
             'signals': signals,
             'xdata': dataseries_to_api_signal_data(acquisition.xdata),
-            'yaxis': yaxis_list
+            'yaxes': yaxis_list
         }
 
         self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))

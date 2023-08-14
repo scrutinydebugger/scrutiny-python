@@ -9,7 +9,9 @@
 __all__ = ['Client']
 
 
-import scrutiny.sdk as sdk
+import scrutiny.sdk
+import scrutiny.sdk.datalogging
+sdk = scrutiny.sdk
 from scrutiny.sdk import _api_parser as api_parser
 from scrutiny.sdk.definitions import *
 from scrutiny.sdk.watchable_handle import WatchableHandle
@@ -750,9 +752,10 @@ class ScrutinyClient:
 
         if data is None:
             data = {}
-        cmd.update(data)    # type: ignore
+        data = data.copy()
+        data.update(cmd)  # type:ignore
 
-        return cmd
+        return data
 
     def _enqueue_write_request(self, request: Union[WriteRequest, BatchWriteContext, FlushPoint]):
         self._write_request_queue.put(request)
@@ -1205,6 +1208,50 @@ class ScrutinyClient:
 
         assert cb_data.obj is not None
         return cb_data.obj
+
+    def datalogging_request(self, config: sdk.datalogging.DataloggingConfig) -> sdk.datalogging.DataloggingRequest:
+        req_data: api_typing.C2S.RequestDataloggingAcquisition = {
+            'cmd': "",  # Will be overridden
+            "reqid": 0,  # Will be overridden
+
+            'condition': config._trigger_condition.value,
+            'sampling_rate_id': config._sampling_rate,
+            'decimation': config._decimation,
+            'name': config._name,
+            'timeout': config._timeout,
+            'trigger_hold_time': config._trigger_hold_time,
+            'probe_location': config._trigger_position,
+            'x_axis_type': config._x_axis_type.value,
+            'x_axis_signal': config._get_api_x_axis_signal(),
+            'yaxes': config._get_api_yaxes(),
+            'operands': config._get_api_trigger_operands(),
+            'signals': config._get_api_signals(),
+        }
+
+        req = self._make_request(API.Command.Client2Api.REQUEST_DATALOGGING_ACQUISITION, cast(dict, req_data))
+
+        @dataclass
+        class Container:
+            obj: Optional[str]
+        cb_data: Container = Container(obj=None)  # Force pass by ref
+
+        def callback(state: CallbackState, response: Optional[api_typing.S2CMessage]) -> None:
+            if response is not None and state == CallbackState.OK:
+                cb_data.obj = api_parser.parse_request_datalogging_acquisition_response(
+                    cast(api_typing.S2C.RequestDataloggingAcquisition, response)
+                )
+        future = self._send(req, callback)
+        assert future is not None
+        future.wait()
+
+        self._send(req)
+
+        if future.state != CallbackState.OK:
+            raise sdk.exceptions.OperationFailure(
+                f"Failed to request the datalogging acquisition'. {future.error_str}")
+        assert cb_data.obj is not None
+
+        return sdk.datalogging.DataloggingRequest(client=self, request_token=cb_data.obj)
 
     @property
     def name(self) -> str:

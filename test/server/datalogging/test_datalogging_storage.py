@@ -50,9 +50,7 @@ class TestDataloggingStorage(ScrutinyUnitTest):
 
         yaxis1 = a.get_unique_yaxis_list()
         yaxis2 = b.get_unique_yaxis_list()
-        self.assertEqual(len(yaxis1), len(yaxis2))
-        for i in range(len(yaxis1)):
-            self.assertEqual(yaxis1[i].name, yaxis2[i].name)
+        self.assertCountEqual(yaxis1, yaxis2)
 
         data1 = a.get_data()
         data2 = b.get_data()

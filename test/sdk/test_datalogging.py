@@ -7,8 +7,10 @@ from test import ScrutinyUnitTest
 
 
 class TestDatalogging(ScrutinyUnitTest):
-    def test_acquisition_request(self):
-        req = sdk.datalogging.DataloggingRequest(sampling_rate=0, decimation=2, name='asd')
+    def test_acquisition_config(self):
+        req = sdk.datalogging.DataloggingConfig(sampling_rate=sdk.datalogging.VariableFreqSamplingRate(2, "foo"))
+        self.assertEqual(req._sampling_rate, 2)
+        req = sdk.datalogging.DataloggingConfig(sampling_rate=0, decimation=2, name='asd')
         axis1 = req.add_axis('Axis1')
         axis2 = req.add_axis('Axis2')
         req.configure_trigger(sdk.datalogging.TriggerCondition.Equal, [1, '/var/file/my_var'], position=0.75, hold_time=10e-3)

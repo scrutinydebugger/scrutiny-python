@@ -1,30 +1,48 @@
 
+
+from scrutiny import sdk
 from scrutiny.core.datalogging import *
 from dataclasses import dataclass
 from scrutiny.sdk.watchable_handle import WatchableHandle
 import enum
-from typing import List, Dict, Union, Optional
+from typing import List, Dict, Union, Optional, TYPE_CHECKING
+import scrutiny.server.api.typing as api_typing
+import threading
+from datetime import datetime
 
 from scrutiny.server.api import API
 
+if TYPE_CHECKING:
+    from scrutiny.sdk.client import ScrutinyClient
+
 
 class DataloggingEncoding(enum.Enum):
+    """Defines the data format used to store the samples in the datalogging buffer"""
     RAW = 1
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, init=False)
 class SamplingRate:
+    """Represent a sampling rate supported by the device"""
+
     identifier: int
+    """The unique identifier of the sampling rate. Matches the embedded device index in the loop array set in the configuration"""
+
     name: str
+    """Name for display"""
 
 
 @dataclass(frozen=True)
 class FixedFreqSamplingRate(SamplingRate):
+    """Represent a fixed frequency sampling rate supported by the device"""
+
     frequency: float
+    """The sampling rate frequency"""
 
 
 @dataclass(frozen=True)
 class VariableFreqSamplingRate(SamplingRate):
+    """Represent a variable frequency sampling rate supported by the device. Has no known frequency"""
     pass
 
 
@@ -48,13 +66,13 @@ class DataloggingCapabilities:
 class XAxisType(enum.Enum):
     """Represent a type of X-Axis that a user can select"""
 
-    IdealTime = 0,
+    IdealTime = 'ideal_time'
     """Time deduced from the sampling frequency. Does not require space in the datalogging buffer. Only available for fixed frequency loops"""
 
-    MeasuredTime = 1,
+    MeasuredTime = 'measured_time'
     """Time measured by the device. Requires space for a 32 bits value in the datalogging buffer"""
 
-    Signal = 2
+    Signal = 'signal'
     """X-Axis is an arbitrary signal, not time."""
 
 
@@ -103,9 +121,8 @@ class _SignalAxisPair(_Signal):
 
 
 @dataclass(init=False)
-class DataloggingRequest:
-
-    MAX_TIMEOUT = 2**32
+class DataloggingConfig:
+    """A datalogging acquisition configuration. Contains all the configurable parameters for an acquisition"""
 
     _sampling_rate: int
     _trigger_condition: TriggerCondition
@@ -122,10 +139,13 @@ class DataloggingRequest:
     _next_axis_id: int
 
     def __init__(self,
-                 sampling_rate: int,
+                 sampling_rate: Union[int, SamplingRate],
                  decimation: int = 1,
                  timeout: float = 0.0,
                  name: str = ''):
+
+        if isinstance(sampling_rate, SamplingRate):
+            sampling_rate = sampling_rate.identifier
 
         if not isinstance(sampling_rate, int):
             raise TypeError('sampling_rate must be a int')
@@ -162,6 +182,7 @@ class DataloggingRequest:
         self._axes = {}
 
     def add_axis(self, name: str) -> AxisDefinition:
+        """Adds a Y axis to the acquisition. Returns an object that can be assigned to a signal when calling `add_signal`"""
         if not isinstance(name, str):
             raise TypeError("name must be a string")
         axis = AxisDefinition(axis_id=self._next_axis_id, name=name)
@@ -174,6 +195,7 @@ class DataloggingRequest:
                    axis: Union[AxisDefinition, int],
                    name: Optional[str] = None
                    ) -> None:
+        """Adds a signal to the acquisition"""
         if isinstance(axis, int) and not isinstance(axis, bool):
             if axis not in self._axes:
                 raise IndexError(f"No axis with index {axis}")
@@ -206,6 +228,7 @@ class DataloggingRequest:
                           position: float = 0.5,
                           hold_time: float = 0
                           ) -> None:
+        """Configure the required conditions to fire the trigger event"""
         if condition in [TriggerCondition.AlwaysTrue]:
             nb_operands = 0
         elif condition in [TriggerCondition.Equal,
@@ -259,6 +282,7 @@ class DataloggingRequest:
                         signal: Optional[Union[str, WatchableHandle]] = None,
                         name: Optional[str] = None
                         ) -> None:
+        """Configure the X-Axis"""
         if not isinstance(axis_type, XAxisType):
             raise TypeError("axis_type must be an instance of XAxisType")
 
@@ -278,3 +302,91 @@ class DataloggingRequest:
 
         self._x_axis_signal = signal_out
         self._x_axis_type = axis_type
+
+    def _get_api_yaxes(self) -> List[api_typing.DataloggingAxisDef]:
+        return [dict(id=x.axis_id, name=x.name) for x in self._axes.values()]
+
+    def _get_api_x_axis_signal(self) -> Optional[api_typing.XAxisSignal]:
+        if self._x_axis_signal is None:
+            return None
+        return {"path": self._x_axis_signal.path, "name": self._x_axis_signal.name}
+
+    def _get_api_trigger_operands(self) -> List[api_typing.DataloggingOperand]:
+        outlist: List[api_typing.DataloggingOperand] = []
+        for operand in self._trigger_operands:
+            if isinstance(operand, (float, int)):
+                outlist.append({"type": 'literal', "value": float(operand)})
+            elif isinstance(operand, WatchableHandle):
+                outlist.append({"type": 'watchable', "value": operand.display_path})
+            else:
+                raise RuntimeError(f'Unsupported operand type {operand.__class__.__name__}')
+        return outlist
+
+    def _get_api_signals(self) -> List[api_typing.DataloggingAcquisitionRequestSignalDef]:
+        return [{'path': x.path, 'name': x.name, 'axis_id': x.axis_id} for x in self._signals]
+
+
+@dataclass(init=False)
+class DataloggingRequest:
+    _client: "ScrutinyClient"
+    _request_token: str
+
+    _success: bool  # If the request has been successfully completed
+    _completion_datetime: Optional[datetime]   # datetime of the completion. None if incomplete
+    _completed_event: threading.Event   # Event that gets set upon completion of the request
+    _failure_reason: str    # Textual description of the reason of the failure to complete. Empty string if incomplete or succeeded
+    _acquisition: Optional[DataloggingAcquisition]
+
+    def __init__(self, client: "ScrutinyClient", request_token: str):
+        self._client = client
+        self._request_token = request_token
+        self._completed = False
+        self._success = False
+        self._completion_datetime = None
+        self._completed_event = threading.Event()
+        self._failure_reason = ""
+        self._acquisition = None
+
+    def _mark_complete(self, success: bool, failure_reason: str = "", timestamp: Optional[datetime] = None):
+        # Put a request in "completed" state. Expected to be called by the client worker thread
+        self._success = success
+        self._failure_reason = failure_reason
+        if timestamp is None:
+            self._completion_datetime = datetime.now()
+        else:
+            self._completion_datetime = timestamp
+        self._completed = True
+        self._completed_event.set()
+
+    def wait_for_completion(self, timeout: float = 5):
+        self._completed_event.wait(timeout=timeout)
+        if not self._completed:
+            raise sdk.exceptions.TimeoutException(f"Datalogging acquisition did not complete in {timeout} seconds")
+
+        if not self._success:
+            raise sdk.exceptions.OperationFailure(f"Datalogging acquisition failed to complete. {self._failure_reason}")
+
+    @property
+    def completed(self) -> bool:
+        """Indicates whether the datalogging acquisition request has completed or not"""
+        return self._completed_event.is_set()
+
+    @property
+    def is_success(self) -> bool:
+        """Indicates whether the datalogging acquisition request has successfully completed or not"""
+        return self._success
+
+    @property
+    def completion_datetime(self) -> Optional[datetime]:
+        """The time at which the datalogging acquisition request has been completed. None if not completed yet"""
+        return self._completion_datetime
+
+    @property
+    def failure_reason(self) -> str:
+        """When the datalogging acquisition request failed, this property contains the reason for the failure. Empty string if not completed or succeeded"""
+        return self._failure_reason
+
+    @property
+    def acquisition(self) -> Optional[DataloggingAcquisition]:
+        """Contains the acquisition extracted from the device. None if not successfully completed"""
+        return self._acquisition
