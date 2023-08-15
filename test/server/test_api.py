@@ -221,16 +221,18 @@ class StubbedDataloggingManager:
         if not isinstance(identifier, int) or identifier < 0 or identifier >= len(info.loops):
             raise ValueError("Bad sampling rate ID")
         loop = info.loops[identifier]
+
+        frequency = None
+        if loop.get_loop_type() == api_datalogging.ExecLoopType.FIXED_FREQ:
+            loop = cast(FixedFreqLoop, loop)
+            frequency = loop.get_frequency()
+
         rate = api_datalogging.SamplingRate(
             name=loop.get_name(),
             rate_type=loop.get_loop_type(),
             device_identifier=identifier,
-            frequency=None
+            frequency=frequency
         )
-
-        if loop.get_loop_type() == api_datalogging.ExecLoopType.FIXED_FREQ:
-            loop = cast(FixedFreqLoop, loop)
-            rate.frequency = loop.get_frequency()
 
         return rate
 

@@ -26,7 +26,7 @@ class XAxisType(Enum):
     Signal = 2
 
 
-@dataclass
+@dataclass(frozen=True)
 class SamplingRate:
     """Represent a sampling rate that a use can select"""
     name: str
@@ -47,7 +47,7 @@ class TriggerConditionOperandType(Enum):
     WATCHABLE = 1
 
 
-@dataclass
+@dataclass(frozen=True)
 class TriggerConditionOperand:
     type: TriggerConditionOperandType
     value: Union[float, int, bool, DatastoreEntry]
@@ -59,13 +59,13 @@ class TriggerCondition:
     operands: List[TriggerConditionOperand]
 
 
-@dataclass
+@dataclass(frozen=True)
 class SignalDefinition:
     name: Optional[str]
     entry: DatastoreEntry
 
 
-@dataclass
+@dataclass(frozen=True)
 class SignalDefinitionWithAxis(SignalDefinition):
     axis: AxisDefinition
 

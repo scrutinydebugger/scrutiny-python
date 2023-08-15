@@ -113,9 +113,16 @@ class DataloggingAcquisition:
         return uuid4().hex.replace('-', '')
 
     def set_xdata(self, xdata: DataSeries) -> None:
+        if not isinstance(xdata, DataSeries):
+            raise TypeError('xdata must be a Dataseries instance')
         self.xdata = xdata
 
     def add_data(self, dataseries: DataSeries, axis: AxisDefinition) -> None:
+        if not isinstance(dataseries, DataSeries):
+            raise TypeError('dataseries must be a Dataseries instance')
+        if not isinstance(axis, AxisDefinition):
+            raise TypeError('axis must be a AxisDefinition instance')
+
         for data in self.ydata:
             if data.axis.axis_id == axis.axis_id and data.axis is not axis:
                 raise ValueError("Two data series are using different Y-Axis with identical external ID.")
@@ -132,6 +139,9 @@ class DataloggingAcquisition:
         return list(yaxis)
 
     def find_axis_for_dataseries(self, ds: DataSeries) -> AxisDefinition:
+        if not isinstance(ds, DataSeries):
+            raise TypeError('ds must be a DataSeries instance')
+
         for a in self.ydata:
             if a.series is ds:
                 return a.axis

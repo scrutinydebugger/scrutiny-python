@@ -178,7 +178,8 @@ class DataloggingManager:
                     xaxis_signal = self.active_request.api_request.x_axis_signal
                     assert xaxis_signal is not None
                     if xaxis_signal.name is None:
-                        xaxis_signal.name = "X-Axis"
+                        xaxis_signal = api_datalogging.SignalDefinition(name='X-Axis', entry=xaxis_signal.entry)
+                    assert xaxis_signal.name is not None
                     parsed_data = self.read_active_request_data_from_raw_data(xaxis_signal, data)
                     xaxis.set_data(parsed_data)
                     xaxis.name = xaxis_signal.name
@@ -490,14 +491,16 @@ class DataloggingManager:
                 if device_info.loops is not None:
                     for i in range(len(device_info.loops)):
                         loop = device_info.loops[i]
+                        frequency: Optional[float] = None
+                        if isinstance(loop, FixedFreqLoop):
+                            frequency = loop.get_frequency()
                         if loop.support_datalogging:
                             rate = api_datalogging.SamplingRate(
                                 name=loop.get_name(),
                                 rate_type=loop.get_loop_type(),
                                 device_identifier=i,
-                                frequency=None
+                                frequency=frequency
                             )
-                            if isinstance(loop, FixedFreqLoop):
-                                rate.frequency = loop.get_frequency()
+
                             output.append(rate)
         return output

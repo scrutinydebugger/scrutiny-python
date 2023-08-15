@@ -1154,7 +1154,6 @@ class TestClient(ScrutinyUnitTest):
         self.assertFalse(request.completed)
         self.assertFalse(request.is_success)
         self.assertIsNone(request.completion_datetime)
-        self.assertIsNone(request.acquisition)
 
         def check_request_arrived():
             return not self.datalogging_manager.acquisition_request_queue.empty()
@@ -1181,6 +1180,82 @@ class TestClient(ScrutinyUnitTest):
         self.assertEqual(server_request.x_axis_type, api_datalogging.XAxisType.MeasuredTime)
         self.assertCountEqual(server_request.get_yaxis_list(), [api_datalogging.AxisDefinition(
             "Axis 1", 0), api_datalogging.AxisDefinition("Axis 2", 1)])
+
+        expected_signals = []
+        expected_signals.append(api_datalogging.SignalDefinitionWithAxis(
+            name='MyVar1',
+            entry=self.datastore.get_entry_by_display_path(var1.display_path),
+            axis=api_datalogging.AxisDefinition(name='Axis 1', axis_id=0))
+        )
+        expected_signals.append(api_datalogging.SignalDefinitionWithAxis(
+            name='MyVar2',
+            entry=self.datastore.get_entry_by_display_path(var2.display_path),
+            axis=api_datalogging.AxisDefinition(name='Axis 1', axis_id=0))
+        )
+        expected_signals.append(api_datalogging.SignalDefinitionWithAxis(
+            name='MyAliasRPV1000',
+            entry=self.datastore.get_entry_by_display_path('/a/b/alias_rpv1000'),
+            axis=api_datalogging.AxisDefinition(name='Axis 2', axis_id=1))
+        )
+        self.assertCountEqual(server_request.signals, expected_signals)
+        now = datetime.now()
+
+        def make_acquisition():
+            acquisition = sdk.datalogging.DataloggingAcquisition(
+                firmware_id='firmware abc',
+                reference_id="xyz",
+                acq_time=now,
+                name=server_request.name)
+
+            axis1 = sdk.datalogging.AxisDefinition(name='Axis 1', axis_id=0)
+            axis2 = sdk.datalogging.AxisDefinition(name='Axis 2', axis_id=1)
+
+            ds1 = sdk.datalogging.DataSeries(
+                data=[random.random() for x in range(10)],
+                name=server_request.signals[0].name,
+                logged_element=server_request.signals[0].entry.get_display_path()
+            )
+            ds2 = sdk.datalogging.DataSeries(
+                data=[random.random() for x in range(10)],
+                name=server_request.signals[1].name,
+                logged_element=server_request.signals[1].entry.get_display_path()
+            )
+            ds3 = sdk.datalogging.DataSeries(
+                data=[random.random() for x in range(10)],
+                name=server_request.signals[2].name,
+                logged_element=server_request.signals[2].entry.get_display_path()
+            )
+            acquisition.add_data(ds1, axis1)
+            acquisition.add_data(ds2, axis1)
+            acquisition.add_data(ds3, axis2)
+
+            acquisition.set_xdata(sdk.datalogging.DataSeries([x for x in range(10)], name="time", logged_element='measured time'))
+            acquisition.set_trigger_index(4)
+            return acquisition
+
+        with DataloggingStorage.use_temp_storage():
+            acquisition = make_acquisition()
+            DataloggingStorage.save(acquisition)
+
+            with self.assertRaises(sdk.exceptions.OperationFailure):
+                request.fetch_acquisition()
+
+            def complete_acquisition():
+                callback(True, "dummy msg", acquisition)
+            self.execute_in_server_thread(complete_acquisition)
+            request.wait_for_completion(timeout=3)
+            self.assertTrue(request.completed)
+            self.assertTrue(request.is_success)
+            self.assertIsNotNone(request.completion_datetime)
+            self.assertEqual(request.acquisition_reference_id, "xyz")
+            self.assertEqual(len(self.client._pending_datalogging_requests), 0)  # Check internal state
+
+            acquisition2 = request.fetch_acquisition()
+
+        self.assert_acquisition_valid(acquisition)
+        self.assert_acquisition_valid(acquisition2)
+
+        self.assert_acquisition_identical(acquisition, acquisition2)
 
 
 if __name__ == '__main__':

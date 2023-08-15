@@ -193,6 +193,7 @@ class ScrutinyClient:
     _pending_api_batch_writes: Dict[str, PendingAPIBatchWrite]
     _memory_read_completion_dict: Dict[str, api_parser.MemoryReadCompletion]
     _memory_write_completion_dict: Dict[str, api_parser.MemoryWriteCompletion]
+    _pending_datalogging_requests: Dict[str, sdk.datalogging.DataloggingRequest]
 
     _worker_thread: Optional[threading.Thread]
     _threading_events: ThreadingEvents
@@ -246,6 +247,7 @@ class ScrutinyClient:
         self._pending_api_batch_writes = {}
         self._memory_read_completion_dict = {}
         self._memory_write_completion_dict = {}
+        self._pending_datalogging_requests = {}
 
         self._watchable_storage = {}
         self._watchable_path_to_id_map = {}
@@ -375,6 +377,16 @@ class ScrutinyClient:
             else:
                 self._logger.error(f"Received duplicate memory write completion with request token {completion.request_token}")
 
+    def _wt_process_msg_datalogging_acquisition_complete(self, msg: api_typing.S2C.InformDataloggingAcquisitionComplete, reqid: Optional[int]) -> None:
+        completion = api_parser.parse_datalogging_acquisition_complete(msg)
+        if completion.request_token not in self._pending_datalogging_requests:
+            self._logger.warning('Received a notice of completion for a datalogging acquisition, but its request_token was unknown')
+            return
+
+        request = self._pending_datalogging_requests[completion.request_token]
+        request._mark_complete(completion.success, completion.reference_id, completion.detail_msg)
+        del self._pending_datalogging_requests[completion.request_token]
+
     def _wt_process_next_server_status_update(self) -> None:
         if self._request_status_timer.is_timed_out() or self._require_status_update:
             self._require_status_update = False
@@ -445,6 +457,8 @@ class ScrutinyClient:
                     self._wt_process_msg_inform_memory_read_complete(cast(api_typing.S2C.ReadMemoryComplete, msg), reqid)
                 elif cmd == API.Command.Api2Client.INFORM_MEMORY_WRITE_COMPLETE:
                     self._wt_process_msg_inform_memory_write_complete(cast(api_typing.S2C.WriteMemoryComplete, msg), reqid)
+                elif cmd == API.Command.Api2Client.INFORM_DATALOGGING_ACQUISITION_COMPLETE:
+                    self._wt_process_msg_datalogging_acquisition_complete(cast(api_typing.S2C.InformDataloggingAcquisitionComplete, msg), reqid)
             except sdk.exceptions.BadResponseError as e:
                 self._logger.error(f"Bad message from server. {e}")
                 self._logger.debug(traceback.format_exc())
@@ -1183,7 +1197,9 @@ class ScrutinyClient:
 
         return cb_data.obj
 
-    def read_datalogging_acquisition(self, reference_id: str) -> sdk.datalogging.DataloggingAcquisition:
+    def read_datalogging_acquisition(self, reference_id: str, timeout=None) -> sdk.datalogging.DataloggingAcquisition:
+        if timeout is None:
+            timeout = self._timeout
         req = self._make_request(API.Command.Client2Api.READ_DATALOGGING_ACQUISITION_CONTENT, {
             'reference_id': reference_id
         })
@@ -1200,7 +1216,7 @@ class ScrutinyClient:
                 )
         future = self._send(req, callback)
         assert future is not None
-        future.wait()
+        future.wait(timeout)
 
         if future.state != CallbackState.OK:
             raise sdk.exceptions.OperationFailure(
@@ -1232,14 +1248,17 @@ class ScrutinyClient:
 
         @dataclass
         class Container:
-            obj: Optional[str]
-        cb_data: Container = Container(obj=None)  # Force pass by ref
+            request: Optional[sdk.datalogging.DataloggingRequest]
+        cb_data: Container = Container(request=None)  # Force pass by ref
 
         def callback(state: CallbackState, response: Optional[api_typing.S2CMessage]) -> None:
             if response is not None and state == CallbackState.OK:
-                cb_data.obj = api_parser.parse_request_datalogging_acquisition_response(
+                request_token = api_parser.parse_request_datalogging_acquisition_response(
                     cast(api_typing.S2C.RequestDataloggingAcquisition, response)
                 )
+                cb_data.request = sdk.datalogging.DataloggingRequest(client=self, request_token=request_token)
+                self._pending_datalogging_requests[request_token] = cb_data.request
+
         future = self._send(req, callback)
         assert future is not None
         future.wait()
@@ -1249,9 +1268,8 @@ class ScrutinyClient:
         if future.state != CallbackState.OK:
             raise sdk.exceptions.OperationFailure(
                 f"Failed to request the datalogging acquisition'. {future.error_str}")
-        assert cb_data.obj is not None
-
-        return sdk.datalogging.DataloggingRequest(client=self, request_token=cb_data.obj)
+        assert cb_data.request is not None
+        return cb_data.request
 
     @property
     def name(self) -> str:

@@ -21,20 +21,20 @@ import time
 from typing import List, Dict, Optional, Any, cast, Literal, Type, Union, TypeVar, Iterable, get_args
 
 
-@dataclass
+@dataclass(frozen=True)
 class WatchableConfiguration:
     watchable_type: sdk.WatchableType
     datatype: EmbeddedDataType
     server_id: str
 
 
-@dataclass
+@dataclass(frozen=True)
 class WatchableUpdate:
     server_id: str
     value: Union[bool, int, float]
 
 
-@dataclass
+@dataclass(frozen=True)
 class WriteCompletion:
     request_token: str
     watchable: str
@@ -43,13 +43,13 @@ class WriteCompletion:
     batch_index: int
 
 
-@dataclass
+@dataclass(frozen=True)
 class WriteConfirmation:
     request_token: str
     count: int
 
 
-@dataclass
+@dataclass(frozen=True)
 class MemoryReadCompletion:
     request_token: str
     success: bool
@@ -58,12 +58,20 @@ class MemoryReadCompletion:
     timestamp: float
 
 
-@dataclass
+@dataclass(frozen=True)
 class MemoryWriteCompletion:
     request_token: str
     success: bool
     error: str
     timestamp: float
+
+
+@dataclass(frozen=True)
+class DataloggingCompletion:
+    request_token: str
+    reference_id: Optional[str]
+    success: bool
+    detail_msg: str
 
 
 T = TypeVar('T', str, int, float, bool)
@@ -696,3 +704,26 @@ def parse_request_datalogging_acquisition_response(response: api_typing.S2C.Requ
     _check_response_dict(cmd, response, 'request_token', str)
 
     return response['request_token']
+
+
+def parse_datalogging_acquisition_complete(response: api_typing.S2C.InformDataloggingAcquisitionComplete) -> DataloggingCompletion:
+    assert isinstance(response, dict)
+    assert 'cmd' in response
+    cmd = response['cmd']
+    assert cmd == API.Command.Api2Client.INFORM_DATALOGGING_ACQUISITION_COMPLETE
+
+    _check_response_dict(cmd, response, 'request_token', str)
+    _check_response_dict(cmd, response, 'reference_id', (str, type(None)))
+    _check_response_dict(cmd, response, 'success', bool)
+    _check_response_dict(cmd, response, 'detail_msg', str)
+
+    if response['success']:
+        if response['reference_id'] is None:
+            raise sdk.exceptions.BadResponseError("Missing reference ID for a successful acquisition")
+
+    return DataloggingCompletion(
+        request_token=response['request_token'],
+        reference_id=response['reference_id'],
+        detail_msg=response['detail_msg'],
+        success=response['success'],
+    )
