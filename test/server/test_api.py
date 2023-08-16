@@ -2152,6 +2152,12 @@ class TestAPI(ScrutinyUnitTest):
             self.assertEqual(ar.x_axis_type, api_datalogging.XAxisType.MeasuredTime)
             self.assertIsNone(ar.x_axis_signal)
 
+            req = create_default_request()
+            req['x_axis_type'] = 'index'
+            ar = self.send_request_datalogging_acquisition_and_fetch_result(req)
+            self.assertEqual(ar.x_axis_type, api_datalogging.XAxisType.Indexed)
+            self.assertIsNone(ar.x_axis_signal)
+
             # watchable ok
             req = create_default_request()
             req['x_axis_type'] = 'signal'

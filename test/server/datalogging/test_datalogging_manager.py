@@ -122,7 +122,7 @@ class TestDataloggingManager(ScrutinyUnitTest):
         )
 
     def test_convert_to_config(self):
-        for i in range(3):
+        for i in range(6):
             if i == 0:
                 req = self.make_test_request(operand_watchable=self.var1_u32, x_axis_type=api_datalogging.XAxisType.MeasuredTime)
             elif i == 1:
@@ -134,8 +134,11 @@ class TestDataloggingManager(ScrutinyUnitTest):
                 req = self.make_test_request(operand_watchable=self.alias_rpv2000_f32,
                                              x_axis_type=api_datalogging.XAxisType.Signal, x_axis_entry=self.alias_rpv2000_f32)  # X axis will not add a signal
             elif i == 4:
-                req = self.make_test_request(operand_watchable=self.alias_var1_u32,
+                req = self.make_test_request(operand_watchable=self.alias_var4_s16,
                                              x_axis_type=api_datalogging.XAxisType.Signal, x_axis_entry=self.alias_var4_s16)  # X axis will add a signal
+            elif i == 5:
+                req = self.make_test_request(operand_watchable=self.alias_var4_s16,
+                                             x_axis_type=api_datalogging.XAxisType.Indexed)  # X axis will add a signal
             else:
                 raise NotImplementedError()
 
@@ -165,17 +168,25 @@ class TestDataloggingManager(ScrutinyUnitTest):
 
             # 0 is Variable. 2 is Alias that points to variable
             if i in [0, 2]:
+                self.assertIsInstance(operand1, device_datalogging.VarBitOperand)
                 assert isinstance(operand1, device_datalogging.VarBitOperand)
                 self.assertEqual(operand1.address, self.var1_u32.get_address())
                 self.assertEqual(operand1.datatype, self.var1_u32.get_data_type())
                 self.assertEqual(operand1.bitoffset, self.var1_u32.get_bitoffset())
                 self.assertEqual(operand1.bitsize, self.var1_u32.get_bitsize())
-            elif i in [1, 4]:    # i is RPV
+            elif i in [1]:    # i is RPV
+                self.assertIsInstance(operand1, device_datalogging.RPVOperand)
                 assert isinstance(operand1, device_datalogging.RPVOperand)
                 self.assertEqual(operand1.rpv_id, self.rpv1000_bool.get_rpv().id)
             elif i == 3:    # i is RPV
+                self.assertIsInstance(operand1, device_datalogging.RPVOperand)
                 assert isinstance(operand1, device_datalogging.RPVOperand)
-                self.assertEqual(operand1.rpv_id, self.rpv_entries[1].get_rpv().id)
+                self.assertEqual(operand1.rpv_id, self.rpv2000_f32.rpv.id)
+            elif i in [4, 5]:
+                self.assertIsInstance(operand1, device_datalogging.VarOperand)
+                assert isinstance(operand1, device_datalogging.VarOperand)
+                self.assertEqual(operand1.address, self.var4_s16.get_address())
+                self.assertEqual(operand1.datatype, self.var4_s16.get_data_type())
             else:
                 raise NotImplementedError()
 
@@ -185,7 +196,8 @@ class TestDataloggingManager(ScrutinyUnitTest):
                 1: 5,
                 2: 5,
                 3: 5,
-                4: 6
+                4: 6,
+                5: 5
             }
 
             self.assertEqual(len(signals), len_by_iter[i], "i=%d" % i)

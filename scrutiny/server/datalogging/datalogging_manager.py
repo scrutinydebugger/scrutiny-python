@@ -153,7 +153,11 @@ class DataloggingManager:
 
                 # Add the X-Axis. Either use a measured signal or use a generated one of the user wants IdealTime
                 xaxis = DataSeries()
-                if self.active_request.api_request.x_axis_type == api_datalogging.XAxisType.IdealTime:
+                if self.active_request.api_request.x_axis_type == api_datalogging.XAxisType.Indexed:
+                    xaxis.set_data([i for i in range(nb_points)])
+                    xaxis.name = 'Index'
+                    xaxis.logged_element = 'Index'
+                elif self.active_request.api_request.x_axis_type == api_datalogging.XAxisType.IdealTime:
                     # Ideal time : Generate a time X-Axis based on the sampling rate. Assume the device is running the loop at a reliable fixed rate
                     sampling_rate = self.get_sampling_rate(self.active_request.api_request.rate_identifier)
                     if sampling_rate.frequency is None:
@@ -347,7 +351,7 @@ class DataloggingManager:
         device_operands: List[device_datalogging.Operand] = []
         for api_operand in api_cond.operands:
             if api_operand.type == api_datalogging.TriggerConditionOperandType.LITERAL:
-                if not (isinstance(api_operand.value, int) or isinstance(api_operand.value, float)):
+                if not isinstance(api_operand.value, (int, float)):
                     raise ValueError("Literal operands must be int or float")
                 device_operands.append(device_datalogging.LiteralOperand(api_operand.value))
             elif api_operand.type == api_datalogging.TriggerConditionOperandType.WATCHABLE:
@@ -358,10 +362,7 @@ class DataloggingManager:
             else:
                 raise ValueError("Unsupported operand type %s" % str(api_operand.type))
 
-        device_cond = device_datalogging.TriggerCondition(
-            api_cond.condition_id,
-            *device_operands
-        )
+        device_cond = device_datalogging.TriggerCondition(api_cond.condition_id, *device_operands)
 
         return device_cond
 

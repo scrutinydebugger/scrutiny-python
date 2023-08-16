@@ -23,7 +23,8 @@ class XAxisType(Enum):
     """Represent a type of X-Axis that a user can select"""
     IdealTime = 0,
     MeasuredTime = 1,
-    Signal = 2
+    Signal = 2,
+    Indexed = 3
 
 
 @dataclass(frozen=True)

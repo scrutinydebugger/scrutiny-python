@@ -66,6 +66,9 @@ class DataloggingCapabilities:
 class XAxisType(enum.Enum):
     """Represent a type of X-Axis that a user can select"""
 
+    Indexed = "index"
+    """No signal will be captured for the X-Axis and the returned X-Axis data will be the index of the samples"""
+
     IdealTime = 'ideal_time'
     """Time deduced from the sampling frequency. Does not require space in the datalogging buffer. Only available for fixed frequency loops"""
 
@@ -312,15 +315,15 @@ class DataloggingConfig:
         return {"path": self._x_axis_signal.path, "name": self._x_axis_signal.name}
 
     def _get_api_trigger_operands(self) -> List[api_typing.DataloggingOperand]:
-        outlist: List[api_typing.DataloggingOperand] = []
+        out_list: List[api_typing.DataloggingOperand] = []
         for operand in self._trigger_operands:
             if isinstance(operand, (float, int)):
-                outlist.append({"type": 'literal', "value": float(operand)})
+                out_list.append({"type": 'literal', "value": float(operand)})
             elif isinstance(operand, WatchableHandle):
-                outlist.append({"type": 'watchable', "value": operand.display_path})
+                out_list.append({"type": 'watchable', "value": operand.display_path})
             else:
                 raise RuntimeError(f'Unsupported operand type {operand.__class__.__name__}')
-        return outlist
+        return out_list
 
     def _get_api_signals(self) -> List[api_typing.DataloggingAcquisitionRequestSignalDef]:
         return [{'path': x.path, 'name': x.name, 'axis_id': x.axis_id} for x in self._signals]

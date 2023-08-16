@@ -795,12 +795,12 @@ class ScrutinyClient:
         self._active_batch_context = None
 
     def _wait_write_batch_complete(self, batch: BatchWriteContext) -> None:
-        tstart = time.time()
+        start_time = time.time()
 
         incomplete_count: Optional[int] = None
         try:
             for write_request in batch.requests:
-                remaining_time = max(0, batch.timeout - (time.time() - tstart))
+                remaining_time = max(0, batch.timeout - (time.time() - start_time))
                 write_request.wait_for_completion(timeout=remaining_time)
             timed_out = False
         except sdk.exceptions.TimeoutException:
@@ -1015,9 +1015,9 @@ class ScrutinyClient:
         for server_id in watchable_storage_copy:
             counter_map[server_id] = watchable_storage_copy[server_id]._update_counter
 
-        tstart = time.time()
+        start_time = time.time()
         for server_id in watchable_storage_copy:
-            timeout_remainder = max(round(timeout - (time.time() - tstart), 2), 0)
+            timeout_remainder = max(round(timeout - (time.time() - start_time), 2), 0)
             # Wait update will throw if the server has gone away as the _disconnect method will set all watchables "invalid"
             watchable_storage_copy[server_id].wait_update(previous_counter=counter_map[server_id], timeout=timeout_remainder)
 

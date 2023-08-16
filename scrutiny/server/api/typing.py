@@ -228,7 +228,7 @@ class C2S:
         operands: List[DataloggingOperand]
         yaxes: List[DataloggingAxisDef]
         signals: List[DataloggingAcquisitionRequestSignalDef]
-        x_axis_type: Literal['measured_time', 'ideal_time', 'signal']
+        x_axis_type: Literal['measured_time', 'ideal_time', 'signal', 'index']
         x_axis_signal: Optional[XAxisSignal]
 
     class ReadDataloggingAcquisitionContent(BaseC2SMessage):

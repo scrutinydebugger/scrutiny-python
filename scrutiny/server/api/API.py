@@ -1075,6 +1075,7 @@ class API:
             raise InvalidRequestException(req, 'Bad number of condition operands for condition %s' % req['condition'])
 
         axis_type_map = {
+            "index": api_datalogging.XAxisType.Indexed,
             'ideal_time': api_datalogging.XAxisType.IdealTime,
             'measured_time': api_datalogging.XAxisType.MeasuredTime,
             'signal': api_datalogging.XAxisType.Signal

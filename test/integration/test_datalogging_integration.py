@@ -172,6 +172,12 @@ class TestDataloggingIntegration(ScrutinyIntegrationTestWithTestSFD1):
             with DataloggingStorage.use_temp_storage():
                 self.wait_for_datalogging_ready(timeout=3)
                 for iteration in range(3):
+                    if iteration == 0:
+                        requested_xaxis_type = 'ideal_time'
+                    elif iteration == 1:
+                        requested_xaxis_type = 'measured_time'
+                    elif iteration == 2:
+                        requested_xaxis_type = 'index'
                     logger.debug("test_make_acquisition_normal session=%d, iteration=%d" % (session_iteration, iteration))
                     # First make sure there is no acquisition in storage
                     self.send_request({
@@ -218,7 +224,7 @@ class TestDataloggingIntegration(ScrutinyIntegrationTestWithTestSFD1):
                             dict(path=self.entry_alias_rpv1000.get_display_path(), name='rpv1000', axis_id=200),
                             dict(path=self.entry_alias_uint8.get_display_path(), name='u8', axis_id=200)
                         ],
-                        'x_axis_type': 'measured_time',
+                        'x_axis_type': requested_xaxis_type,
                         'x_axis_signal': None,    # We use time
                     }
 
@@ -342,7 +348,14 @@ class TestDataloggingIntegration(ScrutinyIntegrationTestWithTestSFD1):
                         else:
                             self.assertEqual(len(signal['data']), nb_points)
 
-                    self.assertEqual(response['xdata']['name'], 'Time (measured)')
+                    if requested_xaxis_type == 'ideal_time':
+                        self.assertEqual(response['xdata']['name'], 'Time (ideal)')
+                    elif requested_xaxis_type == 'measured_time':
+                        self.assertEqual(response['xdata']['name'], 'Time (measured)')
+                    elif requested_xaxis_type == 'index':
+                        self.assertEqual(response['xdata']['name'], 'Index')
+                    else:
+                        raise NotImplementedError()
                     self.assertCountEqual(response['yaxes'], [dict(name="Axis1", id=100), dict(name="Axis2", id=200)])
 
                     all_names = [x['name'] for x in response['signals']]
@@ -372,9 +385,17 @@ class TestDataloggingIntegration(ScrutinyIntegrationTestWithTestSFD1):
                     self.assertLessEqual(response['trigger_index'], math.ceil(index_target + 0.5))
                     self.assertGreaterEqual(response['trigger_index'], math.floor(index_target - 0.5))
 
-                    timediff = diff(response['xdata']['data'])
-                    for val in timediff:
-                        self.assertGreater(val, 0)  # Time should always increase
+                    if requested_xaxis_type in ['ideal_time', 'measured_time']:
+                        timediff = diff(response['xdata']['data'])
+                        for val in timediff:
+                            self.assertGreater(val, 0)  # Time should always increase
+                    elif requested_xaxis_type == 'index':
+                        valdiff = diff(response['xdata']['data'])
+                        self.assertEqual(response['xdata']['data'][0], 0)
+                        for val in valdiff:
+                            self.assertEqual(val, 1)
+                    else:
+                        raise NotImplementedError()
 
                     sig = response['signals'][idx_u32]['data']
                     expected_val = sig[0]

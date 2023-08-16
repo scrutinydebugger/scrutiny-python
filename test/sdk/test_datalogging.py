@@ -17,6 +17,7 @@ class TestDatalogging(ScrutinyUnitTest):
         req.add_signal('/var/file/my_var', axis1, 'foo')
         req.add_signal('/var/file/my_var2', axis1, 'bar')
         req.add_signal('/var/file/my_var3', axis2, 'baz')
+        req.configure_xaxis(sdk.datalogging.XAxisType.Indexed)
         req.configure_xaxis(sdk.datalogging.XAxisType.MeasuredTime)
         req.configure_xaxis(sdk.datalogging.XAxisType.IdealTime)
         with self.assertRaises(ValueError):
