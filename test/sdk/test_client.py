@@ -1257,6 +1257,30 @@ class TestClient(ScrutinyUnitTest):
 
         self.assert_acquisition_identical(acquisition, acquisition2)
 
+    def test_request_datalogging_failures(self):
+        with self.assertRaises(TypeError):
+            self.client.start_datalog("asd")
+
+        var1 = self.client.watch('/a/b/var1')
+        config = sdk.datalogging.DataloggingConfig(sampling_rate=0, decimation=1, timeout=0, name="unittest")
+        config.configure_trigger(sdk.datalogging.TriggerCondition.Equal, [var1, 3.14159], position=0.75, hold_time=0)
+        axis1 = config.add_axis('Axis 1')
+        config.add_signal(var1, axis1, name="MyVar1")
+
+        request = self.client.start_datalog(config)
+
+        def check_request_arrived():
+            return not self.datalogging_manager.acquisition_request_queue.empty()
+        self.wait_true(check_request_arrived)
+        server_request, callback = self.datalogging_manager.acquisition_request_queue.get(block=False)
+        self.assertIsNotNone(server_request)
+
+        def complete_acquisition():
+            callback(False, "An error occured", None)
+        self.execute_in_server_thread(complete_acquisition)
+        with self.assertRaises(sdk.exceptions.OperationFailure):
+            request.wait_for_completion(timeout=3)
+
 
 if __name__ == '__main__':
     unittest.main()

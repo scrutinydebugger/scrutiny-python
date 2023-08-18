@@ -187,5 +187,5 @@ class WatchableHandle:
 
     @property
     def update_counter(self) -> int:
-        """Number of value update gotten since creation of the handle. Can be safely used for change detection"""
+        """Number of value update gotten since the creation of the handle. Can be safely used for change detection"""
         return self._update_counter

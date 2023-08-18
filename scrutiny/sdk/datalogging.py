@@ -2,6 +2,7 @@
 
 from scrutiny import sdk
 from scrutiny.core.datalogging import *
+from scrutiny.core import validation
 from dataclasses import dataclass
 from scrutiny.sdk.watchable_handle import WatchableHandle
 import enum
@@ -283,11 +284,10 @@ class DataloggingConfig:
         else:
             raise ValueError(f"Unsupported trigger condition {condition}")
 
+        validation.assert_type(operands, (list, type(None)), 'operands')
+
         if operands is None:
             operands = []
-
-        if not isinstance(operands, list):
-            raise TypeError("Operands must be a list or None")
 
         if nb_operands != len(operands):
             raise ValueError(f"Expected {nb_operands} for condition {condition.name}. Got {len(operands)}")
