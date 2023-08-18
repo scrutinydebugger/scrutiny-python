@@ -587,6 +587,197 @@ class TestApiParser(ScrutinyUnitTest):
                 with self.assertRaises(sdk.exceptions.BadResponseError, msg=f"val={val}"):
                     parser.parse_read_datalogging_acquisition_content_response(msg)
 
+    def test_parse_list_datalogging_acquisition_response(self):
+        now = datetime.now()
+
+        def base() -> api_typing.S2C.ListDataloggingAcquisition:
+            return {
+                "cmd": "list_datalogging_acquisitions_response",
+                "reqid": None,
+                "acquisitions": [
+                    {
+                        'firmware_id': "firmware 1",
+                        'name': "hello",
+                        'timestamp': now.timestamp(),
+                        'reference_id': "refid1",
+                        'firmware_metadata': {
+                            "project_name": "Some project",
+                            "author": "unit test",
+                            "version": "1.2.3",
+                            "generation_info": {
+                                "time": 1688431050,
+                                "python_version": "3.10.5",
+                                "scrutiny_version": "0.0.1",
+                                "system_type": "Linux"
+                            }
+                        }
+                    },
+                    {
+                        'firmware_id': "firmware 2",
+                        'name': "hello2",
+                        'timestamp': now.timestamp() + 5,
+                        'reference_id': "refid2",
+                        'firmware_metadata': {
+                            "project_name": "Some project 2",
+                            "author": "unit test 2",
+                            "version": "1.2.4",
+                            "generation_info": {
+                                "time": 1688431050,
+                                "python_version": "3.10.6",
+                                "scrutiny_version": "0.0.2",
+                                "system_type": "Windows"
+                            }
+                        }
+                    }
+                ]
+            }
+
+        msg = base()
+        acquisitions = parser.parse_list_datalogging_acquisitions_response(msg)
+
+        self.assertIsInstance(acquisitions, list)
+        self.assertEqual(len(acquisitions), 2)
+
+        self.assertEqual(acquisitions[0].firmware_id, "firmware 1")
+        self.assertEqual(acquisitions[0].name, "hello")
+        self.assertLess(abs(acquisitions[0].timestamp - now), timedelta(seconds=1))
+        self.assertEqual(acquisitions[0].reference_id, "refid1")
+        self.assertEqual(acquisitions[0].firmware_metadata.project_name, "Some project")
+        self.assertEqual(acquisitions[0].firmware_metadata.version, "1.2.3")
+        self.assertEqual(acquisitions[0].firmware_metadata.author, "unit test")
+        self.assertEqual(acquisitions[0].firmware_metadata.generation_info.timestamp, datetime.fromtimestamp(1688431050))
+        self.assertEqual(acquisitions[0].firmware_metadata.generation_info.python_version, "3.10.5")
+        self.assertEqual(acquisitions[0].firmware_metadata.generation_info.scrutiny_version, "0.0.1")
+        self.assertEqual(acquisitions[0].firmware_metadata.generation_info.system_type, "Linux")
+
+        self.assertEqual(acquisitions[1].firmware_id, "firmware 2")
+        self.assertEqual(acquisitions[1].name, "hello2")
+        self.assertLess(abs(acquisitions[1].timestamp - (now + timedelta(seconds=5))), timedelta(seconds=1))
+        self.assertEqual(acquisitions[1].reference_id, "refid2")
+        self.assertEqual(acquisitions[1].firmware_metadata.project_name, "Some project 2")
+        self.assertEqual(acquisitions[1].firmware_metadata.version, "1.2.4")
+        self.assertEqual(acquisitions[1].firmware_metadata.author, "unit test 2")
+        self.assertEqual(acquisitions[1].firmware_metadata.generation_info.timestamp, datetime.fromtimestamp(1688431050))
+        self.assertEqual(acquisitions[1].firmware_metadata.generation_info.python_version, "3.10.6")
+        self.assertEqual(acquisitions[1].firmware_metadata.generation_info.scrutiny_version, "0.0.2")
+        self.assertEqual(acquisitions[1].firmware_metadata.generation_info.system_type, "Windows")
+
+        msg = base()
+        msg["acquisitions"][0]["firmware_metadata"] = None
+        acquisitions = parser.parse_list_datalogging_acquisitions_response(msg)
+        self.assertIsNone(acquisitions[0].firmware_metadata)
+
+        for field in ['author', 'project_name', 'version', 'generation_info']:
+            msg = base()
+            msg["acquisitions"][0]["firmware_metadata"][field] = None
+            acquisitions = parser.parse_list_datalogging_acquisitions_response(msg)
+            if field != 'generation_info':
+                self.assertIsNone(getattr(acquisitions[0].firmware_metadata, field))
+            else:
+                attr = cast(sdk.SFDGenerationInfo, getattr(acquisitions[0].firmware_metadata, field))
+                self.assertIsInstance(attr, sdk.SFDGenerationInfo)
+                self.assertIsNone(attr.python_version)
+                self.assertIsNone(attr.scrutiny_version)
+                self.assertIsNone(attr.system_type)
+                self.assertIsNone(attr.timestamp)
+
+            msg = base()
+            del msg["acquisitions"][0]["firmware_metadata"][field]
+            acquisitions = parser.parse_list_datalogging_acquisitions_response(msg)
+            if field != 'generation_info':
+                self.assertIsNone(getattr(acquisitions[0].firmware_metadata, field))
+            else:
+                attr = cast(sdk.SFDGenerationInfo, getattr(acquisitions[0].firmware_metadata, field))
+                self.assertIsInstance(attr, sdk.SFDGenerationInfo)
+                self.assertIsNone(attr.python_version)
+                self.assertIsNone(attr.scrutiny_version)
+                self.assertIsNone(attr.system_type)
+                self.assertIsNone(attr.timestamp)
+
+        class Delete:
+            pass
+        delete = Delete()
+
+        for val in [None, 1, [], {}, True, delete]:
+            with self.assertRaises(sdk.exceptions.BadResponseError, msg=f"val={val}"):
+                msg = base()
+                if val is delete:
+                    del msg["acquisitions"][0]["firmware_id"]
+                else:
+                    msg["acquisitions"][0]["firmware_id"] = val
+                parser.parse_list_datalogging_acquisitions_response(msg)
+
+        for val in [None, 1, [], {}, True, delete]:
+            with self.assertRaises(sdk.exceptions.BadResponseError, msg=f"val={val}"):
+                msg = base()
+                if val is delete:
+                    del msg["acquisitions"][0]["name"]
+                else:
+                    msg["acquisitions"][0]["name"] = val
+                parser.parse_list_datalogging_acquisitions_response(msg)
+
+        for val in [None, 1, [], {}, True, delete]:
+            with self.assertRaises(sdk.exceptions.BadResponseError, msg=f"val={val}"):
+                msg = base()
+                if val is delete:
+                    del msg["acquisitions"][0]["reference_id"]
+                else:
+                    msg["acquisitions"][0]["reference_id"] = val
+                parser.parse_list_datalogging_acquisitions_response(msg)
+
+        for val in [None, "asd", [], {}, True, delete]:
+            with self.assertRaises(sdk.exceptions.BadResponseError, msg=f"val={val}"):
+                msg = base()
+                if val is delete:
+                    del msg["acquisitions"][0]["timestamp"]
+                else:
+                    msg["acquisitions"][0]["timestamp"] = val
+                parser.parse_list_datalogging_acquisitions_response(msg)
+
+        for val in ["asd", [], 1, True, delete]:
+            with self.assertRaises(sdk.exceptions.BadResponseError, msg=f"val={val}"):
+                msg = base()
+                if val is delete:
+                    del msg["acquisitions"][0]["firmware_metadata"]
+                else:
+                    msg["acquisitions"][0]["firmware_metadata"] = val
+                parser.parse_list_datalogging_acquisitions_response(msg)
+
+        # SFD metadata is user generated. We must be super resilient to garbage.
+        for val in [[], 1, True, {}]:
+            msg = base()
+            msg["acquisitions"][0]["firmware_metadata"]["author"] = val
+            parser.parse_list_datalogging_acquisitions_response(msg)
+
+        for val in [[], 1, True, {}]:
+            msg = base()
+            msg["acquisitions"][0]["firmware_metadata"]["project_name"] = val
+            parser.parse_list_datalogging_acquisitions_response(msg)
+
+        for val in [[], 1, True, {}]:
+            msg = base()
+            msg["acquisitions"][0]["firmware_metadata"]["version"] = val
+            parser.parse_list_datalogging_acquisitions_response(msg)
+
+        for val in [[], 1, True, {}]:
+            msg = base()
+            msg["acquisitions"][0]["firmware_metadata"]["generation_info"]["python_version"] = val
+            parser.parse_list_datalogging_acquisitions_response(msg)
+
+        for val in [[], 1, True, {}]:
+            msg = base()
+            msg["acquisitions"][0]["firmware_metadata"]["generation_info"]["scrutiny_version"] = val
+
+        for val in [[], 1, True, {}]:
+            msg = base()
+            msg["acquisitions"][0]["firmware_metadata"]["generation_info"]["system_type"] = val
+            parser.parse_list_datalogging_acquisitions_response(msg)
+
+        for val in ["asd", [], True, {}]:
+            msg = base()
+            msg["acquisitions"][0]["firmware_metadata"]["generation_info"]["time"] = val
+            parser.parse_list_datalogging_acquisitions_response(msg)
+
 
 if __name__ == '__main__':
     unittest.main()

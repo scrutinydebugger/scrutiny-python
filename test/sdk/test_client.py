@@ -1281,6 +1281,64 @@ class TestClient(ScrutinyUnitTest):
         with self.assertRaises(sdk.exceptions.OperationFailure):
             request.wait_for_completion(timeout=3)
 
+    def test_list_stored_datalogging_acquisitions(self):
+        now = datetime.now()
+
+        with DataloggingStorage.use_temp_storage():
+            with SFDStorage.use_temp_folder():
+                acquisitions = self.client.list_stored_datalogging_acquisitions()
+                self.assertEqual(len(acquisitions), 0)
+
+                sfd1_filename = get_artifact('test_sfd_1.sfd')
+                sfd2_filename = get_artifact('test_sfd_2.sfd')
+                sfd1 = SFDStorage.install(sfd1_filename, ignore_exist=True)
+                sfd2 = SFDStorage.install(sfd2_filename, ignore_exist=True)
+
+                acquisition = sdk.datalogging.DataloggingAcquisition(
+                    firmware_id=sfd1.get_firmware_id_ascii(),
+                    reference_id="refid1",
+                    acq_time=now,
+                    name="my_acq")
+                axis1 = sdk.datalogging.AxisDefinition(name='Axis 1', axis_id=0)
+                ds1 = sdk.datalogging.DataSeries(
+                    data=[random.random() for x in range(10)],
+                    name='ds1_name',
+                    logged_element='ds1_element'
+                )
+                acquisition.add_data(ds1, axis1)
+                acquisition.set_xdata(sdk.datalogging.DataSeries([x for x in range(10)], name="time", logged_element='measured time'))
+                acquisition.set_trigger_index(4)
+
+                acquisition2 = sdk.datalogging.DataloggingAcquisition(
+                    firmware_id=sfd2.get_firmware_id_ascii(),
+                    reference_id="refid2",
+                    acq_time=now,
+                    name="my_acq")
+                axis1 = sdk.datalogging.AxisDefinition(name='Axis 1', axis_id=0)
+                ds1 = sdk.datalogging.DataSeries(
+                    data=[random.random() for x in range(10)],
+                    name='ds1_name',
+                    logged_element='ds1_element'
+                )
+                acquisition2.add_data(ds1, axis1)
+                acquisition2.set_xdata(sdk.datalogging.DataSeries([x for x in range(10)], name="time", logged_element='measured time'))
+                acquisition2.set_trigger_index(4)
+
+                DataloggingStorage.save(acquisition)
+                DataloggingStorage.save(acquisition2)
+
+                acquisitions = self.client.list_stored_datalogging_acquisitions()
+                self.assertEqual(len(acquisitions), 2)
+
+                expected_data = [
+                    dict(firmware_id=sfd1.get_firmware_id_ascii(), reference_id='refid1'),
+                    dict(firmware_id=sfd2.get_firmware_id_ascii(), reference_id='refid2')
+                ]
+
+                received_data = [dict(firmware_id=x.firmware_id, reference_id=x.reference_id) for x in acquisitions]
+
+                self.assertCountEqual(expected_data, received_data)
+
 
 if __name__ == '__main__':
     unittest.main()

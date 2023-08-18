@@ -1288,6 +1288,35 @@ class ScrutinyClient:
         assert cb_data.request is not None
         return cb_data.request
 
+    def list_stored_datalogging_acquisitions(self, timeout=None) -> List[sdk.datalogging.DataloggingStorageEntry]:
+        validation.assert_type(timeout, (float, int, type(None)), 'timeout')
+
+        if timeout is None:
+            timeout = self._timeout
+
+        req = self._make_request(API.Command.Client2Api.LIST_DATALOGGING_ACQUISITION)
+
+        @dataclass
+        class Container:
+            obj: Optional[List[sdk.datalogging.DataloggingStorageEntry]]
+        cb_data: Container = Container(obj=None)  # Force pass by ref
+
+        def callback(state: CallbackState, response: Optional[api_typing.S2CMessage]) -> None:
+            if response is not None and state == CallbackState.OK:
+                cb_data.obj = api_parser.parse_list_datalogging_acquisitions_response(
+                    cast(api_typing.S2C.ListDataloggingAcquisition, response)
+                )
+        future = self._send(req, callback)
+        assert future is not None
+        future.wait(timeout)
+
+        if future.state != CallbackState.OK:
+            raise sdk.exceptions.OperationFailure(
+                f"Failed to read the datalogging acquisition list from the server database. {future.error_str}")
+
+        assert cb_data.obj is not None
+        return cb_data.obj
+
     @property
     def name(self) -> str:
         return '' if self._name is None else self.name

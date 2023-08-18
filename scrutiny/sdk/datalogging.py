@@ -488,3 +488,23 @@ class DataloggingRequest:
     def acquisition_reference_id(self) -> Optional[str]:
         """The unique ID used to fetch the acquisition data from the server. Value is set only if request is completed and succeeded. None otherwise"""
         return self._acquisition_reference_id
+
+
+@dataclass(frozen=True)
+class DataloggingStorageEntry:
+    """Represent an entry in datalogging storage"""
+
+    reference_id: str
+    """Database ID used to uniquely identified this acquisition"""
+
+    firmware_id: str
+    """Firmware ID of the device that took the acquisition"""
+
+    name: str
+    """Name of the acquisition. For display purpose"""
+
+    timestamp: datetime
+    """Date/Time at which the acquisition was captured"""
+
+    firmware_metadata: Optional[sdk.SFDMetadata]
+    """The metadata of the firmware used by the device if available"""

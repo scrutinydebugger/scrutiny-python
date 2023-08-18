@@ -169,7 +169,7 @@ class SFDMetadata:
 @dataclass(frozen=True)
 class SFDInfo:
     firmware_id: str
-    metadata: SFDMetadata
+    metadata: Optional[SFDMetadata]
 
 
 @dataclass(frozen=True)

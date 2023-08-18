@@ -10,6 +10,7 @@ import scrutiny.sdk
 import scrutiny.sdk.datalogging
 sdk = scrutiny.sdk  # Workaround for vscode linter an submodule on alias
 from scrutiny.core.basic_types import *
+from scrutiny.core.firmware_description import MetadataType as FirmwareMetadataDict
 from scrutiny.server.api.API import API
 from scrutiny.server.api import typing as api_typing
 from dataclasses import dataclass
@@ -138,6 +139,27 @@ def _fetch_dict_val(d: Any, path: str, wanted_type: Type[T], default: Optional[T
 
 def _fetch_dict_val_no_none(d: Any, path: str, wanted_type: Type[T], default: T) -> T:
     return cast(T, _fetch_dict_val(d, path, wanted_type, default, allow_none=False))
+
+
+def _read_sfd_metadata_from_incomplete_dict(obj: Optional[FirmwareMetadataDict]) -> Optional[sdk.SFDMetadata]:
+    if obj is None:
+        return None
+    try:
+        timestamp = _fetch_dict_val(obj, 'generation_info.time', int, None)
+    except (TypeError, ValueError):
+        timestamp = None
+
+    return sdk.SFDMetadata(
+        author=_fetch_dict_val(obj, 'author', str, None),
+        project_name=_fetch_dict_val(obj, 'project_name', str, None),
+        version=_fetch_dict_val(obj, 'version', str, None),
+        generation_info=sdk.SFDGenerationInfo(
+            python_version=_fetch_dict_val(obj, 'generation_info.python_version', str, None),
+            scrutiny_version=_fetch_dict_val(obj, 'generation_info.scrutiny_version', str, None),
+            system_type=_fetch_dict_val(obj, 'generation_info.system_type', str, None),
+            timestamp=datetime.fromtimestamp(timestamp) if timestamp is not None else None
+        )
+    )
 
 
 def parse_get_watchable_single_element(response: api_typing.S2C.GetWatchableList, requested_path: str) -> WatchableConfiguration:
@@ -315,22 +337,10 @@ def parse_inform_server_status(response: api_typing.S2C.InformServerStatus) -> s
     sfd: Optional[sdk.SFDInfo] = None
     if response['loaded_sfd'] is not None:
         _check_response_dict(cmd, response, 'loaded_sfd.firmware_id', str)
-        timestamp = _fetch_dict_val(response, 'loaded_sfd.metadata.generation_info.time', int, None)
-        metadata = sdk.SFDMetadata(
-            author=_fetch_dict_val(response, 'loaded_sfd.metadata.author', str, None),
-            project_name=_fetch_dict_val(response, 'loaded_sfd.metadata.project_name', str, None),
-            version=_fetch_dict_val(response, 'loaded_sfd.metadata.version', str, None),
-            generation_info=sdk.SFDGenerationInfo(
-                python_version=_fetch_dict_val(response, 'loaded_sfd.metadata.generation_info.python_version', str, None),
-                scrutiny_version=_fetch_dict_val(response, 'loaded_sfd.metadata.generation_info.scrutiny_version', str, None),
-                system_type=_fetch_dict_val(response, 'loaded_sfd.metadata.generation_info.system_type', str, None),
-                timestamp=datetime.fromtimestamp(timestamp) if timestamp is not None else None
-            )
-        )
-
+        _check_response_dict(cmd, response, 'loaded_sfd.metadata', dict)
         sfd = sdk.SFDInfo(
             firmware_id=response['loaded_sfd']['firmware_id'],
-            metadata=metadata
+            metadata=_read_sfd_metadata_from_incomplete_dict(response['loaded_sfd']['metadata'])
         )
 
     _check_response_dict(cmd, response, 'device_datalogging_status.datalogger_state', str)
@@ -727,3 +737,30 @@ def parse_datalogging_acquisition_complete(response: api_typing.S2C.InformDatalo
         detail_msg=response['detail_msg'],
         success=response['success'],
     )
+
+
+def parse_list_datalogging_acquisitions_response(response: api_typing.S2C.ListDataloggingAcquisition) -> List[sdk.datalogging.DataloggingStorageEntry]:
+    assert isinstance(response, dict)
+    assert 'cmd' in response
+    cmd = response['cmd']
+    assert cmd == API.Command.Api2Client.LIST_DATALOGGING_ACQUISITION_RESPONSE
+
+    _check_response_dict(cmd, response, 'acquisitions', list)
+    dataout: List[sdk.datalogging.DataloggingStorageEntry] = []
+    for acq in response['acquisitions']:
+        _check_response_dict(cmd, acq, 'firmware_id', str)
+        _check_response_dict(cmd, acq, 'name', str)
+        _check_response_dict(cmd, acq, 'timestamp', float)
+        _check_response_dict(cmd, acq, 'reference_id', str)
+        _check_response_dict(cmd, acq, 'firmware_metadata', (dict, type(None)))
+
+        entry = sdk.datalogging.DataloggingStorageEntry(
+            firmware_id=acq['firmware_id'],
+            name=acq['name'] if acq['name'] is not None else '',
+            timestamp=datetime.fromtimestamp(acq['timestamp']),
+            reference_id=acq['reference_id'],
+            firmware_metadata=_read_sfd_metadata_from_incomplete_dict(acq['firmware_metadata'])
+        )
+        dataout.append(entry)
+
+    return dataout
