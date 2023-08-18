@@ -1150,7 +1150,7 @@ class TestClient(ScrutinyUnitTest):
         config.add_signal(var2, axis1, name="MyVar2")
         config.add_signal('/a/b/alias_rpv1000', axis2, name="MyAliasRPV1000")
 
-        request = self.client.datalogging_request(config)
+        request = self.client.start_datalog(config)
         self.assertFalse(request.completed)
         self.assertFalse(request.is_success)
         self.assertIsNone(request.completion_datetime)

@@ -27,14 +27,20 @@ __all__ = [
 class AxisDefinition:
     """Represent an axis"""
     name: str
+    """The name of the axis. Used for display"""
     axis_id: int
+    """A unique ID used to identify the axis"""
 
 
 class DataSeries:
     """A data series is a series of measurement represented by a series of 64 bits floating point value """
+
     name: str
+    """The name of the data series. Used for display"""
     logged_element: str
+    """The server element that was the source of the data. Path to a variable, alias or RPV (Runtime Published Value)"""
     data: List[float]
+    """The data stored as a list of float"""
 
     def __init__(self, data: List[float] = [], name: str = "unnamed", logged_element: str = ""):
         self.name = name

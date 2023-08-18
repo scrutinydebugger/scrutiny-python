@@ -11,6 +11,7 @@ __all__ = ['Client']
 
 import scrutiny.sdk
 import scrutiny.sdk.datalogging
+from scrutiny.core import validation
 sdk = scrutiny.sdk
 from scrutiny.sdk import _api_parser as api_parser
 from scrutiny.sdk.definitions import *
@@ -948,7 +949,7 @@ class ScrutinyClient:
         :raises ValueError: If path is not valid
         :raises NameNotFoundError: If the required path is not presently being watched
         :raises TimeoutException: If no response from the server is received
-        :raises OperationFailureException: If the subscription cancellation failed in any way
+        :raises OperationFailure: If the subscription cancellation failed in any way
         """
         if not isinstance(path, str):
             raise ValueError("Path must be a string")
@@ -1198,8 +1199,12 @@ class ScrutinyClient:
         return cb_data.obj
 
     def read_datalogging_acquisition(self, reference_id: str, timeout=None) -> sdk.datalogging.DataloggingAcquisition:
+        validation.assert_type(reference_id, str, 'reference_id')
+        validation.assert_type(timeout, (float, int, type(None)), 'timeout')
+
         if timeout is None:
             timeout = self._timeout
+
         req = self._make_request(API.Command.Client2Api.READ_DATALOGGING_ACQUISITION_CONTENT, {
             'reference_id': reference_id
         })
@@ -1225,7 +1230,19 @@ class ScrutinyClient:
         assert cb_data.obj is not None
         return cb_data.obj
 
-    def datalogging_request(self, config: sdk.datalogging.DataloggingConfig) -> sdk.datalogging.DataloggingRequest:
+    def start_datalog(self, config: sdk.datalogging.DataloggingConfig) -> sdk.datalogging.DataloggingRequest:
+        """Requires the device to make a datalogging acquisition based on the given configuration
+
+        :param config: The datalogging configuration including sampling rate, signals to log, trigger condition and operands, etc.
+
+        :raises sdk.exceptions.OperationFailure: If the request to the server fails
+        :raises ValueError: Bad parameter value
+        :raises TypeError: Given parameter not of the expected type
+
+        :return: A `DataloggingRequest` handle that can provide the status of the acquisition process and used to fetch the data.
+         """
+        validation.assert_type(config, sdk.datalogging.DataloggingConfig, 'config')
+
         req_data: api_typing.C2S.RequestDataloggingAcquisition = {
             'cmd': "",  # Will be overridden
             "reqid": 0,  # Will be overridden

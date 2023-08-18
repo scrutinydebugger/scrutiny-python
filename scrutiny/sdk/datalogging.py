@@ -185,7 +185,11 @@ class DataloggingConfig:
         self._axes = {}
 
     def add_axis(self, name: str) -> AxisDefinition:
-        """Adds a Y axis to the acquisition. Returns an object that can be assigned to a signal when calling `add_signal`"""
+        """Adds a Y axis to the acquisition.
+        :param name: The name of the axis, for display purpose. 
+
+        :return: An `AxisDefinition` object that can be assigned to a signal when calling `add_signal()`
+        """
         if not isinstance(name, str):
             raise TypeError("name must be a string")
         axis = AxisDefinition(axis_id=self._next_axis_id, name=name)
@@ -198,7 +202,17 @@ class DataloggingConfig:
                    axis: Union[AxisDefinition, int],
                    name: Optional[str] = None
                    ) -> None:
-        """Adds a signal to the acquisition"""
+        """Adds a signal to the acquisition
+
+        :param signal: The signal to add. Can either be a path to a var/rpv/alias (string) or a WatchableHandle given by `ScrutinyClient.watch()`
+        :param axis: The Y axis to assigned this signal to. Can either be the index (int) or the `AxisDefinition` object given by `add_axis()`
+        :param name: A display name for the signal
+
+        :raises IndexError: Invalid axis index
+        :raises ValueError: Bad parameter value
+        :raises TypeError: Given parameter not of the expected type
+
+        """
         if isinstance(axis, int) and not isinstance(axis, bool):
             if axis not in self._axes:
                 raise IndexError(f"No axis with index {axis}")
@@ -231,7 +245,29 @@ class DataloggingConfig:
                           position: float = 0.5,
                           hold_time: float = 0
                           ) -> None:
-        """Configure the required conditions to fire the trigger event"""
+        """Configure the required conditions to fire the trigger event
+
+        :param condition: The type of condition used for triggering the acquisition.   
+            - `AlwaysTrue`: Always true. Triggers immediately after being armed. Requires 0 operands
+            - `Equal`: Operand1 == Operand2. Requires 2 operands
+            - `NotEqual`: Operand1 != Operand2.Requires 2 operands
+            - `LessThan`: Operand1 < Operand2. Requires 2 operands
+            - `LessOrEqualThan`: Operand1 <= Operand2. Requires 2 operands
+            - `GreaterThan`: Operand1 > Operand2. Requires 2 operands
+            - `GreaterOrEqualThan`: Operand1 >= Operand2. Requires 2 operands
+            - `ChangeMoreThan`: X=(Operand1[n]-Operand1[n-1]); |X| > |Operand2| && sign(X) == sign(Operand2). Requires 2 operands          
+            - `IsWithin`: |Operand1 - Operand2| < |Operand3|. Requires 3 operands
+
+        :param operands: List of operands. Each operands can be a constant number (float), the path to a variable/rpv/alias (str) or a WatchableHandle
+            given by `ScrutinyClient.watch()`. The number of operands depends on the trigger condition
+
+        :param position: Position of the trigger event in the datalogging buffer. Value from 0 to 1, where 0 is leftmost, 0.5 middle and 1 rightmost.
+
+        :param hold_time: Time in seconds that the trigger condition must evaluate to `true` before firing the trigger event.
+
+        :raises ValueError: Bad parameter value
+        :raises TypeError: Given parameter not of the expected type
+        """
         if condition in [TriggerCondition.AlwaysTrue]:
             nb_operands = 0
         elif condition in [TriggerCondition.Equal,
@@ -285,7 +321,20 @@ class DataloggingConfig:
                         signal: Optional[Union[str, WatchableHandle]] = None,
                         name: Optional[str] = None
                         ) -> None:
-        """Configure the X-Axis"""
+        """Configures the X-Axis
+
+        :param axis_type: Type of X-Axis.  
+            - Indexed: X-Axis is the index of the sample starting from 0
+            - Measured Time: Time measured by the device. Takes a 32bits slot in the datalogging buffer
+            - Ideal Time: Only available for fixed frequency loops. Generates an ideal time axis based on the known frequency of the loops. 
+                Does not take space in the datalogging buffer
+            - Signal: Picks an arbitrary element (Variabe, RPV or alias) as the X-Axis.
+        :param signal: The signal to be used for the X-Axis if its type is set to `Signal`. Ignored if the X-Axis type is not `Signal` 
+        :param name: A display name for the X-Axis
+
+        :raises ValueError: Bad parameter value
+        :raises TypeError: Given parameter not of the expected type
+        """
         if not isinstance(axis_type, XAxisType):
             raise TypeError("axis_type must be an instance of XAxisType")
 
@@ -331,6 +380,7 @@ class DataloggingConfig:
 
 @dataclass(init=False)
 class DataloggingRequest:
+    """Handle to a request for a datalogging acquisition. Gets updated by the client and reflect the actual status of the acquisition"""
     _client: "ScrutinyClient"
     _request_token: str
 
@@ -364,7 +414,7 @@ class DataloggingRequest:
         self._completed = True
         self._completed_event.set()
 
-    def wait_for_completion(self, timeout: Optional[float] = None):
+    def wait_for_completion(self, timeout: Optional[float] = None) -> None:
         """Wait for the acquisition to be triggered and extracted by the server. Once this is done, the `acquisition_reference_id` will not be `None` anymore
         and its value will point to the database entry storing the data.
 
@@ -389,6 +439,8 @@ class DataloggingRequest:
         :raises sdk.exceptions.TimeoutException: If the server does not respond in time
         :raises sdk.exceptions.OperationFailure: If the acquisition is not complete or if an error happen while fetching the data
 
+        :return: The `DataloggingAcquisition` object containing the acquired data
+
         """
         if not self._completed:
             raise sdk.exceptions.OperationFailure('Acquisition is not complete yet')
@@ -398,7 +450,7 @@ class DataloggingRequest:
 
         return self._client.read_datalogging_acquisition(self._acquisition_reference_id, timeout)
 
-    def wait_and_fetch(self, timeout: Optional[float] = None, fetch_timeout: Optional[float] = None):
+    def wait_and_fetch(self, timeout: Optional[float] = None, fetch_timeout: Optional[float] = None) -> DataloggingAcquisition:
         """Do successive calls to `wait_for_completion()` & `fetch_acquisition()` and return the acquisition
 
         :params timeout: Timeout given to `wait_for_completion()`
@@ -406,6 +458,8 @@ class DataloggingRequest:
 
         :raises sdk.exceptions.TimeoutException: If any of the timeout is violated
         :raises sdk.exceptions.OperationFailure: If a problem occur while waiting/fetching
+
+        :return: The `DataloggingAcquisition` object containing the acquired data
         """
         self.wait_for_completion(timeout)
         return self.fetch_acquisition(fetch_timeout)  # Use default timeout
