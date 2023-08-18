@@ -171,7 +171,7 @@ class DataloggingConfig:
 
         self._sampling_rate = sampling_rate
         self._trigger_condition = TriggerCondition.AlwaysTrue
-        self._x_axis_type = XAxisType.MeasuredTime
+        self._x_axis_type = XAxisType.Indexed
         self._x_axis_signal = None
         self._decimation = decimation
         self._timeout = timeout
@@ -365,14 +365,31 @@ class DataloggingRequest:
         self._completed_event.set()
 
     def wait_for_completion(self, timeout: Optional[float] = None):
+        """Wait for the acquisition to be triggered and extracted by the server. Once this is done, the `acquisition_reference_id` will not be `None` anymore
+        and its value will point to the database entry storing the data.
+
+        :params timeout: Maximum wait time in seconds. Waits forever if `None`
+
+        :raises sdk.exceptions.TimeoutException: If the acquisition does not complete in less than the specified timeout value
+        :raises sdk.exceptions.OperationFailure: If an error happened that prevented the acquisition to successfully complete
+        """
         self._completed_event.wait(timeout=timeout)
         if not self._completed:
             raise sdk.exceptions.TimeoutException(f"Datalogging acquisition did not complete in {timeout} seconds")
+        assert self._completed_event.is_set()
 
         if not self._success:
             raise sdk.exceptions.OperationFailure(f"Datalogging acquisition failed to complete. {self._failure_reason}")
 
     def fetch_acquisition(self, timeout=None) -> DataloggingAcquisition:
+        """Download and returns an the acquisition data from the server. The acquisition must be complete
+
+        :params timeout: Timeout to get a response by the server in seconds. Uee the default timeout value if `None`
+
+        :raises sdk.exceptions.TimeoutException: If the server does not respond in time
+        :raises sdk.exceptions.OperationFailure: If the acquisition is not complete or if an error happen while fetching the data
+
+        """
         if not self._completed:
             raise sdk.exceptions.OperationFailure('Acquisition is not complete yet')
 
@@ -382,6 +399,14 @@ class DataloggingRequest:
         return self._client.read_datalogging_acquisition(self._acquisition_reference_id, timeout)
 
     def wait_and_fetch(self, timeout: Optional[float] = None, fetch_timeout: Optional[float] = None):
+        """Do successive calls to `wait_for_completion()` & `fetch_acquisition()` and return the acquisition
+
+        :params timeout: Timeout given to `wait_for_completion()`
+        :params fetch_timeout: Timeout given to `fetch_acquisition()`
+
+        :raises sdk.exceptions.TimeoutException: If any of the timeout is violated
+        :raises sdk.exceptions.OperationFailure: If a problem occur while waiting/fetching
+        """
         self.wait_for_completion(timeout)
         return self.fetch_acquisition(fetch_timeout)  # Use default timeout
 

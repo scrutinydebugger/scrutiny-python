@@ -46,6 +46,7 @@ class TestDataloggingIntegration(ScrutinyIntegrationTestWithTestSFD1):
         self.wait_for_datalogging_ready()
 
     def wait_for_datalogging_ready(self, timeout=2):
+        
         t1 = time.time()
         while time.time() - t1 < timeout:
             self.server.process()
