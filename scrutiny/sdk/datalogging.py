@@ -40,11 +40,19 @@ class FixedFreqSamplingRate(SamplingRate):
     frequency: float
     """The sampling rate frequency"""
 
+    def __post_init__(self):
+        validation.assert_type(self.identifier, 'identifier', int)
+        validation.assert_type(self.name, 'name', str)
+        validation.assert_type(self.frequency, 'frequency', float)
+
 
 @dataclass(frozen=True)
 class VariableFreqSamplingRate(SamplingRate):
     """Represent a variable frequency sampling rate supported by the device. Has no known frequency"""
-    pass
+
+    def __post_init__(self):
+        validation.assert_type(self.identifier, 'identifier', int)
+        validation.assert_type(self.name, 'name', str)
 
 
 @dataclass(frozen=True)
@@ -62,6 +70,14 @@ class DataloggingCapabilities:
 
     sampling_rates: List[SamplingRate]
     """List of available sampling rates"""
+
+    def __post_init__(self):
+        validation.assert_type(self.encoding, 'encoding', DataloggingEncoding)
+        validation.assert_type(self.buffer_size, 'buffer_size', int)
+        validation.assert_type(self.max_nb_signal, 'max_nb_signal', int)
+        validation.assert_type(self.sampling_rates, 'sampling_rates', list)
+        for i in range(len(self.sampling_rates)):
+            validation.assert_type(self.sampling_rates[i], f'sampling_rates[{i}]', SamplingRate)
 
 
 class XAxisType(enum.Enum):
@@ -191,8 +207,7 @@ class DataloggingConfig:
 
         :return: An `AxisDefinition` object that can be assigned to a signal when calling `add_signal()`
         """
-        if not isinstance(name, str):
-            raise TypeError("name must be a string")
+        validation.assert_type(name, 'name', str)
         axis = AxisDefinition(axis_id=self._next_axis_id, name=name)
         self._next_axis_id += 1
         self._axes[axis.axis_id] = axis
@@ -235,8 +250,7 @@ class DataloggingConfig:
         else:
             raise TypeError(f'Expected signal to be a valid path (string) or a watchable handle. Got {signal.__class__.__name__}')
 
-        if name is not None and not isinstance(name, str):
-            raise TypeError(f"name must be a string. Got {name.__class__.__name__}")
+        validation.assert_type(name, 'name', (str, type(None)))
 
         self._signals.append(_SignalAxisPair(name=name, path=signal_path, axis_id=axis_id))
 
@@ -284,7 +298,7 @@ class DataloggingConfig:
         else:
             raise ValueError(f"Unsupported trigger condition {condition}")
 
-        validation.assert_type(operands, (list, type(None)), 'operands')
+        validation.assert_type(operands, 'operands', (list, type(None)))
 
         if operands is None:
             operands = []
@@ -297,19 +311,8 @@ class DataloggingConfig:
                 raise TypeError(
                     f"Operand {i+1} must be a constant (float), a path to the element (string) or a watchable handle. Got {operands[i].__class__.__name__}")
 
-        if isinstance(position, int) and not isinstance(position, bool):
-            position = float(position)
-        if not isinstance(position, float):
-            raise TypeError('position must be a float')
-        if position < 0 or position > 1:
-            raise ValueError(f"position must be a number between 0 and 1")
-
-        if isinstance(hold_time, int) and not isinstance(hold_time, bool):
-            hold_time = float(hold_time)
-        if not isinstance(hold_time, float):
-            raise TypeError('hold_time must be a float')
-        if hold_time < 0 or hold_time > API.DATALOGGING_MAX_HOLD_TIME:
-            raise ValueError(f"hold_time must be a number between 0 and {API.DATALOGGING_MAX_HOLD_TIME}")
+        position = validation.assert_float_range(position, 'position', 0, 1)
+        hold_time = validation.assert_float_range(hold_time, 'hold_time', 0, API.DATALOGGING_MAX_HOLD_TIME)
 
         self._trigger_condition = condition
         self._trigger_position = position
@@ -328,18 +331,15 @@ class DataloggingConfig:
             - Measured Time: Time measured by the device. Takes a 32bits slot in the datalogging buffer
             - Ideal Time: Only available for fixed frequency loops. Generates an ideal time axis based on the known frequency of the loops. 
                 Does not take space in the datalogging buffer
-            - Signal: Picks an arbitrary element (Variabe, RPV or alias) as the X-Axis.
+            - Signal: Picks an arbitrary element (Variable, RPV or alias) as the X-Axis.
         :param signal: The signal to be used for the X-Axis if its type is set to `Signal`. Ignored if the X-Axis type is not `Signal` 
         :param name: A display name for the X-Axis
 
         :raises ValueError: Bad parameter value
         :raises TypeError: Given parameter not of the expected type
         """
-        if not isinstance(axis_type, XAxisType):
-            raise TypeError("axis_type must be an instance of XAxisType")
-
-        if name is not None and not isinstance(name, str):
-            raise TypeError(f"name must be a string. Got {name.__class__.__name__}")
+        validation.assert_type(axis_type, 'axis_type', XAxisType)
+        validation.assert_type(name, 'name', (str, type(None)))
 
         signal_out: Optional[_Signal] = None
         if axis_type == XAxisType.Signal:
@@ -508,3 +508,10 @@ class DataloggingStorageEntry:
 
     firmware_metadata: Optional[sdk.SFDMetadata]
     """The metadata of the firmware used by the device if available"""
+
+    def __post_init__(self):
+        validation.assert_type(self.reference_id, 'reference_id', str)
+        validation.assert_type(self.firmware_id, 'firmware_id', str)
+        validation.assert_type(self.name, 'name', str)
+        validation.assert_type(self.timestamp, 'timestamp', datetime)
+        validation.assert_type(self.firmware_metadata, 'firmware_metadata', (sdk.SFDMetadata, type(None)))

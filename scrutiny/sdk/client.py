@@ -1176,6 +1176,13 @@ class ScrutinyClient:
             raise sdk.exceptions.OperationFailure(f"Failed to write the device memory. {completion.error}")
 
     def get_datalogging_capabilities(self) -> sdk.datalogging.DataloggingCapabilities:
+        """Gets the device capabilities in terms of datalogging. This information include the available sampling rates, the datalogging buffer size, 
+        the data encoding format and the maximum number of signals 
+
+        :raises sdk.exceptions.OperationFailure: If the request to the server fails
+
+        :return: The datalogging capabilities
+        """
         req = self._make_request(API.Command.Client2Api.GET_DATALOGGING_CAPABILITIES)
 
         @dataclass
@@ -1198,9 +1205,18 @@ class ScrutinyClient:
 
         return cb_data.obj
 
-    def read_datalogging_acquisition(self, reference_id: str, timeout=None) -> sdk.datalogging.DataloggingAcquisition:
-        validation.assert_type(reference_id, str, 'reference_id')
-        validation.assert_type(timeout, (float, int, type(None)), 'timeout')
+    def read_datalogging_acquisition(self, reference_id: str, timeout: Optional[float] = None) -> sdk.datalogging.DataloggingAcquisition:
+        """Reads a datalogging acquisition from the server storage identified by its reference ID
+
+        :param reference_id: The acquisition unique ID
+        :param timeout: The request timeout value. The default client timeout will be used if set to `None`. Defaults to `None`.
+
+        :raises sdk.exceptions.OperationFailure: If fetching the acquisition fails
+
+        :return: An object containing the acquisition, including the data, the axes, the trigger index, the graph name, etc
+        """
+        validation.assert_type(reference_id, 'reference_id', str)
+        validation.assert_type(timeout, 'timeout', (float, int, type(None)))
 
         if timeout is None:
             timeout = self._timeout
@@ -1241,7 +1257,7 @@ class ScrutinyClient:
 
         :return: A `DataloggingRequest` handle that can provide the status of the acquisition process and used to fetch the data.
          """
-        validation.assert_type(config, sdk.datalogging.DataloggingConfig, 'config')
+        validation.assert_type(config, 'config', sdk.datalogging.DataloggingConfig)
 
         req_data: api_typing.C2S.RequestDataloggingAcquisition = {
             'cmd': "",  # Will be overridden
@@ -1289,7 +1305,15 @@ class ScrutinyClient:
         return cb_data.request
 
     def list_stored_datalogging_acquisitions(self, timeout=None) -> List[sdk.datalogging.DataloggingStorageEntry]:
-        validation.assert_type(timeout, (float, int, type(None)), 'timeout')
+        """Gets the list of datalogging acquisition stored in the server database
+
+        :param timeout: The request timeout value. The default client timeout will be used if set to `None`. Defaults to `None`.
+
+        :raises sdk.exceptions.OperationFailure: If fetching the list fails
+
+        :return: A list of database entries, each one representing an acquisition in the database with `reference_id` as its unique identifier
+        """
+        validation.assert_type(timeout, 'timeout', (float, int, type(None)))
 
         if timeout is None:
             timeout = self._timeout

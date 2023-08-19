@@ -1276,7 +1276,7 @@ class TestClient(ScrutinyUnitTest):
         self.assertIsNotNone(server_request)
 
         def complete_acquisition():
-            callback(False, "An error occured", None)
+            callback(False, "An error occurred", None)
         self.execute_in_server_thread(complete_acquisition)
         with self.assertRaises(sdk.exceptions.OperationFailure):
             request.wait_for_completion(timeout=3)

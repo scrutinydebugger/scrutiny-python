@@ -1,7 +1,7 @@
 from typing import Union, Any, Type, List, Tuple, Sequence, Optional
 
 
-def assert_type(var: Any, types: Union[Type[Any], List[Type], Tuple[Type, ...]], name: str) -> None:
+def assert_type(var: Any, name: str, types: Union[Type[Any], List[Type], Tuple[Type, ...]]) -> None:
     if isinstance(types, (list, tuple)):
         typenames: List[str] = [x.__name__ for x in types]
         bad_val = not isinstance(var, tuple(types))
@@ -19,13 +19,13 @@ def assert_type(var: Any, types: Union[Type[Any], List[Type], Tuple[Type, ...]],
             raise TypeError(f"\"{name}\" is not of type \"{types.__name__}\". Got \"{var.__class__.__name__}\" instead")
 
 
-def assert_val_in(var: Any, vals: Sequence[Any], name: str) -> None:
+def assert_val_in(var: Any, name: str, vals: Sequence[Any]) -> None:
     if var not in vals:
         raise ValueError(f"\"{name}\" has an invalid value. Expected one of {vals}")
 
 
 def assert_int_range(val: int, name: str, minval: Optional[int] = None, maxval: Optional[int] = None) -> None:
-    assert_type(val, int, name)
+    assert_type(val, name, int)
     if minval is not None:
         if val < minval:
             raise ValueError(f"{name} must be greater than {minval}. Got {val}")
@@ -39,3 +39,23 @@ def assert_int_range_if_not_none(val: int, name: str, minval: Optional[int] = No
     if val is None:
         return
     assert_int_range(val, name, minval, maxval)
+
+
+def assert_float_range(val: Union[int, float], name: str, minval: Optional[float] = None, maxval: Optional[float] = None) -> float:
+    if isinstance(val, int) and not isinstance(val, bool):
+        val = float(val)
+    assert_type(val, name, float)
+    if minval is not None:
+        if val < minval:
+            raise ValueError(f"{name} must be greater than {minval}. Got {val}")
+
+    if maxval is not None:
+        if val > maxval:
+            raise ValueError(f"{name} must be less than {maxval}. Got {val}")
+    return val
+
+
+def assert_float_range_if_not_none(val: float, name: str, minval: Optional[float] = None, maxval: Optional[float] = None) -> Optional[float]:
+    if val is None:
+        return None
+    return assert_float_range(val, name, minval, maxval)
