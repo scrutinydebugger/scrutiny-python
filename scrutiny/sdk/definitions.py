@@ -7,10 +7,37 @@
 #   Copyright (c) 2021-2023 Scrutiny Debugger
 
 import enum
-from typing import *
 from dataclasses import dataclass
 from datetime import datetime
 from scrutiny.core.basic_types import MemoryRegion
+
+from typing import List, Optional, Literal, Union
+
+__all__ = [
+    'AddressSize',
+    'SerialStopBits',
+    'SerialDataBits',
+    'SerialParity',
+    'ServerState',
+    'DeviceState',
+    'WatchableType',
+    'ValueStatus',
+    'DeviceCommState',
+    'DataloggerState',
+    'DeviceLinkType',
+    'SupportedFeatureMap',
+    'DataloggingInfo',
+    'DeviceInfo',
+    'SFDGenerationInfo',
+    'SFDMetadata',
+    'SFDInfo',
+    'UDPLinkConfig',
+    'TCPLinkConfig',
+    'SerialLinkConfig',
+    'SupportedLinkConfig',
+    'DeviceLinkInfo',
+    'ServerInfo'
+]
 
 AddressSize = Literal[8, 16, 32, 64, 128]
 SerialStopBits = Literal['1', '1.5', '2']
@@ -142,7 +169,7 @@ class SFDMetadata:
 @dataclass(frozen=True)
 class SFDInfo:
     firmware_id: str
-    metadata: SFDMetadata
+    metadata: Optional[SFDMetadata]
 
 
 @dataclass(frozen=True)

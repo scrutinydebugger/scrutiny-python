@@ -32,6 +32,8 @@ import scrutiny.server.datalogging.definitions.api as api_datalogging
 import scrutiny.server.datalogging.definitions.device as device_datalogging
 from scrutiny.server.device.device_info import ExecLoopType
 from scrutiny.core.basic_types import MemoryRegion
+import scrutiny.core.datalogging as core_datalogging
+
 
 from .websocket_client_handler import WebsocketClientHandler
 from .dummy_client_handler import DummyClientHandler
@@ -42,7 +44,7 @@ from .abstract_client_handler import AbstractClientHandler, ClientHandlerMessage
 from scrutiny.server.device.links.abstract_link import LinkConfig as DeviceLinkConfig
 
 from scrutiny.core.typehints import EmptyDict, GenericCallback
-from typing import *
+from typing import List, Dict, Set, Optional, Callable, Any, TypedDict, cast, Generator, Literal, Type
 
 
 class APIConfig(TypedDict, total=False):
@@ -142,6 +144,8 @@ class API:
         nb_operands: int
 
     FLUSH_VARS_TIMEOUT: float = 0.1
+    DATALOGGING_MAX_TIMEOUT: int = math.floor((2**32 - 1) * 1e-7)  # 100ns represented in sec
+    DATALOGGING_MAX_HOLD_TIME: int = math.floor((2**32 - 1) * 1e-7)   # 100ns represented in sec
 
     DATATYPE_2_APISTR: Dict[EmbeddedDataType, api_typing.Datatype] = {
         EmbeddedDataType.sint8: 'sint8',
@@ -216,6 +220,20 @@ class API:
 
     ENTRY_TYPE_2_APISTR: Dict[EntryType, api_typing.WatchableType] = {v: k for k, v in APISTR_2_ENTRY_TYPE.items()}
 
+    APISTR_2_DATALOGGING_ENCONDING: Dict[api_typing.DataloggingEncoding, device_datalogging.Encoding] = {
+        'raw': device_datalogging.Encoding.RAW
+    }
+
+    DATALOGGING_ENCONDING_2_APISTR: Dict[device_datalogging.Encoding, api_typing.DataloggingEncoding] = {
+        v: k for k, v in APISTR_2_DATALOGGING_ENCONDING.items()}
+
+    APISTR_2_LOOP_TYPE: Dict[api_typing.LoopType, ExecLoopType] = {
+        'fixed_freq': ExecLoopType.FIXED_FREQ,
+        'variable_freq': ExecLoopType.VARIABLE_FREQ
+    }
+
+    LOOP_TYPE_2_APISTR: Dict[ExecLoopType, api_typing.LoopType] = {v: k for k, v in APISTR_2_LOOP_TYPE.items()}
+
     datastore: Datastore
     device_handler: DeviceHandler
     logger: logging.Logger
@@ -225,7 +243,7 @@ class API:
     client_handler: AbstractClientHandler
     sfd_handler: ActiveSFDHandler
     datalogging_manager: DataloggingManager
-    handle_unexpected_errors:bool   # Always true, except during unit tests
+    handle_unexpected_errors: bool   # Always true, except during unit tests
 
     # The method to call for each command
     ApiRequestCallbacks: Dict[str, str] = {
@@ -960,15 +978,6 @@ class API:
         if sampling_rates is None:
             available = False
 
-        rate_type_name_map: Dict[ExecLoopType, Literal['fixed_freq', 'variable_freq']] = {
-            ExecLoopType.FIXED_FREQ: 'fixed_freq',
-            ExecLoopType.VARIABLE_FREQ: 'variable_freq'
-        }
-
-        encoding_name_map: Dict[device_datalogging.Encoding, Literal['raw']] = {
-            device_datalogging.Encoding.RAW: 'raw'
-        }
-
         if available:
             assert sampling_rates is not None
             assert setup is not None
@@ -978,12 +987,12 @@ class API:
                     'identifier': rate.device_identifier,
                     'name': rate.name,
                     'frequency': rate.frequency,
-                    'type': rate_type_name_map[rate.rate_type]
+                    'type': self.LOOP_TYPE_2_APISTR[rate.rate_type]
                 })
 
             capabilities: api_typing.DataloggingCapabilities = {
                 'buffer_size': setup.buffer_size,
-                'encoding': encoding_name_map[setup.encoding],
+                'encoding': self.DATALOGGING_ENCONDING_2_APISTR[setup.encoding],
                 'max_nb_signal': setup.max_signal_count,
                 'sampling_rates': output_sampling_rates
             }
@@ -1002,11 +1011,11 @@ class API:
         if not self.datalogging_manager.is_ready_for_request():
             raise InvalidRequestException(req, 'Device is not ready to receive a request')
 
-        FieldType = Literal['yaxis', 'sampling_rate_id', 'decimation', 'timeout', 'trigger_hold_time',
+        FieldType = Literal['yaxes', 'sampling_rate_id', 'decimation', 'timeout', 'trigger_hold_time',
                             'probe_location', 'condition', 'operands', 'signals', 'x_axis_type']
 
         required_fileds: Dict[FieldType, Type] = {
-            'yaxis': list,
+            'yaxes': list,
             'sampling_rate_id': int,
             'decimation': int,
             'timeout': float,
@@ -1044,19 +1053,17 @@ class API:
         if req['decimation'] <= 0:
             raise InvalidRequestException(req, 'decimation must be a positive integer')
 
-        max_timeout = math.floor((2**32 - 1) * 1e-7)  # 100ns represented in sec
         if req['timeout'] < 0:
             raise InvalidRequestException(req, 'timeout must be a positive value or zero')
 
-        if req['timeout'] > max_timeout:
-            raise InvalidRequestException(req, 'timeout must be smaller than %ds' % int(max_timeout))
+        if req['timeout'] > self.DATALOGGING_MAX_TIMEOUT:
+            raise InvalidRequestException(req, 'timeout must be smaller than %ds' % int(self.DATALOGGING_MAX_TIMEOUT))
 
-        max_hold_time = math.floor((2**32 - 1) * 1e-7)   # 100ns represented in sec
         if req['trigger_hold_time'] < 0:
             raise InvalidRequestException(req, 'trigger_hold_time must be a positive value or zero')
 
-        if req['trigger_hold_time'] > max_hold_time:
-            raise InvalidRequestException(req, 'trigger_hold_time must be a smaller than %ds' % int(max_hold_time))
+        if req['trigger_hold_time'] > self.DATALOGGING_MAX_HOLD_TIME:
+            raise InvalidRequestException(req, 'trigger_hold_time must be a smaller than %ds' % int(self.DATALOGGING_MAX_HOLD_TIME))
 
         if req['probe_location'] < 0 or req['probe_location'] > 1:
             raise InvalidRequestException(req, 'probe_location must be a value between 0 and 1')
@@ -1068,6 +1075,7 @@ class API:
             raise InvalidRequestException(req, 'Bad number of condition operands for condition %s' % req['condition'])
 
         axis_type_map = {
+            "index": api_datalogging.XAxisType.Indexed,
             'ideal_time': api_datalogging.XAxisType.IdealTime,
             'measured_time': api_datalogging.XAxisType.MeasuredTime,
             'signal': api_datalogging.XAxisType.Signal
@@ -1082,16 +1090,19 @@ class API:
             if 'x_axis_signal' not in req or not isinstance(req['x_axis_signal'], dict):
                 raise InvalidRequestException(req, 'Missing a valid x_axis_signal required when x_axis_type=watchable')
 
-            if 'id' not in req['x_axis_signal'] or not isinstance(req['x_axis_signal']['id'], str):
-                raise InvalidRequestException(req, 'Missing x_axis_signal.watchable field')
+            if 'path' not in req['x_axis_signal']:
+                raise InvalidRequestException(req, 'Missing x_axis_signal.path field')
+
+            if not isinstance(req['x_axis_signal']['path'], str):
+                raise InvalidRequestException(req, 'Invalid x_axis_signal.path field')
 
             try:
-                x_axis_entry = self.datastore.get_entry(req['x_axis_signal']['id'])
+                x_axis_entry = self.datastore.get_entry_by_display_path(req['x_axis_signal']['path'])
             except Exception:
                 pass
 
             if x_axis_entry is None:
-                raise InvalidRequestException(req, 'Cannot find watchable with given ID %s' % req['x_axis_signal']['id'])
+                raise InvalidRequestException(req, 'Cannot find watchable with given path %s' % req['x_axis_signal']['path'])
 
             x_axis_signal = api_datalogging.SignalDefinition(
                 name=None if 'name' not in req['x_axis_signal'] else str(req['x_axis_signal']['name']),
@@ -1114,7 +1125,7 @@ class API:
                     raise InvalidRequestException(req, "Unsupported datatype for operand")
                 watchable: Optional[DatastoreEntry] = None
                 try:
-                    watchable = self.datastore.get_entry(given_operand['value'])
+                    watchable = self.datastore.get_entry_by_display_path(given_operand['value'])
                 except Exception:
                     pass
 
@@ -1129,11 +1140,11 @@ class API:
         if len(req['signals']) == 0:
             raise InvalidRequestException(req, 'Missing watchable to log')
 
-        if not isinstance(req['yaxis'], list):
+        if not isinstance(req['yaxes'], list):
             raise InvalidRequestException(req, "Invalid Y-Axis list")
 
         yaxis_map: Dict[int, api_datalogging.AxisDefinition] = {}
-        for yaxis in req['yaxis']:
+        for yaxis in req['yaxes']:
             if not isinstance(yaxis, dict):
                 raise InvalidRequestException(req, "Invalid Y-Axis")
 
@@ -1152,32 +1163,38 @@ class API:
             if (yaxis['id'] in yaxis_map):
                 raise InvalidRequestException(req, "Duplicate Y-Axis ID")
 
-            yaxis_map[yaxis['id']] = api_datalogging.AxisDefinition(name=yaxis['name'], external_id=yaxis['id'])
+            yaxis_map[yaxis['id']] = api_datalogging.AxisDefinition(name=yaxis['name'], axis_id=yaxis['id'])
 
         for signal_def in req['signals']:
             if not isinstance(signal_def, dict):
                 raise InvalidRequestException(req, "Invalid signal definition")
-            
-            if not isinstance(signal_def['id'], str):
-                raise InvalidRequestException(req, 'Invalid watchable ID')
-
-            if not (isinstance(signal_def['name'], str) or signal_def['name'] is None):
-                raise InvalidRequestException(req, 'Invalid signal name')
-
-            if not isinstance(signal_def['axis_id'], int):
-                raise InvalidRequestException(req, 'Invalid signal axis ID')
-
-            if signal_def['axis_id'] not in yaxis_map:
-                raise InvalidRequestException(req, 'Invalid signal axis ID')
 
             signal_entry: Optional[DatastoreEntry] = None
+            if 'path' not in signal_def:
+                raise InvalidRequestException(req, 'Missing signal watchable path')
+
+            if not isinstance(signal_def['path'], str):
+                raise InvalidRequestException(req, 'Invalid signal watchable path')
+
             try:
-                signal_entry = self.datastore.get_entry(signal_def['id'])
+                signal_entry = self.datastore.get_entry_by_display_path(signal_def['path'])
             except Exception:
                 pass
 
             if signal_entry is None:
-                raise InvalidRequestException(req, "Cannot find watchable with given ID : %s" % signal_def['id'])
+                raise InvalidRequestException(req, "Cannot find watchable with given path : %s" % signal_def['path'])
+
+            if 'name' not in signal_def:
+                signal_def['name'] = None
+
+            if not (isinstance(signal_def['name'], str) or signal_def['name'] is None):
+                raise InvalidRequestException(req, 'Invalid signal name')
+
+            if 'axis_id' not in signal_def or not isinstance(signal_def['axis_id'], int):
+                raise InvalidRequestException(req, 'Invalid signal axis ID')
+
+            if signal_def['axis_id'] not in yaxis_map:
+                raise InvalidRequestException(req, 'Invalid signal axis ID')
 
             signals_to_log.append(api_datalogging.SignalDefinitionWithAxis(
                 name=signal_def['name'],
@@ -1432,7 +1449,7 @@ class API:
         if err:
             raise InvalidRequestException(req, "Failed to read acquisition. %s" % (str(err)))
 
-        def dataseries_to_api_signal_data(ds: api_datalogging.DataSeries) -> api_typing.DataloggingSignalData:
+        def dataseries_to_api_signal_data(ds: core_datalogging.DataSeries) -> api_typing.DataloggingSignalData:
             signal: api_typing.DataloggingSignalData = {
                 'name': ds.name,
                 'logged_element': ds.logged_element,
@@ -1440,7 +1457,7 @@ class API:
             }
             return signal
 
-        def dataseries_to_api_signal_data_with_axis(ds: api_datalogging.DataSeries, axis_id: int) -> api_typing.DataloggingSignalDataWithAxis:
+        def dataseries_to_api_signal_data_with_axis(ds: core_datalogging.DataSeries, axis_id: int) -> api_typing.DataloggingSignalDataWithAxis:
             signal: api_typing.DataloggingSignalDataWithAxis = cast(api_typing.DataloggingSignalDataWithAxis, dataseries_to_api_signal_data(ds))
             signal['axis_id'] = axis_id
             return signal
@@ -1448,22 +1465,25 @@ class API:
         yaxis_list: List[api_typing.DataloggingAxisDef] = []
         acq_axis_2_api_axis_map: Dict[api_datalogging.AxisDefinition, api_typing.DataloggingAxisDef] = {}
         for axis in acquisition.get_unique_yaxis_list():
-            yaxis_out: api_typing.DataloggingAxisDef = {'name': axis.name, 'id': axis.external_id}
+            yaxis_out: api_typing.DataloggingAxisDef = {'name': axis.name, 'id': axis.axis_id}
             acq_axis_2_api_axis_map[axis] = yaxis_out
             yaxis_list.append(yaxis_out)
 
         signals: List[api_typing.DataloggingSignalDataWithAxis] = []
         for dataseries_with_axis in acquisition.get_data():
-            signals.append(dataseries_to_api_signal_data_with_axis(ds=dataseries_with_axis.series, axis_id=dataseries_with_axis.axis.external_id))
+            signals.append(dataseries_to_api_signal_data_with_axis(ds=dataseries_with_axis.series, axis_id=dataseries_with_axis.axis.axis_id))
 
         response: api_typing.S2C.ReadDataloggingAcquisitionContent = {
             'cmd': API.Command.Api2Client.READ_DATALOGGING_ACQUISITION_CONTENT_RESPONSE,
             'reqid': self.get_req_id(req),
+            'firmware_id': acquisition.firmware_id,
+            'name': '' if acquisition.name is None else acquisition.name,
+            'timestamp': acquisition.acq_time.timestamp(),
             'reference_id': acquisition.reference_id,
             'trigger_index': acquisition.trigger_index,
             'signals': signals,
             'xdata': dataseries_to_api_signal_data(acquisition.xdata),
-            'yaxis': yaxis_list
+            'yaxes': yaxis_list
         }
 
         self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))

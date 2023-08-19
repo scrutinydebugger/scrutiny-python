@@ -6,9 +6,11 @@
 #
 #   Copyright (c) 2021-2023 Scrutiny Debugger
 
-import scrutiny.sdk as sdk
-from typing import *
+import scrutiny.sdk
+import scrutiny.sdk.datalogging
+sdk = scrutiny.sdk  # Workaround for vscode linter an submodule on alias
 from scrutiny.core.basic_types import *
+from scrutiny.core.firmware_description import MetadataType as FirmwareMetadataDict
 from scrutiny.server.api.API import API
 from scrutiny.server.api import typing as api_typing
 from dataclasses import dataclass
@@ -17,21 +19,23 @@ from base64 import b64decode
 import binascii
 import time
 
+from typing import List, Dict, Optional, Any, cast, Literal, Type, Union, TypeVar, Iterable, get_args
 
-@dataclass
+
+@dataclass(frozen=True)
 class WatchableConfiguration:
     watchable_type: sdk.WatchableType
     datatype: EmbeddedDataType
     server_id: str
 
 
-@dataclass
+@dataclass(frozen=True)
 class WatchableUpdate:
     server_id: str
     value: Union[bool, int, float]
 
 
-@dataclass
+@dataclass(frozen=True)
 class WriteCompletion:
     request_token: str
     watchable: str
@@ -40,13 +44,13 @@ class WriteCompletion:
     batch_index: int
 
 
-@dataclass
+@dataclass(frozen=True)
 class WriteConfirmation:
     request_token: str
     count: int
 
 
-@dataclass
+@dataclass(frozen=True)
 class MemoryReadCompletion:
     request_token: str
     success: bool
@@ -55,12 +59,20 @@ class MemoryReadCompletion:
     timestamp: float
 
 
-@dataclass
+@dataclass(frozen=True)
 class MemoryWriteCompletion:
     request_token: str
     success: bool
     error: str
     timestamp: float
+
+
+@dataclass(frozen=True)
+class DataloggingCompletion:
+    request_token: str
+    reference_id: Optional[str]
+    success: bool
+    detail_msg: str
 
 
 T = TypeVar('T', str, int, float, bool)
@@ -127,6 +139,27 @@ def _fetch_dict_val(d: Any, path: str, wanted_type: Type[T], default: Optional[T
 
 def _fetch_dict_val_no_none(d: Any, path: str, wanted_type: Type[T], default: T) -> T:
     return cast(T, _fetch_dict_val(d, path, wanted_type, default, allow_none=False))
+
+
+def _read_sfd_metadata_from_incomplete_dict(obj: Optional[FirmwareMetadataDict]) -> Optional[sdk.SFDMetadata]:
+    if obj is None:
+        return None
+    try:
+        timestamp = _fetch_dict_val(obj, 'generation_info.time', int, None)
+    except (TypeError, ValueError):
+        timestamp = None
+
+    return sdk.SFDMetadata(
+        author=_fetch_dict_val(obj, 'author', str, None),
+        project_name=_fetch_dict_val(obj, 'project_name', str, None),
+        version=_fetch_dict_val(obj, 'version', str, None),
+        generation_info=sdk.SFDGenerationInfo(
+            python_version=_fetch_dict_val(obj, 'generation_info.python_version', str, None),
+            scrutiny_version=_fetch_dict_val(obj, 'generation_info.scrutiny_version', str, None),
+            system_type=_fetch_dict_val(obj, 'generation_info.system_type', str, None),
+            timestamp=datetime.fromtimestamp(timestamp) if timestamp is not None else None
+        )
+    )
 
 
 def parse_get_watchable_single_element(response: api_typing.S2C.GetWatchableList, requested_path: str) -> WatchableConfiguration:
@@ -304,22 +337,10 @@ def parse_inform_server_status(response: api_typing.S2C.InformServerStatus) -> s
     sfd: Optional[sdk.SFDInfo] = None
     if response['loaded_sfd'] is not None:
         _check_response_dict(cmd, response, 'loaded_sfd.firmware_id', str)
-        timestamp = _fetch_dict_val(response, 'loaded_sfd.metadata.generation_info.time', int, None)
-        metadata = sdk.SFDMetadata(
-            author=_fetch_dict_val(response, 'loaded_sfd.metadata.author', str, None),
-            project_name=_fetch_dict_val(response, 'loaded_sfd.metadata.project_name', str, None),
-            version=_fetch_dict_val(response, 'loaded_sfd.metadata.version', str, None),
-            generation_info=sdk.SFDGenerationInfo(
-                python_version=_fetch_dict_val(response, 'loaded_sfd.metadata.generation_info.python_version', str, None),
-                scrutiny_version=_fetch_dict_val(response, 'loaded_sfd.metadata.generation_info.scrutiny_version', str, None),
-                system_type=_fetch_dict_val(response, 'loaded_sfd.metadata.generation_info.system_type', str, None),
-                timestamp=datetime.fromtimestamp(timestamp) if timestamp is not None else None
-            )
-        )
-
+        _check_response_dict(cmd, response, 'loaded_sfd.metadata', dict)
         sfd = sdk.SFDInfo(
             firmware_id=response['loaded_sfd']['firmware_id'],
-            metadata=metadata
+            metadata=_read_sfd_metadata_from_incomplete_dict(response['loaded_sfd']['metadata'])
         )
 
     _check_response_dict(cmd, response, 'device_datalogging_status.datalogger_state', str)
@@ -547,3 +568,199 @@ def parse_memory_write_completion(response: api_typing.S2C.WriteMemoryComplete) 
         error=detail_msg if detail_msg is not None else "",
         timestamp=time.time()
     )
+
+
+def parse_get_datalogging_capabilities_response(response: api_typing.S2C.GetDataloggingCapabilities) -> Optional[sdk.datalogging.DataloggingCapabilities]:
+    assert isinstance(response, dict)
+    assert 'cmd' in response
+    cmd = response['cmd']
+    assert cmd == API.Command.Api2Client.GET_DATALOGGING_CAPABILITIES_RESPONSE
+
+    _check_response_dict(cmd, response, 'available', bool)
+    _check_response_dict(cmd, response, 'capabilities', (dict, type(None)))
+
+    if response['capabilities'] is None or not response['available']:
+        return None
+
+    _check_response_dict(cmd, response, 'capabilities.buffer_size', int)
+    _check_response_dict(cmd, response, 'capabilities.encoding', str)
+    _check_response_dict(cmd, response, 'capabilities.max_nb_signal', int)
+    _check_response_dict(cmd, response, 'capabilities.sampling_rates', list)
+
+    api_to_sdk_encoding_map: Dict[api_typing.DataloggingEncoding, sdk.datalogging.DataloggingEncoding] = {
+        'raw': sdk.datalogging.DataloggingEncoding.RAW,
+    }
+
+    encoding = response['capabilities']['encoding']
+    if encoding not in api_to_sdk_encoding_map:
+        raise sdk.exceptions.BadResponseError(f'Datalogging encoding is not supported: "{encoding}"')
+
+    sampling_rates: List[sdk.datalogging.SamplingRate] = []
+    for rate_entry in response['capabilities']['sampling_rates']:
+        _check_response_dict(cmd, rate_entry, 'identifier', int)
+        _check_response_dict(cmd, rate_entry, 'name', str)
+
+        _check_response_dict(cmd, rate_entry, 'type', str)
+
+        rate: sdk.datalogging.SamplingRate
+        if rate_entry['type'] == 'fixed_freq':
+            _check_response_dict(cmd, rate_entry, 'frequency', (float, int))
+            assert rate_entry['frequency'] is not None
+
+            rate = sdk.datalogging.FixedFreqSamplingRate(
+                identifier=rate_entry['identifier'],
+                name=rate_entry['name'],
+                frequency=float(rate_entry['frequency']),
+            )
+        elif rate_entry['type'] == 'variable_freq':
+            rate = sdk.datalogging.VariableFreqSamplingRate(
+                identifier=rate_entry['identifier'],
+                name=rate_entry['name'],
+            )
+        else:
+            raise sdk.exceptions.BadResponseError(f'Unsupported sampling rate type: {rate_entry["type"]}')
+
+        sampling_rates.append(rate)
+
+    return sdk.datalogging.DataloggingCapabilities(
+        buffer_size=response['capabilities']['buffer_size'],
+        encoding=api_to_sdk_encoding_map[encoding],
+        max_nb_signal=response['capabilities']['max_nb_signal'],
+        sampling_rates=sampling_rates
+    )
+
+
+def parse_read_datalogging_acquisition_content_response(response: api_typing.S2C.ReadDataloggingAcquisitionContent) -> sdk.datalogging.DataloggingAcquisition:
+    assert isinstance(response, dict)
+    assert 'cmd' in response
+    cmd = response['cmd']
+    assert cmd == API.Command.Api2Client.READ_DATALOGGING_ACQUISITION_CONTENT_RESPONSE
+
+    _check_response_dict(cmd, response, 'reference_id', str)
+    _check_response_dict(cmd, response, 'firmware_id', str)
+    _check_response_dict(cmd, response, 'timestamp', float)
+    _check_response_dict(cmd, response, 'name', str)
+    _check_response_dict(cmd, response, 'trigger_index', (int, type(None)))
+    _check_response_dict(cmd, response, 'yaxes', list)
+    _check_response_dict(cmd, response, 'signals', list)
+    _check_response_dict(cmd, response, 'xdata.name', str)
+    _check_response_dict(cmd, response, 'xdata.data', list)
+    _check_response_dict(cmd, response, 'xdata.logged_element', str)
+
+    acquisition = sdk.datalogging.DataloggingAcquisition(
+        firmware_id=response['firmware_id'],
+        reference_id=response['reference_id'],
+        acq_time=datetime.fromtimestamp(response['timestamp']),
+        name=response['name']
+    )
+
+    axis_map: Dict[int, sdk.datalogging.AxisDefinition] = {}
+    for yaxis in response['yaxes']:
+        _check_response_dict(cmd, yaxis, 'id', int)
+        _check_response_dict(cmd, yaxis, 'name', str)
+        axis_map[yaxis['id']] = sdk.datalogging.AxisDefinition(axis_id=yaxis['id'], name=yaxis['name'])
+
+    xaxis_data: Optional[List[float]] = None
+    try:
+        xaxis_data = [float(x) for x in response['xdata']['data']]
+    except Exception:
+        raise sdk.exceptions.BadResponseError('X-Axis data is not all numerical')
+
+    assert xaxis_data is not None
+
+    for sig in response['signals']:
+        _check_response_dict(cmd, sig, 'axis_id', int)
+        _check_response_dict(cmd, sig, 'logged_element', str)
+        _check_response_dict(cmd, sig, 'name', str)
+        _check_response_dict(cmd, sig, 'data', list)
+
+        yaxis_data: Optional[List[float]] = None
+        try:
+            yaxis_data = [float(x) for x in sig['data']]
+        except Exception:
+            raise sdk.exceptions.BadResponseError(f'Dataseries {sig["name"]} data is not all numerical')
+        assert yaxis_data is not None
+
+        if sig['axis_id'] not in axis_map:
+            raise sdk.exceptions.BadResponseError(f'Dataseries {sig["name"]} refer to a non-existent Y-Axis')
+        ds = sdk.datalogging.DataSeries(
+            data=yaxis_data,
+            name=sig['name'],
+            logged_element=sig['logged_element']
+        )
+        acquisition.add_data(ds, axis=axis_map[sig['axis_id']])
+
+    xdata = sdk.datalogging.DataSeries(
+        data=response['xdata']['data'],
+        name=response['xdata']['name'],
+        logged_element=response['xdata']['logged_element']
+    )
+
+    acquisition.set_xdata(xdata)
+    try:
+        acquisition.set_trigger_index(response['trigger_index'])
+    except Exception:
+        raise sdk.exceptions.BadResponseError(f'Given Trigger index is not valid. {response["trigger_index"]}')
+
+    return acquisition
+
+
+def parse_request_datalogging_acquisition_response(response: api_typing.S2C.RequestDataloggingAcquisition) -> str:
+    assert isinstance(response, dict)
+    assert 'cmd' in response
+    cmd = response['cmd']
+    assert cmd == API.Command.Api2Client.REQUEST_DATALOGGING_ACQUISITION_RESPONSE
+
+    _check_response_dict(cmd, response, 'request_token', str)
+
+    return response['request_token']
+
+
+def parse_datalogging_acquisition_complete(response: api_typing.S2C.InformDataloggingAcquisitionComplete) -> DataloggingCompletion:
+    assert isinstance(response, dict)
+    assert 'cmd' in response
+    cmd = response['cmd']
+    assert cmd == API.Command.Api2Client.INFORM_DATALOGGING_ACQUISITION_COMPLETE
+
+    _check_response_dict(cmd, response, 'request_token', str)
+    _check_response_dict(cmd, response, 'reference_id', (str, type(None)))
+    _check_response_dict(cmd, response, 'success', bool)
+    _check_response_dict(cmd, response, 'detail_msg', str)
+
+    if response['success']:
+        if response['reference_id'] is None:
+            raise sdk.exceptions.BadResponseError("Missing reference ID for a successful acquisition")
+
+    return DataloggingCompletion(
+        request_token=response['request_token'],
+        reference_id=response['reference_id'],
+        detail_msg=response['detail_msg'],
+        success=response['success'],
+    )
+
+
+def parse_list_datalogging_acquisitions_response(response: api_typing.S2C.ListDataloggingAcquisition) -> List[sdk.datalogging.DataloggingStorageEntry]:
+    assert isinstance(response, dict)
+    assert 'cmd' in response
+    cmd = response['cmd']
+    assert cmd == API.Command.Api2Client.LIST_DATALOGGING_ACQUISITION_RESPONSE
+
+    _check_response_dict(cmd, response, 'acquisitions', list)
+    dataout: List[sdk.datalogging.DataloggingStorageEntry] = []
+    for acq in response['acquisitions']:
+        _check_response_dict(cmd, acq, 'firmware_id', str)
+        _check_response_dict(cmd, acq, 'name', str)
+        _check_response_dict(cmd, acq, 'timestamp', float)
+        _check_response_dict(cmd, acq, 'reference_id', str)
+        _check_response_dict(cmd, acq, 'firmware_metadata', (dict, type(None)))
+
+        entry = sdk.datalogging.DataloggingStorageEntry(
+            firmware_id=acq['firmware_id'],
+            name=acq['name'] if acq['name'] is not None else '',
+            timestamp=datetime.fromtimestamp(acq['timestamp']),
+            reference_id=acq['reference_id'],
+            firmware_metadata=_read_sfd_metadata_from_incomplete_dict(acq['firmware_metadata'])
+        )
+        dataout.append(entry)
+
+    return dataout

@@ -52,6 +52,9 @@
         "scrutiny/core/firmware_id.py": {
             "docstring": "Holds the default firmware ID. Used for detection of untagged firmware"
         },
+        "scrutiny/core/datalogging.py": {
+            "docstring": "Contains the definitions related to the datalogger that are globals to all modules. Mainly what can be stored to the storage"
+        },
         "scrutiny/core/firmware_description.py": {
             "docstring": "Contains the class that represent a Scrutiny Firmware Description file. \nA .sfd is a file that holds all the data related to a firmware and is identified by a unique ID."
         },
@@ -332,10 +335,10 @@
             "docstring": "Contains some utilities that may be used by more than one module"
         },
         "scrutiny/server/datalogging/definitions/device.py": {
-            "docstring": "Contains the definitions related to the datalogging feature on the device side"
+            "docstring": "Contains the definitions related to the datalogging feature on the device side. Shared between the DataloggingManager and the DeviceHandler"
         },
         "scrutiny/server/datalogging/definitions/api.py": {
-            "docstring": "Contains the definitions related to the datalogging feature on the API side"
+            "docstring": "Contains the definitions related to the datalogging feature on the API side. Shared between the API and the DataloggingManager"
         },
         "scrutiny/cli/commands/datalog_info.py": {
             "docstring": "Command that return some information about datalogging such as storage location, size, number of acquisitions"
@@ -384,6 +387,18 @@
         },
         "test/integration/test_interract_with_device.py": {
             "docstring": "Make sure we can do some API calls related to the device that are not read/writes."
+        },
+        "test/core/test_datalogging.py": {
+            "docstring": "Test the datalogging features from the core module (shared across modules)"
+        },
+        "test/sdk/test_datalogging.py": {
+            "docstring": "Test the datalogging features defines in the SDK"
+        },
+        "scrutiny/sdk/datalogging.py": {
+            "docstring": "Defines all the types used for datalogging in the SDK"
+        },
+        "scrutiny/core/validation.py": {
+            "docstring": "Helper function for argument validation"
         }
     }
 }

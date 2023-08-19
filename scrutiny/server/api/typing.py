@@ -33,6 +33,8 @@ Datatype = Literal[
 DeviceCommStatus = Literal['unknown', 'disconnected', 'connecting', 'connected', 'connected_ready']
 DataloggerState = Literal["unavailable", "standby", "waiting_for_trigger", "acquiring", "data_ready", "error"]
 DataloggingCondition = Literal['true', 'eq', 'neq', 'get', 'gt', 'let', 'lt', 'within', 'cmt']
+DataloggingEncoding = Literal['raw']
+LoopType = Literal['fixed_freq', 'variable_freq']
 
 
 class DataloggingStatus(TypedDict):
@@ -130,10 +132,15 @@ class SupportedCondition(TypedDict):
     nb_operands: int
 
 
-class DataloggingAcquisitionRequestSignalDef(TypedDict):
-    id: str
-    name: str
+class DataloggingAcquisitionRequestSignalDef(TypedDict, total=False):
+    path: str
+    name: Optional[str]
     axis_id: int
+
+
+class XAxisSignal(TypedDict):
+    path: str
+    name: Optional[str]
 
 
 class DataloggingAxisDef(TypedDict):
@@ -219,10 +226,10 @@ class C2S:
         probe_location: float
         condition: DataloggingCondition
         operands: List[DataloggingOperand]
-        yaxis: List[DataloggingAxisDef]
+        yaxes: List[DataloggingAxisDef]
         signals: List[DataloggingAcquisitionRequestSignalDef]
-        x_axis_type: Literal['measured_time', 'ideal_time', 'signal']
-        x_axis_signal: Optional[str]
+        x_axis_type: Literal['measured_time', 'ideal_time', 'signal', 'index']
+        x_axis_signal: Optional[XAxisSignal]
 
     class ReadDataloggingAcquisitionContent(BaseC2SMessage):
         reference_id: str
@@ -327,8 +334,11 @@ class S2C:
 
     class ReadDataloggingAcquisitionContent(BaseS2CMessage):
         reference_id: str
+        firmware_id: str
+        name: str
+        timestamp: float
         trigger_index: Optional[int]
-        yaxis: List[DataloggingAxisDef]
+        yaxes: List[DataloggingAxisDef]
         signals: List[DataloggingSignalDataWithAxis]
         xdata: DataloggingSignalData
 

@@ -16,8 +16,8 @@ from pathlib import Path
 from datetime import datetime
 import sqlite3
 
-from scrutiny.server.datalogging.definitions.api import DataloggingAcquisition, DataSeries, AxisDefinition
-from typing import *
+from scrutiny.core.datalogging import DataloggingAcquisition, DataSeries, AxisDefinition
+from typing import List, Dict, Optional, Tuple
 
 
 class BadVersionError(Exception):
@@ -70,7 +70,7 @@ class DataloggingStorageManager:
     temporary_dir: Optional[tempfile.TemporaryDirectory]    # A temporary work folder mainly used for unit tests
     logger: logging.Logger  # The logger
     unavailable: bool       # Flags indicating that the storage can or cannot be used
-    init_count:int
+    init_count: int
 
     def __init__(self, folder):
         self.folder = folder
@@ -206,7 +206,7 @@ class DataloggingStorageManager:
                                  (self.STORAGE_VERSION, backup_file))
             except Exception as e:
                 self.logger.error("Failed to backup old storage. %s" % str(e))
-    
+
     def get_init_count(self):
         return self.init_count
 
@@ -233,7 +233,7 @@ class DataloggingStorageManager:
             CREATE TABLE IF NOT EXISTS `axis` (
             `id` INTEGER PRIMARY KEY AUTOINCREMENT,
             `acquisition_id` INTEGER NOT NULL,
-            `external_id` INTEGER NOT NULL,
+            `axis_id` INTEGER NOT NULL,
             `is_xaxis` INTEGER NOT NULL,
             `name` VARCHAR(255)
         ) 
@@ -245,6 +245,7 @@ class DataloggingStorageManager:
             `name` VARCHAR(255),
             `logged_element` TEXT,
             `axis_id` INTEGER NULL,
+            `position` INTEGER NOT NULL,
             `data` BLOB  NOT NULL
         ) 
         """)
@@ -255,8 +256,8 @@ class DataloggingStorageManager:
         """)
 
         cursor.execute(""" 
-            CREATE INDEX IF NOT EXISTS `idx_axis_ref_external_id` 
-            ON `axis` (`acquisition_id`, `external_id`)
+            CREATE INDEX IF NOT EXISTS `idx_axis_ref_axis_id` 
+            ON `axis` (`acquisition_id`, `axis_id`)
         """)
 
         cursor.execute(""" 
@@ -314,15 +315,15 @@ class DataloggingStorageManager:
 
             axis_sql = """
                 INSERT INTO `axis`
-                    (`acquisition_id`, `external_id`, `name`, 'is_xaxis' )
+                    (`acquisition_id`, `axis_id`, `name`, 'is_xaxis' )
                 VALUES (?,?,?,?)
                 """
             axis_to_id_map: Dict[AxisDefinition, int] = {}
             all_axis = acquisition.get_unique_yaxis_list()
             for axis in all_axis:
-                if axis.external_id == -1:
+                if axis.axis_id == -1:
                     raise ValueError("Axis External ID cannot be -1, reserved value.")
-                cursor.execute(axis_sql, (acquisition_db_id, axis.external_id, axis.name, 0))
+                cursor.execute(axis_sql, (acquisition_db_id, axis.axis_id, axis.name, 0))
                 if cursor.lastrowid is None:
                     raise RuntimeError('Failed to insert axis %s in DB', str(axis.name))
                 axis_to_id_map[axis] = cursor.lastrowid
@@ -334,23 +335,26 @@ class DataloggingStorageManager:
 
             data_series_sql = """
                 INSERT INTO `dataseries`
-                    (`name`, `logged_element`, `axis_id`, `data`)
-                VALUES (?,?,?,?)
+                    (`name`, `logged_element`, `axis_id`, `data`, `position`)
+                VALUES (?,?,?,?, ?)
             """
-
+            position = 0
             for data in acquisition.get_data():
                 cursor.execute(data_series_sql, (
                     data.series.name,
                     data.series.logged_element,
                     axis_to_id_map[data.axis],
-                    data.series.get_data_binary())
+                    data.series.get_data_binary(),
+                    position)
                 )
+                position += 1
 
             cursor.execute(data_series_sql, (
                 acquisition.xdata.name,
                 acquisition.xdata.logged_element,
                 x_axis_db_id,
-                acquisition.xdata.get_data_binary())
+                acquisition.xdata.get_data_binary(),
+                position)
             )
 
             conn.commit()
@@ -398,7 +402,7 @@ class DataloggingStorageManager:
                     `acq`.`name` AS `name`,
                     `acq`.`trigger_index` as `trigger_index`,
                     `axis`.`name` AS `axis_name`,
-                    `axis`.`external_id` AS `axis_external_id`,
+                    `axis`.`axis_id` AS `axis_axis_id`,
                     `axis`.`is_xaxis` AS `is_xaxis`,
                     `ds`.`axis_id` AS `axis_id`,
                     `ds`.`name` AS `dataseries_name`,
@@ -407,7 +411,8 @@ class DataloggingStorageManager:
                 FROM `acquisitions` AS `acq`
                 LEFT JOIN `axis` AS `axis` ON `axis`.`acquisition_id`=`acq`.`id`
                 INNER JOIN `dataseries` AS `ds` ON `ds`.`axis_id`=`axis`.`id`
-                where `acq`.`reference_id`=?
+                WHERE `acq`.`reference_id`=?
+                ORDER BY `ds`.`position`
             """
             # SQLite doesn't let us index by name
             cols = [
@@ -417,7 +422,7 @@ class DataloggingStorageManager:
                 'acquisition_name',
                 'trigger_index',
                 'axis_name',
-                'axis_external_id',
+                'axis_axis_id',
                 'is_xaxis',
                 'axis_id',
                 'dataseries_name',
@@ -462,7 +467,7 @@ class DataloggingStorageManager:
                     if row[colmap['axis_id']] in yaxis_id_to_def_map:
                         axis = yaxis_id_to_def_map[row[colmap['axis_id']]]
                     else:
-                        axis = AxisDefinition(name=row[colmap['axis_name']], external_id=row[colmap['axis_external_id']])
+                        axis = AxisDefinition(name=row[colmap['axis_name']], axis_id=row[colmap['axis_axis_id']])
                         yaxis_id_to_def_map[row[colmap['axis_id']]] = axis
                     acq.add_data(dataseries, axis)
                 else:
@@ -523,7 +528,7 @@ class DataloggingStorageManager:
             UPDATE `axis` SET `name`=? WHERE `id` IN (
                 SELECT `axis`.`id` FROM `axis` 
                 INNER JOIN `acquisitions` AS `acq` ON `acq`.`id`=`axis`.`acquisition_id`
-                WHERE `acq`.`reference_id`=? AND `axis`.`external_id`=?
+                WHERE `acq`.`reference_id`=? AND `axis`.`axis_id`=?
             )
             """, (new_name, reference_id, axis_id))
 

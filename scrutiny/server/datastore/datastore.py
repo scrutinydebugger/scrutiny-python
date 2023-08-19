@@ -15,7 +15,7 @@ from scrutiny.server.datastore.entry_type import EntryType
 
 from scrutiny.core.typehints import GenericCallback
 
-from typing import *
+from typing import Callable, List, Dict, Generator, Set
 
 
 class WatchCallback(GenericCallback):

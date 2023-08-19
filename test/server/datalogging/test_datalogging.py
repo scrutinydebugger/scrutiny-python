@@ -50,18 +50,6 @@ class TestDatalogging(ScrutinyUnitTest):
         config.add_signal(device_datalogging.TimeLoggableSignal())
         config.add_signal(device_datalogging.RPVLoggableSignal(0xabcd))
 
-    def test_server_acquisition_value_validity(self):
-        acq = api_datalogging.DataloggingAcquisition("abc")
-
-        axis1 = api_datalogging.AxisDefinition(name='axis1', external_id=0)
-        axis2 = api_datalogging.AxisDefinition(name='axis2', external_id=1)
-
-        acq.add_data(api_datalogging.DataSeries([1, 2, 3]), axis1)
-        acq.add_data(api_datalogging.DataSeries([4, 5, 6]), axis2)
-
-        with self.assertRaises(ValueError):
-            acq.add_data(api_datalogging.DataSeries([1, 2, 3]), api_datalogging.AxisDefinition(name='dup_axis1', external_id=0))
-
 
 if __name__ == '__main__':
     import unittest

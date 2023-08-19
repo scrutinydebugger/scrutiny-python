@@ -24,6 +24,7 @@ from scrutiny.server.device.device_info import FixedFreqLoop, ExecLoopType
 from scrutiny.core.basic_types import *
 from scrutiny.server.datalogging.datalogging_storage import DataloggingStorage
 from scrutiny.core.codecs import Codecs
+from scrutiny.core.datalogging import DataloggingAcquisition, DataSeries, AxisDefinition
 
 from typing import Optional, List, Dict, Tuple, cast
 
@@ -106,7 +107,7 @@ class DataloggingManager:
             self.logger.error("Received acquisition data but was not expecting it. No active acquisition request")
             return
 
-        acquisition: Optional[api_datalogging.DataloggingAcquisition] = None
+        acquisition: Optional[DataloggingAcquisition] = None
         try:
             if success:  # The device succeeded to complete the acquisition and fetch the data
                 self.logger.info("New datalogging acquisition ready")
@@ -132,7 +133,7 @@ class DataloggingManager:
                     raise ValueError('Cannot determine the number of points in the acquisitions')
 
                 # Crate the acquisition
-                acquisition = api_datalogging.DataloggingAcquisition(
+                acquisition = DataloggingAcquisition(
                     name=self.active_request.api_request.name,
                     reference_id=uuid4().hex,
                     firmware_id=device_info.device_id,
@@ -142,7 +143,7 @@ class DataloggingManager:
                 # Now converts binary data into meaningful value using the datastore entries and add to acquisition object
                 for signal in self.active_request.api_request.signals:
                     parsed_data = self.read_active_request_data_from_raw_data(signal, data)  # Parse binary data
-                    ds = api_datalogging.DataSeries(
+                    ds = DataSeries(
                         data=parsed_data,
                         logged_element=signal.entry.display_path
                     )
@@ -151,8 +152,12 @@ class DataloggingManager:
                     acquisition.add_data(ds, signal.axis)
 
                 # Add the X-Axis. Either use a measured signal or use a generated one of the user wants IdealTime
-                xaxis = api_datalogging.DataSeries()
-                if self.active_request.api_request.x_axis_type == api_datalogging.XAxisType.IdealTime:
+                xaxis = DataSeries()
+                if self.active_request.api_request.x_axis_type == api_datalogging.XAxisType.Indexed:
+                    xaxis.set_data([i for i in range(nb_points)])
+                    xaxis.name = 'Index'
+                    xaxis.logged_element = 'Index'
+                elif self.active_request.api_request.x_axis_type == api_datalogging.XAxisType.IdealTime:
                     # Ideal time : Generate a time X-Axis based on the sampling rate. Assume the device is running the loop at a reliable fixed rate
                     sampling_rate = self.get_sampling_rate(self.active_request.api_request.rate_identifier)
                     if sampling_rate.frequency is None:
@@ -177,7 +182,8 @@ class DataloggingManager:
                     xaxis_signal = self.active_request.api_request.x_axis_signal
                     assert xaxis_signal is not None
                     if xaxis_signal.name is None:
-                        xaxis_signal.name = "X-Axis"
+                        xaxis_signal = api_datalogging.SignalDefinition(name='X-Axis', entry=xaxis_signal.entry)
+                    assert xaxis_signal.name is not None
                     parsed_data = self.read_active_request_data_from_raw_data(xaxis_signal, data)
                     xaxis.set_data(parsed_data)
                     xaxis.name = xaxis_signal.name
@@ -345,7 +351,7 @@ class DataloggingManager:
         device_operands: List[device_datalogging.Operand] = []
         for api_operand in api_cond.operands:
             if api_operand.type == api_datalogging.TriggerConditionOperandType.LITERAL:
-                if not (isinstance(api_operand.value, int) or isinstance(api_operand.value, float)):
+                if not isinstance(api_operand.value, (int, float)):
                     raise ValueError("Literal operands must be int or float")
                 device_operands.append(device_datalogging.LiteralOperand(api_operand.value))
             elif api_operand.type == api_datalogging.TriggerConditionOperandType.WATCHABLE:
@@ -356,10 +362,7 @@ class DataloggingManager:
             else:
                 raise ValueError("Unsupported operand type %s" % str(api_operand.type))
 
-        device_cond = device_datalogging.TriggerCondition(
-            api_cond.condition_id,
-            *device_operands
-        )
+        device_cond = device_datalogging.TriggerCondition(api_cond.condition_id, *device_operands)
 
         return device_cond
 
@@ -489,14 +492,16 @@ class DataloggingManager:
                 if device_info.loops is not None:
                     for i in range(len(device_info.loops)):
                         loop = device_info.loops[i]
+                        frequency: Optional[float] = None
+                        if isinstance(loop, FixedFreqLoop):
+                            frequency = loop.get_frequency()
                         if loop.support_datalogging:
                             rate = api_datalogging.SamplingRate(
                                 name=loop.get_name(),
                                 rate_type=loop.get_loop_type(),
                                 device_identifier=i,
-                                frequency=None
+                                frequency=frequency
                             )
-                            if isinstance(loop, FixedFreqLoop):
-                                rate.frequency = loop.get_frequency()
+
                             output.append(rate)
         return output

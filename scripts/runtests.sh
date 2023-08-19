@@ -1,5 +1,5 @@
 #!/bin/bash
-set -uxo pipefail
+set -euo pipefail
 
 SCRUTINY_COVERAGE_SUFFIX="${SCRUTINY_COVERAGE_SUFFIX:-dev}"
 HTML_COVDIR="htmlcov_${SCRUTINY_COVERAGE_SUFFIX}"
@@ -13,7 +13,7 @@ if ! [[ -z "${BUILD_CONTEXT+x}" ]]; then
     fi
 fi
 
-set -e 
+set -x 
 
 python3 -m coverage run --data-file ${COV_DATAFILE} -m scrutiny runtest
 python3 -m mypy scrutiny

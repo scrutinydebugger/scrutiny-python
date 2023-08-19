@@ -15,7 +15,7 @@ from scrutiny.sdk.definitions import *
 from scrutiny.core.basic_types import *
 import scrutiny.sdk.exceptions as sdk_exceptions
 from scrutiny.sdk.write_request import WriteRequest
-from typing import *
+from typing import Optional, Union, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from scrutiny.sdk.client import ScrutinyClient
@@ -112,7 +112,7 @@ class WatchableHandle:
     def unwatch(self) -> None:
         self._client.unwatch(self._display_path)
 
-    def wait_update(self, timeout=3, previous_counter: Optional[int] = None) -> None:
+    def wait_update(self, timeout: float = 3, previous_counter: Optional[int] = None) -> None:
         """Wait for the value to be updated by the server"""
         t = time.time()
         entry_counter = self._update_counter if previous_counter is None else previous_counter
@@ -187,5 +187,5 @@ class WatchableHandle:
 
     @property
     def update_counter(self) -> int:
-        """Number of value update gotten since creation of the handle. Can be safely used for change detection"""
+        """Number of value update gotten since the creation of the handle. Can be safely used for change detection"""
         return self._update_counter

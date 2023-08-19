@@ -105,7 +105,6 @@ class TestReadWrite(ScrutinyIntegrationTestWithTestSFD1):
         self.assert_no_error(self.wait_and_load_response(cmd=API.Command.Api2Client.WRITE_WATCHABLE_RESPONSE))
         self.assert_no_error(self.wait_and_load_response(cmd=API.Command.Api2Client.INFORM_WRITE_COMPLETION))
 
-
         new_val = struct.unpack('<f', self.read_device_var_entry(self.entry_float32))[0]
         self.assertEqual(new_val, d2f(100 - 1) / 2)
         self.empty_api_rx_queue()
@@ -123,7 +122,6 @@ class TestReadWrite(ScrutinyIntegrationTestWithTestSFD1):
         self.assert_no_error(self.wait_and_load_response(cmd=API.Command.Api2Client.WRITE_WATCHABLE_RESPONSE))
         self.assert_no_error(self.wait_and_load_response(cmd=API.Command.Api2Client.INFORM_WRITE_COMPLETION))
 
-
         self.assertEqual(self.read_device_rpv_entry(self.entry_rpv1000), math.sqrt(3))
         self.empty_api_rx_queue()
         self.process_watchable_update(nbr=len(all_entries) * 2)
@@ -140,7 +138,6 @@ class TestReadWrite(ScrutinyIntegrationTestWithTestSFD1):
         self.send_request(write_req)
         self.assert_no_error(self.wait_and_load_response(cmd=API.Command.Api2Client.WRITE_WATCHABLE_RESPONSE))
         self.assert_no_error(self.wait_and_load_response(cmd=API.Command.Api2Client.INFORM_WRITE_COMPLETION))
-
 
         self.assertEqual(self.read_device_rpv_entry(self.entry_rpv1000), (-100 - 1) / 2)
         self.empty_api_rx_queue()
@@ -194,7 +191,6 @@ class TestReadWrite(ScrutinyIntegrationTestWithTestSFD1):
         self.assert_value_received(self.entry_u64_bit15_35, val)
         self.assert_value_received(self.entry_alias_uint64_15_35, val * 2 + 1)
         self.assert_value_received(self.entry_u64, expected_u64_value)
-
 
     def test_write_oob_values(self):
         @dataclass

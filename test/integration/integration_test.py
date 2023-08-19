@@ -141,7 +141,7 @@ class ScrutinyIntegrationTest(ScrutinyUnitTest):
         while time.time() - t1 < timeout:
             self.server.process()
             time.sleep(0.01)
-    
+
     def wait_true(self, func, timeout):
         t1 = time.time()
         self.server.process()

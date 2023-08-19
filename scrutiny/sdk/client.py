@@ -9,7 +9,10 @@
 __all__ = ['Client']
 
 
-import scrutiny.sdk as sdk
+import scrutiny.sdk
+import scrutiny.sdk.datalogging
+from scrutiny.core import validation
+sdk = scrutiny.sdk
 from scrutiny.sdk import _api_parser as api_parser
 from scrutiny.sdk.definitions import *
 from scrutiny.sdk.watchable_handle import WatchableHandle
@@ -34,7 +37,7 @@ from dataclasses import dataclass
 from base64 import b64encode
 import queue
 
-from typing import *
+from typing import List, Dict, Optional, Callable, cast, Union, TypeVar
 
 
 class CallbackState(enum.Enum):
@@ -138,7 +141,11 @@ class BatchWriteContext:
     def __exit__(self, exc_type, exc_val, exc_tb):
         if exc_type is None:
             self.client._flush_batch_write(self)
-            self.client._wait_write_batch_complete(self)
+            try:
+                self.client._wait_write_batch_complete(self)
+            finally:
+                self.client._end_batch()
+        self.client._end_batch()
 
 
 class FlushPoint:
@@ -158,8 +165,8 @@ class ScrutinyClient:
         disconnect: threading.Event
         disconnected: threading.Event
         msg_received: threading.Event
-        sync_complete:threading.Event
-        require_sync:threading.Event
+        sync_complete: threading.Event
+        require_sync: threading.Event
 
         def __init__(self):
             self.stop_worker_thread = threading.Event()
@@ -187,6 +194,7 @@ class ScrutinyClient:
     _pending_api_batch_writes: Dict[str, PendingAPIBatchWrite]
     _memory_read_completion_dict: Dict[str, api_parser.MemoryReadCompletion]
     _memory_write_completion_dict: Dict[str, api_parser.MemoryWriteCompletion]
+    _pending_datalogging_requests: Dict[str, sdk.datalogging.DataloggingRequest]
 
     _worker_thread: Optional[threading.Thread]
     _threading_events: ThreadingEvents
@@ -240,6 +248,7 @@ class ScrutinyClient:
         self._pending_api_batch_writes = {}
         self._memory_read_completion_dict = {}
         self._memory_write_completion_dict = {}
+        self._pending_datalogging_requests = {}
 
         self._watchable_storage = {}
         self._watchable_path_to_id_map = {}
@@ -369,6 +378,16 @@ class ScrutinyClient:
             else:
                 self._logger.error(f"Received duplicate memory write completion with request token {completion.request_token}")
 
+    def _wt_process_msg_datalogging_acquisition_complete(self, msg: api_typing.S2C.InformDataloggingAcquisitionComplete, reqid: Optional[int]) -> None:
+        completion = api_parser.parse_datalogging_acquisition_complete(msg)
+        if completion.request_token not in self._pending_datalogging_requests:
+            self._logger.warning('Received a notice of completion for a datalogging acquisition, but its request_token was unknown')
+            return
+
+        request = self._pending_datalogging_requests[completion.request_token]
+        request._mark_complete(completion.success, completion.reference_id, completion.detail_msg)
+        del self._pending_datalogging_requests[completion.request_token]
+
     def _wt_process_next_server_status_update(self) -> None:
         if self._request_status_timer.is_timed_out() or self._require_status_update:
             self._require_status_update = False
@@ -439,6 +458,8 @@ class ScrutinyClient:
                     self._wt_process_msg_inform_memory_read_complete(cast(api_typing.S2C.ReadMemoryComplete, msg), reqid)
                 elif cmd == API.Command.Api2Client.INFORM_MEMORY_WRITE_COMPLETE:
                     self._wt_process_msg_inform_memory_write_complete(cast(api_typing.S2C.WriteMemoryComplete, msg), reqid)
+                elif cmd == API.Command.Api2Client.INFORM_DATALOGGING_ACQUISITION_COMPLETE:
+                    self._wt_process_msg_datalogging_acquisition_complete(cast(api_typing.S2C.InformDataloggingAcquisitionComplete, msg), reqid)
             except sdk.exceptions.BadResponseError as e:
                 self._logger.error(f"Bad message from server. {e}")
                 self._logger.debug(traceback.format_exc())
@@ -746,9 +767,10 @@ class ScrutinyClient:
 
         if data is None:
             data = {}
-        cmd.update(data)    # type: ignore
+        data = data.copy()
+        data.update(cmd)  # type:ignore
 
-        return cmd
+        return data
 
     def _enqueue_write_request(self, request: Union[WriteRequest, BatchWriteContext, FlushPoint]):
         self._write_request_queue.put(request)
@@ -770,13 +792,16 @@ class ScrutinyClient:
         self._enqueue_write_request(FlushPoint())   # Flush Point required because Python thread-safe queue has no peek() method.
         self._enqueue_write_request(batch_write_context)
 
+    def _end_batch(self):
+        self._active_batch_context = None
+
     def _wait_write_batch_complete(self, batch: BatchWriteContext) -> None:
-        tstart = time.time()
+        start_time = time.time()
 
         incomplete_count: Optional[int] = None
         try:
             for write_request in batch.requests:
-                remaining_time = max(0, batch.timeout - (time.time() - tstart))
+                remaining_time = max(0, batch.timeout - (time.time() - start_time))
                 write_request.wait_for_completion(timeout=remaining_time)
             timed_out = False
         except sdk.exceptions.TimeoutException:
@@ -924,7 +949,7 @@ class ScrutinyClient:
         :raises ValueError: If path is not valid
         :raises NameNotFoundError: If the required path is not presently being watched
         :raises TimeoutException: If no response from the server is received
-        :raises OperationFailureException: If the subscription cancellation failed in any way
+        :raises OperationFailure: If the subscription cancellation failed in any way
         """
         if not isinstance(path, str):
             raise ValueError("Path must be a string")
@@ -991,9 +1016,9 @@ class ScrutinyClient:
         for server_id in watchable_storage_copy:
             counter_map[server_id] = watchable_storage_copy[server_id]._update_counter
 
-        tstart = time.time()
+        start_time = time.time()
         for server_id in watchable_storage_copy:
-            timeout_remainder = max(round(timeout - (time.time() - tstart), 2), 0)
+            timeout_remainder = max(round(timeout - (time.time() - start_time), 2), 0)
             # Wait update will throw if the server has gone away as the _disconnect method will set all watchables "invalid"
             watchable_storage_copy[server_id].wait_update(previous_counter=counter_map[server_id], timeout=timeout_remainder)
 
@@ -1006,6 +1031,7 @@ class ScrutinyClient:
             raise sdk.exceptions.TimeoutException(f"Server status did not update within a {timeout} seconds delay")
 
     def batch_write(self, timeout: Optional[float] = None) -> BatchWriteContext:
+        """Starts a batch write. Every watchable write will"""
         if self._active_batch_context is not None:
             raise sdk.exceptions.OperationFailure("Batch write cannot be nested")
 
@@ -1017,6 +1043,7 @@ class ScrutinyClient:
         return batch_context
 
     def get_installed_sfds(self) -> Dict[str, sdk.SFDInfo]:
+        """Gets the list of Scrutiny Firmware Description file installed on the server"""
         req = self._make_request(API.Command.Client2Api.GET_INSTALLED_SFD)
 
         @dataclass
@@ -1038,15 +1065,16 @@ class ScrutinyClient:
 
         return cb_data.obj
 
-    def wait_process(self, timeout:Optional[float]=None):
-        """Wait for the SDK thread to execute fully at least once. Usefull for testing"""
+    def wait_process(self, timeout: Optional[float] = None):
+        """Wait for the SDK thread to execute fully at least once. Useful for testing"""
         if timeout is None:
-            timeout = self._timeout 
+            timeout = self._timeout
         self._threading_events.sync_complete.clear()
         self._threading_events.require_sync.set()
         self._threading_events.sync_complete.wait(timeout=timeout)
 
     def read_memory(self, address: int, size: int, timeout: Optional[float] = None) -> bytes:
+        """Read the device memory synchronously."""
         time_start = time.time()
         if timeout is None:
             timeout = self._timeout
@@ -1098,6 +1126,7 @@ class ScrutinyClient:
         return completion.data
 
     def write_memory(self, address: int, data: bytes, timeout: Optional[float] = None) -> None:
+        """Write the device memory synchronously. This method will exit once the write is completed otherwise will throw an exception in case of failure"""
         time_start = time.time()
         if timeout is None:
             timeout = self._timeout
@@ -1146,9 +1175,174 @@ class ScrutinyClient:
         if not completion.success:
             raise sdk.exceptions.OperationFailure(f"Failed to write the device memory. {completion.error}")
 
+    def get_datalogging_capabilities(self) -> sdk.datalogging.DataloggingCapabilities:
+        """Gets the device capabilities in terms of datalogging. This information include the available sampling rates, the datalogging buffer size, 
+        the data encoding format and the maximum number of signals 
+
+        :raises sdk.exceptions.OperationFailure: If the request to the server fails
+
+        :return: The datalogging capabilities
+        """
+        req = self._make_request(API.Command.Client2Api.GET_DATALOGGING_CAPABILITIES)
+
+        @dataclass
+        class Container:
+            obj: Optional[sdk.datalogging.DataloggingCapabilities]
+        cb_data: Container = Container(obj=None)  # Force pass by ref
+
+        def callback(state: CallbackState, response: Optional[api_typing.S2CMessage]) -> None:
+            if response is not None and state == CallbackState.OK:
+                cb_data.obj = api_parser.parse_get_datalogging_capabilities_response(cast(api_typing.S2C.GetDataloggingCapabilities, response))
+        future = self._send(req, callback)
+        assert future is not None
+        future.wait()
+
+        if future.state != CallbackState.OK:
+            raise sdk.exceptions.OperationFailure(f"Failed to read the datalogging capabilities. {future.error_str}")
+
+        if cb_data.obj is None:
+            raise sdk.exceptions.OperationFailure(f"Datalogging capabilities are not available at this moment.")
+
+        return cb_data.obj
+
+    def read_datalogging_acquisition(self, reference_id: str, timeout: Optional[float] = None) -> sdk.datalogging.DataloggingAcquisition:
+        """Reads a datalogging acquisition from the server storage identified by its reference ID
+
+        :param reference_id: The acquisition unique ID
+        :param timeout: The request timeout value. The default client timeout will be used if set to `None`. Defaults to `None`.
+
+        :raises sdk.exceptions.OperationFailure: If fetching the acquisition fails
+
+        :return: An object containing the acquisition, including the data, the axes, the trigger index, the graph name, etc
+        """
+        validation.assert_type(reference_id, 'reference_id', str)
+        validation.assert_type(timeout, 'timeout', (float, int, type(None)))
+
+        if timeout is None:
+            timeout = self._timeout
+
+        req = self._make_request(API.Command.Client2Api.READ_DATALOGGING_ACQUISITION_CONTENT, {
+            'reference_id': reference_id
+        })
+
+        @dataclass
+        class Container:
+            obj: Optional[sdk.datalogging.DataloggingAcquisition]
+        cb_data: Container = Container(obj=None)  # Force pass by ref
+
+        def callback(state: CallbackState, response: Optional[api_typing.S2CMessage]) -> None:
+            if response is not None and state == CallbackState.OK:
+                cb_data.obj = api_parser.parse_read_datalogging_acquisition_content_response(
+                    cast(api_typing.S2C.ReadDataloggingAcquisitionContent, response)
+                )
+        future = self._send(req, callback)
+        assert future is not None
+        future.wait(timeout)
+
+        if future.state != CallbackState.OK:
+            raise sdk.exceptions.OperationFailure(
+                f"Failed to read the datalogging acquisition with reference ID '{reference_id}'. {future.error_str}")
+
+        assert cb_data.obj is not None
+        return cb_data.obj
+
+    def start_datalog(self, config: sdk.datalogging.DataloggingConfig) -> sdk.datalogging.DataloggingRequest:
+        """Requires the device to make a datalogging acquisition based on the given configuration
+
+        :param config: The datalogging configuration including sampling rate, signals to log, trigger condition and operands, etc.
+
+        :raises sdk.exceptions.OperationFailure: If the request to the server fails
+        :raises ValueError: Bad parameter value
+        :raises TypeError: Given parameter not of the expected type
+
+        :return: A `DataloggingRequest` handle that can provide the status of the acquisition process and used to fetch the data.
+         """
+        validation.assert_type(config, 'config', sdk.datalogging.DataloggingConfig)
+
+        req_data: api_typing.C2S.RequestDataloggingAcquisition = {
+            'cmd': "",  # Will be overridden
+            "reqid": 0,  # Will be overridden
+
+            'condition': config._trigger_condition.value,
+            'sampling_rate_id': config._sampling_rate,
+            'decimation': config._decimation,
+            'name': config._name,
+            'timeout': config._timeout,
+            'trigger_hold_time': config._trigger_hold_time,
+            'probe_location': config._trigger_position,
+            'x_axis_type': config._x_axis_type.value,
+            'x_axis_signal': config._get_api_x_axis_signal(),
+            'yaxes': config._get_api_yaxes(),
+            'operands': config._get_api_trigger_operands(),
+            'signals': config._get_api_signals(),
+        }
+
+        req = self._make_request(API.Command.Client2Api.REQUEST_DATALOGGING_ACQUISITION, cast(dict, req_data))
+
+        @dataclass
+        class Container:
+            request: Optional[sdk.datalogging.DataloggingRequest]
+        cb_data: Container = Container(request=None)  # Force pass by ref
+
+        def callback(state: CallbackState, response: Optional[api_typing.S2CMessage]) -> None:
+            if response is not None and state == CallbackState.OK:
+                request_token = api_parser.parse_request_datalogging_acquisition_response(
+                    cast(api_typing.S2C.RequestDataloggingAcquisition, response)
+                )
+                cb_data.request = sdk.datalogging.DataloggingRequest(client=self, request_token=request_token)
+                self._pending_datalogging_requests[request_token] = cb_data.request
+
+        future = self._send(req, callback)
+        assert future is not None
+        future.wait()
+
+        self._send(req)
+
+        if future.state != CallbackState.OK:
+            raise sdk.exceptions.OperationFailure(
+                f"Failed to request the datalogging acquisition'. {future.error_str}")
+        assert cb_data.request is not None
+        return cb_data.request
+
+    def list_stored_datalogging_acquisitions(self, timeout=None) -> List[sdk.datalogging.DataloggingStorageEntry]:
+        """Gets the list of datalogging acquisition stored in the server database
+
+        :param timeout: The request timeout value. The default client timeout will be used if set to `None`. Defaults to `None`.
+
+        :raises sdk.exceptions.OperationFailure: If fetching the list fails
+
+        :return: A list of database entries, each one representing an acquisition in the database with `reference_id` as its unique identifier
+        """
+        validation.assert_type(timeout, 'timeout', (float, int, type(None)))
+
+        if timeout is None:
+            timeout = self._timeout
+
+        req = self._make_request(API.Command.Client2Api.LIST_DATALOGGING_ACQUISITION)
+
+        @dataclass
+        class Container:
+            obj: Optional[List[sdk.datalogging.DataloggingStorageEntry]]
+        cb_data: Container = Container(obj=None)  # Force pass by ref
+
+        def callback(state: CallbackState, response: Optional[api_typing.S2CMessage]) -> None:
+            if response is not None and state == CallbackState.OK:
+                cb_data.obj = api_parser.parse_list_datalogging_acquisitions_response(
+                    cast(api_typing.S2C.ListDataloggingAcquisition, response)
+                )
+        future = self._send(req, callback)
+        assert future is not None
+        future.wait(timeout)
+
+        if future.state != CallbackState.OK:
+            raise sdk.exceptions.OperationFailure(
+                f"Failed to read the datalogging acquisition list from the server database. {future.error_str}")
+
+        assert cb_data.obj is not None
+        return cb_data.obj
+
     @property
     def name(self) -> str:
-
         return '' if self._name is None else self.name
 
     @property

@@ -9,15 +9,20 @@
 import unittest
 
 from scrutiny.core.basic_types import *
-from scrutiny.sdk.client import ScrutinyClient
-import scrutiny.sdk as sdk
 from scrutiny.sdk.watchable_handle import WatchableHandle
+import scrutiny.sdk
+import scrutiny.sdk.datalogging
+sdk = scrutiny.sdk
+from scrutiny.sdk.client import ScrutinyClient
 import scrutiny.server.datalogging.definitions.device as device_datalogging
+import scrutiny.server.datalogging.definitions.api as api_datalogging
 from scrutiny.core.variable import Variable as core_Variable
 from scrutiny.core.alias import Alias as core_Alias
 from scrutiny.core.codecs import Codecs
 from scrutiny.core.sfd_storage import SFDStorage
 from scrutiny.core.memory_content import MemoryContent
+from scrutiny.server.datalogging.datalogging_storage import DataloggingStorage
+
 
 from scrutiny.server.api import API
 from scrutiny.server.api import APIConfig
@@ -42,7 +47,7 @@ from dataclasses import dataclass
 import logging
 import traceback
 import struct
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from typing import *
 
@@ -90,6 +95,7 @@ class FakeDeviceHandler:
 
     write_allowed: bool
     read_allowed: bool
+    emulate_datalogging_not_ready: bool
 
     def __init__(self, datastore: "datastore.Datastore"):
         self.datastore = datastore
@@ -148,12 +154,16 @@ class FakeDeviceHandler:
         self.write_memory_queue = queue.Queue()
 
         self.fake_mem = MemoryContent()
+        self.emulate_datalogging_not_ready = False
 
     def force_all_write_failure(self):
         self.write_allowed = False
 
     def force_all_read_failure(self):
         self.read_allowed = False
+
+    def force_datalogging_not_ready(self):
+        self.emulate_datalogging_not_ready = True
 
     def get_link_type(self):
         return self.link_type
@@ -270,10 +280,90 @@ class FakeDeviceHandler:
         self.write_memory_queue.put(req, block=False)
         return req
 
+    def get_datalogging_setup(self) -> device_datalogging.DataloggingSetup:
+        if self.emulate_datalogging_not_ready:
+            return None
+
+        return device_datalogging.DataloggingSetup(
+            buffer_size=4096,
+            encoding=device_datalogging.Encoding.RAW,
+            max_signal_count=32
+        )
+
 
 class FakeDataloggingManager:
-    def __init__(self, *args, **kwargs):
-        pass
+    datastore: "datastore.Datastore"
+    device_handler: FakeDeviceHandler
+    acquisition_request_queue: "queue.Queue[Tuple[api_datalogging.AcquisitionRequest, api_datalogging.APIAcquisitionRequestCompletionCallback]]"
+
+    SAMPLING_RATES = [
+        api_datalogging.SamplingRate("100Hz", 100, api_datalogging.ExecLoopType.FIXED_FREQ, device_identifier=0),
+        api_datalogging.SamplingRate("10KHz", 10000, api_datalogging.ExecLoopType.FIXED_FREQ, device_identifier=1),
+        api_datalogging.SamplingRate("Variable", None, api_datalogging.ExecLoopType.VARIABLE_FREQ, device_identifier=2),
+    ]
+
+    def __init__(self, datastore, device_handler):
+        self.datastore = datastore
+        self.device_handler = device_handler
+        self.acquisition_request_queue = queue.Queue()
+
+    def get_device_setup(self):
+        return self.device_handler.get_datalogging_setup()
+
+    def get_available_sampling_rates(self) -> List[api_datalogging.SamplingRate]:
+        rates: List[api_datalogging.SamplingRate] = []
+
+        rates.append(api_datalogging.SamplingRate(
+            name="ffloop0",
+            rate_type=api_datalogging.ExecLoopType.FIXED_FREQ,
+            device_identifier=0,
+            frequency=1000
+        ))
+
+        rates.append(api_datalogging.SamplingRate(
+            name="ffloop1",
+            rate_type=api_datalogging.ExecLoopType.FIXED_FREQ,
+            device_identifier=1,
+            frequency=9999
+        ))
+
+        rates.append(api_datalogging.SamplingRate(
+            name="vfloop0",
+            rate_type=api_datalogging.ExecLoopType.VARIABLE_FREQ,
+            device_identifier=2,
+            frequency=None
+        ))
+
+        return rates
+
+    def is_ready_for_request(self) -> bool:
+        return True
+
+    def is_valid_sample_rate_id(self, rate_id: int) -> bool:
+        return rate_id in [sr.device_identifier for sr in self.SAMPLING_RATES]
+
+    def get_sampling_rate(self, rate_id: int) -> api_datalogging.SamplingRate:
+        candidate: Optional[api_datalogging.SamplingRate] = None
+        for sr in self.SAMPLING_RATES:
+            if sr.device_identifier == rate_id:
+                candidate = sr
+                break
+        if candidate is None:
+            raise ValueError("Cannot find requested sampling rate")
+        return candidate
+
+    def request_acquisition(self,
+                            request: api_datalogging.AcquisitionRequest,
+                            callback: api_datalogging.APIAcquisitionRequestCompletionCallback
+                            ) -> None:
+        sampling_rate = self.get_sampling_rate(request.rate_identifier)
+        if sampling_rate.rate_type == api_datalogging.ExecLoopType.VARIABLE_FREQ and request.x_axis_type == api_datalogging.XAxisType.IdealTime:
+            raise ValueError("Cannot use Ideal Time on variable sampling rate")
+
+        if self.device_handler.get_connection_status() != DeviceHandler.ConnectionStatus.CONNECTED_READY:
+            raise RuntimeError("No device connected")
+
+        self.acquisition_request_queue.put((request, callback), block=False)
 
 
 class FakeActiveSFDHandler:
@@ -714,6 +804,8 @@ class TestClient(ScrutinyUnitTest):
             time.sleep(0.2)  # Let time for the server thread to process the request if any is sent by error.
             self.assertEqual(len(self.device_handler.write_logs), 0)    # No write until with __exit__ the with block
 
+        self.assertFalse(self.client._is_batch_write_in_progress())
+
         index = 0
         self.assertIsInstance(self.device_handler.write_logs[index], WriteRPVLog)
         assert isinstance(self.device_handler.write_logs[index], WriteRPVLog)
@@ -812,7 +904,7 @@ class TestClient(ScrutinyUnitTest):
 
         def reload_sfd():
             self.sfd_handler.load(FirmwareDescription(get_artifact('test_sfd_1.sfd')))
-        
+
         alias_var1_counter = alias_var1.update_counter
         self.set_value_and_wait_update(rpv1000, 1.234)
         self.set_value_and_wait_update(var1, 0x1234)
@@ -959,6 +1051,293 @@ class TestClient(ScrutinyUnitTest):
         with self.assertRaises(sdk.exceptions.OperationFailure):
             data = bytes([random.randint(0, 255) for i in range(600)])
             self.client.write_memory(0x10000, data, timeout=2)
+
+    def test_read_datalogging_capabilities(self):
+        capabilities = self.client.get_datalogging_capabilities()
+
+        self.assertEqual(capabilities.buffer_size, 4096)
+        self.assertEqual(capabilities.max_nb_signal, 32)
+        self.assertEqual(capabilities.encoding, sdk.datalogging.DataloggingEncoding.RAW)
+        self.assertEqual(len(capabilities.sampling_rates), 3)
+
+        self.assertIsInstance(capabilities.sampling_rates[0], sdk.datalogging.FixedFreqSamplingRate)
+        assert isinstance(capabilities.sampling_rates[0], sdk.datalogging.FixedFreqSamplingRate)
+        self.assertEqual(capabilities.sampling_rates[0].identifier, 0)
+        self.assertEqual(capabilities.sampling_rates[0].name, 'ffloop0')
+        self.assertEqual(capabilities.sampling_rates[0].frequency, 1000)
+
+        self.assertIsInstance(capabilities.sampling_rates[1], sdk.datalogging.FixedFreqSamplingRate)
+        assert isinstance(capabilities.sampling_rates[1], sdk.datalogging.FixedFreqSamplingRate)
+        self.assertEqual(capabilities.sampling_rates[1].identifier, 1)
+        self.assertEqual(capabilities.sampling_rates[1].name, 'ffloop1')
+        self.assertEqual(capabilities.sampling_rates[1].frequency, 9999)
+
+        self.assertIsInstance(capabilities.sampling_rates[2], sdk.datalogging.VariableFreqSamplingRate)
+        assert isinstance(capabilities.sampling_rates[2], sdk.datalogging.VariableFreqSamplingRate)
+        self.assertEqual(capabilities.sampling_rates[2].identifier, 2)
+        self.assertEqual(capabilities.sampling_rates[2].name, 'vfloop0')
+
+    def test_read_datalogging_capabilities_not_available(self):
+        self.device_handler.force_datalogging_not_ready()
+
+        with self.assertRaises(sdk.exceptions.OperationFailure):
+            self.client.get_datalogging_capabilities()
+
+    def test_read_datalogging_acquisition(self):
+        with DataloggingStorage.use_temp_storage():
+            reference_id = 'foo.bar.baz'
+            acq = sdk.datalogging.DataloggingAcquisition(
+                firmware_id='foo',
+                reference_id=reference_id,
+                acq_time=datetime.now(),
+                name="test acquisition"
+            )
+            axis1 = sdk.datalogging.AxisDefinition("Axis1", 0)
+            axis2 = sdk.datalogging.AxisDefinition("Axis2", 1)
+
+            xdata = sdk.datalogging.DataSeries([0, 10, 20, 30, 40, 50], "x-axis", "my/xaxis")
+            ds1 = sdk.datalogging.DataSeries([-1, -0.5, 0, 0.5, 1], "data1", "path/to/data1")
+            ds2 = sdk.datalogging.DataSeries([-10, -5, 0, 5, 10], "data2", "path/to/data2")
+            ds3 = sdk.datalogging.DataSeries([0.1, 0.2, 0.3, 0.1, 0.2], "data3", "path/to/data3")
+            acq.set_xdata(xdata)
+            acq.add_data(ds1, axis1)
+            acq.add_data(ds2, axis1)
+            acq.add_data(ds3, axis2)
+            acq.set_trigger_index(3)
+
+            DataloggingStorage.save(acq)
+
+            acq2 = self.client.read_datalogging_acquisition(reference_id)
+
+            self.assertIsNot(acq, acq2)
+            self.assertEqual(acq2.reference_id, acq.reference_id)
+            self.assertEqual(acq2.firmware_id, acq.firmware_id)
+            self.assertEqual(acq2.name, acq.name)
+            self.assertEqual(acq2.firmware_id, acq.firmware_id)
+            self.assertEqual(acq2.trigger_index, acq.trigger_index)
+            self.assertLessEqual(abs(acq2.acq_time - acq.acq_time), timedelta(seconds=1))
+
+            self.assertEqual(acq2.xdata.name, acq.xdata.name)
+            self.assertEqual(acq2.xdata.logged_element, acq.xdata.logged_element)
+            self.assertEqual(acq2.xdata.get_data(), acq.xdata.get_data())
+
+            data2 = acq2.get_data()
+            data1 = acq.get_data()
+
+            self.assertEqual(len(data2), len(data1))
+
+            data1.sort(key=lambda x: x.series.name)
+            data2.sort(key=lambda x: x.series.name)
+
+            for i in range(len(data1)):
+                self.assertEqual(data1[i].axis.name, data2[i].axis.name)
+                self.assertEqual(data1[i].axis.axis_id, data2[i].axis.axis_id)
+
+                self.assertEqual(data1[i].series.name, data2[i].series.name)
+                self.assertEqual(data1[i].series.logged_element, data2[i].series.logged_element)
+                self.assertEqual(data1[i].series.get_data(), data2[i].series.get_data())
+
+    def test_request_datalogging_acquisition(self):
+        var1 = self.client.watch('/a/b/var1')
+        var2 = self.client.watch('/a/b/var2')
+
+        config = sdk.datalogging.DataloggingConfig(sampling_rate=0, decimation=1, timeout=0, name="unittest")
+        config.configure_trigger(sdk.datalogging.TriggerCondition.Equal, [var1, 3.14159], position=0.75, hold_time=0)
+        config.configure_xaxis(sdk.datalogging.XAxisType.MeasuredTime)
+        axis1 = config.add_axis('Axis 1')
+        axis2 = config.add_axis('Axis 2')
+        config.add_signal(var1, axis1, name="MyVar1")
+        config.add_signal(var2, axis1, name="MyVar2")
+        config.add_signal('/a/b/alias_rpv1000', axis2, name="MyAliasRPV1000")
+
+        request = self.client.start_datalog(config)
+        self.assertFalse(request.completed)
+        self.assertFalse(request.is_success)
+        self.assertIsNone(request.completion_datetime)
+
+        def check_request_arrived():
+            return not self.datalogging_manager.acquisition_request_queue.empty()
+        self.wait_true(check_request_arrived)
+
+        server_request, callback = self.datalogging_manager.acquisition_request_queue.get(block=False)
+
+        self.assertEqual(server_request.name, config._name)
+        self.assertEqual(server_request.decimation, config._decimation)
+        self.assertEqual(server_request.timeout, config._timeout)
+        self.assertEqual(server_request.rate_identifier, config._sampling_rate)
+
+        self.assertEqual(server_request.probe_location, config._trigger_position)
+        self.assertEqual(server_request.trigger_hold_time, config._trigger_hold_time)
+        self.assertEqual(server_request.trigger_condition.condition_id, device_datalogging.TriggerConditionID.Equal)
+        self.assertEqual(len(server_request.trigger_condition.operands), 2)
+        self.assertEqual(server_request.trigger_condition.operands[0].type, api_datalogging.TriggerConditionOperandType.WATCHABLE)
+        self.assertIsInstance(server_request.trigger_condition.operands[0].value, datastore.DatastoreEntry)
+        assert isinstance(server_request.trigger_condition.operands[0].value, datastore.DatastoreEntry)
+        self.assertEqual(server_request.trigger_condition.operands[0].value.get_display_path(), var1.display_path)
+        self.assertEqual(server_request.trigger_condition.operands[1].type, api_datalogging.TriggerConditionOperandType.LITERAL)
+        self.assertEqual(server_request.trigger_condition.operands[1].value, 3.14159)
+
+        self.assertEqual(server_request.x_axis_type, api_datalogging.XAxisType.MeasuredTime)
+        self.assertCountEqual(server_request.get_yaxis_list(), [api_datalogging.AxisDefinition(
+            "Axis 1", 0), api_datalogging.AxisDefinition("Axis 2", 1)])
+
+        expected_signals = []
+        expected_signals.append(api_datalogging.SignalDefinitionWithAxis(
+            name='MyVar1',
+            entry=self.datastore.get_entry_by_display_path(var1.display_path),
+            axis=api_datalogging.AxisDefinition(name='Axis 1', axis_id=0))
+        )
+        expected_signals.append(api_datalogging.SignalDefinitionWithAxis(
+            name='MyVar2',
+            entry=self.datastore.get_entry_by_display_path(var2.display_path),
+            axis=api_datalogging.AxisDefinition(name='Axis 1', axis_id=0))
+        )
+        expected_signals.append(api_datalogging.SignalDefinitionWithAxis(
+            name='MyAliasRPV1000',
+            entry=self.datastore.get_entry_by_display_path('/a/b/alias_rpv1000'),
+            axis=api_datalogging.AxisDefinition(name='Axis 2', axis_id=1))
+        )
+        self.assertCountEqual(server_request.signals, expected_signals)
+        now = datetime.now()
+
+        def make_acquisition():
+            acquisition = sdk.datalogging.DataloggingAcquisition(
+                firmware_id='firmware abc',
+                reference_id="xyz",
+                acq_time=now,
+                name=server_request.name)
+
+            axis1 = sdk.datalogging.AxisDefinition(name='Axis 1', axis_id=0)
+            axis2 = sdk.datalogging.AxisDefinition(name='Axis 2', axis_id=1)
+
+            ds1 = sdk.datalogging.DataSeries(
+                data=[random.random() for x in range(10)],
+                name=server_request.signals[0].name,
+                logged_element=server_request.signals[0].entry.get_display_path()
+            )
+            ds2 = sdk.datalogging.DataSeries(
+                data=[random.random() for x in range(10)],
+                name=server_request.signals[1].name,
+                logged_element=server_request.signals[1].entry.get_display_path()
+            )
+            ds3 = sdk.datalogging.DataSeries(
+                data=[random.random() for x in range(10)],
+                name=server_request.signals[2].name,
+                logged_element=server_request.signals[2].entry.get_display_path()
+            )
+            acquisition.add_data(ds1, axis1)
+            acquisition.add_data(ds2, axis1)
+            acquisition.add_data(ds3, axis2)
+
+            acquisition.set_xdata(sdk.datalogging.DataSeries([x for x in range(10)], name="time", logged_element='measured time'))
+            acquisition.set_trigger_index(4)
+            return acquisition
+
+        with DataloggingStorage.use_temp_storage():
+            acquisition = make_acquisition()
+            DataloggingStorage.save(acquisition)
+
+            with self.assertRaises(sdk.exceptions.OperationFailure):
+                request.fetch_acquisition()
+
+            def complete_acquisition():
+                callback(True, "dummy msg", acquisition)
+            self.execute_in_server_thread(complete_acquisition)
+            request.wait_for_completion(timeout=3)
+            self.assertTrue(request.completed)
+            self.assertTrue(request.is_success)
+            self.assertIsNotNone(request.completion_datetime)
+            self.assertEqual(request.acquisition_reference_id, "xyz")
+            self.assertEqual(len(self.client._pending_datalogging_requests), 0)  # Check internal state
+
+            acquisition2 = request.fetch_acquisition()
+
+        self.assert_acquisition_valid(acquisition)
+        self.assert_acquisition_valid(acquisition2)
+
+        self.assert_acquisition_identical(acquisition, acquisition2)
+
+    def test_request_datalogging_failures(self):
+        with self.assertRaises(TypeError):
+            self.client.start_datalog("asd")
+
+        var1 = self.client.watch('/a/b/var1')
+        config = sdk.datalogging.DataloggingConfig(sampling_rate=0, decimation=1, timeout=0, name="unittest")
+        config.configure_trigger(sdk.datalogging.TriggerCondition.Equal, [var1, 3.14159], position=0.75, hold_time=0)
+        axis1 = config.add_axis('Axis 1')
+        config.add_signal(var1, axis1, name="MyVar1")
+
+        request = self.client.start_datalog(config)
+
+        def check_request_arrived():
+            return not self.datalogging_manager.acquisition_request_queue.empty()
+        self.wait_true(check_request_arrived)
+        server_request, callback = self.datalogging_manager.acquisition_request_queue.get(block=False)
+        self.assertIsNotNone(server_request)
+
+        def complete_acquisition():
+            callback(False, "An error occurred", None)
+        self.execute_in_server_thread(complete_acquisition)
+        with self.assertRaises(sdk.exceptions.OperationFailure):
+            request.wait_for_completion(timeout=3)
+
+    def test_list_stored_datalogging_acquisitions(self):
+        now = datetime.now()
+
+        with DataloggingStorage.use_temp_storage():
+            with SFDStorage.use_temp_folder():
+                acquisitions = self.client.list_stored_datalogging_acquisitions()
+                self.assertEqual(len(acquisitions), 0)
+
+                sfd1_filename = get_artifact('test_sfd_1.sfd')
+                sfd2_filename = get_artifact('test_sfd_2.sfd')
+                sfd1 = SFDStorage.install(sfd1_filename, ignore_exist=True)
+                sfd2 = SFDStorage.install(sfd2_filename, ignore_exist=True)
+
+                acquisition = sdk.datalogging.DataloggingAcquisition(
+                    firmware_id=sfd1.get_firmware_id_ascii(),
+                    reference_id="refid1",
+                    acq_time=now,
+                    name="my_acq")
+                axis1 = sdk.datalogging.AxisDefinition(name='Axis 1', axis_id=0)
+                ds1 = sdk.datalogging.DataSeries(
+                    data=[random.random() for x in range(10)],
+                    name='ds1_name',
+                    logged_element='ds1_element'
+                )
+                acquisition.add_data(ds1, axis1)
+                acquisition.set_xdata(sdk.datalogging.DataSeries([x for x in range(10)], name="time", logged_element='measured time'))
+                acquisition.set_trigger_index(4)
+
+                acquisition2 = sdk.datalogging.DataloggingAcquisition(
+                    firmware_id=sfd2.get_firmware_id_ascii(),
+                    reference_id="refid2",
+                    acq_time=now,
+                    name="my_acq")
+                axis1 = sdk.datalogging.AxisDefinition(name='Axis 1', axis_id=0)
+                ds1 = sdk.datalogging.DataSeries(
+                    data=[random.random() for x in range(10)],
+                    name='ds1_name',
+                    logged_element='ds1_element'
+                )
+                acquisition2.add_data(ds1, axis1)
+                acquisition2.set_xdata(sdk.datalogging.DataSeries([x for x in range(10)], name="time", logged_element='measured time'))
+                acquisition2.set_trigger_index(4)
+
+                DataloggingStorage.save(acquisition)
+                DataloggingStorage.save(acquisition2)
+
+                acquisitions = self.client.list_stored_datalogging_acquisitions()
+                self.assertEqual(len(acquisitions), 2)
+
+                expected_data = [
+                    dict(firmware_id=sfd1.get_firmware_id_ascii(), reference_id='refid1'),
+                    dict(firmware_id=sfd2.get_firmware_id_ascii(), reference_id='refid2')
+                ]
+
+                received_data = [dict(firmware_id=x.firmware_id, reference_id=x.reference_id) for x in acquisitions]
+
+                self.assertCountEqual(expected_data, received_data)
 
 
 if __name__ == '__main__':
