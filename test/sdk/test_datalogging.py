@@ -1,3 +1,10 @@
+#    test_datalogging.py
+#        Test the datalogging features defines in the SDK
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021-2023 Scrutiny Debugger
 
 import scrutiny.sdk
 import scrutiny.sdk.datalogging

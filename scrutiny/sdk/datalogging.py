@@ -1,4 +1,10 @@
-
+#    datalogging.py
+#        Defines all the types used for datalogging in the SDK
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021-2023 Scrutiny Debugger
 
 from scrutiny import sdk
 from scrutiny.core.datalogging import *

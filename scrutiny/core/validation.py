@@ -1,3 +1,11 @@
+#    validation.py
+#        Helper function for argument validation
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021-2023 Scrutiny Debugger
+
 from typing import Union, Any, Type, List, Tuple, Sequence, Optional
 
 

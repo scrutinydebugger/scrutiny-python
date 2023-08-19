@@ -390,6 +390,15 @@
         },
         "test/core/test_datalogging.py": {
             "docstring": "Test the datalogging features from the core module (shared across modules)"
+        },
+        "test/sdk/test_datalogging.py": {
+            "docstring": "Test the datalogging features defines in the SDK"
+        },
+        "scrutiny/sdk/datalogging.py": {
+            "docstring": "Defines all the types used for datalogging in the SDK"
+        },
+        "scrutiny/core/validation.py": {
+            "docstring": "Helper function for argument validation"
         }
     }
 }
