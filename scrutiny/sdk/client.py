@@ -867,7 +867,6 @@ class ScrutinyClient:
 
         self._stop_worker_thread()
 
-    # todo pause
     def watch(self, path: str) -> WatchableHandle:
         """Starts watching a watchable element identified by its display path (tree-like path)"""
         if not isinstance(path, str):
@@ -887,44 +886,28 @@ class ScrutinyClient:
             return cached_watchable
 
         watchable = WatchableHandle(self, path)
-        req = self._make_request(API.Command.Client2Api.GET_WATCHABLE_LIST, {
-            'max_per_response': 2,
-            'filter': {'name': path}
-        })
-
-        # The watchable will be written by this callback from the worker thread. The watchable object is thread-safe.
-        def wt_get_watchable_callback(state: CallbackState, response: Optional[api_typing.S2CMessage]) -> None:
-            if response is not None and state == CallbackState.OK:
-                response = cast(api_typing.S2C.GetWatchableList, response)
-                parsed_content = api_parser.parse_get_watchable_single_element(response, path)
-
-                watchable._configure(
-                    watchable_type=parsed_content.watchable_type,
-                    datatype=parsed_content.datatype,
-                    server_id=parsed_content.server_id
-                )
-
-        future = self._send(req, wt_get_watchable_callback)
-        assert future is not None
-        future.wait()
-
-        if future.state != CallbackState.OK:
-            raise sdk.exceptions.OperationFailure(f"Failed to get the watchable definition. {future.error_str}")
 
         def wt_subscribe_callback(state: CallbackState, response: Optional[api_typing.S2CMessage]):
             if response is not None and state == CallbackState.OK:
                 response = cast(api_typing.S2C.SubscribeWatchable, response)
-                if len(response['watchables']) != 1:
+                watchable_defs = api_parser.parse_subscribe_watchable_response(response)
+                if len(watchable_defs) != 1:
                     raise sdk.exceptions.BadResponseError(
-                        f'The server did confirm the subscription of {len(response["watchables"])} while we requested only for 1')
+                        f'The server did confirm the subscription of {len(response["subscribed"])} while we requested only for 1')
 
-                if response['watchables'][0] != watchable._server_id:
+                if path not in watchable_defs:
                     raise sdk.exceptions.BadResponseError(
-                        f'The server did not confirm the subscription for the right watchable. Got {response["watchables"][0]}, expected {watchable._server_id}')
+                        f'The server did not confirm the subscription for the right watchable. Got {list(response["subscribed"].keys())[0]}, expected {path}')
+
+                watchable._configure(
+                    datatype=watchable_defs[path].datatype,
+                    watchable_type=watchable_defs[path].watchable_type,
+                    server_id=watchable_defs[path].server_id,
+                )
 
         req = self._make_request(API.Command.Client2Api.SUBSCRIBE_WATCHABLE, {
             'watchables': [
-                watchable._server_id
+                watchable.display_path
             ]
         })
         future = self._send(req, wt_subscribe_callback)
@@ -954,9 +937,6 @@ class ScrutinyClient:
         if not isinstance(path, str):
             raise ValueError("Path must be a string")
 
-        if '*' in path:
-            raise ValueError("Glob wildcards are not allowed")
-
         watchable: Optional[WatchableHandle] = None
         with self._main_lock:
             if path in self._watchable_path_to_id_map:
@@ -969,20 +949,20 @@ class ScrutinyClient:
 
         req = self._make_request(API.Command.Client2Api.UNSUBSCRIBE_WATCHABLE, {
             'watchables': [
-                watchable._server_id
+                watchable.display_path
             ]
         })
 
         def wt_unsubscribe_callback(state: CallbackState, response: Optional[api_typing.S2CMessage]):
             if response is not None and state == CallbackState.OK and watchable is not None:
                 response = cast(api_typing.S2C.UnsubscribeWatchable, response)
-                if len(response['watchables']) != 1:
+                if len(response['unsubscribed']) != 1:
                     raise sdk.exceptions.BadResponseError(
-                        f'The server did cancel the subscription of {len(response["watchables"])} while we requested only for 1')
+                        f'The server did cancel the subscription of {len(response["unsubscribed"])} while we requested only for 1')
 
-                if response['watchables'][0] != watchable._server_id:
+                if response['unsubscribed'][0] != watchable.display_path:
                     raise sdk.exceptions.BadResponseError(
-                        f'The server did not cancel the subscription for the right watchable. Got {response["watchables"][0]}, expected {watchable._server_id}')
+                        f'The server did not cancel the subscription for the right watchable. Got {response["unsubscribed"][0]}, expected {watchable._server_id}')
 
         future = self._send(req, wt_unsubscribe_callback)
         assert future is not None

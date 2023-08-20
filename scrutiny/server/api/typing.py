@@ -178,6 +178,12 @@ class AxisNameUpdateEntry(TypedDict):
     name: str
 
 
+class SubscribedInfo(TypedDict):
+    type: WatchableType
+    datatype: Datatype
+    id: str
+
+
 class C2S:
     "Client To Server"
     class Echo(BaseC2SMessage):
@@ -291,10 +297,10 @@ class S2C:
         done: bool
 
     class SubscribeWatchable(BaseS2CMessage):
-        watchables: List[str]
+        subscribed: Dict[str, SubscribedInfo]
 
     class UnsubscribeWatchable(BaseS2CMessage):
-        watchables: List[str]
+        unsubscribed: List[str]
 
     class WatchableUpdate(BaseS2CMessage):
         updates: List[Dict[str, Any]]

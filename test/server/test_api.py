@@ -764,7 +764,7 @@ class TestAPI(ScrutinyUnitTest):
         subscribed_entry = entries[2]
         req = {
             'cmd': 'subscribe_watchable',
-            'watchables': [subscribed_entry.get_id()]
+            'watchables': [subscribed_entry.get_display_path()]
         }
 
         self.send_request(req, 0)
@@ -772,12 +772,15 @@ class TestAPI(ScrutinyUnitTest):
         self.assert_no_error(response)
 
         self.assertIn('cmd', response)
-        self.assertIn('watchables', response)
-        self.assertIsInstance(response['watchables'], list)
+        self.assertIn('subscribed', response)
+        self.assertIsInstance(response['subscribed'], dict)
 
         self.assertEqual(response['cmd'], 'response_subscribe_watchable')
-        self.assertEqual(len(response['watchables']), 1)
-        self.assertEqual(response['watchables'][0], subscribed_entry.get_id())
+        self.assertEqual(len(response['subscribed']), 1)
+        self.assertIn(subscribed_entry.get_display_path(), response['subscribed'])
+        self.assertEqual(response['subscribed'][subscribed_entry.get_display_path()]['id'], subscribed_entry.get_id())
+        self.assertEqual(response['subscribed'][subscribed_entry.get_display_path()]['type'], 'var')
+        self.assertEqual(response['subscribed'][subscribed_entry.get_display_path()]['datatype'], 'float32')
 
         self.assertIsNone(self.wait_for_response(timeout=0.2))
 
@@ -798,7 +801,7 @@ class TestAPI(ScrutinyUnitTest):
 
         req = {
             'cmd': 'subscribe_watchable',
-            'watchables': [entries[0].get_id(), entries[1].get_id()]
+            'watchables': [entries[0].get_display_path(), entries[1].get_display_path()]
         }
 
         self.send_request(req, 0)   # connection 0
@@ -825,7 +828,7 @@ class TestAPI(ScrutinyUnitTest):
         subscribed_entry = entries[2]
         subscribe_cmd = {
             'cmd': 'subscribe_watchable',
-            'watchables': [subscribed_entry.get_id()]
+            'watchables': [subscribed_entry.get_display_path()]
         }
 
         # Subscribe through conn 0
@@ -835,7 +838,7 @@ class TestAPI(ScrutinyUnitTest):
 
         unsubscribe_cmd = {
             'cmd': 'unsubscribe_watchable',
-            'watchables': [subscribed_entry.get_id()]
+            'watchables': [subscribed_entry.get_display_path()]
         }
 
         self.send_request(unsubscribe_cmd, 0)
@@ -853,7 +856,7 @@ class TestAPI(ScrutinyUnitTest):
         subscribed_entry = entries[2]
         req = {
             'cmd': 'subscribe_watchable',
-            'watchables': [subscribed_entry.get_id()]
+            'watchables': [subscribed_entry.get_display_path()]
         }
 
         self.send_request(req, 0)
@@ -1165,7 +1168,7 @@ class TestAPI(ScrutinyUnitTest):
         subscribed_entry2 = entries[5]
         req = {
             'cmd': 'subscribe_watchable',
-            'watchables': [subscribed_entry1.get_id(), subscribed_entry2.get_id()]
+            'watchables': [subscribed_entry1.get_display_path(), subscribed_entry2.get_display_path()]
         }
 
         self.send_request(req, 0)
@@ -1313,7 +1316,7 @@ class TestAPI(ScrutinyUnitTest):
 
         req = {
             'cmd': 'subscribe_watchable',
-            'watchables': [entry.get_id() for entry in entries]
+            'watchables': [entry.get_display_path() for entry in entries]
         }
 
         self.send_request(req, 0)

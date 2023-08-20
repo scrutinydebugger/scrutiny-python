@@ -580,19 +580,25 @@ class API:
     def process_subscribe_watchable(self, conn_id: str, req: api_typing.C2S.SubscribeWatchable) -> None:
         # Add the connection ID to the list of watchers of given datastore entries.
         # datastore callback will write the new values in the API output queue (through the value streamer)
-        if 'watchables' not in req and not isinstance(req['watchables'], list):
+        if 'watchables' not in req or not isinstance(req['watchables'], list):
             raise InvalidRequestException(req, 'Invalid or missing watchables list')
 
         # Check existence of all watchable before doing anything.
-        for watchable in req['watchables']:
+        subscribed: Dict[str, api_typing.SubscribedInfo] = {}
+        for path in req['watchables']:
             try:
-                self.datastore.get_entry(watchable)  # Will raise an exception if not existent
+                entry = self.datastore.get_entry_by_display_path(path)  # Will raise an exception if not existent
+                subscribed[path] = {
+                    'type': self.ENTRY_TYPE_2_APISTR[entry.get_type()],
+                    'datatype': self.DATATYPE_2_APISTR[entry.get_data_type()],
+                    'id': entry.get_id()
+                }
             except KeyError as e:
-                raise InvalidRequestException(req, 'Unknown watchable ID : %s' % str(watchable))
+                raise InvalidRequestException(req, 'Unknown watchable : %s' % str(path))
 
-        for watchable in req['watchables']:
+        for path in req['watchables']:
             self.datastore.start_watching(
-                entry_id=watchable,
+                entry_id=subscribed[path]['id'],
                 watcher=conn_id,    # We use the API connection ID as datastore watcher ID
                 value_change_callback=UpdateVarCallback(self.entry_value_change_callback)
             )
@@ -600,7 +606,7 @@ class API:
         response: api_typing.S2C.SubscribeWatchable = {
             'cmd': self.Command.Api2Client.SUBSCRIBE_WATCHABLE_RESPONSE,
             'reqid': self.get_req_id(req),
-            'watchables': req['watchables']
+            'subscribed': subscribed
         }
 
         self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
@@ -612,19 +618,20 @@ class API:
             raise InvalidRequestException(req, 'Invalid or missing watchables list')
 
         # Check existence of all entries before doing anything
-        for watchable in req['watchables']:
+        for path in req['watchables']:
             try:
-                self.datastore.get_entry(watchable)  # Will raise an exception if not existent
+                self.datastore.get_entry_by_display_path(path)  # Will raise an exception if not existent
             except KeyError as e:
-                raise InvalidRequestException(req, 'Unknown watchable ID : %s' % str(watchable))
+                raise InvalidRequestException(req, 'Unknown watchable : %s' % str(path))
 
-        for watchable in req['watchables']:
-            self.datastore.stop_watching(watchable, watcher=conn_id)
+        for path in req['watchables']:
+            entry = self.datastore.get_entry_by_display_path(path)
+            self.datastore.stop_watching(entry, watcher=conn_id)
 
         response: api_typing.S2C.UnsubscribeWatchable = {
             'cmd': self.Command.Api2Client.SUBSCRIBE_WATCHABLE_RESPONSE,
             'reqid': self.get_req_id(req),
-            'watchables': req['watchables']
+            'unsubscribed': req['watchables']
         }
 
         self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))

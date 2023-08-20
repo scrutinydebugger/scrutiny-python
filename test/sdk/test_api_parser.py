@@ -103,6 +103,80 @@ class TestApiParser(ScrutinyUnitTest):
             del msg['content']['rpv']
             parser.parse_get_watchable_single_element(msg, requested_path)
 
+    def test_parse_subscribe_watchable(self):
+        requested_path = '/a/b/c'
+
+        def base():
+            return {
+                "cmd": "response_subscribe_watchable",
+                "reqid": 123,
+                "subscribed": {
+                    '/a/b/c': {
+                        'id': 'abc',
+                        'type': 'var',
+                        'datatype': 'float32'
+                    },
+                    '/a/b/d': {
+                        'id': 'abd',
+                        'type': 'alias',
+                        'datatype': 'sint8'
+                    }
+                }
+            }
+
+        response = base()
+        res = parser.parse_subscribe_watchable_response(response)
+        self.assertIsInstance(res, dict)
+        self.assertIn('/a/b/c', res)
+        self.assertIn('/a/b/d', res)
+
+        self.assertEqual(res['/a/b/c'].server_id, 'abc')
+        self.assertEqual(res['/a/b/c'].datatype, EmbeddedDataType.float32)
+        self.assertEqual(res['/a/b/c'].watchable_type, sdk.WatchableType.Variable)
+
+        self.assertEqual(res['/a/b/d'].server_id, 'abd')
+        self.assertEqual(res['/a/b/d'].datatype, EmbeddedDataType.sint8)
+        self.assertEqual(res['/a/b/d'].watchable_type, sdk.WatchableType.Alias)
+
+        class Delete:
+            pass
+        delete = Delete()
+        for val in [1, True, [], None, "asd", delete]:
+            with self.assertRaises(sdk.exceptions.BadResponseError, msg=f'val={val}'):
+                msg = base()
+                if val is delete:
+                    del msg['subscribed']
+                else:
+                    msg['subscribed'] = val
+                parser.parse_subscribe_watchable_response(msg)
+
+        for val in [1, True, [], None, "asd", delete]:
+            with self.assertRaises(sdk.exceptions.BadResponseError, msg=f'val={val}'):
+                msg = base()
+                if val is delete:
+                    del msg['subscribed']['/a/b/c']['datatype']
+                else:
+                    msg['subscribed']['/a/b/c']['datatype'] = val
+                parser.parse_subscribe_watchable_response(msg)
+
+        for val in [1, True, [], None, {}, delete]:
+            with self.assertRaises(sdk.exceptions.BadResponseError, msg=f'val={val}'):
+                msg = base()
+                if val is delete:
+                    del msg['subscribed']['/a/b/c']['id']
+                else:
+                    msg['subscribed']['/a/b/c']['id'] = val
+                parser.parse_subscribe_watchable_response(msg)
+
+        for val in [1, True, [], None, {}, delete, "asd"]:
+            with self.assertRaises(sdk.exceptions.BadResponseError, msg=f'val={val}'):
+                msg = base()
+                if val is delete:
+                    del msg['subscribed']['/a/b/c']['type']
+                else:
+                    msg['subscribed']['/a/b/c']['type'] = val
+                parser.parse_subscribe_watchable_response(msg)
+
     def test_parse_inform_server_status(self):
         def base() -> api_typing.S2C.InformServerStatus:
             return {

@@ -42,7 +42,7 @@ class TestReadWrite(ScrutinyIntegrationTestWithTestSFD1):
 
         subscribe_cmd = {
             'cmd': API.Command.Client2Api.SUBSCRIBE_WATCHABLE,
-            'watchables': [entry.get_id() for entry in all_entries]
+            'watchables': [entry.get_display_path() for entry in all_entries]
         }
 
         self.send_request(subscribe_cmd)
@@ -65,7 +65,7 @@ class TestReadWrite(ScrutinyIntegrationTestWithTestSFD1):
         subscribe_cmd = {
             'cmd': API.Command.Client2Api.SUBSCRIBE_WATCHABLE,
             # One of each type
-            'watchables': [entry.get_id() for entry in all_entries]
+            'watchables': [entry.get_display_path() for entry in all_entries]
         }
 
         self.send_request(subscribe_cmd)
@@ -151,7 +151,7 @@ class TestReadWrite(ScrutinyIntegrationTestWithTestSFD1):
 
         subscribe_cmd = {
             'cmd': API.Command.Client2Api.SUBSCRIBE_WATCHABLE,
-            'watchables': [entry.get_id() for entry in all_entries]
+            'watchables': [entry.get_display_path() for entry in all_entries]
         }
 
         self.send_request(subscribe_cmd)
@@ -274,7 +274,7 @@ class TestReadWrite(ScrutinyIntegrationTestWithTestSFD1):
 
         subscribe_cmd = {
             'cmd': API.Command.Client2Api.SUBSCRIBE_WATCHABLE,
-            'watchables': [entry.get_id() for entry in all_entries]
+            'watchables': [entry.get_display_path() for entry in all_entries]
         }
 
         self.send_request(subscribe_cmd)
@@ -338,7 +338,7 @@ class TestReadMemoryForbidden(ScrutinyIntegrationTestWithTestSFD1):
         subscribe_cmd = {
             'cmd': API.Command.Client2Api.SUBSCRIBE_WATCHABLE,
             # One of each type
-            'watchables': [entry.get_id() for entry in all_entries]
+            'watchables': [entry.get_display_path() for entry in all_entries]
         }
 
         self.send_request(subscribe_cmd)
@@ -391,7 +391,7 @@ class TestWriteMemoryNotAllowed(ScrutinyIntegrationTestWithTestSFD1):
         subscribe_cmd = {
             'cmd': API.Command.Client2Api.SUBSCRIBE_WATCHABLE,
             # One of each type
-            'watchables': [entry.get_id() for entry in all_entries]
+            'watchables': [entry.get_display_path() for entry in all_entries]
         }
 
         self.send_request(subscribe_cmd)
@@ -443,7 +443,7 @@ class TestWriteMemoryNotAllowed(ScrutinyIntegrationTestWithTestSFD1):
         subscribe_cmd = {
             'cmd': API.Command.Client2Api.SUBSCRIBE_WATCHABLE,
             # One of each type
-            'watchables': [entry.get_id() for entry in all_entries]
+            'watchables': [entry.get_display_path() for entry in all_entries]
         }
 
         self.send_request(subscribe_cmd)
@@ -505,7 +505,7 @@ class TestWriteMemoryInReadonlyRegions(ScrutinyIntegrationTestWithTestSFD1):
         subscribe_cmd = {
             'cmd': API.Command.Client2Api.SUBSCRIBE_WATCHABLE,
             # One of each type
-            'watchables': [entry.get_id() for entry in all_entries]
+            'watchables': [entry.get_display_path() for entry in all_entries]
         }
 
         self.send_request(subscribe_cmd)
@@ -575,7 +575,7 @@ class TestWriteMemoryInReadonlyRegions(ScrutinyIntegrationTestWithTestSFD1):
         subscribe_cmd = {
             'cmd': API.Command.Client2Api.SUBSCRIBE_WATCHABLE,
             # One of each type
-            'watchables': [entry.get_id() for entry in all_entries]
+            'watchables': [entry.get_display_path() for entry in all_entries]
         }
 
         self.send_request(subscribe_cmd)
@@ -637,7 +637,7 @@ class TestWriteMemoryInForbiddenRegions(ScrutinyIntegrationTestWithTestSFD1):
         subscribe_cmd = {
             'cmd': API.Command.Client2Api.SUBSCRIBE_WATCHABLE,
             # One of each type
-            'watchables': [entry.get_id() for entry in all_entries]
+            'watchables': [entry.get_display_path() for entry in all_entries]
         }
 
         self.send_request(subscribe_cmd)
@@ -698,7 +698,7 @@ class TestWriteMemoryInForbiddenRegions(ScrutinyIntegrationTestWithTestSFD1):
         subscribe_cmd = {
             'cmd': API.Command.Client2Api.SUBSCRIBE_WATCHABLE,
             # One of each type
-            'watchables': [entry.get_id() for entry in all_entries]
+            'watchables': [entry.get_display_path() for entry in all_entries]
         }
 
         self.send_request(subscribe_cmd)
