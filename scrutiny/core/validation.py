@@ -63,7 +63,7 @@ def assert_float_range(val: Union[int, float], name: str, minval: Optional[float
     return val
 
 
-def assert_float_range_if_not_none(val: float, name: str, minval: Optional[float] = None, maxval: Optional[float] = None) -> Optional[float]:
+def assert_float_range_if_not_none(val: Optional[float], name: str, minval: Optional[float] = None, maxval: Optional[float] = None) -> Optional[float]:
     if val is None:
         return None
     return assert_float_range(val, name, minval, maxval)

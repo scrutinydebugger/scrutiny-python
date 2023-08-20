@@ -1116,8 +1116,8 @@ class ScrutinyClient:
         :raises sdk.exceptions.TimeoutException: If the read operation does not complete within the given timeout value
         """
 
-        validation.assert_int_range(address, minval=0)
-        validation.assert_int_range(size, minval=1)
+        validation.assert_int_range(address, 'address', minval=0)
+        validation.assert_int_range(size, 'size', minval=1)
         timeout = validation.assert_float_range_if_not_none(timeout, 'timeout', minval=0)
 
         time_start = time.time()
@@ -1184,7 +1184,7 @@ class ScrutinyClient:
 
         """
 
-        validation.assert_int_range(address, minval=0)
+        validation.assert_int_range(address, 'address', minval=0)
         validation.assert_type(data, 'data', bytes)
         timeout = validation.assert_float_range_if_not_none(timeout, 'timeout', minval=0)
 
