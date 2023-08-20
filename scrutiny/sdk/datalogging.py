@@ -429,6 +429,7 @@ class DataloggingRequest:
         :raises sdk.exceptions.TimeoutException: If the acquisition does not complete in less than the specified timeout value
         :raises sdk.exceptions.OperationFailure: If an error happened that prevented the acquisition to successfully complete
         """
+        timeout = validation.assert_float_range_if_not_none(timeout, 'timeout', minval=0)
         self._completed_event.wait(timeout=timeout)
         if not self._completed:
             raise sdk.exceptions.TimeoutException(f"Datalogging acquisition did not complete in {timeout} seconds")
@@ -437,7 +438,7 @@ class DataloggingRequest:
         if not self._success:
             raise sdk.exceptions.OperationFailure(f"Datalogging acquisition failed to complete. {self._failure_reason}")
 
-    def fetch_acquisition(self, timeout=None) -> DataloggingAcquisition:
+    def fetch_acquisition(self, timeout: Optional[float] = None) -> DataloggingAcquisition:
         """Download and returns an the acquisition data from the server. The acquisition must be complete
 
         :params timeout: Timeout to get a response by the server in seconds. Uee the default timeout value if `None`
@@ -448,6 +449,8 @@ class DataloggingRequest:
         :return: The `DataloggingAcquisition` object containing the acquired data
 
         """
+        timeout = validation.assert_float_range_if_not_none(timeout, 'timeout', minval=0)
+
         if not self._completed:
             raise sdk.exceptions.OperationFailure('Acquisition is not complete yet')
 

@@ -15,6 +15,7 @@ from scrutiny.sdk.definitions import *
 from scrutiny.core.basic_types import *
 import scrutiny.sdk.exceptions as sdk_exceptions
 from scrutiny.sdk.write_request import WriteRequest
+from scrutiny.core import validation
 from typing import Optional, Union, TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -25,20 +26,22 @@ ValType = Union[int, float, bool]
 
 
 class WatchableHandle:
-    _client: "ScrutinyClient"
-    _display_path: str
-    _shortname: str
-    _lock: threading.Lock
+    """A handle to a server watchable element (Variable / Alias / RuntimePublishedValue) that gets updated by the client thread."""
 
-    _datatype: EmbeddedDataType
-    _watchable_type: WatchableType
-    _server_id: Optional[str]
-    _status: ValueStatus
+    _client: "ScrutinyClient"   # The client that created this handle
+    _display_path: str      # The display path
+    _shortname: str         # Name of the last element in the display path
+    _lock: threading.Lock   # A lock to access the value
 
-    _value: Optional[ValType]
-    _last_value_dt: Optional[datetime]
-    _last_write_dt: Optional[datetime]
-    _update_counter: int
+    _datatype: EmbeddedDataType     # The datatype represented in the device (uint8, float32, etc)
+    _watchable_type: WatchableType  # Tye of watchable : Alias, Variable or RPV
+    _server_id: Optional[str]       # The ID assigned by the server
+    _status: ValueStatus            # Status of the value. Tells if the value is valid or not and why it is invalid if not
+
+    _value: Optional[ValType]       # Contain the latest value gotten by the client
+    _last_value_dt: Optional[datetime]  # Datetime of the last value update by the client
+    _last_write_dt: Optional[datetime]  # Datetime of the last completed write on this element
+    _update_counter: int    # A counter that gets incremented each time the value is updated
 
     def __init__(self, client: "ScrutinyClient", display_path: str):
         self._client = client
@@ -110,10 +113,26 @@ class WatchableHandle:
         return write_request
 
     def unwatch(self) -> None:
+        """Stop watching this item by unsubscribing to the server
+
+        :raises NameNotFoundError: If the required path is not presently being watched
+        :raises OperationFailure: If the subscription cancellation failed in any way
+        """
         self._client.unwatch(self._display_path)
 
     def wait_update(self, timeout: float = 3, previous_counter: Optional[int] = None) -> None:
-        """Wait for the value to be updated by the server"""
+        """Wait for the value to be updated by the server
+
+        :param timeout: Amount of time to wait for a value update
+        :param previous_counter: Optional update counter to use for change detection. 
+
+        :raise InvalidValueError: If the watchable becomes invalid while waiting
+        :raise TimeoutException: If not value update happens within the given timeout
+        """
+
+        timeout = validation.assert_float_range(timeout, 'timeout', minval=0)
+        validation.assert_int_range_if_not_none(previous_counter, 'previous_counter', minval=0)
+
         t = time.time()
         entry_counter = self._update_counter if previous_counter is None else previous_counter
         happened = False

@@ -18,12 +18,17 @@ __all__ = [
 from enum import Enum
 from typing import Union
 from dataclasses import dataclass
+from scrutiny.core import validation
 
 
 @dataclass(frozen=True)
 class MemoryRegion:
     start: int
     size: int
+
+    def __post_init__(self):
+        validation.assert_int_range(self.start, 'start', minval=0)
+        validation.assert_int_range(self.size, 'size', minval=0)
 
     def touches(self, other: "MemoryRegion") -> bool:
         if self.size <= 0 or other.size <= 0:

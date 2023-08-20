@@ -1524,7 +1524,7 @@ class API:
                 'display_name': cast(str, device_info_input.display_name),
                 'max_tx_data_size': cast(int, device_info_input.max_tx_data_size),
                 'max_rx_data_size': cast(int, device_info_input.max_rx_data_size),
-                'max_bitrate_bps': cast(int, device_info_input.max_bitrate_bps),
+                'max_bitrate_bps': device_info_input.max_bitrate_bps,
                 'rx_timeout_us': cast(int, device_info_input.rx_timeout_us),
                 'heartbeat_timeout_us': cast(int, device_info_input.heartbeat_timeout_us),
                 'address_size_bits': cast(int, device_info_input.address_size_bits),

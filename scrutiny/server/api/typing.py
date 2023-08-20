@@ -75,7 +75,7 @@ class DeviceInfo(TypedDict):
     display_name: str
     max_tx_data_size: int
     max_rx_data_size: int
-    max_bitrate_bps: int
+    max_bitrate_bps: Optional[int]
     rx_timeout_us: int
     heartbeat_timeout_us: int
     address_size_bits: int

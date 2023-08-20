@@ -74,7 +74,10 @@ class DataSeries:
 @dataclass(frozen=True)
 class DataSeriesWithAxis:
     series: DataSeries
+    """The dataseries containing the acquisition data"""
+
     axis: AxisDefinition
+    """The Y-Axis to which the dataseries is bound to"""
 
 
 class DataloggingAcquisition:

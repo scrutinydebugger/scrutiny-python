@@ -307,7 +307,7 @@ def parse_inform_server_status(response: api_typing.S2C.InformServerStatus) -> s
         _check_response_dict(cmd, response, 'device_info.display_name', str)
         _check_response_dict(cmd, response, 'device_info.max_tx_data_size', int)
         _check_response_dict(cmd, response, 'device_info.max_rx_data_size', int)
-        _check_response_dict(cmd, response, 'device_info.max_bitrate_bps', int)
+        _check_response_dict(cmd, response, 'device_info.max_bitrate_bps', (int, type(None)))
         _check_response_dict(cmd, response, 'device_info.rx_timeout_us', int)
         _check_response_dict(cmd, response, 'device_info.heartbeat_timeout_us', int)
         _check_response_dict(cmd, response, 'device_info.address_size_bits', int)

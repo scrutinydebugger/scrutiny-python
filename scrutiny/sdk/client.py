@@ -1227,7 +1227,7 @@ class ScrutinyClient:
 
         with self._main_lock:
             if request_token not in self._memory_write_completion_dict:
-                raise sdk.exceptions.TimeoutException(
+                raise sdk.exceptions.OperationFailure(
                     "Did not get memory write completion confirmation after %0.2f seconds. (address=0x%08X, size=%d)" % (timeout, address, len(data)))
 
             completion = self._memory_write_completion_dict[request_token]
