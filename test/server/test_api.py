@@ -1955,57 +1955,67 @@ class TestAPI(ScrutinyUnitTest):
 
     def test_read_datalogging_acquisition_content(self):
         with DataloggingStorage.use_temp_storage():
-            axis1 = core_datalogging.AxisDefinition(name="Axis1", axis_id=0)
-            axis2 = core_datalogging.AxisDefinition(name="Axis2", axis_id=1)
-            acq = core_datalogging.DataloggingAcquisition(firmware_id='some_firmware_id', reference_id="refid1", name="foo")
-            acq.set_xdata(core_datalogging.DataSeries([0, 1, 2, 3, 4, 5, 6, 7, 8, 9], name='the x-axis', logged_element='/var/xaxis'))
-            acq.add_data(core_datalogging.DataSeries([10, 20, 30, 40, 50, 60, 70, 80, 90], name='series 1', logged_element='/var/data1'), axis1)
-            acq.add_data(core_datalogging.DataSeries([100, 200, 300, 400, 500, 600, 700,
-                         800, 900], name='series 2', logged_element='/var/data2'), axis2)
-            acq.set_trigger_index(3)
-            DataloggingStorage.save(acq)
+            with SFDStorage.use_temp_folder():
+                dummy_sfd1_filename = get_artifact('test_sfd_1.sfd')
+                sfd1 = SFDStorage.install(dummy_sfd1_filename, ignore_exist=True)
 
-            req: api_typing.C2S.ReadDataloggingAcquisitionContent = {
-                'cmd': 'read_datalogging_acquisition_content',
-                'reference_id': 'refid1'
-            }
+                axis1 = core_datalogging.AxisDefinition(name="Axis1", axis_id=0)
+                axis2 = core_datalogging.AxisDefinition(name="Axis2", axis_id=1)
+                acq = core_datalogging.DataloggingAcquisition(firmware_id=sfd1.get_firmware_id_ascii(), reference_id="refid1", name="foo")
 
-            self.send_request(req)
-            response = cast(api_typing.S2C.ReadDataloggingAcquisitionContent, self.wait_and_load_response())
-            self.assert_no_error(response)
-            self.assertEqual(response['cmd'], 'read_datalogging_acquisition_content_response')
-            self.assertEqual(len(response['signals']), 2)
+                acq.set_xdata(core_datalogging.DataSeries([0, 1, 2, 3, 4, 5, 6, 7, 8, 9], name='the x-axis', logged_element='/var/xaxis'))
+                acq.add_data(core_datalogging.DataSeries([10, 20, 30, 40, 50, 60, 70, 80, 90], name='series 1', logged_element='/var/data1'), axis1)
+                acq.add_data(core_datalogging.DataSeries([100, 200, 300, 400, 500, 600, 700,
+                                                          800, 900], name='series 2', logged_element='/var/data2'), axis2)
+                acq.set_trigger_index(3)
+                DataloggingStorage.save(acq)
 
-            self.assertEqual(response['xdata']['name'], 'the x-axis')
-            self.assertEqual(response['xdata']['data'], [0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
-            self.assertEqual(response['xdata']['logged_element'], '/var/xaxis')
+                req: api_typing.C2S.ReadDataloggingAcquisitionContent = {
+                    'cmd': 'read_datalogging_acquisition_content',
+                    'reference_id': 'refid1'
+                }
 
-            self.assertEqual(response['trigger_index'], 3)
+                self.send_request(req)
+                response = cast(api_typing.S2C.ReadDataloggingAcquisitionContent, self.wait_and_load_response())
+                self.assert_no_error(response)
+                self.assertEqual(response['cmd'], 'read_datalogging_acquisition_content_response')
 
-            self.assertCountEqual(response['yaxes'], [dict(id=0, name="Axis1"), dict(id=1, name="Axis2")])
+                self.assertEqual(response['firmware_id'], sfd1.get_firmware_id_ascii())
+                self.assertEqual(response['reference_id'], 'refid1')
+                self.assertEqual(response['name'], 'foo')
+                self.assertEqual(response['firmware_name'], "%s V%s" % (sfd1.get_metadata()['project_name'], sfd1.get_metadata()['version']))
+                self.assertEqual(len(response['signals']), 2)
 
-            all_series_name = [x['name'] for x in response['signals']]
-            idx_series1 = all_series_name.index('series 1')
-            idx_series2 = all_series_name.index('series 2')
+                self.assertEqual(response['xdata']['name'], 'the x-axis')
+                self.assertEqual(response['xdata']['data'], [0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
+                self.assertEqual(response['xdata']['logged_element'], '/var/xaxis')
 
-            self.assertEqual(response['signals'][idx_series1]['name'], 'series 1')
-            self.assertEqual(response['signals'][idx_series1]['data'], [10, 20, 30, 40, 50, 60, 70, 80, 90])
-            self.assertEqual(response['signals'][idx_series1]['logged_element'], '/var/data1')
-            self.assertEqual(response['signals'][idx_series1]['axis_id'], 0)
+                self.assertEqual(response['trigger_index'], 3)
 
-            self.assertEqual(response['signals'][idx_series2]['name'], 'series 2')
-            self.assertEqual(response['signals'][idx_series2]['data'], [100, 200, 300, 400, 500, 600, 700, 800, 900])
-            self.assertEqual(response['signals'][idx_series2]['logged_element'], '/var/data2')
-            self.assertEqual(response['signals'][idx_series2]['axis_id'], 1)
+                self.assertCountEqual(response['yaxes'], [dict(id=0, name="Axis1"), dict(id=1, name="Axis2")])
 
-            req: api_typing.C2S.ReadDataloggingAcquisitionContent = {
-                'cmd': 'read_datalogging_acquisition',
-                'reference_id': 'bad_id'
-            }
+                all_series_name = [x['name'] for x in response['signals']]
+                idx_series1 = all_series_name.index('series 1')
+                idx_series2 = all_series_name.index('series 2')
 
-            self.send_request(req)
-            response = cast(api_typing.S2C.ReadDataloggingAcquisitionContent, self.wait_and_load_response())
-            self.assert_is_error(response)
+                self.assertEqual(response['signals'][idx_series1]['name'], 'series 1')
+                self.assertEqual(response['signals'][idx_series1]['data'], [10, 20, 30, 40, 50, 60, 70, 80, 90])
+                self.assertEqual(response['signals'][idx_series1]['logged_element'], '/var/data1')
+                self.assertEqual(response['signals'][idx_series1]['axis_id'], 0)
+
+                self.assertEqual(response['signals'][idx_series2]['name'], 'series 2')
+                self.assertEqual(response['signals'][idx_series2]['data'], [100, 200, 300, 400, 500, 600, 700, 800, 900])
+                self.assertEqual(response['signals'][idx_series2]['logged_element'], '/var/data2')
+                self.assertEqual(response['signals'][idx_series2]['axis_id'], 1)
+
+                req: api_typing.C2S.ReadDataloggingAcquisitionContent = {
+                    'cmd': 'read_datalogging_acquisition',
+                    'reference_id': 'bad_id'
+                }
+
+                self.send_request(req)
+                response = cast(api_typing.S2C.ReadDataloggingAcquisitionContent, self.wait_and_load_response())
+                self.assert_is_error(response)
 
     def send_request_datalogging_acquisition_and_fetch_result(self, req: api_typing.C2S.RequestDataloggingAcquisition) -> api_datalogging.AcquisitionRequest:
         self.send_request(req)
