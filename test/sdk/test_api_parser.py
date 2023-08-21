@@ -518,6 +518,7 @@ class TestApiParser(ScrutinyUnitTest):
                 "cmd": "read_datalogging_acquisition_content_response",
                 "reqid": None,
                 "firmware_id": "foo",
+                "firmware_name": "hello",
                 "name": "acquisition 123",
                 "reference_id": "bar.baz",
                 "trigger_index": 5,
@@ -558,6 +559,7 @@ class TestApiParser(ScrutinyUnitTest):
 
         self.assertIsInstance(acq, sdk.datalogging.DataloggingAcquisition)
         self.assertEqual(acq.firmware_id, "foo")
+        self.assertEqual(acq.firmware_name, 'hello')
         self.assertEqual(acq.name, "acquisition 123")
         self.assertEqual(acq.reference_id, "bar.baz")
         self.assertLessEqual(abs(acq.acq_time - now), timedelta(seconds=1))
@@ -596,7 +598,7 @@ class TestApiParser(ScrutinyUnitTest):
         self.assertEqual(data[2].series.name, "signal3")
         self.assertEqual(data[2].series.logged_element, "/path/to/signal3")
 
-        for field in ['firmware_id', 'name', 'reference_id', 'trigger_index', 'timestamp', 'xdata', 'yaxes', 'signals']:
+        for field in ['firmware_id', 'firmware_name', 'name', 'reference_id', 'trigger_index', 'timestamp', 'xdata', 'yaxes', 'signals']:
             msg = base()
             del msg[field]
             with self.assertRaises(sdk.exceptions.BadResponseError, msg=f"Field : {field}"):
