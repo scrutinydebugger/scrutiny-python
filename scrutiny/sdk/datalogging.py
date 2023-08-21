@@ -257,6 +257,8 @@ class DataloggingConfig:
             raise TypeError(f'Expected signal to be a valid path (string) or a watchable handle. Got {signal.__class__.__name__}')
 
         validation.assert_type(name, 'name', (str, type(None)))
+        if name is None:
+            name = signal_path.split('/')[-1]
 
         self._signals.append(_SignalAxisPair(name=name, path=signal_path, axis_id=axis_id))
 

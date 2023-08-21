@@ -269,6 +269,7 @@ class DataloggingPoller:
         """Request the state machine to cancel the active request and go through a device datalogger reset"""
         if self.acquisition_request is not None:
             self.cancel_requested = True
+            self.logger.debug("Cancel requested")
 
     def cancel_in_progress(self) -> bool:
         """Tells if a cancel as been requested and is still processing"""
@@ -333,7 +334,7 @@ class DataloggingPoller:
                     if not self.request_pending[DatalogSubfn.GetSetup]:
                         self.dispatch(self.protocol.datalogging_get_setup())
                 else:
-                    next_state = FSMState.WAIT_FOR_REQUEST
+                    next_state = FSMState.WAIT_FOR_REQUEST  # No need to clear the first time.
                     self.logger.debug("Datalogging setup received. %s" % (self.device_setup.__dict__))
 
             elif self.state == FSMState.REQUEST_RESET:

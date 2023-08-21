@@ -676,6 +676,7 @@ def parse_read_datalogging_acquisition_content_response(response: api_typing.S2C
 
     _check_response_dict(cmd, response, 'reference_id', str)
     _check_response_dict(cmd, response, 'firmware_id', str)
+    _check_response_dict(cmd, response, 'firmware_name', str)
     _check_response_dict(cmd, response, 'timestamp', float)
     _check_response_dict(cmd, response, 'name', str)
     _check_response_dict(cmd, response, 'trigger_index', (int, type(None)))
@@ -691,6 +692,7 @@ def parse_read_datalogging_acquisition_content_response(response: api_typing.S2C
         acq_time=datetime.fromtimestamp(response['timestamp']),
         name=response['name']
     )
+    acquisition.set_firmware_name(response['firmware_name'])
 
     axis_map: Dict[int, sdk.datalogging.AxisDefinition] = {}
     for yaxis in response['yaxes']:

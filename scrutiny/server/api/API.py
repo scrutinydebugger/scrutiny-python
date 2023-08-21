@@ -381,15 +381,17 @@ class API:
         self.client_handler.process()   # Get incoming requests
         while self.client_handler.available():
             popped = self.client_handler.recv()
-            assert popped is not None  # make mypy happy
-            conn_id = popped.conn_id
-            obj = cast(api_typing.C2SMessage, popped.obj)
+            if popped is not None:
+                conn_id = popped.conn_id
+                obj = cast(api_typing.C2SMessage, popped.obj)
 
-            if self.is_new_connection(conn_id):
-                self.logger.debug('Opening connection %s' % conn_id)
-                self.open_connection(conn_id)
+                if self.is_new_connection(conn_id):
+                    self.logger.debug('Opening connection %s' % conn_id)
+                    self.open_connection(conn_id)
 
-            self.process_request(conn_id, obj)
+                self.process_request(conn_id, obj)
+            else:
+                self.logger.critical("Received an empty message, ignoring")
 
         # Close  dead connections
         conn_to_close = [conn_id for conn_id in self.connections if not self.client_handler.is_connection_active(conn_id)]
@@ -1450,6 +1452,8 @@ class API:
         acquisition: api_datalogging.DataloggingAcquisition
         try:
             acquisition = DataloggingStorage.read(req['reference_id'])
+            if SFDStorage.is_installed(acquisition.firmware_id):
+                acquisition.configure_with_sfd_metadata(SFDStorage.get_metadata(acquisition.firmware_id))
         except LookupError as e:
             err = e
 
@@ -1484,6 +1488,7 @@ class API:
             'cmd': API.Command.Api2Client.READ_DATALOGGING_ACQUISITION_CONTENT_RESPONSE,
             'reqid': self.get_req_id(req),
             'firmware_id': acquisition.firmware_id,
+            'firmware_name': acquisition.firmware_name,
             'name': '' if acquisition.name is None else acquisition.name,
             'timestamp': acquisition.acq_time.timestamp(),
             'reference_id': acquisition.reference_id,

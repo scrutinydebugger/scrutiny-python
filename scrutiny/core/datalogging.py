@@ -12,8 +12,13 @@ import struct
 from uuid import uuid4
 from dataclasses import dataclass
 from datetime import datetime
+import csv
+import logging
+from scrutiny.core.firmware_description import MetadataType
 
-from typing import List, Optional
+from typing import List, Optional, TYPE_CHECKING
+if TYPE_CHECKING:
+    import _csv
 
 __all__ = [
     'AxisDefinition',
@@ -104,6 +109,9 @@ class DataloggingAcquisition:
     trigger_index: Optional[int]
     """Sample index of the trigger"""
 
+    firmware_name: str
+    """The firmware metadata related to the firmware ID used to make this acquisition, if available"""
+
     def __init__(self,
                  firmware_id: str,
                  reference_id: Optional[str] = None,
@@ -116,6 +124,7 @@ class DataloggingAcquisition:
         self.name = name
         self.ydata = []
         self.trigger_index = None
+        self.firmware_name = 'N/A'
 
     @classmethod
     def make_unique_id(self) -> str:
@@ -168,3 +177,40 @@ class DataloggingAcquisition:
                 raise ValueError("Trigger index cannot be greater than the x-axis data length")
 
         self.trigger_index = val
+
+    def set_firmware_name(self, firmware_name: str) -> None:
+        self.firmware_name = firmware_name
+
+    def configure_with_sfd_metadata(self, metadata: MetadataType) -> None:
+        if 'project_name' in metadata and metadata['project_name'] is not None:
+            self.firmware_name = metadata['project_name']
+            if 'version' in metadata and metadata['version'] is not None:
+                self.firmware_name += ' V%s' % metadata['version']
+
+    def write_csv(self, writer: '_csv._writer') -> None:
+        writer.writerow(['Acquisition Name', self.name])
+        writer.writerow(['Acquisition ID', self.reference_id])
+        writer.writerow(['Acquisition time', self.acq_time.strftime(r"%Y-%m-%d %H:%M:%S")])
+        writer.writerow(['Firmware ID', self.firmware_id])
+        writer.writerow(['Firmware Name', self.firmware_name])
+        writer.writerow([])
+
+        header_row = [self.xdata.name] + [ydata.series.name for ydata in self.ydata]
+        if self.trigger_index is not None:
+            header_row.append('Trigger')
+
+        writer.writerow(header_row)
+        for ydata in self.ydata:
+            if len(self.xdata.data) != len(ydata.series.data):
+                logging.error("Data of series %s does not have the same length as the X-Axis" % ydata.series.name)
+
+        for i in range(len(self.xdata.data)):
+            trigger_val = []
+            if self.trigger_index is not None:
+                trigger_val = [0 if i < self.trigger_index else 1]
+            writer.writerow([self.xdata.data[i]] + [ydata.series.data[i] for ydata in self.ydata] + trigger_val)
+
+    def to_csv(self, filename: str) -> None:
+        with open(filename, 'w', encoding='utf8', newline='') as f:
+            writer = csv.writer(f, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+            self.write_csv(writer)

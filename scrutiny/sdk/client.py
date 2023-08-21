@@ -344,7 +344,7 @@ class ScrutinyClient:
                 self._logger.error(f"Got watchable update for unknown watchable {update.server_id}")
                 continue
             else:
-                self._logger.debug(f"Updating value of {update.server_id}")
+                self._logger.debug(f"Updating value of {update.server_id} ({watchable.name})")
 
             watchable._update_value(update.value)
 
@@ -1305,7 +1305,8 @@ class ScrutinyClient:
                 f"Failed to read the datalogging acquisition with reference ID '{reference_id}'. {future.error_str}")
 
         assert cb_data.obj is not None
-        return cb_data.obj
+        acquisition = cb_data.obj
+        return acquisition
 
     def start_datalog(self, config: sdk.datalogging.DataloggingConfig) -> sdk.datalogging.DataloggingRequest:
         """Requires the device to make a datalogging acquisition based on the given configuration
@@ -1356,8 +1357,6 @@ class ScrutinyClient:
         future = self._send(req, callback)
         assert future is not None
         future.wait()
-
-        self._send(req)
 
         if future.state != CallbackState.OK:
             raise sdk.exceptions.OperationFailure(
