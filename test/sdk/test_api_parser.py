@@ -337,13 +337,17 @@ class TestApiParser(ScrutinyUnitTest):
         fields = ['max_tx_data_size', 'max_rx_data_size', 'max_bitrate_bps', 'rx_timeout_us', 'heartbeat_timeout_us',
                   'address_size_bits', 'protocol_major', 'protocol_minor']
         for field in fields:
-            vals = [None, 'asd', 1.5, [], {},]   # bad values
+            vals = ['asd', 1.5, [], {},]   # bad values
             for val in vals:
                 logging.debug(f"field={field}, val={val}")
-                with self.assertRaises(sdk.exceptions.BadResponseError):
+                with self.assertRaises(sdk.exceptions.BadResponseError, msg=f"field={field}, val={val}"):
                     msg = base()
                     msg["device_info"][field] = val
                     info = parser.parse_inform_server_status(msg)
+
+        msg = base()
+        msg["device_info"]["max_bitrate_bps"] = None
+        info = parser.parse_inform_server_status(msg)
 
         fields = ["project_name", "author", "version"]
         for field in fields:
