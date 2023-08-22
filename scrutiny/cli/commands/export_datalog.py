@@ -34,14 +34,11 @@ class ExportDatalog(BaseCommand):
         self.parsed_args = self.parser.parse_args(self.args)
         DataloggingStorage.initialize()
 
-        acquisition = DataloggingStorage.read(reference_id=self.parsed_args.reference_id)
-
-        if SFDStorage.is_installed(acquisition.firmware_id):
-            acquisition.configure_with_sfd_metadata(SFDStorage.get_metadata(acquisition.firmware_id))
-
         # Check if at least one of the supported is selected
         if not self.parsed_args.csv:
             raise ValueError("At least one  export method must be specified")
+
+        acquisition = DataloggingStorage.read(reference_id=self.parsed_args.reference_id)
 
         if self.parsed_args.csv:
             acquisition.to_csv(self.parsed_args.csv)

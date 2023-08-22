@@ -19,7 +19,8 @@ from scrutiny.core.codecs import *
 from scrutiny.server.device.device_info import *
 from typing import List, cast
 from scrutiny.server.datalogging.datalogging_storage import DataloggingStorage
-from binascii import hexlify
+from binascii import hexlify, unhexlify
+
 
 from test.integration.integration_test import ScrutinyIntegrationTestWithTestSFD1
 from test import logger
@@ -320,7 +321,11 @@ class TestDataloggingIntegration(ScrutinyIntegrationTestWithTestSFD1):
                             self.assertEqual(acq_summary['firmware_id'], self.emulated_device.get_firmware_id_ascii())
                             self.assertEqual(acq_summary['name'], 'potato')
                             self.assertEqual(acq_summary['reference_id'], acq_refid)
-                            self.assertEqual(acq_summary['firmware_metadata'], None)
+                            if session_iteration == 0:
+                                self.assertIsNone(acq_summary['firmware_metadata'])
+                            else:   # emulated device firmware ID is cahnged at the end of the loop so it matches the SFD
+                                self.assertIsNotNone(acq_summary['firmware_metadata'])
+                                self.assertEqual(acq_summary['firmware_metadata'], self.sfd.get_metadata())
                             break
 
                     self.assertTrue(found)
@@ -338,6 +343,14 @@ class TestDataloggingIntegration(ScrutinyIntegrationTestWithTestSFD1):
 
                     self.assertEqual(response['reference_id'], acq_refid)
                     self.assertEqual(len(response['signals']), 4)
+
+                    self.assertEqual(response['firmware_id'], self.emulated_device.get_firmware_id_ascii())
+                    # On first loop, emualted device and SFD does not match. Subsequent loop, they match because we change the emulated device ID at the end of the first loop
+                    if session_iteration == 0:
+                        self.assertIsNone(response['firmware_name'])
+                    else:
+                        expected_firmware_name = '%s V%s' % (self.sfd.get_metadata()['project_name'], self.sfd.get_metadata()['version'])
+                        self.assertEqual(response['firmware_name'], expected_firmware_name)
 
                     # Check that all signals has the same number of points, including x axis
                     all_signals = response['signals']
@@ -425,6 +438,9 @@ class TestDataloggingIntegration(ScrutinyIntegrationTestWithTestSFD1):
                     for val in sig:
                         self.assertAlmostEqual(expected_val, val, 4)
                         expected_val = (expected_val + 1 * decimation * self.entry_alias_uint8.aliasdef.get_gain()) % 0xFF
+
+            if session_iteration == 0:
+                self.emulated_device.firmware_id = unhexlify('00000000000000000000000000000001')   # Match the SFD. Will make a valid firmware_name
 
             self.server.device_handler.expect_no_timeout = False
             self.emulated_device.force_disconnect()

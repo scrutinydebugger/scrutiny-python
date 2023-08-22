@@ -206,7 +206,8 @@ class StubbedDataloggingManager:
             firmware_id='fake_firmware_id',
             name='fakename',
             reference_id='fake_refid',
-            acq_time=datetime.now())
+            acq_time=datetime.now(),
+            firmware_name='fake_firmware_name')
 
         # Defer callback to a while later because API depends on success of this function to take action.
         self.callback_queue.put((callback, True, acquisition))
@@ -1961,7 +1962,8 @@ class TestAPI(ScrutinyUnitTest):
 
                 axis1 = core_datalogging.AxisDefinition(name="Axis1", axis_id=0)
                 axis2 = core_datalogging.AxisDefinition(name="Axis2", axis_id=1)
-                acq = core_datalogging.DataloggingAcquisition(firmware_id=sfd1.get_firmware_id_ascii(), reference_id="refid1", name="foo")
+                acq = core_datalogging.DataloggingAcquisition(firmware_id=sfd1.get_firmware_id_ascii(),
+                                                              reference_id="refid1", name="foo", firmware_name="bar")
 
                 acq.set_xdata(core_datalogging.DataSeries([0, 1, 2, 3, 4, 5, 6, 7, 8, 9], name='the x-axis', logged_element='/var/xaxis'))
                 acq.add_data(core_datalogging.DataSeries([10, 20, 30, 40, 50, 60, 70, 80, 90], name='series 1', logged_element='/var/data1'), axis1)
@@ -1983,7 +1985,7 @@ class TestAPI(ScrutinyUnitTest):
                 self.assertEqual(response['firmware_id'], sfd1.get_firmware_id_ascii())
                 self.assertEqual(response['reference_id'], 'refid1')
                 self.assertEqual(response['name'], 'foo')
-                self.assertEqual(response['firmware_name'], "%s V%s" % (sfd1.get_metadata()['project_name'], sfd1.get_metadata()['version']))
+                self.assertEqual(response['firmware_name'], "bar")
                 self.assertEqual(len(response['signals']), 2)
 
                 self.assertEqual(response['xdata']['name'], 'the x-axis')

@@ -1452,8 +1452,6 @@ class API:
         acquisition: api_datalogging.DataloggingAcquisition
         try:
             acquisition = DataloggingStorage.read(req['reference_id'])
-            if SFDStorage.is_installed(acquisition.firmware_id):
-                acquisition.configure_with_sfd_metadata(SFDStorage.get_metadata(acquisition.firmware_id))
         except LookupError as e:
             err = e
 

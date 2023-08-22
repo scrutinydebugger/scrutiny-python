@@ -341,7 +341,7 @@ class S2C:
     class ReadDataloggingAcquisitionContent(BaseS2CMessage):
         reference_id: str
         firmware_id: str
-        firmware_name: str
+        firmware_name: Optional[str]
         name: str
         timestamp: float
         trigger_index: Optional[int]

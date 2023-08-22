@@ -109,14 +109,15 @@ class DataloggingAcquisition:
     trigger_index: Optional[int]
     """Sample index of the trigger"""
 
-    firmware_name: str
-    """The firmware metadata related to the firmware ID used to make this acquisition, if available"""
+    firmware_name: Optional[str]
+    """The firmware name taken from the metadata of the SFD loaded when the acquisition was made. `None` if it is not available"""
 
     def __init__(self,
                  firmware_id: str,
                  reference_id: Optional[str] = None,
                  acq_time: Optional[datetime] = None,
-                 name: Optional[str] = None):
+                 name: Optional[str] = None,
+                 firmware_name: Optional[str] = None):
         self.reference_id = reference_id if reference_id is not None else self.make_unique_id()
         self.firmware_id = firmware_id
         self.acq_time = datetime.now() if acq_time is None else acq_time
@@ -124,7 +125,7 @@ class DataloggingAcquisition:
         self.name = name
         self.ydata = []
         self.trigger_index = None
-        self.firmware_name = 'N/A'
+        self.firmware_name = firmware_name
 
     @classmethod
     def make_unique_id(self) -> str:
@@ -178,21 +179,13 @@ class DataloggingAcquisition:
 
         self.trigger_index = val
 
-    def set_firmware_name(self, firmware_name: str) -> None:
-        self.firmware_name = firmware_name
-
-    def configure_with_sfd_metadata(self, metadata: MetadataType) -> None:
-        if 'project_name' in metadata and metadata['project_name'] is not None:
-            self.firmware_name = metadata['project_name']
-            if 'version' in metadata and metadata['version'] is not None:
-                self.firmware_name += ' V%s' % metadata['version']
-
     def write_csv(self, writer: '_csv._writer') -> None:
+        firmware_name = 'N/A' if self.firmware_name is None else self.firmware_name
         writer.writerow(['Acquisition Name', self.name])
         writer.writerow(['Acquisition ID', self.reference_id])
         writer.writerow(['Acquisition time', self.acq_time.strftime(r"%Y-%m-%d %H:%M:%S")])
         writer.writerow(['Firmware ID', self.firmware_id])
-        writer.writerow(['Firmware Name', self.firmware_name])
+        writer.writerow(['Firmware Name', firmware_name])
         writer.writerow([])
 
         header_row = [self.xdata.name] + [ydata.series.name for ydata in self.ydata]

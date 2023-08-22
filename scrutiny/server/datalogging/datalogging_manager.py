@@ -23,6 +23,7 @@ from scrutiny.server.datastore.datastore import Datastore
 from scrutiny.server.device.device_info import FixedFreqLoop, ExecLoopType
 from scrutiny.core.basic_types import *
 from scrutiny.server.datalogging.datalogging_storage import DataloggingStorage
+from scrutiny.core.sfd_storage import SFDStorage
 from scrutiny.core.codecs import Codecs
 from scrutiny.core.datalogging import DataloggingAcquisition, DataSeries, AxisDefinition
 
@@ -132,12 +133,20 @@ class DataloggingManager:
                 if nb_points is None:
                     raise ValueError('Cannot determine the number of points in the acquisitions')
 
+                firmware_name: Optional[str] = None
+                if SFDStorage.is_installed(device_info.device_id):
+                    sfd_metadata = SFDStorage.get_metadata(device_info.device_id)
+                    if 'project_name' in sfd_metadata:
+                        firmware_name = sfd_metadata["project_name"]
+                        if 'version' in sfd_metadata:
+                            firmware_name += " V%s" % sfd_metadata["version"]
                 # Crate the acquisition
                 acquisition = DataloggingAcquisition(
                     name=self.active_request.api_request.name,
                     reference_id=uuid4().hex,
                     firmware_id=device_info.device_id,
-                    acq_time=datetime.now()
+                    acq_time=datetime.now(),
+                    firmware_name=firmware_name
                 )
 
                 # Now converts binary data into meaningful value using the datastore entries and add to acquisition object
