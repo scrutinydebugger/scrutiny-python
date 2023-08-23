@@ -15,16 +15,17 @@ import traceback
 from pathlib import Path
 from datetime import datetime
 import sqlite3
+import hashlib
 
 from scrutiny.core.datalogging import DataloggingAcquisition, DataSeries, AxisDefinition
 from typing import List, Dict, Optional, Tuple
 
 
 class BadVersionError(Exception):
-    version: int
+    hash: str
 
-    def __init__(self, version, *args, **kwargs):
-        self.version = version
+    def __init__(self, hash, *args, **kwargs):
+        self.hash = hash
         super().__init__(*args, **kwargs)
 
 
@@ -64,13 +65,13 @@ class SQLiteSession:
 class DataloggingStorageManager:
     """Provides an interface to the filesystem to store and read back datalogging acquisitions. Uses SQLite3 as storage engine"""
     FILENAME = "scrutiny_datalog.sqlite"
-    STORAGE_VERSION = 1  # Update this if the structure of the DB changes. Keep an integer
 
     folder: str  # Working folder
     temporary_dir: Optional[tempfile.TemporaryDirectory]    # A temporary work folder mainly used for unit tests
     logger: logging.Logger  # The logger
     unavailable: bool       # Flags indicating that the storage can or cannot be used
     init_count: int
+    actual_hash: Optional[str]
 
     def __init__(self, folder):
         self.folder = folder
@@ -78,6 +79,7 @@ class DataloggingStorageManager:
         self.logger = logging.getLogger(self.__class__.__name__)
         self.unavailable = True
         self.init_count = 0
+        self.actual_hash = None
         os.makedirs(self.folder, exist_ok=True)
 
     def use_temp_storage(self) -> TempStorageWithAutoRestore:
@@ -117,14 +119,21 @@ class DataloggingStorageManager:
         err: Optional[Exception] = None
 
         try:
+            if not os.path.isfile(self.get_db_filename()):
+                with SQLiteSession(self.get_db_filename()) as conn:
+                    self.create_db_if_not_exists(conn)
+
             try:
                 with SQLiteSession(self.get_db_filename()) as conn:
-                    self.check_version(conn)
+                    self.actual_hash = self.check_structure_version(conn)
             except BadVersionError as e:
-                self.backup_db(e.version)
+                self.actual_hash = None
+                self.backup_db(e.hash)
 
             with SQLiteSession(self.get_db_filename()) as conn:
                 self.create_db_if_not_exists(conn)
+                if self.actual_hash is None:
+                    self.actual_hash = self.read_hash(conn)
             self.unavailable = False
             self.init_count += 1
             self.logger.debug('Datalogging storage ready')
@@ -151,72 +160,58 @@ class DataloggingStorageManager:
                 self.logger.error('Failed to initialize datalogging storage a 2nd time. Datalogging storage will not be accessible. %s' % str(e))
                 self.logger.debug(traceback.format_exc())
 
-    def make_meta_table_if_not_exists(self, conn: sqlite3.Connection) -> None:
-        """Creates the metadata table"""
-        cursor = conn.cursor()
-        cursor.execute(
-            """ 
-            CREATE TABLE IF NOT EXISTS `meta` (
-                `field` VARCHAR(255) PRIMARY KEY,
-                `value` TEXT NOT NULL
-            )
-            """
-        )
-
-    def read_version(self, conn: sqlite3.Connection) -> Optional[int]:
+    def read_hash(self, conn: sqlite3.Connection) -> str:
         """Reads the version of the storage from the database. Used for future-proofing"""
-        self.make_meta_table_if_not_exists(conn)
-
         cursor = conn.cursor()
-        cursor.execute("SELECT `value` FROM `meta` WHERE `field`='storage_version'")
+        cursor.execute("SELECT name, sql FROM sqlite_master WHERE type='table' ORDER BY name")
         rows = cursor.fetchall()
-        if len(rows) > 1:
-            raise ValueError('More than 1 version was returned by the database.')
-
         if len(rows) == 0:
-            return None
+            raise RuntimeError('No database structure available')
 
-        return int(rows[0][0])
+        sha256 = hashlib.sha256()
+        for row in rows:
+            sha256.update(str(row[0]).encode('utf8'))
+            sha256.update(str(row[1]).encode('utf8'))
 
-    def check_version(self, conn: sqlite3.Connection):
+        return sha256.hexdigest()
+
+    def check_structure_version(self, conn: sqlite3.Connection) -> str:
         """Check that the version of the storage is the one handled by the code. Future-proofing"""
-        read_version = self.read_version(conn)
-        if read_version is None:
-            self.write_version(conn)
-        else:
-            if read_version != self.STORAGE_VERSION:
-                self.logger.warning('Storage version mismatch.')
-                raise BadVersionError(read_version, "Read version ws %d. Expected %d" % (read_version, self.STORAGE_VERSION))
+        read_hash = self.read_hash(conn)
+        with tempfile.TemporaryDirectory() as dirname:
+            with SQLiteSession(os.path.join(dirname, 'temp.sqlite')) as conn2:
+                self.create_db_if_not_exists(conn2)
+                expected_hash = self.read_hash(conn2)
 
-    def write_version(self, conn: sqlite3.Connection):
-        """Writes the actual version to the database metadata"""
-        conn.cursor().execute("INSERT INTO meta (field, value) VALUES ('storage_version', ?)", (self.STORAGE_VERSION,))
-        conn.commit()
+        if read_hash != expected_hash:
+            self.logger.warning('Storage version mismatch.')
+            raise BadVersionError(read_hash, "Read structure hash was %s. Expected %s" % (read_hash, expected_hash))
 
-    def backup_db(self, previous_version: int) -> None:
+        return read_hash
+
+    def backup_db(self, previous_hash: str) -> None:
         """Makes a backup of the database and identify the file with the given version number"""
         storage_file_path = Path(self.get_db_filename())
         date = datetime.now().strftime(r"%Y%m%d_%H%M%S")
-        backup_file = os.path.join(storage_file_path.parent, '%s_datalogging_storage_v%d_backup%s' %
-                                   (date, previous_version, storage_file_path.suffix))
+        backup_file = os.path.join(storage_file_path.parent, '%s_datalogging_storage_%s_backup%s' %
+                                   (date, previous_hash, storage_file_path.suffix))
         if os.path.isfile(str(storage_file_path)):
             try:
                 os.rename(str(storage_file_path), backup_file)
-                self.logger.info("Datalogging storage version will upgrade to V%d. Old file backed up here: %s" %
-                                 (self.STORAGE_VERSION, backup_file))
+                self.logger.info("Datalogging storage structure has changed and will now be upgraded. Old file backed up here: %s" %
+                                 (backup_file))
             except Exception as e:
                 self.logger.error("Failed to backup old storage. %s" % str(e))
 
     def get_init_count(self):
         return self.init_count
 
+    def get_db_hash(self) -> Optional[str]:
+        return self.actual_hash
+
     def create_db_if_not_exists(self, conn: sqlite3.Connection) -> None:
         """Creates the database into the file using CREATE TABLE IF NOT EXISTS"""
         cursor = conn.cursor()
-        self.make_meta_table_if_not_exists(conn)
-        read_version = self.read_version(conn)
-        if read_version is None:
-            self.write_version(conn)
 
         cursor.execute(""" 
             CREATE TABLE IF NOT EXISTS `acquisitions` (
@@ -278,10 +273,6 @@ class DataloggingStorageManager:
         if self.unavailable:
             raise RuntimeError('Datalogging Storage is not accessible.')
         return SQLiteSession(self.get_db_filename())
-
-    def get_db_version(self) -> Optional[int]:
-        with self.get_session() as conn:
-            return self.read_version(conn)
 
     def save(self, acquisition: DataloggingAcquisition) -> None:
         """Writes an acquisition to the storage"""
