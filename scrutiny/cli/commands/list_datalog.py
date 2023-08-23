@@ -101,6 +101,7 @@ class ListDatalog(BaseCommand):
             )
             sizes.update(header)
 
+            print()  # Ensure new line
             self.print_line(header, sizes)
             all_entries.sort(key=lambda x: x.acq_time)
             index = 0
