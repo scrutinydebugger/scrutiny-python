@@ -138,6 +138,7 @@ class DataloggingStorageManager:
             self.init_count += 1
             self.logger.debug('Datalogging storage ready')
         except Exception as e:
+            self.actual_hash = None
             self.logger.error('Failed to initialize datalogging storage. Resetting storage at %s. %s' % (self.get_db_filename(), str(e)))
             self.logger.debug(traceback.format_exc())
             err = e
@@ -154,6 +155,7 @@ class DataloggingStorageManager:
             try:
                 with SQLiteSession(self.get_db_filename()) as conn:
                     self.create_db_if_not_exists(conn)
+                    self.actual_hash = self.read_hash()
                 self.unavailable = False
                 self.logger.debug('Datalogging storage ready')
             except Exception as e:
