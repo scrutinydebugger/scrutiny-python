@@ -155,7 +155,7 @@ class DataloggingStorageManager:
             try:
                 with SQLiteSession(self.get_db_filename()) as conn:
                     self.create_db_if_not_exists(conn)
-                    self.actual_hash = self.read_hash()
+                    self.actual_hash = self.read_hash(conn)
                 self.unavailable = False
                 self.logger.debug('Datalogging storage ready')
             except Exception as e:
