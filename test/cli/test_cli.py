@@ -19,13 +19,16 @@ import sys
 from scrutiny.core.varmap import VarMap
 from scrutiny.core.firmware_description import FirmwareDescription
 from scrutiny.core.sfd_storage import SFDStorage
+from scrutiny.server.datalogging.datalogging_storage import DataloggingStorage
+from scrutiny.core.datalogging import *
 from test.artifacts import get_artifact
 from test import SkipOnException
 from scrutiny.cli import CLI
 from scrutiny.exceptions import EnvionmentNotSetUpException
 from scrutiny.server.datastore.entry_type import EntryType
-from scrutiny.core.firmware_parser import FirmwareParser
 from test import ScrutinyUnitTest
+import random
+import re
 
 
 class RedirectStdout:
@@ -304,6 +307,149 @@ class TestCLI(ScrutinyUnitTest):
             self.assertEqual(alias.get_offset(), 2.5)
             self.assertEqual(alias.get_min(), 0.0)
             self.assertEqual(alias.get_max(), 100.0)
+
+    def test_datalog_info(self):
+        with DataloggingStorage.use_temp_storage():
+            acq1 = DataloggingAcquisition(firmware_id="firmwareid1", name="Acquisition #1", acq_time=datetime.datetime.now())
+            axis1 = AxisDefinition("Axis-1", 111)
+            acq1.set_xdata(DataSeries([random.random() for x in range(10)]))
+            acq1.add_data(DataSeries([random.random() for x in range(10)]), axis1)
+            acq2 = DataloggingAcquisition(firmware_id="firmwareid1", name="Acquisition #2",
+                                          acq_time=datetime.datetime.now() - datetime.timedelta(seconds=30))
+            acq2.set_xdata(DataSeries([random.random() for x in range(10)]))
+            acq2.add_data(DataSeries([random.random() for x in range(10)]), axis1)
+
+            DataloggingStorage.save(acq1)
+            DataloggingStorage.save(acq2)
+
+            cli = CLI()
+            with RedirectStdout() as stdout:
+                cli.run(['datalog-info'])  # Make sure no exception is raised
+                output = stdout.read()
+
+            self.assertIsNotNone(re.search(r'Acquisitions count:\s+2', output), output)
+            self.assertIsNotNone(re.search(r'Storage structure hash:\s+%s' % DataloggingStorage.get_db_hash(), output), output)
+            m = re.search(r'Oldest acquisition:\s+([^\n]+)', output)
+            self.assertIsNotNone(m)
+            oldest = m.groups(1)[0]
+
+            m = re.search(r'Newest acquisition:\s+([^\n]+)', output)
+            self.assertIsNotNone(m)
+            newest = m.groups(1)[0]
+
+            oldest = datetime.datetime.fromisoformat(oldest)
+            newest = datetime.datetime.fromisoformat(newest)
+            self.assertEqual(newest - oldest, datetime.timedelta(seconds=30))
+
+            m = re.search(r'Storage location:\s+([^\n]+)', output)
+            self.assertIsNotNone(m)
+            storage_file = m.groups(1)[0]
+            self.assertTrue(os.path.isfile(storage_file))
+
+    def test_list_datalog(self):
+        with DataloggingStorage.use_temp_storage():
+            acq1 = DataloggingAcquisition(firmware_id="firmwareid1", name="Acquisition #1", acq_time=datetime.datetime.now(), firmware_name="foo.bar")
+            axis1 = AxisDefinition("Axis-1", 111)
+            acq1.set_xdata(DataSeries([random.random() for x in range(10)]))
+            acq1.add_data(DataSeries([random.random() for x in range(10)]), axis1)
+            acq2 = DataloggingAcquisition(firmware_id="firmwareid1", name="Acquisition #2",
+                                          acq_time=datetime.datetime.now() - datetime.timedelta(seconds=30))
+            acq2.set_xdata(DataSeries([random.random() for x in range(10)]))
+            acq2.add_data(DataSeries([random.random() for x in range(10)]), axis1)
+
+            DataloggingStorage.save(acq1)
+            DataloggingStorage.save(acq2)
+
+            cli = CLI()
+            with RedirectStdout() as stdout:
+                cli.run(['list-datalog'])  # Make sure no exception is raised
+                output = stdout.read()
+
+            output = output.strip()
+            self.assertEqual(output.count('\n'), 3 - 1)  # Header + 2 acquisition -1
+            self.assertIn(acq1.reference_id, output)
+            self.assertIn(acq1.name, output)
+            self.assertNotIn(acq1.firmware_id, output)
+            self.assertIn(acq2.reference_id, output)
+            self.assertIn(acq2.name, output)
+
+            with RedirectStdout() as stdout:
+                cli.run(['list-datalog', '--firmware'])  # Make sure no exception is raised
+                output = stdout.read()
+
+            output = output.strip()
+            self.assertEqual(output.count('\n'), 3 - 1)  # Header + 2 acquisition -1
+            self.assertIn(acq1.reference_id, output)
+            self.assertIn(acq1.name, output)
+            self.assertIn(acq1.firmware_id, output)
+            self.assertIn(acq2.reference_id, output)
+            self.assertIn(acq2.name, output)
+
+            DataloggingStorage.clear_all()
+
+            with RedirectStdout() as stdout:
+                cli.run(['list-datalog'])  # Make sure no exception is raised
+                output = stdout.read()
+
+            self.assertEqual('No acquisitions', output.strip())
+
+    def test_delete_datalog(self):
+        with DataloggingStorage.use_temp_storage():
+            acq1 = DataloggingAcquisition(firmware_id="firmwareid1", name="Acquisition #1", acq_time=datetime.datetime.now())
+            axis1 = AxisDefinition("Axis-1", 111)
+            acq1.set_xdata(DataSeries([random.random() for x in range(10)]))
+            acq1.add_data(DataSeries([random.random() for x in range(10)]), axis1)
+            acq2 = DataloggingAcquisition(firmware_id="firmwareid1", name="Acquisition #2",
+                                          acq_time=datetime.datetime.now() - datetime.timedelta(seconds=30))
+            acq2.set_xdata(DataSeries([random.random() for x in range(10)]))
+            acq2.add_data(DataSeries([random.random() for x in range(10)]), axis1)
+
+            DataloggingStorage.save(acq1)
+            DataloggingStorage.save(acq2)
+
+            self.assertEqual(DataloggingStorage.count(), 2)
+            cli = CLI()
+            with RedirectStdout() as stdout:
+                cli.run(['delete-datalog', '--id', acq2.reference_id])  # Make sure no exception is raised
+
+            self.assertEqual(DataloggingStorage.count(), 1)
+            DataloggingStorage.save(acq2)
+            self.assertEqual(DataloggingStorage.count(), 2)
+
+            with RedirectStdout() as stdout:
+                cli.run(['delete-datalog', '--all'])  # Make sure no exception is raised
+
+            self.assertEqual(DataloggingStorage.count(), 0)
+
+    def test_export_datalog_csv(self):
+        with DataloggingStorage.use_temp_storage():
+            acq1 = DataloggingAcquisition(firmware_id="firmwareid1", name="Acquisition #1", acq_time=datetime.datetime.now())
+            axis1 = AxisDefinition("Axis-1", 111)
+            acq1.set_xdata(DataSeries([random.random() for x in range(10)]))
+            acq1.add_data(DataSeries([random.random() for x in range(10)]), axis1)
+            acq2 = DataloggingAcquisition(firmware_id="firmwareid1", name="Acquisition #2",
+                                          acq_time=datetime.datetime.now() - datetime.timedelta(seconds=30))
+            acq2.set_xdata(DataSeries([random.random() for x in range(10)]))
+            acq2.add_data(DataSeries([random.random() for x in range(10)]), axis1)
+
+            DataloggingStorage.save(acq1)
+            DataloggingStorage.save(acq2)
+
+            with tempfile.TemporaryDirectory() as tempdirname:
+                file1 = os.path.join(tempdirname, 'file1.csv')
+                file2 = os.path.join(tempdirname, 'file2.csv')
+                cli = CLI()
+                with RedirectStdout() as stdout:
+                    cli.run(['export-datalog', acq2.reference_id, '--csv', file1])  # Make sure no exception is raised
+
+                acq2.to_csv(file2)
+
+                self.assertTrue(os.path.isfile(file1))
+                self.assertTrue(os.path.isfile(file2))
+
+                with open(file1) as f1:
+                    with open(file2) as f2:
+                        self.assertEqual(f1.read(), f2.read())
 
 
 if __name__ == '__main__':
