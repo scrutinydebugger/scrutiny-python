@@ -170,12 +170,12 @@ class DataloggingStorageManager:
         if len(rows) == 0:
             raise RuntimeError('No database structure available')
 
-        sha256 = hashlib.sha256()
+        sha1 = hashlib.sha1()
         for row in rows:
-            sha256.update(str(row[0]).encode('utf8'))
-            sha256.update(str(row[1]).encode('utf8'))
+            sha1.update(str(row[0]).encode('utf8'))
+            sha1.update(str(row[1]).encode('utf8'))
 
-        return sha256.hexdigest()
+        return sha1.hexdigest()
 
     def check_structure_version(self, conn: sqlite3.Connection) -> str:
         """Check that the version of the storage is the one handled by the code. Future-proofing"""
