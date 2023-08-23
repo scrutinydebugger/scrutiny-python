@@ -348,7 +348,7 @@ class TestCLI(ScrutinyUnitTest):
 
     def test_list_datalog(self):
         with DataloggingStorage.use_temp_storage():
-            acq1 = DataloggingAcquisition(firmware_id="firmwareid1", name="Acquisition #1", acq_time=datetime.datetime.now())
+            acq1 = DataloggingAcquisition(firmware_id="firmwareid1", name="Acquisition #1", acq_time=datetime.datetime.now(), firmware_name="foo.bar")
             axis1 = AxisDefinition("Axis-1", 111)
             acq1.set_xdata(DataSeries([random.random() for x in range(10)]))
             acq1.add_data(DataSeries([random.random() for x in range(10)]), axis1)
@@ -369,11 +369,21 @@ class TestCLI(ScrutinyUnitTest):
             self.assertEqual(output.count('\n'), 3 - 1)  # Header + 2 acquisition -1
             self.assertIn(acq1.reference_id, output)
             self.assertIn(acq1.name, output)
+            self.assertNotIn(acq1.firmware_id, output)
             self.assertIn(acq2.reference_id, output)
             self.assertIn(acq2.name, output)
 
             with RedirectStdout() as stdout:
                 cli.run(['list-datalog', '--firmware'])  # Make sure no exception is raised
+                output = stdout.read()
+
+            output = output.strip()
+            self.assertEqual(output.count('\n'), 3 - 1)  # Header + 2 acquisition -1
+            self.assertIn(acq1.reference_id, output)
+            self.assertIn(acq1.name, output)
+            self.assertIn(acq1.firmware_id, output)
+            self.assertIn(acq2.reference_id, output)
+            self.assertIn(acq2.name, output)
 
             DataloggingStorage.clear_all()
 
