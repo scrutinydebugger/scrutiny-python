@@ -103,6 +103,80 @@ class TestApiParser(ScrutinyUnitTest):
             del msg['content']['rpv']
             parser.parse_get_watchable_single_element(msg, requested_path)
 
+    def test_parse_subscribe_watchable(self):
+        requested_path = '/a/b/c'
+
+        def base():
+            return {
+                "cmd": "response_subscribe_watchable",
+                "reqid": 123,
+                "subscribed": {
+                    '/a/b/c': {
+                        'id': 'abc',
+                        'type': 'var',
+                        'datatype': 'float32'
+                    },
+                    '/a/b/d': {
+                        'id': 'abd',
+                        'type': 'alias',
+                        'datatype': 'sint8'
+                    }
+                }
+            }
+
+        response = base()
+        res = parser.parse_subscribe_watchable_response(response)
+        self.assertIsInstance(res, dict)
+        self.assertIn('/a/b/c', res)
+        self.assertIn('/a/b/d', res)
+
+        self.assertEqual(res['/a/b/c'].server_id, 'abc')
+        self.assertEqual(res['/a/b/c'].datatype, EmbeddedDataType.float32)
+        self.assertEqual(res['/a/b/c'].watchable_type, sdk.WatchableType.Variable)
+
+        self.assertEqual(res['/a/b/d'].server_id, 'abd')
+        self.assertEqual(res['/a/b/d'].datatype, EmbeddedDataType.sint8)
+        self.assertEqual(res['/a/b/d'].watchable_type, sdk.WatchableType.Alias)
+
+        class Delete:
+            pass
+        delete = Delete()
+        for val in [1, True, [], None, "asd", delete]:
+            with self.assertRaises(sdk.exceptions.BadResponseError, msg=f'val={val}'):
+                msg = base()
+                if val is delete:
+                    del msg['subscribed']
+                else:
+                    msg['subscribed'] = val
+                parser.parse_subscribe_watchable_response(msg)
+
+        for val in [1, True, [], None, "asd", delete]:
+            with self.assertRaises(sdk.exceptions.BadResponseError, msg=f'val={val}'):
+                msg = base()
+                if val is delete:
+                    del msg['subscribed']['/a/b/c']['datatype']
+                else:
+                    msg['subscribed']['/a/b/c']['datatype'] = val
+                parser.parse_subscribe_watchable_response(msg)
+
+        for val in [1, True, [], None, {}, delete]:
+            with self.assertRaises(sdk.exceptions.BadResponseError, msg=f'val={val}'):
+                msg = base()
+                if val is delete:
+                    del msg['subscribed']['/a/b/c']['id']
+                else:
+                    msg['subscribed']['/a/b/c']['id'] = val
+                parser.parse_subscribe_watchable_response(msg)
+
+        for val in [1, True, [], None, {}, delete, "asd"]:
+            with self.assertRaises(sdk.exceptions.BadResponseError, msg=f'val={val}'):
+                msg = base()
+                if val is delete:
+                    del msg['subscribed']['/a/b/c']['type']
+                else:
+                    msg['subscribed']['/a/b/c']['type'] = val
+                parser.parse_subscribe_watchable_response(msg)
+
     def test_parse_inform_server_status(self):
         def base() -> api_typing.S2C.InformServerStatus:
             return {
@@ -263,13 +337,17 @@ class TestApiParser(ScrutinyUnitTest):
         fields = ['max_tx_data_size', 'max_rx_data_size', 'max_bitrate_bps', 'rx_timeout_us', 'heartbeat_timeout_us',
                   'address_size_bits', 'protocol_major', 'protocol_minor']
         for field in fields:
-            vals = [None, 'asd', 1.5, [], {},]   # bad values
+            vals = ['asd', 1.5, [], {},]   # bad values
             for val in vals:
                 logging.debug(f"field={field}, val={val}")
-                with self.assertRaises(sdk.exceptions.BadResponseError):
+                with self.assertRaises(sdk.exceptions.BadResponseError, msg=f"field={field}, val={val}"):
                     msg = base()
                     msg["device_info"][field] = val
                     info = parser.parse_inform_server_status(msg)
+
+        msg = base()
+        msg["device_info"]["max_bitrate_bps"] = None
+        info = parser.parse_inform_server_status(msg)
 
         fields = ["project_name", "author", "version"]
         for field in fields:
@@ -440,6 +518,7 @@ class TestApiParser(ScrutinyUnitTest):
                 "cmd": "read_datalogging_acquisition_content_response",
                 "reqid": None,
                 "firmware_id": "foo",
+                "firmware_name": "hello",
                 "name": "acquisition 123",
                 "reference_id": "bar.baz",
                 "trigger_index": 5,
@@ -480,6 +559,7 @@ class TestApiParser(ScrutinyUnitTest):
 
         self.assertIsInstance(acq, sdk.datalogging.DataloggingAcquisition)
         self.assertEqual(acq.firmware_id, "foo")
+        self.assertEqual(acq.firmware_name, 'hello')
         self.assertEqual(acq.name, "acquisition 123")
         self.assertEqual(acq.reference_id, "bar.baz")
         self.assertLessEqual(abs(acq.acq_time - now), timedelta(seconds=1))
@@ -518,7 +598,7 @@ class TestApiParser(ScrutinyUnitTest):
         self.assertEqual(data[2].series.name, "signal3")
         self.assertEqual(data[2].series.logged_element, "/path/to/signal3")
 
-        for field in ['firmware_id', 'name', 'reference_id', 'trigger_index', 'timestamp', 'xdata', 'yaxes', 'signals']:
+        for field in ['firmware_id', 'firmware_name', 'name', 'reference_id', 'trigger_index', 'timestamp', 'xdata', 'yaxes', 'signals']:
             msg = base()
             del msg[field]
             with self.assertRaises(sdk.exceptions.BadResponseError, msg=f"Field : {field}"):

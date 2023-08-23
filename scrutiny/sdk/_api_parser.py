@@ -237,6 +237,44 @@ def parse_get_watchable_single_element(response: api_typing.S2C.GetWatchableList
     )
 
 
+def parse_subscribe_watchable_response(response: api_typing.S2C.SubscribeWatchable) -> Dict[str, WatchableConfiguration]:
+    """Parse a response to get_watchable_list and assume the request was for a single watchable"""
+    assert isinstance(response, dict)
+    assert 'cmd' in response
+    cmd = response['cmd']
+    assert cmd == API.Command.Api2Client.SUBSCRIBE_WATCHABLE_RESPONSE
+
+    outdict: Dict[str, WatchableConfiguration] = {}
+    _check_response_dict(cmd, response, 'subscribed', dict)
+    for k, v in response['subscribed'].items():
+        if not isinstance(k, str):
+            raise sdk.exceptions.BadResponseError('Gotten a subscription dict with invalid key')
+
+        _check_response_dict(cmd, v, 'datatype', str)
+        _check_response_dict(cmd, v, 'type', str)
+        _check_response_dict(cmd, v, 'id', str)
+
+        if v['datatype'] not in API.APISTR_2_DATATYPE:
+            raise sdk.exceptions.BadResponseError(f"Unknown datatype {v['datatype']}")
+
+        datatype = EmbeddedDataType(API.APISTR_2_DATATYPE[v['datatype']])
+        if v['type'] == 'alias':
+            watchable_type = sdk.WatchableType.Alias
+        elif v['type'] == 'var':
+            watchable_type = sdk.WatchableType.Variable
+        elif v['type'] == 'rpv':
+            watchable_type = sdk.WatchableType.RuntimePublishedValue
+        else:
+            raise sdk.exceptions.BadResponseError(f"Unsupported watchable type {v['type']}")
+
+        outdict[k] = WatchableConfiguration(
+            watchable_type=watchable_type,
+            datatype=datatype,
+            server_id=v['id']
+        )
+    return outdict
+
+
 def parse_inform_server_status(response: api_typing.S2C.InformServerStatus) -> sdk.ServerInfo:
     """Parse the inform_server_status message"""
 
@@ -269,7 +307,7 @@ def parse_inform_server_status(response: api_typing.S2C.InformServerStatus) -> s
         _check_response_dict(cmd, response, 'device_info.display_name', str)
         _check_response_dict(cmd, response, 'device_info.max_tx_data_size', int)
         _check_response_dict(cmd, response, 'device_info.max_rx_data_size', int)
-        _check_response_dict(cmd, response, 'device_info.max_bitrate_bps', int)
+        _check_response_dict(cmd, response, 'device_info.max_bitrate_bps', (int, type(None)))
         _check_response_dict(cmd, response, 'device_info.rx_timeout_us', int)
         _check_response_dict(cmd, response, 'device_info.heartbeat_timeout_us', int)
         _check_response_dict(cmd, response, 'device_info.address_size_bits', int)
@@ -638,6 +676,7 @@ def parse_read_datalogging_acquisition_content_response(response: api_typing.S2C
 
     _check_response_dict(cmd, response, 'reference_id', str)
     _check_response_dict(cmd, response, 'firmware_id', str)
+    _check_response_dict(cmd, response, 'firmware_name', (str, type(None)))
     _check_response_dict(cmd, response, 'timestamp', float)
     _check_response_dict(cmd, response, 'name', str)
     _check_response_dict(cmd, response, 'trigger_index', (int, type(None)))
@@ -651,7 +690,8 @@ def parse_read_datalogging_acquisition_content_response(response: api_typing.S2C
         firmware_id=response['firmware_id'],
         reference_id=response['reference_id'],
         acq_time=datetime.fromtimestamp(response['timestamp']),
-        name=response['name']
+        name=response['name'],
+        firmware_name=response['firmware_name']
     )
 
     axis_map: Dict[int, sdk.datalogging.AxisDefinition] = {}

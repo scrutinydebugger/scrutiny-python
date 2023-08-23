@@ -154,7 +154,7 @@ class Alias:
         return value
 
     def compute_device_to_user(self, value: Union[int, float, bool]) -> Union[int, float, bool]:
-        """Converts to value read from the device into a value that can be shown to the suer. Applies gain, offset"""
+        """Converts to value read from the device into a value that can be shown to the user. Applies gain and offset"""
         if isinstance(value, int) or isinstance(value, float):
             value *= self.get_gain()
             value += self.get_offset()

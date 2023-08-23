@@ -34,40 +34,13 @@ class ExportDatalog(BaseCommand):
         self.parsed_args = self.parser.parse_args(self.args)
         DataloggingStorage.initialize()
 
-        acquisition = DataloggingStorage.read(reference_id=self.parsed_args.reference_id)
-
         # Check if at least one of the supported is selected
         if not self.parsed_args.csv:
             raise ValueError("At least one  export method must be specified")
 
+        acquisition = DataloggingStorage.read(reference_id=self.parsed_args.reference_id)
+
         if self.parsed_args.csv:
-            import csv
-            with open(self.parsed_args.csv, 'w', encoding='utf8', newline='') as f:
-                writer = csv.writer(f, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-                writer.writerow(['Acquisition Name', acquisition.name])
-                writer.writerow(['Acquisition ID', acquisition.reference_id])
-                writer.writerow(['Acquisition time', acquisition.acq_time.strftime(r"%Y-%m-%d %H:%M:%S")])
-                writer.writerow(['Firmware ID', acquisition.firmware_id])
-                firmware_name = 'N/A'
-                if SFDStorage.is_installed(acquisition.firmware_id):
-                    firmware_meta = SFDStorage.get_metadata(acquisition.firmware_id)
-                    firmware_name = "%s V%s" % (firmware_meta['project_name'], firmware_meta['version'])
-                writer.writerow(['Firmware Name', firmware_name])
-                writer.writerow([])
-
-                header_row = [acquisition.xdata.name] + [ydata.series.name for ydata in acquisition.ydata]
-                if acquisition.trigger_index is not None:
-                    header_row.append('Trigger')
-
-                writer.writerow(header_row)
-                for ydata in acquisition.ydata:
-                    if len(acquisition.xdata.data) != len(ydata.series.data):
-                        logging.error("Data of series %s does not have the same length as the X-Axis" % ydata.series.name)
-
-                for i in range(len(acquisition.xdata.data)):
-                    trigger_val = []
-                    if acquisition.trigger_index is not None:
-                        trigger_val = [0 if i < acquisition.trigger_index else 1]
-                    writer.writerow([acquisition.xdata.data[i]] + [ydata.series.data[i] for ydata in acquisition.ydata] + trigger_val)
+            acquisition.to_csv(self.parsed_args.csv)
 
         return 0

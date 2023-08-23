@@ -381,15 +381,17 @@ class API:
         self.client_handler.process()   # Get incoming requests
         while self.client_handler.available():
             popped = self.client_handler.recv()
-            assert popped is not None  # make mypy happy
-            conn_id = popped.conn_id
-            obj = cast(api_typing.C2SMessage, popped.obj)
+            if popped is not None:
+                conn_id = popped.conn_id
+                obj = cast(api_typing.C2SMessage, popped.obj)
 
-            if self.is_new_connection(conn_id):
-                self.logger.debug('Opening connection %s' % conn_id)
-                self.open_connection(conn_id)
+                if self.is_new_connection(conn_id):
+                    self.logger.debug('Opening connection %s' % conn_id)
+                    self.open_connection(conn_id)
 
-            self.process_request(conn_id, obj)
+                self.process_request(conn_id, obj)
+            else:
+                self.logger.critical("Received an empty message, ignoring")
 
         # Close  dead connections
         conn_to_close = [conn_id for conn_id in self.connections if not self.client_handler.is_connection_active(conn_id)]
@@ -580,19 +582,25 @@ class API:
     def process_subscribe_watchable(self, conn_id: str, req: api_typing.C2S.SubscribeWatchable) -> None:
         # Add the connection ID to the list of watchers of given datastore entries.
         # datastore callback will write the new values in the API output queue (through the value streamer)
-        if 'watchables' not in req and not isinstance(req['watchables'], list):
+        if 'watchables' not in req or not isinstance(req['watchables'], list):
             raise InvalidRequestException(req, 'Invalid or missing watchables list')
 
         # Check existence of all watchable before doing anything.
-        for watchable in req['watchables']:
+        subscribed: Dict[str, api_typing.SubscribedInfo] = {}
+        for path in req['watchables']:
             try:
-                self.datastore.get_entry(watchable)  # Will raise an exception if not existent
+                entry = self.datastore.get_entry_by_display_path(path)  # Will raise an exception if not existent
+                subscribed[path] = {
+                    'type': self.ENTRY_TYPE_2_APISTR[entry.get_type()],
+                    'datatype': self.DATATYPE_2_APISTR[entry.get_data_type()],
+                    'id': entry.get_id()
+                }
             except KeyError as e:
-                raise InvalidRequestException(req, 'Unknown watchable ID : %s' % str(watchable))
+                raise InvalidRequestException(req, 'Unknown watchable : %s' % str(path))
 
-        for watchable in req['watchables']:
+        for path in req['watchables']:
             self.datastore.start_watching(
-                entry_id=watchable,
+                entry_id=subscribed[path]['id'],
                 watcher=conn_id,    # We use the API connection ID as datastore watcher ID
                 value_change_callback=UpdateVarCallback(self.entry_value_change_callback)
             )
@@ -600,7 +608,7 @@ class API:
         response: api_typing.S2C.SubscribeWatchable = {
             'cmd': self.Command.Api2Client.SUBSCRIBE_WATCHABLE_RESPONSE,
             'reqid': self.get_req_id(req),
-            'watchables': req['watchables']
+            'subscribed': subscribed
         }
 
         self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
@@ -612,19 +620,20 @@ class API:
             raise InvalidRequestException(req, 'Invalid or missing watchables list')
 
         # Check existence of all entries before doing anything
-        for watchable in req['watchables']:
+        for path in req['watchables']:
             try:
-                self.datastore.get_entry(watchable)  # Will raise an exception if not existent
+                self.datastore.get_entry_by_display_path(path)  # Will raise an exception if not existent
             except KeyError as e:
-                raise InvalidRequestException(req, 'Unknown watchable ID : %s' % str(watchable))
+                raise InvalidRequestException(req, 'Unknown watchable : %s' % str(path))
 
-        for watchable in req['watchables']:
-            self.datastore.stop_watching(watchable, watcher=conn_id)
+        for path in req['watchables']:
+            entry = self.datastore.get_entry_by_display_path(path)
+            self.datastore.stop_watching(entry, watcher=conn_id)
 
         response: api_typing.S2C.UnsubscribeWatchable = {
             'cmd': self.Command.Api2Client.SUBSCRIBE_WATCHABLE_RESPONSE,
             'reqid': self.get_req_id(req),
-            'watchables': req['watchables']
+            'unsubscribed': req['watchables']
         }
 
         self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
@@ -1477,6 +1486,7 @@ class API:
             'cmd': API.Command.Api2Client.READ_DATALOGGING_ACQUISITION_CONTENT_RESPONSE,
             'reqid': self.get_req_id(req),
             'firmware_id': acquisition.firmware_id,
+            'firmware_name': acquisition.firmware_name,
             'name': '' if acquisition.name is None else acquisition.name,
             'timestamp': acquisition.acq_time.timestamp(),
             'reference_id': acquisition.reference_id,
@@ -1512,12 +1522,15 @@ class API:
 
         device_info_output: Optional[api_typing.DeviceInfo] = None
         if device_info_input is not None and device_info_input.all_ready():
+            max_bitrate_bps: Optional[int] = None
+            if device_info_input.max_bitrate_bps is not None and device_info_input.max_bitrate_bps > 0:
+                max_bitrate_bps = device_info_input.max_bitrate_bps
             device_info_output = {
                 'device_id': cast(str, device_info_input.device_id),
                 'display_name': cast(str, device_info_input.display_name),
                 'max_tx_data_size': cast(int, device_info_input.max_tx_data_size),
                 'max_rx_data_size': cast(int, device_info_input.max_rx_data_size),
-                'max_bitrate_bps': cast(int, device_info_input.max_bitrate_bps),
+                'max_bitrate_bps': max_bitrate_bps,
                 'rx_timeout_us': cast(int, device_info_input.rx_timeout_us),
                 'heartbeat_timeout_us': cast(int, device_info_input.heartbeat_timeout_us),
                 'address_size_bits': cast(int, device_info_input.address_size_bits),

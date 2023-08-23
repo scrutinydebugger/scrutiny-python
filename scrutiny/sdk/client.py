@@ -177,38 +177,43 @@ class ScrutinyClient:
             self.sync_complete = threading.Event()
             self.require_sync = threading.Event()
 
-    _name: Optional[str]
-    _server_state: ServerState
-    _hostname: Optional[str]
-    _port: Optional[int]
-    _logger: logging.Logger
-    _encoding: str
-    _conn: Optional[websockets.sync.client.ClientConnection]
-    _rx_message_callbacks: List[RxMessageCallback]
-    _reqid: int
-    _timeout: float
-    _write_timeout: float
-    _request_status_timer: Timer
-    _require_status_update: bool
-    _write_request_queue: "queue.Queue[Union[WriteRequest, FlushPoint, BatchWriteContext]]"
-    _pending_api_batch_writes: Dict[str, PendingAPIBatchWrite]
+    _name: Optional[str]        # Name of the client instance
+    _server_state: ServerState  # State of the communication with the server. Conencted/disconnected/connecting, etc
+    _hostname: Optional[str]    # Hostname of the server
+    _port: Optional[int]        # Port number of the server
+    _logger: logging.Logger     # logging interface
+    _encoding: str              # The API string encoding. utf-8
+    _conn: Optional[websockets.sync.client.ClientConnection]    # The websocket handle to the server
+    _rx_message_callbacks: List[RxMessageCallback]  # List of callbacks to call for each message received. (mainly for testing)
+    _reqid: int                 # The actual request ID. Increasing integer
+    _timeout: float             # Default timeout value for server requests
+    _write_timeout: float       # Default timeout value for write request
+    _request_status_timer: Timer    # Timer for periodic server status update
+    _require_status_update: bool    # boolean indicating that a new server status request should be sent
+    _write_request_queue: "queue.Queue[Union[WriteRequest, FlushPoint, BatchWriteContext]]"  # Queue of write request given by the users.
+
+    _pending_api_batch_writes: Dict[str, PendingAPIBatchWrite]  # Dict of all the pending batch write currently in progress,
+    # indexed by the request token
+    # Dict of all the pending memory read requests, index by their request_token
     _memory_read_completion_dict: Dict[str, api_parser.MemoryReadCompletion]
+    # Dict of all the pending memory write requests, index by their request_token
     _memory_write_completion_dict: Dict[str, api_parser.MemoryWriteCompletion]
+    # Dict of all the datalogging requests, index by their request_token
     _pending_datalogging_requests: Dict[str, sdk.datalogging.DataloggingRequest]
 
-    _worker_thread: Optional[threading.Thread]
-    _threading_events: ThreadingEvents
-    _conn_lock: threading.Lock
-    _main_lock: threading.Lock
+    _worker_thread: Optional[threading.Thread]  # The thread that handles the communication
+    _threading_events: ThreadingEvents  # All the threading events grouped under a single object
+    _conn_lock: threading.Lock  # A threading lock to access the websocket
+    _main_lock: threading.Lock  # A threading lock to access the client internal state variables
 
-    _callback_storage: Dict[int, CallbackStorageEntry]
-    _watchable_storage: Dict[str, WatchableHandle]
-    _watchable_path_to_id_map: Dict[str, str]
-    _server_info: Optional[ServerInfo]
+    _callback_storage: Dict[int, CallbackStorageEntry]  # Dict of all pending server request index by their request ID
+    _watchable_storage: Dict[str, WatchableHandle]  # A cache of all the WatchableHandle given to the user, index by their display path
+    _watchable_path_to_id_map: Dict[str, str]   # A dict that maps the watchables from display path to their server id
+    _server_info: Optional[ServerInfo]  # The actual server internal state given by inform_server_status
 
-    _active_batch_context: Optional[BatchWriteContext]
-    _last_device_session_id: Optional[str]
-    _last_sfd_firmware_id: Optional[str]
+    _active_batch_context: Optional[BatchWriteContext]  # The active write batch. All writes are appended to it if not None
+    _last_device_session_id: Optional[str]  # The last device session ID observed. Used to detect disconnection/reconnection
+    _last_sfd_firmware_id: Optional[str]    # The last loaded SFD seen. Used to detect change in SFD
 
     def __enter__(self):
         return self
@@ -339,7 +344,7 @@ class ScrutinyClient:
                 self._logger.error(f"Got watchable update for unknown watchable {update.server_id}")
                 continue
             else:
-                self._logger.debug(f"Updating value of {update.server_id}")
+                self._logger.debug(f"Updating value of {update.server_id} ({watchable.name})")
 
             watchable._update_value(update.value)
 
@@ -464,7 +469,7 @@ class ScrutinyClient:
                 self._logger.error(f"Bad message from server. {e}")
                 self._logger.debug(traceback.format_exc())
 
-            if reqid is not None:
+            if reqid is not None:   # message is a response to a request
                 self._wt_process_callbacks(cmd, msg, reqid)
 
     def _wt_process_callbacks(self, cmd: str, msg: dict, reqid: int) -> None:
@@ -473,6 +478,7 @@ class ScrutinyClient:
             if reqid in self._callback_storage:
                 callback_entry = self._callback_storage[reqid]
 
+        # We have a callback for that response
         if callback_entry is not None:
             error: Optional[Exception] = None
 
@@ -820,7 +826,7 @@ class ScrutinyClient:
     # === User API ====
 
     def connect(self, hostname: str, port: int, **kwargs) -> "ScrutinyClient":
-        """Connect to a Scrutiny server through a websocket.
+        """Connect to a Scrutiny server through a websocket. Extra kwargs are passed down to `websockets.sync.client.connect()`
 
         :param hostname: The hostname or ip address of the server
         :param port: The listening port of the server
@@ -867,14 +873,17 @@ class ScrutinyClient:
 
         self._stop_worker_thread()
 
-    # todo pause
     def watch(self, path: str) -> WatchableHandle:
-        """Starts watching a watchable element identified by its display path (tree-like path)"""
-        if not isinstance(path, str):
-            raise ValueError("Path must be a string")
+        """Starts watching a watchable element identified by its display path (tree-like path)
 
-        if '*' in path:
-            raise ValueError("Glob wildcards are not allowed")
+        :param path: The path of the element to watch
+
+        :raise sdk.exception.OperationFailure: If the watch request fails to complete
+        :raise TypeError: Given parameter not of the expected type
+
+        :return: A handle that can read/write the watched element.
+        """
+        validation.assert_type(path, 'path', str)
 
         cached_watchable: Optional[WatchableHandle] = None
         with self._main_lock:
@@ -887,45 +896,27 @@ class ScrutinyClient:
             return cached_watchable
 
         watchable = WatchableHandle(self, path)
-        req = self._make_request(API.Command.Client2Api.GET_WATCHABLE_LIST, {
-            'max_per_response': 2,
-            'filter': {'name': path}
-        })
-
-        # The watchable will be written by this callback from the worker thread. The watchable object is thread-safe.
-        def wt_get_watchable_callback(state: CallbackState, response: Optional[api_typing.S2CMessage]) -> None:
-            if response is not None and state == CallbackState.OK:
-                response = cast(api_typing.S2C.GetWatchableList, response)
-                parsed_content = api_parser.parse_get_watchable_single_element(response, path)
-
-                watchable._configure(
-                    watchable_type=parsed_content.watchable_type,
-                    datatype=parsed_content.datatype,
-                    server_id=parsed_content.server_id
-                )
-
-        future = self._send(req, wt_get_watchable_callback)
-        assert future is not None
-        future.wait()
-
-        if future.state != CallbackState.OK:
-            raise sdk.exceptions.OperationFailure(f"Failed to get the watchable definition. {future.error_str}")
 
         def wt_subscribe_callback(state: CallbackState, response: Optional[api_typing.S2CMessage]):
             if response is not None and state == CallbackState.OK:
                 response = cast(api_typing.S2C.SubscribeWatchable, response)
-                if len(response['watchables']) != 1:
+                watchable_defs = api_parser.parse_subscribe_watchable_response(response)
+                if len(watchable_defs) != 1:
                     raise sdk.exceptions.BadResponseError(
-                        f'The server did confirm the subscription of {len(response["watchables"])} while we requested only for 1')
+                        f'The server did confirm the subscription of {len(response["subscribed"])} while we requested only for 1')
 
-                if response['watchables'][0] != watchable._server_id:
+                if path not in watchable_defs:
                     raise sdk.exceptions.BadResponseError(
-                        f'The server did not confirm the subscription for the right watchable. Got {response["watchables"][0]}, expected {watchable._server_id}')
+                        f'The server did not confirm the subscription for the right watchable. Got {list(response["subscribed"].keys())[0]}, expected {path}')
+
+                watchable._configure(
+                    datatype=watchable_defs[path].datatype,
+                    watchable_type=watchable_defs[path].watchable_type,
+                    server_id=watchable_defs[path].server_id,
+                )
 
         req = self._make_request(API.Command.Client2Api.SUBSCRIBE_WATCHABLE, {
-            'watchables': [
-                watchable._server_id
-            ]
+            'watchables': [watchable.display_path]  # Single element
         })
         future = self._send(req, wt_subscribe_callback)
         assert future is not None
@@ -947,15 +938,11 @@ class ScrutinyClient:
         :param path: The tree-like path of the watchable element
 
         :raises ValueError: If path is not valid
+        :raise TypeError: Given parameter not of the expected type
         :raises NameNotFoundError: If the required path is not presently being watched
-        :raises TimeoutException: If no response from the server is received
         :raises OperationFailure: If the subscription cancellation failed in any way
         """
-        if not isinstance(path, str):
-            raise ValueError("Path must be a string")
-
-        if '*' in path:
-            raise ValueError("Glob wildcards are not allowed")
+        validation.assert_type(path, 'path', str)
 
         watchable: Optional[WatchableHandle] = None
         with self._main_lock:
@@ -969,20 +956,20 @@ class ScrutinyClient:
 
         req = self._make_request(API.Command.Client2Api.UNSUBSCRIBE_WATCHABLE, {
             'watchables': [
-                watchable._server_id
+                watchable.display_path
             ]
         })
 
         def wt_unsubscribe_callback(state: CallbackState, response: Optional[api_typing.S2CMessage]):
             if response is not None and state == CallbackState.OK and watchable is not None:
                 response = cast(api_typing.S2C.UnsubscribeWatchable, response)
-                if len(response['watchables']) != 1:
+                if len(response['unsubscribed']) != 1:
                     raise sdk.exceptions.BadResponseError(
-                        f'The server did cancel the subscription of {len(response["watchables"])} while we requested only for 1')
+                        f'The server did cancel the subscription of {len(response["unsubscribed"])} while we requested only for 1')
 
-                if response['watchables'][0] != watchable._server_id:
+                if response['unsubscribed'][0] != watchable.display_path:
                     raise sdk.exceptions.BadResponseError(
-                        f'The server did not cancel the subscription for the right watchable. Got {response["watchables"][0]}, expected {watchable._server_id}')
+                        f'The server did not cancel the subscription for the right watchable. Got {response["unsubscribed"][0]}, expected {watchable._server_id}')
 
         future = self._send(req, wt_unsubscribe_callback)
         assert future is not None
@@ -1007,8 +994,16 @@ class ScrutinyClient:
         if future.state != CallbackState.OK:
             raise sdk.exceptions.OperationFailure(f"Failed to unsubscribe to the watchable. {future.error_str}")
 
-    def wait_new_value_for_all(self, timeout: int = 5) -> None:
-        """Wait for all watched elements to be updated at least once after the call to this method"""
+    def wait_new_value_for_all(self, timeout: float = 5) -> None:
+        """Wait for all watched elements to be updated at least once after the call to this method
+
+        :param timeout: Amount of time to wait for the update
+
+        :raise TypeError: Given parameter not of the expected type
+        :raise ValueError: Given parameter has an invalid value
+        :raises sdk.exceptions.TimeoutException: If not all watched elements gets updated in time
+        """
+        timeout = validation.assert_float_range(timeout, 'timeout', minval=0)
         counter_map: Dict[str, Optional[int]] = {}
         with self._main_lock:
             watchable_storage_copy = self._watchable_storage.copy()  # Shallow copy
@@ -1023,7 +1018,15 @@ class ScrutinyClient:
             watchable_storage_copy[server_id].wait_update(previous_counter=counter_map[server_id], timeout=timeout_remainder)
 
     def wait_server_status_update(self, timeout: float = _UPDATE_SERVER_STATUS_INTERVAL + 0.5):
-        """Wait for the a server status update"""
+        """Wait for the a server status update
+
+        :param timeout: Amount of time to wait for the update
+
+        :raise TypeError: Given parameter not of the expected type
+        :raise ValueError: Given parameter has an invalid value
+        :raises sdk.exceptions.TimeoutException: Server status update did not occurred within the timeout time
+        """
+        timeout = validation.assert_float_range(timeout, 'timeout', minval=0)
         self._threading_events.server_status_updated.clear()
         self._threading_events.server_status_updated.wait(timeout=timeout)
 
@@ -1031,7 +1034,19 @@ class ScrutinyClient:
             raise sdk.exceptions.TimeoutException(f"Server status did not update within a {timeout} seconds delay")
 
     def batch_write(self, timeout: Optional[float] = None) -> BatchWriteContext:
-        """Starts a batch write. Every watchable write will"""
+        """Starts a batch write. Write operations will be enqueued and committed together.
+        Every write is guaranteed to be executed in the right order
+
+        :param timeout: Amount of time to wait for the completion of the batch once committed. If `None`, the default write timeout
+        will be used.
+
+        :raise TypeError: Given parameter not of the expected type
+        :raise ValueError: Given parameter has an invalid value
+        :raises sdk.exceptions.OperationFailure: Failed to complete the batch write
+
+        """
+        timeout = validation.assert_float_range_if_not_none(timeout, 'timeout', minval=0)
+
         if self._active_batch_context is not None:
             raise sdk.exceptions.OperationFailure("Batch write cannot be nested")
 
@@ -1043,7 +1058,12 @@ class ScrutinyClient:
         return batch_context
 
     def get_installed_sfds(self) -> Dict[str, sdk.SFDInfo]:
-        """Gets the list of Scrutiny Firmware Description file installed on the server"""
+        """Gets the list of Scrutiny Firmware Description file installed on the server
+
+        :raises sdk.exceptions.OperationFailure: Failed to get the SFD list
+
+        :return: A dictionary mapping firmware IDS (hash) to a `SFDInfo` structure
+        """
         req = self._make_request(API.Command.Client2Api.GET_INSTALLED_SFD)
 
         @dataclass
@@ -1065,16 +1085,41 @@ class ScrutinyClient:
 
         return cb_data.obj
 
-    def wait_process(self, timeout: Optional[float] = None):
-        """Wait for the SDK thread to execute fully at least once. Useful for testing"""
+    def wait_process(self, timeout: Optional[float] = None) -> None:
+        """Wait for the SDK thread to execute fully at least once. Useful for testing
+
+        :param timeout: Amount of time to wait for the completion of the thread loops. If `None`, the default timeout will be used.
+
+        :raises sdk.exceptions.TimeoutException: Worker thread does not complete a full loop within the given timeout
+        """
+
+        timeout = validation.assert_float_range_if_not_none(timeout, 'timeout', minval=0)
+
         if timeout is None:
             timeout = self._timeout
         self._threading_events.sync_complete.clear()
         self._threading_events.require_sync.set()
         self._threading_events.sync_complete.wait(timeout=timeout)
+        if not self._threading_events.sync_complete.is_set():
+            raise sdk.exceptions.TimeoutException(f"Worker thread did not complete a full loop within the {timeout} seconds.")
 
     def read_memory(self, address: int, size: int, timeout: Optional[float] = None) -> bytes:
-        """Read the device memory synchronously."""
+        """Read the device memory synchronously.
+
+        :param address: The start address of the region to read
+        :param size: The size of the region to read, in bytes.
+        :param timeout: Maximum amount of time to wait to get the data back. If `None`, the default timeout value will be used
+
+        :raise TypeError: Given parameter not of the expected type
+        :raise ValueError: Given parameter has an invalid value
+        :raises sdk.exceptions.OperationFailure: Failed to complete the reading
+        :raises sdk.exceptions.TimeoutException: If the read operation does not complete within the given timeout value
+        """
+
+        validation.assert_int_range(address, 'address', minval=0)
+        validation.assert_int_range(size, 'size', minval=1)
+        timeout = validation.assert_float_range_if_not_none(timeout, 'timeout', minval=0)
+
         time_start = time.time()
         if timeout is None:
             timeout = self._timeout
@@ -1106,7 +1151,7 @@ class ScrutinyClient:
         request_token = cb_data.obj
 
         t = time.time()
-        # No lock here because we have a 1 producer, 1 consumer scenario and are waiting. We don't write
+        # No lock here because we have a 1 producer, 1 consumer scenario and we are waiting. We don't write
         while request_token not in self._memory_read_completion_dict:
             if time.time() - t >= remaining_time:
                 break
@@ -1126,7 +1171,23 @@ class ScrutinyClient:
         return completion.data
 
     def write_memory(self, address: int, data: bytes, timeout: Optional[float] = None) -> None:
-        """Write the device memory synchronously. This method will exit once the write is completed otherwise will throw an exception in case of failure"""
+        """Write the device memory synchronously. This method will exit once the write is completed otherwise will throw an exception in case of failure
+
+        :param address: The start address of the region to read
+        :param data: The data to write
+        :param timeout: Maximum amount of time to wait to get the data back. If `None`, the default write timeout value will be used
+
+        :raise TypeError: Given parameter not of the expected type
+        :raise ValueError: Given parameter has an invalid value
+        :raises sdk.exceptions.OperationFailure: Failed to complete the reading
+        :raises sdk.exceptions.TimeoutException: If the read operation does not complete within the given timeout value
+
+        """
+
+        validation.assert_int_range(address, 'address', minval=0)
+        validation.assert_type(data, 'data', bytes)
+        timeout = validation.assert_float_range_if_not_none(timeout, 'timeout', minval=0)
+
         time_start = time.time()
         if timeout is None:
             timeout = self._timeout
@@ -1166,7 +1227,7 @@ class ScrutinyClient:
 
         with self._main_lock:
             if request_token not in self._memory_write_completion_dict:
-                raise sdk.exceptions.TimeoutException(
+                raise sdk.exceptions.OperationFailure(
                     "Did not get memory write completion confirmation after %0.2f seconds. (address=0x%08X, size=%d)" % (timeout, address, len(data)))
 
             completion = self._memory_write_completion_dict[request_token]
@@ -1216,7 +1277,7 @@ class ScrutinyClient:
         :return: An object containing the acquisition, including the data, the axes, the trigger index, the graph name, etc
         """
         validation.assert_type(reference_id, 'reference_id', str)
-        validation.assert_type(timeout, 'timeout', (float, int, type(None)))
+        timeout = validation.assert_float_range_if_not_none(timeout, 'timeout', minval=0)
 
         if timeout is None:
             timeout = self._timeout
@@ -1244,7 +1305,8 @@ class ScrutinyClient:
                 f"Failed to read the datalogging acquisition with reference ID '{reference_id}'. {future.error_str}")
 
         assert cb_data.obj is not None
-        return cb_data.obj
+        acquisition = cb_data.obj
+        return acquisition
 
     def start_datalog(self, config: sdk.datalogging.DataloggingConfig) -> sdk.datalogging.DataloggingRequest:
         """Requires the device to make a datalogging acquisition based on the given configuration
@@ -1296,15 +1358,13 @@ class ScrutinyClient:
         assert future is not None
         future.wait()
 
-        self._send(req)
-
         if future.state != CallbackState.OK:
             raise sdk.exceptions.OperationFailure(
                 f"Failed to request the datalogging acquisition'. {future.error_str}")
         assert cb_data.request is not None
         return cb_data.request
 
-    def list_stored_datalogging_acquisitions(self, timeout=None) -> List[sdk.datalogging.DataloggingStorageEntry]:
+    def list_stored_datalogging_acquisitions(self, timeout: Optional[float] = None) -> List[sdk.datalogging.DataloggingStorageEntry]:
         """Gets the list of datalogging acquisition stored in the server database
 
         :param timeout: The request timeout value. The default client timeout will be used if set to `None`. Defaults to `None`.
@@ -1313,7 +1373,7 @@ class ScrutinyClient:
 
         :return: A list of database entries, each one representing an acquisition in the database with `reference_id` as its unique identifier
         """
-        validation.assert_type(timeout, 'timeout', (float, int, type(None)))
+        timeout = validation.assert_float_range_if_not_none(timeout, 'timeout', minval=0)
 
         if timeout is None:
             timeout = self._timeout

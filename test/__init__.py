@@ -56,6 +56,7 @@ class ScrutinyUnitTest(unittest.TestCase):
         self.assertIsInstance(a.reference_id, str)
         self.assertIsInstance(a.acq_time, datetime)
         self.assertIsInstance(a.xdata, DataSeries)
+        self.assertIsInstance(a.firmware_name, (str, type(None)))
         self.assertIsInstance(a.get_unique_yaxis_list(), list)
         for yaxis in a.get_unique_yaxis_list():
             self.assertIsInstance(yaxis, AxisDefinition)
@@ -75,6 +76,7 @@ class ScrutinyUnitTest(unittest.TestCase):
         self.assertEqual(a.reference_id, b.reference_id)
         self.assertLess((a.acq_time - b.acq_time).total_seconds(), 1)
         self.assertEqual(a.trigger_index, b.trigger_index)
+        self.assertEqual(a.firmware_name, b.firmware_name)
 
         yaxis1 = a.get_unique_yaxis_list()
         yaxis2 = b.get_unique_yaxis_list()

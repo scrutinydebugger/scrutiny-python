@@ -75,7 +75,7 @@ class DeviceInfo(TypedDict):
     display_name: str
     max_tx_data_size: int
     max_rx_data_size: int
-    max_bitrate_bps: int
+    max_bitrate_bps: Optional[int]
     rx_timeout_us: int
     heartbeat_timeout_us: int
     address_size_bits: int
@@ -176,6 +176,12 @@ class DataloggingCapabilities(TypedDict):
 class AxisNameUpdateEntry(TypedDict):
     id: int
     name: str
+
+
+class SubscribedInfo(TypedDict):
+    type: WatchableType
+    datatype: Datatype
+    id: str
 
 
 class C2S:
@@ -291,10 +297,10 @@ class S2C:
         done: bool
 
     class SubscribeWatchable(BaseS2CMessage):
-        watchables: List[str]
+        subscribed: Dict[str, SubscribedInfo]
 
     class UnsubscribeWatchable(BaseS2CMessage):
-        watchables: List[str]
+        unsubscribed: List[str]
 
     class WatchableUpdate(BaseS2CMessage):
         updates: List[Dict[str, Any]]
@@ -335,6 +341,7 @@ class S2C:
     class ReadDataloggingAcquisitionContent(BaseS2CMessage):
         reference_id: str
         firmware_id: str
+        firmware_name: Optional[str]
         name: str
         timestamp: float
         trigger_index: Optional[int]

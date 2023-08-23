@@ -1,7 +1,7 @@
 #    device_handler.py
 #        Manage the communication with the device at high level.
 #        Try to establish a connection, once it succeed, reads the device configuration.
-#        
+#
 #        Will keep the communication ongoing and will request for memory dump based on the
 #        Datastore state
 #
@@ -17,6 +17,7 @@ import time
 from enum import Enum
 import traceback
 from uuid import uuid4
+import math
 from scrutiny.server.datastore.datastore_entry import DatastoreRPVEntry, EntryType
 import scrutiny.server.datalogging.definitions.device as device_datalogging
 from scrutiny.server.protocol import *
@@ -335,22 +336,18 @@ class DeviceHandler:
         self.logger.info('Device has an address size of %d bits. Configuring protocol to encode/decode them accordingly.' %
                          partial_device_info.address_size_bits)
 
-        if partial_device_info.max_bitrate_bps > 0 or self.config['max_bitrate_bps'] > 0:
+        max_bitrate_bps = float('inf')
+        if partial_device_info.max_bitrate_bps > 0:
+            max_bitrate_bps = min(partial_device_info.max_bitrate_bps, max_bitrate_bps)
 
-            if partial_device_info.max_bitrate_bps > 0 and self.config['max_bitrate_bps'] > 0:
-                max_bitrate_bps = min(partial_device_info.max_bitrate_bps, self.config['max_bitrate_bps'])
-            else:
-                if partial_device_info.max_bitrate_bps > 0:
-                    max_bitrate_bps = partial_device_info.max_bitrate_bps
-                elif self.config['max_bitrate_bps'] > 0:
-                    max_bitrate_bps = self.config['max_bitrate_bps'] > 0
-                else:
-                    raise Exception('Internal error. Missing case handling for throttling')
+        if self.config['max_bitrate_bps'] is not None and self.config['max_bitrate_bps'] > 0:
+            max_bitrate_bps = min(self.config['max_bitrate_bps'], max_bitrate_bps)
 
+        if math.isinf(max_bitrate_bps):
+            self.comm_handler.disable_throttling()
+        else:
             self.logger.info('Device has requested a maximum bitrate of %d bps. Activating throttling.' % max_bitrate_bps)
             self.comm_handler.enable_throttling(max_bitrate_bps)
-        else:
-            self.comm_handler.disable_throttling()
 
         max_request_payload_size = min(self.config['max_request_size'], partial_device_info.max_rx_data_size)
         max_response_payload_size = min(self.config['max_response_size'], partial_device_info.max_tx_data_size)
@@ -443,7 +440,7 @@ class DeviceHandler:
         (major, minor) = self.config['default_protocol_version'].split('.')
         self.protocol.set_version(int(major), int(minor))
 
-        if self.config['max_bitrate_bps'] > 0:
+        if self.config['max_bitrate_bps'] is not None and self.config['max_bitrate_bps'] > 0:
             self.comm_handler.enable_throttling(self.config['max_bitrate_bps'])
         else:
             self.comm_handler.disable_throttling()

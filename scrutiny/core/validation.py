@@ -7,6 +7,7 @@
 #   Copyright (c) 2021-2023 Scrutiny Debugger
 
 from typing import Union, Any, Type, List, Tuple, Sequence, Optional
+import math
 
 
 def assert_type(var: Any, name: str, types: Union[Type[Any], List[Type], Tuple[Type, ...]]) -> None:
@@ -43,7 +44,7 @@ def assert_int_range(val: int, name: str, minval: Optional[int] = None, maxval: 
             raise ValueError(f"{name} must be less than {maxval}. Got {val}")
 
 
-def assert_int_range_if_not_none(val: int, name: str, minval: Optional[int] = None, maxval: Optional[int] = None) -> None:
+def assert_int_range_if_not_none(val: Optional[int], name: str, minval: Optional[int] = None, maxval: Optional[int] = None) -> None:
     if val is None:
         return
     assert_int_range(val, name, minval, maxval)
@@ -53,6 +54,10 @@ def assert_float_range(val: Union[int, float], name: str, minval: Optional[float
     if isinstance(val, int) and not isinstance(val, bool):
         val = float(val)
     assert_type(val, name, float)
+
+    if not math.isfinite(val):
+        raise ValueError(f"{name} is invalid. Got {val}")
+
     if minval is not None:
         if val < minval:
             raise ValueError(f"{name} must be greater than {minval}. Got {val}")
@@ -63,7 +68,7 @@ def assert_float_range(val: Union[int, float], name: str, minval: Optional[float
     return val
 
 
-def assert_float_range_if_not_none(val: float, name: str, minval: Optional[float] = None, maxval: Optional[float] = None) -> Optional[float]:
+def assert_float_range_if_not_none(val: Optional[float], name: str, minval: Optional[float] = None, maxval: Optional[float] = None) -> Optional[float]:
     if val is None:
         return None
     return assert_float_range(val, name, minval, maxval)

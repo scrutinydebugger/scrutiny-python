@@ -224,6 +224,7 @@ class DataloggingStorageManager:
             `reference_id` VARCHAR(32) UNIQUE NOT NULL,
             `name` VARCHAR(255) NULL DEFAULT NULL,
             `firmware_id` VARCHAR(32)  NOT NULL,
+            `firmware_name` VARCHAR(255)  NULL,
             `timestamp` TIMESTAMP NOT NULL DEFAULT 'NOW()',
             `trigger_index` INTEGER NULL
         ) 
@@ -297,13 +298,14 @@ class DataloggingStorageManager:
             cursor.execute(
                 """
                 INSERT INTO `acquisitions` 
-                    (`reference_id`, `name`, `firmware_id`, `timestamp`, `trigger_index`)
-                VALUES (?, ?, ?, ?, ?)
+                    (`reference_id`, `name`, `firmware_id`, `firmware_name`, `timestamp`, `trigger_index`)
+                VALUES (?, ?, ?, ?, ?, ?)
                 """,
                 (
                     acquisition.reference_id,
                     acquisition.name,
                     acquisition.firmware_id,
+                    acquisition.firmware_name,
                     ts,
                     acquisition.trigger_index
                 )
@@ -398,6 +400,7 @@ class DataloggingStorageManager:
                 SELECT 
                     `acq`.`reference_id` AS `reference_id`,
                     `acq`.`firmware_id` AS `firmware_id`,
+                    `acq`.`firmware_name` AS `firmware_name`,
                     `acq`.`timestamp` AS `timestamp`,
                     `acq`.`name` AS `name`,
                     `acq`.`trigger_index` as `trigger_index`,
@@ -418,6 +421,7 @@ class DataloggingStorageManager:
             cols = [
                 'reference_id',
                 'firmware_id',
+                'firmware_name',
                 'timestamp',
                 'acquisition_name',
                 'trigger_index',
@@ -444,7 +448,8 @@ class DataloggingStorageManager:
             reference_id=rows[0][colmap['reference_id']],
             firmware_id=rows[0][colmap['firmware_id']],
             acq_time=datetime.fromtimestamp(rows[0][colmap['timestamp']]),
-            name=rows[0][colmap['acquisition_name']]
+            name=rows[0][colmap['acquisition_name']],
+            firmware_name=rows[0][colmap['firmware_name']],
         )
 
         # Needs to maps AxisDefinition instances to the DB id to avoid duplicates

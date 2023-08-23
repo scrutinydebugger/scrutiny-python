@@ -24,7 +24,7 @@ class TestDataloggingStorage(ScrutinyUnitTest):
         return series
 
     def test_read_write(self):
-        acq1 = DataloggingAcquisition(firmware_id="firmwareid1", name="Acquisition #1")
+        acq1 = DataloggingAcquisition(firmware_id="firmwareid1", name="Acquisition #1", firmware_name="foo V1.2.3")
         acq2 = DataloggingAcquisition(firmware_id="firmwareid1")
         acq3 = DataloggingAcquisition(firmware_id="firmwareid2")
 

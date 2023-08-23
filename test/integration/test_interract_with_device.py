@@ -11,6 +11,7 @@ from scrutiny.server.api import typing as api_typing
 from scrutiny.core.basic_types import *
 import functools
 from typing import *
+from dataclasses import dataclass
 
 from test.integration.integration_test import ScrutinyIntegrationTestWithTestSFD1
 
@@ -85,3 +86,24 @@ class TestInterractWithDevice(ScrutinyIntegrationTestWithTestSFD1):
                          loaded_sfd.metadata['generation_info']['scrutiny_version'])
         self.assertEqual(response['loaded_sfd']['metadata']['generation_info']['system_type'], loaded_sfd.metadata['generation_info']['system_type'])
         self.assertEqual(response['loaded_sfd']['metadata']['generation_info']['time'], loaded_sfd.metadata['generation_info']['time'])
+
+
+class TestInterractWithDeviceNoThrottling(ScrutinyIntegrationTestWithTestSFD1):
+
+    def setUp(self):
+        def setup_bitrate(self: "TestInterractWithDevice"):
+            self.emulated_device.max_bitrate_bps = 0
+        self.prestart_callback = functools.partial(setup_bitrate, self)
+        return super().setUp()
+
+    def test_read_status(self):
+        self.send_request({
+            'cmd': API.Command.Client2Api.GET_SERVER_STATUS,
+        })
+        response = self.wait_and_load_response(cmd=API.Command.Api2Client.INFORM_SERVER_STATUS)
+        self.assert_no_error(response)
+
+        response = cast(api_typing.S2C.InformServerStatus, response)
+
+        self.assertEqual(response['device_status'], 'connected_ready')
+        self.assertEqual(response['device_info']['max_bitrate_bps'], None)

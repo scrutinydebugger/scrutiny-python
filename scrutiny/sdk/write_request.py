@@ -17,6 +17,8 @@ if TYPE_CHECKING:
 
 
 class WriteRequest:
+    """A handle to a write request. Reports the progress and the status of the request. 
+    Gets updated by the client thread"""
     _value: Union[int, bool, float]  # Value to be written
     _success: bool  # If the request has been successfully completed
     _completed: bool    # Indicates if the write request has been processed (regardless of success state)
@@ -53,7 +55,7 @@ class WriteRequest:
         """
         self._completed_event.wait(timeout=timeout)
         if not self._completed:
-            raise sdk.exceptions.TimeoutException(f"Write did not complete. {self._watchable.display_path}")
+            raise sdk.exceptions.OperationFailure(f"Write did not complete. {self._watchable.display_path}")
 
         if not self._success:
             raise sdk.exceptions.OperationFailure(f"Write of {self._watchable.display_path} failed. {self._failure_reason}")
