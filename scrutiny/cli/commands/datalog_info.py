@@ -50,7 +50,7 @@ class DatalogInfo(BaseCommand):
         DataloggingStorage.initialize()
         acquisitions = DataloggingStorage.list()
         timerange = DataloggingStorage.get_timerange()
-        db_version = DataloggingStorage.get_db_version()
+        db_hash = DataloggingStorage.get_db_hash()
         date_format = r"%Y-%m-%d %H:%M:%S"
 
         table_output.append(OutputTableRow(title="Acquisitions count", value=len(acquisitions)))
@@ -58,7 +58,7 @@ class DatalogInfo(BaseCommand):
         table_output.append(OutputTableRow(title="Newest acquisition", value="N/A" if timerange is None else timerange[1].strftime(date_format)))
         table_output.append(OutputTableRow(title="Storage location", value=DataloggingStorage.get_db_filename()))
         table_output.append(OutputTableRow(title="Storage size", value=sizeof_fmt(DataloggingStorage.get_size())))
-        table_output.append(OutputTableRow(title="Storage version", value="N/A" if db_version is None else "V%s" % db_version))
+        table_output.append(OutputTableRow(title="Storage structure hash", value="N/A" if db_hash is None else "%s" % db_hash))
 
         col_size_title = 0
         for line in table_output:

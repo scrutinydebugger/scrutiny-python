@@ -127,7 +127,7 @@ class TestDataloggingStorage(ScrutinyUnitTest):
 
     def test_read_meta(self):
         with DataloggingStorage.use_temp_storage():
-            self.assertIsInstance(DataloggingStorage.get_db_version(), int)
+            self.assertIsInstance(DataloggingStorage.get_db_hash(), str)
             self.assertIsNone(DataloggingStorage.get_timerange())
 
             acq1 = DataloggingAcquisition(firmware_id="firmwareid1", name="Acquisition #1")
