@@ -372,6 +372,9 @@ class TestCLI(ScrutinyUnitTest):
             self.assertIn(acq2.reference_id, output)
             self.assertIn(acq2.name, output)
 
+            with RedirectStdout() as stdout:
+                cli.run(['list-datalog', '--firmware'])  # Make sure no exception is raised
+
             DataloggingStorage.clear_all()
 
             with RedirectStdout() as stdout:
