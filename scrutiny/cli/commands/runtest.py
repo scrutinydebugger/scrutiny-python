@@ -28,6 +28,7 @@ class RunTest(BaseCommand):
         self.parser = argparse.ArgumentParser(prog=self.get_prog())
         self.parser.add_argument('--module', default=None, help='The test module to run. All if not specified')
         self.parser.add_argument('--verbosity', default=2, help='Verbosity level of the unittest module')
+        self.parser.add_argument('--root', default=None, help='Path to the test root folder')
         self.requested_log_level = requested_log_level
 
     def run(self) -> Optional[int]:
@@ -37,21 +38,30 @@ class RunTest(BaseCommand):
         success = -1
 
         args = self.parser.parse_args(self.args)
-        test_root = os.path.realpath(os.path.join(os.path.dirname(scrutiny.__file__), '../test'))
+        if args.root is not None:
+            test_root = os.path.abspath(os.path.realpath(args.root))
+            if not os.path.isdir(test_root):
+                raise FileNotFoundError("Folder %s does not exists" % test_root)
+        else:
+            test_root = os.path.realpath(os.path.join(os.path.dirname(scrutiny.__file__), '../test'))
         sys.path.insert(0, test_root)   # So that "import test" correctly load scrutiny test env if cpython has its own unit tests available in the path
 
         format_string = ""
         logging_level_str = self.requested_log_level if self.requested_log_level else "critical"
         logging_level = getattr(logging, logging_level_str.upper())
         if logging_level == logging.DEBUG:
-            format_string += "%(relativeCreated)0.3f "    
+            format_string += "%(relativeCreated)0.3f "
         format_string += '[%(levelname)s] <%(name)s> %(message)s'
         logging.getLogger().handlers[0].setFormatter(logging.Formatter(format_string))
         logging.getLogger().setLevel(logging_level)
 
         import test  # load the test module.
         if not hasattr(test, '__scrutiny__'):   # Make sure this is Scrutiny Test folder (in case we run from install dir)
-            logging.getLogger(self._cmd_name_).critical('No unit tests available. Are you running from an installed module?')
+            if args.root is None:
+                logging.getLogger(self._cmd_name_).critical(
+                    'No scrutiny unit tests available in %s. Consider passing a test folder with --root if you run the tests from an installed module' % test_root)
+            else:
+                logging.getLogger(self._cmd_name_).critical('No unit tests available in %s' % test_root)
         else:
             try:
                 loader = unittest.TestLoader()

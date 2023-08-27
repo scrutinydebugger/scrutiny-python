@@ -11,7 +11,9 @@ import unittest
 from scrutiny.core.basic_types import *
 from scrutiny.sdk.watchable_handle import WatchableHandle
 import scrutiny.sdk
+import scrutiny.sdk.client
 import scrutiny.sdk.datalogging
+import scrutiny.sdk._api_parser
 sdk = scrutiny.sdk
 from scrutiny.sdk.client import ScrutinyClient
 import scrutiny.server.datalogging.definitions.device as device_datalogging
@@ -149,6 +151,7 @@ class FakeDeviceHandler:
             server_device.VariableFreqLoop("variable freq loop", support_datalogging=True)
         ]
         self.write_allowed = True
+        self.ignore_write = False
         self.read_allowed = True
         self.read_memory_queue = queue.Queue()
         self.write_memory_queue = queue.Queue()
@@ -158,6 +161,9 @@ class FakeDeviceHandler:
 
     def force_all_write_failure(self):
         self.write_allowed = False
+
+    def force_ignore_all_write(self):
+        self.ignore_write = True
 
     def force_all_read_failure(self):
         self.read_allowed = False
@@ -207,7 +213,9 @@ class FakeDeviceHandler:
     def process(self):
         update_request = self.datastore.pop_target_update_request()
         if update_request is not None:
-            if not self.write_allowed:
+            if self.ignore_write:
+                pass
+            elif not self.write_allowed:
                 update_request.complete(False)
             else:
                 try:
@@ -251,7 +259,9 @@ class FakeDeviceHandler:
         while not self.write_memory_queue.empty():
             request = self.write_memory_queue.get()
             self.write_logs.append(WriteMemoryLog(request.address, request.data, None))
-            if not self.write_allowed:
+            if self.ignore_write:
+                pass
+            elif not self.write_allowed:
                 request.set_completed(False, str("Not allowed"))
             else:
                 try:
@@ -535,6 +545,11 @@ class TestClient(ScrutinyUnitTest):
         # Make sure the testing environment and all stubbed classes are stable.
         time.sleep(5)
 
+    def test_read_basic_properties(self):
+        self.assertEqual(self.client.hostname, '127.0.0.1')
+        self.assertIsInstance(self.client.port, int)
+        self.assertIsInstance(self.client.name, str)
+
     def test_get_status(self):
         # Make sure we can read the status of the server correctly
         self.client.wait_server_status_update()
@@ -615,6 +630,59 @@ class TestClient(ScrutinyUnitTest):
 
         self.client.wait_server_status_update()
         self.assertIsNot(self.client.server, server_info)   # Make sure we have a new object with a new reference.
+
+    def test_request_mechanism(self):
+        class Obj:
+            pass
+
+        o = Obj()
+        o.state = None
+        o.response = None
+
+        def callback_ok(state, response):
+            o.state = state
+            o.response = response
+
+        def callback_fail(state, response):
+            raise ValueError("I failed!")
+
+        future = self.client._send({'cmd': 'echo', 'payload': 'foo', 'reqid': 1}, callback_ok)
+        future.wait()
+        self.assertEqual(future.state, sdk.client.CallbackState.OK)
+        self.assertEqual(o.state, sdk.client.CallbackState.OK)
+        self.assertIsNotNone(o.response)
+        self.assertEqual(future.error_str, '')
+
+        future = self.client._send({'cmd': 'echo', 'payload': 'foo', 'reqid': 2}, callback_fail)
+        future.wait()
+        self.assertEqual(future.state, sdk.client.CallbackState.CallbackError)
+        self.assertNotEqual(future.error_str, '')
+        self.assertIsNotNone(future.error)
+
+        future = self.client._send({'cmd': 'bad_cmd', 'reqid': 3}, callback_ok, timeout=2)
+        future.wait()
+        self.assertEqual(future.state, sdk.client.CallbackState.ServerError)
+        self.assertEqual(o.state, sdk.client.CallbackState.ServerError)
+        self.assertIsNotNone(future.error)
+        self.assertNotEqual(future.error_str, '')
+
+        def disable_api():
+            self.api.client_handler.force_silent = True
+
+        self.execute_in_server_thread(disable_api)
+        future = self.client._send({'cmd': 'echo', 'payload': 'foo', 'reqid': 4}, callback_ok, timeout=2)
+        self.assertEqual(future.state, sdk.client.CallbackState.Pending)
+        future.wait()
+        self.assertEqual(future.state, sdk.client.CallbackState.TimedOut)
+        self.assertEqual(o.state, sdk.client.CallbackState.TimedOut)
+        self.assertNotEqual(future.error_str, '')
+
+        future = self.client._send({'cmd': 'echo', 'payload': 'foo', 'reqid': 5}, callback_ok, timeout=10)
+        self.assertEqual(future.state, sdk.client.CallbackState.Pending)
+        self.client.disconnect()
+        future.wait()
+        self.assertEqual(future.state, sdk.client.CallbackState.Cancelled)
+        self.assertNotEqual(future.error_str, '')
 
     def test_fetch_watchable_info(self):
         # Make sure we can correctly read the information about a watchables
@@ -1009,6 +1077,18 @@ class TestClient(ScrutinyUnitTest):
             self.assertEqual(installed2.metadata.generation_info.system_type, sfd2.get_metadata()['generation_info']['system_type'])
             self.assertEqual(installed2.metadata.generation_info.timestamp, datetime.fromtimestamp(sfd2.get_metadata()['generation_info']['time']))
 
+    def test_simple_request_response_timeout(self):
+        with SFDStorage.use_temp_folder():
+            SFDStorage.install(get_artifact('test_sfd_1.sfd'), ignore_exist=True)
+            SFDStorage.install(get_artifact('test_sfd_2.sfd'), ignore_exist=True)
+
+            def disable_api():
+                self.api.client_handler.force_silent = True  # Hook to force the API to never respond
+            self.execute_in_server_thread(disable_api)
+
+            with self.assertRaises(sdk.exceptions.OperationFailure):
+                self.client.get_installed_sfds()
+
     def test_read_memory(self):
         ref_data = bytes([random.randint(0, 255) for i in range(600)])
 
@@ -1042,7 +1122,19 @@ class TestClient(ScrutinyUnitTest):
 
         self.assertEqual(len(self.device_handler.write_logs), 1)
 
-    def test_write_memory_failure(self):
+    def test_write_memory_implicit_failure(self):
+
+        def init_device():
+            self.device_handler.force_ignore_all_write()
+        self.execute_in_server_thread(init_device)
+
+        with self.assertRaises(sdk.exceptions.OperationFailure):
+            data = bytes([random.randint(0, 255) for i in range(50)])
+            self.client.write_memory(0x10000, data, timeout=3)
+
+        self.assertEqual(len(self.client._pending_api_batch_writes), 0)  # Check internal state.
+
+    def test_write_memory_explicit_failure(self):
 
         def init_device():
             self.device_handler.force_all_write_failure()
@@ -1051,6 +1143,25 @@ class TestClient(ScrutinyUnitTest):
         with self.assertRaises(sdk.exceptions.OperationFailure):
             data = bytes([random.randint(0, 255) for i in range(600)])
             self.client.write_memory(0x10000, data, timeout=2)
+
+    def test_remove_old_batch_request(self):
+        # this is an internal state test, not a functionality test. May break if implementation changes
+        rpv1000 = self.client.watch('/rpv/x1000')
+        fake_batch_request = scrutiny.sdk.client.PendingAPIBatchWrite(
+            {1: sdk.client.WriteRequest(rpv1000, 123)},
+            sdk._api_parser.WriteConfirmation('fake_token', 1),
+            datetime.now().timestamp(),
+            timeout=2
+        )
+        self.client._pending_api_batch_writes['fake_token'] = fake_batch_request
+        self.assertEqual(len(self.client._pending_api_batch_writes), 1)
+        time.sleep(2)
+
+        def is_cleared():
+            return len(self.client._pending_api_batch_writes) == 0
+
+        self.wait_true(is_cleared, 2)
+        self.assertEqual(len(self.client._pending_api_batch_writes), 0)
 
     def test_read_datalogging_capabilities(self):
         capabilities = self.client.get_datalogging_capabilities()
@@ -1338,6 +1449,37 @@ class TestClient(ScrutinyUnitTest):
                 received_data = [dict(firmware_id=x.firmware_id, reference_id=x.reference_id) for x in acquisitions]
 
                 self.assertCountEqual(expected_data, received_data)
+
+    def test_handle_unexpected_disconnect(self):
+        rpv1000 = self.client.watch('/rpv/x1000')
+        self.set_value_and_wait_update(rpv1000, 10)
+
+        self.assertEqual(self.client.server_state, sdk.ServerState.Connected)
+        self.execute_in_server_thread(self.api.close)
+
+        def is_disconnected():
+            return self.client.server_state == sdk.ServerState.Disconnected
+
+        self.wait_true(is_disconnected, 5)
+        self.assertEqual(self.client.server_state, sdk.ServerState.Disconnected)
+
+        with self.assertRaises(sdk.exceptions.ScrutinySDKException):
+            rpv1000.value
+
+    def test_disconnect_on_internal_error(self):
+        self.assertEqual(self.client.server_state, sdk.ServerState.Connected)
+
+        def raise_error(*args, **kwargs):
+            raise RuntimeError("Internal error")
+
+        def is_disconnected():
+            return self.client.server_state == sdk.ServerState.Disconnected
+
+        self.client._rx_message_callbacks.append(raise_error)
+        self.client._send({'cmd': 'foo', 'reqid': 123, 'payload': 'aaa'})
+        self.wait_true(is_disconnected)
+
+        self.assertEqual(self.client.server_state, sdk.ServerState.Disconnected)
 
 
 if __name__ == '__main__':

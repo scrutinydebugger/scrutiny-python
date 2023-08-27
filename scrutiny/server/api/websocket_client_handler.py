@@ -34,12 +34,14 @@ class WebsocketClientHandler(AbstractClientHandler):
     id2ws_map: Dict[str, WebsocketType]
     ws2id_map: Dict[WebsocketType, str]
     port: Optional[int]
+    force_silent: bool  # For unit testing of timeouts
 
     def __init__(self, config: ClientHandlerConfig):
         self.config = config
         self.logger = logging.getLogger(self.__class__.__name__)
         self.id2ws_map = dict()
         self.ws2id_map = dict()
+        self.force_silent = False
         self.server = SynchronousWebsocketServer(connect_callback=GenericCallback(
             self.register), disconnect_callback=GenericCallback(self.unregister))
 
@@ -89,7 +91,8 @@ class WebsocketClientHandler(AbstractClientHandler):
             return
 
         if not self.server.txqueue.full():
-            self.server.txqueue.put((websocket, msg_string))
+            if not self.force_silent:
+                self.server.txqueue.put((websocket, msg_string))
         else:
             self.logger.critical('Transmit queue full')
 

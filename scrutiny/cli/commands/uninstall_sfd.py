@@ -14,7 +14,7 @@ from typing import Optional, List
 
 class UninstallSFD(BaseCommand):
     _cmd_name_ = 'uninstall-sfd'
-    _brief_ = 'Uninstall a SFD file (Scruitny Firmware Description) globally for the current user.'
+    _brief_ = 'Uninstall a SFD file (Scrutiny Firmware Description) globally for the current user.'
     _group_ = 'Server'
 
     args: List[str]
