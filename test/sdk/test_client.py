@@ -1466,6 +1466,21 @@ class TestClient(ScrutinyUnitTest):
         with self.assertRaises(sdk.exceptions.ScrutinySDKException):
             rpv1000.value
 
+    def test_disconnect_on_internal_error(self):
+        self.assertEqual(self.client.server_state, sdk.ServerState.Connected)
+
+        def raise_error(*args, **kwargs):
+            raise RuntimeError("Internal error")
+
+        def is_disconnected():
+            return self.client.server_state == sdk.ServerState.Disconnected
+
+        self.client._rx_message_callbacks.append(raise_error)
+        self.client._send({'cmd': 'foo', 'reqid': 123, 'payload': 'aaa'})
+        self.wait_true(is_disconnected)
+
+        self.assertEqual(self.client.server_state, sdk.ServerState.Disconnected)
+
 
 if __name__ == '__main__':
     unittest.main()
