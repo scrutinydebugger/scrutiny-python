@@ -37,7 +37,7 @@ from dataclasses import dataclass
 from base64 import b64encode
 import queue
 
-from typing import List, Dict, Optional, Callable, cast, Union, TypeVar
+from typing import List, Dict, Optional, Callable, cast, Union, TypeVar, Tuple, Type
 
 
 class CallbackState(enum.Enum):
@@ -1420,7 +1420,7 @@ class ScrutinyClient:
         validation.assert_type(link_type, "link_type", sdk.DeviceLinkType)
         validation.assert_type(link_config, "link_config", sdk.BaseLinkConfig)
 
-        api_map: Dict["DeviceLinkType", str] = {
+        api_map: Dict["DeviceLinkType", Tuple[str, Type]] = {
             DeviceLinkType.Serial: ('serial', sdk.SerialLinkConfig),
             DeviceLinkType.UDP: ('udp', sdk.UDPLinkConfig),
             DeviceLinkType.TCP: ('tcp', sdk.TCPLinkConfig),

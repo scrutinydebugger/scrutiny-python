@@ -241,7 +241,7 @@ class SFDInfo:
 
 class BaseLinkConfig(abc.ABC):
     def _to_api_format(self) -> Dict:
-        pass
+        raise NotImplementedError("Abstract class")
 
 
 @dataclass(frozen=True)
