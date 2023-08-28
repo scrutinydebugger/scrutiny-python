@@ -37,7 +37,7 @@ from dataclasses import dataclass
 from base64 import b64encode
 import queue
 
-from typing import List, Dict, Optional, Callable, cast, Union, TypeVar
+from typing import List, Dict, Optional, Callable, cast, Union, TypeVar, Tuple, Type
 
 
 class CallbackState(enum.Enum):
@@ -1400,6 +1400,54 @@ class ScrutinyClient:
 
         assert cb_data.obj is not None
         return cb_data.obj
+
+    def configure_device_link(self, link_type: sdk.DeviceLinkType, link_config: Optional[sdk.BaseLinkConfig]) -> None:
+        """Configure the communication link between the Scrutiny server and the device remote device. 
+        If the link is configured in a way that a Scrutiny device is accessible, the server will automatically
+        connect to it and inform the client about it. The `client.server.server_state.device_comm_state` will reflect this.
+
+        :param link_type: Type of communication link to use. Serial, UDP, TCP, etc.
+        :param link_config:  A configuration object that matches the link type. 
+            - sdk.DeviceLinkType.UDP : UDPLinkConfig
+            - sdk.DeviceLinkType.TCP : TCPLinkConfig
+            - sdk.DeviceLinkType.Serial : SerialLinkConfig
+
+        :raises sdk.exceptions.OperationFailure: If the request to the server fails
+        :raises ValueError: Bad parameter value
+        :raises TypeError: Given parameter not of the expected type
+        """
+
+        validation.assert_type(link_type, "link_type", sdk.DeviceLinkType)
+        validation.assert_type(link_config, "link_config", sdk.BaseLinkConfig)
+
+        api_map: Dict["DeviceLinkType", Tuple[str, Type]] = {
+            DeviceLinkType.Serial: ('serial', sdk.SerialLinkConfig),
+            DeviceLinkType.UDP: ('udp', sdk.UDPLinkConfig),
+            DeviceLinkType.TCP: ('tcp', sdk.TCPLinkConfig),
+            DeviceLinkType._DummyThreadSafe: ('thread_safe_dummy', type(None)),
+            DeviceLinkType._Dummy: ('dummy', type(None))
+        }
+
+        if link_type not in api_map:
+            raise ValueError(f"Unsupported link type : {link_type.name}")
+
+        link_type_api_name, config_type = api_map[link_type]
+
+        if not isinstance(link_config, config_type):
+            raise TypeError(f'link_config must be of type {config_type} when link_type is {link_type.name}. Got {link_type.__class__.__name__}')
+
+        req = self._make_request(API.Command.Client2Api.SET_LINK_CONFIG, {
+            'link_type': link_type_api_name,
+            'link_config': link_config._to_api_format()
+        })
+
+        future = self._send(req, lambda *args, **kwargs: None)
+        assert future is not None
+        future.wait()
+
+        if future.state != CallbackState.OK:
+            raise sdk.exceptions.OperationFailure(
+                f"Failed to configure the device communication link'. {future.error_str}")
 
     @property
     def name(self) -> str:

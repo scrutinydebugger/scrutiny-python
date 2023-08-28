@@ -94,7 +94,7 @@ class FakeDeviceHandler:
     read_memory_queue: "queue.Queue[RawMemoryReadRequest]"
     write_memory_queue: "queue.Queue[RawMemoryWriteRequest]"
     fake_mem: MemoryContent
-
+    comm_configure_queue: "queue.Queue[Tuple[str, Dict]]"
     write_allowed: bool
     read_allowed: bool
     emulate_datalogging_not_ready: bool
@@ -155,6 +155,7 @@ class FakeDeviceHandler:
         self.read_allowed = True
         self.read_memory_queue = queue.Queue()
         self.write_memory_queue = queue.Queue()
+        self.comm_configure_queue = queue.Queue()
 
         self.fake_mem = MemoryContent()
         self.emulate_datalogging_not_ready = False
@@ -299,6 +300,14 @@ class FakeDeviceHandler:
             encoding=device_datalogging.Encoding.RAW,
             max_signal_count=32
         )
+
+    def validate_link_config(self, link_type: str, link_config: Dict):
+        if link_type == 'udp':
+            if link_config['host'] == 'raise':
+                raise ValueError("Bad config")
+
+    def configure_comm(self, link_type: str, link_config: Dict = {}) -> None:
+        self.comm_configure_queue.put((link_type, link_config))
 
 
 class FakeDataloggingManager:
@@ -1480,6 +1489,80 @@ class TestClient(ScrutinyUnitTest):
         self.wait_true(is_disconnected)
 
         self.assertEqual(self.client.server_state, sdk.ServerState.Disconnected)
+
+    def test_configure_device_link(self):
+        # Serial
+        configin = sdk.SerialLinkConfig(
+            port='COM123',
+            baudrate=115200,
+            databits=8,
+            stopbits='1',
+            parity='none'
+
+        )
+        self.client.configure_device_link(sdk.DeviceLinkType.Serial, configin)
+        self.assertFalse(self.device_handler.comm_configure_queue.empty())
+        link_type, configout = self.device_handler.comm_configure_queue.get(block=False)
+
+        for field in ('port', 'baudrate', 'databits', 'stopbits', 'parity'):
+            self.assertIn(field, configout)
+
+        self.assertEqual(link_type, 'serial')
+        self.assertEqual(configout['port'], 'COM123')
+        self.assertEqual(configout['baudrate'], 115200)
+        self.assertEqual(configout['databits'], 8)
+        self.assertEqual(configout['stopbits'], '1')
+        self.assertEqual(configout['parity'], 'none')
+
+        # TCP
+        configin = sdk.TCPLinkConfig(
+            host='192.168.1.100',
+            port=1234
+        )
+
+        self.client.configure_device_link(sdk.DeviceLinkType.TCP, configin)
+        self.assertFalse(self.device_handler.comm_configure_queue.empty())
+        link_type, configout = self.device_handler.comm_configure_queue.get(block=False)
+
+        for field in ('host', 'port'):
+            self.assertIn(field, configout)
+
+        self.assertEqual(link_type, 'tcp')
+        self.assertEqual(configout['host'], '192.168.1.100')
+        self.assertEqual(configout['port'], 1234)
+
+        # UDP
+        configin = sdk.UDPLinkConfig(
+            host='192.168.1.101',
+            port=4567
+        )
+
+        self.client.configure_device_link(sdk.DeviceLinkType.UDP, configin)
+        self.assertFalse(self.device_handler.comm_configure_queue.empty())
+        link_type, configout = self.device_handler.comm_configure_queue.get(block=False)
+
+        for field in ('host', 'port'):
+            self.assertIn(field, configout)
+
+        self.assertEqual(link_type, 'udp')
+        self.assertEqual(configout['host'], '192.168.1.101')
+        self.assertEqual(configout['port'], 4567)
+
+        with self.assertRaises(sdk.exceptions.OperationFailure):
+            configin = sdk.UDPLinkConfig(
+                host='raise',   # Special string that will make the DeviceHandler stub throw an exception
+                port=4567
+            )
+
+            self.client.configure_device_link(sdk.DeviceLinkType.UDP, configin)
+
+        with self.assertRaises(TypeError):
+            configin = sdk.UDPLinkConfig(
+                host='192.168.1.100',
+                port=4567
+            )
+
+            self.client.configure_device_link(sdk.DeviceLinkType.Serial, configin)
 
 
 if __name__ == '__main__':

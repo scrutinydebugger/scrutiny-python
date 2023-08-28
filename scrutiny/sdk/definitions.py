@@ -11,8 +11,9 @@ from dataclasses import dataclass
 from datetime import datetime
 from scrutiny.core.basic_types import MemoryRegion
 from scrutiny.core import validation
+import abc
 
-from typing import List, Optional, Literal, Union
+from typing import List, Optional, Literal, Union, Dict, get_args
 
 __all__ = [
     'AddressSize',
@@ -31,6 +32,7 @@ __all__ = [
     'SFDGenerationInfo',
     'SFDMetadata',
     'SFDInfo',
+    'BaseLinkConfig',
     'UDPLinkConfig',
     'TCPLinkConfig',
     'SerialLinkConfig',
@@ -123,7 +125,8 @@ class DataloggerState(enum.Enum):
 
 
 class DeviceLinkType(enum.Enum):
-    Dummy = -1
+    _DummyThreadSafe = -2
+    _Dummy = -1
     NA = 0
     UDP = 1
     TCP = 2
@@ -236,8 +239,13 @@ class SFDInfo:
     """The firmware metadata embedded in the Scrutiny Firmware Description file"""
 
 
+class BaseLinkConfig(abc.ABC):
+    def _to_api_format(self) -> Dict:
+        raise NotImplementedError("Abstract class")
+
+
 @dataclass(frozen=True)
-class UDPLinkConfig:
+class UDPLinkConfig(BaseLinkConfig):
     host: str
     """Target device hostname"""
     port: int
@@ -246,9 +254,15 @@ class UDPLinkConfig:
     def __post_init__(self):
         validation.assert_int_range(self.port, 'port', 0, 0xFFFF)
 
+    def _to_api_format(self) -> Dict:
+        return {
+            'host': self.host,
+            'port': self.port
+        }
+
 
 @dataclass(frozen=True)
-class TCPLinkConfig:
+class TCPLinkConfig(BaseLinkConfig):
     host: str
     """Target device hostname"""
     port: int
@@ -257,19 +271,41 @@ class TCPLinkConfig:
     def __post_init__(self):
         validation.assert_int_range(self.port, 'port', 0, 0xFFFF)
 
+    def _to_api_format(self) -> Dict:
+        return {
+            'host': self.host,
+            'port': self.port
+        }
+
 
 @dataclass(frozen=True)
-class SerialLinkConfig:
+class SerialLinkConfig(BaseLinkConfig):
     port: str
     """Port name on the machine. COMX on Windows. /dev/xxx on *nix platforms"""
     baudrate: int
     """Communication speed in baud/sec"""
-    stopbits: SerialStopBits
+    stopbits: SerialStopBits = '1'
     """Number of stop bits. 1, 1.5, 2"""
-    databits: SerialDataBits
+    databits: SerialDataBits = 8
     """Number of data bits. 5, 6, 7, 8"""
-    parity: SerialParity
+    parity: SerialParity = 'none'
     """Serial communication parity bits"""
+
+    def __post_init__(self):
+        validation.assert_type(self.port, 'port', str)
+        validation.assert_int_range(self.baudrate, 'baudrate', 1)
+        validation.assert_val_in(self.stopbits, 'stopbits', get_args(SerialStopBits))
+        validation.assert_val_in(self.databits, 'databits', get_args(SerialDataBits))
+        validation.assert_val_in(self.parity, 'databits', get_args(SerialParity))
+
+    def _to_api_format(self) -> Dict:
+        return {
+            'port': self.port,
+            'baudrate': self.baudrate,
+            'stopbits': self.stopbits,
+            'databits': self.databits,
+            'parity': self.parity,
+        }
 
 
 SupportedLinkConfig = Union[UDPLinkConfig, TCPLinkConfig, SerialLinkConfig]
