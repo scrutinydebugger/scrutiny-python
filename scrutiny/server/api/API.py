@@ -1139,7 +1139,7 @@ class API:
                     pass
 
                 if watchable is None:
-                    raise InvalidRequestException(req, "Cannot find watchable with given ID %s" % given_operand['value'])
+                    raise InvalidRequestException(req, "Cannot find watchable with given path %s" % given_operand['value'])
 
                 operands.append(api_datalogging.TriggerConditionOperand(api_datalogging.TriggerConditionOperandType.WATCHABLE, watchable))
             else:
