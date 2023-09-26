@@ -466,6 +466,7 @@ class EmulatedDevice:
     additional_tasks: List[Callable[[], None]]
     failed_read_request_list: List[Request]
     failed_write_request_list: List[Request]
+    ignore_user_command: bool
 
     def __init__(self, link):
         if not isinstance(link, DummyLink) and not isinstance(link, ThreadSafeDummyLink):
@@ -502,7 +503,7 @@ class EmulatedDevice:
         self.supported_features = {
             'memory_write': True,
             'datalogging': True,
-            'user_command': False,
+            'user_command': True,
             '_64bits': False,
         }
 
@@ -533,6 +534,7 @@ class EmulatedDevice:
         self.datalogging_read_in_progress = False
         self.datalogging_read_cursor = 0
         self.datalogging_read_rolling_counter = 0
+        self.ignore_user_command = False
 
     def thread_task(self) -> None:
         self.thread_started_event.set()
@@ -597,7 +599,11 @@ class EmulatedDevice:
                 response = Response(req.command, req.subfn, ResponseCode.UnsupportedFeature)
         elif req.command == cmd.DummyCommand:
             response = self.process_dummy_cmd(req, data)
-
+        elif req.command == cmd.UserCommand:
+            if self.supported_features['user_command']:
+                response = self.process_user_cmd(req, data)
+            else:
+                response = Response(req.command, req.subfn, ResponseCode.UnsupportedFeature)
         else:
             self.logger.error('Unsupported command : %s' % str(req.command.__name__))
 
@@ -896,6 +902,16 @@ class EmulatedDevice:
 
     def process_dummy_cmd(self, req: Request, data: protocol_typing.RequestData):
         return Response(cmd.DummyCommand, subfn=req.subfn, code=ResponseCode.OK, payload=b'\xAA' * 32)
+
+    def process_user_cmd(self, req: Request, data: protocol_typing.RequestData):
+        if self.ignore_user_command:
+            return None
+        if req.subfn == 0:
+            return Response(cmd.UserCommand, subfn=req.subfn, code=ResponseCode.OK, payload=b'\xAA' * 32)
+        elif req.subfn == 1:
+            return Response(cmd.UserCommand, subfn=req.subfn, code=ResponseCode.OK, payload=req.payload)
+        else:
+            return Response(cmd.UserCommand, subfn=req.subfn, code=ResponseCode.FailureToProceed)
 
     def start(self) -> None:
         self.logger.debug('Starting thread')

@@ -638,7 +638,6 @@ class Protocol:
 
 # ======================== Response =================
 
-
     def respond_not_ok(self, req: Request, code: Union[int, Enum]) -> Response:
         return Response(req.command, req.subfn, Response.ResponseCode(code))
 
