@@ -378,7 +378,7 @@ class S2C:
 
     class UserCommand(BaseS2CMessage):
         subfunction: int
-        data: bytes
+        data: str
 
 
 C2SMessage = Union[

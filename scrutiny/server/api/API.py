@@ -22,7 +22,8 @@ from scrutiny.server.datalogging.datalogging_storage import DataloggingStorage
 from scrutiny.server.datalogging.datalogging_manager import DataloggingManager
 from scrutiny.server.datastore.datastore import Datastore
 from scrutiny.server.datastore.datastore_entry import EntryType, DatastoreEntry, UpdateTargetRequestCallback
-from scrutiny.server.device.device_handler import DeviceHandler, DeviceStateChangedCallback, RawMemoryReadRequestCompletionCallback, RawMemoryReadRequest, RawMemoryWriteRequestCompletionCallback, RawMemoryWriteRequest
+from scrutiny.server.device.device_handler import DeviceHandler, DeviceStateChangedCallback, RawMemoryReadRequestCompletionCallback, \
+    RawMemoryReadRequest, RawMemoryWriteRequestCompletionCallback, RawMemoryWriteRequest, UserCommandCallback
 from scrutiny.server.active_sfd_handler import ActiveSFDHandler, SFDLoadedCallback, SFDUnloadedCallback
 from scrutiny.server.device.links import LinkConfig
 from scrutiny.core.sfd_storage import SFDStorage
@@ -970,11 +971,12 @@ class API:
             except binascii.Error:
                 raise InvalidRequestException(req, '"data" field is not a valid base64 string')
 
-        callback = functools.partial(self.user_command_callback, req, conn_id)
+        callback = cast(UserCommandCallback, functools.partial(self.user_command_callback, req, conn_id))
         self.device_handler.request_user_command(req['subfunction'], data, callback)
 
-    def user_command_callback(self, req: api_typing.C2S.UserCommand, conn_id: str, success: True, subfunction: int, data: Optional[bytes], error: Optional[str]) -> None:
+    def user_command_callback(self, req: api_typing.C2S.UserCommand, conn_id: str, success: bool, subfunction: int, data: Optional[bytes], error: Optional[str]) -> None:
         if success:
+            assert data is not None
             response: api_typing.S2C.UserCommand = {
                 'cmd': self.Command.Api2Client.USER_COMMAND_RESPONSE,
                 'reqid': self.get_req_id(req),
@@ -983,6 +985,7 @@ class API:
             }
             self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
         else:
+            assert error is not None
             self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=self.make_error_response(req, error)))
 
     def read_raw_memory_callback(self, request: RawMemoryReadRequest, success: bool, data: Optional[bytes], error: str, conn_id: str, request_token: str) -> None:
