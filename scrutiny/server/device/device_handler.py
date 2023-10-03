@@ -54,8 +54,8 @@ class DeviceStateChangedCallback(GenericCallback):
     callback: Callable[["DeviceHandler.ConnectionStatus"], None]
 
 
-class UserCommandCallback(GenericCallback):
-    callback: Callable[[bool, int, Optional[bytes], Optional[str]], None]
+# class UserCommandCallback(GenericCallback):
+UserCommandCallback = Callable[[bool, int, Optional[bytes], Optional[str]], None]
 
 
 class DeviceHandlerConfig(TypedDict, total=False):
@@ -332,14 +332,22 @@ class DeviceHandler:
         def success_callback(request: Request, response: Response, *args, **kwargs):
             assert request.subfn == response.subfn  # We trust the Dispatcher to match them
 
+            subfn = response.subfn
+            if isinstance(subfn, Enum):
+                subfn = cast(int, subfn.value)
+
             if response.code == ResponseCode.OK:
-                callback(True, response.subfn, response.payload, None)
+                callback(True, subfn, response.payload, None)
             else:
-                callback(False, response.subfn, None, "Device responded with code %s" % response.code.name)
+                callback(False, subfn, None, "Device responded with code %s" % response.code.name)
 
         def failure_callback(request: Request, *args, **kwargs):
-            callback(False, request.subfn, None, "Failed to request the UserCommand with subfunction %s and %d bytes of data" %
-                     (request.subfn, request.data_size()))
+            subfn = request.subfn
+            if isinstance(subfn, Enum):
+                subfn = cast(int, subfn.value)
+
+            callback(False, subfn, None, "Failed to request the UserCommand with subfunction %s and %d bytes of data" %
+                     (subfn, request.data_size()))
 
         self.dispatcher.register_request(
             request=self.protocol.user_command(subfn, data),
