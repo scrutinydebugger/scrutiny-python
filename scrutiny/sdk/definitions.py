@@ -38,7 +38,8 @@ __all__ = [
     'SerialLinkConfig',
     'SupportedLinkConfig',
     'DeviceLinkInfo',
-    'ServerInfo'
+    'ServerInfo',
+    'UserCommandResponseData'
 ]
 
 AddressSize = Literal[8, 16, 32, 64, 128]
@@ -338,3 +339,12 @@ class ServerInfo:
 
     device_link: DeviceLinkInfo
     """Communication channel presently used to communicate with the device"""
+
+
+@dataclass(frozen=True)
+class UserCommandResponseData:
+    subfunction: int
+    """The subfunction echoed by the device when sending a response"""
+
+    data: bytes
+    """The data returned by the device"""

@@ -1449,6 +1449,34 @@ class ScrutinyClient:
             raise sdk.exceptions.OperationFailure(
                 f"Failed to configure the device communication link'. {future.error_str}")
 
+    def user_command(self, subfunction: int, data: bytes = bytes()) -> sdk.UserCommandResponseData:
+        validation.assert_int_range(subfunction, 'subfunction', 0, 0xFF)
+        validation.assert_type(data, 'data', bytes)
+
+        req = self._make_request(API.Command.Client2Api.USER_COMMAND, {
+            'subfunction': subfunction,
+            'data': b64encode(data).decode('utf8')
+        })
+
+        @dataclass
+        class Container:
+            obj: Optional[sdk.UserCommandResponseData]
+        cb_data: Container = Container(obj=None)  # Force pass by ref
+
+        def wt_user_command_callback(state: CallbackState, response: Optional[api_typing.S2CMessage]):
+            if response is not None and state == CallbackState.OK:
+                response = cast(api_typing.S2C.UserCommand, response)
+                cb_data.obj = api_parser.parse_user_command_response(response)
+
+        future = self._send(req, wt_user_command_callback)
+        assert future is not None
+        future.wait()
+
+        if future.state != CallbackState.OK or cb_data.obj is None:
+            raise sdk.exceptions.OperationFailure(f"Failed to request the device UserCommand. {future.error_str}")
+
+        return cb_data.obj
+
     @property
     def name(self) -> str:
         return '' if self._name is None else self.name

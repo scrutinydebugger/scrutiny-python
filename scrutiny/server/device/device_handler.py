@@ -54,7 +54,7 @@ class DeviceStateChangedCallback(GenericCallback):
     callback: Callable[["DeviceHandler.ConnectionStatus"], None]
 
 
-# class UserCommandCallback(GenericCallback):
+# callback(success, subfn, data, error_str) -> None
 UserCommandCallback = Callable[[bool, int, Optional[bytes], Optional[str]], None]
 
 
