@@ -54,6 +54,10 @@ class DeviceStateChangedCallback(GenericCallback):
     callback: Callable[["DeviceHandler.ConnectionStatus"], None]
 
 
+# callback(success, subfn, data, error_str) -> None
+UserCommandCallback = Callable[[bool, int, Optional[bytes], Optional[str]], None]
+
+
 class DeviceHandlerConfig(TypedDict, total=False):
     """DeviceHandler configuration in a dict format that can be loaded from a json file"""
 
@@ -148,9 +152,10 @@ class DeviceHandler:
     class RequestPriority:
         """Priority assigned to each type of requests. It will be used by the RequestDispatcher
         internal priority queue"""
-        Disconnect = 7
-        Connect = 6
-        Heartbeat = 5
+        Disconnect = 8
+        Connect = 7
+        Heartbeat = 6
+        UserCommand = 5
         WriteMemory = 4
         WriteRPV = 4
         Datalogging = 3
@@ -306,6 +311,50 @@ class DeviceHandler:
 
     def write_memory(self, address: int, data: bytes, callback: Optional[RawMemoryWriteRequestCompletionCallback] = None) -> RawMemoryWriteRequest:
         return self.memory_writer.request_memory_write(address, data, callback)
+
+    def request_user_command(self, subfn: int, data: bytes, callback: UserCommandCallback) -> None:
+        if not self.fully_connected_ready:
+            raise Exception("The connection to the device is not fully ready")
+
+        assert self.device_info is not None
+        assert self.device_info.supported_feature_map is not None
+        assert self.device_info.max_rx_data_size is not None
+
+        if not self.device_info.supported_feature_map['user_command']:
+            raise Exception("The device does not support the user command feature")
+
+        if not isinstance(subfn, int) or subfn < 0 or subfn > 255:
+            raise ValueError("Invalid subfunction")
+
+        if len(data) > self.device_info.max_rx_data_size:
+            raise ValueError("The given does not fit in the device rexeice buffer")
+
+        def success_callback(request: Request, response: Response, *args, **kwargs):
+            assert request.subfn == response.subfn  # We trust the Dispatcher to match them
+
+            subfn = response.subfn
+            if isinstance(subfn, Enum):
+                subfn = cast(int, subfn.value)
+
+            if response.code == ResponseCode.OK:
+                callback(True, subfn, response.payload, None)
+            else:
+                callback(False, subfn, None, "Device responded with code %s" % response.code.name)
+
+        def failure_callback(request: Request, *args, **kwargs):
+            subfn = request.subfn
+            if isinstance(subfn, Enum):
+                subfn = cast(int, subfn.value)
+
+            callback(False, subfn, None, "Failed to request the UserCommand with subfunction %s and %d bytes of data" %
+                     (subfn, request.data_size()))
+
+        self.dispatcher.register_request(
+            request=self.protocol.user_command(subfn, data),
+            success_callback=SuccessCallback(success_callback),
+            failure_callback=FailureCallback(failure_callback),
+            priority=self.RequestPriority.UserCommand
+        )
 
     def get_comm_params_callback(self, partial_device_info: DeviceInfo):
         """Callback given to InfoPoller to be called whenever the GetParams command completes."""

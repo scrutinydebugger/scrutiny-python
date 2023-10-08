@@ -30,7 +30,7 @@ from scrutiny.server.api import API
 from scrutiny.server.api import APIConfig
 import scrutiny.server.datastore.datastore as datastore
 from scrutiny.server.api.websocket_client_handler import WebsocketClientHandler
-from scrutiny.server.device.device_handler import DeviceHandler, DeviceStateChangedCallback, RawMemoryReadRequest, RawMemoryWriteRequest
+from scrutiny.server.device.device_handler import DeviceHandler, DeviceStateChangedCallback, RawMemoryReadRequest, RawMemoryWriteRequest, UserCommandCallback
 
 from scrutiny.core.firmware_description import FirmwareDescription
 from scrutiny.server.device.links.udp_link import UdpLink
@@ -98,6 +98,7 @@ class FakeDeviceHandler:
     write_allowed: bool
     read_allowed: bool
     emulate_datalogging_not_ready: bool
+    user_command_requests_queue: "queue.Queue[Tuple[int, bytes]]"
 
     def __init__(self, datastore: "datastore.Datastore"):
         self.datastore = datastore
@@ -159,6 +160,7 @@ class FakeDeviceHandler:
 
         self.fake_mem = MemoryContent()
         self.emulate_datalogging_not_ready = False
+        self.user_command_requests_queue = queue.Queue()
 
     def force_all_write_failure(self):
         self.write_allowed = False
@@ -308,6 +310,14 @@ class FakeDeviceHandler:
 
     def configure_comm(self, link_type: str, link_config: Dict = {}) -> None:
         self.comm_configure_queue.put((link_type, link_config))
+
+    def request_user_command(self, subfn: int, data: bytes, callback: UserCommandCallback) -> None:
+        self.user_command_requests_queue.put((subfn, data))
+        if subfn == 0x10:
+            data2 = bytes([x * 10 for x in data])
+            callback(True, subfn, data2, None)
+        else:
+            callback(False, subfn, None, "Unsupported subfunction")
 
 
 class FakeDataloggingManager:
@@ -1563,6 +1573,28 @@ class TestClient(ScrutinyUnitTest):
             )
 
             self.client.configure_device_link(sdk.DeviceLinkType.Serial, configin)
+
+    def test_user_command(self):
+        # Success case
+        self.assertTrue(self.device_handler.user_command_requests_queue.empty())
+        response = self.client.user_command(0x10, bytes([1, 2, 3, 4, 5]))
+        self.assertEqual(response.data, bytes([10, 20, 30, 40, 50]))
+        self.assertEqual(response.subfunction, 0x10)
+        self.assertFalse(self.device_handler.user_command_requests_queue.empty())
+        subfn, data = self.device_handler.user_command_requests_queue.get_nowait()
+        self.assertEqual(subfn, 0x10)
+        self.assertEqual(data, bytes([1, 2, 3, 4, 5]))
+
+        # Falure case
+        self.assertTrue(self.device_handler.user_command_requests_queue.empty())
+        with self.assertRaises(sdk.exceptions.OperationFailure):
+            self.client.user_command(0x50, bytes([1, 2, 3]))
+
+        self.assertFalse(self.device_handler.user_command_requests_queue.empty())
+
+        subfn, data = self.device_handler.user_command_requests_queue.get_nowait()
+        self.assertEqual(subfn, 0x50)
+        self.assertEqual(data, bytes([1, 2, 3]))
 
 
 if __name__ == '__main__':

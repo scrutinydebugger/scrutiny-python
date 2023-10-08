@@ -127,7 +127,6 @@ class ActiveSFDHandler:
             self.sfd = SFDStorage.get(firmware_id)
 
             # populate datastore
-            # todo Fetch Alaises from SFD as well.
             for fullname, vardef in self.sfd.get_vars_for_datastore():
                 try:
                     entry_var = DatastoreVariableEntry(display_path=fullname, variable_def=vardef)

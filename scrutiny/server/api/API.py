@@ -22,7 +22,8 @@ from scrutiny.server.datalogging.datalogging_storage import DataloggingStorage
 from scrutiny.server.datalogging.datalogging_manager import DataloggingManager
 from scrutiny.server.datastore.datastore import Datastore
 from scrutiny.server.datastore.datastore_entry import EntryType, DatastoreEntry, UpdateTargetRequestCallback
-from scrutiny.server.device.device_handler import DeviceHandler, DeviceStateChangedCallback, RawMemoryReadRequestCompletionCallback, RawMemoryReadRequest, RawMemoryWriteRequestCompletionCallback, RawMemoryWriteRequest
+from scrutiny.server.device.device_handler import DeviceHandler, DeviceStateChangedCallback, RawMemoryReadRequestCompletionCallback, \
+    RawMemoryReadRequest, RawMemoryWriteRequestCompletionCallback, RawMemoryWriteRequest, UserCommandCallback
 from scrutiny.server.active_sfd_handler import ActiveSFDHandler, SFDLoadedCallback, SFDUnloadedCallback
 from scrutiny.server.device.links import LinkConfig
 from scrutiny.core.sfd_storage import SFDStorage
@@ -92,6 +93,7 @@ class API:
             DELETE_ALL_DATALOGGING_ACQUISITION = 'delete_all_datalogging_acquisition'
             READ_MEMORY = "read_memory"
             WRITE_MEMORY = "write_memory"
+            USER_COMMAND = "user_command"
             DEBUG = 'debug'
 
         class Api2Client:
@@ -121,6 +123,7 @@ class API:
             INFORM_MEMORY_READ_COMPLETE = "inform_memory_read_complete"
             WRITE_MEMORY_RESPONSE = "response_write_memory"
             INFORM_MEMORY_WRITE_COMPLETE = "inform_memory_write_complete"
+            USER_COMMAND_RESPONSE = "response_user_command"
             ERROR_RESPONSE = 'error'
 
     class DataloggingStatus:
@@ -267,7 +270,8 @@ class API:
         Command.Client2Api.DELETE_ALL_DATALOGGING_ACQUISITION: 'process_delete_all_datalogging_acquisition',
         Command.Client2Api.READ_DATALOGGING_ACQUISITION_CONTENT: 'process_read_datalogging_acquisition_content',
         Command.Client2Api.READ_MEMORY: "process_read_memory",
-        Command.Client2Api.WRITE_MEMORY: "process_write_memory"
+        Command.Client2Api.WRITE_MEMORY: "process_write_memory",
+        Command.Client2Api.USER_COMMAND: "process_user_command"
     }
 
     def __init__(self,
@@ -946,6 +950,43 @@ class API:
         }
 
         self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
+
+    def process_user_command(self, conn_id: str, req: api_typing.C2S.UserCommand) -> None:
+        if 'subfunction' not in req:
+            raise InvalidRequestException(req, "Missing subfucnction field")
+
+        if not isinstance(req['subfunction'], int) or isinstance(req['subfunction'], bool):
+            raise InvalidRequestException(req, "Invalid subfunction")
+
+        if req['subfunction'] < 0 or req['subfunction'] > 0xFF:
+            raise InvalidRequestException(req, "Invalid subfunction")
+
+        data = bytes()
+        if 'data' in req:
+            if not isinstance(req['data'], str):
+                raise InvalidRequestException(req, "Invalid data")
+
+            try:
+                data = b64decode(req['data'], validate=True)
+            except binascii.Error:
+                raise InvalidRequestException(req, '"data" field is not a valid base64 string')
+
+        callback = cast(UserCommandCallback, functools.partial(self.user_command_callback, req, conn_id))
+        self.device_handler.request_user_command(req['subfunction'], data, callback)
+
+    def user_command_callback(self, req: api_typing.C2S.UserCommand, conn_id: str, success: bool, subfunction: int, data: Optional[bytes], error: Optional[str]) -> None:
+        if success:
+            assert data is not None
+            response: api_typing.S2C.UserCommand = {
+                'cmd': self.Command.Api2Client.USER_COMMAND_RESPONSE,
+                'reqid': self.get_req_id(req),
+                'subfunction': subfunction,
+                'data': b64encode(data).decode('utf8')
+            }
+            self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
+        else:
+            assert error is not None
+            self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=self.make_error_response(req, error)))
 
     def read_raw_memory_callback(self, request: RawMemoryReadRequest, success: bool, data: Optional[bytes], error: str, conn_id: str, request_token: str) -> None:
         data_out: Optional[str] = None

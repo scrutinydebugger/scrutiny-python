@@ -14,7 +14,7 @@ import json
 import math
 from uuid import uuid4
 from scrutiny.core.basic_types import RuntimePublishedValue, MemoryRegion
-from base64 import b64encode
+from base64 import b64encode, b64decode
 
 from scrutiny.server.api.API import API
 from scrutiny.server.datastore.datastore import Datastore
@@ -22,7 +22,8 @@ from scrutiny.server.datastore.datastore_entry import *
 from scrutiny.server.datastore.entry_type import EntryType
 from scrutiny.core.sfd_storage import SFDStorage
 from scrutiny.server.api.dummy_client_handler import DummyConnection, DummyClientHandler
-from scrutiny.server.device.device_handler import DeviceHandler, DeviceStateChangedCallback, RawMemoryReadRequest, RawMemoryWriteRequest, RawMemoryReadRequestCompletionCallback, RawMemoryWriteRequestCompletionCallback
+from scrutiny.server.device.device_handler import DeviceHandler, DeviceStateChangedCallback, RawMemoryReadRequest, \
+    RawMemoryWriteRequest, RawMemoryReadRequestCompletionCallback, RawMemoryWriteRequestCompletionCallback, UserCommandCallback
 from scrutiny.server.device.device_info import DeviceInfo, FixedFreqLoop, VariableFreqLoop
 from scrutiny.server.active_sfd_handler import ActiveSFDHandler
 from scrutiny.server.device.links.dummy_link import DummyLink
@@ -57,6 +58,7 @@ class StubbedDeviceHandler:
 
     read_memory_queue: "queue.Queue[RawMemoryReadRequest]"
     write_memory_queue: "queue.Queue[RawMemoryWriteRequest]"
+    user_command_history_queue: "queue.Queue[Tuple[int, bytes]]"
 
     def __init__(self, device_id, connection_status=DeviceHandler.ConnectionStatus.UNKNOWN):
         self.device_id = device_id
@@ -74,6 +76,7 @@ class StubbedDeviceHandler:
         self.device_state_change_callbacks = []
         self.read_memory_queue = queue.Queue()
         self.write_memory_queue = queue.Queue()
+        self.user_command_history_queue = queue.Queue()
 
     def get_connection_status(self) -> DeviceHandler.ConnectionStatus:
         return self.connection_status
@@ -137,7 +140,7 @@ class StubbedDeviceHandler:
         info.supported_feature_map = {
             'memory_write': True,
             'datalog_acquire': False,
-            'user_command': False,
+            'user_command': True,
             '_64bits': True}
         info.forbidden_memory_regions = [MemoryRegion(0x1000, 0x500)]
         info.readonly_memory_regions = [MemoryRegion(0x2000, 0x600), MemoryRegion(0x3000, 0x700)]
@@ -178,6 +181,16 @@ class StubbedDeviceHandler:
         )
         self.write_memory_queue.put(req)
         return req
+
+    def request_user_command(self, subfn: int, data: bytes, callback: UserCommandCallback):
+        self.user_command_history_queue.put((subfn, data))
+        if subfn == 2:
+            if data == bytes([1, 2, 3, 4, 5]):
+                callback(True, 2, bytes([10, 20, 30]), None)
+            else:
+                callback(False, 2, None, "Bad data")
+        else:
+            callback(False, subfn, None, "Unsupported subfunction")
 
 
 class StubbedDataloggingManager:
@@ -2328,6 +2341,70 @@ class TestAPI(ScrutinyUnitTest):
             req['sampling_rate_id'] = 2  # 2 is variable in emulated device
             req['x_axis_type'] = 'ideal_time'
             self.send_request(req)
+            self.assert_is_error(self.wait_and_load_response())
+
+    def test_user_command(self):
+        def base() -> api_typing.C2S.UserCommand:
+            return {
+                'cmd': 'user_command',
+                'subfunction': 2,
+                'data': b64encode(bytes([1, 2, 3, 4, 5])).decode('utf8')
+            }
+
+        req = base()
+
+        self.send_request(req)
+        response = self.wait_and_load_response()
+
+        self.assertFalse(self.fake_device_handler.user_command_history_queue.empty())
+        subfn, data = self.fake_device_handler.user_command_history_queue.get_nowait()
+        self.assertTrue(self.fake_device_handler.user_command_history_queue.empty())
+        self.assertEqual(subfn, 2)
+        self.assertEqual(data, bytes([1, 2, 3, 4, 5]))
+
+        self.assert_no_error(response)
+        self.assertIn('cmd', response)
+        self.assertIn('subfunction', response)
+        self.assertIn('data', response)
+
+        self.assertEqual(response['subfunction'], 2)
+        self.assertEqual(b64decode(response['data']), bytes([10, 20, 30]))
+
+        # Bad subfunction
+        req['subfunction'] = 10  # unsupported
+        self.send_request(req)
+        response = self.wait_and_load_response()
+
+        self.assertFalse(self.fake_device_handler.user_command_history_queue.empty())
+        subfn, data = self.fake_device_handler.user_command_history_queue.get_nowait()
+        self.assertTrue(self.fake_device_handler.user_command_history_queue.empty())
+        self.assertEqual(subfn, 10)
+        self.assertEqual(data, bytes([1, 2, 3, 4, 5]))
+        self.assert_is_error(response)
+
+        self.assertEqual(response['msg'], "Unsupported subfunction")
+
+        class Delete:
+            pass
+
+        for val in [256, -1, 1.2, 'asd', True, None, Delete]:
+            req = base()
+            if val is Delete:
+                del req['subfunction']
+            else:
+                req['subfunction'] = val
+            self.send_request(req)
+            self.assertTrue(self.fake_device_handler.user_command_history_queue.empty())    # API does not forward the request
+            self.assert_is_error(self.wait_and_load_response())
+
+        for val in [1, -1, 1.2, 'asd', True, None, Delete]:
+            req = base()
+            if val is Delete:
+                del req['data']
+            else:
+                req['data'] = val
+            self.send_request(req)
+            self.assertTrue(self.fake_device_handler.user_command_history_queue.empty())    # API does not forward the request
             self.assert_is_error(self.wait_and_load_response())
 
 

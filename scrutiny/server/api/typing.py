@@ -259,6 +259,10 @@ class C2S:
         address: int
         data: str
 
+    class UserCommand(BaseC2SMessage):
+        subfunction: int
+        data: str
+
     GetPossibleLinkConfig = Dict[Any, Any]  # Todo
 
 
@@ -372,6 +376,10 @@ class S2C:
         success: bool
         detail_msg: Optional[str]
 
+    class UserCommand(BaseS2CMessage):
+        subfunction: int
+        data: str
+
 
 C2SMessage = Union[
     C2S.Echo,
@@ -393,6 +401,7 @@ C2SMessage = Union[
     C2S.DeleteDataloggingAcquisition,
     C2S.ReadMemory,
     C2S.WriteMemory,
+    C2S.UserCommand,
 ]
 
 S2CMessage = Union[
@@ -419,5 +428,6 @@ S2CMessage = Union[
     S2C.ReadMemory,
     S2C.ReadMemoryComplete,
     S2C.WriteMemory,
-    S2C.WriteMemoryComplete
+    S2C.WriteMemoryComplete,
+    S2C.UserCommand,
 ]

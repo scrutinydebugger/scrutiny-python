@@ -806,3 +806,26 @@ def parse_list_datalogging_acquisitions_response(response: api_typing.S2C.ListDa
         dataout.append(entry)
 
     return dataout
+
+
+def parse_user_command_response(response: api_typing.S2C.UserCommand) -> sdk.UserCommandResponseData:
+    assert isinstance(response, dict)
+    assert 'cmd' in response
+    cmd = response['cmd']
+    assert cmd == API.Command.Api2Client.USER_COMMAND_RESPONSE
+
+    _check_response_dict(cmd, response, 'subfunction', int)
+    _check_response_dict(cmd, response, 'data', str)
+
+    if response['subfunction'] < 0 or response['subfunction'] > 0xFF:
+        raise sdk.exceptions.BadResponseError(f'Invalid subfunction {response["subfunction"]}')
+
+    try:
+        data = b64decode(response['data'], validate=True)
+    except binascii.Error as e:
+        raise sdk.exceptions.BadResponseError(f"Server returned a invalid base64 data block. {e}")
+
+    return sdk.UserCommandResponseData(
+        subfunction=response['subfunction'],
+        data=data
+    )

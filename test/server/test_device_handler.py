@@ -460,7 +460,7 @@ class TestDeviceHandler(ScrutinyUnitTest):
 
                 if state == 'write':
                     previous_write_timestamp_per_entry = {}
-                    
+
                     written_values = {}
                     for entry in all_entries:
                         previous_write_timestamp_per_entry[entry.get_id()] = entry.get_last_target_update_timestamp()
@@ -469,7 +469,7 @@ class TestDeviceHandler(ScrutinyUnitTest):
                         rpv = entry.get_rpv()
                         written_values[rpv.id] = generate_random_value(rpv.datatype)
                         self.datastore.update_target_value(entry, written_values[rpv.id], no_callback)
-                    
+
                     state = 'wait_for_update_and_validate'
 
                 elif state == 'wait_for_update_and_validate':
@@ -491,8 +491,8 @@ class TestDeviceHandler(ScrutinyUnitTest):
                     for rpv in self.emulated_device.get_rpvs():
                         written_values[rpv.id] = generate_random_value(rpv.datatype)
                         self.emulated_device.write_rpv(rpv.id, written_values[rpv.id])
-                    
-                    previous_write_timestamp_per_entry ={}
+
+                    previous_write_timestamp_per_entry = {}
                     for entry in all_entries:
                         previous_write_timestamp_per_entry[entry.get_id()] = entry.get_value_change_timestamp()
                     state = 'wait_for_update_1'
@@ -504,7 +504,7 @@ class TestDeviceHandler(ScrutinyUnitTest):
                         rpv = entry.get_rpv()
                         if entry.get_value_change_timestamp() == previous_write_timestamp_per_entry[entry.get_id()]:
                             all_updated = False
-                        
+
                     if all_updated:
                         # We reload new timestamps for the enxt round robin pass.
                         previous_write_timestamp_per_entry = {}
@@ -792,6 +792,88 @@ class TestDeviceHandler(ScrutinyUnitTest):
             # Memory: 16bits val = 7,8
             for d in signals[4]:
                 self.assertEqual(d, bytes([7, 8]), 'iteration=%d' % iteration)
+
+    def test_user_command(self):
+        timeout = 3
+        t1 = time.time()
+        while time.time() - t1 < timeout:
+            self.device_handler.process()
+            status = self.device_handler.get_connection_status()
+            if status == DeviceHandler.ConnectionStatus.CONNECTED_READY:
+                break
+
+        self.assertEqual(self.device_handler.get_connection_status(), DeviceHandler.ConnectionStatus.CONNECTED_READY)
+
+        @dataclass(init=False)
+        class CallbackReturnVal:
+            called: bool
+            success: bool
+            subfn: int
+            data: Optional[bytes]
+            error: Optional[str]
+
+            def __init__(self):
+                self.clear()
+
+            def clear(self):
+                self.called = False
+                self.success = False
+                self.subfn = 0
+                self.data = None
+                self.error = None
+
+        retval = CallbackReturnVal()
+
+        def callback(success: bool, subfn: int, data: Optional[bytes], error: Optional[str]):
+            retval.called = True
+            retval.success = success
+            retval.subfn = subfn
+            retval.data = data
+            retval.error = error
+
+        self.device_handler.request_user_command(1, bytes([1, 2, 3, 4]), callback)
+
+        t1 = time.time()
+        while time.time() - t1 < timeout:
+            self.device_handler.process()
+            if retval.called:
+                break
+        self.assertTrue(retval.called)
+        self.assertTrue(retval.success)
+        self.assertEqual(retval.subfn, 1)
+        self.assertEqual(retval.data, bytes([1, 2, 3, 4]))
+        self.assertEqual(retval.error, None)
+
+        retval.clear()
+        self.device_handler.request_user_command(0xFF, bytes([1, 2, 3, 4]), callback)
+
+        t1 = time.time()
+        while time.time() - t1 < timeout:
+            self.device_handler.process()
+            if retval.called:
+                break
+        self.assertTrue(retval.called)
+        self.assertFalse(retval.success)
+        self.assertEqual(retval.subfn, 0xFF)
+        self.assertEqual(retval.data, None)
+        self.assertIsInstance(retval.error, str)
+
+        self.emulated_device.ignore_user_command = True
+        retval.clear()
+        self.device_handler.request_user_command(1, bytes([1, 2, 3, 4]), callback)
+
+        timeout = self.device_handler.config['response_timeout'] + 2
+        self.device_handler.expect_no_timeout = False
+        t1 = time.time()
+        while time.time() - t1 < timeout:
+            self.device_handler.process()
+            if retval.called:
+                break
+        self.assertTrue(retval.called)
+        self.assertFalse(retval.success)
+        self.assertEqual(retval.subfn, 1)
+        self.assertEqual(retval.data, None)
+        self.assertIsInstance(retval.error, str)
 
 
 class TestDeviceHandlerMultipleLink(ScrutinyUnitTest):
