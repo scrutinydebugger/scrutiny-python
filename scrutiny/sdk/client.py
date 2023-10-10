@@ -267,16 +267,20 @@ class ScrutinyClient:
         self._threading_events.stop_worker_thread.clear()
         self._threading_events.disconnect.clear()
         started_event = threading.Event()
-        self._worker_thread = threading.Thread(target=self._worker_thread_task, args=[started_event])
+        self._worker_thread = threading.Thread(target=self._worker_thread_task, args=[started_event], daemon=True)
         self._worker_thread.start()
         started_event.wait()
-        self._logger.debug('RX thread started')
+        self._logger.debug('Worker thread started')
 
     def _stop_worker_thread(self) -> None:
         if self._worker_thread is not None:
+            self._logger.debug("Stopping worker thread")
             if self._worker_thread.is_alive():
                 self._threading_events.stop_worker_thread.set()
                 self._worker_thread.join()
+                self._logger.debug("Worker thread stopped")
+            else:
+                self._logger.debug("Worker thread already stopped")
             self._worker_thread = None
 
     def _worker_thread_task(self, started_event: threading.Event) -> None:
@@ -320,7 +324,7 @@ class ScrutinyClient:
                 self._threading_events.sync_complete.set()
 
             time.sleep(0.005)
-        self._logger.debug('RX thread stopped')
+        self._logger.debug('Worker thread is exiting')
         self._threading_events.stop_worker_thread.clear()
 
     def _wt_process_msg_inform_server_status(self, msg: api_typing.S2C.InformServerStatus, reqid: Optional[int]):
@@ -1449,7 +1453,7 @@ class ScrutinyClient:
             raise sdk.exceptions.OperationFailure(
                 f"Failed to configure the device communication link'. {future.error_str}")
 
-    def user_command(self, subfunction: int, data: bytes = bytes()) -> sdk.UserCommandResponseData:
+    def user_command(self, subfunction: int, data: bytes = bytes()) -> sdk.UserCommandResponse:
         validation.assert_int_range(subfunction, 'subfunction', 0, 0xFF)
         validation.assert_type(data, 'data', bytes)
 
@@ -1460,7 +1464,7 @@ class ScrutinyClient:
 
         @dataclass
         class Container:
-            obj: Optional[sdk.UserCommandResponseData]
+            obj: Optional[sdk.UserCommandResponse]
         cb_data: Container = Container(obj=None)  # Force pass by ref
 
         def wt_user_command_callback(state: CallbackState, response: Optional[api_typing.S2CMessage]):
