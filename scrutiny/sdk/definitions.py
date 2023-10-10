@@ -12,6 +12,7 @@ from datetime import datetime
 from scrutiny.core.basic_types import MemoryRegion
 from scrutiny.core import validation
 import abc
+from binascii import hexlify
 
 from typing import List, Optional, Literal, Union, Dict, get_args
 
@@ -39,7 +40,7 @@ __all__ = [
     'SupportedLinkConfig',
     'DeviceLinkInfo',
     'ServerInfo',
-    'UserCommandResponseData'
+    'UserCommandResponse'
 ]
 
 AddressSize = Literal[8, 16, 32, 64, 128]
@@ -342,9 +343,12 @@ class ServerInfo:
 
 
 @dataclass(frozen=True)
-class UserCommandResponseData:
+class UserCommandResponse:
     subfunction: int
     """The subfunction echoed by the device when sending a response"""
 
     data: bytes
     """The data returned by the device"""
+
+    def __repr__(self) -> str:
+        return f'{self.__class__.__name__}(subfunction={self.subfunction}, data=b\'{hexlify(self.data).decode()}\')'

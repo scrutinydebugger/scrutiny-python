@@ -808,7 +808,7 @@ def parse_list_datalogging_acquisitions_response(response: api_typing.S2C.ListDa
     return dataout
 
 
-def parse_user_command_response(response: api_typing.S2C.UserCommand) -> sdk.UserCommandResponseData:
+def parse_user_command_response(response: api_typing.S2C.UserCommand) -> sdk.UserCommandResponse:
     assert isinstance(response, dict)
     assert 'cmd' in response
     cmd = response['cmd']
@@ -825,7 +825,7 @@ def parse_user_command_response(response: api_typing.S2C.UserCommand) -> sdk.Use
     except binascii.Error as e:
         raise sdk.exceptions.BadResponseError(f"Server returned a invalid base64 data block. {e}")
 
-    return sdk.UserCommandResponseData(
+    return sdk.UserCommandResponse(
         subfunction=response['subfunction'],
         data=data
     )
