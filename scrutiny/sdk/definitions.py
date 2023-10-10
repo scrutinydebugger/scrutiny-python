@@ -351,4 +351,4 @@ class UserCommandResponse:
     """The data returned by the device"""
 
     def __repr__(self) -> str:
-        return f'{self.__class__.__name__}(subfunction={self.subfunction}, data={hexlify(self.data)})'
+        return f'{self.__class__.__name__}(subfunction={self.subfunction}, data=b\'{hexlify(self.data).decode()}\')'
