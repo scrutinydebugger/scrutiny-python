@@ -13,9 +13,9 @@ from scrutiny.server.datastore.datastore import *
 from scrutiny.core.variable import Variable
 from scrutiny.core.basic_types import *
 from test import ScrutinyUnitTest
+from scrutiny.core.alias import Alias
 
 from scrutiny.server.datalogging.datalogging_manager import DataloggingManager
-from typing import List
 
 
 class TestDataloggingManager(ScrutinyUnitTest):
@@ -109,7 +109,7 @@ class TestDataloggingManager(ScrutinyUnitTest):
                 ]
             ),
             x_axis_type=x_axis_type,
-            x_axis_signal=api_datalogging.SignalDefinition('x-axis', x_axis_entry),
+            x_axis_signal=api_datalogging.SignalDefinition('x-axis', x_axis_entry) if x_axis_entry is not None else None,
             signals=[
                 api_datalogging.SignalDefinitionWithAxis('var1_u32', self.var1_u32, axis=yaxis_list[0]),
                 api_datalogging.SignalDefinitionWithAxis('var1_u32', self.var1_u32, axis=yaxis_list[0]),    # Duplicate on purpose

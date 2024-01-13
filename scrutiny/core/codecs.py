@@ -47,7 +47,7 @@ class SIntCodec(BaseCodec):
         8: 'q'
     }
 
-    def __init__(self, size: int, endianness: Endianness):
+    def __init__(self, size: int, endianness: Endianness) -> None:
         super().__init__()
         if size not in self.str_map:
             raise NotImplementedError('Does not support signed int of %d bytes', size)
@@ -69,7 +69,7 @@ class UIntCodec(BaseCodec):
         8: 'Q'
     }
 
-    def __init__(self, size: int, endianness: Endianness):
+    def __init__(self, size: int, endianness: Endianness) -> None:
         super().__init__()
         if size not in self.str_map:
             raise NotImplementedError('Does not support unsigend signed int of %d bytes', size)
@@ -89,7 +89,7 @@ class FloatCodec(BaseCodec):
         8: 'd'
     }
 
-    def __init__(self, size: int, endianness: Endianness):
+    def __init__(self, size: int, endianness: Endianness) -> None:
         super().__init__()
         if size not in self.str_map:
             raise NotImplementedError('Does not support float of %d bytes', size)

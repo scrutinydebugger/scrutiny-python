@@ -22,8 +22,13 @@ from scrutiny.server.protocol.commands import *
 from scrutiny.core.variable import *
 from scrutiny.core.basic_types import *
 from test import ScrutinyUnitTest
+from scrutiny.core.codecs import Codecs, Encodable
+import math
+import functools
+import struct
 
-from typing import List, Dict, Generator, cast
+
+from typing import List, Dict, Generator, cast, Tuple, Optional
 from scrutiny.core.typehints import GenericCallback
 
 

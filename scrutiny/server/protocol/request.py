@@ -21,7 +21,7 @@ class Request:
     Represent a request that can be send to a device using the Scrutiny embedded protocol
     """
     command: Type[BaseCommand]
-    subfn: Union[int, Enum]
+    subfn: int
     payload: bytes
     response_payload_size: int
 
@@ -98,9 +98,12 @@ class Request:
 
     def __repr__(self) -> str:
         if hasattr(self.command, 'Subfunction') and issubclass(self.command.Subfunction, Enum):
-            enum_instance = self.command.Subfunction(self.subfn)
-            subfn_name = '%s(%d)' % (enum_instance.name, enum_instance.value)
-        elif isinstance(self.subfn, int):
+            try:
+                enum_instance = self.command.Subfunction(self.subfn)
+                subfn_name = '%s(%d)' % (enum_instance.name, enum_instance.value)
+            except Exception:
+                subfn_name = '%d' % self.subfn
+        else:
             subfn_name = '%d' % self.subfn
 
         s = '<%s: %s(0x%02X), subfn=%s. %d bytes of data >' % (

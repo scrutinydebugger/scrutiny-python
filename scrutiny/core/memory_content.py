@@ -107,7 +107,7 @@ class Cluster:
     def __len__(self) -> int:
         return self.size
 
-    def __add__(self, other: "Cluster"):
+    def __add__(self, other: "Cluster") -> "Cluster":
         new_cluster = copy.copy(self)
         if isinstance(other, bytes) or isinstance(other, bytearray):
             new_cluster.extend(new_cluster.size + len(other), delta_data=other)

@@ -18,6 +18,8 @@ from typing import List
 from dataclasses import dataclass
 from binascii import unhexlify
 from typing import *
+import functools
+import math
 
 from test.integration.integration_test import ScrutinyIntegrationTestWithTestSFD1
 

@@ -154,7 +154,7 @@ class SerialLink(AbstractLink):
 
         return data
 
-    def write(self, data: bytes):
+    def write(self, data: bytes) -> None:
         """ Write data to the comm channel."""
         if self.operational():
             assert self.port is not None    # For mypy

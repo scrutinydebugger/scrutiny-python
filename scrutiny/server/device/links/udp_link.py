@@ -124,7 +124,7 @@ class UdpLink(AbstractLink):
 
         return None
 
-    def write(self, data: bytes):
+    def write(self, data: bytes) -> None:
         """ Write data to the comm channel."""
         if not self.operational():
             return

@@ -21,7 +21,7 @@ class Response:
     Represent a response that can be received from a device using the Scrutiny embedded protocol
     """
     command: Type[BaseCommand]
-    subfn: Union[int, Enum]
+    subfn: int
     code: "ResponseCode"
     payload: bytes
 
@@ -55,7 +55,7 @@ class Response:
         """Returns the size of the byte encoded response"""
         return 9 + len(self.payload)
 
-    def data_size(self):
+    def data_size(self) -> int:
         """Returns the length of the payload only (without protocol overhead)"""
         return len(self.payload)
 
@@ -94,9 +94,12 @@ class Response:
 
     def __repr__(self) -> str:
         if hasattr(self.command, 'Subfunction') and issubclass(self.command.Subfunction, Enum):
-            enum_instance = self.command.Subfunction(self.subfn)
-            subfn_name = '%s(%d)' % (enum_instance.name, enum_instance.value)
-        elif isinstance(self.subfn, int):
+            try:
+                enum_instance = self.command.Subfunction(self.subfn)
+                subfn_name = '%s(%d)' % (enum_instance.name, enum_instance.value)
+            except Exception:
+                subfn_name = '%d' % self.subfn
+        else:
             subfn_name = '%d' % self.subfn
 
         s = '<%s: %s(0x%02X), subfn=%s with code %s(%d). %d bytes of data >' % (

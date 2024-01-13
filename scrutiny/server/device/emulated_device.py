@@ -547,6 +547,7 @@ class EmulatedDevice:
                 request = self.read()
             except Exception as e:
                 self.logger.error('Error decoding request. %s' % str(e))
+                self.logger.debug(traceback.format_exc())
 
             if request is not None:
                 response: Optional[Response] = None

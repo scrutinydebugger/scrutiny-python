@@ -18,6 +18,8 @@ from test import SkipOnException
 from test.artifacts import get_artifact
 from test import ScrutinyUnitTest
 
+from typing import Optional
+
 
 class TestMakeVarMap_LinuxLEx64_Gcc8_3_0(ScrutinyUnitTest):
     init_exception: Optional[Exception]

@@ -6,7 +6,10 @@
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
 #
 #   Copyright (c) 2021-2023 Scrutiny Debugger
-# type: ignore
+
+
+__all__ = ['ElfDwarfVarExtractor']
+
 from elftools.elf.elffile import ELFFile    # type: ignore
 import os
 from enum import Enum
@@ -17,6 +20,12 @@ from scrutiny.core.varmap import VarMap
 from scrutiny.core.basic_types import *
 from scrutiny.core.variable import *
 from scrutiny.exceptions import EnvionmentNotSetUpException
+
+from typing import Optional, List, Dict, Any, Union, cast
+
+
+class Die:
+    tag: str
 
 
 class CuName:
@@ -88,7 +97,7 @@ class ElfDwarfVarExtractor:
         DW_ATE_lo_user = 0x80
         DW_ATE_hi_user = 0xff
 
-    def __init__(self, filename=None, cppfilt=None):
+    def __init__(self, filename: Optional[str] = None, cppfilt: Optional[str] = None) -> None:
         self.varmap = VarMap()    # This is what we want to generate.
         self.die2typeid_map = {}
         self.die2vartype_map = {}

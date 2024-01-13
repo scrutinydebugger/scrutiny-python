@@ -20,6 +20,8 @@ from scrutiny.server.device.device_info import *
 from typing import List, cast
 from scrutiny.server.datalogging.datalogging_storage import DataloggingStorage
 from binascii import hexlify, unhexlify
+import time
+import math
 
 
 from test.integration.integration_test import ScrutinyIntegrationTestWithTestSFD1

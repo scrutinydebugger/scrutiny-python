@@ -10,7 +10,7 @@ from abc import ABC
 import inspect
 import sys
 
-from typing import Type
+from typing import Type, cast
 
 
 class BaseCommand(ABC):
@@ -25,7 +25,7 @@ class BaseCommand(ABC):
         for name, obj in inspect.getmembers(sys.modules[__name__]):
             if hasattr(obj, "__bases__") and cls in obj.__bases__:
                 if obj.request_id() == given_id:
-                    return obj
+                    return cast(Type["BaseCommand"], obj)
         raise ValueError('Unknown command ID %s' % given_id)
 
     @classmethod
