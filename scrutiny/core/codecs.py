@@ -55,7 +55,7 @@ class SIntCodec(BaseCodec):
         self.packstr = endianness_char + self.str_map[size]
 
     def decode(self, data: Union[bytes, bytearray]) -> int:
-        return struct.unpack(self.packstr, data)[0]
+        return int(struct.unpack(self.packstr, data)[0])
 
     def encode(self, value: Encodable) -> bytes:
         return struct.pack(self.packstr, value)
@@ -77,7 +77,7 @@ class UIntCodec(BaseCodec):
         self.packstr = endianness_char + self.str_map[size]
 
     def decode(self, data: Union[bytes, bytearray]) -> int:
-        return struct.unpack(self.packstr, data)[0]
+        return int(struct.unpack(self.packstr, data)[0])
 
     def encode(self, value: Encodable) -> bytes:
         return struct.pack(self.packstr, value)
@@ -97,7 +97,7 @@ class FloatCodec(BaseCodec):
         self.packstr = endianness_char + self.str_map[size]
 
     def decode(self, data: Union[bytes, bytearray]) -> float:
-        return struct.unpack(self.packstr, data)[0]
+        return float(struct.unpack(self.packstr, data)[0])
 
     def encode(self, value: Encodable) -> bytes:
         return struct.pack(self.packstr, value)

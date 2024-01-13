@@ -6,6 +6,15 @@
 #
 #   Copyright (c) 2021-2023 Scrutiny Debugger
 
+__all__ = [
+    'DatalogControl',
+    'GetInfo',
+    'MemoryControl',
+    'CommControl',
+    'UserCommand',
+    'DummyCommand'
+]
+
 from abc import ABC
 import inspect
 import sys

@@ -91,22 +91,22 @@ class VarMap:
         self.enums_to_id_map = {}       # Maps a VariableEnum object to it's internal id
 
         # Build typename2typeid_map
-        for typeid in self.typemap:
-            typeid = int(typeid)
-            if typeid > self.next_type_id:
-                self.next_type_id = typeid
+        for typeid_str in self.typemap:
+            typeid_int = int(typeid_str)
+            if typeid_int > self.next_type_id:
+                self.next_type_id = typeid_int
 
-            typename = self.typemap[str(typeid)]['name']
-            self.typename2typeid_map[typename] = typeid
+            typename = self.typemap[str(typeid_int)]['name']
+            self.typename2typeid_map[typename] = typeid_str
 
         # Build enums_to_id_map
-        for enum_id in self.enums:
-            enum_id = int(enum_id)
-            if enum_id > self.next_enum_id:
-                self.next_enum_id = enum_id
+        for enum_id_str in self.enums:
+            enum_id_int = int(enum_id_str)
+            if enum_id_int > self.next_enum_id:
+                self.next_enum_id = enum_id_int
 
-            enum = VariableEnum.from_def(self.enums[str(enum_id)])
-            self.enums_to_id_map[enum] = enum_id
+            enum = VariableEnum.from_def(self.enums[str(enum_id_int)])
+            self.enums_to_id_map[enum] = enum_id_int
 
     def set_endianness(self, endianness: Endianness) -> None:
         if endianness not in [Endianness.Little, Endianness.Big]:
@@ -139,7 +139,7 @@ class VarMap:
     def validate(self) -> None:
         pass
 
-    def validate_json(self, content: Dict[str, Any]):
+    def validate_json(self, content: Dict[str, Any]) -> None:
         required_fields = {
             'endianness',
             'type_map',
@@ -151,7 +151,15 @@ class VarMap:
             if field not in content:
                 raise Exception('Missing field "%s"' % field)
 
-    def add_variable(self, path_segments: List[str], name: str, location: VariableLocation, original_type_name: str, bitsize: Optional[int] = None, bitoffset: Optional[int] = None, enum: Optional[VariableEnum] = None):
+    def add_variable(self,
+                     path_segments: List[str],
+                     name: str,
+                     location: VariableLocation,
+                     original_type_name: str,
+                     bitsize: Optional[int] = None,
+                     bitoffset: Optional[int] = None,
+                     enum: Optional[VariableEnum] = None
+                     ) -> None:
         if not self.is_known_type(original_type_name):
             raise ValueError('Cannot add variable of type %s. Type has not been registered yet' % (original_type_name))
 
@@ -198,9 +206,6 @@ class VarMap:
         typeid = self.typename2typeid_map[binary_type_name]
         vartype_name = self.typemap[typeid]['type']
         return EmbeddedDataType[vartype_name]    # Enums supports square brackets to get enum from name
-
-    def has_type_id(self, typeid: int) -> bool:
-        return (typeid in self.typemap)
 
     def is_known_type(self, binary_type_name: str) -> bool:
         return (binary_type_name in self.typename2typeid_map)

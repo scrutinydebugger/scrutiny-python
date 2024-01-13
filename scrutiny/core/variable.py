@@ -154,7 +154,14 @@ class Struct:
         bitsize: Optional[int]
         substruct: Optional['Struct']
 
-        def __init__(self, name: str, is_substruct: bool = False, original_type_name: Optional[str] = None, byte_offset: Optional[int] = None, bitoffset: Optional[int] = None, bitsize: Optional[int] = None, substruct: Optional['Struct'] = None):
+        def __init__(self, name: str,
+                     is_substruct: bool = False,
+                     original_type_name: Optional[str] = None,
+                     byte_offset: Optional[int] = None,
+                     bitoffset: Optional[int] = None,
+                     bitsize: Optional[int] = None,
+                     substruct: Optional['Struct'] = None
+                     ):
 
             if not is_substruct:
                 if original_type_name is None:
@@ -191,19 +198,19 @@ class Struct:
             self.substruct = substruct
 
     name: str
-    members: Dict[str, Union['Struct', 'Struct.Member']]
+    members: Dict[str, "Struct.Member"]
 
     def __init__(self, name: str) -> None:
         self.name = name
         self.members = {}
 
-    def add_member(self, member: Union["Struct", "Struct.Member"]) -> None:
+    def add_member(self, member: "Struct.Member") -> None:
         """Add a member to the struct"""
         if member.name in self.members:
-            raise Exception('Duplicate member %s' % member.name)
+            raise KeyError('Duplicate member %s' % member.name)
 
-        if not isinstance(member, Struct) and not isinstance(member, Struct.Member):
-            raise ValueError('Node must be a member or a substruct')
+        if not isinstance(member, Struct.Member):
+            raise ValueError('Node must be a Struct.Member')
 
         self.members[member.name] = member
 
@@ -357,5 +364,5 @@ class Variable:
             assert self.bitsize is not None
             return UIntCodec(self.get_size(), self.endianness).encode(BITFIELD_MASK_MAP[self.bitoffset][self.bitsize])
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return '<%s - %s (%s) @ %s>' % (self.__class__.__name__, self.get_fullname(), self.vartype, self.location)
