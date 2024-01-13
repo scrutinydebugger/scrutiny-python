@@ -65,7 +65,7 @@ class Alias:
         self.min = float(min) if min is not None else None
         self.max = float(max) if max is not None else None
 
-    def validate(self):
+    def validate(self) -> None:
         """Raise an exception if internal values are bad"""
         if not self.fullpath or not isinstance(self.fullpath, str):
             raise ValueError('fullpath is not valid')

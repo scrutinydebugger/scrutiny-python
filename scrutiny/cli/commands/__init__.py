@@ -1,3 +1,24 @@
+__all__ = [
+    'BaseCommand',
+    'MakeSFD',
+    'GetFirmwareId',
+    'TagFirmwareID',
+    'MakeMetadata',
+    'InstallSFD',
+    'UninstallSFD',
+    'ListSFD',
+    'Elf2VarMap',
+    'LaunchServer',
+    'RunTest',
+    'AddAlias',
+    'DeleteDatalog',
+    'ListDatalog',
+    'ExportDatalog',
+    'DatalogInfo',
+    'get_all_commands',
+    'get_commands_by_groups'
+]
+
 from .base_command import BaseCommand
 from .make_sfd import MakeSFD
 from .get_firmware_id import GetFirmwareId

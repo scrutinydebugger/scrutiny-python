@@ -6,6 +6,16 @@
 #
 #   Copyright (c) 2021-2023 Scrutiny Debugger
 
+__all__ = [
+    'Encodable',
+    'BaseCodec',
+    'SIntCodec',
+    'UIntCodec',
+    'FloatCodec',
+    'BoolCodec',
+    'Codecs'
+]
+
 from abc import ABC, abstractmethod
 from scrutiny.core.basic_types import Endianness, EmbeddedDataType
 import struct
@@ -17,7 +27,7 @@ Encodable = Union[int, float, bool]
 
 
 class BaseCodec(ABC):
-    def __init__(self,):
+    def __init__(self) -> None:
         pass
 
     @abstractmethod
@@ -94,7 +104,7 @@ class FloatCodec(BaseCodec):
 
 
 class BoolCodec(BaseCodec):
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
 
     def decode(self, data: Union[bytes, bytearray]) -> bool:

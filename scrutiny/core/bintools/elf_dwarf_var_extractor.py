@@ -6,7 +6,7 @@
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
 #
 #   Copyright (c) 2021-2023 Scrutiny Debugger
-
+# type: ignore
 from elftools.elf.elffile import ELFFile    # type: ignore
 import os
 from enum import Enum
@@ -102,7 +102,7 @@ class ElfDwarfVarExtractor:
         if filename is not None:
             self.load_from_elf_file(filename)
 
-    def get_varmap(self):
+    def get_varmap(self) -> VarMap:
         return self.varmap
 
     # Builds a dictionary that maps a CompuleUnit object to a unique displayable name

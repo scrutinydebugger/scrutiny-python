@@ -108,7 +108,7 @@ class InfoPoller:
         self.logger.debug('Stop requested')
         self.stop_requested = True
 
-    def fully_stopped(self):
+    def fully_stopped(self) -> bool:
         return self.started == False and self.stop_requested == False
 
     def done(self) -> bool:
@@ -468,11 +468,11 @@ class InfoPoller:
             elif self.fsm_state == self.FsmState.GetLoopDefinition:
                 response_data = cast(protocol_typing.Response.GetInfo.GetLoopDefinition, response_data)
                 if self.info.loops is None:
-                    self.fsm_state == self.FsmState.Error
+                    self.fsm_state = self.FsmState.Error
                     self.error_message = "List of loop is not set"
                 # We poll for loop id from 0 to N by step of 1. So it should match the count.
                 elif response_data['loop_id'] != len(self.info.loops):
-                    self.fsm_state == self.FsmState.Error
+                    self.fsm_state = self.FsmState.Error
                     self.error_message = "Received the loop definition for an unexpected loop id"
                 else:
                     self.info.loops.append(response_data['loop'])

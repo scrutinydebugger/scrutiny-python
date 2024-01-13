@@ -9,8 +9,9 @@
 from typing import TypedDict, List, Optional
 from scrutiny.core.basic_types import *
 from enum import Enum
-from dataclasses import dataclass
 from abc import abstractmethod
+
+from typing import Tuple
 
 
 class ExecLoopType(Enum):
@@ -22,7 +23,7 @@ class ExecLoop:
     name: str
     support_datalogging: bool
 
-    def __init__(self, name: str, support_datalogging: bool = True):
+    def __init__(self, name: str, support_datalogging: bool = True) -> None:
         self.name = name
         self.support_datalogging = support_datalogging
 
@@ -40,7 +41,7 @@ class ExecLoop:
 class FixedFreqLoop(ExecLoop):
     freq: float
 
-    def __init__(self, freq: float, name: str, support_datalogging: bool = True):
+    def __init__(self, freq: float, name: str, support_datalogging: bool = True) -> None:
         super().__init__(name, support_datalogging)
         self.freq = freq
 
@@ -136,10 +137,10 @@ class DeviceInfo:
     loops: Optional[List[ExecLoop]]
     """List of execution loops (tasks) exposed by the embedded device"""
 
-    def get_attributes(self):
+    def get_attributes(self) -> Tuple[str, ...]:
         return self.__slots__
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.clear()
 
     def all_ready(self) -> bool:
@@ -156,7 +157,7 @@ class DeviceInfo:
         for attr in self.__slots__:
             setattr(self, attr, None)
 
-    def __str__(self):
+    def __str__(self) -> str:
         dict_out = {}
         for attr in self.__slots__:
             dict_out[attr] = getattr(self, attr)

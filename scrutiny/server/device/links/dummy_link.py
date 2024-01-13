@@ -95,7 +95,7 @@ class ThreadSafeDummyLink(AbstractLink):
     def initialized(self) -> bool:
         return self._initialized
 
-    def get_config(self):
+    def get_config(self) -> Dict[str, Any]:
         return {}
 
     @staticmethod
@@ -186,7 +186,7 @@ class DummyLink(AbstractLink):
         """Returns True if the Link object has been initialized"""
         return self._initialized
 
-    def get_config(self):
+    def get_config(self) -> LinkConfig:
         """Get the link configuration"""
         return {}
 

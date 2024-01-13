@@ -14,7 +14,7 @@ from scrutiny.core import validation
 import abc
 from binascii import hexlify
 
-from typing import List, Optional, Literal, Union, Dict, get_args
+from typing import List, Optional, Literal, Union, Dict, get_args, Any
 
 __all__ = [
     'AddressSize',
@@ -242,7 +242,7 @@ class SFDInfo:
 
 
 class BaseLinkConfig(abc.ABC):
-    def _to_api_format(self) -> Dict:
+    def _to_api_format(self) -> Dict[str, Any]:
         raise NotImplementedError("Abstract class")
 
 
@@ -253,10 +253,10 @@ class UDPLinkConfig(BaseLinkConfig):
     port: int
     """Device UDP port number"""
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         validation.assert_int_range(self.port, 'port', 0, 0xFFFF)
 
-    def _to_api_format(self) -> Dict:
+    def _to_api_format(self) -> Dict[str, Any]:
         return {
             'host': self.host,
             'port': self.port
@@ -270,10 +270,10 @@ class TCPLinkConfig(BaseLinkConfig):
     port: int
     """Device TCP port number"""
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         validation.assert_int_range(self.port, 'port', 0, 0xFFFF)
 
-    def _to_api_format(self) -> Dict:
+    def _to_api_format(self) -> Dict[str, Any]:
         return {
             'host': self.host,
             'port': self.port
@@ -293,14 +293,14 @@ class SerialLinkConfig(BaseLinkConfig):
     parity: SerialParity = 'none'
     """Serial communication parity bits"""
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         validation.assert_type(self.port, 'port', str)
         validation.assert_int_range(self.baudrate, 'baudrate', 1)
         validation.assert_val_in(self.stopbits, 'stopbits', get_args(SerialStopBits))
         validation.assert_val_in(self.databits, 'databits', get_args(SerialDataBits))
         validation.assert_val_in(self.parity, 'databits', get_args(SerialParity))
 
-    def _to_api_format(self) -> Dict:
+    def _to_api_format(self) -> Dict[str, Any]:
         return {
             'port': self.port,
             'baudrate': self.baudrate,

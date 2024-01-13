@@ -115,7 +115,7 @@ class DataloggingPoller:
         self.acquisition_request = None
         self.reset()
 
-    def reset(self):
+    def reset(self) -> None:
         """Put back the datalogging poller to its startup state"""
         self.logger.debug('Reset called')
         self.mark_active_acquisition_failed_if_any("Datalogger has been reset")    # Call user callback if required
@@ -133,7 +133,7 @@ class DataloggingPoller:
             self.request_failed[subfn] = False
         self.set_standby()
 
-    def set_standby(self):
+    def set_standby(self) -> None:
         """Put back the datalogging poller to an idle state without destroying important internal values"""
         self.mark_active_acquisition_failed_if_any("Datalogger is disabled")
 
@@ -160,7 +160,7 @@ class DataloggingPoller:
         self.setup_completed = False
         self.completion_ratio = None
 
-    def configure_rpvs(self, rpvs: List[RuntimePublishedValue]):
+    def configure_rpvs(self, rpvs: List[RuntimePublishedValue]) -> None:
         self.rpv_map.clear()
         for rpv in rpvs:
             self.rpv_map[rpv.id] = rpv
@@ -181,7 +181,7 @@ class DataloggingPoller:
     def is_in_error(self) -> bool:
         return self.error
 
-    def fully_stopped(self):
+    def fully_stopped(self) -> bool:
         return not self.started and not self.stop_requested
 
     def stop(self) -> None:
@@ -214,7 +214,7 @@ class DataloggingPoller:
         """Returns a value between 0 and 1 indicating how far the acquisition is frm being completed once the trigger event has been launched"""
         return self.completion_ratio
 
-    def mark_active_acquisition_failed_if_any(self, detail: str = ""):
+    def mark_active_acquisition_failed_if_any(self, detail: str = "") -> None:
         """Mark the currently processed acquisition request as completed with failure. Will call the completing callback with success=False"""
         if self.acquisition_request is not None:
             self.acquisition_request.completion_callback(False, detail, None, None)
@@ -628,7 +628,7 @@ class DataloggingPoller:
             self.update_status_timer.start()
         self.request_pending[subfn] = False
 
-    def process_get_status_success(self, response: Response):
+    def process_get_status_success(self, response: Response) -> None:
         """Process the response to GetStatus when the device returns OK code"""
         response_data = cast(protocol_typing.Response.DatalogControl.GetStatus, self.protocol.parse_response(response))
 
@@ -643,7 +643,7 @@ class DataloggingPoller:
 
         self.require_status_update = False
 
-    def process_get_setup_success(self, response: Response):
+    def process_get_setup_success(self, response: Response) -> None:
         """Process the response to GetSetup when the device returns OK code"""
         if self.state != FSMState.GET_SETUP:
             raise RuntimeError('Received a GetSetup response when none was asked')
@@ -655,21 +655,21 @@ class DataloggingPoller:
             max_signal_count=response_data['max_signal_count']
         )
 
-    def process_configure_success(self, response: Response):
+    def process_configure_success(self, response: Response) -> None:
         """Process the response to Configure when the device returns OK code"""
         if self.state != FSMState.CONFIGURING:
             raise RuntimeError('Received a Configure response when none was asked')
 
         self.configure_completed = True
 
-    def process_arm_success(self, response: Response):
+    def process_arm_success(self, response: Response) -> None:
         """Process the response to ArmTrigger when the device returns OK code"""
         if self.state != FSMState.ARMING:
             raise RuntimeError('Received a ArmTrigger response when none was asked')
 
         self.arm_completed = True
 
-    def process_get_acq_metadata_success(self, response: Response):
+    def process_get_acq_metadata_success(self, response: Response) -> None:
         """Process the response to GetAcquisitionMetadata when the device returns OK code"""
         if self.state != FSMState.READ_METADATA:
             raise RuntimeError('Received a GetAcquisitionMetadata response when none was asked')
@@ -685,7 +685,7 @@ class DataloggingPoller:
             points_after_trigger=response_data['points_after_trigger']
         )
 
-    def process_read_acquisition_success(self, response: Response):
+    def process_read_acquisition_success(self, response: Response) -> None:
         """Process the response to ReadAcquisition when the device returns OK code"""
         if self.state != FSMState.RETRIEVING_DATA:
             raise RuntimeError('Received a ReadAcquisition response when none was asked')
@@ -699,7 +699,7 @@ class DataloggingPoller:
             data=response_data['data']
         )
 
-    def process_reset_datalogger_success(self, response: Response):
+    def process_reset_datalogger_success(self, response: Response) -> None:
         """Process the response to ResetDatalogger when the device returns OK code"""
         if self.state != FSMState.REQUEST_RESET:
             raise RuntimeError('Received a ResetDatalogger response when none was asked')

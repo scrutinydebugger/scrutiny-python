@@ -9,7 +9,7 @@
 
 from scrutiny.server.datastore.datastore_entry import DatastoreEntry
 
-from typing import List
+from typing import List, Set, Dict
 
 
 class ValueStreamer:
@@ -21,7 +21,10 @@ class ValueStreamer:
     It avoid duplicates updates and can also apply some rules such as throttling
     """
 
-    def __init__(self):
+    entry_to_publish: Dict[str, Set[DatastoreEntry]]
+    frozen_connections: Set[str]
+
+    def __init__(self) -> None:
         self.entry_to_publish = {}
         self.frozen_connections = set()
 

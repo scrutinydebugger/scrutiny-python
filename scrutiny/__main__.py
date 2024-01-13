@@ -13,7 +13,7 @@ import sys
 import os
 
 
-def main():
+def main()-> None:
     cli = CLI(os.getcwd())
     code = cli.run(sys.argv[1:])
     exit(code)

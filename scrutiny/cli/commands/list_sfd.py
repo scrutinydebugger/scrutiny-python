@@ -23,7 +23,7 @@ class PrintableSFDEntry:
     version: str
     author: str
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.firmware_id = None
         self.create_time = None
         self.scrutiny_version = None
@@ -32,13 +32,13 @@ class PrintableSFDEntry:
         self.author = 'No author'
         self.padding_target_len = 0
 
-    def set_padding_target_len(self, padding_target_len=0):
+    def set_padding_target_len(self, padding_target_len:int=0) -> None:
         self.padding_target_len = padding_target_len
 
-    def get_len_for_padding(self):
+    def get_len_for_padding(self) -> int:
         return (len(self.project_name) + len(self.version) + 1)
 
-    def __str__(self):
+    def __str__(self) -> str:
         padding_len = max(0, self.padding_target_len - self.get_len_for_padding()) + 3
         create_time_str = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(self.create_time))
         line = '  %s %s%s (%s)\tScrutiny %s \t Created on %s' % (self.project_name, self.version, ' ' * padding_len,

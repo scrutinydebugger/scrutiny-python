@@ -11,12 +11,13 @@ import logging
 import ctypes
 import traceback
 from enum import Enum
+import struct
 
 from .exceptions import *
 from . import commands as cmd
 from . import Request, Response
 from scrutiny.core.codecs import *
-from scrutiny.core.basic_types import Endianness, RuntimePublishedValue
+from scrutiny.core.basic_types import Endianness, RuntimePublishedValue, EmbeddedDataType
 import scrutiny.server.protocol.typing as protocol_typing
 import scrutiny.server.datalogging.definitions.device as device_datalogging
 from scrutiny.server.device.device_info import ExecLoop, ExecLoopType, FixedFreqLoop, VariableFreqLoop
@@ -63,7 +64,7 @@ class Protocol:
         def get_pack_char(self) -> str:
             return self.pack_char
 
-        def get_address_mask(self):
+        def get_address_mask(self) -> int:
             return self.mask
 
         def encode_address(self, address: int) -> bytes:
@@ -71,7 +72,7 @@ class Protocol:
             return pack('>%s' % self.get_pack_char(), address)
 
         def decode_address(self, buff: bytes) -> int:
-            return unpack('>%s' % self.get_pack_char(), buff[0:self.get_address_size_bytes()])[0]
+            return cast(int, unpack('>%s' % self.get_pack_char(), buff[0:self.get_address_size_bytes()])[0])
 
     def __init__(self, version_major: int = 1, version_minor: int = 0, address_size_bits: int = 32):
         self.version_major = version_major
@@ -185,10 +186,10 @@ class Protocol:
     def write_rpv_response_required_size(self, rpvs: List[RuntimePublishedValue]) -> int:
         return self.get_rpv_definition_response_size_per_rpv() * len(rpvs)
 
-    def read_memory_request_size_per_block(self):
+    def read_memory_request_size_per_block(self) -> int:
         return self.get_address_size_bytes() + 2  # Address + 16 bits length
 
-    def read_memory_response_overhead_size_per_block(self):
+    def read_memory_response_overhead_size_per_block(self) -> int:
         return self.get_address_size_bytes() + 2
 
     def read_single_memory_block(self, address: int, length: int) -> Request:
@@ -232,7 +233,7 @@ class Protocol:
             data += self.encode_address(addr) + pack('>H', len(mem_data)) + bytes(mem_data) + bytes(mask)
         return Request(cmd.MemoryControl, cmd.MemoryControl.Subfunction.WriteMasked, data, response_payload_size=(self.get_address_size_bytes() + 2) * len(block_list))
 
-    def read_runtime_published_values(self, ids: Union[int, List[int]]):
+    def read_runtime_published_values(self, ids: Union[int, List[int]]) -> Request:
         if not isinstance(ids, List):
             ids = [ids]
 
@@ -249,7 +250,7 @@ class Protocol:
         data = pack('>' + 'H' * nbids, *ids)
         return Request(cmd.MemoryControl, cmd.MemoryControl.Subfunction.ReadRPV, data, response_payload_size=expected_response_size)
 
-    def write_runtime_published_values(self, values: Union[List[Tuple[int, Encodable]], Tuple[int, Encodable]]):
+    def write_runtime_published_values(self, values: Union[List[Tuple[int, Encodable]], Tuple[int, Encodable]]) -> Request:
         if not isinstance(values, list):
             values = [values]
 
@@ -729,7 +730,14 @@ class Protocol:
     def respond_comm_heartbeat(self, session_id: int, challenge_response: int) -> Response:
         return Response(cmd.CommControl, cmd.CommControl.Subfunction.Heartbeat, Response.ResponseCode.OK, pack('>LH', session_id, challenge_response))
 
-    def respond_comm_get_params(self, max_rx_data_size: int, max_tx_data_size: int, max_bitrate_bps: int, heartbeat_timeout_us: int, rx_timeout_us: int, address_size_byte: int) -> Response:
+    def respond_comm_get_params(self,
+                                max_rx_data_size: int,
+                                max_tx_data_size: int,
+                                max_bitrate_bps: int,
+                                heartbeat_timeout_us: int,
+                                rx_timeout_us: int,
+                                address_size_byte: int
+                                ) -> Response:
         data = pack('>HHLLLB', max_rx_data_size, max_tx_data_size, max_bitrate_bps, heartbeat_timeout_us, rx_timeout_us, address_size_byte)
         return Response(cmd.CommControl, cmd.CommControl.Subfunction.GetParams, Response.ResponseCode.OK, data)
 
@@ -779,7 +787,7 @@ class Protocol:
 
         return Response(cmd.MemoryControl, cmd.MemoryControl.Subfunction.WriteMasked, Response.ResponseCode.OK, data)
 
-    def respond_read_runtime_published_values(self, vals: Union[Tuple[int, Any], List[Tuple[int, Any]]]):
+    def respond_read_runtime_published_values(self, vals: Union[Tuple[int, Any], List[Tuple[int, Any]]]) -> Response:
         if not isinstance(vals, list):
             vals = [vals]
 
@@ -794,7 +802,7 @@ class Protocol:
 
         return Response(cmd.MemoryControl, cmd.MemoryControl.Subfunction.ReadRPV, Response.ResponseCode.OK, data)
 
-    def respond_write_runtime_published_values(self, ids: Union[int, List[int]]):
+    def respond_write_runtime_published_values(self, ids: Union[int, List[int]]) -> Response:
         if not isinstance(ids, list):
             ids = [ids]
 
@@ -831,10 +839,10 @@ class Protocol:
         return Response(cmd.DatalogControl, cmd.DatalogControl.Subfunction.GetAcquisitionMetadata, Response.ResponseCode.OK,
                         pack('>HHLLL', acquisition_id, config_id, nb_points, datasize, points_after_trigger))
 
-    def datalogging_read_acquisition_is_last_response(self, remaining_bytes: int, tx_buffer_size: int):
+    def datalogging_read_acquisition_is_last_response(self, remaining_bytes: int, tx_buffer_size: int) -> bool:
         return remaining_bytes < tx_buffer_size - 8  # Header (4) + CRC (4)
 
-    def datalogging_read_acquisition_max_data_size(self, remaining_bytes: int, tx_buffer_size: int):
+    def datalogging_read_acquisition_max_data_size(self, remaining_bytes: int, tx_buffer_size: int) -> int:
         if self.datalogging_read_acquisition_is_last_response(remaining_bytes, tx_buffer_size):
             return tx_buffer_size - 8
         else:

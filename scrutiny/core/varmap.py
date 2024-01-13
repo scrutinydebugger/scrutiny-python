@@ -84,7 +84,7 @@ class VarMap:
         self.validate()  # Validate only if loaded. Otherwise, we may be building a new varmap file (from CLI)
         self.init_all()
 
-    def init_all(self):
+    def init_all(self) -> None:
         self.next_type_id = 0
         self.next_enum_id = 0
         self.typename2typeid_map = {}   # Maps the type id of this VarMap to the original name inside the binary.

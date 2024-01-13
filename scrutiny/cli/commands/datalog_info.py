@@ -21,7 +21,7 @@ class OutputTableRow:
     value: Union[int, str]
 
 
-def sizeof_fmt(num, suffix="B"):
+def sizeof_fmt(num:float, suffix:str="B") -> str:
     for unit in ["", "Ki", "Mi", "Gi", "Ti", "Pi", "Ei", "Zi"]:
         if abs(num) < 1024.0:
             return f"{num:3.1f}{unit}{suffix}"
@@ -37,7 +37,7 @@ class DatalogInfo(BaseCommand):
     parser: argparse.ArgumentParser
     parsed_args: Optional[argparse.Namespace] = None
 
-    def __init__(self, args: List[str], requested_log_level: Optional[str] = None):
+    def __init__(self, args: List[str], requested_log_level: Optional[str] = None) -> None:
         self.args = args
         self.parser = argparse.ArgumentParser(prog=self.get_prog())
 

@@ -7,14 +7,16 @@
 #
 #   Copyright (c) 2021-2023 Scrutiny Debugger
 
+import struct
 import threading
 import time
 import logging
 import random
 import traceback
 import collections
+from abc import ABC
 from dataclasses import dataclass
-
+from abc import ABC, abstractmethod
 
 from scrutiny.core.codecs import Encodable
 import scrutiny.server.protocol.commands as cmd
@@ -22,13 +24,13 @@ from scrutiny.server.device.links.dummy_link import DummyLink, ThreadSafeDummyLi
 from scrutiny.server.protocol import Protocol, Request, Response, ResponseCode
 import scrutiny.server.protocol.typing as protocol_typing
 from scrutiny.core.memory_content import MemoryContent
-from scrutiny.core.basic_types import RuntimePublishedValue, EmbeddedDataType, MemoryRegion
+from scrutiny.core.basic_types import RuntimePublishedValue, EmbeddedDataType, MemoryRegion, Endianness
 import scrutiny.server.datalogging.definitions.device as device_datalogging
 from scrutiny.core.codecs import *
-from scrutiny.server.device.device_info import ExecLoop, VariableFreqLoop, FixedFreqLoop, ExecLoopType
+from scrutiny.server.device.device_info import ExecLoop, VariableFreqLoop, FixedFreqLoop
 from scrutiny.server.protocol.crc32 import crc32
 
-from typing import List, Dict, Optional, Union, Any, Tuple, TypedDict, cast, Set, Deque, Callable
+from typing import List, Dict, Optional, Union, Any, Tuple, TypedDict, cast, Deque, Callable
 
 
 class NotAllowedException(Exception):
@@ -39,9 +41,9 @@ class RequestLogRecord:
     __slots__ = ('request', 'response')
 
     request: Request
-    response: Response
+    response: Optional[Response]
 
-    def __init__(self, request, response):
+    def __init__(self, request: Request, response: Optional[Response]) -> None:
         self.request = request
         self.response = response
 
@@ -55,18 +57,18 @@ class EmulatedTimebase:
     timestamp_100ns: int
     last_time: float
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.timestamp_100ns = int(0)
-        self.last_time = time.time()
+        self.last_time = time.monotonic()
 
-    def process(self):
-        t = time.time()
+    def process(self) -> None:
+        t = time.monotonic()
         dt = t - self.last_time
         self.timestamp_100ns += int(round(dt * 1e7))
         self.timestamp_100ns = self.timestamp_100ns & 0xFFFFFFFF
         self.last_time = t
 
-    def get_timestamp(self):
+    def get_timestamp(self) -> int:
         return self.timestamp_100ns
 
 
@@ -92,7 +94,7 @@ class DataloggerEmulator:
         entry_counter: int
 
         @abstractmethod
-        def __init__(self, rpv_map: Dict[int, RuntimePublishedValue], buffer: bytearray, buffer_size: int):
+        def __init__(self, rpv_map: Dict[int, RuntimePublishedValue], buffer: bytearray, buffer_size: int) -> None:
             raise NotImplementedError("Abstract method")
 
         @abstractmethod
@@ -204,7 +206,7 @@ class DataloggerEmulator:
     acquisition_id: int
     decimation_counter: int
 
-    def __init__(self, device: "EmulatedDevice", buffer_size: int, encoding: device_datalogging.Encoding = device_datalogging.Encoding.RAW):
+    def __init__(self, device: "EmulatedDevice", buffer_size: int, encoding: device_datalogging.Encoding = device_datalogging.Encoding.RAW) -> None:
         self.logger = logging.getLogger(self.__class__.__name__)
         self.device = device
         self.buffer_size = buffer_size
@@ -240,12 +242,12 @@ class DataloggerEmulator:
 
         self.state = device_datalogging.DataloggerState.CONFIGURED
 
-    def arm_trigger(self):
+    def arm_trigger(self) -> None:
         if self.state in [device_datalogging.DataloggerState.CONFIGURED, device_datalogging.DataloggerState.TRIGGERED, device_datalogging.DataloggerState.ACQUISITION_COMPLETED]:
             self.state = device_datalogging.DataloggerState.ARMED
             self.logger.debug("Trigger Armed. Going to ARMED state")
 
-    def disarm_trigger(self):
+    def disarm_trigger(self) -> None:
         if self.state in [device_datalogging.DataloggerState.ARMED, device_datalogging.DataloggerState.TRIGGERED, device_datalogging.DataloggerState.ACQUISITION_COMPLETED]:
             self.state = device_datalogging.DataloggerState.CONFIGURED
             self.logger.debug("Trigger Disarmed. Going to CONFIGURED state")
@@ -304,7 +306,7 @@ class DataloggerEmulator:
 
         raise ValueError('Unknown operand type')
 
-    def check_trigger(self):
+    def check_trigger(self) -> bool:
         if self.config is None:
             return False
 
@@ -312,10 +314,11 @@ class DataloggerEmulator:
         val = self.check_trigger_condition()
 
         if not self.last_trigger_condition_result and val:
-            self.trigger_rising_edge_timestamp = time.time()
+            self.trigger_rising_edge_timestamp = time.monotonic()
 
         if val:
-            if time.time() - self.trigger_rising_edge_timestamp > self.config.trigger_hold_time:
+            assert self.trigger_rising_edge_timestamp is not None
+            if time.monotonic() - self.trigger_rising_edge_timestamp > self.config.trigger_hold_time:
                 output = True
 
         self.last_trigger_condition_result = val
@@ -381,7 +384,7 @@ class DataloggerEmulator:
         if self.state == device_datalogging.DataloggerState.ARMED:
             assert self.config is not None
             if self.check_trigger():
-                self.trigger_fulfilled_timestamp = time.time()
+                self.trigger_fulfilled_timestamp = time.monotonic()
                 self.byte_count_at_trigger = self.encoder.get_byte_counter()
                 self.entry_counter_at_trigger = self.encoder.get_entry_counter()
                 self.target_byte_count_after_trigger = self.byte_count_at_trigger + round((1.0 - self.config.probe_location) * self.buffer_size)
@@ -392,7 +395,7 @@ class DataloggerEmulator:
         if self.state == device_datalogging.DataloggerState.TRIGGERED:
             assert self.config is not None
             probe_location_ok = self.encoder.get_byte_counter() >= self.target_byte_count_after_trigger
-            timed_out = (self.config.timeout != 0) and ((time.time() - self.trigger_fulfilled_timestamp) >= self.config.timeout)
+            timed_out = (self.config.timeout != 0) and ((time.monotonic() - self.trigger_fulfilled_timestamp) >= self.config.timeout)
             if probe_location_ok or timed_out:
                 self.logger.debug("Acquisition complete. Going to ACQUISITION_COMPLETED state")
                 self.state = device_datalogging.DataloggerState.ACQUISITION_COMPLETED
@@ -468,7 +471,7 @@ class EmulatedDevice:
     failed_write_request_list: List[Request]
     ignore_user_command: bool
 
-    def __init__(self, link):
+    def __init__(self, link: Union[DummyLink, ThreadSafeDummyLink]) -> None:
         if not isinstance(link, DummyLink) and not isinstance(link, ThreadSafeDummyLink):
             raise ValueError('EmulatedDevice expects a DummyLink object')
         self.logger = logging.getLogger(self.__class__.__name__)
@@ -765,6 +768,7 @@ class EmulatedDevice:
             response_blocks_write = []
             try:
                 for block_to_write in data['blocks_to_write']:
+                    assert block_to_write['write_mask'] is not None
                     self.write_memory_masked(block_to_write['address'], block_to_write['data'], block_to_write['write_mask'])
                     response_blocks_write.append((block_to_write['address'], len(block_to_write['data'])))
 
@@ -900,10 +904,10 @@ class EmulatedDevice:
 
         return response
 
-    def process_dummy_cmd(self, req: Request, data: protocol_typing.RequestData):
+    def process_dummy_cmd(self, req: Request, data: protocol_typing.RequestData) -> Optional[Response]:
         return Response(cmd.DummyCommand, subfn=req.subfn, code=ResponseCode.OK, payload=b'\xAA' * 32)
 
-    def process_user_cmd(self, req: Request, data: protocol_typing.RequestData):
+    def process_user_cmd(self, req: Request, data: protocol_typing.RequestData) -> Optional[Response]:
         if self.ignore_user_command:
             return None
         if req.subfn == 0:
@@ -993,7 +997,7 @@ class EmulatedDevice:
         with self.additional_tasks_lock:
             self.additional_tasks.append(task)
 
-    def clear_addition_tasks(self):
+    def clear_addition_tasks(self) -> None:
         with self.additional_tasks_lock:
             self.additional_tasks.clear()
 
@@ -1003,7 +1007,7 @@ class EmulatedDevice:
     def add_readonly_region(self, start: int, size: int) -> None:
         self.readonly_regions.append(MemoryRegion(start=start, size=size))
 
-    def write_memory(self, address: int, data: Union[bytes, bytearray], check_access_rights=True) -> None:
+    def write_memory(self, address: int, data: Union[bytes, bytearray], check_access_rights: bool = True) -> None:
         if check_access_rights:
             for region in self.forbidden_regions:
                 if region.touches(MemoryRegion(address, len(data))):
@@ -1021,7 +1025,7 @@ class EmulatedDevice:
         with self.memory_lock:
             self.memory.write(address, data)
 
-    def write_memory_masked(self, address: int, data: Union[bytes, bytearray], mask=Union[bytes, bytearray], check_access_rights=True) -> None:
+    def write_memory_masked(self, address: int, data: Union[bytes, bytearray], mask: Union[bytes, bytearray], check_access_rights: bool = True) -> None:
         assert len(mask) == len(data), "Data and mask must be the same length"
         if check_access_rights:
             for region in self.forbidden_regions:
@@ -1044,7 +1048,7 @@ class EmulatedDevice:
                 memdata[i] |= (data[i] & (mask[i]))
             self.memory.write(address, memdata)
 
-    def read_memory(self, address: int, length: int, check_access_rights=True) -> bytes:
+    def read_memory(self, address: int, length: int, check_access_rights: bool = True) -> bytes:
         if check_access_rights:
             for region in self.forbidden_regions:
                 if region.touches(MemoryRegion(address, length)):
@@ -1056,7 +1060,7 @@ class EmulatedDevice:
 
         return data
 
-    def get_rpv_definition(self, rpv_id) -> RuntimePublishedValue:
+    def get_rpv_definition(self, rpv_id: int) -> RuntimePublishedValue:
         if rpv_id not in self.rpvs:
             raise ValueError('Unknown RPV ID 0x%04X' % rpv_id)
         return self.rpvs[rpv_id]['definition']
@@ -1082,7 +1086,7 @@ class EmulatedDevice:
         with self.rpv_lock:
             self.rpvs[rpv_id]['value'] = value
 
-    def read_rpv(self, rpv_id) -> Encodable:
+    def read_rpv(self, rpv_id: int) -> Encodable:
         with self.rpv_lock:
             val = self.rpvs[rpv_id]['value']
 

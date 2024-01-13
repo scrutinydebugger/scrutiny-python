@@ -6,17 +6,19 @@
 #
 #   Copyright (c) 2021-2023 Scrutiny Debugger
 
+from typing import Any
+
 class InvalidRequestException(Exception):
     """Raised when a bad request is received through the API"""
-
-    def __init__(self, req, *args, **kwargs):
+    request:Any
+    def __init__(self, req:Any, *args:Any, **kwargs:Any) -> None:
         self.request = req
         super().__init__(*args, **kwargs)
 
 
 class InvalidResponseException(Exception):
     """Raised when a bad response is received from the device"""
-
-    def __init__(self, response, *args, **kwargs):
+    response:Any
+    def __init__(self, response:Any, *args:Any, **kwargs:Any) -> None:
         self.response = response
         super().__init__(*args, **kwargs)

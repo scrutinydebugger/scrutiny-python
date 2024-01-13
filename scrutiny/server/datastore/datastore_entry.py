@@ -6,7 +6,16 @@
 #
 #   Copyright (c) 2021-2023 Scrutiny Debugger
 
-import functools
+__all__ = [
+    'EntryType',
+    'DatastoreEntry',
+    'DatastoreVariableEntry',
+    'DatastoreAliasEntry',
+    'DatastoreRPVEntry',
+    'UpdateTargetRequestCallback',
+    'UpdateTargetRequest'
+]
+
 import uuid
 import time
 import abc
@@ -15,12 +24,13 @@ from scrutiny.core.basic_types import RuntimePublishedValue
 import queue
 
 from scrutiny.server.datastore.entry_type import EntryType
-from scrutiny.core.variable import Variable, VariableEnum, EmbeddedDataType
+from scrutiny.core.basic_types import EmbeddedDataType, Endianness
+from scrutiny.core.variable import Variable, VariableEnum
 from scrutiny.core.codecs import *
 
-from typing import Any, Optional, Dict, Callable, Tuple
 from scrutiny.core.typehints import GenericCallback
 from scrutiny.core.alias import Alias
+from typing import Any, Optional, Dict, Callable, Tuple, Union
 
 
 class ValueChangeCallback():
@@ -32,7 +42,7 @@ class ValueChangeCallback():
     owner: str
     args: Any
 
-    def __init__(self, fn: GenericCallback, owner: str):
+    def __init__(self, fn: GenericCallback, owner: str) -> None:
         if not callable(fn):
             raise ValueError('callback must be a callable')
 
@@ -42,7 +52,7 @@ class ValueChangeCallback():
         self.fn = fn
         self.owner = owner
 
-    def __call__(self, *args, **kwargs):
+    def __call__(self, *args: Any, **kwargs: Any) -> None:
         self.fn.__call__(self.owner, *args, **kwargs)
 
 
@@ -73,7 +83,7 @@ class UpdateTargetRequest:
         self.completion_callback = callback
         self.entry = entry
 
-    def complete(self, success) -> None:
+    def complete(self, success: bool) -> None:
         """ Mark a request as completed. Success or not. Call the registered callbacks."""
         self.completed = True
         self.success = success
@@ -197,7 +207,7 @@ class DatastoreEntry(abc.ABC):
         if owner in self.value_change_callback:
             del self.value_change_callback[owner]
 
-    def has_value_change_callback(self, owner=None) -> bool:
+    def has_value_change_callback(self, owner: Optional[str] = None) -> bool:
         """Tells if this entry has at least one callback for the given owner."""
         if owner is None:
             return (len(self.value_change_callback) == 0)
@@ -301,18 +311,19 @@ class DatastoreAliasEntry(DatastoreEntry):
     refentry: DatastoreEntry    # Entry pointed by the alias
     aliasdef: Alias             # The definition of the alias
 
-    def __init__(self, aliasdef: Alias, refentry: DatastoreEntry):
+    def __init__(self, aliasdef: Alias, refentry: DatastoreEntry) -> None:
         super().__init__(display_path=aliasdef.get_fullpath())
         self.refentry = refentry
         self.aliasdef = aliasdef
 
-    def resolve(self, obj=None) -> DatastoreEntry:
+    def resolve(self, obj: Optional["DatastoreEntry"] = None) -> DatastoreEntry:
         """ Returns the referenced entry """
         if obj == None:
             obj = self.refentry
 
         if isinstance(obj, DatastoreAliasEntry):    # Just in case recursion happens.. but shouldn't
             return obj.resolve(obj.refentry)
+        assert obj is not None
         return obj
 
     def get_type(self) -> EntryType:
@@ -340,17 +351,17 @@ class DatastoreAliasEntry(DatastoreEntry):
         """Decode a stream of bytes into a Python value"""
         return self.aliasdef.compute_device_to_user(self.refentry.decode(data))
 
-    def alias_target_update_callback(self, alias_request: UpdateTargetRequest, success: bool, entry: DatastoreEntry, timestamp: float):
+    def alias_target_update_callback(self, alias_request: UpdateTargetRequest, success: bool, entry: DatastoreEntry, timestamp: float) -> None:
         """Callback used by an alias to grab the result of the target update and apply it to its own"""
         # entry is a var or a RPV
         alias_request.complete(success=success)
 
-    def set_value(self, *args, **kwargs):
+    def set_value(self, *args: Any, **kwargs: Any) -> None:
         """Will raise an exception. Not supposed to be called"""
         # Just to make explicit that this is not supposed to happen
         raise NotImplementedError('Cannot set value on a Alias variable')
 
-    def set_value_internal(self, value: Any):
+    def set_value_internal(self, value: Union[int, float, bool]) -> None:
         """Set the value of this alias object."""
         # These function are meant to be used internally to make the alias mechanism work. Not to be used by a user.
         new_value = self.aliasdef.compute_device_to_user(value)

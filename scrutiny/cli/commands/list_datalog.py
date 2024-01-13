@@ -112,7 +112,7 @@ class ListDatalog(BaseCommand):
 
         return 0
 
-    def print_line(self, entry: DisplayEntry, sizes: DisplayFieldSize):
+    def print_line(self, entry: DisplayEntry, sizes: DisplayFieldSize) -> None:
         assert self.parsed_args is not None
         SEPARATOR_SIZE = 4
         delta = sizes.index - len(str(entry.index))

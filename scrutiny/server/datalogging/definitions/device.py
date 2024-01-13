@@ -198,7 +198,7 @@ class RPVLoggableSignal(LoggableSignal):
 class TimeLoggableSignal(LoggableSignal):
     """A loggable data that represent the time, in device time step (100ns)"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         pass
 
     def get_type(self) -> LoggableSignalType:
@@ -209,7 +209,7 @@ class TriggerCondition:
     operands: List[Operand]
     condition_id: TriggerConditionID
 
-    def __init__(self, condition_id: TriggerConditionID, *args: Operand):
+    def __init__(self, condition_id: TriggerConditionID, *args: Operand) -> None:
         self.operands = []
         self.condition_id = condition_id
 
@@ -266,7 +266,7 @@ class Configuration:
     _loggable_signals: List[LoggableSignal]
     """List of signals to log during the acquisition"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._decimation = 1
         self._probe_location = 0.5
         self._timeout = 0

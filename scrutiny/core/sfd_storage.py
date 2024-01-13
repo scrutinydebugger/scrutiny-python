@@ -13,27 +13,33 @@ import logging
 import os
 import re
 import tempfile
+import types
 
-from typing import List
+from typing import List, Optional, Type, Literal
 
 
 class TempStorageWithAutoRestore:
     """This is used to set a temporary SFD storage. Mainly used for unit tests"""
+    storage: "SFDStorageManager"
 
-    def __init__(self, storage):
+    def __init__(self, storage: "SFDStorageManager") -> None:
         self.storage = storage
 
-    def __enter__(self):
+    def __enter__(self) -> "TempStorageWithAutoRestore":
         return self
 
-    def __exit__(self, type, value, traceback):
+    def __exit__(self, exc_type: Optional[Type[BaseException]], exc_val: Optional[BaseException], exc_tb: Optional[types.TracebackType]) -> Literal[False]:
         self.restore()
+        return False
 
-    def restore(self):
+    def restore(self) -> None:
         self.storage.restore_storage()
 
 
 class SFDStorageManager:
+
+    temporary_dir: Optional[tempfile.TemporaryDirectory[str]]
+    folder: str
 
     @classmethod
     def clean_firmware_id(self, firmwareid: str) -> str:
@@ -43,17 +49,17 @@ class SFDStorageManager:
 
         return firmwareid.lower().strip()
 
-    def __init__(self, folder):
+    def __init__(self, folder: str) -> None:
         self.folder = folder
         self.temporary_dir = None
         os.makedirs(self.folder, exist_ok=True)
 
-    def use_temp_folder(self):
+    def use_temp_folder(self) -> TempStorageWithAutoRestore:
         """Require the storage manager to switch to a temporary directory. Used for unit testing"""
         self.temporary_dir = tempfile.TemporaryDirectory()
         return TempStorageWithAutoRestore(self)
 
-    def restore_storage(self):
+    def restore_storage(self) -> None:
         """Require the storage manager to work on the real directory and not a temporary directory"""
         self.temporary_dir = None
 

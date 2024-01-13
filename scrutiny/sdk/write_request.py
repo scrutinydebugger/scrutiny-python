@@ -27,7 +27,7 @@ class WriteRequest:
     _watchable: "WatchableHandle"       # Watchable targeted by this update request
     _failure_reason: str    # Textual description of the reason of the failure to complete. Empty string if incomplete or succeeded
 
-    def __init__(self, watchable: "WatchableHandle", val: Union[int, bool, float]):
+    def __init__(self, watchable: "WatchableHandle", val: Union[int, bool, float]) -> None:
         self._value = val
         self._completed = False
         self._success = False
@@ -36,7 +36,7 @@ class WriteRequest:
         self._watchable = watchable
         self._failure_reason = ""
 
-    def _mark_complete(self, success: bool, failure_reason: str = "", timestamp: Optional[datetime] = None):
+    def _mark_complete(self, success: bool, failure_reason: str = "", timestamp: Optional[datetime] = None) -> None:
         # Put a request in "completed" state. Expected to be called by the client worker thread
         self._success = success
         self._failure_reason = failure_reason
@@ -47,7 +47,7 @@ class WriteRequest:
         self._completed = True
         self._completed_event.set()
 
-    def wait_for_completion(self, timeout: float = 5):
+    def wait_for_completion(self, timeout: float = 5) -> None:
         """Wait for the write request to get completed. 
 
         :raises sdk.TimeoutException: If the request does not complete within the allowed time

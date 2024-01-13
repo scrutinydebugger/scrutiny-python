@@ -7,6 +7,21 @@
 #
 #   Copyright (c) 2021-2023 Scrutiny Debugger
 
+__all__ = [
+    'XAxisType',
+    'SamplingRate',
+    'APIAcquisitionRequestCompletionCallback',
+    'TriggerConditionID',
+    'TriggerConditionOperandType',
+    'TriggerConditionOperand',
+    'TriggerCondition',
+    'SignalDefinition',
+    'SignalDefinitionWithAxis',
+    'AcquisitionRequest',
+    'AxisDefinition',
+    'DataloggingAcquisition'
+]
+
 from enum import Enum
 from dataclasses import dataclass
 

@@ -43,7 +43,7 @@ class WatchableHandle:
     _last_write_dt: Optional[datetime]  # Datetime of the last completed write on this element
     _update_counter: int    # A counter that gets incremented each time the value is updated
 
-    def __init__(self, client: "ScrutinyClient", display_path: str):
+    def __init__(self, client: "ScrutinyClient", display_path: str) -> None:
         self._client = client
         self._display_path = display_path
         self._shortname = display_path.split('/')[-1]
@@ -51,7 +51,7 @@ class WatchableHandle:
         self._update_counter = 0
         self._set_invalid(ValueStatus.NeverSet)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         addr = "0x%0.8x" % id(self)
         return f'<{self.__class__.__name__} "{self._shortname}" [{self._datatype.name}] at {addr}>'
 
@@ -82,7 +82,7 @@ class WatchableHandle:
             else:
                 self._value = None
 
-    def _set_invalid(self, status: ValueStatus):
+    def _set_invalid(self, status: ValueStatus) -> None:
         assert status != ValueStatus.Valid
 
         with self._lock:

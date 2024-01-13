@@ -15,7 +15,7 @@ from scrutiny.server.datastore.entry_type import EntryType
 
 from scrutiny.core.typehints import GenericCallback
 
-from typing import Callable, List, Dict, Generator, Set
+from typing import Callable, List, Dict, Generator, Set, List, Optional, Union, Any
 
 
 class WatchCallback(GenericCallback):
@@ -45,7 +45,7 @@ class Datastore:
 
     MAX_ENTRY: int = 1000000
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.logger = logging.getLogger(self.__class__.__name__)
         self.global_watch_callbacks = []    # When somebody starts watching an entry,m these callbacks are called
         self.global_unwatch_callbacks = []  # When somebody stops watching an entry, these callbacks are called
@@ -71,12 +71,12 @@ class Datastore:
             self.watcher_map[type_to_clear] = {}
             self.displaypath2idmap[type_to_clear] = {}
 
-    def add_entries_quiet(self, entries: List[DatastoreEntry]):
+    def add_entries_quiet(self, entries: List[DatastoreEntry]) -> None:
         """ Add many entries without raising exceptions. Silently remove failing ones"""
         for entry in entries:
             self.add_entry_quiet(entry)
 
-    def add_entry_quiet(self, entry: DatastoreEntry):
+    def add_entry_quiet(self, entry: DatastoreEntry) -> None:
         """ Add a single entry without raising exception. Silently remove failing ones"""
         try:
             self.add_entry(entry)
@@ -124,14 +124,19 @@ class Datastore:
 
         raise KeyError('Entry with display path %s not found in datastore' % display_path)
 
-    def add_watch_callback(self, callback: WatchCallback):
+    def add_watch_callback(self, callback: WatchCallback) -> None:
         """ Mainly used to notify device handler that a new variable is to be polled"""
         self.global_watch_callbacks.append(callback)
 
-    def add_unwatch_callback(self, callback: WatchCallback):
+    def add_unwatch_callback(self, callback: WatchCallback) -> None:
         self.global_unwatch_callbacks.append(callback)
 
-    def start_watching(self, entry_id: Union[DatastoreEntry, str], watcher: str, value_change_callback: Optional[GenericCallback] = None, target_update_callback: Optional[GenericCallback] = None) -> None:
+    def start_watching(self,
+                       entry_id: Union[DatastoreEntry, str],
+                       watcher: str,
+                       value_change_callback: Optional[GenericCallback] = None,
+                       target_update_callback: Optional[GenericCallback] = None
+                       ) -> None:
         """ 
         Register a new callback on the entry identified by the given entry_id.
         The watcher parameter will be given back when calling the callback.
@@ -264,7 +269,7 @@ class Datastore:
 
         return update_request
 
-    def alias_target_update_callback(self, alias_request: UpdateTargetRequest, success: bool, entry: DatastoreEntry, timestamp: float):
+    def alias_target_update_callback(self, alias_request: UpdateTargetRequest, success: bool, entry: DatastoreEntry, timestamp: float) -> None:
         """Callback used by an alias to grab the result of the target update and apply it to its own"""
         # entry is a var or a RPV
         alias_request.complete(success=success)

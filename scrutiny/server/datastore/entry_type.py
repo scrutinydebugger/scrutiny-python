@@ -21,5 +21,5 @@ class EntryType(str, Enum):
         # Todo, find a better way to do this. This enum also inherit str. __iter__ returns the chars
         return [EntryType.Var, EntryType.Alias, EntryType.RuntimePublishedValue]
 
-    def toJson(self):
+    def toJson(self) -> str:
         return self.value

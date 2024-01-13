@@ -52,7 +52,7 @@ class DeviceSearcher:
         self.logger.debug('Stop requested')
         self.started = False
 
-    def fully_stopped(self):
+    def fully_stopped(self) -> bool:
         """Indicates that this submodule is stopped and has no pending state"""
         return self.started == False
 
@@ -115,7 +115,7 @@ class DeviceSearcher:
                 self.pending = True
                 self.last_request_timestamp = time.time()
 
-    def success_callback(self, request: Request, response: Response, params: Any = None):
+    def success_callback(self, request: Request, response: Response, params: Any = None) -> None:
         # Called by the dispatcher when a request is completed and succeeded
         self.logger.debug("Success callback. Request=%s. Response Code=%s, Params=%s" % (request, response.code, params))
 
@@ -135,11 +135,11 @@ class DeviceSearcher:
 
         self.completed()
 
-    def failure_callback(self, request: Request, params: Any = None):
+    def failure_callback(self, request: Request, params: Any = None) -> None:
         # Called by the dispatcher when a request is completed and failed to succeed
         self.logger.debug("Failure callback. Request=%s. Params=%s" % (request, params))
         self.found_device = None
         self.completed()
 
-    def completed(self):
+    def completed(self) -> None:
         self.pending = False
