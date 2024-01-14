@@ -17,7 +17,7 @@ class Timer:
     """
     start_time: Union[float, None]
 
-    def __init__(self, timeout: float):
+    def __init__(self, timeout: float) -> None:
         self.set_timeout(timeout)
         self.start_time = None
 

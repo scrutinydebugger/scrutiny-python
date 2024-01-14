@@ -21,7 +21,7 @@ class Request:
     Represent a request that can be send to a device using the Scrutiny embedded protocol
     """
     command: Type[BaseCommand]
-    subfn: Union[int, Enum]
+    subfn: int
     payload: bytes
     response_payload_size: int
 
@@ -69,12 +69,12 @@ class Request:
         """Returns the len of the binary encoded request"""
         return Request.OVERHEAD_SIZE + len(self.payload)
 
-    def data_size(self):
+    def data_size(self) -> int:
         """Returns the length of the payload only (without protocol overhead)"""
         return len(self.payload)
 
     @classmethod
-    def from_bytes(cls, data: bytes):
+    def from_bytes(cls, data: bytes) -> "Request":
         """Decode an byte-encoded request into a Request object"""
         if len(data) < 8:
             raise Exception('Not enough data in payload')
@@ -96,15 +96,18 @@ class Request:
 
         return req
 
-    def __repr__(self):
-        try:
-            enum_instance = self.command.Subfunction(self.subfn)
-            subfn_name = '%s(%d)' % (enum_instance.name, enum_instance.value)
-        except Exception:
+    def __repr__(self) -> str:
+        if hasattr(self.command, 'Subfunction') and issubclass(self.command.Subfunction, Enum):
+            try:
+                enum_instance = self.command.Subfunction(self.subfn)
+                subfn_name = '%s(%d)' % (enum_instance.name, enum_instance.value)
+            except Exception:
+                subfn_name = '%d' % self.subfn
+        else:
             subfn_name = '%d' % self.subfn
 
         s = '<%s: %s(0x%02X), subfn=%s. %d bytes of data >' % (
-            __class__.__name__,
+            self.__class__.__name__,
             self.command.__name__,
             self.command_id,
             subfn_name,
@@ -112,5 +115,5 @@ class Request:
         )
         return s
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.__repr__()

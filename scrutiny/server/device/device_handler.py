@@ -10,6 +10,15 @@
 #
 #   Copyright (c) 2021-2023 Scrutiny Debugger
 
+__all__ = [
+    'DeviceHandler',
+    'RawMemoryWriteRequest',
+    'RawMemoryReadRequest',
+    'RawMemoryReadRequestCompletionCallback',
+    'RawMemoryWriteRequestCompletionCallback',
+    'DeviceAcquisitionRequestCompletionCallback'
+]
+
 import copy
 import logging
 import binascii
@@ -220,7 +229,7 @@ class DeviceHandler:
         self.memory_writer = MemoryWriter(self.protocol, self.dispatcher, self.datastore,
                                           request_priority=self.RequestPriority.WriteMemory)
 
-        self.comm_handler = CommHandler(self.config)
+        self.comm_handler = CommHandler(cast(Dict[str, Any], self.config))
         self.comm_handler_open_restart_timer = Timer(1.0)
 
         self.heartbeat_generator.set_interval(max(0.5, self.config['heartbeat_timeout'] * 0.75))
@@ -244,7 +253,7 @@ class DeviceHandler:
         """Returns the firmware ID of the connected device. None if not connected"""
         return self.device_id
 
-    def set_operating_mode(self, mode: "DeviceHandler.OperatingMode"):
+    def set_operating_mode(self, mode: "DeviceHandler.OperatingMode") -> None:
         """Sets the operating mode of the DeviceHandler. Used only for unit testing"""
         if not isinstance(mode, self.OperatingMode):
             raise ValueError('mode must be an instance of DeviceHandler.OperatingMode')
@@ -270,9 +279,9 @@ class DeviceHandler:
     def datalogging_request_in_progress(self) -> bool:
         return self.datalogging_poller.request_in_progress()
 
-    def reset_datalogging(self) -> bool:
+    def reset_datalogging(self) -> None:
         """Forcefully reset the datalogging feature"""
-        return self.datalogging_poller.reset()
+        self.datalogging_poller.reset()
 
     def is_ready_for_datalogging_acquisition_request(self) -> bool:
         """Tells if the device is ready to receive to receive a datalogging acquisition request"""
@@ -329,7 +338,7 @@ class DeviceHandler:
         if len(data) > self.device_info.max_rx_data_size:
             raise ValueError("The given does not fit in the device rexeice buffer")
 
-        def success_callback(request: Request, response: Response, *args, **kwargs):
+        def success_callback(request: Request, response: Response, *args:Any, **kwargs:Any) -> None:
             assert request.subfn == response.subfn  # We trust the Dispatcher to match them
 
             subfn = response.subfn
@@ -341,7 +350,7 @@ class DeviceHandler:
             else:
                 callback(False, subfn, None, "Device responded with code %s" % response.code.name)
 
-        def failure_callback(request: Request, *args, **kwargs):
+        def failure_callback(request: Request, *args:Any, **kwargs:Any) -> None:
             subfn = request.subfn
             if isinstance(subfn, Enum):
                 subfn = cast(int, subfn.value)
@@ -356,7 +365,7 @@ class DeviceHandler:
             priority=self.RequestPriority.UserCommand
         )
 
-    def get_comm_params_callback(self, partial_device_info: DeviceInfo):
+    def get_comm_params_callback(self, partial_device_info: DeviceInfo) -> None:
         """Callback given to InfoPoller to be called whenever the GetParams command completes."""
         # In the POLLING_INFO stage, there is a point where we will have gotten the communication params.
         # This callback is called right after it so we can adapt.
@@ -409,7 +418,7 @@ class DeviceHandler:
         self.protocol.set_address_size_bits(partial_device_info.address_size_bits)
         self.heartbeat_generator.set_interval(max(0.5, float(partial_device_info.heartbeat_timeout_us) / 1000000.0 * 0.75))
 
-    def get_protocol_version_callback(self, major: int, minor: int):
+    def get_protocol_version_callback(self, major: int, minor: int) -> None:
         """Callback called by the InfoPoller whenever the protocol version is gotten after a GetProtocol command"""
         # In the POLLING_INFO stage, there is a point where we will have gotten the communication params.
         # This callback is called right after it so we can adapt.
@@ -515,7 +524,7 @@ class DeviceHandler:
         """Raise an exception if the given config is not adequate for the given link type"""
         self.comm_handler.validate_link_config(link_type, link_config)
 
-    def send_disconnect(self, disconnect_callback: Optional[DisconnectCallback] = None):
+    def send_disconnect(self, disconnect_callback: Optional[DisconnectCallback] = None) -> None:
         """Request a disconnection with the device. Mainly used for unit testing"""
         self.logger.debug('Disconnection requested.')
         self.disconnection_requested = True
@@ -814,13 +823,13 @@ class DeviceHandler:
             self.logger.debug('Moving FSM to state %s' % next_state)
         self.fsm_state = next_state
 
-    def disconnect_complete_success(self, request: Request, response_code: ResponseCode, response_data: protocol_typing.ResponseData, params: Any = None):
+    def disconnect_complete_success(self, request: Request, response_code: ResponseCode, response_data: protocol_typing.ResponseData, params: Any = None) -> None:
         """Callback called when a disconnect request completes successfully"""
         self.disconnect_complete = True
         if self.disconnect_callback is not None:
             self.disconnect_callback.__call__(True)
 
-    def disconnect_complete_failure(self, request: Request, params: Any = None):
+    def disconnect_complete_failure(self, request: Request, params: Any = None) -> None:
         """Callback called when a disconnect request fails to complete"""
         self.disconnect_complete = True
         if self.disconnect_callback is not None:
@@ -893,7 +902,7 @@ class DeviceHandler:
 
             self.comm_handler.process()      # Process new transmission now.
 
-    def stop_all_submodules(self):
+    def stop_all_submodules(self)-> None:
         self.memory_reader.stop()
         self.memory_writer.stop()
         self.datalogging_poller.stop()

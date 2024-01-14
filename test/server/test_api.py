@@ -21,6 +21,7 @@ from scrutiny.server.datastore.datastore import Datastore
 from scrutiny.server.datastore.datastore_entry import *
 from scrutiny.server.datastore.entry_type import EntryType
 from scrutiny.core.sfd_storage import SFDStorage
+from scrutiny.core.basic_types import EmbeddedDataType, Endianness
 from scrutiny.server.api.dummy_client_handler import DummyConnection, DummyClientHandler
 from scrutiny.server.device.device_handler import DeviceHandler, DeviceStateChangedCallback, RawMemoryReadRequest, \
     RawMemoryWriteRequest, RawMemoryReadRequestCompletionCallback, RawMemoryWriteRequestCompletionCallback, UserCommandCallback
@@ -29,6 +30,7 @@ from scrutiny.server.active_sfd_handler import ActiveSFDHandler
 from scrutiny.server.device.links.dummy_link import DummyLink
 from scrutiny.core.variable import *
 from scrutiny.core.alias import Alias
+from scrutiny.core.typehints import GenericCallback
 import scrutiny.core.datalogging as core_datalogging
 import scrutiny.server.datalogging.definitions.api as api_datalogging
 import scrutiny.server.datalogging.definitions.device as device_datalogging
@@ -39,6 +41,8 @@ from datetime import datetime
 import scrutiny.server.api.typing as api_typing
 from typing import cast
 import logging
+
+from typing import Optional, Dict, Any, List, Tuple, TypedDict
 
 # todo
 # - Test rate limiter/data streamer

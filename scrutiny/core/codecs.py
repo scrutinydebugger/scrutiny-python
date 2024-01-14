@@ -6,6 +6,16 @@
 #
 #   Copyright (c) 2021-2023 Scrutiny Debugger
 
+__all__ = [
+    'Encodable',
+    'BaseCodec',
+    'SIntCodec',
+    'UIntCodec',
+    'FloatCodec',
+    'BoolCodec',
+    'Codecs'
+]
+
 from abc import ABC, abstractmethod
 from scrutiny.core.basic_types import Endianness, EmbeddedDataType
 import struct
@@ -17,7 +27,7 @@ Encodable = Union[int, float, bool]
 
 
 class BaseCodec(ABC):
-    def __init__(self,):
+    def __init__(self) -> None:
         pass
 
     @abstractmethod
@@ -37,7 +47,7 @@ class SIntCodec(BaseCodec):
         8: 'q'
     }
 
-    def __init__(self, size: int, endianness: Endianness):
+    def __init__(self, size: int, endianness: Endianness) -> None:
         super().__init__()
         if size not in self.str_map:
             raise NotImplementedError('Does not support signed int of %d bytes', size)
@@ -45,7 +55,7 @@ class SIntCodec(BaseCodec):
         self.packstr = endianness_char + self.str_map[size]
 
     def decode(self, data: Union[bytes, bytearray]) -> int:
-        return struct.unpack(self.packstr, data)[0]
+        return int(struct.unpack(self.packstr, data)[0])
 
     def encode(self, value: Encodable) -> bytes:
         return struct.pack(self.packstr, value)
@@ -59,7 +69,7 @@ class UIntCodec(BaseCodec):
         8: 'Q'
     }
 
-    def __init__(self, size: int, endianness: Endianness):
+    def __init__(self, size: int, endianness: Endianness) -> None:
         super().__init__()
         if size not in self.str_map:
             raise NotImplementedError('Does not support unsigend signed int of %d bytes', size)
@@ -67,7 +77,7 @@ class UIntCodec(BaseCodec):
         self.packstr = endianness_char + self.str_map[size]
 
     def decode(self, data: Union[bytes, bytearray]) -> int:
-        return struct.unpack(self.packstr, data)[0]
+        return int(struct.unpack(self.packstr, data)[0])
 
     def encode(self, value: Encodable) -> bytes:
         return struct.pack(self.packstr, value)
@@ -79,7 +89,7 @@ class FloatCodec(BaseCodec):
         8: 'd'
     }
 
-    def __init__(self, size: int, endianness: Endianness):
+    def __init__(self, size: int, endianness: Endianness) -> None:
         super().__init__()
         if size not in self.str_map:
             raise NotImplementedError('Does not support float of %d bytes', size)
@@ -87,14 +97,14 @@ class FloatCodec(BaseCodec):
         self.packstr = endianness_char + self.str_map[size]
 
     def decode(self, data: Union[bytes, bytearray]) -> float:
-        return struct.unpack(self.packstr, data)[0]
+        return float(struct.unpack(self.packstr, data)[0])
 
     def encode(self, value: Encodable) -> bytes:
         return struct.pack(self.packstr, value)
 
 
 class BoolCodec(BaseCodec):
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
 
     def decode(self, data: Union[bytes, bytearray]) -> bool:

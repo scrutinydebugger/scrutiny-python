@@ -9,6 +9,7 @@
 from scrutiny.core.basic_types import *
 from scrutiny.core.codecs import *
 from test import ScrutinyUnitTest
+import math
 
 
 class TestTypes(ScrutinyUnitTest):

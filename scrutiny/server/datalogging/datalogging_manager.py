@@ -376,7 +376,9 @@ class DataloggingManager:
         return device_cond
 
     @classmethod
-    def make_device_config_from_request(self, request: api_datalogging.AcquisitionRequest) -> Tuple[device_datalogging.Configuration, Dict[DatastoreEntry, int]]:
+    def make_device_config_from_request(self, 
+                                        request: api_datalogging.AcquisitionRequest
+                                        ) -> Tuple[device_datalogging.Configuration, Dict[DatastoreEntry, int]]:
         """Converts a Configuration from the API format to the device format"""
         config = device_datalogging.Configuration()
         # Each of the assignation below can trigger an exception if out of bound

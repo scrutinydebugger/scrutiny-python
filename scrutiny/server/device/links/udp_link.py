@@ -60,7 +60,7 @@ class UdpLink(AbstractLink):
         self.bound = False          # True when address is bound
         self._initialized = False
 
-    def get_config(self):
+    def get_config(self) -> LinkConfig:
         return cast(LinkConfig, self.config)
 
     def initialize(self) -> None:
@@ -124,7 +124,7 @@ class UdpLink(AbstractLink):
 
         return None
 
-    def write(self, data: bytes):
+    def write(self, data: bytes) -> None:
         """ Write data to the comm channel."""
         if not self.operational():
             return

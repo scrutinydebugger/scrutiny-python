@@ -6,6 +6,14 @@
 #
 #   Copyright (c) 2021-2023 Scrutiny Debugger
 
+__all__ = [
+    'VariableLocation',
+    'VariableEnumDef',
+    'VariableEnum',
+    'Struct',
+    'Variable'
+]
+
 import struct
 from scrutiny.core.basic_types import Endianness, EmbeddedDataType
 from scrutiny.core.codecs import Codecs, Encodable, UIntCodec
@@ -42,18 +50,18 @@ class VariableLocation:
         """Return the address in a numerical format"""
         return self.address
 
-    def add_offset(self, offset: int):
+    def add_offset(self, offset: int) -> None:
         """Modify the address by the given offset"""
         self.address += offset
 
     @classmethod
-    def check_endianness(cls, endianness: Endianness):
+    def check_endianness(cls, endianness: Endianness) -> None:
         """Tells if given endianness is valid"""
         if endianness not in [Endianness.Little, Endianness.Big]:
             raise ValueError('Invalid endianness "%s" ' % endianness)
 
     @classmethod
-    def from_bytes(cls, data: Union[bytes, List[int], bytearray], endianness: Endianness):
+    def from_bytes(cls, data: Union[bytes, List[int], bytearray], endianness: Endianness) -> "VariableLocation":
         """Reads the address encoded in binary with the given endianness"""
         if isinstance(data, list) or isinstance(data, bytearray):
             data = bytes(data)
@@ -75,10 +83,10 @@ class VariableLocation:
         """Return a copy of this VariableLocation object"""
         return VariableLocation(self.get_address())
 
-    def __str__(self):
+    def __str__(self) -> str:
         return str(self.get_address())
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return '<%s - 0x%08X>' % (self.__class__.__name__, self.get_address())
 
 
@@ -129,9 +137,9 @@ class VariableEnum:
         return obj
 
     @classmethod
-    def from_def(cls, enum_def: VariableEnumDef):
+    def from_def(cls, enum_def: VariableEnumDef) -> "VariableEnum":
         """Recreate from a .json dict"""
-        obj = cls(enum_def['name'])
+        obj = VariableEnum(enum_def['name'])
         obj.vals = enum_def['values']
         return obj
 
@@ -146,7 +154,14 @@ class Struct:
         bitsize: Optional[int]
         substruct: Optional['Struct']
 
-        def __init__(self, name: str, is_substruct: bool = False, original_type_name: Optional[str] = None, byte_offset: Optional[int] = None, bitoffset: Optional[int] = None, bitsize: Optional[int] = None, substruct: Optional['Struct'] = None):
+        def __init__(self, name: str,
+                     is_substruct: bool = False,
+                     original_type_name: Optional[str] = None,
+                     byte_offset: Optional[int] = None,
+                     bitoffset: Optional[int] = None,
+                     bitsize: Optional[int] = None,
+                     substruct: Optional['Struct'] = None
+                     ):
 
             if not is_substruct:
                 if original_type_name is None:
@@ -183,19 +198,19 @@ class Struct:
             self.substruct = substruct
 
     name: str
-    members: Dict[str, Union['Struct', 'Struct.Member']]
+    members: Dict[str, "Struct.Member"]
 
-    def __init__(self, name: str):
+    def __init__(self, name: str) -> None:
         self.name = name
         self.members = {}
 
-    def add_member(self, member):
+    def add_member(self, member: "Struct.Member") -> None:
         """Add a member to the struct"""
         if member.name in self.members:
-            raise Exception('Duplicate member %s' % member.name)
+            raise KeyError('Duplicate member %s' % member.name)
 
-        if not isinstance(member, Struct) and not isinstance(member, Struct.Member):
-            raise ValueError('Node must be a member or a substruct')
+        if not isinstance(member, Struct.Member):
+            raise ValueError('Node must be a Struct.Member')
 
         self.members[member.name] = member
 
@@ -349,5 +364,5 @@ class Variable:
             assert self.bitsize is not None
             return UIntCodec(self.get_size(), self.endianness).encode(BITFIELD_MASK_MAP[self.bitoffset][self.bitsize])
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return '<%s - %s (%s) @ %s>' % (self.__class__.__name__, self.get_fullname(), self.vartype, self.location)

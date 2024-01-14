@@ -21,7 +21,7 @@ class Response:
     Represent a response that can be received from a device using the Scrutiny embedded protocol
     """
     command: Type[BaseCommand]
-    subfn: Union[int, Enum]
+    subfn: int
     code: "ResponseCode"
     payload: bytes
 
@@ -35,7 +35,7 @@ class Response:
         Busy = 4                # When the request cannot be handled because the device is doing something else.
         FailureToProceed = 5    # Generic error for all other types of failures
 
-    def __init__(self, command: Union[Type[BaseCommand], int], subfn: Union[int, Enum], code: ResponseCode, payload: bytes = b''):
+    def __init__(self, command: Union[Type[BaseCommand], int], subfn: Union[int, Enum], code: ResponseCode, payload: bytes = b'') -> None:
         if inspect.isclass(command) and issubclass(command, BaseCommand):
             self.command = command
         elif isinstance(command, int):
@@ -55,7 +55,7 @@ class Response:
         """Returns the size of the byte encoded response"""
         return 9 + len(self.payload)
 
-    def data_size(self):
+    def data_size(self) -> int:
         """Returns the length of the payload only (without protocol overhead)"""
         return len(self.payload)
 
@@ -92,15 +92,18 @@ class Response:
 
         return response
 
-    def __repr__(self):
-        try:
-            enum_instance = self.command.Subfunction(self.subfn);
-            subfn_name = '%s(%d)' % (enum_instance.name, enum_instance.value)
-        except Exception:
+    def __repr__(self) -> str:
+        if hasattr(self.command, 'Subfunction') and issubclass(self.command.Subfunction, Enum):
+            try:
+                enum_instance = self.command.Subfunction(self.subfn)
+                subfn_name = '%s(%d)' % (enum_instance.name, enum_instance.value)
+            except Exception:
+                subfn_name = '%d' % self.subfn
+        else:
             subfn_name = '%d' % self.subfn
 
         s = '<%s: %s(0x%02X), subfn=%s with code %s(%d). %d bytes of data >' % (
-            __class__.__name__,
+            self.__class__.__name__,
             self.command.__name__,
             self.command_id,
             subfn_name,
@@ -110,5 +113,5 @@ class Response:
         )
         return s
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.__repr__()

@@ -65,7 +65,7 @@ class Alias:
         self.min = float(min) if min is not None else None
         self.max = float(max) if max is not None else None
 
-    def validate(self):
+    def validate(self) -> None:
         """Raise an exception if internal values are bad"""
         if not self.fullpath or not isinstance(self.fullpath, str):
             raise ValueError('fullpath is not valid')
@@ -127,7 +127,7 @@ class Alias:
             raise RuntimeError('Target type for alias %s is not set' % self.get_fullpath())
         return self.target_type
 
-    def set_target_type(self, target_type: EntryType):
+    def set_target_type(self, target_type: EntryType) -> None:
         if self.target_type == EntryType.Alias:
             raise ValueError('Alias %s point onto another alias (%s)' % (self.get_fullpath(), self.get_target()))
         self.target_type = target_type

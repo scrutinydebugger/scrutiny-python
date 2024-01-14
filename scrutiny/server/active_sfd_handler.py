@@ -49,7 +49,7 @@ class ActiveSFDHandler:
     loaded_callbacks: List[SFDLoadedCallback]       # List of callbacks to call upon SFD loading
     unloaded_callbacks: List[SFDUnloadedCallback]   # List of callbacks to load upon SFD unloading
 
-    def __init__(self, device_handler: DeviceHandler, datastore: Datastore, autoload=True):
+    def __init__(self, device_handler: DeviceHandler, datastore: Datastore, autoload:bool=True) -> None:
         self.logger = logging.getLogger(self.__class__.__name__)
         self.device_handler = device_handler
         self.datastore = datastore
@@ -64,19 +64,19 @@ class ActiveSFDHandler:
 
         self.reset_active_sfd()
 
-    def register_sfd_loaded_callback(self, callback: SFDLoadedCallback):
+    def register_sfd_loaded_callback(self, callback: SFDLoadedCallback) -> None:
         """Adds callback to be called upon Firmware Description load"""
         self.loaded_callbacks.append(callback)
 
-    def register_sfd_unloaded_callback(self, callback: SFDUnloadedCallback):
+    def register_sfd_unloaded_callback(self, callback: SFDUnloadedCallback) -> None:
         """Adds a callback to be called when a Firmware Descriptiopn is unloaded"""
         self.unloaded_callbacks.append(callback)
 
-    def init(self):
+    def init(self) -> None:
         """Initialize the SFD handler. To be called at startup"""
         self.reset_active_sfd()
 
-    def close(self):
+    def close(self) -> None:
         """Shutdown the SFD Handler"""
         pass
 
@@ -85,7 +85,7 @@ class ActiveSFDHandler:
         a device with a known firmware"""
         self.autoload = val
 
-    def process(self):
+    def process(self) -> None:
         """To be called periodically"""
         device_status = self.device_handler.get_connection_status()
 
@@ -115,7 +115,7 @@ class ActiveSFDHandler:
         self.logger.debug("Requested to load SFD for firmware %s" % firmware_id)
         self.requested_firmware_id = firmware_id
 
-    def _load_sfd(self, firmware_id: str, verbose=True) -> None:
+    def _load_sfd(self, firmware_id: str, verbose:bool=True) -> None:
         """Loads a Scrutiny Firmware Description"""
         self.sfd = None
         # We only clear the entry types coming from the SFD.

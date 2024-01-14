@@ -14,6 +14,7 @@ from scrutiny.core.variable import *
 from test.artifacts import get_artifact
 from binascii import unhexlify
 from test import ScrutinyUnitTest
+from scrutiny.core.basic_types import EmbeddedDataType
 
 from typing import Dict
 

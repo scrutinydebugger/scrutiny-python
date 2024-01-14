@@ -10,7 +10,7 @@ from typing import Union, Any, Type, List, Tuple, Sequence, Optional
 import math
 
 
-def assert_type(var: Any, name: str, types: Union[Type[Any], List[Type], Tuple[Type, ...]]) -> None:
+def assert_type(var: Any, name: str, types: Union[Type[Any], List[Type[Any]], Tuple[Type[Any], ...]]) -> None:
     if isinstance(types, (list, tuple)):
         typenames: List[str] = [x.__name__ for x in types]
         bad_val = not isinstance(var, tuple(types))

@@ -6,6 +6,11 @@
 #
 #   Copyright (c) 2021-2023 Scrutiny Debugger
 
+__all__ = [
+    'DummyConnection',
+    'DummyClientHandler'
+]
+
 import queue
 import time
 import threading
@@ -25,7 +30,7 @@ class DummyConnection:
     server_to_client_queue: "queue.Queue[str]"
     opened: bool
 
-    def __init__(self, conn_id: Optional[str] = None):
+    def __init__(self, conn_id: Optional[str] = None) -> None:
         if conn_id is not None:
             self.conn_id = conn_id
         else:
@@ -73,7 +78,7 @@ class DummyConnection:
     def get_id(self) -> str:
         return self.conn_id
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return '<%s - %s>' % (self.__class__.__name__, self.get_id())
 
 
@@ -88,7 +93,7 @@ class DummyClientHandler(AbstractClientHandler):
     connection_map: Dict[str, DummyConnection]
     started: bool
 
-    def __init__(self, config: ClientHandlerConfig):
+    def __init__(self, config: ClientHandlerConfig) -> None:
         self.rxqueue = queue.Queue()
         self.txqueue = queue.Queue()
         self.config = config
@@ -99,7 +104,7 @@ class DummyClientHandler(AbstractClientHandler):
         self.connections = []
         self.started = False
 
-    def set_connections(self, connections: List[DummyConnection]):
+    def set_connections(self, connections: List[DummyConnection]) -> None:
         self.connections = connections
         for conn in self.connections:
             self.connection_map[conn.get_id()] = conn
@@ -163,11 +168,11 @@ class DummyClientHandler(AbstractClientHandler):
         self.stop_requested = True
         self.thread.join()
 
-    def send(self, msg: ClientHandlerMessage):
+    def send(self, msg: ClientHandlerMessage) -> None:
         if not self.txqueue.full():
             self.txqueue.put(msg)
 
-    def available(self):
+    def available(self) -> bool:
         return not self.rxqueue.empty()
 
     def recv(self) -> Optional[ClientHandlerMessage]:

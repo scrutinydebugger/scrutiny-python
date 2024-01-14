@@ -16,15 +16,16 @@ from pathlib import Path
 from datetime import datetime
 import sqlite3
 import hashlib
+import types
 
 from scrutiny.core.datalogging import DataloggingAcquisition, DataSeries, AxisDefinition
-from typing import List, Dict, Optional, Tuple
+from typing import List, Dict, Optional, Tuple, Type, Literal, Any
 
 
 class BadVersionError(Exception):
     hash: str
 
-    def __init__(self, hash, *args, **kwargs):
+    def __init__(self, hash: str, *args: Any, **kwargs: Any) -> None:
         self.hash = hash
         super().__init__(*args, **kwargs)
 
@@ -32,16 +33,17 @@ class BadVersionError(Exception):
 class TempStorageWithAutoRestore:
     storage: "DataloggingStorageManager"
 
-    def __init__(self, storage: "DataloggingStorageManager"):
+    def __init__(self, storage: "DataloggingStorageManager") -> None:
         self.storage = storage
 
     def __enter__(self) -> "TempStorageWithAutoRestore":
         return self
 
-    def __exit__(self, type, value, traceback):
+    def __exit__(self, exc_type: Optional[Type[BaseException]], exc_val: Optional[BaseException], exc_tb: Optional[types.TracebackType]) -> Literal[False]:
         self.restore()
+        return False
 
-    def restore(self):
+    def restore(self) -> None:
         self.storage.restore_storage()
 
 
@@ -49,7 +51,7 @@ class SQLiteSession:
     storage: "DataloggingStorageManager"
     conn: Optional[sqlite3.Connection]
 
-    def __init__(self, filename: str):
+    def __init__(self, filename: str) -> None:
         self.filename = filename
         self.conn = None
 
@@ -57,9 +59,10 @@ class SQLiteSession:
         self.conn = sqlite3.connect(self.filename)
         return self.conn
 
-    def __exit__(self, type, value, traceback):
+    def __exit__(self, exc_type: Optional[Type[BaseException]], exc_val: Optional[BaseException], exc_tb: Optional[types.TracebackType]) -> Literal[False]:
         if self.conn is not None:
             self.conn.close()
+        return False
 
 
 class DataloggingStorageManager:
@@ -67,13 +70,13 @@ class DataloggingStorageManager:
     FILENAME = "scrutiny_datalog.sqlite"
 
     folder: str  # Working folder
-    temporary_dir: Optional[tempfile.TemporaryDirectory]    # A temporary work folder mainly used for unit tests
+    temporary_dir: Optional["tempfile.TemporaryDirectory[str]"]    # A temporary work folder mainly used for unit tests
     logger: logging.Logger  # The logger
     unavailable: bool       # Flags indicating that the storage can or cannot be used
     init_count: int
     actual_hash: Optional[str]
 
-    def __init__(self, folder):
+    def __init__(self, folder: str) -> None:
         self.folder = folder
         self.temporary_dir = None
         self.logger = logging.getLogger(self.__class__.__name__)
@@ -93,7 +96,7 @@ class DataloggingStorageManager:
         self.temporary_dir = None
 
     def get_storage_dir(self) -> str:
-        """Ge the actual storage directory"""
+        """Get the actual storage directory"""
         if self.temporary_dir is not None:
             return self.temporary_dir.name
         else:
@@ -205,7 +208,7 @@ class DataloggingStorageManager:
             except Exception as e:
                 self.logger.error("Failed to backup old storage. %s" % str(e))
 
-    def get_init_count(self):
+    def get_init_count(self) -> int:
         return self.init_count
 
     def get_db_hash(self) -> Optional[str]:

@@ -65,7 +65,7 @@ class ScrutinyServer:
     sfd_handler: ActiveSFDHandler
     datalogging_manager: DataloggingManager
 
-    def __init__(self, input_config: Optional[Union[str, ServerConfig]] = None):
+    def __init__(self, input_config: Optional[Union[str, ServerConfig]] = None) -> None:
         self.logger = logging.getLogger(self.__class__.__name__)
         self.config = copy(DEFAULT_CONFIG)
         if input_config is not None:
@@ -131,7 +131,7 @@ class ScrutinyServer:
             self.close_all()
             raise
 
-    def stop(self):
+    def stop(self) -> None:
         """ An alias for close_all"""
         self.close_all()
 

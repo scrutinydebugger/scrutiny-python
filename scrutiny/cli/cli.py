@@ -14,12 +14,19 @@ import traceback
 
 from scrutiny.cli.commands import *
 
+from typing import Optional, List, Type
 
 class CLI:
     """Scrutiny Command Line Interface.
     All commands are executed through this class."""
 
-    def __init__(self, workdir='.', default_log_level='info'):
+    workdir:str
+    default_log_level:str
+    command_list:List[Type[BaseCommand]]
+    parser:argparse.ArgumentParser
+
+
+    def __init__(self, workdir:str='.', default_log_level:str='info'):
         self.workdir = workdir
         self.default_log_level = default_log_level
 
@@ -58,9 +65,8 @@ class CLI:
 
         return msg
 
-    def run(self, args, except_failed=False):
+    def run(self, args:List[str], except_failed:bool=False) -> int:
         """Run a command. Arguments must be passed as a list of strings (like they would be splitted in a shell)"""
-        code = 0
         if len(args) > 0:   # The help might be for a subcommand, so we take it only if it'S the first argument.
             if args[0] in ['-h', '--help']:
                 self.parser.print_help()
@@ -69,7 +75,7 @@ class CLI:
         cargs, command_cargs = self.parser.parse_known_args(args)
         if cargs.command not in [cls.get_name() for cls in self.command_list]:
             if except_failed:
-                raise Exception('Unknown command %s' % args.command)
+                raise Exception('Unknown command %s' % cargs.command)
             self.parser.print_help()
             return -1
 
@@ -93,7 +99,7 @@ class CLI:
 
             current_workdir = os.getcwd()
             os.chdir(self.workdir)
-            code = 0
+            code:Optional[int] = 0
             try:
                 code = cmd_instance.run()  # Existence of cmd_instance is guaranteed as per above check of valid name
                 if code is None:
@@ -117,4 +123,5 @@ class CLI:
             logging.debug('Command : scrutiny ' + ' '.join(args))
             logging.debug(error_stack_strace)
 
+        assert code is not None
         return code

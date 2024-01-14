@@ -25,10 +25,10 @@ class Cluster:
     has_data: bool
 
     @property
-    def data(self):
+    def data(self) -> bytearray:
         return self.read(0, self.size)
 
-    def __init__(self, start_addr: int, size: int = 0, has_data: bool = True, data=bytearray()):
+    def __init__(self, start_addr: int, size: int = 0, has_data: bool = True, data: Union[bytes, bytearray] = bytearray()) -> None:
         self.start_addr = start_addr
         self.size = size
         self.has_data = has_data
@@ -68,7 +68,7 @@ class Cluster:
             assert self.internal_data is not None
             self.internal_data[offset:offset + len(data)] = data
 
-    def shrink(self, new_size: int):
+    def shrink(self, new_size: int) -> None:
         self.size = new_size
         if self.has_data:
             assert self.internal_data is not None
@@ -107,7 +107,7 @@ class Cluster:
     def __len__(self) -> int:
         return self.size
 
-    def __add__(self, other):
+    def __add__(self, other: "Cluster") -> "Cluster":
         new_cluster = copy.copy(self)
         if isinstance(other, bytes) or isinstance(other, bytearray):
             new_cluster.extend(new_cluster.size + len(other), delta_data=other)
@@ -118,7 +118,7 @@ class Cluster:
 
         return new_cluster
 
-    def __getitem__(self, key) -> bytearray:
+    def __getitem__(self, key: Union[slice, int]) -> bytearray:
         if isinstance(key, slice):
             stop = key.stop
             if key.stop is None:
@@ -151,7 +151,7 @@ class MemoryContent:
     clusters: Dict[int, Cluster]
     sorted_keys: List[int]          # Need 2 object to use bisect before python 3.10
 
-    def __init__(self, filename: Optional[str] = None, retain_data: bool = True):
+    def __init__(self, filename: Optional[str] = None, retain_data: bool = True) -> None:
         self.clusters = {}
         self.sorted_keys = []
         self.retain_data = retain_data
@@ -179,7 +179,7 @@ class MemoryContent:
                     addr = int(m.group(1), 16)
 
                     if self.retain_data:
-                        data = bytes.fromhex(m.group(2))
+                        data = bytearray(bytes.fromhex(m.group(2)))
                         cluster = Cluster(start_addr=addr, size=len(data), data=data, has_data=True)
                     else:
                         size = len(m.group(2)) / 2
@@ -227,12 +227,12 @@ class MemoryContent:
         if self.retain_data == True:
             data = b'\x00' * size
         else:
-            data = None
+            data = b''
 
         cluster = Cluster(start_addr=addr, size=size, data=data, has_data=self.retain_data)
         self.write_cluster(cluster)
 
-    def get_cluster_count(self):
+    def get_cluster_count(self) -> int:
         return len(self.clusters)
 
     def get_cluster_list_no_data_by_address(self) -> List[Cluster]:

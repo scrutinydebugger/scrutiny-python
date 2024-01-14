@@ -12,17 +12,17 @@ from scrutiny.server.protocol import Request, Response, ResponseCode
 from time import time
 import logging
 
-from typing import List, Optional, Callable, Any, TypeVar
+from typing import List, Optional, Callable, Any
 from scrutiny.core.typehints import GenericCallback
 
 
 # Type for mypy validation only
 class SuccessCallback(GenericCallback):
-    callback: Optional[Callable[[Request, ResponseCode, bytes, Any], None]]
+    callback: Callable[[Request, ResponseCode, bytes, Any], None]
 
 
 class FailureCallback(GenericCallback):
-    callback: Optional[Callable[[Request, Any], None]]
+    callback: Callable[[Request, Any], None]
 
 
 class RequestQueue:
@@ -91,7 +91,7 @@ class RequestQueue:
         """Returns True if the queue is empty"""
         return len(self.data) == 0
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.data)
 
 
@@ -122,10 +122,10 @@ class RequestRecord:
     approximate_delta_bandwidth: int
     """Amount of bits that will be exchanged if this request completes. Used for throttling"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.completed = False
 
-    def complete(self, success: bool = False, response: Optional[Response] = None):
+    def complete(self, success: bool = False, response: Optional[Response] = None) -> None:
         """Mark this record as completed (success or failure). Will triggers callback execution"""
         self.completed = True  # Set to true at beginning so that it is still true if an exception raise in the callback
         if success:
@@ -152,7 +152,7 @@ class RequestDispatcher:
     tx_data_size_limit: Optional[int]
     critical_error: bool
 
-    def __init__(self, queue_size=100):
+    def __init__(self, queue_size: int = 100) -> None:
         self.request_queue = RequestQueue(maxsize=queue_size)  # Will prevent bloating because of throttling
         self.logger = logging.getLogger(self.__class__.__name__)
         self.reset()
@@ -169,7 +169,11 @@ class RequestDispatcher:
         has a request or an expected response size bigger than what the device can handle"""
         return self.critical_error
 
-    def register_request(self, request: Request, success_callback: SuccessCallback, failure_callback: FailureCallback, priority: int = 0, success_params: Any = None, failure_params: Any = None) -> None:
+    def register_request(self,
+                         request: Request,
+                         success_callback: SuccessCallback,
+                         failure_callback: FailureCallback,
+                         priority: int = 0, success_params: Any = None, failure_params: Any = None) -> None:
         """Enqueue a request to be sent to the device with a priority and completion callbacks"""
         record = RequestRecord()
         record.request = request

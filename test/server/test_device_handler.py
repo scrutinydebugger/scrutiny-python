@@ -13,7 +13,7 @@ from test import logger
 import signal  # For ctrl+c handling
 import struct
 import random
-from binascii import hexlify
+from dataclasses import dataclass
 
 import scrutiny.server.datalogging.definitions.device as device_datalogging
 from scrutiny.server.device.emulated_device import EmulatedDevice

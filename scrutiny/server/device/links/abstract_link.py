@@ -9,7 +9,7 @@
 from abc import ABC, abstractmethod
 from typing import Optional, Dict, Any
 
-LinkConfig = Dict[Any, Any]
+LinkConfig = Dict[str, Any]
 
 
 class AbstractLink(ABC):
@@ -50,7 +50,7 @@ class AbstractLink(ABC):
         pass
 
     @abstractmethod
-    def process(self):
+    def process(self) -> None:
         """To be called periodically"""
         pass
 

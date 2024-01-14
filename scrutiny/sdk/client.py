@@ -36,8 +36,9 @@ from datetime import datetime, timedelta
 from dataclasses import dataclass
 from base64 import b64encode
 import queue
+import types
 
-from typing import List, Dict, Optional, Callable, cast, Union, TypeVar, Tuple, Type
+from typing import List, Dict, Optional, Callable, cast, Union, TypeVar, Tuple, Type, Any, Literal
 
 
 class CallbackState(enum.Enum):
@@ -61,14 +62,14 @@ class ApiResponseFuture:
     _error: Optional[Exception]
     _default_wait_timeout: float
 
-    def __init__(self, reqid: int, default_wait_timeout: float):
+    def __init__(self, reqid: int, default_wait_timeout: float) -> None:
         self._state = CallbackState.Pending
         self._reqid = reqid
         self._processed_event = threading.Event()
         self._error = None
         self._default_wait_timeout = default_wait_timeout
 
-    def _wt_mark_completed(self, new_state: CallbackState, error: Optional[Exception] = None):
+    def _wt_mark_completed(self, new_state: CallbackState, error: Optional[Exception] = None) -> None:
         # No need for lock here. The state will change once.
         # But be careful, this will be called by the sdk thread, not the user thread
         self._error = error
@@ -130,15 +131,15 @@ class BatchWriteContext:
     timeout: float
     requests: List[WriteRequest]
 
-    def __init__(self, client: "ScrutinyClient", timeout: float):
+    def __init__(self, client: "ScrutinyClient", timeout: float) -> None:
         self.client = client
         self.timeout = timeout
         self.requests = []
 
-    def __enter__(self):
+    def __enter__(self) -> "BatchWriteContext":
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, exc_type: Optional[Type[BaseException]], exc_val:Optional[BaseException], exc_tb:Optional[types.TracebackType]) -> Literal[False]:
         if exc_type is None:
             self.client._flush_batch_write(self)
             try:
@@ -146,6 +147,7 @@ class BatchWriteContext:
             finally:
                 self.client._end_batch()
         self.client._end_batch()
+        return False
 
 
 class FlushPoint:
@@ -168,7 +170,7 @@ class ScrutinyClient:
         sync_complete: threading.Event
         require_sync: threading.Event
 
-        def __init__(self):
+        def __init__(self) -> None:
             self.stop_worker_thread = threading.Event()
             self.disconnect = threading.Event()
             self.disconnected = threading.Event()
@@ -215,17 +217,18 @@ class ScrutinyClient:
     _last_device_session_id: Optional[str]  # The last device session ID observed. Used to detect disconnection/reconnection
     _last_sfd_firmware_id: Optional[str]    # The last loaded SFD seen. Used to detect change in SFD
 
-    def __enter__(self):
+    def __enter__(self) -> "ScrutinyClient" :
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, exc_type: Optional[Type[BaseException]], exc_val:Optional[BaseException], exc_tb:Optional[types.TracebackType]) -> Literal[False]:
         self.disconnect()
+        return False
 
     def __init__(self,
                  name: Optional[str] = None,
                  rx_message_callbacks: Optional[List[RxMessageCallback]] = None,
-                 timeout=4,
-                 write_timeout=5
+                 timeout:float=4.0,
+                 write_timeout:float=5.0
                  ):
         logger_name = self.__class__.__name__
         if name is not None:
@@ -327,7 +330,7 @@ class ScrutinyClient:
         self._logger.debug('Worker thread is exiting')
         self._threading_events.stop_worker_thread.clear()
 
-    def _wt_process_msg_inform_server_status(self, msg: api_typing.S2C.InformServerStatus, reqid: Optional[int]):
+    def _wt_process_msg_inform_server_status(self, msg: api_typing.S2C.InformServerStatus, reqid: Optional[int]) -> None:
         self._request_status_timer.start()
         info = api_parser.parse_inform_server_status(msg)
         self._logger.debug('Updating server status')
@@ -443,7 +446,7 @@ class ScrutinyClient:
                 if time.time() - self._memory_write_completion_dict[k].timestamp > self._MEMORY_WRITE_DATA_LIFETIME:
                     del self._memory_write_completion_dict[k]
 
-    def wt_process_rx_api_message(self, msg: dict) -> None:
+    def wt_process_rx_api_message(self, msg: Dict[str, Any]) -> None:
         self._threading_events.msg_received.set()
         # These callbacks are mainly for testing.
         for callback in self._rx_message_callbacks:
@@ -476,7 +479,7 @@ class ScrutinyClient:
             if reqid is not None:   # message is a response to a request
                 self._wt_process_callbacks(cmd, msg, reqid)
 
-    def _wt_process_callbacks(self, cmd: str, msg: dict, reqid: int) -> None:
+    def _wt_process_callbacks(self, cmd: str, msg: Dict[str, Any], reqid: int) -> None:
         callback_entry: Optional[CallbackStorageEntry] = None
         with self._main_lock:
             if reqid in self._callback_storage:
@@ -737,10 +740,10 @@ class ScrutinyClient:
 
         return future
 
-    def _wt_recv(self, timeout: Optional[float] = None) -> Optional[dict]:
+    def _wt_recv(self, timeout: Optional[float] = None) -> Optional[Dict[str, Any]]:
         # No need to lock conn_lock here. Important is during disconnection
         error: Optional[Exception] = None
-        obj: Optional[dict] = None
+        obj: Optional[Dict[str, Any]] = None
 
         if self._conn is None:
             raise sdk.exceptions.ConnectionError(f"Disconnected from server")
@@ -763,7 +766,7 @@ class ScrutinyClient:
 
         return obj
 
-    def _make_request(self, command: str, data: Optional[dict] = None) -> api_typing.C2SMessage:
+    def _make_request(self, command: str, data: Optional[Dict[str, Any]] = None) -> api_typing.C2SMessage:
         with self._main_lock:
             reqid = self._reqid
             self._reqid += 1
@@ -778,20 +781,20 @@ class ScrutinyClient:
         if data is None:
             data = {}
         data = data.copy()
-        data.update(cmd)  # type:ignore
+        data.update(cmd)
 
         return data
 
-    def _enqueue_write_request(self, request: Union[WriteRequest, BatchWriteContext, FlushPoint]):
+    def _enqueue_write_request(self, request: Union[WriteRequest, BatchWriteContext, FlushPoint]) -> None:
         self._write_request_queue.put(request)
 
-    def __del__(self):
+    def __del__(self) -> None:
         self.disconnect()
 
     def _is_batch_write_in_progress(self) -> bool:
         return self._active_batch_context is not None
 
-    def _process_write_request(self, request: WriteRequest):
+    def _process_write_request(self, request: WriteRequest) -> None:
         if self._is_batch_write_in_progress():
             assert self._active_batch_context is not None
             self._active_batch_context.requests.append(request)
@@ -802,7 +805,7 @@ class ScrutinyClient:
         self._enqueue_write_request(FlushPoint())   # Flush Point required because Python thread-safe queue has no peek() method.
         self._enqueue_write_request(batch_write_context)
 
-    def _end_batch(self):
+    def _end_batch(self) -> None:
         self._active_batch_context = None
 
     def _wait_write_batch_complete(self, batch: BatchWriteContext) -> None:
@@ -829,7 +832,7 @@ class ScrutinyClient:
 
     # === User API ====
 
-    def connect(self, hostname: str, port: int, **kwargs) -> "ScrutinyClient":
+    def connect(self, hostname: str, port: int, **kwargs:Dict[str, Any]) -> "ScrutinyClient":
         """Connect to a Scrutiny server through a websocket. Extra kwargs are passed down to `websockets.sync.client.connect()`
 
         :param hostname: The hostname or ip address of the server
@@ -848,7 +851,7 @@ class ScrutinyClient:
             with self._conn_lock:
                 try:
                     self._server_state = ServerState.Connecting
-                    self._conn = websockets.sync.client.connect(uri, **kwargs)
+                    self._conn = websockets.sync.client.connect(uri, **kwargs)  # type: ignore
                     self._server_state = ServerState.Connected
                     self._start_worker_thread()
                 except (websockets.exceptions.WebSocketException, socket.error) as e:
@@ -901,7 +904,7 @@ class ScrutinyClient:
 
         watchable = WatchableHandle(self, path)
 
-        def wt_subscribe_callback(state: CallbackState, response: Optional[api_typing.S2CMessage]):
+        def wt_subscribe_callback(state: CallbackState, response: Optional[api_typing.S2CMessage]) -> None:
             if response is not None and state == CallbackState.OK:
                 response = cast(api_typing.S2C.SubscribeWatchable, response)
                 watchable_defs = api_parser.parse_subscribe_watchable_response(response)
@@ -964,7 +967,7 @@ class ScrutinyClient:
             ]
         })
 
-        def wt_unsubscribe_callback(state: CallbackState, response: Optional[api_typing.S2CMessage]):
+        def wt_unsubscribe_callback(state: CallbackState, response: Optional[api_typing.S2CMessage]) -> None:
             if response is not None and state == CallbackState.OK and watchable is not None:
                 response = cast(api_typing.S2C.UnsubscribeWatchable, response)
                 if len(response['unsubscribed']) != 1:
@@ -1021,7 +1024,7 @@ class ScrutinyClient:
             # Wait update will throw if the server has gone away as the _disconnect method will set all watchables "invalid"
             watchable_storage_copy[server_id].wait_update(previous_counter=counter_map[server_id], timeout=timeout_remainder)
 
-    def wait_server_status_update(self, timeout: float = _UPDATE_SERVER_STATUS_INTERVAL + 0.5):
+    def wait_server_status_update(self, timeout: float = _UPDATE_SERVER_STATUS_INTERVAL + 0.5) -> None:
         """Wait for the a server status update
 
         :param timeout: Amount of time to wait for the update
@@ -1143,7 +1146,7 @@ class ScrutinyClient:
                 response = cast(api_typing.S2C.ReadMemory, response)
                 if 'request_token' not in response:
                     raise sdk.exceptions.BadResponseError('Missing request token in response')
-                cb_data.obj = cast(str, response['request_token'])
+                cb_data.obj = response['request_token']
 
         future = self._send(req, callback, timeout)
         assert future is not None
@@ -1211,7 +1214,7 @@ class ScrutinyClient:
                 response = cast(api_typing.S2C.WriteMemory, response)
                 if 'request_token' not in response:
                     raise sdk.exceptions.BadResponseError('Missing request token in response')
-                cb_data.obj = cast(str, response['request_token'])
+                cb_data.obj = response['request_token']
 
         future = self._send(req, callback, timeout)
         assert future is not None
@@ -1343,7 +1346,7 @@ class ScrutinyClient:
             'signals': config._get_api_signals(),
         }
 
-        req = self._make_request(API.Command.Client2Api.REQUEST_DATALOGGING_ACQUISITION, cast(dict, req_data))
+        req = self._make_request(API.Command.Client2Api.REQUEST_DATALOGGING_ACQUISITION, cast(Dict[str, Any], req_data))
 
         @dataclass
         class Container:
@@ -1424,7 +1427,10 @@ class ScrutinyClient:
         validation.assert_type(link_type, "link_type", sdk.DeviceLinkType)
         validation.assert_type(link_config, "link_config", sdk.BaseLinkConfig)
 
-        api_map: Dict["DeviceLinkType", Tuple[str, Type]] = {
+        assert link_type is not None
+        assert link_config is not None
+
+        api_map: Dict["DeviceLinkType", Tuple[str, Type[Union[BaseLinkConfig, None]]]] = {
             DeviceLinkType.Serial: ('serial', sdk.SerialLinkConfig),
             DeviceLinkType.UDP: ('udp', sdk.UDPLinkConfig),
             DeviceLinkType.TCP: ('tcp', sdk.TCPLinkConfig),
@@ -1467,7 +1473,7 @@ class ScrutinyClient:
             obj: Optional[sdk.UserCommandResponse]
         cb_data: Container = Container(obj=None)  # Force pass by ref
 
-        def wt_user_command_callback(state: CallbackState, response: Optional[api_typing.S2CMessage]):
+        def wt_user_command_callback(state: CallbackState, response: Optional[api_typing.S2CMessage]) -> None:
             if response is not None and state == CallbackState.OK:
                 response = cast(api_typing.S2C.UserCommand, response)
                 cb_data.obj = api_parser.parse_user_command_response(response)

@@ -27,7 +27,7 @@ from scrutiny.server.device.device_handler import DeviceHandler, DeviceStateChan
 from scrutiny.server.active_sfd_handler import ActiveSFDHandler, SFDLoadedCallback, SFDUnloadedCallback
 from scrutiny.server.device.links import LinkConfig
 from scrutiny.core.sfd_storage import SFDStorage
-from scrutiny.core.variable import EmbeddedDataType
+from scrutiny.core.basic_types import EmbeddedDataType
 from scrutiny.core.firmware_description import FirmwareDescription
 import scrutiny.server.datalogging.definitions.api as api_datalogging
 import scrutiny.server.datalogging.definitions.device as device_datalogging
@@ -62,7 +62,7 @@ class TargetUpdateCallback(GenericCallback):
 
 
 class InvalidRequestException(Exception):
-    def __init__(self, req, msg):
+    def __init__(self, req:Any, msg:str) -> None:
         super().__init__(msg)
         self.req = req
 
@@ -303,7 +303,7 @@ class API:
         self.enable_debug = enable_debug
 
         if enable_debug:
-            import ipdb  # type: ignore
+            import ipdb # type: ignore
             API.Command.Client2Api.DEBUG = 'debug'
             self.ApiRequestCallbacks[API.Command.Client2Api.DEBUG] = 'process_debug'
 
@@ -318,19 +318,19 @@ class API:
 
         return cls.DATATYPE_2_APISTR[datatype]
 
-    def sfd_loaded_callback(self, sfd: FirmwareDescription):
+    def sfd_loaded_callback(self, sfd: FirmwareDescription) -> None:
         # Called when a SFD is loaded after a device connection
         self.logger.debug("SFD Loaded callback called")
         for conn_id in self.connections:
             self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=self.craft_inform_server_status_response()))
 
-    def sfd_unloaded_callback(self):
+    def sfd_unloaded_callback(self) -> None:
         # Called when a SFD is unloaded (device disconnected)
         self.logger.debug("SFD unloaded callback called")
         for conn_id in self.connections:
             self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=self.craft_inform_server_status_response()))
 
-    def device_state_changed_callback(self, new_status: DeviceHandler.ConnectionStatus):
+    def device_state_changed_callback(self, new_status: DeviceHandler.ConnectionStatus) -> None:
         """Called when the device state changes"""
         self.logger.debug("Device state change callback called")
         if new_status in [DeviceHandler.ConnectionStatus.DISCONNECTED, DeviceHandler.ConnectionStatus.CONNECTED_READY]:
@@ -369,7 +369,7 @@ class API:
 
             self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=msg))
 
-    def validate_config(self, config: APIConfig):
+    def validate_config(self, config: APIConfig) -> None:
         if 'client_interface_type' not in config:
             raise ValueError('Missing entry in API config : client_interface_type ')
 
@@ -409,7 +409,7 @@ class API:
 
     # Process a request gotten from the Client Handler
 
-    def process_request(self, conn_id: str, req: api_typing.C2SMessage):
+    def process_request(self, conn_id: str, req: api_typing.C2SMessage) -> None:
         # Handle an incoming request from the client handler
         try:
             self.req_count += 1
@@ -449,7 +449,7 @@ class API:
     def process_debug(self, conn_id: str, req: Dict[Any, Any]) -> None:
         # Start ipdb tracing upon reception of a "debug" message (if enabled)
         if self.enable_debug:
-            import ipdb  # type: ignore
+            import ipdb
             ipdb.set_trace()
 
     # === ECHO ====
@@ -477,8 +477,8 @@ class API:
 
         name_filter: Optional[str] = None
         type_to_include: List[EntryType] = []
-        if self.is_dict_with_key(cast(Dict, req), 'filter'):
-            if self.is_dict_with_key(cast(Dict, req['filter']), 'type'):
+        if self.is_dict_with_key(cast(Dict[str, Any], req), 'filter'):
+            if self.is_dict_with_key(cast(Dict[str, Any], req['filter']), 'type'):
                 if isinstance(req['filter']['type'], list):
                     for t in req['filter']['type']:
                         if t not in self.APISTR_2_ENTRY_TYPE:
@@ -643,7 +643,7 @@ class API:
         self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
 
     #  ===  GET_INSTALLED_SFD ===
-    def process_get_installed_sfd(self, conn_id: str, req: api_typing.C2S.GetInstalledSFD):
+    def process_get_installed_sfd(self, conn_id: str, req: api_typing.C2S.GetInstalledSFD) -> None:
         # Request to know the list of installed Scrutiny Firmware Description on this server
         firmware_id_list = SFDStorage.list()
         metadata_dict = {}
@@ -659,7 +659,7 @@ class API:
         self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
 
     #  ===  GET_LOADED_SFD ===
-    def process_get_loaded_sfd(self, conn_id: str, req: api_typing.C2S.GetLoadedSFD):
+    def process_get_loaded_sfd(self, conn_id: str, req: api_typing.C2S.GetLoadedSFD) -> None:
         # Request to get the actively loaded Scrutiny Firmware Description. Loaded by the SFD Handler
         # pon connection with a known device
         sfd = self.sfd_handler.get_loaded_sfd()
@@ -673,7 +673,7 @@ class API:
         self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
 
     #  ===  LOAD_SFD ===
-    def process_load_sfd(self, conn_id: str, req: api_typing.C2S.LoadSFD):
+    def process_load_sfd(self, conn_id: str, req: api_typing.C2S.LoadSFD) -> None:
         # Forcibly load a Scrutiny Firmware Description through API
         if 'firmware_id' not in req and not isinstance(req['firmware_id'], str):
             raise InvalidRequestException(req, 'Invalid firmware_id')
@@ -685,13 +685,13 @@ class API:
         # Do not send a response. There's a callback on SFD Loading that will notfy everyone once completed.
 
     #  ===  GET_SERVER_STATUS ===
-    def process_get_server_status(self, conn_id: str, req: api_typing.C2S.GetServerStatus):
+    def process_get_server_status(self, conn_id: str, req: api_typing.C2S.GetServerStatus) -> None:
         # Request the server status.
         obj = self.craft_inform_server_status_response(reqid=self.get_req_id(req))
         self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=obj))
 
     #  ===  SET_LINK_CONFIG ===
-    def process_set_link_config(self, conn_id: str, req: api_typing.C2S.SetLinkConfig):
+    def process_set_link_config(self, conn_id: str, req: api_typing.C2S.SetLinkConfig) -> None:
         # With this request, the user can change the device connection through an API call
         if 'link_type' not in req or not isinstance(req['link_type'], str):
             raise InvalidRequestException(req, 'Invalid link_type')
@@ -718,7 +718,7 @@ class API:
         self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
 
     #  todo
-    def process_get_possible_link_config(self, conn_id: str, req: api_typing.C2S.GetPossibleLinkConfig):
+    def process_get_possible_link_config(self, conn_id: str, req: api_typing.C2S.GetPossibleLinkConfig) -> None:
         configs = []
 
         udp_config = {
@@ -1064,7 +1064,7 @@ class API:
         FieldType = Literal['yaxes', 'sampling_rate_id', 'decimation', 'timeout', 'trigger_hold_time',
                             'probe_location', 'condition', 'operands', 'signals', 'x_axis_type']
 
-        required_fileds: Dict[FieldType, Type] = {
+        required_fileds: Dict[FieldType, Type[Any]] = {
             'yaxes': list,
             'sampling_rate_id': int,
             'decimation': int,
@@ -1670,7 +1670,7 @@ class API:
     def get_req_id(self, req: api_typing.C2SMessage) -> Optional[int]:
         return req['reqid'] if 'reqid' in req else None
 
-    def is_dict_with_key(self, d: Dict[Any, Any], k: Any):
+    def is_dict_with_key(self, d: Dict[Any, Any], k: Any) -> bool:
         return isinstance(d, dict) and k in d
 
     def close(self) -> None:

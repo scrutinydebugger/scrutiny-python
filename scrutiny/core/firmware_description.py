@@ -258,7 +258,7 @@ class FirmwareDescription:
     def get_aliases(self) -> Dict[str, Alias]:
         return self.aliases
 
-    def get_metadata(self):
+    def get_metadata(self) -> MetadataType:
         return self.metadata
 
     @classmethod

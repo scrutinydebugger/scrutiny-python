@@ -1,6 +1,6 @@
 #    comm_handler.py
 #        The CommHandler task is to convert Requests and Response from or to a stream of bytes.
-#        
+#
 #        This class manage send requests, wait for response, indicates if a response timeout
 #        occurred and decodes bytes.
 #        It manages the low level part of the communication protocol with the device
@@ -13,7 +13,6 @@
 from queue import Queue
 from scrutiny.server.protocol import Request, Response
 from scrutiny.tools import Timer, Throttler
-from enum import Enum
 from copy import copy
 import logging
 import struct
@@ -22,7 +21,7 @@ import time
 from scrutiny.server.device.links import AbstractLink, LinkConfig
 import traceback
 
-from typing import TypedDict, Optional, Any, Dict, Type
+from typing import TypedDict, Optional, Any, Dict, Type, cast
 
 
 class CommHandler:
@@ -41,13 +40,13 @@ class CommHandler:
         __slots__ = ('data_buffer', 'length', 'length_bytes_received')
 
         data_buffer: bytes
-        length: int
+        length: Optional[int]
         length_bytes_received: int
 
-        def __init__(self):
+        def __init__(self) -> None:
             self.clear()
 
-        def clear(self):
+        def clear(self) -> None:
             self.length = None
             self.length_bytes_received = 0
             self.data_buffer = bytes()
@@ -72,12 +71,12 @@ class CommHandler:
     pending_request: Optional[Request]
     link_type: str
 
-    def __init__(self, params={}):
+    def __init__(self, params: Dict[str, Any] = {}) -> None:
         self.active_request = None      # Contains the request object that has been sent to the device. When None, no request sent and we are standby
         self.received_response = None   # Indicates that a response has been received.
         self.link = None                # Abstracted communication channel that implements  initialize, destroy, write, read
         self.params = copy(self.DEFAULT_PARAMS)
-        self.params.update(params)
+        self.params.update(cast(CommHandler.Params, params))
 
         self.response_timer = Timer(self.params['response_timeout'])    # Timer for response timeout management
         self.rx_data = self.RxData()    # Contains the response data while we read it.
@@ -175,7 +174,7 @@ class CommHandler:
             self.logger.error("Cannot connect to device. " + str(e))
             self.opened = False
 
-    def is_open(self):
+    def is_open(self) -> bool:
         """Return True if the communication channel is open with the device"""
         return self.opened
 
@@ -359,7 +358,7 @@ class CommHandler:
         self.reset_rx()
         self.clear_timeout()
 
-    def get_average_bitrate(self):
+    def get_average_bitrate(self) -> float:
         """Get the measured average bitrate since last counter reset"""
         dt = time.time() - self.bitcount_time
-        return (self.rx_bitcount + self.tx_bitcount) / dt
+        return float(self.rx_bitcount + self.tx_bitcount) / float(dt)

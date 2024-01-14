@@ -65,7 +65,7 @@ class HeartbeatGenerator:
         self.logger.debug('Stop requested')
         self.started = False
 
-    def fully_stopped(self):
+    def fully_stopped(self) -> bool:
         """Indicates that this submodule is stopped and has no pending state"""
         return self.started == False
 

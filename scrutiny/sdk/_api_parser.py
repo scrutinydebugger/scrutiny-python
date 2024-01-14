@@ -77,8 +77,7 @@ class DataloggingCompletion:
 
 T = TypeVar('T', str, int, float, bool)
 
-
-def _check_response_dict(cmd: str, d: Any, name: str, types: Union[Type, Iterable[Type]], previous_parts: str = '') -> None:
+def _check_response_dict(cmd: str, d: Any, name: str, types: Union[Type[Any], Iterable[Type[Any]]], previous_parts: str = '') -> None:
     if isinstance(types, type):
         types = tuple([types])
     else:
@@ -113,7 +112,7 @@ def _check_response_dict(cmd: str, d: Any, name: str, types: Union[Type, Iterabl
                 f'Field {part_name} is expected to be of type "{typename}" but found "{gotten_type}" in message "{cmd}"')
 
 
-def _fetch_dict_val(d: Any, path: str, wanted_type: Type[T], default: Optional[T], allow_none=True) -> Optional[T]:
+def _fetch_dict_val(d: Any, path: str, wanted_type: Type[T], default: Optional[T], allow_none:bool=True) -> Optional[T]:
     if d is None:
         return default
     assert isinstance(d, dict)
@@ -212,7 +211,7 @@ def parse_get_watchable_single_element(response: api_typing.S2C.GetWatchableList
         if len(response['content'][key]) != expected_count:
             raise sdk.exceptions.BadResponseError("Incoherent element quantity in API response.")
 
-    content = cast(dict, response['content'][typekey][0])
+    content = cast(Dict[str, Any], response['content'][typekey][0])
     keyprefix = f'content.{typekey}[0]'
     _check_response_dict(cmd, content, 'id', str, keyprefix)
     _check_response_dict(cmd, content, 'display_path', str, keyprefix)
@@ -282,7 +281,7 @@ def parse_inform_server_status(response: api_typing.S2C.InformServerStatus) -> s
     assert 'cmd' in response
     cmd = response['cmd']
     assert cmd == API.Command.Api2Client.INFORM_SERVER_STATUS
-    NoneType: Type = type(None)
+    NoneType: Type[None] = type(None)
 
     _check_response_dict(cmd, response, 'device_status', str)
     _check_response_dict(cmd, response, 'device_session_id', (str, NoneType))

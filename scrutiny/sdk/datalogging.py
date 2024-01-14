@@ -46,7 +46,7 @@ class FixedFreqSamplingRate(SamplingRate):
     frequency: float
     """The sampling rate frequency"""
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         validation.assert_type(self.identifier, 'identifier', int)
         validation.assert_type(self.name, 'name', str)
         validation.assert_type(self.frequency, 'frequency', float)
@@ -56,7 +56,7 @@ class FixedFreqSamplingRate(SamplingRate):
 class VariableFreqSamplingRate(SamplingRate):
     """Represent a variable frequency sampling rate supported by the device. Has no known frequency"""
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         validation.assert_type(self.identifier, 'identifier', int)
         validation.assert_type(self.name, 'name', str)
 
@@ -77,7 +77,7 @@ class DataloggingCapabilities:
     sampling_rates: List[SamplingRate]
     """List of available sampling rates"""
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         validation.assert_type(self.encoding, 'encoding', DataloggingEncoding)
         validation.assert_type(self.buffer_size, 'buffer_size', int)
         validation.assert_type(self.max_nb_signal, 'max_nb_signal', int)
@@ -398,7 +398,7 @@ class DataloggingRequest:
     _failure_reason: str    # Textual description of the reason of the failure to complete. Empty string if incomplete or succeeded
     _acquisition_reference_id: Optional[str]
 
-    def __init__(self, client: "ScrutinyClient", request_token: str):
+    def __init__(self, client: "ScrutinyClient", request_token: str) -> None:
         self._client = client
         self._request_token = request_token
         self._completed = False
@@ -408,7 +408,7 @@ class DataloggingRequest:
         self._failure_reason = ""
         self._acquisition_reference_id = None
 
-    def _mark_complete(self, success: bool, reference_id: Optional[str], failure_reason: str = "", timestamp: Optional[datetime] = None):
+    def _mark_complete(self, success: bool, reference_id: Optional[str], failure_reason: str = "", timestamp: Optional[datetime] = None) -> None:
         # Put a request in "completed" state. Expected to be called by the client worker thread
         self._success = success
         self._failure_reason = failure_reason
@@ -520,7 +520,7 @@ class DataloggingStorageEntry:
     firmware_metadata: Optional[sdk.SFDMetadata]
     """The metadata of the firmware used by the device if available"""
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         validation.assert_type(self.reference_id, 'reference_id', str)
         validation.assert_type(self.firmware_id, 'firmware_id', str)
         validation.assert_type(self.name, 'name', str)

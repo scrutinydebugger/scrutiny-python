@@ -12,6 +12,8 @@ import logging
 import copy
 import traceback
 import enum
+import time
+import queue
 from sortedcontainers import SortedSet  # type: ignore
 
 from scrutiny.server.protocol import *
@@ -23,7 +25,8 @@ from scrutiny.server.datastore.datastore_entry import *
 from scrutiny.core.memory_content import MemoryContent, Cluster
 from scrutiny.core.basic_types import MemoryRegion
 
-from typing import cast, Set, List
+from typing import cast, Set, List, Any, Optional, Callable, Tuple, Dict
+from scrutiny.core.typehints import GenericCallback
 
 
 class RawMemoryReadRequestCompletionCallback(GenericCallback):
@@ -38,7 +41,7 @@ class RawMemoryReadRequest:
     completion_callback: Optional[RawMemoryReadRequestCompletionCallback]
     completion_timestamp: Optional[float]
 
-    def __init__(self, address: int, size: int, callback: Optional[RawMemoryReadRequestCompletionCallback] = None):
+    def __init__(self, address: int, size: int, callback: Optional[RawMemoryReadRequestCompletionCallback] = None) -> None:
         self.address = address
         self.size = size
         self.completed = False
@@ -62,25 +65,29 @@ class DataStoreEntrySortableByAddress:
     def __init__(self, entry: DatastoreVariableEntry):
         self.entry = entry
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         return self.entry.__hash__()  # For hash uniqueness
 
-    def __eq__(self, other):
-        return self.entry.get_address() == other.entry.get_address()
+    def __eq__(self, other: object) -> bool:
+        if isinstance(other, self.__class__):
+            return self.entry.get_address() == other.entry.get_address()
+        return False
 
-    def __ne__(self, other):
-        return self.entry.get_address() != other.entry.get_address()
+    def __ne__(self, other: object) -> bool:
+        if isinstance(other, self.__class__):
+            return self.entry.get_address() != other.entry.get_address()
+        return False
 
-    def __lt__(self, other):
+    def __lt__(self, other: "DataStoreEntrySortableByAddress") -> bool:
         return self.entry.get_address() < other.entry.get_address()
 
-    def __le__(self, other):
+    def __le__(self, other: "DataStoreEntrySortableByAddress") -> bool:
         return self.entry.get_address() <= other.entry.get_address()
 
-    def __gt__(self, other):
+    def __gt__(self, other: "DataStoreEntrySortableByAddress") -> bool:
         return self.entry.get_address() > other.entry.get_address()
 
-    def __ge__(self, other):
+    def __ge__(self, other: "DataStoreEntrySortableByAddress") -> bool:
         return self.entry.get_address() >= other.entry.get_address()
 
 
@@ -89,28 +96,32 @@ class DataStoreEntrySortableByRpvId:
     Used to feed a SortedSet"""
     entry: DatastoreRPVEntry
 
-    def __init__(self, entry: DatastoreRPVEntry):
+    def __init__(self, entry: DatastoreRPVEntry) -> None:
         self.entry = entry
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         return self.entry.__hash__()  # For hash uniqueness
 
-    def __eq__(self, other):
-        return self.entry.get_rpv().id == other.entry.get_rpv().id
+    def __eq__(self, other: object) -> bool:
+        if isinstance(other, self.__class__):
+            return self.entry.get_rpv().id == other.entry.get_rpv().id
+        return False
 
-    def __ne__(self, other):
-        return self.entry.get_rpv().id != other.entry.get_rpv().id
+    def __ne__(self, other: object) -> bool:
+        if isinstance(other, self.__class__):
+            return self.entry.get_rpv().id != other.entry.get_rpv().id
+        return False
 
-    def __lt__(self, other):
+    def __lt__(self, other: "DataStoreEntrySortableByRpvId") -> bool:
         return self.entry.get_rpv().id < other.entry.get_rpv().id
 
-    def __le__(self, other):
+    def __le__(self, other: "DataStoreEntrySortableByRpvId") -> bool:
         return self.entry.get_rpv().id <= other.entry.get_rpv().id
 
-    def __gt__(self, other):
+    def __gt__(self, other: "DataStoreEntrySortableByRpvId") -> bool:
         return self.entry.get_rpv().id > other.entry.get_rpv().id
 
-    def __ge__(self, other):
+    def __ge__(self, other: "DataStoreEntrySortableByRpvId") -> bool:
         return self.entry.get_rpv().id >= other.entry.get_rpv().id
 
 
@@ -228,7 +239,7 @@ class MemoryReader:
     def fully_stopped(self) -> bool:
         return self.started == False and self.stop_requested == False
 
-    def clear_active_raw_read_request(self):
+    def clear_active_raw_read_request(self) -> None:
         self.active_raw_read_request = None
         self.active_raw_read_request_data = bytes()
         self.active_raw_read_request_cursor = 0

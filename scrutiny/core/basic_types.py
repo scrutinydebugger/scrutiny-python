@@ -26,7 +26,7 @@ class MemoryRegion:
     start: int
     size: int
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         validation.assert_int_range(self.start, 'start', minval=0)
         validation.assert_int_range(self.size, 'size', minval=0)
 
@@ -127,7 +127,7 @@ class EmbeddedDataType(Enum):
             return True
         return False
 
-    def is_float(self):
+    def is_float(self) -> bool:
         type_type = self.value & 0xF0
         # Cfloat???
         if type_type in (DataTypeType._float.value, DataTypeType._cfloat.value):
@@ -151,7 +151,7 @@ class RuntimePublishedValue:
     id: int
     datatype: EmbeddedDataType
 
-    def __init__(self, id: int, datatype: Union[EmbeddedDataType, int]):
+    def __init__(self, id: int, datatype: Union[EmbeddedDataType, int]) -> None:
         if id < 0 or id > 0xFFFF:
             raise ValueError('RuntimePublishedValue ID out of range (0x0000-0xFFFF). 0x%X' % id)
 
@@ -161,5 +161,5 @@ class RuntimePublishedValue:
         self.id = id
         self.datatype = datatype
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "<%s: 0x%x (%s) at 0x%016x>" % (self.__class__.__name__, self.id, self.datatype.name, id(self))

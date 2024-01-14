@@ -11,6 +11,7 @@ import struct
 from scrutiny.core.variable import *
 from binascii import unhexlify
 from test import ScrutinyUnitTest
+from scrutiny.core.basic_types import EmbeddedDataType, Endianness
 
 
 def d2f(d):
