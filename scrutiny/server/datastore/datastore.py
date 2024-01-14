@@ -6,7 +6,7 @@
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
 #
-#   Copyright (c) 2021-2023 Scrutiny Debugger
+#   Copyright (c) 2021 Scrutiny Debugger
 
 import logging
 import functools

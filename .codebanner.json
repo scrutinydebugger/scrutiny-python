@@ -14,6 +14,7 @@
     "repo": "github.com/scrutinydebugger/scrutiny-python",
     "copyright_owner": "Scrutiny Debugger",
     "copyright_start_date": "2021",
+    "copyright_end_date": null,
     "files": {
         "scrutiny/__main__.py": {
             "docstring": "Entry point of the python module. Launch the CLI.",
@@ -399,6 +400,9 @@
         },
         "scrutiny/core/validation.py": {
             "docstring": "Helper function for argument validation"
+        },
+        "scrutiny/core/bintools/elftools_stubs.py": {
+            "docstring": "Stubfile for pyelftools"
         }
     }
 }
