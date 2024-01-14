@@ -38,7 +38,7 @@ class TempStorageWithAutoRestore:
 
 class SFDStorageManager:
 
-    temporary_dir: Optional[tempfile.TemporaryDirectory[str]]
+    temporary_dir: Optional["tempfile.TemporaryDirectory[str]"]
     folder: str
 
     @classmethod

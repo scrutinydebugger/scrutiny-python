@@ -25,7 +25,7 @@ from typing import List, Dict, Optional, Tuple, Type, Literal, Any
 class BadVersionError(Exception):
     hash: str
 
-    def __init__(self, hash:str, *args:Any, **kwargs:Any) -> None:
+    def __init__(self, hash: str, *args: Any, **kwargs: Any) -> None:
         self.hash = hash
         super().__init__(*args, **kwargs)
 
@@ -39,7 +39,7 @@ class TempStorageWithAutoRestore:
     def __enter__(self) -> "TempStorageWithAutoRestore":
         return self
 
-    def __exit__(self, exc_type: Optional[Type[BaseException]], exc_val:Optional[BaseException], exc_tb:Optional[types.TracebackType]) -> Literal[False]:
+    def __exit__(self, exc_type: Optional[Type[BaseException]], exc_val: Optional[BaseException], exc_tb: Optional[types.TracebackType]) -> Literal[False]:
         self.restore()
         return False
 
@@ -59,7 +59,7 @@ class SQLiteSession:
         self.conn = sqlite3.connect(self.filename)
         return self.conn
 
-    def __exit__(self, exc_type: Optional[Type[BaseException]], exc_val:Optional[BaseException], exc_tb:Optional[types.TracebackType]) -> Literal[False]:
+    def __exit__(self, exc_type: Optional[Type[BaseException]], exc_val: Optional[BaseException], exc_tb: Optional[types.TracebackType]) -> Literal[False]:
         if self.conn is not None:
             self.conn.close()
         return False
@@ -70,13 +70,13 @@ class DataloggingStorageManager:
     FILENAME = "scrutiny_datalog.sqlite"
 
     folder: str  # Working folder
-    temporary_dir: Optional[tempfile.TemporaryDirectory[str]]    # A temporary work folder mainly used for unit tests
+    temporary_dir: Optional["tempfile.TemporaryDirectory[str]"]    # A temporary work folder mainly used for unit tests
     logger: logging.Logger  # The logger
     unavailable: bool       # Flags indicating that the storage can or cannot be used
     init_count: int
     actual_hash: Optional[str]
 
-    def __init__(self, folder:str) -> None:
+    def __init__(self, folder: str) -> None:
         self.folder = folder
         self.temporary_dir = None
         self.logger = logging.getLogger(self.__class__.__name__)
@@ -208,7 +208,7 @@ class DataloggingStorageManager:
             except Exception as e:
                 self.logger.error("Failed to backup old storage. %s" % str(e))
 
-    def get_init_count(self) -> int :
+    def get_init_count(self) -> int:
         return self.init_count
 
     def get_db_hash(self) -> Optional[str]:
