@@ -1,0 +1,7 @@
+.bd-page-width {
+    max-width: 100%;  /* default is 88rem */
+  }
+
+  .bd-sidebar-primary  .sidebar-primary-items__end {
+    margin-top:0 ;   /* Fix a bug where the scroll bar always appear*/
+  }

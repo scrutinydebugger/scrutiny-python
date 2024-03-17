@@ -15,6 +15,17 @@ log() { echo -e "\x1B[92m[OK]\x1B[39m $@"; }
 
 source "$SCRUTINY_VENV_ROOT/bin/activate"
 
+
+MODULE_FEATURE="[dev]"
+if ! [[ -z "${BUILD_CONTEXT+x}" ]]; then
+    if [[ "$BUILD_CONTEXT" == "ci" ]]; then
+        MODULE_FEATURE="[test]" # Will cause testing tools to be installed.
+        export PIP_CACHE_DIR=$SCRUTINY_VENV_ROOT/pip_cache   # Avoid concurrent cache access issue on CI
+    fi
+fi
+
+pip3 cache info
+
 if ! pip3 show wheel 2>&1 >/dev/null; then
     log "Installing wheel..."
     pip3 install wheel
@@ -22,13 +33,6 @@ if ! pip3 show wheel 2>&1 >/dev/null; then
     pip3 install --upgrade pip
     log "Upgrading setuptools..."
     pip3 install --upgrade setuptools
-fi
-
-MODULE_FEATURE="[dev]"
-if ! [[ -z "${BUILD_CONTEXT+x}" ]]; then
-    if [[ "$BUILD_CONTEXT" == "ci" ]]; then
-        MODULE_FEATURE="[test]" # Will cause testing tools to be installed.
-    fi
 fi
 
 if ! diff "$PY_MODULE_ROOT/setup.py" "$SCRUTINY_VENV_ROOT/cache/setup.py" 2>&1 >/dev/null; then

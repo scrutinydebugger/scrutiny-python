@@ -573,7 +573,7 @@ class TestClient(ScrutinyUnitTest):
         # Make sure we can read the status of the server correctly
         self.client.wait_server_status_update()
         self.assertEqual(self.client.server_state, sdk.ServerState.Connected)
-        server_info = self.client.server
+        server_info = self.client.get_server_status()
         self.assertIsNotNone(server_info)
         assert server_info is not None
 
@@ -648,7 +648,7 @@ class TestClient(ScrutinyUnitTest):
             server_info.datalogging.state = None
 
         self.client.wait_server_status_update()
-        self.assertIsNot(self.client.server, server_info)   # Make sure we have a new object with a new reference.
+        self.assertIsNot(self.client.get_server_status(), server_info)   # Make sure we have a new object with a new reference.
 
     def test_request_mechanism(self):
         class Obj:
@@ -947,7 +947,7 @@ class TestClient(ScrutinyUnitTest):
         self.wait_for_server()
 
         def status_check(commstate):
-            return self.client.server.device_comm_state == commstate
+            return self.client.get_server_status().device_comm_state == commstate
 
         self.wait_true(partial(status_check, sdk.DeviceCommState.Disconnected))
         time.sleep(0.1)
@@ -981,10 +981,10 @@ class TestClient(ScrutinyUnitTest):
         alias_var1 = self.client.watch('/a/b/alias_var1')
 
         def sfd_loaded_check():
-            return self.client.server.sfd is not None
+            return self.client.get_server_status().sfd is not None
 
         def sfd_unloaded_check():
-            return self.client.server.sfd is None
+            return self.client.get_server_status().sfd is None
 
         def unload_sfd():
             self.sfd_handler.unload()
