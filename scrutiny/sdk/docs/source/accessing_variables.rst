@@ -26,7 +26,7 @@ The first step to access a watchable, is to first tell the server that we want t
 To do so, we use the :meth:`watch<scrutiny.sdk.client.ScrutinyClient.watch>` and specify the path of the watchable. The path
 depends on the firmware and must generally be known in advance. It is possible to query the server for the list of available watchable, this is what the GUI does.
 
-For a SDK based script, it's generally expected that the element that will be accessed are known and won't require a user input to select them.
+For a :abbr:`SDK (Software DEvelopment Kit)` based script, it's generally expected that the element that will be accessed are known and won't require a user input to select them.
 
 -----
 

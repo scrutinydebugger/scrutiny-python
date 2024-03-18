@@ -180,7 +180,7 @@ class ScrutinyClient:
             self.require_sync = threading.Event()
 
     _name: Optional[str]        # Name of the client instance
-    _server_state: ServerState  # State of the communication with the server. Conencted/disconnected/connecting, etc
+    _server_state: ServerState  # State of the communication with the server. Connected/disconnected/connecting, etc
     _hostname: Optional[str]    # Hostname of the server
     _port: Optional[int]        # Port number of the server
     _logger: logging.Logger     # logging interface

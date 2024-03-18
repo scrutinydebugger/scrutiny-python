@@ -1,5 +1,5 @@
-Definitions
-===========
+Device
+======
 
 
 .. py:class:: scrutiny.sdk.EmbeddedDataType (Enum)

@@ -3,7 +3,7 @@
 Exceptions
 ==========
 
-All exceptions thrown by the Scrutiny Python SDK inherits the common :class:`ScrutinySDKException<scrutiny.sdk.ScrutinySDKException>`.
+All exceptions thrown by the Scrutiny Python :abbr:`SDK (Software dEvelopment Kit)` inherits the common :class:`ScrutinySDKException<scrutiny.sdk.ScrutinySDKException>`.
 
 The inheritance hierarchy goes as follow.
 
