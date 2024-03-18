@@ -115,8 +115,8 @@ class WatchableHandle:
     def unwatch(self) -> None:
         """Stop watching this item by unsubscribing to the server
 
-        :raises NameNotFoundError: If the required path is not presently being watched
-        :raises OperationFailure: If the subscription cancellation failed in any way
+        :raise sdk.exceptions.NameNotFoundError: If the required path is not presently being watched
+        :raise sdk.exceptions.OperationFailure: If the subscription cancellation failed in any way
         """
         self._client.unwatch(self._display_path)
 
@@ -126,8 +126,8 @@ class WatchableHandle:
         :param timeout: Amount of time to wait for a value update
         :param previous_counter: Optional update counter to use for change detection. 
 
-        :raise InvalidValueError: If the watchable becomes invalid while waiting
-        :raise TimeoutException: If not value update happens within the given timeout
+        :raise sdk.exceptions.InvalidValueError: If the watchable becomes invalid while waiting
+        :raise sdk.exceptions.TimeoutException: If not value update happens within the given timeout
         """
 
         timeout = validation.assert_float_range(timeout, 'timeout', minval=0)
@@ -151,15 +151,6 @@ class WatchableHandle:
             raise sdk_exceptions.TimeoutException(f'Value of {self._shortname} did not update in {timeout}s')
 
     @property
-    def value(self) -> ValType:
-        """The last value received for this watchable"""
-        return self._read()
-
-    @value.setter
-    def value(self, val: ValType) -> None:
-        self._write(val)
-
-    @property
     def display_path(self) -> str:
         """Contains the watchable full tree path"""
         return self._display_path
@@ -173,6 +164,20 @@ class WatchableHandle:
     def type(self) -> WatchableType:
         """The watchable type. Variable, Alias or RuntimePublishedValue"""
         return self._watchable_type
+
+    @property
+    def datatype(self) -> EmbeddedDataType:
+        """The data type of the device element pointed by this watchable. (sint16, float32, etc.)"""
+        return self._datatype
+
+    @property
+    def value(self) -> ValType:
+        """The last value received for this watchable"""
+        return self._read()
+
+    @value.setter
+    def value(self, val: ValType) -> None:
+        self._write(val)
 
     @property
     def value_bool(self) -> bool:
@@ -191,18 +196,13 @@ class WatchableHandle:
 
     @property
     def last_update_timestamp(self) -> Optional[datetime]:
-        """Time of the last value update. Not reliable for change detection"""
+        """Time of the last value update. ``None`` if not updated at least once. Not reliable for change detection"""
         return self._last_value_dt
 
     @property
     def last_write_timestamp(self) -> Optional[datetime]:
-        """Time of the last successful write operation."""
+        """Time of the last successful write operation. None if never written"""
         return self._last_write_dt
-
-    @property
-    def datatype(self) -> EmbeddedDataType:
-        """The data type of the device element pointed by this watchable"""
-        return self._datatype
 
     @property
     def update_counter(self) -> int:

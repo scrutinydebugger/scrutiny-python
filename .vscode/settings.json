@@ -46,5 +46,6 @@
         "varbit",
         "websockets",
         "xaxis"
-    ]
+    ],
+    "cSpell.enabled": true
 }

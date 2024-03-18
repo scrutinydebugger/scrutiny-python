@@ -17,6 +17,11 @@ dependencies = [
     'pyserial>=3.5'
 ]
 
+doc_dependencies = [
+    'sphinx-book-theme==1.1.2',
+    'sphinx==7.2.6'
+]
+
 setup(
     name=scrutiny.__name__,
     python_requires='>3.8',
@@ -31,8 +36,8 @@ setup(
     setup_requires=[],
     install_requires=dependencies,
     extras_require={
-        'test': ['mypy', 'coverage'],
-        'dev': ['mypy', 'ipdb', 'autopep8', 'coverage']
+        'test': ['mypy', 'coverage'] + doc_dependencies,
+        'dev': ['mypy', 'ipdb', 'autopep8', 'coverage'] + doc_dependencies
     },
     entry_points={
         "console_scripts": [

@@ -1,13 +1,12 @@
 Client
 ======
 
-The :class:`ScrutinyClient<scrutiny.sdk.ScrutinyClient>` object is the main tool to interact with the server. The client is fully synchronous and every methods will either 
+The :class:`ScrutinyClient<scrutiny.sdk.client.ScrutinyClient>` object is the main tool to interact with the server. The client is fully synchronous and every methods will either 
 block until the operation is fully completed or a `future` object will be returned which can be waited for.
 
 .. autoclass:: scrutiny.sdk.client.ScrutinyClient
 
 -----
-
 
 
 Server interaction
@@ -47,10 +46,12 @@ They will fail if no device is connected.
 For more details, read the :ref:`Accessing variables<page_accessing_variables>` page
 
 .. automethod:: scrutiny.sdk.client.ScrutinyClient.watch
+    :no-index:
     
 -----
 
 .. automethod:: scrutiny.sdk.client.ScrutinyClient.unwatch
+    :no-index:
     
 -----
 

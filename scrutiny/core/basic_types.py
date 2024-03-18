@@ -112,22 +112,26 @@ class EmbeddedDataType(Enum):
     NA = DataTypeType._NA.value | DataTypeSize._NA.value
 
     def get_size_bit(self) -> int:
+        """Return the size fo the datatype in bits. Returns 0 if NA"""
         v = self.get_size_byte()
         return v * 8
 
     def get_size_byte(self) -> int:
+        """Return the size fo the datatype in bytes. Returns 0 if NA"""
         vbytes = (self.value & 0xF)
         if DataTypeSize(vbytes) == DataTypeSize._NA:
             return 0
         return 1 << vbytes
 
     def is_integer(self) -> bool:
+        """Tells if the datatype is an integer type (sint or uint)"""
         type_type = self.value & 0xF0
         if type_type in (DataTypeType._sint.value, DataTypeType._uint.value):
             return True
         return False
 
     def is_float(self) -> bool:
+        """Tells if a datatype is a floating point value (float)"""
         type_type = self.value & 0xF0
         # Cfloat???
         if type_type in (DataTypeType._float.value, DataTypeType._cfloat.value):
@@ -135,6 +139,7 @@ class EmbeddedDataType(Enum):
         return False
 
     def is_signed(self) -> bool:
+        """Tells if the datatype support a sign (sint, float, cfloat)"""
         type_type = self.value & 0xF0
         if type_type in (DataTypeType._sint.value, DataTypeType._float.value, DataTypeType._cfloat.value):
             return True

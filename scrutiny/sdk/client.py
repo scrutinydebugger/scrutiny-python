@@ -847,7 +847,7 @@ class ScrutinyClient:
         :param port: The listening port of the server
         :param wait_status: Wait for a server status update after the websocket connection is established. Ensure that a value is available when calling :meth:`get_server_status()<get_server_status>`
 
-        :raise ``scrutiny.sdk.exceptions.ConnectionError``: In case of failure
+        :raise sdk.exceptions.ConnectionError: In case of failure
         """
         self.disconnect()
 
@@ -900,7 +900,7 @@ class ScrutinyClient:
         :raise TypeError: Given parameter not of the expected type
 
         :return: A handle that can read/write the watched element.
-        :rtype: :class:`WatchableHandle<scrutiny.sdk.WatchableHandle>`
+        :rtype: :class:`WatchableHandle<scrutiny.sdk.watchable_handle.WatchableHandle>`
 
         """
         validation.assert_type(path, 'path', str)
@@ -952,17 +952,21 @@ class ScrutinyClient:
 
         return watchable
 
-    def unwatch(self, path: str) -> None:
-        """Stop watching a watchable element identified by its display path (tree-like path)
+    def unwatch(self, watchable_ref: Union[str, WatchableHandle]) -> None:
+        """Stop watching a watchable element
 
-        :param path: The tree-like path of the watchable element
+        :param watchable_ref: The tree-like path of the watchable element or the handle to it
 
         :raise ValueError: If path is not valid
         :raise TypeError: Given parameter not of the expected type
-        :raise NameNotFoundError: If the required path is not presently being watched
-        :raise OperationFailure: If the subscription cancellation failed in any way
+        :raise sdk.exceptions.NameNotFoundError: If the required path is not presently being watched
+        :raise sdk.exceptions.OperationFailure: If the subscription cancellation failed in any way
         """
-        validation.assert_type(path, 'path', str)
+        validation.assert_type(watchable_ref, 'watchable_ref', (str, WatchableHandle))
+        if isinstance(watchable_ref, WatchableHandle):
+            path = watchable_ref.display_path
+        else:
+            path = watchable_ref
 
         watchable: Optional[WatchableHandle] = None
         with self._main_lock:
@@ -1432,9 +1436,9 @@ class ScrutinyClient:
             - sdk.DeviceLinkType.TCP : TCPLinkConfig
             - sdk.DeviceLinkType.Serial : SerialLinkConfig
 
-        :raise sdk.exceptions.OperationFailure: If the request to the server fails
         :raise ValueError: Bad parameter value
         :raise TypeError: Given parameter not of the expected type
+        :raise sdk.exceptions.OperationFailure: If the request to the server fails
         """
 
         validation.assert_type(link_type, "link_type", sdk.DeviceLinkType)
@@ -1482,7 +1486,7 @@ class ScrutinyClient:
 
         :raise ValueError: Bad parameter value
         :raise TypeError: Given parameter not of the expected type
-        :raise sdk.OperationFailure: If the command completion fails
+        :raise sdk.exceptions.OperationFailure: If the command completion fails
         """
         validation.assert_int_range(subfunction, 'subfunction', 0, 0xFF)
         validation.assert_type(data, 'data', bytes)
@@ -1514,8 +1518,8 @@ class ScrutinyClient:
     def get_server_status(self) -> ServerInfo:
         """Returns the information about everything going on the server side
 
-        :raise ConnectionError: If the connection to the server is lost
-        :raise InvalidValueError: If the server status is not available (never received it).
+        :raise sdk.exceptions.ConnectionError: If the connection to the server is lost
+        :raise sdk.exceptions.InvalidValueError: If the server status is not available (never received it).
         """
 
         # server_info is readonly and only its reference gets changed when updated.

@@ -230,9 +230,9 @@ class DataloggingConfig:
         :param axis: The Y axis to assigned this signal to. Can either be the index (int) or the `AxisDefinition` object given by `add_axis()`
         :param name: A display name for the signal
 
-        :raises IndexError: Invalid axis index
-        :raises ValueError: Bad parameter value
-        :raises TypeError: Given parameter not of the expected type
+        :raise IndexError: Invalid axis index
+        :raise ValueError: Bad parameter value
+        :raise TypeError: Given parameter not of the expected type
 
         """
         if isinstance(axis, int) and not isinstance(axis, bool):
@@ -288,8 +288,8 @@ class DataloggingConfig:
 
         :param hold_time: Time in seconds that the trigger condition must evaluate to `true` before firing the trigger event.
 
-        :raises ValueError: Bad parameter value
-        :raises TypeError: Given parameter not of the expected type
+        :raise ValueError: Bad parameter value
+        :raise TypeError: Given parameter not of the expected type
         """
         if condition in [TriggerCondition.AlwaysTrue]:
             nb_operands = 0
@@ -343,8 +343,8 @@ class DataloggingConfig:
         :param signal: The signal to be used for the X-Axis if its type is set to `Signal`. Ignored if the X-Axis type is not `Signal` 
         :param name: A display name for the X-Axis
 
-        :raises ValueError: Bad parameter value
-        :raises TypeError: Given parameter not of the expected type
+        :raise ValueError: Bad parameter value
+        :raise TypeError: Given parameter not of the expected type
         """
         validation.assert_type(axis_type, 'axis_type', XAxisType)
         validation.assert_type(name, 'name', (str, type(None)))
@@ -428,8 +428,8 @@ class DataloggingRequest:
 
         :params timeout: Maximum wait time in seconds. Waits forever if `None`
 
-        :raises sdk.exceptions.TimeoutException: If the acquisition does not complete in less than the specified timeout value
-        :raises sdk.exceptions.OperationFailure: If an error happened that prevented the acquisition to successfully complete
+        :raise sdk.exceptions.TimeoutException: If the acquisition does not complete in less than the specified timeout value
+        :raise sdk.exceptions.OperationFailure: If an error happened that prevented the acquisition to successfully complete
         """
         timeout = validation.assert_float_range_if_not_none(timeout, 'timeout', minval=0)
         self._completed_event.wait(timeout=timeout)
@@ -445,8 +445,8 @@ class DataloggingRequest:
 
         :params timeout: Timeout to get a response by the server in seconds. Uee the default timeout value if `None`
 
-        :raises sdk.exceptions.TimeoutException: If the server does not respond in time
-        :raises sdk.exceptions.OperationFailure: If the acquisition is not complete or if an error happen while fetching the data
+        :raise sdk.exceptions.TimeoutException: If the server does not respond in time
+        :raise sdk.exceptions.OperationFailure: If the acquisition is not complete or if an error happen while fetching the data
 
         :return: The `DataloggingAcquisition` object containing the acquired data
 
@@ -467,8 +467,8 @@ class DataloggingRequest:
         :params timeout: Timeout given to `wait_for_completion()`
         :params fetch_timeout: Timeout given to `fetch_acquisition()`
 
-        :raises sdk.exceptions.TimeoutException: If any of the timeout is violated
-        :raises sdk.exceptions.OperationFailure: If a problem occur while waiting/fetching
+        :raise sdk.exceptions.TimeoutException: If any of the timeout is violated
+        :raise sdk.exceptions.OperationFailure: If a problem occur while waiting/fetching
 
         :return: The `DataloggingAcquisition` object containing the acquired data
         """
