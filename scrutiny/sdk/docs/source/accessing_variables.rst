@@ -9,7 +9,7 @@ In the SDK, Variables, Aliases, :abbr:`RPV (Runtime Published Values)` are prese
     :widths: auto
 
     * - Variable
-      - A variable maps to a static or global variable declared in the embedded device firmware. The variable address, type, size and endianness is defined in the loaded :abbr:`RPV (Runtime Published Values)`
+      - A variable maps to a static or global variable declared in the embedded device firmware. The variable address, type, size and endianness is defined in the loaded :abbr:`SFD (Scrutiny Firmware Description)`
       - Yes
     * - Runtime Published Values (RPV)
       - Readable and writable elements identified by a numerical ID (16 bits) and declared by the device during the handshake phase with the server.
@@ -18,6 +18,7 @@ In the SDK, Variables, Aliases, :abbr:`RPV (Runtime Published Values)` are prese
       - Abstract writable/readable entity that maps to either a variable or a :abbr:`RPV (Runtime Published Values)`. Used to keep a consistent firmware interface with existing scripts using this SDK
       - Yes
 
+-----
 
 Basics
 ------
@@ -26,7 +27,7 @@ The first step to access a watchable, is to first tell the server that we want t
 To do so, we use the :meth:`watch<scrutiny.sdk.client.ScrutinyClient.watch>` and specify the path of the watchable. The path
 depends on the firmware and must generally be known in advance. It is possible to query the server for the list of available watchable, this is what the GUI does.
 
-For a :abbr:`SDK (Software DEvelopment Kit)` based script, it's generally expected that the element that will be accessed are known and won't require a user input to select them.
+For a :abbr:`SDK (Software Development Kit)` based script, it's generally expected that the element that will be accessed are known and won't require a user input to select them.
 
 -----
 
@@ -39,6 +40,7 @@ in this case, our client. A background thread listen for those updates and chang
 
 .. autoclass:: scrutiny.sdk.watchable_handle.WatchableHandle
     :member-order: bysource
+    :members: display_path, name, type, datatype, value, value_bool, value_int, value_float, last_update_timestamp, last_write_timestamp, update_counter
 
 -----
 
@@ -49,8 +51,6 @@ property will raise a :class:`InvalidValueException<scrutiny.sdk.exceptions.Inva
 One can wait for a single watchable update with :meth:`WatchableHandle.wait_update<scrutiny.sdk.watchable_handle.WatchableHandle.wait_update>` or wait for all watched variable by Calling
 :meth:`ScrutinyClient.wait_new_value_for_all<scrutiny.sdk.client.ScrutinyClient.wait_new_value_for_all>`
 
-
-
 .. code-block:: python
 
     import time
@@ -58,15 +58,13 @@ One can wait for a single watchable update with :meth:`WatchableHandle.wait_upda
     w1 = client.watch('/alias/my_alias1')
     w2 = client.watch('/rpv/x1234')
     w3 = client.watch('/var/main.cpp/some_func/some_var')
-    client.wait_new_value_for_all()
+    client.wait_new_value_for_all() # Make sure all watchables have their first value available
 
     while w1.value_bool:            # Value updated by a background thread 
         print(f"w2 = {w2.value}")   # Value updated by a background thread
         time.sleep(0.1)
     
     w3.value = 123  # Blocking write. This statement blocks until the device has confirmed that the variable is correctly written. 
-
-
 
 .. note:: 
 
@@ -85,6 +83,31 @@ One can wait for a single watchable update with :meth:`WatchableHandle.wait_upda
 
 As we can see in the example above, accesses to the device is done in a fully synchronized fashion. Therefore, a script that uses the Scrutiny Python SDK
 can be seen as a thread running on the embedded device, but with slow memory access time.
+
+-----
+
+Detecting a value change
+------------------------
+
+When developing a script that uses the SDK, it is common to have some back and forth between the device and the script. A good example would be the case of a test sequence,
+one could write a sequence that looks like this
+
+1. Write a GPIO
+2. Wait for another GPIO to change its value
+3. Start an EEPROM clear sequence
+4. Wait for the sequence to finish
+
+Each time the value is updated by the server, the :attr:`WatchableHandle.update_counter<scrutiny.sdk.watchable_handle.WatchableHandle.update_counter>` gets incremented. Looking for this value is helpful to detect a change.
+Two methods can help the user to wait for remote event. :meth:`WatchableHandle.wait_update<scrutiny.sdk.watchable_handle.WatchableHandle.wait_update>` and 
+:meth:`WatchableHandle.wait_value<scrutiny.sdk.watchable_handle.WatchableHandle.wait_value>`
+
+.. automethod:: scrutiny.sdk.watchable_handle.WatchableHandle.wait_update
+
+-----
+
+.. automethod:: scrutiny.sdk.watchable_handle.WatchableHandle.wait_value
+
+-----
 
 Batch writing
 -------------
@@ -118,5 +141,25 @@ Example
     except ScrutinySDKException as e:
         print(f"Failed to complete a batch write. {e}")
 
+-----
 
+Accessing the raw memory
+------------------------
+
+In certain case, it can be useful to access the device memory directly without the layer of interpretation in the server that converts the data into a coherent value.
+Such case could be 
+
+- Dumping a data buffer
+- Uploading a firmware
+- Pushing a ROM image
+- etc
+
+For those cases, one can use :meth:`ScrutinyClient.read_memory<scrutiny.sdk.client.ScrutinyClient.read_memory>` and :meth:`ScrutinyClient.write_memory<scrutiny.sdk.client.ScrutinyClient.write_memory>`
+to access the memory
+
+.. automethod:: scrutiny.sdk.client.ScrutinyClient.read_memory
+
+-----
+
+.. automethod:: scrutiny.sdk.client.ScrutinyClient.write_memory
 

@@ -71,10 +71,12 @@ Raw access to the device memory
 In some case, it might be useful to access the device raw memory without using a variable/SFD
 
 .. automethod:: scrutiny.sdk.client.ScrutinyClient.read_memory
+    :no-index:
     
 -----
 
 .. automethod:: scrutiny.sdk.client.ScrutinyClient.write_memory
+    :no-index:
 
 
 

@@ -428,8 +428,8 @@ class DataloggingRequest:
 
         :params timeout: Maximum wait time in seconds. Waits forever if `None`
 
-        :raise sdk.exceptions.TimeoutException: If the acquisition does not complete in less than the specified timeout value
-        :raise sdk.exceptions.OperationFailure: If an error happened that prevented the acquisition to successfully complete
+        :raise TimeoutException: If the acquisition does not complete in less than the specified timeout value
+        :raise OperationFailure: If an error happened that prevented the acquisition to successfully complete
         """
         timeout = validation.assert_float_range_if_not_none(timeout, 'timeout', minval=0)
         self._completed_event.wait(timeout=timeout)
@@ -445,8 +445,8 @@ class DataloggingRequest:
 
         :params timeout: Timeout to get a response by the server in seconds. Uee the default timeout value if `None`
 
-        :raise sdk.exceptions.TimeoutException: If the server does not respond in time
-        :raise sdk.exceptions.OperationFailure: If the acquisition is not complete or if an error happen while fetching the data
+        :raise TimeoutException: If the server does not respond in time
+        :raise OperationFailure: If the acquisition is not complete or if an error happen while fetching the data
 
         :return: The `DataloggingAcquisition` object containing the acquired data
 
@@ -467,8 +467,8 @@ class DataloggingRequest:
         :params timeout: Timeout given to `wait_for_completion()`
         :params fetch_timeout: Timeout given to `fetch_acquisition()`
 
-        :raise sdk.exceptions.TimeoutException: If any of the timeout is violated
-        :raise sdk.exceptions.OperationFailure: If a problem occur while waiting/fetching
+        :raise TimeoutException: If any of the timeout is violated
+        :raise OperationFailure: If a problem occur while waiting/fetching
 
         :return: The `DataloggingAcquisition` object containing the acquired data
         """
