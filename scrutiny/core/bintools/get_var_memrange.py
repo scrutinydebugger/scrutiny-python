@@ -8,6 +8,8 @@
 #   Copyright (c) 2021 Scrutiny Debugger
 
 from elftools.elf.elffile import ELFFile  # type: ignore
+from scrutiny.core.bintools import elftools_stubs
+
 import sys
 
 sections = ['.data', '.bss', '.rodata']

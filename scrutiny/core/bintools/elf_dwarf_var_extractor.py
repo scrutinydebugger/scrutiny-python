@@ -132,7 +132,7 @@ class ElfDwarfVarExtractor:
         return self.varmap
 
     # Builds a dictionary that maps a CompuleUnit object to a unique displayable name
-    def make_cu_name_map(self, dwarfinfo: ELFFile) -> None:
+    def make_cu_name_map(self, dwarfinfo: "elftools_stubs.ELFFile") -> None:
 
         fullpath_cu_tuple_list = []
         fullpath_set = set()

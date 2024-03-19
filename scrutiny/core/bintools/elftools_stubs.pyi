@@ -22,5 +22,8 @@ class Die:
 class CompileUnit:
     cu_offset: int
 
-    def iter_CUs(self) -> Iterable["CompileUnit"]: pass
     def get_top_DIE(self) -> "Die": pass
+
+
+class ELFFile:
+    def iter_CUs(self) -> Iterable["CompileUnit"]: pass
