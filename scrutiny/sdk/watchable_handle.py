@@ -120,7 +120,7 @@ class WatchableHandle:
         """
         self._client.unwatch(self._display_path)
 
-    def wait_update(self, timeout: float = 3, previous_counter: Optional[int] = None, sleep_interval: float = 0.02) -> None:
+    def wait_update(self, timeout: float, previous_counter: Optional[int] = None, sleep_interval: float = 0.02) -> None:
         """Wait for the value to be updated by the server
 
         :param timeout: Amount of time to wait for a value update

@@ -97,9 +97,14 @@ one could write a sequence that looks like this
 3. Start an EEPROM clear sequence
 4. Wait for the sequence to finish
 
-Each time the value is updated by the server, the :attr:`WatchableHandle.update_counter<scrutiny.sdk.watchable_handle.WatchableHandle.update_counter>` gets incremented. Looking for this value is helpful to detect a change.
+Each time the value is updated by the server, the :attr:`WatchableHandle.update_counter<scrutiny.sdk.watchable_handle.WatchableHandle.update_counter>` gets incremented. 
+Looking for this value is helpful to detect a change. 
 Two methods can help the user to wait for remote event. :meth:`WatchableHandle.wait_update<scrutiny.sdk.watchable_handle.WatchableHandle.wait_update>` and 
 :meth:`WatchableHandle.wait_value<scrutiny.sdk.watchable_handle.WatchableHandle.wait_value>`
+
+It is important to mention that the server does not continuously stream the values of the variables, but rather stream changes in value. 
+Therefore, :meth:`wait_update<scrutiny.sdk.watchable_handle.WatchableHandle.wait_update>` may raise a timeout if the value never changes 
+on the device, even if the server has polled the device many times since then.
 
 .. automethod:: scrutiny.sdk.watchable_handle.WatchableHandle.wait_update
 
