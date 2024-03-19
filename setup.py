@@ -8,6 +8,9 @@
 
 from setuptools import setup, find_packages
 import scrutiny
+import sys
+import logging
+
 
 dependencies = [
     'appdirs>=1.4.4',
@@ -21,6 +24,10 @@ doc_dependencies = [
     'sphinx-book-theme==1.1.2',
     'sphinx==7.2.6'
 ]
+
+if (sys.version_info.major, sys.version_info.minor) < (3, 9):
+    doc_dependencies = []
+
 
 setup(
     name=scrutiny.__name__,
