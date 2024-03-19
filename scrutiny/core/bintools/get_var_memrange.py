@@ -7,7 +7,7 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
-from elftools.elf.elffile import ELFFile  # type: ignore
+from elftools.elf.elffile import ELFFile
 from scrutiny.core.bintools import elftools_stubs
 
 import sys

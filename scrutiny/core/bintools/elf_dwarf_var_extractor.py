@@ -9,7 +9,7 @@
 
 __all__ = ['ElfDwarfVarExtractor']
 
-from elftools.elf.elffile import ELFFile    # type: ignore
+from elftools.elf.elffile import ELFFile
 import os
 from enum import Enum
 from .demangler import GccDemangler
