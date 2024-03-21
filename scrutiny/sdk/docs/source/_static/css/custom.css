@@ -13,6 +13,7 @@
   }
 
   dl.py.class, 
+  dl.py.attribute, 
   dl.py.method {
     margin-bottom: 1rem !important;
   }

@@ -6,11 +6,11 @@ Scrutiny Python SDK
 
    Home <self>
    getting_started
-   client
    accessing_variables
    datalogging
    device
    exceptions
+   all_references
    examples
 
 

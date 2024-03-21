@@ -1,5 +1,8 @@
+All references
+==============
+
 Client
-======
+------
 
 The :class:`ScrutinyClient<scrutiny.sdk.client.ScrutinyClient>` object is the main tool to interact with the server. The client is fully synchronous and every methods will either 
 block until the operation is fully completed or a `future` object will be returned which can be waited for.
@@ -10,7 +13,7 @@ block until the operation is fully completed or a `future` object will be return
 
 
 Server interaction
-------------------
+##################
 
 The following methods are used to interact with the server only. Calling them will have no effect on a potentially 
 connected device and will succeeds regardless if a device is connected or not.
@@ -38,7 +41,7 @@ connected device and will succeeds regardless if a device is connected or not.
 
 
 Using the device variables
---------------------------
+##########################
 
 The following methods are used to interact with the variables/SFD of the firmware of a connected device.
 They will fail if no device is connected.
@@ -66,7 +69,7 @@ For more details, read the :ref:`Accessing variables<page_accessing_variables>` 
 
 
 Raw access to the device memory
--------------------------------
+###############################
 
 In some case, it might be useful to access the device raw memory without using a variable/SFD
 
@@ -81,17 +84,19 @@ In some case, it might be useful to access the device raw memory without using a
 
 
 Datalogging
------------
+###########
 
 The following methods are used to control the datalogging feature of a device. They can be used to acquire a graph programmatically.
 For more details, read the :ref:`Datalogging<page_datalogging>` page
 
 
 .. automethod:: scrutiny.sdk.client.ScrutinyClient.get_datalogging_capabilities
+    :no-index:
     
 -----
 
 .. automethod:: scrutiny.sdk.client.ScrutinyClient.start_datalog
+    :no-index:
     
 -----
 
@@ -105,13 +110,13 @@ For more details, read the :ref:`Datalogging<page_datalogging>` page
 
 
 Device configuration
---------------------
+####################
 
 .. automethod:: scrutiny.sdk.client.ScrutinyClient.configure_device_link
 
 -----
 
 User command
-------------
+############
 
 .. automethod:: scrutiny.sdk.client.ScrutinyClient.user_command

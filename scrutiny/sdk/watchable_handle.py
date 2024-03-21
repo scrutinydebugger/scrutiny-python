@@ -239,7 +239,7 @@ class WatchableHandle:
 
     @property
     def last_write_timestamp(self) -> Optional[datetime]:
-        """Time of the last successful write operation. None if never written"""
+        """Time of the last successful write operation. ``None`` if never written"""
         return self._last_write_dt
 
     @property

@@ -1132,7 +1132,7 @@ class ScrutinyClient:
 
         :param address: The start address of the region to read
         :param size: The size of the region to read, in bytes.
-        :param timeout: Maximum amount of time to wait to get the data back. If `None`, the default timeout value will be used
+        :param timeout: Maximum amount of time to wait to get the data back. If ``None``, the default timeout value will be used
 
         :raise TypeError: Given parameter not of the expected type
         :raise ValueError: Given parameter has an invalid value
@@ -1199,7 +1199,7 @@ class ScrutinyClient:
 
         :param address: The start address of the region to read
         :param data: The data to write
-        :param timeout: Maximum amount of time to wait to get the write completion confirmation. If `None`, the default write timeout value will be used
+        :param timeout: Maximum amount of time to wait to get the write completion confirmation. If ``None``, the default write timeout value will be used
 
         :raise TypeError: Given parameter not of the expected type
         :raise ValueError: Given parameter has an invalid value

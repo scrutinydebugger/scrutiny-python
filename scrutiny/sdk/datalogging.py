@@ -127,10 +127,10 @@ class TriggerCondition(enum.Enum):
     """Operand1 >= Operand2 """
 
     ChangeMoreThan = "cmt"
-    """X=(Operand1[n]-Operand1[n-1]); |X| > |Operand2| && sign(X) == sign(Operand2) """
+    """X=(Operand1[n]-Operand1[n-1]); `|X|` > `|Operand2|` && sign(X) == sign(Operand2) """
 
     IsWithin = "within"
-    """|Operand1 - Operand2| < |Operand3| """
+    """`|Operand1 - Operand2|` < `|Operand3|` """
 
 
 @dataclass
@@ -169,6 +169,18 @@ class DataloggingConfig:
                  decimation: int = 1,
                  timeout: float = 0.0,
                  name: str = ''):
+        """Creates an instance of :class:`DataloggingConfig<DataloggingConfig>`
+
+        :param sampling_rate: The acquisition sampling rate. Can be the sampling rate ID in the device or an instance 
+            of :class:`SamplingRate<datalogging.SamplingRate>` gotten from the :class:`DataloggingCapabilities<datalogging.DataloggingCapabilities>` 
+            returned by :meth:`ScrutinyClient.get_datalogging_capabilities<scrutiny.sdk.client.ScrutinyClient.get_datalogging_capabilities>` 
+        :param decimation: The decimation factor that reduces the effective sampling rate
+        :param timeout: Timeout to the acquisition. After the datalogger is armed, it will forcefully trigger after this amount of time. 0 means no timeout
+        :param name: Name of the configuration. Save into the database for reference
+
+        :raise TypeError: Given parameter not of the expected type
+        :raise ValueError: Given parameter has an invalid value
+        """
 
         if isinstance(sampling_rate, SamplingRate):
             sampling_rate = sampling_rate.identifier
@@ -211,7 +223,7 @@ class DataloggingConfig:
         """Adds a Y axis to the acquisition.
         :param name: The name of the axis, for display purpose. 
 
-        :return: An `AxisDefinition` object that can be assigned to a signal when calling `add_signal()`
+        :return: An `AxisDefinition` object that can be assigned to a signal when calling :meth:`add_signal()<scrutiny.sdk.datalogging.DataloggingConfig.add_signal>`
         """
         validation.assert_type(name, 'name', str)
         axis = AxisDefinition(axis_id=self._next_axis_id, name=name)
@@ -226,8 +238,10 @@ class DataloggingConfig:
                    ) -> None:
         """Adds a signal to the acquisition
 
-        :param signal: The signal to add. Can either be a path to a var/rpv/alias (string) or a WatchableHandle given by `ScrutinyClient.watch()`
-        :param axis: The Y axis to assigned this signal to. Can either be the index (int) or the `AxisDefinition` object given by `add_axis()`
+        :param signal: The signal to add. Can either be a path to a var/rpv/alias (string) or a :class:`WatchableHandle<scrutiny.sdk.watchable_handle.WatchableHandle>` 
+            given by :meth:`ScrutinyClient.watch()<scrutiny.sdk.client.ScrutinyClient.watch>`
+        :param axis: The Y axis to assigned this signal to. Can either be the index (int) or the :class:`AxisDefinition<scrutiny.sdk.datalogging.AxisDefinition>` 
+            object given by :meth`add_axis()<scrutiny.sdk.datalogging.DataloggingConfig.add_axis>`
         :param name: A display name for the signal
 
         :raise IndexError: Invalid axis index
@@ -268,24 +282,12 @@ class DataloggingConfig:
                           position: float = 0.5,
                           hold_time: float = 0
                           ) -> None:
-        """Configure the required conditions to fire the trigger event
+        r"""Configure the required conditions to fire the trigger event
 
         :param condition: The type of condition used for triggering the acquisition.   
-            - `AlwaysTrue`: Always true. Triggers immediately after being armed. Requires 0 operands
-            - `Equal`: Operand1 == Operand2. Requires 2 operands
-            - `NotEqual`: Operand1 != Operand2.Requires 2 operands
-            - `LessThan`: Operand1 < Operand2. Requires 2 operands
-            - `LessOrEqualThan`: Operand1 <= Operand2. Requires 2 operands
-            - `GreaterThan`: Operand1 > Operand2. Requires 2 operands
-            - `GreaterOrEqualThan`: Operand1 >= Operand2. Requires 2 operands
-            - `ChangeMoreThan`: X=(Operand1[n]-Operand1[n-1]); |X| > |Operand2| && sign(X) == sign(Operand2). Requires 2 operands          
-            - `IsWithin`: |Operand1 - Operand2| < |Operand3|. Requires 3 operands
-
-        :param operands: List of operands. Each operands can be a constant number (float), the path to a variable/rpv/alias (str) or a WatchableHandle
+        :param operands: List of operands. Each operands can be a constant number (float), the path to a variable/rpv/alias (str) or a :class:`WatchableHandle<scrutiny.sdk.watchable_handle.WatchableHandle>`
             given by `ScrutinyClient.watch()`. The number of operands depends on the trigger condition
-
         :param position: Position of the trigger event in the datalogging buffer. Value from 0 to 1, where 0 is leftmost, 0.5 middle and 1 rightmost.
-
         :param hold_time: Time in seconds that the trigger condition must evaluate to `true` before firing the trigger event.
 
         :raise ValueError: Bad parameter value
@@ -335,12 +337,7 @@ class DataloggingConfig:
         """Configures the X-Axis
 
         :param axis_type: Type of X-Axis.  
-            - Indexed: X-Axis is the index of the sample starting from 0
-            - Measured Time: Time measured by the device. Takes a 32bits slot in the datalogging buffer
-            - Ideal Time: Only available for fixed frequency loops. Generates an ideal time axis based on the known frequency of the loops. 
-                Does not take space in the datalogging buffer
-            - Signal: Picks an arbitrary element (Variable, RPV or alias) as the X-Axis.
-        :param signal: The signal to be used for the X-Axis if its type is set to `Signal`. Ignored if the X-Axis type is not `Signal` 
+        :param signal: The signal to be used for the X-Axis if its type is set to :attr:`Signal<scrutiny.sdk.datalogging.XAxisType.Signal>`. Ignored if the X-Axis type is not `Signal` 
         :param name: A display name for the X-Axis
 
         :raise ValueError: Bad parameter value

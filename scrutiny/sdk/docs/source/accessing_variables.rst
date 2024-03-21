@@ -24,7 +24,7 @@ Basics
 ------
 
 The first step to access a watchable, is to first tell the server that we want to subscribe to update event on that watchable.
-To do so, we use the :meth:`watch<scrutiny.sdk.client.ScrutinyClient.watch>` and specify the path of the watchable. The path
+To do so, we use the :meth:`watch<scrutiny.sdk.client.ScrutinyClient.watch>` method and specify the path of the watchable. The path
 depends on the firmware and must generally be known in advance. It is possible to query the server for the list of available watchable, this is what the GUI does.
 
 For a :abbr:`SDK (Software Development Kit)` based script, it's generally expected that the element that will be accessed are known and won't require a user input to select them.
@@ -44,9 +44,13 @@ in this case, our client. A background thread listen for those updates and chang
 
 -----
 
-After getting a handle to the watchable, the ``value`` property and its derivative (``value_int``, ``value_float``, ``value_bool``) are automatically updated. The
-values are invalid until their first update, meaning that after the call to :meth:`watch<scrutiny.sdk.client.ScrutinyClient.watch>`, there is a period of time where accessing the ``value``
-property will raise a :class:`InvalidValueException<scrutiny.sdk.exceptions.InvalidValueException>`.
+After getting a handle to the watchable, the :attr:`value<scrutiny.sdk.watchable_handle.WatchableHandle.value>` property and its derivative (
+:attr:`value_int<scrutiny.sdk.watchable_handle.WatchableHandle.value_int>`, 
+:attr:`value_float<scrutiny.sdk.watchable_handle.WatchableHandle.value_float>`, 
+:attr:`value_bool<scrutiny.sdk.watchable_handle.WatchableHandle.value_bool>`) are automatically updated. The values are invalid until their first update, 
+meaning that after the call to :meth:`watch<scrutiny.sdk.client.ScrutinyClient.watch>`, there is a period of time where accessing the 
+:attr:`value<scrutiny.sdk.watchable_handle.WatchableHandle.value>`
+property will raise a :class:`InvalidValueError<scrutiny.sdk.exceptions.InvalidValueError>`.
 
 One can wait for a single watchable update with :meth:`WatchableHandle.wait_update<scrutiny.sdk.watchable_handle.WatchableHandle.wait_update>` or wait for all watched variable by Calling
 :meth:`ScrutinyClient.wait_new_value_for_all<scrutiny.sdk.client.ScrutinyClient.wait_new_value_for_all>`
@@ -64,7 +68,7 @@ One can wait for a single watchable update with :meth:`WatchableHandle.wait_upda
         print(f"w2 = {w2.value}")   # Value updated by a background thread
         time.sleep(0.1)
     
-    w3.value = 123  # Blocking write. This statement blocks until the device has confirmed that the variable is correctly written. 
+    w3.value = 123  # Blocking write. This statement blocks until the device has confirmed that the variable is correctly written (or raise on failre).
 
 .. note:: 
 

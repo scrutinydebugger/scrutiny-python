@@ -54,4 +54,5 @@ html_theme_options = {
         ("Github", "https://github.com/scrutinydebugger/scrutiny-python")]
 }
 
-autoclass_content = 'init'
+autoclass_content = 'class'
+autodoc_class_signature='separated'
