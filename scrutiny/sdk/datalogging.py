@@ -172,7 +172,7 @@ class DataloggingConfig:
         """Creates an instance of :class:`DataloggingConfig<DataloggingConfig>`
 
         :param sampling_rate: The acquisition sampling rate. Can be the sampling rate ID in the device or an instance 
-            of :class:`SamplingRate<datalogging.SamplingRate>` gotten from the :class:`DataloggingCapabilities<datalogging.DataloggingCapabilities>` 
+            of :class:`SamplingRate<scrutiny.sdk.datalogging.SamplingRate>` gotten from the :class:`DataloggingCapabilities<scrutiny.sdk.datalogging.DataloggingCapabilities>` 
             returned by :meth:`ScrutinyClient.get_datalogging_capabilities<scrutiny.sdk.client.ScrutinyClient.get_datalogging_capabilities>` 
         :param decimation: The decimation factor that reduces the effective sampling rate
         :param timeout: Timeout to the acquisition. After the datalogger is armed, it will forcefully trigger after this amount of time. 0 means no timeout
@@ -241,7 +241,7 @@ class DataloggingConfig:
         :param signal: The signal to add. Can either be a path to a var/rpv/alias (string) or a :class:`WatchableHandle<scrutiny.sdk.watchable_handle.WatchableHandle>` 
             given by :meth:`ScrutinyClient.watch()<scrutiny.sdk.client.ScrutinyClient.watch>`
         :param axis: The Y axis to assigned this signal to. Can either be the index (int) or the :class:`AxisDefinition<scrutiny.sdk.datalogging.AxisDefinition>` 
-            object given by :meth`add_axis()<scrutiny.sdk.datalogging.DataloggingConfig.add_axis>`
+            object given by :meth:`add_axis()<scrutiny.sdk.datalogging.DataloggingConfig.add_axis>`
         :param name: A display name for the signal
 
         :raise IndexError: Invalid axis index
@@ -286,7 +286,7 @@ class DataloggingConfig:
 
         :param condition: The type of condition used for triggering the acquisition.   
         :param operands: List of operands. Each operands can be a constant number (float), the path to a variable/rpv/alias (str) or a :class:`WatchableHandle<scrutiny.sdk.watchable_handle.WatchableHandle>`
-            given by `ScrutinyClient.watch()`. The number of operands depends on the trigger condition
+            given by :meth:`ScrutinyClient.watch()<scrutiny.sdk.client.ScrutinyClient.watch>`. The number of operands depends on the trigger condition
         :param position: Position of the trigger event in the datalogging buffer. Value from 0 to 1, where 0 is leftmost, 0.5 middle and 1 rightmost.
         :param hold_time: Time in seconds that the trigger condition must evaluate to `true` before firing the trigger event.
 
@@ -337,7 +337,10 @@ class DataloggingConfig:
         """Configures the X-Axis
 
         :param axis_type: Type of X-Axis.  
-        :param signal: The signal to be used for the X-Axis if its type is set to :attr:`Signal<scrutiny.sdk.datalogging.XAxisType.Signal>`. Ignored if the X-Axis type is not `Signal` 
+        :param signal: The signal to be used for the X-Axis if its type is set to :attr:`Signal<scrutiny.sdk.datalogging.XAxisType.Signal>`. 
+            Ignored if the X-Axis type is not :attr:`Signal<scrutiny.sdk.datalogging.XAxisType.Signal>`. Can be the path to a watchable or an instance 
+            of a :class:`WatchableHandle<scrutiny.sdk.watchable_handle.WatchableHandle>`
+            given by :meth:`ScrutinyClient.watch()<scrutiny.sdk.client.ScrutinyClient.watch>` 
         :param name: A display name for the X-Axis
 
         :raise ValueError: Bad parameter value
@@ -386,6 +389,7 @@ class DataloggingConfig:
 @dataclass(init=False)
 class DataloggingRequest:
     """Handle to a request for a datalogging acquisition. Gets updated by the client and reflect the actual status of the acquisition"""
+
     _client: "ScrutinyClient"
     _request_token: str
 
@@ -420,10 +424,11 @@ class DataloggingRequest:
         self._completed_event.set()
 
     def wait_for_completion(self, timeout: Optional[float] = None) -> None:
-        """Wait for the acquisition to be triggered and extracted by the server. Once this is done, the `acquisition_reference_id` will not be `None` anymore
+        """Wait for the acquisition to be triggered and extracted by the server. Once this is done, 
+        the :attr:`acquisition_reference_id<acquisition_reference_id>` will not be ``None`` anymore
         and its value will point to the database entry storing the data.
 
-        :params timeout: Maximum wait time in seconds. Waits forever if `None`
+        :params timeout: Maximum wait time in seconds. Waits forever if ``None``
 
         :raise TimeoutException: If the acquisition does not complete in less than the specified timeout value
         :raise OperationFailure: If an error happened that prevented the acquisition to successfully complete
@@ -440,12 +445,12 @@ class DataloggingRequest:
     def fetch_acquisition(self, timeout: Optional[float] = None) -> DataloggingAcquisition:
         """Download and returns an the acquisition data from the server. The acquisition must be complete
 
-        :params timeout: Timeout to get a response by the server in seconds. Uee the default timeout value if `None`
+        :params timeout: Timeout to get a response by the server in seconds. Uee the default timeout value if ``None``
 
         :raise TimeoutException: If the server does not respond in time
         :raise OperationFailure: If the acquisition is not complete or if an error happen while fetching the data
 
-        :return: The `DataloggingAcquisition` object containing the acquired data
+        :return: The :class:`DataloggingAcquisition<scrutiny.sdk.datalogging.DataloggingAcquisition>` object containing the acquired data
 
         """
         timeout = validation.assert_float_range_if_not_none(timeout, 'timeout', minval=0)
@@ -459,10 +464,11 @@ class DataloggingRequest:
         return self._client.read_datalogging_acquisition(self._acquisition_reference_id, timeout)
 
     def wait_and_fetch(self, timeout: Optional[float] = None, fetch_timeout: Optional[float] = None) -> DataloggingAcquisition:
-        """Do successive calls to `wait_for_completion()` & `fetch_acquisition()` and return the acquisition
+        """Do successive calls to :meth:`wait_for_completion()<wait_for_completion>` 
+        & :meth:`fetch_acquisition()<fetch_acquisition>` and return the acquisition
 
-        :params timeout: Timeout given to `wait_for_completion()`
-        :params fetch_timeout: Timeout given to `fetch_acquisition()`
+        :params timeout: Timeout given to :meth:`wait_for_completion()<wait_for_completion>`
+        :params fetch_timeout: Timeout given to :meth:`fetch_acquisition()<fetch_acquisition>`
 
         :raise TimeoutException: If any of the timeout is violated
         :raise OperationFailure: If a problem occur while waiting/fetching
@@ -484,7 +490,7 @@ class DataloggingRequest:
 
     @property
     def completion_datetime(self) -> Optional[datetime]:
-        """The time at which the datalogging acquisition request has been completed. None if not completed yet"""
+        """The time at which the datalogging acquisition request has been completed. ``None`` if not completed yet"""
         return self._completion_datetime
 
     @property
@@ -494,7 +500,7 @@ class DataloggingRequest:
 
     @property
     def acquisition_reference_id(self) -> Optional[str]:
-        """The unique ID used to fetch the acquisition data from the server. Value is set only if request is completed and succeeded. None otherwise"""
+        """The unique ID used to fetch the acquisition data from the server. Value is set only if request is completed and succeeded. ``None`` otherwise"""
         return self._acquisition_reference_id
 
 

@@ -161,7 +161,7 @@ class DataloggingInfo:
     """The state of the datalogger in the device"""
 
     completion_ratio: Optional[float]
-    """The completion ratio of the actually running acquisition. `None` if no acquisition being captured"""
+    """The completion ratio of the actually running acquisition.``None``if no acquisition being captured"""
 
 
 @dataclass(frozen=True)
@@ -181,7 +181,7 @@ class DeviceInfo:
     """Maximum payload size that the device can receive"""
 
     max_bitrate_bps: Optional[int]
-    """Maximum bitrate between the device and the server. Requested by the device. `None` if no throttling is requested"""
+    """Maximum bitrate between the device and the server. Requested by the device.``None``if no throttling is requested"""
 
     rx_timeout_us: int
     """Amount of time without data being received that the device will wait to restart its reception state machine (new frame)"""
@@ -211,25 +211,25 @@ class DeviceInfo:
 @dataclass(frozen=True)
 class SFDGenerationInfo:
     timestamp: Optional[datetime]
-    """Date/time at which the SFD has been created. `None` if not available"""
+    """Date/time at which the SFD has been created.``None``if not available"""
     python_version: Optional[str]
-    """Python version with which the SFD has been created. `None` if not available"""
+    """Python version with which the SFD has been created.``None``if not available"""
     scrutiny_version: Optional[str]
-    """Scrutiny version with which the SFD has been created. `None` if not available"""
+    """Scrutiny version with which the SFD has been created.``None``if not available"""
     system_type: Optional[str]
-    """Type of system on which the SFD has been created. Value given by Python `platform.system()`. `None` if not available"""
+    """Type of system on which the SFD has been created. Value given by Python `platform.system()`.``None``if not available"""
 
 
 @dataclass(frozen=True)
 class SFDMetadata:
     project_name: Optional[str]
-    """Name of the project. `None` if not available"""
+    """Name of the project.``None``if not available"""
     author: Optional[str]
-    """The author of this firmware. `None` if not available"""
+    """The author of this firmware.``None``if not available"""
     version: Optional[str]
-    """The version string of this firmware. `None` if not available"""
+    """The version string of this firmware.``None``if not available"""
     generation_info: Optional[SFDGenerationInfo]
-    """Metadata regarding the creation environment of the SFD file. `None` if not available"""
+    """Metadata regarding the creation environment of the SFD file.``None``if not available"""
 
 
 @dataclass(frozen=True)
@@ -327,10 +327,10 @@ class ServerInfo:
     """Status of the communication between the server and the device"""
 
     device_session_id: Optional[str]
-    """A unique ID created each time a communication with the device is established. `None` when no communication with a device."""
+    """A unique ID created each time a communication with the device is established.``None``when no communication with a device."""
 
     device: Optional[DeviceInfo]
-    """Information about the connected device. `None` if no device is connected"""
+    """Information about the connected device.``None``if no device is connected"""
 
     datalogging: DataloggingInfo
     """Datalogging state"""

@@ -110,7 +110,7 @@ class DataloggingAcquisition:
     """Sample index of the trigger"""
 
     firmware_name: Optional[str]
-    """The firmware name taken from the metadata of the SFD loaded when the acquisition was made. `None` if it is not available"""
+    """The firmware name taken from the metadata of the SFD loaded when the acquisition was made.``None``if it is not available"""
 
     def __init__(self,
                  firmware_id: str,
