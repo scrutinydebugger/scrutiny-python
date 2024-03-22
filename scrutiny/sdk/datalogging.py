@@ -443,14 +443,14 @@ class DataloggingRequest:
             raise sdk.exceptions.OperationFailure(f"Datalogging acquisition failed to complete. {self._failure_reason}")
 
     def fetch_acquisition(self, timeout: Optional[float] = None) -> DataloggingAcquisition:
-        """Download and returns an the acquisition data from the server. The acquisition must be complete
+        """Download and returns an acquisition data from the server. The acquisition must be complete
 
         :params timeout: Timeout to get a response by the server in seconds. Uee the default timeout value if ``None``
 
         :raise TimeoutException: If the server does not respond in time
         :raise OperationFailure: If the acquisition is not complete or if an error happen while fetching the data
 
-        :return: The :class:`DataloggingAcquisition<scrutiny.sdk.datalogging.DataloggingAcquisition>` object containing the acquired data
+        :return: The :class:`DataloggingAcquisition<scrutiny.core.datalogging.DataloggingAcquisition>` object containing the acquired data
 
         """
         timeout = validation.assert_float_range_if_not_none(timeout, 'timeout', minval=0)
@@ -473,7 +473,7 @@ class DataloggingRequest:
         :raise TimeoutException: If any of the timeout is violated
         :raise OperationFailure: If a problem occur while waiting/fetching
 
-        :return: The `DataloggingAcquisition` object containing the acquired data
+        :return: The :class:`DataloggingAcquisition<scrutiny.core.datalogging.DataloggingAcquisition>` object containing the acquired data
         """
         self.wait_for_completion(timeout)
         return self.fetch_acquisition(fetch_timeout)  # Use default timeout

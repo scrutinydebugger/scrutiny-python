@@ -100,11 +100,13 @@ For more details, read the :ref:`Datalogging<page_datalogging>` page
     
 -----
 
-.. automethod:: scrutiny.sdk.client.ScrutinyClient.list_stored_datalogging_acquisitions
+.. automethod:: scrutiny.sdk.client.ScrutinyClient.
+    :no-index:
     
 -----
 
 .. automethod:: scrutiny.sdk.client.ScrutinyClient.read_datalogging_acquisition
+    :no-index:
     
 -----
 

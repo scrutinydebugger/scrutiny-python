@@ -45,7 +45,7 @@ class DataSeries:
     logged_element: str
     """The server element that was the source of the data. Path to a variable, alias or RPV (Runtime Published Value)"""
     data: List[float]
-    """The data stored as a list of float"""
+    """The data stored as a list of 64 bits float"""
 
     def __init__(self, data: List[float] = [], name: str = "unnamed", logged_element: str = ""):
         self.name = name
@@ -110,7 +110,7 @@ class DataloggingAcquisition:
     """Sample index of the trigger"""
 
     firmware_name: Optional[str]
-    """The firmware name taken from the metadata of the SFD loaded when the acquisition was made.``None``if it is not available"""
+    """The firmware name taken from the metadata of the SFD loaded when the acquisition was made. ``None`` if it is not available"""
 
     def __init__(self,
                  firmware_id: str,
