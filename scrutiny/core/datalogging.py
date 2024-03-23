@@ -88,7 +88,7 @@ class DataSeriesWithAxis:
 class DataloggingAcquisition:
     """Represent an acquisition of multiple signals"""
 
-    name: Optional[str]
+    name: Optional[str] 
     """A display name associated with the acquisition for easier management"""
 
     reference_id: str
@@ -204,6 +204,10 @@ class DataloggingAcquisition:
             writer.writerow([self.xdata.data[i]] + [ydata.series.data[i] for ydata in self.ydata] + trigger_val)
 
     def to_csv(self, filename: str) -> None:
+        """Export a DataloggingAcquisition content to a csv file
+
+        :param filename: The file to write to
+        """
         with open(filename, 'w', encoding='utf8', newline='') as f:
             writer = csv.writer(f, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
             self.write_csv(writer)

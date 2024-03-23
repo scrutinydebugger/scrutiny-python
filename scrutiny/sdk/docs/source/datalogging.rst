@@ -82,6 +82,43 @@ which takes a :class:`sdk.DataloggingConfig<scrutiny.sdk.datalogging.Datalogging
 
 -----
 
+Example
+#######
+
+.. code-block:: python
+
+    with client.connect(hostname, port):
+        var1 = client.watch('/a/b/var1')
+        var2 = client.watch('/a/b/var2')
+
+        config = sdk.datalogging.DataloggingConfig(sampling_rate=0, decimation=1, timeout=0, name="MyGraph")
+        config.configure_trigger(sdk.datalogging.TriggerCondition.GreaterThan, [var1, 3.14159], position=0.75, hold_time=0)
+        config.configure_xaxis(sdk.datalogging.XAxisType.MeasuredTime)
+        axis1 = config.add_axis('Axis 1')
+        axis2 = config.add_axis('Axis 2')
+        config.add_signal(var1, axis1, name="MyVar1") 
+        config.add_signal(var2, axis1, name="MyVar2")
+        config.add_signal('/a/b/alias_rpv1000', axis2, name="MyAliasRPV1000")
+
+        request = client.start_datalog(config)
+
+        timeout = 60
+        print(f"Embedded datalogger armed. Waiting for MyVar1>=3.14159...")
+        try:
+            request.wait_for_completion(timeout)    # Wait for the trigger condition to be fulfilled
+        except sdk.exceptions.TimeoutException:
+            print(f'Timed out while waiting')
+        
+        if request.is_success:
+            acquisition = request.fetch_acquisition()
+            filename = my_acquisition.csv
+            acquisition.to_csv(filename)
+            print(f"Acquisition [{acquisition.reference_id}] saved to CSV format in {filename}")
+        else:
+            print(f"The datalogging acquisition failed. Reason: {request.failure_reason}")
+
+-----
+
 Reading an acquisition after completion
 ---------------------------------------
 
@@ -100,6 +137,9 @@ A :class:`DataloggingAcquisition<scrutiny.core.datalogging.DataloggingAcquisitio
 
 - :meth:`DataloggingRequest.fetch_acquisition()<scrutiny.sdk.datalogging.DataloggingRequest.fetch_acquisition>` or :meth:`DataloggingRequest.wait_and_fetch()<scrutiny.sdk.datalogging.DataloggingRequest.wait_and_fetch>` 
 - :meth:`ScrutinyClient.read_datalogging_acquisition<scrutiny.sdk.client.ScrutinyClient.read_datalogging_acquisition>` to read a past acquisition stored in the database.
+
+Once a :class:`DataloggingAcquisition<scrutiny.core.datalogging.DataloggingAcquisition>` is obtained, 
+the :meth:`DataloggingAcquisition.to_csv()<scrutiny.core.datalogging.DataloggingAcquisition.to_csv>` can be used to export the data
 
 -----
 
@@ -127,10 +167,13 @@ Fetching an acquisition from the database
 -----------------------------------------
 
 The server maintain a local sqlite database of all the acquisition captured. In most use case relevant for this SDK, a user will want
-to download an acquisition that just got triggered. It is also possible to browse the database and download past acquisitions (which is also possible through the :abbr:`CLI (Command Line Interface)`)
+to download an acquisition that just got triggered, but it is also possible to browse the database and download 
+past acquisitions (which is also possible through the :abbr:`CLI (Command Line Interface)`)
 
 Each acquisition has a unique ID called the :attr:`reference_id<scrutiny.core.datalogging.DataloggingAcquisition.reference_id>`.
-
+On can list the acquisition available by calling :meth:`ScrutinyClient.list_stored_datalogging_acquisitions<scrutiny.sdk.client.ScrutinyClient.list_stored_datalogging_acquisitions>`
+and once the :attr:`reference_id<scrutiny.core.datalogging.DataloggingAcquisition.reference_id>` is known, it can be passed to 
+:meth:`ScrutinyClient.read_datalogging_acquisitio()n<scrutiny.sdk.client.ScrutinyClient.read_datalogging_acquisition>`
 
 
 .. automethod:: scrutiny.sdk.client.ScrutinyClient.list_stored_datalogging_acquisitions 
@@ -145,3 +188,20 @@ Each acquisition has a unique ID called the :attr:`reference_id<scrutiny.core.da
     :members:
     :member-order: bysource
     :exclude-members: __init__, __new__
+
+Example
+#######
+
+.. code-block:: python
+
+    with client.connect(hostname, port):
+        entries = client.list_stored_datalogging_acquisitions()
+        print(f"The server has {len(entries)} acquisition stored")
+        for entry in entries:
+            dt = entry.timestamp.strftime(r"%Y-%m-%d %H:%M:%S")
+            print(f"[{entry.reference_id}] {entry.name} taken on {dt}")
+        assert (len(entries) > 0, "Cannot fetch first datalogging acquisition")
+        acquisition = client.read_datalogging_acquisition(entries[0].reference_id)   # Read the first one
+        print(f"Acquisition {acquisition.name} [{acquisition.reference_id}] downloaded and has {len(acquisition.ydata)} signals on the Y-Axis. ")
+        acquisition.to_csv("myfile.csv")
+

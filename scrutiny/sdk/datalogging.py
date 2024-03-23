@@ -114,16 +114,16 @@ class TriggerCondition(enum.Enum):
     NotEqual = "neq"
     """Operand1 != Operand2 """
 
-    LessThan = "get"
+    LessThan = "lt"
     """Operand1 < Operand2 """
 
-    LessOrEqualThan = "gt"
+    LessOrEqualThan = "let"
     """Operand1 <= Operand2 """
 
-    GreaterThan = "let"
+    GreaterThan = "gt"
     """Operand1 > Operand2 """
 
-    GreaterOrEqualThan = "lt"
+    GreaterOrEqualThan = "get"
     """Operand1 >= Operand2 """
 
     ChangeMoreThan = "cmt"
