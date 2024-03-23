@@ -109,13 +109,14 @@ Example
         except sdk.exceptions.TimeoutException:
             print(f'Timed out while waiting')
         
-        if request.is_success:
-            acquisition = request.fetch_acquisition()
-            filename = my_acquisition.csv
-            acquisition.to_csv(filename)
-            print(f"Acquisition [{acquisition.reference_id}] saved to CSV format in {filename}")
-        else:
-            print(f"The datalogging acquisition failed. Reason: {request.failure_reason}")
+        if request.completed:   # Will be False if timed out
+            if request.is_success:
+                acquisition = request.fetch_acquisition()
+                filename = my_acquisition.csv
+                acquisition.to_csv(filename)
+                print(f"Acquisition [{acquisition.reference_id}] saved to CSV format in {filename}")
+            else:
+                print(f"The datalogging acquisition failed. Reason: {request.failure_reason}")
 
 -----
 
