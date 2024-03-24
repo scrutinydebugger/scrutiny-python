@@ -25,7 +25,7 @@ formats:
 # See https://docs.readthedocs.io/en/stable/guides/reproducible-builds.html
 python:
   install:
-    method: pip
-    extra_requirements:
-      - docs
-    path: ../..
+    - method: pip
+      path: ../..
+      extra_requirements:
+        - docs
