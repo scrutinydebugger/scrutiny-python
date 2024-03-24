@@ -9,8 +9,7 @@
 from setuptools import setup, find_packages
 import scrutiny
 import sys
-import logging
-
+import os
 
 dependencies = [
     'appdirs>=1.4.4',
@@ -20,14 +19,10 @@ dependencies = [
     'pyserial>=3.5'
 ]
 
-doc_dependencies = [
-    'sphinx-book-theme==1.1.2',
-    'sphinx==7.2.6'
-]
-
-if (sys.version_info.major, sys.version_info.minor) < (3, 9):
-    doc_dependencies = []
-
+doc_dependencies = []
+if (sys.version_info.major, sys.version_info.minor) >= (3, 9):
+    with open(os.path.join(os.path.dirname(__file__), 'scrutiny', 'sdk', 'docs', 'requirements.txt')) as f:
+        doc_dependencies = [d.strip() for d in f.read().splitlines() if d]
 
 setup(
     name=scrutiny.__name__,
