@@ -71,13 +71,6 @@ all the information about what is going on on the other end of the websocket. It
 
 -----
 
-.. autoclass:: scrutiny.sdk.DataloggingInfo
-    :exclude-members: __init__, __new__
-    :members:
-    :member-order: bysource
-
------
-
 .. autoclass:: scrutiny.sdk.DeviceLinkInfo
     :exclude-members: __init__, __new__
     :members:
@@ -97,14 +90,21 @@ all the information about what is going on on the other end of the websocket. It
     :members:
     :member-order: bysource
 
+-----
 
+.. autoclass:: scrutiny.sdk.DataloggingInfo
+    :exclude-members: __init__, __new__
+    :members:
+    :member-order: bysource
 
+-----
 
+.. autoclass:: scrutiny.sdk.DataloggerState
+    :exclude-members: __init__, __new__
+    :members:
+    :member-order: bysource
 
-
-
-
-
+-----
 
 Configuring the device link
 ----------------------------
