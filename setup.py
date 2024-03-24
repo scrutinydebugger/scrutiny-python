@@ -21,8 +21,10 @@ dependencies = [
 
 doc_dependencies = []
 if (sys.version_info.major, sys.version_info.minor) >= (3, 9):
-    with open(os.path.join(os.path.dirname(__file__), 'scrutiny', 'sdk', 'docs', 'requirements.txt')) as f:
-        doc_dependencies = [d.strip() for d in f.read().splitlines() if d]
+    doc_dependencies = [
+        'sphinx-book-theme==1.1.2',
+        'sphinx==7.2.6'
+    ]
 
 setup(
     name=scrutiny.__name__,
