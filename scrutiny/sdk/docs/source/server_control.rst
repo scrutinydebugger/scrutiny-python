@@ -83,6 +83,20 @@ all the information about what is going on on the other end of the websocket. It
     :members:
     :member-order: bysource
 
+-----
+
+.. autoclass:: scrutiny.sdk.SupportedFeatureMap
+    :exclude-members: __init__, __new__
+    :members:
+    :member-order: bysource
+
+-----
+
+.. autoclass:: scrutiny.sdk.MemoryRegion
+    :exclude-members: __init__, __new__
+    :members:
+    :member-order: bysource
+
 
 
 

@@ -23,8 +23,12 @@ from scrutiny.core import validation
 
 @dataclass(frozen=True)
 class MemoryRegion:
+    """(Immutable struct) Represent a memory region spanning from ``start`` to ``start+size-1``"""
+
     start: int
+    """Start address of the region"""
     size: int
+    """Size in bytes of the region"""
 
     def __post_init__(self) -> None:
         validation.assert_int_range(self.start, 'start', minval=0)

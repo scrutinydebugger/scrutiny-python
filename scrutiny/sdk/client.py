@@ -1059,7 +1059,7 @@ class ScrutinyClient:
         """Starts a batch write. Write operations will be enqueued and committed together.
         Every write is guaranteed to be executed in the right order
 
-        :param timeout: Amount of time to wait for the completion of the batch once committed. If``None`` the default write timeout
+        :param timeout: Amount of time to wait for the completion of the batch once committed. If ``None`` the default write timeout
             will be used.
 
         :raise TypeError: Given parameter not of the expected type
@@ -1110,7 +1110,7 @@ class ScrutinyClient:
     def wait_process(self, timeout: Optional[float] = None) -> None:
         """Wait for the SDK thread to execute fully at least once. Useful for testing
 
-        :param timeout: Amount of time to wait for the completion of the thread loops. If``None`` the default timeout will be used.
+        :param timeout: Amount of time to wait for the completion of the thread loops. If ``None`` the default timeout will be used.
 
         :raise TimeoutException: Worker thread does not complete a full loop within the given timeout
         """
@@ -1292,7 +1292,7 @@ class ScrutinyClient:
         """Reads a datalogging acquisition from the server storage identified by its reference ID
 
         :param reference_id: The acquisition unique ID
-        :param timeout: The request timeout value. The default client timeout will be used if set to``None`` Defaults to``None``
+        :param timeout: The request timeout value. The default client timeout will be used if set to ``None`` Defaults to ``None``
 
         :raise OperationFailure: If fetching the acquisition fails
 
@@ -1389,7 +1389,7 @@ class ScrutinyClient:
     def list_stored_datalogging_acquisitions(self, timeout: Optional[float] = None) -> List[sdk.datalogging.DataloggingStorageEntry]:
         """Gets the list of datalogging acquisition stored in the server database
 
-        :param timeout: The request timeout value. The default client timeout will be used if set to``None`` Defaults to``None``
+        :param timeout: The request timeout value. The default client timeout will be used if set to ``None`` Defaults to ``None``
 
         :raise OperationFailure: If fetching the list fails
 
