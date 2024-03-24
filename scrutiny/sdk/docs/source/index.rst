@@ -13,7 +13,6 @@ Scrutiny Python SDK
    extending_the_protocol
    basic_types
    exceptions
-   examples
 
 
 The Scrutiny Python SDK (Software DEvelopment Kit) is a Python module letting you programmatically interact with a Scrutiny Server. It's main purpose is to allow automated interact with a device to 
