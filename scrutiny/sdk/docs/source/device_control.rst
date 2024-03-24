@@ -14,3 +14,7 @@ Device
     .. automethod:: scrutiny.sdk.EmbeddedDataType.get_size_byte
 
 
+-----
+
+
+.. automethod:: scrutiny.sdk.client.ScrutinyClient.user_command

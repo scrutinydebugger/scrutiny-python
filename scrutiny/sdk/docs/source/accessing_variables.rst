@@ -39,6 +39,7 @@ in this case, our client. A background thread listen for those updates and chang
 -----
 
 .. autoclass:: scrutiny.sdk.watchable_handle.WatchableHandle
+    :exclude-members: __new__
     :member-order: bysource
     :members: display_path, name, type, datatype, value, value_bool, value_int, value_float, last_update_timestamp, last_write_timestamp, update_counter
 
@@ -118,6 +119,10 @@ on the device, even if the server has polled the device many times since then.
 
 -----
 
+.. automethod:: scrutiny.sdk.client.ScrutinyClient.wait_new_value_for_all
+
+-----
+
 Batch writing
 -------------
 
@@ -130,7 +135,14 @@ Then the server executes all write operation, in the correct order, and confirms
 It is possible to do multiple writes to the same watchable in the same batch. The server will ensure that a write operation is completed and confirmed by the device
 before initiating the following
 
+-----
+
+.. automethod:: scrutiny.sdk.client.ScrutinyClient.batch_write
+
+-----
+
 Example 
+#######
 
 .. code-block:: python
 
@@ -149,6 +161,7 @@ Example
         print("Batch writing successfully completed")
     except ScrutinySDKException as e:
         print(f"Failed to complete a batch write. {e}")
+
 
 -----
 

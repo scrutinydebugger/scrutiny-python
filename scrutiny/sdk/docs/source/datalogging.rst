@@ -103,7 +103,7 @@ Example
         request = client.start_datalog(config)
 
         timeout = 60
-        print(f"Embedded datalogger armed. Waiting for MyVar1>=3.14159...")
+        print(f"Embedded datalogger armed. Waiting for MyVar1 >= 3.14159...")
         try:
             request.wait_for_completion(timeout)    # Wait for the trigger condition to be fulfilled
         except sdk.exceptions.TimeoutException:

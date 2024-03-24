@@ -17,3 +17,11 @@
   dl.py.method {
     margin-bottom: 1rem !important;
   }
+
+  /* :not(:target) prevents to override the highlighting of the selected item*/
+  dl.py.class > dt.sig:not(:target),
+  dl.py.method > dt.sig:not(:target)
+  {
+    /*Autodoc title gets a background color. */
+    background-color: var(--pst-color-surface);
+  }

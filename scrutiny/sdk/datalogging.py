@@ -24,13 +24,13 @@ if TYPE_CHECKING:
 
 
 class DataloggingEncoding(enum.Enum):
-    """Defines the data format used to store the samples in the datalogging buffer"""
+    """(Enum) Defines the data format used to store the samples in the datalogging buffer"""
     RAW = 1
 
 
 @dataclass(frozen=True, init=False)
 class SamplingRate:
-    """Represent a sampling rate supported by the device"""
+    """(Immutable struct) Represent a sampling rate supported by the device"""
 
     identifier: int
     """The unique identifier of the sampling rate. Matches the embedded device index in the loop array set in the configuration"""
@@ -41,7 +41,7 @@ class SamplingRate:
 
 @dataclass(frozen=True)
 class FixedFreqSamplingRate(SamplingRate):
-    """Represent a fixed frequency sampling rate supported by the device"""
+    """(Immutable struct) Represent a fixed frequency sampling rate supported by the device"""
 
     frequency: float
     """The sampling rate frequency"""
@@ -54,7 +54,7 @@ class FixedFreqSamplingRate(SamplingRate):
 
 @dataclass(frozen=True)
 class VariableFreqSamplingRate(SamplingRate):
-    """Represent a variable frequency sampling rate supported by the device. Has no known frequency"""
+    """(Immutable struct) Represent a variable frequency sampling rate supported by the device. Has no known frequency"""
 
     def __post_init__(self) -> None:
         validation.assert_type(self.identifier, 'identifier', int)
@@ -63,7 +63,7 @@ class VariableFreqSamplingRate(SamplingRate):
 
 @dataclass(frozen=True)
 class DataloggingCapabilities:
-    """Tells what the device is able to achieve in terms of datalogging"""
+    """(Immutable struct) Tells what the device is able to achieve in terms of datalogging"""
 
     encoding: DataloggingEncoding
     """The encoding of data"""
@@ -87,7 +87,7 @@ class DataloggingCapabilities:
 
 
 class XAxisType(enum.Enum):
-    """Represent a type of X-Axis that a user can select"""
+    """(Enum) Represent a type of X-Axis that a user can select"""
 
     Indexed = "index"
     """No signal will be captured for the X-Axis and the returned X-Axis data will be the index of the samples"""
@@ -103,7 +103,7 @@ class XAxisType(enum.Enum):
 
 
 class TriggerCondition(enum.Enum):
-    """The type of trigger condition to use."""
+    """(Enum) The type of trigger condition to use."""
 
     AlwaysTrue = "true"
     """Always true. Triggers immediately after being armed"""
@@ -506,7 +506,7 @@ class DataloggingRequest:
 
 @dataclass(frozen=True)
 class DataloggingStorageEntry:
-    """Represent an entry in datalogging storage"""
+    """(Immutable struct) Represent an entry in datalogging storage"""
 
     reference_id: str
     """Database ID used to uniquely identified this acquisition"""

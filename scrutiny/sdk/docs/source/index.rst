@@ -8,9 +8,9 @@ Scrutiny Python SDK
    getting_started
    accessing_variables
    datalogging
-   device
+   server_control
+   firmware_descriptions
    exceptions
-   all_references
    examples
 
 

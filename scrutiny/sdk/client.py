@@ -900,8 +900,6 @@ class ScrutinyClient:
         :raise TypeError: Given parameter not of the expected type
 
         :return: A handle that can read/write the watched element.
-        :rtype: :class:`WatchableHandle<scrutiny.sdk.watchable_handle.WatchableHandle>`
-
         """
         validation.assert_type(path, 'path', str)
 
@@ -1042,7 +1040,7 @@ class ScrutinyClient:
             watchable_storage_copy[server_id].wait_update(previous_counter=counter_map[server_id], timeout=timeout_remainder)
 
     def wait_server_status_update(self, timeout: float = _UPDATE_SERVER_STATUS_INTERVAL + 0.5) -> None:
-        """Wait for the a server status update
+        """Wait for the server to broadcast a status update. Happens periodically
 
         :param timeout: Amount of time to wait for the update
 
@@ -1431,10 +1429,10 @@ class ScrutinyClient:
         connect to it and inform the client about it. The `client.server.server_state.device_comm_state` will reflect this.
 
         :param link_type: Type of communication link to use. Serial, UDP, TCP, etc.
-        :param link_config:  A configuration object that matches the link type. 
-            - sdk.DeviceLinkType.UDP : UDPLinkConfig
-            - sdk.DeviceLinkType.TCP : TCPLinkConfig
-            - sdk.DeviceLinkType.Serial : SerialLinkConfig
+        :param link_config:  A configuration object that matches the link type.
+            :attr:`UDP<scrutiny.sdk.DeviceLinkType.UDP>` : :class:`UDPLinkConfig<scrutiny.sdk.UDPLinkConfig>` /
+            :attr:`TCP<scrutiny.sdk.DeviceLinkType.TCP>` : :class:`TCPLinkConfig<scrutiny.sdk.TCPLinkConfig>` /
+            :attr:`Serial<scrutiny.sdk.DeviceLinkType.Serial>` : :class:`SerialLinkConfig<scrutiny.sdk.SerialLinkConfig>`
 
         :raise ValueError: Bad parameter value
         :raise TypeError: Given parameter not of the expected type
@@ -1516,7 +1514,8 @@ class ScrutinyClient:
         return cb_data.obj
 
     def get_server_status(self) -> ServerInfo:
-        """Returns the information about everything going on the server side
+        """Returns an immutable structure of data containing the latest server status that has been broadcasted.
+          It contains everything going on the server side
 
         :raise ConnectionError: If the connection to the server is lost
         :raise InvalidValueError: If the server status is not available (never received it).

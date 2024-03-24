@@ -36,3 +36,7 @@ Operations that fail raise an exception. All exceptions defined in the Scrutiny 
 
 See the :ref:`Exceptions page<page_exceptions>`
 
+-----
+
+.. autoclass:: scrutiny.sdk.client.ScrutinyClient
+    :exclude-members: __new__
