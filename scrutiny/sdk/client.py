@@ -1084,7 +1084,7 @@ class ScrutinyClient:
 
         :raise OperationFailure: Failed to get the SFD list
 
-        :return: A dictionary mapping firmware IDS (hash) to a `SFDInfo` structure
+        :return: A dictionary mapping firmware IDS (hash) to a :class:`SFDInfo<scrutiny.sdk.SFDInfo>` structure
         """
         req = self._make_request(API.Command.Client2Api.GET_INSTALLED_SFD)
 

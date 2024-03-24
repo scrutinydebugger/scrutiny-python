@@ -10,6 +10,8 @@ Scrutiny Python SDK
    datalogging
    server_control
    firmware_descriptions
+   extending_the_protocol
+   basic_types
    exceptions
    examples
 

@@ -36,6 +36,7 @@ html_css_files = [
 
 autodoc_typehints = 'description'
 autodoc_warningiserror = True
+
 html_theme_options = {
     'show_prev_next': True,
     'show_toc_level': 1,

@@ -269,7 +269,7 @@ class SFDInfo:
     """Unique firmware hash"""
 
     metadata: Optional[SFDMetadata]
-    """The firmware metadata embedded in the Scrutiny Firmware Description file"""
+    """The firmware metadata embedded in the Scrutiny Firmware Description file if available. ``None`` if no metadata has been added to the SFD"""
 
 
 class BaseLinkConfig(abc.ABC):
