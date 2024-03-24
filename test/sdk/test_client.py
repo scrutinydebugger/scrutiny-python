@@ -573,7 +573,7 @@ class TestClient(ScrutinyUnitTest):
         # Make sure we can read the status of the server correctly
         self.client.wait_server_status_update()
         self.assertEqual(self.client.server_state, sdk.ServerState.Connected)
-        server_info = self.client.server
+        server_info = self.client.get_server_status()
         self.assertIsNotNone(server_info)
         assert server_info is not None
 
@@ -648,7 +648,7 @@ class TestClient(ScrutinyUnitTest):
             server_info.datalogging.state = None
 
         self.client.wait_server_status_update()
-        self.assertIsNot(self.client.server, server_info)   # Make sure we have a new object with a new reference.
+        self.assertIsNot(self.client.get_server_status(), server_info)   # Make sure we have a new object with a new reference.
 
     def test_request_mechanism(self):
         class Obj:
@@ -751,10 +751,18 @@ class TestClient(ScrutinyUnitTest):
         # Make sure we can read the value of a single watchable
         rpv1000 = self.client.watch('/rpv/x1000')
 
+        # Test with wait_update
         for i in range(10):
             val = float(i) + 0.5
             self.execute_in_server_thread(partial(self.set_entry_val, '/rpv/x1000', val), wait=False, delay=0.02)
-            rpv1000.wait_update()
+            rpv1000.wait_update(2)
+            self.assertEqual(rpv1000.value, val)
+
+        # Test with wait_value
+        for i in range(10):
+            val = float(i) + 0.5
+            self.execute_in_server_thread(partial(self.set_entry_val, '/rpv/x1000', val), wait=False, delay=0.02)
+            rpv1000.wait_value(val, 2)
             self.assertEqual(rpv1000.value, val)
 
     def test_read_multiple_val(self):
@@ -794,7 +802,7 @@ class TestClient(ScrutinyUnitTest):
         self.assertEqual(self.device_handler.write_logs[0].address, 0x1234)
         self.assertEqual(self.device_handler.write_logs[0].data, bytes(bytearray([0x56, 0x94, 0x78, 0x00])))  # little endian
         self.assertIsNone(self.device_handler.write_logs[0].mask)
-        var1.wait_update(previous_counter=counter)
+        var1.wait_update(previous_counter=counter, timeout=2)
         self.assertEqual(var1.value, 0x789456)
 
     def test_write_multiple_val(self):
@@ -837,7 +845,7 @@ class TestClient(ScrutinyUnitTest):
             self.assertEqual(self.device_handler.write_logs[index].address, 0x1234)
             self.assertEqual(self.device_handler.write_logs[index].data, bytes(bytearray([0x44, 0x33, 0x22, 0x11])))  # little endian
             self.assertIsNone(self.device_handler.write_logs[index].mask)
-            var1.wait_update(previous_counter=counter_var1)
+            var1.wait_update(previous_counter=counter_var1, timeout=2)
             index += 1
 
         if do_var2:
@@ -846,7 +854,7 @@ class TestClient(ScrutinyUnitTest):
             self.assertEqual(self.device_handler.write_logs[index].address, 0x4568)
             self.assertEqual(self.device_handler.write_logs[index].data, bytes(bytearray([1])))  # little endian
             self.assertIsNone(self.device_handler.write_logs[index].mask)
-            var2.wait_update(previous_counter=counter_var2)
+            var2.wait_update(previous_counter=counter_var2, timeout=2)
             index += 1
 
         if do_rpv1000:
@@ -854,7 +862,7 @@ class TestClient(ScrutinyUnitTest):
             assert isinstance(self.device_handler.write_logs[index], WriteRPVLog)
             self.assertEqual(self.device_handler.write_logs[index].rpv_id, 0x1000)
             self.assertEqual(self.device_handler.write_logs[index].data, struct.pack('>f', 3.1415926))  # RPVs are always big endian
-            rpv1000.wait_update(previous_counter=counter_rpv1000)
+            rpv1000.wait_update(previous_counter=counter_rpv1000, timeout=2)
             index += 1
 
         # Alias points to var1
@@ -864,7 +872,7 @@ class TestClient(ScrutinyUnitTest):
             self.assertEqual(self.device_handler.write_logs[index].address, 0x1234)
             self.assertEqual(self.device_handler.write_logs[index].data, bytes(bytearray([0x88, 0x77, 0x66, 0x55])))  # little endian
             self.assertIsNone(self.device_handler.write_logs[index].mask)
-            alias_var1.wait_update(previous_counter=counter_alias_var1)
+            alias_var1.wait_update(previous_counter=counter_alias_var1, timeout=2)
             index += 1
 
         # Alias points to rpv1000
@@ -873,7 +881,7 @@ class TestClient(ScrutinyUnitTest):
             assert isinstance(self.device_handler.write_logs[index], WriteRPVLog)
             self.assertEqual(self.device_handler.write_logs[index].rpv_id, 0x1000)
             self.assertEqual(self.device_handler.write_logs[index].data, struct.pack('>f', 1.23456))  # RPVs are always big endian
-            alias_rpv1000.wait_update(previous_counter=counter_alias_rpv1000)
+            alias_rpv1000.wait_update(previous_counter=counter_alias_rpv1000, timeout=2)
             index += 1
 
     def test_batch_write(self):
@@ -941,13 +949,13 @@ class TestClient(ScrutinyUnitTest):
         alias_var1_counter = alias_var1.update_counter
         self.set_value_and_wait_update(rpv1000, 1.234)
         self.set_value_and_wait_update(var1, 0x1234)
-        alias_var1.wait_update(previous_counter=alias_var1_counter)
+        alias_var1.wait_update(previous_counter=alias_var1_counter, timeout=2)
 
         self.execute_in_server_thread(disconnect_device)
         self.wait_for_server()
 
         def status_check(commstate):
-            return self.client.server.device_comm_state == commstate
+            return self.client.get_server_status().device_comm_state == commstate
 
         self.wait_true(partial(status_check, sdk.DeviceCommState.Disconnected))
         time.sleep(0.1)
@@ -981,10 +989,10 @@ class TestClient(ScrutinyUnitTest):
         alias_var1 = self.client.watch('/a/b/alias_var1')
 
         def sfd_loaded_check():
-            return self.client.server.sfd is not None
+            return self.client.get_server_status().sfd is not None
 
         def sfd_unloaded_check():
-            return self.client.server.sfd is None
+            return self.client.get_server_status().sfd is None
 
         def unload_sfd():
             self.sfd_handler.unload()
@@ -995,7 +1003,7 @@ class TestClient(ScrutinyUnitTest):
         alias_var1_counter = alias_var1.update_counter
         self.set_value_and_wait_update(rpv1000, 1.234)
         self.set_value_and_wait_update(var1, 0x1234)
-        alias_var1.wait_update(previous_counter=alias_var1_counter)
+        alias_var1.wait_update(previous_counter=alias_var1_counter, timeout=2)
 
         self.execute_in_server_thread(unload_sfd)
         self.wait_true(sfd_unloaded_check)

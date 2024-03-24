@@ -8,6 +8,8 @@
 
 from setuptools import setup, find_packages
 import scrutiny
+import sys
+import os
 
 dependencies = [
     'appdirs>=1.4.4',
@@ -16,6 +18,11 @@ dependencies = [
     'sortedcontainers>=2.4',
     'pyserial>=3.5'
 ]
+
+doc_dependencies = []
+if (sys.version_info.major, sys.version_info.minor) >= (3, 9):
+    with open(os.path.join(os.path.dirname(__file__), 'scrutiny', 'sdk', 'docs', 'requirements.txt')) as f:
+        doc_dependencies = [d.strip() for d in f.read().splitlines() if d]
 
 setup(
     name=scrutiny.__name__,
@@ -31,8 +38,8 @@ setup(
     setup_requires=[],
     install_requires=dependencies,
     extras_require={
-        'test': ['mypy', 'coverage'],
-        'dev': ['mypy', 'ipdb', 'autopep8', 'coverage']
+        'test': ['mypy', 'coverage'] + doc_dependencies,
+        'dev': ['mypy', 'ipdb', 'autopep8', 'coverage'] + doc_dependencies
     },
     entry_points={
         "console_scripts": [

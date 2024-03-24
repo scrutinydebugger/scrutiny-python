@@ -45,7 +45,7 @@ class DataSeries:
     logged_element: str
     """The server element that was the source of the data. Path to a variable, alias or RPV (Runtime Published Value)"""
     data: List[float]
-    """The data stored as a list of float"""
+    """The data stored as a list of 64 bits float"""
 
     def __init__(self, data: List[float] = [], name: str = "unnamed", logged_element: str = ""):
         self.name = name
@@ -88,7 +88,7 @@ class DataSeriesWithAxis:
 class DataloggingAcquisition:
     """Represent an acquisition of multiple signals"""
 
-    name: Optional[str]
+    name: Optional[str] 
     """A display name associated with the acquisition for easier management"""
 
     reference_id: str
@@ -110,7 +110,7 @@ class DataloggingAcquisition:
     """Sample index of the trigger"""
 
     firmware_name: Optional[str]
-    """The firmware name taken from the metadata of the SFD loaded when the acquisition was made. `None` if it is not available"""
+    """The firmware name taken from the metadata of the SFD loaded when the acquisition was made. ``None`` if it is not available"""
 
     def __init__(self,
                  firmware_id: str,
@@ -204,6 +204,10 @@ class DataloggingAcquisition:
             writer.writerow([self.xdata.data[i]] + [ydata.series.data[i] for ydata in self.ydata] + trigger_val)
 
     def to_csv(self, filename: str) -> None:
+        """Export a DataloggingAcquisition content to a csv file
+
+        :param filename: The file to write to
+        """
         with open(filename, 'w', encoding='utf8', newline='') as f:
             writer = csv.writer(f, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
             self.write_csv(writer)

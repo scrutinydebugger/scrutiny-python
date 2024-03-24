@@ -1,0 +1,27 @@
+.bd-page-width {
+    max-width: 100%;  /* default is 88rem */
+  }
+
+  .bd-sidebar-primary  .sidebar-primary-items__end {
+    margin-top:0 ;   /* Fix a bug where the scroll bar always appear*/
+  }
+
+  /* Override some theme settings */
+
+  dl.class dl.property {
+    margin-bottom: 0 !important;
+  }
+
+  dl.py.class, 
+  dl.py.attribute, 
+  dl.py.method {
+    margin-bottom: 1rem !important;
+  }
+
+  /* :not(:target) prevents to override the highlighting of the selected item*/
+  dl.py.class > dt.sig:not(:target),
+  dl.py.method > dt.sig:not(:target)
+  {
+    /*Autodoc title gets a background color. */
+    background-color: var(--pst-color-surface);
+  }

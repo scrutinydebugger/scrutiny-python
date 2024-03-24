@@ -23,8 +23,13 @@ from scrutiny.core import validation
 
 @dataclass(frozen=True)
 class MemoryRegion:
+    """(Immutable struct) 
+    Represent a memory region spanning from ``start`` to ``start+size-1``"""
+
     start: int
+    """Start address of the region"""
     size: int
+    """Size in bytes of the region"""
 
     def __post_init__(self) -> None:
         validation.assert_int_range(self.start, 'start', minval=0)
@@ -48,8 +53,13 @@ class MemoryRegion:
 
 
 class Endianness(Enum):
+    """(Enum) Represent an data storage endianness"""
+
     Little = 0
+    """Litle endian. 0x12345678 is stored as 78 56 34 12 """
+
     Big = 1
+    """Big endian. 0x12345678 is stored as 12 34 56 78 """
 
 
 class DataTypeType(Enum):
@@ -74,6 +84,7 @@ class DataTypeSize(Enum):
 
 class EmbeddedDataType(Enum):
     """
+    (Enum)
     Represent a datatype that can be read from a device.
     The embedded library has the same definition of datatype as this one. They needs to match.
     Not all datatype are supported.  (cfloat or >64 bits)
@@ -112,22 +123,26 @@ class EmbeddedDataType(Enum):
     NA = DataTypeType._NA.value | DataTypeSize._NA.value
 
     def get_size_bit(self) -> int:
+        """Return the size fo the datatype in bits. Returns 0 if NA"""
         v = self.get_size_byte()
         return v * 8
 
     def get_size_byte(self) -> int:
+        """Return the size fo the datatype in bytes. Returns 0 if NA"""
         vbytes = (self.value & 0xF)
         if DataTypeSize(vbytes) == DataTypeSize._NA:
             return 0
         return 1 << vbytes
 
     def is_integer(self) -> bool:
+        """Tells if the datatype is an integer type (sint or uint)"""
         type_type = self.value & 0xF0
         if type_type in (DataTypeType._sint.value, DataTypeType._uint.value):
             return True
         return False
 
     def is_float(self) -> bool:
+        """Tells if a datatype is a floating point value (float)"""
         type_type = self.value & 0xF0
         # Cfloat???
         if type_type in (DataTypeType._float.value, DataTypeType._cfloat.value):
@@ -135,31 +150,30 @@ class EmbeddedDataType(Enum):
         return False
 
     def is_signed(self) -> bool:
+        """Tells if the datatype support a sign (sint, float, cfloat)"""
         type_type = self.value & 0xF0
         if type_type in (DataTypeType._sint.value, DataTypeType._float.value, DataTypeType._cfloat.value):
             return True
         return False
 
 
+@dataclass(frozen=True)
 class RuntimePublishedValue:
-    """
-    A Runtime Published Value (RPV) is on of the basic element that can be read from a target device.
+    """ 
+    (Immutable struct) A Runtime Published Value (RPV) is on of the basic element that can be read from a target device.
     RPVs are defined in the embedded code and known by the server by polling the device.
     They don't have a name, they are identified by a 16bits identifier.
     The user can add an Alias on a RPV to assign them a name
     """
+
     id: int
+    """RPV ID (16bits)"""
     datatype: EmbeddedDataType
+    """The data type of the value"""
 
-    def __init__(self, id: int, datatype: Union[EmbeddedDataType, int]) -> None:
-        if id < 0 or id > 0xFFFF:
-            raise ValueError('RuntimePublishedValue ID out of range (0x0000-0xFFFF). 0x%X' % id)
-
-        if isinstance(datatype, int):
-            datatype = EmbeddedDataType(datatype)
-
-        self.id = id
-        self.datatype = datatype
+    def __post_init__(self) -> None:
+        validation.assert_int_range(self.id, 'id', 0, 0xFFFF)
+        validation.assert_type(self.datatype, 'datatype', EmbeddedDataType)
 
     def __repr__(self) -> str:
         return "<%s: 0x%x (%s) at 0x%016x>" % (self.__class__.__name__, self.id, self.datatype.name, id(self))

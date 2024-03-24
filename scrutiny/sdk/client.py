@@ -139,7 +139,7 @@ class BatchWriteContext:
     def __enter__(self) -> "BatchWriteContext":
         return self
 
-    def __exit__(self, exc_type: Optional[Type[BaseException]], exc_val:Optional[BaseException], exc_tb:Optional[types.TracebackType]) -> Literal[False]:
+    def __exit__(self, exc_type: Optional[Type[BaseException]], exc_val: Optional[BaseException], exc_tb: Optional[types.TracebackType]) -> Literal[False]:
         if exc_type is None:
             self.client._flush_batch_write(self)
             try:
@@ -180,7 +180,7 @@ class ScrutinyClient:
             self.require_sync = threading.Event()
 
     _name: Optional[str]        # Name of the client instance
-    _server_state: ServerState  # State of the communication with the server. Conencted/disconnected/connecting, etc
+    _server_state: ServerState  # State of the communication with the server. Connected/disconnected/connecting, etc
     _hostname: Optional[str]    # Hostname of the server
     _port: Optional[int]        # Port number of the server
     _logger: logging.Logger     # logging interface
@@ -217,19 +217,27 @@ class ScrutinyClient:
     _last_device_session_id: Optional[str]  # The last device session ID observed. Used to detect disconnection/reconnection
     _last_sfd_firmware_id: Optional[str]    # The last loaded SFD seen. Used to detect change in SFD
 
-    def __enter__(self) -> "ScrutinyClient" :
+    def __enter__(self) -> "ScrutinyClient":
         return self
 
-    def __exit__(self, exc_type: Optional[Type[BaseException]], exc_val:Optional[BaseException], exc_tb:Optional[types.TracebackType]) -> Literal[False]:
+    def __exit__(self, exc_type: Optional[Type[BaseException]], exc_val: Optional[BaseException], exc_tb: Optional[types.TracebackType]) -> Literal[False]:
         self.disconnect()
         return False
 
     def __init__(self,
                  name: Optional[str] = None,
                  rx_message_callbacks: Optional[List[RxMessageCallback]] = None,
-                 timeout:float=4.0,
-                 write_timeout:float=5.0
+                 timeout: float = 4.0,
+                 write_timeout: float = 5.0
                  ):
+        """ 
+            Creates a client that can communicate with a Scrutiny server
+
+            :param name: Name of the client. Used for logging
+            :param rx_message_callbacks: A callback to call each time a server message is received. Called from a separate thread. Mainly used for debugging and testing
+            :param timeout: Default timeout to use when making a request to the server
+            :param write_timeout: Default timeout to use when writing to the device memory
+        """
         logger_name = self.__class__.__name__
         if name is not None:
             logger_name += f"[{name}]"
@@ -832,13 +840,14 @@ class ScrutinyClient:
 
     # === User API ====
 
-    def connect(self, hostname: str, port: int, **kwargs:Dict[str, Any]) -> "ScrutinyClient":
+    def connect(self, hostname: str, port: int, wait_status: bool = True, **kwargs: Dict[str, Any]) -> "ScrutinyClient":
         """Connect to a Scrutiny server through a websocket. Extra kwargs are passed down to `websockets.sync.client.connect()`
 
         :param hostname: The hostname or ip address of the server
         :param port: The listening port of the server
+        :param wait_status: Wait for a server status update after the websocket connection is established. Ensure that a value is available when calling :meth:`get_server_status()<get_server_status>`
 
-        :raises ``scrutiny.sdk.exceptions.ConnectionError``: In case of failure
+        :raise ConnectionError: In case of failure
         """
         self.disconnect()
 
@@ -861,7 +870,9 @@ class ScrutinyClient:
         if connect_error is not None:
             self.disconnect()
             raise sdk.exceptions.ConnectionError(f'Failed to connect to the server at "{uri}". Error: {connect_error}')
-
+        else:
+            if wait_status:
+                self.wait_server_status_update()
         return self
 
     def disconnect(self) -> None:
@@ -885,7 +896,7 @@ class ScrutinyClient:
 
         :param path: The path of the element to watch
 
-        :raise sdk.exception.OperationFailure: If the watch request fails to complete
+        :raise OperationFailure: If the watch request fails to complete
         :raise TypeError: Given parameter not of the expected type
 
         :return: A handle that can read/write the watched element.
@@ -939,17 +950,21 @@ class ScrutinyClient:
 
         return watchable
 
-    def unwatch(self, path: str) -> None:
-        """Stop watching a watchable element identified by its display path (tree-like path)
+    def unwatch(self, watchable_ref: Union[str, WatchableHandle]) -> None:
+        """Stop watching a watchable element
 
-        :param path: The tree-like path of the watchable element
+        :param watchable_ref: The tree-like path of the watchable element or the handle to it
 
-        :raises ValueError: If path is not valid
+        :raise ValueError: If path is not valid
         :raise TypeError: Given parameter not of the expected type
-        :raises NameNotFoundError: If the required path is not presently being watched
-        :raises OperationFailure: If the subscription cancellation failed in any way
+        :raise NameNotFoundError: If the required path is not presently being watched
+        :raise OperationFailure: If the subscription cancellation failed in any way
         """
-        validation.assert_type(path, 'path', str)
+        validation.assert_type(watchable_ref, 'watchable_ref', (str, WatchableHandle))
+        if isinstance(watchable_ref, WatchableHandle):
+            path = watchable_ref.display_path
+        else:
+            path = watchable_ref
 
         watchable: Optional[WatchableHandle] = None
         with self._main_lock:
@@ -1008,7 +1023,7 @@ class ScrutinyClient:
 
         :raise TypeError: Given parameter not of the expected type
         :raise ValueError: Given parameter has an invalid value
-        :raises sdk.exceptions.TimeoutException: If not all watched elements gets updated in time
+        :raise TimeoutException: If not all watched elements gets updated in time
         """
         timeout = validation.assert_float_range(timeout, 'timeout', minval=0)
         counter_map: Dict[str, Optional[int]] = {}
@@ -1025,13 +1040,13 @@ class ScrutinyClient:
             watchable_storage_copy[server_id].wait_update(previous_counter=counter_map[server_id], timeout=timeout_remainder)
 
     def wait_server_status_update(self, timeout: float = _UPDATE_SERVER_STATUS_INTERVAL + 0.5) -> None:
-        """Wait for the a server status update
+        """Wait for the server to broadcast a status update. Happens periodically
 
         :param timeout: Amount of time to wait for the update
 
         :raise TypeError: Given parameter not of the expected type
         :raise ValueError: Given parameter has an invalid value
-        :raises sdk.exceptions.TimeoutException: Server status update did not occurred within the timeout time
+        :raise TimeoutException: Server status update did not occurred within the timeout time
         """
         timeout = validation.assert_float_range(timeout, 'timeout', minval=0)
         self._threading_events.server_status_updated.clear()
@@ -1044,12 +1059,12 @@ class ScrutinyClient:
         """Starts a batch write. Write operations will be enqueued and committed together.
         Every write is guaranteed to be executed in the right order
 
-        :param timeout: Amount of time to wait for the completion of the batch once committed. If `None`, the default write timeout
-        will be used.
+        :param timeout: Amount of time to wait for the completion of the batch once committed. If ``None`` the default write timeout
+            will be used.
 
         :raise TypeError: Given parameter not of the expected type
         :raise ValueError: Given parameter has an invalid value
-        :raises sdk.exceptions.OperationFailure: Failed to complete the batch write
+        :raise OperationFailure: Failed to complete the batch write
 
         """
         timeout = validation.assert_float_range_if_not_none(timeout, 'timeout', minval=0)
@@ -1067,9 +1082,9 @@ class ScrutinyClient:
     def get_installed_sfds(self) -> Dict[str, sdk.SFDInfo]:
         """Gets the list of Scrutiny Firmware Description file installed on the server
 
-        :raises sdk.exceptions.OperationFailure: Failed to get the SFD list
+        :raise OperationFailure: Failed to get the SFD list
 
-        :return: A dictionary mapping firmware IDS (hash) to a `SFDInfo` structure
+        :return: A dictionary mapping firmware IDS (hash) to a :class:`SFDInfo<scrutiny.sdk.SFDInfo>` structure
         """
         req = self._make_request(API.Command.Client2Api.GET_INSTALLED_SFD)
 
@@ -1095,9 +1110,9 @@ class ScrutinyClient:
     def wait_process(self, timeout: Optional[float] = None) -> None:
         """Wait for the SDK thread to execute fully at least once. Useful for testing
 
-        :param timeout: Amount of time to wait for the completion of the thread loops. If `None`, the default timeout will be used.
+        :param timeout: Amount of time to wait for the completion of the thread loops. If ``None`` the default timeout will be used.
 
-        :raises sdk.exceptions.TimeoutException: Worker thread does not complete a full loop within the given timeout
+        :raise TimeoutException: Worker thread does not complete a full loop within the given timeout
         """
 
         timeout = validation.assert_float_range_if_not_none(timeout, 'timeout', minval=0)
@@ -1115,12 +1130,12 @@ class ScrutinyClient:
 
         :param address: The start address of the region to read
         :param size: The size of the region to read, in bytes.
-        :param timeout: Maximum amount of time to wait to get the data back. If `None`, the default timeout value will be used
+        :param timeout: Maximum amount of time to wait to get the data back. If ``None``, the default timeout value will be used
 
         :raise TypeError: Given parameter not of the expected type
         :raise ValueError: Given parameter has an invalid value
-        :raises sdk.exceptions.OperationFailure: Failed to complete the reading
-        :raises sdk.exceptions.TimeoutException: If the read operation does not complete within the given timeout value
+        :raise OperationFailure: Failed to complete the reading
+        :raise TimeoutException: If the read operation does not complete within the given timeout value
         """
 
         validation.assert_int_range(address, 'address', minval=0)
@@ -1182,12 +1197,12 @@ class ScrutinyClient:
 
         :param address: The start address of the region to read
         :param data: The data to write
-        :param timeout: Maximum amount of time to wait to get the data back. If `None`, the default write timeout value will be used
+        :param timeout: Maximum amount of time to wait to get the write completion confirmation. If ``None``, the default write timeout value will be used
 
         :raise TypeError: Given parameter not of the expected type
         :raise ValueError: Given parameter has an invalid value
-        :raises sdk.exceptions.OperationFailure: Failed to complete the reading
-        :raises sdk.exceptions.TimeoutException: If the read operation does not complete within the given timeout value
+        :raise OperationFailure: Failed to complete the reading
+        :raise TimeoutException: If the read operation does not complete within the given timeout value
 
         """
 
@@ -1247,7 +1262,7 @@ class ScrutinyClient:
         """Gets the device capabilities in terms of datalogging. This information include the available sampling rates, the datalogging buffer size, 
         the data encoding format and the maximum number of signals 
 
-        :raises sdk.exceptions.OperationFailure: If the request to the server fails
+        :raise OperationFailure: If the request to the server fails
 
         :return: The datalogging capabilities
         """
@@ -1277,9 +1292,9 @@ class ScrutinyClient:
         """Reads a datalogging acquisition from the server storage identified by its reference ID
 
         :param reference_id: The acquisition unique ID
-        :param timeout: The request timeout value. The default client timeout will be used if set to `None`. Defaults to `None`.
+        :param timeout: The request timeout value. The default client timeout will be used if set to ``None`` Defaults to ``None``
 
-        :raises sdk.exceptions.OperationFailure: If fetching the acquisition fails
+        :raise OperationFailure: If fetching the acquisition fails
 
         :return: An object containing the acquisition, including the data, the axes, the trigger index, the graph name, etc
         """
@@ -1320,9 +1335,9 @@ class ScrutinyClient:
 
         :param config: The datalogging configuration including sampling rate, signals to log, trigger condition and operands, etc.
 
-        :raises sdk.exceptions.OperationFailure: If the request to the server fails
-        :raises ValueError: Bad parameter value
-        :raises TypeError: Given parameter not of the expected type
+        :raise OperationFailure: If the request to the server fails
+        :raise ValueError: Bad parameter value
+        :raise TypeError: Given parameter not of the expected type
 
         :return: A `DataloggingRequest` handle that can provide the status of the acquisition process and used to fetch the data.
          """
@@ -1374,9 +1389,9 @@ class ScrutinyClient:
     def list_stored_datalogging_acquisitions(self, timeout: Optional[float] = None) -> List[sdk.datalogging.DataloggingStorageEntry]:
         """Gets the list of datalogging acquisition stored in the server database
 
-        :param timeout: The request timeout value. The default client timeout will be used if set to `None`. Defaults to `None`.
+        :param timeout: The request timeout value. The default client timeout will be used if set to ``None`` Defaults to ``None``
 
-        :raises sdk.exceptions.OperationFailure: If fetching the list fails
+        :raise OperationFailure: If fetching the list fails
 
         :return: A list of database entries, each one representing an acquisition in the database with `reference_id` as its unique identifier
         """
@@ -1414,14 +1429,14 @@ class ScrutinyClient:
         connect to it and inform the client about it. The `client.server.server_state.device_comm_state` will reflect this.
 
         :param link_type: Type of communication link to use. Serial, UDP, TCP, etc.
-        :param link_config:  A configuration object that matches the link type. 
-            - sdk.DeviceLinkType.UDP : UDPLinkConfig
-            - sdk.DeviceLinkType.TCP : TCPLinkConfig
-            - sdk.DeviceLinkType.Serial : SerialLinkConfig
+        :param link_config:  A configuration object that matches the link type.
+            :attr:`UDP<scrutiny.sdk.DeviceLinkType.UDP>` : :class:`UDPLinkConfig<scrutiny.sdk.UDPLinkConfig>` /
+            :attr:`TCP<scrutiny.sdk.DeviceLinkType.TCP>` : :class:`TCPLinkConfig<scrutiny.sdk.TCPLinkConfig>` /
+            :attr:`Serial<scrutiny.sdk.DeviceLinkType.Serial>` : :class:`SerialLinkConfig<scrutiny.sdk.SerialLinkConfig>`
 
-        :raises sdk.exceptions.OperationFailure: If the request to the server fails
-        :raises ValueError: Bad parameter value
-        :raises TypeError: Given parameter not of the expected type
+        :raise ValueError: Bad parameter value
+        :raise TypeError: Given parameter not of the expected type
+        :raise OperationFailure: If the request to the server fails
         """
 
         validation.assert_type(link_type, "link_type", sdk.DeviceLinkType)
@@ -1460,6 +1475,17 @@ class ScrutinyClient:
                 f"Failed to configure the device communication link'. {future.error_str}")
 
     def user_command(self, subfunction: int, data: bytes = bytes()) -> sdk.UserCommandResponse:
+        """
+        Sends a UserCommand request to the device with the given subfunction and data. UserCommand is a request that calls a user defined callback
+        in the device firmware. It allows a developer to take advantage of the scrutiny protocol to communicate non-scrutiny data with its device.
+
+        :param subfunction: Subfunction of the request. From 0x0 to 0x7F
+        :param data: The payload to send to the device
+
+        :raise ValueError: Bad parameter value
+        :raise TypeError: Given parameter not of the expected type
+        :raise OperationFailure: If the command completion fails
+        """
         validation.assert_int_range(subfunction, 'subfunction', 0, 0xFF)
         validation.assert_type(data, 'data', bytes)
 
@@ -1487,6 +1513,24 @@ class ScrutinyClient:
 
         return cb_data.obj
 
+    def get_server_status(self) -> ServerInfo:
+        """Returns an immutable structure of data containing the latest server status that has been broadcasted.
+          It contains everything going on the server side
+
+        :raise ConnectionError: If the connection to the server is lost
+        :raise InvalidValueError: If the server status is not available (never received it).
+        """
+
+        # server_info is readonly and only its reference gets changed when updated.
+        # We can safely return a reference here. The user can't mess it up
+        with self._main_lock:
+            if not self._server_state == ServerState.Connected:
+                raise sdk.exceptions.ConnectionError(f"Disconnected from server")
+            info = self._server_info
+        if info is None:
+            raise sdk.exceptions.InvalidValueError("Server status is not available")
+        return info
+
     @property
     def name(self) -> str:
         return '' if self._name is None else self.name
@@ -1497,16 +1541,6 @@ class ScrutinyClient:
         with self._main_lock:
             val = self._server_state  # Can be modified by the worker_thread
         return val
-
-    @property
-    def server(self) -> Optional[ServerInfo]:
-        """Information about everything going on the server side"""
-
-        # server_info is readonly and only its reference gets changed when updated.
-        # We can safely return a reference here. The user can't mess it up
-        with self._main_lock:
-            info = self._server_info
-        return info
 
     @property
     def hostname(self) -> Optional[str]:

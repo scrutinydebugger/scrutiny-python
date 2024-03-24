@@ -115,49 +115,78 @@ class WatchableHandle:
     def unwatch(self) -> None:
         """Stop watching this item by unsubscribing to the server
 
-        :raises NameNotFoundError: If the required path is not presently being watched
-        :raises OperationFailure: If the subscription cancellation failed in any way
+        :raise NameNotFoundError: If the required path is not presently being watched
+        :raise OperationFailure: If the subscription cancellation failed in any way
         """
         self._client.unwatch(self._display_path)
 
-    def wait_update(self, timeout: float = 3, previous_counter: Optional[int] = None) -> None:
+    def wait_update(self, timeout: float, previous_counter: Optional[int] = None, sleep_interval: float = 0.02) -> None:
         """Wait for the value to be updated by the server
 
         :param timeout: Amount of time to wait for a value update
-        :param previous_counter: Optional update counter to use for change detection. 
+        :param previous_counter: Optional update counter to use for change detection. Can be set to ``update_counter+N`` to wait for N updates
+        :param sleep_interval: Value passed to ``time.sleep`` while waiting
 
+        :raise TypeError: Given parameter not of the expected type
+        :raise ValueError: Given parameter has an invalid value
         :raise InvalidValueError: If the watchable becomes invalid while waiting
-        :raise TimeoutException: If not value update happens within the given timeout
+        :raise TimeoutException: If no value update happens within the given timeout
         """
 
         timeout = validation.assert_float_range(timeout, 'timeout', minval=0)
         validation.assert_int_range_if_not_none(previous_counter, 'previous_counter', minval=0)
 
-        t = time.time()
+        t1 = time.monotonic()
         entry_counter = self._update_counter if previous_counter is None else previous_counter
-        happened = False
-        while time.time() - t < timeout:
+        while True:
+
+            if time.monotonic() - t1 > timeout:
+                raise sdk_exceptions.TimeoutException(f'Value of {self._shortname} did not update in {timeout}s')
 
             if self._status != ValueStatus.NeverSet and self._status != ValueStatus.Valid:
                 raise sdk_exceptions.InvalidValueError(self._status._get_error())
 
             if entry_counter != self._update_counter:
-                happened = True
                 break
 
-            time.sleep(0.02)
+            time.sleep(sleep_interval)
 
-        if not happened:
-            raise sdk_exceptions.TimeoutException(f'Value of {self._shortname} did not update in {timeout}s')
+    def wait_value(self, value: ValType, timeout: float, sleep_interval: float = 0.02) -> None:
+        """ 
+        Wait for the watchable to reach a given value. Raises an exception if it does not happen within a timeout value
 
-    @property
-    def value(self) -> ValType:
-        """The last value received for this watchable"""
-        return self._read()
+        :param value: The value that this watchable must have to exit the wait state
+        :param timeout: Maximum amount of time to wait for the given value
+        :param sleep_interval: Value passed to ``time.sleep`` while waiting
 
-    @value.setter
-    def value(self, val: ValType) -> None:
-        self._write(val)
+        :raise TypeError: Given parameter not of the expected type
+        :raise ValueError: Given parameter has an invalid value
+        :raise InvalidValueError: If the watchable becomes invalid while waiting
+        :raise TimeoutException: If the watchable value never changes for the given value within the given timeout
+        """
+
+        timeout = validation.assert_float_range(timeout, 'timeout', minval=0)
+        sleep_interval = validation.assert_float_range(sleep_interval, 'timeout', minval=0)
+
+        if value < 0 and not self.datatype.is_signed():
+            raise ValueError(f"{self._shortname} is unsigned and will never have a negative value as requested")
+
+        t1 = time.monotonic()
+        while True:
+            if time.monotonic() - t1 > timeout:
+                raise sdk_exceptions.TimeoutException(f'Value of {self._shortname} did set to {value} in {timeout}s')
+
+            if self.datatype.is_float():
+                if float(value) == self.value_float:
+                    break
+            elif self.datatype.is_integer():
+                if int(value) == self.value_int:
+                    break
+            elif self.datatype == EmbeddedDataType.boolean:
+                if bool(value) == self.value_bool:
+                    break
+
+            time.sleep(sleep_interval)
 
     @property
     def display_path(self) -> str:
@@ -173,6 +202,20 @@ class WatchableHandle:
     def type(self) -> WatchableType:
         """The watchable type. Variable, Alias or RuntimePublishedValue"""
         return self._watchable_type
+
+    @property
+    def datatype(self) -> EmbeddedDataType:
+        """The data type of the device element pointed by this watchable. (sint16, float32, etc.)"""
+        return self._datatype
+
+    @property
+    def value(self) -> ValType:
+        """The last value received for this watchable"""
+        return self._read()
+
+    @value.setter
+    def value(self, val: ValType) -> None:
+        self._write(val)
 
     @property
     def value_bool(self) -> bool:
@@ -191,18 +234,13 @@ class WatchableHandle:
 
     @property
     def last_update_timestamp(self) -> Optional[datetime]:
-        """Time of the last value update. Not reliable for change detection"""
+        """Time of the last value update. ``None`` if not updated at least once. Not reliable for change detection"""
         return self._last_value_dt
 
     @property
     def last_write_timestamp(self) -> Optional[datetime]:
-        """Time of the last successful write operation."""
+        """Time of the last successful write operation. ``None`` if never written"""
         return self._last_write_dt
-
-    @property
-    def datatype(self) -> EmbeddedDataType:
-        """The data type of the device element pointed by this watchable"""
-        return self._datatype
 
     @property
     def update_counter(self) -> int:

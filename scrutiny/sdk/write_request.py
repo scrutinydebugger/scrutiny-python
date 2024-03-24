@@ -50,8 +50,8 @@ class WriteRequest:
     def wait_for_completion(self, timeout: float = 5) -> None:
         """Wait for the write request to get completed. 
 
-        :raises sdk.TimeoutException: If the request does not complete within the allowed time
-        :raises sdk.OperationFailure: If the request complete with a failure state
+        :raise TimeoutException: If the request does not complete within the allowed time
+        :raise OperationFailure: If the request complete with a failure state
         """
         self._completed_event.wait(timeout=timeout)
         if not self._completed:

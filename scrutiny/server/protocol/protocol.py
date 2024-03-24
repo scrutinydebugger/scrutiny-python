@@ -917,7 +917,7 @@ class Protocol:
                         nbr_rpv = len(response.payload) // n
                         for i in range(nbr_rpv):
                             vid, typeint, = unpack('>HB', response.payload[i * n + 0:i * n + n])
-                            data['rpvs'].append(RuntimePublishedValue(id=vid, datatype=typeint))
+                            data['rpvs'].append(RuntimePublishedValue(id=vid, datatype=EmbeddedDataType(typeint)))
 
                     elif subfn == cmd.GetInfo.Subfunction.GetLoopCount:
                         data = cast(protocol_typing.Response.GetInfo.GetLoopCount, data)

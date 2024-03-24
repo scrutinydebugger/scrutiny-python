@@ -19,13 +19,23 @@ class Alias:
     Represent an Alias. Read/write to an alias are deferred to another object (either a Variable or a Runtime Published Value)
     Some optional value modifier will be applied (gain, offset, min, max)
     """
+
     fullpath: str
+    """Path used for access"""
     target: str
+    """Path to the pointed element (variable or RPV)"""
+
     target_type: Optional[EntryType]
+    """Type of watchable pointed (RPV or Variable)"""
+
     gain: Optional[float]
+    """Optional multiplier to apply on the value. 1 if ``None``"""
     offset: Optional[float]
+    """Optional offset to apply on the value. 0 if ``None``"""
     min: Optional[float]
+    """Optional max to apply on the value. +inf if ``None``"""
     max: Optional[float]
+    """Optional min to apply on the value. -inf if ``None``"""
 
     @classmethod
     def from_json(cls, fullpath: str, json_str: str) -> 'Alias':

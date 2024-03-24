@@ -50,28 +50,44 @@ SerialParity = Literal["none", "even", "odd", "mark", "space"]
 
 
 class ServerState(enum.Enum):
+    """(Enum) The state of the connection between the client and the server"""
+
     Disconnected = 0
+    """Disconnected from the server"""
     Connecting = 1
+    """Client is trying to connect, full TCP handshake is in progress"""
     Connected = 2
+    """Websocket is open and functional"""
     Error = -1
+    """The communication closed after an error"""
 
 
 class DeviceCommState(enum.Enum):
+    """(Enum) The state of the connection with the device"""
+
     NA = 0
     Disconnected = 1
+    """No device connected"""
     Connecting = 2
+    """Handshake in progress between the server and the device"""
     ConnectedReady = 3
+    """A device is connected and ready to respond to queries."""
 
 
 class WatchableType(enum.Enum):
+    """(Enum) Type of watchable available on the server"""
+
     NA = 0
     Variable = 1
+    """A variable found in the device firmware debug symbols"""
     RuntimePublishedValue = 2
+    """A readable/writable element identified by a 16bits ID. Explicitly defined in the device firmware source code"""
     Alias = 3
+    """A symbolic link watchable that can refers to a :attr:`Variable` or a :attr:`RuntimePublishedValue`"""
 
 
 class ValueStatus(enum.Enum):
-    """Represent the validity status of a watchable value"""
+    """(Enum) Represent the validity status of a watchable value"""
 
     Valid = 1
     """Value is valid"""
@@ -112,6 +128,8 @@ class ValueStatus(enum.Enum):
 
 
 class DataloggerState(enum.Enum):
+    """(Enum) The state in which the C++ datalogger inside the device firmware actually is"""
+
     NA = 0
     """The state is not available"""
     Standby = 1
@@ -127,18 +145,25 @@ class DataloggerState(enum.Enum):
 
 
 class DeviceLinkType(enum.Enum):
+    """(Enum) The type of communication link used between the server and the device"""
+
     _DummyThreadSafe = -2
     _Dummy = -1
     NA = 0
     UDP = 1
+    """UDP/IP socket"""
     TCP = 2
+    """TCP/IP Socket"""
     Serial = 3
+    """Serial port"""
     # CAN = 4 # Todo
     # SPI = 5 # Todo
 
 
 @dataclass(frozen=True)
 class SupportedFeatureMap:
+    """(Immutable struct) Represent the list of features that the connected device supports"""
+
     memory_write: bool
     """Indicates if the device allows write to memory"""
 
@@ -155,18 +180,18 @@ class SupportedFeatureMap:
 
 @dataclass(frozen=True)
 class DataloggingInfo:
-    """information about the datalogger that are volatile"""
+    """(Immutable struct) Information about the datalogger that are volatile"""
 
     state: DataloggerState
     """The state of the datalogger in the device"""
 
     completion_ratio: Optional[float]
-    """The completion ratio of the actually running acquisition. `None` if no acquisition being captured"""
+    """The completion ratio of the actually running acquisition. ``None`` if no acquisition being captured"""
 
 
 @dataclass(frozen=True)
 class DeviceInfo:
-    """Information about the device connected to the server"""
+    """(Immutable struct) Information about the device connected to the server"""
 
     device_id: str
     """A unique ID identifying the device and its software (Firmware ID). """
@@ -181,7 +206,7 @@ class DeviceInfo:
     """Maximum payload size that the device can receive"""
 
     max_bitrate_bps: Optional[int]
-    """Maximum bitrate between the device and the server. Requested by the device. `None` if no throttling is requested"""
+    """Maximum bitrate between the device and the server. Requested by the device. ``None`` if no throttling is requested"""
 
     rx_timeout_us: int
     """Amount of time without data being received that the device will wait to restart its reception state machine (new frame)"""
@@ -210,35 +235,41 @@ class DeviceInfo:
 
 @dataclass(frozen=True)
 class SFDGenerationInfo:
+    """(Immutable struct) Metadata relative to the generation of the SFD"""
+
     timestamp: Optional[datetime]
-    """Date/time at which the SFD has been created. `None` if not available"""
+    """Date/time at which the SFD has been created ``None`` if not available"""
     python_version: Optional[str]
-    """Python version with which the SFD has been created. `None` if not available"""
+    """Python version with which the SFD has been created ``None`` if not available"""
     scrutiny_version: Optional[str]
-    """Scrutiny version with which the SFD has been created. `None` if not available"""
+    """Scrutiny version with which the SFD has been created ``None`` if not available"""
     system_type: Optional[str]
-    """Type of system on which the SFD has been created. Value given by Python `platform.system()`. `None` if not available"""
+    """Type of system on which the SFD has been created. Value given by Python `platform.system()`. ``None`` if not available"""
 
 
 @dataclass(frozen=True)
 class SFDMetadata:
+    """(Immutable struct) All the metadata associated with a Scrutiny Firmware Description"""
+
     project_name: Optional[str]
-    """Name of the project. `None` if not available"""
+    """Name of the project. ``None`` if not available"""
     author: Optional[str]
-    """The author of this firmware. `None` if not available"""
+    """The author of this firmware. ``None`` if not available"""
     version: Optional[str]
-    """The version string of this firmware. `None` if not available"""
+    """The version string of this firmware. ``None`` if not available"""
     generation_info: Optional[SFDGenerationInfo]
-    """Metadata regarding the creation environment of the SFD file. `None` if not available"""
+    """Metadata regarding the creation environment of the SFD file. ``None`` if not available"""
 
 
 @dataclass(frozen=True)
 class SFDInfo:
+    """(Immutable struct) Represent a Scrutiny Firmware Description"""
+
     firmware_id: str
     """Unique firmware hash"""
 
     metadata: Optional[SFDMetadata]
-    """The firmware metadata embedded in the Scrutiny Firmware Description file"""
+    """The firmware metadata embedded in the Scrutiny Firmware Description file if available. ``None`` if no metadata has been added to the SFD"""
 
 
 class BaseLinkConfig(abc.ABC):
@@ -248,6 +279,8 @@ class BaseLinkConfig(abc.ABC):
 
 @dataclass(frozen=True)
 class UDPLinkConfig(BaseLinkConfig):
+    """(Immutable struct) The configuration structure for a device link of type :attr:`UDP<scrutiny.sdk.DeviceLinkType.UDP>`"""
+
     host: str
     """Target device hostname"""
     port: int
@@ -265,6 +298,8 @@ class UDPLinkConfig(BaseLinkConfig):
 
 @dataclass(frozen=True)
 class TCPLinkConfig(BaseLinkConfig):
+    """(Immutable struct)The configuration structure for a device link of type :attr:`TCP<scrutiny.sdk.DeviceLinkType.TCP>`"""
+
     host: str
     """Target device hostname"""
     port: int
@@ -282,8 +317,10 @@ class TCPLinkConfig(BaseLinkConfig):
 
 @dataclass(frozen=True)
 class SerialLinkConfig(BaseLinkConfig):
+    """(Immutable struct) The configuration structure for a device link of type :attr:`Serial<scrutiny.sdk.DeviceLinkType.Serial>`"""
+
     port: str
-    """Port name on the machine. COMX on Windows. /dev/xxx on *nix platforms"""
+    """Port name on the machine. COMX on Windows. /dev/xxx on posix platforms"""
     baudrate: int
     """Communication speed in baud/sec"""
     stopbits: SerialStopBits = '1'
@@ -315,6 +352,8 @@ SupportedLinkConfig = Union[UDPLinkConfig, TCPLinkConfig, SerialLinkConfig]
 
 @dataclass(frozen=True)
 class DeviceLinkInfo:
+    """(Immutable struct) Represent a communication link between the server and a device"""
+
     type: DeviceLinkType
     """Type of communication channel between the server and the device"""
     config: Optional[SupportedLinkConfig]
@@ -323,20 +362,22 @@ class DeviceLinkInfo:
 
 @dataclass(frozen=True)
 class ServerInfo:
+    """(Immutable struct) A summary of everything going on on the server side. Status broadcasted by the server to every client."""
+
     device_comm_state: DeviceCommState
     """Status of the communication between the server and the device"""
 
     device_session_id: Optional[str]
-    """A unique ID created each time a communication with the device is established. `None` when no communication with a device."""
+    """A unique ID created each time a communication with the device is established. ``None`` when no communication with a device."""
 
     device: Optional[DeviceInfo]
-    """Information about the connected device. `None` if no device is connected"""
+    """Information about the connected device. ``None`` if no device is connected"""
 
     datalogging: DataloggingInfo
     """Datalogging state"""
 
     sfd: Optional[SFDInfo]
-    """The Scrutiny Firmware Description file actually loaded on the server"""
+    """The Scrutiny Firmware Description file actually loaded on the server. ``None`` if none is loaded"""
 
     device_link: DeviceLinkInfo
     """Communication channel presently used to communicate with the device"""
@@ -344,6 +385,8 @@ class ServerInfo:
 
 @dataclass(frozen=True)
 class UserCommandResponse:
+    """(Immutable struct) Response returned by the device after performing a :meth:`ScrutinyClient.user_command<scrutiny.sdk.client.ScrutinyClient.user_command>`"""
+
     subfunction: int
     """The subfunction echoed by the device when sending a response"""
 

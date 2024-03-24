@@ -24,13 +24,13 @@ if TYPE_CHECKING:
 
 
 class DataloggingEncoding(enum.Enum):
-    """Defines the data format used to store the samples in the datalogging buffer"""
+    """(Enum) Defines the data format used to store the samples in the datalogging buffer"""
     RAW = 1
 
 
 @dataclass(frozen=True, init=False)
 class SamplingRate:
-    """Represent a sampling rate supported by the device"""
+    """(Immutable struct) Represent a sampling rate supported by the device"""
 
     identifier: int
     """The unique identifier of the sampling rate. Matches the embedded device index in the loop array set in the configuration"""
@@ -41,7 +41,7 @@ class SamplingRate:
 
 @dataclass(frozen=True)
 class FixedFreqSamplingRate(SamplingRate):
-    """Represent a fixed frequency sampling rate supported by the device"""
+    """(Immutable struct) Represent a fixed frequency sampling rate supported by the device"""
 
     frequency: float
     """The sampling rate frequency"""
@@ -54,7 +54,7 @@ class FixedFreqSamplingRate(SamplingRate):
 
 @dataclass(frozen=True)
 class VariableFreqSamplingRate(SamplingRate):
-    """Represent a variable frequency sampling rate supported by the device. Has no known frequency"""
+    """(Immutable struct) Represent a variable frequency sampling rate supported by the device. Has no known frequency"""
 
     def __post_init__(self) -> None:
         validation.assert_type(self.identifier, 'identifier', int)
@@ -63,7 +63,7 @@ class VariableFreqSamplingRate(SamplingRate):
 
 @dataclass(frozen=True)
 class DataloggingCapabilities:
-    """Tells what the device is able to achieve in terms of datalogging"""
+    """(Immutable struct) Tells what the device is able to achieve in terms of datalogging"""
 
     encoding: DataloggingEncoding
     """The encoding of data"""
@@ -87,7 +87,7 @@ class DataloggingCapabilities:
 
 
 class XAxisType(enum.Enum):
-    """Represent a type of X-Axis that a user can select"""
+    """(Enum) Represent a type of X-Axis that a user can select"""
 
     Indexed = "index"
     """No signal will be captured for the X-Axis and the returned X-Axis data will be the index of the samples"""
@@ -103,7 +103,7 @@ class XAxisType(enum.Enum):
 
 
 class TriggerCondition(enum.Enum):
-    """The type of trigger condition to use."""
+    """(Enum) The type of trigger condition to use."""
 
     AlwaysTrue = "true"
     """Always true. Triggers immediately after being armed"""
@@ -114,23 +114,23 @@ class TriggerCondition(enum.Enum):
     NotEqual = "neq"
     """Operand1 != Operand2 """
 
-    LessThan = "get"
+    LessThan = "lt"
     """Operand1 < Operand2 """
 
-    LessOrEqualThan = "gt"
+    LessOrEqualThan = "let"
     """Operand1 <= Operand2 """
 
-    GreaterThan = "let"
+    GreaterThan = "gt"
     """Operand1 > Operand2 """
 
-    GreaterOrEqualThan = "lt"
+    GreaterOrEqualThan = "get"
     """Operand1 >= Operand2 """
 
     ChangeMoreThan = "cmt"
-    """X=(Operand1[n]-Operand1[n-1]); |X| > |Operand2| && sign(X) == sign(Operand2) """
+    """X=(Operand1[n]-Operand1[n-1]); `|X|` > `|Operand2|` && sign(X) == sign(Operand2) """
 
     IsWithin = "within"
-    """|Operand1 - Operand2| < |Operand3| """
+    """`|Operand1 - Operand2|` < `|Operand3|` """
 
 
 @dataclass
@@ -169,6 +169,18 @@ class DataloggingConfig:
                  decimation: int = 1,
                  timeout: float = 0.0,
                  name: str = ''):
+        """Creates an instance of :class:`DataloggingConfig<DataloggingConfig>`
+
+        :param sampling_rate: The acquisition sampling rate. Can be the sampling rate ID in the device or an instance 
+            of :class:`SamplingRate<scrutiny.sdk.datalogging.SamplingRate>` gotten from the :class:`DataloggingCapabilities<scrutiny.sdk.datalogging.DataloggingCapabilities>` 
+            returned by :meth:`ScrutinyClient.get_datalogging_capabilities<scrutiny.sdk.client.ScrutinyClient.get_datalogging_capabilities>` 
+        :param decimation: The decimation factor that reduces the effective sampling rate
+        :param timeout: Timeout to the acquisition. After the datalogger is armed, it will forcefully trigger after this amount of time. 0 means no timeout
+        :param name: Name of the configuration. Save into the database for reference
+
+        :raise TypeError: Given parameter not of the expected type
+        :raise ValueError: Given parameter has an invalid value
+        """
 
         if isinstance(sampling_rate, SamplingRate):
             sampling_rate = sampling_rate.identifier
@@ -211,7 +223,7 @@ class DataloggingConfig:
         """Adds a Y axis to the acquisition.
         :param name: The name of the axis, for display purpose. 
 
-        :return: An `AxisDefinition` object that can be assigned to a signal when calling `add_signal()`
+        :return: An `AxisDefinition` object that can be assigned to a signal when calling :meth:`add_signal()<scrutiny.sdk.datalogging.DataloggingConfig.add_signal>`
         """
         validation.assert_type(name, 'name', str)
         axis = AxisDefinition(axis_id=self._next_axis_id, name=name)
@@ -226,13 +238,15 @@ class DataloggingConfig:
                    ) -> None:
         """Adds a signal to the acquisition
 
-        :param signal: The signal to add. Can either be a path to a var/rpv/alias (string) or a WatchableHandle given by `ScrutinyClient.watch()`
-        :param axis: The Y axis to assigned this signal to. Can either be the index (int) or the `AxisDefinition` object given by `add_axis()`
+        :param signal: The signal to add. Can either be a path to a var/rpv/alias (string) or a :class:`WatchableHandle<scrutiny.sdk.watchable_handle.WatchableHandle>` 
+            given by :meth:`ScrutinyClient.watch()<scrutiny.sdk.client.ScrutinyClient.watch>`
+        :param axis: The Y axis to assigned this signal to. Can either be the index (int) or the :class:`AxisDefinition<scrutiny.sdk.datalogging.AxisDefinition>` 
+            object given by :meth:`add_axis()<scrutiny.sdk.datalogging.DataloggingConfig.add_axis>`
         :param name: A display name for the signal
 
-        :raises IndexError: Invalid axis index
-        :raises ValueError: Bad parameter value
-        :raises TypeError: Given parameter not of the expected type
+        :raise IndexError: Invalid axis index
+        :raise ValueError: Bad parameter value
+        :raise TypeError: Given parameter not of the expected type
 
         """
         if isinstance(axis, int) and not isinstance(axis, bool):
@@ -268,28 +282,16 @@ class DataloggingConfig:
                           position: float = 0.5,
                           hold_time: float = 0
                           ) -> None:
-        """Configure the required conditions to fire the trigger event
+        r"""Configure the required conditions to fire the trigger event
 
         :param condition: The type of condition used for triggering the acquisition.   
-            - `AlwaysTrue`: Always true. Triggers immediately after being armed. Requires 0 operands
-            - `Equal`: Operand1 == Operand2. Requires 2 operands
-            - `NotEqual`: Operand1 != Operand2.Requires 2 operands
-            - `LessThan`: Operand1 < Operand2. Requires 2 operands
-            - `LessOrEqualThan`: Operand1 <= Operand2. Requires 2 operands
-            - `GreaterThan`: Operand1 > Operand2. Requires 2 operands
-            - `GreaterOrEqualThan`: Operand1 >= Operand2. Requires 2 operands
-            - `ChangeMoreThan`: X=(Operand1[n]-Operand1[n-1]); |X| > |Operand2| && sign(X) == sign(Operand2). Requires 2 operands          
-            - `IsWithin`: |Operand1 - Operand2| < |Operand3|. Requires 3 operands
-
-        :param operands: List of operands. Each operands can be a constant number (float), the path to a variable/rpv/alias (str) or a WatchableHandle
-            given by `ScrutinyClient.watch()`. The number of operands depends on the trigger condition
-
+        :param operands: List of operands. Each operands can be a constant number (float), the path to a variable/rpv/alias (str) or a :class:`WatchableHandle<scrutiny.sdk.watchable_handle.WatchableHandle>`
+            given by :meth:`ScrutinyClient.watch()<scrutiny.sdk.client.ScrutinyClient.watch>`. The number of operands depends on the trigger condition
         :param position: Position of the trigger event in the datalogging buffer. Value from 0 to 1, where 0 is leftmost, 0.5 middle and 1 rightmost.
-
         :param hold_time: Time in seconds that the trigger condition must evaluate to `true` before firing the trigger event.
 
-        :raises ValueError: Bad parameter value
-        :raises TypeError: Given parameter not of the expected type
+        :raise ValueError: Bad parameter value
+        :raise TypeError: Given parameter not of the expected type
         """
         if condition in [TriggerCondition.AlwaysTrue]:
             nb_operands = 0
@@ -335,16 +337,14 @@ class DataloggingConfig:
         """Configures the X-Axis
 
         :param axis_type: Type of X-Axis.  
-            - Indexed: X-Axis is the index of the sample starting from 0
-            - Measured Time: Time measured by the device. Takes a 32bits slot in the datalogging buffer
-            - Ideal Time: Only available for fixed frequency loops. Generates an ideal time axis based on the known frequency of the loops. 
-                Does not take space in the datalogging buffer
-            - Signal: Picks an arbitrary element (Variable, RPV or alias) as the X-Axis.
-        :param signal: The signal to be used for the X-Axis if its type is set to `Signal`. Ignored if the X-Axis type is not `Signal` 
+        :param signal: The signal to be used for the X-Axis if its type is set to :attr:`Signal<scrutiny.sdk.datalogging.XAxisType.Signal>`. 
+            Ignored if the X-Axis type is not :attr:`Signal<scrutiny.sdk.datalogging.XAxisType.Signal>`. Can be the path to a watchable or an instance 
+            of a :class:`WatchableHandle<scrutiny.sdk.watchable_handle.WatchableHandle>`
+            given by :meth:`ScrutinyClient.watch()<scrutiny.sdk.client.ScrutinyClient.watch>` 
         :param name: A display name for the X-Axis
 
-        :raises ValueError: Bad parameter value
-        :raises TypeError: Given parameter not of the expected type
+        :raise ValueError: Bad parameter value
+        :raise TypeError: Given parameter not of the expected type
         """
         validation.assert_type(axis_type, 'axis_type', XAxisType)
         validation.assert_type(name, 'name', (str, type(None)))
@@ -389,6 +389,7 @@ class DataloggingConfig:
 @dataclass(init=False)
 class DataloggingRequest:
     """Handle to a request for a datalogging acquisition. Gets updated by the client and reflect the actual status of the acquisition"""
+
     _client: "ScrutinyClient"
     _request_token: str
 
@@ -423,13 +424,14 @@ class DataloggingRequest:
         self._completed_event.set()
 
     def wait_for_completion(self, timeout: Optional[float] = None) -> None:
-        """Wait for the acquisition to be triggered and extracted by the server. Once this is done, the `acquisition_reference_id` will not be `None` anymore
+        """Wait for the acquisition to be triggered and extracted by the server. Once this is done, 
+        the :attr:`acquisition_reference_id<acquisition_reference_id>` will not be ``None`` anymore
         and its value will point to the database entry storing the data.
 
-        :params timeout: Maximum wait time in seconds. Waits forever if `None`
+        :params timeout: Maximum wait time in seconds. Waits forever if ``None``
 
-        :raises sdk.exceptions.TimeoutException: If the acquisition does not complete in less than the specified timeout value
-        :raises sdk.exceptions.OperationFailure: If an error happened that prevented the acquisition to successfully complete
+        :raise TimeoutException: If the acquisition does not complete in less than the specified timeout value
+        :raise OperationFailure: If an error happened that prevented the acquisition to successfully complete
         """
         timeout = validation.assert_float_range_if_not_none(timeout, 'timeout', minval=0)
         self._completed_event.wait(timeout=timeout)
@@ -441,14 +443,14 @@ class DataloggingRequest:
             raise sdk.exceptions.OperationFailure(f"Datalogging acquisition failed to complete. {self._failure_reason}")
 
     def fetch_acquisition(self, timeout: Optional[float] = None) -> DataloggingAcquisition:
-        """Download and returns an the acquisition data from the server. The acquisition must be complete
+        """Download and returns an acquisition data from the server. The acquisition must be complete
 
-        :params timeout: Timeout to get a response by the server in seconds. Uee the default timeout value if `None`
+        :params timeout: Timeout to get a response by the server in seconds. Uee the default timeout value if ``None``
 
-        :raises sdk.exceptions.TimeoutException: If the server does not respond in time
-        :raises sdk.exceptions.OperationFailure: If the acquisition is not complete or if an error happen while fetching the data
+        :raise TimeoutException: If the server does not respond in time
+        :raise OperationFailure: If the acquisition is not complete or if an error happen while fetching the data
 
-        :return: The `DataloggingAcquisition` object containing the acquired data
+        :return: The :class:`DataloggingAcquisition<scrutiny.core.datalogging.DataloggingAcquisition>` object containing the acquired data
 
         """
         timeout = validation.assert_float_range_if_not_none(timeout, 'timeout', minval=0)
@@ -462,15 +464,16 @@ class DataloggingRequest:
         return self._client.read_datalogging_acquisition(self._acquisition_reference_id, timeout)
 
     def wait_and_fetch(self, timeout: Optional[float] = None, fetch_timeout: Optional[float] = None) -> DataloggingAcquisition:
-        """Do successive calls to `wait_for_completion()` & `fetch_acquisition()` and return the acquisition
+        """Do successive calls to :meth:`wait_for_completion()<wait_for_completion>` 
+        & :meth:`fetch_acquisition()<fetch_acquisition>` and return the acquisition
 
-        :params timeout: Timeout given to `wait_for_completion()`
-        :params fetch_timeout: Timeout given to `fetch_acquisition()`
+        :params timeout: Timeout given to :meth:`wait_for_completion()<wait_for_completion>`
+        :params fetch_timeout: Timeout given to :meth:`fetch_acquisition()<fetch_acquisition>`
 
-        :raises sdk.exceptions.TimeoutException: If any of the timeout is violated
-        :raises sdk.exceptions.OperationFailure: If a problem occur while waiting/fetching
+        :raise TimeoutException: If any of the timeout is violated
+        :raise OperationFailure: If a problem occur while waiting/fetching
 
-        :return: The `DataloggingAcquisition` object containing the acquired data
+        :return: The :class:`DataloggingAcquisition<scrutiny.core.datalogging.DataloggingAcquisition>` object containing the acquired data
         """
         self.wait_for_completion(timeout)
         return self.fetch_acquisition(fetch_timeout)  # Use default timeout
@@ -487,7 +490,7 @@ class DataloggingRequest:
 
     @property
     def completion_datetime(self) -> Optional[datetime]:
-        """The time at which the datalogging acquisition request has been completed. None if not completed yet"""
+        """The time at which the datalogging acquisition request has been completed. ``None`` if not completed yet"""
         return self._completion_datetime
 
     @property
@@ -497,13 +500,13 @@ class DataloggingRequest:
 
     @property
     def acquisition_reference_id(self) -> Optional[str]:
-        """The unique ID used to fetch the acquisition data from the server. Value is set only if request is completed and succeeded. None otherwise"""
+        """The unique ID used to fetch the acquisition data from the server. Value is set only if request is completed and succeeded. ``None`` otherwise"""
         return self._acquisition_reference_id
 
 
 @dataclass(frozen=True)
 class DataloggingStorageEntry:
-    """Represent an entry in datalogging storage"""
+    """(Immutable struct) Represent an entry in datalogging storage"""
 
     reference_id: str
     """Database ID used to uniquely identified this acquisition"""
