@@ -388,7 +388,7 @@ class DataloggingConfig:
 
 @dataclass(init=False)
 class DataloggingRequest:
-    """Handle to a request for a datalogging acquisition. Gets updated by the client and reflect the actual status of the acquisition"""
+    """Handle to a request for a datalogging acquisition. Gets updated by the client and reflects the actual status of the acquisition"""
 
     _client: "ScrutinyClient"
     _request_token: str
@@ -445,10 +445,10 @@ class DataloggingRequest:
     def fetch_acquisition(self, timeout: Optional[float] = None) -> DataloggingAcquisition:
         """Download and returns an acquisition data from the server. The acquisition must be complete
 
-        :params timeout: Timeout to get a response by the server in seconds. Uee the default timeout value if ``None``
+        :params timeout: Timeout to get a response by the server in seconds. Uses the default timeout value if ``None``
 
         :raise TimeoutException: If the server does not respond in time
-        :raise OperationFailure: If the acquisition is not complete or if an error happen while fetching the data
+        :raise OperationFailure: If the acquisition is not complete or if an error happens while fetching the data
 
         :return: The :class:`DataloggingAcquisition<scrutiny.core.datalogging.DataloggingAcquisition>` object containing the acquired data
 

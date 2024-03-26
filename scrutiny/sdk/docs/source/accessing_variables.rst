@@ -27,7 +27,7 @@ The first step to access a watchable, is to first tell the server that we want t
 To do so, we use the :meth:`watch<scrutiny.sdk.client.ScrutinyClient.watch>` method and specify the path of the watchable. The path
 depends on the firmware and must generally be known in advance. It is possible to query the server for the list of available watchable, this is what the GUI does.
 
-For a :abbr:`SDK (Software Development Kit)` based script, it's generally expected that the element that will be accessed are known and won't require a user input to select them.
+For a :abbr:`SDK (Software Development Kit)` based script, it's generally expected that the elements that will be accessed are known and won't require a user input to select them.
 
 -----
 
@@ -69,11 +69,11 @@ One can wait for a single watchable update with :meth:`WatchableHandle.wait_upda
         print(f"w2 = {w2.value}")   # Value updated by a background thread
         time.sleep(0.1)
     
-    w3.value = 123  # Blocking write. This statement blocks until the device has confirmed that the variable is correctly written (or raise on failre).
+    w3.value = 123  # Blocking write. This statement blocks until the device has confirmed that the variable is correctly written (or raise on failure).
 
 .. note:: 
 
-    Reading and writing a watchable may raise an exceptions.
+    Reading and writing a watchable may raise an exception.
 
     - Reading : When value is unavailable. This will happen if 
         a. The watchable has never been updated (small window of time after subscription)
@@ -95,7 +95,7 @@ Detecting a value change
 ------------------------
 
 When developing a script that uses the SDK, it is common to have some back and forth between the device and the script. A good example would be the case of a test sequence,
-one could write a sequence that looks like this
+one could write a sequence that looks like this.
 
 1. Write a GPIO
 2. Wait for another GPIO to change its value
@@ -133,7 +133,7 @@ When doing a batch write, multiple write request queued and sent to the server i
 Then the server executes all write operation, in the correct order, and confirms the completion of the full batch. 
 
 It is possible to do multiple writes to the same watchable in the same batch. The server will ensure that a write operation is completed and confirmed by the device
-before initiating the following
+before initiating the following.
 
 -----
 
@@ -168,16 +168,16 @@ Example
 Accessing the raw memory
 ------------------------
 
-In certain case, it can be useful to access the device memory directly without the layer of interpretation in the server that converts the data into a coherent value.
+In certain cases, it can be useful to access the device memory directly without the layer of interpretation in the server that converts the data into a coherent value.
 Such case could be 
 
 - Dumping a data buffer
 - Uploading a firmware
 - Pushing a ROM image
-- etc
+- etc.
 
 For those cases, one can use :meth:`ScrutinyClient.read_memory<scrutiny.sdk.client.ScrutinyClient.read_memory>` and :meth:`ScrutinyClient.write_memory<scrutiny.sdk.client.ScrutinyClient.write_memory>`
-to access the memory
+to access the memory.
 
 .. automethod:: scrutiny.sdk.client.ScrutinyClient.read_memory
 

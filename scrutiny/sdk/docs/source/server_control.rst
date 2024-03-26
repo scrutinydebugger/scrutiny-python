@@ -34,7 +34,7 @@ Getting the server status
 Upon connection with a client and periodically, the server will broadcast a `status`. This status is a data structure containing
 all the information about what is going on on the other end of the websocket. It includes
 
-- The type of connection used by for the device
+- The type of connection used by the device
 - Details about the device if one is connected
 - The state of the datalogger inside the device
 - The loaded :abbr:`SFD (Scrutiny Frimware Description)` and its metadata if any

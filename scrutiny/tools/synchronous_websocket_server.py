@@ -92,7 +92,7 @@ class SynchronousWebsocketServer:
             self.loop.run_forever()
 
     def start(self, host: str, port: int) -> int:
-        """Start the websocket server and listen on the given host/port combination"""
+        """Starts the websocket server and listen on the given host/port combination"""
         # Warning. websockets source code says that loop argument might be deprecated.
         self.ws_server = websockets.serve(self.server_routine, host, port, loop=self.loop)  # type: ignore
         assert self.ws_server is not None  # make mypy happy
@@ -100,7 +100,7 @@ class SynchronousWebsocketServer:
         return self.ws_server.ws_server.server.sockets[0].getsockname()[1]
 
     def stop(self) -> None:
-        """Stop the websocket server"""
+        """Stops the websocket server"""
         if self.ws_server is not None:
             self.ws_server.ws_server.close()
             self.loop.run_until_complete(asyncio.ensure_future(self.ws_server.ws_server.wait_closed(), loop=self.loop))

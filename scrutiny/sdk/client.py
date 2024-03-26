@@ -185,7 +185,7 @@ class ScrutinyClient:
     _port: Optional[int]        # Port number of the server
     _logger: logging.Logger     # logging interface
     _encoding: str              # The API string encoding. utf-8
-    _conn: Optional[websockets.sync.client.ClientConnection]    # The websocket handle to the server
+    _conn: Optional[websockets.sync.client.ClientConnection]    # The websocket handles to the server
     _rx_message_callbacks: List[RxMessageCallback]  # List of callbacks to call for each message received. (mainly for testing)
     _reqid: int                 # The actual request ID. Increasing integer
     _timeout: float             # Default timeout value for server requests
@@ -1259,8 +1259,8 @@ class ScrutinyClient:
             raise sdk.exceptions.OperationFailure(f"Failed to write the device memory. {completion.error}")
 
     def get_datalogging_capabilities(self) -> sdk.datalogging.DataloggingCapabilities:
-        """Gets the device capabilities in terms of datalogging. This information include the available sampling rates, the datalogging buffer size, 
-        the data encoding format and the maximum number of signals 
+        """Gets the device capabilities in terms of datalogging. This information includes the available sampling rates, the datalogging buffer size, 
+        the data encoding format and the maximum number of signals. 
 
         :raise OperationFailure: If the request to the server fails
 
