@@ -14,7 +14,7 @@ After the installation, the :abbr:`SDK (Software Development Kit)` should be usa
 
 .. note:: 
 
-    The long term plan is to also distribute Scrutiny through an installer that will include the GUI and the Python virtual environment. 
+    The long term plan is to also distribute Scrutiny through an installer that will include the GUI as well as the Python virtual environment. 
     Until this point is reached, install through the command line is the best option
 
 -----
