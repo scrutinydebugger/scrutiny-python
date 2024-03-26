@@ -19,6 +19,6 @@ Additional :abbr:`GPIO (General Purpose Input/Output)` may be use to get a feedb
 The following piece of C++ depicts a very simplified version of what it could be. We have a ``do_powerup`` function that blocks until completion or timeout.
 The structure of that function depicts a Finite State Machine (FSM); a construct quite useful to do automation.
 
-.. literalinclude:: _static/usecases/hil_testing1.cpp
+.. literalinclude:: _static/code-examples/hil_testing1.cpp
     :language: c++
     :encoding: utf-8

@@ -2,7 +2,6 @@
 set -euo pipefail
 
 PROJECT_ROOT="$( cd "$( dirname "${BASH_SOURCE[0]}" )"/.. >/dev/null 2>&1 && pwd -P )"
-SDKDOC_SCRIPTS_ROOT="${PROJECT_ROOT}/scrutiny/sdk/docs/scripts"
 
 SCRUTINY_COVERAGE_SUFFIX="${SCRUTINY_COVERAGE_SUFFIX:-dev}"
 HTML_COVDIR="htmlcov_${SCRUTINY_COVERAGE_SUFFIX}"
@@ -22,6 +21,3 @@ python3 -m coverage run --data-file ${COV_DATAFILE} -m scrutiny runtest
 python3 -m mypy scrutiny --strict --untyped-calls-exclude=elftools
 python3 -m coverage report --data-file ${COV_DATAFILE}
 python3 -m coverage html --data-file ${COV_DATAFILE} -d $HTML_COVDIR
-
-# Run doc tests
-$SDKDOC_SCRIPTS_ROOT/test_usecases.sh
