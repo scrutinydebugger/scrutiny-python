@@ -60,7 +60,7 @@ pipeline {
                 stage("Doc"){
                     steps {
                         sh '''
-                        VENV_DIR=venv-3.11 scripts/with-venv.sh make -C scrutiny/sdk/docs html
+                        SCRUTINY_VENV_DIR=venv-3.11 scripts/with-venv.sh make -C scrutiny/sdk/docs html
                         '''
                     }
                 }
