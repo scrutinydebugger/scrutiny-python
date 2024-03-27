@@ -50,6 +50,10 @@ all the information about what is going on on the other end of the websocket. It
 
 -----
 
+.. automethod:: scrutiny.sdk.client.ScrutinyClient.wait_device_ready
+
+-----
+
 .. autoclass:: scrutiny.sdk.ServerInfo
     :exclude-members: __init__, __new__
     :members:

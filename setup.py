@@ -36,6 +36,9 @@ setup(
     license=scrutiny.__license__,
 
     packages=find_packages(where='.', exclude=["test", "test.*"], include=['scrutiny', "scrutiny.*"]),
+    package_data = {
+        'scrutiny': ['py.typed'],
+    },
 
     setup_requires=[],
     install_requires=dependencies,

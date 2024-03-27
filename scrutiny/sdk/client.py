@@ -1055,6 +1055,36 @@ class ScrutinyClient:
         if not self._threading_events.server_status_updated.is_set():
             raise sdk.exceptions.TimeoutException(f"Server status did not update within a {timeout} seconds delay")
 
+    def wait_device_ready(self, timeout: float) -> None:
+        """Wait for a device to be connected to the server and have finished its handshake.
+
+        :param timeout: Amount of time to wait for the device
+
+        :raise TypeError: Given parameter not of the expected type
+        :raise ValueError: Given parameter has an invalid value
+        :raise InvalidValueError: If the watchable becomes invalid while waiting
+        :raise TimeoutException: If the device does not become ready within the required timeout
+        """
+
+        timeout = validation.assert_float_range(timeout, 'timeout', minval=0)
+
+        t1 = time.monotonic()
+        while True:
+            server_status = self.get_server_status()
+            if server_status is not None:
+                if server_status.device_comm_state == sdk.DeviceCommState.ConnectedReady:
+                    break
+            consumed_time = time.monotonic()-t1
+            remaining_time = max(timeout-consumed_time, 0)
+            timed_out = False
+            try:
+                self.wait_server_status_update(remaining_time)
+            except sdk.exceptions.TimeoutException:
+                timed_out = True
+            
+            if timed_out:
+                raise sdk.exceptions.TimeoutException(f'Device did not become ready within {timeout}s')
+
     def batch_write(self, timeout: Optional[float] = None) -> BatchWriteContext:
         """Starts a batch write. Write operations will be enqueued and committed together.
         Every write is guaranteed to be executed in the right order
