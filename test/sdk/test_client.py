@@ -504,10 +504,10 @@ class TestClient(ScrutinyUnitTest):
             self.sync_complete.wait(timeout=timeout)
             self.assertFalse(self.require_sync.is_set())
 
-    def wait_true(self, func, timeout=2, error_str=None):
+    def wait_true(self, func, timeout:float=2, error_str:Optional[str]=None):
         success = False
-        t = time.time()
-        while time.time() - t < timeout:
+        t = time.monotonic()
+        while time.monotonic() - t < timeout:
             if func():
                 success = True
                 break
@@ -702,6 +702,35 @@ class TestClient(ScrutinyUnitTest):
         future.wait()
         self.assertEqual(future.state, sdk.client.CallbackState.Cancelled)
         self.assertNotEqual(future.error_str, '')
+
+    def test_wait_device_ready(self):
+        self.device_handler.set_connection_status(DeviceHandler.ConnectionStatus.DISCONNECTED)
+        def is_disconnected(client:ScrutinyClient):
+            server_info = client.get_server_status()
+            return server_info.device_comm_state == sdk.DeviceCommState.Disconnected
+        
+        self.wait_true(partial(is_disconnected, self.client))
+        self.assertEqual(self.client.get_server_status().device_comm_state, sdk.DeviceCommState.Disconnected)
+
+        timeout = 3*ScrutinyClient._UPDATE_SERVER_STATUS_INTERVAL
+        t1 = time.monotonic()
+        with self.assertRaises(sdk.exceptions.TimeoutException):
+            self.client.wait_device_ready(timeout=timeout)
+        t2 = time.monotonic()
+        self.assertGreater(t2-t1, timeout)
+
+        def set_ready(device_handler:FakeDeviceHandler):
+            device_handler.set_connection_status(DeviceHandler.ConnectionStatus.CONNECTED_READY)
+        self.execute_in_server_thread(partial(set_ready, self.device_handler), wait=True, delay=0.1)
+        t1 = time.monotonic()
+        self.client.wait_device_ready(timeout=timeout)
+        t2 = time.monotonic()
+        self.assertLessEqual(t2-t1, timeout)
+        self.assertEqual(self.client.get_server_status().device_comm_state, sdk.DeviceCommState.ConnectedReady)
+
+
+        
+
 
     def test_fetch_watchable_info(self):
         # Make sure we can correctly read the information about a watchables

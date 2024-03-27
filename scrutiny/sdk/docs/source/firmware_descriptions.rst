@@ -10,7 +10,7 @@ d. Alias definitions
 
 The :abbr:`SFD (Scrutiny Firmware Description)` must be installed on the server with the :abbr:`CLI (Command Line Interface)` using the ``install-sfd`` command. 
 
-Upon connection with a device, the server will automatically load the correct :abbr:`SFD (Scrutiny Firmware Description)` based on the firmware ID broadcasted by the device
+Upon connection with a device, the server will automatically load the correct :abbr:`SFD (Scrutiny Firmware Description)` based on the firmware ID broadcast by the device.
 
 -----
 
