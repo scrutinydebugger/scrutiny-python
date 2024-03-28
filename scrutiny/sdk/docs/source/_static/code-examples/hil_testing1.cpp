@@ -153,7 +153,8 @@ Application app;
 
 int main()
 {
-    app.init();  
+    app.init();
+    read_ios(&inputs_outputs);
     power_supply.init(&inputs_outputs);
 
     while(run_app)
