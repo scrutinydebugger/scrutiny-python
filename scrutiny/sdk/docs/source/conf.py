@@ -11,10 +11,10 @@ from os import path
 import scrutiny
 
 module_dir=path.normpath(path.dirname(scrutiny.__file__))
-scrutiny_fs_dir= path.normpath(path.join(path.dirname(__file__), '..', '..', '..'))
+scrutiny_fs_dir= path.normpath(path.join(path.dirname(__file__), '..', '..'))
 if module_dir != scrutiny_fs_dir:
-    print(f"Loaded scrutiny module is an isntalled one at {module_dir}. Cannot use this module for version deduction.")
-    needs_sphinx = '999.999'    # Seems like the most efficient way to trigger an error from this file.
+    print(f"Loaded scrutiny module is an installed one at {module_dir}. Cannot use this module for version deduction.")
+    needs_sphinx = 'BAD SCRUTINY VERSION'    # Seems like the most efficient way to trigger an error from this file.
 
 project = 'Scrutiny Python SDK'
 copyright = '2021 scrutinydebugger'
