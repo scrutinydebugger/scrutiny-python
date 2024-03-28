@@ -34,5 +34,3 @@ An example of a Python script that test the device could go as follow.
 .. literalinclude:: _static/code-examples/hil_testing1.py
     :language: python
     :encoding: utf-8
-
-asdasdas
