@@ -31,7 +31,6 @@ with client.connect(hostname, port, wait_status=True):    # Establish a websocke
 
     run_app.value = True
 
-    time.sleep(2.0) # Let the device do its work.
     psu_state.wait_value(0, timeout=2)      # 0 = DONE_OK
     #psu_state.wait_value('DONE_OK', timeout=2) # Enum support is not ready yet.
     assert io_psu_ready.value_bool == True
