@@ -32,9 +32,8 @@ with client.connect(hostname, port, wait_status=True):    # Establish a websocke
     run_app.value = True
 
     time.sleep(2.0) # Let the device do its work.
-
-    #assert psu_state.value == psu_state.get_enum_val('DONE_OK') # Note: march 2024 - Work in progress!
-    assert psu_state.value_int == 0     # Enum support are a TODO.
+    psu_state.wait_value(0, timeout=2)      # 0 = DONE_OK
+    #psu_state.wait_value('DONE_OK', timeout=2) # Enum support is not ready yet.
     assert io_psu_ready.value_bool == True
     assert io_submodule1_ready.value_bool == True
     assert io_psu_voltage_line1.value_float > 4.75
