@@ -154,14 +154,16 @@ Application app;
 int main()
 {
     app.init();
-    read_ios(&inputs_outputs);
     power_supply.init(&inputs_outputs);
 
-    while(run_app)
+    while(true)
     {
         read_ios(&inputs_outputs);
-        power_supply.process();
-        app.process(&power_supply);
+        if (run_app)
+        {
+            power_supply.process();
+            app.process(&power_supply);
+        }
         update_scrutiny();
     }
 
