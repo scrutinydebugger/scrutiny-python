@@ -142,7 +142,7 @@ void update_scrutiny();     // Update the scrutiny module. Not part of this exam
 // main.cpp
 
 #ifdef ENABLE_HIL_TESTING    
-static volatile bool run_app = false; // Wait for scrutiny to set it to true
+static volatile bool run_app = false; // Scrutiny will write that.
 #else
 constexpr bool run_app = true;
 #endif
@@ -159,12 +159,12 @@ int main()
     while(true)
     {
         read_ios(&inputs_outputs);
-        if (run_app)
+        if (run_app)    // Wait for scrutiny to set this to true when ENABLE_HIL_TESTING is defined
         {
             power_supply.process();
             app.process(&power_supply);
         }
-        update_scrutiny();
+        update_scrutiny();  // Refer to "Instrumenting a software" guide
     }
 
     return 0;
