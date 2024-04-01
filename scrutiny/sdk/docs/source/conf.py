@@ -7,10 +7,13 @@
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
+from os import path
+import scrutiny
+
 project = 'Scrutiny Python SDK'
 copyright = '2021 scrutinydebugger'
 author = 'scrutinydebugger'
-release = 'v0.1'
+release = f'v{scrutiny.__version__}'
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration

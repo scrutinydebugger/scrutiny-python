@@ -8,7 +8,7 @@ The easiest way to get the Scrutiny Python SDK is to use pip.
 
 .. code-block:: bash
 
-    pip install scrutiny
+    pip install scrutinydebugger
 
 After the installation, the :abbr:`SDK (Software Development Kit)` should be usable as well as the :abbr:`CLI (Command Line Interface)`.
 
