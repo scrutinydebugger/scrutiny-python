@@ -35,3 +35,32 @@ An example of a Python script that tests the device could go as follow.
 .. literalinclude:: _static/code-examples/hil_testing1.py
     :language: python
     :encoding: utf-8
+
+-----
+
+End-Of-Line configuration
+-------------------------------
+
+EOL configuration is another intersting use case for the Scrutiny Python SDK. Let's consider a product that requires a configuration step after manufacturing.
+
+This configuration could be writing parameters and assembly information (model, serial number, etc) in a Non-Volatile Memory or burning a fuse in the processor. 
+In most application, the :abbr:`NVM (Non-Volatile Memory)` is connected to the processor, making it accessible to the firmware or a advanced JTAG.
+
+In this example, we will show how we can add a hook in the firmware to let a remote user take control of a :abbr:`EEPROM (Electrically Erasable Programmable Read-Only Memory)` 
+(a type of :abbr:`NVM (Non-Volatile Memory)`) through the SDK. We will abstract the EEPROM driver under a class that have a ``write()`` and a ``read()`` method.
+
+
+C++ Application
+###############
+
+.. literalinclude:: _static/code-examples/eol_config1.cpp
+    :language: c++
+    :encoding: utf-8
+
+
+Python script
+#############
+
+.. literalinclude:: _static/code-examples/eol_config1.py
+    :language: python
+    :encoding: utf-8
