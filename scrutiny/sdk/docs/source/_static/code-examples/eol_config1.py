@@ -35,12 +35,11 @@ with client.connect(hostname, port, wait_status=True):    # Establish a websocke
         eeprom_config_cmd.value = 3     # WriteAssemblyHeader  
         # eeprom_config_cmd.value = 'WriteAssemblyHeader'   # With enum support
 
-    eeprom_config_cmd.wait_value(0, timeout=5)  # The device will set this back to None once finished      
-    # eeprom_config_cmd.wait_value('None', timeout=2)   # With enum support
+    eeprom_config_cmd.wait_value(0, timeout=5)         # The device will set this back to None once finished      
+    # eeprom_config_cmd.wait_value('None', timeout=5)   # With enum support
 
-    # Request the server for an update. Make sure we do not read an old value
-    # We have no control on the order in which the values a polled by the server.
-    eeprom_config_return_code.force_refresh() 
+    # Make sure we do not read an old value
+    eeprom_config_return_code.wait_update(timeout=2)    
 
     assert eeprom_config_return_code.value_int == 0, "Write operation failed"
 

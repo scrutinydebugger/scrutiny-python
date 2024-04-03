@@ -112,9 +112,9 @@ Looking for this value is helpful to detect a change.
 Two methods can help the user to wait for remote event. :meth:`WatchableHandle.wait_update<scrutiny.sdk.watchable_handle.WatchableHandle.wait_update>` and 
 :meth:`WatchableHandle.wait_value<scrutiny.sdk.watchable_handle.WatchableHandle.wait_value>`
 
-It is important to mention that the server does not continuously stream the values of the variables, but rather stream changes in value. 
-Therefore, :meth:`wait_update<scrutiny.sdk.watchable_handle.WatchableHandle.wait_update>` may raise a timeout if the value never changes 
-on the device, even if the server has polled the device many times since then.
+The server broadcast a value update periodically, generally quite fast. The update delay depends mainly on how the communication link with the device is saturated.
+Therefore, the number of watchable subscription and the available bandwidth will affect the update rate. The server poll the device for each watchables in a round-robin scheme,
+when value updates are available, they are aggregated and flushed to all clients. For most common cases, a value update can be expected within hundreds of milliseconds.
 
 .. automethod:: scrutiny.sdk.watchable_handle.WatchableHandle.wait_update
 

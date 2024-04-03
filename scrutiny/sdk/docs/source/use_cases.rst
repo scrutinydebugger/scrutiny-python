@@ -64,3 +64,12 @@ Python script
 .. literalinclude:: _static/code-examples/eol_config1.py
     :language: python
     :encoding: utf-8
+
+We can even make something a little more advance and encapsulate everything related to the EEPROM interraction into a ``EEPROMConfigurator`` class.
+Using the value of ``m_buffer``, which is a pointer, we can leverage :meth:`ScrutinyClient.read_memory()<scrutiny.sdk.client.ScrutinyClient.read_memory>`
+to dump the content of the EEPROM.
+
+
+.. literalinclude:: _static/code-examples/eol_config2.py
+    :language: python
+    :encoding: utf-8

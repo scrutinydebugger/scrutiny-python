@@ -7,6 +7,7 @@ class EEPROMDriver{
 public:
     int read(uint8_t * const buf, uint32_t const addr, uint32_t const size) const;
     int write(uint8_t const * const buf, uint32_t const addr, uint32_t const size) const;
+    int erase();
 };
 
 // ----------------
@@ -19,7 +20,8 @@ public:
         None,
         Read,
         Write,
-        WriteAssemblyHeader
+        WriteAssemblyHeader,
+        Erase
     };
 
     struct AssemblyHeader {
@@ -32,6 +34,8 @@ public:
     EEPROMConfigurator(EEPROMDriver* const driver) : 
         m_buffer{},
         m_size{0},
+        m_addr{0},
+        m_buffer_size{BUFFER_SIZE},
         m_driver{driver},
         m_cmd{Command::None},
         m_assembly_header{},
@@ -42,6 +46,7 @@ private:
     uint8_t m_buffer[BUFFER_SIZE];
     uint32_t m_size;
     uint32_t m_addr;
+    uint32_t m_buffer_size;
     EEPROMDriver* const m_driver;
     Command m_cmd;
     AssemblyHeader m_assembly_header;
@@ -77,6 +82,10 @@ void EEPROMConfigurator::process()
         {
             m_last_return_code = m_driver->read(m_buffer, m_addr, m_size);
         }
+    }
+    else if (m_cmd == Command::Erase)
+    {
+        m_last_return_code = m_driver->erase();
     }
     m_cmd = Command::None;
 }
