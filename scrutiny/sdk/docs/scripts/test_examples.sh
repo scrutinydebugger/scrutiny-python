@@ -8,6 +8,8 @@ trap  "echo 'Error. Exiting' && rm -rf ${tempdir}" ERR
 
 set -x
 
+echo -e "\nTesting example code..."
+
 cd $tempdir
 
 # HIL testing
