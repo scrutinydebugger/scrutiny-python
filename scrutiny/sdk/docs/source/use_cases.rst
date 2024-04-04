@@ -59,7 +59,7 @@ An example of a Python script that tests the device could go as follow.
 -----
 
 End-Of-Line configuration
--------------------------------
+-------------------------
 
 EOL configuration is another intersting use case for the Scrutiny Python SDK. Let's consider a product that requires a configuration step after manufacturing.
 
@@ -103,5 +103,29 @@ Using the value of ``m_buffer``, which is a pointer, we can leverage :meth:`Scru
 to dump the content of the EEPROM.
 
 .. literalinclude:: _static/code-examples/eol_config/eol_config_dump_eeprom.py
+    :language: python
+    :encoding: utf-8
+
+-----
+
+Control algorithm tuning
+------------------------
+
+C++ Application
+###############
+
+.. literalinclude:: _static/code-examples/calibration/calibration_1_pi_controller_sat_hpp.cpp
+    :language: c++
+    :encoding: utf-8
+
+.. literalinclude:: _static/code-examples/calibration/calibration_2_main_cpp.cpp
+    :language: c++
+    :encoding: utf-8
+
+
+Python script
+#############
+
+.. literalinclude:: _static/code-examples/calibration/calibration_1_pi_graph.py
     :language: python
     :encoding: utf-8
