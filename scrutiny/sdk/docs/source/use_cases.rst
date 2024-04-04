@@ -23,7 +23,27 @@ The following piece of C++ depicts a very simplified version of what it could be
 a finite state machine. Notice how this file can be built with the ``ENABLE_HIL_TESTING`` define, allowing the application to delay its startup until Scrutiny 
 takes over.
 
-.. literalinclude:: _static/code-examples/hil_testing1.cpp
+.. literalinclude:: _static/code-examples/hil_testing/hil_testing_1_time_hpp.cpp
+    :language: c++
+    :encoding: utf-8
+
+.. literalinclude:: _static/code-examples/hil_testing/hil_testing_2_hardware_hpp.cpp
+    :language: c++
+    :encoding: utf-8
+
+.. literalinclude:: _static/code-examples/hil_testing/hil_testing_3_power_supply_hpp.cpp
+    :language: c++
+    :encoding: utf-8
+
+.. literalinclude:: _static/code-examples/hil_testing/hil_testing_4_power_supply_cpp.cpp
+    :language: c++
+    :encoding: utf-8
+
+.. literalinclude:: _static/code-examples/hil_testing/hil_testing_5_application_hpp.cpp
+    :language: c++
+    :encoding: utf-8
+
+.. literalinclude:: _static/code-examples/hil_testing/hil_testing_6_main_cpp.cpp
     :language: c++
     :encoding: utf-8
 
@@ -32,7 +52,7 @@ Python script
 
 An example of a Python script that tests the device could go as follow.
 
-.. literalinclude:: _static/code-examples/hil_testing1.py
+.. literalinclude:: _static/code-examples/hil_testing/hil_testing_1_powerup_check.py
     :language: python
     :encoding: utf-8
 
@@ -53,15 +73,28 @@ In this example, we will show how we can add a hook in the firmware to let a rem
 C++ Application
 ###############
 
-.. literalinclude:: _static/code-examples/eol_config1.cpp
+.. literalinclude:: _static/code-examples/eol_config/eol_config_1_eeprom_driver_hpp.cpp
     :language: c++
     :encoding: utf-8
+
+.. literalinclude:: _static/code-examples/eol_config/eol_config_2_eeprom_configurator_hpp.cpp
+    :language: c++
+    :encoding: utf-8
+
+.. literalinclude:: _static/code-examples/eol_config/eol_config_3_eeprom_configurator_cpp.cpp
+    :language: c++
+    :encoding: utf-8
+
+.. literalinclude:: _static/code-examples/eol_config/eol_config_4_main_cpp.cpp
+    :language: c++
+    :encoding: utf-8
+
 
 
 Python script
 #############
 
-.. literalinclude:: _static/code-examples/eol_config1.py
+.. literalinclude:: _static/code-examples/eol_config/eol_config_assembly_header.py
     :language: python
     :encoding: utf-8
 
@@ -69,6 +102,6 @@ We can even make something a little more advanced and encapsulate everything rel
 Using the value of ``m_buffer``, which is a pointer, we can leverage :meth:`ScrutinyClient.read_memory()<scrutiny.sdk.client.ScrutinyClient.read_memory>`
 to dump the content of the EEPROM.
 
-.. literalinclude:: _static/code-examples/eol_config2.py
+.. literalinclude:: _static/code-examples/eol_config/eol_config_dump_eeprom.py
     :language: python
     :encoding: utf-8
