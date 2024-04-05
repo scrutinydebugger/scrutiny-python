@@ -59,27 +59,34 @@ def main() -> None:
 
         done=False
         actual_set_point=0.1
-        while not done:
-            set_point.value = 0
-            manual_control.value = True
-            time.sleep(1)   # Wait for stabilization. Setpoint changed to 0
-            print(f"Starting the datalogger for setpoint={actual_set_point}")
-            request = client.start_datalog(config)
-            set_point.value = actual_set_point
-            try:
-                # Build a filename based on the actual parameters
-                filename=f"controller_test_kp={args.kp:0.4f}_ki={args.ki:0.4f}_sp_{actual_set_point:0.3f}.csv"
-                acquisition = request.wait_and_fetch(timeout=5)
-                print(f"Acquisition complete. Saving to {filename}")
-                acquisition.to_csv(filename)
-                actual_set_point+=0.1
-                if actual_set_point > 1:
-                    done = True
-            except scrutiny.sdk.exceptions.TimeoutException as e:
-                done=True
-                print(f"The datalogger failed to catch the event. {e}")
-
+        manual_control.value = True
+        try:
+            while not done:
+                set_point.value = 0
+                time.sleep(1)   # Wait for stabilization. Setpoint changed to 0
+                print(f"Starting the datalogger for setpoint={actual_set_point}")
+                request = client.start_datalog(config)
+                set_point.value = actual_set_point
+                try:
+                    # Build a filename based on the actual parameters
+                    filename=f"controller_test_kp={args.kp:0.4f}_ki={args.ki:0.4f}_sp_{actual_set_point:0.3f}.csv"
+                    acquisition = request.wait_and_fetch(timeout=5)
+                    print(f"Acquisition complete. Saving to {filename}")
+                    acquisition.to_csv(filename)
+                    actual_set_point+=0.1
+                    if actual_set_point > 1:
+                        done = True
+                except scrutiny.sdk.exceptions.TimeoutException as e:
+                    done=True
+                    print(f"The datalogger failed to catch the event. {e}")
+        except Exception as e:
+            print(f"Error: {e}")
+        finally:
             print("Done")
+            try: 
+                manual_control.value = False
+            except: pass
+
 
 if __name__ == '__main__':
     main()

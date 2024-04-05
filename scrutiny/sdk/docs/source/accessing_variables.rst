@@ -142,7 +142,7 @@ Batch writing
 
 Writing multiples values in a row is inefficient due to the latency associated with device access.
 To optimize speed, one can consolidate multiple write operations into a single batched request using the
- :meth:`ScrutinyClient.batch_write<scrutiny.sdk.client.ScrutinyClient.batch_write>` method. 
+:meth:`ScrutinyClient.batch_write<scrutiny.sdk.client.ScrutinyClient.batch_write>` method. 
 
 In a batch write operation, multiple write requests are queued and dispatched to the server in a single API call. 
 The server then executes all write operations in the correct order and confirms the completion of the entire batch. 
