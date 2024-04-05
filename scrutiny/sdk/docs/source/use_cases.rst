@@ -120,8 +120,10 @@ For the sake of simplicity, this example does not include validation of the cont
 
 - The controller in question is a PI controller with a saturated output.
 - The parameters can be declared as ``const`` or ``volatile`` based on a compilation option
-    - When declared as ``const`` the compiler can optimize for speed, which would be a typical production configuration.
-    - When declared as ``volatile``, the compiler will not perform any optimization, ensuring that the scrutiny input will be recognized.
+   
+  - When declared as ``const`` the compiler can optimize for speed, which would be a typical production configuration.
+  - When declared as ``volatile``, the compiler will not perform any optimization, ensuring that the scrutiny input will be recognized.
+
 - The configuration of the scrutiny-embedded library is not shown in this example, as the focus is primarily on the SDK.
 
 
