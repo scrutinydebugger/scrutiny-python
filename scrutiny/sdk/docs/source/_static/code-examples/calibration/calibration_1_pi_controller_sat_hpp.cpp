@@ -40,9 +40,9 @@ public:
     void reset(float val=0.0f){
         m_out = val;
         float const err = m_ref-m_feedback;
-        float const errKpSat = saturate(err*m_kp, m_min, m_max);
-        float const errKiTs = err*m_ki*m_ts;
-        m_state = 0.0f-errKiTs-errKpSat;
+        float const err_kp_sat = saturate(err*m_kp, m_min, m_max);
+        float const err_ki_ts = err*m_ki*m_ts;
+        m_state = 0.0f-err_ki_ts-err_kp_sat;
     }
 
     inline void set_inputs(float const feedback, float const ref){
