@@ -31,12 +31,13 @@ Example
 Getting the server status
 -------------------------
 
-Upon connection with a client and periodically, the server will broadcast a `status`. This status is a data structure containing
-all the information about what is going on on the other end of the websocket. It includes
+Upon establishing a connection with a client, and at regular intervals thereafter, the server broadcasts a status. 
+This status is a data structure that encapsulates all the pertinent information about what is happening at the other end of the websocket. 
+It includes:
 
 - The type of connection used by the device
 - Details about the device if one is connected
-- The state of the datalogger inside the device
+- The state of the datalogger within the device
 - The loaded :abbr:`SFD (Scrutiny Frimware Description)` and its metadata if any
 - etc.
 
