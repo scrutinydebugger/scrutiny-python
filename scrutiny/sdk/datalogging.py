@@ -221,9 +221,10 @@ class DataloggingConfig:
 
     def add_axis(self, name: str) -> AxisDefinition:
         """Adds a Y axis to the acquisition.
+        
         :param name: The name of the axis, for display purpose. 
 
-        :return: An `AxisDefinition` object that can be assigned to a signal when calling :meth:`add_signal()<scrutiny.sdk.datalogging.DataloggingConfig.add_signal>`
+        :return: An :class:`AxisDefinition<scrutiny.sdk.datalogging.AxisDefinition>` object that can be assigned to a signal when calling :meth:`add_signal()<scrutiny.sdk.datalogging.DataloggingConfig.add_signal>`
         """
         validation.assert_type(name, 'name', str)
         axis = AxisDefinition(axis_id=self._next_axis_id, name=name)

@@ -30,7 +30,8 @@ __all__ = [
 
 @dataclass(frozen=True)
 class AxisDefinition:
-    """Represent an axis"""
+    """(Immutable struct) Represent an axis"""
+
     name: str
     """The name of the axis. Used for display"""
     axis_id: int
@@ -78,6 +79,8 @@ class DataSeries:
 
 @dataclass(frozen=True)
 class DataSeriesWithAxis:
+    """(Immutable struct) Dataseries tied to an axis definition"""
+
     series: DataSeries
     """The dataseries containing the acquisition data"""
 
@@ -204,7 +207,7 @@ class DataloggingAcquisition:
             writer.writerow([self.xdata.data[i]] + [ydata.series.data[i] for ydata in self.ydata] + trigger_val)
 
     def to_csv(self, filename: str) -> None:
-        """Export a DataloggingAcquisition content to a csv file
+        """Export a :class:`DataloggingAcquisition<scrutiny.core.datalogging.DataloggingAcquisition>` content to a csv file
 
         :param filename: The file to write to
         """

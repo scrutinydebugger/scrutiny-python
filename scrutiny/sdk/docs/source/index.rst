@@ -16,7 +16,9 @@ Scrutiny Python SDK
    use_cases
 
 
-The Scrutiny Python SDK (Software Development Kit) is a Python module letting you programmatically interact with a Scrutiny Server. Its main purpose is to allow automated interact with a device to 
-enable Hardware-In-the-Loop (HIL) testing, End-Of-Line (EOL) configuration and complex debugging sequence.
+The Scrutiny Python Software Development Kit (SDK) is a Python module that facilitates programmatic interaction with a Scrutiny Server. 
+Its primary function is to automate interactions with a device, thereby enabling Hardware-In-the-Loop (HIL) testing, End-Of-Line (EOL) 
+configuration, and complex debugging sequences.
 
-Since the design of the Scrutiny Debugger Server is multi-client, it is possible to run a script (or multiples) while monitoring the connected device with the GUI.
+Given the multi-client design of the Scrutiny Debugger Server, it’s possible to execute one or multiple scripts while concurrently 
+monitoring the connected device via the Graphical User Interface (GUI).

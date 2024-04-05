@@ -841,7 +841,7 @@ class ScrutinyClient:
     # === User API ====
 
     def connect(self, hostname: str, port: int, wait_status: bool = True, **kwargs: Dict[str, Any]) -> "ScrutinyClient":
-        """Connect to a Scrutiny server through a websocket. Extra kwargs are passed down to `websockets.sync.client.connect()`
+        """Connect to a Scrutiny server through a websocket. Extra kwargs are passed down to ``websockets.sync.client.connect()``
 
         :param hostname: The hostname or ip address of the server
         :param port: The listening port of the server

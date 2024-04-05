@@ -30,16 +30,21 @@ Basics
 
 The first step to access a watchable, is to first tell the server that we want to subscribe to update event on that watchable.
 To do so, we use the :meth:`watch<scrutiny.sdk.client.ScrutinyClient.watch>` method and specify the path of the watchable. The path
-depends on the firmware and must generally be known in advance. It is possible to query the server for the list of available watchable, this is what the GUI does.
+depends on the firmware and must generally be known in advance. 
+The path is dependent on the firmware and is typically known beforehand. 
+It's also possible to query the server for a list of available watchables, a feature utilized by the GUI.
 
-For a :abbr:`SDK (Software Development Kit)` based script, it's generally expected that the elements that will be accessed are known and won't require a user input to select them.
+For scripts based on the :abbr:`SDK (Software Development Kit)`,  it is generally assumed that the elements to be accessed are predetermined 
+and won't necessitate user input for selection.
 
 -----
 
 .. automethod:: scrutiny.sdk.client.ScrutinyClient.watch
 
-Once an element is being watched, the server starts polling for the value of that element. Each time the value is updated, the server broadcast a value update to all subscribers, 
-in this case, our client. A background thread listen for those updates and changes the value referred to by the :class:`WatchableHandle<scrutiny.sdk.watchable_handle.WatchableHandle>`
+Once an element is being watched, the server starts polling for the value of that element. 
+Each time the value is updated, the server broadcast a value update to all subscribers, in this case, our client. 
+Concurrently, a background thread is actively listening listen for these updates and accordingly 
+modifies the value that the :class:`WatchableHandle<scrutiny.sdk.watchable_handle.WatchableHandle>` refers to
 
 -----
 
@@ -53,13 +58,14 @@ in this case, our client. A background thread listen for those updates and chang
 After getting a handle to the watchable, the :attr:`value<scrutiny.sdk.watchable_handle.WatchableHandle.value>` property and its derivative (
 :attr:`value_int<scrutiny.sdk.watchable_handle.WatchableHandle.value_int>`, 
 :attr:`value_float<scrutiny.sdk.watchable_handle.WatchableHandle.value_float>`, 
-:attr:`value_bool<scrutiny.sdk.watchable_handle.WatchableHandle.value_bool>`) are automatically updated. The values are invalid until their first update, 
+:attr:`value_bool<scrutiny.sdk.watchable_handle.WatchableHandle.value_bool>`) undergo automatic updates. These values are invalid until their initial update, 
 meaning that after the call to :meth:`watch<scrutiny.sdk.client.ScrutinyClient.watch>`, there is a period of time where accessing the 
 :attr:`value<scrutiny.sdk.watchable_handle.WatchableHandle.value>`
 property will raise a :class:`InvalidValueError<scrutiny.sdk.exceptions.InvalidValueError>`.
 
-One can wait for a single watchable update with :meth:`WatchableHandle.wait_update<scrutiny.sdk.watchable_handle.WatchableHandle.wait_update>` or wait for all watched variable by Calling
-:meth:`ScrutinyClient.wait_new_value_for_all<scrutiny.sdk.client.ScrutinyClient.wait_new_value_for_all>`
+To await a single value update from the watchable, one can utilize the :meth:`WatchableHandle.wait_update<scrutiny.sdk.watchable_handle.WatchableHandle.wait_update>` 
+method. Alternatively, to wait for updates from all watched variables at once, the
+:meth:`ScrutinyClient.wait_new_value_for_all<scrutiny.sdk.client.ScrutinyClient.wait_new_value_for_all>` method can be invoked.
 
 .. code-block:: python
 
@@ -91,16 +97,16 @@ One can wait for a single watchable update with :meth:`WatchableHandle.wait_upda
         c. Writing is actively denied by the device. (Communication error or protected memory region)
         d. Timeout: The write confirmation takes more time than the client ``write_timeout``
 
-As we can see in the example above, accesses to the device is done in a fully synchronized fashion. Therefore, a script that uses the Scrutiny Python SDK
-can be seen as a thread running on the embedded device, but with slow memory access time.
+As demonstrated in the preceding example, device access is executed in a fully synchronized manner. 
+Consequently, a script utilizing the Scrutiny Python SDK can be perceived as a thread operating on the embedded device with a slower memory access time.
 
 -----
 
 Detecting a value change
 ------------------------
 
-When developing a script that uses the SDK, it is common to have some back and forth between the device and the script. A good example would be the case of a test sequence,
-one could write a sequence that looks like this.
+When developing a script that uses the SDK, it is common to have some back and forth between the device and the script. 
+A good example would be the case of a test sequence, one could write a sequence that looks like this.
 
 1. Write a GPIO
 2. Wait for another GPIO to change its value
@@ -109,12 +115,15 @@ one could write a sequence that looks like this.
 
 Each time the value is updated by the server, the :attr:`WatchableHandle.update_counter<scrutiny.sdk.watchable_handle.WatchableHandle.update_counter>` gets incremented. 
 Looking for this value is helpful to detect a change. 
-Two methods can help the user to wait for remote event. :meth:`WatchableHandle.wait_update<scrutiny.sdk.watchable_handle.WatchableHandle.wait_update>` and 
+Two methods can help the user to wait for remote events. :meth:`WatchableHandle.wait_update<scrutiny.sdk.watchable_handle.WatchableHandle.wait_update>` and 
 :meth:`WatchableHandle.wait_value<scrutiny.sdk.watchable_handle.WatchableHandle.wait_value>`
 
-It is important to mention that the server does not continuously stream the values of the variables, but rather stream changes in value. 
-Therefore, :meth:`wait_update<scrutiny.sdk.watchable_handle.WatchableHandle.wait_update>` may raise a timeout if the value never changes 
-on the device, even if the server has polled the device many times since then.
+The server periodically broadcasts value updates, typically at a rapid pace. 
+The delay in updates is primarily dependent on the saturation level of the communication link with the device. 
+Factors such as the number of watchable subscriptions and the available bandwidth will influence the update rate. 
+The server polls the device for each watchable in a round-robin scheme. When value updates are available, they are aggregated and flushed to all clients. 
+In most common scenarios, a value update can be expected within a few hundred milliseconds.
+
 
 .. automethod:: scrutiny.sdk.watchable_handle.WatchableHandle.wait_update
 
@@ -131,14 +140,15 @@ on the device, even if the server has polled the device many times since then.
 Batch writing
 -------------
 
-Writing multiples values in a row is inefficient because of the device access latency. For speed optimization, it is possible to group multiple write operation into 
-a batched request using :meth:`ScrutinyClient.batch_write<scrutiny.sdk.client.ScrutinyClient.batch_write>`. 
+Writing multiples values in a row is inefficient due to the latency associated with device access.
+To optimize speed, one can consolidate multiple write operations into a single batched request using the
+:meth:`ScrutinyClient.batch_write<scrutiny.sdk.client.ScrutinyClient.batch_write>` method. 
 
-When doing a batch write, multiple write request queued and sent to the server in a single API call. 
-Then the server executes all write operation, in the correct order, and confirms the completion of the full batch. 
+In a batch write operation, multiple write requests are queued and dispatched to the server in a single API call. 
+The server then executes all write operations in the correct order and confirms the completion of the entire batch. 
 
-It is possible to do multiple writes to the same watchable in the same batch. The server will ensure that a write operation is completed and confirmed by the device
-before initiating the following.
+It is permissible to perform multiple writes to the same watchable within the same batch. 
+The server ensures that each write operation is completed and acknowledged by the device before initiating the subsequent operation.
 
 -----
 
@@ -173,8 +183,9 @@ Example
 Accessing the raw memory
 ------------------------
 
-In certain cases, it can be useful to access the device memory directly without the layer of interpretation in the server that converts the data into a coherent value.
-Such case could be 
+In certain scenarios, it may be advantageous to directly access the device memory, 
+bypassing the server's interpretive layer that transforms the data into a meaningful value. 
+Such scenarios could include:
 
 - Dumping a data buffer
 - Uploading a firmware

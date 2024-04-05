@@ -4,15 +4,15 @@ Datalogging
 ===========
 
 Usage of the SDK watchables as described in :ref:`Accessing variables<page_accessing_variables>` is done through polling and the update rate is limited by the bandwidth 
-of the communication link between the server and the device (Serial, TCP, CAN, etc). Therefore, monitoring a value in Python is not a reliable way to catch a 
-fast event in the firmware since two polling events may be spaced by several milliseconds.
+of the communication link between the server and the device (Serial, TCP, CAN, etc). Therefore, using Python to monitor a value may not reliably capture a rapid event in the firmware,
+as the interval between two polling events could span several milliseconds.
 
-Datalogging (or `Embedded Graphs`) solve that problem by requesting the device to record a certain set of watchable in a circular buffer until a certain event occurs. 
-It effectively transform the embedded device into a scope. 
+Datalogging (or `Embedded Graphs`) addresses this issue by instructing the device to record a specific set of watchables in a circular buffer until a certain event occurs. 
+This effectively turns the embedded device into a scope.
 
 The condition that stop the circular acquisition is called the `Trigger condition` and may be of many type.
-Once the trigger condition is fulfilled, the acquisition finishes (immediately or after a specified amount of time) and the data is returned to the server to be saved into a database. 
-A client can then download and display that data under the form of a graph.
+Once the trigger condition is met, the acquisition finishes (either immediately or after a specified amount of time) and the data is returned to the 
+server to be saved into a database. A client can then download and display that data under the form of a graph.
 
 
 Configuring the datalogger
@@ -26,8 +26,8 @@ The first step before configuring the datalogger is knowing what the device is c
 - How many signal can I log?
 - etc
 
-Getting that information is done through :meth:`ScrutinyClient.get_datalogging_capabilities<scrutiny.sdk.client.ScrutinyClient.get_datalogging_capabilities>` 
-and returns a :class:`DataloggingCapabilities<scrutiny.sdk.datalogging.DataloggingCapabilities>`
+This information can be obtained using the :meth:`ScrutinyClient.get_datalogging_capabilities<scrutiny.sdk.client.ScrutinyClient.get_datalogging_capabilities>` method, 
+which returns a :class:`DataloggingCapabilities<scrutiny.sdk.datalogging.DataloggingCapabilities>` object.
 
 .. automethod:: scrutiny.sdk.client.ScrutinyClient.get_datalogging_capabilities
 
@@ -174,7 +174,7 @@ past acquisitions (which is also possible through the :abbr:`CLI (Command Line I
 Each acquisition has a unique ID called the :attr:`reference_id<scrutiny.core.datalogging.DataloggingAcquisition.reference_id>`.
 On can list the acquisition available by calling :meth:`ScrutinyClient.list_stored_datalogging_acquisitions<scrutiny.sdk.client.ScrutinyClient.list_stored_datalogging_acquisitions>`
 and once the :attr:`reference_id<scrutiny.core.datalogging.DataloggingAcquisition.reference_id>` is known, it can be passed to 
-:meth:`ScrutinyClient.read_datalogging_acquisitio()n<scrutiny.sdk.client.ScrutinyClient.read_datalogging_acquisition>`
+:meth:`ScrutinyClient.read_datalogging_acquisition()<scrutiny.sdk.client.ScrutinyClient.read_datalogging_acquisition>`
 
 
 .. automethod:: scrutiny.sdk.client.ScrutinyClient.list_stored_datalogging_acquisitions 
@@ -205,4 +205,3 @@ Example
         acquisition = client.read_datalogging_acquisition(entries[0].reference_id)   # Read the first one
         print(f"Acquisition {acquisition.name} [{acquisition.reference_id}] downloaded and has {len(acquisition.ydata)} signals on the Y-Axis. ")
         acquisition.to_csv("myfile.csv")
-

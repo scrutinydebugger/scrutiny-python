@@ -1,14 +1,15 @@
 Extending the protocol
 ======================
 
-The communication protocol between the server and the device is a fully custom binary protocol developed specifically for Scrutiny. 
-This protocol is a half-duplex, command-based protocol. Each request has a command ID (7bits) and a subcommand ID (8bits). 
+The server and the device communicate through a binary protocol, designed exclusively for Scrutiny.
+This protocol is a half-duplex and oeprates in a command-based fashion. Each request has a command ID (7bits) and a subcommand ID (8bits). 
 
 In order to allow a user to share that communication channel with Scrutiny without interfering, it is possible to encapsulate data into a dedicated 
-Scrutiny command called ``UserCommand``. This command ID does nothing else than triggers a user-written callback in the firmware. 
-The subfunction and data are passed to that callback . 
+Scrutiny command called ``UserCommand``. This command ID solely activates a user-defined callback in the firmware, 
+passing the subfunction and data to this callback.
 
-It is possible to send a ``UserCommand`` through the python :abbr:`SDK (Software Development Kit)` and the device response will be carried all the way back to the client.
+It is possible to send a ``UserCommand`` through the python :abbr:`SDK (Software Development Kit)`. 
+The device's response will then be relayed directly back to the client.
 
 -----
 

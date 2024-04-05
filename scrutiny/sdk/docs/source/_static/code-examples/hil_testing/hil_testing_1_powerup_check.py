@@ -1,6 +1,4 @@
-from scrutiny import sdk
 from scrutiny.sdk.client import ScrutinyClient
-import time
 
 hostname = 'localhost'
 port = 1234
