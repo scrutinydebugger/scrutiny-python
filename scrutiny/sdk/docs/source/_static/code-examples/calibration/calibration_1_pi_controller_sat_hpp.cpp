@@ -1,6 +1,8 @@
 // pi_controller_sat.hpp
 #include <algorithm>
 
+// When tuning is enabled, tunables becomes volatile variable
+// preventing optimization and ensuring  live updates works all the time.
 #ifdef ENABLE_TUNNING
     #define TUNABLE_CONST volatile
     #define TUNABLE volatile

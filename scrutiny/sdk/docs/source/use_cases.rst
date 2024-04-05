@@ -111,6 +111,20 @@ to dump the content of the EEPROM.
 Control algorithm tuning
 ------------------------
 
+The following example is a bit more creative and shows how powerful Scrutiny can be when developping embedded firmware. 
+
+It illustrates a scenario where a PI controller operates within a 10KHz control loop, demonstrating how the controller's 
+response could be characterized automatically. 
+For the sake of simplicity, this example does not include validation of the controller's operational conditions 
+(i.e., there are no error conditions or feedback range checks).
+
+- The controller in question is a PI controller with a saturated output.
+- The parameters can be declared as ``const`` or ``volatile`` based on a compilation option
+    - When declared as ``const`` the compiler can optimize for speed, which would be a typical production configuration.
+    - When declared as ``volatile``, the compiler will not perform any optimization, ensuring that the scrutiny input will be recognized.
+- The configuration of the scrutiny-embedded library is not shown in this example, as the focus is primarily on the SDK.
+
+
 C++ Application
 ###############
 
@@ -122,6 +136,11 @@ C++ Application
     :language: c++
     :encoding: utf-8
 
+
+The following python script accepts gains value (kp, ki) from the command line and initiates a characterization process.
+This process involves incrementally adjusting the control reference from 0 to 0.1, then 0 to 0.2, 0 to 0.3, and so on.  
+At each step, the built-in data logger records the controller’s response to the input step. 
+The script then saves this data to a CSV file using the Scrutiny SDK.
 
 Python script
 #############
