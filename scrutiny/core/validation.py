@@ -72,3 +72,9 @@ def assert_float_range_if_not_none(val: Optional[float], name: str, minval: Opti
     if val is None:
         return None
     return assert_float_range(val, name, minval, maxval)
+
+def assert_is_iterable(val:Any, name:str) -> None:
+    try:
+        iter(val)
+    except TypeError:
+        raise ValueError(f"{name} is not iterable. Got type: {val.__class__.__name__}")
