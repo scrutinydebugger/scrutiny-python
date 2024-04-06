@@ -16,6 +16,7 @@ sdk = scrutiny.sdk
 from scrutiny.sdk import _api_parser as api_parser
 from scrutiny.sdk.definitions import *
 from scrutiny.sdk.watchable_handle import WatchableHandle
+from scrutiny.sdk import listeners
 from scrutiny.core.basic_types import *
 from scrutiny.tools.timer import Timer
 from scrutiny.sdk.write_request import WriteRequest
@@ -217,6 +218,8 @@ class ScrutinyClient:
     _last_device_session_id: Optional[str]  # The last device session ID observed. Used to detect disconnection/reconnection
     _last_sfd_firmware_id: Optional[str]    # The last loaded SFD seen. Used to detect change in SFD
 
+    _listeners:List[listeners.BaseListener]   # List of registered listeners
+
     def __enter__(self) -> "ScrutinyClient":
         return self
 
@@ -273,6 +276,7 @@ class ScrutinyClient:
         self._last_sfd_firmware_id = None
 
         self._active_batch_context = None
+        self._listeners=[]
 
     def _start_worker_thread(self) -> None:
         self._threading_events.stop_worker_thread.clear()
@@ -349,6 +353,7 @@ class ScrutinyClient:
     def _wt_process_msg_watchable_update(self, msg: api_typing.S2C.WatchableUpdate, reqid: Optional[int]) -> None:
         updates = api_parser.parse_watchable_update(msg)
 
+        updated_watchables:List[WatchableHandle] = []
         for update in updates:
             with self._main_lock:
                 watchable: Optional[WatchableHandle] = None
@@ -362,6 +367,10 @@ class ScrutinyClient:
                 self._logger.debug(f"Updating value of {update.server_id} ({watchable.name})")
 
             watchable._update_value(update.value)
+            updated_watchables.append(watchable)
+        
+        for listener in self._listeners:
+            listener._broadcast_update(updated_watchables)
 
     def _wt_process_msg_inform_write_completion(self, msg: api_typing.S2C.WriteCompletion, reqid: Optional[int]) -> None:
         completion = api_parser.parse_write_completion(msg)
@@ -1560,6 +1569,10 @@ class ScrutinyClient:
         if info is None:
             raise sdk.exceptions.InvalidValueError("Server status is not available")
         return info
+
+    def attach_listener(self, listener:listeners.BaseListener) -> None:
+        with self._main_lock:
+            self._listeners.append(listener)
 
     @property
     def name(self) -> str:
