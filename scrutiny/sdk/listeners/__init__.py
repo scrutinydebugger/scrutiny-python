@@ -28,19 +28,37 @@ class ValueUpdate:
 class BaseListener(abc.ABC):
 
     _name:str
+    """Name of the listener for logging"""
     _subscriptions:Set[WatchableHandle]
+    """List of watchable to listen for"""
     _update_queue:Optional["queue.Queue[Optional[List[ValueUpdate]]]"]
+    """Queue of updates moving from the client worker thread to the listener thread"""
     _logger:logging.Logger
+    """The logger object"""
     _drop_count:int
+    """Number of update dropped"""
     _queue_max_size:int
+    """Maximum queue size"""
     _started:bool
+    """Flag indicating if the listener thread is started"""
     _thread:Optional[threading.Thread]
+    """The listener thread"""
     _setup_error:bool
+    """Flag indicating if a an error occured while calling user setup()"""
+    _teardown_error:bool
+    """Flag indicating if a an error occured while calling user teardown()"""
+    _receive_error:bool
+    """Flag indicating if a an error occured while calling user receive()"""
 
     _started_event:threading.Event
+    """Event to synchronize start() with its thread."""
     _stop_request_event:threading.Event
+    """Event to stop the thread"""
 
-    def __init__(self, name:Optional[str]=None, queue_max_size:int=1000) -> None:
+    def __init__(self, 
+                 name:Optional[str]=None, 
+                 queue_max_size:int=1000
+                 ) -> None:
         if name is None:
             name = self.__class__.__name__
         else:
@@ -57,6 +75,8 @@ class BaseListener(abc.ABC):
         self._started = False
         self._thread = None
         self._setup_error=False
+        self._teardown_error=False
+        self._receive_error=False
         self._queue_max_size=queue_max_size
 
     def _broadcast_update(self, watchables:List[WatchableHandle]) -> None:
@@ -118,6 +138,7 @@ class BaseListener(abc.ABC):
                         if updates is not None:
                             self.receive(updates)
         except Exception as e:
+            self._receive_error = True
             self._logger.error(f"{e}")
             self._logger.debug(traceback.format_exc())
         finally:
@@ -125,6 +146,7 @@ class BaseListener(abc.ABC):
             try:
                 self.teardown()
             except Exception as e:
+                self._teardown_error=True
                 self._logger.error(f"User teardown() function raise an exception. {e}")
                 self._logger.debug(traceback.format_exc())
         
@@ -142,12 +164,22 @@ class BaseListener(abc.ABC):
         return False
 
     def setup(self) -> None:
+        """Function called by the listener when starting before monitoring"""
         pass
 
     def teardown(self) -> None:
+        """Function called by the listener when stopping right after being done monitoring"""
         pass
     
     def subscribe(self, watchables:Union[WatchableHandle, Iterable[WatchableHandle]]) -> None:
+        """Add watchables to the list of monitored watchables
+        
+        :param watchables: The list of watchables to add to the monitor list
+
+        :raise TypeError: Given parameter not of the expected type
+        :raise ValueError: Given parameter has an invalid value
+        :raise OperationFailure: Failed to complete the batch write
+        """
         if self._started:
             raise sdk_exceptions.OperationFailure("Cannot subscribe a watchable once the listener is started")
         if isinstance(watchables, WatchableHandle):
@@ -159,6 +191,11 @@ class BaseListener(abc.ABC):
     
 
     def start(self) -> "BaseListener":
+        """
+        Starts the listener thread. Once started, no more subscription can be added.
+
+        :raise sdk.exception.OperationFailure: If an error occur while starting the listener
+        """
         self._logger.debug("Start requested")
         if self._started:
             raise sdk_exceptions.OperationFailure("Listener already started")
@@ -166,6 +203,8 @@ class BaseListener(abc.ABC):
         self._stop_request_event.clear()
         self._started_event.clear()
         self._setup_error=False
+        self._teardown_error=False
+        self._receive_error=False
         self._update_queue = queue.Queue(self._queue_max_size)
         self._thread = threading.Thread(target=self._thread_task)
         self._thread.start()
@@ -185,6 +224,7 @@ class BaseListener(abc.ABC):
         return self
 
     def stop(self) -> None:
+        """Stops the lsitener thread"""
         self._logger.debug("Stop requested")
         if self._thread is not None:
             if self._thread.is_alive():
@@ -212,10 +252,31 @@ class BaseListener(abc.ABC):
         self._started = False
         self._logger.debug("Stopped")
 
+    @property
     def is_started(self) -> bool:
+        """Tells if the listener thread is running"""
         return self._started
+
+    @property
+    def name(self) -> str:
+        """Return the name of the listener"""
+        return self._name
+    
+    @property
+    def drop_count(self) -> int:
+        """Return the number of update dropped"""
+        return self._drop_count
+    
+    @property
+    def error_occured(self) -> int:
+        """Tells if an error occured while running the listener"""
+        return self._setup_error or self._receive_error or self._teardown_error
 
     @abc.abstractmethod
     def receive(self, updates:List[ValueUpdate]) -> None:
+        """Method called by the listener thread each time the client notifies the listeners for one or many updates
+        
+        :params updates: List of updates being broadcast
+        """
         raise NotImplementedError("Abstract method")
     

@@ -38,21 +38,47 @@ class WorkingTestListener(BaseListener):
         self.recv_list.extend(updates)
 
 class SetupFailedListener(BaseListener):
-
-    
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.teardown_called = False
 
-    
     def setup(self):
-        raise Exception("nope")
+        raise Exception("I failed!!")
     
     def teardown(self):
         self.teardown_called=True
 
     def receive(self, updates: List[ValueUpdate]) -> None:
         pass
+
+class TeardownFailedListener(BaseListener):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.setup_called = False
+
+    def setup(self):
+        self.setup_called = True
+    
+    def teardown(self):
+        raise Exception("I failed!!")
+
+    def receive(self, updates: List[ValueUpdate]) -> None:
+        pass
+
+class ReceiveFailedListener(BaseListener):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.setup_called = False
+        self.teardown_called = False
+
+    def setup(self):
+        self.setup_called = True
+    
+    def teardown(self):
+        self.teardown_called = True
+
+    def receive(self, updates: List[ValueUpdate]) -> None:
+        raise Exception("I failed!!")
 
 def wait_cond(cond, timeout):
     timed_out = False
@@ -67,7 +93,7 @@ def wait_cond(cond, timeout):
     if timed_out:
         raise TimeoutError()
 
-class TestListener(ScrutinyUnitTest):
+class TestListeners(ScrutinyUnitTest):
 
     def setUp(self) -> None:
         dummy_client = ScrutinyClient()
@@ -87,7 +113,7 @@ class TestListener(ScrutinyUnitTest):
         listener.subscribe([self.w1,self.w2,self.w4])  # w3 is not there on purpose
 
         with listener.start():
-            self.assertTrue(listener.is_started())
+            self.assertTrue(listener.is_started)
             # Simulate the client
             self.w1._update_value(3.1415)
             self.w2._update_value(-1234)
@@ -111,7 +137,7 @@ class TestListener(ScrutinyUnitTest):
 
             wait_cond(check_size, 1)
         
-        self.assertFalse(listener.is_started())
+        self.assertFalse(listener.is_started)
         self.assertEqual(len(listener.recv_list), expected_nb_element)
         self.assertIsNotNone(listener.setup_time)
         self.assertIsNotNone(listener.recv_time)
@@ -149,6 +175,8 @@ class TestListener(ScrutinyUnitTest):
         self.assertIsInstance(listener.recv_list[5].update_timestamp, datetime)
         self.assertEqual(listener.recv_list[5].value, -9.999)
 
+        self.assertFalse(listener.error_occured)
+
 
     def test_listener_failing_setup(self):
         listener = SetupFailedListener()
@@ -156,15 +184,38 @@ class TestListener(ScrutinyUnitTest):
 
         with self.assertRaises(sdk.exceptions.OperationFailure):
             listener.start()
-        
-        def teardown_called():
-            return listener.teardown_called
 
-        self.assertFalse(listener.is_started())
+        self.assertFalse(listener.is_started)
         self.assertTrue(listener.teardown_called)
-        listener.stop()
-        self.assertFalse(listener.is_started())
-        
+        self.assertTrue(listener.error_occured)
+     
+    def test_listener_failing_teardown(self):
+        listener = TeardownFailedListener()
+        listener.subscribe([self.w1,self.w2,self.w4])  # w3 is not there on purpose
+
+        listener.start()
+        self.assertTrue(listener.is_started)
+        self.assertTrue(listener.setup_called)
+        listener.stop() # Should not throw.
+        self.assertFalse(listener.is_started)
+        self.assertTrue(listener.error_occured)
+
+    def test_listener_failing_receive(self):
+        listener = ReceiveFailedListener()
+        listener.subscribe([self.w1,self.w2,self.w4])  # w3 is not there on purpose
+
+        listener.start()
+        self.assertTrue(listener.is_started)
+        self.assertTrue(listener.setup_called)
+
+        self.w1._update_value(3.1415)
+        self.w2._update_value(-1234)
+        listener._broadcast_update([self.w1, self.w2])
+
+        listener.stop() # Should not throw.
+        self.assertFalse(listener.is_started)
+        self.assertTrue(listener.error_occured)
+     
         
 
 
