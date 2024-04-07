@@ -7,7 +7,8 @@
         "*.py"
     ],
     "exclude_patterns": [
-        "*__init__.py"
+        "*__init__.py",
+        "scrutiny/sdk/docs/*"
     ],
     "license": "MIT - See LICENSE file",
     "project": "Scrutiny Debugger",
@@ -403,6 +404,15 @@
         },
         "scrutiny/core/bintools/elftools_stubs.py": {
             "docstring": "Stubfile for pyelftools"
+        },
+        "test/sdk/test_listeners.py": {
+            "docstring": "Testsuite for the SDK listener feature"
+        },
+        "scrutiny/sdk/listeners/buffered_reader_listener.py": {
+            "docstring": "Create a listener that simply enqueue the updates in a queue for the user to read it"
+        },
+        "scrutiny/sdk/listeners/text_stream_listener.py": {
+            "docstring": "Simple listener usable for debug. Prints all update in a text stream"
         }
     }
 }

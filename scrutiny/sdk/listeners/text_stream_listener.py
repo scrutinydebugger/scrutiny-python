@@ -1,3 +1,11 @@
+#    text_stream_listener.py
+#        Simple listener usable for debug. Prints all update in a text stream
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021 Scrutiny Debugger
+
 __all__ = ['TextStreamListener']
 from scrutiny.sdk.listeners import ValueUpdate
 from . import BaseListener
@@ -19,7 +27,7 @@ class TextStreamListener(BaseListener):
     def receive(self, updates: List[ValueUpdate]) -> None:
         update_time = (time.perf_counter() - self._start_time)*1e3
         for update in updates:
-            self._stream.write(f'{update_time:0.2f}ms\t{update.display_path}: {update.value}\n')
+            self._stream.write(f'{update_time:0.2f}ms\t ({update.watchable_type.name} - {update.datatype.name}) {update.display_path}: {update.value}\n')
     
     def teardown(self) -> None:
         self._stream.flush()

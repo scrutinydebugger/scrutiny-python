@@ -1,3 +1,11 @@
+#    test_listeners.py
+#        Testsuite for the SDK listener feature
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021 Scrutiny Debugger
+
 from typing import List
 import unittest
 
