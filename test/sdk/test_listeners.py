@@ -7,11 +7,16 @@ sdk = scrutiny.sdk  # Workaround for vscode linter an submodule on alias
 from datetime import datetime
 
 from scrutiny.sdk.listeners import BaseListener, ValueUpdate
+from scrutiny.sdk.listeners.buffered_reader_listener import BufferedReaderListener
+from scrutiny.sdk.listeners.text_stream_listener import TextStreamListener
 from test import ScrutinyUnitTest
 from typing import *
 import time
 from scrutiny.sdk.watchable_handle import WatchableHandle, WatchableType
 from scrutiny.sdk.client import ScrutinyClient
+from io import StringIO
+
+from test import logger
 
 class WorkingTestListener(BaseListener):
     recv_list:List[ValueUpdate]
@@ -80,7 +85,7 @@ class ReceiveFailedListener(BaseListener):
     def receive(self, updates: List[ValueUpdate]) -> None:
         raise Exception("I failed!!")
 
-def wait_cond(cond, timeout):
+def wait_cond(cond, timeout, msg=""):
     timed_out = False
     t1 = time.monotonic()
     while True:
@@ -91,7 +96,7 @@ def wait_cond(cond, timeout):
             break
         time.sleep(0.01)
     if timed_out:
-        raise TimeoutError()
+        raise TimeoutError(msg)
 
 class TestListeners(ScrutinyUnitTest):
 
@@ -132,13 +137,14 @@ class TestListeners(ScrutinyUnitTest):
             listener._broadcast_update([self.w2, self.w4])
             
             expected_nb_element = 6
-            def check_size():
-                return len(listener.recv_list) >= expected_nb_element
+            def all_received():
+                return listener.update_count >= expected_nb_element
 
-            wait_cond(check_size, 1)
+            wait_cond(all_received, 1, f"Did not receive at least {expected_nb_element} updates")
         
         self.assertFalse(listener.is_started)
         self.assertEqual(len(listener.recv_list), expected_nb_element)
+        self.assertEqual(listener.update_count, expected_nb_element)
         self.assertIsNotNone(listener.setup_time)
         self.assertIsNotNone(listener.recv_time)
         self.assertIsNotNone(listener.teardown_time)
@@ -216,10 +222,74 @@ class TestListeners(ScrutinyUnitTest):
         self.assertFalse(listener.is_started)
         self.assertTrue(listener.error_occured)
      
+    
+    def test_queue_overflow_dropped(self):
+        listener = WorkingTestListener(queue_max_size=1)
+        listener.subscribe([self.w1])
+        count = 100
+        with listener.start():
+            for i in range(count):
+                self.w1._update_value(i)
+                listener._broadcast_update([self.w1])
+            
+            def check_count():
+                return listener.update_count + listener.drop_count >= count
+            wait_cond(check_count, 0.5, f"Sum of dropped update + received update is not {count}")
+            
+        self.assertEqual(len(listener.recv_list), listener.update_count)
+        self.assertLess(listener.update_count, count)
+        self.assertGreater(listener.drop_count, 0)
+        self.assertEqual(listener.update_count + listener.drop_count, count)
+
+
+    def test_text_stream_listener(self):
+        stream = StringIO()
+        listener = TextStreamListener(stream)
+        listener.subscribe([self.w1,self.w2, self.w3, self.w4])
         
+        listener.start()
+        count = 10
+        for i in range(count):
+            self.w1._update_value(i)
+            self.w2._update_value(2*i)
+            listener._broadcast_update([self.w1, self.w2])
 
+        def all_received():
+            return listener.update_count == 2*count
+        
+        wait_cond(all_received, 0.5, "Not all received in time")
 
+        listener.stop() # Should not throw.
+        
+        lines = stream.getvalue().splitlines()
+        for line in lines:
+            logger.debug(f"\t {line}")
+        self.assertEqual(len(lines), 2*count)
+    
+    def test_buffered_reader_listener(self):
+        listener = BufferedReaderListener()
+        listener.subscribe([self.w1,self.w2, self.w3, self.w4])
+        
+        listener.start()
+        count = 10
+        for i in range(count):
+            self.w1._update_value(i)
+            self.w2._update_value(2*i)
+            listener._broadcast_update([self.w1, self.w2])
 
+        def all_received():
+            return listener.update_count == 2*count
+        
+        wait_cond(all_received, 0.5, "Not all received in time")
+
+        listener.stop() 
+        
+        received = 0
+        while not listener.get_queue().empty():
+            listener.get_queue().get()
+            received += 1
+        self.assertEqual(received, 2*count)
+    
 
 if __name__ == '__main__':
     unittest.main()

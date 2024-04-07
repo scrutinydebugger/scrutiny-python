@@ -60,6 +60,8 @@ class BaseListener(abc.ABC):
     """Event to synchronize start() with its thread."""
     _stop_request_event:threading.Event
     """Event to stop the thread"""
+    _update_count:int
+    """Number of updates received"""
 
     def __init__(self, 
                  name:Optional[str]=None, 
@@ -84,6 +86,7 @@ class BaseListener(abc.ABC):
         self._teardown_error=False
         self._receive_error=False
         self._queue_max_size=queue_max_size
+        self._update_count=0
 
     def _broadcast_update(self, watchables:List[WatchableHandle]) -> None:
         """
@@ -143,6 +146,7 @@ class BaseListener(abc.ABC):
                     if self._update_queue is not None:
                         updates = self._update_queue.get()
                         if updates is not None:
+                            self._update_count += len(updates)
                             self.receive(updates)
         except Exception as e:
             self._receive_error = True
@@ -213,6 +217,7 @@ class BaseListener(abc.ABC):
         self._setup_error=False
         self._teardown_error=False
         self._receive_error=False
+        self._update_count=0
         self._update_queue = queue.Queue(self._queue_max_size)
         self._thread = threading.Thread(target=self._thread_task)
         self._thread.start()
@@ -274,6 +279,11 @@ class BaseListener(abc.ABC):
     def drop_count(self) -> int:
         """Returns the number of update dropped"""
         return self._drop_count
+   
+    @property
+    def update_count(self) -> int:
+        """Returns the number of update received"""
+        return self._update_count
     
     @property
     def error_occured(self) -> int:
