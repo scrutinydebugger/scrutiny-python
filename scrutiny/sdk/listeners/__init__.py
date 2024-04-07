@@ -14,16 +14,22 @@ import types
 from typing import Union, List, Set, Iterable,Optional, Tuple, Type, Literal
 
 from scrutiny.core.basic_types import EmbeddedDataType
-from scrutiny.sdk.watchable_handle import WatchableHandle
+from scrutiny.sdk.watchable_handle import WatchableHandle, WatchableType
 from scrutiny.core import validation
 from scrutiny.sdk import exceptions as sdk_exceptions
 
 @dataclass(frozen=True)
 class ValueUpdate:
     display_path:str
+    """The textual tree-path used to identify watchables on the server"""
     datatype:EmbeddedDataType
+    """The datatype of the watchable in the device"""
     value: Union[int, float, bool]
+    """Value received in the update"""
     update_timestamp:datetime
+    """Timestamp of the update"""
+    watchable_type:WatchableType
+    """The type of watchable (var, rpv, alias)"""
 
 class BaseListener(abc.ABC):
 
@@ -97,6 +103,7 @@ class BaseListener(abc.ABC):
                         display_path=watchable.display_path,
                         value=watchable.value,
                         update_timestamp=timestamp,
+                        watchable_type=watchable.type
                     )
                     update_list.append(update)
             
@@ -164,15 +171,16 @@ class BaseListener(abc.ABC):
         return False
 
     def setup(self) -> None:
-        """Function called by the listener when starting before monitoring"""
+        """Overridable function called by the listener when starting before monitoring"""
         pass
 
     def teardown(self) -> None:
-        """Function called by the listener when stopping right after being done monitoring"""
+        """Overridable function called by the listener when stopping right after being done monitoring"""
         pass
     
     def subscribe(self, watchables:Union[WatchableHandle, Iterable[WatchableHandle]]) -> None:
-        """Add watchables to the list of monitored watchables
+        """Add new watchables to the list of monitored watchables. Can only be called before the listener
+        is started.
         
         :param watchables: The list of watchables to add to the monitor list
 
@@ -224,7 +232,7 @@ class BaseListener(abc.ABC):
         return self
 
     def stop(self) -> None:
-        """Stops the lsitener thread"""
+        """Stops the listener thread"""
         self._logger.debug("Stop requested")
         if self._thread is not None:
             if self._thread.is_alive():
@@ -264,7 +272,7 @@ class BaseListener(abc.ABC):
     
     @property
     def drop_count(self) -> int:
-        """Return the number of update dropped"""
+        """Returns the number of update dropped"""
         return self._drop_count
     
     @property
