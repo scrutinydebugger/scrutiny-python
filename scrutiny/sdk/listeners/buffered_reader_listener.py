@@ -25,6 +25,6 @@ class BufferedReaderListener(BaseListener):
         for update in updates:
             self._queue.put(update)
 
-    def get_queue(self) -> SimpleQueue:
+    def get_queue(self) -> "SimpleQueue[ValueUpdate]":
         """Return the queue used for storage"""
         return self._queue
