@@ -406,13 +406,13 @@
             "docstring": "Stubfile for pyelftools"
         },
         "test/sdk/test_listeners.py": {
-            "docstring": "Testsuite for the SDK listener feature"
+            "docstring": "Test suite for the SDK listener feature"
         },
         "scrutiny/sdk/listeners/buffered_reader_listener.py": {
-            "docstring": "Create a listener that simply enqueue the updates in a queue for the user to read it"
+            "docstring": "Create a listener that simply enqueue the updates in a queue for the user to read them"
         },
         "scrutiny/sdk/listeners/text_stream_listener.py": {
-            "docstring": "Simple listener usable for debug. Prints all update in a text stream"
+            "docstring": "Simple listener useful for debug. Prints all updates in a text stream"
         }
     }
 }

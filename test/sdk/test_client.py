@@ -798,15 +798,8 @@ class TestClient(ScrutinyUnitTest):
     def test_read_multiple_val(self) -> None:
 
         class TestListener(listeners.BaseListener):
-            # Dummy listenenr for testing the integration with the client
-            update_count:int
-            def __init__(self, *args, **kwargs):
-                super().__init__(*args, **kwargs)
-                self.update_count=0
-            
             def receive(self, updates:List[listeners.ValueUpdate])->None:
-                self.update_count+=len(updates)
-                
+                pass
 
         # Make sure we can read multiple watchables of different types
         rpv1000 = self.client.watch('/rpv/x1000')
@@ -815,27 +808,36 @@ class TestClient(ScrutinyUnitTest):
         alias_var1 = self.client.watch('/a/b/alias_var1')
         alias_rpv1000 = self.client.watch('/a/b/alias_rpv1000')
         
-        listener = TestListener()
-        listener.subscribe([rpv1000,var1,var2,alias_var1,alias_rpv1000])
-        self.client.attach_listener(listener)
+        listener1 = TestListener(name="listener1")
+        listener2 = TestListener(name="listener2")
+        listener1.subscribe([rpv1000,var1,var2,alias_var1,alias_rpv1000])
+        listener2.subscribe([rpv1000,var2,alias_rpv1000])
+        self.client.attach_listener(listener1)
+        self.client.attach_listener(listener2)
 
         def update_all(vals: Tuple[float, int, bool]):
             self.datastore.get_entry_by_display_path(rpv1000.display_path).set_value(vals[0])
             self.datastore.get_entry_by_display_path(var1.display_path).set_value(vals[1])
             self.datastore.get_entry_by_display_path(var2.display_path).set_value(vals[2])
 
-        with listener.start():
-            for i in range(10):
-                vals = (float(i) + 0.5, i * 100, i % 2 == 0)
-                self.execute_in_server_thread(partial(update_all, vals), wait=False, delay=0.02)
-                self.client.wait_new_value_for_all()
-                self.assertEqual(rpv1000.value, vals[0])
-                self.assertEqual(var1.value, vals[1])
-                self.assertEqual(var2.value, vals[2])
-                self.assertEqual(alias_var1.value, vals[1])
-                self.assertEqual(alias_rpv1000.value, vals[0])
+        count = 10
+        with listener1.start():
+            with listener2.start():
+                for i in range(count):
+                    vals = (float(i) + 0.5, i * 100, i % 2 == 0)
+                    self.execute_in_server_thread(partial(update_all, vals), wait=False, delay=0.02)
+                    self.client.wait_new_value_for_all()
+                    self.assertEqual(rpv1000.value, vals[0])
+                    self.assertEqual(var1.value, vals[1])
+                    self.assertEqual(var2.value, vals[2])
+                    self.assertEqual(alias_var1.value, vals[1])
+                    self.assertEqual(alias_rpv1000.value, vals[0])
         
-        self.assertGreaterEqual(listener.update_count, 10)
+        self.assertGreaterEqual(listener1.update_count, count)
+        self.assertGreaterEqual(listener2.update_count, count)
+        self.assertGreaterEqual(listener1.update_count, listener2.update_count)
+        self.assertEqual(listener1.drop_count, 0)
+        self.assertEqual(listener2.drop_count, 0)
 
     def test_write_single_val(self):
         # Make sure we can write a single watchable
