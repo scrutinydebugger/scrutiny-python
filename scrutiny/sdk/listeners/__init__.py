@@ -264,6 +264,10 @@ class BaseListener(abc.ABC):
 
         self._started = False
         self._logger.debug("Stopped")
+    
+    def get_subscriptions(self) -> Set[WatchableHandle]:
+        """Returns a set with all the watchables that this listener is subscribed to"""
+        return self._subscriptions.copy()
 
     @property
     def is_started(self) -> bool:
