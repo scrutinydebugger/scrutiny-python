@@ -17,12 +17,16 @@ from datetime import datetime
 from scrutiny.sdk.listeners import BaseListener, ValueUpdate
 from scrutiny.sdk.listeners.buffered_reader_listener import BufferedReaderListener
 from scrutiny.sdk.listeners.text_stream_listener import TextStreamListener
+from scrutiny.sdk.listeners.csv_file_listener import CSVConfig, CSVFileListener
 from test import ScrutinyUnitTest
 from typing import *
 import time
 from scrutiny.sdk.watchable_handle import WatchableHandle, WatchableType
 from scrutiny.sdk.client import ScrutinyClient
 from io import StringIO
+from tempfile import TemporaryDirectory
+import os
+import csv
 
 from test import logger
 
@@ -114,11 +118,13 @@ class TestListeners(ScrutinyUnitTest):
         self.w2 = WatchableHandle(dummy_client, '/aaa/bbb/ccc2')
         self.w3 = WatchableHandle(dummy_client, '/aaa/bbb/ccc3')
         self.w4 = WatchableHandle(dummy_client, '/aaa/bbb/ccc4')
+        self.w5 = WatchableHandle(dummy_client, '/aaa/bbb/ccc5')
 
         self.w1._configure(watchable_type=WatchableType.Variable, datatype=EmbeddedDataType.float32, server_id='w1')
         self.w2._configure(watchable_type=WatchableType.Variable, datatype=EmbeddedDataType.sint32, server_id='w2')
         self.w3._configure(watchable_type=WatchableType.Alias, datatype=EmbeddedDataType.uint32, server_id='w3')
         self.w4._configure(watchable_type=WatchableType.RuntimePublishedValue, datatype=EmbeddedDataType.float64, server_id='w4')
+        self.w5._configure(watchable_type=WatchableType.RuntimePublishedValue, datatype=EmbeddedDataType.boolean, server_id='w5')
     
     def test_listener_working_behavior(self):
         
@@ -298,6 +304,248 @@ class TestListeners(ScrutinyUnitTest):
             received += 1
         self.assertEqual(received, 2*count)
     
+    def test_csv_writer_listener_no_limits(self):
+        with TemporaryDirectory() as tempdir:
+            csv_config = CSVConfig()
+            listener = CSVFileListener(
+                folder=tempdir,
+                filename='my_file',
+                lines_per_file=None,
+                datetime_format=r'%Y-%m-%d %H:%M:%S',
+                csv_config=csv_config
+            )
+            listener.subscribe([self.w1,self.w2, self.w3, self.w4, self.w5])
+            
+            with listener.start():
+                count = 10
+                for i in range(count):
+                    self.w1._update_value(i*1.1)
+                    self.w2._update_value(-2*i)
+                    self.w3._update_value(3*i)
+                    self.w5._update_value(i%2==0)
+                    to_update=[self.w1, self.w2, self.w3, self.w5]
+                    if i > 0:
+                        self.w4._update_value(4.4123*i)
+                        to_update.append(self.w4)
+                    
+                    listener._broadcast_update(to_update)
+
+                def all_received():
+                    return listener.update_count == 5*count-1
+                
+                wait_cond(all_received, 0.5, "Not all received in time")
+
+
+            self.assertTrue(os.path.exists(os.path.join(tempdir, 'my_file.csv' )))
+            f = open(os.path.join(tempdir, 'my_file.csv' ), 'r', encoding=csv_config.encoding, newline=csv_config.newline)
+            reader = csv.reader(f, delimiter=csv_config.delimiter, quotechar=csv_config.quotechar, quoting=csv_config.quoting)
+            rows = iter(reader)
+            headers = next(rows)
+            self.assertEqual(headers[0], 'datetime' )
+            self.assertEqual(headers[1], 'time (ms)' )
+            all_watchables = sorted([self.w1, self.w2, self.w3, self.w4, self.w5], key=lambda x: x.display_path)
+            index=2
+            for watchable in all_watchables:
+                self.assertEqual(headers[index], watchable.display_path )
+                index+=1
+            
+            all_rows = list(rows)
+            self.assertEqual(len(all_rows), 10)
+            for i in range(len(all_rows)):
+                row = all_rows[i]
+                datetime.strptime(row[0], r'%Y-%m-%d %H:%M:%S')    # check it can be parsed
+                float(row[1])  # ensure it can be parsed
+
+                for col in range(2, len(headers)-1):
+                    if headers[col] == self.w1.display_path:
+                        self.assertEqual(row[col], i*1.1)
+                    elif headers[col] == self.w2.display_path:
+                        self.assertEqual(row[col], -2*i)
+                    elif headers[col] == self.w3.display_path:
+                        self.assertEqual(row[col], 3*i)
+                    elif headers[col] == self.w4.display_path:
+                        if i == 0:
+                            self.assertEqual(row[col], '')
+                        else:
+                            self.assertEqual(row[col], i*4.4123)
+                    elif headers[col] == self.w5.display_path:
+                        self.assertEqual(row[col], 1 if i%2==0 else 0)
+
+
+    def test_csv_writer_listener_file_split(self):
+        with TemporaryDirectory() as tempdir:
+            csv_config = CSVConfig()
+            listener = CSVFileListener(
+                folder=tempdir,
+                filename='my_file',
+                lines_per_file=100,
+                file_part_0pad=4,
+                datetime_format=r'%Y-%m-%d %H:%M:%S',
+                csv_config=csv_config
+            )
+            listener.subscribe([self.w1,self.w2, self.w3, self.w4, self.w5])
+            
+            with listener.start():
+                count = 250
+                for i in range(count):
+                    self.w1._update_value(i*1.1)
+                    self.w2._update_value(-2*i)
+                    self.w3._update_value(3*i)
+                    self.w4._update_value(i*4.4123)
+                    self.w5._update_value(i%2==0)
+                    listener._broadcast_update([self.w1, self.w2, self.w3, self.w4, self.w5])
+
+                def all_received():
+                    return listener.update_count == 5*count
+                
+                wait_cond(all_received, 0.5, "Not all received in time")
+
+
+            self.assertTrue(os.path.exists(os.path.join(tempdir, 'my_file_0000.csv' )))
+            self.assertTrue(os.path.exists(os.path.join(tempdir, 'my_file_0001.csv' )))
+            self.assertTrue(os.path.exists(os.path.join(tempdir, 'my_file_0002.csv' )))
+            self.assertFalse(os.path.exists(os.path.join(tempdir, 'my_file_0003.csv' )))
+
+            #import ipdb; ipdb.set_trace()
+            f1 = open(os.path.join(tempdir, 'my_file_0000.csv' ), 'r', encoding=csv_config.encoding, newline=csv_config.newline)
+            f2 = open(os.path.join(tempdir, 'my_file_0001.csv' ), 'r', encoding=csv_config.encoding, newline=csv_config.newline)
+            f3 = open(os.path.join(tempdir, 'my_file_0002.csv' ), 'r', encoding=csv_config.encoding, newline=csv_config.newline)
+            
+            for f in [f1,f2,f3]:
+                nrow=100
+                start=0
+                if f is f2:
+                    start=100
+                if f is f3:
+                    start=200
+                    nrow=50
+                reader = csv.reader(f, delimiter=csv_config.delimiter, quotechar=csv_config.quotechar, quoting=csv_config.quoting)
+                rows = iter(reader)
+                headers = next(rows)
+                self.assertEqual(headers[0], 'datetime' )
+                self.assertEqual(headers[1], 'time (ms)' )
+                all_watchables = sorted([self.w1, self.w2, self.w3, self.w4, self.w5], key=lambda x: x.display_path)
+                index=2
+                for watchable in all_watchables:
+                    self.assertEqual(headers[index], watchable.display_path )
+                    index+=1
+                
+                all_rows = list(rows)
+                self.assertEqual(len(all_rows), nrow)
+                for i in range(start, start+nrow):
+                    row = all_rows[i-start]
+                    datetime.strptime(row[0], r'%Y-%m-%d %H:%M:%S')    # check it can be parsed
+                    float(row[1])  # ensure it can be parsed
+
+                    for col in range(2, len(headers)-1):
+                        if headers[col] == self.w1.display_path:
+                            self.assertEqual(row[col], i*1.1)
+                        elif headers[col] == self.w2.display_path:
+                            self.assertEqual(row[col], -2*i)
+                        elif headers[col] == self.w3.display_path:
+                            self.assertEqual(row[col], 3*i)
+                        elif headers[col] == self.w4.display_path:
+                            self.assertEqual(row[col], i*4.4123)
+                        elif headers[col] == self.w5.display_path:
+                            self.assertEqual(row[col], 1 if i%2==0 else 0)
+            
+    def test_csv_writer_listener_bad_params(self):
+        with TemporaryDirectory() as tempdir:
+            with self.assertRaises(FileNotFoundError):
+                CSVFileListener(
+                    folder=os.path.join(tempdir, 'potato'),
+                    filename='my_file'
+                )
+            
+            with self.assertRaises(FileExistsError):
+                ftest=os.path.join(tempdir, 'my_file_001.csv')
+                open(ftest, 'w').close() # touch
+                CSVFileListener(
+                    folder=tempdir,
+                    lines_per_file=10000,
+                    filename='my_file'
+                )
+            os.unlink(ftest)
+
+
+            ftest=os.path.join(tempdir, 'my_file_001.csv')
+            open(ftest, 'w').close() # touch
+            CSVFileListener(
+                folder=tempdir,
+                lines_per_file=None,
+                filename='my_file'
+            )
+            os.unlink(ftest)
+
+
+            with self.assertRaises(ValueError):
+                CSVFileListener(
+                    folder=tempdir,
+                    lines_per_file=-1,
+                    filename='my_file'
+                )
+
+            with self.assertRaises(ValueError):
+                CSVFileListener(
+                    folder=tempdir,
+                    filename=os.path.join('xxx', 'yyy', 'my_file')
+                )
+            
+            with self.assertRaises(TypeError):
+                CSVFileListener(
+                    folder=123,
+                    filename='my_file'
+                )
+            
+            with self.assertRaises(TypeError):
+                CSVFileListener(
+                    folder=tempdir,
+                    lines_per_file='asd',
+                    filename='my_file'
+                )
+
+            with self.assertRaises(TypeError):
+                CSVFileListener(
+                    folder=tempdir,
+                    filename='my_file',
+                    convert_bool_to_int='asd'
+                )
+            
+            with self.assertRaises(TypeError):
+                CSVFileListener(
+                    folder=tempdir,
+                    filename='my_file',
+                    datetime_format=123
+                )
+            
+            with self.assertRaises(ValueError):
+                CSVFileListener(
+                    folder=tempdir,
+                    filename='my_file',
+                    file_part_0pad=-1
+                )
+
+            with self.assertRaises(TypeError):
+                CSVFileListener(
+                    folder=tempdir,
+                    filename='my_file',
+                    file_part_0pad='asd'
+                )
+            
+            with self.assertRaises(TypeError):
+                CSVFileListener(
+                    folder=tempdir,
+                    filename='my_file',
+                    csv_config='asd'
+                )
+            
+            with self.assertRaises(sdk.exceptions.OperationFailure):
+                listener = CSVFileListener(
+                    folder=tempdir,
+                    filename='my_file',
+                    csv_config=CSVConfig(encoding='badencoding')
+                )
+                listener.start()
 
 if __name__ == '__main__':
     unittest.main()
