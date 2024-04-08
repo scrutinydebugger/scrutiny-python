@@ -282,7 +282,7 @@ class TestListeners(ScrutinyUnitTest):
     
     def test_buffered_reader_listener(self):
         listener = BufferedReaderListener()
-        listener.subscribe([self.w1,self.w2, self.w3, self.w4])
+        listener.subscribe([self.w1, self.w2, self.w3, self.w4])
         
         listener.start()
         count = 10
@@ -323,26 +323,33 @@ class TestListeners(ScrutinyUnitTest):
                     self.w2._update_value(-2*i)
                     self.w3._update_value(3*i)
                     self.w5._update_value(i%2==0)
-                    to_update=[self.w1, self.w2, self.w3, self.w5]
-                    if i > 0:
-                        self.w4._update_value(4.4123*i)
-                        to_update.append(self.w4)
+                    if i == 6:
+                        to_update=[self.w1, self.w5, self.w2]
+                    else:
+                        to_update=[self.w1, self.w2, self.w3, self.w5]
+                        if i > 0:
+                            self.w4._update_value(4.4123*i)
+                            to_update.append(self.w4)
                     
                     listener._broadcast_update(to_update)
 
                 def all_received():
-                    return listener.update_count == 5*count-1
+                    return listener.update_count == 5*count-1-2 # Remove index 0 + 2 for index 6
                 
                 wait_cond(all_received, 0.5, "Not all received in time")
+                 
 
 
             self.assertTrue(os.path.exists(os.path.join(tempdir, 'my_file.csv' )))
+            f = open(os.path.join(tempdir, 'my_file.csv' ), 'r', encoding=csv_config.encoding, newline=csv_config.newline)
+            print(f.read())
             f = open(os.path.join(tempdir, 'my_file.csv' ), 'r', encoding=csv_config.encoding, newline=csv_config.newline)
             reader = csv.reader(f, delimiter=csv_config.delimiter, quotechar=csv_config.quotechar, quoting=csv_config.quoting)
             rows = iter(reader)
             headers = next(rows)
             self.assertEqual(headers[0], 'datetime' )
             self.assertEqual(headers[1], 'time (ms)' )
+            self.assertEqual(headers[-1], 'update flags' )
             all_watchables = sorted([self.w1, self.w2, self.w3, self.w4, self.w5], key=lambda x: x.display_path)
             index=2
             for watchable in all_watchables:
@@ -356,16 +363,30 @@ class TestListeners(ScrutinyUnitTest):
                 datetime.strptime(row[0], r'%Y-%m-%d %H:%M:%S')    # check it can be parsed
                 float(row[1])  # ensure it can be parsed
 
+                if i == 0:
+                    self.assertEqual(row[-1], '1,1,1,0,1')
+                elif i==6:
+                    self.assertEqual(row[-1], '1,1,0,0,1')
+                else:
+                    self.assertEqual(row[-1], '1,1,1,1,1')
+
+
+
                 for col in range(2, len(headers)-1):
                     if headers[col] == self.w1.display_path:
                         self.assertEqual(row[col], i*1.1)
                     elif headers[col] == self.w2.display_path:
                         self.assertEqual(row[col], -2*i)
                     elif headers[col] == self.w3.display_path:
-                        self.assertEqual(row[col], 3*i)
+                        if i == 6:
+                            self.assertEqual(row[col], 3*(i-1))
+                        else:
+                            self.assertEqual(row[col], 3*i)
                     elif headers[col] == self.w4.display_path:
                         if i == 0:
                             self.assertEqual(row[col], '')
+                        elif i == 6:
+                            self.assertEqual(row[col], (i-1)*4.4123)
                         else:
                             self.assertEqual(row[col], i*4.4123)
                     elif headers[col] == self.w5.display_path:
@@ -383,7 +404,7 @@ class TestListeners(ScrutinyUnitTest):
                 datetime_format=r'%Y-%m-%d %H:%M:%S',
                 csv_config=csv_config
             )
-            listener.subscribe([self.w1,self.w2, self.w3, self.w4, self.w5])
+            listener.subscribe([self.w3, self.w4, self.w5, self.w1,self.w2,])
             
             with listener.start():
                 count = 250
@@ -424,6 +445,7 @@ class TestListeners(ScrutinyUnitTest):
                 headers = next(rows)
                 self.assertEqual(headers[0], 'datetime' )
                 self.assertEqual(headers[1], 'time (ms)' )
+                self.assertEqual(headers[-1], 'update flags' )
                 all_watchables = sorted([self.w1, self.w2, self.w3, self.w4, self.w5], key=lambda x: x.display_path)
                 index=2
                 for watchable in all_watchables:

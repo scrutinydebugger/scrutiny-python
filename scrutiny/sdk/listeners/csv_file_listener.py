@@ -43,6 +43,8 @@ class CSVFileListener(BaseListener):
  
     DATETIME_HEADER='datetime'
     RELTIME_HEADER='time (ms)'
+    UPDATE_FLAG_HEADER='update flags'
+    WATCHABLE_FIRST_COL=2
 
     _folder_abs:str
     _requested_basename:str
@@ -142,6 +144,7 @@ class CSVFileListener(BaseListener):
             return f'{self._requested_basename}{self.EXTENSION}'
     
     def _open_file_by_basename(self, basename:str) -> TextIO:
+
         fullpath = os.path.join(self._folder_abs, basename)
         if os.path.exists(fullpath):
             raise FileExistsError(f"File {fullpath} already exists")
@@ -195,6 +198,9 @@ class CSVFileListener(BaseListener):
         self._val_dict[self.RELTIME_HEADER] = 0
         
         for i in range(len(subscriptions)):
+            if i==0:
+                # Safety check to make sure WATCHABLE_FIRST_COL is correct
+                assert self.WATCHABLE_FIRST_COL == len(self._fieldnames)
             display_path = subscriptions[i].display_path
             try:
                 self._val_dict[display_path] = subscriptions[i].value
@@ -204,6 +210,9 @@ class CSVFileListener(BaseListener):
                 self._val_dict[display_path] = ''
             self._fieldnames.append(display_path)
         
+        self._val_dict[self.UPDATE_FLAG_HEADER]=''
+        self._fieldnames.append(self.UPDATE_FLAG_HEADER)
+        
         self._csv_writer = self._make_csv_writer()
         self._csv_writer.writeheader()
 
@@ -212,11 +221,20 @@ class CSVFileListener(BaseListener):
         assert self._csv_writer is not None
         self._val_dict[self.RELTIME_HEADER] = round((time.perf_counter() - self._start_time)*1e3, 3)
         self._val_dict[self.DATETIME_HEADER] = datetime.now().strftime(self._datetime_format)
-
+        update_flags = [0]*len(self.get_subscriptions())
         for update in updates:
             self._val_dict[update.display_path] = update.value
             if self._convert_bool_to_int and update.datatype == EmbeddedDataType.boolean:
                     self._val_dict[update.display_path] = int(self._val_dict[update.display_path])
+            
+            field_index = self.WATCHABLE_FIRST_COL
+            for i in range(len(self.get_subscriptions())):
+                if update.display_path == self._fieldnames[field_index]:
+                    update_flags[i]=1 
+                field_index += 1
+                
+        self._val_dict[self.UPDATE_FLAG_HEADER] = ','.join([str(x) for x in update_flags])
+
 
         self._csv_writer.writerow(self._val_dict)
         self._line_counter+=1
