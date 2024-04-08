@@ -52,7 +52,7 @@ class CSVFileListener(BaseListener):
     _actual_file_basename:str
     _actual_file_handle:Optional[TextIO]
     _line_counter:int
-    _csv_writer:Optional[csv.DictWriter[str]]
+    _csv_writer:Optional["csv.DictWriter[str]"]
     _val_dict:Dict[str, Union[str, int, float, bool]]
     _actual_index:int
     _fieldnames:List[str]
@@ -147,7 +147,7 @@ class CSVFileListener(BaseListener):
             raise FileExistsError(f"File {fullpath} already exists")
         return  open(fullpath, 'w', encoding= self._csv_config.encoding, newline= self._csv_config.newline)
 
-    def _make_csv_writer(self) -> csv.DictWriter[str]:
+    def _make_csv_writer(self) -> "csv.DictWriter[str]":
         assert len(self._fieldnames) > 0
         assert self._actual_file_handle is not None
 
