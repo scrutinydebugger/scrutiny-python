@@ -1,6 +1,6 @@
 #    buffered_reader_listener.py
 #        Create a listener that simply enqueue the updates in a queue for the user to read
-#        it
+#        them
 #
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)

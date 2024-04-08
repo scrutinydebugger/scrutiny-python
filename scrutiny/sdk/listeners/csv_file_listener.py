@@ -1,3 +1,12 @@
+#    csv_file_listener.py
+#        Listener that dumps the values of the watchables into either one or multiple CSV
+#        files
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021 Scrutiny Debugger
+
 __all__ = ['CSVFileListener', 'CSVConfig']
 from scrutiny.core import validation
 from scrutiny.core.basic_types import *

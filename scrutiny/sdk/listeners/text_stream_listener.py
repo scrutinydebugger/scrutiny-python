@@ -1,5 +1,5 @@
 #    text_stream_listener.py
-#        Simple listener usable for debug. Prints all update in a text stream
+#        Simple listener useful for debug. Prints all updates in a text stream
 #
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)

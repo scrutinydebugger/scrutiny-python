@@ -413,6 +413,9 @@
         },
         "scrutiny/sdk/listeners/text_stream_listener.py": {
             "docstring": "Simple listener useful for debug. Prints all updates in a text stream"
+        },
+        "scrutiny/sdk/listeners/csv_file_listener.py": {
+            "docstring": "Listener that dumps the values of the watchables into either one or multiple CSV files"
         }
     }
 }

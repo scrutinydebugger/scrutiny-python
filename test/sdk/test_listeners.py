@@ -1,5 +1,5 @@
 #    test_listeners.py
-#        Testsuite for the SDK listener feature
+#        Test suite for the SDK listener feature
 #
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
