@@ -20,14 +20,20 @@ from scrutiny.sdk import exceptions as sdk_exceptions
 
 @dataclass(frozen=True)
 class ValueUpdate:
+    """(Immutable struct) Contains the relevant information about a watchable update broadcast by the server """
+
     display_path:str
     """The textual tree-path used to identify watchables on the server"""
+
     datatype:EmbeddedDataType
     """The datatype of the watchable in the device"""
+
     value: Union[int, float, bool]
     """Value received in the update"""
+
     update_timestamp:datetime
     """Timestamp of the update"""
+    
     watchable_type:WatchableType
     """The type of watchable (var, rpv, alias)"""
 
@@ -67,6 +73,12 @@ class BaseListener(abc.ABC):
                  name:Optional[str]=None, 
                  queue_max_size:int=1000
                  ) -> None:
+        """Base abstract class for all listeners. :meth:`receive<receive>` must be overriden.
+            :meth:`setup<setup>` and :meth:`teardown<teardown>` can optionally be overriden.
+
+            :param name: Name of the listener used for logging purpose
+            :param queue_max_size: Internal queue maximum size. If the queue is ever full, the update notification will be dropped
+        """
         if name is None:
             name = self.__class__.__name__
         else:
@@ -175,15 +187,15 @@ class BaseListener(abc.ABC):
         return False
 
     def setup(self) -> None:
-        """Overridable function called by the listener when starting before monitoring"""
+        """Overridable function called by the listener from its thread when starting, before monitoring"""
         pass
 
     def teardown(self) -> None:
-        """Overridable function called by the listener when stopping right after being done monitoring"""
+        """Overridable function called by the listener from its thread when stopping, right after being done monitoring"""
         pass
     
     def subscribe(self, watchables:Union[WatchableHandle, Iterable[WatchableHandle]]) -> None:
-        """Add new watchables to the list of monitored watchables. Can only be called before the listener
+        """Add one or many new watchables to the list of monitored watchables. Can only be called before the listener
         is started.
         
         :param watchables: The list of watchables to add to the monitor list
@@ -203,10 +215,9 @@ class BaseListener(abc.ABC):
     
 
     def start(self) -> "BaseListener":
-        """
-        Starts the listener thread. Once started, no more subscription can be added.
+        """Starts the listener thread. Once started, no more subscription can be added.
 
-        :raise sdk.exception.OperationFailure: If an error occur while starting the listener
+        :raise sdk.exceptions.OperationFailure: If an error occur while starting the listener
         """
         self._logger.debug("Start requested")
         if self._started:
@@ -276,17 +287,17 @@ class BaseListener(abc.ABC):
 
     @property
     def name(self) -> str:
-        """Return the name of the listener"""
+        """The name of the listener"""
         return self._name
     
     @property
     def drop_count(self) -> int:
-        """Returns the number of update dropped"""
+        """The number of update dropped due to a full internal queue"""
         return self._drop_count
    
     @property
     def update_count(self) -> int:
-        """Returns the number of update received"""
+        """The number of update received (not dropped)"""
         return self._update_count
     
     @property
@@ -298,7 +309,7 @@ class BaseListener(abc.ABC):
     def receive(self, updates:List[ValueUpdate]) -> None:
         """Method called by the listener thread each time the client notifies the listeners for one or many updates
         
-        :params updates: List of updates being broadcast
+        :param updates: List of updates being broadcast
         """
         raise NotImplementedError("Abstract method")
     

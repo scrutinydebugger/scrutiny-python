@@ -7,6 +7,7 @@ Scrutiny Python SDK
    Home <self>
    getting_started
    accessing_variables
+   listeners
    datalogging
    server_control
    firmware_descriptions
@@ -20,5 +21,5 @@ The Scrutiny Python Software Development Kit (SDK) is a Python module that facil
 Its primary function is to automate interactions with a device, thereby enabling Hardware-In-the-Loop (HIL) testing, End-Of-Line (EOL) 
 configuration, and complex debugging sequences.
 
-Given the multi-client design of the Scrutiny Debugger Server, it’s possible to execute one or multiple scripts while concurrently 
+Given the multi-client design of the Scrutiny Debugger Server, it is possible to execute one or multiple scripts while concurrently 
 monitoring the connected device via the Graphical User Interface (GUI).

@@ -1570,7 +1570,11 @@ class ScrutinyClient:
             raise sdk.exceptions.InvalidValueError("Server status is not available")
         return info
 
-    def attach_listener(self, listener:listeners.BaseListener) -> None:
+    def register_listener(self, listener:listeners.BaseListener) -> None:
+        """Register a new listener. The client will notify it each time a new value update is received from the server
+        
+        :param listener: The listener to register
+        """
         with self._main_lock:
             self._listeners.append(listener)
 

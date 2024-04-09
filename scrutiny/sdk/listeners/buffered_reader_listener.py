@@ -18,6 +18,12 @@ from typing import List,  Any, Optional
 class BufferedReaderListener(BaseListener):
     _queue:"SimpleQueue[ValueUpdate]"
     def __init__(self, *args:Any, **kwargs:Any):
+        """Creates a listener that makes a copy of every received :class:`ValueUpdate<scrutiny.sdk.listeners.ValueUpdate>` 
+        object and push them into a queue, waiting for the user to read them.
+
+        :param args: Passed to :class:`BaseListener<scrutiny.sdk.listeners.BaseListener>`
+        :param kwargs: Passed to :class:`BaseListener<scrutiny.sdk.listeners.BaseListener>`
+        """
         BaseListener.__init__(self, *args, **kwargs)
         self._queue = SimpleQueue()
 

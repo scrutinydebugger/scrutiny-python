@@ -55,6 +55,12 @@ modifies the value that the :class:`WatchableHandle<scrutiny.sdk.watchable_handl
 
 -----
 
+.. autoclass:: scrutiny.sdk.WatchableType
+    :members:
+    :member-order: bysource
+
+-----
+
 After getting a handle to the watchable, the :attr:`value<scrutiny.sdk.watchable_handle.WatchableHandle.value>` property and its derivative (
 :attr:`value_int<scrutiny.sdk.watchable_handle.WatchableHandle.value_int>`, 
 :attr:`value_float<scrutiny.sdk.watchable_handle.WatchableHandle.value_float>`, 

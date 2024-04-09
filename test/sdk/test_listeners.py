@@ -324,9 +324,9 @@ class TestListeners(ScrutinyUnitTest):
                     self.w3._update_value(3*i)
                     self.w5._update_value(i%2==0)
                     if i == 6:
-                        to_update=[self.w1, self.w5, self.w2]
+                        to_update=[self.w1, self.w5, self.w2]           # Puposely out of order
                     else:
-                        to_update=[self.w1, self.w2, self.w3, self.w5]
+                        to_update=[self.w1, self.w2, self.w5, self.w3]  # Puposely out of order
                         if i > 0:
                             self.w4._update_value(4.4123*i)
                             to_update.append(self.w4)
@@ -334,7 +334,7 @@ class TestListeners(ScrutinyUnitTest):
                     listener._broadcast_update(to_update)
 
                 def all_received():
-                    return listener.update_count == 5*count-1-2 # Remove index 0 + 2 for index 6
+                    return listener.update_count == 5*count-1-2 # Remove 1 for index 0 + 2 for index 6
                 
                 wait_cond(all_received, 0.5, "Not all received in time")
                  
@@ -369,7 +369,6 @@ class TestListeners(ScrutinyUnitTest):
                     self.assertEqual(row[-1], '1,1,0,0,1')
                 else:
                     self.assertEqual(row[-1], '1,1,1,1,1')
-
 
 
                 for col in range(2, len(headers)-1):
@@ -414,7 +413,7 @@ class TestListeners(ScrutinyUnitTest):
                     self.w3._update_value(3*i)
                     self.w4._update_value(i*4.4123)
                     self.w5._update_value(i%2==0)
-                    listener._broadcast_update([self.w1, self.w2, self.w3, self.w4, self.w5])
+                    listener._broadcast_update([self.w5, self.w1, self.w3, self.w4,  self.w2])  # Purposely out of order
 
                 def all_received():
                     return listener.update_count == 5*count

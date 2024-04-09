@@ -812,8 +812,8 @@ class TestClient(ScrutinyUnitTest):
         listener2 = TestListener(name="listener2")
         listener1.subscribe([rpv1000,var1,var2,alias_var1,alias_rpv1000])
         listener2.subscribe([rpv1000,var2,alias_rpv1000])
-        self.client.attach_listener(listener1)
-        self.client.attach_listener(listener2)
+        self.client.register_listener(listener1)
+        self.client.register_listener(listener2)
 
         def update_all(vals: Tuple[float, int, bool]):
             self.datastore.get_entry_by_display_path(rpv1000.display_path).set_value(vals[0])
