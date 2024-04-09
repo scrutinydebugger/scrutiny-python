@@ -8,9 +8,6 @@ Synchronous access to watchables (variables, aliases, and :abbr:`RPVs (Runtime P
 :ref:`Accessing Variables<page_accessing_variables>` section, can be useful. 
 However, it has certain limitations, especially when monitoring multiple values simultaneously.
 
-Accessing watchables (variables, aliases and :abbr:`RPVs (Runtime Published Value)`) in a synchronous manner as depicted in 
-:ref:`Accessing Variables<page_accessing_variables>` can be useful, but has some limitations when comes to monitoring multiple value at the same time. 
-
 For example, if one wants to log a list of watchables, it would required to continuously loop and monitor the 
 :attr:`udpate_counter<scrutiny.sdk.watchable_handle.WatchableHandle.update_counter>` property to detect changes. 
 However, this approach does not guarantee that all changes will be noticed by the user thread.
