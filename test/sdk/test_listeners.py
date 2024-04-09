@@ -342,8 +342,6 @@ class TestListeners(ScrutinyUnitTest):
 
             self.assertTrue(os.path.exists(os.path.join(tempdir, 'my_file.csv' )))
             f = open(os.path.join(tempdir, 'my_file.csv' ), 'r', encoding=csv_config.encoding, newline=csv_config.newline)
-            print(f.read())
-            f = open(os.path.join(tempdir, 'my_file.csv' ), 'r', encoding=csv_config.encoding, newline=csv_config.newline)
             reader = csv.reader(f, delimiter=csv_config.delimiter, quotechar=csv_config.quotechar, quoting=csv_config.quoting)
             rows = iter(reader)
             headers = next(rows)
