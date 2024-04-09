@@ -217,7 +217,7 @@ class BaseListener(abc.ABC):
     def start(self) -> "BaseListener":
         """Starts the listener thread. Once started, no more subscription can be added.
 
-        :raise sdk.exceptions.OperationFailure: If an error occur while starting the listener
+        :raise OperationFailure: If an error occur while starting the listener
         """
         self._logger.debug("Start requested")
         if self._started:
