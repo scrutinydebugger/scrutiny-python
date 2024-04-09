@@ -73,10 +73,10 @@ Each listener has a :meth:`start()<scrutiny.sdk.listeners.BaseListener.start>` a
 Internal behavior
 -----------------
 
-A listener runs in a separate thread and awaits value updates by monitoring a queue that is fed by the 
+A listener runs in a separate thread and awaits value updates by monitoring a python ``queue`` that is fed by the 
 :class:`client<scrutiny.sdk.client.ScrutinyClient>` object. 
 The Python ``queue`` object internally utilizes `condition variables`, which results in a scheduler switch between 
-the executing thread occurring in just microseconds.
+the notifier thread and the listner thread occurring in just microseconds.
 
 When the update notification reaches the listener, they are forwarded to the listener-specific 
 :meth:`receive()<scrutiny.sdk.listeners.BaseListener.receive>` method.
@@ -87,16 +87,16 @@ When the update notification reaches the listener, they are forwarded to the lis
     :align: center
 
 
-Once the user thread invokes the :meth:`start()<scrutiny.sdk.listeners.BaseListener.start>` method, the listener thread is started
+Once the user thread invokes the :meth:`start()<scrutiny.sdk.listeners.BaseListener.start>` method, the listener thread is launched
 and the :meth:`setup()<scrutiny.sdk.listeners.BaseListener.setup>` method is called from within this new thread.
 
 If :meth:`start()<scrutiny.sdk.listeners.BaseListener.start>` succeeds and :meth:`setup()<scrutiny.sdk.listeners.BaseListener.setup>` 
-is invoked, the :meth:`teardown()<scrutiny.sdk.listeners.BaseListener.teardown>` method is guaranteed to be called, 
-irrespective of whether an exception is raised within the :meth:`setup()<scrutiny.sdk.listeners.BaseListener.setup>` 
+is correctly invoked, the :meth:`teardown()<scrutiny.sdk.listeners.BaseListener.teardown>` method is guaranteed to be invoked too, 
+irrespective of whether an exception has been raised within the :meth:`setup()<scrutiny.sdk.listeners.BaseListener.setup>` 
 or :meth:`receive()<scrutiny.sdk.listeners.BaseListener.receive>`.
 
 The :meth:`teardown()<scrutiny.sdk.listeners.BaseListener.teardown>` is called from the listener thread if the user calls
-the :meth:`stop()<scrutiny.sdk.listeners.BaseListener.stop>` method or if an exception occur during setup or while listening.
+:meth:`stop()<scrutiny.sdk.listeners.BaseListener.stop>` or if an exception occur during setup or while listening.
 
 -----
 
