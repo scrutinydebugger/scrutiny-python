@@ -18,7 +18,7 @@ pip install scrutinydebugger
 
 Launch Server
 ```
-./scripts/with-venv.sh scrutiny launch-server --config config/serial.json
+scrutiny launch-server --config config/serial.json
 ```
 
 ## Getting started - Developper
