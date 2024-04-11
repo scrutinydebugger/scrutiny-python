@@ -45,7 +45,7 @@ class CuName:
     def __init__(self, cu: "elftools_stubs.CompileUnit", fullpath: str) -> None:
         self.cu = cu
         self.fullpath = os.path.normpath(fullpath)
-        self.filename = os.path.basename(fullpath)
+        self.filename = os.path.basename(self.fullpath)
         self.display_name = self.filename
         self.segments = os.path.split(self.fullpath)[0].split(os.sep)
 
@@ -56,6 +56,8 @@ class CuName:
         return self.fullpath
 
     def go_up(self) -> None:
+        """Add a the closest directory name to the display name.
+        /aaa/bbb/ccc, ddd -->  /aaa/bbb, ccc_ddd"""
         if len(self.segments) > 0:
             last_dir = self.segments.pop()
             if last_dir == '':
@@ -143,9 +145,9 @@ class ElfDwarfVarExtractor:
                 raise ElfParsingError('Top die should be a compile unit')
 
             comp_dir = None
-            name = self.get_name(topdie)
+            name = self.get_name(topdie, 'unnamed_cu')
             if 'DW_AT_comp_dir' in topdie.attributes:
-                comp_dir = topdie.attributes['DW_AT_comp_dir'].value.decode('ascii')
+                comp_dir = topdie.attributes['DW_AT_comp_dir'].value.decode('utf8')
                 fullpath = os.path.join(comp_dir, name)
             else:
                 fullpath = os.path.abspath(name)
