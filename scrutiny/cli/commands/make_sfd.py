@@ -27,13 +27,13 @@ class MakeSFD(BaseCommand):
         self.parser.add_argument('--install', action="store_true", default=False, help='Install the firmware info file after making it')
 
     def run(self) -> Optional[int]:
-        from scrutiny.core.firmware_description import FirmwareDescription
-        from scrutiny.core.sfd_storage import SFDStorage
+        from scrutiny.core.firmware_description import FirmwareDescription        
         args = self.parser.parse_args(self.args)
         sfd = FirmwareDescription(args.folder)
         sfd.write(args.output)
 
         if args.install:
+            from scrutiny.core.sfd_storage import SFDStorage
             SFDStorage.install(args.output)
 
         return 0
