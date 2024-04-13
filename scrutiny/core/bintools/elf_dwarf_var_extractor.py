@@ -27,9 +27,17 @@ from typing import Optional, List, Dict, Any, Union, cast, Iterable, Callable, S
 from scrutiny.core.bintools import elftools_stubs
 from inspect import currentframe
 
-def get_linenumber():
+def get_linenumber() -> int:
     cf = currentframe()
-    return cf.f_back.f_lineno
+    if cf is None:
+        return -1
+    if cf.f_back is None:
+        return -1
+    if cf.f_back.f_lineno is None:
+        return -1
+
+    return int(cf.f_back.f_lineno)
+
 
 
 class ElfParsingError(Exception):
@@ -148,7 +156,7 @@ class ElfDwarfVarExtractor:
         if filename is not None:
             self.load_from_elf_file(filename)
 
-    def make_name_for_log(self, die)->str:
+    def make_name_for_log(self, die: "elftools_stubs.Die") -> str:
         name=''
         try:
             name = self.get_name(die, nolog=True)
@@ -156,7 +164,7 @@ class ElfDwarfVarExtractor:
             pass
         return f'{die.tag} <{die.offset:x}> "{name}"'
 
-    def log_debug_process_die(self, die) -> None:
+    def log_debug_process_die(self, die: "elftools_stubs.Die") -> None:
         if self.logger.isEnabledFor(logging.DEBUG):
             stack_depth = len(inspect.stack()) - self.initial_stack_depth-1
             stack_depth = max(stack_depth, 1)
@@ -435,31 +443,28 @@ class ElfDwarfVarExtractor:
             raise ElfParsingError("Given die does not resolve to a base type")
         return basetype_die
     
-    def get_first_parent_of_type(self, die: "elftools_stubs.Die", tag:str ) -> Optional["elftools_stubs.Die"]:
+    def get_first_parent_of_type(self, die: "elftools_stubs.Die", tags:Union[str, List[str]] ) -> Optional["elftools_stubs.Die"]:
         self.log_debug_process_die(die)
+        if isinstance(tags, str):
+            tags = [tags]
         prevdie = die
         while True:
             if 'DW_AT_type' not in prevdie.attributes:
                 return None
             refaddr = cast(int, prevdie.attributes['DW_AT_type'].value) + prevdie.cu.cu_offset
             nextdie = prevdie.dwarfinfo.get_DIE_from_refaddr(refaddr)
-            if nextdie.tag == tag:
+            if nextdie.tag in tags:
                 return nextdie
             else:
                 prevdie = nextdie
 
     def get_struct_or_class_type(self, die: "elftools_stubs.Die") -> "elftools_stubs.Die":
         self.log_debug_process_die(die)
-        prevdie = die
-        while True:
-            refaddr = prevdie.attributes['DW_AT_type'].value + prevdie.cu.cu_offset
-            nextdie = prevdie.dwarfinfo.get_DIE_from_refaddr(refaddr)
-            if nextdie.tag in ['DW_TAG_structure_type', 'DW_TAG_class_type']:
-                return nextdie
-            elif nextdie.tag in ['DW_TAG_base_type', 'DW_TAG_pointer_type', ]:
-                raise ElfParsingError('Not a structure type')
-            else:
-                prevdie = nextdie
+        
+        structclass_die = self.get_first_parent_of_type(die, ['DW_TAG_structure_type', 'DW_TAG_class_type'])
+        if structclass_die is None:
+            raise ElfParsingError("Given die is not a structure type")
+        return structclass_die
     
     def get_type_of_var(self, die: "elftools_stubs.Die") -> Tuple[TypeOfVar, "elftools_stubs.Die"]:
         """Go up the hiearchy to find the die that represent the type of the variable. """
@@ -621,9 +626,35 @@ class ElfDwarfVarExtractor:
 
             # context.varmap.append(varentry)
 
-    # Try to extract a location from a die.
+    def register_variable(self, 
+                          name:str, 
+                          path_segments:List[str], 
+                          location:VariableLocation, 
+                          original_type_name:str, 
+                          enum:Optional[VariableEnum] 
+                          ) -> None:
+        """Adds a variable to the varmap.
+        
+            :param name: Name of the variable
+            :param path_segments: List of str representing each level of display tree
+            :param location: The address of the variable
+            :param original_type_name: The name of the underlying type. Must be a name coming from the binary. Will resolve to an EmbeddedDataType
+            :param enum: Optional enum to associate with the type
+        """
+        if self.logger.isEnabledFor(logging.DEBUG):
+            fullpath = '/'.join(path_segments + [name])
+            self.logger.debug(f"Registering {fullpath}")
+        self.varmap.add_variable(
+            path_segments=path_segments,
+            name=name,
+            location=location,
+            original_type_name=original_type_name,
+            enum=enum
+        )
+    
 
     def get_location(self, die: "elftools_stubs.Die") -> Optional[VariableLocation]:
+        """Try t extract the location from a die. Returns ``None`` if not available"""
         if 'DW_AT_location' in die.attributes:
             dieloc = (die.attributes['DW_AT_location'].value)
 
@@ -673,12 +704,9 @@ class ElfDwarfVarExtractor:
                     else:
                         raise RuntimeError("Should not happen")
                     
-                    if self.logger.isEnabledFor(logging.DEBUG):
-                        fullpath = '/'.join(path_segments + [name])
-                        self.logger.debug(f"Registering {fullpath}")
-                    self.varmap.add_variable(
-                        path_segments=path_segments,
+                    self.register_variable(
                         name=name,
+                        path_segments=path_segments,
                         location=location,
                         original_type_name=self.get_typename_from_die(basetype_die),
                         enum=self.enum_die_map.get(typedie, None)
