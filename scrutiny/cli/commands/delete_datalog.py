@@ -31,9 +31,11 @@ class DeleteDatalog(BaseCommand):
         args = self.parser.parse_args(self.args)
         if args.all:
             DataloggingStorage.clear_all()
+            self.getLogger().info("All datalogs deleted")
         elif args.id:
             DataloggingStorage.initialize()
             DataloggingStorage.delete(args.id)
+            self.getLogger().info(f"Datalog {args.id} deleted")
         else:
             raise ValueError("An acquisition ID must be provided or --all")
         return 0

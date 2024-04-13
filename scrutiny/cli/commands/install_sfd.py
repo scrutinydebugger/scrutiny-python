@@ -30,5 +30,6 @@ class InstallSFD(BaseCommand):
 
         args = self.parser.parse_args(self.args)
         SFDStorage.install(args.file)
+        self.getLogger().info(f"SFD file {args.file} installed")
 
         return 0

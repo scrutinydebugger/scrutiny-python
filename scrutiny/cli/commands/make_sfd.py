@@ -32,11 +32,11 @@ class MakeSFD(BaseCommand):
         args = self.parser.parse_args(self.args)
         sfd = FirmwareDescription(args.folder)
         sfd.write(args.output)
-        logging.info(f"{args.output} written")
+        self.getLogger().info(f"SFD File {args.output} written")
 
         if args.install:
             from scrutiny.core.sfd_storage import SFDStorage
             SFDStorage.install(args.output)
-            logging.info(f"{args.output} installed")
+            self.getLogger().info(f"{args.output} installed")
 
         return 0

@@ -49,5 +49,6 @@ class Elf2VarMap(BaseCommand):
                 logging.warning('File %s already exist. Overwritting' % output_file)
 
             varmap.write(output_file)
+            self.getLogger().info(f"Varmap file {output_file} written")
 
         return 0

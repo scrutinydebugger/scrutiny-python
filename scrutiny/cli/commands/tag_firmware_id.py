@@ -47,5 +47,7 @@ class TagFirmwareID(BaseCommand):
             parser.throw_no_tag_error()
 
         parser.write_tagged(args.dst)   # inplace if None
+        binname = args.dst if args.dst is not None else src
+        self.getLogger().info(f"Binary {binname} tagged with firmware ID: {parser.get_firmware_id_ascii()}")
 
         return 0

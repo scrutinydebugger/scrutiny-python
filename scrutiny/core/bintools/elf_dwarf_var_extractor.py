@@ -92,7 +92,8 @@ class CuName:
 class ElfDwarfVarExtractor:
     defaults_names = {
         'DW_TAG_structure_type': '<struct>',
-        'DW_TAG_enumeration_type': '<enum>'
+        'DW_TAG_enumeration_type': '<enum>',
+        'DW_TAG_union_type': '<union>'
     }
 
     STATIC = 'static'
@@ -156,11 +157,12 @@ class ElfDwarfVarExtractor:
         return f'{die.tag} <{die.offset:x}> "{name}"'
 
     def log_debug_process_die(self, die) -> None:
-        stack_depth = len(inspect.stack()) - self.initial_stack_depth-1
-        stack_depth = max(stack_depth, 1)
-        funcname = inspect.stack()[1][3]
-        pad = '|  ' * (stack_depth - 1) + '|--'
-        self.logger.debug(f"{pad}{funcname}({self.make_name_for_log(die)})")
+        if self.logger.isEnabledFor(logging.DEBUG):
+            stack_depth = len(inspect.stack()) - self.initial_stack_depth-1
+            stack_depth = max(stack_depth, 1)
+            funcname = inspect.stack()[1][3]
+            pad = '|  ' * (stack_depth - 1) + '|--'
+            self.logger.debug(f"{pad}{funcname}({self.make_name_for_log(die)})")
 
     def get_varmap(self) -> VarMap:
         return self.varmap
@@ -426,46 +428,23 @@ class ElfDwarfVarExtractor:
 
     # Todo: the fucntions below could probably merge in one "type analyzer" function
 
-    def extract_enum(self, die: "elftools_stubs.Die") -> Optional[VariableEnum]:
-        self.log_debug_process_die(die)
-        prevdie = die
-        while True:
-            refaddr = cast(int, prevdie.attributes['DW_AT_type'].value) + prevdie.cu.cu_offset
-            nextdie = prevdie.dwarfinfo.get_DIE_from_refaddr(refaddr)
-            if nextdie.tag == 'DW_TAG_base_type':
-                return None
-            elif nextdie.tag == 'DW_TAG_enumeration_type':
-                self.die_process_enum(nextdie)
-                return self.enum_die_map[nextdie]
-            else:
-                prevdie = nextdie
-
     def extract_basetype_die(self, die: "elftools_stubs.Die") -> "elftools_stubs.Die":
         self.log_debug_process_die(die)
-        prevdie = die
-        while True:
-            refaddr = cast(int, prevdie.attributes['DW_AT_type'].value) + prevdie.cu.cu_offset
-            nextdie = prevdie.dwarfinfo.get_DIE_from_refaddr(refaddr)
-            if nextdie.tag == 'DW_TAG_base_type':
-                return nextdie
-            else:
-                prevdie = nextdie
-
-    def is_type_struct_or_class(self, die: "elftools_stubs.Die") -> bool:
-        """Check if a die is under a struct/class die. Goes up the hierarchy until we reach a struct/class.
-        If we reacha  base type it is not a struct/class"""
+        basetype_die = self.get_first_parent_of_type(die, 'DW_TAG_base_type')
+        if basetype_die is None:
+            raise ElfParsingError("Given die does not resolve to a base type")
+        return basetype_die
+    
+    def get_first_parent_of_type(self, die: "elftools_stubs.Die", tag:str ) -> Optional["elftools_stubs.Die"]:
         self.log_debug_process_die(die)
         prevdie = die
         while True:
-            refaddr = prevdie.attributes['DW_AT_type'].value + prevdie.cu.cu_offset
+            if 'DW_AT_type' not in prevdie.attributes:
+                return None
+            refaddr = cast(int, prevdie.attributes['DW_AT_type'].value) + prevdie.cu.cu_offset
             nextdie = prevdie.dwarfinfo.get_DIE_from_refaddr(refaddr)
-            self.logger.debug(f'nextdie={nextdie}')
-
-            if nextdie.tag in ['DW_TAG_structure_type', 'DW_TAG_class_type']:
-                return True
-            elif nextdie.tag in ['DW_TAG_base_type', 'DW_TAG_pointer_type']:
-                return False
-
+            if nextdie.tag == tag:
+                return nextdie
             else:
                 prevdie = nextdie
 
@@ -681,11 +660,19 @@ class ElfDwarfVarExtractor:
                 if type_of_var in (TypeOfVar.Struct, TypeOfVar.Class):
                     self.die_process_struct(typedie)
                     self.register_struct_var(die, location)
-                elif type_of_var == TypeOfVar.BaseType:
+                elif type_of_var == TypeOfVar.BaseType or type_of_var == TypeOfVar.Enum:
                     path_segments = self.make_varpath(die)
                     name = self.get_name(die)
-                    enum_obj = self.extract_enum(die)
-                    self.die_process_base_type(typedie)
+                    if type_of_var == TypeOfVar.BaseType:
+                        basetype_die = typedie
+                        self.die_process_base_type(typedie)
+                    elif type_of_var == TypeOfVar.Enum:
+                        basetype_die = self.extract_basetype_die(typedie)
+                        self.die_process_base_type(basetype_die)
+                        self.die_process_enum(typedie)
+                    else:
+                        raise RuntimeError("Should not happen")
+                    
                     if self.logger.isEnabledFor(logging.DEBUG):
                         fullpath = '/'.join(path_segments + [name])
                         self.logger.debug(f"Registering {fullpath}")
@@ -693,8 +680,8 @@ class ElfDwarfVarExtractor:
                         path_segments=path_segments,
                         name=name,
                         location=location,
-                        original_type_name=self.get_typename_from_die(typedie),
-                        enum=enum_obj
+                        original_type_name=self.get_typename_from_die(basetype_die),
+                        enum=self.enum_die_map.get(typedie, None)
                     )
                 else:
                     self.logger.warning(f"Line {get_linenumber()}: Found a die {self.make_name_for_log(typedie)} (type={type_of_var.name}). Not supported yet")

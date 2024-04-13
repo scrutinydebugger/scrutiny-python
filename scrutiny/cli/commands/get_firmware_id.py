@@ -55,5 +55,6 @@ class GetFirmwareId(BaseCommand):
         else:
             with open(output_file, 'w') as f:
                 f.write(parser.get_firmware_id_ascii())
+            self.getLogger().info(f"Firmware ID {parser.get_firmware_id_ascii()} written to {output_file}")
 
         return 0
