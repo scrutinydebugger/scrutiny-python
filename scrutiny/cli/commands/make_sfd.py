@@ -24,7 +24,7 @@ class MakeSFD(BaseCommand):
         self.parser = argparse.ArgumentParser(prog=self.get_prog())
         self.parser.add_argument('folder', help='Folder containing the firmware description files.')
         self.parser.add_argument('output', help='Destination file')
-        self.parser.add_argument('--install', action="store_true", help='Install the firmware info file after making it')
+        self.parser.add_argument('--install', action="store_true", default=False, help='Install the firmware info file after making it')
 
     def run(self) -> Optional[int]:
         from scrutiny.core.firmware_description import FirmwareDescription
