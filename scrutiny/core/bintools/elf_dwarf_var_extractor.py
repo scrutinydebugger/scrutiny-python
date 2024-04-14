@@ -465,14 +465,6 @@ class ElfDwarfVarExtractor:
             else:
                 prevdie = nextdie
 
-    def get_struct_or_class_type(self, die: "elftools_stubs.Die") -> "elftools_stubs.Die":
-        self.log_debug_process_die(die)
-        
-        structclass_die = self.get_first_parent_of_type(die, ['DW_TAG_structure_type', 'DW_TAG_class_type'])
-        if structclass_die is None:
-            raise ElfParsingError("Given die is not a structure type")
-        return structclass_die
-    
     def get_type_of_var(self, die: "elftools_stubs.Die") -> TypeDescriptor:
         """Go up the hiearchy to find the die that represent the type of the variable. """
         self.log_debug_process_die(die)
@@ -588,11 +580,10 @@ class ElfDwarfVarExtractor:
 
     # We have an instance of a struct. Use the location and go down the structure recursively
     # using the members offsets to find the final address that we will apply to the output var
-    def register_struct_var(self, die: "elftools_stubs.Die", location: VariableLocation) -> None:
+    def register_struct_var(self, die: "elftools_stubs.Die", type_die:"elftools_stubs.Die", location: VariableLocation) -> None:
         path_segments = self.make_varpath(die)
         path_segments.append(self.get_name(die))
-        struct_die = self.get_struct_or_class_type(die)
-        struct = self.struct_die_map[struct_die]
+        struct = self.struct_die_map[type_die]
         startpoint = Struct.Member(struct.name, is_substruct=True, bitoffset=None, bitsize=None, substruct=struct)
 
         # Start the recursion
@@ -684,23 +675,22 @@ class ElfDwarfVarExtractor:
             return VariableLocation.from_bytes(dieloc[1:], self.endianness)
         return None
 
-    # Process a variable die.
-    # Register a variable from it.
     def die_process_variable(self, die: "elftools_stubs.Die", location: Optional[VariableLocation] = None) -> None:
+        """Process a variable die and insert a variable in the varmap object if it has an absolute address"""
         if location is None:
             location = self.get_location(die)
 
         if 'DW_AT_specification' in die.attributes:
             vardie = self.get_die_at_spec(die)
-            self.die_process_variable(vardie, location)
+            self.die_process_variable(vardie, location) # Recursion
 
         else:
             if location is not None:
                 type_desc = self.get_type_of_var(die)
 
-                if type_desc.type in (TypeOfVar.Struct, TypeOfVar.Class):
+                if type_desc.type in (TypeOfVar.Struct, TypeOfVar.Class):   # TODO: Union
                     self.die_process_struct(type_desc.type_die)
-                    self.register_struct_var(die, location)
+                    self.register_struct_var(die, type_desc.type_die, location)
                 elif type_desc.type == TypeOfVar.BaseType:
                     path_segments = self.make_varpath(die)
                     name = self.get_name(die)
@@ -722,6 +712,7 @@ class ElfDwarfVarExtractor:
 
 
     def get_varpath_from_hierarchy(self, die: "elftools_stubs.Die") -> List[str]:
+        """Go up in the DWARF hierarchy and make a path segment for each level"""
         segments: List[str] = []
         parent = die.get_parent()
         while parent is not None:
@@ -744,6 +735,7 @@ class ElfDwarfVarExtractor:
         return segments
 
     def get_varpath_from_linkage_name(self, die: "elftools_stubs.Die") -> List[str]:
+        """Generate path segments by parsing the linkage name. Relies on the ability to demangle"""
         mangled = die.attributes['DW_AT_linkage_name'].value.decode('ascii')
         demangled = self.demangler.demangle(mangled)
         segments = demangled.split('::')
@@ -756,6 +748,7 @@ class ElfDwarfVarExtractor:
         return segments
 
     def make_varpath(self, die: "elftools_stubs.Die") -> List[str]:
+        """Generate the display path for a die, either from the hierarchy or the linkage name"""
         if 'DW_AT_linkage_name' in die.attributes:
             segments = self.get_varpath_from_linkage_name(die)
         else:
