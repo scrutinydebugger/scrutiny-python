@@ -116,11 +116,11 @@ class VarMap:
     def get_endianness(self) -> Endianness:
         return self.endianness
 
-    def write(self, filename: str) -> None:
+    def write(self, filename: str, indent:int=4) -> None:
         with open(filename, 'w') as f:
-            f.write(self.get_json())
+            f.write(self.get_json(indent))
 
-    def get_json(self) -> str:
+    def get_json(self, indent:int=4) -> str:
         if self.endianness == Endianness.Little:
             endianness_str = 'little'
         elif self.endianness == Endianness.Big:
@@ -134,7 +134,7 @@ class VarMap:
             'variables': self.variables,
             'enums': self.enums,
         }
-        return json.dumps(content, indent=4)
+        return json.dumps(content, indent=indent)
 
     def validate(self) -> None:
         pass
