@@ -28,7 +28,7 @@ class AddAlias(BaseCommand):
         self.args = args
         self.parser = argparse.ArgumentParser(prog=self.get_prog())
         self.parser.add_argument(
-            'destination', help='Where to add the alias. Can be an SFD file, a folder of a in making SFD file or a firmware ID to alter an already installed SFD file.')
+            'destination', help='Where to add the alias. Can be an SFD file, a folder of a in-making SFD file or a firmware ID to alter an already installed SFD file.')
         self.parser.add_argument('--file', help='The input alias file in .json format')
 
         self.parser.add_argument('--fullpath', help='The alias fullpath')

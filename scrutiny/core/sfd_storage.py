@@ -52,8 +52,7 @@ class SFDStorageManager:
     def __init__(self, folder: str) -> None:
         self.folder = folder
         self.temporary_dir = None
-        os.makedirs(self.folder, exist_ok=True)
-
+    
     def use_temp_folder(self) -> TempStorageWithAutoRestore:
         """Require the storage manager to switch to a temporary directory. Used for unit testing"""
         self.temporary_dir = tempfile.TemporaryDirectory()
@@ -63,11 +62,13 @@ class SFDStorageManager:
         """Require the storage manager to work on the real directory and not a temporary directory"""
         self.temporary_dir = None
 
-    def get_storage_dir(self) -> str:
+    def get_storage_dir(self, create:bool=False) -> str:
         """Ge the actual storage directory"""
         if self.temporary_dir is not None:
             return self.temporary_dir.name
 
+        if create:
+            os.makedirs(self.folder, exist_ok=True)
         return self.folder
 
     def install(self, filename: str, ignore_exist: bool = False) -> FirmwareDescription:
@@ -86,7 +87,7 @@ class SFDStorageManager:
         Once isntalled, it can be loaded when communication starts with a device that identify
         itself with an ID that matches this SFD"""
         firmware_id_ascii = self.clean_firmware_id(sfd.get_firmware_id_ascii())
-        output_file = os.path.join(self.get_storage_dir(), firmware_id_ascii)
+        output_file = os.path.join(self.get_storage_dir(create=True), firmware_id_ascii)
 
         if os.path.isfile(output_file) and ignore_exist == False:
             logging.warning('A Scrutiny Firmware Description file with the same firmware ID was already installed. Overwriting.')
@@ -99,7 +100,7 @@ class SFDStorageManager:
         if not self.is_valid_firmware_id(firmwareid):
             raise ValueError('Invalid firmware ID')
 
-        target_file = os.path.join(self.get_storage_dir(), firmwareid)
+        target_file = os.path.join(self.get_storage_dir(create=True), firmwareid)
 
         if os.path.isfile(target_file):
             os.remove(target_file)
@@ -140,9 +141,10 @@ class SFDStorageManager:
     def list(self) -> List[str]:
         """Returns a list of firmware ID installed in the global storage"""
         thelist = []
-        for filename in os.listdir(self.get_storage_dir()):   # file name is firmware ID
-            if os.path.isfile(os.path.join(self.get_storage_dir(), filename)) and self.is_valid_firmware_id(filename):
-                thelist.append(filename)
+        if os.path.isdir(self.get_storage_dir()):
+            for filename in os.listdir(self.get_storage_dir()):   # file name is firmware ID
+                if os.path.isfile(os.path.join(self.get_storage_dir(), filename)) and self.is_valid_firmware_id(filename):
+                    thelist.append(filename)
         return thelist
 
     @classmethod
