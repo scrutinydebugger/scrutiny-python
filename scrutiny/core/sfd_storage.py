@@ -62,7 +62,7 @@ class SFDStorageManager:
         """Require the storage manager to work on the real directory and not a temporary directory"""
         self.temporary_dir = None
 
-    def get_storage_dir(self, create=False) -> str:
+    def get_storage_dir(self, create:bool=False) -> str:
         """Ge the actual storage directory"""
         if self.temporary_dir is not None:
             return self.temporary_dir.name
