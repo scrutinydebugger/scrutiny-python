@@ -14,6 +14,7 @@ class Die:
     cu: "CompileUnit"
     attributes: Dict[str, Attribute]
     dwarfinfo: DwarfInfo
+    offset:int
 
     def iter_children(self) -> Iterable["Die"]: pass
     def get_parent(self) -> Optional["Die"]: pass

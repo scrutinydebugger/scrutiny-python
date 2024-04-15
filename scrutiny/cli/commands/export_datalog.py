@@ -42,5 +42,6 @@ class ExportDatalog(BaseCommand):
 
         if self.parsed_args.csv:
             acquisition.to_csv(self.parsed_args.csv)
+            self.getLogger().info(f"CSV file {self.parsed_args.csv} written")
 
         return 0

@@ -14,6 +14,7 @@ import os
 import datetime
 import platform
 from typing import Optional, List
+import logging
 
 
 class MakeMetadata(BaseCommand):
@@ -52,6 +53,7 @@ class MakeMetadata(BaseCommand):
         try:
             scrutiny_version = scrutiny.__version__
         except Exception:
+            self.getLogger().warning("Could not find the scrutiny version")
             scrutiny_version = '0.0.0'
 
         metadata: MetadataType = {
@@ -68,5 +70,6 @@ class MakeMetadata(BaseCommand):
 
         with open(output_file, 'w') as f:
             f.write(json.dumps(metadata, indent=4))
+        self.getLogger().info(f"Metadata file {output_file} written")
 
         return 0

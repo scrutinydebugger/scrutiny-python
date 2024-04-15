@@ -9,7 +9,7 @@
 
 from abc import ABC, abstractmethod
 from typing import List, Optional
-
+import logging
 
 class BaseCommand(ABC):
     _cmd_name_: str
@@ -47,3 +47,6 @@ class BaseCommand(ABC):
     @abstractmethod
     def __init__(self, args: List[str], requested_log_level: Optional[str] = None):
         pass
+
+    def getLogger(self) -> logging.Logger:
+        return logging.getLogger(self._cmd_name_)

@@ -58,10 +58,10 @@ class RunTest(BaseCommand):
         import test  # load the test module.
         if not hasattr(test, '__scrutiny__'):   # Make sure this is Scrutiny Test folder (in case we run from install dir)
             if args.root is None:
-                logging.getLogger(self._cmd_name_).critical(
+                self.getLogger().critical(
                     'No scrutiny unit tests available in %s. Consider passing a test folder with --root if you run the tests from an installed module' % test_root)
             else:
-                logging.getLogger(self._cmd_name_).critical('No unit tests available in %s' % test_root)
+                self.getLogger().critical('No unit tests available in %s' % test_root)
         else:
             try:
                 loader = unittest.TestLoader()
