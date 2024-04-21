@@ -717,7 +717,7 @@ def parse_read_datalogging_acquisition_content_response(response: api_typing.S2C
 
         yaxis_data: Optional[List[float]] = None
         try:
-            yaxis_data = [float(x) for x in sig['data']]
+            yaxis_data = [float(x) for x in sig['data']]    # Convert to float for inf or nan
         except Exception:
             raise sdk.exceptions.BadResponseError(f'Dataseries {sig["name"]} data is not all numerical')
         assert yaxis_data is not None
@@ -731,8 +731,13 @@ def parse_read_datalogging_acquisition_content_response(response: api_typing.S2C
         )
         acquisition.add_data(ds, axis=axis_map[sig['axis_id']])
 
+    try:
+        xaxis_data = [ float(f) for f in response['xdata']['data'] ]    # Convert to float for inf or nan
+    except Exception:
+        raise sdk.exceptions.BadResponseError(f'X-Axis Dataseries data is not all numerical')
+
     xdata = sdk.datalogging.DataSeries(
-        data=response['xdata']['data'],
+        data=xaxis_data,
         name=response['xdata']['name'],
         logged_element=response['xdata']['logged_element']
     )
