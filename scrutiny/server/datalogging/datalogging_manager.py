@@ -357,16 +357,32 @@ class DataloggingManager:
     @classmethod
     def api_trigger_condition_to_device_trigger_condition(cls, api_cond: api_datalogging.TriggerCondition) -> device_datalogging.TriggerCondition:
         """Converts a TriggerCondition in the API format to the device format"""
+        scaling_operand:Optional[api_datalogging.TriggerConditionOperand] = None
         device_operands: List[device_datalogging.Operand] = []
+        index = 0
+
+        for api_operand in api_cond.operands:
+            if isinstance(api_operand.value, DatastoreAliasEntry):
+                if api_operand.value.has_value_modifier():
+                    if scaling_operand is None:
+                        scaling_operand = api_operand
+            
+
         for api_operand in api_cond.operands:
             if api_operand.type == api_datalogging.TriggerConditionOperandType.LITERAL:
                 if not isinstance(api_operand.value, (int, float)):
                     raise ValueError("Literal operands must be int or float")
-                device_operands.append(device_datalogging.LiteralOperand(api_operand.value))
+                value = api_operand.value
+                if scaling_operand is not None:
+                    assert isinstance(scaling_operand.value, DatastoreAliasEntry)
+                    value = scaling_operand.value.compute_user_to_device(value) # Scale the literal to math the alias user value.
+                device_operands.append(device_datalogging.LiteralOperand(value))
+            
             elif api_operand.type == api_datalogging.TriggerConditionOperandType.WATCHABLE:
                 if not isinstance(api_operand.value, DatastoreEntry):
                     raise ValueError("Watchable operand must have a datastore entry as value")
-
+                if scaling_operand is not None and scaling_operand is not api_operand:
+                    raise ValueError("Cannot compare an alias with a value modifier with anything else than a literal.")
                 device_operands.append(cls.make_device_operand_from_watchable(api_operand.value))
             else:
                 raise ValueError("Unsupported operand type %s" % str(api_operand.type))
