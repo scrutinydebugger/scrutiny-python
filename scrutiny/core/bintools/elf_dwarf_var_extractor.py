@@ -520,6 +520,10 @@ class ElfDwarfVarExtractor:
                 self.logger.warning(f"Line {get_linenumber()}: Found a die {self.make_name_for_log(child)} under struct {self.make_name_for_log(die)}. Not supported yet")
             elif child.tag == 'DW_TAG_inheritance':
                 self.logger.warning(f"Line {get_linenumber()}: Found a die {self.make_name_for_log(child)} under struct {self.make_name_for_log(die)}. Not supported yet")
+            elif child.tag == 'DW_TAG_volatile_type':
+                self.logger.warning(f"Line {get_linenumber()}: Found a die {self.make_name_for_log(child)} under struct {self.make_name_for_log(die)}. Not supported yet")
+            elif child.tag == 'DW_TAG_template_type_param':
+                self.logger.warning(f"Line {get_linenumber()}: Found a die {self.make_name_for_log(child)} under struct {self.make_name_for_log(die)}. Not supported yet")
             else:
                 raise NotImplementedError(f'DIE below structure type is expected to be a member or a struct. {child}')  # In case this happens..
 
