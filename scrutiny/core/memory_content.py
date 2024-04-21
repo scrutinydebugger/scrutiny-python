@@ -45,7 +45,7 @@ class Cluster:
             raise IndexError('Offset cannot be negative %d' % offset)
 
         if offset + size > self.size:
-            raise IndexError('Index out of range %d to %d' % (offset, offset + size))
+            raise IndexError('Index out of range 0x%x to 0x%x' % (offset, offset + size))
 
         if self.has_data:
             assert self.internal_data is not None

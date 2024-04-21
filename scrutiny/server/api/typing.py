@@ -158,7 +158,7 @@ class DataloggingAcquisitionMetadata(TypedDict):
 
 class DataloggingSignalData(TypedDict):
     name: str
-    data: List[float]
+    data: List[Union[float,str]]
     logged_element: str
 
 
