@@ -371,9 +371,9 @@ class DatastoreAliasEntry(DatastoreEntry):
         """Transform a value from the device side to the user side applying the alias configuration"""
         return self.aliasdef.compute_device_to_user(value)
     
-    def compute_user_to_device(self, value:Union[int, float, bool]) -> Union[int, float, bool]:
+    def compute_user_to_device(self, value:Union[int, float, bool], apply_saturation:bool=True) -> Union[int, float, bool]:
         """Transform a value from the user side to the device side applying the alias configuration"""
-        return self.aliasdef.compute_user_to_device(value)
+        return self.aliasdef.compute_user_to_device(value, apply_saturation)
     
     def has_value_modifier(self) -> bool:
         """Tells if the alias is configured to modify the value for the user"""

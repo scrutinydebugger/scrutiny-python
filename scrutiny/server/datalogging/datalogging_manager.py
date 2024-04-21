@@ -359,7 +359,6 @@ class DataloggingManager:
         """Converts a TriggerCondition in the API format to the device format"""
         scaling_operand:Optional[api_datalogging.TriggerConditionOperand] = None
         device_operands: List[device_datalogging.Operand] = []
-        index = 0
 
         for api_operand in api_cond.operands:
             if isinstance(api_operand.value, DatastoreAliasEntry):
@@ -375,7 +374,7 @@ class DataloggingManager:
                 value = api_operand.value
                 if scaling_operand is not None:
                     assert isinstance(scaling_operand.value, DatastoreAliasEntry)
-                    value = scaling_operand.value.compute_user_to_device(value) # Scale the literal to math the alias user value.
+                    value = scaling_operand.value.compute_user_to_device(value, apply_saturation=False) # Scale the literal to math the alias user value.
                 device_operands.append(device_datalogging.LiteralOperand(value))
             
             elif api_operand.type == api_datalogging.TriggerConditionOperandType.WATCHABLE:
