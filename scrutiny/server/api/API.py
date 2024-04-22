@@ -1503,7 +1503,7 @@ class API:
             signal: api_typing.DataloggingSignalData = {
                 'name': ds.name,
                 'logged_element': ds.logged_element,
-                'data': ds.get_data()
+                'data': [f if math.isfinite(f) else str(f) for f in ds.get_data()]
             }
             return signal
 

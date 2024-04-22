@@ -154,11 +154,12 @@ class Alias:
     def get_offset(self) -> float:
         return self.offset if self.offset is not None else 0.0
 
-    def compute_user_to_device(self, value: Union[int, float, bool]) -> Union[int, float, bool]:
+    def compute_user_to_device(self, value: Union[int, float, bool], apply_saturation:bool=True) -> Union[int, float, bool]:
         """Transform the value received from the user before writing it to the device. Applies min, max, gain, offset"""
         if isinstance(value, int) or isinstance(value, float):
-            value = min(value, self.get_max())
-            value = max(value, self.get_min())
+            if apply_saturation:
+                value = min(value, self.get_max())
+                value = max(value, self.get_min())
             value -= self.get_offset()
             value /= self.get_gain()
         return value

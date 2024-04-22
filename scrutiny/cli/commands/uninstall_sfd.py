@@ -32,8 +32,8 @@ class UninstallSFD(BaseCommand):
         is_installed = SFDStorage.is_installed(args.firmwareid)
         if is_installed:
             SFDStorage.uninstall(args.firmwareid, ignore_not_exist=args.quiet)
-            self.getLogger().info("SFD {args.firmwareid} uninstalled")
+            self.getLogger().info(f"SFD {args.firmwareid} uninstalled")
         else:
-            self.getLogger().info("SFD {args.firmwareid} was not installed")
+            self.getLogger().info(f"SFD {args.firmwareid} was not installed")
 
         return 0

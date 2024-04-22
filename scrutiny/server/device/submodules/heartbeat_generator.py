@@ -41,7 +41,7 @@ class HeartbeatGenerator:
         self.protocol = protocol
         self.session_id = None
         self.last_heartbeat_request = None
-        self.last_heartbeat_timestamp = time.time()
+        self.last_heartbeat_timestamp = time.monotonic()
         self.challenge = 0
         self.interval = 3
         self.priority = priority
@@ -58,7 +58,7 @@ class HeartbeatGenerator:
     def start(self) -> None:
         """Enable the heartbeat generator."""
         self.started = True
-        self.last_heartbeat_timestamp = time.time()
+        self.last_heartbeat_timestamp = time.monotonic()
 
     def stop(self) -> None:
         """Disable the heartbeat generator. Will stop sending request and FSM will go idle"""
@@ -75,10 +75,6 @@ class HeartbeatGenerator:
         self.started = False
         self.session_id = None
 
-    def last_valid_heartbeat_timestamp(self) -> Optional[float]:
-        """Returns the timestamp of the last heartbeat that completed successfully"""
-        return self.last_heartbeat_timestamp
-
     def process(self) -> None:
         """To be called periodically"""
         if not self.started:
@@ -87,7 +83,7 @@ class HeartbeatGenerator:
 
         # If no request is being waited and we have a session ID assigned
         if self.pending == False and self.session_id is not None:
-            if self.last_heartbeat_request is None or (time.time() - self.last_heartbeat_request > self.interval):
+            if self.last_heartbeat_request is None or (time.monotonic() - self.last_heartbeat_request > self.interval):
                 self.logger.debug('Registering a Heartbeat request')
                 self.dispatcher.register_request(
                     request=self.protocol.comm_heartbeat(session_id=self.session_id, challenge=self.challenge),
@@ -96,7 +92,7 @@ class HeartbeatGenerator:
                     priority=self.priority
                 )
                 self.pending = True
-                self.last_heartbeat_request = time.time()
+                self.last_heartbeat_request = time.monotonic()
 
     def success_callback(self, request: Request, response: Response, params: Any = None) -> None:
         """ Called by the dispatcher when a request is completed and succeeded"""
@@ -110,7 +106,7 @@ class HeartbeatGenerator:
 
                     if response_data['session_id'] == self.session_id:
                         if response_data['challenge_response'] == expected_challenge_response:  # Make sure the device is not sending a buffered response
-                            self.last_heartbeat_timestamp = time.time()  # This is the indicator that the device is alive
+                            self.last_heartbeat_timestamp = time.monotonic()  # This is the indicator that the device is alive
                         else:
                             self.logger.error('Heartbeat challenge response is not good. Got %s, expected %s' %
                                               (response_data['challenge_response'], expected_challenge_response))

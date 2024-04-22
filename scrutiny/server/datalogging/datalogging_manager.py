@@ -204,8 +204,8 @@ class DataloggingManager:
                     raise ValueError("Failed to find a matching xaxis dataseries")
 
                 acquisition.set_xdata(xaxis)
-                # -1 because index is 0 based.   -1 because we have the number of points AFTER the trigger, excluding the trigger.  So total of -2
-                trigger_index = max(0, min(metadata.number_of_points - metadata.points_after_trigger, metadata.number_of_points - 2))
+                # -1 because we are 0 based. min(a,b)-1 = min(a-1, b-1)
+                trigger_index = max(0, min(metadata.number_of_points - metadata.points_after_trigger, metadata.number_of_points) - 1 )
                 acquisition.set_trigger_index(trigger_index)
                 DataloggingStorage.save(acquisition)
             else:
@@ -357,16 +357,31 @@ class DataloggingManager:
     @classmethod
     def api_trigger_condition_to_device_trigger_condition(cls, api_cond: api_datalogging.TriggerCondition) -> device_datalogging.TriggerCondition:
         """Converts a TriggerCondition in the API format to the device format"""
+        scaling_operand:Optional[api_datalogging.TriggerConditionOperand] = None
         device_operands: List[device_datalogging.Operand] = []
+
+        for api_operand in api_cond.operands:
+            if isinstance(api_operand.value, DatastoreAliasEntry):
+                if api_operand.value.has_value_modifier():
+                    if scaling_operand is None:
+                        scaling_operand = api_operand
+            
+
         for api_operand in api_cond.operands:
             if api_operand.type == api_datalogging.TriggerConditionOperandType.LITERAL:
                 if not isinstance(api_operand.value, (int, float)):
                     raise ValueError("Literal operands must be int or float")
-                device_operands.append(device_datalogging.LiteralOperand(api_operand.value))
+                value = api_operand.value
+                if scaling_operand is not None:
+                    assert isinstance(scaling_operand.value, DatastoreAliasEntry)
+                    value = scaling_operand.value.compute_user_to_device(value, apply_saturation=False) # Scale the literal to math the alias user value.
+                device_operands.append(device_datalogging.LiteralOperand(value))
+            
             elif api_operand.type == api_datalogging.TriggerConditionOperandType.WATCHABLE:
                 if not isinstance(api_operand.value, DatastoreEntry):
                     raise ValueError("Watchable operand must have a datastore entry as value")
-
+                if scaling_operand is not None and scaling_operand is not api_operand:
+                    raise ValueError("Cannot compare an alias with a value modifier with anything else than a literal.")
                 device_operands.append(cls.make_device_operand_from_watchable(api_operand.value))
             else:
                 raise ValueError("Unsupported operand type %s" % str(api_operand.type))

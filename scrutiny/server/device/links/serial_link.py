@@ -12,6 +12,7 @@ from .abstract_link import AbstractLink, LinkConfig
 
 from typing import Optional, Dict, TypedDict, cast, Union
 import serial   # type: ignore
+import time
 
 
 class SerialConfig(TypedDict):
@@ -24,6 +25,8 @@ class SerialConfig(TypedDict):
     stopbits: str
     databits: int
     parity: str
+    start_delay:float
+
 
 
 class SerialLink(AbstractLink):
@@ -34,6 +37,7 @@ class SerialLink(AbstractLink):
     logger: logging.Logger
     config: SerialConfig
     _initialized: bool
+    _init_timestamp:float
 
     port: Optional[serial.Serial]
 
@@ -102,13 +106,15 @@ class SerialLink(AbstractLink):
         self.validate_config(config)
         self._initialized = False
         self.logger = logging.getLogger(self.__class__.__name__)
+        self._init_timestamp = time.monotonic()
 
         self.config = cast(SerialConfig, {
             'portname': config['portname'],
             'baudrate': config['baudrate'],
-            'stopbits': config['stopbits'] if 'stopbits' in config else "1",
-            'databits': config['databits'] if 'databits' in config else 8,
-            'parity': config['parity'] if 'parity' in config else 'none',
+            'stopbits': config.get('stopbits', '1'),
+            'databits': config.get('databits', 8),
+            'parity': config.get('parity', 'none'),
+            'start_delay' : config.get('start_delay', 0)
         })
 
     def get_config(self) -> LinkConfig:
@@ -122,10 +128,21 @@ class SerialLink(AbstractLink):
         databits = self.get_data_bits(self.config['databits'])
         parity = self.get_parity(self.config['parity'])
 
-        self.port = serial.Serial(portname, baudrate, timeout=0, parity=parity, bytesize=databits, stopbits=stopbits, xonxoff=False)
+        self.port = serial.Serial(
+            port=portname, 
+            baudrate=baudrate, 
+            timeout=0, 
+            parity=parity, 
+            bytesize=databits, 
+            stopbits=stopbits, 
+            xonxoff=False, 
+            rtscts=True, 
+            dsrdtr=False
+            )
         self.port.reset_input_buffer()      # Clear pending data
         self.port.reset_output_buffer()     # Clear pending data
         self._initialized = True
+        self._init_timestamp = time.monotonic()
 
     def destroy(self) -> None:
         """ Put the comm channel to a resource-free non-working state"""
@@ -137,7 +154,7 @@ class SerialLink(AbstractLink):
         """ Tells if this comm channel is in proper state to be functional"""
         if self.port is None:
             return False
-        return self.port.isOpen() and self._initialized
+        return self.port.isOpen() and self.initialized()
 
     def read(self) -> Optional[bytes]:
         """ Reads bytes Non-Blocking from the comm channel. None if no data available"""
@@ -167,7 +184,7 @@ class SerialLink(AbstractLink):
 
     def initialized(self) -> bool:
         """ Tells if initialize() has been called"""
-        return self._initialized
+        return self._initialized and time.monotonic()-self._init_timestamp > self.config['start_delay']
 
     def process(self) -> None:
         pass

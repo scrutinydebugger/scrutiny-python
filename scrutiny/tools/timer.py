@@ -27,14 +27,14 @@ class Timer:
     def start(self, timeout: Optional[float] = None) -> None:
         if timeout is not None:
             self.set_timeout(timeout)
-        self.start_time = time.time()
+        self.start_time = time.monotonic()
 
     def stop(self) -> None:
         self.start_time = None
 
     def elapsed(self) -> float:
         if self.start_time is not None:
-            return time.time() - self.start_time
+            return time.monotonic() - self.start_time
         else:
             return 0
 

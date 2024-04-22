@@ -29,22 +29,22 @@ class ServerConfig(TypedDict, total=False):
     name: str
     autoload_sfd: bool
     debug: bool
-    device_config: DeviceHandlerConfig
-    api_config: APIConfig
+    device: DeviceHandlerConfig
+    api: APIConfig
 
 
 DEFAULT_CONFIG: ServerConfig = {
     'name': 'Scrutiny Server (Default config)',
     'autoload_sfd': True,
     'debug': False,    # Requires ipdb. Module must be installed with [dev] extras
-    'api_config': {
+    'api': {
         'client_interface_type': 'websocket',
         'client_interface_config': {
             'host': 'localhost',
             'port': 8765
         }
     },
-    'device_config': {
+    'device': {
         'response_timeout': 1.0,
         'link_type': 'none',
         'link_config': {
@@ -85,11 +85,11 @@ class ScrutinyServer:
         self.server_name = '<Unnamed>' if 'name' not in self.config else self.config['name']
 
         self.datastore = Datastore()
-        self.device_handler = DeviceHandler(self.config['device_config'], self.datastore)
+        self.device_handler = DeviceHandler(self.config['device'], self.datastore)
         self.datalogging_manager = DataloggingManager(self.datastore, self.device_handler)
         self.sfd_handler = ActiveSFDHandler(device_handler=self.device_handler, datastore=self.datastore, autoload=self.config['autoload_sfd'])
         self.api = API(
-            self.config['api_config'],
+            self.config['api'],
             datastore=self.datastore,
             device_handler=self.device_handler,
             sfd_handler=self.sfd_handler,

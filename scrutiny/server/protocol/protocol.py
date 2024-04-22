@@ -66,6 +66,7 @@ class Protocol:
 
         def get_address_mask(self) -> int:
             return self.mask
+        
 
         def encode_address(self, address: int) -> bytes:
             address &= self.get_address_mask()
@@ -92,6 +93,9 @@ class Protocol:
 
     def get_address_size_bits(self) -> int:
         return self.address_format.get_address_size_bits()
+
+    def get_truncated_address(self, address:int) -> int:
+        return address & self.address_format.get_address_mask() 
 
     def set_version(self, major: int, minor: int) -> None:
         if not isinstance(major, int) or not isinstance(minor, int):

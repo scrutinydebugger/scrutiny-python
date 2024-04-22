@@ -50,7 +50,7 @@ class TestDataloggingManager(ScrutinyUnitTest):
                 target='/var/abc/var1_u32',
                 target_type=EntryType.Var,
                 gain=2.0,
-                offset=100,
+                offset=50,
                 max=100000,
                 min=-200000),
             self.var1_u32)
@@ -164,7 +164,15 @@ class TestDataloggingManager(ScrutinyUnitTest):
             operand1 = config.trigger_condition.get_operands()[0]
             operand2 = config.trigger_condition.get_operands()[1]
             assert isinstance(operand2, device_datalogging.LiteralOperand)
-            self.assertEqual(operand2.value, 100)
+            
+
+            literal_expected_value=100
+            if isinstance(req.trigger_condition.operands[0].value, DatastoreAliasEntry):
+                # When we compare a literal with a scaled alias, we scale the literal to math the underlying variable.
+                literal_expected_value -= req.trigger_condition.operands[0].value.aliasdef.get_offset()
+                literal_expected_value /= req.trigger_condition.operands[0].value.aliasdef.get_gain()
+
+            self.assertEqual(operand2.value, literal_expected_value)
 
             # 0 is Variable. 2 is Alias that points to variable
             if i in [0, 2]:

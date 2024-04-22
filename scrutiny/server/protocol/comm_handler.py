@@ -111,7 +111,7 @@ class CommHandler:
         """Reset data size counters"""
         self.rx_bitcount = 0
         self.tx_bitcount = 0
-        self.bitcount_time = time.time()
+        self.bitcount_time = time.perf_counter()
 
     def get_link(self) -> Optional[AbstractLink]:
         """Return the Link object used to talk with the device."""
@@ -360,5 +360,5 @@ class CommHandler:
 
     def get_average_bitrate(self) -> float:
         """Get the measured average bitrate since last counter reset"""
-        dt = time.time() - self.bitcount_time
+        dt = time.perf_counter() - self.bitcount_time
         return float(self.rx_bitcount + self.tx_bitcount) / float(dt)

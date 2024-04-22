@@ -520,6 +520,10 @@ class ElfDwarfVarExtractor:
                 self.logger.warning(f"Line {get_linenumber()}: Found a die {self.make_name_for_log(child)} under struct {self.make_name_for_log(die)}. Not supported yet")
             elif child.tag == 'DW_TAG_inheritance':
                 self.logger.warning(f"Line {get_linenumber()}: Found a die {self.make_name_for_log(child)} under struct {self.make_name_for_log(die)}. Not supported yet")
+            elif child.tag == 'DW_TAG_volatile_type':
+                self.logger.warning(f"Line {get_linenumber()}: Found a die {self.make_name_for_log(child)} under struct {self.make_name_for_log(die)}. Not supported yet")
+            elif child.tag == 'DW_TAG_template_type_param':
+                self.logger.warning(f"Line {get_linenumber()}: Found a die {self.make_name_for_log(child)} under struct {self.make_name_for_log(die)}. Not supported yet")
             else:
                 raise NotImplementedError(f'DIE below structure type is expected to be a member or a struct. {child}')  # In case this happens..
 
@@ -598,21 +602,21 @@ class ElfDwarfVarExtractor:
             struct = member.substruct
             for name, submember in struct.members.items():
                 new_path_segments = path_segments.copy()
+                submember_location = location.copy()
                 if submember.is_substruct:
                     assert submember.byte_offset is not None
                     new_path_segments.append(name)
-                    location = location.copy()  # When we go ina substruct, the member byte_offset is reset to 0
-                    location.add_offset(submember.byte_offset)
+                    submember_location.add_offset(submember.byte_offset)
 
                 elif submember.byte_offset is not None:
                     offset = submember.byte_offset
 
-                self.register_member_as_var_recursive(new_path_segments, submember, location, offset)
+                self.register_member_as_var_recursive(new_path_segments, submember, submember_location, offset)
         else:
-            location = location.copy()
+            var_location = location.copy()
             assert member.byte_offset is not None
             assert member.original_type_name is not None
-            location.add_offset(member.byte_offset)
+            var_location.add_offset(member.byte_offset)
 
             if self.logger.isEnabledFor(logging.DEBUG):
                 fullpath = '/'.join(path_segments + [member.name])
@@ -621,7 +625,7 @@ class ElfDwarfVarExtractor:
                 path_segments=path_segments,
                 name=member.name,
                 original_type_name=member.original_type_name,
-                location=location,
+                location=var_location,
                 bitoffset=member.bitoffset,
                 bitsize=member.bitsize,
                 # enum                = member.enum # TODO

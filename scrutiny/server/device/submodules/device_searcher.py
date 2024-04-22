@@ -60,7 +60,7 @@ class DeviceSearcher:
         """ Restart the search from the beginning"""
         self.pending = False
         self.last_request_timestamp = None
-        self.found_device_timestamp = time.time()
+        self.found_device_timestamp = time.monotonic()
         self.started = False
         self.found_device = None
 
@@ -100,11 +100,11 @@ class DeviceSearcher:
             return
 
         # Timeout
-        if time.time() - self.found_device_timestamp > self.DEVICE_GONE_DELAY:
+        if time.monotonic() - self.found_device_timestamp > self.DEVICE_GONE_DELAY:
             self.found_device = None
 
         if self.pending == False:
-            if self.last_request_timestamp is None or (time.time() - self.last_request_timestamp > self.DISCOVER_INTERVAL):
+            if self.last_request_timestamp is None or (time.monotonic() - self.last_request_timestamp > self.DISCOVER_INTERVAL):
                 self.logger.debug('Registering a Discover request')
                 self.dispatcher.register_request(
                     request=self.protocol.comm_discover(),
@@ -113,7 +113,7 @@ class DeviceSearcher:
                     priority=self.priority
                 )
                 self.pending = True
-                self.last_request_timestamp = time.time()
+                self.last_request_timestamp = time.monotonic()
 
     def success_callback(self, request: Request, response: Response, params: Any = None) -> None:
         # Called by the dispatcher when a request is completed and succeeded
@@ -123,7 +123,7 @@ class DeviceSearcher:
             if response.code == ResponseCode.OK:
                 try:
                     response_data = cast(protocol_typing.Response.CommControl.Discover, self.protocol.parse_response(response))
-                    self.found_device_timestamp = time.time()
+                    self.found_device_timestamp = time.monotonic()
                     self.found_device = response_data
                 except Exception as e:
                     self.logger.error('Discover request got a response with invalid data.')

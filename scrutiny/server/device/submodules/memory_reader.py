@@ -511,7 +511,8 @@ class MemoryReader:
                             temp_memory.write(block['address'], block['data'])
 
                         for entry in self.entries_in_pending_read_var_request:
-                            raw_data = temp_memory.read(entry.get_address(), entry.get_size())
+                            block_addr = self.protocol.get_truncated_address(entry.get_address())
+                            raw_data = temp_memory.read(block_addr, entry.get_size())
                             entry.set_value_from_data(raw_data)
                             self.entries_in_pending_read_var_request = []
                     except Exception as e:
