@@ -128,7 +128,17 @@ class SerialLink(AbstractLink):
         databits = self.get_data_bits(self.config['databits'])
         parity = self.get_parity(self.config['parity'])
 
-        self.port = serial.Serial(portname, baudrate, timeout=0, parity=parity, bytesize=databits, stopbits=stopbits, xonxoff=False, rtscts=True, dsrdtr=False)
+        self.port = serial.Serial(
+            port=portname, 
+            baudrate=baudrate, 
+            timeout=0, 
+            parity=parity, 
+            bytesize=databits, 
+            stopbits=stopbits, 
+            xonxoff=False, 
+            rtscts=True, 
+            dsrdtr=False
+            )
         self.port.reset_input_buffer()      # Clear pending data
         self.port.reset_output_buffer()     # Clear pending data
         self._initialized = True
