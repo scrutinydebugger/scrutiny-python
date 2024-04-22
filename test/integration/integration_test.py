@@ -44,11 +44,11 @@ class ScrutinyIntegrationTest(ScrutinyUnitTest):
         try:
             server_config: ServerConfig = {
                 'name': "Unit test",
-                "api_config": {
+                "api": {
                     "client_interface_type": "dummy",
                     "client_interface_config": {}
                 },
-                "device_config": {
+                "device": {
                     'link_type': 'thread_safe_dummy',
                     'link_config': {},
                     'response_timeout': 1,
