@@ -23,7 +23,7 @@ import copy
 import logging
 import binascii
 import time
-from enum import Enum
+from enum import Enum, auto
 import traceback
 from uuid import uuid4
 import math
@@ -183,15 +183,15 @@ class DeviceHandler:
 
     class FsmState(Enum):
         """The Device Handler State Machine states"""
-        INIT = 0
-        WAIT_COMM_LINK = 1
-        WAIT_CLEAN_STATE = 2
-        DISCOVERING = 3
-        CONNECTING = 4
-        POLLING_INFO = 5
-        WAIT_DATALOGGING_READY = 6
-        READY = 7
-        DISCONNECTING = 8
+        INIT = auto()
+        WAIT_COMM_LINK = auto()
+        WAIT_CLEAN_STATE = auto()
+        DISCOVERING = auto()
+        CONNECTING = auto()
+        POLLING_INFO = auto()
+        WAIT_DATALOGGING_READY = auto()
+        READY = auto()
+        DISCONNECTING = auto()
 
     class OperatingMode(Enum):
         """Tells the main function of the device handler. Modes different from Normal are meant for unit tests"""
@@ -236,7 +236,7 @@ class DeviceHandler:
         self.comm_broken = False
         self.device_id = None
         self.operating_mode = self.OperatingMode.Normal
-        self.wait_clean_state_timestamp = time.time()
+        self.wait_clean_state_timestamp = time.monotonic()
         self.active_request_record = None
         self.device_state_changed_callbacks = []
         self.expect_no_timeout = False  # Unit tests will set this to True
@@ -599,12 +599,12 @@ class DeviceHandler:
             next_state = self.FsmState.WAIT_COMM_LINK
 
         elif self.fsm_state == self.FsmState.WAIT_COMM_LINK:
-            if self.comm_handler.is_open():
+            if self.comm_handler.is_operational():
                 next_state = self.FsmState.WAIT_CLEAN_STATE
 
         elif self.fsm_state == self.FsmState.WAIT_CLEAN_STATE:
             if state_entry:
-                self.wait_clean_state_timestamp = time.time()
+                self.wait_clean_state_timestamp = time.monotonic()
 
             fully_stopped = True
             fully_stopped = fully_stopped and self.device_searcher.fully_stopped()
@@ -618,7 +618,7 @@ class DeviceHandler:
             if fully_stopped:
                 next_state = self.FsmState.DISCOVERING
 
-            if time.time() - self.wait_clean_state_timestamp > self.WAIT_CLEAN_STATE_TIMEOUT:
+            if time.monotonic() - self.wait_clean_state_timestamp > self.WAIT_CLEAN_STATE_TIMEOUT:
                 if not self.device_searcher.fully_stopped():
                     self.logger.error("Device searcher is not stopping. Forcefully resetting.")
                     self.device_searcher.reset()
