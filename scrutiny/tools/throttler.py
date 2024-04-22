@@ -69,7 +69,7 @@ class Throttler:
 
     def reset(self) -> None:
         """ Sets the throttler to its initial state"""
-        self.last_process_timestamp = time.time()
+        self.last_process_timestamp = time.perf_counter()
         self.estimated_bitrate_slow = 0
         self.estimated_bitrate_fast = 0
         self.consumed_since_last_estimation = 0
@@ -80,7 +80,7 @@ class Throttler:
             self.reset()
             return
 
-        t = time.time()
+        t = time.perf_counter()
         dt = t - self.last_process_timestamp
         if dt > self.bitrate_estimation_window:
             # We need to update the filters, e.g. our estimation of the bitrate
