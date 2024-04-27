@@ -76,17 +76,20 @@ method. Alternatively, to wait for updates from all watched variables at once, t
 .. code-block:: python
 
     import time
-
-    w1 = client.watch('/alias/my_alias1')
-    w2 = client.watch('/rpv/x1234')
-    w3 = client.watch('/var/main.cpp/some_func/some_var')
-    client.wait_new_value_for_all() # Make sure all watchables have their first value available
-
-    while w1.value_bool:            # Value updated by a background thread 
-        print(f"w2 = {w2.value}")   # Value updated by a background thread
-        time.sleep(0.1)
+    from scrutny.sdk.client import ScrutinyClient
     
-    w3.value = 123  # Blocking write. This statement blocks until the device has confirmed that the variable is correctly written (or raise on failure).
+    client = ScrutinyClient()
+    with client.connect('localhost', 8765):
+        w1 = client.watch('/alias/my_alias1')
+        w2 = client.watch('/rpv/x1234')
+        w3 = client.watch('/var/main.cpp/some_func/some_var')
+        client.wait_new_value_for_all() # Make sure all watchables have their first value available
+
+        while w1.value_bool:            # Value updated by a background thread 
+            print(f"w2 = {w2.value}")   # Value updated by a background thread
+            time.sleep(0.1)
+        
+        w3.value = 123  # Blocking write. This statement blocks until the device has confirmed that the variable is correctly written (or raise on failure).
 
 .. note:: 
 
