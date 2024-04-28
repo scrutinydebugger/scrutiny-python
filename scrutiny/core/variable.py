@@ -153,6 +153,7 @@ class Struct:
         byte_offset: Optional[int]
         bitsize: Optional[int]
         substruct: Optional['Struct']
+        enum:Optional['VariableEnum']
 
         def __init__(self, name: str,
                      is_substruct: bool = False,
@@ -160,7 +161,8 @@ class Struct:
                      byte_offset: Optional[int] = None,
                      bitoffset: Optional[int] = None,
                      bitsize: Optional[int] = None,
-                     substruct: Optional['Struct'] = None
+                     substruct: Optional['Struct'] = None,
+                     enum:Optional['VariableEnum'] = None
                      ):
 
             if not is_substruct:
@@ -196,6 +198,7 @@ class Struct:
             self.byte_offset = byte_offset
             self.bitsize = bitsize
             self.substruct = substruct
+            self.enum = enum
 
     name: str
     members: Dict[str, "Struct.Member"]
