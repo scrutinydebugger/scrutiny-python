@@ -18,7 +18,7 @@ import struct
 from scrutiny.core.basic_types import Endianness, EmbeddedDataType
 from scrutiny.core.codecs import Codecs, Encodable, UIntCodec
 from typing import Dict, Union, List, Literal, Optional, TypedDict, Any, Tuple
-
+from copy import deepcopy
 
 MASK_MAP: Dict[int, int] = {}
 for i in range(64):
@@ -216,6 +216,14 @@ class Struct:
             raise ValueError('Node must be a Struct.Member')
 
         self.members[member.name] = member
+    
+    def inherit(self, other:"Struct", offset:int=0) -> None:
+        for member in other.members.values():
+            member2 = deepcopy(member)
+            if member2.byte_offset is None:
+                raise RuntimeError("Expect byte_offset to be set to handle inheritance")
+            member2.byte_offset += offset
+            self.add_member(member)
 
 
 class Variable:

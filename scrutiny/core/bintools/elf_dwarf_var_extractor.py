@@ -46,6 +46,7 @@ class TypeOfVar(Enum):
     Class=auto()
     Union=auto()
     Pointer=auto()
+    Array=auto()
 
 @dataclass
 class TypeDescriptor:
@@ -383,13 +384,17 @@ class ElfDwarfVarExtractor:
             
             for cu in self.dwarfinfo.iter_CUs():
                 die = cu.get_top_DIE()
-                self.extract_var_recursive(die)
+                self.extract_var_recursive(die) # Recursion start point
 
     def extract_var_recursive(self, die: "elftools_stubs.Die") -> None:
+        # Finds all "variable" tags and create an entry in the varmap.
+        # Types / structures / enums are discovered as we go. We only take
+        # definitions that are used by a variables, the rest will be ignored.
+
         self.log_debug_process_die(die)
 
         if die.tag == 'DW_TAG_variable':
-            self.die_process_variable(die)
+            self.die_process_variable(die)  
 
         for child in die.iter_children():
             try:
@@ -468,6 +473,8 @@ class ElfDwarfVarExtractor:
                 return TypeDescriptor(TypeOfVar.Struct, enum, nextdie)
             elif nextdie.tag == 'DW_TAG_class_type':
                 return TypeDescriptor(TypeOfVar.Class, enum, nextdie)
+            elif nextdie.tag == 'DW_TAG_array_type':
+                return TypeDescriptor(TypeOfVar.Array, enum, nextdie)
             elif nextdie.tag == 'DW_TAG_base_type':
                 return TypeDescriptor(TypeOfVar.BaseType, enum, nextdie)
             elif nextdie.tag == 'DW_TAG_pointer_type':
@@ -483,7 +490,7 @@ class ElfDwarfVarExtractor:
     # this definition includes all submember with their respective offset.
     # each time we will encounter a instance of this struct, we will generate a variable for each sub member
 
-    def die_process_struct(self, die: "elftools_stubs.Die") -> None:
+    def die_process_struct_or_class(self, die: "elftools_stubs.Die") -> None:
         self.log_debug_process_die(die)
 
         if die not in self.struct_die_map:
@@ -503,6 +510,18 @@ class ElfDwarfVarExtractor:
                 member = self.get_member_from_die(child)
                 if member is not None:
                     struct.add_member(member)
+            elif child.tag == 'DW_TAG_inheritance':
+                offset = 0
+                if 'DW_AT_data_member_location' in child.attributes:
+                    offset = child.attributes['DW_AT_data_member_location'].value
+                refaddr = child.attributes['DW_AT_type'].value + child.cu.cu_offset
+                typedie = child.dwarfinfo.get_DIE_from_refaddr(refaddr)
+                if typedie.tag not in ['DW_TAG_structure_type', 'DW_TAG_class_type']:
+                    self.logger.warning(f"Line {get_linenumber()}: Inheritance to a type die {self.make_name_for_log(typedie)}. Not supported yet")
+                    continue
+                self.die_process_struct_or_class(typedie)
+                parent_struct = self.struct_die_map[typedie]
+                struct.inherit(parent_struct, offset=offset)
 
         return struct
 
@@ -673,7 +692,7 @@ class ElfDwarfVarExtractor:
                 type_desc = self.get_type_of_var(die)
 
                 if type_desc.type in (TypeOfVar.Struct, TypeOfVar.Class):   # TODO: Union
-                    self.die_process_struct(type_desc.type_die)
+                    self.die_process_struct_or_class(type_desc.type_die)
                     self.register_struct_var(die, type_desc.type_die, location)
                 elif type_desc.type == TypeOfVar.BaseType:
                     path_segments = self.make_varpath(die)
