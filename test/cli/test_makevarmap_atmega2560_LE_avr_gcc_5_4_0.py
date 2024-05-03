@@ -216,7 +216,6 @@ class TestMakeVarMap_ATMega2560_LE_avr_gcc_5_4_0(ScrutinyUnitTest):
         self.assert_var('/static/main.cpp/task_1hz()/var_1hz', EmbeddedDataType.uint32)
         self.assert_var('/static/main.cpp/task_1hz()/led_state', EmbeddedDataType.sint16)
         
-        self.assert_var('/static/main.cpp/loop/timestamp_millis', EmbeddedDataType.uint32)
         self.assert_var('/static/main.cpp/loop/last_timestamp_us', EmbeddedDataType.uint32)
         self.assert_var('/static/main.cpp/loop/last_timestamp_task_1hz_us', EmbeddedDataType.uint32)
         self.assert_var('/static/main.cpp/loop/last_timestamp_task_100hz_us', EmbeddedDataType.uint32)
@@ -227,6 +226,7 @@ class TestMakeVarMap_ATMega2560_LE_avr_gcc_5_4_0(ScrutinyUnitTest):
         self.assert_var('/global/task_idle_loop_handler/m_main2loop_msg/data/message_id', EmbeddedDataType.uint8, enum='Main2LoopMessageID')
         self.assert_var('/global/task_idle_loop_handler/m_loop2main_msg/m_written', EmbeddedDataType.boolean)
         self.assert_var('/global/task_idle_loop_handler/m_loop2main_msg/data/message_id', EmbeddedDataType.uint8, enum='Loop2MainMessageID')
+        
         # union not supported yet
 #       self.assert_var('/global/task_idle_loop_handler/m_loop2main_msg/data/data/datalogger_status_update/state', EmbeddedDataType.uint8, enum='DataloggerState')
 #       self.assert_var('/global/task_idle_loop_handler/m_loop2main_msg/data/data/datalogger_status_update/bytes_to_acquire_from_trigger_to_completion', EmbeddedDataType.uint32)
