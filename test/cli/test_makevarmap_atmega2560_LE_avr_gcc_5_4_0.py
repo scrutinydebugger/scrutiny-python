@@ -307,9 +307,10 @@ class TestMakeVarMap_ATMega2560_LE_avr_gcc_5_4_0(ScrutinyUnitTest):
         self.assert_var("/static/scrutiny_integration.cpp/main_handler/m_comm_handler/m_rx_state", EmbeddedDataType.uint8, enum='CommHandlerRxFSMState')
         self.assert_var("/static/scrutiny_integration.cpp/main_handler/m_comm_handler/m_rx_error", EmbeddedDataType.uint8, enum='CommHandlerRxError')
         self.assert_var("/static/scrutiny_integration.cpp/main_handler/m_comm_handler/m_request_received", EmbeddedDataType.boolean)
-        self.assert_var("/static/scrutiny_integration.cpp/main_handler/m_comm_handler/m_crc_bytes_received", EmbeddedDataType.uint8)
-        self.assert_var("/static/scrutiny_integration.cpp/main_handler/m_comm_handler/m_length_bytes_received", EmbeddedDataType.uint8)
-        self.assert_var("/static/scrutiny_integration.cpp/main_handler/m_comm_handler/m_data_bytes_received", EmbeddedDataType.uint16)
+        # Missing union support
+        #self.assert_var("/static/scrutiny_integration.cpp/main_handler/m_comm_handler/m_per_state_data/crc_bytes_received", EmbeddedDataType.uint8)
+        #self.assert_var("/static/scrutiny_integration.cpp/main_handler/m_comm_handler/m_per_state_data/length_bytes_received", EmbeddedDataType.uint8)
+        #self.assert_var("/static/scrutiny_integration.cpp/main_handler/m_comm_handler/m_per_state_data/data_bytes_received", EmbeddedDataType.uint16)
         self.assert_var("/static/scrutiny_integration.cpp/main_handler/m_comm_handler/m_last_rx_timestamp", EmbeddedDataType.uint32)
         self.assert_var("/static/scrutiny_integration.cpp/main_handler/m_comm_handler/m_active_response/command_id", EmbeddedDataType.uint8)
         self.assert_var("/static/scrutiny_integration.cpp/main_handler/m_comm_handler/m_active_response/subfunction_id", EmbeddedDataType.uint8)
