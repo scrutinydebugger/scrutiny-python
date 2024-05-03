@@ -274,7 +274,7 @@ class TestMakeVarMap_ATMega2560_LE_avr_gcc_5_4_0(ScrutinyUnitTest):
         self.assert_var("/static/scrutiny_integration.cpp/config/m_rx_buffer_size", EmbeddedDataType.uint16)
         #self.assert_var("/static/scrutiny_integration.cpp/config/m_tx_buffer", EmbeddedDataType.pointer)
         self.assert_var("/static/scrutiny_integration.cpp/config/m_tx_buffer_size", EmbeddedDataType.uint16)
-        #self.assert_var("/static/scrutiny_integration.cpp/config/m_forbidden_address_ranges", EmbeddedDataType.ptr)
+        #self.assert_var("/static/scrutiny_integration.cpp/config/m_forbidden_address_ranges", EmbeddedDataType.pointer)
         self.assert_var("/static/scrutiny_integration.cpp/config/m_forbidden_range_count", EmbeddedDataType.uint8)
         #self.assert_var("/static/scrutiny_integration.cpp/config/m_readonly_address_ranges", EmbeddedDataType.pointer)
         self.assert_var("/static/scrutiny_integration.cpp/config/m_readonly_range_count", EmbeddedDataType.uint8)
