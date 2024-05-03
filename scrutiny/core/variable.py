@@ -18,7 +18,7 @@ import struct
 from scrutiny.core.basic_types import Endianness, EmbeddedDataType
 from scrutiny.core.codecs import Codecs, Encodable, UIntCodec
 from typing import Dict, Union, List, Literal, Optional, TypedDict, Any, Tuple
-
+from copy import deepcopy
 
 MASK_MAP: Dict[int, int] = {}
 for i in range(64):
@@ -153,6 +153,7 @@ class Struct:
         byte_offset: Optional[int]
         bitsize: Optional[int]
         substruct: Optional['Struct']
+        enum:Optional['VariableEnum']
 
         def __init__(self, name: str,
                      is_substruct: bool = False,
@@ -160,7 +161,8 @@ class Struct:
                      byte_offset: Optional[int] = None,
                      bitoffset: Optional[int] = None,
                      bitsize: Optional[int] = None,
-                     substruct: Optional['Struct'] = None
+                     substruct: Optional['Struct'] = None,
+                     enum:Optional['VariableEnum'] = None
                      ):
 
             if not is_substruct:
@@ -196,6 +198,7 @@ class Struct:
             self.byte_offset = byte_offset
             self.bitsize = bitsize
             self.substruct = substruct
+            self.enum = enum
 
     name: str
     members: Dict[str, "Struct.Member"]
@@ -213,6 +216,14 @@ class Struct:
             raise ValueError('Node must be a Struct.Member')
 
         self.members[member.name] = member
+    
+    def inherit(self, other:"Struct", offset:int=0) -> None:
+        for member in other.members.values():
+            member2 = deepcopy(member)
+            if member2.byte_offset is None:
+                raise RuntimeError("Expect byte_offset to be set to handle inheritance")
+            member2.byte_offset += offset
+            self.add_member(member)
 
 
 class Variable:
