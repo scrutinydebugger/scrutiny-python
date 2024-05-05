@@ -21,10 +21,10 @@ from test import ScrutinyUnitTest
 from typing import Optional
 
 
-class TestMakeVarMap_LinuxLEx64_Gcc8_3_0(ScrutinyUnitTest):
+class TestMakeVarMap_LinuxLEx64_Gcc11_4_0(ScrutinyUnitTest):
     init_exception: Optional[Exception]
-    bin_filename = get_artifact('testappDebianLEx64_gcc8_3_0')
-    memdump_filename = get_artifact('testappDebianLEx64_gcc8_3_0.memdump')
+    bin_filename = get_artifact('testapp20240505_UbuntuLEx64_gcc11_4_0')
+    memdump_filename = get_artifact('testapp20240505_UbuntuLEx64_gcc11_4_0.memdump')
 
     @classmethod
     def setUpClass(cls):
@@ -220,6 +220,48 @@ class TestMakeVarMap_LinuxLEx64_Gcc8_3_0(ScrutinyUnitTest):
         self.assert_var('/static/file2.cpp/file2ClassBStaticInstance/nestedClassInstance/intInClassBA', EmbeddedDataType.sint32, value_at_loc=-55555)
         self.assert_var('/static/file2.cpp/file2ClassBStaticInstance/nestedClassInstance/classAInstance/intInClassA',
                         EmbeddedDataType.sint32, value_at_loc=-66666)
+
+    def test_file3_union(self):
+        vu8 = self.assert_var('/global/file3_union/u8_var', EmbeddedDataType.uint8, value_at_loc=0x99)
+        vu16 = self.assert_var('/global/file3_union/u16_var', EmbeddedDataType.uint16, value_at_loc=0xAA99)
+        vu32 = self.assert_var('/global/file3_union/u32_var', EmbeddedDataType.uint32, value_at_loc=0x1234AA99)
+        self.assertEqual(vu8.get_address(), vu16.get_address())
+        self.assertEqual(vu16.get_address(), vu32.get_address())
+        
+        
+        v1=self.assert_var('/global/file3_anonbitfield_in_union/bit5_8', EmbeddedDataType.uint8, bitoffset=4, bitsize=4, value_at_loc=7)
+        v2=self.assert_var('/global/file3_anonbitfield_in_union/bit1', EmbeddedDataType.uint8,  bitoffset=0, bitsize=1, value_at_loc=0)
+        v3=self.assert_var('/global/file3_anonbitfield_in_union/val', EmbeddedDataType.uint8, value_at_loc=0x74)
+        self.assertEqual(v1.get_address(), v2.get_address())
+        self.assertEqual(v1.get_address(), v3.get_address())
+        
+        v = self.assert_var('/global/file3_test_class/m_file3testclass_inclassenum', EmbeddedDataType.uint32, value_at_loc=1)
+        self.assert_file3_is_EnumInClass(v)
+        
+        self.assert_var('/global/file3_test_class/m_file3_complex_struct/field1', EmbeddedDataType.uint32, value_at_loc=0x11223344)
+        self.assert_var('/global/file3_test_class/m_file3_complex_struct/field2', EmbeddedDataType.uint32, value_at_loc=0x55667788)
+        self.assert_var('/global/file3_test_class/m_file3_complex_struct/field3_u8/p3', EmbeddedDataType.uint8, value_at_loc=0xAA)
+        self.assert_var('/global/file3_test_class/m_file3_complex_struct/field3_u16/p0', EmbeddedDataType.uint16, value_at_loc=0xBCC2)
+        self.assert_var('/global/file3_test_class/m_file3_complex_struct/field3_u32', EmbeddedDataType.uint32, value_at_loc=0xAA34BCC2)
+
+        v1=self.assert_var('/global/file3_test_class/m_file3_complex_struct/field3_enum_bitfields/p0', EmbeddedDataType.uint32, 
+                          value_at_loc=2, bitoffset=0, bitsize=5)
+        v2=self.assert_var('/global/file3_test_class/m_file3_complex_struct/field3_enum_bitfields/p1', EmbeddedDataType.uint32, 
+                          value_at_loc=0x66, bitoffset=5, bitsize=8)
+        v3=self.assert_var('/global/file3_test_class/m_file3_complex_struct/field3_enum_bitfields/p2', EmbeddedDataType.uint32, 
+                          value_at_loc=0x36B, bitoffset=13, bitsize=10)
+        v4=self.assert_var('/global/file3_test_class/m_file3_complex_struct/field3_enum_bitfields/p3', EmbeddedDataType.uint32, 
+                          value_at_loc=0x2A8, bitoffset=23, bitsize=10)
+        
+        self.assert_file3_is_EnumInClass(v1)
+        self.assert_file3_is_EnumInClass(v2)
+        self.assert_file3_is_EnumInClass(v3)
+        self.assert_file3_is_EnumInClass(v4)
+
+    def assert_file3_is_EnumInClass(self, v):
+        self.assert_has_enum(v, 'AAA', 0)
+        self.assert_has_enum(v, 'BBB', 1)
+        self.assert_has_enum(v, 'CCC', 2)
 
 
 if __name__ == '__main__':
