@@ -224,6 +224,7 @@ class Struct:
             # They are considered as being declared at the same level as the members of the parent
             assert member.is_substruct==True
             assert member.substruct is not None
+            assert member.byte_offset is not None
 
             for subtruct_member in member.substruct.members.values():
                 substruct_member2 = deepcopy(subtruct_member)
