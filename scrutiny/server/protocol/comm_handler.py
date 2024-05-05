@@ -70,6 +70,7 @@ class CommHandler:
     timed_out: bool
     pending_request: Optional[Request]
     link_type: str
+    last_open_error: Optional[str]
 
     def __init__(self, params: Dict[str, Any] = {}) -> None:
         self.active_request = None      # Contains the request object that has been sent to the device. When None, no request sent and we are standby
@@ -85,6 +86,7 @@ class CommHandler:
         self.reset_bitrate_monitor()
         self.throttler = Throttler()
         self.link_type = "none"
+        self.last_open_error = None
 
     def enable_throttling(self, bitrate: float) -> None:
         """Enable throttling on communication.
@@ -135,6 +137,7 @@ class CommHandler:
 
         link_class = self.get_link_class(link_type)
         self.link = link_class.make(link_config)
+        self.last_open_error = None
 
     def validate_link_config(self, link_type: str, link_config: LinkConfig) -> None:
         """Raises an exception if the given configuration is wrong for the given link type"""
@@ -170,9 +173,16 @@ class CommHandler:
         try:
             self.link.initialize()
             self.opened = True
+            self.last_open_error = None
         except Exception as e:
-            self.logger.error("Cannot connect to device. " + str(e))
-            self.opened = False
+            err = str(e)
+            full_error = f"Cannot initialize device. {err}"
+            if self.last_open_error != err:
+                self.logger.error(full_error)
+            elif self.logger.isEnabledFor(logging.DEBUG):
+                self.logger.debug(full_error)
+            self.last_open_error = err
+            self.opened = False 
 
     def is_open(self) -> bool:
         """Return True if the communication channel is open with the device"""
@@ -185,6 +195,7 @@ class CommHandler:
 
         self.reset()
         self.opened = False
+        self.last_open_error = None
 
     def is_operational(self) -> bool:
         """Return True if the communication channel is presently in a healthy state."""
