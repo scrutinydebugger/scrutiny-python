@@ -227,10 +227,9 @@ class TestMakeVarMap_ATMega2560_LE_avr_gcc_5_4_0(ScrutinyUnitTest):
         self.assert_var('/global/task_idle_loop_handler/m_loop2main_msg/m_written', EmbeddedDataType.boolean)
         self.assert_var('/global/task_idle_loop_handler/m_loop2main_msg/data/message_id', EmbeddedDataType.uint8, enum='Loop2MainMessageID')
         
-        # union not supported yet
-#       self.assert_var('/global/task_idle_loop_handler/m_loop2main_msg/data/data/datalogger_status_update/state', EmbeddedDataType.uint8, enum='DataloggerState')
-#       self.assert_var('/global/task_idle_loop_handler/m_loop2main_msg/data/data/datalogger_status_update/bytes_to_acquire_from_trigger_to_completion', EmbeddedDataType.uint32)
-#       self.assert_var('/global/task_idle_loop_handler/m_loop2main_msg/data/data/datalogger_status_update/write_counter_since_trigger', EmbeddedDataType.uint32)
+        self.assert_var('/global/task_idle_loop_handler/m_loop2main_msg/data/data/datalogger_status_update/state', EmbeddedDataType.uint8, enum='DataloggerState')
+        self.assert_var('/global/task_idle_loop_handler/m_loop2main_msg/data/data/datalogger_status_update/bytes_to_acquire_from_trigger_to_completion', EmbeddedDataType.uint16)
+        self.assert_var('/global/task_idle_loop_handler/m_loop2main_msg/data/data/datalogger_status_update/write_counter_since_trigger', EmbeddedDataType.uint16)
 
         self.assert_var('/global/task_idle_loop_handler/m_owns_datalogger', EmbeddedDataType.boolean)
         self.assert_var('/global/task_idle_loop_handler/m_datalogger_data_acquired', EmbeddedDataType.boolean)
@@ -243,10 +242,9 @@ class TestMakeVarMap_ATMega2560_LE_avr_gcc_5_4_0(ScrutinyUnitTest):
         self.assert_var('/global/task_100hz_loop_handler/m_main2loop_msg/data/message_id', EmbeddedDataType.uint8, enum='Main2LoopMessageID')
         self.assert_var('/global/task_100hz_loop_handler/m_loop2main_msg/m_written', EmbeddedDataType.boolean)
         self.assert_var('/global/task_100hz_loop_handler/m_loop2main_msg/data/message_id', EmbeddedDataType.uint8, enum='Loop2MainMessageID')
-        # union not supported yet
-#       self.assert_var('/global/task_100hz_loop_handler/m_loop2main_msg/data/data/datalogger_status_update/state', EmbeddedDataType.uint8, enum='DataloggerState')
-#       self.assert_var('/global/task_100hz_loop_handler/m_loop2main_msg/data/data/datalogger_status_update/bytes_to_acquire_from_trigger_to_completion', EmbeddedDataType.uint32)
-#       self.assert_var('/global/task_100hz_loop_handler/m_loop2main_msg/data/data/datalogger_status_update/write_counter_since_trigger', EmbeddedDataType.uint32)
+        self.assert_var('/global/task_100hz_loop_handler/m_loop2main_msg/data/data/datalogger_status_update/state', EmbeddedDataType.uint8, enum='DataloggerState')
+        self.assert_var('/global/task_100hz_loop_handler/m_loop2main_msg/data/data/datalogger_status_update/bytes_to_acquire_from_trigger_to_completion', EmbeddedDataType.uint16)
+        self.assert_var('/global/task_100hz_loop_handler/m_loop2main_msg/data/data/datalogger_status_update/write_counter_since_trigger', EmbeddedDataType.uint16)
 
         self.assert_var('/global/task_100hz_loop_handler/m_owns_datalogger', EmbeddedDataType.boolean)
         self.assert_var('/global/task_100hz_loop_handler/m_datalogger_data_acquired', EmbeddedDataType.boolean)
@@ -259,10 +257,9 @@ class TestMakeVarMap_ATMega2560_LE_avr_gcc_5_4_0(ScrutinyUnitTest):
         self.assert_var('/global/task_20hz_loop_handler/m_main2loop_msg/data/message_id', EmbeddedDataType.uint8, enum='Main2LoopMessageID')
         self.assert_var('/global/task_20hz_loop_handler/m_loop2main_msg/m_written', EmbeddedDataType.boolean)
         self.assert_var('/global/task_20hz_loop_handler/m_loop2main_msg/data/message_id', EmbeddedDataType.uint8, enum='Loop2MainMessageID')
-        # union not supported yet
-#       self.assert_var('/global/task_20hz_loop_handler/m_loop2main_msg/data/data/datalogger_status_update/state', EmbeddedDataType.uint8, enum='DataloggerState')
-#       self.assert_var('/global/task_20hz_loop_handler/m_loop2main_msg/data/data/datalogger_status_update/bytes_to_acquire_from_trigger_to_completion', EmbeddedDataType.uint32)
-#       self.assert_var('/global/task_20hz_loop_handler/m_loop2main_msg/data/data/datalogger_status_update/write_counter_since_trigger', EmbeddedDataType.uint32)
+        self.assert_var('/global/task_20hz_loop_handler/m_loop2main_msg/data/data/datalogger_status_update/state', EmbeddedDataType.uint8, enum='DataloggerState')
+        self.assert_var('/global/task_20hz_loop_handler/m_loop2main_msg/data/data/datalogger_status_update/bytes_to_acquire_from_trigger_to_completion', EmbeddedDataType.uint16)
+        self.assert_var('/global/task_20hz_loop_handler/m_loop2main_msg/data/data/datalogger_status_update/write_counter_since_trigger', EmbeddedDataType.uint16)
 
         self.assert_var('/global/task_20hz_loop_handler/m_owns_datalogger', EmbeddedDataType.boolean)
         self.assert_var('/global/task_20hz_loop_handler/m_datalogger_data_acquired', EmbeddedDataType.boolean)
@@ -307,10 +304,9 @@ class TestMakeVarMap_ATMega2560_LE_avr_gcc_5_4_0(ScrutinyUnitTest):
         self.assert_var("/static/scrutiny_integration.cpp/main_handler/m_comm_handler/m_rx_state", EmbeddedDataType.uint8, enum='CommHandlerRxFSMState')
         self.assert_var("/static/scrutiny_integration.cpp/main_handler/m_comm_handler/m_rx_error", EmbeddedDataType.uint8, enum='CommHandlerRxError')
         self.assert_var("/static/scrutiny_integration.cpp/main_handler/m_comm_handler/m_request_received", EmbeddedDataType.boolean)
-        # Missing union support
-        #self.assert_var("/static/scrutiny_integration.cpp/main_handler/m_comm_handler/m_per_state_data/crc_bytes_received", EmbeddedDataType.uint8)
-        #self.assert_var("/static/scrutiny_integration.cpp/main_handler/m_comm_handler/m_per_state_data/length_bytes_received", EmbeddedDataType.uint8)
-        #self.assert_var("/static/scrutiny_integration.cpp/main_handler/m_comm_handler/m_per_state_data/data_bytes_received", EmbeddedDataType.uint16)
+        self.assert_var("/static/scrutiny_integration.cpp/main_handler/m_comm_handler/m_per_state_data/crc_bytes_received", EmbeddedDataType.uint8)
+        self.assert_var("/static/scrutiny_integration.cpp/main_handler/m_comm_handler/m_per_state_data/length_bytes_received", EmbeddedDataType.uint8)
+        self.assert_var("/static/scrutiny_integration.cpp/main_handler/m_comm_handler/m_per_state_data/data_bytes_received", EmbeddedDataType.uint16)
         self.assert_var("/static/scrutiny_integration.cpp/main_handler/m_comm_handler/m_last_rx_timestamp", EmbeddedDataType.uint32)
         self.assert_var("/static/scrutiny_integration.cpp/main_handler/m_comm_handler/m_active_response/command_id", EmbeddedDataType.uint8)
         self.assert_var("/static/scrutiny_integration.cpp/main_handler/m_comm_handler/m_active_response/subfunction_id", EmbeddedDataType.uint8)
