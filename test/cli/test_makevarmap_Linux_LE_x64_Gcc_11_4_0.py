@@ -229,8 +229,8 @@ class TestMakeVarMap_LinuxLEx64_Gcc11_4_0(ScrutinyUnitTest):
         self.assertEqual(vu16.get_address(), vu32.get_address())
         
         
-        v1=self.assert_var('/global/file3_anonbitfield_in_union/bit5_8', EmbeddedDataType.uint8, bitoffset=4, bitsize=4, value_at_loc=7)
-        v2=self.assert_var('/global/file3_anonbitfield_in_union/bit1', EmbeddedDataType.uint8,  bitoffset=0, bitsize=1, value_at_loc=0)
+        v1=self.assert_var('/global/file3_anonbitfield_in_union/bits/bit5_8', EmbeddedDataType.uint8, bitoffset=4, bitsize=4, value_at_loc=7)
+        v2=self.assert_var('/global/file3_anonbitfield_in_union/bits/bit1', EmbeddedDataType.uint8,  bitoffset=0, bitsize=1, value_at_loc=0)
         v3=self.assert_var('/global/file3_anonbitfield_in_union/val', EmbeddedDataType.uint8, value_at_loc=0x74)
         self.assertEqual(v1.get_address(), v2.get_address())
         self.assertEqual(v1.get_address(), v3.get_address())
@@ -247,11 +247,11 @@ class TestMakeVarMap_LinuxLEx64_Gcc11_4_0(ScrutinyUnitTest):
         v1=self.assert_var('/global/file3_test_class/m_file3_complex_struct/field3_enum_bitfields/p0', EmbeddedDataType.uint32, 
                           value_at_loc=2, bitoffset=0, bitsize=5)
         v2=self.assert_var('/global/file3_test_class/m_file3_complex_struct/field3_enum_bitfields/p1', EmbeddedDataType.uint32, 
-                          value_at_loc=0x66, bitoffset=5, bitsize=8)
+                          value_at_loc=0x66, bitoffset=5, bitsize=7)
         v3=self.assert_var('/global/file3_test_class/m_file3_complex_struct/field3_enum_bitfields/p2', EmbeddedDataType.uint32, 
-                          value_at_loc=0x36B, bitoffset=13, bitsize=10)
+                          value_at_loc=0x34B, bitoffset=12, bitsize=10)
         v4=self.assert_var('/global/file3_test_class/m_file3_complex_struct/field3_enum_bitfields/p3', EmbeddedDataType.uint32, 
-                          value_at_loc=0x2A8, bitoffset=23, bitsize=10)
+                          value_at_loc=0x2A8, bitoffset=22, bitsize=10)
         
         self.assert_file3_is_EnumInClass(v1)
         self.assert_file3_is_EnumInClass(v2)

@@ -499,20 +499,22 @@ class ElfDwarfVarExtractor:
         self.log_debug_process_die(die)
 
         if die not in self.struct_die_map:
-            self.struct_die_map[die] = self.get_struct_or_class_def(die)
+            self.struct_die_map[die] = self.get_composite_type_def(die)
 
 
     # Go down the hierarchy to get the whole struct def in a recursive way
-    def get_struct_or_class_def(self, die: "elftools_stubs.Die") -> Struct:
+    def get_composite_type_def(self, die: "elftools_stubs.Die") -> Struct:
+        """Get the definition of a struct/class/union type"""
+
         self.log_debug_process_die(die)
-        if die.tag not in ['DW_TAG_structure_type', 'DW_TAG_class_type']:
-            raise ValueError('DIE must be a structure or a class type')
+        if die.tag not in ('DW_TAG_structure_type', 'DW_TAG_class_type', 'DW_TAG_union_type'):
+            raise ValueError('DIE must be a structure, class or union type')
 
         struct = Struct(self.get_name(die))
-
+        is_in_union = die.tag == 'DW_TAG_union_type'
         for child in die.iter_children():
             if child.tag == 'DW_TAG_member':
-                member = self.get_member_from_die(child)
+                member = self.get_member_from_die(child, is_in_union)
                 if member is not None:
                     struct.add_member(member)
             elif child.tag == 'DW_TAG_inheritance':
@@ -532,13 +534,16 @@ class ElfDwarfVarExtractor:
 
     # Read a member die and generate a Struct.Member that we will later on use to register a variable.
     # The struct.Member object contains everything we need to map a
-    def get_member_from_die(self, die: "elftools_stubs.Die") -> Optional[Struct.Member]:
+    def get_member_from_die(self, die: "elftools_stubs.Die", is_in_union:bool=False) -> Optional[Struct.Member]:
         self.log_debug_process_die(die)
-        name = self.get_name(die)
+        try:
+            name = self.get_name(die) 
+        except Exception:
+            name = ""
         type_desc = self.get_type_of_var(die)
         enum:Optional[VariableEnum] = None
-        if type_desc.type in (TypeOfVar.Struct, TypeOfVar.Class):
-            substruct = self.get_struct_or_class_def(type_desc.type_die)  # recursion
+        if type_desc.type in (TypeOfVar.Struct, TypeOfVar.Class, TypeOfVar.Union):
+            substruct = self.get_composite_type_def(type_desc.type_die)  # recursion
             typename = None
         elif type_desc.type == TypeOfVar.BaseType:
             self.die_process_base_type(type_desc.type_die)    # Just in case it is unknown yet
@@ -555,8 +560,13 @@ class ElfDwarfVarExtractor:
         # We are looking at a forward declared member.
         if 'DW_AT_declaration' in die.attributes and die.attributes['DW_AT_declaration'].value == True:
             return None
-
-        byte_offset = die.attributes['DW_AT_data_member_location'].value
+        
+        if is_in_union:
+            if 'DW_AT_data_member_location' in die.attributes and die.attributes['DW_AT_data_member_location'].value != 0:
+                raise ElfParsingError("Encountered an union with a non-zero member location.")
+            byte_offset = 0
+        else:
+            byte_offset = die.attributes['DW_AT_data_member_location'].value
 
         if 'DW_AT_bit_offset' in die.attributes:
             if 'DW_AT_byte_size' not in die.attributes:
@@ -585,8 +595,8 @@ class ElfDwarfVarExtractor:
             bitoffset=bitoffset,
             bitsize=bitsize,
             substruct=substruct,
-            enum=enum
-            
+            enum=enum,
+            is_unnamed = True if (len(name) == 0) else False
         )
 
     # We have an instance of a struct. Use the location and go down the structure recursively
@@ -700,7 +710,7 @@ class ElfDwarfVarExtractor:
             if location is not None:
                 type_desc = self.get_type_of_var(die)
 
-                if type_desc.type in (TypeOfVar.Struct, TypeOfVar.Class):   # TODO: Union
+                if type_desc.type in (TypeOfVar.Struct, TypeOfVar.Class, TypeOfVar.Union): 
                     self.die_process_struct_or_class(type_desc.type_die)
                     self.register_struct_var(die, type_desc.type_die, location)
                 elif type_desc.type == TypeOfVar.BaseType:
