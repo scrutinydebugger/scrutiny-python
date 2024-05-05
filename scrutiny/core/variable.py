@@ -154,6 +154,7 @@ class Struct:
         bitsize: Optional[int]
         substruct: Optional['Struct']
         enum:Optional['VariableEnum']
+        is_unnamed:bool
 
         def __init__(self, name: str,
                      is_substruct: bool = False,
@@ -162,7 +163,8 @@ class Struct:
                      bitoffset: Optional[int] = None,
                      bitsize: Optional[int] = None,
                      substruct: Optional['Struct'] = None,
-                     enum:Optional['VariableEnum'] = None
+                     enum:Optional['VariableEnum'] = None,
+                     is_unnamed:bool=False
                      ):
 
             if not is_substruct:
@@ -190,6 +192,10 @@ class Struct:
             if substruct is not None:
                 if not isinstance(substruct, Struct):
                     raise ValueError('substruct must be Struct instance')
+            
+            if is_unnamed:
+                if not is_substruct:
+                    raise ValueError("Only substruct members can be unnamed")
 
             self.name = name
             self.is_substruct = is_substruct
@@ -199,6 +205,7 @@ class Struct:
             self.bitsize = bitsize
             self.substruct = substruct
             self.enum = enum
+            self.is_unnamed = is_unnamed
 
     name: str
     members: Dict[str, "Struct.Member"]
@@ -209,13 +216,27 @@ class Struct:
 
     def add_member(self, member: "Struct.Member") -> None:
         """Add a member to the struct"""
-        if member.name in self.members:
-            raise KeyError('Duplicate member %s' % member.name)
-
         if not isinstance(member, Struct.Member):
             raise ValueError('Node must be a Struct.Member')
+        
+        if member.is_unnamed:
+            # Unnamed struct,class,union are defined like this : struct { struct {int a; int b;}} x
+            # They are considered as being declared at the same level as the members of the parent
+            assert member.is_substruct==True
+            assert member.substruct is not None
+            assert member.byte_offset is not None
 
-        self.members[member.name] = member
+            for subtruct_member in member.substruct.members.values():
+                substruct_member2 = deepcopy(subtruct_member)
+                if substruct_member2.byte_offset is None:
+                    raise RuntimeError("Expect byte_offset to be set to handle unnamed composite type")
+                substruct_member2.byte_offset+=member.byte_offset
+                self.add_member(substruct_member2)
+        else:    
+            if member.name in self.members:
+                raise KeyError('Duplicate member %s' % member.name)
+        
+            self.members[member.name] = member
     
     def inherit(self, other:"Struct", offset:int=0) -> None:
         for member in other.members.values():
