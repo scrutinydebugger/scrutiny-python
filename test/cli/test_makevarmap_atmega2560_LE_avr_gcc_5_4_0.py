@@ -381,6 +381,10 @@ class TestMakeVarMap_ATMega2560_LE_avr_gcc_5_4_0(ScrutinyUnitTest):
         self.assert_var("/static/scrutiny_integration.cpp/main_handler/m_datalogging/read_acquisition_rolling_counter", EmbeddedDataType.uint8)
         self.assert_var("/static/scrutiny_integration.cpp/main_handler/m_datalogging/read_acquisition_crc", EmbeddedDataType.uint32)
 
+    def test_scrutiny_integration(self):
+        self.assert_var("/static/scrutiny_integration.cpp/rpv_write_callback(scrutiny::RuntimePublishedValue, scrutiny::AnyType const*)/some_counter", EmbeddedDataType.uint32)
+
+
     def test_bno055(self):
         self.assert_var('/global/bno055/m_i2c_addr', EmbeddedDataType.uint8)
         self.assert_var('/global/bno055/m_last_error_code', EmbeddedDataType.uint8)
