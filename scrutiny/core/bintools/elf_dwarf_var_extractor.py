@@ -264,6 +264,11 @@ class ElfDwarfVarExtractor:
         self.log_debug_process_die(die)
         refaddr = cast(int, die.attributes['DW_AT_specification'].value) + die.cu.cu_offset
         return die.dwarfinfo.get_DIE_from_refaddr(refaddr)
+    
+    def get_die_at_abstract_origin(self, die: "elftools_stubs.Die") -> "elftools_stubs.Die":
+        self.log_debug_process_die(die)
+        refaddr = cast(int, die.attributes['DW_AT_abstract_origin'].value) + die.cu.cu_offset
+        return die.dwarfinfo.get_DIE_from_refaddr(refaddr)
 
     def get_name(self, die: "elftools_stubs.Die", default: Optional[str] = None, nolog:bool=False) -> str:
         if not nolog:
@@ -685,6 +690,10 @@ class ElfDwarfVarExtractor:
 
         if 'DW_AT_specification' in die.attributes:
             vardie = self.get_die_at_spec(die)
+            self.die_process_variable(vardie, location) # Recursion
+       
+        elif 'DW_AT_abstract_origin' in die.attributes:
+            vardie = self.get_die_at_abstract_origin(die)
             self.die_process_variable(vardie, location) # Recursion
 
         else:
