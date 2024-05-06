@@ -12,10 +12,12 @@ from test.cli.base_testapp_makevarmap_test import BaseTestAppMakeVarmapTest
 from test import ScrutinyUnitTest
 
 
-class TestMakeVarMap_LinuxLEx64_Gcc11_4_0(BaseTestAppMakeVarmapTest, ScrutinyUnitTest):
+class TestMakeVarMap_LinuxLEx64_Gcc11_4_0_Dwarf4(BaseTestAppMakeVarmapTest, ScrutinyUnitTest):
     bin_filename = get_artifact('testapp20240505_UbuntuLEx64_gcc11_4_0-dwarf4')
     memdump_filename = get_artifact('testapp20240505_UbuntuLEx64_gcc11_4_0-dwarf4.memdump')
 
+    def test_dwarf_version(self):
+        self.assert_dwarf_version(self.bin_filename, 4)
 
 if __name__ == '__main__':
     import unittest

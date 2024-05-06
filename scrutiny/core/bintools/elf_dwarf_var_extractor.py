@@ -618,7 +618,7 @@ class ElfDwarfVarExtractor:
                 self.die_process_base_type(type_desc.type_die)    # Just in case it is unknown yet
                 typename = self.get_typename_from_die(type_desc.type_die)
             elif type_desc.type == TypeOfVar.EnumOnly:    # clang dwarf v2 may do that for enums
-                assert type_desc.enum_die is not None
+                assert type_desc.enum_die is type_desc.type_die
                 typename = self.process_enum_only_type(type_desc.enum_die)
             else:
                 raise ElfParsingError("Impossible to process base type")
@@ -674,12 +674,13 @@ class ElfDwarfVarExtractor:
     # We have an instance of a struct. Use the location and go down the structure recursively
     # using the members offsets to find the final address that we will apply to the output var
     def register_struct_var(self, die: "elftools_stubs.Die", type_die:"elftools_stubs.Die", location: VariableLocation) -> None:
+        """Register an instance of a struct at a given location"""
         path_segments = self.make_varpath(die)
         path_segments.append(self.get_name(die))
         struct = self.struct_die_map[type_die]
         startpoint = Struct.Member(struct.name, is_substruct=True, bitoffset=None, bitsize=None, substruct=struct)
 
-        # Start the recursion
+        # Start the recursion that will create all the sub elements
         self.register_member_as_var_recursive(path_segments, startpoint, location, offset=0)
 
     # Recursive function to dig into a structure and register all possible variables.
@@ -782,9 +783,11 @@ class ElfDwarfVarExtractor:
             if location is not None:
                 type_desc = self.get_type_of_var(die)
 
+                # Composite type
                 if type_desc.type in (TypeOfVar.Struct, TypeOfVar.Class, TypeOfVar.Union): 
                     self.die_process_struct_class_union(type_desc.type_die)
                     self.register_struct_var(die, type_desc.type_die, location)
+                # Base type
                 elif type_desc.type in (TypeOfVar.BaseType, TypeOfVar.EnumOnly):
                     path_segments = self.make_varpath(die)
                     name = self.get_name(die)
@@ -794,10 +797,11 @@ class ElfDwarfVarExtractor:
                         self.die_process_enum(type_desc.enum_die)
                         enum = self.enum_die_map[type_desc.enum_die]
 
-                    if type_desc.type == TypeOfVar.BaseType :
+                    if type_desc.type == TypeOfVar.BaseType :   # Most common case
                         self.die_process_base_type(type_desc.type_die)    # Just in case it is unknown yet
                         typename = self.get_typename_from_die(type_desc.type_die)
                     elif type_desc.type == TypeOfVar.EnumOnly:    # clang dwarf v2 may do that for enums
+                        assert type_desc.enum_die is type_desc.type_die
                         assert type_desc.enum_die is not None
                         typename = self.process_enum_only_type(type_desc.enum_die)
                     else:
