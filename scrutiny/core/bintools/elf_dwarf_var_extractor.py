@@ -47,6 +47,7 @@ class TypeOfVar(Enum):
     Union=auto()
     Pointer=auto()
     Array=auto()
+    EnumOnly=auto() # Clang dwarf v2
 
 @dataclass
 class TypeDescriptor:
@@ -116,6 +117,7 @@ class ElfDwarfVarExtractor:
     GLOBAL = 'global'
     MAX_CU_DISPLAY_NAME_LENGTH = 40
     DW_OP_ADDR = 3
+    DW_OP_plus_uconst = 0x23
 
     class DwarfEncoding(Enum):
         DW_ATE_address = 0x1
@@ -164,7 +166,9 @@ class ElfDwarfVarExtractor:
         if filename is not None:
             self.load_from_elf_file(filename)
 
-    def make_name_for_log(self, die: "elftools_stubs.Die") -> str:
+    def make_name_for_log(self, die: Optional["elftools_stubs.Die"]) -> str:
+        if die is None:
+            return "<None>"
         name=''
         try:
             name = self.get_name(die, nolog=True)
@@ -500,7 +504,12 @@ class ElfDwarfVarExtractor:
             elif nextdie.tag == 'DW_TAG_union_type':
                 return TypeDescriptor(TypeOfVar.Union, enum, nextdie)
             elif nextdie.tag == 'DW_TAG_enumeration_type':
-                enum = nextdie  # Should resolve to a basetype on next iteration.
+                enum = nextdie  # Will resolve on next iteration (if a type is available)
+                if 'DW_AT_type' not in nextdie.attributes: # Clang dwarfv2 may not have type, but has a byte size   
+                    if 'DW_AT_byte_size' in nextdie.attributes:
+                        return TypeDescriptor(TypeOfVar.EnumOnly, enum, type_die=enum)
+                    else:
+                        raise ElfParsingError(f"Cannot find the enum underlying type {enum}")
 
             prevdie = nextdie
 
@@ -508,7 +517,7 @@ class ElfDwarfVarExtractor:
     # this definition includes all submember with their respective offset.
     # each time we will encounter a instance of this struct, we will generate a variable for each sub member
 
-    def die_process_struct_or_class(self, die: "elftools_stubs.Die") -> None:
+    def die_process_struct_class_union(self, die: "elftools_stubs.Die") -> None:
         self.log_debug_process_die(die)
 
         if die not in self.struct_die_map:
@@ -532,19 +541,61 @@ class ElfDwarfVarExtractor:
                     struct.add_member(member)
             elif child.tag == 'DW_TAG_inheritance':
                 offset = 0
-                if 'DW_AT_data_member_location' in child.attributes:
-                    offset = child.attributes['DW_AT_data_member_location'].value
+                if self.has_member_byte_offset(child):
+                    offset = self.get_member_byte_offset(child)
                 refaddr = child.attributes['DW_AT_type'].value + child.cu.cu_offset
                 typedie = child.dwarfinfo.get_DIE_from_refaddr(refaddr)
-                if typedie.tag not in ['DW_TAG_structure_type', 'DW_TAG_class_type']:
+                if typedie.tag not in ['DW_TAG_structure_type', 'DW_TAG_class_type']:   # Add union here?
                     self.logger.warning(f"Line {get_linenumber()}: Inheritance to a type die {self.make_name_for_log(typedie)}. Not supported yet")
                     continue
-                self.die_process_struct_or_class(typedie)
+                self.die_process_struct_class_union(typedie)
                 parent_struct = self.struct_die_map[typedie]
                 struct.inherit(parent_struct, offset=offset)
 
         return struct
+    
+    def has_member_byte_offset(self, die: "elftools_stubs.Die") -> bool:
+        """Tells if an offset relative to the structure base is available on this member die"""
+        return 'DW_AT_data_member_location' in die.attributes
 
+    def get_member_byte_offset(self, die: "elftools_stubs.Die") -> int:
+        """Tell the offset at which this member is located relative to the structure base"""
+
+        if 'DW_AT_data_member_location' not in die.attributes:
+            raise ElfParsingError(f"No member location on die {die}")
+        
+        val = die.attributes['DW_AT_data_member_location'].value
+        if isinstance(val, int):
+            return val
+        
+        if isinstance(val, list):
+            if len(val) < 2:
+                raise ElfParsingError(f"Invalid member offset data length for die {die}")
+            
+            if val[0] != self.DW_OP_plus_uconst:
+                raise ElfParsingError(f"Does not know how to read member location for die {die}. Operator is unsupported")
+
+            return int.from_bytes(val[1:], byteorder= 'little' if self.endianness == Endianness.Little else 'big') 
+
+        raise ElfParsingError(f"Does not know how to read member location for die {die}")
+
+    def process_enum_only_type(self, enum_die:"elftools_stubs.Die") -> str:
+        """With clang Dwarf V2, some enums may have no base type, so we try to deduce it from the propertie son the enum"""
+        enum = self.enum_die_map[enum_die]
+        if 'DW_AT_byte_size' not in enum_die.attributes:
+            raise ElfParsingError(f"Cannot determine enum size {enum_die}")
+        bytesize = enum_die.attributes['DW_AT_byte_size'].value
+        try:
+            encoding = self.DwarfEncoding(cast(int, enum_die.attributes['DW_AT_encoding'].value))
+        except:
+            encoding = self.DwarfEncoding.DW_ATE_signed if enum.has_signed_value() else self.DwarfEncoding.DW_ATE_unsigned
+        basetype = self.get_core_base_type(encoding, bytesize)
+        fakename = 'enum_default_'
+        fakename += 's' if basetype.is_signed() else 'u'
+        fakename += str(basetype.get_size_bit())
+        self.varmap.register_base_type(fakename, basetype)
+        return fakename
+    
     # Read a member die and generate a Struct.Member that we will later on use to register a variable.
     # The struct.Member object contains everything we need to map a
     def get_member_from_die(self, die: "elftools_stubs.Die", is_in_union:bool=False) -> Optional[Struct.Member]:
@@ -558,12 +609,20 @@ class ElfDwarfVarExtractor:
         if type_desc.type in (TypeOfVar.Struct, TypeOfVar.Class, TypeOfVar.Union):
             substruct = self.get_composite_type_def(type_desc.type_die)  # recursion
             typename = None
-        elif type_desc.type == TypeOfVar.BaseType:
-            self.die_process_base_type(type_desc.type_die)    # Just in case it is unknown yet
+        elif type_desc.type in (TypeOfVar.BaseType, TypeOfVar.EnumOnly):
             if type_desc.enum_die is not None:
                 self.die_process_enum(type_desc.enum_die)
                 enum = self.enum_die_map[type_desc.enum_die]
-            typename = self.get_typename_from_die(type_desc.type_die)
+        
+            if type_desc.type == TypeOfVar.BaseType :
+                self.die_process_base_type(type_desc.type_die)    # Just in case it is unknown yet
+                typename = self.get_typename_from_die(type_desc.type_die)
+            elif type_desc.type == TypeOfVar.EnumOnly:    # clang dwarf v2 may do that for enums
+                assert type_desc.enum_die is not None
+                typename = self.process_enum_only_type(type_desc.enum_die)
+            else:
+                raise ElfParsingError("Impossible to process base type")
+            
             substruct = None
         else:
             self.logger.warning(f"Line {get_linenumber()}: Found a member with a type die {self.make_name_for_log(type_desc.type_die)} (type={type_desc.type.name}). Not supported yet")
@@ -575,11 +634,11 @@ class ElfDwarfVarExtractor:
             return None
         
         if is_in_union:
-            if 'DW_AT_data_member_location' in die.attributes and die.attributes['DW_AT_data_member_location'].value != 0:
+            if self.has_member_byte_offset(die) and self.get_member_byte_offset(die) != 0:
                 raise ElfParsingError("Encountered an union with a non-zero member location.")
             byte_offset = 0
         else:
-            byte_offset = die.attributes['DW_AT_data_member_location'].value
+            byte_offset = self.get_member_byte_offset(die)
 
         if 'DW_AT_bit_offset' in die.attributes:
             if 'DW_AT_byte_size' not in die.attributes:
@@ -724,22 +783,31 @@ class ElfDwarfVarExtractor:
                 type_desc = self.get_type_of_var(die)
 
                 if type_desc.type in (TypeOfVar.Struct, TypeOfVar.Class, TypeOfVar.Union): 
-                    self.die_process_struct_or_class(type_desc.type_die)
+                    self.die_process_struct_class_union(type_desc.type_die)
                     self.register_struct_var(die, type_desc.type_die, location)
-                elif type_desc.type == TypeOfVar.BaseType:
+                elif type_desc.type in (TypeOfVar.BaseType, TypeOfVar.EnumOnly):
                     path_segments = self.make_varpath(die)
                     name = self.get_name(die)
-                    self.die_process_base_type(type_desc.type_die)
+                    
                     enum:Optional[VariableEnum] = None
                     if type_desc.enum_die is not None:
                         self.die_process_enum(type_desc.enum_die)
                         enum = self.enum_die_map[type_desc.enum_die]
-                   
+
+                    if type_desc.type == TypeOfVar.BaseType :
+                        self.die_process_base_type(type_desc.type_die)    # Just in case it is unknown yet
+                        typename = self.get_typename_from_die(type_desc.type_die)
+                    elif type_desc.type == TypeOfVar.EnumOnly:    # clang dwarf v2 may do that for enums
+                        assert type_desc.enum_die is not None
+                        typename = self.process_enum_only_type(type_desc.enum_die)
+                    else:
+                        raise ElfParsingError("Impossible to process base type")
+
                     self.register_variable(
                         name=name,
                         path_segments=path_segments,
                         location=location,
-                        original_type_name=self.get_typename_from_die(type_desc.type_die),
+                        original_type_name=typename,
                         enum=enum
                     )
                 else:
