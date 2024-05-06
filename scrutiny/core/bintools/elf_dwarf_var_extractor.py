@@ -404,7 +404,12 @@ class ElfDwarfVarExtractor:
 
             self.initial_stack_depth = len(inspect.stack())
             
+            bad_support_warning_written = False
             for cu in self.dwarfinfo.iter_CUs():
+                if cu.header['version'] not in (2,3,4):
+                    if not bad_support_warning_written:
+                        bad_support_warning_written = True
+                        self.logger.warning(f"DWARF format version {cu.header['version']} is not well supported, output may be incomplete")
                 die = cu.get_top_DIE()
                 self.extract_var_recursive(die) # Recursion start point
 
