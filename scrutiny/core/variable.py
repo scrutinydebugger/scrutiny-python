@@ -136,6 +136,13 @@ class VariableEnum:
         }
         return obj
 
+    def has_signed_value(self) -> bool:
+        for v in self.vals.values():
+            if v < 0:
+                return True
+        return False
+
+
     @classmethod
     def from_def(cls, enum_def: VariableEnumDef) -> "VariableEnum":
         """Recreate from a .json dict"""

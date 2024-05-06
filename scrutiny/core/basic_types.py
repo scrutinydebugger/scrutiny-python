@@ -18,7 +18,7 @@ __all__ = [
 from enum import Enum
 from dataclasses import dataclass
 from scrutiny.core import validation
-
+from typing import Union
 
 @dataclass(frozen=True)
 class MemoryRegion:
@@ -154,6 +154,23 @@ class EmbeddedDataType(Enum):
         if type_type in (DataTypeType._sint.value, DataTypeType._float.value, DataTypeType._cfloat.value):
             return True
         return False
+    
+    @classmethod
+    def make(cls, datatype_type:DataTypeType, size:Union[int, DataTypeSize]) -> "EmbeddedDataType":
+        if isinstance(size, int):
+            if size == 1:
+                return cls.make(datatype_type, DataTypeSize._8)
+            if size == 2:
+                return cls.make(datatype_type, DataTypeSize._16)
+            if size == 4:
+                return cls.make(datatype_type, DataTypeSize._32)
+            if size == 8:
+                return cls.make(datatype_type, DataTypeSize._64)
+            if size == 16:
+                return cls.make(datatype_type, DataTypeSize._128)
+            raise ValueError(f"Impossible size given {size}")
+        else:
+            return cls(datatype_type.value | size.value)
 
 
 @dataclass(frozen=True)
