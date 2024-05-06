@@ -283,13 +283,26 @@ class ElfDwarfVarExtractor:
             else:
                 raise ElfParsingError('Cannot get a name for this die. %s' % die)
 
+    def has_linkage_name(self, die: "elftools_stubs.Die") -> bool:
+        if 'DW_AT_linkage_name' in die.attributes:
+            return True
+        if 'DW_AT_MIPS_linkage_name' in die.attributes:
+            return True
+        return False
+    
     def get_linkage_name(self, die: "elftools_stubs.Die") -> str:
         self.log_debug_process_die(die)
-        return self.demangler.demangle(die.attributes['DW_AT_linkage_name'].value.decode('ascii'))
-
-    # Tells if the die is accessible from outside the compile unit. If it is, it's global, otherwise it's static.
+        if 'DW_AT_linkage_name' in die.attributes:
+            mangled_encoded = die.attributes['DW_AT_linkage_name'].value
+        elif 'DW_AT_MIPS_linkage_name' in die.attributes:
+            mangled_encoded = die.attributes['DW_AT_MIPS_linkage_name'].value
+        else:
+            raise ElfParsingError("No linkage name available")
+        
+        return self.demangler.demangle(mangled_encoded.decode('ascii'))
 
     def is_external(self, die: "elftools_stubs.Die") -> bool:
+        """Tells if the die is accessible from outside the compile unit. If it is, it's global, otherwise it's static."""
         try:
             return cast(bool, die.attributes['DW_AT_external'].value)
         except Exception:
@@ -741,7 +754,7 @@ class ElfDwarfVarExtractor:
                 break
 
             try:
-                if 'DW_AT_linkage_name' in parent.attributes:
+                if self.has_linkage_name(parent):
                     name = self.get_linkage_name(parent)
                 else:
                     name = self.get_name(parent)
@@ -757,8 +770,7 @@ class ElfDwarfVarExtractor:
 
     def get_varpath_from_linkage_name(self, die: "elftools_stubs.Die") -> List[str]:
         """Generate path segments by parsing the linkage name. Relies on the ability to demangle"""
-        mangled = die.attributes['DW_AT_linkage_name'].value.decode('ascii')
-        demangled = self.demangler.demangle(mangled)
+        demangled = self.get_linkage_name(die)
         segments = demangled.split('::')
         try:
             name = self.get_name(die)
@@ -770,7 +782,7 @@ class ElfDwarfVarExtractor:
 
     def make_varpath(self, die: "elftools_stubs.Die") -> List[str]:
         """Generate the display path for a die, either from the hierarchy or the linkage name"""
-        if 'DW_AT_linkage_name' in die.attributes:
+        if self.has_linkage_name(die):
             segments = self.get_varpath_from_linkage_name(die)
         else:
             segments = self.get_varpath_from_hierarchy(die)

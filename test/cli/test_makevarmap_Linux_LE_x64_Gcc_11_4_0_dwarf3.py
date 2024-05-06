@@ -13,8 +13,8 @@ from test import ScrutinyUnitTest
 
 
 class TestMakeVarMap_LinuxLEx64_Gcc11_4_0(BaseTestAppMakeVarmapTest, ScrutinyUnitTest):
-    bin_filename = get_artifact('testapp20240505_UbuntuLEx64_gcc11_4_0')
-    memdump_filename = get_artifact('testapp20240505_UbuntuLEx64_gcc11_4_0.memdump')
+    bin_filename = get_artifact('testapp20240505_UbuntuLEx64_gcc11_4_0-dwarf3')
+    memdump_filename = get_artifact('testapp20240505_UbuntuLEx64_gcc11_4_0-dwarf3.memdump')
 
 
 if __name__ == '__main__':
