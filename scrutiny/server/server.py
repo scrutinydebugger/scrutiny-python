@@ -24,7 +24,7 @@ from scrutiny.server.active_sfd_handler import ActiveSFDHandler
 from scrutiny.server.datalogging.datalogging_manager import DataloggingManager
 from scrutiny.tools import update_dict_recursive
 
-from typing import TypedDict, Optional, Union, Dict, cast
+from typing import TypedDict, Optional, Union, Dict, cast, Any
 
 
 class ServerConfig(TypedDict, total=False):
@@ -81,16 +81,15 @@ class ScrutinyServer:
                 with open(input_config) as f:
                     try:
                         user_cfg = json.loads(f.read())
-                        update_dict_recursive(cast(Dict,self.config), cast(Dict, user_cfg))
+                        update_dict_recursive(cast(Dict[Any, Any],self.config), cast(Dict[Any, Any], user_cfg))
                     except Exception as e:
                         raise Exception("Invalid configuration JSON. %s" % e)
             elif isinstance(input_config, dict):
-                update_dict_recursive(cast(Dict,self.config), cast(Dict,input_config))
+                update_dict_recursive(cast(Dict[Any, Any],self.config), cast(Dict[Any, Any],input_config))
         
         if additional_config is not None:
-            update_dict_recursive(cast(Dict, self.config), cast(Dict, additional_config))
+            update_dict_recursive(cast(Dict[Any, Any], self.config), cast(Dict[Any, Any], additional_config))
 
-        print(json.dumps(self.config, indent=4))
         self.validate_config()
         self.server_name = '<Unnamed>' if 'name' not in self.config else self.config['name']
 

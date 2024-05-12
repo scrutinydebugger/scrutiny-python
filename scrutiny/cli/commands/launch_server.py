@@ -31,13 +31,12 @@ class LaunchServer(BaseCommand):
                                  " Specified as a list of key=value where key can be a nested dict where the a dot (.) represent a nesting level. 'a.b.c=val'"
                                  "Overrides file configuration if specified.")
 
-    def str_to_dict(self, path:str, val:Any, separator='.'):
-
+    def str_to_dict(self, path:str, val:Any, separator:str='.') -> Dict[Any, Any]:
         parts = path.split(separator)
         if len(parts) == 0:
             raise ValueError(f"Invalid dict path string '{path}'")
         
-        d:Dict = {}
+        d:Dict[Any, Any] = {}
         ref = d
         for i in range(len(parts)):
             if i < len(parts) - 1:
@@ -47,9 +46,6 @@ class LaunchServer(BaseCommand):
                 ref[parts[i]] = val
         
         return d
-
-
-
 
     def run(self) -> Optional[int]:
         from scrutiny.server.server import ScrutinyServer, ServerConfig
@@ -67,7 +63,7 @@ class LaunchServer(BaseCommand):
         for name in websockets_loggers:
             logging.getLogger(name).setLevel(logging_level)
 
-        extra_configs:Dict = {}
+        extra_configs:Dict[Any, Any] = {}
         for o in args.options:
             parts = o.split('=')
             if len(parts) != 2:

@@ -6,9 +6,9 @@ from .throttler import Throttler
 from .timer import Timer
 
 from copy import deepcopy
-from typing import Dict
+from typing import Dict, Any
 
-def update_dict_recursive(d1:Dict, d2:Dict) -> None:
+def update_dict_recursive(d1:Dict[Any, Any], d2:Dict[Any, Any]) -> None:
     if not isinstance(d1, dict):
         raise ValueError("Cannot merge non-dictionnaries")
     if not isinstance(d2, dict):
