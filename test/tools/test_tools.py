@@ -58,6 +58,38 @@ class TestThrottler(ScrutinyUnitTest):
 
         logger.info('Maximum buffer peak = %dbits' % (math.ceil(buffer_peak)))
 
+class TestTools(ScrutinyUnitTest):
+    def test_update_dict_recursive(self):
+        from scrutiny.tools import update_dict_recursive
+        d = {
+            'x' : 'y',
+            'aaa' : {
+                'xxx' : 1,
+                'yyy' : [1,2,3],
+                'zzz' : {
+                    'hello' : 'world'
+                }
+            }
+        }
+        
+        update_dict_recursive(d, {'b' : 2})
+        update_dict_recursive(d, {'aaa' : {'xxx': 3,  'bbb' : 'ccc', 'zzz': {'potato' : 'tomato'} }})
+
+        expected_dict = {
+            'b' : 2,
+            'x' : 'y',
+            'aaa' : {
+                'xxx' : 3,
+                'bbb' : 'ccc',
+                'yyy' : [1,2,3],
+                'zzz' : {
+                    'hello' : 'world',
+                    'potato' : 'tomato'
+                }
+            }
+        }
+
+        self.assertEqual(d, expected_dict)
 
 if __name__ == '__main__':
     import unittest

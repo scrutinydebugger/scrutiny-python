@@ -1,13 +1,13 @@
 {
     "debug" : true,
-    "api_config": {
+    "api": {
         "client_interface_type": "websocket",
         "client_interface_config": {
             "host": "localhost",
             "port": 8765
         }
     },
-    "device_config": {
+    "device": {
         "response_timeout": 1.0,
         "link_type": "udp",
         "link_config": {
