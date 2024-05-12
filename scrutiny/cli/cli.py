@@ -77,7 +77,7 @@ class CLI:
             if except_failed:
                 raise Exception('Unknown command %s' % cargs.command)
             self.parser.print_help()
-            return -1
+            return 1
 
         error = None
         try:

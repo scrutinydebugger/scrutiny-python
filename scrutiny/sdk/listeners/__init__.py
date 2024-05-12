@@ -230,7 +230,7 @@ class BaseListener(abc.ABC):
         self._receive_error=False
         self._update_count=0
         self._update_queue = queue.Queue(self._queue_max_size)
-        self._thread = threading.Thread(target=self._thread_task)
+        self._thread = threading.Thread(target=self._thread_task, daemon=True)
         self._thread.start()
 
         self._started_event.wait(2)

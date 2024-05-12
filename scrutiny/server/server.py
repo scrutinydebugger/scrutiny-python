@@ -8,6 +8,8 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
+__all__ = ['ScrutinyServer', 'ServerConfig', 'DEFAULT_CONFIG']
+
 import time
 import os
 import json
@@ -20,8 +22,9 @@ from scrutiny.server.datastore.datastore import Datastore
 from scrutiny.server.device.device_handler import DeviceHandler, DeviceHandlerConfig
 from scrutiny.server.active_sfd_handler import ActiveSFDHandler
 from scrutiny.server.datalogging.datalogging_manager import DataloggingManager
+from scrutiny.tools import update_dict_recursive
 
-from typing import TypedDict, Optional, Union
+from typing import TypedDict, Optional, Union, Dict, cast, Any
 
 
 class ServerConfig(TypedDict, total=False):
@@ -65,7 +68,10 @@ class ScrutinyServer:
     sfd_handler: ActiveSFDHandler
     datalogging_manager: DataloggingManager
 
-    def __init__(self, input_config: Optional[Union[str, ServerConfig]] = None) -> None:
+    def __init__(self, 
+                 input_config: Optional[Union[str, ServerConfig]] = None,
+                 additional_config: Optional[ServerConfig] = None
+                 ) -> None:
         self.logger = logging.getLogger(self.__class__.__name__)
         self.config = copy(DEFAULT_CONFIG)
         if input_config is not None:
@@ -75,11 +81,14 @@ class ScrutinyServer:
                 with open(input_config) as f:
                     try:
                         user_cfg = json.loads(f.read())
-                        self.config.update(user_cfg)
+                        update_dict_recursive(cast(Dict[Any, Any],self.config), cast(Dict[Any, Any], user_cfg))
                     except Exception as e:
                         raise Exception("Invalid configuration JSON. %s" % e)
             elif isinstance(input_config, dict):
-                self.config.update(input_config)
+                update_dict_recursive(cast(Dict[Any, Any],self.config), cast(Dict[Any, Any],input_config))
+        
+        if additional_config is not None:
+            update_dict_recursive(cast(Dict[Any, Any], self.config), cast(Dict[Any, Any], additional_config))
 
         self.validate_config()
         self.server_name = '<Unnamed>' if 'name' not in self.config else self.config['name']

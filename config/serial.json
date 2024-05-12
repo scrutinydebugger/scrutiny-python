@@ -1,5 +1,5 @@
 {
-    "device_config": {
+    "device": {
         "response_timeout": 1.0,
         "link_type": "serial",
         "link_config": {

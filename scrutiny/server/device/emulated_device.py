@@ -922,7 +922,7 @@ class EmulatedDevice:
         self.logger.debug('Starting thread')
         self.request_shutdown = False
         self.thread_started_event.clear()
-        self.thread = threading.Thread(target=self.thread_task)
+        self.thread = threading.Thread(target=self.thread_task, daemon=True)
         self.thread.start()
         self.thread_started_event.wait()
         self.logger.debug('Thread started')

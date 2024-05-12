@@ -49,7 +49,7 @@ class UdpLink(AbstractLink):
         self.validate_config(config)
 
         self.config = cast(UdpConfig, {
-            'host': config['host'],
+            'host': str(config['host']),
             'port': int(config['port'])
         })
 
