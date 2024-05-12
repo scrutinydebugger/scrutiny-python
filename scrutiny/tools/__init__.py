@@ -1,9 +1,11 @@
 __all__ = [
     'Throttler',
-    'Timer'
+    'Timer',
+    'selectable_queue'
 ]
 from .throttler import Throttler
 from .timer import Timer
+from . import selectable_queue
 
 from copy import deepcopy
 from typing import Dict, Any
