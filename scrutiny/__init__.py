@@ -1,5 +1,5 @@
 __name__ = 'scrutinydebugger'
-__version__ = '0.2.1'
+__version__ = '0.2.2'
 __author__ = 'Pier-Yves Lessard'
 __credits__ = ['Pier-Yves Lessard', 'Frédéric Morin']
 __license__ = 'MIT'
