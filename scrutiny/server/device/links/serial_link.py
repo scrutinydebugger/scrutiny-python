@@ -109,12 +109,12 @@ class SerialLink(AbstractLink):
         self._init_timestamp = time.monotonic()
 
         self.config = cast(SerialConfig, {
-            'portname': config['portname'],
-            'baudrate': config['baudrate'],
-            'stopbits': config.get('stopbits', '1'),
-            'databits': config.get('databits', 8),
-            'parity': config.get('parity', 'none'),
-            'start_delay' : config.get('start_delay', 0)
+            'portname': str(config['portname']),
+            'baudrate': int(config['baudrate']),
+            'stopbits': str(config.get('stopbits', '1')),
+            'databits': int(config.get('databits', 8)),
+            'parity': str(config.get('parity', 'none')),
+            'start_delay' : float(config.get('start_delay', 0))
         })
 
     def get_config(self) -> LinkConfig:

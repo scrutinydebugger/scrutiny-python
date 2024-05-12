@@ -776,7 +776,7 @@ class API:
                     'stopbits': {
                         'description': 'Number of stop bits',
                         'type': 'select',
-                        'values': [1, 1.5, 2]
+                        'values': ['1', '1.5', '2']
                     },
                     'databits': {
                         'description': 'Number of data bits',
