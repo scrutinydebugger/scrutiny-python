@@ -75,7 +75,7 @@ class CommHandler:
     _last_open_error: Optional[str]
     _rx_data_event:Optional[threading.Event]
     
-    _rx_queue:queue.Queue[bytes]
+    _rx_queue:"queue.Queue[bytes]"
     _rx_thread:Optional[threading.Thread]
     _rx_thread_started:threading.Event
     _rx_thread_stop_requested:threading.Event

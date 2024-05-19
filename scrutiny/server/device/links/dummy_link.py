@@ -16,8 +16,8 @@ class DummyLink(AbstractLink):
     Non-thread safe fake communication channel that implement the 
     required interface to talk with a device. Used for unit testing
     """
-    to_device_data: queue.Queue[bytes]
-    from_device_data: queue.Queue[bytes]
+    to_device_data: "queue.Queue[bytes]"
+    from_device_data: "queue.Queue[bytes]"
     _initialized: bool
     emulate_broken: bool
 
