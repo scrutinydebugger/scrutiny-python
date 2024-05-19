@@ -18,7 +18,7 @@ from dataclasses import dataclass
 import scrutiny.server.datalogging.definitions.device as device_datalogging
 from scrutiny.server.device.emulated_device import EmulatedDevice
 from scrutiny.server.device.device_handler import DeviceHandler
-from scrutiny.server.device.links.dummy_link import ThreadSafeDummyLink
+from scrutiny.server.device.links.dummy_link import DummyLink
 from scrutiny.server.datastore.datastore import Datastore
 from scrutiny.server.datastore.datastore_entry import *
 from scrutiny.server.datastore.entry_type import EntryType
@@ -63,7 +63,7 @@ class TestDeviceHandler(ScrutinyUnitTest):
         self.acquisition_complete_callback_details = None
         self.datastore = Datastore()
         config = {
-            'link_type': 'thread_safe_dummy',
+            'link_type': 'dummy',
             'link_config': {},
             'response_timeout': 1,
             'heartbeat_timeout': 2
@@ -896,8 +896,8 @@ class TestDeviceHandlerMultipleLink(ScrutinyUnitTest):
 
         self.device_handler = DeviceHandler(config, self.datastore)
         self.assertIsNone(self.device_handler.get_comm_link())
-        self.link1 = ThreadSafeDummyLink.make({'channel_id': 1})
-        self.link2 = ThreadSafeDummyLink.make({'channel_id': 2})
+        self.link1 = DummyLink.make({'channel_id': 1})
+        self.link2 = DummyLink.make({'channel_id': 2})
 
         self.emulated_device1 = EmulatedDevice(self.link1)
         self.emulated_device2 = EmulatedDevice(self.link2)
@@ -920,7 +920,7 @@ class TestDeviceHandlerMultipleLink(ScrutinyUnitTest):
 
         self.assertIsNone(self.device_handler.get_comm_link())
 
-        self.device_handler.configure_comm('thread_safe_dummy', {'channel_id': 1})
+        self.device_handler.configure_comm('dummy', {'channel_id': 1})
 
         # Should behave exactly the same as test_auto_disconnect_if_comm_interrupted
         timeout = 5     # Should take about 2.5 sec to disconnect With heartbeat at every 2 sec
@@ -940,7 +940,7 @@ class TestDeviceHandlerMultipleLink(ScrutinyUnitTest):
         self.assertFalse(self.emulated_device2.is_connected())
         self.assertEqual(self.device_handler.get_comm_error_count(), 0)
 
-        self.device_handler.configure_comm('thread_safe_dummy', {'channel_id': 2})
+        self.device_handler.configure_comm('dummy', {'channel_id': 2})
         self.device_handler.process()
         self.assertNotEqual(self.device_handler.get_connection_status(), DeviceHandler.ConnectionStatus.CONNECTED_READY)
 

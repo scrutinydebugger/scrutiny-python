@@ -14,6 +14,7 @@ from scrutiny.server.protocol import Request, Response
 from scrutiny.server.protocol.commands import DummyCommand
 from scrutiny.server.device.links.dummy_link import DummyLink
 from test import ScrutinyUnitTest
+import threading
 
 
 class TestCommHandler(ScrutinyUnitTest):
@@ -22,13 +23,21 @@ class TestCommHandler(ScrutinyUnitTest):
             'response_timeout': 1
         }
 
+        self.rx_event = threading.Event()
         self.comm_handler = CommHandler(params)
+        self.comm_handler.set_rx_data_event(self.rx_event)
         self.comm_handler.set_link('dummy', {})
         self.comm_handler.open()
         self.link = self.comm_handler.get_link()
 
     def tearDown(self):
         self.comm_handler.close()
+
+    def emulate_device_write_and_wait_avail_event(self, data:bytes, timeout:float=0.5):
+        self.rx_event.clear()
+        self.link.emulate_device_write(data)
+        self.rx_event.wait(0.5)
+        self.assertTrue(self.rx_event.is_set())
 
     def compare_responses(self, response1, response2):
         self.assertEqual(response1.command, response2.command)
@@ -48,7 +57,7 @@ class TestCommHandler(ScrutinyUnitTest):
 
         self.assertFalse(self.comm_handler.response_available())
         response = Response(DummyCommand, DummyCommand.Subfunction.SubFn1, Response.ResponseCode.OK, payload=bytes([4, 5, 6]))
-        self.link.emulate_device_write(response.to_bytes())
+        self.emulate_device_write_and_wait_avail_event(response.to_bytes())
         self.comm_handler.process()
         self.assertTrue(self.comm_handler.waiting_response())
         self.assertTrue(self.comm_handler.response_available())
@@ -65,7 +74,7 @@ class TestCommHandler(ScrutinyUnitTest):
 
         self.comm_handler.send_request(req1)
         data = self.link.emulate_device_read()
-        self.link.emulate_device_write(response1.to_bytes())
+        self.emulate_device_write_and_wait_avail_event(response1.to_bytes())
         self.comm_handler.process()
         self.assertTrue(self.comm_handler.response_available())
         response1_ = self.comm_handler.get_response()
@@ -74,7 +83,7 @@ class TestCommHandler(ScrutinyUnitTest):
 
         self.comm_handler.send_request(req2)
         data = self.link.emulate_device_read()
-        self.link.emulate_device_write(response2.to_bytes())
+        self.emulate_device_write_and_wait_avail_event(response2.to_bytes())
         self.comm_handler.process()
         self.assertTrue(self.comm_handler.response_available())
         response2_ = self.comm_handler.get_response()
@@ -91,7 +100,7 @@ class TestCommHandler(ScrutinyUnitTest):
         data = self.link.emulate_device_read()
         for b in response1.to_bytes():
             self.assertFalse(self.comm_handler.response_available())
-            self.link.emulate_device_write(bytes([b]))
+            self.emulate_device_write_and_wait_avail_event(bytes([b]))
             self.comm_handler.process()
         self.assertTrue(self.comm_handler.response_available())
         response1_ = self.comm_handler.get_response()
@@ -101,7 +110,7 @@ class TestCommHandler(ScrutinyUnitTest):
         data = self.link.emulate_device_read()
         for b in response2.to_bytes():
             self.assertFalse(self.comm_handler.response_available())
-            self.link.emulate_device_write(bytes([b]))
+            self.emulate_device_write_and_wait_avail_event(bytes([b]))   
             self.comm_handler.process()
         self.assertTrue(self.comm_handler.response_available())
         response2_ = self.comm_handler.get_response()
@@ -117,10 +126,12 @@ class TestCommHandler(ScrutinyUnitTest):
             self.comm_handler.send_request(req1)
             data = self.link.emulate_device_read()
             self.assertFalse(self.comm_handler.response_available())
-            self.link.emulate_device_write(response_data[0:first_chunk_size])
+            if first_chunk_size  > 0:
+                self.emulate_device_write_and_wait_avail_event(response_data[0:first_chunk_size])   
             self.comm_handler.process()
             self.assertFalse(self.comm_handler.response_available())
-            self.link.emulate_device_write(response_data[first_chunk_size:])
+            if first_chunk_size < len(response_data):
+                self.emulate_device_write_and_wait_avail_event(response_data[first_chunk_size:])
             self.comm_handler.process()
             self.assertTrue(self.comm_handler.response_available())
             response1_ = self.comm_handler.get_response()
@@ -134,7 +145,7 @@ class TestCommHandler(ScrutinyUnitTest):
 
         self.comm_handler.send_request(req1)
         data = self.link.emulate_device_read()
-        self.link.emulate_device_write(response1.to_bytes())
+        self.emulate_device_write_and_wait_avail_event(response1.to_bytes())
         self.comm_handler.process()
         time.sleep(0.2)
         self.comm_handler.process()
@@ -152,14 +163,14 @@ class TestCommHandler(ScrutinyUnitTest):
 
         self.comm_handler.send_request(req1)
         data = self.link.emulate_device_read()
-        self.link.emulate_device_write(response_data[0:5])
+        self.emulate_device_write_and_wait_avail_event(response_data[0:5])
         self.comm_handler.process()
         time.sleep(0.2)
         self.comm_handler.process()
         self.assertTrue(self.comm_handler.has_timed_out())
         self.comm_handler.clear_timeout()
         self.assertFalse(self.comm_handler.has_timed_out())
-        self.link.emulate_device_write(response_data[5:])
+        self.emulate_device_write_and_wait_avail_event(response_data[5:])
         self.comm_handler.process()
         self.assertFalse(self.comm_handler.waiting_response())
         self.assertFalse(self.comm_handler.response_available())
@@ -167,7 +178,7 @@ class TestCommHandler(ScrutinyUnitTest):
         self.comm_handler.send_request(req1)
         self.assertTrue(self.comm_handler.waiting_response())
         self.link.emulate_device_read()
-        self.link.emulate_device_write(response_data)
+        self.emulate_device_write_and_wait_avail_event(response_data)
         self.comm_handler.process()
         self.assertTrue(self.comm_handler.response_available())
         response1_ = self.comm_handler.get_response()

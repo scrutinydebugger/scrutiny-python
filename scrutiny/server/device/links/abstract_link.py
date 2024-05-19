@@ -45,7 +45,7 @@ class AbstractLink(ABC):
         pass
 
     @abstractmethod
-    def read(self) -> Optional[bytes]:
+    def read(self, timeout:Optional[float]=None) -> Optional[bytes]:
         """Reads data from the communication channel. Returns None if not available"""
         pass
 

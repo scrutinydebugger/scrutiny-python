@@ -16,6 +16,7 @@ import json
 import logging
 import traceback
 from copy import copy
+import threading
 
 from scrutiny.server.api import API, APIConfig
 from scrutiny.server.datastore.datastore import Datastore
@@ -67,6 +68,7 @@ class ScrutinyServer:
     device_handler: DeviceHandler
     sfd_handler: ActiveSFDHandler
     datalogging_manager: DataloggingManager
+    must_process_event:threading.Event
 
     def __init__(self, 
                  input_config: Optional[Union[str, ServerConfig]] = None,
@@ -93,8 +95,10 @@ class ScrutinyServer:
         self.validate_config()
         self.server_name = '<Unnamed>' if 'name' not in self.config else self.config['name']
 
+        self.must_process_event = threading.Event()
         self.datastore = Datastore()
         self.device_handler = DeviceHandler(self.config['device'], self.datastore)
+        self.device_handler.set_update_ready_event(self.must_process_event)
         self.datalogging_manager = DataloggingManager(self.datastore, self.device_handler)
         self.sfd_handler = ActiveSFDHandler(device_handler=self.device_handler, datastore=self.datastore, autoload=self.config['autoload_sfd'])
         self.api = API(

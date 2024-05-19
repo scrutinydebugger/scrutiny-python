@@ -10,7 +10,7 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
-from queue import Queue
+
 from scrutiny.server.protocol import Request, Response
 from scrutiny.tools import Timer, Throttler
 from copy import copy
@@ -20,8 +20,10 @@ from binascii import hexlify
 import time
 from scrutiny.server.device.links import AbstractLink, LinkConfig
 import traceback
+import queue
 
 from typing import TypedDict, Optional, Any, Dict, Type, cast
+import threading
 
 
 class CommHandler:
@@ -71,6 +73,12 @@ class CommHandler:
     pending_request: Optional[Request]
     link_type: str
     last_open_error: Optional[str]
+    rx_data_event:Optional[threading.Event]
+    
+    rx_queue:queue.Queue[bytes]
+    rx_thread:Optional[threading.Thread]
+    rx_thread_started:threading.Event
+    rx_thread_stop_requested:threading.Event
 
     def __init__(self, params: Dict[str, Any] = {}) -> None:
         self.active_request = None      # Contains the request object that has been sent to the device. When None, no request sent and we are standby
@@ -87,6 +95,33 @@ class CommHandler:
         self.throttler = Throttler()
         self.link_type = "none"
         self.last_open_error = None
+        self.rx_data_event = None
+
+        self.rx_queue = queue.Queue()
+        self.rx_thread_started = threading.Event()
+        self.rx_thread = None
+        self.rx_thread_stop_requested = threading.Event()
+
+    def _rx_thread_task(self) -> None:
+        self.logger.debug("RX thread started")
+        self.rx_thread_started.set()
+        while not self.rx_thread_stop_requested.is_set():
+            if self.link is not None:
+                try:
+                    data = self.link.read(timeout=0.5)
+                    if data is not None and len(data) > 0:
+                        self.rx_queue.put(data)
+                        if self.rx_data_event is not None:
+                            self.rx_data_event.set()
+                except Exception as e:
+                    self.logger.error(str(e))
+            else:
+                time.sleep(0.2)
+        self.logger.debug("RX thread exiting")
+        
+
+    def set_rx_data_event(self, evt:threading.Event) -> None:
+        self.rx_data_event = evt
 
     def enable_throttling(self, bitrate: float) -> None:
         """Enable throttling on communication.
@@ -157,23 +192,41 @@ class CommHandler:
         elif link_type == 'dummy':
             from scrutiny.server.device.links.dummy_link import DummyLink
             link_class = DummyLink
-        elif link_type == 'thread_safe_dummy':
-            from scrutiny.server.device.links.dummy_link import ThreadSafeDummyLink
-            link_class = ThreadSafeDummyLink
         else:
             raise ValueError('Unknown link type %s' % link_type)
 
         return link_class
 
+    def stop_rx_thread(self, timeout:float = 1) -> None:
+        if self.rx_thread is not None:
+            if self.rx_thread.is_alive():
+                self.rx_thread_stop_requested.set()
+                self.rx_thread.join(timeout)
+                if self.rx_thread.is_alive():
+                    self.logger.error("Failed to stop the RX thread")
+        
+        self.rx_thread = None
+
     def open(self) -> None:
+        self.logger.debug("Opening communication with device")
         """Try to open the communication channel with the device."""
         if self.link is None:
             raise Exception('Link must be set before opening')
 
         try:
             self.link.initialize()
+            self.rx_queue = queue.Queue()
+            self.rx_thread = threading.Thread(target=self._rx_thread_task, daemon=True)
+            self.rx_thread_started.clear()
+            self.rx_thread_stop_requested.clear()
+            self.rx_thread.start()
+            if not self.rx_thread_started.wait(timeout=1):
+                self.stop_rx_thread()
+                raise TimeoutError("RX thread did not start")
+            
             self.opened = True
             self.last_open_error = None
+            self.logger.debug("Communication with device opened")
         except Exception as e:
             err = str(e)
             full_error = f"Cannot initialize device. {err}"
@@ -190,12 +243,16 @@ class CommHandler:
 
     def close(self) -> None:
         """Close the communication channel with the device"""
+        self.logger.debug("Closing communication with device")
+        self.stop_rx_thread()
+
         if self.link is not None:
             self.link.destroy()
 
         self.reset()
         self.opened = False
         self.last_open_error = None
+        self.logger.debug("Communication with device closed")
 
     def is_operational(self) -> bool:
         """Return True if the communication channel is presently in a healthy state."""
@@ -231,9 +288,9 @@ class CommHandler:
             self.reset_rx()
             self.timed_out = True
 
-        data: Optional[bytes] = self.link.read()
-        if data is None or len(data) == 0:
-            return  # No data, exit.
+        if self.rx_queue.empty():
+            return
+        data = self.rx_queue.get()
 
         datasize_bits = len(data) * 8
         self.throttler.consume_bandwidth(datasize_bits)

@@ -410,8 +410,6 @@ def parse_inform_server_status(response: api_typing.S2C.InformServerStatus) -> s
             return sdk.DeviceLinkType.Serial
         if api_val == 'dummy':
             return sdk.DeviceLinkType._Dummy
-        if api_val == 'thread_safe_dummy':
-            return sdk.DeviceLinkType._DummyThreadSafe
         if api_val == 'udp':
             return sdk.DeviceLinkType.UDP
         raise sdk.exceptions.BadResponseError('Unsupported device link type "{api_val}"')

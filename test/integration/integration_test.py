@@ -49,7 +49,7 @@ class ScrutinyIntegrationTest(ScrutinyUnitTest):
                     "client_interface_config": {}
                 },
                 "device": {
-                    'link_type': 'thread_safe_dummy',
+                    'link_type': 'dummy',
                     'link_config': {},
                     'response_timeout': 1,
                     'heartbeat_timeout': 2

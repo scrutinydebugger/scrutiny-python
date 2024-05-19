@@ -20,7 +20,7 @@ SFDMetadata = scrutiny.core.firmware_description.MetadataType
 SerialLinkConfig = scrutiny.server.device.links.serial_link.SerialConfig
 UdpLinkConfig = scrutiny.server.device.links.udp_link.UdpConfig
 LinkConfig = Union[EmptyDict, UdpLinkConfig, SerialLinkConfig]
-LinkType = Literal['none', 'udp', 'serial', 'dummy', 'thread_safe_dummy']
+LinkType = Literal['none', 'udp', 'serial', 'dummy']
 SupportedFeature = Literal['memory_write', 'datalogging', 'user_command', '_64bits']
 Datatype = Literal[
     'sint8', 'sint16', 'sint32', 'sint64', 'sint128', 'sint256',

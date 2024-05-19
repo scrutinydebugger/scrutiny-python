@@ -16,6 +16,9 @@ class SelectEvent(Enum):
     WRITE = auto()
 
 class SelectableQueue(Generic[T], queue.Queue[T]):
+    """Extension of the Python native Queue object that notifies a selector on read/write
+    making it easier to wait on multiple queues (relevant for the server to wait for either the API or the device)
+    """
     _selectors:Set["QueueSelector"]
 
     def __init__(self, *args:Any, **kwargs:Any) -> None:
@@ -49,6 +52,8 @@ class SelectableQueue(Generic[T], queue.Queue[T]):
 
 
 class QueueSelector:
+    """Selector that can wait for any queue in a set, easing multi-io server design"""
+
     _threading_event:threading.Event
     _lock:threading.Lock
     _listened_events:List[SelectEvent]

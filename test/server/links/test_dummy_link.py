@@ -23,11 +23,11 @@ class TestDummyLinkBaseClass():
         link.write(payload1)
         self.assertEqual(link.emulate_device_read(), payload1)
         self.assertEqual(link.emulate_device_read(), bytes())
-        self.assertEqual(link.read(), bytes())
+        self.assertEqual(link.read(timeout=0), bytes())
 
         link.emulate_device_write(payload2)
-        self.assertEqual(link.read(), payload2)
-        self.assertEqual(link.read(), bytes())
+        self.assertEqual(link.read(timeout=0), payload2)
+        self.assertEqual(link.read(timeout=0), bytes())
         self.assertEqual(link.emulate_device_read(), bytes())
 
     def test_global_channels(self):
@@ -42,14 +42,14 @@ class TestDummyLinkBaseClass():
 
         self.assertEqual(link1.emulate_device_read(), bytes())
         self.assertEqual(link2.emulate_device_read(), bytes())
-        self.assertEqual(link1.read(), bytes())
-        self.assertEqual(link2.read(), bytes())
+        self.assertEqual(link1.read(timeout=0), bytes())
+        self.assertEqual(link2.read(timeout=0), bytes())
 
         link1.emulate_device_write(payload2)
-        self.assertEqual(link2.read(), payload2)
+        self.assertEqual(link2.read(timeout=0), payload2)
 
-        self.assertEqual(link1.read(), bytes())
-        self.assertEqual(link2.read(), bytes())
+        self.assertEqual(link1.read(timeout=0), bytes())
+        self.assertEqual(link2.read(timeout=0), bytes())
         self.assertEqual(link1.emulate_device_read(), bytes())
         self.assertEqual(link2.emulate_device_read(), bytes())
 
@@ -68,8 +68,8 @@ class TestDummyLinkBaseClass():
 
         self.assertEqual(link1.emulate_device_read(), bytes())
         self.assertEqual(link2.emulate_device_read(), bytes())
-        self.assertEqual(link1.read(), bytes())
-        self.assertEqual(link2.read(), bytes())
+        self.assertEqual(link1.read(timeout=0), bytes())
+        self.assertEqual(link2.read(timeout=0), bytes())
 
         link2.write(payload2)
         self.assertEqual(link2.emulate_device_read(), payload2)
@@ -77,19 +77,13 @@ class TestDummyLinkBaseClass():
 
         self.assertEqual(link1.emulate_device_read(), bytes())
         self.assertEqual(link2.emulate_device_read(), bytes())
-        self.assertEqual(link1.read(), bytes())
-        self.assertEqual(link2.read(), bytes())
+        self.assertEqual(link1.read(timeout=0), bytes())
+        self.assertEqual(link2.read(timeout=0), bytes())
 
 
 class TestDummyLink(ScrutinyUnitTest, TestDummyLinkBaseClass):
     def __init__(self, *args, **kwargs):
         TestDummyLinkBaseClass.__init__(self, test_class=DummyLink)
-        ScrutinyUnitTest.__init__(self, *args, **kwargs)
-
-
-class TestThreadSafeDummyLink(ScrutinyUnitTest, TestDummyLinkBaseClass):
-    def __init__(self, *args, **kwargs):
-        TestDummyLinkBaseClass.__init__(self, test_class=ThreadSafeDummyLink)
         ScrutinyUnitTest.__init__(self, *args, **kwargs)
 
 

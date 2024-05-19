@@ -147,7 +147,6 @@ class DataloggerState(enum.Enum):
 class DeviceLinkType(enum.Enum):
     """(Enum) The type of communication link used between the server and the device"""
 
-    _DummyThreadSafe = -2
     _Dummy = -1
     NA = 0
     UDP = 1
