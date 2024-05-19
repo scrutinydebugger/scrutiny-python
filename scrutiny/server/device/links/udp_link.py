@@ -112,6 +112,8 @@ class UdpLink(AbstractLink):
             data, (ip_address, port) = self.sock.recvfrom(self.BUFSIZE)
             if ip_address == self.ip_address and port == self.config['port']:  # Make sure the datagram comes from our target device
                 return data
+        except TimeoutError:
+            pass
         except socket.error as e:
             err = e
             if e.args[0] == errno.EAGAIN or e.args[0] == errno.EWOULDBLOCK:

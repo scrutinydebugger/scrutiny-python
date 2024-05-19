@@ -10,6 +10,7 @@
 import uuid
 import logging
 import json
+import threading
 
 from scrutiny.server.api.abstract_client_handler import AbstractClientHandler, ClientHandlerConfig, ClientHandlerMessage
 from scrutiny.tools.synchronous_websocket_server import SynchronousWebsocketServer
@@ -36,14 +37,21 @@ class WebsocketClientHandler(AbstractClientHandler):
     port: Optional[int]
     force_silent: bool  # For unit testing of timeouts
 
-    def __init__(self, config: ClientHandlerConfig):
+    def __init__(self, 
+                 config: ClientHandlerConfig, 
+                 rx_event:Optional[threading.Event]=None
+                 ) -> None:
         self.config = config
         self.logger = logging.getLogger(self.__class__.__name__)
         self.id2ws_map = dict()
         self.ws2id_map = dict()
         self.force_silent = False
-        self.server = SynchronousWebsocketServer(connect_callback=GenericCallback(
-            self.register), disconnect_callback=GenericCallback(self.unregister))
+        self.server = SynchronousWebsocketServer(
+            connect_callback=GenericCallback(self.register), 
+            disconnect_callback=GenericCallback(self.unregister),
+            rx_event=rx_event
+            )
+        self.rx_event=rx_event
 
     def register(self, websocket: WebsocketType) -> None:
         # Callback on new websocket connection.  We make a unique ID for each object.

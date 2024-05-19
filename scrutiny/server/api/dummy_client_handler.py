@@ -92,8 +92,12 @@ class DummyClientHandler(AbstractClientHandler):
     connections: List[DummyConnection]
     connection_map: Dict[str, DummyConnection]
     started: bool
+    rx_event:Optional[threading.Event]
 
-    def __init__(self, config: ClientHandlerConfig) -> None:
+    def __init__(self, 
+                 config: ClientHandlerConfig, 
+                 rx_event:Optional[threading.Event]=None
+                 ) -> None:
         self.rxqueue = queue.Queue()
         self.txqueue = queue.Queue()
         self.config = config
@@ -103,6 +107,7 @@ class DummyClientHandler(AbstractClientHandler):
         self.connection_map = {}
         self.connections = []
         self.started = False
+        self.rx_event=rx_event
 
     def set_connections(self, connections: List[DummyConnection]) -> None:
         self.connections = connections
@@ -135,6 +140,8 @@ class DummyClientHandler(AbstractClientHandler):
                                 self.logger.debug('Received from ID %s. "%s"' % (conn.get_id(), msg))
                                 obj = json.loads(msg)
                                 self.rxqueue.put(ClientHandlerMessage(conn_id=conn.get_id(), obj=obj))
+                                if self.rx_event is not None:
+                                    self.rx_event.set()
                             except Exception as e:
                                 self.logger.error('Received invalid msg.  %s' % str(e))
 

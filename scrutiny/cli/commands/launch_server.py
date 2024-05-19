@@ -64,11 +64,12 @@ class LaunchServer(BaseCommand):
             logging.getLogger(name).setLevel(logging_level)
 
         extra_configs:Dict[Any, Any] = {}
-        for o in args.options:
-            parts = o.split('=')
-            if len(parts) != 2:
-                raise ValueError("Command line options must have the format 'name=value'")
-            update_dict_recursive(extra_configs, self.str_to_dict(parts[0], parts[1], separator='.'))
+        if args.options is not None:
+            for o in args.options:
+                parts = o.split('=')
+                if len(parts) != 2:
+                    raise ValueError("Command line options must have the format 'name=value'")
+                update_dict_recursive(extra_configs, self.str_to_dict(parts[0], parts[1], separator='.'))
 
         success = True
         server = ScrutinyServer(args.config, additional_config=cast(ServerConfig, extra_configs))

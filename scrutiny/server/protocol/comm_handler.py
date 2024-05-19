@@ -324,14 +324,14 @@ class CommHandler:
                     if self._active_request is not None:  # Just to please mypy
                         # Validate that the response match the request
                         if self._received_response.command != self._active_request.command:
-                            raise Exception("Unexpected Response command ID : %s Expecting: %s" %
+                            raise RuntimeError("Unexpected Response command ID : %s Expecting: %s" %
                                             (str(self._received_response), self._active_request.command))
                         if self._received_response.subfn != self._active_request.subfn:
-                            raise Exception("Unexpected Response subfunction : %s. Expecting: %s" %
+                            raise RuntimeError("Unexpected Response subfunction : %s. Expecting: %s" %
                                             (str(self._received_response), self._active_request.subfn))
                     else:
                         # Should never happen. waiting_response() is checked above
-                        raise Exception('Got a response while having no request in process')
+                        raise RuntimeError('Got a response while having no request in process')
 
                     # Here, everything went fine. The application can now send a new request or read the received response.
                 except Exception as e:
@@ -343,7 +343,7 @@ class CommHandler:
         assert self._link is not None
 
         if self._pending_request is not None:
-            approx_delta_bandwidth = (self._pending_request.size() + self._pending_request.get_expected_response_size()) * 8;
+            approx_delta_bandwidth = (self._pending_request.size() + self._pending_request.get_expected_response_size()) * 8
             if self._throttler.allowed(approx_delta_bandwidth):
                 self._active_request = self._pending_request
                 self._pending_request = None
