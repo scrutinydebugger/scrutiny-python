@@ -27,6 +27,7 @@ from enum import Enum, auto
 import traceback
 from uuid import uuid4
 import math
+import threading
 from scrutiny.server.datastore.datastore_entry import DatastoreRPVEntry, EntryType
 import scrutiny.server.datalogging.definitions.device as device_datalogging
 from scrutiny.server.protocol import *
@@ -42,7 +43,7 @@ from scrutiny.server.device.submodules.memory_reader import MemoryReader, RawMem
 from scrutiny.server.device.submodules.memory_writer import MemoryWriter, RawMemoryWriteRequestCompletionCallback, RawMemoryWriteRequest
 from scrutiny.server.device.submodules.datalogging_poller import DataloggingPoller, DeviceAcquisitionRequestCompletionCallback
 from scrutiny.server.device.device_info import DeviceInfo
-from scrutiny.tools import Timer
+from scrutiny.tools import Timer, update_dict_recursive
 from scrutiny.server.datastore.datastore import Datastore
 from scrutiny.server.device.links import AbstractLink, LinkConfig
 from scrutiny.core.firmware_id import PLACEHOLDER as DEFAULT_FIRMWARE_ID
@@ -96,7 +97,7 @@ class DeviceHandlerConfig(TypedDict, total=False):
     This value can be overridden if the device requires a smaller value"""
 
     link_type: str
-    """The type of communication link to use to talk with a device. udp, serial, dummy, dummy_threadsafe, etc"""
+    """The type of communication link to use to talk with a device. udp, serial, dummy, etc"""
 
     link_config: LinkConfig
     """The configuration dictionary that will configure the communication link layer. 
@@ -198,11 +199,15 @@ class DeviceHandler:
         Normal = 0
         Test_CheckThrottling = 1
 
-    def __init__(self, config: DeviceHandlerConfig, datastore: Datastore):
+    def __init__(self, 
+                 config: DeviceHandlerConfig, 
+                 datastore: Datastore,
+                 rx_event:Optional[threading.Event] = None
+                 ):
         self.logger = logging.getLogger(self.__class__.__name__)
 
         self.config = copy.copy(self.DEFAULT_PARAMS)
-        self.config.update(config)
+        update_dict_recursive(self.config, config)  # type: ignore
         self.datastore = datastore
         self.dispatcher = RequestDispatcher()
         (major, minor) = self.config['default_protocol_version'].split('.')
@@ -230,6 +235,8 @@ class DeviceHandler:
                                           request_priority=self.RequestPriority.WriteMemory)
 
         self.comm_handler = CommHandler(cast(Dict[str, Any], self.config))
+        if rx_event is not None:
+            self.comm_handler.set_rx_data_event(rx_event)
         self.comm_handler_open_restart_timer = Timer(1.0)
 
         self.heartbeat_generator.set_interval(max(0.5, self.config['heartbeat_timeout'] * 0.75))
@@ -240,6 +247,7 @@ class DeviceHandler:
         self.active_request_record = None
         self.device_state_changed_callbacks = []
         self.expect_no_timeout = False  # Unit tests will set this to True
+        
 
         if 'link_type' in self.config and 'link_config' in self.config:
             self.configure_comm(self.config['link_type'], self.config['link_config'])
@@ -247,6 +255,7 @@ class DeviceHandler:
         self.reset_comm()
 
     def register_device_state_change_callback(self, callback: DeviceStateChangedCallback) -> None:
+        """Register a callback to be called when the state of the device communication changes"""
         self.device_state_changed_callbacks.append(callback)
 
     def get_device_id(self) -> Optional[str]:

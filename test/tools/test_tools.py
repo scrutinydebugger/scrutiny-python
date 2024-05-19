@@ -9,6 +9,7 @@
 from scrutiny.tools import Throttler
 import time
 import math
+import threading
 from test import logger
 from test import ScrutinyUnitTest
 
@@ -90,6 +91,7 @@ class TestTools(ScrutinyUnitTest):
         }
 
         self.assertEqual(d, expected_dict)
+
 
 if __name__ == '__main__':
     import unittest

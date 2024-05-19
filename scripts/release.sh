@@ -28,13 +28,13 @@ code_version=$(cat scrutiny/__init__.py | grep __version__  | sed -r "s/__versio
 [ "$version" != "$tag" ] && fatal "Tag of HEAD does not match given version. Expected '$version'"
 [ "$version" != "v$code_version" ] && fatal "Code version does not match given version : 'v$code_version' vs '$version'"
 
-rm -rf build dist
+rm -rf build dist *.egg-info
 python3 -m build
 
 read -p "Everything seems alright. Upload? "
 
 proceed=0
-
+ 
 [ "${REPLY,,}" == "yes" ] && proceed=1
 [ "${REPLY,,}" == "y" ] && proceed=1
 

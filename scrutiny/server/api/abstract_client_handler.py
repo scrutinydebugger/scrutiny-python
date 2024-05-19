@@ -9,6 +9,7 @@
 from abc import abstractmethod
 from typing import Dict, Optional, Union
 from dataclasses import dataclass
+import threading
 
 import scrutiny.server.api.typing as api_typing
 
@@ -24,7 +25,7 @@ class ClientHandlerMessage:
 class AbstractClientHandler:
 
     @abstractmethod
-    def __init__(self, config: ClientHandlerConfig):
+    def __init__(self, config: ClientHandlerConfig, rx_event:Optional[threading.Event]=None):
         pass
 
     @abstractmethod

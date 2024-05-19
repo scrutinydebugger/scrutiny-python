@@ -12,9 +12,9 @@ import websockets.exceptions
 import queue
 import asyncio
 import logging
+import threading
 
 from typing import Any, Optional, Tuple, Callable
-from scrutiny.core.typehints import GenericCallback
 
 WebsocketType = websockets.server.WebSocketServerProtocol
 
@@ -34,9 +34,14 @@ class SynchronousWebsocketServer:
     logger: logging.Logger
     connect_callback: Optional[ConnectCallback]
     disconnect_callback: Optional[DiconnectCallback]
+    rx_event:Optional[threading.Event]
    # ws_server: Optional[websockets.server.Serve]
 
-    def __init__(self, connect_callback: Optional[ConnectCallback] = None, disconnect_callback: Optional[DiconnectCallback] = None):
+    def __init__(self, 
+                 connect_callback: Optional[ConnectCallback] = None, 
+                 disconnect_callback: Optional[DiconnectCallback] = None,
+                 rx_event:Optional[threading.Event] = None
+                 ):
         self.rxqueue = queue.Queue()
         self.txqueue = queue.Queue()
         self.loop = asyncio.new_event_loop()
@@ -44,6 +49,8 @@ class SynchronousWebsocketServer:
         self.connect_callback = connect_callback
         self.disconnect_callback = disconnect_callback
         self.logger = logging.getLogger(self.__class__.__name__)
+        self.rx_event = rx_event
+
 
     async def server_routine(self, websocket: WebsocketType, path: str) -> None:
         """ The routine given to the websockets module. Executed for each websocket"""
@@ -61,6 +68,8 @@ class SynchronousWebsocketServer:
                         s = message
                     self.logger.debug("Receiving %s" % s)
                 self.rxqueue.put((websocket, message))   # Possible improvement : Handle queue full scenario.
+                if self.rx_event is not None:
+                    self.rx_event.set()
         except (websockets.exceptions.ConnectionClosedOK, websockets.exceptions.ConnectionClosedError):
             pass
         finally:

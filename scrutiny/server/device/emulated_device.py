@@ -20,7 +20,7 @@ from abc import ABC, abstractmethod
 
 from scrutiny.core.codecs import Encodable
 import scrutiny.server.protocol.commands as cmd
-from scrutiny.server.device.links.dummy_link import DummyLink, ThreadSafeDummyLink
+from scrutiny.server.device.links.dummy_link import DummyLink
 from scrutiny.server.protocol import Protocol, Request, Response, ResponseCode
 import scrutiny.server.protocol.typing as protocol_typing
 from scrutiny.core.memory_content import MemoryContent
@@ -433,7 +433,7 @@ class DataloggerEmulator:
 
 class EmulatedDevice:
     logger: logging.Logger
-    link: Union[DummyLink, ThreadSafeDummyLink]
+    link: DummyLink
     firmware_id: bytes
     request_history: List[RequestLogRecord]
     request_history_lock: threading.Lock
@@ -471,8 +471,8 @@ class EmulatedDevice:
     failed_write_request_list: List[Request]
     ignore_user_command: bool
 
-    def __init__(self, link: Union[DummyLink, ThreadSafeDummyLink]) -> None:
-        if not isinstance(link, DummyLink) and not isinstance(link, ThreadSafeDummyLink):
+    def __init__(self, link:DummyLink) -> None:
+        if not isinstance(link, DummyLink):
             raise ValueError('EmulatedDevice expects a DummyLink object')
         self.logger = logging.getLogger(self.__class__.__name__)
         self.link = link    # Pre opened link.

@@ -17,6 +17,7 @@ from fnmatch import fnmatch
 import itertools
 from base64 import b64encode, b64decode
 import binascii
+import threading
 
 from scrutiny.server.datalogging.datalogging_storage import DataloggingStorage
 from scrutiny.server.datalogging.datalogging_manager import DataloggingManager
@@ -280,13 +281,14 @@ class API:
                  device_handler: DeviceHandler,
                  sfd_handler: ActiveSFDHandler,
                  datalogging_manager: DataloggingManager,
-                 enable_debug: bool = False):
+                 enable_debug: bool = False,
+                 rx_event:Optional[threading.Event]=None):
         self.validate_config(config)
 
         if config['client_interface_type'] == 'websocket':
-            self.client_handler = WebsocketClientHandler(config['client_interface_config'])
+            self.client_handler = WebsocketClientHandler(config['client_interface_config'], rx_event=rx_event)
         elif config['client_interface_type'] == 'dummy':
-            self.client_handler = DummyClientHandler(config['client_interface_config'])
+            self.client_handler = DummyClientHandler(config['client_interface_config'], rx_event=rx_event)
         else:
             raise NotImplementedError('Unsupported client interface type. %s', config['client_interface_type'])
 

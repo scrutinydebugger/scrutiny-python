@@ -156,20 +156,19 @@ class SerialLink(AbstractLink):
             return False
         return self.port.isOpen() and self.initialized()
 
-    def read(self) -> Optional[bytes]:
-        """ Reads bytes Non-Blocking from the comm channel. None if no data available"""
-        data: Optional[bytes] = None
-        if self.operational():
-            assert self.port is not None    # For mypy
-            try:
-                n = self.port.in_waiting
-                if n > 0:
-                    data = self.port.read(n)
-            except Exception as e:
-                self.logger.debug("Cannot read data. " + str(e))
-                self.port.close()
-
+    def read(self, timeout:Optional[float] = None) -> Optional[bytes]:
+        """ Reads bytes in a blocking fashion from the comm channel. None if no data available after timeout"""
+        if not self.operational():
+            return None
+        
+        assert self.port is not None    # For mypy
+        self.port.timeout = timeout
+        data:bytes = self.port.read(max(self.port.in_waiting, 1))
+        n = self.port.in_waiting
+        if n > 0:
+            data += self.port.read(n)
         return data
+
 
     def write(self, data: bytes) -> None:
         """ Write data to the comm channel."""

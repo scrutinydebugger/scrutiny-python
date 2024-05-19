@@ -16,6 +16,7 @@ import json
 import logging
 import traceback
 from copy import copy
+import threading
 
 from scrutiny.server.api import API, APIConfig
 from scrutiny.server.datastore.datastore import Datastore
@@ -67,6 +68,7 @@ class ScrutinyServer:
     device_handler: DeviceHandler
     sfd_handler: ActiveSFDHandler
     datalogging_manager: DataloggingManager
+    rx_data_event:threading.Event
 
     def __init__(self, 
                  input_config: Optional[Union[str, ServerConfig]] = None,
@@ -93,17 +95,31 @@ class ScrutinyServer:
         self.validate_config()
         self.server_name = '<Unnamed>' if 'name' not in self.config else self.config['name']
 
+        self.rx_data_event = threading.Event()
         self.datastore = Datastore()
-        self.device_handler = DeviceHandler(self.config['device'], self.datastore)
-        self.datalogging_manager = DataloggingManager(self.datastore, self.device_handler)
-        self.sfd_handler = ActiveSFDHandler(device_handler=self.device_handler, datastore=self.datastore, autoload=self.config['autoload_sfd'])
+        self.device_handler = DeviceHandler(
+            config=self.config['device'], 
+            datastore=self.datastore, 
+            rx_event=self.rx_data_event
+        )
+        self.datalogging_manager = DataloggingManager(
+            datastore=self.datastore, 
+            device_handler=self.device_handler
+        )
+        self.sfd_handler = ActiveSFDHandler(
+            device_handler=self.device_handler, 
+            datastore=self.datastore, 
+            autoload=self.config['autoload_sfd']
+        )
         self.api = API(
             self.config['api'],
             datastore=self.datastore,
             device_handler=self.device_handler,
             sfd_handler=self.sfd_handler,
             datalogging_manager=self.datalogging_manager,
-            enable_debug=self.config['debug'])
+            enable_debug=self.config['debug'],
+            rx_event=self.rx_data_event
+        )
 
     def validate_config(self) -> None:
         if self.config['debug']:
@@ -131,7 +147,9 @@ class ScrutinyServer:
             self.init()
             while True:
                 self.process()
-                time.sleep(0.01)
+                self.rx_data_event.wait(0.01)   # sleep until we have some IO or 10ms
+                self.rx_data_event.clear()
+
         except (KeyboardInterrupt, SystemExit):
             self.close_all()
         except Exception as e:

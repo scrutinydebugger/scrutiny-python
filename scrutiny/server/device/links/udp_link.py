@@ -77,7 +77,6 @@ class UdpLink(AbstractLink):
 
             self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             self.sock.bind(('0.0.0.0', 0))  # 0.0.0.0 listen on all interface.  Port 0 = takes any available
-            self.sock.setblocking(False)
             (addr, port) = self.sock.getsockname()  # Read our own address and port, will tell the receiving port auto attributed
             self.logger.debug('Socket bound to address=%s and port=%d' % (addr, port))
             self.bound = True
@@ -101,17 +100,20 @@ class UdpLink(AbstractLink):
             return True
         return False
 
-    def read(self) -> Optional[bytes]:
-        """ Reads bytes Non-Blocking from the comm channel. None if no data available"""
+    def read(self,  timeout:Optional[float] = None) -> Optional[bytes]:
+        """ Reads bytes in a blocking fashion from the comm channel. None if no data available after timeout"""
         if not self.operational():
             return None
 
         try:
             assert self.sock is not None
             err = None
+            self.sock.settimeout(timeout)
             data, (ip_address, port) = self.sock.recvfrom(self.BUFSIZE)
             if ip_address == self.ip_address and port == self.config['port']:  # Make sure the datagram comes from our target device
                 return data
+        except TimeoutError:
+            pass
         except socket.error as e:
             err = e
             if e.args[0] == errno.EAGAIN or e.args[0] == errno.EWOULDBLOCK:

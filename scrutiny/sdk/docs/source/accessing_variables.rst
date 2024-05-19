@@ -76,7 +76,7 @@ method. Alternatively, to wait for updates from all watched variables at once, t
 .. code-block:: python
 
     import time
-    from scrutny.sdk.client import ScrutinyClient
+    from scrutiny.sdk.client import ScrutinyClient
     
     client = ScrutinyClient()
     with client.connect('localhost', 8765):
