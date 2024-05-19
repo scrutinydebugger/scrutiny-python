@@ -7,7 +7,6 @@
 #   Copyright (c) 2021 Scrutiny Debugger
 
 from scrutiny.tools import Throttler
-from scrutiny.tools.selectable_queue import *
 import time
 import math
 import threading
@@ -93,76 +92,6 @@ class TestTools(ScrutinyUnitTest):
 
         self.assertEqual(d, expected_dict)
 
-class TestSelectableQueue(ScrutinyUnitTest):
-
-    def test_selectable_queue(self):
-        nb_producer = 10
-        nb_values = 10000
-
-        class Producer:
-            def __init__(self, index):
-                self.count = 0
-                self.finished = False
-                self.thread = threading.Thread(target=self.task)
-                self.queue = SelectableQueue()
-                self.index = index
-            
-            def start(self):
-                self.thread.start()
-            
-            def join(self):
-                self.thread.join()
-            
-            def task(self):
-                for i in range(nb_values):
-                    if i%100 == 0:
-                        time.sleep(0.01)
-                    self.queue.put(i)
-                self.finished = True
-        
-        producers = []
-        queue_producer_map = {}
-        values_bucket = {}
-        for i in range(nb_producer):
-            p = Producer(i)
-            queue_producer_map[id(p.queue)] = p
-            values_bucket[id(p)] = []
-            producers.append(p)
-        selector = QueueSelector([p.queue for p in producers], events=[SelectEvent.WRITE])
-
-        for p in producers:
-            p.start()
-        
-        all_finished = False
-        last_check = False
-        while not all_finished or last_check :
-            selected = selector.wait()
-            for q in selected:
-                producer = queue_producer_map[id(q)]
-                while not q.empty():
-                    v = q.get(block=False)
-                    values_bucket[id(producer)].append(v)
-            # Values can be inserted between the last wait and the check below.
-            # Hence the while loop condition that checks for is_notified()
-            if last_check:  # Make sure to run only once after we,re finished
-                break
-            all_finished = all([p.finished for p in producers])
-            if all_finished and selector.is_notified():
-                last_check = True
-
-            
-
-        for p in producers:
-            p.join()
-
-
-        for p in producers:
-            self.assertEqual(len(values_bucket[id(p)]), nb_values, f"producer={p.index}")
-            for i in range(nb_values):
-                self.assertEqual(i, values_bucket[id(p)][i], f"producer={p.index}")
-        
-        remainder = selector.wait(0.5)
-        self.assertEqual(len(remainder), 0)
 
 if __name__ == '__main__':
     import unittest
