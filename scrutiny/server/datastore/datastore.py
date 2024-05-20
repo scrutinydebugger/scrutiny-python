@@ -13,14 +13,9 @@ import functools
 from scrutiny.server.datastore.datastore_entry import *
 from scrutiny.server.datastore.entry_type import EntryType
 
-from scrutiny.core.typehints import GenericCallback
-
 from typing import Callable, List, Dict, Generator, Set, List, Optional, Union, Any
 
-
-class WatchCallback(GenericCallback):
-    callback: Callable[[str], None]     # str is the owner
-
+WatchCallback = Callable[[str], None]
 
 class Datastore:
     """
@@ -134,20 +129,14 @@ class Datastore:
     def start_watching(self,
                        entry_id: Union[DatastoreEntry, str],
                        watcher: str,
-                       value_change_callback: Optional[GenericCallback] = None,
-                       target_update_callback: Optional[GenericCallback] = None
+                       value_change_callback: Optional[UserValueChangeCallback] = None,
+                       target_update_callback: Optional[UpdateTargetRequestCallback] = None
                        ) -> None:
         """ 
         Register a new callback on the entry identified by the given entry_id.
         The watcher parameter will be given back when calling the callback.
         We ensure to call the callback for each watcher.
         """
-
-        if value_change_callback is None:   # No callback mainly happens with unit tests
-            value_change_callback = GenericCallback(lambda *args, **kwargs: None)
-
-        if target_update_callback is None:  # No callback mainly happens with unit tests
-            target_update_callback = GenericCallback(lambda *args, **kwargs: None)
 
         entry_id = self.interpret_entry_id(entry_id)
         entry = self.get_entry(entry_id)
@@ -157,7 +146,8 @@ class Datastore:
         self.watcher_map[entry.get_type()][entry_id].add(watcher)
 
         if not entry.has_value_change_callback(watcher):
-            entry.register_value_change_callback(owner=watcher, callback=value_change_callback)
+            if value_change_callback is not None:
+                entry.register_value_change_callback(owner=watcher, callback=value_change_callback)
 
         # Mainly used to notify device handler that a new variable is to be polled
         for callback in self.global_watch_callbacks:
@@ -169,7 +159,7 @@ class Datastore:
             self.start_watching(
                 entry_id=entry.resolve(),
                 watcher=self.make_owner_from_alias_entry(entry),
-                value_change_callback=GenericCallback(alias_value_change_callback)
+                value_change_callback=alias_value_change_callback
             )
 
     def is_watching(self, entry: Union[DatastoreEntry, str], watcher: str) -> bool:
@@ -259,7 +249,7 @@ class Datastore:
 
         if isinstance(entry, DatastoreAliasEntry):
             new_value = entry.aliasdef.compute_user_to_device(value)
-            nested_callback = UpdateTargetRequestCallback(functools.partial(self.alias_target_update_callback, update_request))
+            nested_callback = functools.partial(self.alias_target_update_callback, update_request)
             new_request = self.update_target_value(entry.resolve(), new_value, callback=nested_callback)
             if new_request.is_complete():  # Edge case if failed to enqueue request.
                 new_request.complete(success=update_request.is_complete())

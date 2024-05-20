@@ -8,7 +8,7 @@
 
 import time
 from scrutiny.core.codecs import Encodable
-from scrutiny.server.datastore.datastore_entry import DatastoreRPVEntry, EntryType
+from scrutiny.server.datastore.datastore_entry import DatastoreRPVEntry, EntryType, UpdateTargetRequestCallback
 from test import logger
 import signal  # For ctrl+c handling
 import struct
@@ -29,10 +29,9 @@ from scrutiny.server.device.device_info import *
 from scrutiny.server.datalogging.datalogging_utilities import extract_signal_from_data
 from test import ScrutinyUnitTest, logger
 
-from scrutiny.core.typehints import GenericCallback
 from typing import cast, List
 
-no_callback = UpdateTargetRequestCallback(lambda *args, **kwargs: None)
+no_callback:UpdateTargetRequestCallback = lambda *args, **kwargs: None
 
 
 def d2f(d):

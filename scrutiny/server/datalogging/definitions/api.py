@@ -31,9 +31,6 @@ from scrutiny.server.datastore.datastore_entry import DatastoreEntry
 import scrutiny.server.datalogging.definitions.device as device_datalogging
 from typing import List, Optional, Callable, Union, Set
 
-from scrutiny.core.typehints import GenericCallback
-
-
 class XAxisType(Enum):
     """Represent a type of X-Axis that a user can select"""
     IdealTime = 0,
@@ -51,9 +48,7 @@ class SamplingRate:
     device_identifier: int
 
 
-class APIAcquisitionRequestCompletionCallback(GenericCallback):
-    callback: Callable[[bool, str, Optional[DataloggingAcquisition]], None]
-
+APIAcquisitionRequestCompletionCallback = Callable[[bool, str, Optional[DataloggingAcquisition]], None]
 
 TriggerConditionID = device_datalogging.TriggerConditionID
 

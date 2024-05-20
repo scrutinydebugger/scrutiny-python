@@ -30,7 +30,6 @@ from scrutiny.server.active_sfd_handler import ActiveSFDHandler
 from scrutiny.server.device.links.dummy_link import DummyLink
 from scrutiny.core.variable import *
 from scrutiny.core.alias import Alias
-from scrutiny.core.typehints import GenericCallback
 import scrutiny.core.datalogging as core_datalogging
 import scrutiny.server.datalogging.definitions.api as api_datalogging
 import scrutiny.server.datalogging.definitions.device as device_datalogging
@@ -42,7 +41,7 @@ import scrutiny.server.api.typing as api_typing
 from typing import cast
 import logging
 
-from typing import Optional, Dict, Any, List, Tuple, TypedDict
+from typing import Optional, Dict, Any, List, Tuple, TypedDict, Callable
 
 # todo
 # - Test rate limiter/data streamer
@@ -55,7 +54,6 @@ class StubbedDeviceHandler:
     link_type: str
     link_config: Dict[Any, Any]
     reject_link_config: bool
-    datalogging_callbacks: Dict[str, GenericCallback]
     datalogger_state: device_datalogging.DataloggerState
     datalogging_setup: Optional[device_datalogging.DataloggingSetup]
     device_state_change_callbacks: List[DeviceStateChangedCallback]
@@ -116,9 +114,6 @@ class StubbedDeviceHandler:
 
     def get_device_id(self) -> str:
         return self.device_id
-
-    def set_datalogging_callbacks(self, **kwargs) -> None:
-        self.datalogging_callbacks = kwargs
 
     def get_link_type(self) -> str:
         return 'dummy'

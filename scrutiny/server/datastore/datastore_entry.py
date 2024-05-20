@@ -13,7 +13,8 @@ __all__ = [
     'DatastoreAliasEntry',
     'DatastoreRPVEntry',
     'UpdateTargetRequestCallback',
-    'UpdateTargetRequest'
+    'UpdateTargetRequest',
+    'UserValueChangeCallback'
 ]
 
 import uuid
@@ -28,21 +29,24 @@ from scrutiny.core.basic_types import EmbeddedDataType, Endianness
 from scrutiny.core.variable import Variable, VariableEnum
 from scrutiny.core.codecs import *
 
-from scrutiny.core.typehints import GenericCallback
 from scrutiny.core.alias import Alias
 from typing import Any, Optional, Dict, Callable, Tuple, Union
 
 
-class ValueChangeCallback():
+
+UpdateTargetRequestCallback = Callable[[bool, 'DatastoreEntry', float], None]   # callback(success, entry, timestamp)
+UserValueChangeCallback = Callable[[str, "DatastoreEntry"], None]
+
+class ValueChangeCallbackInstance:
     """
     Callback object that ties a function and a owner ID.
     Is assigned to watched datastore entry so the watcher can be notified.
     """
-    fn: GenericCallback
+    fn: UserValueChangeCallback
     owner: str
     args: Any
 
-    def __init__(self, fn: GenericCallback, owner: str) -> None:
+    def __init__(self, fn: Callable[..., None], owner: str) -> None:
         if not callable(fn):
             raise ValueError('callback must be a callable')
 
@@ -53,13 +57,7 @@ class ValueChangeCallback():
         self.owner = owner
 
     def __call__(self, *args: Any, **kwargs: Any) -> None:
-        self.fn.__call__(self.owner, *args, **kwargs)
-
-
-class UpdateTargetRequestCallback(GenericCallback):
-    """Callback to call when a target update request completes"""
-    fn: Callable[[bool, 'DatastoreEntry', float], None]
-
+        self.fn(self.owner, *args, **kwargs)
 
 class UpdateTargetRequest:
     """
@@ -195,14 +193,14 @@ class DatastoreEntry(abc.ABC):
         for owner in self.value_change_callback:
             self.value_change_callback[owner](self)
 
-    def register_value_change_callback(self, owner: str, callback: GenericCallback) -> None:
+    def register_value_change_callback(self, owner: str, callback: UserValueChangeCallback) -> None:
         """Add a callback to be called when this entry value changes"""
-        thecallback = ValueChangeCallback(fn=callback, owner=owner)
+        thecallback = ValueChangeCallbackInstance(fn=callback, owner=owner)
         if owner in self.value_change_callback:
             raise ValueError('This owner already has a callback registered')
         self.value_change_callback[owner] = thecallback
 
-    def unregister_value_change_callback(self, owner: Any) -> None:
+    def unregister_value_change_callback(self, owner: str) -> None:
         """Remove a callback on value change"""
         if owner in self.value_change_callback:
             del self.value_change_callback[owner]

@@ -296,7 +296,7 @@ class DataloggingManager:
                             self.device_handler.request_datalogging_acquisition(
                                 loop_id=self.active_request.api_request.rate_identifier,
                                 config=self.active_request.device_config,
-                                callback=DeviceAcquisitionRequestCompletionCallback(self.acquisition_complete_callback)
+                                callback=self.acquisition_complete_callback
                             )
                         else:
                             # Cause of not ready:

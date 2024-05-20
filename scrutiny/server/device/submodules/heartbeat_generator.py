@@ -12,9 +12,8 @@ import logging
 import traceback
 
 from scrutiny.server.protocol import *
-from scrutiny.server.protocol.commands.comm_control import CommControl
 import scrutiny.server.protocol.typing as protocol_typing
-from scrutiny.server.device.request_dispatcher import RequestDispatcher, SuccessCallback, FailureCallback
+from scrutiny.server.device.request_dispatcher import RequestDispatcher
 
 from typing import Any, Optional, cast
 
@@ -87,8 +86,8 @@ class HeartbeatGenerator:
                 self.logger.debug('Registering a Heartbeat request')
                 self.dispatcher.register_request(
                     request=self.protocol.comm_heartbeat(session_id=self.session_id, challenge=self.challenge),
-                    success_callback=SuccessCallback(self.success_callback),
-                    failure_callback=FailureCallback(self.failure_callback),
+                    success_callback=self.success_callback,
+                    failure_callback=self.failure_callback,
                     priority=self.priority
                 )
                 self.pending = True

@@ -34,10 +34,10 @@ from scrutiny.server.protocol import *
 import scrutiny.server.protocol.typing as protocol_typing
 from scrutiny.server.protocol.comm_handler import CommHandler
 from scrutiny.server.protocol.commands import DummyCommand
-from scrutiny.server.device.request_dispatcher import RequestDispatcher, RequestRecord, SuccessCallback, FailureCallback
+from scrutiny.server.device.request_dispatcher import RequestDispatcher, RequestRecord
 from scrutiny.server.device.submodules.device_searcher import DeviceSearcher
 from scrutiny.server.device.submodules.heartbeat_generator import HeartbeatGenerator
-from scrutiny.server.device.submodules.info_poller import InfoPoller, ProtocolVersionCallback, CommParamCallback
+from scrutiny.server.device.submodules.info_poller import InfoPoller
 from scrutiny.server.device.submodules.session_initializer import SessionInitializer
 from scrutiny.server.device.submodules.memory_reader import MemoryReader, RawMemoryReadRequestCompletionCallback, RawMemoryReadRequest
 from scrutiny.server.device.submodules.memory_writer import MemoryWriter, RawMemoryWriteRequestCompletionCallback, RawMemoryWriteRequest
@@ -50,20 +50,12 @@ from scrutiny.core.firmware_id import PLACEHOLDER as DEFAULT_FIRMWARE_ID
 
 
 from typing import TypedDict, Optional, Callable, Any, Dict, cast, List
-from scrutiny.core.typehints import GenericCallback
 
 DEFAULT_FIRMWARE_ID_ASCII = binascii.hexlify(DEFAULT_FIRMWARE_ID).decode('ascii')
 """Default firmware ID assigned to a binary that uses libscrutiny-embedded without tagging the binary after compilation"""
 
-
-class DisconnectCallback(GenericCallback):
-    callback: Callable[[bool], None]
-
-
-class DeviceStateChangedCallback(GenericCallback):
-    callback: Callable[["DeviceHandler.ConnectionStatus"], None]
-
-
+DisconnectCallback = Callable[[bool], None]
+DeviceStateChangedCallback = Callable[["DeviceHandler.ConnectionStatus"], None]
 # callback(success, subfn, data, error_str) -> None
 UserCommandCallback = Callable[[bool, int, Optional[bytes], Optional[str]], None]
 
@@ -219,8 +211,8 @@ class DeviceHandler:
             self.protocol,
             self.dispatcher,
             priority=self.RequestPriority.PollInfo,
-            protocol_version_callback=ProtocolVersionCallback(self.get_protocol_version_callback),  # Called when protocol version is polled
-            comm_param_callback=CommParamCallback(self.get_comm_params_callback),            # Called when communication params are polled
+            protocol_version_callback=self.get_protocol_version_callback,  # Called when protocol version is polled
+            comm_param_callback=self.get_comm_params_callback,            # Called when communication params are polled
         )
         self.datalogging_poller = DataloggingPoller(
             self.protocol,
@@ -369,8 +361,8 @@ class DeviceHandler:
 
         self.dispatcher.register_request(
             request=self.protocol.user_command(subfn, data),
-            success_callback=SuccessCallback(success_callback),
-            failure_callback=FailureCallback(failure_callback),
+            success_callback=success_callback,
+            failure_callback=failure_callback,
             priority=self.RequestPriority.UserCommand
         )
 
@@ -584,9 +576,12 @@ class DeviceHandler:
             # Nothing else to do
         elif self.operating_mode == self.OperatingMode.Test_CheckThrottling:    # For unit tests
             if self.dispatcher.peek_next() is None:
-                dummy_request = Request(DummyCommand, subfn=1, payload=b'\x00' * 32, response_payload_size=32);
-                self.dispatcher.register_request(dummy_request, success_callback=SuccessCallback(
-                    lambda *args, **kwargs: None), failure_callback=FailureCallback(self.test_failure_callback))
+                dummy_request = Request(DummyCommand, subfn=1, payload=b'\x00' * 32, response_payload_size=32)
+                self.dispatcher.register_request(
+                    dummy_request, 
+                    success_callback=lambda *args, **kwargs: None, 
+                    failure_callback=self.test_failure_callback
+                    )
 
     def test_failure_callback(self, request: Request, params: Any) -> None:
         """Callback used for unit testing only"""
@@ -814,8 +809,8 @@ class DeviceHandler:
                 if state_entry:
                     self.dispatcher.register_request(
                         request=self.protocol.comm_disconnect(self.device_session_id),
-                        success_callback=SuccessCallback(self.disconnect_complete_success),
-                        failure_callback=FailureCallback(self.disconnect_complete_failure),
+                        success_callback=self.disconnect_complete_success,
+                        failure_callback=self.disconnect_complete_failure,
                         priority=self.RequestPriority.Disconnect
                     )
 
@@ -832,17 +827,17 @@ class DeviceHandler:
             self.logger.debug('Moving FSM to state %s' % next_state)
         self.fsm_state = next_state
 
-    def disconnect_complete_success(self, request: Request, response_code: ResponseCode, response_data: protocol_typing.ResponseData, params: Any = None) -> None:
+    def disconnect_complete_success(self, request: Request, response:Response, params: Any = None) -> None:
         """Callback called when a disconnect request completes successfully"""
         self.disconnect_complete = True
         if self.disconnect_callback is not None:
-            self.disconnect_callback.__call__(True)
+            self.disconnect_callback(True)
 
     def disconnect_complete_failure(self, request: Request, params: Any = None) -> None:
         """Callback called when a disconnect request fails to complete"""
         self.disconnect_complete = True
         if self.disconnect_callback is not None:
-            self.disconnect_callback.__call__(False)
+            self.disconnect_callback(False)
 
     def process_comm(self) -> None:
         """Process the communication with the device. To be called periodically"""

@@ -16,7 +16,6 @@ from scrutiny.server.api.abstract_client_handler import AbstractClientHandler, C
 from scrutiny.tools.synchronous_websocket_server import SynchronousWebsocketServer
 
 from typing import Dict, Any, Optional
-from scrutiny.core.typehints import GenericCallback
 
 # WebsocketType = websockets.server.WebSocketServerProtocol
 WebsocketType = Any  # todo fix this
@@ -47,8 +46,8 @@ class WebsocketClientHandler(AbstractClientHandler):
         self.ws2id_map = dict()
         self.force_silent = False
         self.server = SynchronousWebsocketServer(
-            connect_callback=GenericCallback(self.register), 
-            disconnect_callback=GenericCallback(self.unregister),
+            connect_callback=self.register, 
+            disconnect_callback=self.unregister,
             rx_event=rx_event
             )
         self.rx_event=rx_event

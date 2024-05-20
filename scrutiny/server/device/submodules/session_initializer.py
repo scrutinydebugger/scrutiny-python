@@ -12,7 +12,7 @@ import traceback
 
 from scrutiny.server.protocol import *
 import scrutiny.server.protocol.typing as protocol_typing
-from scrutiny.server.device.request_dispatcher import RequestDispatcher, SuccessCallback, FailureCallback
+from scrutiny.server.device.request_dispatcher import RequestDispatcher
 
 from typing import Optional, Any, cast
 
@@ -100,8 +100,8 @@ class SessionInitializer:
             self.last_connect_sent = time()
             self.logger.debug('Registering a Connect request')
             self.dispatcher.register_request(request=self.protocol.comm_connect(),
-                                             success_callback=SuccessCallback(self.success_callback),
-                                             failure_callback=FailureCallback(self.failure_callback),
+                                             success_callback=self.success_callback,
+                                             failure_callback=self.failure_callback,
                                              priority=self.priority)
             self.connection_pending = True
 

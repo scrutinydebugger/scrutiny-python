@@ -19,19 +19,15 @@ from sortedcontainers import SortedSet  # type: ignore
 from scrutiny.server.protocol import *
 import scrutiny.server.protocol.commands as cmd
 import scrutiny.server.protocol.typing as protocol_typing
-from scrutiny.server.device.request_dispatcher import RequestDispatcher, SuccessCallback, FailureCallback
-from scrutiny.server.datastore.datastore import Datastore, WatchCallback
+from scrutiny.server.device.request_dispatcher import RequestDispatcher
+from scrutiny.server.datastore.datastore import Datastore
 from scrutiny.server.datastore.datastore_entry import *
 from scrutiny.core.memory_content import MemoryContent, Cluster
 from scrutiny.core.basic_types import MemoryRegion
 
 from typing import cast, Set, List, Any, Optional, Callable, Tuple, Dict
-from scrutiny.core.typehints import GenericCallback
 
-
-class RawMemoryReadRequestCompletionCallback(GenericCallback):
-    callback: Callable[["RawMemoryReadRequest", bool, Optional[bytes], str], None]
-
+RawMemoryReadRequestCompletionCallback = Callable[["RawMemoryReadRequest", bool, Optional[bytes], str], None]
 
 class RawMemoryReadRequest:
     address: int
@@ -174,8 +170,8 @@ class MemoryReader:
         self.protocol = protocol
         self.datastore = datastore
         self.request_priority = request_priority
-        self.datastore.add_watch_callback(WatchCallback(self.the_watch_callback))
-        self.datastore.add_unwatch_callback(WatchCallback(self.the_unwatch_callback))
+        self.datastore.add_watch_callback(self.the_watch_callback)
+        self.datastore.add_unwatch_callback(self.the_unwatch_callback)
         self.active_raw_read_request = None
         self.raw_read_request_queue = queue.Queue()
 
@@ -332,8 +328,8 @@ class MemoryReader:
         """Sends a request to the request dispatcher and assign the corrects completion callbacks"""
         self.dispatcher.register_request(
             request=request,
-            success_callback=SuccessCallback(self.success_callback),
-            failure_callback=FailureCallback(self.failure_callback),
+            success_callback=self.success_callback,
+            failure_callback=self.failure_callback,
             priority=self.request_priority
         )
         self.pending_request = request

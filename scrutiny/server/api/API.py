@@ -35,6 +35,7 @@ import scrutiny.server.datalogging.definitions.device as device_datalogging
 from scrutiny.server.device.device_info import ExecLoopType
 from scrutiny.core.basic_types import MemoryRegion
 import scrutiny.core.datalogging as core_datalogging
+from scrutiny.core.typehints import EmptyDict
 
 
 from .websocket_client_handler import WebsocketClientHandler
@@ -45,7 +46,6 @@ import scrutiny.server.api.typing as api_typing
 from .abstract_client_handler import AbstractClientHandler, ClientHandlerMessage
 from scrutiny.server.device.links.abstract_link import LinkConfig as DeviceLinkConfig
 
-from scrutiny.core.typehints import EmptyDict, GenericCallback
 from typing import List, Dict, Set, Optional, Callable, Any, TypedDict, cast, Generator, Literal, Type
 
 
@@ -54,12 +54,8 @@ class APIConfig(TypedDict, total=False):
     client_interface_config: Any
 
 
-class UpdateVarCallback(GenericCallback):
-    callback: Callable[[str, DatastoreEntry], None]
-
-
-class TargetUpdateCallback(GenericCallback):
-    callback: Callable[[str, DatastoreEntry], None]
+UpdateVarCallback = Callable[[str, DatastoreEntry], None]
+TargetUpdateCallback = Callable[[str, DatastoreEntry], None]
 
 
 class InvalidRequestException(Exception):
@@ -309,9 +305,9 @@ class API:
             API.Command.Client2Api.DEBUG = 'debug'
             self.ApiRequestCallbacks[API.Command.Client2Api.DEBUG] = 'process_debug'
 
-        self.sfd_handler.register_sfd_loaded_callback(SFDLoadedCallback(self.sfd_loaded_callback))
-        self.sfd_handler.register_sfd_unloaded_callback(SFDUnloadedCallback(self.sfd_unloaded_callback))
-        self.device_handler.register_device_state_change_callback(DeviceStateChangedCallback(self.device_state_changed_callback))
+        self.sfd_handler.register_sfd_loaded_callback(self.sfd_loaded_callback)
+        self.sfd_handler.register_sfd_unloaded_callback(self.sfd_unloaded_callback)
+        self.device_handler.register_device_state_change_callback(self.device_state_changed_callback)
 
     @classmethod
     def get_datatype_name(cls, datatype: EmbeddedDataType) -> str:
@@ -428,8 +424,8 @@ class API:
             # Fetch the right function from a global dict and call it
             # Response are sent in each callback. Not all requests requires a response
             if cmd in self.ApiRequestCallbacks:
-                callback = getattr(self, self.ApiRequestCallbacks[cmd])
-                callback.__call__(conn_id, req)
+                callback = cast(Callable[[str, api_typing.C2SMessage], None], getattr(self, self.ApiRequestCallbacks[cmd]))
+                callback(conn_id, req)
             else:
                 raise InvalidRequestException(req, 'Unsupported command %s' % cmd)
 
@@ -608,7 +604,7 @@ class API:
             self.datastore.start_watching(
                 entry_id=subscribed[path]['id'],
                 watcher=conn_id,    # We use the API connection ID as datastore watcher ID
-                value_change_callback=UpdateVarCallback(self.entry_value_change_callback)
+                value_change_callback=self.entry_value_change_callback
             )
 
         response: api_typing.S2C.SubscribeWatchable = {
@@ -872,7 +868,7 @@ class API:
 
         request_token = uuid4().hex
         for update in req['updates']:
-            callback = UpdateTargetRequestCallback(functools.partial(self.entry_target_update_callback, request_token, update['batch_index']))
+            callback = functools.partial(self.entry_target_update_callback, request_token, update['batch_index'])
             self.datastore.update_target_value(update['watchable'], update['value'], callback=callback)
 
         response: api_typing.S2C.WriteValue = {
@@ -906,7 +902,7 @@ class API:
         request_token = uuid4().hex
         callback = functools.partial(self.read_raw_memory_callback, request_token=request_token, conn_id=conn_id)
 
-        self.device_handler.read_memory(req['address'], req['size'], callback=RawMemoryReadRequestCompletionCallback(callback))
+        self.device_handler.read_memory(req['address'], req['size'], callback=callback)
 
         response: api_typing.S2C.ReadMemory = {
             'cmd': self.Command.Api2Client.READ_MEMORY_RESPONSE,
@@ -943,7 +939,7 @@ class API:
         request_token = uuid4().hex
         callback = functools.partial(self.write_raw_memory_callback, request_token=request_token, conn_id=conn_id)
 
-        self.device_handler.write_memory(req['address'], data, callback=RawMemoryWriteRequestCompletionCallback(callback))
+        self.device_handler.write_memory(req['address'], data, callback=callback)
 
         response: api_typing.S2C.WriteMemory = {
             'cmd': self.Command.Api2Client.WRITE_MEMORY_RESPONSE,
@@ -1282,7 +1278,7 @@ class API:
 
         self.datalogging_manager.request_acquisition(
             request=acq_req,
-            callback=api_datalogging.APIAcquisitionRequestCompletionCallback(callback)
+            callback=callback
         )
 
         response: api_typing.S2C.RequestDataloggingAcquisition = {

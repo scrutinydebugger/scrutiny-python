@@ -14,7 +14,7 @@ import traceback
 
 from scrutiny.server.protocol import *
 import scrutiny.server.protocol.typing as protocol_typing
-from scrutiny.server.device.request_dispatcher import RequestDispatcher, SuccessCallback, FailureCallback
+from scrutiny.server.device.request_dispatcher import RequestDispatcher
 
 from typing import Optional, Tuple, Any, cast
 
@@ -108,8 +108,8 @@ class DeviceSearcher:
                 self.logger.debug('Registering a Discover request')
                 self.dispatcher.register_request(
                     request=self.protocol.comm_discover(),
-                    success_callback=SuccessCallback(self.success_callback),
-                    failure_callback=FailureCallback(self.failure_callback),
+                    success_callback=self.success_callback,
+                    failure_callback=self.failure_callback,
                     priority=self.priority
                 )
                 self.pending = True
