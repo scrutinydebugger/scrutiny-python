@@ -13,7 +13,7 @@ from enum import Enum, auto
 from dataclasses import dataclass
 
 from scrutiny.server.protocol import *
-from scrutiny.server.device.request_dispatcher import RequestDispatcher, SuccessCallback, FailureCallback
+from scrutiny.server.device.request_dispatcher import RequestDispatcher
 import scrutiny.server.datalogging.definitions.device as device_datalogging
 import scrutiny.server.protocol.typing as protocol_typing
 import scrutiny.server.protocol.commands as cmd
@@ -22,7 +22,6 @@ from scrutiny.server.protocol.crc32 import crc32
 from scrutiny.core.basic_types import RuntimePublishedValue
 from scrutiny.server.datalogging.datalogging_utilities import extract_signal_from_data
 
-from scrutiny.core.typehints import GenericCallback
 from typing import Optional, Any, cast, Callable, List, Dict
 
 
@@ -39,12 +38,8 @@ class FSMState(Enum):
     REQUEST_RESET = auto()
 
 
-class DeviceAcquisitionRequestCompletionCallback(GenericCallback):
-    callback: Callable[[bool, str, Optional[List[List[bytes]]], Optional[device_datalogging.AcquisitionMetadata]], None]
-
-
-class DataloggingReceiveSetupCallback(GenericCallback):
-    callback: Callable[[device_datalogging.DataloggingSetup], None]
+DeviceAcquisitionRequestCompletionCallback = Callable[[bool, str, Optional[List[List[bytes]]], Optional[device_datalogging.AcquisitionMetadata]], None]
+DataloggingReceiveSetupCallback = Callable[[device_datalogging.DataloggingSetup], None]
 
 
 @dataclass
@@ -574,8 +569,8 @@ class DataloggingPoller:
 
         self.dispatcher.register_request(
             req,
-            SuccessCallback(self.success_callback),
-            FailureCallback(self.failure_callback),
+            self.success_callback,
+            self.failure_callback,
             priority=self.request_priority)
         self.request_pending[subfn] = True
         self.request_failed[subfn] = False

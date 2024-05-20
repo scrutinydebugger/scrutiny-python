@@ -8,22 +8,15 @@
 #   Copyright (c) 2021 Scrutiny Debugger
 
 import bisect
-from scrutiny.server.protocol import Request, Response, ResponseCode
+from scrutiny.server.protocol import Request, Response
 from time import time
 import logging
 
 from typing import List, Optional, Callable, Any
-from scrutiny.core.typehints import GenericCallback
-
 
 # Type for mypy validation only
-class SuccessCallback(GenericCallback):
-    callback: Callable[[Request, ResponseCode, bytes, Any], None]
-
-
-class FailureCallback(GenericCallback):
-    callback: Callable[[Request, Any], None]
-
+SuccessCallback = Callable[[Request, Response, Any], None]
+FailureCallback = Callable[[Request, Any], None]
 
 class RequestQueue:
     """
@@ -131,9 +124,9 @@ class RequestRecord:
         if success:
             if response is None:
                 raise ValueError('Missing response')
-            self.success_callback.__call__(self.request, response, self.success_params)
+            self.success_callback(self.request, response, self.success_params)
         else:
-            self.failure_callback.__call__(self.request, self.failure_params)
+            self.failure_callback(self.request, self.failure_params)
 
     def is_completed(self) -> bool:
         """Return True if the request has completed (success or failure)"""

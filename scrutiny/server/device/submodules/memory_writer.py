@@ -14,20 +14,17 @@ from scrutiny.server.datastore.datastore_entry import DatastoreRPVEntry, Datasto
 from scrutiny.server.protocol import *
 import scrutiny.server.protocol.commands as cmd
 import scrutiny.server.protocol.typing as protocol_typing
-from scrutiny.server.device.request_dispatcher import RequestDispatcher, SuccessCallback, FailureCallback
+from scrutiny.server.device.request_dispatcher import RequestDispatcher
 from scrutiny.server.datastore.datastore import Datastore
 from scrutiny.server.datastore.datastore_entry import DatastoreEntry
 from scrutiny.core.codecs import Codecs, Encodable
-from scrutiny.core.typehints import GenericCallback
 from scrutiny.core.basic_types import MemoryRegion
 import time
 import queue
 from typing import Any, List, Optional, cast, Callable
 
 
-class RawMemoryWriteRequestCompletionCallback(GenericCallback):
-    callback: Callable[["RawMemoryWriteRequest", bool, str], None]
-
+RawMemoryWriteRequestCompletionCallback = Callable[["RawMemoryWriteRequest", bool, str], None]
 
 class RawMemoryWriteRequest:
     address: int
@@ -482,8 +479,8 @@ class MemoryWriter:
         self.logger.debug('Registering a MemoryWrite request. %s' % (request))
         self.dispatcher.register_request(
             request=request,
-            success_callback=SuccessCallback(self.success_callback),
-            failure_callback=FailureCallback(self.failure_callback),
+            success_callback=self.success_callback,
+            failure_callback=self.failure_callback,
             priority=self.request_priority
         )
         self.pending_request = request

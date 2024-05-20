@@ -16,21 +16,15 @@ import traceback
 from scrutiny.server.protocol import ResponseCode
 from scrutiny.server.device.device_info import *
 import scrutiny.server.protocol.commands as cmd
-from scrutiny.server.device.request_dispatcher import RequestDispatcher, SuccessCallback, FailureCallback
+from scrutiny.server.device.request_dispatcher import RequestDispatcher
 from scrutiny.server.protocol import *
 import scrutiny.server.protocol.typing as protocol_typing
-
-from scrutiny.core.typehints import GenericCallback
 
 from typing import Optional, Callable, Any, cast
 
 
-class ProtocolVersionCallback(GenericCallback):
-    callback: Callable[[int, int], Any]
-
-
-class CommParamCallback(GenericCallback):
-    callback: Callable[[DeviceInfo], Any]
+ProtocolVersionCallback = Callable[[int, int], Any]
+CommParamCallback = Callable[[DeviceInfo], Any]
 
 
 class InfoPoller:
@@ -157,15 +151,18 @@ class InfoPoller:
             # We already know the protocol version from the discover request.  This should maybe be removed...
             if state_entry:
                 self.dispatcher.register_request(request=self.protocol.get_protocol_version(),
-                                                 success_callback=SuccessCallback(self.success_callback), failure_callback=FailureCallback(self.failure_callback), priority=self.priority)
+                                                 success_callback=self.success_callback, failure_callback=self.failure_callback, priority=self.priority)
                 self.request_pending = True
 
             if self.request_failed:
                 next_state = self.FsmState.Error
             if not self.request_pending:    # Request completed
                 try:
+                    assert self.info.protocol_major is not None
+                    assert self.info.protocol_minor is not None
+
                     if self.protocol_version_callback is not None:
-                        self.protocol_version_callback.__call__(self.info.protocol_major, self.info.protocol_minor)
+                        self.protocol_version_callback(self.info.protocol_major, self.info.protocol_minor)
                     next_state = self.FsmState.GetCommParams
                 except Exception as e:
                     self.logger.error('Error while processing protocol version. %s' % str(e))
@@ -176,7 +173,7 @@ class InfoPoller:
         elif self.fsm_state == self.FsmState.GetCommParams:
             if state_entry:
                 self.dispatcher.register_request(request=self.protocol.comm_get_params(),
-                                                 success_callback=SuccessCallback(self.success_callback), failure_callback=FailureCallback(self.failure_callback), priority=self.priority)
+                                                 success_callback=self.success_callback, failure_callback=self.failure_callback, priority=self.priority)
                 self.request_pending = True
 
             if self.request_failed:
@@ -186,7 +183,7 @@ class InfoPoller:
                 try:
                     if self.comm_param_callback is not None:
                         # Some comm params will change the device handling. So let the deviceHandler know right away
-                        self.comm_param_callback.__call__(copy.copy(self.info))
+                        self.comm_param_callback(copy.copy(self.info))
                     next_state = self.FsmState.GetSupportedFeatures
                 except Exception as e:
                     self.logger.error('Error while processing communication params. %s' % str(e))
@@ -197,7 +194,7 @@ class InfoPoller:
         elif self.fsm_state == self.FsmState.GetSupportedFeatures:
             if state_entry:
                 self.dispatcher.register_request(request=self.protocol.get_supported_features(),
-                                                 success_callback=SuccessCallback(self.success_callback), failure_callback=FailureCallback(self.failure_callback), priority=self.priority)
+                                                 success_callback=self.success_callback, failure_callback=self.failure_callback, priority=self.priority)
                 self.request_pending = True
 
             if self.request_failed:
@@ -211,7 +208,7 @@ class InfoPoller:
                 self.forbidden_memory_region_count = None
                 self.readonly_memory_region_count = None
                 self.dispatcher.register_request(request=self.protocol.get_special_memory_region_count(),
-                                                 success_callback=SuccessCallback(self.success_callback), failure_callback=FailureCallback(self.failure_callback), priority=self.priority)
+                                                 success_callback=self.success_callback, failure_callback=self.failure_callback, priority=self.priority)
                 self.request_pending = True
 
             if self.request_failed:
@@ -229,7 +226,7 @@ class InfoPoller:
                     self.info.forbidden_memory_regions = []
                     for i in range(self.forbidden_memory_region_count):
                         self.dispatcher.register_request(request=self.protocol.get_special_memory_region_location(cmd.GetInfo.MemoryRangeType.Forbidden, i),
-                                                         success_callback=SuccessCallback(self.success_callback), failure_callback=FailureCallback(self.failure_callback), priority=self.priority)
+                                                         success_callback=self.success_callback, failure_callback=self.failure_callback, priority=self.priority)
 
                 if self.request_failed:
                     next_state = self.FsmState.Error
@@ -248,7 +245,7 @@ class InfoPoller:
                     self.info.readonly_memory_regions = []
                     for i in range(self.readonly_memory_region_count):
                         self.dispatcher.register_request(request=self.protocol.get_special_memory_region_location(cmd.GetInfo.MemoryRangeType.ReadOnly, i),
-                                                         success_callback=SuccessCallback(self.success_callback), failure_callback=FailureCallback(self.failure_callback), priority=self.priority)
+                                                         success_callback=self.success_callback, failure_callback=self.failure_callback, priority=self.priority)
 
                 if self.request_failed:
                     next_state = self.FsmState.Error
@@ -262,7 +259,7 @@ class InfoPoller:
             if state_entry:
                 self.rpv_count = None   # Will be set in success callback
                 self.dispatcher.register_request(request=self.protocol.get_rpv_count(),
-                                                 success_callback=SuccessCallback(self.success_callback), failure_callback=FailureCallback(self.failure_callback), priority=self.priority)
+                                                 success_callback=self.success_callback, failure_callback=self.failure_callback, priority=self.priority)
                 self.request_pending = True
 
             if self.request_failed:
@@ -297,8 +294,8 @@ class InfoPoller:
                     request = self.protocol.get_rpv_definition(start=len(self.info.runtime_published_values), count=count)
                     self.dispatcher.register_request(
                         request=request,
-                        success_callback=SuccessCallback(self.success_callback),
-                        failure_callback=FailureCallback(self.failure_callback),
+                        success_callback=self.success_callback,
+                        failure_callback=self.failure_callback,
                         priority=self.priority
                     )
                     self.request_pending = True
@@ -310,7 +307,7 @@ class InfoPoller:
             if state_entry:
                 self.loop_count = None   # Will be set in success callback
                 self.dispatcher.register_request(request=self.protocol.get_loop_count(),
-                                                 success_callback=SuccessCallback(self.success_callback), failure_callback=FailureCallback(self.failure_callback), priority=self.priority)
+                                                 success_callback=self.success_callback, failure_callback=self.failure_callback, priority=self.priority)
                 self.request_pending = True
 
             if self.request_failed:
@@ -328,7 +325,7 @@ class InfoPoller:
                     self.info.loops = []
                     for i in range(self.loop_count):
                         self.dispatcher.register_request(request=self.protocol.get_loop_definition(i),
-                                                         success_callback=SuccessCallback(self.success_callback), failure_callback=FailureCallback(self.failure_callback), priority=self.priority)
+                                                         success_callback=self.success_callback, failure_callback=self.failure_callback, priority=self.priority)
 
                 if self.request_failed:
                     next_state = self.FsmState.Error

@@ -18,16 +18,10 @@ from scrutiny.server.datastore.datastore_entry import *
 from scrutiny.server.datastore.entry_type import EntryType
 
 from typing import Optional, List, Callable
-from scrutiny.core.typehints import GenericCallback
 
 
-class SFDLoadedCallback(GenericCallback):
-    callback: Callable[[FirmwareDescription], None]
-
-
-class SFDUnloadedCallback(GenericCallback):
-    callback: Callable[[None], None]
-
+SFDLoadedCallback = Callable[[FirmwareDescription], None]
+SFDUnloadedCallback = Callable[[], None]
 
 class ActiveSFDHandler:
     """
@@ -146,7 +140,7 @@ class ActiveSFDHandler:
 
             for callback in self.loaded_callbacks:
                 try:
-                    callback.__call__(self.sfd)
+                    callback(self.sfd)
                 except Exception as e:
                     self.logger.critical('Error in SFD Load callback. %s' % str(e))
                     self.logger.debug(traceback.format_exc())
@@ -171,7 +165,7 @@ class ActiveSFDHandler:
             self.logger.debug('Triggering SFD Unload callback')
             for callback in self.unloaded_callbacks:
                 try:
-                    callback.__call__()
+                    callback()
                 except Exception as e:
                     self.logger.critical('Error in SFD Unload callback. %s' % str(e))
                     self.logger.debug(traceback.format_exc())

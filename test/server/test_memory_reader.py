@@ -29,7 +29,6 @@ import struct
 
 
 from typing import List, Dict, Generator, cast, Tuple, Optional
-from scrutiny.core.typehints import GenericCallback
 
 
 class BlockToRead:
@@ -411,7 +410,7 @@ class TestMemoryReaderComplexReadOperation(ScrutinyUnitTest):
 
         # Watch all entries so that they are all read
         for entry in entries:
-            ds.start_watching(entry, 'unittest', GenericCallback(self.value_change_callback1))
+            ds.start_watching(entry, 'unittest', self.value_change_callback1)
 
         # We process the reader until we do 10 round of updates or something fails
         max_loop = 10000
