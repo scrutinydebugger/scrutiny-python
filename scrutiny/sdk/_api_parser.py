@@ -10,6 +10,7 @@ import scrutiny.sdk
 import scrutiny.sdk.datalogging
 sdk = scrutiny.sdk  # Workaround for vscode linter an submodule on alias
 from scrutiny.core.basic_types import *
+from scrutiny.core.embedded_enum import EmbeddedEnum
 from scrutiny.core.firmware_description import MetadataType as FirmwareMetadataDict
 from scrutiny.server.api.API import API
 from scrutiny.server.api import typing as api_typing
@@ -27,6 +28,7 @@ class WatchableConfiguration:
     watchable_type: sdk.WatchableType
     datatype: EmbeddedDataType
     server_id: str
+    enum:Optional[EmbeddedEnum]
 
 
 @dataclass(frozen=True)
@@ -222,6 +224,19 @@ def parse_get_watchable_single_element(response: api_typing.S2C.GetWatchableList
 
     datatype = EmbeddedDataType(API.APISTR_2_DATATYPE[content['datatype']])
 
+    enum:Optional[EmbeddedEnum] = None
+    if 'enum' in content and content['enum'] is not None:
+        _check_response_dict(cmd, content, 'enum', dict)
+        _check_response_dict(cmd, content, 'enum.name', str)
+        _check_response_dict(cmd, content, 'enum.values', dict)
+        enum = EmbeddedEnum(name=content['enum']['name'])
+        for key, val in content['enum']['values'].items():
+            if not isinstance(key, str): 
+                raise sdk.exceptions.BadResponseError('Invalid enum. Key is not a string')
+            if not isinstance(val, int): 
+                raise sdk.exceptions.BadResponseError('Invalid enum. Value is not an integer')
+            enum.add_value(key, val)
+
     if requested_path != content['display_path']:
         raise sdk.exceptions.BadResponseError(
             f"The display path of the element returned by the server does not matched the requested path. Got {content['display_path']} but expected {requested_path}")
@@ -232,7 +247,8 @@ def parse_get_watchable_single_element(response: api_typing.S2C.GetWatchableList
     return WatchableConfiguration(
         watchable_type=watchable_type,
         datatype=datatype,
-        server_id=content['id']
+        server_id=content['id'],
+        enum=enum
     )
 
 
@@ -253,6 +269,20 @@ def parse_subscribe_watchable_response(response: api_typing.S2C.SubscribeWatchab
         _check_response_dict(cmd, v, 'type', str)
         _check_response_dict(cmd, v, 'id', str)
 
+        enum:Optional[EmbeddedEnum] = None
+        if 'enum' in v and v['enum'] is not None:
+            _check_response_dict(cmd, v, 'enum', dict)
+            _check_response_dict(cmd, v, 'enum.name', str)
+            _check_response_dict(cmd, v, 'enum.values', dict)
+            enum = EmbeddedEnum(name=v['enum']['name'])
+            for key, val in v['enum']['values'].items():
+                if not isinstance(key, str): 
+                    raise sdk.exceptions.BadResponseError('Invalid enum. Key is not a string')
+                if not isinstance(val, int): 
+                    raise sdk.exceptions.BadResponseError('Invalid enum. Value is not an integer')
+                enum.add_value(key, val)
+                
+
         if v['datatype'] not in API.APISTR_2_DATATYPE:
             raise sdk.exceptions.BadResponseError(f"Unknown datatype {v['datatype']}")
 
@@ -269,7 +299,8 @@ def parse_subscribe_watchable_response(response: api_typing.S2C.SubscribeWatchab
         outdict[k] = WatchableConfiguration(
             watchable_type=watchable_type,
             datatype=datatype,
-            server_id=v['id']
+            server_id=v['id'],
+            enum=enum
         )
     return outdict
 

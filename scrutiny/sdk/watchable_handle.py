@@ -13,6 +13,7 @@ import time
 
 from scrutiny.sdk.definitions import *
 from scrutiny.core.basic_types import *
+from scrutiny.core.embedded_enum import EmbeddedEnum
 import scrutiny.sdk.exceptions as sdk_exceptions
 from scrutiny.sdk.write_request import WriteRequest
 from scrutiny.core import validation
@@ -37,6 +38,7 @@ class WatchableHandle:
     _watchable_type: WatchableType  # Tye of watchable : Alias, Variable or RPV
     _server_id: Optional[str]       # The ID assigned by the server
     _status: ValueStatus            # Status of the value. Tells if the value is valid or not and why it is invalid if not
+    _enum: Optional[EmbeddedEnum]   # Enum that applies to this watchable
 
     _value: Optional[ValType]       # Contain the latest value gotten by the client
     _last_value_dt: Optional[datetime]  # Datetime of the last value update by the client
@@ -55,7 +57,11 @@ class WatchableHandle:
         addr = "0x%0.8x" % id(self)
         return f'<{self.__class__.__name__} "{self._shortname}" [{self._datatype.name}] at {addr}>'
 
-    def _configure(self, watchable_type: WatchableType, datatype: EmbeddedDataType, server_id: str) -> None:
+    def _configure(self, 
+                   watchable_type: WatchableType, 
+                   datatype: EmbeddedDataType, 
+                   server_id: str,
+                   enum:Optional[EmbeddedEnum] = None) -> None:
         with self._lock:
             self._watchable_type = watchable_type
             self._datatype = datatype
@@ -64,6 +70,7 @@ class WatchableHandle:
             self._value = None
             self._last_value_dt = None
             self._update_counter = 0
+            self._enum = enum
 
     def _set_last_write_datetime(self, dt: Optional[datetime] = None) -> None:
         if dt is None:
@@ -105,7 +112,11 @@ class WatchableHandle:
 
         return val
 
-    def _write(self, val: ValType) -> WriteRequest:
+    def _write(self, val: Union[ValType, str]) -> WriteRequest:
+        if isinstance(val, str):
+            if not self.has_enum():
+                raise sdk_exceptions.InvalidValueError(f'Cannot set the value of {self._shortname} with a string. It has no enum assigned')
+            val = self.parse_enum_val(val)
         write_request = WriteRequest(self, val)
         self._client._process_write_request(write_request)
         if not self._client._is_batch_write_in_progress():
@@ -174,7 +185,7 @@ class WatchableHandle:
         t1 = time.monotonic()
         while True:
             if time.monotonic() - t1 > timeout:
-                raise sdk_exceptions.TimeoutException(f'Value of {self._shortname} did set to {value} in {timeout}s')
+                raise sdk_exceptions.TimeoutException(f'Value of {self._shortname} did not set to {value} in {timeout}s')
 
             if self.datatype.is_float():
                 if float(value) == self.value_float:
@@ -187,6 +198,21 @@ class WatchableHandle:
                     break
 
             time.sleep(sleep_interval)
+    
+    def has_enum(self) -> bool:
+        return self._enum is not None
+    
+    def get_enum(self) -> EmbeddedEnum:
+        if self._enum is None:
+            raise sdk_exceptions.InvalidValueError(f"Watchable {self._shortname} has no enum defined")
+        return self._enum.copy()
+    
+    def parse_enum_val(self, val:str) -> int:
+        with self._lock:
+            if self._enum is None:
+                raise sdk_exceptions.InvalidValueError(f"Watchable {self._shortname} has no enum defined")
+            return self._enum.get_value(val)
+
 
     @property
     def display_path(self) -> str:
@@ -214,7 +240,7 @@ class WatchableHandle:
         return self._read()
 
     @value.setter
-    def value(self, val: ValType) -> None:
+    def value(self, val: Union[ValType, str]) -> None:
         self._write(val)
 
     @property

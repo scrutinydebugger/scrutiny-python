@@ -8,9 +8,9 @@
 
 from typing import TypedDict, Optional, List, Dict, Union, Literal, Any
 from scrutiny.core.typehints import EmptyDict
-from enum import Enum
 
 import scrutiny.core.firmware_description
+from scrutiny.core.embedded_enum import EmbeddedEnumDef
 import scrutiny.server.device.links.serial_link
 import scrutiny.server.device.links.udp_link
 
@@ -178,9 +178,10 @@ class AxisNameUpdateEntry(TypedDict):
     name: str
 
 
-class SubscribedInfo(TypedDict):
+class SubscribedInfo(TypedDict, total=False):
     type: WatchableType
     datatype: Datatype
+    enum: EmbeddedEnumDef
     id: str
 
 

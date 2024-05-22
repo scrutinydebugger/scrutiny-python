@@ -7,6 +7,7 @@
 #   Copyright (c) 2021 Scrutiny Debugger
 
 from scrutiny.core.alias import Alias
+from scrutiny.core.embedded_enum import EmbeddedEnum
 from scrutiny.server.datastore.entry_type import EntryType
 from test import ScrutinyUnitTest
 
@@ -34,6 +35,7 @@ class TestAlias(ScrutinyUnitTest):
         self.assertEqual(x.get_max(), float('inf'))
         self.assertEqual(x.get_gain(), 1.0)
         self.assertEqual(x.get_offset(), 0.0)
+        self.assertIsNone(x.enum)
 
         x = Alias.from_dict('aaa', {'target': 'asd', 'target_type': EntryType.RuntimePublishedValue})
         self.assertEqual(x.get_fullpath(), 'aaa')
@@ -43,6 +45,32 @@ class TestAlias(ScrutinyUnitTest):
         self.assertEqual(x.get_max(), float('inf'))
         self.assertEqual(x.get_gain(), 1.0)
         self.assertEqual(x.get_offset(), 0.0)
+        self.assertIsNone(x.enum)
+
+        x = Alias.from_dict('aaa', {
+            'target': 'asd', 
+            'target_type': EntryType.RuntimePublishedValue,
+            'enum' : {
+                'name' : 'some_enum',
+                'values' : {
+                    'a':1,
+                    'b':2,
+                    'c':3,
+                }
+            }
+        })
+        self.assertEqual(x.get_fullpath(), 'aaa')
+        self.assertEqual(x.get_target(), 'asd')
+        self.assertEqual(x.get_target_type(), EntryType.RuntimePublishedValue)
+        self.assertEqual(x.get_min(), float('-inf'))
+        self.assertEqual(x.get_max(), float('inf'))
+        self.assertEqual(x.get_gain(), 1.0)
+        self.assertEqual(x.get_offset(), 0.0)
+        self.assertIsNotNone(x.enum)
+        self.assertEqual(x.enum.name, 'some_enum')
+        self.assertEqual(x.enum.vals['a'], 1)
+        self.assertEqual(x.enum.vals['b'], 2)
+        self.assertEqual(x.enum.vals['c'], 3)
 
         d = x.to_dict()
         self.assertEqual(d['target'], 'asd')
@@ -90,6 +118,18 @@ class TestAlias(ScrutinyUnitTest):
             x.offset = float('nan')
             x.validate()
         x.offset = 0.0
+
+        with self.assertRaises(Exception):
+            x.enum = 1
+            x.validate()
+        x.enum = None
+
+        with self.assertRaises(Exception):
+            x.enum = "asdasd"
+            x.validate()
+        x.enum = None
+
+        x.enum = EmbeddedEnum('asd')
 
     def test_value_modifiers(self):
         alias = Alias(fullpath='aaa', target='asd', gain=2.0, offset=10, min=0, max=100)

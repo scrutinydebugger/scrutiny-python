@@ -12,10 +12,10 @@ import json
 import os
 import logging
 
-from scrutiny.core.variable import Variable, VariableEnum, VariableLocation
+from scrutiny.core.variable import Variable, VariableLocation
 from scrutiny.core.basic_types import EmbeddedDataType, Endianness
 from typing import Dict, TypedDict, List, Tuple, Optional, Any, Union, Generator
-from scrutiny.core.variable import VariableEnumDef
+from scrutiny.core.embedded_enum import EmbeddedEnum, EmbeddedEnumDef
 
 
 class TypeEntry(TypedDict):
@@ -37,12 +37,12 @@ class VarMap:
     endianness: Endianness
     typemap: Dict[str, TypeEntry]
     variables: Dict[str, VariableEntry]
-    enums: Dict[str, VariableEnumDef]
+    enums: Dict[str, EmbeddedEnumDef]
 
     next_type_id: int
     next_enum_id: int
     typename2typeid_map: Dict[str, str]      # name to numeric id as string
-    enums_to_id_map: Dict[VariableEnum, int]
+    enums_to_id_map: Dict[EmbeddedEnum, int]
 
     def __init__(self, file: Optional[Union[str, bytes]] = None):
         self.logger = logging.getLogger(self.__class__.__name__)
@@ -88,7 +88,7 @@ class VarMap:
         self.next_type_id = 0
         self.next_enum_id = 0
         self.typename2typeid_map = {}   # Maps the type id of this VarMap to the original name inside the binary.
-        self.enums_to_id_map = {}       # Maps a VariableEnum object to it's internal id
+        self.enums_to_id_map = {}       # Maps a EmbeddedEnum object to it's internal id
 
         # Build typename2typeid_map
         for typeid_str in self.typemap:
@@ -105,7 +105,7 @@ class VarMap:
             if enum_id_int > self.next_enum_id:
                 self.next_enum_id = enum_id_int
 
-            enum = VariableEnum.from_def(self.enums[str(enum_id_int)])
+            enum = EmbeddedEnum.from_def(self.enums[str(enum_id_int)])
             self.enums_to_id_map[enum] = enum_id_int
 
     def set_endianness(self, endianness: Endianness) -> None:
@@ -158,7 +158,7 @@ class VarMap:
                      original_type_name: str,
                      bitsize: Optional[int] = None,
                      bitoffset: Optional[int] = None,
-                     enum: Optional[VariableEnum] = None
+                     enum: Optional[EmbeddedEnum] = None
                      ) -> None:
         if not self.is_known_type(original_type_name):
             raise ValueError('Cannot add variable of type %s. Type has not been registered yet' % (original_type_name))
@@ -272,13 +272,13 @@ class VarMap:
             return vardef['bitoffset']
         return None
 
-    def get_enum(self, vardef: VariableEntry) -> Optional[VariableEnum]:
+    def get_enum(self, vardef: VariableEntry) -> Optional[EmbeddedEnum]:
         if 'enum' in vardef:
             enum_id = str(vardef['enum'])
             if enum_id not in self.enums:
                 raise Exception("Unknown enum ID %s" % enum_id)
             enum_def = self.enums[enum_id]
-            return VariableEnum.from_def(enum_def)
+            return EmbeddedEnum.from_def(enum_def)
         return None
 
     def iterate_vars(self) -> Generator[Tuple[str, Variable], None, None]:

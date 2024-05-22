@@ -29,6 +29,7 @@ from scrutiny.server.device.device_info import DeviceInfo, FixedFreqLoop, Variab
 from scrutiny.server.active_sfd_handler import ActiveSFDHandler
 from scrutiny.server.device.links.dummy_link import DummyLink
 from scrutiny.core.variable import *
+from scrutiny.core.embedded_enum import *
 from scrutiny.core.alias import Alias
 import scrutiny.core.datalogging as core_datalogging
 import scrutiny.server.datalogging.definitions.api as api_datalogging
@@ -41,7 +42,7 @@ import scrutiny.server.api.typing as api_typing
 from typing import cast
 import logging
 
-from typing import Optional, Dict, Any, List, Tuple, TypedDict, Callable
+from typing import Optional, Dict, Any, List, Tuple, TypedDict
 
 # todo
 # - Test rate limiter/data streamer
@@ -136,11 +137,12 @@ class StubbedDeviceHandler:
         info.address_size_bits = 32
         info.protocol_major = 1
         info.protocol_minor = 0
-        info.supported_feature_map = {
+        info.supported_feature_map =  {
             'memory_write': True,
-            'datalog_acquire': False,
+            'datalogging': False,
             'user_command': True,
-            '_64bits': True}
+            '_64bits': True
+            }
         info.forbidden_memory_regions = [MemoryRegion(0x1000, 0x500)]
         info.readonly_memory_regions = [MemoryRegion(0x2000, 0x600), MemoryRegion(0x3000, 0x700)]
         info.runtime_published_values = []
@@ -231,6 +233,7 @@ class StubbedDataloggingManager:
 
     def get_sampling_rate(self, identifier: int):
         info = self.fake_device_handler.get_device_info()
+        assert info.loops is not None
         if not isinstance(identifier, int) or identifier < 0 or identifier >= len(info.loops):
             raise ValueError("Bad sampling rate ID")
         loop = info.loops[identifier]
@@ -263,8 +266,10 @@ class StubbedDataloggingManager:
         sampling_rates: List[api_datalogging.SamplingRate] = []
         info = self.fake_device_handler.get_device_info()
         if info is None:
-            return
-
+            return []
+        if info.loops is None:
+            return []
+        
         i = 0
         for loop in info.loops:
             if loop.support_datalogging:
@@ -369,8 +374,13 @@ class TestAPI(ScrutinyUnitTest):
         else:
             raise Exception('Missing cmd field in response')
 
-    def make_dummy_entries(self, n, entry_type=EntryType.Var, prefix='path', alias_bucket: List[DatastoreEntry] = []) -> List[DatastoreEntry]:
-
+    def make_dummy_entries(self, 
+        n, 
+        entry_type=EntryType.Var, 
+        prefix='path',
+        alias_bucket: List[DatastoreEntry] = [],
+        enum_dict:Optional[Dict[str, int]] = None
+    ) -> List[DatastoreEntry]:
         entries = []
         if entry_type == EntryType.Alias:
             assert len(alias_bucket) >= n
@@ -380,8 +390,13 @@ class TestAPI(ScrutinyUnitTest):
         for i in range(n):
             name = '%s_%d' % (prefix, i)
             if entry_type == EntryType.Var:
+                enum:Optional[EmbeddedEnum] = None
+                if enum_dict is not None:
+                    enum = EmbeddedEnum('some_enum')
+                    for k,v in enum_dict.items():
+                        enum.add_value(k,v)
                 dummy_var = Variable('dummy', vartype=EmbeddedDataType.float32, path_segments=[
-                    'a', 'b', 'c'], location=0x12345678, endianness=Endianness.Little)
+                    'a', 'b', 'c'], location=0x12345678, endianness=Endianness.Little, enum=enum)
                 entry = DatastoreVariableEntry(name, variable_def=dummy_var)
             elif entry_type == EntryType.Alias:
                 entry = DatastoreAliasEntry(Alias(name, target='none'), refentry=alias_bucket[i])
@@ -791,9 +806,11 @@ class TestAPI(ScrutinyUnitTest):
         self.assertEqual(response['cmd'], 'response_subscribe_watchable')
         self.assertEqual(len(response['subscribed']), 1)
         self.assertIn(subscribed_entry.get_display_path(), response['subscribed'])
-        self.assertEqual(response['subscribed'][subscribed_entry.get_display_path()]['id'], subscribed_entry.get_id())
-        self.assertEqual(response['subscribed'][subscribed_entry.get_display_path()]['type'], 'var')
-        self.assertEqual(response['subscribed'][subscribed_entry.get_display_path()]['datatype'], 'float32')
+        obj1 = response['subscribed'][subscribed_entry.get_display_path()]
+        self.assertEqual(obj1['id'], subscribed_entry.get_id())
+        self.assertEqual(obj1['type'], 'var')
+        self.assertEqual(obj1['datatype'], 'float32')
+        self.assertNotIn('enum', obj1)  # No enum in this one
 
         self.assertIsNone(self.wait_for_response(timeout=0.2))
 
@@ -807,6 +824,36 @@ class TestAPI(ScrutinyUnitTest):
 
         self.assertEqual(update['id'], subscribed_entry.get_id())
         self.assertEqual(update['value'], 1234)
+
+    def test_subscribe_single_var_get_enum(self):
+        subscribed_entry = self.make_dummy_entries(1, entry_type=EntryType.Var, prefix='var', enum_dict={'a':1, 'b':2, 'c':3})[0]
+        self.datastore.add_entry(subscribed_entry)
+
+        req = {
+            'cmd': 'subscribe_watchable',
+            'watchables': [subscribed_entry.get_display_path()]
+        }
+
+        self.send_request(req, 0)
+        response = self.wait_and_load_response()
+        self.assert_no_error(response)
+
+        self.assertIn('cmd', response)
+        self.assertIn('subscribed', response)
+        self.assertIsInstance(response['subscribed'], dict)
+
+        self.assertEqual(response['cmd'], 'response_subscribe_watchable')
+        self.assertEqual(len(response['subscribed']), 1)
+        self.assertIn(subscribed_entry.get_display_path(), response['subscribed'])
+        obj1 = response['subscribed'][subscribed_entry.get_display_path()]
+        self.assertEqual(obj1['id'], subscribed_entry.get_id())
+        self.assertEqual(obj1['type'], 'var')
+        self.assertEqual(obj1['datatype'], 'float32')
+        self.assertIn('enum', obj1)  # No enum in this one
+        self.assertIn('name', obj1['enum'])
+        self.assertIn('values', obj1['enum'])
+        self.assertEqual(obj1['enum']['name'], 'some_enum')
+        self.assertEqual(obj1['enum']['values'], {'a':1, 'b':2, 'c':3})
 
     def test_stop_watching_on_disconnect(self):
         entries = self.make_dummy_entries(2, entry_type=EntryType.Var, prefix='var')

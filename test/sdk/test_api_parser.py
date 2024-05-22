@@ -33,7 +33,19 @@ class TestApiParser(ScrutinyUnitTest):
                 "done": True,
                 "qty": {"var": 1, "alias": 0, "rpv": 0},
                 "content": {
-                    "var": [{"id": "theid", "display_path": requested_path, "datatype": "sint32"}],
+                    "var": [{
+                        "id": "theid", 
+                        "display_path": requested_path, 
+                        "datatype": "sint32",
+                        "enum": {
+                            "name" : "example_enum",
+                            "values" : {
+                                "aaa" : 1,
+                                "bbb" : 2,
+                                "ccc" : 3
+                            }
+                        }
+                        }],
                     "alias": [],
                     "rpv": []
                 }
@@ -119,7 +131,15 @@ class TestApiParser(ScrutinyUnitTest):
                     '/a/b/d': {
                         'id': 'abd',
                         'type': 'alias',
-                        'datatype': 'sint8'
+                        'datatype': 'sint8',
+                        'enum' : {
+                            'name' : 'the_enum',
+                            'values' : {
+                                'a' : 1,
+                                'b' : 2,
+                                'c' : 3,
+                            }
+                        }
                     }
                 }
             }
@@ -133,10 +153,16 @@ class TestApiParser(ScrutinyUnitTest):
         self.assertEqual(res['/a/b/c'].server_id, 'abc')
         self.assertEqual(res['/a/b/c'].datatype, EmbeddedDataType.float32)
         self.assertEqual(res['/a/b/c'].watchable_type, sdk.WatchableType.Variable)
+        self.assertIsNone(res['/a/b/c'].enum)
 
         self.assertEqual(res['/a/b/d'].server_id, 'abd')
         self.assertEqual(res['/a/b/d'].datatype, EmbeddedDataType.sint8)
         self.assertEqual(res['/a/b/d'].watchable_type, sdk.WatchableType.Alias)
+        self.assertIsNotNone(res['/a/b/d'].enum)
+        self.assertEqual(res['/a/b/d'].enum.name, 'the_enum')
+        self.assertEqual(res['/a/b/d'].enum.get_value('a'), 1)
+        self.assertEqual(res['/a/b/d'].enum.get_value('b'), 2)
+        self.assertEqual(res['/a/b/d'].enum.get_value('c'), 3)
 
         class Delete:
             pass
