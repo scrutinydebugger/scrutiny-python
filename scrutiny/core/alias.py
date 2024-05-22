@@ -10,6 +10,7 @@ import json
 import math
 
 from scrutiny.server.datastore.entry_type import EntryType
+from scrutiny.core.embedded_enum import EmbeddedEnum
 
 from typing import Dict, Optional, Any, Union
 
@@ -36,6 +37,8 @@ class Alias:
     """Optional max to apply on the value. +inf if ``None``"""
     max: Optional[float]
     """Optional min to apply on the value. -inf if ``None``"""
+    enum:Optional[EmbeddedEnum]
+    """Optional enum to add on top of the value being watched"""
 
     @classmethod
     def from_json(cls, fullpath: str, json_str: str) -> 'Alias':
@@ -53,12 +56,22 @@ class Alias:
             gain=obj['gain'] if 'gain' in obj else None,
             offset=obj['offset'] if 'offset' in obj else None,
             min=obj['min'] if 'min' in obj else None,
-            max=obj['max'] if 'max' in obj else None
+            max=obj['max'] if 'max' in obj else None,
+            enum=EmbeddedEnum.from_def(obj['enum']) if 'enum' in obj else None
         )
         obj_out.validate()
         return obj_out
 
-    def __init__(self, fullpath: str, target: str, target_type: Optional[EntryType] = None, gain: Optional[float] = None, offset: Optional[float] = None, min: Optional[float] = None, max: Optional[float] = None):
+    def __init__(self, 
+            fullpath: str, 
+            target: str, 
+            target_type: Optional[EntryType] = None, 
+            gain: Optional[float] = None, 
+            offset: Optional[float] = None, 
+            min: Optional[float] = None, 
+            max: Optional[float] = None,
+            enum:Optional[EmbeddedEnum] = None
+        ):
         self.fullpath = fullpath
         # Target type can be set later on.
         if target_type is not None:
@@ -74,6 +87,7 @@ class Alias:
         self.offset = float(offset) if offset is not None else None
         self.min = float(min) if min is not None else None
         self.max = float(max) if max is not None else None
+        self.enum = enum
 
     def validate(self) -> None:
         """Raise an exception if internal values are bad"""
@@ -104,6 +118,10 @@ class Alias:
         if not math.isfinite(self.get_offset()):
             raise ValueError('Gain is not a finite value')
 
+        if self.enum is not None:
+            if not isinstance(self.enum, EmbeddedEnum):
+                raise ValueError("enum must be a valid EmbeddedEnum")
+
     def to_dict(self) -> Dict[str, Any]:
         """Make a dict containing all the information on the alias and that can be loaded with `from_json` """
         d: Dict[str, Any] = dict(target=self.target, target_type=self.target_type)
@@ -120,6 +138,9 @@ class Alias:
 
         if self.max is not None and self.max != float('inf'):
             d['max'] = self.max
+        
+        if self.enum is not None:
+            d['enum'] = self.enum.get_def()
 
         return d
 

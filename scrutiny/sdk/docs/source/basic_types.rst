@@ -16,3 +16,10 @@ Basic Types
     :exclude-members: __init__, __new__
     :members:
     :member-order: bysource
+
+-----
+
+.. autoclass:: scrutiny.core.embedded_enum.EmbeddedEnum
+    :exclude-members: __init__, __new__
+    :members:
+    :member-order: bysource

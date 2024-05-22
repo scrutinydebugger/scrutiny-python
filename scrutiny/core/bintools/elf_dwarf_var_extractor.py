@@ -22,12 +22,11 @@ from inspect import currentframe
 from scrutiny.core.varmap import VarMap
 from scrutiny.core.basic_types import *
 from scrutiny.core.variable import *
+from scrutiny.core.embedded_enum import *
 from scrutiny.exceptions import EnvionmentNotSetUpException
 from scrutiny.core.bintools import elftools_stubs
 
-from typing import Optional, List, Dict, Any, Union, cast, Iterable, Callable, Set, Tuple, TYPE_CHECKING, Tuple
-
-
+from typing import Optional, List, Dict, Union, cast, Set, Tuple
 
 def get_linenumber() -> int:
     cf = currentframe()
@@ -57,7 +56,6 @@ class TypeDescriptor:
 
 class ElfParsingError(Exception):
     pass
-
 
 
 class CuName:
@@ -143,7 +141,7 @@ class ElfDwarfVarExtractor:
     die2typeid_map: Dict["elftools_stubs.Die", str]
     die2vartype_map: Dict["elftools_stubs.Die", EmbeddedDataType]
     cu_name_map: Dict["elftools_stubs.CompileUnit", str]
-    enum_die_map: Dict["elftools_stubs.Die", VariableEnum]
+    enum_die_map: Dict["elftools_stubs.Die", EmbeddedEnum]
     struct_die_map: Dict["elftools_stubs.Die", Struct]
     endianness: Endianness
     cppfilt: Optional[str]
@@ -450,7 +448,7 @@ class ElfDwarfVarExtractor:
         self.log_debug_process_die(die)
         name = self.get_name(die)
         if die not in self.enum_die_map:
-            enum = VariableEnum(name)
+            enum = EmbeddedEnum(name)
 
             for child in die.iter_children():
                 if child.tag != 'DW_TAG_enumerator':
@@ -610,7 +608,7 @@ class ElfDwarfVarExtractor:
         except Exception:
             name = ""
         type_desc = self.get_type_of_var(die)
-        enum:Optional[VariableEnum] = None
+        enum:Optional[EmbeddedEnum] = None
         if type_desc.type in (TypeOfVar.Struct, TypeOfVar.Class, TypeOfVar.Union):
             substruct = self.get_composite_type_def(type_desc.type_die)  # recursion
             typename = None
@@ -729,7 +727,7 @@ class ElfDwarfVarExtractor:
                           path_segments:List[str], 
                           location:VariableLocation, 
                           original_type_name:str, 
-                          enum:Optional[VariableEnum] 
+                          enum:Optional[EmbeddedEnum] 
                           ) -> None:
         """Adds a variable to the varmap.
         
@@ -797,7 +795,7 @@ class ElfDwarfVarExtractor:
                     path_segments = self.make_varpath(die)
                     name = self.get_name(die)
                     
-                    enum:Optional[VariableEnum] = None
+                    enum:Optional[EmbeddedEnum] = None
                     if type_desc.enum_die is not None:
                         self.die_process_enum(type_desc.enum_die)
                         enum = self.enum_die_map[type_desc.enum_die]

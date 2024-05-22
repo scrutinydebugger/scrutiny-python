@@ -22,6 +22,7 @@ import scrutiny.server.datalogging.definitions.api as api_datalogging
 from scrutiny.core.variable import Variable as core_Variable
 from scrutiny.core.alias import Alias as core_Alias
 from scrutiny.core.codecs import Codecs
+from scrutiny.core.embedded_enum import EmbeddedEnum
 from scrutiny.core.sfd_storage import SFDStorage
 from scrutiny.core.memory_content import MemoryContent
 from scrutiny.server.datalogging.datalogging_storage import DataloggingStorage
@@ -32,6 +33,8 @@ from scrutiny.server.api import APIConfig
 import scrutiny.server.datastore.datastore as datastore
 from scrutiny.server.api.websocket_client_handler import WebsocketClientHandler
 from scrutiny.server.device.device_handler import DeviceHandler, DeviceStateChangedCallback, RawMemoryReadRequest, RawMemoryWriteRequest, UserCommandCallback
+from scrutiny.server.device.submodules.memory_writer import RawMemoryWriteRequestCompletionCallback
+from scrutiny.server.device.submodules.memory_reader import RawMemoryReadRequestCompletionCallback
 
 from scrutiny.core.firmware_description import FirmwareDescription
 from scrutiny.server.device.links.udp_link import UdpLink
@@ -276,7 +279,7 @@ class FakeDeviceHandler:
                     logging.error(str(e))
                     logging.debug(traceback.format_exc())
 
-    def read_memory(self, address: int, size: int, callback: Optional[RawMemoryReadRequest]):
+    def read_memory(self, address: int, size: int, callback: Optional[RawMemoryReadRequestCompletionCallback]) -> RawMemoryReadRequest:
         req = RawMemoryReadRequest(
             address=address,
             size=size,
@@ -285,7 +288,7 @@ class FakeDeviceHandler:
         self.read_memory_queue.put(req, block=False)
         return req
 
-    def write_memory(self, address: int, data: bytes, callback: Optional[RawMemoryWriteRequest]):
+    def write_memory(self, address: int, data: bytes, callback: Optional[RawMemoryWriteRequestCompletionCallback]) -> RawMemoryWriteRequest:
         req = RawMemoryWriteRequest(
             address=address,
             data=data,
@@ -294,7 +297,7 @@ class FakeDeviceHandler:
         self.write_memory_queue.put(req, block=False)
         return req
 
-    def get_datalogging_setup(self) -> device_datalogging.DataloggingSetup:
+    def get_datalogging_setup(self) -> Optional[device_datalogging.DataloggingSetup]:
         if self.emulate_datalogging_not_ready:
             return None
 
@@ -399,7 +402,7 @@ class FakeDataloggingManager:
 class FakeActiveSFDHandler:
     loaded_callbacks: List[Callable]
     unloaded_callbacks: List[Callable]
-    loaded_sfd: FirmwareDescription
+    loaded_sfd: Optional[FirmwareDescription]
 
     def __init__(self, *args, **kwargs):
         self.loaded_callbacks = []
@@ -440,7 +443,7 @@ class TestClient(ScrutinyUnitTest):
     require_sync: threading.Event
     thread: threading.Thread
 
-    def setUp(self):
+    def setUp(self) -> None:
         self.func_queue = queue.Queue()
         self.datastore = datastore.Datastore()
         self.fill_datastore()
@@ -457,9 +460,9 @@ class TestClient(ScrutinyUnitTest):
         self.api = API(
             api_config,
             datastore=self.datastore,
-            device_handler=self.device_handler,
-            sfd_handler=self.sfd_handler,
-            datalogging_manager=self.datalogging_manager,
+            device_handler=self.device_handler,             # type: ignore
+            sfd_handler=self.sfd_handler,                   # type: ignore
+            datalogging_manager=self.datalogging_manager,   # type: ignore
             enable_debug=False)
 
         self.api.handle_unexpected_errors = False
@@ -475,6 +478,7 @@ class TestClient(ScrutinyUnitTest):
             raise RuntimeError("Cannot start server")
 
         port = cast(WebsocketClientHandler, self.api.client_handler).get_port()
+        assert port is not None
         self.client = ScrutinyClient()
         self.client.connect(localhost, port)
 
@@ -485,15 +489,53 @@ class TestClient(ScrutinyUnitTest):
 
     def fill_datastore(self):
         rpv1000 = datastore.DatastoreRPVEntry('/rpv/x1000', RuntimePublishedValue(0x1000, EmbeddedDataType.float32))
-        var1 = datastore.DatastoreVariableEntry('/a/b/var1', core_Variable('var1', vartype=EmbeddedDataType.uint32,
-                                                path_segments=['a', 'b'], location=0x1234, endianness=Endianness.Little))
-        var2 = datastore.DatastoreVariableEntry('/a/b/var2', core_Variable('var2', vartype=EmbeddedDataType.boolean,
-                                                path_segments=['a', 'b'], location=0x4568, endianness=Endianness.Little))
-        alias_var1 = datastore.DatastoreAliasEntry(core_Alias('/a/b/alias_var1', var1.display_path, var1.get_type()), var1)
-        alias_rpv1000 = datastore.DatastoreAliasEntry(core_Alias('/a/b/alias_rpv1000', rpv1000.display_path, rpv1000.get_type()), rpv1000)
+        var1 = datastore.DatastoreVariableEntry('/a/b/var1', 
+            core_Variable('var1', 
+                vartype=EmbeddedDataType.uint32,
+                path_segments=['a', 'b'], 
+                location=0x1234, 
+                endianness=Endianness.Little
+            )
+        )
+
+        var2 = datastore.DatastoreVariableEntry('/a/b/var2', 
+            core_Variable('var2', 
+                vartype=EmbeddedDataType.boolean,
+                path_segments=['a', 'b'], 
+                location=0x4568, 
+                endianness=Endianness.Little,
+            )
+        )
+
+        var3_enum= EmbeddedEnum('var3_enum', vals={
+            'aaa' : 1, 
+            'bbb' : 2,
+            'ccc' : 3
+        })
+        var3 = datastore.DatastoreVariableEntry('/a/b/var3', 
+            core_Variable('var3', 
+                vartype=EmbeddedDataType.uint8,
+                path_segments=['a', 'b'], 
+                location=0xAAAA, 
+                endianness=Endianness.Little,
+                enum=var3_enum
+            )
+        )
+
+        alias_var1 = datastore.DatastoreAliasEntry(
+            aliasdef=core_Alias('/a/b/alias_var1', var1.display_path, var1.get_type()), 
+            refentry=var1
+        )
+
+        alias_rpv1000 = datastore.DatastoreAliasEntry(
+            aliasdef=core_Alias('/a/b/alias_rpv1000', rpv1000.display_path, rpv1000.get_type()), 
+            refentry=rpv1000
+        )
+        
         self.datastore.add_entry(rpv1000)
         self.datastore.add_entry(var1)
         self.datastore.add_entry(var2)
+        self.datastore.add_entry(var3)
         self.datastore.add_entry(alias_var1)
         self.datastore.add_entry(alias_rpv1000)
 
@@ -730,14 +772,13 @@ class TestClient(ScrutinyUnitTest):
         self.assertEqual(self.client.get_server_status().device_comm_state, sdk.DeviceCommState.ConnectedReady)
 
 
-        
-
-
+    
     def test_fetch_watchable_info(self):
         # Make sure we can correctly read the information about a watchables
         rpv1000 = self.client.watch('/rpv/x1000')
         var1 = self.client.watch('/a/b/var1')
         var2 = self.client.watch('/a/b/var2')
+        var3 = self.client.watch('/a/b/var3')
         alias_var1 = self.client.watch('/a/b/alias_var1')
         alias_rpv1000 = self.client.watch('/a/b/alias_rpv1000')
 
@@ -750,11 +791,24 @@ class TestClient(ScrutinyUnitTest):
         self.assertEqual(var1.display_path, '/a/b/var1')
         self.assertEqual(var1.name, 'var1')
         self.assertEqual(var1.datatype, sdk.EmbeddedDataType.uint32)
+        self.assertEqual(var1.has_enum(), False)
 
         self.assertEqual(var2.type, sdk.WatchableType.Variable)
         self.assertEqual(var2.display_path, '/a/b/var2')
         self.assertEqual(var2.name, 'var2')
         self.assertEqual(var2.datatype, sdk.EmbeddedDataType.boolean)
+        self.assertEqual(var2.has_enum(), False)
+
+        self.assertTrue(var3.has_enum())
+        enum_var3 = var3.get_enum()
+        self.assertEqual(enum_var3.name, 'var3_enum')
+        self.assertEqual(len(enum_var3.vals), 3)
+        self.assertEqual(enum_var3.vals['aaa'], 1)
+        self.assertEqual(enum_var3.vals['bbb'], 2)
+        self.assertEqual(enum_var3.vals['ccc'], 3)
+        self.assertEqual(var3.parse_enum_val('aaa'), 1)
+        self.assertEqual(var3.parse_enum_val('bbb'), 2)
+        self.assertEqual(var3.parse_enum_val('ccc'), 3)
 
         self.assertEqual(alias_var1.type, sdk.WatchableType.Alias)
         self.assertEqual(alias_var1.display_path, '/a/b/alias_var1')
@@ -794,6 +848,47 @@ class TestClient(ScrutinyUnitTest):
             self.execute_in_server_thread(partial(self.set_entry_val, '/rpv/x1000', val), wait=False, delay=0.02)
             rpv1000.wait_value(val, 2)
             self.assertEqual(rpv1000.value, val)
+    
+    def test_read_single_val_enum(self):
+        # Make sure we can read the value of a single watchable
+        var2 = self.client.watch('/a/b/var2')
+        self.assertFalse(var2.has_enum())
+
+        with self.assertRaises(sdk.exceptions.InvalidValueError):
+            x = var2.value_enum
+
+        var3 = self.client.watch('/a/b/var3')
+        self.assertTrue(var3.has_enum())
+
+        expected_enum_val = {
+            1: 'aaa',
+            2: 'bbb',
+            3: 'ccc',
+        }
+
+        # Test with wait_update
+        for i in range(4):
+            val = int(i+1)
+            self.execute_in_server_thread(partial(self.set_entry_val, '/a/b/var3', val), wait=False, delay=0.02)
+            var3.wait_update(2)
+            self.assertEqual(var3.value, val)
+            if val < 4:
+                self.assertEqual(var3.value_enum, expected_enum_val[val])
+            else:
+                with self.assertRaises(sdk.exceptions.InvalidValueError):
+                    x = var3.value_enum
+
+        # Test with wait_value
+        for i in range(3):
+            val = int(i+1)
+            self.execute_in_server_thread(partial(self.set_entry_val, '/a/b/var3', val), wait=False, delay=0.02)
+            var3.wait_value(expected_enum_val[val], 2)
+            if val < 4:
+                self.assertEqual(var3.value_enum, expected_enum_val[val])
+            else:
+                with self.assertRaises(sdk.exceptions.InvalidValueError):
+                     x = var3.value_enum
+                    
 
     def test_read_multiple_val(self) -> None:
 
@@ -855,6 +950,29 @@ class TestClient(ScrutinyUnitTest):
         self.assertIsNone(self.device_handler.write_logs[0].mask)
         var1.wait_update(previous_counter=counter, timeout=2)
         self.assertEqual(var1.value, 0x789456)
+
+    def test_write_single_val_enum(self):
+        # Make sure we can write a single watchable
+        var2 = self.client.watch('/a/b/var2')
+        var3 = self.client.watch('/a/b/var3')
+        self.assertFalse(var2.has_enum())
+        
+        with self.assertRaises(sdk.exceptions.ScrutinySDKException):
+            var2.value = 'bbb'   # No enum 
+
+        self.assertTrue(var3.has_enum())
+        counter = var3.update_counter
+        var3.value_enum = 'ccc'
+        self.assertEqual(var3.value, 3)
+        self.assertEqual(len(self.device_handler.write_logs), 1)
+        self.assertIsInstance(self.device_handler.write_logs[0], WriteMemoryLog)
+        assert isinstance(self.device_handler.write_logs[0], WriteMemoryLog)
+
+        self.assertEqual(self.device_handler.write_logs[0].address, 0xAAAA)
+        self.assertEqual(self.device_handler.write_logs[0].data, bytes(bytearray([3])))
+        self.assertIsNone(self.device_handler.write_logs[0].mask)
+        var3.wait_update(previous_counter=counter, timeout=2)
+        self.assertEqual(var3.value, 3)
 
     def test_write_multiple_val(self):
         # Make sure it is possible to write multiple watchables of different types all together

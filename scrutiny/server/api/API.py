@@ -597,6 +597,9 @@ class API:
                     'datatype': self.DATATYPE_2_APISTR[entry.get_data_type()],
                     'id': entry.get_id()
                 }
+                if entry.has_enum():
+                    subscribed[path]['enum'] = entry.get_enum().get_def()
+
             except KeyError as e:
                 raise InvalidRequestException(req, 'Unknown watchable : %s' % str(path))
 

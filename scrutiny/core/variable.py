@@ -8,16 +8,15 @@
 
 __all__ = [
     'VariableLocation',
-    'VariableEnumDef',
-    'VariableEnum',
     'Struct',
     'Variable'
 ]
 
 import struct
 from scrutiny.core.basic_types import Endianness, EmbeddedDataType
+from scrutiny.core.embedded_enum import EmbeddedEnum
 from scrutiny.core.codecs import Codecs, Encodable, UIntCodec
-from typing import Dict, Union, List, Literal, Optional, TypedDict, Any, Tuple
+from typing import Dict, Union, List, Literal, Optional,  Tuple
 from copy import deepcopy
 
 MASK_MAP: Dict[int, int] = {}
@@ -90,67 +89,6 @@ class VariableLocation:
         return '<%s - 0x%08X>' % (self.__class__.__name__, self.get_address())
 
 
-class VariableEnumDef(TypedDict):
-    """
-    Represent the dictionary version of the VariableEnum (for .json import/export).
-    Used only for type hints
-    """
-    name: str
-    values: Dict[str, int]
-
-
-class VariableEnum:
-    """
-    Represents an enumeration in the embedded code.
-    Match a string to an int value
-    """
-    name: str
-    vals: Dict[str, int]
-
-    def __init__(self, name: str):
-        self.name = name
-        self.vals = {}
-
-    def add_value(self, name: str, value: int) -> None:
-        """Add a string/value pair in the enum"""
-        if name in self.vals and self.vals[name] != value:
-            raise Exception('Duplicate entry for enum %s. %s can either be %s or %s' % (self.name, name, self.vals[name], value))
-
-        self.vals[name] = value
-
-    def get_name(self) -> str:
-        """Return the name of the enum"""
-        return self.name
-
-    def get_value(self, name: str) -> int:
-        """Return the value associated with a name"""
-        if name not in self.vals:
-            raise Exception('%s is not a valid name for enum %s' % (name, self.name))
-        return self.vals[name]
-
-    def get_def(self) -> VariableEnumDef:
-        """Export to dict for json serialization mainly"""
-        obj: VariableEnumDef = {
-            'name': self.name,
-            'values': self.vals
-        }
-        return obj
-
-    def has_signed_value(self) -> bool:
-        for v in self.vals.values():
-            if v < 0:
-                return True
-        return False
-
-
-    @classmethod
-    def from_def(cls, enum_def: VariableEnumDef) -> "VariableEnum":
-        """Recreate from a .json dict"""
-        obj = VariableEnum(enum_def['name'])
-        obj.vals = enum_def['values']
-        return obj
-
-
 class Struct:
     class Member:
         name: str
@@ -160,7 +98,7 @@ class Struct:
         byte_offset: Optional[int]
         bitsize: Optional[int]
         substruct: Optional['Struct']
-        enum:Optional['VariableEnum']
+        enum:Optional[EmbeddedEnum]
         is_unnamed:bool
 
         def __init__(self, name: str,
@@ -170,7 +108,7 @@ class Struct:
                      bitoffset: Optional[int] = None,
                      bitsize: Optional[int] = None,
                      substruct: Optional['Struct'] = None,
-                     enum:Optional['VariableEnum'] = None,
+                     enum:Optional[EmbeddedEnum] = None,
                      is_unnamed:bool=False
                      ):
 
@@ -269,9 +207,18 @@ class Variable:
     bitsize: Optional[int]
     bitfield: bool
     bitoffset: Optional[int]
-    enum: Optional[VariableEnum]
+    enum: Optional[EmbeddedEnum]
 
-    def __init__(self, name: str, vartype: EmbeddedDataType, path_segments: List[str], location: Union[int, VariableLocation], endianness: Endianness, bitsize: Optional[int] = None, bitoffset: Optional[int] = None, enum: Optional[VariableEnum] = None):
+    def __init__(self, 
+        name: str, 
+        vartype: EmbeddedDataType, 
+        path_segments: List[str], 
+        location: Union[int, VariableLocation], 
+        endianness: Endianness, 
+        bitsize: Optional[int] = None, 
+        bitoffset: Optional[int] = None, 
+        enum: Optional[EmbeddedEnum] = None
+    ) -> None:
 
         self.name = name
         self.vartype = vartype
@@ -373,7 +320,7 @@ class Variable:
         """True if an enum is attached to that variable"""
         return self.enum is not None
 
-    def get_enum(self) -> Optional[VariableEnum]:
+    def get_enum(self) -> Optional[EmbeddedEnum]:
         """Return the enum attached to the variable. None if it does not exists"""
         return self.enum
 

@@ -44,6 +44,11 @@ The inheritance hierarchy goes as follows.
 
 -----
 
+.. autoclass:: scrutiny.sdk.exceptions.BadEnumError
+    :exclude-members: __init__, __new__
+
+-----
+
 .. autoclass:: scrutiny.sdk.exceptions.ApiError
     :exclude-members: __init__, __new__
 

@@ -26,7 +26,8 @@ import queue
 
 from scrutiny.server.datastore.entry_type import EntryType
 from scrutiny.core.basic_types import EmbeddedDataType, Endianness
-from scrutiny.core.variable import Variable, VariableEnum
+from scrutiny.core.variable import Variable
+from scrutiny.core.embedded_enum import EmbeddedEnum
 from scrutiny.core.codecs import *
 
 from scrutiny.core.alias import Alias
@@ -157,7 +158,7 @@ class DatastoreEntry(abc.ABC):
         raise NotImplementedError("Abstract method")
 
     @abc.abstractmethod
-    def get_enum(self) -> VariableEnum:
+    def get_enum(self) -> EmbeddedEnum:
         """Returns the enum attached to the entry. Raise an exception if there is None"""
         raise NotImplementedError("Abstract method")
 
@@ -269,7 +270,7 @@ class DatastoreVariableEntry(DatastoreEntry):
         """Returns True if the entry has an enum"""
         return self.variable_def.has_enum()
 
-    def get_enum(self) -> VariableEnum:
+    def get_enum(self) -> EmbeddedEnum:
         """Returns the enum attached to the entry. Raise an exception if there is None"""
         enum = self.variable_def.get_enum()  # Possibly has no enum.
         assert enum is not None             # Should have checked with has_enum() first
@@ -334,10 +335,14 @@ class DatastoreAliasEntry(DatastoreEntry):
 
     def has_enum(self) -> bool:
         """Returns True if the entry has an enum"""
+        if self.aliasdef.enum is not None:
+            return True
         return self.refentry.has_enum()
 
-    def get_enum(self) -> VariableEnum:
+    def get_enum(self) -> EmbeddedEnum:
         """Returns the enum attached to the entry. Raise an exception if there is None"""
+        if self.aliasdef.enum is not None:
+            return self.aliasdef.enum
         return self.refentry.get_enum()
 
     def encode(self, value: Encodable) -> Tuple[bytes, Optional[bytes]]:
@@ -383,7 +388,6 @@ class DatastoreAliasEntry(DatastoreEntry):
         return val
 
 
-
 class DatastoreRPVEntry(DatastoreEntry):
     """A datastore entry that represents a Runtime Published Value"""
 
@@ -407,7 +411,7 @@ class DatastoreRPVEntry(DatastoreEntry):
         """Returns True if the entry has an enum"""
         return False
 
-    def get_enum(self) -> VariableEnum:
+    def get_enum(self) -> EmbeddedEnum:
         """Returns the enum attached to the entry. Raise an exception if there is None"""
         raise NotImplementedError('RuntimePublishedValues does not have enums')
 

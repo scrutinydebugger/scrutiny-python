@@ -940,6 +940,7 @@ class ScrutinyClient:
                     datatype=watchable_defs[path].datatype,
                     watchable_type=watchable_defs[path].watchable_type,
                     server_id=watchable_defs[path].server_id,
+                    enum=watchable_defs[path].enum
                 )
 
         req = self._make_request(API.Command.Client2Api.SUBSCRIBE_WATCHABLE, {

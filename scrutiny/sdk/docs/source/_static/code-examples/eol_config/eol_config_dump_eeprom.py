@@ -34,7 +34,7 @@ class EepromConfiguration:
             with self.client.batch_write():
                 self.addr.value = cursor
                 self.value = size_to_read
-                self.cmd.value = 1  # self.cmd.value='Read' with enum support
+                self.cmd.value_enum='Read'   # strings = enum value
             
             self.cmd.wait_value(0, timeout=5)   # self.cmd.wait_value('None', timeout=5)
             self.return_code.wait_update(timeout=3)

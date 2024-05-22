@@ -51,7 +51,9 @@ modifies the value that the :class:`WatchableHandle<scrutiny.sdk.watchable_handl
 .. autoclass:: scrutiny.sdk.watchable_handle.WatchableHandle
     :exclude-members: __new__
     :member-order: bysource
-    :members: display_path, name, type, datatype, value, value_bool, value_int, value_float, last_update_timestamp, last_write_timestamp, update_counter
+    :members: display_path, name, type, datatype, value, value_bool, value_int, value_float, 
+        value_enum, has_enum, get_enum, parse_enum_val, 
+        last_update_timestamp, last_write_timestamp, update_counter
 
 -----
 
@@ -64,7 +66,8 @@ modifies the value that the :class:`WatchableHandle<scrutiny.sdk.watchable_handl
 After getting a handle to the watchable, the :attr:`value<scrutiny.sdk.watchable_handle.WatchableHandle.value>` property and its derivative (
 :attr:`value_int<scrutiny.sdk.watchable_handle.WatchableHandle.value_int>`, 
 :attr:`value_float<scrutiny.sdk.watchable_handle.WatchableHandle.value_float>`, 
-:attr:`value_bool<scrutiny.sdk.watchable_handle.WatchableHandle.value_bool>`) undergo automatic updates. These values are invalid until their initial update, 
+:attr:`value_bool<scrutiny.sdk.watchable_handle.WatchableHandle.value_bool>`,
+:attr:`value_enum<scrutiny.sdk.watchable_handle.WatchableHandle.value_enum>`) undergo automatic updates. These values are invalid until their initial update, 
 meaning that after the call to :meth:`watch<scrutiny.sdk.client.ScrutinyClient.watch>`, there is a period of time where accessing the 
 :attr:`value<scrutiny.sdk.watchable_handle.WatchableHandle.value>`
 property will raise a :class:`InvalidValueError<scrutiny.sdk.exceptions.InvalidValueError>`.
