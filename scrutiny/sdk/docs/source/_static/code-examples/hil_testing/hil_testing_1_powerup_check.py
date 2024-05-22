@@ -29,8 +29,7 @@ with client.connect(hostname, port, wait_status=True):    # Establish a websocke
 
     run_app.value = True
 
-    psu_state.wait_value(0, timeout=2)      # 0 = DONE_OK
-    #psu_state.wait_value('DONE_OK', timeout=2) # Enum support is not ready yet.
+    psu_state.wait_value('DONE_OK', timeout=2) # string are passed as enum, will convert to a value of 0
     assert io_psu_ready.value_bool == True
     assert io_submodule1_ready.value_bool == True
     assert io_psu_voltage_line1.value_float > 4.75

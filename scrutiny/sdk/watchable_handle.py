@@ -114,14 +114,16 @@ class WatchableHandle:
 
     def _write(self, val: Union[ValType, str]) -> WriteRequest:
         if isinstance(val, str):
-            if not self.has_enum():
-                raise sdk_exceptions.InvalidValueError(f'Cannot set the value of {self._shortname} with a string. It has no enum assigned')
-            val = self.parse_enum_val(val)
+            val = self.parse_enum_val(val)  # check for enum is done inside this
         write_request = WriteRequest(self, val)
         self._client._process_write_request(write_request)
         if not self._client._is_batch_write_in_progress():
             write_request.wait_for_completion()
         return write_request
+
+    def _assert_has_enum(self) -> None:
+        if not self.has_enum():
+            raise sdk_exceptions.BadEnumError(f"Watchable {self._shortname} has no enum defined")
 
     def unwatch(self) -> None:
         """Stop watching this item by unsubscribing to the server
@@ -162,7 +164,7 @@ class WatchableHandle:
 
             time.sleep(sleep_interval)
 
-    def wait_value(self, value: ValType, timeout: float, sleep_interval: float = 0.02) -> None:
+    def wait_value(self, value: Union[ValType, str], timeout: float, sleep_interval: float = 0.02) -> None:
         """ 
         Wait for the watchable to reach a given value. Raises an exception if it does not happen within a timeout value
 
@@ -178,6 +180,9 @@ class WatchableHandle:
 
         timeout = validation.assert_float_range(timeout, 'timeout', minval=0)
         sleep_interval = validation.assert_float_range(sleep_interval, 'timeout', minval=0)
+
+        if isinstance(value, str):
+            value = self.parse_enum_val(value)
 
         if value < 0 and not self.datatype.is_signed():
             raise ValueError(f"{self._shortname} is unsigned and will never have a negative value as requested")
@@ -200,18 +205,33 @@ class WatchableHandle:
             time.sleep(sleep_interval)
     
     def has_enum(self) -> bool:
+        """Tells if the watchable has an enum associated with it"""
         return self._enum is not None
     
     def get_enum(self) -> EmbeddedEnum:
-        if self._enum is None:
-            raise sdk_exceptions.InvalidValueError(f"Watchable {self._shortname} has no enum defined")
+        """ Returns the enum associated with this watchable
+
+        :raises BadEnumError: If the watchable has no enum assigned
+        """
+        self._assert_has_enum()
+        assert self._enum is not None
         return self._enum.copy()
     
     def parse_enum_val(self, val:str) -> int:
-        with self._lock:
-            if self._enum is None:
-                raise sdk_exceptions.InvalidValueError(f"Watchable {self._shortname} has no enum defined")
-            return self._enum.get_value(val)
+        """Converts an enum value name (string) to the underlying integer value
+
+        :param val: The enumerator name to convert
+
+        :raises BadEnumError: If the watchable has no enum assigned or the given value is not a valid enumerator
+        :raise TypeError: Given parameter not of the expected type
+        """
+        validation.assert_type(val, 'val', str)
+        self._assert_has_enum()
+        assert self._enum is not None
+        if not self._enum.has_value(val):
+            raise sdk_exceptions.BadEnumError(f"Value {val} is not a valid value for enum {self._enum.name}")
+        
+        return self._enum.get_value(val)
 
 
     @property
@@ -236,11 +256,11 @@ class WatchableHandle:
 
     @property
     def value(self) -> ValType:
-        """The last value received for this watchable"""
+        """The last value received for this watchable. Can be written"""
         return self._read()
 
     @value.setter
-    def value(self, val: Union[ValType, str]) -> None:
+    def value(self, val: ValType) -> None:
         self._write(val)
 
     @property
@@ -257,6 +277,22 @@ class WatchableHandle:
     def value_float(self) -> float:
         """The value casted as float"""
         return float(self.value)
+    
+    @property
+    def value_enum(self) -> str:
+        """The value converted to its first enum name (alphabetical order). Returns a string. Can be written with a string"""
+        val_int = self.value_int
+        self._assert_has_enum()
+        assert self._enum is not None
+        for k in sorted(self._enum.vals.keys()):
+            if self._enum.vals[k] == val_int:
+                return k
+        raise sdk_exceptions.InvalidValueError(f"Watchable {self._shortname} has value {val_int} which is not a valid enum value for enum {self._enum.name}")
+
+    @value_enum.setter
+    def value_enum(self, val: str) -> None:
+        # This setter only exists because mypy does not handle getter/setter with different signature. See issue #3004
+        self._write(val)
 
     @property
     def last_update_timestamp(self) -> Optional[datetime]:

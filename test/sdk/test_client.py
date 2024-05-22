@@ -848,6 +848,47 @@ class TestClient(ScrutinyUnitTest):
             self.execute_in_server_thread(partial(self.set_entry_val, '/rpv/x1000', val), wait=False, delay=0.02)
             rpv1000.wait_value(val, 2)
             self.assertEqual(rpv1000.value, val)
+    
+    def test_read_single_val_enum(self):
+        # Make sure we can read the value of a single watchable
+        var2 = self.client.watch('/a/b/var2')
+        self.assertFalse(var2.has_enum())
+
+        with self.assertRaises(sdk.exceptions.InvalidValueError):
+            x = var2.value_enum
+
+        var3 = self.client.watch('/a/b/var3')
+        self.assertTrue(var3.has_enum())
+
+        expected_enum_val = {
+            1: 'aaa',
+            2: 'bbb',
+            3: 'ccc',
+        }
+
+        # Test with wait_update
+        for i in range(4):
+            val = int(i+1)
+            self.execute_in_server_thread(partial(self.set_entry_val, '/a/b/var3', val), wait=False, delay=0.02)
+            var3.wait_update(2)
+            self.assertEqual(var3.value, val)
+            if val < 4:
+                self.assertEqual(var3.value_enum, expected_enum_val[val])
+            else:
+                with self.assertRaises(sdk.exceptions.InvalidValueError):
+                    x = var3.value_enum
+
+        # Test with wait_value
+        for i in range(3):
+            val = int(i+1)
+            self.execute_in_server_thread(partial(self.set_entry_val, '/a/b/var3', val), wait=False, delay=0.02)
+            var3.wait_value(expected_enum_val[val], 2)
+            if val < 4:
+                self.assertEqual(var3.value_enum, expected_enum_val[val])
+            else:
+                with self.assertRaises(sdk.exceptions.InvalidValueError):
+                     x = var3.value_enum
+                    
 
     def test_read_multiple_val(self) -> None:
 
@@ -921,7 +962,7 @@ class TestClient(ScrutinyUnitTest):
 
         self.assertTrue(var3.has_enum())
         counter = var3.update_counter
-        var3.value = 'ccc'
+        var3.value_enum = 'ccc'
         self.assertEqual(var3.value, 3)
         self.assertEqual(len(self.device_handler.write_logs), 1)
         self.assertIsInstance(self.device_handler.write_logs[0], WriteMemoryLog)

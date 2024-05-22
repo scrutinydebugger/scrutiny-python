@@ -32,7 +32,11 @@ class TimeoutException(ScrutinySDKException):
 
 
 class NameNotFoundError(ScrutinySDKException):
-    """Raised when raised when trying to reference an element by its name and the name is invalid or unknown"""
+    """Raised when trying to reference an element by its name and the name is invalid or unknown"""
+    pass
+
+class BadEnumError(ScrutinySDKException):
+    """Raised when trying access an enum value that does not exists"""
     pass
 
 
