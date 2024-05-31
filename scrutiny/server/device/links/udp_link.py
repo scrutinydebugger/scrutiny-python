@@ -114,6 +114,8 @@ class UdpLink(AbstractLink):
                 return data
         except TimeoutError:
             pass
+        except socket.timeout:
+            pass
         except socket.error as e:
             err = e
             if e.args[0] == errno.EAGAIN or e.args[0] == errno.EWOULDBLOCK:
