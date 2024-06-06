@@ -115,6 +115,8 @@ class CommHandler:
                             self._rx_data_event.set()
                 except Exception as e:
                     self._logger.error(str(e))
+                    self._logger.debug(traceback.format_exc())
+                    time.sleep(0.2)
             else:
                 time.sleep(0.2)
         self._logger.debug("RX thread exiting")
