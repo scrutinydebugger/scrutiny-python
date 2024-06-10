@@ -40,8 +40,6 @@ class SerialLink(AbstractLink):
     config: SerialConfig
     _initialized: bool
     _init_timestamp:float
-    _port_lock: threading.Lock
-    _read_timeout: Optional[float]
 
     port: Optional[serial.Serial]
 
@@ -111,7 +109,6 @@ class SerialLink(AbstractLink):
         self._initialized = False
         self.logger = logging.getLogger(self.__class__.__name__)
         self._init_timestamp = time.monotonic()
-        self._read_timeout=None
 
         self.config = cast(SerialConfig, {
             'portname': str(config['portname']),
@@ -121,8 +118,6 @@ class SerialLink(AbstractLink):
             'parity': str(config.get('parity', 'none')),
             'start_delay' : float(config.get('start_delay', 0))
         })
-        self._port_lock = threading.Lock()
-
 
     def get_config(self) -> LinkConfig:
         return cast(LinkConfig, self.config)
@@ -135,14 +130,10 @@ class SerialLink(AbstractLink):
         databits = self.get_data_bits(self.config['databits'])
         parity = self.get_parity(self.config['parity'])
 
-        read_timeout = 0.2 
-        if os.name == 'nt':
-            read_timeout = 0.02 # On windows, pySerial behaves weirdly when reading/writing in diferent thread. Using lock + small block time
-            
         self.port = serial.Serial(
             port=portname, 
             baudrate=baudrate, 
-            timeout=read_timeout,
+            timeout=0.2,
             write_timeout=0,
             parity=parity, 
             bytesize=databits, 
@@ -173,56 +164,25 @@ class SerialLink(AbstractLink):
         if not self.operational():
             return None
         
-        if os.name == 'nt':
-            data = self._read_windows(timeout)
-        else:
-            assert self.port is not None    # For mypy
-            if timeout != self.port.timeout:
-                self.port.timeout = timeout
-            data = self.port.read(max(self.port.in_waiting, 1))
-            if self.port.in_waiting > 0:
-                data += self.port.read(self.port.in_waiting)
+        assert self.port is not None    # For mypy
+        if timeout != self.port.timeout:
+            self.port.timeout = timeout
+        data = self.port.read(max(self.port.in_waiting, 1))
+        if self.port.in_waiting > 0:
+            data += self.port.read(self.port.in_waiting)
 
         if len(data) > 0 and self.logger.isEnabledFor(logging.DEBUG):
             self.logger.debug(f"Received {len(data)}: " + hexlify(data).decode('ascii'))
         
         return data
 
-
-    def _read_windows(self, timeout:Optional[float] = None) -> bytes:
-        # Serial port on Windows has some weird behavior when doing blocking read
-        # Without locks or with a timeout smaller than 0.02sec, sometime the data is not 
-        # flushed to port when a read happens during write time.
-        # I don't understand it all, but using lock + timeout >= 0.02 seems stable.
-
-        assert self.port is not None    # For mypy
-        data = bytes()
-        t1 = time.monotonic()
-        
-        while timeout is None or time.monotonic() - t1 < timeout:
-            with self._port_lock:
-                data += self.port.read(max(self.port.in_waiting, 1))
-            if self.port.in_waiting > 0:
-                with self._port_lock:
-                    data += self.port.read(self.port.in_waiting)
-            if len(data) > 0:
-                break
-
-        return data
-
-
     def write(self, data: bytes) -> None:
         """ Write data to the comm channel."""
         if self.operational():
             assert self.port is not None    # For mypy
             try:
-                if os.name == 'nt':
-                    with self._port_lock:
-                        self.port.write(data)
-                        # No flush. Python Serial module just wait, which can block forever on virtual ports
-                else:
-                    self.port.write(data)
-                    self.port.flush()
+                self.port.write(data)
+                self.port.flush()
             except Exception as e:
                 self.logger.debug(f"Cannot write data. {e}")
                 self.port.close()
