@@ -57,6 +57,8 @@ class CommHandler:
         'response_timeout': 1
     }
 
+    READ_TIMEOUT=0.2
+
     _active_request: Optional[Request]
     _received_response: Optional[Response]
     _link: Optional[AbstractLink]
@@ -108,7 +110,7 @@ class CommHandler:
         while not self._rx_thread_stop_requested.is_set():
             if self._link is not None:
                 try:
-                    data = self._link.read(timeout=0.5)
+                    data = self._link.read(timeout=self.READ_TIMEOUT)
                     if data is not None and len(data) > 0:
                         self._rx_queue.put(data)
                         if self._rx_data_event is not None:
