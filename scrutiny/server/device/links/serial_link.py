@@ -167,7 +167,7 @@ class SerialLink(AbstractLink):
         assert self.port is not None    # For mypy
         if timeout != self.port.timeout:
             self.port.timeout = timeout
-        data = self.port.read(max(self.port.in_waiting, 1))
+        data:bytes = self.port.read(max(self.port.in_waiting, 1))
         if self.port.in_waiting > 0:
             data += self.port.read(self.port.in_waiting)
 
