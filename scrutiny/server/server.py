@@ -77,7 +77,10 @@ class ScrutinyServer:
         self.logger = logging.getLogger(self.__class__.__name__)
         self.config = copy(DEFAULT_CONFIG)
         if input_config is not None:
-            if isinstance(input_config, str) and os.path.isfile(input_config):
+            if isinstance(input_config, str):
+                if not os.path.isfile(input_config):
+                    raise FileNotFoundError(f"Given config does not exist: {input_config}")
+                
                 self.logger.debug('Loading user configuration file: "%s"' % input_config)
                 del self.config['name']  # remove "default config" from name
                 with open(input_config) as f:

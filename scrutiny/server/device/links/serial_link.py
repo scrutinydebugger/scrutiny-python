@@ -13,7 +13,9 @@ from .abstract_link import AbstractLink, LinkConfig
 from typing import Optional, Dict, TypedDict, cast, Union
 import serial   # type: ignore
 import time
-
+from binascii import hexlify
+import threading
+import os
 
 class SerialConfig(TypedDict):
     """
@@ -131,10 +133,11 @@ class SerialLink(AbstractLink):
         self.port = serial.Serial(
             port=portname, 
             baudrate=baudrate, 
-            timeout=0, 
+            timeout=0.2,
+            write_timeout=0,
             parity=parity, 
             bytesize=databits, 
-            stopbits=stopbits, 
+            stopbits=stopbits,
             xonxoff=False, 
             rtscts=True, 
             dsrdtr=False
@@ -162,13 +165,16 @@ class SerialLink(AbstractLink):
             return None
         
         assert self.port is not None    # For mypy
-        self.port.timeout = timeout
+        if timeout != self.port.timeout:
+            self.port.timeout = timeout
         data:bytes = self.port.read(max(self.port.in_waiting, 1))
-        n = self.port.in_waiting
-        if n > 0:
-            data += self.port.read(n)
-        return data
+        if self.port.in_waiting > 0:
+            data += self.port.read(self.port.in_waiting)
 
+        if len(data) > 0 and self.logger.isEnabledFor(logging.DEBUG):
+            self.logger.debug(f"Received {len(data)}: " + hexlify(data).decode('ascii'))
+        
+        return data
 
     def write(self, data: bytes) -> None:
         """ Write data to the comm channel."""
@@ -178,7 +184,7 @@ class SerialLink(AbstractLink):
                 self.port.write(data)
                 self.port.flush()
             except Exception as e:
-                self.logger.debug("Cannot write data. " + str(e))
+                self.logger.debug(f"Cannot write data. {e}")
                 self.port.close()
 
     def initialized(self) -> bool:
