@@ -1,4 +1,4 @@
-#    launch_server.py
+#    server.py
 #        CLI Command to launch the scrutiny server
 #
 #   - License : MIT - See LICENSE file.
@@ -10,12 +10,11 @@ import argparse
 import logging
 
 from .base_command import BaseCommand
-from copy import deepcopy
 from typing import Optional, List, Any, Dict, cast
 
 
-class LaunchServer(BaseCommand):
-    _cmd_name_ = 'launch-server'
+class Server(BaseCommand):
+    _cmd_name_ = 'server'
     _brief_ = 'Launch an instance of the server'
     _group_ = 'Server'
 

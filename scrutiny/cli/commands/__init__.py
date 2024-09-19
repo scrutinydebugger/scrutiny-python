@@ -8,7 +8,7 @@ __all__ = [
     'UninstallSFD',
     'ListSFD',
     'Elf2VarMap',
-    'LaunchServer',
+    'Server',
     'RunTest',
     'AddAlias',
     'DeleteDatalog',
@@ -28,13 +28,14 @@ from .install_sfd import InstallSFD
 from .uninstall_sfd import UninstallSFD
 from .list_sfd import ListSFD
 from .elf2varmap import Elf2VarMap
-from .launch_server import LaunchServer
+from .server import Server
 from .runtest import RunTest
 from .add_alias import AddAlias
 from .delete_datalog import DeleteDatalog
 from .list_datalog import ListDatalog
 from .export_datalog import ExportDatalog
 from .datalog_info import DatalogInfo
+from .gui import GUI
 
 from typing import List, Dict, Type
 
