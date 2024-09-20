@@ -1,4 +1,4 @@
-from PyQt6.QtWidgets import (
+from qtpy.QtWidgets import (
     QApplication,
     QWidget,
     QLineEdit,
@@ -9,27 +9,32 @@ from PyQt6.QtWidgets import (
     QDialog,
     QLabel,
     QFormLayout,
-    QGridLayout
+    QGridLayout,
+    QCommonStyle,
+    QSizePolicy
 )
 import qdarktheme
 
-import scrutiny
+
+from qtpy.QtGui import  QAction, QPalette, QColor
+from qtpy.QtCore import Qt, QRect
+from qtpy.QtWidgets import QMainWindow
+
 from scrutiny.gui import assets
-import sys
-
-from PyQt6.QtGui import QIcon, QAction
-from PyQt6.QtCore import QSize, Qt, QRect , PYQT_VERSION_STR
-
-from PyQt6.QtWidgets import QMainWindow
+from scrutiny.gui.qtads import QtAds    #Advanced Docking System
+from scrutiny.gui.dialogs.about_dialog import AboutDialog
 
 
 class MainWindow(QMainWindow):
     INITIAL_W = 1200
     INITIAL_H = 900
+    SIDEBAR_W = 64
+    
+    SIDEBAR_BUTTON_W = SIDEBAR_W
+    SIDEBAR_BUTTON_H = 48
 
     def __init__(self):
         super().__init__()
-        qdarktheme.setup_theme()
 
         self.setWindowTitle('Scrutiny Debugger')
         self.setGeometry(self.centered(self.INITIAL_W, self.INITIAL_H))
@@ -37,22 +42,22 @@ class MainWindow(QMainWindow):
 
         
         self.make_menubar()
-        
+        self.make_main_zone()
+        self.make_status_bar()
 
-        status_bar = self.statusBar()
-        status_bar.addWidget(QLabel("hello"))
 
     def make_menubar(self) -> None:
         menu_bar = self.menuBar()
         dashboard_menu = menu_bar.addMenu('Dashboard')
-        dashboard_menu.addMenu("Open")
-        dashboard_menu.addMenu("Save")
-        dashboard_menu.addMenu("Clear")
+        dashboard_menu.addAction("Open")
+        dashboard_menu.addAction("Save")
+        dashboard_menu.addAction("Clear")
 
         server_menu = menu_bar.addMenu('Server')
         server_menu.addAction("Configure")
+        server_menu.addAction("Launch local")
         server_menu = menu_bar.addMenu('Device')
-        server_menu.addMenu("Configure")
+        server_menu.addAction("Configure")
 
         info_menu = menu_bar.addMenu("Info")
         show_about_action = QAction("About this software", self)
@@ -67,25 +72,65 @@ class MainWindow(QMainWindow):
             w,h)
 
     def show_about(self) -> None:
-        ABOUT_W = 400
-        ABOUT_H = 200
-
-        dialog = QDialog(self)
-        dialog.setWindowTitle("About this software")
-        dialog.setGeometry(self.centered(ABOUT_W, ABOUT_H))
-        dialog.setSizeGripEnabled(False)
-        
-        # TODO : make pretty
-        layout = QFormLayout()
-        fields = [
-            ("Scrutiny version", scrutiny.__version__),
-            ("Python version", "%d.%d.%d" % (sys.version_info.major, sys.version_info.minor, sys.version_info.micro)),
-            ("PyQT version", PYQT_VERSION_STR),
-        ]
-
-        for i in range(len(fields)):
-            layout.addRow(QLabel(fields[i][0]), QLabel(fields[i][1]) )
-
-        dialog.setLayout(layout)
+        dialog = AboutDialog(self)
+        dialog.setGeometry(self.centered(400, 200))
         dialog.show()
         
+    def make_main_zone(self) -> None:
+        from scrutiny.gui.tools import DiagnosticStyle
+        self.central_widget = QWidget()
+        self.central_widget.setContentsMargins(0,0,0,0)
+        self.setCentralWidget(self.central_widget)
+        
+        hlayout = QHBoxLayout(self.central_widget)
+        hlayout.setContentsMargins(0,0,0,0)
+        
+        self.sidebar = self.make_sidebar()
+        self.sidebar.setContentsMargins(0,0,0,0)
+        
+        self.dock_conainer = QWidget()
+        dock_vlayout = QVBoxLayout(self.dock_conainer)
+        dock_vlayout.setContentsMargins(0,0,0,0)
+        self.dock_manager = QtAds.CDockManager(self.dock_conainer)
+        hlayout.addWidget(self.sidebar)
+        hlayout.addWidget(self.dock_conainer)
+        dock_vlayout.addWidget(self.dock_manager)
+        
+        
+        l = QLabel()
+        l.setWordWrap(True)
+        l.setContentsMargins(0,0,0,0)
+        l.setAlignment(Qt.AlignTop | Qt.AlignLeft)
+        l.setText("Lorem ipsum dolor sit amet, consectetuer adipiscing elit. ")
+
+        dock_widget = QtAds.CDockWidget("Label 1")
+        dock_widget.setWidget(l)
+
+        self.dock_manager.addDockWidget(QtAds.TopDockWidgetArea, dock_widget)
+    
+    def get_central_widget(self) -> QWidget:
+        return self.central_widget
+
+    def make_sidebar(self) -> QWidget:
+        sidebar = QWidget()
+        sidebar.setFixedWidth(self.SIDEBAR_W)
+        layout = QVBoxLayout(sidebar)
+        layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+        layout.setContentsMargins(0,0,0,0)
+
+        label_A = QLabel("AAA")
+        label_A.setFixedHeight(self.SIDEBAR_BUTTON_H)
+        label_A.setFixedWidth(self.SIDEBAR_BUTTON_W)
+        label_A.setAlignment(Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignVCenter)
+        label_B = QLabel("BBB")
+        label_B.setAlignment(Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignVCenter)
+        label_B.setFixedHeight(self.SIDEBAR_BUTTON_H)
+        label_A.setFixedWidth(self.SIDEBAR_BUTTON_W)
+        layout.addWidget(label_A)
+        layout.addWidget(label_B)
+
+        return sidebar
+
+    def make_status_bar(self) -> None:
+        self.status_bar = self.statusBar()
+        self.status_bar.addWidget(QLabel("hello"))
