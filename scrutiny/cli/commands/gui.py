@@ -24,12 +24,12 @@ class GUI(BaseCommand):
     def __init__(self, args: List[str], requested_log_level: Optional[str] = None):
         self.args = args
         self.parser = argparse.ArgumentParser(prog=self.get_prog())
-        self.parser.add_argument("--diagnostic", action='store_true', default=False, help="Enable GUI diagnostic rendering")
+        self.parser.add_argument("--debug-layout", action='store_true', default=False, help="Enable GUI diagnostic rendering")
 
     def run(self) -> Optional[int]:
         from scrutiny.gui.gui import ScrutinyQtGUI
 
         args = self.parser.parse_args(self.args)
-        gui = ScrutinyQtGUI(diagnostic_mode=args.diagnostic)
+        gui = ScrutinyQtGUI(debug_layout=args.debug_layout)
     
         return gui.run([])
