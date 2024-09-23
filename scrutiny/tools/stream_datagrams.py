@@ -1,32 +1,35 @@
 __all__ = ['StreamMaker', 'StreamParser']
 
 from typing import Optional, Any
-from hashlib import sha1
+from hashlib import md5
 import queue
 import re
 import logging
 import time
 
-HASH_SIZE = 20
-HASH_ALGO = sha1
+HASH_SIZE = 16
+HASH_FUNC = md5 # Fastest 128bits+
+MAX_HEADER_LENGTH = len("<SCRUTINY size=00000000>")
 
 class StreamMaker:
-    @classmethod
+    _use_hash:bool
+
+    def __init__(self, use_hash:bool=True):
+        self._use_hash = use_hash
+
     def encode(self, data:Any):
         datasize = len(data)
         if datasize > 2**32-1:
             raise RuntimeError("Message too big")
-        hasher = HASH_ALGO(data)
         out = bytearray()
         out.extend(f"<SCRUTINY size={datasize:08x}>".encode('utf8'))
         out.extend(data)
-        out.extend(hasher.digest())
+        if self._use_hash:
+            out.extend(HASH_FUNC(data).digest())
         return out
 
 
 class StreamParser:
-    MAX_HEADER_LENGTH = len("<SCRUTINY size=00000000>")
-
     _data_length:Optional[int]
     _bytes_read:int
     _buffer:bytearray
@@ -36,8 +39,9 @@ class StreamParser:
     _logger:logging.Logger
     _last_chunk_timestamp:float
     _interchunk_timeout:float
+    _use_hash:bool
 
-    def __init__(self, interchunk_timeout:Optional[float]=None):
+    def __init__(self, interchunk_timeout:Optional[float]=None, use_hash:bool=True):
         self._data_length = None
         self._buffer = bytearray()
         self._msg_queue = queue.Queue()
@@ -45,6 +49,7 @@ class StreamParser:
         self._logger = logging.getLogger(self.__class__.__name__)
         self._last_chunk_timestamp = time.monotonic()
         self._interchunk_timeout = interchunk_timeout
+        self._use_hash = use_hash
 
     def parse(self, chunk):
         done = False
@@ -64,22 +69,26 @@ class StreamParser:
                         self._logger.error("Received an unparsable message length")
                         done = True
                     
-                    if self._data_length:
+                    if self._data_length and self._use_hash:
                         self._data_length += HASH_SIZE
                     self._buffer = self._buffer[m.end():]   # Drop header
                 else:
-                    self._buffer = self._buffer[-self.MAX_HEADER_LENGTH:]   # Drop grabage
+                    self._buffer = self._buffer[-MAX_HEADER_LENGTH:]   # Drop grabage
                     done = True
                 
             if self._data_length is not None:                
                 if len(self._buffer) >= self._data_length:
                     try:
-                        end_of_data = self._data_length-HASH_SIZE
-                        thehash = self._buffer[end_of_data:self._data_length]
-                        if thehash == HASH_ALGO(self._buffer[0:end_of_data]).digest():
-                            self._msg_queue.put(bytes(self._buffer[0:end_of_data]))
+                        end_of_data = self._data_length
+                        if self._use_hash:
+                            end_of_data -= HASH_SIZE
+                            thehash = self._buffer[end_of_data:self._data_length]
+                            if thehash == HASH_FUNC(self._buffer[0:end_of_data]).digest():
+                                self._msg_queue.put(bytes(self._buffer[0:end_of_data]))
+                            else:
+                                self._logger.error("Bad hash. Dropping datagram")
                         else:
-                            self._logger.error("Bad hash. Dropping datagram")
+                            self._msg_queue.put(bytes(self._buffer[0:end_of_data]))
                     except queue.Full:
                         self._logger.error("Receive queue full. Dropping datagram")
                     finally:
