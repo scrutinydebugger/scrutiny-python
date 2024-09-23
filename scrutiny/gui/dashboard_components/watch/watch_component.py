@@ -12,9 +12,7 @@ class WatchComponent(ScrutinyGUIBaseComponent):
     _ICON = assets.get("eye-96x128.png")
     _NAME = "Watch Window"
 
-    def setup(self, instance_name:str):
-        self.instance_name = instance_name
-
+    def setup(self):
         layout = QVBoxLayout(self)
         layout.addWidget(QLabel("YAYAYA : " + self.get_name()))
 

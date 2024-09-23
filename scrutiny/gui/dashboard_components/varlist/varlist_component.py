@@ -12,9 +12,7 @@ class VarListComponent(ScrutinyGUIBaseComponent):
     _ICON = assets.get("treelist-96x128.png")
     _NAME = "Variable List"
 
-    def setup(self, instance_name:str):
-        self.instance_name = instance_name
-
+    def setup(self):
         layout = QVBoxLayout(self)
         layout.addWidget(QLabel("YAYAYA : " + self.get_name()))
 

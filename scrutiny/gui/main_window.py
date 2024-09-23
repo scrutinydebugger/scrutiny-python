@@ -1,29 +1,15 @@
-from qtpy.QtWidgets import (
-    QApplication,
-    QWidget,
-    QLineEdit,
-    QPushButton,
-    QVBoxLayout,
-    QHBoxLayout,
-    QToolBar,
-    QDialog,
-    QLabel,
-    QFormLayout,
-    QGridLayout,
-    QCommonStyle,
-    QSizePolicy
-)
-import qdarktheme
+import logging
+import traceback
 
+from qtpy.QtWidgets import  QWidget, QVBoxLayout, QHBoxLayout, QLabel, QStatusBar
 
-from qtpy.QtGui import  QAction, QPalette, QColor, QResizeEvent
-from qtpy.QtCore import Qt, QRect, QSize, QTimer
+from qtpy.QtGui import  QAction, QCloseEvent
+from qtpy.QtCore import Qt, QRect
 from qtpy.QtWidgets import QMainWindow
 
-from scrutiny.gui import assets
 from scrutiny.gui.qtads import QtAds    #Advanced Docking System
-from scrutiny.gui.dialogs.about_dialog import AboutDialog
-from scrutiny.gui.sidebar import Sidebar
+from scrutiny.gui.widgets.about_dialog import AboutDialog
+from scrutiny.gui.widgets.sidebar import Sidebar
 
 from scrutiny.gui.dashboard_components.base_component import ScrutinyGUIBaseComponent
 from scrutiny.gui.dashboard_components.debug.debug_component import DebugComponent
@@ -31,7 +17,7 @@ from scrutiny.gui.dashboard_components.varlist.varlist_component import VarListC
 from scrutiny.gui.dashboard_components.watch.watch_component import WatchComponent
 from scrutiny.gui.dashboard_components.embedded_graph.embedded_graph_component import EmbeddedGraph
 
-from typing import List, Type
+from typing import List, Type, Dict
 
 
 
@@ -46,8 +32,19 @@ class MainWindow(QMainWindow):
         EmbeddedGraph
     ]
 
+    _dashboard_components:Dict[str, ScrutinyGUIBaseComponent]
+    _logger = logging.Logger
+
+    _central_widget:QWidget
+    _dock_conainer:QtAds.CDockContainer
+    _dock_manager:QtAds.CDockManager
+    _sidebar:Sidebar
+    _status_bar:QStatusBar
+
     def __init__(self):
         super().__init__()
+        self._dashboard_components = {}
+        self._logger = logging.getLogger(self.__class__.__name__)
 
         self.setWindowTitle('Scrutiny Debugger')
         self.setGeometry(self.centered(self.INITIAL_W, self.INITIAL_H))
@@ -89,46 +86,93 @@ class MainWindow(QMainWindow):
         dialog.show()
         
     def make_main_zone(self) -> None:
-        self.central_widget = QWidget()
-        self.central_widget.setContentsMargins(0,0,0,0)
-        self.setCentralWidget(self.central_widget)
+        self._central_widget = QWidget()
+        self._central_widget.setContentsMargins(0,0,0,0)
+        self.setCentralWidget(self._central_widget)
         
-        hlayout = QHBoxLayout(self.central_widget)
+        hlayout = QHBoxLayout(self._central_widget)
         hlayout.setContentsMargins(0,0,0,0)
         hlayout.setSpacing(0)
         
-        self.sidebar = Sidebar(self.ENABLED_COMPONENTS)
-        
-        self.dock_conainer = QWidget()
-        dock_vlayout = QVBoxLayout(self.dock_conainer)
+        self._dock_conainer = QWidget()
+        self._dock_manager = QtAds.CDockManager(self._dock_conainer)
+        dock_vlayout = QVBoxLayout(self._dock_conainer)
         dock_vlayout.setContentsMargins(0,0,0,0)
-        self.dock_manager = QtAds.CDockManager(self.dock_conainer)
-        hlayout.addWidget(self.sidebar)
-        hlayout.addWidget(self.dock_conainer)
-        dock_vlayout.addWidget(self.dock_manager)
         
+        self._sidebar = Sidebar(self.ENABLED_COMPONENTS)
+        self.addToolBar(Qt.ToolBarArea.LeftToolBarArea, self._sidebar)
+        self._sidebar.insert_component.connect(self.add_new_component)
+
+        hlayout.addWidget(self._dock_conainer)
+        dock_vlayout.addWidget(self._dock_manager)
         
-        l = QLabel()
-        l.setWordWrap(True)
-        l.setContentsMargins(0,0,0,0)
-        l.setAlignment(Qt.AlignTop | Qt.AlignLeft)
-        l.setText("Lorem ipsum dolor sit amet, consectetuer adipiscing elit. ")
-
-        dock_widget = QtAds.CDockWidget("Label 1")
-        dock_widget.setWidget(l)
-
-        self.dock_manager.addDockWidget(QtAds.TopDockWidgetArea, dock_widget)
-    
     def get_central_widget(self) -> QWidget:
-        return self.central_widget
-
-    def make_sidebar(self) -> QWidget:
-        sidebar = QWidget()
-        
-            
-        
-        return sidebar
+        return self._central_widget
 
     def make_status_bar(self) -> None:
-        self.status_bar = self.statusBar()
-        self.status_bar.addWidget(QLabel("hello"))
+        self._status_bar = self.statusBar()
+        self._status_bar.addWidget(QLabel("hello"))
+
+    def add_new_component(self, component_class:Type[ScrutinyGUIBaseComponent]) -> None:
+        """Adds a new component inside the dashboard
+        :param component_class: The class that represent the component (inhreiting ScrutinyGUIBaseComponent) 
+        """
+        
+        def make_name(component_class:Type[ScrutinyGUIBaseComponent], instance_number:int):
+            return f'{component_class.__name__}_{instance_number}'
+
+        instance_number = 0
+        name = make_name(component_class, instance_number)
+        while name in self._dashboard_components:
+            instance_number+=1
+            name = make_name(component_class, instance_number)
+        
+        try:
+            widget = component_class(self, name)
+        except Exception:
+            self._logger.error(f"Failed to create a dashboard component of type {component_class.__name__}")
+            self._logger.debug(traceback.format_exc())
+            return
+
+        dock_widget = QtAds.CDockWidget(component_class.get_name())
+        dock_widget.setFeature(QtAds.CDockWidget.DockWidgetDeleteOnClose, True)
+        dock_widget.setWidget(widget)
+
+        try:
+            self._logger.debug(f"Setuping component {widget.instance_name}")
+            widget.setup()
+        except Exception:
+            self._logger.error(f"Exception while setuping component of type {component_class.__name__} (instance name: {widget.instance_name})")
+            self._logger.debug(traceback.format_exc())
+            try:
+                widget.teardown()
+            except Exception:
+                pass
+            widget.deleteLater()
+            dock_widget.deleteLater()
+            return
+
+
+        def destroy_widget() -> None:
+            """Closure for this widget deletion"""
+            if name in self._dashboard_components:
+                del self._dashboard_components[name]
+
+            try:
+                self._logger.debug(f"Tearing down component {widget.instance_name}")
+                widget.teardown()
+            except Exception:
+                self._logger.error(f"Exception while tearing down component {component_class.__name__} (instance name: {widget.instance_name})")
+                self._logger.debug(traceback.format_exc())
+                return
+            finally:
+                widget.deleteLater()
+
+        self._dashboard_components[name] = widget
+        dock_widget.closeRequested.connect(destroy_widget)
+        self._dock_manager.addDockWidget(QtAds.TopDockWidgetArea, dock_widget)
+
+
+    def closeEvent(self, event: QCloseEvent):
+        self._dock_manager.deleteLater()
+        super().closeEvent(event)

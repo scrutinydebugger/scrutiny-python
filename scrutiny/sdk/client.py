@@ -1585,20 +1585,14 @@ class ScrutinyClient:
     @property
     def server_state(self) -> ServerState:
         """The server communication state"""
-        with self._main_lock:
-            val = self._server_state  # Can be modified by the worker_thread
-        return val
+        return ServerState(self._server_state)  # Make a copy
 
     @property
     def hostname(self) -> Optional[str]:
         """Hostname of the server used for websocket connection"""
-        with self._main_lock:
-            val = self._hostname  # Can be modified by the worker_thread
-        return val
+        return str(self._hostname)
 
     @property
     def port(self) -> Optional[int]:
         """Port of the websocket"""
-        with self._main_lock:
-            val = self._port  # Can be modified by the worker_thread
-        return val
+        return int(self._port)

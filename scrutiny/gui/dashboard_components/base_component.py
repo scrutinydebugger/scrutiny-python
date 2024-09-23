@@ -3,17 +3,26 @@ __all__ = ['ScrutinyGUIBaseComponent']
 from abc import ABC, abstractmethod
 
 from qtpy.QtWidgets import QWidget
-from qtpy.QtGui import QPixmap
-from typing import Dict, cast
+from qtpy.QtGui import QIcon
+from typing import Dict, cast, TYPE_CHECKING
+
+if TYPE_CHECKING:   # Prevent circular dependency
+    from scrutiny.gui.main_window import MainWindow
 
 class ScrutinyGUIBaseComponent(QWidget):
-    pass
+    instance_name:str
+    main_window:"MainWindow"
+
+    def __init__(self, main_window:"MainWindow", instance_name:str) -> None:
+        self.instance_name = instance_name
+        self.main_window = main_window
+        super().__init__()
 
     @classmethod
-    def get_icon(cls) -> QPixmap:
+    def get_icon(cls) -> QIcon:
         if not hasattr(cls, '_ICON'):
             raise RuntimeError(f"Class {cls.__name__} require the _ICON to be set")
-        return  QPixmap(str(getattr(cls, '_ICON')))
+        return  QIcon(str(getattr(cls, '_ICON')))
 
     @classmethod
     def get_name(cls) -> str: 
@@ -22,7 +31,7 @@ class ScrutinyGUIBaseComponent(QWidget):
         return cast(str, getattr(cls, '_NAME'))
 
     @abstractmethod
-    def setup(self, instance_name:str):
+    def setup(self):
         pass
 
     @abstractmethod

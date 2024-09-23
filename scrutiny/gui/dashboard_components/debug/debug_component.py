@@ -12,9 +12,7 @@ class DebugComponent(ScrutinyGUIBaseComponent):
     _ICON = assets.get("debug-96x128.png")
     _NAME = "Debug"
 
-    def setup(self, instance_name:str):
-        self.instance_name = instance_name
-
+    def setup(self):
         layout = QVBoxLayout(self)
         layout.addWidget(QLabel())
 
