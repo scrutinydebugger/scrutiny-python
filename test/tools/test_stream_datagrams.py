@@ -13,31 +13,36 @@ from test import ScrutinyUnitTest
 from hashlib import md5
 import time
 
+DEFAULT_MTU = 1024*1024
 
 class TestStreamDatagrams(ScrutinyUnitTest):
     def test_stream_maker(self):
         data = bytes( [1,2,3,4] )
-        payload = bytes(StreamMaker(use_hash=True).encode(data))
-        self.assertEqual(b"<SCRUTINY size=00000004>\x01\x02\x03\x04" + md5(data).digest(), payload)
+        payload = bytes(StreamMaker(mtu=DEFAULT_MTU, use_hash=True).encode(data))
+        self.assertEqual(b"<SCRUTINY size=4>\x01\x02\x03\x04" + md5(data).digest(), payload)
 
         data = bytes( [1,2,3,4] )
-        payload = bytes(StreamMaker(use_hash=False).encode(data))
-        self.assertEqual(b"<SCRUTINY size=00000004>\x01\x02\x03\x04", payload)
+        payload = bytes(StreamMaker(mtu=DEFAULT_MTU, use_hash=False).encode(data))
+        self.assertEqual(b"<SCRUTINY size=4>\x01\x02\x03\x04", payload)
+
+        with self.assertRaises(Exception):
+            StreamMaker(mtu=4, use_hash=False).encode("abcde".encode('ascii'))
+        StreamMaker(mtu=4, use_hash=False).encode("abcd".encode('ascii'))   # no exception
 
     def test_stream_parser_simple_read_hash(self):
         data = bytes( [1,2,3,4] )
         payload = b"<SCRUTINY size=4>" + data + md5(data).digest()
 
-        parser = StreamParser(use_hash=True)
+        parser = StreamParser(mtu=DEFAULT_MTU, use_hash=True)
         parser.parse(payload)
         self.assertFalse(parser.queue().empty())
-        self.assertEqual(parser.queue().get(), data)
+        self.assertEqual(parser.queue().get(), data)      
 
     def test_stream_parser_simple_read_nohash(self):
         data = bytes( [1,2,3,4] )
         payload = b"<SCRUTINY size=4>" + data
 
-        parser = StreamParser(use_hash=False)
+        parser = StreamParser(mtu=DEFAULT_MTU, use_hash=False)
         parser.parse(payload)
         self.assertFalse(parser.queue().empty())
         self.assertEqual(parser.queue().get(), data)        
@@ -47,7 +52,7 @@ class TestStreamDatagrams(ScrutinyUnitTest):
         for i in range (10):
             if i != len(data):
                 payload = b"<SCRUTINY size=" + str(i).encode('utf8') + b">" + data + md5(data).digest()
-                parser = StreamParser(use_hash=True)
+                parser = StreamParser(mtu=DEFAULT_MTU, use_hash=True)
                 parser.parse(payload)
                 self.assertTrue(parser.queue().empty())
         
@@ -62,10 +67,10 @@ class TestStreamDatagrams(ScrutinyUnitTest):
             payload = bytearray()
             payload.extend("garbage!".encode('ascii'))
             for data in datas:
-                payload.extend(StreamMaker(use_hash=use_hash).encode(data))
+                payload.extend(StreamMaker(mtu=DEFAULT_MTU, use_hash=use_hash).encode(data))
                 payload.extend("garbage!...".encode('ascii'))
             
-            parser = StreamParser(use_hash=use_hash)
+            parser = StreamParser(mtu=DEFAULT_MTU, use_hash=use_hash)
             parser.parse(payload)
             q = parser.queue()
             for i in range(len(datas)):
@@ -86,10 +91,10 @@ class TestStreamDatagrams(ScrutinyUnitTest):
             payload = bytearray()
             payload.extend("garbage!".encode('ascii'))
             for data in datas:
-                payload.extend(StreamMaker(use_hash=use_hash).encode(data))
+                payload.extend(StreamMaker(mtu=DEFAULT_MTU, use_hash=use_hash).encode(data))
                 payload.extend("garbage!...".encode('ascii'))
             
-            parser = StreamParser(use_hash=use_hash)
+            parser = StreamParser(mtu=DEFAULT_MTU, use_hash=use_hash)
             for b in payload:
                 parser.parse(bytes([b]))
             q = parser.queue()
@@ -106,7 +111,7 @@ class TestStreamDatagrams(ScrutinyUnitTest):
                 bytes([0x21,0x22,0x23]),
             ]
 
-            maker = StreamMaker(use_hash=use_hash)
+            maker = StreamMaker(mtu=DEFAULT_MTU, use_hash=use_hash)
             payload = bytearray()
             payload.extend("garbage!".encode('ascii'))
             split = None
@@ -116,7 +121,7 @@ class TestStreamDatagrams(ScrutinyUnitTest):
                     split = len(payload)-2
                 payload.extend("garbage!...".encode('ascii'))
             
-            parser = StreamParser(interchunk_timeout=0.2, use_hash=use_hash)
+            parser = StreamParser(mtu=DEFAULT_MTU, interchunk_timeout=0.2, use_hash=use_hash)
             parser.parse(payload[0:split])
             time.sleep(0.3)
             parser.parse(payload[split:])
@@ -133,6 +138,32 @@ class TestStreamDatagrams(ScrutinyUnitTest):
             self.assertFalse(q.empty(), f"i={i}")
             self.assertEqual(q.get(), datas[i], f"i={i}")
         self.assertTrue(q.empty())
+
+    
+    def test_stream_parser_mtu_overflow(self):
+        for use_hash in False, :
+            datas = [
+                bytes([0x01,0x02,0x03,0x04]),
+                bytes([0x11,0x12,0x13,0x14, 0x15, 0x16]),   # Will be dropped
+                bytes([0x21,0x22,0x23]),
+            ]
+
+            maker = StreamMaker(mtu=6, use_hash=use_hash)   # Stream Maker makes bigger payload than the aprser
+            payload = bytearray()
+            payload.extend("garbage!".encode('ascii'))
+            for data in datas:
+                payload.extend(maker.encode(data))
+                payload.extend("garbage!...".encode('ascii'))
+            
+            parser = StreamParser(mtu=4, interchunk_timeout=0.2, use_hash=use_hash)
+            parser.parse(payload)
+            
+            q = parser.queue()
+            for i in (0,2): # Skip the middle one
+                self.assertFalse(q.empty(), f"i={i}")
+                self.assertEqual(q.get(), datas[i], f"i={i}")
+            self.assertTrue(q.empty())   
+
 
 if __name__ == '__main__':
     import unittest

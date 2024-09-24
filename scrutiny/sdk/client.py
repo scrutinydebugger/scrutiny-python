@@ -1590,9 +1590,9 @@ class ScrutinyClient:
     @property
     def hostname(self) -> Optional[str]:
         """Hostname of the server used for websocket connection"""
-        return str(self._hostname)
+        return str(self._hostname) if self._hostname is not None else None
 
     @property
     def port(self) -> Optional[int]:
         """Port of the websocket"""
-        return int(self._port)
+        return int(self._port) if self._port is not None else None
