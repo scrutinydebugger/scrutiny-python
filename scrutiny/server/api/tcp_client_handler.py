@@ -10,6 +10,7 @@ import queue
 
 from scrutiny.server.api.abstract_client_handler import AbstractClientHandler, ClientHandlerConfig, ClientHandlerMessage
 from scrutiny.tools.stream_datagrams import StreamMaker, StreamParser
+import selectors
 
 from typing import Dict, Any, Optional, TypedDict, cast
 
@@ -28,13 +29,12 @@ class ThreadBasics:
 class ClientInfo:
     sock:socket.socket
     conn_id:str
-    thread_info:ThreadBasics
 
 class TCPClientHandler(AbstractClientHandler):
     STREAM_MTU = 1024*1024
     STREAM_INTERCHUNK_TIMEOUT = 1.0
-    STREEAM_USE_HASH = True
-
+    STREAM_USE_HASH = True
+    READ_SIZE = 4096
 
     config: TCPClientHandlerConfig
     logger: logging.Logger
@@ -42,9 +42,12 @@ class TCPClientHandler(AbstractClientHandler):
     server_thread:Optional[ThreadBasics]
     server_sock:Optional[socket.socket]
 
-    id2client_map:Dict[str, ClientInfo]
+    id2sock_map:Dict[str, socket.socket]
+    sock2id_map:Dict[socket.socket, str]
     rx_queue:queue.Queue[ClientHandlerMessage]
     stream_maker:StreamMaker
+
+    registry_lock:threading.Lock
 
     def __init__(self, config: ClientHandlerConfig, rx_event:Optional[threading.Event]=None):
         if 'host' not in config:
@@ -58,70 +61,77 @@ class TCPClientHandler(AbstractClientHandler):
         }
         self.logger = logging.getLogger(self.__class__.__name__)
         self.rx_event=rx_event
-        self.server_thread = None
-        self.id2client_map = {}
+        self.server_thread_info = None
+        self.id2sock_map = {}
+        self.sock2id_map = {}
         self.server_sock = None
         self.stream_maker = StreamMaker(
             mtu=self.STREAM_MTU,
-            use_hash=self.STREEAM_USE_HASH
+            use_hash=self.STREAM_USE_HASH
             )
+        self.rx_queue = queue.Queue()
+        self.registry_lock = threading.Lock()
         
     def send(self, msg: ClientHandlerMessage) -> None:
+        assert isinstance(msg, ClientHandlerMessage)
         try:
             # Using try/except to avoid race condition if the server thread deletes the client while sending
-            client = self.id2client_map[msg.conn_id]    
+            sock = self.id2sock_map[msg.conn_id]    
         except KeyError:
             self.logger.error(f"Trying to send to inexistent client with ID {msg.conn_id}")
-        
-        try:
-            payload = self.stream_maker.encode(json.dumps(msg.obj))
-            client.sock.send(payload)
-        except Exception as e:
-            self.logger.error(f"Failed to send message to client {msg.conn_id}. {e}")
-            self.logger.debug(traceback.format_exc())
+            return
         
 
+        payload = self.stream_maker.encode(json.dumps(msg.obj).encode('utf8'))
+        self.logger.debug(f"Sending {len(payload)} bytes to client ID: {msg.conn_id}")
+
+        try:
+            sock.send(payload)
+        except OSError:
+            # Client is gone. Did not get cleaned by the server thread. Should ot happen.
+            self.unregister_client(msg.conn_id)
+            
+    
+    def get_listen_port(self) -> Optional[int]:
+        if self.server_sock is None:
+            return None
+        
+        _, port = self.server_sock.getsockname()
+        return port
+
     def start(self) -> None:
-        self.logger.info('Starting websocket listener on %s:%s' % (self.config['host'], self.config['port']))
+        self.logger.info('Starting TCP socket listener on %s:%s' % (self.config['host'], self.config['port']))
         self.server_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.server_sock.bind((self.config['host'], self.config['port']))
         self.server_sock.listen()
 
-        self.server_thread = ThreadBasics(
+        self.server_thread_info = ThreadBasics(
             thread=threading.Thread(target=self.st_server_thread_fn),
             started_event=threading.Event(),
             stop_event=threading.Event()
         )
-        self.server_thread.thread.start()
-        self.server_thread.started_event.wait()
+        self.server_thread_info.thread.start()
+        self.server_thread_info.started_event.wait()
 
     def stop(self) -> None:
-        self._stop_internal(join=True)
-
-    def _stop_internal(self, join:bool=True) -> None:
-        for conn_id in list(self.id2client_map.keys()):
-            self.unregister_client(conn_id)
-
-        if self.server_thread is not None:
-            self.server_thread.stop_event.set()
+        if self.server_thread_info is not None:
+            self.server_thread_info.stop_event.set()
             if self.server_sock is not None:
-                self.server_sock.close()
-            if join:
-                self.server_thread.thread.join(2)
-                if self.server_thread.thread.is_alive():
-                    self.logger.error("Failed to stop the server. Join timed out")
+                self.server_sock.close()    # Will wake up the server thread
+           
+            server_thread_obj = self.server_thread_info.thread
+            server_thread_obj.join(2)
+            if server_thread_obj.is_alive():
+                self.logger.error("Failed to stop the server. Join timed out")
 
-        self.server_thread = None
+        self.server_thread_info = None
         self.server_sock = None
         while not self.rx_queue.empty():
             self.rx_queue.get()
 
 
     def process(self) -> None:
-        # cleanup dead clients in the main thread
-        for conn_id in list(self.id2client_map.keys()):
-            if not self.is_connection_active(conn_id):
-                self.unregister_client(conn_id)
+        pass
 
 
     def available(self) -> bool:
@@ -145,91 +155,128 @@ class TCPClientHandler(AbstractClientHandler):
             return False
         
         return True
+    
+    def get_number_client(self) -> int:
+        return len(self.id2sock_map)
 
+    def get_compatible_stream_parser(self) -> StreamParser:
+        return StreamParser(
+            mtu=self.STREAM_MTU,
+            interchunk_timeout=self.STREAM_INTERCHUNK_TIMEOUT,
+            use_hash=self.STREAM_USE_HASH
+        )
 
     def st_server_thread_fn(self) -> None:
         """The server thread accepting connections and spawning client threads"""
-        if self.server_thread is None:
+        if self.server_thread_info is None:
             return
-        self.server_thread.started_event.set()
-        while not self.server_thread.stop_event.is_set():
-            try:
-                sock, addr = self.server_sock.accept()
-                conn_id = uuid.uuid4().hex
-                self.logger.debug(f"Accepted incoming connection from {addr}. Assigned ID {conn_id}")
-                self.st_register_client(conn_id, sock)
-            except Exception as e:
-                self.logger.error(str(e))
-                self.logger.debug(traceback.format_exc())
-                self._stop_internal(join=False)
-    
-    def ct_client_thread_fn(self, conn_id:str, sock:socket.socket, started_event:threading.Event, stop_event:threading.Event) -> None:
-        """The thread dedicated to reading the client socket.
-            Exit if the socket becomes invalid
-        """
-        started_event.set()
-        parser = StreamParser(mtu=self.STREAM_MTU, interchunk_timeout=self.STREAM_INTERCHUNK_TIMEOUT, use_hash=self.STREEAM_USE_HASH)
-        q = parser.queue()
-        while not stop_event.is_set():
-            try:
-                data = sock.recv(4096)
-            except socket.error:
-                break   # Exit the thread. The main thread will cleanup by checking is_alive()
+        selector = selectors.DefaultSelector()
+        selector.register(self.server_sock, selectors.EVENT_READ)
+        stream_parser = StreamParser(
+            mtu=self.STREAM_MTU, 
+            interchunk_timeout=self.STREAM_INTERCHUNK_TIMEOUT, 
+            use_hash=self.STREAM_USE_HASH
+        )
+
+        try:
+            self.server_thread_info.started_event.set()
+            while not self.server_thread_info.stop_event.is_set():
+                events = selector.select()
+                for key, _ in events:
+                    if key.fileobj is self.server_sock:
+                        try:
+                            sock, addr = self.server_sock.accept()
+                        except OSError as e:
+                            # Server socket was closed. Someone must have called stop()
+                            self.logger.debug("Server socket is closed. Exiting server thread")
+                            self.server_thread_info.stop_event.set()
+                            break
+                        
+                        self.st_register_client(sock, addr)
+                        selector.register(sock, selectors.EVENT_READ)
+                    else:
+                        client_socket = key.fileobj
+                        try:
+                            client_id = self.sock2id_map[client_socket]
+                        except KeyError:
+                            self.logger.critical("Received message from unregistered socket")
+                            selector.unregister(client_socket)
+                            continue
+
+                        try:
+                            data = client_socket.recv(self.READ_SIZE)
+                        except OSError:
+                            # Socket got closed
+                            self.unregister_client(client_id)
+                            selector.unregister(client_socket)
+                            continue
+                                                            
+                        if not data:
+                            # Client is gone
+                            self.unregister_client(client_id)
+                            try:
+                                selector.unregister(client_socket)
+                            except KeyError:
+                                pass
+                        else:
+                            self.logger.debug(f"Received {len(data)} bytes from client ID: {client_id}")
+                            stream_parser.parse(data)
+                            while not stream_parser.queue().empty():
+                                datagram = stream_parser.queue().get()
+                                try:
+                                    obj = json.loads(datagram.decode('utf8'))
+                                except json.JSONDecodeError as e:
+                                    self.logger.error(f"Received malformed JSON from client {client_id}.")
+                                    self.logger.debug(traceback.format_exc())
+                                    continue
+                                
+                                self.rx_queue.put(ClientHandlerMessage(conn_id=client_id, obj=obj))
+                            
+
+        except Exception as e:
+            self.logger.error(str(e))
+            self.logger.debug(traceback.format_exc())
+        finally:
+            for conn_id in list(self.id2sock_map.keys()):
+                self.unregister_client(conn_id)
                 
-            parser.parse(data)
-            has_received_data=False
-            while not q.empty():
-                msg = q.get()
-                try:
-                    obj = json.loads(msg.decode('utf8'))
-                except json.JSONDecodeError as e:
-                    self.logger.error('Received malformed JSON. %s' % str(e))
-                    if msg:
-                        self.logger.debug(msg)
-                    continue
-                has_received_data = True
-                self.rx_queue.put((conn_id, obj))
             
-            if self.rx_event is not None and has_received_data:
-                self.rx_event.set() # The main thread release the CPU by waiting for that event.
-
-            
-    def st_register_client(self, conn_id:str, sock:socket.socket) -> None:
+    def st_register_client(self, sock:socket.socket, sockaddr:str) -> str:
         """Register a client. Called by the server thread (st)."""
-        stop_event = threading.Event()
-        started_event = threading.Event()
-        client_thread = ThreadBasics(
-            threading.Thread(target=self.ct_client_thread_fn, args=[conn_id, sock, started_event, stop_event]),
-            started_event=started_event,
-            stop_event=stop_event
-        )
+        conn_id = uuid.uuid4().hex
+        with self.registry_lock:
+            self.id2sock_map[conn_id] = sock
+            self.sock2id_map[sock] = conn_id
+        
+        self.logger.info(f"New client connected {sockaddr} (ID={conn_id}). {len(self.id2sock_map)} clients total")
 
-        client = ClientInfo(
-            sock = sock,
-            conn_id=conn_id,
-            thread_info=client_thread
-        )
-        self.id2client_map[conn_id] = client
+        return conn_id
 
-        client_thread.thread.start()
-        client_thread.started_event.wait()
 
     
     def unregister_client(self, conn_id:str) -> None:
         """Close the communication with a client and clear internal entry"""
-        try:
-            client = self.id2client_map[conn_id]
-        except KeyError:
-            return
+        with self.registry_lock:
+            try:
+                sock = self.id2sock_map[conn_id]
+            except KeyError:
+                return
+            
+            sockaddr = sock.getsockname()
         
-        self.logger.debug(f"Unregistering client with id {conn_id}")
-        client.thread_info.stop_event.set()
-        client.sock.close()
-        client.thread_info.thread.join(timeout=2)
-        if client.thread_info.thread.is_alive():
-            self.logger.error("Failed to join the client thread while unregistering client {client_id}")
+            try:
+                sock.close()
+            except OSError:
+                pass
+        
+            try:
+                del self.id2sock_map[conn_id]
+            except KeyError:
+                pass
 
-        try:
-            del self.id2client_map[conn_id]
-        except KeyError:
-            pass
+            try:
+                del self.sock2id_map[sock]
+            except KeyError:
+                pass
+
+        self.logger.info(f"Client disconnected {sockaddr} (ID={conn_id}). {len(self.id2sock_map)} clients total")
