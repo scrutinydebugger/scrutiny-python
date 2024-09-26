@@ -4,7 +4,6 @@ import json
 import threading
 import socket
 from dataclasses import dataclass
-import time
 import traceback
 import queue
 
@@ -12,7 +11,7 @@ from scrutiny.server.api.abstract_client_handler import AbstractClientHandler, C
 from scrutiny.tools.stream_datagrams import StreamMaker, StreamParser
 import selectors
 
-from typing import Dict, Any, Optional, TypedDict, cast
+from typing import Dict, Any, Optional, TypedDict, cast, List
 
 
 class TCPClientHandlerConfig(TypedDict):
@@ -39,7 +38,7 @@ class TCPClientHandler(AbstractClientHandler):
     config: TCPClientHandlerConfig
     logger: logging.Logger
     rx_event:Optional[threading.Event]
-    server_thread:Optional[ThreadBasics]
+    server_thread_info:Optional[ThreadBasics]
     server_sock:Optional[socket.socket]
 
     id2sock_map:Dict[str, socket.socket]
@@ -128,6 +127,9 @@ class TCPClientHandler(AbstractClientHandler):
         self.server_sock = None
         while not self.rx_queue.empty():
             self.rx_queue.get()
+        
+        for client_id in self.get_client_list():
+            self.unregister_client(client_id)
 
 
     def process(self) -> None:
@@ -145,19 +147,20 @@ class TCPClientHandler(AbstractClientHandler):
 
     def is_connection_active(self, conn_id: str) -> bool:
         """Tells if a client connection is presently functional and alive"""
-        try:
-            client = self.id2client_map[conn_id]
-        except KeyError:
-            return False
+        with self.registry_lock:
+            try:
+                sock = self.id2sock_map[conn_id]
+            except KeyError:
+                return False
         
-        # If the socket dies, the client thread will exit
-        if not client.thread_info.thread.is_alive():
+        if sock.fileno() == -1:
             return False
         
         return True
     
     def get_number_client(self) -> int:
-        return len(self.id2sock_map)
+        with self.registry_lock:
+            return len(self.id2sock_map)
 
     def get_compatible_stream_parser(self) -> StreamParser:
         return StreamParser(
@@ -170,6 +173,7 @@ class TCPClientHandler(AbstractClientHandler):
         """The server thread accepting connections and spawning client threads"""
         if self.server_thread_info is None:
             return
+        assert self.server_sock is not None
         selector = selectors.DefaultSelector()
         selector.register(self.server_sock, selectors.EVENT_READ)
         stream_parser = StreamParser(
@@ -195,7 +199,7 @@ class TCPClientHandler(AbstractClientHandler):
                         self.st_register_client(sock, addr)
                         selector.register(sock, selectors.EVENT_READ)
                     else:
-                        client_socket = key.fileobj
+                        client_socket = cast(socket.socket, key.fileobj)
                         try:
                             client_id = self.sock2id_map[client_socket]
                         except KeyError:
@@ -239,7 +243,10 @@ class TCPClientHandler(AbstractClientHandler):
         finally:
             for conn_id in list(self.id2sock_map.keys()):
                 self.unregister_client(conn_id)
-                
+
+    def get_client_list(self) -> List[str]:
+        with self.registry_lock:
+            return list(self.id2sock_map.keys())
             
     def st_register_client(self, sock:socket.socket, sockaddr:str) -> str:
         """Register a client. Called by the server thread (st)."""
@@ -251,7 +258,7 @@ class TCPClientHandler(AbstractClientHandler):
         self.logger.info(f"New client connected {sockaddr} (ID={conn_id}). {len(self.id2sock_map)} clients total")
 
         return conn_id
-
+    
 
     
     def unregister_client(self, conn_id:str) -> None:
@@ -278,5 +285,6 @@ class TCPClientHandler(AbstractClientHandler):
                 del self.sock2id_map[sock]
             except KeyError:
                 pass
+            nb_client = len(self.id2sock_map)
 
-        self.logger.info(f"Client disconnected {sockaddr} (ID={conn_id}). {len(self.id2sock_map)} clients total")
+        self.logger.info(f"Client disconnected {sockaddr} (ID={conn_id}). {nb_client} clients total")

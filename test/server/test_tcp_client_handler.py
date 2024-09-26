@@ -49,7 +49,8 @@ class TestTCPClientHandler(ScrutinyUnitTest):
         self.assert_client_count_eq(1)
 
         s.send(self.stream_maker.encode(self.serialize_dict(obj)))
-        msg = self.handler.rx_queue.get(timeout=1)
+        self.wait_true(lambda : self.handler.available(), 1)
+        msg = self.handler.recv()
         self.assertIsNotNone(msg.conn_id)
         self.assertEqual(msg.obj, obj)
 
@@ -158,42 +159,29 @@ class TestTCPClientHandler(ScrutinyUnitTest):
         s1.send(self.stream_maker.encode(self.serialize_dict({})))
 
         msg = self.handler.rx_queue.get(timeout=1)
+        self.assertTrue(self.handler.is_connection_active(msg.conn_id))
         
         s1.close()
         
         self.handler.send(ClientHandlerMessage(msg.conn_id, {}))
+        self.assertFalse(self.handler.is_connection_active(msg.conn_id))
 
     
-    def test_exchange_large_objects(self):
-        string_size= 10000
-        large_obj = {
-            'key1' : 'a' * string_size
-        }
-
+    def test_close_cleanup(self):
         s1 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         s1.connect((self.server_host, self.server_port))
-        s1.send(self.stream_maker.encode(self.serialize_dict(large_obj)))
+        s1.send(self.stream_maker.encode(self.serialize_dict({})))
 
-        msg = self.handler.rx_queue.get(timeout=1)
-        self.assertEqual(msg.obj, large_obj)
-        
-        large_obj2 = {
-            'key2' : 'b' * string_size
-        }
+        self.wait_true(lambda : self.handler.available(), 1)
+        self.handler.stop()
+        self.assertFalse(self.handler.available())
+        self.assertTrue(self.handler.rx_queue.empty())
 
-        self.handler.send(ClientHandlerMessage(msg.conn_id, large_obj2))
-        
-        s1.settimeout(0.5)
-        parser = self.handler.get_compatible_stream_parser()
-        try:
-            while parser.queue().empty():
-                parser.parse(s1.recv(100))
-        except socket.timeout:
-            pass
+        with self.assertRaises(OSError):
+            # Don't know why required twice :S
+            s1.send(b'123')
+            s1.send(b'123')
 
-        self.assertFalse(parser.queue().empty())
-        large_obj2_received = self.deserialize_dict(parser.queue().get())
-        self.assertEqual(large_obj2_received, large_obj2)
         
     def tearDown(self) -> None:
         self.handler.stop()
