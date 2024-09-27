@@ -1,6 +1,6 @@
 #    API.py
-#        Manages the websocket API to talk with the multiple clients. Can be a GUI client
-#        or a CLI client
+#        Manages the TCP API to talk with the multiple clients. Can be a GUI client or a CLI
+#        client
 #
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
@@ -38,7 +38,6 @@ import scrutiny.core.datalogging as core_datalogging
 from scrutiny.core.typehints import EmptyDict
 
 
-from .websocket_client_handler import WebsocketClientHandler
 from .tcp_client_handler import TCPClientHandler
 from .dummy_client_handler import DummyClientHandler
 from .value_streamer import ValueStreamer
@@ -282,9 +281,7 @@ class API:
                  rx_event:Optional[threading.Event]=None):
         self.validate_config(config)
 
-        if config['client_interface_type'] == 'websocket':
-            self.client_handler = WebsocketClientHandler(config['client_interface_config'], rx_event=rx_event)
-        elif config['client_interface_type'] == 'tcp':
+        if config['client_interface_type'] == 'tcp':
             self.client_handler = TCPClientHandler(config['client_interface_config'], rx_event=rx_event)
         elif config['client_interface_type'] == 'dummy':
             self.client_handler = DummyClientHandler(config['client_interface_config'], rx_event=rx_event)

@@ -1,3 +1,11 @@
+#    embedded_enum.py
+#        Contains the definition for an enum on the embedded side
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021 Scrutiny Debugger
+
 from typing import TypedDict, Dict, Optional
 
 __all__ = ['EmbeddedEnum', 'EmbeddedEnumDef']

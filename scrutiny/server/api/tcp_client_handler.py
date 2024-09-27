@@ -1,3 +1,12 @@
+#    tcp_client_handler.py
+#        The connection manager used by the aPI that manages multi-clients. Listen on TCP
+#        sockets
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021 Scrutiny Debugger
+
 import uuid
 import logging
 import json

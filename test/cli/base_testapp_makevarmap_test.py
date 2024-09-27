@@ -1,3 +1,11 @@
+#    base_testapp_makevarmap_test.py
+#        BAse test for symbol extrction based on C++ TestApp
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021 Scrutiny Debugger
+
 import unittest
 
 import elftools.elf

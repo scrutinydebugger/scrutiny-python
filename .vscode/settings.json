@@ -44,7 +44,6 @@
         "testcases",
         "typehints",
         "varbit",
-        "websockets",
         "xaxis"
     ],
     "cSpell.enabled": true

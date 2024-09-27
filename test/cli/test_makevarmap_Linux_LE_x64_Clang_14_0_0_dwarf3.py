@@ -1,5 +1,5 @@
-#    test_makevarmap_Linux_LE_x64_Clang_14_0_0.py
-#        Test that we can make a valid VarMap out of a known binary.
+#    test_makevarmap_Linux_LE_x64_Clang_14_0_0_dwarf3.py
+#        Test suite for symbol extraction. clang dwarf V3
 #
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)

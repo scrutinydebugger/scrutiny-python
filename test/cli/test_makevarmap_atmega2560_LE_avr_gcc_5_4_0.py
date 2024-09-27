@@ -1,5 +1,5 @@
 #    test_makevarmap_atmega2560_LE_avr_gcc_5_4_0.py
-#        Test that we can make a valid VarMap out of a known binary : scrutiny-nsec2024.
+#        Test suite for symbol extraction. AvrGCC dwarf V4
 #
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)

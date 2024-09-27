@@ -1,6 +1,5 @@
-
-#    test_tcp_datagrams.py
-#        Test the parsing layer used on top of socket to exchange datagrams between clients and server
+#    test_stream_datagrams.py
+#        Test the tools that transmit datagrams over a stream.
 #
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)

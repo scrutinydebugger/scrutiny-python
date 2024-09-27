@@ -1,5 +1,5 @@
 #    server.py
-#        CLI Command to launch the scrutiny server
+#        Command that launches the Scrutiny server
 #
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
@@ -25,7 +25,6 @@ class Server(BaseCommand):
         self.args = args
         self.parser = argparse.ArgumentParser(prog=self.get_prog())
         self.parser.add_argument('--config', default=None, help='Configuration file used by the server')
-        self.parser.add_argument('--log_websockets', default='error', metavar='LEVEL', help="Verbosity level of websockets module")
         self.parser.add_argument('--options', metavar='OPTION', nargs='*', help="Server configuration passed by the CLI."
                                  " Specified as a list of key=value where key can be a nested dict where the a dot (.) represent a nesting level. 'a.b.c=val'"
                                  "Overrides file configuration if specified.")
@@ -56,11 +55,6 @@ class Server(BaseCommand):
         format_string = '%(asctime)s.%(msecs)03d [%(levelname)s] <%(name)s> %(message)s'
         time_format = r'%Y-%m-%d %H:%M:%S'
         logging.getLogger().handlers[0].setFormatter(logging.Formatter(format_string, time_format))
-
-        websockets_loggers = ['websockets.server', 'websockets.protocol', 'asyncio']
-        logging_level = getattr(logging, args.log_websockets.upper())
-        for name in websockets_loggers:
-            logging.getLogger(name).setLevel(logging_level)
 
         extra_configs:Dict[Any, Any] = {}
         if args.options is not None:

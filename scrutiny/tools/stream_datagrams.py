@@ -1,3 +1,12 @@
+#    stream_datagrams.py
+#        Internal tool to transmit datagrams over a stream. Used by the server and the clients
+#        to exchange JSON objects over TCP
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021 Scrutiny Debugger
+
 __all__ = ['StreamMaker', 'StreamParser']
 
 from typing import Optional, Any, Iterable, SupportsIndex, cast

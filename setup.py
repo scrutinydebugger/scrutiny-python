@@ -14,7 +14,6 @@ import os
 dependencies = [
     'appdirs==1.4.4',
     'pyelftools==0.31',
-    'websockets==12.0',
     'sortedcontainers==2.4.0',
     'pyserial==3.5'
 ]

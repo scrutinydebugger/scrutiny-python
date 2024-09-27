@@ -36,9 +36,6 @@
         "scrutiny/cli/commands/install_sfd.py": {
             "docstring": "CLI Command to copy a Scrutiny Firmware Description file into the scrutiny storage so it can be automatically loaded by the server upon connection with a device"
         },
-        "scrutiny/cli/commands/launch_server.py": {
-            "docstring": "CLI Command to launch the scrutiny server"
-        },
         "scrutiny/cli/commands/make_sfd.py": {
             "docstring": "CLI Command to build and validate a Scrutiny Firmware Description file"
         },
@@ -79,19 +76,16 @@
             "docstring": "Simple tool to get the memory ranges of the .elf sections that contains the variables. \nUsed to generate Memdumps for unit testing"
         },
         "scrutiny/server/server.py": {
-            "docstring": "The scrutiny server. Talk with multiple clients through a websocket API and communicate with a device through a given communication link (Serial, UDP, etc)\n Allow the clients to interact with the device"
+            "docstring": "The scrutiny server. Talk with multiple clients through a TCP API and communicate with a device through a given communication link (Serial, UDP, etc)\n Allow the clients to interact with the device"
         },
         "scrutiny/server/api/API.py": {
-            "docstring": "Manages the websocket API to talk with the multiple clients. Can be a GUI client or a CLI client"
+            "docstring": "Manages the TCP API to talk with the multiple clients. Can be a GUI client or a CLI client"
         },
         "scrutiny/server/api/dummy_client_handler.py": {
-            "docstring": "Stubbed API connector to make API requests in unit tests without relying on websockets"
+            "docstring": "Stubbed API connector to make API requests in unit tests without relying on the network"
         },
         "scrutiny/server/api/value_streamer.py": {
             "docstring": "Take the data from the Datastore and sends it to all clients by respecting bitrate limits and avoiding duplicate date."
-        },
-        "scrutiny/server/api/websocket_client_handler.py": {
-            "docstring": "Manage the API websocket connections .\n This class has a list of all clients and identify them by a unique ID"
         },
         "scrutiny/server/datastore/datastore.py": {
             "docstring": "This class is a container that will hold all the data read from a device (e.g. the variables).\n It's the meeting point of the API (with ValueStreamer) and the DeviceHandler"
@@ -173,9 +167,6 @@
         },
         "test/cli/test_elf_dwarf_var_extractor.py": {
             "docstring": "Test the extraction of dwarf symbols from a .elf file"
-        },
-        "test/cli/test_makevarmap_Linux_LE_x64_Gcc_8_3_0.py": {
-            "docstring": "Test that we can make a valid VarMap out of a known binary."
         },
         "test/server/test_api.py": {
             "docstring": "Test the client API through a fake handler"
@@ -366,9 +357,6 @@
         "scrutiny/tools/throttler.py": {
             "docstring": "Allow to do some throttling to reduce the transmission speed"
         },
-        "scrutiny/tools/synchronous_websocket_server.py": {
-            "docstring": "Synchronous wrapper around the asynchronous websockets module"
-        },
         "scrutiny/sdk/exceptions.py": {
             "docstring": "Definitions of all exceptions used across the Scrutiny SDK"
         },
@@ -416,6 +404,51 @@
         },
         "scrutiny/sdk/listeners/csv_file_listener.py": {
             "docstring": "Listener that dumps the values of the watchables into either one or multiple CSV files"
+        },
+        "test/cli/test_makevarmap_Linux_LE_x64_Clang_14_0_0_dwarf3.py": {
+            "docstring": "Test suite for symbol extraction. clang dwarf V3"
+        },
+        "test/cli/test_makevarmap_Linux_LE_x64_Clang_14_0_0_dwarf2.py": {
+            "docstring": "Test suite for symbol extraction. clang dwarf V2"
+        },
+        "test/cli/test_makevarmap_Linux_LE_x64_Gcc_11_4_0_dwarf4.py": {
+            "docstring": "Test suite for symbol extraction. GCC dwarf V4"
+        },
+        "test/cli/test_makevarmap_Linux_LE_x64_Clang_14_0_0_dwarf4.py": {
+            "docstring": "Test suite for symbol extraction. clang dwarf V4"
+        },
+        "test/cli/test_makevarmap_atmega2560_LE_avr_gcc_5_4_0.py": {
+            "docstring": "Test suite for symbol extraction. AvrGCC dwarf V4"
+        },
+        "test/cli/base_testapp_makevarmap_test.py": {
+            "docstring": "BAse test for symbol extrction based on C++ TestApp"
+        },
+        "test/cli/test_makevarmap_Linux_LE_x64_Gcc_11_4_0_dwarf2.py": {
+            "docstring": "Test suite for symbol extraction. GCC dwarf V2"
+        },
+        "test/cli/test_makevarmap_Linux_LE_x64_Gcc_11_4_0_dwarf3.py": {
+            "docstring": "Test suite for symbol extraction. GCC dwarf V3"
+        },
+        "test/cli/base_ctestapp_makevarmap_test.py": {
+            "docstring": "Base test for make varmap tests based on the C TestApp"
+        },
+        "test/server/test_tcp_client_handler.py": {
+            "docstring": "Test the TCP client handler (used by the server API) "
+        },
+        "test/tools/test_stream_datagrams.py": {
+            "docstring": "Test the tools that transmit datagrams over a stream."
+        },
+        "scrutiny/cli/commands/server.py": {
+            "docstring": "Command that launches the Scrutiny server"
+        },
+        "scrutiny/core/embedded_enum.py": {
+            "docstring": "Contains the definition for an enum on the embedded side"
+        },
+        "scrutiny/server/api/tcp_client_handler.py": {
+            "docstring": "The connection manager used by the aPI that manages multi-clients. Listen on TCP sockets"
+        },
+        "scrutiny/tools/stream_datagrams.py": {
+            "docstring": "Internal tool to transmit datagrams over a stream. Used by the server and the clients to exchange JSON objects over TCP"
         }
     }
 }

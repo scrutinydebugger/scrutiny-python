@@ -1,3 +1,10 @@
+#    test_tcp_client_handler.py
+#        Test the TCP client handler (used by the server API)
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021 Scrutiny Debugger
 
 from scrutiny.server.api.abstract_client_handler import ClientHandlerMessage
 from scrutiny.server.api.tcp_client_handler import TCPClientHandler, TCPClientHandlerConfig

@@ -1,5 +1,5 @@
 #    server.py
-#        The scrutiny server. Talk with multiple clients through a websocket API and communicate
+#        The scrutiny server. Talk with multiple clients through a TCP API and communicate
 #        with a device through a given communication link (Serial, UDP, etc)
 #        Allow the clients to interact with the device
 #
