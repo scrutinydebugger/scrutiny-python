@@ -903,7 +903,7 @@ class TestDeviceHandlerMultipleLink(ScrutinyUnitTest):
         self.emulated_device1.start()
         self.emulated_device2.start()
 
-        signal.signal(signal.SIGINT, self.ctrlc_handler)    # Clean exit on Ctrl+C
+        #signal.signal(signal.SIGINT, self.ctrlc_handler)    # Clean exit on Ctrl+C
 
     def tearDown(self):
         self.emulated_device1.stop()

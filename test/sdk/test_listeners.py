@@ -44,14 +44,14 @@ class WorkingTestListener(BaseListener):
         self.recv_list = []
     
     def setup(self):
-        self.setup_time = time.monotonic()
+        self.setup_time = time.perf_counter()
         time.sleep(0.2)
     
     def teardown(self):
-        self.teardown_time = time.monotonic()
+        self.teardown_time = time.perf_counter()
 
     def receive(self, updates: List[ValueUpdate]) -> None:
-        self.recv_time=time.monotonic()
+        self.recv_time=time.perf_counter()
         self.recv_list.extend(updates)
 
 class SetupFailedListener(BaseListener):
@@ -99,9 +99,9 @@ class ReceiveFailedListener(BaseListener):
 
 def wait_cond(cond, timeout, msg=""):
     timed_out = False
-    t1 = time.monotonic()
+    t1 = time.perf_counter()
     while True:
-        if time.monotonic()-t1 > timeout:
+        if time.perf_counter()-t1 > timeout:
             timed_out = True
             break
         if cond():
@@ -305,6 +305,7 @@ class TestListeners(ScrutinyUnitTest):
         self.assertEqual(received, 2*count)
     
     def test_csv_writer_listener_no_limits(self):
+
         with TemporaryDirectory() as tempdir:
             csv_config = CSVConfig()
             listener = CSVFileListener(
@@ -341,53 +342,53 @@ class TestListeners(ScrutinyUnitTest):
 
 
             self.assertTrue(os.path.exists(os.path.join(tempdir, 'my_file.csv' )))
-            f = open(os.path.join(tempdir, 'my_file.csv' ), 'r', encoding=csv_config.encoding, newline=csv_config.newline)
-            reader = csv.reader(f, delimiter=csv_config.delimiter, quotechar=csv_config.quotechar, quoting=csv_config.quoting)
-            rows = iter(reader)
-            headers = next(rows)
-            self.assertEqual(headers[0], 'datetime' )
-            self.assertEqual(headers[1], 'time (ms)' )
-            self.assertEqual(headers[-1], 'update flags' )
-            all_watchables = sorted([self.w1, self.w2, self.w3, self.w4, self.w5], key=lambda x: x.display_path)
-            index=2
-            for watchable in all_watchables:
-                self.assertEqual(headers[index], watchable.display_path )
-                index+=1
-            
-            all_rows = list(rows)
-            self.assertEqual(len(all_rows), 10)
-            for i in range(len(all_rows)):
-                row = all_rows[i]
-                datetime.strptime(row[0], r'%Y-%m-%d %H:%M:%S')    # check it can be parsed
-                float(row[1])  # ensure it can be parsed
+            with open(os.path.join(tempdir, 'my_file.csv' ), 'r', encoding=csv_config.encoding, newline=csv_config.newline) as f:
+                reader = csv.reader(f, delimiter=csv_config.delimiter, quotechar=csv_config.quotechar, quoting=csv_config.quoting)
+                rows = iter(reader)
+                headers = next(rows)
+                self.assertEqual(headers[0], 'datetime' )
+                self.assertEqual(headers[1], 'time (ms)' )
+                self.assertEqual(headers[-1], 'update flags' )
+                all_watchables = sorted([self.w1, self.w2, self.w3, self.w4, self.w5], key=lambda x: x.display_path)
+                index=2
+                for watchable in all_watchables:
+                    self.assertEqual(headers[index], watchable.display_path )
+                    index+=1
+                
+                all_rows = list(rows)
+                self.assertEqual(len(all_rows), 10)
+                for i in range(len(all_rows)):
+                    row = all_rows[i]
+                    datetime.strptime(row[0], r'%Y-%m-%d %H:%M:%S')    # check it can be parsed
+                    float(row[1])  # ensure it can be parsed
 
-                if i == 0:
-                    self.assertEqual(row[-1], '1,1,1,0,1')
-                elif i==6:
-                    self.assertEqual(row[-1], '1,1,0,0,1')
-                else:
-                    self.assertEqual(row[-1], '1,1,1,1,1')
+                    if i == 0:
+                        self.assertEqual(row[-1], '1,1,1,0,1')
+                    elif i==6:
+                        self.assertEqual(row[-1], '1,1,0,0,1')
+                    else:
+                        self.assertEqual(row[-1], '1,1,1,1,1')
 
 
-                for col in range(2, len(headers)-1):
-                    if headers[col] == self.w1.display_path:
-                        self.assertEqual(row[col], i*1.1)
-                    elif headers[col] == self.w2.display_path:
-                        self.assertEqual(row[col], -2*i)
-                    elif headers[col] == self.w3.display_path:
-                        if i == 6:
-                            self.assertEqual(row[col], 3*(i-1))
-                        else:
-                            self.assertEqual(row[col], 3*i)
-                    elif headers[col] == self.w4.display_path:
-                        if i == 0:
-                            self.assertEqual(row[col], '')
-                        elif i == 6:
-                            self.assertEqual(row[col], (i-1)*4.4123)
-                        else:
-                            self.assertEqual(row[col], i*4.4123)
-                    elif headers[col] == self.w5.display_path:
-                        self.assertEqual(row[col], 1 if i%2==0 else 0)
+                    for col in range(2, len(headers)-1):
+                        if headers[col] == self.w1.display_path:
+                            self.assertEqual(row[col], i*1.1)
+                        elif headers[col] == self.w2.display_path:
+                            self.assertEqual(row[col], -2*i)
+                        elif headers[col] == self.w3.display_path:
+                            if i == 6:
+                                self.assertEqual(row[col], 3*(i-1))
+                            else:
+                                self.assertEqual(row[col], 3*i)
+                        elif headers[col] == self.w4.display_path:
+                            if i == 0:
+                                self.assertEqual(row[col], '')
+                            elif i == 6:
+                                self.assertEqual(row[col], (i-1)*4.4123)
+                            else:
+                                self.assertEqual(row[col], i*4.4123)
+                        elif headers[col] == self.w5.display_path:
+                            self.assertEqual(row[col], 1 if i%2==0 else 0)
 
 
     def test_csv_writer_listener_file_split(self):
@@ -467,6 +468,10 @@ class TestListeners(ScrutinyUnitTest):
                             self.assertEqual(row[col], i*4.4123)
                         elif headers[col] == self.w5.display_path:
                             self.assertEqual(row[col], 1 if i%2==0 else 0)
+
+            f1.close()
+            f2.close()
+            f3.close()
             
     def test_csv_writer_listener_bad_params(self):
         with TemporaryDirectory() as tempdir:

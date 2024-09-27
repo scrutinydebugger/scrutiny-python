@@ -1,5 +1,5 @@
 #    dummy_client_handler.py
-#        Stubbed API connector to make API requests in unit tests without relying on websockets
+#        Stubbed API connector to make API requests in unit tests without relying on the network
 #
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
@@ -167,7 +167,7 @@ class DummyClientHandler(AbstractClientHandler):
         pass  # nothing to do
 
     def start(self) -> None:
-        self.thread = threading.Thread(target=self.run)
+        self.thread = threading.Thread(target=self.run, daemon=True)
         self.thread.start()
         self.started = True
 

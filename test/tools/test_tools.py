@@ -9,7 +9,6 @@
 from scrutiny.tools import Throttler
 import time
 import math
-import threading
 from test import logger
 from test import ScrutinyUnitTest
 

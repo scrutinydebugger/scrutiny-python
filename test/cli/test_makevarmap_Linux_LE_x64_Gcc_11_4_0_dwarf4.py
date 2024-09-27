@@ -1,5 +1,5 @@
-#    test_makevarmap_Linux_LE_x64_Gcc_8_3_0.py
-#        Test that we can make a valid VarMap out of a known binary.
+#    test_makevarmap_Linux_LE_x64_Gcc_11_4_0_dwarf4.py
+#        Test suite for symbol extraction. GCC dwarf V4
 #
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)

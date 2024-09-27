@@ -10,7 +10,6 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
-
 from scrutiny.server.protocol import Request, Response
 from scrutiny.tools import Timer, Throttler
 from copy import copy

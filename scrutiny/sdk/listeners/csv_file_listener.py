@@ -245,5 +245,6 @@ class CSVFileListener(BaseListener):
             self._switch_to_next_file()
     
     def teardown(self) -> None:
+        self._csv_writer = None
         if self._actual_file_handle is not None:
             self._actual_file_handle.close()

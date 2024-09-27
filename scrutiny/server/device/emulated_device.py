@@ -59,10 +59,10 @@ class EmulatedTimebase:
 
     def __init__(self) -> None:
         self.timestamp_100ns = int(0)
-        self.last_time = time.monotonic()
+        self.last_time = time.perf_counter()
 
     def process(self) -> None:
-        t = time.monotonic()
+        t = time.perf_counter()
         dt = t - self.last_time
         self.timestamp_100ns += int(round(dt * 1e7))
         self.timestamp_100ns = self.timestamp_100ns & 0xFFFFFFFF
@@ -314,11 +314,11 @@ class DataloggerEmulator:
         val = self.check_trigger_condition()
 
         if not self.last_trigger_condition_result and val:
-            self.trigger_rising_edge_timestamp = time.monotonic()
+            self.trigger_rising_edge_timestamp = time.perf_counter()
 
         if val:
             assert self.trigger_rising_edge_timestamp is not None
-            if time.monotonic() - self.trigger_rising_edge_timestamp > self.config.trigger_hold_time:
+            if time.perf_counter() - self.trigger_rising_edge_timestamp > self.config.trigger_hold_time:
                 output = True
 
         self.last_trigger_condition_result = val
@@ -384,7 +384,7 @@ class DataloggerEmulator:
         if self.state == device_datalogging.DataloggerState.ARMED:
             assert self.config is not None
             if self.check_trigger():
-                self.trigger_fulfilled_timestamp = time.monotonic()
+                self.trigger_fulfilled_timestamp = time.perf_counter()
                 self.byte_count_at_trigger = self.encoder.get_byte_counter()
                 self.entry_counter_at_trigger = self.encoder.get_entry_counter()
                 self.target_byte_count_after_trigger = self.byte_count_at_trigger + round((1.0 - self.config.probe_location) * self.buffer_size)
@@ -395,7 +395,7 @@ class DataloggerEmulator:
         if self.state == device_datalogging.DataloggerState.TRIGGERED:
             assert self.config is not None
             probe_location_ok = self.encoder.get_byte_counter() >= self.target_byte_count_after_trigger
-            timed_out = (self.config.timeout != 0) and ((time.monotonic() - self.trigger_fulfilled_timestamp) >= self.config.timeout)
+            timed_out = (self.config.timeout != 0) and ((time.perf_counter() - self.trigger_fulfilled_timestamp) >= self.config.timeout)
             if probe_location_ok or timed_out:
                 self.logger.debug("Acquisition complete. Going to ACQUISITION_COMPLETED state")
                 self.state = device_datalogging.DataloggerState.ACQUISITION_COMPLETED

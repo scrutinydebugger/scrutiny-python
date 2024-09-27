@@ -22,14 +22,14 @@ from scrutiny.tools.timer import Timer
 from scrutiny.sdk.write_request import WriteRequest
 from scrutiny.server.api import typing as api_typing
 from scrutiny.server.api import API
+from scrutiny.server.api.tcp_client_handler import TCPClientHandler
+from scrutiny.tools.stream_datagrams import StreamMaker, StreamParser
+import selectors
 
 import logging
 import traceback
 import threading
 import socket
-import websockets
-import websockets.sync.client
-import websockets.exceptions
 import json
 import time
 import enum
@@ -39,7 +39,7 @@ from base64 import b64encode
 import queue
 import types
 
-from typing import List, Dict, Optional, Callable, cast, Union, TypeVar, Tuple, Type, Any, Literal
+from typing import List, Dict, Optional, Callable, cast, Union, TypeVar, Tuple, Type, Any, Literal, Generator
 
 
 class CallbackState(enum.Enum):
@@ -186,7 +186,10 @@ class ScrutinyClient:
     _port: Optional[int]        # Port number of the server
     _logger: logging.Logger     # logging interface
     _encoding: str              # The API string encoding. utf-8
-    _conn: Optional[websockets.sync.client.ClientConnection]    # The websocket handles to the server
+    _sock: Optional[socket.socket]    # The socket talking with the server
+    _selector: Optional[selectors.DefaultSelector]
+    _stream_parser : Optional[StreamParser]
+    _stream_maker : Optional[StreamMaker]
     _rx_message_callbacks: List[RxMessageCallback]  # List of callbacks to call for each message received. (mainly for testing)
     _reqid: int                 # The actual request ID. Increasing integer
     _timeout: float             # Default timeout value for server requests
@@ -206,7 +209,7 @@ class ScrutinyClient:
 
     _worker_thread: Optional[threading.Thread]  # The thread that handles the communication
     _threading_events: ThreadingEvents  # All the threading events grouped under a single object
-    _conn_lock: threading.Lock  # A threading lock to access the websocket
+    _sock_lock: threading.Lock  # A threading lock to access the socket
     _main_lock: threading.Lock  # A threading lock to access the client internal state variables
 
     _callback_storage: Dict[int, CallbackStorageEntry]  # Dict of all pending server request index by their request ID
@@ -251,11 +254,14 @@ class ScrutinyClient:
         self._hostname = None
         self._port = None
         self._encoding = 'utf8'
-        self._conn = None
+        self._sock = None
+        self._selector = None
+        self._stream_parser = None
+        self._stream_maker = None
         self._rx_message_callbacks = [] if rx_message_callbacks is None else rx_message_callbacks
         self._worker_thread = None
         self._threading_events = self.ThreadingEvents()
-        self._conn_lock = threading.Lock()
+        self._sock_lock = threading.Lock()
         self._main_lock = threading.Lock()
         self._reqid = 0
         self._timeout = timeout
@@ -301,19 +307,18 @@ class ScrutinyClient:
     def _worker_thread_task(self, started_event: threading.Event) -> None:
         self._require_status_update = True  # Bootstrap status update loop
         started_event.set()
-
+        
         self._request_status_timer.start()
-        # _conn will be None after a disconnect
-        while not self._threading_events.stop_worker_thread.is_set() and self._conn is not None:
+        # _sock will be None after a disconnect
+        while not self._threading_events.stop_worker_thread.is_set() and self._sock is not None:
             require_sync_before = False
             try:
                 if self._threading_events.require_sync.is_set():
                     require_sync_before = True
 
                 self._wt_process_next_server_status_update()
-
-                msg = self._wt_recv(timeout=0.001)
-                if msg is not None:
+                
+                for msg in self._wt_recv(timeout=0.005):
                     self.wt_process_rx_api_message(msg)
 
                 self._wt_check_callbacks_timeouts()
@@ -323,22 +328,21 @@ class ScrutinyClient:
 
             except sdk.exceptions.ConnectionError as e:
                 self._logger.error(f"Connection error in worker thread: {e}")
-                self._wt_disconnect()    # Will set _conn to None
+                self._wt_disconnect()    # Will set _sock to None
             except Exception as e:
                 self._logger.error(f"Unhandled exception in worker thread: {e}")
                 self._logger.debug(traceback.format_exc())
-                self._wt_disconnect()    # Will set _conn to None
+                self._wt_disconnect()    # Will set _sock to None
 
             if self._threading_events.disconnect.is_set():
                 self._logger.debug(f"User required to disconnect")
-                self._wt_disconnect()  # Will set _conn to None
+                self._wt_disconnect()  # Will set _sock to None
                 self._threading_events.disconnected.set()
 
             if require_sync_before:
                 self._threading_events.require_sync.clear()
                 self._threading_events.sync_complete.set()
 
-            time.sleep(0.005)
         self._logger.debug('Worker thread is exiting')
         self._threading_events.stop_worker_thread.clear()
 
@@ -664,16 +668,24 @@ class ScrutinyClient:
             Does not throw an exception in case of broken pipe
         """
 
-        with self._conn_lock:
-            if self._conn is not None:
+        with self._sock_lock:
+            if self._sock is not None:
                 self._logger.info(f"Disconnecting from server at {self._hostname}:{self._port}")
                 try:
-                    self._conn.close_socket()
-                except (websockets.exceptions.WebSocketException, socket.error):
-                    self._logger.debug("Failed to close the websocket")
+                    self._sock.close()
+                except socket.error:
+                    self._logger.debug("Failed to close the socket")
                     self._logger.debug(traceback.format_exc())
+            
+            if self._selector is not None:
+                self._selector.close()
+            
+            if self._stream_parser is not None:
+                self._stream_parser.reset()
 
-            self._conn = None
+            self._sock = None
+            self._selector = None
+            self._stream_parser = None
 
         with self._main_lock:
             self._hostname = None
@@ -737,17 +749,15 @@ class ScrutinyClient:
 
             future = self._register_callback(obj['reqid'], callback, timeout=timeout)
 
-        with self._conn_lock:
-            if self._conn is None:
+        with self._sock_lock:
+            if self._sock is None or self._stream_maker is None:
                 raise sdk.exceptions.ConnectionError(f"Disconnected from server")
-
+            
             try:
                 s = json.dumps(obj)
                 self._logger.debug(f"Sending {s}")
-                self._conn.send(s.encode(self._encoding))
-            except TimeoutError:
-                pass
-            except (websockets.exceptions.WebSocketException, socket.error) as e:
+                self._sock.send(self._stream_maker.encode(s.encode(self._encoding)))
+            except socket.error as e:
                 error = e
                 self._logger.debug(traceback.format_exc())
 
@@ -757,31 +767,45 @@ class ScrutinyClient:
 
         return future
 
-    def _wt_recv(self, timeout: Optional[float] = None) -> Optional[Dict[str, Any]]:
-        # No need to lock conn_lock here. Important is during disconnection
+    def _wt_recv(self, timeout:Optional[float]=None) -> Generator[Dict[str, Any], None, None]:
+        # No need to lock sock_lock here. Important is during disconnection
         error: Optional[Exception] = None
         obj: Optional[Dict[str, Any]] = None
 
-        if self._conn is None:
+        if self._sock is None or self._stream_parser is None or self._selector is None:
             raise sdk.exceptions.ConnectionError(f"Disconnected from server")
 
+        server_gone = False
         try:
-            data = self._conn.recv(timeout=timeout)
-            if isinstance(data, bytes):
-                data = data.decode(self._encoding)
-            self._logger.debug(f"Received {data}")
-            obj = json.loads(data)
-        except TimeoutError:
-            pass
-        except (websockets.exceptions.WebSocketException, socket.error) as e:
+            events = self._selector.select(timeout)
+            for key, _ in events:
+                assert key.fileobj is self._sock
+                data = self._sock.recv(4096)
+                if not data:
+                    server_gone = True
+                else:
+                    self._logger.debug(f"Received {data!r}")
+                    self._stream_parser.parse(data)
+        except  socket.error as e:
+            server_gone = True
             error = e
             self._logger.debug(traceback.format_exc())
 
-        if error:
+        if server_gone:
             self._wt_disconnect()
-            raise sdk.exceptions.ConnectionError(f"Disconnected from server. {error}")
+            err_str = str(error) if error else ""
+            raise sdk.exceptions.ConnectionError(f"Disconnected from server. {err_str}")
 
-        return obj
+        if not self._stream_parser.queue().empty():
+            try:
+                data = self._stream_parser.queue().get()
+                obj = json.loads(data.decode(self._encoding))
+                if obj is not None:
+                    yield obj
+            except json.JSONDecodeError as e:
+                self._logger.error(f"Received malformed JSON from the server. {e}")
+                self._logger.debug(traceback.format_exc())
+                
 
     def _make_request(self, command: str, data: Optional[Dict[str, Any]] = None) -> api_typing.C2SMessage:
         with self._main_lock:
@@ -849,12 +873,12 @@ class ScrutinyClient:
 
     # === User API ====
 
-    def connect(self, hostname: str, port: int, wait_status: bool = True, **kwargs: Dict[str, Any]) -> "ScrutinyClient":
-        """Connect to a Scrutiny server through a websocket. Extra kwargs are passed down to ``websockets.sync.client.connect()``
+    def connect(self, hostname: str, port: int, wait_status: bool = True) -> "ScrutinyClient":
+        """Connect to a Scrutiny server through a TCP socket. 
 
         :param hostname: The hostname or ip address of the server
         :param port: The listening port of the server
-        :param wait_status: Wait for a server status update after the websocket connection is established. Ensure that a value is available when calling :meth:`get_server_status()<get_server_status>`
+        :param wait_status: Wait for a server status update after the socket connection is established. Ensure that a value is available when calling :meth:`get_server_status()<get_server_status>`
 
         :raise ConnectionError: In case of failure
         """
@@ -863,22 +887,26 @@ class ScrutinyClient:
         with self._main_lock:
             self._hostname = hostname
             self._port = port
-            uri = f'ws://{self._hostname}:{self._port}'
             connect_error: Optional[Exception] = None
-            self._logger.info(f"Connecting to {uri}")
-            with self._conn_lock:
+            self._logger.info(f"Connecting to {hostname}:{port}")
+            with self._sock_lock:
                 try:
                     self._server_state = ServerState.Connecting
-                    self._conn = websockets.sync.client.connect(uri, **kwargs)  # type: ignore
+                    self._stream_parser = TCPClientHandler.get_compatible_stream_parser()
+                    self._stream_maker = TCPClientHandler.get_compatible_stream_maker()
+                    self._sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    self._selector = selectors.DefaultSelector()
+                    self._selector.register(self._sock, selectors.EVENT_READ)
+                    self._sock.connect((hostname, port))
                     self._server_state = ServerState.Connected
                     self._start_worker_thread()
-                except (websockets.exceptions.WebSocketException, socket.error) as e:
+                except socket.error as e:
                     self._logger.debug(traceback.format_exc())
                     connect_error = e
 
         if connect_error is not None:
             self.disconnect()
-            raise sdk.exceptions.ConnectionError(f'Failed to connect to the server at "{uri}". Error: {connect_error}')
+            raise sdk.exceptions.ConnectionError(f'Failed to connect to the server at "{hostname}:{port}". Error: {connect_error}')
         else:
             if wait_status:
                 self.wait_server_status_update()
@@ -1078,13 +1106,13 @@ class ScrutinyClient:
 
         timeout = validation.assert_float_range(timeout, 'timeout', minval=0)
 
-        t1 = time.monotonic()
+        t1 = time.perf_counter()
         while True:
             server_status = self.get_server_status()
             if server_status is not None:
                 if server_status.device_comm_state == sdk.DeviceCommState.ConnectedReady:
                     break
-            consumed_time = time.monotonic()-t1
+            consumed_time = time.perf_counter()-t1
             remaining_time = max(timeout-consumed_time, 0)
             timed_out = False
             try:
@@ -1585,20 +1613,14 @@ class ScrutinyClient:
     @property
     def server_state(self) -> ServerState:
         """The server communication state"""
-        with self._main_lock:
-            val = self._server_state  # Can be modified by the worker_thread
-        return val
+        return ServerState(self._server_state)  # Make a copy
 
     @property
     def hostname(self) -> Optional[str]:
-        """Hostname of the server used for websocket connection"""
-        with self._main_lock:
-            val = self._hostname  # Can be modified by the worker_thread
-        return val
+        """Hostname of the server"""
+        return str(self._hostname) if self._hostname is not None else None
 
     @property
     def port(self) -> Optional[int]:
-        """Port of the websocket"""
-        with self._main_lock:
-            val = self._port  # Can be modified by the worker_thread
-        return val
+        """Port of the the server is letening to"""
+        return int(self._port) if self._port is not None else None

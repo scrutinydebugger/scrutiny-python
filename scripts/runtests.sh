@@ -18,6 +18,6 @@ fi
 set -x 
 
 python3 -m coverage run --data-file ${COV_DATAFILE} -m scrutiny runtest
-python3 -m mypy scrutiny --strict --untyped-calls-exclude=elftools --exclude scrutiny.sdk.docs
+python3 -m mypy scrutiny    # .mypy.ini dictacte the rules
 python3 -m coverage report --data-file ${COV_DATAFILE}
 python3 -m coverage html --data-file ${COV_DATAFILE} -d $HTML_COVDIR

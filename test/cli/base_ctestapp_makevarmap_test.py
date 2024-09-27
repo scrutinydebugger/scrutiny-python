@@ -1,3 +1,11 @@
+#    base_ctestapp_makevarmap_test.py
+#        Base test for make varmap tests based on the C TestApp
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021 Scrutiny Debugger
+
 import unittest
 
 import elftools.elf
