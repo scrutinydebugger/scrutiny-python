@@ -49,7 +49,7 @@ class StreamParser:
     _buffer:bytearray
     _remainder:bytearray
     _msg_queue:"queue.Queue[bytes]"
-    _pattern:re.Pattern[bytes]
+    _pattern:"re.Pattern[bytes]"
     _logger:logging.Logger
     _last_chunk_timestamp:float
     _interchunk_timeout:Optional[float]
