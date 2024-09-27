@@ -54,7 +54,7 @@ class TCPClientHandler(AbstractClientHandler):
 
     id2sock_map:Dict[str, socket.socket]
     sock2id_map:Dict[socket.socket, str]
-    rx_queue:queue.Queue[ClientHandlerMessage]
+    rx_queue:"queue.Queue[ClientHandlerMessage]"
     stream_maker:StreamMaker
 
     registry_lock:threading.Lock
