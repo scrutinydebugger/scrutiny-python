@@ -15,6 +15,7 @@ import socket
 from dataclasses import dataclass
 import traceback
 import queue
+import pipes
 
 from scrutiny.server.api.abstract_client_handler import AbstractClientHandler, ClientHandlerConfig, ClientHandlerMessage
 from scrutiny.tools.stream_datagrams import StreamMaker, StreamParser
@@ -49,6 +50,7 @@ class TCPClientHandler(AbstractClientHandler):
     rx_event:Optional[threading.Event]
     server_thread_info:Optional[ThreadBasics]
     server_sock:Optional[socket.socket]
+    selector:Optional[selectors.DefaultSelector]
 
     id2sock_map:Dict[str, socket.socket]
     sock2id_map:Dict[socket.socket, str]
@@ -74,6 +76,7 @@ class TCPClientHandler(AbstractClientHandler):
         self.id2sock_map = {}
         self.sock2id_map = {}
         self.server_sock = None
+        self.selector = None
         self.stream_maker = StreamMaker(
             mtu=self.STREAM_MTU,
             use_hash=self.STREAM_USE_HASH
@@ -115,6 +118,9 @@ class TCPClientHandler(AbstractClientHandler):
         self.server_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.server_sock.bind((self.config['host'], self.config['port']))
         self.server_sock.listen()
+        self.selector = selectors.DefaultSelector()
+        self.selector.register(self.server_sock, selectors.EVENT_READ)
+        
 
         self.server_thread_info = ThreadBasics(
             thread=threading.Thread(target=self.st_server_thread_fn),
@@ -129,7 +135,8 @@ class TCPClientHandler(AbstractClientHandler):
             self.server_thread_info.stop_event.set()
             if self.server_sock is not None:
                 self.server_sock.close()    # Will wake up the server thread
-           
+            if self.selector is not None:
+                self.selector.close()
             server_thread_obj = self.server_thread_info.thread
             server_thread_obj.join(2)
             if server_thread_obj.is_alive():
@@ -137,9 +144,9 @@ class TCPClientHandler(AbstractClientHandler):
 
         self.server_thread_info = None
         self.server_sock = None
+        self.selector = None
         while not self.rx_queue.empty():
             self.rx_queue.get()
-        
         for client_id in self.get_client_list():
             self.unregister_client(client_id)
 
@@ -194,8 +201,7 @@ class TCPClientHandler(AbstractClientHandler):
         if self.server_thread_info is None:
             return
         assert self.server_sock is not None
-        selector = selectors.DefaultSelector()
-        selector.register(self.server_sock, selectors.EVENT_READ)
+        assert self.selector is not None
         stream_parser = StreamParser(
             mtu=self.STREAM_MTU, 
             interchunk_timeout=self.STREAM_INTERCHUNK_TIMEOUT, 
@@ -205,7 +211,7 @@ class TCPClientHandler(AbstractClientHandler):
         try:
             self.server_thread_info.started_event.set()
             while not self.server_thread_info.stop_event.is_set():
-                events = selector.select()
+                events = self.selector.select(timeout=0.2)
                 new_data = False
                 for key, _ in events:
                     if key.fileobj is self.server_sock:
@@ -218,14 +224,18 @@ class TCPClientHandler(AbstractClientHandler):
                             break
                         
                         self.st_register_client(sock, addr)
-                        selector.register(sock, selectors.EVENT_READ)
+                        self.selector.register(sock, selectors.EVENT_READ)
                     else:
                         client_socket = cast(socket.socket, key.fileobj)
                         try:
                             client_id = self.sock2id_map[client_socket]
                         except KeyError:
                             self.logger.critical("Received message from unregistered socket")
-                            selector.unregister(client_socket)
+                            try:
+                                # Race condition possible here
+                                self.selector.unregister(client_socket)
+                            except Exception:
+                                pass
                             continue
 
                         try:
@@ -233,16 +243,11 @@ class TCPClientHandler(AbstractClientHandler):
                         except OSError:
                             # Socket got closed
                             self.unregister_client(client_id)
-                            selector.unregister(client_socket)
                             continue
                                                             
                         if not data:
                             # Client is gone
                             self.unregister_client(client_id)
-                            try:
-                                selector.unregister(client_socket)
-                            except KeyError:
-                                pass
                         else:
                             self.logger.debug(f"Received {len(data)} bytes from client ID: {client_id}")
                             stream_parser.parse(data)
@@ -267,7 +272,6 @@ class TCPClientHandler(AbstractClientHandler):
         finally:
             for conn_id in list(self.id2sock_map.keys()):
                 self.unregister_client(conn_id)
-            selector.close()
 
     def get_client_list(self) -> List[str]:
         with self.registry_lock:
@@ -299,6 +303,12 @@ class TCPClientHandler(AbstractClientHandler):
             try:
                 sock.close()
             except OSError:
+                pass
+
+            try:
+                if self.selector is not None:
+                    self.selector.unregister(sock)
+            except KeyError:
                 pass
         
             try:

@@ -775,22 +775,26 @@ class ScrutinyClient:
         if self._sock is None or self._stream_parser is None or self._selector is None:
             raise sdk.exceptions.ConnectionError(f"Disconnected from server")
 
+        server_gone = False
         try:
             events = self._selector.select(timeout)
             for key, _ in events:
                 assert key.fileobj is self._sock
                 data = self._sock.recv(4096)
-                self._logger.debug(f"Received {data!r}")
-                self._stream_parser.parse(data)
-        except socket.timeout:
-            pass
+                if not data:
+                    server_gone = True
+                else:
+                    self._logger.debug(f"Received {data!r}")
+                    self._stream_parser.parse(data)
         except  socket.error as e:
+            server_gone = True
             error = e
             self._logger.debug(traceback.format_exc())
 
-        if error:
+        if server_gone:
             self._wt_disconnect()
-            raise sdk.exceptions.ConnectionError(f"Disconnected from server. {error}")
+            err_str = str(error) if error else ""
+            raise sdk.exceptions.ConnectionError(f"Disconnected from server. {err_str}")
 
         if not self._stream_parser.queue().empty():
             try:

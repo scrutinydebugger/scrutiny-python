@@ -174,6 +174,7 @@ class TestTCPClientHandler(ScrutinyUnitTest):
         s1.close()
         
         self.handler.send(ClientHandlerMessage(msg.conn_id, {}))
+        self.wait_true(lambda: not self.handler.is_connection_active(msg.conn_id), 1)
         self.assertFalse(self.handler.is_connection_active(msg.conn_id))
 
     

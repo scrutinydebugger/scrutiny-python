@@ -167,7 +167,7 @@ class DummyClientHandler(AbstractClientHandler):
         pass  # nothing to do
 
     def start(self) -> None:
-        self.thread = threading.Thread(target=self.run)
+        self.thread = threading.Thread(target=self.run, daemon=True)
         self.thread.start()
         self.started = True
 

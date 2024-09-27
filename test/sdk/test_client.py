@@ -54,6 +54,7 @@ import logging
 import traceback
 import struct
 from datetime import datetime, timedelta
+import signal 
 
 from typing import *
 
@@ -442,7 +443,7 @@ class TestClient(ScrutinyUnitTest):
     sync_complete: threading.Event
     require_sync: threading.Event
     thread: threading.Thread
-
+    
     def setUp(self) -> None:
         self.setup_failed = False
         self.func_queue = queue.Queue()
@@ -471,7 +472,7 @@ class TestClient(ScrutinyUnitTest):
         self.server_started = threading.Event()
         self.sync_complete = threading.Event()
         self.require_sync = threading.Event()
-        self.thread = threading.Thread(target=self.server_thread)
+        self.thread = threading.Thread(target=self.server_thread, daemon=True)
         self.thread.start()
         self.server_started.wait(timeout=1)
 
@@ -481,6 +482,7 @@ class TestClient(ScrutinyUnitTest):
         port = cast(TCPClientHandler, self.api.client_handler).get_port()
         assert port is not None
         self.client = ScrutinyClient()
+
         try:
             self.client.connect(localhost, port)
         except sdk.exceptions.ScrutinySDKException:
