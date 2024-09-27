@@ -21,7 +21,7 @@ from scrutiny.server.api.abstract_client_handler import AbstractClientHandler, C
 from scrutiny.tools.stream_datagrams import StreamMaker, StreamParser
 import selectors
 
-from typing import Dict, Any, Optional, TypedDict, cast, List
+from typing import Dict, Any, Optional, TypedDict, cast, List, Tuple
 
 
 class TCPClientHandlerConfig(TypedDict):
@@ -135,20 +135,23 @@ class TCPClientHandler(AbstractClientHandler):
             self.server_thread_info.stop_event.set()
             if self.server_sock is not None:
                 self.server_sock.close()    # Will wake up the server thread
-            if self.selector is not None:
-                self.selector.close()
             server_thread_obj = self.server_thread_info.thread
             server_thread_obj.join(2)
             if server_thread_obj.is_alive():
                 self.logger.error("Failed to stop the server. Join timed out")
+        
+        while not self.rx_queue.empty():
+            self.rx_queue.get()
+        
+        for client_id in self.get_client_list():
+            self.unregister_client(client_id)
 
+        if self.selector is not None:
+            self.selector.close()
+        
         self.server_thread_info = None
         self.server_sock = None
         self.selector = None
-        while not self.rx_queue.empty():
-            self.rx_queue.get()
-        for client_id in self.get_client_list():
-            self.unregister_client(client_id)
 
 
     def process(self) -> None:
@@ -298,9 +301,9 @@ class TCPClientHandler(AbstractClientHandler):
             except KeyError:
                 return
             
-            sockaddr = sock.getsockname()
-        
+            sockaddr : Optional[Tuple[str, int]] = None
             try:
+                sockaddr = sock.getsockname()
                 sock.close()
             except OSError:
                 pass
@@ -322,4 +325,5 @@ class TCPClientHandler(AbstractClientHandler):
                 pass
             nb_client = len(self.id2sock_map)
 
-        self.logger.info(f"Client disconnected {sockaddr} (ID={conn_id}). {nb_client} clients total")
+        sockaddr_str = str(sockaddr) if sockaddr is not None else ""
+        self.logger.info(f"Client disconnected {sockaddr_str} (ID={conn_id}). {nb_client} clients total")
