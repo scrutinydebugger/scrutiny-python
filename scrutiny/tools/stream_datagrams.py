@@ -56,7 +56,7 @@ class StreamParser:
         self._msg_queue = queue.Queue()
         self._pattern = re.compile(b"<SCRUTINY size=([a-fA-F0-9]+)>")
         self._logger = logging.getLogger(self.__class__.__name__)
-        self._last_chunk_timestamp = time.monotonic()
+        self._last_chunk_timestamp = time.perf_counter()
         self._interchunk_timeout = interchunk_timeout
         self._use_hash = use_hash
         self._mtu = mtu
@@ -64,7 +64,7 @@ class StreamParser:
     def parse(self, chunk:Iterable[SupportsIndex]) -> None:
         done = False
         if self._data_length is not None and self._interchunk_timeout is not None:
-            if time.monotonic() - self._last_chunk_timestamp > self._interchunk_timeout:
+            if time.perf_counter() - self._last_chunk_timestamp > self._interchunk_timeout:
                 self.reset()
 
         self._buffer.extend(chunk)
@@ -115,7 +115,7 @@ class StreamParser:
                     # We have no more data to process, wait next chunk
                     done=True
                         
-        self._last_chunk_timestamp = time.monotonic()
+        self._last_chunk_timestamp = time.perf_counter()
     
     def queue(self) -> "queue.Queue[bytes]":
         return self._msg_queue

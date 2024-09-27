@@ -188,7 +188,7 @@ class TestEmulatedDatalogger(ScrutinyUnitTest):
         self.assertGreater(nsamples, 1)
         for j in range(1, nsamples):
             dt = (data_interpreted[0][j] - data_interpreted[0][j - 1]) & 0xFFFFFFFF
-            self.assertGreaterEqual(dt, 10000)  # Delta should always be greater than 1msec because there are sleeps after each process call
+            self.assertGreaterEqual(dt, 10000, f"j={j}")  # Delta should always be greater than 1msec because there are sleeps after each process call
 
             dv1 = data_interpreted[1][j] - data_interpreted[1][j - 1]
             dv2 = data_interpreted[2][j] - data_interpreted[2][j - 1]

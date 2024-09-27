@@ -47,6 +47,7 @@ class TCPClientHandler(AbstractClientHandler):
     stream_maker:StreamMaker
 
     registry_lock:threading.Lock
+    force_silent: bool  # For unit testing of timeouts
 
     def __init__(self, config: ClientHandlerConfig, rx_event:Optional[threading.Event]=None):
         if 'host' not in config:
@@ -70,6 +71,7 @@ class TCPClientHandler(AbstractClientHandler):
             )
         self.rx_queue = queue.Queue()
         self.registry_lock = threading.Lock()
+        self.force_silent = False
         
     def send(self, msg: ClientHandlerMessage) -> None:
         assert isinstance(msg, ClientHandlerMessage)
@@ -85,13 +87,14 @@ class TCPClientHandler(AbstractClientHandler):
         self.logger.debug(f"Sending {len(payload)} bytes to client ID: {msg.conn_id}")
 
         try:
-            sock.send(payload)
+            if not self.force_silent:
+                sock.send(payload)
         except OSError:
             # Client is gone. Did not get cleaned by the server thread. Should ot happen.
             self.unregister_client(msg.conn_id)
             
     
-    def get_listen_port(self) -> Optional[int]:
+    def get_port(self) -> Optional[int]:
         if self.server_sock is None:
             return None
         
@@ -162,11 +165,19 @@ class TCPClientHandler(AbstractClientHandler):
         with self.registry_lock:
             return len(self.id2sock_map)
 
-    def get_compatible_stream_parser(self) -> StreamParser:
+    @classmethod
+    def get_compatible_stream_parser(cls) -> StreamParser:
         return StreamParser(
-            mtu=self.STREAM_MTU,
-            interchunk_timeout=self.STREAM_INTERCHUNK_TIMEOUT,
-            use_hash=self.STREAM_USE_HASH
+            mtu=cls.STREAM_MTU,
+            interchunk_timeout=cls.STREAM_INTERCHUNK_TIMEOUT,
+            use_hash=cls.STREAM_USE_HASH
+        )
+
+    @classmethod
+    def get_compatible_stream_maker(cls) -> StreamMaker:
+        return StreamMaker(
+            mtu=cls.STREAM_MTU,
+            use_hash=cls.STREAM_USE_HASH
         )
 
     def st_server_thread_fn(self) -> None:
@@ -186,6 +197,7 @@ class TCPClientHandler(AbstractClientHandler):
             self.server_thread_info.started_event.set()
             while not self.server_thread_info.stop_event.is_set():
                 events = selector.select()
+                new_data = False
                 for key, _ in events:
                     if key.fileobj is self.server_sock:
                         try:
@@ -235,6 +247,9 @@ class TCPClientHandler(AbstractClientHandler):
                                     continue
                                 
                                 self.rx_queue.put(ClientHandlerMessage(conn_id=client_id, obj=obj))
+                                new_data = True
+                if new_data and self.rx_event is not None:
+                    self.rx_event.set()
                             
 
         except Exception as e:
@@ -243,6 +258,7 @@ class TCPClientHandler(AbstractClientHandler):
         finally:
             for conn_id in list(self.id2sock_map.keys()):
                 self.unregister_client(conn_id)
+            selector.close()
 
     def get_client_list(self) -> List[str]:
         with self.registry_lock:

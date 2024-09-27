@@ -31,7 +31,7 @@ from scrutiny.server.datalogging.datalogging_storage import DataloggingStorage
 from scrutiny.server.api import API
 from scrutiny.server.api import APIConfig
 import scrutiny.server.datastore.datastore as datastore
-from scrutiny.server.api.websocket_client_handler import WebsocketClientHandler
+from scrutiny.server.api.tcp_client_handler import TCPClientHandler
 from scrutiny.server.device.device_handler import DeviceHandler, DeviceStateChangedCallback, RawMemoryReadRequest, RawMemoryWriteRequest, UserCommandCallback
 from scrutiny.server.device.submodules.memory_writer import RawMemoryWriteRequestCompletionCallback
 from scrutiny.server.device.submodules.memory_reader import RawMemoryReadRequestCompletionCallback
@@ -444,6 +444,7 @@ class TestClient(ScrutinyUnitTest):
     thread: threading.Thread
 
     def setUp(self) -> None:
+        self.setup_failed = False
         self.func_queue = queue.Queue()
         self.datastore = datastore.Datastore()
         self.fill_datastore()
@@ -451,7 +452,7 @@ class TestClient(ScrutinyUnitTest):
         self.datalogging_manager = FakeDataloggingManager(self.datastore, self.device_handler)
         self.sfd_handler = FakeActiveSFDHandler(device_handler=self.device_handler, datastore=self.datastore)
         api_config: APIConfig = {
-            "client_interface_type": 'websocket',
+            "client_interface_type": 'tcp',
             'client_interface_config': {
                 'host': localhost,
                 'port': 0
@@ -477,15 +478,22 @@ class TestClient(ScrutinyUnitTest):
         if not self.server_started.is_set():
             raise RuntimeError("Cannot start server")
 
-        port = cast(WebsocketClientHandler, self.api.client_handler).get_port()
+        port = cast(TCPClientHandler, self.api.client_handler).get_port()
         assert port is not None
         self.client = ScrutinyClient()
-        self.client.connect(localhost, port)
+        try:
+            self.client.connect(localhost, port)
+        except sdk.exceptions.ScrutinySDKException:
+            self.setup_failed = True
 
+    
     def tearDown(self) -> None:
         self.client.disconnect()
         self.server_exit_requested.set()
         self.thread.join()
+
+        if self.setup_failed:
+            self.fail("Failed to setup the test")
 
     def fill_datastore(self):
         rpv1000 = datastore.DatastoreRPVEntry('/rpv/x1000', RuntimePublishedValue(0x1000, EmbeddedDataType.float32))
@@ -549,8 +557,8 @@ class TestClient(ScrutinyUnitTest):
 
     def wait_true(self, func, timeout:float=2, error_str:Optional[str]=None):
         success = False
-        t = time.monotonic()
-        while time.monotonic() - t < timeout:
+        t = time.perf_counter()
+        while time.perf_counter() - t < timeout:
             if func():
                 success = True
                 break
@@ -606,6 +614,7 @@ class TestClient(ScrutinyUnitTest):
     def test_hold_5_sec(self):
         # Make sure the testing environment and all stubbed classes are stable.
         time.sleep(5)
+        self.assertEqual(self.client.server_state, sdk.ServerState.Connected)
 
     def test_read_basic_properties(self):
         self.assertEqual(self.client.hostname, '127.0.0.1')
@@ -756,18 +765,18 @@ class TestClient(ScrutinyUnitTest):
         self.assertEqual(self.client.get_server_status().device_comm_state, sdk.DeviceCommState.Disconnected)
 
         timeout = 3*ScrutinyClient._UPDATE_SERVER_STATUS_INTERVAL
-        t1 = time.monotonic()
+        t1 = time.perf_counter()
         with self.assertRaises(sdk.exceptions.TimeoutException):
             self.client.wait_device_ready(timeout=timeout)
-        t2 = time.monotonic()
+        t2 = time.perf_counter()
         self.assertGreater(t2-t1, timeout)
 
         def set_ready(device_handler:FakeDeviceHandler):
             device_handler.set_connection_status(DeviceHandler.ConnectionStatus.CONNECTED_READY)
         self.execute_in_server_thread(partial(set_ready, self.device_handler), wait=True, delay=0.1)
-        t1 = time.monotonic()
+        t1 = time.perf_counter()
         self.client.wait_device_ready(timeout=timeout)
-        t2 = time.monotonic()
+        t2 = time.perf_counter()
         self.assertLessEqual(t2-t1, timeout)
         self.assertEqual(self.client.get_server_status().device_comm_state, sdk.DeviceCommState.ConnectedReady)
 

@@ -39,6 +39,7 @@ from scrutiny.core.typehints import EmptyDict
 
 
 from .websocket_client_handler import WebsocketClientHandler
+from .tcp_client_handler import TCPClientHandler
 from .dummy_client_handler import DummyClientHandler
 from .value_streamer import ValueStreamer
 import scrutiny.server.api.typing as api_typing
@@ -283,6 +284,8 @@ class API:
 
         if config['client_interface_type'] == 'websocket':
             self.client_handler = WebsocketClientHandler(config['client_interface_config'], rx_event=rx_event)
+        elif config['client_interface_type'] == 'tcp':
+            self.client_handler = TCPClientHandler(config['client_interface_config'], rx_event=rx_event)
         elif config['client_interface_type'] == 'dummy':
             self.client_handler = DummyClientHandler(config['client_interface_config'], rx_event=rx_event)
         else:

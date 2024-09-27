@@ -7,6 +7,7 @@ import socket
 import time
 import json
 from typing import Dict
+import threading
 
 class TestTCPClientHandler(ScrutinyUnitTest):
     
@@ -16,16 +17,18 @@ class TestTCPClientHandler(ScrutinyUnitTest):
             'port' : 0
         }
 
-        self.handler = TCPClientHandler(config)
+        self.rx_event = threading.Event()
+        self.handler = TCPClientHandler(config, rx_event=self.rx_event)
         self.handler.start()
         self.server_host = config['host']
-        self.server_port = self.handler.get_listen_port()
+        self.server_port = self.handler.get_port()
         self.stream_maker = StreamMaker(mtu=self.handler.STREAM_MTU, use_hash = self.handler.STREAM_USE_HASH)
 
     def wait_true(self, fn, timeout):
-        t = time.monotonic()
-        while fn() is False and time.monotonic() - t < timeout:
+        t = time.perf_counter()
+        while fn() is False and time.perf_counter() - t < timeout:
             time.sleep(0.01)
+        self.assertTrue(fn())
 
     def assert_client_count_eq(self, n:int):
         self.wait_true(lambda : self.handler.get_number_client()==n, timeout=0.5)
@@ -181,6 +184,19 @@ class TestTCPClientHandler(ScrutinyUnitTest):
             # Don't know why required twice :S
             s1.send(b'123')
             s1.send(b'123')
+
+    
+    def test_rx_event(self):
+        s1 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s1.connect((self.server_host, self.server_port))
+        self.assertFalse(self.rx_event.is_set())
+        s1.send(self.stream_maker.encode(self.serialize_dict({})))
+
+        self.wait_true(lambda : self.rx_event.is_set(), 1)
+        self.rx_event.clear()
+        s1.send(self.stream_maker.encode(self.serialize_dict({})))
+        self.wait_true(lambda : self.rx_event.is_set(), 1)
+
 
         
     def tearDown(self) -> None:
