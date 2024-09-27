@@ -108,7 +108,7 @@ class TCPClientHandler(AbstractClientHandler):
             return None
         
         _, port = self.server_sock.getsockname()
-        return port
+        return cast(int, port)
 
     def start(self) -> None:
         self.logger.info('Starting TCP socket listener on %s:%s' % (self.config['host'], self.config['port']))
