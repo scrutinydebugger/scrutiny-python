@@ -1,4 +1,3 @@
-#type: ignore
 import logging
 import unittest
 from functools import wraps

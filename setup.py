@@ -6,7 +6,7 @@
 #
 #   Copyright (c) 2021-2022 Scrutiny Debugger
 
-from setuptools import setup, find_packages
+from setuptools import setup, find_packages #type:ignore
 import scrutiny
 import sys
 import os
