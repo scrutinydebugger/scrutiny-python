@@ -1,4 +1,4 @@
-__name__ = 'scrutinydebugger'
+__name__ = 'scrutiny'
 __version__ = '0.3.0'
 __author__ = 'Pier-Yves Lessard'
 __credits__ = ['Pier-Yves Lessard', 'Frédéric Morin']

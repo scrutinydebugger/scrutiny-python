@@ -1,11 +1,14 @@
+__all__ = ['ServerManager']
+
 from scrutiny import sdk
 from scrutiny.sdk.client import ScrutinyClient
 from scrutiny.gui.exceptions import GuiError
 from enum import Enum
 import threading
 import time
+from dataclasses import dataclass
 
-from qtpy.QtCore import QTimer, QTimerEvent
+from qtpy.QtCore import QTimer, QTimerEvent, Signal
 import logging
 from typing import Optional
 import traceback
@@ -13,104 +16,163 @@ import traceback
 class ServerManagerError(GuiError):
     pass
 
-class ServerManager:
-    _hostname:str
-    _port:int
-    _started:bool
-    
-    _connect_thread:Optional[threading.Thread]
-    _connect_thread_started:threading.Event
-    _request_connect_thread_exit:bool
-    _wake_event:threading.Event
-    _request_disconnect_event:threading.Event
-
-    _client:ScrutinyClient
-    _logger = logging.Logger
-    
-    RETRY_INTERVAL_SEC = 2 # seconds
+@dataclass(init=False)
+class ThreadData:
+    thread:Optional[threading.Thread]
+    started_event:threading.Event
 
     def __init__(self) -> None:
-        self._hostname = ""
-        self._port = -1
-        self._started = False
-        
-        self._connect_thread = None
-        self._connect_thread_started = threading.Event()
-        self._wake_event = threading.Event()
-        self._request_disconnect_event = threading.Event()
-        self._request_connect_thread_exit = False
-        
+        self.thread = None
+        self.started_event = threading.Event()
+
+
+
+class ServerManager:
+
+    class _Signals:
+        server_connected_signal:Signal
+        server_disconnected_signal:Signal
+        device_connected:Signal
+        device_ready:Signal
+        device_disconnected:Signal
+        datalogging_state_changed:Signal
+
+        def __init__(self) -> None:
+            self.server_connected_signal = Signal()
+            self.server_disconnected_signal = Signal()
+            self.device_connected = Signal()
+            self.device_ready = Signal()
+            self.device_disconnected = Signal()
+            self.datalogging_state_changed = Signal()
+
+
+    _client:ScrutinyClient
+    _thread:Optional[threading.Thread]
+    _thread_stop_event:threading.Event
+    _signals:_Signals
+    _auto_reconnect:bool
+    _logger:logging.Logger
+
+    def __init__(self) -> None:
         self._client = ScrutinyClient()
-        self._logger = logging.getLogger(self.__class__.__name__)
+        self._signals = ServerManager._Signals()
+        
+        self._thread = None
+        self._thread_stop_event = threading.Event()
+        self._auto_reconnect = False
+        self._logger = logging.Logger(self.__class__.__name__)
 
+    @property
+    def signals(self) -> _Signals:
+        return self._signals
+
+    
     def start(self, hostname:str, port:int) -> None:
-        if self._started:
-            raise ServerManagerError(f"Server manager already running")
-        
-        self._logger.debug("Starting Server Manager")
-        self._hostname = hostname
-        self._port = port
+        self.stop()
 
-        self._connect_thread = threading.Thread(self.connect_thread)
-        self._connect_thread_started.clear()
-        self._wake_event.clear()
-        self._request_disconnect_event.clear()
-
-        self._request_connect_thread_exit = False
-        self._connect_thread.start()
-        self._connect_thread_started.wait()
-        self._logger.debug("Server Manager started")
+        self._logger.debug("Starting server manager")
+        self._auto_reconnect = True
+        self._thread_stop_event.clear()
+        self._thread = threading.Thread(target=self._thread_func, args=[hostname, port], daemon=True)
+        self._thread.start()
     
-    def stop(self, join:bool=False) -> None:
-        if not self._started:
-            raise ServerManagerError(f"Server manager already stopped")
-        
-        self._logger.debug("Stopping Server Manager")
-        self._request_disconnect_event.set()
-        self._request_connect_thread_exit = True
-        self._wake_event.set()
-        self._started = False
-    
-    def is_stopped(self):
-        return not self._started  and not self._connect_thread.is_alive()
+    def stop(self) -> None:
+        self._logger.debug("Stopping server manager")
+        self._auto_reconnect = False
+        self._client.disconnect()
 
-    def _connect_thread(self):
-        self._connect_thread_started.set()
-        last_trial = time.monotonic()
+        if self._thread is not None:
+            if self._thread.is_alive():
+                self._thread_stop_event.set()
+                self._thread.join(2)
+                if self._thread.is_alive():
+                    self._logger.error("Failed to stop the internal thread")
         
-        while not self._request_connect_thread_exit:
-            self._wake_event.wait(0.1)
-            self._wake_event.clear()
+        self._thread = None
 
-            try:
-                if self._request_disconnect_event.is_set():
-                    try:
-                        self._logger.debug(f"Disconnecting")
-                        self._client.disconnect()
-                    except sdk.exceptions.ConnectionError as e:
-                        self._logger.error(f"Error While disconnecting {e}")
-                        self._logger.debug(traceback.format_exc())
-                    self._request_disconnect_event.clear()
-                else:
-                    if self._started:
-                        if self._client.server_state == sdk.ServerState.Disconnected:
-                            if time.monotonic() - last_trial > self.RETRY_INTERVAL_SEC:
-                                try:
-                                    self._logger.debug(f"Trying to connect {self._hostname}:{self._port}")
-                                    self._client.connect(self._hostname, self._port)
-                                except sdk.exceptions.ConnectionError:
-                                    self._logger.debug("Failed to connect")
-                                finally:
-                                    last_trial = time.monotonic()
-            except Exception as e:
-                self._logger.error(f"Unexpected error {e}")
-                self._logger.debug(traceback.format_exc())
-                try:
-                    self._client.disconnect()
-                except Exception:
-                    pass
-                self._request_connect_thread_exit = True
+
+    def _thread_func(self, hostname:str, port:int) -> None:
+        
+        previous_server_state = sdk.ServerState.Disconnected
+        server_state = sdk.ServerState.Disconnected
+        server_info:Optional[sdk.ServerInfo] = None
+        previous_server_info:Optional[sdk.ServerInfo] = None
+        
+        while not self._thread_stop_event.is_set():
+
+            server_state = self._client.server_state
+            state_entry = server_state != previous_server_state
             
+            if server_state == sdk.ServerState.Disconnected:
+                if state_entry:
+                    self._signals.server_disconnected_signal.emit()
+                
+                server_info = None
+                previous_server_info = None
 
-    def get_server_state(self) -> sdk.ServerState:
-        return self._client.server_state
+                if self._auto_reconnect:
+                    try:
+                        self._logger.debug("Reconnecting client")
+                        self._client.connect(hostname, port, wait_status=False)
+                    except sdk.exceptions.ConnectionError:
+                        pass
+            
+            elif server_state == sdk.ServerState.Connecting:
+                pass    # connect should block for this state to never happen
+
+            elif server_state == sdk.ServerState.Connected:
+                self._logger.debug(f"Client connected to {hostname}:{port}")
+                if state_entry:
+                    self._signals.server_connected_signal.emit()
+                    server_info = None
+                    previous_server_info = None
+
+                try:
+                    self._client.wait_server_status_update(0.5)
+                    server_info = self._client.get_server_status()
+                except sdk.exceptions.TimeoutException:
+                    pass
+                except sdk.exceptions.ScrutinySDKException:
+                    server_info = None
+
+                # Server is gone
+                if server_info is None and previous_server_info is not None:
+                    self._signals.datalogging_state_changed.emit()
+
+                    if previous_server_info.device_session_id is not None:
+                        self._signals.device_disconnected.emit()
+                
+                # Server just arrived
+                elif server_info is not None and previous_server_info is None:
+                    self._signals.datalogging_state_changed.emit()
+
+                    if server_info.device_session_id is not None:
+                        self._signals.device_connected.emit()
+                
+                # Server is running
+                elif server_info is not None and previous_server_info is not None:
+                    if (
+                        server_info.datalogging.state != previous_server_info.datalogging.state 
+                        or server_info.datalogging.completion_ratio != previous_server_info.datalogging.completion_ratio
+                        ):
+                        self._signals.datalogging_state_changed.emit()
+                    
+                    if server_info.device_session_id != previous_server_info.device_session_id:
+                        # The server did a full reconnect between 2 state update.
+                        # This state hsa a value only when device state is ConnectedReady
+                        self._signals.device_disconnected.emit()
+                        self._signals.device_connected.emit()
+                else:
+                    pass # Nothing to do
+
+                previous_server_info=server_info
+
+            elif server_state == sdk.ServerState.Error:
+                self._logger.critical("Server state is Error. Stopping the server manager")
+                self._auto_reconnect = False
+                self._client.disconnect()
+                self._thread_stop_event.set()
+
+            previous_server_state = server_state
+
+    

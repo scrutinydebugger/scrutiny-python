@@ -18,6 +18,7 @@ from scrutiny.gui.dashboard_components.varlist.varlist_component import VarListC
 from scrutiny.gui.dashboard_components.watch.watch_component import WatchComponent
 from scrutiny.gui.dashboard_components.embedded_graph.embedded_graph_component import EmbeddedGraph
 
+from scrutiny.gui.server_manager import ServerManager
 from typing import List, Type, Dict
 
 
@@ -42,6 +43,7 @@ class MainWindow(QMainWindow):
     _sidebar:Sidebar
     _status_bar:QStatusBar
     _server_config_dialog:ServerConfigDialog
+    _server_manager:ServerManager
 
     def __init__(self):
         super().__init__()
@@ -56,6 +58,7 @@ class MainWindow(QMainWindow):
         self.make_main_zone()
         self.make_status_bar()
 
+        self._server_manager = ServerManager()
         self._server_config_dialog = ServerConfigDialog(self, self.server_config_changed)
 
     def make_menubar(self) -> None:
@@ -68,6 +71,12 @@ class MainWindow(QMainWindow):
         server_menu = menu_bar.addMenu('Server')
         server_config_action = server_menu.addAction("Configure")
         server_config_action.triggered.connect(self.menu_server_config_click)
+        
+        server_connect_action = server_menu.addAction("Connect")
+        server_connect_action.triggered.connect(self.menu_server_connect_click)
+
+        server_disconnect_action = server_menu.addAction("Disconnect")
+        server_disconnect_action.triggered.connect(self.menu_server_disconnect_click)
 
         server_menu.addAction("Launch local").setDisabled(True)
         server_menu = menu_bar.addMenu('Device')
@@ -178,11 +187,18 @@ class MainWindow(QMainWindow):
         self._dock_manager.addDockWidget(QtAds.TopDockWidgetArea, dock_widget)
 
     def closeEvent(self, event: QCloseEvent):
+        self._server_manager.stop()
         self._dock_manager.deleteLater()
         super().closeEvent(event)
 
     def menu_server_config_click(self) -> None:
         self._server_config_dialog.show()
+
+    def menu_server_connect_click(self) -> None:
+        self._server_manager.start("localhost", 8765)
+
+    def menu_server_disconnect_click(self) -> None:
+        self._server_manager.stop()
 
     def server_config_changed(self):
         print("config changed")
