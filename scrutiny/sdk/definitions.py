@@ -196,7 +196,7 @@ class DeviceInfo:
     """A unique ID identifying the device and its software (Firmware ID). """
 
     display_name: str
-    """The display name broadcasted by the device"""
+    """The display name broadcast by the device"""
 
     max_tx_data_size: int
     """Maximum payload size that the device can send"""
@@ -361,7 +361,7 @@ class DeviceLinkInfo:
 
 @dataclass(frozen=True)
 class ServerInfo:
-    """(Immutable struct) A summary of everything going on on the server side. Status broadcasted by the server to every client."""
+    """(Immutable struct) A summary of everything going on on the server side. Status broadcast by the server to every client."""
 
     device_comm_state: DeviceCommState
     """Status of the communication between the server and the device"""

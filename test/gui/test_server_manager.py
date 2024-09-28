@@ -11,12 +11,17 @@ from qtpy.QtCore import Qt
 
 from typing import List
 
+# These value are not really used as they are given to a fake client
+SERVER_MANAGER_HOST = '127.0.0.1'
+SERVER_MANAGER_PORT = 5555
+
 class EventType(enum.Enum):
     SERVER_CONNECTED = enum.auto()
     SERVER_DISCONNECTED = enum.auto()
     DEVICE_READY = enum.auto()
     DEVICE_DISCONNECTED = enum.auto()
     DATALOGGING_STATE_CHANGED = enum.auto()
+    WATCHABLE_STORE_READY = enum.auto()
 
 
 DUMMY_DEVICE = sdk.DeviceInfo(
@@ -95,7 +100,7 @@ class TestServerManager(ScrutinyUnitTest):
     def test_hold_5_sec(self):
         self.assertFalse(self.server_manager.is_running())
         self.assertEqual(self.server_manager.get_server_state(), sdk.ServerState.Disconnected)
-        self.server_manager.start('127.0.0.1', 1234)
+        self.server_manager.start(SERVER_MANAGER_HOST, SERVER_MANAGER_PORT)
         self.assertTrue(self.server_manager.is_running())
 
         self.wait_equal(self.server_manager.is_running, False, 5, no_assert=True)  # Early exit if it fails
@@ -109,17 +114,58 @@ class TestServerManager(ScrutinyUnitTest):
 
     def test_events_connect_disconnect(self):
         self.assertEqual(self.event_list, [])
-        self.server_manager.start('127.0.0.1', 1234)
-        self.wait_events([EventType.SERVER_CONNECTED], timeout=1)
-        self.assertEqual(self.server_manager.get_server_state(), sdk.ServerState.Connected)
-        
-        self.server_manager.stop()
-        self.wait_events([EventType.SERVER_CONNECTED, EventType.SERVER_DISCONNECTED], timeout=1)
-        self.assertEqual(self.server_manager.get_server_state(), sdk.ServerState.Disconnected)
+        for i in range(5):
+            self.server_manager.start(SERVER_MANAGER_HOST, SERVER_MANAGER_PORT)
+            self.wait_events([EventType.SERVER_CONNECTED], timeout=1)
+            self.assertEqual(self.server_manager.get_server_state(), sdk.ServerState.Connected)
+            
+            self.server_manager.stop()
+            self.wait_events([EventType.SERVER_CONNECTED, EventType.SERVER_DISCONNECTED], timeout=1)
+            self.clear_events()
+            self.assertEqual(self.server_manager.get_server_state(), sdk.ServerState.Disconnected)
+            self.wait_false(self.server_manager.is_running, 1)
 
     def test_event_device_connect_disconnect(self):
         self.assertEqual(self.event_list, [])
-        self.server_manager.start('127.0.0.1', 1234)
+        self.server_manager.start(SERVER_MANAGER_HOST, SERVER_MANAGER_PORT)
+
+        self.wait_events([EventType.SERVER_CONNECTED], timeout=1)
+        self.clear_events()
+
+        for i in range(5):
+            self.fake_client.server_info = sdk.ServerInfo(
+                device_comm_state=sdk.DeviceCommState.ConnectedReady,
+                device_session_id='session_id1', # This value is used to detect connection change on the device side
+                datalogging=sdk.DataloggingInfo(state=sdk.DataloggerState.Standby, completion_ratio=None),
+                device_link=sdk.DeviceLinkInfo(type=sdk.DeviceLinkType._Dummy, config={}),
+                sfd=None,
+                device=DUMMY_DEVICE
+            )
+
+            self.wait_events([EventType.DEVICE_READY], timeout=1)
+            self.clear_events()
+
+            self.fake_client.server_info = sdk.ServerInfo(
+                device_comm_state=sdk.DeviceCommState.Disconnected,
+                device_session_id=None, # This value is used to detect connection change on the device side
+                datalogging=sdk.DataloggingInfo(state=sdk.DataloggerState.NA, completion_ratio=None),
+                device_link=sdk.DeviceLinkInfo(type=sdk.DeviceLinkType._Dummy, config={}),
+                sfd=None,
+                device=None
+            )
+
+            self.wait_events([EventType.DEVICE_DISCONNECTED], timeout=1)
+            self.clear_events()
+
+        self.fake_client.server_info = None
+        self.server_manager.stop()
+        self.wait_server_state(sdk.ServerState.Disconnected)        
+        self.assertEvents([EventType.SERVER_DISCONNECTED])
+    
+
+    def test_device_disconnect_ready_events_on_session_id_change(self):
+        self.assertEqual(self.event_list, [])
+        self.server_manager.start(SERVER_MANAGER_HOST, SERVER_MANAGER_PORT)
 
         self.wait_events([EventType.SERVER_CONNECTED], timeout=1)
         self.clear_events()
@@ -136,19 +182,25 @@ class TestServerManager(ScrutinyUnitTest):
         self.wait_events([EventType.DEVICE_READY], timeout=1)
         self.clear_events()
 
-        self.fake_client.server_info = sdk.ServerInfo(
-            device_comm_state=sdk.DeviceCommState.Disconnected,
-            device_session_id=None, # This value is used to detect connection change on the device side
-            datalogging=sdk.DataloggingInfo(state=sdk.DataloggerState.NA, completion_ratio=None),
-            device_link=sdk.DeviceLinkInfo(type=sdk.DeviceLinkType._Dummy, config={}),
-            sfd=None,
-            device=None
-        )
+        # Only the session ID changes. 
+        # Should trigger a device disconnected + device ready event.
+        for i in range(5):
+            self.fake_client.server_info = sdk.ServerInfo(
+                device_comm_state=self.fake_client.server_info.device_comm_state,
+                device_session_id=f'new_session_id{i}',     # We change that.
+                datalogging=self.fake_client.server_info.datalogging,
+                device_link=self.fake_client.server_info.device_link,
+                sfd=self.fake_client.server_info.sfd,
+                device=DUMMY_DEVICE
+            )
 
+            self.wait_events([EventType.DEVICE_DISCONNECTED, EventType.DEVICE_READY], timeout=1)
+            self.clear_events()
+
+        self.fake_client.server_info = None
         self.wait_events([EventType.DEVICE_DISCONNECTED], timeout=1)
         self.clear_events()
 
-        self.fake_client.server_info = None
         self.server_manager.stop()
         self.wait_server_state(sdk.ServerState.Disconnected)        
         self.assertEvents([EventType.SERVER_DISCONNECTED])
@@ -156,3 +208,5 @@ class TestServerManager(ScrutinyUnitTest):
 
     def tearDown(self) -> None:
         self.server_manager.stop()
+        self.app.processEvents()
+        self.app.deleteLater()  # Segfault without this. don't know why

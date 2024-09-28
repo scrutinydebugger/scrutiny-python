@@ -1581,7 +1581,7 @@ class ScrutinyClient:
         return cb_data.obj
 
     def get_server_status(self) -> ServerInfo:
-        """Returns an immutable structure of data containing the latest server status that has been broadcasted.
+        """Returns an immutable structure of data containing the latest server status that has been broadcast.
           It contains everything going on the server side
 
         :raise ConnectionError: If the connection to the server is lost

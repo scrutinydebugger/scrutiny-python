@@ -138,7 +138,7 @@ class ServerManager:
 
                 if self._auto_reconnect:
                     try:
-                        self._logger.debug("(Re)connecting client")
+                        self._logger.debug("Connecting client")
                         self._client.connect(hostname, port, wait_status=False)
                     except sdk.exceptions.ConnectionError:
                         pass
@@ -176,6 +176,7 @@ class ServerManager:
                 elif self._fsm_data.server_info is not None and self._fsm_data.previous_server_info is not None:
                     if (
                         self._fsm_data.server_info.device_session_id is not None    # No need to trigger that event when the device is gone
+                        and self._fsm_data.previous_server_info.device_session_id is not None    # No need to trigger that event when the device is gone
                         and (
                             # Trigger on state change or completion ration change.
                             self._fsm_data.server_info.datalogging.state != self._fsm_data.previous_server_info.datalogging.state 
@@ -184,12 +185,18 @@ class ServerManager:
                     ):
                         self._signals.datalogging_state_changed.emit()
                     
-                    if self._fsm_data.server_info.device_session_id != self._fsm_data.previous_server_info.device_session_id:
-                        # The server did a full reconnect between 2 state update.
-                        # This state hsa a value only when device state is ConnectedReady
+                    if self._fsm_data.server_info.device_session_id is None and self._fsm_data.previous_server_info.device_session_id is not None:
                         self._signals.device_disconnected.emit()
-                        if self._fsm_data.server_info.device_session_id is not None:
+                    elif self._fsm_data.server_info.device_session_id is not None and self._fsm_data.previous_server_info.device_session_id is None:
+                        self._signals.device_ready.emit()
+                    elif self._fsm_data.server_info.device_session_id is not None and self._fsm_data.previous_server_info.device_session_id is not None:
+                        if self._fsm_data.server_info.device_session_id != self._fsm_data.previous_server_info.device_session_id:
+                            # The server did a full reconnect between 2 state update.
+                            # This state hsa a value only when device state is ConnectedReady
+                            self._signals.device_disconnected.emit()
                             self._signals.device_ready.emit()
+                    else: # Both None, nothing to do
+                        pass
                 else:
                     pass # Nothing to do
 
