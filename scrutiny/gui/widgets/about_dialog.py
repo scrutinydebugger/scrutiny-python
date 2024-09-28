@@ -12,7 +12,8 @@ class AboutDialog(QDialog):
         self.setWindowTitle("About this software")
         
         # TODO : make pretty
-        self.layout = QFormLayout()
+        layout = QFormLayout()
+        self.setLayout(layout)
         fields = [
             ("Scrutiny version", scrutiny.__version__),
             ("Python version", "%d.%d.%d" % (sys.version_info.major, sys.version_info.minor, sys.version_info.micro)),
@@ -38,7 +39,6 @@ class AboutDialog(QDialog):
             )
 
         for i in range(len(fields)):
-            self.layout.addRow(QLabel(fields[i][0]), QLabel(fields[i][1]) )
+            layout.addRow(QLabel(fields[i][0]), QLabel(fields[i][1]) )
 
-        self.setLayout(self.layout)
     
