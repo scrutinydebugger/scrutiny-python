@@ -1,7 +1,7 @@
 import logging
 import traceback
 
-from qtpy.QtWidgets import  QWidget, QVBoxLayout, QHBoxLayout, QLabel, QStatusBar, QDialog
+from qtpy.QtWidgets import  QWidget, QVBoxLayout, QHBoxLayout, QLabel, QStatusBar
 
 from qtpy.QtGui import  QAction, QCloseEvent
 from qtpy.QtCore import Qt, QRect

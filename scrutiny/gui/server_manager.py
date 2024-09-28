@@ -29,10 +29,25 @@ class ThreadData:
 
 class ServerManager:
 
+    class ThreadFSMData:
+        previous_server_stat:sdk.ServerState
+        server_state:sdk.ServerState
+        server_info:Optional[sdk.ServerInfo]
+        previous_server_info:Optional[sdk.ServerInfo]
+
+        def __init__(self) -> None:
+            self.clear()
+
+        def clear(self) -> None:
+            self.previous_server_state = sdk.ServerState.Disconnected
+            self.server_state = sdk.ServerState.Disconnected
+            self.server_info = None
+            self.previous_server_info = None
+
+
     class _Signals(QObject):
-        server_connected_signal = Signal()
-        server_disconnected_signal = Signal()
-        device_connected = Signal()
+        server_connected = Signal()
+        server_disconnected = Signal()
         device_ready = Signal()
         device_disconnected = Signal()
         datalogging_state_changed = Signal()
@@ -44,16 +59,21 @@ class ServerManager:
     _signals:_Signals
     _auto_reconnect:bool
     _logger:logging.Logger
+    _fsm_data:ThreadFSMData
 
-    def __init__(self) -> None:
+    def __init__(self, client:Optional[ScrutinyClient]=None) -> None:
         super().__init__()  # Required for signals to work
-        self._client = ScrutinyClient()
-        self._signals = ServerManager._Signals()
+        if client is None:
+            self._client = ScrutinyClient()
+        else:
+            self._client = client   # Mainly useful for unit testing
+        self._signals = self._Signals()
         
         self._thread = None
         self._thread_stop_event = threading.Event()
         self._auto_reconnect = False
         self._logger = logging.getLogger(self.__class__.__name__)
+        self._fsm_data = self.ThreadFSMData()
 
     @property
     def signals(self) -> _Signals:
@@ -77,6 +97,12 @@ class ServerManager:
         self._auto_reconnect = False
         self._client.disconnect()
 
+        # Ensure the server thread has the time to notice the changes and emit all signals
+        t = time.monotonic()
+        timeout = 1
+        while self._fsm_data.server_state != sdk.ServerState.Disconnected and time.monotonic() - t < timeout:
+            time.sleep(0.01)
+
         if self._thread is not None:
             if self._thread.is_alive():
                 self._logger.debug("Stopping server manager")
@@ -88,26 +114,27 @@ class ServerManager:
                     self._logger.debug("Server manager stopped")
         
         self._thread = None
+        self._fsm_data.clear()
 
 
     def _thread_func(self, hostname:str, port:int) -> None:
         
-        previous_server_state = sdk.ServerState.Disconnected
-        server_state = sdk.ServerState.Disconnected
-        server_info:Optional[sdk.ServerInfo] = None
-        previous_server_info:Optional[sdk.ServerInfo] = None
+        self._fsm_data.previous_server_state = sdk.ServerState.Disconnected
+        self._fsm_data.server_state = sdk.ServerState.Disconnected
+        self._fsm_data.server_info = None
+        self._fsm_data.previous_server_info = None
         
         while not self._thread_stop_event.is_set():
 
-            server_state = self._client.server_state
-            state_entry = server_state != previous_server_state
+            self._fsm_data.server_state = self._client.server_state
+            state_entry = self._fsm_data.server_state != self._fsm_data.previous_server_state
             
-            if server_state == sdk.ServerState.Disconnected:
+            if self._fsm_data.server_state == sdk.ServerState.Disconnected:
                 if state_entry:
-                    self._signals.server_disconnected_signal.emit()
+                    self._signals.server_disconnected.emit()
                 
-                server_info = None
-                previous_server_info = None
+                self._fsm_data.server_info = None
+                self._fsm_data.previous_server_info = None
 
                 if self._auto_reconnect:
                     try:
@@ -116,63 +143,65 @@ class ServerManager:
                     except sdk.exceptions.ConnectionError:
                         pass
             
-            elif server_state == sdk.ServerState.Connecting:
-                pass    # connect should block for this state to never happen
+            elif self._fsm_data.server_state == sdk.ServerState.Connecting:
+                pass    # This state should never happen here because connect block until completion or failure
 
-            elif server_state == sdk.ServerState.Connected:
+            elif self._fsm_data.server_state == sdk.ServerState.Connected:
                 if state_entry:
                     self._logger.debug(f"Client connected to {hostname}:{port}")
-                    self._signals.server_connected_signal.emit()
-                    server_info = None
-                    previous_server_info = None
+                    self._signals.server_connected.emit()
+                    self._fsm_data.server_info = None
+                    self._fsm_data.previous_server_info = None
 
                 try:
-                    self._client.wait_server_status_update(0.5)
-                    server_info = self._client.get_server_status()
+                    self._client.wait_server_status_update(0.2)
+                    self._fsm_data.server_info = self._client.get_server_status()
                 except sdk.exceptions.TimeoutException:
                     pass
                 except sdk.exceptions.ScrutinySDKException:
-                    server_info = None
+                    self._fsm_data.server_info = None
 
                 # Server is gone
-                if server_info is None and previous_server_info is not None:
-                    self._signals.datalogging_state_changed.emit()
-
-                    if previous_server_info.device_session_id is not None:
+                if self._fsm_data.server_info is None and self._fsm_data.previous_server_info is not None:
+                    if self._fsm_data.previous_server_info.device_session_id is not None:
                         self._signals.device_disconnected.emit()
                 
                 # Server just arrived
-                elif server_info is not None and previous_server_info is None:
-                    self._signals.datalogging_state_changed.emit()
+                elif self._fsm_data.server_info is not None and self._fsm_data.previous_server_info is None:
+                    if self._fsm_data.server_info.device_session_id is not None:
+                        self._signals.device_ready.emit()
 
-                    if server_info.device_session_id is not None:
-                        self._signals.device_connected.emit()
                 
                 # Server is running
-                elif server_info is not None and previous_server_info is not None:
+                elif self._fsm_data.server_info is not None and self._fsm_data.previous_server_info is not None:
                     if (
-                        server_info.datalogging.state != previous_server_info.datalogging.state 
-                        or server_info.datalogging.completion_ratio != previous_server_info.datalogging.completion_ratio
-                        ):
+                        self._fsm_data.server_info.device_session_id is not None    # No need to trigger that event when the device is gone
+                        and (
+                            # Trigger on state change or completion ration change.
+                            self._fsm_data.server_info.datalogging.state != self._fsm_data.previous_server_info.datalogging.state 
+                            or self._fsm_data.server_info.datalogging.completion_ratio != self._fsm_data.previous_server_info.datalogging.completion_ratio
+                        )
+                    ):
                         self._signals.datalogging_state_changed.emit()
                     
-                    if server_info.device_session_id != previous_server_info.device_session_id:
+                    if self._fsm_data.server_info.device_session_id != self._fsm_data.previous_server_info.device_session_id:
                         # The server did a full reconnect between 2 state update.
                         # This state hsa a value only when device state is ConnectedReady
                         self._signals.device_disconnected.emit()
-                        self._signals.device_connected.emit()
+                        if self._fsm_data.server_info.device_session_id is not None:
+                            self._signals.device_ready.emit()
                 else:
                     pass # Nothing to do
 
-                previous_server_info=server_info
+                self._fsm_data.previous_server_info=self._fsm_data.server_info
 
-            elif server_state == sdk.ServerState.Error:
+            elif self._fsm_data.server_state == sdk.ServerState.Error:
                 self._logger.critical("Server state is Error. Stopping the server manager")
                 self._auto_reconnect = False
                 self._client.disconnect()
                 self._thread_stop_event.set()
 
-            previous_server_state = server_state
+            self._fsm_data.previous_server_state = self._fsm_data.server_state
 
     
     def get_server_state(self) -> sdk.ServerState:
