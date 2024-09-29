@@ -103,8 +103,8 @@ class ApiResponseFuture:
             return 'Timed out'
         return ''
 
-
 class CallbackStorageEntry:
+    """Represent an entry in the registry of all active requests"""
     _reqid: int
     _callback: ApiResponseCallback
     _future: ApiResponseFuture
@@ -118,12 +118,11 @@ class CallbackStorageEntry:
         self._creation_timestamp = datetime.now()
         self._timeout = timeout
 
-
 @dataclass
 class PendingAPIBatchWrite:
     update_dict: Dict[int, WriteRequest]
     confirmation: api_parser.WriteConfirmation
-    creation_timestamp: float
+    creation_monotonic_timestamp: float
     timeout: float
 
 
@@ -153,6 +152,12 @@ class BatchWriteContext:
 
 class FlushPoint:
     pass
+
+class WatchableListDownloadRequest:
+    _expected_count:Dict[WatchableType, int]
+
+    def __init__(self, expected_counts:Dict[WatchableType, int]) -> None:
+        self._expected_counts = expected_counts
 
 
 class ScrutinyClient:
@@ -459,12 +464,12 @@ class ScrutinyClient:
         with self._main_lock:
             keys = list(self._memory_read_completion_dict.keys())
             for k in keys:
-                if time.time() - self._memory_read_completion_dict[k].timestamp > self._MEMORY_READ_DATA_LIFETIME:
+                if time.monotonic() - self._memory_read_completion_dict[k].monotonic_timestamp > self._MEMORY_READ_DATA_LIFETIME:
                     del self._memory_read_completion_dict[k]
 
             keys = list(self._memory_write_completion_dict.keys())
             for k in keys:
-                if time.time() - self._memory_write_completion_dict[k].timestamp > self._MEMORY_WRITE_DATA_LIFETIME:
+                if time.monotonic() - self._memory_write_completion_dict[k].monotonic_timestamp > self._MEMORY_WRITE_DATA_LIFETIME:
                     del self._memory_write_completion_dict[k]
 
     def wt_process_rx_api_message(self, msg: Dict[str, Any]) -> None:
@@ -550,12 +555,12 @@ class ScrutinyClient:
 
         # Clear old requests.
         # No need for lock here. The _request_queue crosses time domain boundaries
-        now = time.time()
+        now = time.monotonic()
         if len(self._pending_api_batch_writes) > 0:
             tokens = list(self._pending_api_batch_writes.keys())
             for token in tokens:
                 pending_batch = self._pending_api_batch_writes[token]
-                if now - pending_batch.creation_timestamp > pending_batch.timeout:
+                if now - pending_batch.creation_monotonic_timestamp > pending_batch.timeout:
                     for request in pending_batch.update_dict.values():  # Completed request are already removed of that dict.
                         request._mark_complete(False, f"Timed out ({pending_batch.timeout} seconds)")
                     del self._pending_api_batch_writes[token]
@@ -623,7 +628,7 @@ class ScrutinyClient:
                     self._pending_api_batch_writes[confirmation.request_token] = PendingAPIBatchWrite(
                         update_dict=batch_dict,
                         confirmation=confirmation,
-                        creation_timestamp=time.time(),
+                        creation_monotonic_timestamp=time.monotonic(),
                         timeout=batch_timeout
                     )
             else:
@@ -850,12 +855,12 @@ class ScrutinyClient:
         self._active_batch_context = None
 
     def _wait_write_batch_complete(self, batch: BatchWriteContext) -> None:
-        start_time = time.time()
+        start_time = time.monotonic()
 
         incomplete_count: Optional[int] = None
         try:
             for write_request in batch.requests:
-                remaining_time = max(0, batch.timeout - (time.time() - start_time))
+                remaining_time = max(0, batch.timeout - (time.monotonic() - start_time))
                 write_request.wait_for_completion(timeout=remaining_time)
             timed_out = False
         except sdk.exceptions.TimeoutException:
@@ -1071,9 +1076,9 @@ class ScrutinyClient:
         for server_id in watchable_storage_copy:
             counter_map[server_id] = watchable_storage_copy[server_id]._update_counter
 
-        start_time = time.time()
+        start_time = time.monotonic()
         for server_id in watchable_storage_copy:
-            timeout_remainder = max(round(timeout - (time.time() - start_time), 2), 0)
+            timeout_remainder = max(round(timeout - (time.monotonic() - start_time), 2), 0)
             # Wait update will throw if the server has gone away as the _disconnect method will set all watchables "invalid"
             watchable_storage_copy[server_id].wait_update(previous_counter=counter_map[server_id], timeout=timeout_remainder)
 
@@ -1210,7 +1215,7 @@ class ScrutinyClient:
         validation.assert_int_range(size, 'size', minval=1)
         timeout = validation.assert_float_range_if_not_none(timeout, 'timeout', minval=0)
 
-        time_start = time.time()
+        time_start = time.monotonic()
         if timeout is None:
             timeout = self._timeout
 
@@ -1237,13 +1242,13 @@ class ScrutinyClient:
         if future.state != CallbackState.OK or cb_data.obj is None:
             raise sdk.exceptions.OperationFailure(f"Failed to read the device memory. {future.error_str}")
 
-        remaining_time = max(0, timeout - (time_start - time.time()))
+        remaining_time = max(0, timeout - (time_start - time.monotonic()))
         request_token = cb_data.obj
 
-        t = time.time()
+        t = time.perf_counter()
         # No lock here because we have a 1 producer, 1 consumer scenario and we are waiting. We don't write
         while request_token not in self._memory_read_completion_dict:
-            if time.time() - t >= remaining_time:
+            if time.perf_counter() - t >= remaining_time:
                 break
             time.sleep(0.002)
 
@@ -1278,7 +1283,7 @@ class ScrutinyClient:
         validation.assert_type(data, 'data', bytes)
         timeout = validation.assert_float_range_if_not_none(timeout, 'timeout', minval=0)
 
-        time_start = time.time()
+        time_start = time.perf_counter()
         if timeout is None:
             timeout = self._timeout
 
@@ -1305,13 +1310,13 @@ class ScrutinyClient:
         if future.state != CallbackState.OK or cb_data.obj is None:
             raise sdk.exceptions.OperationFailure(f"Failed to write the device memory. {future.error_str}")
 
-        remaining_time = max(0, timeout - (time_start - time.time()))
+        remaining_time = max(0, timeout - (time_start - time.perf_counter()))
         request_token = cb_data.obj
 
-        t = time.time()
+        t = time.perf_counter()
         # No lock here because we have a 1 producer, 1 consumer scenario and are waiting. We don't write
         while request_token not in self._memory_write_completion_dict:
-            if time.time() - t >= remaining_time:
+            if time.perf_counter() - t >= remaining_time:
                 break
             time.sleep(0.002)
 
@@ -1605,6 +1610,75 @@ class ScrutinyClient:
         """
         with self._main_lock:
             self._listeners.append(listener)
+    
+    def get_watchable_count(self) -> Dict[WatchableType, int]:
+        """
+        Request the server with the number of available watchable items, organized per type
+
+        :raise ValueError: Bad parameter value
+        :raise TypeError: Given parameter not of the expected type
+        :raise OperationFailure: If the command completion fails
+        """
+        req = self._make_request(API.Command.Client2Api.GET_WATCHABLE_COUNT)
+
+        @dataclass
+        class Container:
+            obj: Optional[Dict[WatchableType, int]]
+        cb_data: Container = Container(obj=None)  # Force pass by ref
+
+        def wt_get_watchable_count_callback(state: CallbackState, response: Optional[api_typing.S2CMessage]) -> None:
+            if response is not None and state == CallbackState.OK:
+                response = cast(api_typing.S2C.GetWatchableCount, response)
+                cb_data.obj = api_parser.parse_get_watchable_count(response)
+
+        future = self._send(req, wt_get_watchable_count_callback)
+        assert future is not None
+        future.wait()
+
+        if future.state != CallbackState.OK or cb_data.obj is None:
+            raise sdk.exceptions.OperationFailure(f"Failed to request the available watchable count. {future.error_str}")
+
+        return cb_data.obj
+
+    def download_watchable_list(self, types:Optional[List[WatchableType]]=None, max_per_response:int=100) -> WatchableListDownloadRequest:
+        validation.assert_type(max_per_response, 'max_per_response', int)
+        if types is None:
+            types = [WatchableType.Alias, WatchableType.RuntimePublishedValue, WatchableType.Variable]
+
+        validation.assert_type(types, 'types', list)
+        for type in types:
+            validation.assert_type(type, 'types', WatchableType)
+            if type == WatchableType.NA:
+                raise ValueError("WatchableType.NA is not a valid type to download")
+        
+        watchable_type_names = {
+            WatchableType.Alias : "alias",
+            WatchableType.RuntimePublishedValue : "rpv",
+            WatchableType.Variable : "var",
+        }
+
+        count = self.get_watchable_count()
+
+        for type in count.keys():
+            if type not in types:
+                count[type] = 0
+        
+        request_handle = WatchableListDownloadRequest(expected_counts=count)
+
+        req = self._make_request(API.Command.Client2Api.GET_WATCHABLE_LIST, {
+            'max_per_response': max_per_response,
+            'filter': {
+                "type" : [watchable_type_names[wt] for wt in types]
+            }
+        })
+
+        # TODO TODO TODO
+        future = self._send(req, )
+        assert future is not None
+        future.wait()
+
+        return request_handle
+
 
     @property
     def name(self) -> str:

@@ -3,18 +3,14 @@ __all__ = ['ServerManager']
 from scrutiny import sdk
 from scrutiny.sdk.client import ScrutinyClient
 from scrutiny.gui.exceptions import GuiError
-from enum import Enum
 import threading
 import time
 from dataclasses import dataclass
 
-from qtpy.QtCore import QTimer, QTimerEvent, Signal, QObject
+from qtpy.QtCore import Signal, QObject
 import logging
 from typing import Optional
-import traceback
 
-class ServerManagerError(GuiError):
-    pass
 
 @dataclass(init=False)
 class ThreadData:
@@ -24,7 +20,6 @@ class ThreadData:
     def __init__(self) -> None:
         self.thread = None
         self.started_event = threading.Event()
-
 
 
 class ServerManager:
@@ -45,7 +40,7 @@ class ServerManager:
             self.previous_server_info = None
 
 
-    class _Signals(QObject):
+    class _Signals(QObject):    # QObject required for signals to work
         server_connected = Signal()
         server_disconnected = Signal()
         device_ready = Signal()
@@ -174,27 +169,24 @@ class ServerManager:
                 
                 # Server is running
                 elif self._fsm_data.server_info is not None and self._fsm_data.previous_server_info is not None:
-                    if (
-                        self._fsm_data.server_info.device_session_id is not None    # No need to trigger that event when the device is gone
-                        and self._fsm_data.previous_server_info.device_session_id is not None    # No need to trigger that event when the device is gone
-                        and (
-                            # Trigger on state change or completion ration change.
-                            self._fsm_data.server_info.datalogging.state != self._fsm_data.previous_server_info.datalogging.state 
-                            or self._fsm_data.server_info.datalogging.completion_ratio != self._fsm_data.previous_server_info.datalogging.completion_ratio
-                        )
-                    ):
-                        self._signals.datalogging_state_changed.emit()
-                    
+                    # Device just left
                     if self._fsm_data.server_info.device_session_id is None and self._fsm_data.previous_server_info.device_session_id is not None:
                         self._signals.device_disconnected.emit()
+                    # Device just arrived
                     elif self._fsm_data.server_info.device_session_id is not None and self._fsm_data.previous_server_info.device_session_id is None:
                         self._signals.device_ready.emit()
+                    # Device has been there consistently
                     elif self._fsm_data.server_info.device_session_id is not None and self._fsm_data.previous_server_info.device_session_id is not None:
                         if self._fsm_data.server_info.device_session_id != self._fsm_data.previous_server_info.device_session_id:
                             # The server did a full reconnect between 2 state update.
                             # This state hsa a value only when device state is ConnectedReady
                             self._signals.device_disconnected.emit()
                             self._signals.device_ready.emit()
+                        
+                        if (self._fsm_data.server_info.datalogging.state != self._fsm_data.previous_server_info.datalogging.state 
+                            or self._fsm_data.server_info.datalogging.completion_ratio != self._fsm_data.previous_server_info.datalogging.completion_ratio):
+                            self._signals.datalogging_state_changed.emit()
+                    
                     else: # Both None, nothing to do
                         pass
                 else:

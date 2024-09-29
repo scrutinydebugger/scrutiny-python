@@ -18,7 +18,6 @@ class Sidebar(QToolBar):
 
         self.setIconSize(QSize(32,24))       
         
-        self.timers = []
         for component in components:
             btn = QToolButton(self)
             btn.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)

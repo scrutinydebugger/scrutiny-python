@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 
 from qtpy.QtWidgets import QWidget
 from qtpy.QtGui import QIcon
-from typing import Dict, cast, TYPE_CHECKING
+from typing import Dict, cast, TYPE_CHECKING, Any
 
 if TYPE_CHECKING:   # Prevent circular dependency
     from scrutiny.gui.main_window import MainWindow
@@ -31,17 +31,17 @@ class ScrutinyGUIBaseComponent(QWidget):
         return cast(str, getattr(cls, '_NAME'))
 
     @abstractmethod
-    def setup(self):
+    def setup(self) -> None:
         pass
 
     @abstractmethod
-    def teardown(self):
+    def teardown(self) -> None:
         pass
 
     @abstractmethod
-    def get_state(self) -> Dict:
+    def get_state(self) -> Dict[Any, Any]:
         pass
 
     @abstractmethod
-    def load_state(self) -> Dict:
+    def load_state(self) -> Dict[Any, Any]:
         pass

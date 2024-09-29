@@ -205,6 +205,75 @@ class TestServerManager(ScrutinyUnitTest):
         self.wait_server_state(sdk.ServerState.Disconnected)        
         self.assertEvents([EventType.SERVER_DISCONNECTED])
     
+    def test_event_datalogging_state_changed(self):
+        self.assertEqual(self.event_list, [])
+        self.server_manager.start(SERVER_MANAGER_HOST, SERVER_MANAGER_PORT)
+
+        self.wait_events([EventType.SERVER_CONNECTED], timeout=1)
+        self.clear_events()
+
+        self.fake_client.server_info = sdk.ServerInfo(
+            device_comm_state=sdk.DeviceCommState.ConnectedReady,
+            device_session_id='session_id1', # This value is used to detect connection change on the device side
+            datalogging=sdk.DataloggingInfo(state=sdk.DataloggerState.Standby, completion_ratio=None),
+            device_link=sdk.DeviceLinkInfo(type=sdk.DeviceLinkType._Dummy, config={}),
+            sfd=None,
+            device=DUMMY_DEVICE
+        )
+
+        self.wait_events([EventType.DEVICE_READY], timeout=1)
+        self.clear_events()
+
+        # Only the session ID changes. 
+        # Should trigger a device disconnected + device ready event.
+        for i in range(5):
+            new_dl_state = sdk.DataloggerState.Standby if self.fake_client.server_info.datalogging.state == sdk.DataloggerState.Acquiring else sdk.DataloggerState.Acquiring
+            self.fake_client.server_info = sdk.ServerInfo(
+                device_comm_state=self.fake_client.server_info.device_comm_state,
+                device_session_id=self.fake_client.server_info.device_session_id,     # We change that.
+                datalogging=sdk.DataloggingInfo(state=new_dl_state, completion_ratio=None),
+                device_link=self.fake_client.server_info.device_link,
+                sfd=self.fake_client.server_info.sfd,
+                device=DUMMY_DEVICE
+            )
+        
+            self.wait_events([EventType.DATALOGGING_STATE_CHANGED], timeout=1)
+            self.clear_events()
+
+        if  self.fake_client.server_info.datalogging.state != sdk.DataloggerState.Acquiring:
+            self.fake_client.server_info = sdk.ServerInfo(
+                device_comm_state=self.fake_client.server_info.device_comm_state,
+                device_session_id=self.fake_client.server_info.device_session_id,     
+                datalogging=sdk.DataloggingInfo(state=sdk.DataloggerState.Acquiring, completion_ratio=None),    # We change that.
+                device_link=self.fake_client.server_info.device_link,
+                sfd=self.fake_client.server_info.sfd,
+                device=DUMMY_DEVICE
+            )
+            self.wait_events([EventType.DATALOGGING_STATE_CHANGED], timeout=1)
+            self.clear_events()
+
+        for i in range(5):
+            new_dl_state = sdk.DataloggerState.Standby if self.fake_client.server_info.datalogging.state == sdk.DataloggerState.Acquiring else sdk.DataloggerState.Acquiring
+            self.fake_client.server_info = sdk.ServerInfo(
+                device_comm_state=self.fake_client.server_info.device_comm_state,
+                device_session_id=self.fake_client.server_info.device_session_id,  
+                datalogging=sdk.DataloggingInfo(state=sdk.DataloggerState.Acquiring, completion_ratio=float(i)),    # We change that.  
+                device_link=self.fake_client.server_info.device_link,
+                sfd=self.fake_client.server_info.sfd,
+                device=DUMMY_DEVICE
+            )
+        
+            self.wait_events([EventType.DATALOGGING_STATE_CHANGED], timeout=1)
+            self.clear_events()
+
+        self.fake_client.server_info = None
+        self.wait_events([EventType.DEVICE_DISCONNECTED], timeout=1)
+        self.clear_events()
+
+        self.server_manager.stop()
+        self.wait_server_state(sdk.ServerState.Disconnected)        
+        self.assertEvents([EventType.SERVER_DISCONNECTED])
+
 
     def tearDown(self) -> None:
         self.server_manager.stop()

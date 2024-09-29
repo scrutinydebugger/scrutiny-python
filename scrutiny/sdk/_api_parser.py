@@ -59,6 +59,7 @@ class MemoryReadCompletion:
     data: Optional[bytes]
     error: str
     timestamp: float
+    monotonic_timestamp: float
 
 
 @dataclass(frozen=True)
@@ -67,6 +68,7 @@ class MemoryWriteCompletion:
     success: bool
     error: str
     timestamp: float
+    monotonic_timestamp: float
 
 
 @dataclass(frozen=True)
@@ -106,8 +108,8 @@ def _check_response_dict(cmd: str, d: Any, name: str, types: Union[Type[Any], It
 
         _check_response_dict(cmd, d[key], '.'.join(next_parts), types, part_name)
     else:
-
-        if not isinstance(d[key], types):
+        isbool = d[key].__class__ == True.__class__ # bool are ints for Python. Avoid allowing bools as valid int.
+        if not isinstance(d[key], types) or isbool and bool not in types:
             gotten_type = d[key].__class__.__name__
             typename = "(%s)" % ', '.join([t.__name__ for t in types])
             raise sdk.exceptions.BadResponseError(
@@ -616,7 +618,8 @@ def parse_memory_read_completion(response: api_typing.S2C.ReadMemoryComplete) ->
         success=success,
         data=data_bin,
         error=detail_msg if detail_msg is not None else "",
-        timestamp=time.time()
+        timestamp=time.time(),
+        monotonic_timestamp = time.monotonic()
     )
 
 
@@ -634,7 +637,8 @@ def parse_memory_write_completion(response: api_typing.S2C.WriteMemoryComplete) 
         request_token=_fetch_dict_val_no_none(response, 'request_token', str, ""),
         success=_fetch_dict_val_no_none(response, 'success', bool, False),
         error=detail_msg if detail_msg is not None else "",
-        timestamp=time.time()
+        timestamp=time.time(),
+        monotonic_timestamp=time.monotonic()
     )
 
 
@@ -862,3 +866,25 @@ def parse_user_command_response(response: api_typing.S2C.UserCommand) -> sdk.Use
         subfunction=response['subfunction'],
         data=data
     )
+
+
+def parse_get_watchable_count(response:api_typing.S2C.GetWatchableCount) -> Dict[sdk.WatchableType, int]:
+    assert isinstance(response, dict)
+    assert 'cmd' in response
+    cmd = response['cmd']
+    assert cmd == API.Command.Api2Client.GET_WATCHABLE_COUNT_RESPONSE
+
+    _check_response_dict(cmd, response, 'qty.var', int)
+    _check_response_dict(cmd, response, 'qty.alias', int)
+    _check_response_dict(cmd, response, 'qty.rpv', int)
+
+    key:Literal['rpv', 'var', 'alias']
+    for key in ('rpv', 'var', 'alias'):
+        if response['qty'][key] < 0:
+            raise sdk.exceptions.BadResponseError("Received a negative number of watchable")
+        
+    return {
+        sdk.WatchableType.Variable : response['qty']['var'],
+        sdk.WatchableType.Alias : response['qty']['alias'],
+        sdk.WatchableType.RuntimePublishedValue : response['qty']['rpv']
+    }

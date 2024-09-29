@@ -116,8 +116,6 @@ class TestApiParser(ScrutinyUnitTest):
             parser.parse_get_watchable_single_element(msg, requested_path)
 
     def test_parse_subscribe_watchable(self):
-        requested_path = '/a/b/c'
-
         def base():
             return {
                 "cmd": "response_subscribe_watchable",
@@ -883,6 +881,42 @@ class TestApiParser(ScrutinyUnitTest):
             msg = base()
             msg["acquisitions"][0]["firmware_metadata"]["generation_info"]["time"] = val
             parser.parse_list_datalogging_acquisitions_response(msg)
+
+    def test_parse_get_watchable_count(self):
+        def base():
+            return {
+                "cmd": "response_get_watchable_count",
+                "reqid": None,
+                'qty' : {
+                    'alias' : 10,
+                    'var' : 20,
+                    'rpv' : 30,
+                }
+            }
+        msg = base()
+        count = parser.parse_get_watchable_count(msg)
+        self.assertEqual(count[WatchableType.Alias], 10)
+        self.assertEqual(count[WatchableType.Variable], 20)
+        self.assertEqual(count[WatchableType.RuntimePublishedValue], 30)
+        self.assertEqual(len(count), 3)
+
+        with self.assertRaises(sdk.exceptions.BadResponseError):
+            msg = base()
+            del msg['qty']
+            parser.parse_get_watchable_count(msg)
+        
+        class Delete:
+            pass
+        
+        for key in ['var', 'alias', 'rpv']:
+            for val in [None, -1, 2.5, [], {}, True, Delete]:
+                with self.assertRaises(sdk.exceptions.BadResponseError, msg=f"key={key}, val={val}"):
+                    msg = base()
+                    if val == Delete:
+                        del msg['qty'][key]
+                    else:
+                        msg['qty'][key] = val
+                    parser.parse_get_watchable_count(msg)
 
 
 if __name__ == '__main__':

@@ -35,7 +35,7 @@ class MainWindow(QMainWindow):
     ]
 
     _dashboard_components:Dict[str, ScrutinyGUIBaseComponent]
-    _logger = logging.Logger
+    _logger: logging.Logger
 
     _central_widget:QWidget
     _dock_conainer:QWidget
@@ -45,7 +45,7 @@ class MainWindow(QMainWindow):
     _server_config_dialog:ServerConfigDialog
     _server_manager:ServerManager
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self._dashboard_components = {}
         self._logger = logging.getLogger(self.__class__.__name__)
@@ -200,6 +200,6 @@ class MainWindow(QMainWindow):
     def menu_server_disconnect_click(self) -> None:
         self._server_manager.stop()
 
-    def server_config_changed(self):
+    def server_config_changed(self)  -> None:
         print("config changed")
         
