@@ -11,6 +11,7 @@ __all__ = ['Client']
 
 import scrutiny.sdk
 import scrutiny.sdk.datalogging
+from scrutiny.sdk.pending_request import PendingRequest
 from scrutiny.core import validation
 sdk = scrutiny.sdk
 from scrutiny.sdk import _api_parser as api_parser
@@ -52,6 +53,7 @@ class CallbackState(enum.Enum):
 
 
 ApiResponseCallback = Callable[[CallbackState, Optional[api_typing.S2CMessage]], None]
+WatchableListType = Dict[WatchableType, Dict[str, WatchableConfiguration]]
 
 T = TypeVar('T')
 
@@ -108,21 +110,21 @@ class CallbackStorageEntry:
     _reqid: int
     _callback: ApiResponseCallback
     _future: ApiResponseFuture
-    _creation_timestamp: datetime
+    _creation_timestamp_monotonic: float
     _timeout: float
 
     def __init__(self, reqid: int, callback: ApiResponseCallback, future: ApiResponseFuture, timeout: float):
         self._reqid = reqid
         self._callback = callback
         self._future = future
-        self._creation_timestamp = datetime.now()
+        self._creation_timestamp_monotonic = time.monotonic()
         self._timeout = timeout
 
 @dataclass
 class PendingAPIBatchWrite:
     update_dict: Dict[int, WriteRequest]
     confirmation: api_parser.WriteConfirmation
-    creation_relative_timestamp: float
+    creation_perf_timestamp: float
     timeout: float
 
 
@@ -153,18 +155,42 @@ class BatchWriteContext:
 class FlushPoint:
     pass
 
-class WatchableListDownloadRequest:
+
+
+@dataclass(init=False)
+class WatchableListDownloadRequest(PendingRequest):
     """Represent a pending watchable download request."""
     _request_id:int
-    _canceled:bool
+    _watchable_list:WatchableListType
 
-    def __init__(self, request_id:int) -> None:
+    def __init__(self, client:"ScrutinyClient", request_id:int) -> None:
         self._request_id = request_id
-        self._canceled=False
+        self._watchable_list = {
+            WatchableType.Variable : {},
+            WatchableType.Alias : {},
+            WatchableType.RuntimePublishedValue : {}
+        }
+        super().__init__(client)
     
     def cancel(self) -> None:
         """Inform the client that this request can be canceled. Subsequent server response will be ignored"""
-        self._canceled = True
+        self._client._cancel_download_watchable_list_request(self._request_id)
+        try:
+            self.wait_for_completion(2) # Expect to throw when the client mark use as fail.
+        except sdk.exceptions.OperationFailure:
+            pass
+
+    def _add_data(self, content:api_parser.GetWatchableListResponse) -> None:
+        for watchable_type in (WatchableType.Variable, WatchableType.Alias, WatchableType.RuntimePublishedValue):
+            self._watchable_list[watchable_type].update(content.data[watchable_type])
+
+    def get(self) -> WatchableListType:
+        if not self.completed:
+            raise sdk.exceptions.InvalidValueError("Watchable list is not finished downloading")
+        if not self.is_success:
+            raise sdk.exceptions.InvalidValueError("Watchable list failed to download fully")
+        
+        return self._watchable_list
     
 
 
@@ -174,6 +200,7 @@ class ScrutinyClient:
     _MAX_WRITE_REQUEST_BATCH_SIZE = 500
     _MEMORY_READ_DATA_LIFETIME = 30
     _MEMORY_WRITE_DATA_LIFETIME = 30
+    _DOWNLOAD_WATCHABLE_LIST_LIFETIME = 30
 
     @dataclass
     class ThreadingEvents:
@@ -200,9 +227,9 @@ class ScrutinyClient:
     _logger: logging.Logger     # logging interface
     _encoding: str              # The API string encoding. utf-8
     _sock: Optional[socket.socket]    # The socket talking with the server
-    _selector: Optional[selectors.DefaultSelector]
-    _stream_parser : Optional[StreamParser]
-    _stream_maker : Optional[StreamMaker]
+    _selector: Optional[selectors.DefaultSelector]  # Used for socket communication
+    _stream_parser : Optional[StreamParser]         # Used for socket communication
+    _stream_maker : Optional[StreamMaker]           # Used for socket communication
     _rx_message_callbacks: List[RxMessageCallback]  # List of callbacks to call for each message received. (mainly for testing)
     _reqid: int                 # The actual request ID. Increasing integer
     _timeout: float             # Default timeout value for server requests
@@ -326,6 +353,7 @@ class ScrutinyClient:
         
         self._request_status_timer.start()
         # _sock will be None after a disconnect
+        last_deferred_response_timeout_check = time.monotonic()
         while not self._threading_events.stop_worker_thread.is_set() and self._sock is not None:
             require_sync_before = False
             try:
@@ -338,7 +366,10 @@ class ScrutinyClient:
                     self.wt_process_rx_api_message(msg)
 
                 self._wt_check_callbacks_timeouts()
-                self._check_deferred_response_timeouts()
+                if time.monotonic() - last_deferred_response_timeout_check > 1.0:   # Avoid locking the main lock too often
+                    self._check_deferred_response_timeouts()
+                    last_deferred_response_timeout_check = time.monotonic()
+                    
                 self._wt_process_write_watchable_requests()
                 self._wt_process_device_state()
 
@@ -435,8 +466,27 @@ class ScrutinyClient:
             return
 
         request = self._pending_datalogging_requests[completion.request_token]
-        request._mark_complete(completion.success, completion.reference_id, completion.detail_msg)
+        request._mark_complete_specialized(completion.success, completion.reference_id, completion.detail_msg)
         del self._pending_datalogging_requests[completion.request_token]
+
+    def _wt_process_msg_get_watchable_list_response(self, msg: api_typing.S2C.GetWatchableList, reqid:Optional[int]) -> None:
+        if reqid is None:
+            self._logger.warning('Received a watcahble list message, but the request ID was not available.')
+            return
+        
+        content = api_parser.parse_get_watchable_list(msg)
+
+        with self._main_lock:
+            if reqid not in self._pending_watchable_download_request:
+                self._logger.warning(f'Received a watcahble list message, but the request ID was is not tied to any active request {reqid}')
+                return
+
+            req = self._pending_watchable_download_request[reqid]
+
+        req._add_data(content)
+        if content.done:
+            req._mark_complete(success=True)
+
 
     def _wt_process_next_server_status_update(self) -> None:
         if self._request_status_timer.is_timed_out() or self._require_status_update:
@@ -446,7 +496,7 @@ class ScrutinyClient:
             self._send(req)  # No callback, we have a continuous listener
 
     def _wt_check_callbacks_timeouts(self) -> None:
-        now = datetime.now()
+        now = time.monotonic()
         with self._main_lock:
             reqids = list(self._callback_storage.keys())
 
@@ -459,7 +509,7 @@ class ScrutinyClient:
             if callback_entry is None:
                 continue
 
-            if now - callback_entry._creation_timestamp > timedelta(seconds=callback_entry._timeout):
+            if now - callback_entry._creation_timestamp_monotonic > callback_entry._timeout:
                 try:
                     callback_entry._callback(CallbackState.TimedOut, None)
                 except (sdk.exceptions.ConnectionError):
@@ -474,15 +524,17 @@ class ScrutinyClient:
 
     def _check_deferred_response_timeouts(self) -> None:
         with self._main_lock:
-            keys = list(self._memory_read_completion_dict.keys())
-            for k in keys:
-                if time.monotonic() - self._memory_read_completion_dict[k].monotonic_timestamp > self._MEMORY_READ_DATA_LIFETIME:
-                    del self._memory_read_completion_dict[k]
+            for kstr in list(self._memory_read_completion_dict.keys()):
+                if time.monotonic() - self._memory_read_completion_dict[kstr].monotonic_timestamp > self._MEMORY_READ_DATA_LIFETIME:
+                    del self._memory_read_completion_dict[kstr]
 
-            keys = list(self._memory_write_completion_dict.keys())
-            for k in keys:
-                if time.monotonic() - self._memory_write_completion_dict[k].monotonic_timestamp > self._MEMORY_WRITE_DATA_LIFETIME:
-                    del self._memory_write_completion_dict[k]
+            for kstr in list(self._memory_write_completion_dict.keys()):
+                if time.monotonic() - self._memory_write_completion_dict[kstr].monotonic_timestamp > self._MEMORY_WRITE_DATA_LIFETIME:
+                    del self._memory_write_completion_dict[kstr]
+            
+            for kint in list(self._pending_watchable_download_request.keys()):
+                if self._pending_watchable_download_request[kint]._is_expired(self._DOWNLOAD_WATCHABLE_LIST_LIFETIME):
+                    del self._pending_watchable_download_request[kint]
 
     def wt_process_rx_api_message(self, msg: Dict[str, Any]) -> None:
         self._threading_events.msg_received.set()
@@ -510,6 +562,8 @@ class ScrutinyClient:
                     self._wt_process_msg_inform_memory_write_complete(cast(api_typing.S2C.WriteMemoryComplete, msg), reqid)
                 elif cmd == API.Command.Api2Client.INFORM_DATALOGGING_ACQUISITION_COMPLETE:
                     self._wt_process_msg_datalogging_acquisition_complete(cast(api_typing.S2C.InformDataloggingAcquisitionComplete, msg), reqid)
+                elif cmd == API.Command.Api2Client.GET_WATCHABLE_LIST_RESPONSE:
+                    self._wt_process_msg_get_watchable_list_response(cast(api_typing.S2C.GetWatchableList, msg), reqid)
             except sdk.exceptions.BadResponseError as e:
                 self._logger.error(f"Bad message from server. {e}")
                 self._logger.debug(traceback.format_exc())
@@ -572,7 +626,7 @@ class ScrutinyClient:
             tokens = list(self._pending_api_batch_writes.keys())
             for token in tokens:
                 pending_batch = self._pending_api_batch_writes[token]
-                if now - pending_batch.creation_relative_timestamp > pending_batch.timeout:
+                if now - pending_batch.creation_perf_timestamp > pending_batch.timeout:
                     for request in pending_batch.update_dict.values():  # Completed request are already removed of that dict.
                         request._mark_complete(False, f"Timed out ({pending_batch.timeout} seconds)")
                     del self._pending_api_batch_writes[token]
@@ -640,7 +694,7 @@ class ScrutinyClient:
                     self._pending_api_batch_writes[confirmation.request_token] = PendingAPIBatchWrite(
                         update_dict=batch_dict,
                         confirmation=confirmation,
-                        creation_relative_timestamp=time.perf_counter(),
+                        creation_perf_timestamp=time.perf_counter(),
                         timeout=batch_timeout
                     )
             else:
@@ -712,6 +766,7 @@ class ScrutinyClient:
             self._last_device_session_id = None
 
             self._wt_clear_all_watchables(ValueStatus.ServerGone)
+            self._wt_clear_all_pending_requests("Server is disconnected")
 
             for callback_entry in self._callback_storage.values():
                 if callback_entry._future.state == CallbackState.Pending:
@@ -719,6 +774,7 @@ class ScrutinyClient:
             self._callback_storage.clear()
 
     def _wt_clear_all_watchables(self, new_status: ValueStatus, watchable_types: Optional[List[WatchableType]] = None) -> None:
+        # Don't lock the main lock, supposed to be done beforehand
         assert new_status is not ValueStatus.Valid
         if watchable_types is None:
             watchable_types = [WatchableType.Alias, WatchableType.Variable, WatchableType.RuntimePublishedValue]
@@ -730,6 +786,24 @@ class ScrutinyClient:
                 if watchable.display_path in self._watchable_path_to_id_map:
                     del self._watchable_path_to_id_map[watchable.display_path]
                 del self._watchable_storage[server_id]
+
+    def _wt_clear_all_pending_requests(self, failure_reason:str) -> None:
+        # Don't lock the main lock, supposed to be done beforehand
+        self._memory_read_completion_dict.clear()
+        self._memory_write_completion_dict.clear()
+        
+        for request in self._pending_watchable_download_request.values():
+            request._mark_complete(success=False, failure_reason=failure_reason)
+        self._pending_watchable_download_request.clear()
+
+        for datalog_request in self._pending_datalogging_requests.values():
+            datalog_request._mark_complete(success=False, failure_reason=failure_reason)
+        self._pending_datalogging_requests.clear()
+
+        for batch_write_request in self._pending_api_batch_writes.values():
+            for write_req in batch_write_request.update_dict.values():
+                write_req._mark_complete(success=False, failure_reason=failure_reason)
+        self._pending_api_batch_writes.clear()
 
     def _register_callback(self, reqid: int, callback: ApiResponseCallback, timeout: float) -> ApiResponseFuture:
         future = ApiResponseFuture(reqid, default_wait_timeout=timeout + 0.5)    # Allow some margin for thread to mark it timed out
@@ -858,6 +932,12 @@ class ScrutinyClient:
             self._active_batch_context.requests.append(request)
         else:
             self._enqueue_write_request(request)
+    
+    def _cancel_download_watchable_list_request(self, reqid:int) -> None:
+        with self._main_lock:
+            if reqid not in self._pending_watchable_download_request:
+                raise sdk.exceptions.OperationFailure(f"No download reqest identified by request ID : {reqid}")
+            self._pending_watchable_download_request[reqid]._mark_complete(success=False, failure_reason="Cancelled by user")
 
     def _flush_batch_write(self, batch_write_context: BatchWriteContext) -> None:
         self._enqueue_write_request(FlushPoint())   # Flush Point required because Python thread-safe queue has no peek() method.
@@ -1686,8 +1766,9 @@ class ScrutinyClient:
             'filter': filter_dict
         })
 
-        request_handle = WatchableListDownloadRequest(request_id=req['reqid'])
-        self._pending_watchable_download_request[req['reqid']] = request_handle
+        request_handle = WatchableListDownloadRequest(self, request_id=req['reqid'])
+        with self._main_lock:
+            self._pending_watchable_download_request[req['reqid']] = request_handle
 
         self._send(req)
         # responses will be catched by the worker thread and the request handle will be updated
