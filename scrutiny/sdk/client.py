@@ -159,7 +159,7 @@ class FlushPoint:
 
 @dataclass(init=False)
 class WatchableListDownloadRequest(PendingRequest):
-    """Represent a pending watchable download request."""
+    """Represent a pending watchable download request. It can be used to wait for completion or cancel the request."""
     _request_id:int
     _watchable_list:WatchableListType
 
@@ -171,20 +171,30 @@ class WatchableListDownloadRequest(PendingRequest):
             WatchableType.RuntimePublishedValue : {}
         }
         super().__init__(client)
+
+    def _add_data(self, content:api_parser.GetWatchableListResponse) -> None:
+        for watchable_type in (WatchableType.Variable, WatchableType.Alias, WatchableType.RuntimePublishedValue):
+            self._watchable_list[watchable_type].update(content.data[watchable_type])
     
     def cancel(self) -> None:
-        """Inform the client that this request can be canceled. Subsequent server response will be ignored"""
+        """Inform the client that this request can be canceled. Subsequent server response will be ignored
+        
+        :raise sdk.TimeoutError: If the client fails to cancel the request. Should never happen
+        """
         self._client._cancel_download_watchable_list_request(self._request_id)
         try:
             self.wait_for_completion(2) # Expect to throw when the client mark use as fail.
         except sdk.exceptions.OperationFailure:
             pass
 
-    def _add_data(self, content:api_parser.GetWatchableListResponse) -> None:
-        for watchable_type in (WatchableType.Variable, WatchableType.Alias, WatchableType.RuntimePublishedValue):
-            self._watchable_list[watchable_type].update(content.data[watchable_type])
-
     def get(self) -> WatchableListType:
+        """
+        Return the definition of all the watchables, classified by type.
+
+        :raise InvalidValueError: If the data is not available yet (if the request did not completed successfully)
+
+        :return: A dictionary of dictionary containing the difinition of each watchable entry that matched the filters. `foo[type][display_path] = <definition>`
+        """
         if not self.completed:
             raise sdk.exceptions.InvalidValueError("Watchable list is not finished downloading")
         if not self.is_success:
@@ -1734,6 +1744,16 @@ class ScrutinyClient:
                                 max_per_response:int=100,
                                 name_patterns:List[str] = []
                                 ) -> WatchableListDownloadRequest:
+        """
+            Request the server for the list of watchable items available in its datastore.
+
+            :raise ValueError: Bad parameter value
+            :raise TypeError: Given parameter not of the expected type
+            :raise ConnectionError: If the connection to the server is broken
+
+            :return: A handle to the request object that can be used for synchronization (:meth:`wait_for_completion<scrutiny.sdk.client.WatchableListDownloadRequest.wait_for_completion>`) 
+            or cancel the request (:meth:`cancel<scrutiny.sdk.client.WatchableListDownloadRequest.cancel>`)
+        """
         validation.assert_type(max_per_response, 'max_per_response', int)
         if types is None:
             types = [WatchableType.Alias, WatchableType.RuntimePublishedValue, WatchableType.Variable]
