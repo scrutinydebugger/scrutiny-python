@@ -9,7 +9,8 @@
 import enum
 from dataclasses import dataclass
 from datetime import datetime
-from scrutiny.core.basic_types import MemoryRegion
+from scrutiny.core.basic_types import MemoryRegion, EmbeddedDataType
+from scrutiny.core.embedded_enum import EmbeddedEnum
 from scrutiny.core import validation
 import abc
 from binascii import hexlify
@@ -40,7 +41,8 @@ __all__ = [
     'SupportedLinkConfig',
     'DeviceLinkInfo',
     'ServerInfo',
-    'UserCommandResponse'
+    'UserCommandResponse',
+    'WatchableConfiguration'
 ]
 
 AddressSize = Literal[8, 16, 32, 64, 128]
@@ -394,3 +396,10 @@ class UserCommandResponse:
 
     def __repr__(self) -> str:
         return f'{self.__class__.__name__}(subfunction={self.subfunction}, data=b\'{hexlify(self.data).decode()}\')'
+
+@dataclass(frozen=True)
+class WatchableConfiguration:
+    server_id: str
+    watchable_type:WatchableType
+    datatype:EmbeddedDataType
+    enum:Optional[EmbeddedEnum]

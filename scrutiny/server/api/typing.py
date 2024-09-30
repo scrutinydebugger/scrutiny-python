@@ -60,7 +60,7 @@ class EnumDefinition(TypedDict):
 class DatastoreEntryDefinitionNoType(TypedDict, total=False):
     id: str
     display_path: str
-    datatype: str
+    datatype: Datatype
     enum: Optional[EnumDefinition]
 
 

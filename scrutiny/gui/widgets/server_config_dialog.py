@@ -27,7 +27,7 @@ class ServerConfigDialog(QDialog):
 
         layout = QVBoxLayout(self)
         form = QWidget()
-        buttons = QDialogButtonBox(QDialogButtonBox.StandardButtons.Ok | QDialogButtonBox.StandardButton.Cancel)
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         layout.addWidget(form)
         layout.addWidget(buttons)
 

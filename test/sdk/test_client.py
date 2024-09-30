@@ -1357,7 +1357,7 @@ class TestClient(ScrutinyUnitTest):
         fake_batch_request = scrutiny.sdk.client.PendingAPIBatchWrite(
             {1: sdk.client.WriteRequest(rpv1000, 123)},
             sdk._api_parser.WriteConfirmation('fake_token', 1),
-            datetime.now().timestamp(),
+            creation_relative_timestamp=time.perf_counter(),
             timeout=2
         )
         self.client._pending_api_batch_writes['fake_token'] = fake_batch_request

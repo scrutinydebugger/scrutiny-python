@@ -310,7 +310,7 @@ class API:
         self.device_handler.register_device_state_change_callback(self.device_state_changed_callback)
 
     @classmethod
-    def get_datatype_name(cls, datatype: EmbeddedDataType) -> str:
+    def get_datatype_name(cls, datatype: EmbeddedDataType) -> api_typing.Datatype:
         if datatype not in cls.DATATYPE_2_APISTR:
             raise ValueError('Unknown datatype : %s' % (str(datatype)))
 
