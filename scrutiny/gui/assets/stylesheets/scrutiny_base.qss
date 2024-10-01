@@ -1,0 +1,6 @@
+QWidget.sidebar_element{
+    border-radius:5px
+}
+QWidget.sidebar_element:hover {
+    background-color: @Dark
+}
