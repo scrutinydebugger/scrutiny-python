@@ -399,7 +399,7 @@ class UserCommandResponse:
 
 @dataclass(frozen=True)
 class WatchableConfiguration:
-    """Represents a watchable available in the server data store"""
+    """(Immutable struct) Represents a watchable available in the server datastore"""
     
     server_id: str
     """The unique ID assigned to that watchable item by the server"""
