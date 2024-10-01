@@ -32,13 +32,10 @@ class WatchableHandle:
     _client: "ScrutinyClient"   # The client that created this handle
     _display_path: str      # The display path
     _shortname: str         # Name of the last element in the display path
-    _lock: threading.Lock   # A lock to access the value
+    _configuration:Optional[WatchableConfiguration]
 
-    _datatype: EmbeddedDataType     # The datatype represented in the device (uint8, float32, etc)
-    _watchable_type: WatchableType  # Tye of watchable : Alias, Variable or RPV
-    _server_id: Optional[str]       # The ID assigned by the server
+    _lock: threading.Lock   # A lock to access the value
     _status: ValueStatus            # Status of the value. Tells if the value is valid or not and why it is invalid if not
-    _enum: Optional[EmbeddedEnum]   # Enum that applies to this watchable
 
     _value: Optional[ValType]       # Contain the latest value gotten by the client
     _last_value_dt: Optional[datetime]  # Datetime of the last value update by the client
@@ -49,28 +46,25 @@ class WatchableHandle:
         self._client = client
         self._display_path = display_path
         self._shortname = display_path.split('/')[-1]
+        self._configuration = None
         self._lock = threading.Lock()
         self._update_counter = 0
         self._set_invalid(ValueStatus.NeverSet)
 
     def __repr__(self) -> str:
         addr = "0x%0.8x" % id(self)
-        return f'<{self.__class__.__name__} "{self._shortname}" [{self._datatype.name}] at {addr}>'
+        if self._configuration is None:
+            return f'<{self.__class__.__name__} "{self._shortname}" [Unconfigured] at {addr}>'
+        
+        return f'<{self.__class__.__name__} "{self._shortname}" [{self._configuration.datatype.name}] at {addr}>'
 
-    def _configure(self, 
-                   watchable_type: WatchableType, 
-                   datatype: EmbeddedDataType, 
-                   server_id: str,
-                   enum:Optional[EmbeddedEnum] = None) -> None:
+    def _configure(self, config: WatchableConfiguration) -> None:
         with self._lock:
-            self._watchable_type = watchable_type
-            self._datatype = datatype
-            self._server_id = server_id
+            self._configuration = config
             self._status = ValueStatus.NeverSet
             self._value = None
             self._last_value_dt = None
             self._update_counter = 0
-            self._enum = enum
 
     def _set_last_write_datetime(self, dt: Optional[datetime] = None) -> None:
         if dt is None:
@@ -95,9 +89,7 @@ class WatchableHandle:
         with self._lock:
             self._value = None
             self._status = status
-            self._server_id = None
-            self._watchable_type = WatchableType.NA
-            self._datatype = EmbeddedDataType.NA
+            self._configuration = None
 
     def _is_dead(self) -> bool:
         return self._status != ValueStatus.Valid and self._status != ValueStatus.NeverSet
@@ -124,6 +116,10 @@ class WatchableHandle:
     def _assert_has_enum(self) -> None:
         if not self.has_enum():
             raise sdk_exceptions.BadEnumError(f"Watchable {self._shortname} has no enum defined")
+    
+    def _assert_configured(self)-> None:
+        if self._configuration is None:
+            raise sdk_exceptions.InvalidValueError("This watchable handle is not ready to be used")
 
     def unwatch(self) -> None:
         """Stop watching this item by unsubscribing to the server
@@ -206,16 +202,21 @@ class WatchableHandle:
     
     def has_enum(self) -> bool:
         """Tells if the watchable has an enum associated with it"""
-        return self._enum is not None
+        self._assert_configured()
+        assert self._configuration is not None
+        return self._configuration.enum is not None
     
     def get_enum(self) -> EmbeddedEnum:
         """ Returns the enum associated with this watchable
 
         :raises BadEnumError: If the watchable has no enum assigned
         """
+        self._assert_configured()
+        assert self._configuration is not None
+
         self._assert_has_enum()
-        assert self._enum is not None
-        return self._enum.copy()
+        assert self._configuration.enum is not None
+        return self._configuration.enum.copy()
     
     def parse_enum_val(self, val:str) -> int:
         """Converts an enum value name (string) to the underlying integer value
@@ -226,12 +227,15 @@ class WatchableHandle:
         :raise TypeError: Given parameter not of the expected type
         """
         validation.assert_type(val, 'val', str)
+        self._assert_configured()
+        assert self._configuration is not None
+
         self._assert_has_enum()
-        assert self._enum is not None
-        if not self._enum.has_value(val):
-            raise sdk_exceptions.BadEnumError(f"Value {val} is not a valid value for enum {self._enum.name}")
+        assert self._configuration.enum is not None
+        if not self._configuration.enum.has_value(val):
+            raise sdk_exceptions.BadEnumError(f"Value {val} is not a valid value for enum {self._configuration.enum.name}")
         
-        return self._enum.get_value(val)
+        return self._configuration.enum.get_value(val)
 
 
     @property
@@ -247,12 +251,15 @@ class WatchableHandle:
     @property
     def type(self) -> WatchableType:
         """The watchable type. Variable, Alias or RuntimePublishedValue"""
-        return self._watchable_type
+        self._assert_configured()
+        assert self._configuration is not None
+        return self._configuration.watchable_type
 
     @property
     def datatype(self) -> EmbeddedDataType:
         """The data type of the device element pointed by this watchable. (sint16, float32, etc.)"""
-        return self._datatype
+        assert self._configuration is not None
+        return self._configuration.datatype
 
     @property
     def value(self) -> ValType:
@@ -282,12 +289,14 @@ class WatchableHandle:
     def value_enum(self) -> str:
         """The value converted to its first enum name (alphabetical order). Returns a string. Can be written with a string"""
         val_int = self.value_int
+        self._assert_configured()
+        assert self._configuration is not None
         self._assert_has_enum()
-        assert self._enum is not None
-        for k in sorted(self._enum.vals.keys()):
-            if self._enum.vals[k] == val_int:
+        assert self._configuration.enum is not None
+        for k in sorted(self._configuration.enum.vals.keys()):
+            if self._configuration.enum.vals[k] == val_int:
                 return k
-        raise sdk_exceptions.InvalidValueError(f"Watchable {self._shortname} has value {val_int} which is not a valid enum value for enum {self._enum.name}")
+        raise sdk_exceptions.InvalidValueError(f"Watchable {self._shortname} has value {val_int} which is not a valid enum value for enum {self._configuration.enum.name}")
 
     @value_enum.setter
     def value_enum(self, val: str) -> None:

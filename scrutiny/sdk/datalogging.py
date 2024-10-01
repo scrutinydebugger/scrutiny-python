@@ -11,6 +11,7 @@ from scrutiny.core.datalogging import *
 from scrutiny.core import validation
 from dataclasses import dataclass
 from scrutiny.sdk.watchable_handle import WatchableHandle
+from scrutiny.sdk.pending_request import PendingRequest
 import enum
 from typing import List, Dict, Union, Optional, TYPE_CHECKING
 import scrutiny.server.api.typing as api_typing
@@ -388,41 +389,28 @@ class DataloggingConfig:
 
 
 @dataclass(init=False)
-class DataloggingRequest:
-    """Handle to a request for a datalogging acquisition. Gets updated by the client and reflects the actual status of the acquisition"""
+class DataloggingRequest(PendingRequest):
+    """Handle to a request for a datalogging acquisition. 
+    Gets updated by the client and reflects the actual status of the acquisition"""
 
-    _client: "ScrutinyClient"
     _request_token: str
-
-    _success: bool  # If the request has been successfully completed
-    _completion_datetime: Optional[datetime]   # datetime of the completion. None if incomplete
-    _completed_event: threading.Event   # Event that gets set upon completion of the request
-    _failure_reason: str    # Textual description of the reason of the failure to complete. Empty string if incomplete or succeeded
     _acquisition_reference_id: Optional[str]
 
     def __init__(self, client: "ScrutinyClient", request_token: str) -> None:
-        self._client = client
+        super().__init__(client)
         self._request_token = request_token
-        self._completed = False
-        self._success = False
-        self._completion_datetime = None
-        self._completed_event = threading.Event()
-        self._failure_reason = ""
         self._acquisition_reference_id = None
 
-    def _mark_complete(self, success: bool, reference_id: Optional[str], failure_reason: str = "", timestamp: Optional[datetime] = None) -> None:
+    def _mark_complete_specialized(self, 
+                       success: bool, 
+                       reference_id: Optional[str], 
+                       failure_reason: str = "", 
+                       timestamp: Optional[datetime] = None) -> None:
         # Put a request in "completed" state. Expected to be called by the client worker thread
-        self._success = success
-        self._failure_reason = failure_reason
-        if timestamp is None:
-            self._completion_datetime = datetime.now()
-        else:
-            self._completion_datetime = timestamp
         if success:
             assert reference_id is not None
         self._acquisition_reference_id = reference_id
-        self._completed = True
-        self._completed_event.set()
+        super()._mark_complete(success, failure_reason, timestamp)
 
     def wait_for_completion(self, timeout: Optional[float] = None) -> None:
         """Wait for the acquisition to be triggered and extracted by the server. Once this is done, 
@@ -434,15 +422,8 @@ class DataloggingRequest:
         :raise TimeoutException: If the acquisition does not complete in less than the specified timeout value
         :raise OperationFailure: If an error happened that prevented the acquisition to successfully complete
         """
-        timeout = validation.assert_float_range_if_not_none(timeout, 'timeout', minval=0)
-        self._completed_event.wait(timeout=timeout)
-        if not self._completed:
-            raise sdk.exceptions.TimeoutException(f"Datalogging acquisition did not complete in {timeout} seconds")
-        assert self._completed_event.is_set()
-
-        if not self._success:
-            raise sdk.exceptions.OperationFailure(f"Datalogging acquisition failed to complete. {self._failure_reason}")
-
+        super().wait_for_completion(timeout)
+        
     def fetch_acquisition(self, timeout: Optional[float] = None) -> DataloggingAcquisition:
         """Download and returns an acquisition data from the server. The acquisition must be complete
 
@@ -479,25 +460,6 @@ class DataloggingRequest:
         self.wait_for_completion(timeout)
         return self.fetch_acquisition(fetch_timeout)  # Use default timeout
 
-    @property
-    def completed(self) -> bool:
-        """Indicates whether the datalogging acquisition request has completed or not"""
-        return self._completed_event.is_set()
-
-    @property
-    def is_success(self) -> bool:
-        """Indicates whether the datalogging acquisition request has successfully completed or not"""
-        return self._success
-
-    @property
-    def completion_datetime(self) -> Optional[datetime]:
-        """The time at which the datalogging acquisition request has been completed. ``None`` if not completed yet"""
-        return self._completion_datetime
-
-    @property
-    def failure_reason(self) -> str:
-        """When the datalogging acquisition request failed, this property contains the reason for the failure. Empty string if not completed or succeeded"""
-        return self._failure_reason
 
     @property
     def acquisition_reference_id(self) -> Optional[str]:

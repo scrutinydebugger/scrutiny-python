@@ -9,7 +9,8 @@
 import enum
 from dataclasses import dataclass
 from datetime import datetime
-from scrutiny.core.basic_types import MemoryRegion
+from scrutiny.core.basic_types import MemoryRegion, EmbeddedDataType
+from scrutiny.core.embedded_enum import EmbeddedEnum
 from scrutiny.core import validation
 import abc
 from binascii import hexlify
@@ -40,7 +41,8 @@ __all__ = [
     'SupportedLinkConfig',
     'DeviceLinkInfo',
     'ServerInfo',
-    'UserCommandResponse'
+    'UserCommandResponse',
+    'WatchableConfiguration'
 ]
 
 AddressSize = Literal[8, 16, 32, 64, 128]
@@ -196,7 +198,7 @@ class DeviceInfo:
     """A unique ID identifying the device and its software (Firmware ID). """
 
     display_name: str
-    """The display name broadcasted by the device"""
+    """The display name broadcast by the device"""
 
     max_tx_data_size: int
     """Maximum payload size that the device can send"""
@@ -361,7 +363,7 @@ class DeviceLinkInfo:
 
 @dataclass(frozen=True)
 class ServerInfo:
-    """(Immutable struct) A summary of everything going on on the server side. Status broadcasted by the server to every client."""
+    """(Immutable struct) A summary of everything going on on the server side. Status broadcast by the server to every client."""
 
     device_comm_state: DeviceCommState
     """Status of the communication between the server and the device"""
@@ -394,3 +396,19 @@ class UserCommandResponse:
 
     def __repr__(self) -> str:
         return f'{self.__class__.__name__}(subfunction={self.subfunction}, data=b\'{hexlify(self.data).decode()}\')'
+
+@dataclass(frozen=True)
+class WatchableConfiguration:
+    """(Immutable struct) Represents a watchable available in the server datastore"""
+    
+    server_id: str
+    """The unique ID assigned to that watchable item by the server"""
+
+    watchable_type:WatchableType
+    """The type of the item, either a Variable, an Alias or a Runtime Published Value"""
+    
+    datatype:EmbeddedDataType
+    """The data type of the value in the embedded firmware that this watchable refers to"""
+
+    enum:Optional[EmbeddedEnum]
+    """An optional enumeration associated with the possible values of the item"""

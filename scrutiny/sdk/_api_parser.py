@@ -24,14 +24,6 @@ from typing import List, Dict, Optional, Any, cast, Literal, Type, Union, TypeVa
 
 
 @dataclass(frozen=True)
-class WatchableConfiguration:
-    watchable_type: sdk.WatchableType
-    datatype: EmbeddedDataType
-    server_id: str
-    enum:Optional[EmbeddedEnum]
-
-
-@dataclass(frozen=True)
 class WatchableUpdate:
     server_id: str
     value: Union[bool, int, float]
@@ -59,6 +51,7 @@ class MemoryReadCompletion:
     data: Optional[bytes]
     error: str
     timestamp: float
+    monotonic_timestamp: float
 
 
 @dataclass(frozen=True)
@@ -67,6 +60,7 @@ class MemoryWriteCompletion:
     success: bool
     error: str
     timestamp: float
+    monotonic_timestamp: float
 
 
 @dataclass(frozen=True)
@@ -76,8 +70,16 @@ class DataloggingCompletion:
     success: bool
     detail_msg: str
 
+@dataclass
+class GetWatchableListResponse:
+    done:bool
+    data:Dict[sdk.WatchableType, Dict[str, sdk.WatchableConfiguration]]
+
+
 
 T = TypeVar('T', str, int, float, bool)
+WATCHABLE_TYPE_KEY = Literal['rpv', 'alias', 'var']
+
 
 def _check_response_dict(cmd: str, d: Any, name: str, types: Union[Type[Any], Iterable[Type[Any]]], previous_parts: str = '') -> None:
     if isinstance(types, type):
@@ -106,8 +108,8 @@ def _check_response_dict(cmd: str, d: Any, name: str, types: Union[Type[Any], It
 
         _check_response_dict(cmd, d[key], '.'.join(next_parts), types, part_name)
     else:
-
-        if not isinstance(d[key], types):
+        isbool = d[key].__class__ == True.__class__ # bool are ints for Python. Avoid allowing bools as valid int.
+        if not isinstance(d[key], types) or isbool and bool not in types:
             gotten_type = d[key].__class__.__name__
             typename = "(%s)" % ', '.join([t.__name__ for t in types])
             raise sdk.exceptions.BadResponseError(
@@ -163,7 +165,8 @@ def _read_sfd_metadata_from_incomplete_dict(obj: Optional[FirmwareMetadataDict])
     )
 
 
-def parse_get_watchable_single_element(response: api_typing.S2C.GetWatchableList, requested_path: str) -> WatchableConfiguration:
+
+def parse_get_watchable_list(response: api_typing.S2C.GetWatchableList) -> GetWatchableListResponse:
     """Parse a response to get_watchable_list and assume the request was for a single watchable"""
     assert isinstance(response, dict)
     assert 'cmd' in response
@@ -175,91 +178,86 @@ def parse_get_watchable_single_element(response: api_typing.S2C.GetWatchableList
     _check_response_dict(cmd, response, 'qty.var', int)
     _check_response_dict(cmd, response, 'done', bool)
 
-    total = response['qty']['alias'] + response['qty']['rpv'] + response['qty']['var']
-    if total == 0:
-        raise sdk.exceptions.NameNotFoundError(f'No watchable element matches the path {requested_path} on the server')
-
-    if total > 1:
-        raise sdk.exceptions.BadResponseError(f"More than one item were returned by the server that matched the path {requested_path}")
-
-    if response['done'] != True:
-        raise sdk.exceptions.BadResponseError(f"done field should be True")
-
     _check_response_dict(cmd, response, 'content.alias', list)
     _check_response_dict(cmd, response, 'content.rpv', list)
     _check_response_dict(cmd, response, 'content.var', list)
 
-    watchable_type: sdk.WatchableType = sdk.WatchableType.NA
-    content: Any = None
-    WatchableTypeKey = Literal['rpv', 'alias', 'var']
-
-    typekey: WatchableTypeKey
-    if response['qty']['alias'] == 1:
-        watchable_type = sdk.WatchableType.Alias
-        typekey = 'alias'
-    elif response['qty']['rpv']:
-        watchable_type = sdk.WatchableType.RuntimePublishedValue
-        content = response['content']['rpv']
-        typekey = 'rpv'
-    elif response['qty']['var']:
-        watchable_type = sdk.WatchableType.Variable
-        typekey = 'var'
-    else:
-        raise sdk.exceptions.BadResponseError('Unknown watchable type')
-
-    key: WatchableTypeKey
-    for key in get_args(WatchableTypeKey):
-        expected_count = 1 if key == typekey else 0
-        if len(response['content'][key]) != expected_count:
-            raise sdk.exceptions.BadResponseError("Incoherent element quantity in API response.")
-
-    content = cast(Dict[str, Any], response['content'][typekey][0])
-    keyprefix = f'content.{typekey}[0]'
-    _check_response_dict(cmd, content, 'id', str, keyprefix)
-    _check_response_dict(cmd, content, 'display_path', str, keyprefix)
-    _check_response_dict(cmd, content, 'datatype', str, keyprefix)
-
-    if content['datatype'] not in API.APISTR_2_DATATYPE:
-        raise sdk.exceptions.BadResponseError(f"Unknown datatype {content['datatype']}")
-
-    datatype = EmbeddedDataType(API.APISTR_2_DATATYPE[content['datatype']])
-
-    enum:Optional[EmbeddedEnum] = None
-    if 'enum' in content and content['enum'] is not None:
-        _check_response_dict(cmd, content, 'enum', dict)
-        _check_response_dict(cmd, content, 'enum.name', str)
-        _check_response_dict(cmd, content, 'enum.values', dict)
-        enum = EmbeddedEnum(name=content['enum']['name'])
-        for key, val in content['enum']['values'].items():
-            if not isinstance(key, str): 
-                raise sdk.exceptions.BadResponseError('Invalid enum. Key is not a string')
-            if not isinstance(val, int): 
-                raise sdk.exceptions.BadResponseError('Invalid enum. Value is not an integer')
-            enum.add_value(key, val)
-
-    if requested_path != content['display_path']:
-        raise sdk.exceptions.BadResponseError(
-            f"The display path of the element returned by the server does not matched the requested path. Got {content['display_path']} but expected {requested_path}")
-
-    if not isinstance(content['id'], str):
-        raise sdk.exceptions.BadResponseError(f"Invalid server id received for watchable {requested_path}")
-
-    return WatchableConfiguration(
-        watchable_type=watchable_type,
-        datatype=datatype,
-        server_id=content['id'],
-        enum=enum
+    outdata = GetWatchableListResponse(
+        done=response['done'],
+        data = {
+            sdk.WatchableType.Variable : {},
+            sdk.WatchableType.RuntimePublishedValue : {},
+            sdk.WatchableType.Alias : {},
+        }
     )
+        
+    typekey_to_watchable_type:Dict[WATCHABLE_TYPE_KEY, sdk.WatchableType] = {
+        'rpv' : sdk.WatchableType.RuntimePublishedValue,
+        'alias' : sdk.WatchableType.Alias,
+        'var' : sdk.WatchableType.Variable,
+    }
+
+    typekey: Literal['rpv', 'alias', 'var']
+    for typekey in get_args(WATCHABLE_TYPE_KEY):
+        watchable_type = typekey_to_watchable_type[typekey]
+        if response['qty'][typekey] != len(response['content'][typekey]):
+            raise sdk.exceptions.BadResponseError(f"Mismatch between expected element count ({response['qty'][typekey]}) and actual element count ({len(response['content'][typekey])})")
+
+        for i in range(len(response['content'][typekey])):
+            keyprefix = f'content.{typekey}[{i}]'
+            element = response['content'][typekey][i]
+
+            _check_response_dict(cmd, element, 'id', str, keyprefix)
+            _check_response_dict(cmd, element, 'display_path', str, keyprefix)
+            _check_response_dict(cmd, element, 'datatype', str, keyprefix)
+
+            if element['datatype'] not in API.APISTR_2_DATATYPE:
+                raise sdk.exceptions.BadResponseError(f"Unknown datatype {element['datatype']}")
+
+            if len(element['id']) ==0:
+                raise sdk.exceptions.BadResponseError(f"Empty server id")
+            
+            if len(element['display_path']) ==0:
+                raise sdk.exceptions.BadResponseError(f"Empty display path")
+
+            datatype = EmbeddedDataType(API.APISTR_2_DATATYPE[element['datatype']])
+
+            enum:Optional[EmbeddedEnum] = None
+            if 'enum' in element and element['enum'] is not None:
+                _check_response_dict(cmd, element, 'enum', dict)
+                _check_response_dict(cmd, element, 'enum.name', str)
+                _check_response_dict(cmd, element, 'enum.values', dict)
+                if len(element['enum']['name']) == 0:
+                    raise sdk.exceptions.BadResponseError(f"Empty enum name")
+                
+                enum = EmbeddedEnum(name=element['enum']['name'])
+                for key, val in element['enum']['values'].items():
+                    if not isinstance(key, str): 
+                        raise sdk.exceptions.BadResponseError('Invalid enum. Key is not a string')
+                    if len(key) == 0: 
+                        raise sdk.exceptions.BadResponseError('Invalid enum. Key is an empty string')
+                    if not isinstance(val, int) or isinstance(val, bool):   # bools are int for python
+                        raise sdk.exceptions.BadResponseError('Invalid enum. Value is not an integer')
+                    enum.add_value(key, val)
+            
+            outdata.data[watchable_type][element['display_path']] = sdk.WatchableConfiguration(
+                server_id=element['id'],
+                watchable_type=watchable_type,
+                datatype=datatype,
+                enum=enum
+            )
+
+    return outdata
 
 
-def parse_subscribe_watchable_response(response: api_typing.S2C.SubscribeWatchable) -> Dict[str, WatchableConfiguration]:
+def parse_subscribe_watchable_response(response: api_typing.S2C.SubscribeWatchable) -> Dict[str, sdk.WatchableConfiguration]:
     """Parse a response to get_watchable_list and assume the request was for a single watchable"""
     assert isinstance(response, dict)
     assert 'cmd' in response
     cmd = response['cmd']
     assert cmd == API.Command.Api2Client.SUBSCRIBE_WATCHABLE_RESPONSE
 
-    outdict: Dict[str, WatchableConfiguration] = {}
+    outdict: Dict[str, sdk.WatchableConfiguration] = {}
     _check_response_dict(cmd, response, 'subscribed', dict)
     for k, v in response['subscribed'].items():
         if not isinstance(k, str):
@@ -296,12 +294,13 @@ def parse_subscribe_watchable_response(response: api_typing.S2C.SubscribeWatchab
         else:
             raise sdk.exceptions.BadResponseError(f"Unsupported watchable type {v['type']}")
 
-        outdict[k] = WatchableConfiguration(
+        outdict[k] = sdk.WatchableConfiguration(
+            server_id=v['id'],
             watchable_type=watchable_type,
             datatype=datatype,
-            server_id=v['id'],
             enum=enum
         )
+
     return outdict
 
 
@@ -616,7 +615,8 @@ def parse_memory_read_completion(response: api_typing.S2C.ReadMemoryComplete) ->
         success=success,
         data=data_bin,
         error=detail_msg if detail_msg is not None else "",
-        timestamp=time.time()
+        timestamp=time.time(),
+        monotonic_timestamp = time.monotonic()
     )
 
 
@@ -634,7 +634,8 @@ def parse_memory_write_completion(response: api_typing.S2C.WriteMemoryComplete) 
         request_token=_fetch_dict_val_no_none(response, 'request_token', str, ""),
         success=_fetch_dict_val_no_none(response, 'success', bool, False),
         error=detail_msg if detail_msg is not None else "",
-        timestamp=time.time()
+        timestamp=time.time(),
+        monotonic_timestamp=time.monotonic()
     )
 
 
@@ -862,3 +863,25 @@ def parse_user_command_response(response: api_typing.S2C.UserCommand) -> sdk.Use
         subfunction=response['subfunction'],
         data=data
     )
+
+def parse_get_watchable_count(response:api_typing.S2C.GetWatchableCount) -> Dict[sdk.WatchableType, int]:
+    assert isinstance(response, dict)
+    assert 'cmd' in response
+    cmd = response['cmd']
+    assert cmd == API.Command.Api2Client.GET_WATCHABLE_COUNT_RESPONSE
+
+    _check_response_dict(cmd, response, 'qty.var', int)
+    _check_response_dict(cmd, response, 'qty.alias', int)
+    _check_response_dict(cmd, response, 'qty.rpv', int)
+    
+    WatchableTypeKey = Literal['rpv', 'alias', 'var']
+    key:WatchableTypeKey
+    for key in  get_args(WatchableTypeKey):
+        if response['qty'][key] < 0:
+            raise sdk.exceptions.BadResponseError("Received a negative number of watchable")
+        
+    return {
+        sdk.WatchableType.Variable : response['qty']['var'],
+        sdk.WatchableType.Alias : response['qty']['alias'],
+        sdk.WatchableType.RuntimePublishedValue : response['qty']['rpv']
+    }

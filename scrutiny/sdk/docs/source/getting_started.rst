@@ -51,3 +51,13 @@ See the :ref:`Exceptions page<page_exceptions>`
 
 .. autoclass:: scrutiny.sdk.client.ScrutinyClient
     :exclude-members: __new__
+
+-----
+
+Some methods will return an instance of a :class:`PendingRequest<scrutiny.sdk.pending_request.PendingRequest>`. These instances are handled to follow the progress of
+an operation that may take long time to execute.
+
+.. autoclass:: scrutiny.sdk.pending_request.PendingRequest
+    :exclude-members: __new__, __init__
+    :member-order: bysource
+    :members:

@@ -310,7 +310,7 @@ class API:
         self.device_handler.register_device_state_change_callback(self.device_state_changed_callback)
 
     @classmethod
-    def get_datatype_name(cls, datatype: EmbeddedDataType) -> str:
+    def get_datatype_name(cls, datatype: EmbeddedDataType) -> api_typing.Datatype:
         if datatype not in cls.DATATYPE_2_APISTR:
             raise ValueError('Unknown datatype : %s' % (str(datatype)))
 
@@ -473,7 +473,7 @@ class API:
 
             max_per_response = req['max_per_response'] if req['max_per_response'] is not None else default_max_per_response
 
-        name_filter: Optional[str] = None
+        name_filters: Optional[List[str]] = None
         type_to_include: List[EntryType] = []
         if self.is_dict_with_key(cast(Dict[str, Any], req), 'filter'):
             if self.is_dict_with_key(cast(Dict[str, Any], req['filter']), 'type'):
@@ -485,7 +485,15 @@ class API:
                         type_to_include.append(self.APISTR_2_ENTRY_TYPE[t])
 
             if 'name' in req['filter']:
-                name_filter = req['filter']['name']
+                if isinstance(req['filter']['name'], list):
+                    for filt in req['filter']['name']:
+                        if not isinstance(filt, str):
+                            raise InvalidRequestException(req, "Invalid name filter")
+                    name_filters = req['filter']['name']
+                elif isinstance(req['filter']['name'], str):
+                    name_filters = [req['filter']['name']]
+                else:
+                     raise InvalidRequestException(req, "Invalid name filter")
 
         if len(type_to_include) == 0:
             type_to_include = [EntryType.Var, EntryType.Alias, EntryType.RuntimePublishedValue]
@@ -495,12 +503,14 @@ class API:
         entries_generator: Dict[EntryType, Generator[DatastoreEntry, None, None]] = {}
 
         def filtered_generator(gen: Generator[DatastoreEntry, None, None]) -> Generator[DatastoreEntry, None, None]:
-            if name_filter is None:
+            if name_filters is None:
                 yield from gen
             else:
                 for entry in gen:
-                    if fnmatch(entry.display_path, name_filter):
-                        yield entry
+                    for name_filter in name_filters:
+                        if fnmatch(entry.display_path, name_filter):
+                            yield entry
+                            break   # Break the filter loop, next entry
 
         def empty_generator() -> Generator[DatastoreEntry, None, None]:
             yield from []

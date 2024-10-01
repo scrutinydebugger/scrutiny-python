@@ -472,6 +472,7 @@ class TestClient(ScrutinyUnitTest):
         self.server_started = threading.Event()
         self.sync_complete = threading.Event()
         self.require_sync = threading.Event()
+        self.rx_rquest_log = []
         self.thread = threading.Thread(target=self.server_thread, daemon=True)
         self.thread.start()
         self.server_started.wait(timeout=1)
@@ -481,7 +482,7 @@ class TestClient(ScrutinyUnitTest):
 
         port = cast(TCPClientHandler, self.api.client_handler).get_port()
         assert port is not None
-        self.client = ScrutinyClient()
+        self.client = ScrutinyClient(rx_message_callbacks=[self.log_rx_request])
 
         try:
             self.client.connect(localhost, port)
@@ -496,6 +497,10 @@ class TestClient(ScrutinyUnitTest):
 
         if self.setup_failed:
             self.fail("Failed to setup the test")
+
+    def log_rx_request(self, client, o):
+        self.rx_rquest_log.append(o)
+
 
     def fill_datastore(self):
         rpv1000 = datastore.DatastoreRPVEntry('/rpv/x1000', RuntimePublishedValue(0x1000, EmbeddedDataType.float32))
@@ -1357,7 +1362,7 @@ class TestClient(ScrutinyUnitTest):
         fake_batch_request = scrutiny.sdk.client.PendingAPIBatchWrite(
             {1: sdk.client.WriteRequest(rpv1000, 123)},
             sdk._api_parser.WriteConfirmation('fake_token', 1),
-            datetime.now().timestamp(),
+            creation_perf_timestamp=time.perf_counter(),
             timeout=2
         )
         self.client._pending_api_batch_writes['fake_token'] = fake_batch_request
@@ -1657,6 +1662,29 @@ class TestClient(ScrutinyUnitTest):
 
                 self.assertCountEqual(expected_data, received_data)
 
+    def test_datalog_fails_on_server_disconnect(self):
+        var1 = self.client.watch('/a/b/var1')
+        var2 = self.client.watch('/a/b/var2')
+
+        config = sdk.datalogging.DataloggingConfig(sampling_rate=0, decimation=1, timeout=0, name="unittest")
+        config.configure_trigger(sdk.datalogging.TriggerCondition.Equal, [var1, 3.14159], position=0.75, hold_time=0)
+        config.configure_xaxis(sdk.datalogging.XAxisType.MeasuredTime)
+        axis1 = config.add_axis('Axis 1')
+        axis2 = config.add_axis('Axis 2')
+        config.add_signal(var1, axis1, name="MyVar1")
+        config.add_signal(var2, axis1, name="MyVar2")
+        config.add_signal('/a/b/alias_rpv1000', axis2, name="MyAliasRPV1000")
+
+        request = self.client.start_datalog(config)
+        
+        self.execute_in_server_thread(self.api.close, wait=False, delay=0.5)
+
+        with self.assertRaises(sdk.exceptions.OperationFailure):
+            request.wait_for_completion(3)
+        
+        self.assertTrue(request.completed)
+        self.assertFalse(request.is_success)
+
     def test_handle_unexpected_disconnect(self):
         rpv1000 = self.client.watch('/rpv/x1000')
         self.set_value_and_wait_update(rpv1000, 10)
@@ -1784,6 +1812,150 @@ class TestClient(ScrutinyUnitTest):
         self.assertEqual(subfn, 0x50)
         self.assertEqual(data, bytes([1, 2, 3]))
 
+    def test_get_watchable_count(self):
+        count = self.client.get_watchable_count()
+        self.assertIsInstance(count, dict)
+        self.assertEqual(len(count), 3)
+        self.assertIn(sdk.WatchableType.Variable, count)
+        self.assertIn(sdk.WatchableType.Alias, count)
+        self.assertIn(sdk.WatchableType.RuntimePublishedValue, count)
+
+        self.assertEqual(count[sdk.WatchableType.Variable], 3)
+        self.assertEqual(count[sdk.WatchableType.Alias], 2)
+        self.assertEqual(count[sdk.WatchableType.RuntimePublishedValue], 1)
+    
+    def test_download_watchable_list(self):
+        req = self.client.download_watchable_list()
+        req.wait_for_completion(2)
+        
+        self.assertTrue(req.completed)
+        self.assertTrue(req.is_success)
+
+        watchables = req.get()
+
+        self.assertIn(sdk.WatchableType.Variable, watchables)
+        self.assertIn(sdk.WatchableType.Alias, watchables)
+        self.assertIn(sdk.WatchableType.RuntimePublishedValue, watchables)
+
+        self.assertEqual(len(watchables[sdk.WatchableType.Variable]), 3)
+        self.assertEqual(len(watchables[sdk.WatchableType.Alias]), 2)
+        self.assertEqual(len(watchables[sdk.WatchableType.RuntimePublishedValue]), 1)
+        
+        for path in ["/a/b/var1","/a/b/var2","/a/b/var3"]:
+            self.assertIn(path, watchables[sdk.WatchableType.Variable])
+            self.assertEqual(watchables[sdk.WatchableType.Variable][path].server_id, self.datastore.get_entry_by_display_path(path).get_id())
+        
+        for path in ["/a/b/alias_var1","/a/b/alias_rpv1000"]:
+            self.assertIn(path, watchables[sdk.WatchableType.Alias])
+            self.assertEqual(watchables[sdk.WatchableType.Alias][path].server_id, self.datastore.get_entry_by_display_path(path).get_id())
+        
+        for path in ["/rpv/x1000"]:
+            self.assertIn(path, watchables[sdk.WatchableType.RuntimePublishedValue])
+            self.assertEqual(watchables[sdk.WatchableType.RuntimePublishedValue][path].server_id, self.datastore.get_entry_by_display_path(path).get_id())
+
+
+        nb_response_msg = 0
+        for object in self.rx_rquest_log:
+            if 'cmd' in object and object['cmd'] == API.Command.Api2Client.GET_WATCHABLE_LIST_RESPONSE:
+                nb_response_msg+=1
+        self.assertEqual(nb_response_msg, 1)
+
+    def test_download_watchable_list_type_filter(self):
+        req = self.client.download_watchable_list(types=[sdk.WatchableType.Alias, sdk.WatchableType.RuntimePublishedValue])
+        req.wait_for_completion(2)
+        
+        self.assertTrue(req.completed)
+        self.assertTrue(req.is_success)
+
+        watchables = req.get()
+
+        self.assertIn(sdk.WatchableType.Variable, watchables)
+        self.assertIn(sdk.WatchableType.Alias, watchables)
+        self.assertIn(sdk.WatchableType.RuntimePublishedValue, watchables)
+
+        self.assertEqual(len(watchables[sdk.WatchableType.Variable]), 0)    #0 isntead of 3
+        self.assertEqual(len(watchables[sdk.WatchableType.Alias]), 2)
+        self.assertEqual(len(watchables[sdk.WatchableType.RuntimePublishedValue]), 1)
+        
+        for path in ["/a/b/alias_var1","/a/b/alias_rpv1000"]:
+            self.assertIn(path, watchables[sdk.WatchableType.Alias])
+            self.assertEqual(watchables[sdk.WatchableType.Alias][path].server_id, self.datastore.get_entry_by_display_path(path).get_id())
+        
+        for path in ["/rpv/x1000"]:
+            self.assertIn(path, watchables[sdk.WatchableType.RuntimePublishedValue])
+            self.assertEqual(watchables[sdk.WatchableType.RuntimePublishedValue][path].server_id, self.datastore.get_entry_by_display_path(path).get_id())
+    
+    def test_download_watchable_list_name_filter(self):
+        req = self.client.download_watchable_list(name_patterns=["*alias_var*", "/rpv/*"])
+        req.wait_for_completion(2)
+        
+        self.assertTrue(req.completed)
+        self.assertTrue(req.is_success)
+
+        watchables = req.get()
+
+        self.assertIn(sdk.WatchableType.Variable, watchables)
+        self.assertIn(sdk.WatchableType.Alias, watchables)
+        self.assertIn(sdk.WatchableType.RuntimePublishedValue, watchables)
+
+        self.assertEqual(len(watchables[sdk.WatchableType.Variable]), 0)    # 0 isntead of 3
+        self.assertEqual(len(watchables[sdk.WatchableType.Alias]), 1)       # 1 instead of 2
+        self.assertEqual(len(watchables[sdk.WatchableType.RuntimePublishedValue]), 1)
+        
+        for path in ["/a/b/alias_var1"]:
+            self.assertIn(path, watchables[sdk.WatchableType.Alias])
+            self.assertEqual(watchables[sdk.WatchableType.Alias][path].server_id, self.datastore.get_entry_by_display_path(path).get_id())
+        
+        for path in ["/rpv/x1000"]:
+            self.assertIn(path, watchables[sdk.WatchableType.RuntimePublishedValue])
+            self.assertEqual(watchables[sdk.WatchableType.RuntimePublishedValue][path].server_id, self.datastore.get_entry_by_display_path(path).get_id())
+
+    def test_download_watchable_list_multi_chunk(self):
+        req = self.client.download_watchable_list(max_per_response=1)
+        req.wait_for_completion(2)
+        
+        self.assertTrue(req.completed)
+        self.assertTrue(req.is_success)
+
+        watchables = req.get()
+
+        self.assertIn(sdk.WatchableType.Variable, watchables)
+        self.assertIn(sdk.WatchableType.Alias, watchables)
+        self.assertIn(sdk.WatchableType.RuntimePublishedValue, watchables)
+
+        self.assertEqual(len(watchables[sdk.WatchableType.Variable]), 3)
+        self.assertEqual(len(watchables[sdk.WatchableType.Alias]), 2)
+        self.assertEqual(len(watchables[sdk.WatchableType.RuntimePublishedValue]), 1)
+
+        # Make sure the server transmitted 1 watcahble definition per message. We use the client logs to validate
+        nb_response_msg = 0
+        for object in self.rx_rquest_log:
+            if 'cmd' in object and object['cmd'] == API.Command.Api2Client.GET_WATCHABLE_LIST_RESPONSE:
+                nb_response_msg+=1
+        expected_response_count = len(watchables[sdk.WatchableType.Variable]) + len(watchables[sdk.WatchableType.Alias]) + len(watchables[sdk.WatchableType.RuntimePublishedValue])
+        
+        self.assertEqual(nb_response_msg, expected_response_count)
+
+    def test_download_watchable_list_fail_on_disconnect(self):
+        req = self.client.download_watchable_list()
+
+        self.execute_in_server_thread(self.api.close, wait=False, delay=0.5)
+
+        with self.assertRaises(sdk.exceptions.OperationFailure):
+            req.wait_for_completion(3)
+        
+        self.assertTrue(req.completed)
+        self.assertFalse(req.is_success)
+        self.assertGreater(len(req.failure_reason), 0)  # Not empty
+    
+    def test_download_watchable_list_user_cancel(self):
+        req = self.client.download_watchable_list()
+
+        req.cancel()
+        
+        self.assertTrue(req.completed)
+        self.assertFalse(req.is_success)
+        self.assertGreater(len(req.failure_reason), 0)  # Not empty
 
 if __name__ == '__main__':
     unittest.main()

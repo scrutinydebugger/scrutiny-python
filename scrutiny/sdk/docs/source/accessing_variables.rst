@@ -212,3 +212,38 @@ to access the memory.
 -----
 
 .. automethod:: scrutiny.sdk.client.ScrutinyClient.write_memory
+
+
+-----
+
+Available watchables
+--------------------
+
+It is possible to query the server for the current number of available watchable items and also download their definition
+
+This feature is typically not required for automation scripts; however, it can be ncessary for presenting users with selectable watchable items. 
+It is currently utilized by the Scrutiny GUI to populate the Variable List widget
+
+.. automethod:: scrutiny.sdk.client.ScrutinyClient.get_watchable_count
+
+-----
+
+.. automethod:: scrutiny.sdk.client.ScrutinyClient.download_watchable_list
+
+-----
+
+Following is the object returned :meth:`download_watchable_list<scrutiny.sdk.client.ScrutinyClient.download_watchable_list>` :
+
+.. autoclass:: scrutiny.sdk.client.WatchableListDownloadRequest
+    :exclude-members: __new__, __init__
+    :member-order: groupwise
+    :members:
+    :inherited-members:
+
+-----
+
+.. autoclass:: scrutiny.sdk.WatchableConfiguration
+    :exclude-members: __new__, __init__
+    :member-order: bysource
+    :members:
+    

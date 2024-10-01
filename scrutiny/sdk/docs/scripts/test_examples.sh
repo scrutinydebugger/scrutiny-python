@@ -18,7 +18,7 @@ outfile="$tempdir/hil_testing.cpp"
 cat *.cpp > $outfile
 g++ -c "$outfile" -o "$tempdir/hil_testing.o"
 g++ -c "$outfile" -o "$tempdir/hil_testing.o" -DENABLE_HIL_TESTING 
-python -m mypy --cache-dir $tempdir hil_testing_1_powerup_check.py --strict
+python3 -m mypy --cache-dir $tempdir hil_testing_1_powerup_check.py --strict
 
 # EOL Config
 cd $EXAMPLES_ROOT/eol_config
@@ -26,8 +26,8 @@ outfile="$tempdir/eol_config.cpp"
 cat *.cpp > $outfile
 g++ -c "$outfile" -o $tempdir/eol_config.o
 g++ -c "$outfile" -o $tempdir/eol_config.o -DENABLE_EOL_CONFIGURATOR
-python -m mypy --cache-dir $tempdir eol_config_assembly_header.py --strict
-python -m mypy --cache-dir $tempdir eol_config_dump_eeprom.py --strict
+python3 -m mypy --cache-dir $tempdir eol_config_assembly_header.py --strict
+python3 -m mypy --cache-dir $tempdir eol_config_dump_eeprom.py --strict
 
 # Calibration
 cd $EXAMPLES_ROOT/calibration
@@ -35,6 +35,6 @@ outfile="$tempdir/calibration.cpp"
 cat *.cpp > $outfile
 g++ -c "$outfile" -o $tempdir/calibration.o
 g++ -c "$outfile" -o $tempdir/calibration.o -DENABLE_TUNNING
-python -m mypy --cache-dir $tempdir calibration_1_pi_graph.py --strict 
+python3 -m mypy --cache-dir $tempdir calibration_1_pi_graph.py --strict 
 
 rm -rf $tempdir

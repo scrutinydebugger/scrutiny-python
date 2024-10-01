@@ -11,6 +11,7 @@ __all__ = ['Client']
 
 import scrutiny.sdk
 import scrutiny.sdk.datalogging
+from scrutiny.sdk.pending_request import PendingRequest
 from scrutiny.core import validation
 sdk = scrutiny.sdk
 from scrutiny.sdk import _api_parser as api_parser
@@ -52,6 +53,7 @@ class CallbackState(enum.Enum):
 
 
 ApiResponseCallback = Callable[[CallbackState, Optional[api_typing.S2CMessage]], None]
+WatchableListType = Dict[WatchableType, Dict[str, WatchableConfiguration]]
 
 T = TypeVar('T')
 
@@ -103,27 +105,26 @@ class ApiResponseFuture:
             return 'Timed out'
         return ''
 
-
 class CallbackStorageEntry:
+    """Represent an entry in the registry of all active requests"""
     _reqid: int
     _callback: ApiResponseCallback
     _future: ApiResponseFuture
-    _creation_timestamp: datetime
+    _creation_timestamp_monotonic: float
     _timeout: float
 
     def __init__(self, reqid: int, callback: ApiResponseCallback, future: ApiResponseFuture, timeout: float):
         self._reqid = reqid
         self._callback = callback
         self._future = future
-        self._creation_timestamp = datetime.now()
+        self._creation_timestamp_monotonic = time.monotonic()
         self._timeout = timeout
-
 
 @dataclass
 class PendingAPIBatchWrite:
     update_dict: Dict[int, WriteRequest]
     confirmation: api_parser.WriteConfirmation
-    creation_timestamp: float
+    creation_perf_timestamp: float
     timeout: float
 
 
@@ -155,12 +156,62 @@ class FlushPoint:
     pass
 
 
+
+@dataclass(init=False)
+class WatchableListDownloadRequest(PendingRequest):
+    """Represents a pending watchable download request. It can be used to wait for completion or cancel the request."""
+    _request_id:int
+    _watchable_list:WatchableListType
+
+    def __init__(self, client:"ScrutinyClient", request_id:int) -> None:
+        self._request_id = request_id
+        self._watchable_list = {
+            WatchableType.Variable : {},
+            WatchableType.Alias : {},
+            WatchableType.RuntimePublishedValue : {}
+        }
+        super().__init__(client)
+
+    def _add_data(self, content:api_parser.GetWatchableListResponse) -> None:
+        for watchable_type in (WatchableType.Variable, WatchableType.Alias, WatchableType.RuntimePublishedValue):
+            self._watchable_list[watchable_type].update(content.data[watchable_type])
+    
+    def cancel(self) -> None:
+        """Informs the client that this request can be canceled.
+         Subsequent server response will be ignored and this request will be marked as completed, but failed.
+        
+        :raise TimeoutException: If the client fails to cancel the request. Should never happen
+        """
+        self._client._cancel_download_watchable_list_request(self._request_id)
+        try:
+            self.wait_for_completion(2) # Expect to throw when the client mark use as fail.
+        except sdk.exceptions.OperationFailure:
+            pass
+
+    def get(self) -> WatchableListType:
+        """
+        Returns the definition of all the watchables obtained through this request, classified by type.
+
+        :raise InvalidValueError: If the data is not available yet (if the request did not completed successfully)
+
+        :return: A dictionary of dictionary containing the difinition of each watchable entry that matched the filters. `foo[type][display_path] = <definition>`
+        """
+        if not self.completed:
+            raise sdk.exceptions.InvalidValueError("Watchable list is not finished downloading")
+        if not self.is_success:
+            raise sdk.exceptions.InvalidValueError("Watchable list failed to download fully")
+        
+        return self._watchable_list
+    
+
+
 class ScrutinyClient:
     RxMessageCallback = Callable[["ScrutinyClient", object], None]
     _UPDATE_SERVER_STATUS_INTERVAL = 2
     _MAX_WRITE_REQUEST_BATCH_SIZE = 500
     _MEMORY_READ_DATA_LIFETIME = 30
     _MEMORY_WRITE_DATA_LIFETIME = 30
+    _DOWNLOAD_WATCHABLE_LIST_LIFETIME = 30
 
     @dataclass
     class ThreadingEvents:
@@ -187,9 +238,9 @@ class ScrutinyClient:
     _logger: logging.Logger     # logging interface
     _encoding: str              # The API string encoding. utf-8
     _sock: Optional[socket.socket]    # The socket talking with the server
-    _selector: Optional[selectors.DefaultSelector]
-    _stream_parser : Optional[StreamParser]
-    _stream_maker : Optional[StreamMaker]
+    _selector: Optional[selectors.DefaultSelector]  # Used for socket communication
+    _stream_parser : Optional[StreamParser]         # Used for socket communication
+    _stream_maker : Optional[StreamMaker]           # Used for socket communication
     _rx_message_callbacks: List[RxMessageCallback]  # List of callbacks to call for each message received. (mainly for testing)
     _reqid: int                 # The actual request ID. Increasing integer
     _timeout: float             # Default timeout value for server requests
@@ -200,20 +251,22 @@ class ScrutinyClient:
 
     _pending_api_batch_writes: Dict[str, PendingAPIBatchWrite]  # Dict of all the pending batch write currently in progress,
     # indexed by the request token
-    # Dict of all the pending memory read requests, index by their request_token
+    # Dict of all the pending memory read requests, indexed by their request_token
     _memory_read_completion_dict: Dict[str, api_parser.MemoryReadCompletion]
-    # Dict of all the pending memory write requests, index by their request_token
+    # Dict of all the pending memory write requests, indexed by their request_token
     _memory_write_completion_dict: Dict[str, api_parser.MemoryWriteCompletion]
-    # Dict of all the datalogging requests, index by their request_token
+    # Dict of all the datalogging requests, indexed by their request_token
     _pending_datalogging_requests: Dict[str, sdk.datalogging.DataloggingRequest]
+    # Dict of all the active watchable list download request, indexed by their request id
+    _pending_watchable_download_request: Dict[int, WatchableListDownloadRequest]
 
     _worker_thread: Optional[threading.Thread]  # The thread that handles the communication
     _threading_events: ThreadingEvents  # All the threading events grouped under a single object
     _sock_lock: threading.Lock  # A threading lock to access the socket
     _main_lock: threading.Lock  # A threading lock to access the client internal state variables
 
-    _callback_storage: Dict[int, CallbackStorageEntry]  # Dict of all pending server request index by their request ID
-    _watchable_storage: Dict[str, WatchableHandle]  # A cache of all the WatchableHandle given to the user, index by their display path
+    _callback_storage: Dict[int, CallbackStorageEntry]  # Dict of all pending server request indexed by their request ID
+    _watchable_storage: Dict[str, WatchableHandle]  # A cache of all the WatchableHandle given to the user, indexed by their display path
     _watchable_path_to_id_map: Dict[str, str]   # A dict that maps the watchables from display path to their server id
     _server_info: Optional[ServerInfo]  # The actual server internal state given by inform_server_status
 
@@ -274,6 +327,7 @@ class ScrutinyClient:
         self._memory_read_completion_dict = {}
         self._memory_write_completion_dict = {}
         self._pending_datalogging_requests = {}
+        self._pending_watchable_download_request = {}
 
         self._watchable_storage = {}
         self._watchable_path_to_id_map = {}
@@ -310,6 +364,7 @@ class ScrutinyClient:
         
         self._request_status_timer.start()
         # _sock will be None after a disconnect
+        last_deferred_response_timeout_check = time.monotonic()
         while not self._threading_events.stop_worker_thread.is_set() and self._sock is not None:
             require_sync_before = False
             try:
@@ -322,7 +377,10 @@ class ScrutinyClient:
                     self.wt_process_rx_api_message(msg)
 
                 self._wt_check_callbacks_timeouts()
-                self._check_deferred_response_timeouts()
+                if time.monotonic() - last_deferred_response_timeout_check > 1.0:   # Avoid locking the main lock too often
+                    self._check_deferred_response_timeouts()
+                    last_deferred_response_timeout_check = time.monotonic()
+                    
                 self._wt_process_write_watchable_requests()
                 self._wt_process_device_state()
 
@@ -386,6 +444,7 @@ class ScrutinyClient:
         if completion.batch_index not in batch_write.update_dict:
             self._logger.error("The server returned a write completion with an unknown batch_index")
             return
+            
 
         write_request = batch_write.update_dict[completion.batch_index]
         if completion.success:
@@ -418,8 +477,27 @@ class ScrutinyClient:
             return
 
         request = self._pending_datalogging_requests[completion.request_token]
-        request._mark_complete(completion.success, completion.reference_id, completion.detail_msg)
+        request._mark_complete_specialized(completion.success, completion.reference_id, completion.detail_msg)
         del self._pending_datalogging_requests[completion.request_token]
+
+    def _wt_process_msg_get_watchable_list_response(self, msg: api_typing.S2C.GetWatchableList, reqid:Optional[int]) -> None:
+        if reqid is None:
+            self._logger.warning('Received a watcahble list message, but the request ID was not available.')
+            return
+        
+        content = api_parser.parse_get_watchable_list(msg)
+
+        with self._main_lock:
+            if reqid not in self._pending_watchable_download_request:
+                self._logger.warning(f'Received a watcahble list message, but the request ID was is not tied to any active request {reqid}')
+                return
+
+            req = self._pending_watchable_download_request[reqid]
+
+        req._add_data(content)
+        if content.done:
+            req._mark_complete(success=True)
+
 
     def _wt_process_next_server_status_update(self) -> None:
         if self._request_status_timer.is_timed_out() or self._require_status_update:
@@ -429,7 +507,7 @@ class ScrutinyClient:
             self._send(req)  # No callback, we have a continuous listener
 
     def _wt_check_callbacks_timeouts(self) -> None:
-        now = datetime.now()
+        now = time.monotonic()
         with self._main_lock:
             reqids = list(self._callback_storage.keys())
 
@@ -442,7 +520,7 @@ class ScrutinyClient:
             if callback_entry is None:
                 continue
 
-            if now - callback_entry._creation_timestamp > timedelta(seconds=callback_entry._timeout):
+            if now - callback_entry._creation_timestamp_monotonic > callback_entry._timeout:
                 try:
                     callback_entry._callback(CallbackState.TimedOut, None)
                 except (sdk.exceptions.ConnectionError):
@@ -457,15 +535,17 @@ class ScrutinyClient:
 
     def _check_deferred_response_timeouts(self) -> None:
         with self._main_lock:
-            keys = list(self._memory_read_completion_dict.keys())
-            for k in keys:
-                if time.time() - self._memory_read_completion_dict[k].timestamp > self._MEMORY_READ_DATA_LIFETIME:
-                    del self._memory_read_completion_dict[k]
+            for kstr in list(self._memory_read_completion_dict.keys()):
+                if time.monotonic() - self._memory_read_completion_dict[kstr].monotonic_timestamp > self._MEMORY_READ_DATA_LIFETIME:
+                    del self._memory_read_completion_dict[kstr]
 
-            keys = list(self._memory_write_completion_dict.keys())
-            for k in keys:
-                if time.time() - self._memory_write_completion_dict[k].timestamp > self._MEMORY_WRITE_DATA_LIFETIME:
-                    del self._memory_write_completion_dict[k]
+            for kstr in list(self._memory_write_completion_dict.keys()):
+                if time.monotonic() - self._memory_write_completion_dict[kstr].monotonic_timestamp > self._MEMORY_WRITE_DATA_LIFETIME:
+                    del self._memory_write_completion_dict[kstr]
+            
+            for kint in list(self._pending_watchable_download_request.keys()):
+                if self._pending_watchable_download_request[kint]._is_expired(self._DOWNLOAD_WATCHABLE_LIST_LIFETIME):
+                    del self._pending_watchable_download_request[kint]
 
     def wt_process_rx_api_message(self, msg: Dict[str, Any]) -> None:
         self._threading_events.msg_received.set()
@@ -493,6 +573,8 @@ class ScrutinyClient:
                     self._wt_process_msg_inform_memory_write_complete(cast(api_typing.S2C.WriteMemoryComplete, msg), reqid)
                 elif cmd == API.Command.Api2Client.INFORM_DATALOGGING_ACQUISITION_COMPLETE:
                     self._wt_process_msg_datalogging_acquisition_complete(cast(api_typing.S2C.InformDataloggingAcquisitionComplete, msg), reqid)
+                elif cmd == API.Command.Api2Client.GET_WATCHABLE_LIST_RESPONSE:
+                    self._wt_process_msg_get_watchable_list_response(cast(api_typing.S2C.GetWatchableList, msg), reqid)
             except sdk.exceptions.BadResponseError as e:
                 self._logger.error(f"Bad message from server. {e}")
                 self._logger.debug(traceback.format_exc())
@@ -550,12 +632,12 @@ class ScrutinyClient:
 
         # Clear old requests.
         # No need for lock here. The _request_queue crosses time domain boundaries
-        now = time.time()
+        now = time.perf_counter()
         if len(self._pending_api_batch_writes) > 0:
             tokens = list(self._pending_api_batch_writes.keys())
             for token in tokens:
                 pending_batch = self._pending_api_batch_writes[token]
-                if now - pending_batch.creation_timestamp > pending_batch.timeout:
+                if now - pending_batch.creation_perf_timestamp > pending_batch.timeout:
                     for request in pending_batch.update_dict.values():  # Completed request are already removed of that dict.
                         request._mark_complete(False, f"Timed out ({pending_batch.timeout} seconds)")
                     del self._pending_api_batch_writes[token]
@@ -594,10 +676,10 @@ class ScrutinyClient:
 
             for request in requests:
                 if n < self._MAX_WRITE_REQUEST_BATCH_SIZE:
-                    if request._watchable._server_id is not None:
+                    if request._watchable._configuration is not None:
                         api_req['updates'].append({
                             'batch_index': n,
-                            'watchable': request._watchable._server_id,
+                            'watchable': request._watchable._configuration.server_id,
                             'value': request._value
                         })
                         batch_dict[n] = request
@@ -623,7 +705,7 @@ class ScrutinyClient:
                     self._pending_api_batch_writes[confirmation.request_token] = PendingAPIBatchWrite(
                         update_dict=batch_dict,
                         confirmation=confirmation,
-                        creation_timestamp=time.time(),
+                        creation_perf_timestamp=time.perf_counter(),
                         timeout=batch_timeout
                     )
             else:
@@ -695,6 +777,7 @@ class ScrutinyClient:
             self._last_device_session_id = None
 
             self._wt_clear_all_watchables(ValueStatus.ServerGone)
+            self._wt_clear_all_pending_requests("Server is disconnected")
 
             for callback_entry in self._callback_storage.values():
                 if callback_entry._future.state == CallbackState.Pending:
@@ -702,6 +785,7 @@ class ScrutinyClient:
             self._callback_storage.clear()
 
     def _wt_clear_all_watchables(self, new_status: ValueStatus, watchable_types: Optional[List[WatchableType]] = None) -> None:
+        # Don't lock the main lock, supposed to be done beforehand
         assert new_status is not ValueStatus.Valid
         if watchable_types is None:
             watchable_types = [WatchableType.Alias, WatchableType.Variable, WatchableType.RuntimePublishedValue]
@@ -713,6 +797,26 @@ class ScrutinyClient:
                 if watchable.display_path in self._watchable_path_to_id_map:
                     del self._watchable_path_to_id_map[watchable.display_path]
                 del self._watchable_storage[server_id]
+
+    def _wt_clear_all_pending_requests(self, failure_reason:str) -> None:
+        """Cancels and clear all request handles that may take a long time to respond.
+        These handles are passed to the users."""
+        # Don't lock the main lock, supposed to be done beforehand
+        self._memory_read_completion_dict.clear()
+        self._memory_write_completion_dict.clear()
+        
+        for request in self._pending_watchable_download_request.values():
+            request._mark_complete(success=False, failure_reason=failure_reason)
+        self._pending_watchable_download_request.clear()
+
+        for datalog_request in self._pending_datalogging_requests.values():
+            datalog_request._mark_complete(success=False, failure_reason=failure_reason)
+        self._pending_datalogging_requests.clear()
+
+        for batch_write_request in self._pending_api_batch_writes.values():
+            for write_req in batch_write_request.update_dict.values():
+                write_req._mark_complete(success=False, failure_reason=failure_reason)
+        self._pending_api_batch_writes.clear()
 
     def _register_callback(self, reqid: int, callback: ApiResponseCallback, timeout: float) -> ApiResponseFuture:
         future = ApiResponseFuture(reqid, default_wait_timeout=timeout + 0.5)    # Allow some margin for thread to mark it timed out
@@ -755,7 +859,8 @@ class ScrutinyClient:
             
             try:
                 s = json.dumps(obj)
-                self._logger.debug(f"Sending {s}")
+                if self._logger.isEnabledFor(logging.DEBUG):
+                    self._logger.debug(f"Sending {s}")
                 self._sock.send(self._stream_maker.encode(s.encode(self._encoding)))
             except socket.error as e:
                 error = e
@@ -841,6 +946,12 @@ class ScrutinyClient:
             self._active_batch_context.requests.append(request)
         else:
             self._enqueue_write_request(request)
+    
+    def _cancel_download_watchable_list_request(self, reqid:int) -> None:
+        with self._main_lock:
+            if reqid not in self._pending_watchable_download_request:
+                raise sdk.exceptions.OperationFailure(f"No download reqest identified by request ID : {reqid}")
+            self._pending_watchable_download_request[reqid]._mark_complete(success=False, failure_reason="Cancelled by user")
 
     def _flush_batch_write(self, batch_write_context: BatchWriteContext) -> None:
         self._enqueue_write_request(FlushPoint())   # Flush Point required because Python thread-safe queue has no peek() method.
@@ -850,12 +961,12 @@ class ScrutinyClient:
         self._active_batch_context = None
 
     def _wait_write_batch_complete(self, batch: BatchWriteContext) -> None:
-        start_time = time.time()
+        start_time = time.monotonic()
 
         incomplete_count: Optional[int] = None
         try:
             for write_request in batch.requests:
-                remaining_time = max(0, batch.timeout - (time.time() - start_time))
+                remaining_time = max(0, batch.timeout - (time.monotonic() - start_time))
                 write_request.wait_for_completion(timeout=remaining_time)
             timed_out = False
         except sdk.exceptions.TimeoutException:
@@ -964,12 +1075,7 @@ class ScrutinyClient:
                     raise sdk.exceptions.BadResponseError(
                         f'The server did not confirm the subscription for the right watchable. Got {list(response["subscribed"].keys())[0]}, expected {path}')
 
-                watchable._configure(
-                    datatype=watchable_defs[path].datatype,
-                    watchable_type=watchable_defs[path].watchable_type,
-                    server_id=watchable_defs[path].server_id,
-                    enum=watchable_defs[path].enum
-                )
+                watchable._configure(watchable_defs[path])
 
         req = self._make_request(API.Command.Client2Api.SUBSCRIBE_WATCHABLE, {
             'watchables': [watchable.display_path]  # Single element
@@ -980,11 +1086,12 @@ class ScrutinyClient:
 
         if future.state != CallbackState.OK:
             raise sdk.exceptions.OperationFailure(f"Failed to subscribe to the watchable. {future.error_str}")
-
-        assert watchable._server_id is not None
+        
+        watchable._assert_configured()
+        assert watchable._configuration is not None
         with self._main_lock:
-            self._watchable_path_to_id_map[watchable.display_path] = watchable._server_id
-            self._watchable_storage[watchable._server_id] = watchable
+            self._watchable_path_to_id_map[watchable.display_path] = watchable._configuration.server_id
+            self._watchable_storage[watchable._configuration.server_id] = watchable
 
         return watchable
 
@@ -1029,7 +1136,7 @@ class ScrutinyClient:
 
                 if response['unsubscribed'][0] != watchable.display_path:
                     raise sdk.exceptions.BadResponseError(
-                        f'The server did not cancel the subscription for the right watchable. Got {response["unsubscribed"][0]}, expected {watchable._server_id}')
+                        f'The server did not cancel the subscription for the right watchable. Got {response["unsubscribed"][0]}, expected {watchable.display_path}')
 
         future = self._send(req, wt_unsubscribe_callback)
         assert future is not None
@@ -1043,8 +1150,9 @@ class ScrutinyClient:
                 if watchable.display_path in self._watchable_path_to_id_map:
                     del self._watchable_path_to_id_map[watchable.display_path]
 
-                if watchable._server_id in self._watchable_storage:
-                    del self._watchable_storage[watchable._server_id]
+                if watchable._configuration is not None:
+                    if watchable._configuration.server_id in self._watchable_storage:
+                        del self._watchable_storage[watchable._configuration.server_id]
 
             watchable._set_invalid(ValueStatus.NotWatched)
 
@@ -1071,9 +1179,9 @@ class ScrutinyClient:
         for server_id in watchable_storage_copy:
             counter_map[server_id] = watchable_storage_copy[server_id]._update_counter
 
-        start_time = time.time()
+        start_time = time.monotonic()
         for server_id in watchable_storage_copy:
-            timeout_remainder = max(round(timeout - (time.time() - start_time), 2), 0)
+            timeout_remainder = max(round(timeout - (time.monotonic() - start_time), 2), 0)
             # Wait update will throw if the server has gone away as the _disconnect method will set all watchables "invalid"
             watchable_storage_copy[server_id].wait_update(previous_counter=counter_map[server_id], timeout=timeout_remainder)
 
@@ -1210,7 +1318,7 @@ class ScrutinyClient:
         validation.assert_int_range(size, 'size', minval=1)
         timeout = validation.assert_float_range_if_not_none(timeout, 'timeout', minval=0)
 
-        time_start = time.time()
+        time_start = time.monotonic()
         if timeout is None:
             timeout = self._timeout
 
@@ -1237,13 +1345,13 @@ class ScrutinyClient:
         if future.state != CallbackState.OK or cb_data.obj is None:
             raise sdk.exceptions.OperationFailure(f"Failed to read the device memory. {future.error_str}")
 
-        remaining_time = max(0, timeout - (time_start - time.time()))
+        remaining_time = max(0, timeout - (time_start - time.monotonic()))
         request_token = cb_data.obj
 
-        t = time.time()
+        t = time.perf_counter()
         # No lock here because we have a 1 producer, 1 consumer scenario and we are waiting. We don't write
         while request_token not in self._memory_read_completion_dict:
-            if time.time() - t >= remaining_time:
+            if time.perf_counter() - t >= remaining_time:
                 break
             time.sleep(0.002)
 
@@ -1278,7 +1386,7 @@ class ScrutinyClient:
         validation.assert_type(data, 'data', bytes)
         timeout = validation.assert_float_range_if_not_none(timeout, 'timeout', minval=0)
 
-        time_start = time.time()
+        time_start = time.perf_counter()
         if timeout is None:
             timeout = self._timeout
 
@@ -1305,13 +1413,13 @@ class ScrutinyClient:
         if future.state != CallbackState.OK or cb_data.obj is None:
             raise sdk.exceptions.OperationFailure(f"Failed to write the device memory. {future.error_str}")
 
-        remaining_time = max(0, timeout - (time_start - time.time()))
+        remaining_time = max(0, timeout - (time_start - time.perf_counter()))
         request_token = cb_data.obj
 
-        t = time.time()
+        t = time.perf_counter()
         # No lock here because we have a 1 producer, 1 consumer scenario and are waiting. We don't write
         while request_token not in self._memory_write_completion_dict:
-            if time.time() - t >= remaining_time:
+            if time.perf_counter() - t >= remaining_time:
                 break
             time.sleep(0.002)
 
@@ -1581,7 +1689,7 @@ class ScrutinyClient:
         return cb_data.obj
 
     def get_server_status(self) -> ServerInfo:
-        """Returns an immutable structure of data containing the latest server status that has been broadcasted.
+        """Returns an immutable structure of data containing the latest server status that has been broadcast.
           It contains everything going on the server side
 
         :raise ConnectionError: If the connection to the server is lost
@@ -1605,6 +1713,100 @@ class ScrutinyClient:
         """
         with self._main_lock:
             self._listeners.append(listener)
+    
+    def get_watchable_count(self) -> Dict[WatchableType, int]:
+        """
+        Request the server with the number of available watchable items, organized per type
+
+        :raise ValueError: Bad parameter value
+        :raise TypeError: Given parameter not of the expected type
+        :raise OperationFailure: If the command completion fails
+
+        :return: A dictionnary containing the number of watchables, classified by type
+        """
+        req = self._make_request(API.Command.Client2Api.GET_WATCHABLE_COUNT)
+
+        @dataclass
+        class Container:
+            obj: Optional[Dict[WatchableType, int]]
+        cb_data: Container = Container(obj=None)  # Force pass by ref
+
+        def wt_get_watchable_count_callback(state: CallbackState, response: Optional[api_typing.S2CMessage]) -> None:
+            if response is not None and state == CallbackState.OK:
+                response = cast(api_typing.S2C.GetWatchableCount, response)
+                cb_data.obj = api_parser.parse_get_watchable_count(response)
+
+        future = self._send(req, wt_get_watchable_count_callback)
+        assert future is not None
+        future.wait()
+
+        if future.state != CallbackState.OK or cb_data.obj is None:
+            raise sdk.exceptions.OperationFailure(f"Failed to request the available watchable count. {future.error_str}")
+
+        return cb_data.obj
+
+    def download_watchable_list(self, 
+                                types:Optional[List[WatchableType]]=None, 
+                                max_per_response:int=500,
+                                name_patterns:List[str] = []
+                                ) -> WatchableListDownloadRequest:
+        """
+            Request the server for the list of watchable items available in its datastore.
+
+            :param types: List of types to download. All of them if ``None``
+            :param max_per_response: Maximum number of watchable per datagram sent by the server.
+            :param name_patterns: List of name filters in the form of a glob string. Any watchable with a path that matches at least one name filter will be returned. 
+                All watchables are returned if ``None``
+
+            :raise ValueError: Bad parameter value
+            :raise TypeError: Given parameter not of the expected type
+            :raise ConnectionError: If the connection to the server is broken
+
+            :return: A handle to the request object that can be used for synchronization (:meth:`wait_for_completion<scrutiny.sdk.client.WatchableListDownloadRequest.wait_for_completion>`) 
+                or cancel the request (:meth:`cancel<scrutiny.sdk.client.WatchableListDownloadRequest.cancel>`)
+        """
+        validation.assert_type(max_per_response, 'max_per_response', int)
+        if types is None:
+            types = [WatchableType.Alias, WatchableType.RuntimePublishedValue, WatchableType.Variable]
+
+        validation.assert_type(types, 'types', list)
+        for type in types:
+            validation.assert_type(type, 'types', WatchableType)
+            if type == WatchableType.NA:
+                raise ValueError("WatchableType.NA is not a valid type to download")
+        
+        validation.assert_type(name_patterns, 'name_patterns', list)
+        for name_pattern in name_patterns:
+            validation.assert_type(name_pattern, 'name_pattern', str)
+        
+        watchable_type_names = {
+            WatchableType.Alias : "alias",
+            WatchableType.RuntimePublishedValue : "rpv",
+            WatchableType.Variable : "var",
+        }
+
+        
+        filter_dict = {
+            "type" : [watchable_type_names[wt] for wt in types]
+        }
+        if len(name_patterns) > 0:
+            filter_dict['name'] = name_patterns
+
+        req = self._make_request(API.Command.Client2Api.GET_WATCHABLE_LIST, {
+            'max_per_response': max_per_response,
+            'filter': filter_dict
+        })
+
+        request_handle = WatchableListDownloadRequest(self, request_id=req['reqid'])
+        with self._main_lock:
+            self._pending_watchable_download_request[req['reqid']] = request_handle
+
+        self._send(req)
+        # responses will be catched by the worker thread and the request handle will be updated
+        # using the response request_id echo.
+
+        return request_handle
+
 
     @property
     def name(self) -> str:

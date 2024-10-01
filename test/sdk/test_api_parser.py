@@ -23,19 +23,18 @@ from typing import *
 
 
 class TestApiParser(ScrutinyUnitTest):
-    def test_parse_get_single_watchable(self):
-        requested_path = '/a/b/c'
-
+    
+    def test_parse_get_watchable_list(self):
         def base():
             return {
                 "cmd": "response_get_watchable_list",
                 "reqid": 123,
                 "done": True,
-                "qty": {"var": 1, "alias": 0, "rpv": 0},
+                "qty": {"var": 2, "alias": 2, "rpv": 1},
                 "content": {
                     "var": [{
-                        "id": "theid", 
-                        "display_path": requested_path, 
+                        "id": "id1", 
+                        "display_path": "/a/b/c", 
                         "datatype": "sint32",
                         "enum": {
                             "name" : "example_enum",
@@ -45,79 +44,143 @@ class TestApiParser(ScrutinyUnitTest):
                                 "ccc" : 3
                             }
                         }
-                        }],
-                    "alias": [],
-                    "rpv": []
+                    },{
+                        "id": "id2", 
+                        "display_path": "/a/b/d", 
+                        "datatype": "uint64",
+                    }],
+                    "alias": [{
+                        "id": "id3", 
+                        "display_path": "/x/y/z", 
+                        "datatype": "float32",
+                    },
+                    {
+                        "id": "id4", 
+                        "display_path": "/x/y/w", 
+                        "datatype": "float64",
+                    }],
+                    "rpv": [{
+                        "id": "id5", 
+                        "display_path": "/aaa/bbb/ccc", 
+                        "datatype": "sint8",
+                    }]
                 }
             }
 
-        res = parser.parse_get_watchable_single_element(base(), requested_path)
-        self.assertEqual(res.datatype, EmbeddedDataType.sint32)
-        self.assertEqual(res.server_id, 'theid')
-        self.assertEqual(res.watchable_type, WatchableType.Variable)
+        res = parser.parse_get_watchable_list(base())
+        self.assertIsInstance(res, parser.GetWatchableListResponse)
+        self.assertEqual(res.done, True)
+        self.assertIsInstance(res.data, dict)
+        self.assertEqual(len(res.data), 3)
 
-        msg = base()
-        msg['content']['alias'] = copy(msg['content']['var'])
-        msg['qty']['alias'] = 1
-        msg['content']['var'] = []
-        msg['qty']['var'] = 0
+        self.assertIn(WatchableType.Variable, res.data)
+        self.assertIn(WatchableType.Alias, res.data)
+        self.assertIn(WatchableType.RuntimePublishedValue, res.data)
 
-        res = parser.parse_get_watchable_single_element(msg, requested_path)
-        self.assertEqual(res.datatype, EmbeddedDataType.sint32)
-        self.assertEqual(res.server_id, 'theid')
-        self.assertEqual(res.watchable_type, WatchableType.Alias)
+        self.assertEqual(len(res.data[WatchableType.Variable]), 2)
+        self.assertEqual(len(res.data[WatchableType.Alias]), 2)
+        self.assertEqual(len(res.data[WatchableType.RuntimePublishedValue]), 1)
 
-        with self.assertRaises(sdk.exceptions.BadResponseError):
-            parser.parse_get_watchable_single_element(base(), 'xxx')
+        self.assertIn("/a/b/c", res.data[WatchableType.Variable])
+        self.assertIn("/a/b/d", res.data[WatchableType.Variable])
+        self.assertIn("/x/y/z", res.data[WatchableType.Alias])
+        self.assertIn("/x/y/w", res.data[WatchableType.Alias])
+        self.assertIn("/aaa/bbb/ccc", res.data[WatchableType.RuntimePublishedValue])
 
-        with self.assertRaises(sdk.exceptions.BadResponseError):
-            msg = base()
-            msg['done'] = False
-            parser.parse_get_watchable_single_element(msg, requested_path)
+        o = res.data[WatchableType.Variable]['/a/b/c']
+        self.assertEqual(o.watchable_type, WatchableType.Variable)
+        self.assertEqual(o.server_id, 'id1')
+        self.assertEqual(o.datatype, EmbeddedDataType.sint32)
+        self.assertEqual(o.enum.name, 'example_enum')
+        self.assertEqual(o.enum.vals['aaa'], 1)
+        self.assertEqual(o.enum.vals['bbb'], 2)
+        self.assertEqual(o.enum.vals['ccc'], 3)
+        self.assertEqual(len(o.enum.vals), 3)
 
-        with self.assertRaises(sdk.exceptions.NameNotFoundError):
-            msg = base()
-            msg['qty']['var'] = 0
-            parser.parse_get_watchable_single_element(msg, requested_path)
+        o = res.data[WatchableType.Variable]['/a/b/d']
+        self.assertEqual(o.watchable_type, WatchableType.Variable)
+        self.assertEqual(o.server_id, 'id2')
+        self.assertEqual(o.datatype, EmbeddedDataType.uint64)
 
-        with self.assertRaises(sdk.exceptions.BadResponseError):
-            msg = base()
-            msg['qty']['alias'] = 1
-            parser.parse_get_watchable_single_element(msg, requested_path)
+        o = res.data[WatchableType.Alias]['/x/y/z']
+        self.assertEqual(o.watchable_type, WatchableType.Alias)
+        self.assertEqual(o.server_id, 'id3')
+        self.assertEqual(o.datatype, EmbeddedDataType.float32)
 
-        with self.assertRaises(sdk.exceptions.BadResponseError):
-            msg = base()
-            msg['content']['var'].append({'id': 'xxx', "display_path": '/q/w/e', "datatype": "uint32"})
-            parser.parse_get_watchable_single_element(msg, requested_path)
+        o = res.data[WatchableType.Alias]['/x/y/w']
+        self.assertEqual(o.watchable_type, WatchableType.Alias)
+        self.assertEqual(o.server_id, 'id4')
+        self.assertEqual(o.datatype, EmbeddedDataType.float64)
 
-        with self.assertRaises(sdk.exceptions.BadResponseError):
-            msg = base()
-            msg['content']['alias'].append({'id': 'xxx', "display_path": '/q/w/e', "datatype": "uint32"})
-            parser.parse_get_watchable_single_element(msg, requested_path)
+        o = res.data[WatchableType.RuntimePublishedValue]['/aaa/bbb/ccc']
+        self.assertEqual(o.watchable_type, WatchableType.RuntimePublishedValue)
+        self.assertEqual(o.server_id, 'id5')
+        self.assertEqual(o.datatype, EmbeddedDataType.sint8)
+        
 
-        with self.assertRaises(sdk.exceptions.BadResponseError):
-            msg = base()
-            msg['content']['var'][0]['id'] = None
-            parser.parse_get_watchable_single_element(msg, requested_path)
+        for wt in ('var', 'alias', 'rpv'):
+            with self.assertRaises(sdk.exceptions.BadResponseError):
+                response = base()
+                response['qty'][wt] = 5
+                res = parser.parse_get_watchable_list(response)
 
-        with self.assertRaises(sdk.exceptions.BadResponseError):
-            msg = base()
-            msg['content']['var'][0]['datatype'] = 'asdas'
-            parser.parse_get_watchable_single_element(msg, requested_path)
+        class Delete:
+            pass
 
-        with self.assertRaises(sdk.exceptions.BadResponseError):
-            msg = base()
-            del msg['qty']['rpv']
-            parser.parse_get_watchable_single_element(msg, requested_path)
+        for wt in ('var', 'alias', 'rpv'):
+            for val in [[], {}, None, 3.5, 1, True, Delete, ""]:
+                for field in ("id", 'datatype', 'display_path'):
+                    with self.assertRaises(sdk.exceptions.BadResponseError, msg=f"wt={wt}, val={val}, field={field}"):
+                        response = base()
+                        if val == Delete:
+                            del response['content'][wt][0][field]
+                        else:
+                            response['content'][wt][0][field] = val
+                        parser.parse_get_watchable_list(response)
 
-        with self.assertRaises(sdk.exceptions.BadResponseError):
-            msg = base()
-            del msg['content']['rpv']
-            parser.parse_get_watchable_single_element(msg, requested_path)
+        for val in [[], {}, None, 3.5, 1, True, Delete, ""]:
+            with self.assertRaises(sdk.exceptions.BadResponseError, msg=f"val={val}"):
+                response = base()
+                if val == Delete:
+                    del response["content"]['var'][0]['enum']['name']
+                else:
+                    response["content"]['var'][0]['enum']['name'] = val
+                
+                parser.parse_get_watchable_list(response)
+
+        for val in [[], None, 3.5, 1, True, Delete, "", "aaa"]:
+            with self.assertRaises(sdk.exceptions.BadResponseError, msg=f"val={val}"):
+                response = base()
+                if val == Delete:
+                    del response["content"]['var'][0]['enum']['values']
+                else:
+                    response["content"]['var'][0]['enum']['values'] = val
+                
+                parser.parse_get_watchable_list(response)   
+
+        for val in [[], None, 3.5, 1, True, Delete, "", "aaa"]:
+            with self.assertRaises(sdk.exceptions.BadResponseError, msg=f"val={val}"):
+                response = base()
+                if val == Delete:
+                    del response["content"]['var'][0]['enum']['values']
+                else:
+                    response["content"]['var'][0]['enum']['values'] = val
+                
+                parser.parse_get_watchable_list(response)     
+
+        for val in [None, 3.5, 1, True, ""]:
+            with self.assertRaises(sdk.exceptions.BadResponseError, msg=f"val={val}"):
+                response = base()
+                response["content"]['var'][0]['enum']['values'][val] = 123
+                parser.parse_get_watchable_list(response)    
+
+        for val in [{}, [], None, 3.5, True, "", "aaa"]:
+            with self.assertRaises(sdk.exceptions.BadResponseError, msg=f"val={val}"):
+                response = base()
+                response["content"]['var'][0]['enum']['values']["aaa"] = val
+                parser.parse_get_watchable_list(response)        
 
     def test_parse_subscribe_watchable(self):
-        requested_path = '/a/b/c'
-
         def base():
             return {
                 "cmd": "response_subscribe_watchable",
@@ -883,6 +946,42 @@ class TestApiParser(ScrutinyUnitTest):
             msg = base()
             msg["acquisitions"][0]["firmware_metadata"]["generation_info"]["time"] = val
             parser.parse_list_datalogging_acquisitions_response(msg)
+
+    def test_parse_get_watchable_count(self):
+        def base():
+            return {
+                "cmd": "response_get_watchable_count",
+                "reqid": None,
+                'qty' : {
+                    'alias' : 10,
+                    'var' : 20,
+                    'rpv' : 30,
+                }
+            }
+        msg = base()
+        count = parser.parse_get_watchable_count(msg)
+        self.assertEqual(count[WatchableType.Alias], 10)
+        self.assertEqual(count[WatchableType.Variable], 20)
+        self.assertEqual(count[WatchableType.RuntimePublishedValue], 30)
+        self.assertEqual(len(count), 3)
+
+        with self.assertRaises(sdk.exceptions.BadResponseError):
+            msg = base()
+            del msg['qty']
+            parser.parse_get_watchable_count(msg)
+        
+        class Delete:
+            pass
+        
+        for key in ['var', 'alias', 'rpv']:
+            for val in [None, -1, 2.5, [], {}, True, Delete]:
+                with self.assertRaises(sdk.exceptions.BadResponseError, msg=f"key={key}, val={val}"):
+                    msg = base()
+                    if val == Delete:
+                        del msg['qty'][key]
+                    else:
+                        msg['qty'][key] = val
+                    parser.parse_get_watchable_count(msg)
 
 
 if __name__ == '__main__':
