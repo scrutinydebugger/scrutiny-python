@@ -14,7 +14,16 @@ pipeline {
             stages {
                 stage('Testing'){
                     parallel{
-                        
+                        stage ('Python 3.12') {
+                            steps {
+                                sh '''
+                                rm -rf venv-3.12
+                                python3.12 -m venv venv-3.12
+                                SCRUTINY_VENV_DIR=venv-3.12 scripts/with-venv.sh scripts/check-python-version.sh 3.12
+                                SCRUTINY_VENV_DIR=venv-3.12 SCRUTINY_COVERAGE_SUFFIX=3.12 scripts/with-venv.sh scripts/runtests.sh
+                                '''
+                            }
+                        }
                         stage ('Python 3.11') {
                             steps {
                                 sh '''
@@ -60,7 +69,7 @@ pipeline {
                 stage("Doc"){
                     steps {
                         sh '''
-                        SCRUTINY_VENV_DIR=venv-3.11 scripts/with-venv.sh make -C scrutiny/sdk/docs html
+                        SCRUTINY_VENV_DIR=venv-3.12 scripts/with-venv.sh make -C scrutiny/sdk/docs html
                         '''
                     }
                 }
