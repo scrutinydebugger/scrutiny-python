@@ -399,7 +399,16 @@ class UserCommandResponse:
 
 @dataclass(frozen=True)
 class WatchableConfiguration:
+    """Represents a watchable available in the server data store"""
+    
     server_id: str
+    """The unique ID assigned to that watchable item by the server"""
+
     watchable_type:WatchableType
+    """The type of the item, either a Variable, an Alias or a Runtime Published Value"""
+    
     datatype:EmbeddedDataType
+    """The data type of the value in the embedded firmware that this watchable refers to"""
+
     enum:Optional[EmbeddedEnum]
+    """An optional enumeration associated with the possible values of the item"""

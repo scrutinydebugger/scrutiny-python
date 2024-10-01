@@ -159,7 +159,7 @@ class FlushPoint:
 
 @dataclass(init=False)
 class WatchableListDownloadRequest(PendingRequest):
-    """Represent a pending watchable download request. It can be used to wait for completion or cancel the request."""
+    """Represents a pending watchable download request. It can be used to wait for completion or cancel the request."""
     _request_id:int
     _watchable_list:WatchableListType
 
@@ -177,9 +177,10 @@ class WatchableListDownloadRequest(PendingRequest):
             self._watchable_list[watchable_type].update(content.data[watchable_type])
     
     def cancel(self) -> None:
-        """Inform the client that this request can be canceled. Subsequent server response will be ignored
+        """Informs the client that this request can be canceled.
+         Subsequent server response will be ignored and this request will be marked as completed, but failed.
         
-        :raise sdk.TimeoutError: If the client fails to cancel the request. Should never happen
+        :raise TimeoutException: If the client fails to cancel the request. Should never happen
         """
         self._client._cancel_download_watchable_list_request(self._request_id)
         try:
@@ -189,7 +190,7 @@ class WatchableListDownloadRequest(PendingRequest):
 
     def get(self) -> WatchableListType:
         """
-        Return the definition of all the watchables, classified by type.
+        Returns the definition of all the watchables obtained through this request, classified by type.
 
         :raise InvalidValueError: If the data is not available yet (if the request did not completed successfully)
 
@@ -798,6 +799,8 @@ class ScrutinyClient:
                 del self._watchable_storage[server_id]
 
     def _wt_clear_all_pending_requests(self, failure_reason:str) -> None:
+        """Cancels and clear all request handles that may take a long time to respond.
+        These handles are passed to the users."""
         # Don't lock the main lock, supposed to be done beforehand
         self._memory_read_completion_dict.clear()
         self._memory_write_completion_dict.clear()
@@ -856,7 +859,8 @@ class ScrutinyClient:
             
             try:
                 s = json.dumps(obj)
-                self._logger.debug(f"Sending {s}")
+                if self._logger.isEnabledFor(logging.DEBUG):
+                    self._logger.debug(f"Sending {s}")
                 self._sock.send(self._stream_maker.encode(s.encode(self._encoding)))
             except socket.error as e:
                 error = e
@@ -1717,6 +1721,8 @@ class ScrutinyClient:
         :raise ValueError: Bad parameter value
         :raise TypeError: Given parameter not of the expected type
         :raise OperationFailure: If the command completion fails
+
+        :return: A dictionnary containing the number of watchables, classified by type
         """
         req = self._make_request(API.Command.Client2Api.GET_WATCHABLE_COUNT)
 
@@ -1741,18 +1747,23 @@ class ScrutinyClient:
 
     def download_watchable_list(self, 
                                 types:Optional[List[WatchableType]]=None, 
-                                max_per_response:int=100,
+                                max_per_response:int=500,
                                 name_patterns:List[str] = []
                                 ) -> WatchableListDownloadRequest:
         """
             Request the server for the list of watchable items available in its datastore.
+
+            :param types: List of types to download. All of them if ``None``
+            :param max_per_response: Maximum number of watchable per datagram sent by the server.
+            :param name_patterns: List of name filters in the form of a glob string. Any watchable with a path that matches at least one name filter will be returned. 
+                All watchables are returned if ``None``
 
             :raise ValueError: Bad parameter value
             :raise TypeError: Given parameter not of the expected type
             :raise ConnectionError: If the connection to the server is broken
 
             :return: A handle to the request object that can be used for synchronization (:meth:`wait_for_completion<scrutiny.sdk.client.WatchableListDownloadRequest.wait_for_completion>`) 
-            or cancel the request (:meth:`cancel<scrutiny.sdk.client.WatchableListDownloadRequest.cancel>`)
+                or cancel the request (:meth:`cancel<scrutiny.sdk.client.WatchableListDownloadRequest.cancel>`)
         """
         validation.assert_type(max_per_response, 'max_per_response', int)
         if types is None:
