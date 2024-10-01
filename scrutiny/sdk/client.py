@@ -889,7 +889,8 @@ class ScrutinyClient:
                 if not data:
                     server_gone = True
                 else:
-                    self._logger.debug(f"Received {data!r}")
+                    if self._logger.isEnabledFor(logging.DEBUG):
+                        self._logger.debug(f"Received (raw): {data!r}")
                     self._stream_parser.parse(data)
         except  socket.error as e:
             server_gone = True
@@ -903,8 +904,10 @@ class ScrutinyClient:
 
         if not self._stream_parser.queue().empty():
             try:
-                data = self._stream_parser.queue().get()
-                obj = json.loads(data.decode(self._encoding))
+                data_str = self._stream_parser.queue().get().decode(self._encoding)
+                if self._logger.isEnabledFor(logging.DEBUG):
+                    self._logger.debug(f"Received: {data_str}")
+                obj = json.loads(data_str)
                 if obj is not None:
                     yield obj
             except json.JSONDecodeError as e:
@@ -1815,14 +1818,17 @@ class ScrutinyClient:
     @property
     def server_state(self) -> ServerState:
         """The server communication state"""
-        return ServerState(self._server_state)  # Make a copy
+        with self._main_lock:   # Avoid race condition while disconnecting
+            return ServerState(self._server_state)  # Make a copy
 
     @property
     def hostname(self) -> Optional[str]:
         """Hostname of the server"""
-        return str(self._hostname) if self._hostname is not None else None
+        with self._main_lock:   # Avoid race condition while disconnecting
+            return str(self._hostname) if self._hostname is not None else None
 
     @property
     def port(self) -> Optional[int]:
         """Port of the the server is letening to"""
-        return int(self._port) if self._port is not None else None
+        with self._main_lock:   # Avoid race condition while disconnecting
+            return int(self._port) if self._port is not None else None

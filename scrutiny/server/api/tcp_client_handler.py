@@ -15,7 +15,6 @@ import socket
 from dataclasses import dataclass
 import traceback
 import queue
-import pipes
 
 from scrutiny.server.api.abstract_client_handler import AbstractClientHandler, ClientHandlerConfig, ClientHandlerMessage
 from scrutiny.tools.stream_datagrams import StreamMaker, StreamParser
@@ -43,6 +42,7 @@ class TCPClientHandler(AbstractClientHandler):
     STREAM_MTU = 1024*1024
     STREAM_INTERCHUNK_TIMEOUT = 1.0
     STREAM_USE_HASH = True
+    STREAM_USE_COMPRESSION = True
     READ_SIZE = 4096
 
     config: TCPClientHandlerConfig
@@ -68,7 +68,7 @@ class TCPClientHandler(AbstractClientHandler):
         
         self.config = {
             'host' : str(config['host']),
-            'port' : int(config['port']),
+            'port' : int(config['port'])
         }
         self.logger = logging.getLogger(self.__class__.__name__)
         self.rx_event=rx_event
@@ -94,8 +94,8 @@ class TCPClientHandler(AbstractClientHandler):
             self.logger.error(f"Trying to send to inexistent client with ID {msg.conn_id}")
             return
         
-
-        payload = self.stream_maker.encode(json.dumps(msg.obj).encode('utf8'))
+        data = json.dumps(msg.obj, indent=None, separators=(',', ':')).encode('utf8')
+        payload = self.stream_maker.encode(data)
         self.logger.debug(f"Sending {len(payload)} bytes to client ID: {msg.conn_id}")
 
         try:
@@ -188,15 +188,15 @@ class TCPClientHandler(AbstractClientHandler):
     def get_compatible_stream_parser(cls) -> StreamParser:
         return StreamParser(
             mtu=cls.STREAM_MTU,
-            interchunk_timeout=cls.STREAM_INTERCHUNK_TIMEOUT,
-            use_hash=cls.STREAM_USE_HASH
+            interchunk_timeout=cls.STREAM_INTERCHUNK_TIMEOUT
         )
 
     @classmethod
     def get_compatible_stream_maker(cls) -> StreamMaker:
         return StreamMaker(
             mtu=cls.STREAM_MTU,
-            use_hash=cls.STREAM_USE_HASH
+            use_hash=cls.STREAM_USE_HASH,
+            compress=cls.STREAM_USE_COMPRESSION
         )
 
     def st_server_thread_fn(self) -> None:
@@ -208,7 +208,6 @@ class TCPClientHandler(AbstractClientHandler):
         stream_parser = StreamParser(
             mtu=self.STREAM_MTU, 
             interchunk_timeout=self.STREAM_INTERCHUNK_TIMEOUT, 
-            use_hash=self.STREAM_USE_HASH
         )
 
         try:
