@@ -15,7 +15,6 @@ __all__ = [
     'ListDatalog',
     'ExportDatalog',
     'DatalogInfo',
-    'GUI',
     'get_all_commands',
     'get_commands_by_groups'
 ]
@@ -36,7 +35,6 @@ from .delete_datalog import DeleteDatalog
 from .list_datalog import ListDatalog
 from .export_datalog import ExportDatalog
 from .datalog_info import DatalogInfo
-from .gui import GUI
 
 from typing import List, Dict, Type
 
