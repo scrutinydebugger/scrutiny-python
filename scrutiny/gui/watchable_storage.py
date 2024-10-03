@@ -60,7 +60,7 @@ class WatchableStorage:
                 if len(self._content[wt]) > 0:
                     is_cleared = False
             
-            if is_cleared:
+            if is_cleared and changed:
                 self.signals.cleared.emit()
 
     def clear(self) -> None:
