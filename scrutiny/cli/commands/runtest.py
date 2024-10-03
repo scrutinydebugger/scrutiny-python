@@ -29,6 +29,7 @@ class RunTest(BaseCommand):
         self.parser.add_argument('--module', default=None, help='The test module to run. All if not specified')
         self.parser.add_argument('--verbosity', default=2, help='Verbosity level of the unittest module')
         self.parser.add_argument('--root', default=None, help='Path to the test root folder')
+        self.parser.add_argument('-f', default=False, action='store_true', help='Enables failfast. Stop after first failure')
         self.requested_log_level = requested_log_level
 
     def run(self) -> Optional[int]:
@@ -38,6 +39,7 @@ class RunTest(BaseCommand):
         success = -1
 
         args = self.parser.parse_args(self.args)
+        failfast = args.f
         if args.root is not None:
             test_root = os.path.abspath(os.path.realpath(args.root))
             if not os.path.isdir(test_root):
@@ -70,7 +72,7 @@ class RunTest(BaseCommand):
                 else:
                     suite = loader.loadTestsFromName(args.module)
 
-                result = unittest.TextTestRunner(verbosity=int(args.verbosity)).run(suite)
+                result = unittest.TextTestRunner(verbosity=int(args.verbosity), failfast=failfast).run(suite)
                 success = len(result.errors) == 0 and len(result.failures) == 0
             except Exception:
                 # Exception are printed as errors, but errors are disabled in the unit test to avoid confusion on negative test

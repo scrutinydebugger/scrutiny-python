@@ -184,7 +184,7 @@ class WatchableListDownloadRequest(PendingRequest):
         """
         self._client._cancel_download_watchable_list_request(self._request_id)
         try:
-            self.wait_for_completion(2) # Expect to throw when the client mark use as fail.
+            self.wait_for_completion(2)     # Expect to throw when the client mark us as fail.
         except sdk.exceptions.OperationFailure:
             pass
 
@@ -1035,7 +1035,7 @@ class ScrutinyClient:
         if not self._worker_thread.is_alive():
             self._wt_disconnect()  # Can call safely from this thread
             return
-
+        
         self._threading_events.disconnected.clear()
         self._threading_events.disconnect.set()
         self._threading_events.disconnected.wait(timeout=2)  # Timeout avoid race condition if the thread was exiting
