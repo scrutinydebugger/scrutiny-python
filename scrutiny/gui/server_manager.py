@@ -8,10 +8,10 @@ import time
 import traceback
 
 from qtpy.QtCore import Signal, QObject
-from typing import Optional, Dict, List
+from typing import Optional
 import logging
 
-from scrutiny.gui.watchable_storage import WatchableStorage
+from scrutiny.gui.watchable_index import WatchableIndex
 
 @dataclass(init=False)
 class ThreadData:
@@ -79,7 +79,7 @@ class ServerManager:
     RECONNECT_DELAY = 1
     _client:ScrutinyClient              # The SDK client object that talks with the server
     _thread:Optional[threading.Thread]  # The thread tyhat runs the synchronous client
-    _storage:WatchableStorage
+    _index:WatchableIndex
 
     _thread_stop_event:threading.Event  # Event used to stop the thread
     _signals:_Signals                   # The signals
@@ -100,7 +100,7 @@ class ServerManager:
         self._auto_reconnect = False
         self._logger = logging.getLogger(self.__class__.__name__)
         self._fsm_data = self.ThreadFSMData()
-        self._storage = WatchableStorage()
+        self._index = WatchableIndex()
 
     @property
     def signals(self) -> _Signals:
@@ -108,9 +108,9 @@ class ServerManager:
         return self._signals
 
     @property
-    def storage(self) -> WatchableStorage:
-        """The watchable storage"""
-        return self._storage
+    def index(self) -> WatchableIndex:
+        """The watchable index containing a definition of all the watchables available on the server"""
+        return self._index
 
     
     def start(self, hostname:str, port:int) -> None:
@@ -174,7 +174,7 @@ class ServerManager:
                     self._fsm_data.server_info = None
                     self._fsm_data.previous_server_info = None
                     self._fsm_data.clear_download_requests()
-                    self._storage.clear()   # Emit signals only on change
+                    self._index.clear()   # Emit signals only on change
 
                     if self._auto_reconnect:
                         # timer to prevent going crazy on function call
@@ -279,8 +279,8 @@ class ServerManager:
                 self._fsm_data.previous_server_state = self._fsm_data.server_state
 
             
-        except Exception as e:
-            self._logger.error(f"Error in server manager thread: {e}")
+        except Exception as e:  # pragma: no cover
+            self._logger.critical(f"Error in server manager thread: {e}")
             self._logger.debug(traceback.format_exc())
 
         
@@ -290,7 +290,7 @@ class ServerManager:
     def _thread_handle_download_watchable_logic(self) -> None:
         # Handle download of RPV if the device is ready
         device_ready = self._fsm_data.server_info.device_session_id is not None
-        has_rpv = self._storage.has_data(sdk.WatchableType.RuntimePublishedValue)
+        has_rpv = self._index.has_data(sdk.WatchableType.RuntimePublishedValue)
         
         if device_ready:
             if not has_rpv:
@@ -300,21 +300,24 @@ class ServerManager:
                     self._logger.debug("Download of watchable list is complete. Group : runtime")
                     data = self._fsm_data.runtime_watchables_download_request.get()
                     assert data is not None
-                    # Let's take ownership of the data in the request using copy=False . 
-                    # The SDK is expected to leave the data untouched after request completion.
-                    self._storage.set_content_by_types([sdk.WatchableType.RuntimePublishedValue], data,copy=False)
+                    # TODO : Write partial data has it comes in. Needs to ensure the index is empty to start with
+                    
+                    data = {    # Remove unexpected data. Remove Alias/Variable that has count=0
+                        sdk.WatchableType.RuntimePublishedValue : data.get(sdk.WatchableType.RuntimePublishedValue, {})
+                    }
+                    self._index.set_content(data)
                     self._fsm_data.runtime_watchables_download_request = None   # Release the reference to the data
                 else:
                     pass # Downloading
         else:
             if has_rpv: # pragma: no cover
-                self._logger.critical("The device is not available but there is still data in the watchable storage.")
-                self.storage.clear()
+                self._logger.critical("The device is not available but there is still data in the watchable index.")
+                self.index.clear()
 
     
         # Handle the download of variables and alias if the SFD is loaded
         sfd_loaded = self._fsm_data.server_info.sfd is not None
-        has_alias_var = self._storage.has_data(sdk.WatchableType.Alias) and self._storage.has_data(sdk.WatchableType.Variable)
+        has_alias_var = self._index.has_data(sdk.WatchableType.Alias) and self._index.has_data(sdk.WatchableType.Variable)
         if sfd_loaded:
             if not has_alias_var:
                 if self._fsm_data.sfd_watchables_download_request is None:  # pragma: no cover
@@ -325,27 +328,33 @@ class ServerManager:
                     self._logger.debug("Download of watchable list is complete. Group : SFD")
                     data = self._fsm_data.sfd_watchables_download_request.get()
                     assert data is not None
-                    # Let's take ownership of the data in the request using copy=False . 
-                    # The SDK is expected to leave the data untouched after request completion.
-                    self._storage.set_content_by_types([sdk.WatchableType.Alias, sdk.WatchableType.Variable], data, copy=False)
+                    data = {    # Remove unexpected data. Remove RPV that has count=0
+                        sdk.WatchableType.Alias : data.get(sdk.WatchableType.Alias, {}),
+                        sdk.WatchableType.Variable : data.get(sdk.WatchableType.Variable, {})
+                    }
+
+                    # TODO : Write partial data has it comes in. Needs to ensure index is empty to start with
+                    self._index.set_content(data) # Overwrite the whole data
                     self._fsm_data.sfd_watchables_download_request = None   # Release the reference to the data
                 else:
                     pass    # Downloading
 
         else:   # No SFD loaded
             if has_alias_var:   # pragma: no cover
-                self._logger.critical("The SFD is not loaded but there is still data in the watchable storage.")
-                self.storage.clear()
+                self._logger.critical("The SFD is not loaded but there is still data in the watchable index.")
+                self.index.clear()
 
  
     def _thread_device_ready(self) -> None:
+        """To be called once when a device connects"""
         self._logger.debug("Detected device ready")
         self._fsm_data.clear_download_requests()
-        self._storage.clear()    
+        self._index.clear()    
         self._fsm_data.runtime_watchables_download_request = self._client.download_watchable_list([sdk.WatchableType.RuntimePublishedValue])
         self._signals.device_ready.emit()
 
     def _thread_sfd_loaded(self) -> None:
+        """To be called once when a SFD is laoded"""
         self._logger.debug("Detected SFD loaded")
         req = self._fsm_data.sfd_watchables_download_request    # Get the ref atomically
         if req is not None:
@@ -354,19 +363,21 @@ class ServerManager:
         self.signals.sfd_loaded.emit()
     
     def _thread_sfd_unloaded(self) -> None:
+        """To be called once when a SFD is unloaded"""
         self._logger.debug("Detected SFD unloaded")
         req = self._fsm_data.sfd_watchables_download_request    # Get the ref atomically
         if req is not None:
             req.cancel()
         self._fsm_data.sfd_watchables_download_request = None
-        self._storage.clear_content_by_types([sdk.WatchableType.Alias, sdk.WatchableType.Variable])
+        self._index.clear_content_by_types([sdk.WatchableType.Alias, sdk.WatchableType.Variable])
 
         self.signals.sfd_unloaded.emit()
 
     def _thread_device_disconnected(self) -> None:
+        """To be called once when a device disconnect"""
         self._logger.debug("Detected device disconnected")
         self._fsm_data.clear_download_requests()
-        self._storage.clear()
+        self._index.clear()
         self._signals.device_disconnected.emit()
 
     def get_server_state(self) -> sdk.ServerState:
