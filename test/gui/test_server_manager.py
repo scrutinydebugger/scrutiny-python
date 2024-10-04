@@ -1,31 +1,15 @@
 
 from scrutiny import sdk
 from scrutiny.gui.server_manager import ServerManager
-from test import ScrutinyUnitTest
 from test.gui.fake_sdk_client import FakeSDKClient, DownloadWatchableListFunctionCall
+from test.gui.base_gui_test import ScrutinyBaseGuiTest, EventType
 import time
-import enum
-from qtpy.QtWidgets import QApplication
-
-from qtpy.QtCore import Qt
 
 from typing import List
 
 # These value are not really used as they are given to a fake client
 SERVER_MANAGER_HOST = '127.0.0.1'
 SERVER_MANAGER_PORT = 5555
-
-class EventType(enum.Enum):
-    SERVER_CONNECTED = enum.auto()
-    SERVER_DISCONNECTED = enum.auto()
-    DEVICE_READY = enum.auto()
-    DEVICE_DISCONNECTED = enum.auto()
-    DATALOGGING_STATE_CHANGED = enum.auto()
-    WATCHABLE_STORAGE_CLEARED = enum.auto()
-    WATCHABLE_STORAGE_CHANGED = enum.auto()
-    WATCHABLE_STORAGE_READY = enum.auto()
-    SFD_LOADED = enum.auto()
-    SFD_UNLOADED = enum.auto()
 
 
 DUMMY_DEVICE = sdk.DeviceInfo(
@@ -49,59 +33,27 @@ DUMMY_DEVICE = sdk.DeviceInfo(
     )
 )
 
-class TestServerManager(ScrutinyUnitTest):
+class TestServerManager(ScrutinyBaseGuiTest):
 
     def setUp(self) -> None:
-        self.app = QApplication([]) # Required to process event because they are emitted in a different thread, therefore the connectiontype is queued
+        super().setUp()
         self.fake_client = FakeSDKClient()   
         self.server_manager = ServerManager(client=self.fake_client)    # Inject a stub of the SDK.
-        self.event_list:List[EventType] = []
 
-        self.server_manager.signals.server_connected.connect(lambda : self.event_list.append(EventType.SERVER_CONNECTED))
-        self.server_manager.signals.server_disconnected.connect(lambda : self.event_list.append(EventType.SERVER_DISCONNECTED))
-        self.server_manager.signals.device_ready.connect(lambda : self.event_list.append(EventType.DEVICE_READY))
-        self.server_manager.signals.device_disconnected.connect(lambda : self.event_list.append(EventType.DEVICE_DISCONNECTED))
-        self.server_manager.signals.datalogging_state_changed.connect(lambda : self.event_list.append(EventType.DATALOGGING_STATE_CHANGED))
-        self.server_manager.signals.sfd_loaded.connect(lambda : self.event_list.append(EventType.SFD_LOADED))
-        self.server_manager.signals.sfd_unloaded.connect(lambda : self.event_list.append(EventType.SFD_UNLOADED))
-        self.server_manager.storage.signals.cleared.connect(lambda : self.event_list.append(EventType.WATCHABLE_STORAGE_CLEARED))
-        self.server_manager.storage.signals.changed.connect(lambda : self.event_list.append(EventType.WATCHABLE_STORAGE_CHANGED))
-        self.server_manager.storage.signals.filled.connect(lambda : self.event_list.append(EventType.WATCHABLE_STORAGE_READY))
-
+        self.server_manager.signals.server_connected.connect(lambda : self.declare_event(EventType.SERVER_CONNECTED))
+        self.server_manager.signals.server_disconnected.connect(lambda : self.declare_event(EventType.SERVER_DISCONNECTED))
+        self.server_manager.signals.device_ready.connect(lambda : self.declare_event(EventType.DEVICE_READY))
+        self.server_manager.signals.device_disconnected.connect(lambda : self.declare_event(EventType.DEVICE_DISCONNECTED))
+        self.server_manager.signals.datalogging_state_changed.connect(lambda : self.declare_event(EventType.DATALOGGING_STATE_CHANGED))
+        self.server_manager.signals.sfd_loaded.connect(lambda : self.declare_event(EventType.SFD_LOADED))
+        self.server_manager.signals.sfd_unloaded.connect(lambda : self.declare_event(EventType.SFD_UNLOADED))
+        self.server_manager.index.signals.cleared.connect(lambda : self.declare_event(EventType.WATCHABLE_INDEX_CLEARED))
+        self.server_manager.index.signals.changed.connect(lambda : self.declare_event(EventType.WATCHABLE_INDEX_CHANGED))
+        self.server_manager.index.signals.filled.connect(lambda : self.declare_event(EventType.WATCHABLE_INDEX_READY))
     
-    def wait_equal(self, fn, val, timeout, no_assert=False):
-        t = time.perf_counter()
-
-        while time.perf_counter() - t < timeout:
-            if fn() == val:
-                break
-            time.sleep(0.01)
-        if not no_assert:
-            self.assertEqual(fn(), val)
-    
-    def wait_true(self, fn, timeout, no_assert=False):
-        return self.wait_equal(fn, True, timeout, no_assert)
-
-    def wait_false(self, fn, timeout, no_assert=False):
-        return self.wait_equal(fn, False, timeout, no_assert)
-    
-    def wait_events(self, events, timeout):
-        t = time.perf_counter()
-
-        while time.perf_counter() - t < timeout:
-            self.app.processEvents()
-            if len(self.event_list) == len(events):
-                break
-            time.sleep(0.01)
-
-        self.assertEqual(self.event_list, events, f"Condition did not happen after {timeout} sec")
-    
-    def clear_events(self):
-        self.event_list = []
-
-    def assertEvents(self, event_list) -> None:
-        self.app.processEvents()
-        self.assertEqual(self.event_list, event_list)
+    def tearDown(self) -> None:
+        self.server_manager.stop()
+        super().tearDown()
     
     def wait_server_state(self, state:sdk.ServerState, timeout:int=1) -> None:
         self.wait_equal(self.server_manager.get_server_state, state, 1)
@@ -129,8 +81,7 @@ class TestServerManager(ScrutinyUnitTest):
             self.assertEqual(self.server_manager.get_server_state(), sdk.ServerState.Connected)
             
             self.server_manager.stop()
-            self.wait_events([EventType.SERVER_CONNECTED, EventType.SERVER_DISCONNECTED], timeout=1)
-            self.clear_events()
+            self.wait_events_and_clear([EventType.SERVER_CONNECTED, EventType.SERVER_DISCONNECTED], timeout=1)
             self.assertEqual(self.server_manager.get_server_state(), sdk.ServerState.Disconnected)
             self.wait_false(self.server_manager.is_running, 1)
 
@@ -138,8 +89,7 @@ class TestServerManager(ScrutinyUnitTest):
         self.assertEqual(self.event_list, [])
         self.server_manager.start(SERVER_MANAGER_HOST, SERVER_MANAGER_PORT)
 
-        self.wait_events([EventType.SERVER_CONNECTED], timeout=1)
-        self.clear_events()
+        self.wait_events_and_clear([EventType.SERVER_CONNECTED], timeout=1)
 
         for i in range(5):
             self.fake_client.server_info = sdk.ServerInfo(
@@ -151,8 +101,7 @@ class TestServerManager(ScrutinyUnitTest):
                 device=DUMMY_DEVICE
             )
 
-            self.wait_events([EventType.DEVICE_READY], timeout=1)
-            self.clear_events()
+            self.wait_events_and_clear([EventType.DEVICE_READY], timeout=1)
 
             self.fake_client.server_info = sdk.ServerInfo(
                 device_comm_state=sdk.DeviceCommState.Disconnected,
@@ -163,21 +112,19 @@ class TestServerManager(ScrutinyUnitTest):
                 device=None
             )
 
-            self.wait_events([EventType.DEVICE_DISCONNECTED], timeout=1)
-            self.clear_events()
+            self.wait_events_and_clear([EventType.DEVICE_DISCONNECTED], timeout=1)
 
         self.fake_client.server_info = None
         self.server_manager.stop()
         self.wait_server_state(sdk.ServerState.Disconnected)        
-        self.assertEvents([EventType.SERVER_DISCONNECTED])
+        self.assert_events([EventType.SERVER_DISCONNECTED])
     
     def test_event_device_connect_disconnect_with_sfd(self):
         # Connect the device and load the SFD at the same time. It has a special code path
         self.assertEqual(self.event_list, [])
         self.server_manager.start(SERVER_MANAGER_HOST, SERVER_MANAGER_PORT)
 
-        self.wait_events([EventType.SERVER_CONNECTED], timeout=1)
-        self.clear_events()
+        self.wait_events_and_clear([EventType.SERVER_CONNECTED], timeout=1)
 
         for i in range(5):
             self.fake_client.server_info = sdk.ServerInfo(
@@ -189,8 +136,7 @@ class TestServerManager(ScrutinyUnitTest):
                 device=DUMMY_DEVICE
             )
 
-            self.wait_events([EventType.DEVICE_READY, EventType.SFD_LOADED], timeout=1)
-            self.clear_events()
+            self.wait_events_and_clear([EventType.DEVICE_READY, EventType.SFD_LOADED], timeout=1)
 
             self.fake_client.server_info = sdk.ServerInfo(
                 device_comm_state=sdk.DeviceCommState.Disconnected,
@@ -201,13 +147,12 @@ class TestServerManager(ScrutinyUnitTest):
                 device=None
             )
 
-            self.wait_events([EventType.SFD_UNLOADED, EventType.DEVICE_DISCONNECTED], timeout=1)
-            self.clear_events()
+            self.wait_events_and_clear([EventType.SFD_UNLOADED, EventType.DEVICE_DISCONNECTED], timeout=1)
 
         self.fake_client.server_info = None
         self.server_manager.stop()
         self.wait_server_state(sdk.ServerState.Disconnected)        
-        self.assertEvents([EventType.SERVER_DISCONNECTED])
+        self.assert_events([EventType.SERVER_DISCONNECTED])
 
     def test_event_device_connect_disconnect_with_sfd_after_connection(self):
         # Leave some time between device ready and SFD load and vice versa. Will go through a diferent code path than
@@ -215,8 +160,7 @@ class TestServerManager(ScrutinyUnitTest):
         self.assertEqual(self.event_list, [])
         self.server_manager.start(SERVER_MANAGER_HOST, SERVER_MANAGER_PORT)
 
-        self.wait_events([EventType.SERVER_CONNECTED], timeout=1)
-        self.clear_events()
+        self.wait_events_and_clear([EventType.SERVER_CONNECTED], timeout=1)
 
         for i in range(5):
             self.fake_client.server_info = sdk.ServerInfo(
@@ -228,8 +172,7 @@ class TestServerManager(ScrutinyUnitTest):
                 device=DUMMY_DEVICE
             )
 
-            self.wait_events([EventType.DEVICE_READY], timeout=1)
-            self.clear_events()
+            self.wait_events_and_clear([EventType.DEVICE_READY], timeout=1)
 
             self.fake_client.server_info = sdk.ServerInfo(
                 device_comm_state=sdk.DeviceCommState.ConnectedReady,
@@ -240,8 +183,7 @@ class TestServerManager(ScrutinyUnitTest):
                 device=DUMMY_DEVICE
             )
 
-            self.wait_events([EventType.SFD_LOADED], timeout=1)
-            self.clear_events()
+            self.wait_events_and_clear([EventType.SFD_LOADED], timeout=1)
 
             self.fake_client.server_info = sdk.ServerInfo(
                 device_comm_state=sdk.DeviceCommState.ConnectedReady,
@@ -252,8 +194,7 @@ class TestServerManager(ScrutinyUnitTest):
                 device=DUMMY_DEVICE
             )
 
-            self.wait_events([EventType.SFD_UNLOADED], timeout=1)
-            self.clear_events()
+            self.wait_events_and_clear([EventType.SFD_UNLOADED], timeout=1)
 
             self.fake_client.server_info = sdk.ServerInfo(
                 device_comm_state=sdk.DeviceCommState.Disconnected,
@@ -264,20 +205,18 @@ class TestServerManager(ScrutinyUnitTest):
                 device=None
             )
 
-            self.wait_events([EventType.DEVICE_DISCONNECTED], timeout=1)
-            self.clear_events()
+            self.wait_events_and_clear([EventType.DEVICE_DISCONNECTED], timeout=1)
 
         self.fake_client.server_info = None
         self.server_manager.stop()
         self.wait_server_state(sdk.ServerState.Disconnected)        
-        self.assertEvents([EventType.SERVER_DISCONNECTED])
+        self.assert_events([EventType.SERVER_DISCONNECTED])
 
     def test_device_disconnect_ready_events_on_session_id_change(self):
         self.assertEqual(self.event_list, [])
         self.server_manager.start(SERVER_MANAGER_HOST, SERVER_MANAGER_PORT)
 
-        self.wait_events([EventType.SERVER_CONNECTED], timeout=1)
-        self.clear_events()
+        self.wait_events_and_clear([EventType.SERVER_CONNECTED], timeout=1)
 
         self.fake_client.server_info = sdk.ServerInfo(
             device_comm_state=sdk.DeviceCommState.ConnectedReady,
@@ -288,8 +227,7 @@ class TestServerManager(ScrutinyUnitTest):
             device=DUMMY_DEVICE
         )
 
-        self.wait_events([EventType.DEVICE_READY], timeout=1)
-        self.clear_events()
+        self.wait_events_and_clear([EventType.DEVICE_READY], timeout=1)
         
         # The server manager should have initiated a download of RPV, but not Alias/Var
         download_watchable_list_calls = self.fake_client.get_download_watchable_list_function_calls()
@@ -309,8 +247,7 @@ class TestServerManager(ScrutinyUnitTest):
                 device=DUMMY_DEVICE
             )
 
-            self.wait_events([EventType.DEVICE_DISCONNECTED, EventType.DEVICE_READY], timeout=1)
-            self.clear_events()
+            self.wait_events_and_clear([EventType.DEVICE_DISCONNECTED, EventType.DEVICE_READY], timeout=1)
 
             # Previous download should have been interrupted
             self.assertTrue(prev_req.completed)
@@ -324,8 +261,7 @@ class TestServerManager(ScrutinyUnitTest):
             prev_req = download_watchable_list_calls[0].request
 
         self.fake_client.server_info = None
-        self.wait_events([EventType.DEVICE_DISCONNECTED], timeout=1)
-        self.clear_events()
+        self.wait_events_and_clear([EventType.DEVICE_DISCONNECTED], timeout=1)
 
         # Previous download should have been interrupted
         self.assertTrue(prev_req.completed)
@@ -333,14 +269,13 @@ class TestServerManager(ScrutinyUnitTest):
 
         self.server_manager.stop()
         self.wait_server_state(sdk.ServerState.Disconnected)        
-        self.assertEvents([EventType.SERVER_DISCONNECTED])
+        self.assert_events([EventType.SERVER_DISCONNECTED])
     
     def test_device_disconnect_ready_events_on_session_id_change_with_sfd(self):
         self.assertEqual(self.event_list, [])
         self.server_manager.start(SERVER_MANAGER_HOST, SERVER_MANAGER_PORT)
 
-        self.wait_events([EventType.SERVER_CONNECTED], timeout=1)
-        self.clear_events()
+        self.wait_events_and_clear([EventType.SERVER_CONNECTED], timeout=1)
 
         self.fake_client.server_info = sdk.ServerInfo(
             device_comm_state=sdk.DeviceCommState.ConnectedReady,
@@ -351,8 +286,7 @@ class TestServerManager(ScrutinyUnitTest):
             device=DUMMY_DEVICE
         )
 
-        self.wait_events([EventType.DEVICE_READY, EventType.SFD_LOADED], timeout=1)
-        self.clear_events()
+        self.wait_events_and_clear([EventType.DEVICE_READY, EventType.SFD_LOADED], timeout=1)
         
         # The server manager should have initiated a download of RPV, but not Alias/Var
 
@@ -389,8 +323,7 @@ class TestServerManager(ScrutinyUnitTest):
                 device=DUMMY_DEVICE
             )
 
-            self.wait_events([EventType.SFD_UNLOADED, EventType.DEVICE_DISCONNECTED, EventType.DEVICE_READY, EventType.SFD_LOADED], timeout=1)
-            self.clear_events()
+            self.wait_events_and_clear([EventType.SFD_UNLOADED, EventType.DEVICE_DISCONNECTED, EventType.DEVICE_READY, EventType.SFD_LOADED], timeout=1)
 
             # Previous download should have been interrupted
             for prev_req in prev_reqs:
@@ -404,8 +337,7 @@ class TestServerManager(ScrutinyUnitTest):
             prev_reqs = [x.request for x in download_watchable_list_calls]
 
         self.fake_client.server_info = None
-        self.wait_events([EventType.SFD_UNLOADED, EventType.DEVICE_DISCONNECTED], timeout=1)
-        self.clear_events()
+        self.wait_events_and_clear([EventType.SFD_UNLOADED, EventType.DEVICE_DISCONNECTED], timeout=1)
 
         # Previous download should have been interrupted
         for prev_req in prev_reqs:
@@ -414,14 +346,13 @@ class TestServerManager(ScrutinyUnitTest):
 
         self.server_manager.stop()
         self.wait_server_state(sdk.ServerState.Disconnected)        
-        self.assertEvents([EventType.SERVER_DISCONNECTED])
+        self.assert_events([EventType.SERVER_DISCONNECTED])
     
     def test_event_datalogging_state_changed(self):
         self.assertEqual(self.event_list, [])
         self.server_manager.start(SERVER_MANAGER_HOST, SERVER_MANAGER_PORT)
 
-        self.wait_events([EventType.SERVER_CONNECTED], timeout=1)
-        self.clear_events()
+        self.wait_events_and_clear([EventType.SERVER_CONNECTED], timeout=1)
 
         self.fake_client.server_info = sdk.ServerInfo(
             device_comm_state=sdk.DeviceCommState.ConnectedReady,
@@ -432,8 +363,7 @@ class TestServerManager(ScrutinyUnitTest):
             device=DUMMY_DEVICE
         )
 
-        self.wait_events([EventType.DEVICE_READY], timeout=1)
-        self.clear_events()
+        self.wait_events_and_clear([EventType.DEVICE_READY], timeout=1)
 
         # Only the session ID changes. 
         # Should trigger a device disconnected + device ready event.
@@ -448,8 +378,7 @@ class TestServerManager(ScrutinyUnitTest):
                 device=DUMMY_DEVICE
             )
         
-            self.wait_events([EventType.DATALOGGING_STATE_CHANGED], timeout=1)
-            self.clear_events()
+            self.wait_events_and_clear([EventType.DATALOGGING_STATE_CHANGED], timeout=1)
 
         if  self.fake_client.server_info.datalogging.state != sdk.DataloggerState.Acquiring:
             self.fake_client.server_info = sdk.ServerInfo(
@@ -460,8 +389,7 @@ class TestServerManager(ScrutinyUnitTest):
                 sfd=self.fake_client.server_info.sfd,
                 device=DUMMY_DEVICE
             )
-            self.wait_events([EventType.DATALOGGING_STATE_CHANGED], timeout=1)
-            self.clear_events()
+            self.wait_events_and_clear([EventType.DATALOGGING_STATE_CHANGED], timeout=1)
 
         for i in range(5):
             new_dl_state = sdk.DataloggerState.Standby if self.fake_client.server_info.datalogging.state == sdk.DataloggerState.Acquiring else sdk.DataloggerState.Acquiring
@@ -474,22 +402,19 @@ class TestServerManager(ScrutinyUnitTest):
                 device=DUMMY_DEVICE
             )
         
-            self.wait_events([EventType.DATALOGGING_STATE_CHANGED], timeout=1)
-            self.clear_events()
+            self.wait_events_and_clear([EventType.DATALOGGING_STATE_CHANGED], timeout=1)
 
         self.fake_client.server_info = None
-        self.wait_events([EventType.DEVICE_DISCONNECTED], timeout=1)
-        self.clear_events()
+        self.wait_events_and_clear([EventType.DEVICE_DISCONNECTED], timeout=1)
 
         self.server_manager.stop()
         self.wait_server_state(sdk.ServerState.Disconnected)        
-        self.assertEvents([EventType.SERVER_DISCONNECTED])
+        self.assert_events([EventType.SERVER_DISCONNECTED])
 
     def test_disconnect_on_error(self):
         self.server_manager.start(SERVER_MANAGER_HOST, SERVER_MANAGER_PORT)
 
-        self.wait_events([EventType.SERVER_CONNECTED], timeout=1)
-        self.clear_events()
+        self.wait_events_and_clear([EventType.SERVER_CONNECTED], timeout=1)
         self.assertEqual(self.fake_client.get_call_count('disconnect'), 0)
         self.fake_client.server_state = sdk.ServerState.Error
 
@@ -500,14 +425,12 @@ class TestServerManager(ScrutinyUnitTest):
     def test_auto_reconnect(self):
         self.server_manager.start(SERVER_MANAGER_HOST, SERVER_MANAGER_PORT)
 
-        self.wait_events([EventType.SERVER_CONNECTED], timeout=1)
-        self.clear_events()
+        self.wait_events_and_clear([EventType.SERVER_CONNECTED], timeout=1)
         self.assertEqual(self.fake_client.get_call_count('connect'), 1)
 
         for i in range(5):
             self.fake_client.disconnect()
-            self.wait_events([EventType.SERVER_DISCONNECTED, EventType.SERVER_CONNECTED], timeout=1)
-            self.clear_events()
+            self.wait_events_and_clear([EventType.SERVER_DISCONNECTED, EventType.SERVER_CONNECTED], timeout=1)
             self.assertEqual(self.fake_client.get_call_count('connect'), i+2)
     
     def test_auto_retry_connect_on_connect_fail(self):
@@ -528,9 +451,3 @@ class TestServerManager(ScrutinyUnitTest):
 
         self.assertGreaterEqual(total_time, (RETRY_COUNT-1)*self.server_manager.RECONNECT_DELAY)  
         self.assertLessEqual(total_time, (RETRY_COUNT+1)*self.server_manager.RECONNECT_DELAY)  
-
-
-    def tearDown(self) -> None:
-        self.server_manager.stop()
-        self.app.processEvents()
-        self.app.deleteLater()  # Segfault without this. don't know why
