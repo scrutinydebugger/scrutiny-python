@@ -1,5 +1,5 @@
 from scrutiny import sdk
-from scrutiny.gui.watchable_index import WatchableIndex,WatchableIndexError
+from scrutiny.gui.watchable_index import WatchableIndex, WatchableIndexError, WatchableIndexNodeContent
 from test import ScrutinyUnitTest
 
 DUMMY_DATASET_RPV = {
@@ -142,7 +142,7 @@ class TestWatchableIndex(ScrutinyUnitTest):
         
 
         node = self.index.read_fqn('var:/')
-        assert isinstance(node, WatchableIndex.NodeContent)
+        assert isinstance(node, WatchableIndexNodeContent)
         self.assertEqual(len(node.watchables), 0)
         self.assertEqual(len(node.subtree), 1)
 
@@ -150,7 +150,7 @@ class TestWatchableIndex(ScrutinyUnitTest):
 
 
         node = self.index.read_fqn('var:/var')
-        assert isinstance(node, WatchableIndex.NodeContent)
+        assert isinstance(node, WatchableIndexNodeContent)
         self.assertEqual(len(node.watchables), 2)
         self.assertEqual(len(node.subtree), 1)
 
@@ -160,13 +160,213 @@ class TestWatchableIndex(ScrutinyUnitTest):
 
 
         node = self.index.read_fqn('var:/var/xxx')
-        assert isinstance(node, WatchableIndex.NodeContent)
+        assert isinstance(node, WatchableIndexNodeContent)
         self.assertEqual(len(node.watchables), 2)
         self.assertEqual(len(node.subtree), 0)
 
         self.assertIn(DUMMY_DATASET_VAR['/var/xxx/var1'], node.watchables)
         self.assertIn(DUMMY_DATASET_VAR['/var/xxx/var2'], node.watchables)
 
+    def test_clear_by_type(self):
+        self.index.add_content(All_DUMMY_DATA)
+
+        self.assertTrue(self.index.has_data(sdk.WatchableType.Variable))
+        self.assertTrue(self.index.has_data(sdk.WatchableType.Alias))
+        self.assertTrue(self.index.has_data(sdk.WatchableType.RuntimePublishedValue))
+
+        had_data = self.index.clear_content_by_type(sdk.WatchableType.Variable)
+        self.assertTrue(had_data)
+        self.assertFalse(self.index.has_data(sdk.WatchableType.Variable))
+        self.assertTrue(self.index.has_data(sdk.WatchableType.Alias))
+        self.assertTrue(self.index.has_data(sdk.WatchableType.RuntimePublishedValue))
+        had_data = self.index.clear_content_by_type(sdk.WatchableType.Variable)
+        self.assertFalse(had_data) 
+
+        had_data = self.index.clear_content_by_type(sdk.WatchableType.Alias)
+        self.assertTrue(had_data)
+        self.assertFalse(self.index.has_data(sdk.WatchableType.Variable))
+        self.assertFalse(self.index.has_data(sdk.WatchableType.Alias))
+        self.assertTrue(self.index.has_data(sdk.WatchableType.RuntimePublishedValue))
+        had_data = self.index.clear_content_by_type(sdk.WatchableType.Alias)
+        self.assertFalse(had_data)  
+
+        had_data = self.index.clear_content_by_type(sdk.WatchableType.RuntimePublishedValue)
+        self.assertTrue(had_data)
+        self.assertFalse(self.index.has_data(sdk.WatchableType.Variable))
+        self.assertFalse(self.index.has_data(sdk.WatchableType.Alias))
+        self.assertFalse(self.index.has_data(sdk.WatchableType.RuntimePublishedValue))
+        had_data = self.index.clear_content_by_type(sdk.WatchableType.RuntimePublishedValue)
+        self.assertFalse(had_data)
+
+        self.assertFalse(self.index.clear())
+
+    def test_clear(self):
+        self.index.add_content(All_DUMMY_DATA)  
+        self.assertTrue(self.index.has_data(sdk.WatchableType.Variable))
+        self.assertTrue(self.index.has_data(sdk.WatchableType.Alias))
+        self.assertTrue(self.index.has_data(sdk.WatchableType.RuntimePublishedValue))
+
+        had_data = self.index.clear()
+        self.assertTrue(had_data)
+        
+        self.assertFalse(self.index.has_data(sdk.WatchableType.Variable))
+        self.assertFalse(self.index.has_data(sdk.WatchableType.Alias))
+        self.assertFalse(self.index.has_data(sdk.WatchableType.RuntimePublishedValue))
+
+        self.assertFalse(self.index.clear())
+
+    def test_watchers(self):
+        self.index.add_content(All_DUMMY_DATA) 
+
+        callback_history = {
+            'watcher1' : [],
+            'watcher2' : [],
+        }
+        def watch_callback(watcher, wc, value):
+            callback_history[watcher].append((wc, value))
+ 
+        var1fqn = f'var:/var/xxx/var1'
+        var2fqn = f'var:/var/xxx/var2'
+        self.index.watch('watcher1', sdk.WatchableType.Variable, '/var/xxx/var1', watch_callback)
+        self.index.watch_fqn('watcher2', var1fqn, watch_callback)
+        self.index.watch_fqn('watcher2', var2fqn, watch_callback)
+        self.assertEqual(self.index.watched_entries_count(), 2)
+        with self.assertRaises(WatchableIndexError):
+            self.index.watch_fqn('watcher2', var2fqn, watch_callback)
+
+        serverid_var1 = self.index.read_fqn(var1fqn).server_id
+        serverid_var2 = self.index.read_fqn(var2fqn).server_id
+        
+        self.assertIsNone(self.index.get_value(sdk.WatchableType.Variable, '/var/xxx/var1'))
+        self.assertIsNone(self.index.get_value(sdk.WatchableType.Variable, '/var/xxx/var2'))
+        self.assertIsNone(self.index.get_value_fqn(var1fqn))
+        self.assertIsNone(self.index.get_value_fqn(var2fqn))
+
+        self.assertEqual(self.index.watcher_count_by_server_id(serverid_var1), 2)
+        self.assertEqual(self.index.watcher_count_by_server_id(serverid_var2), 1)
+        self.assertEqual(self.index.watcher_count_fqn(var1fqn), 2)
+        self.assertEqual(self.index.watcher_count_fqn(var2fqn), 1)
+
+        self.assertEqual(len(callback_history['watcher1']), 0)
+        self.assertEqual(len(callback_history['watcher2']), 0)
+        self.index.update_value_by_server_id(serverid_var1, 123)
+        self.assertEqual(self.index.get_value_fqn(var1fqn), 123)
+        self.assertEqual(len(callback_history['watcher1']), 1)
+        self.assertEqual(len(callback_history['watcher2']), 1)
+        self.index.update_value_by_server_id(serverid_var1, 456)
+        self.assertEqual(self.index.get_value_fqn(var1fqn), 456)
+        self.assertEqual(len(callback_history['watcher1']), 2)
+        self.assertEqual(len(callback_history['watcher2']), 2)
+        self.index.update_value_by_server_id(serverid_var2, 555)
+        self.assertEqual(self.index.get_value_fqn(var2fqn), 555)
+        self.assertEqual(len(callback_history['watcher1']), 2)
+        self.assertEqual(len(callback_history['watcher2']), 3)
+
+
+        self.assertEqual(callback_history['watcher1'][0], (self.index.read_fqn(var1fqn), 123))
+        self.assertEqual(callback_history['watcher1'][1], (self.index.read_fqn(var1fqn), 456))
+        
+        self.assertEqual(callback_history['watcher2'][0], (self.index.read_fqn(var1fqn), 123))
+        self.assertEqual(callback_history['watcher2'][1], (self.index.read_fqn(var1fqn), 456))
+        self.assertEqual(callback_history['watcher2'][2], (self.index.read_fqn(var2fqn), 555))
+
+        self.index.update_value_by_server_id('idontexistanditsfine', 999)    # Silently ignore. No error.
+
+        self.assertEqual(len(callback_history['watcher1']), 2)
+        self.assertEqual(len(callback_history['watcher2']), 3)
+
+
+        self.index.unwatch_fqn('watcher2', var1fqn)
+        self.assertEqual(self.index.watcher_count_fqn(var1fqn), 1)
+        self.assertEqual(self.index.watcher_count_fqn(var2fqn), 1)
+
+        self.index.update_value_by_server_id(serverid_var1, 666)
+        self.assertEqual(len(callback_history['watcher1']), 3)
+        self.assertEqual(len(callback_history['watcher2']), 3)
+        self.assertEqual(callback_history['watcher1'][2], (self.index.read_fqn(var1fqn), 666))
+
+        self.index.update_value_fqn(var1fqn, 777)
+        self.assertEqual(len(callback_history['watcher1']), 4)
+        self.assertEqual(len(callback_history['watcher2']), 3)
+        self.assertEqual(callback_history['watcher1'][3], (self.index.read_fqn(var1fqn), 777))
+
+        self.index.unwatch_fqn('watcher1', var1fqn)
+        self.index.unwatch_fqn('watcher2', var2fqn)
+        self.assertEqual(self.index.watcher_count_fqn(var1fqn), 0)
+        self.assertEqual(self.index.watcher_count_fqn(var2fqn), 0)
+        
+        self.index.unwatch_fqn('watcher1', var1fqn)     # Already unwatched. No error
+
+
+        with self.assertRaises(WatchableIndexError):
+            self.index.watch_fqn('watcher3', 'var:/var/xxx', watch_callback)    # Path exists, but is not a watchable
+
+        with self.assertRaises(WatchableIndexError):
+            self.index.update_value_fqn('var:/var/xxx', 123)    # Path exists, but is not a watchable
+        
+        with self.assertRaises(WatchableIndexError):
+            self.index.watch_fqn('watcher3', 'var:/idontexist', watch_callback)    # Path does not exist
+        
+        with self.assertRaises(WatchableIndexError):
+            self.index.update_value_fqn('var:/idontexist', 123)    # Path does not exist
+    
+    def test_watch_bad_callback(self):
+        self.index.add_content(All_DUMMY_DATA) 
+        with self.assertRaises(ValueError):
+            self.index.watch('watcher1', sdk.WatchableType.Variable, '/var/xxx/var1', 'iamnotacallback')
+
+
+    def test_unwatch_on_clear(self):
+        clear_funcs = [
+            self.index.clear,
+            lambda: self.index.clear_content_by_type(sdk.WatchableType.Variable)
+        ]
+        for clear_func in clear_funcs:
+            self.index.add_content(All_DUMMY_DATA) 
+            def watch_callback(watcher, wc, value):
+                pass
+    
+            var1fqn = f'var:/var/xxx/var1'
+            var2fqn = f'var:/var/xxx/var2'
+            self.index.watch('watcher1', sdk.WatchableType.Variable, '/var/xxx/var1', watch_callback)
+            self.index.watch_fqn('watcher2', var1fqn, watch_callback)
+            self.index.watch_fqn('watcher2', var2fqn, watch_callback)
+            serverid_var1 = self.index.read_fqn(var1fqn).server_id
+            serverid_var2 = self.index.read_fqn(var2fqn).server_id
+            self.assertEqual(self.index.watcher_count_fqn(var1fqn), 2)
+            self.assertEqual(self.index.watcher_count_fqn(var2fqn), 1)
+            self.assertEqual(self.index.watched_entries_count(), 2)
+
+
+            clear_func()
+            self.assertEqual(self.index.watched_entries_count(), 0)
+
+            with self.assertRaises(WatchableIndexError):
+                self.index.watcher_count_fqn(var1fqn)
+            with self.assertRaises(WatchableIndexError):            
+                self.index.watcher_count_fqn(var2fqn)
+
+            self.assertEqual(self.index.watcher_count_by_server_id(serverid_var1), 0)
+            self.assertEqual(self.index.watcher_count_by_server_id(serverid_var2), 0)
+
+            self.index.add_content({sdk.WatchableType.Variable : DUMMY_DATASET_VAR})
+            self.assertEqual(self.index.watcher_count_fqn(var1fqn), 0)
+            self.assertEqual(self.index.watcher_count_fqn(var2fqn), 0)
+            self.assertEqual(self.index.watched_entries_count(), 0)
+
+            self.index.clear()
+
+    def test_bad_values(self):
+        self.index.add_content(All_DUMMY_DATA)
+
+        with self.assertRaises(WatchableIndexError):
+            self.index.get_value_fqn('var:/var/xxx')
+        
+        with self.assertRaises(WatchableIndexError):
+            self.index.watcher_count_fqn('var:/var/xxx')
+        
+        with self.assertRaises(WatchableIndexError):
+            self.index.unwatch_fqn('watcher_xxx', 'var:/var/xxx')
 
     def tearDown(self):
         super().tearDown()
