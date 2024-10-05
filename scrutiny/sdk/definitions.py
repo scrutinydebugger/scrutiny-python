@@ -88,6 +88,11 @@ class WatchableType(enum.Enum):
     Alias = 3
     """A symbolic link watchable that can refers to a :attr:`Variable` or a :attr:`RuntimePublishedValue`"""
 
+    @classmethod
+    def get_valids(cls) -> List["WatchableType"]:
+        """Return the list of valid Watchable types. Mainly for unit testing"""
+        return [cls.Variable, cls.RuntimePublishedValue, cls.Alias]
+
 
 class ValueStatus(enum.Enum):
     """(Enum) Represent the validity status of a watchable value"""
