@@ -123,7 +123,7 @@ class BaseListener(abc.ABC):
                     update_list.append(update)
             
             if len(update_list) > 0 and self._update_queue is not None:
-                if self._logger.isEnabledFor(logging.DEBUG):
+                if self._logger.isEnabledFor(logging.DEBUG):    # pragma: no cover
                     self._logger.debug(f"Received {len(update_list)} updates")
                 try:
                     self._update_queue.put(update_list, block=False)

@@ -1,3 +1,11 @@
+#    about_dialog.py
+#        About window, contains data about the software, including all versions numbers
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021 Scrutiny Debugger
+
 from qtpy.QtWidgets import QDialog, QFormLayout, QLabel
 import qtpy
 import qtpy.QtCore

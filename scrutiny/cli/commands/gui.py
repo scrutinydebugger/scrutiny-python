@@ -1,5 +1,5 @@
 #    gui.py
-#        CLI Command to launch the scrutiny Graphical User Interface
+#        Command to start the GUI
 #
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)

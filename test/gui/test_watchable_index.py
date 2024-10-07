@@ -1,3 +1,11 @@
+#    test_watchable_index.py
+#        A test suite for the WatchableIndex object
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021 Scrutiny Debugger
+
 from scrutiny import sdk
 from scrutiny.gui.watchable_index import WatchableIndex, WatchableIndexError, WatchableIndexNodeContent
 from test import ScrutinyUnitTest
@@ -249,15 +257,15 @@ class TestWatchableIndex(ScrutinyUnitTest):
 
         self.assertEqual(len(callback_history['watcher1']), 0)
         self.assertEqual(len(callback_history['watcher2']), 0)
-        self.index.update_value_by_server_id(serverid_var1, 123)
+        self.index.update_watched_entry_value_by_server_id(serverid_var1, 123)
         self.assertEqual(self.index.get_value_fqn(var1fqn), 123)
         self.assertEqual(len(callback_history['watcher1']), 1)
         self.assertEqual(len(callback_history['watcher2']), 1)
-        self.index.update_value_by_server_id(serverid_var1, 456)
+        self.index.update_watched_entry_value_by_server_id(serverid_var1, 456)
         self.assertEqual(self.index.get_value_fqn(var1fqn), 456)
         self.assertEqual(len(callback_history['watcher1']), 2)
         self.assertEqual(len(callback_history['watcher2']), 2)
-        self.index.update_value_by_server_id(serverid_var2, 555)
+        self.index.update_watched_entry_value_by_server_id(serverid_var2, 555)
         self.assertEqual(self.index.get_value_fqn(var2fqn), 555)
         self.assertEqual(len(callback_history['watcher1']), 2)
         self.assertEqual(len(callback_history['watcher2']), 3)
@@ -270,7 +278,7 @@ class TestWatchableIndex(ScrutinyUnitTest):
         self.assertEqual(callback_history['watcher2'][1], (self.index.read_fqn(var1fqn), 456))
         self.assertEqual(callback_history['watcher2'][2], (self.index.read_fqn(var2fqn), 555))
 
-        self.index.update_value_by_server_id('idontexistanditsfine', 999)    # Silently ignore. No error.
+        self.index.update_watched_entry_value_by_server_id('idontexistanditsfine', 999)    # Silently ignore. No error.
 
         self.assertEqual(len(callback_history['watcher1']), 2)
         self.assertEqual(len(callback_history['watcher2']), 3)
@@ -280,7 +288,7 @@ class TestWatchableIndex(ScrutinyUnitTest):
         self.assertEqual(self.index.watcher_count_fqn(var1fqn), 1)
         self.assertEqual(self.index.watcher_count_fqn(var2fqn), 1)
 
-        self.index.update_value_by_server_id(serverid_var1, 666)
+        self.index.update_watched_entry_value_by_server_id(serverid_var1, 666)
         self.assertEqual(len(callback_history['watcher1']), 3)
         self.assertEqual(len(callback_history['watcher2']), 3)
         self.assertEqual(callback_history['watcher1'][2], (self.index.read_fqn(var1fqn), 666))
@@ -367,6 +375,47 @@ class TestWatchableIndex(ScrutinyUnitTest):
         
         with self.assertRaises(WatchableIndexError):
             self.index.unwatch_fqn('watcher_xxx', 'var:/var/xxx')
+    
+    def test_global_watch_callbacks(self):
+        self.index.add_content(All_DUMMY_DATA)
+
+        watch_calls_history = []
+        unwatch_calls_history = []
+
+        def watch_callback(watcher_id, display_path, watchable):
+            watch_calls_history.append((watcher_id, display_path, watchable))
+
+        def unwatch_callback(watcher_id, display_path, watchable):
+            unwatch_calls_history.append((watcher_id, display_path, watchable))
+
+        def dummy_callback(*args, **kwargs):
+            pass
+
+        self.index.register_global_watch_callback(watch_callback, unwatch_callback)
+
+        var1 = self.index.read_fqn('var:/var/xxx/var1')
+        
+        self.assertEqual(len(watch_calls_history), 0)
+        self.assertEqual(len(unwatch_calls_history), 0)
+        self.index.watch_fqn('watcher1', 'var:/var/xxx/var1', dummy_callback)
+        self.assertEqual(len(watch_calls_history), 1)
+        self.assertEqual(len(unwatch_calls_history), 0)
+        self.index.watch_fqn('watcher2', 'var:/var/xxx/var1', dummy_callback)
+        self.assertEqual(len(watch_calls_history), 2)
+        self.assertEqual(len(unwatch_calls_history), 0)
+
+        self.assertEqual(watch_calls_history[0], ('watcher1', '/var/xxx/var1', var1))
+        self.assertEqual(watch_calls_history[1], ('watcher2', '/var/xxx/var1', var1))
+
+        self.index.unwatch_fqn('watcher1', 'var:/var/xxx/var1')
+        self.assertEqual(len(watch_calls_history), 2)
+        self.assertEqual(len(unwatch_calls_history), 1)
+        self.index.unwatch_fqn('watcher2', 'var:/var/xxx/var1')
+        self.assertEqual(len(watch_calls_history), 2)
+        self.assertEqual(len(unwatch_calls_history), 2)
+
+        self.assertEqual(unwatch_calls_history[0], ('watcher1', '/var/xxx/var1', var1))
+        self.assertEqual(unwatch_calls_history[1], ('watcher2', '/var/xxx/var1', var1))
 
     def tearDown(self):
         super().tearDown()

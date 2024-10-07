@@ -1,3 +1,11 @@
+#    pending_request.py
+#        A base class for Future objects given to the suer
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021 Scrutiny Debugger
+
 from scrutiny.core import validation
 from scrutiny import sdk
 from datetime import datetime
