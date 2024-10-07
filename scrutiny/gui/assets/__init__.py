@@ -1,5 +1,5 @@
 import os
-from scrutiny.gui.exceptions import GuiError
+from scrutiny.gui.core.exceptions import GuiError
 from pathlib import Path
 
 ASSET_PATH = os.path.dirname(__file__)
