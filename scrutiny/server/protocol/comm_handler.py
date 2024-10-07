@@ -239,7 +239,7 @@ class CommHandler:
             full_error = f"Cannot initialize device. {err}"
             if self._last_open_error != err:
                 self._logger.error(full_error)
-            elif self._logger.isEnabledFor(logging.DEBUG):
+            elif self._logger.isEnabledFor(logging.DEBUG):  # pragma: no cover
                 self._logger.debug(full_error)
             self._last_open_error = err
             self._opened = False 

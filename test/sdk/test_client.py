@@ -2005,5 +2005,44 @@ class TestClient(ScrutinyUnitTest):
         self.assertFalse(req.is_success)
         self.assertGreater(len(req.failure_reason), 0)  # Not empty
 
+    
+    def test_download_watchable_list_callback(self):
+
+        callback_history = []
+        def callback(data, finished):
+            callback_history.append( (data, finished) )
+
+
+        req = self.client.download_watchable_list(max_per_response=1, partial_reception_callback=callback)
+        req.wait_for_completion(2)
+        
+        self.assertTrue(req.completed)
+        self.assertTrue(req.is_success)
+        
+        nb_entries = self.datastore.get_entries_count()
+        self.assertEqual(len(callback_history), nb_entries)
+        received_path  =set()
+        for i in range(len(callback_history)):
+            data = cast(Dict[sdk.WatchableType, Dict[str, sdk.WatchableConfiguration]], callback_history[i][0])
+            last_segment = callback_history[i][1]
+
+            if i < len(callback_history)-1:
+                self.assertFalse(last_segment)
+            else:
+                self.assertTrue(last_segment)
+
+            for key in data.keys():
+                self.assertIsInstance(key, sdk.WatchableType)
+                for path in data[key].keys():
+                    self.assertIsInstance(path, str)
+                    obj =  data[key][path]
+                    self.assertIsInstance(obj, sdk.WatchableConfiguration)
+
+                    self.datastore.get_entry_by_display_path(path)  # Check that this entry exist
+                    self.assertNotIn(path, received_path, "Received duplicate item")
+                    received_path.add(path)
+
+
+
 if __name__ == '__main__':
     unittest.main()

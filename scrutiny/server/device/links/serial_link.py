@@ -171,7 +171,7 @@ class SerialLink(AbstractLink):
         if self.port.in_waiting > 0:
             data += self.port.read(self.port.in_waiting)
 
-        if len(data) > 0 and self.logger.isEnabledFor(logging.DEBUG):
+        if len(data) > 0 and self.logger.isEnabledFor(logging.DEBUG):   # pragma: no cover
             self.logger.debug(f"Received {len(data)}: " + hexlify(data).decode('ascii'))
         
         return data

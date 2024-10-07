@@ -452,6 +452,66 @@
         },
         "scrutiny/tools/stream_datagrams.py": {
             "docstring": "Internal tool to transmit datagrams over a stream. Used by the server and the clients to exchange JSON objects over TCP"
+        },
+        "test/gui/test_watchable_index.py": {
+            "docstring": "A test suite for the WatchableIndex object"
+        },
+        "test/gui/fake_sdk_client.py": {
+            "docstring": "Emulate the SDK ScrutinyClient for the purpose of unit testing"
+        },
+        "test/gui/test_server_manager.py": {
+            "docstring": "Test suite for the ServerManager"
+        },
+        "test/gui/base_gui_test.py": {
+            "docstring": "Base class for GUI tests"
+        },
+        "scrutiny/cli/commands/gui.py": {
+            "docstring": "Command to start the GUI"
+        },
+        "scrutiny/gui/gui.py": {
+            "docstring": "The highest level class to manipulate the GUI"
+        },
+        "scrutiny/gui/main_window.py": {
+            "docstring": "The QT Main window object"
+        },
+        "scrutiny/gui/qtads.py": {
+            "docstring": "Loads QT Advanced Docking System using either PySide or PyQT"
+        },
+        "scrutiny/gui/core/exceptions.py": {
+            "docstring": "Exceptions related to the GUI"
+        },
+        "scrutiny/gui/core/watchable_index.py": {
+            "docstring": "A storage object that keeps a local copy of all the watcahble (Variable/Alias/RPV) avaialble on the server. \nLots of overlapping feature with the server datastore, with few fundamentals differences."
+        },
+        "scrutiny/gui/core/server_manager.py": {
+            "docstring": "Object that handles the communication with the server and inform the rest of the GUI about what's happening on the other side of the socket. Based on the SDK ScrutinyClient"
+        },
+        "scrutiny/gui/dashboard_components/base_component.py": {
+            "docstring": "A base class for a component that can be added to the dashboard"
+        },
+        "scrutiny/gui/dashboard_components/debug/debug_component.py": {
+            "docstring": "A component used to develop the GUI"
+        },
+        "scrutiny/gui/dashboard_components/embedded_graph/embedded_graph_component.py": {
+            "docstring": "A componenbt to configure, trigger, view and browse embedded datalogging."
+        },
+        "scrutiny/gui/dashboard_components/varlist/varlist_component.py": {
+            "docstring": "A component that shows the content of the watcahble index, a copy og what's available on the server"
+        },
+        "scrutiny/gui/dashboard_components/watch/watch_component.py": {
+            "docstring": "A component to look at the value of watchable items broadcast by the server"
+        },
+        "scrutiny/gui/widgets/server_config_dialog.py": {
+            "docstring": "A dialog to edit the connection parameter of the server"
+        },
+        "scrutiny/gui/widgets/about_dialog.py": {
+            "docstring": "About window, contains data about the software, including all versions numbers"
+        },
+        "scrutiny/gui/widgets/sidebar.py": {
+            "docstring": "The GUI sidebar"
+        },
+        "scrutiny/sdk/pending_request.py": {
+            "docstring": "A base class for Future objects given to the suer"
         }
     }
 }

@@ -1,3 +1,11 @@
+#    gui.py
+#        The highest level class to manipulate the GUI
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021 Scrutiny Debugger
+
 from qtpy.QtWidgets import QApplication
 from qtpy.QtGui import QIcon, QPalette
 from scrutiny.gui.main_window import MainWindow

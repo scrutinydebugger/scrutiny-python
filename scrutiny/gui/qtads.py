@@ -1,3 +1,11 @@
+#    qtads.py
+#        Loads QT Advanced Docking System using either PySide or PyQT
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021 Scrutiny Debugger
+
 __all__ = ['QtAds']
 
 # Entry point to load QTAdvancewdDockingSystem using either PyQt or PySide

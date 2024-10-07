@@ -1,8 +1,16 @@
+#    base_gui_test.py
+#        Base class for GUI tests
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021 Scrutiny Debugger
+
 from test import ScrutinyUnitTest
 from qtpy.QtWidgets import QApplication
-from qtpy.QtCore import Signal
 import enum
 import time
+from test import logger
 
 from typing import List
 
@@ -13,15 +21,14 @@ class EventType(enum.Enum):
     DEVICE_READY = enum.auto()
     DEVICE_DISCONNECTED = enum.auto()
     DATALOGGING_STATE_CHANGED = enum.auto()
-    WATCHABLE_INDEX_CLEARED = enum.auto()
     WATCHABLE_INDEX_CHANGED = enum.auto()
-    WATCHABLE_INDEX_READY = enum.auto()
     SFD_LOADED = enum.auto()
     SFD_UNLOADED = enum.auto()
 
 class ScrutinyBaseGuiTest(ScrutinyUnitTest):
 
     def declare_event(self, event_type:EventType):
+       logger.debug(f"Event: {event_type.name}")
        self.event_list.append(event_type)
 
     def setUp(self) -> None:
@@ -48,7 +55,7 @@ class ScrutinyBaseGuiTest(ScrutinyUnitTest):
     def wait_false(self, fn, timeout, no_assert=False):
         return self.wait_equal(fn, False, timeout, no_assert)
     
-    def wait_events(self, events:List[EventType], timeout:float):
+    def wait_events(self, events:List[EventType], timeout:float,msg=""):
         t = time.perf_counter()
 
         while time.perf_counter() - t < timeout:
@@ -57,10 +64,10 @@ class ScrutinyBaseGuiTest(ScrutinyUnitTest):
                 break
             time.sleep(0.01)
 
-        self.assert_events(events, f"Condition did not happen after {timeout} sec")
+        self.assert_events(events, f"Condition did not happen after {timeout} sec." + msg)
     
-    def wait_events_and_clear(self, events:List[EventType], timeout:float):
-        self.wait_events(events, timeout)
+    def wait_events_and_clear(self, events:List[EventType], timeout:float, msg=""):
+        self.wait_events(events, timeout, msg)
         self.clear_events()
     
     def clear_events(self):

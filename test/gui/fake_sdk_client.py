@@ -1,8 +1,16 @@
+#    fake_sdk_client.py
+#        Emulate the SDK ScrutinyClient for the purpose of unit testing
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021 Scrutiny Debugger
+
 __all__ = ['FakeSDKClient']
 
 from scrutiny import sdk
 from scrutiny.sdk.client import WatchableListDownloadRequest
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Callable
 from dataclasses import dataclass
 import inspect
 
@@ -85,8 +93,10 @@ class FakeSDKClient:
 
     def download_watchable_list(self, types:Optional[List[sdk.WatchableType]]=None, 
                                 max_per_response:int=500,
-                                name_patterns:List[str] = []) -> WatchableListDownloadRequest:
-        req = WatchableListDownloadRequest(self, self._req_id)
+                                name_patterns:List[str] = [],
+                                partial_reception_callback:Optional[Callable[[Dict[sdk.WatchableType, Dict[str, sdk.WatchableConfiguration]], bool], None]] = None
+                                ) -> WatchableListDownloadRequest:
+        req = WatchableListDownloadRequest(self, self._req_id, new_data_callback=partial_reception_callback)
 
         self._pending_download_requests[self._req_id] = DownloadWatchableListFunctionCall(
             types=types,
@@ -107,6 +117,21 @@ class FakeSDKClient:
 
         if req is not None:
             req._mark_complete(success=False, failure_reason="Cancelled")
+            try:
+                del self._pending_download_requests[reqid]
+            except KeyError:
+                pass
+    
+    def _complete_success_watchable_list_request(self, reqid:int) -> None:
+        self._log_call()
+        req = None
+        try:
+            req = self._pending_download_requests[reqid].request
+        except KeyError:
+            pass
+
+        if req is not None:
+            req._mark_complete(success=True)
             try:
                 del self._pending_download_requests[reqid]
             except KeyError:

@@ -1,8 +1,26 @@
-__all__ = ['WatchableIndex', 'WatchableIndexError', 'WatchableIndexNodeContent']
+#    watchable_index.py
+#        A storage object that keeps a local copy of all the watcahble (Variable/Alias/RPV)
+#        avaialble on the server.
+#        Lots of overlapping feature with the server datastore, with few fundamentals differences.
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021 Scrutiny Debugger
+
+__all__ = [
+    'WatchableIndex', 
+    'WatchableIndexError', 
+    'WatchableIndexNodeContent',
+    'WatchableValue',
+    'WatcherValueUpdateCallback',
+    'GlobalWatchCallback',
+    'GlobalUnwatchCallback'
+    ]
 
 
 from scrutiny import sdk
-from typing import Dict, Iterable, List, Union, Optional, Callable, Set, Any
+from typing import Dict, List, Union, Optional, Callable, Set, Any
 import threading
 from dataclasses import dataclass
 import logging
@@ -28,6 +46,8 @@ TYPESTR_MAP_WT2S: Dict[sdk.WatchableType, str] = {v: k for k, v in TYPESTR_MAP_S
 
 WatchableValue = Union[int, float, bool]
 WatcherValueUpdateCallback = Callable[[str, sdk.WatchableConfiguration, WatchableValue], None]
+GlobalWatchCallback = Callable[[str, str, sdk.WatchableConfiguration], None]
+GlobalUnwatchCallback = Callable[[str, str, sdk.WatchableConfiguration], None]
 
 @dataclass(init=False)
 class WatchableEntry:
@@ -74,14 +94,19 @@ class WatchableEntry:
 
 @dataclass(frozen=True)
 class WatchableIndexNodeContent:
+    """Node in the tree. This can be given to the user."""
     __slots__ = ['watchables', 'subtree']
     watchables:List[sdk.WatchableConfiguration]
     subtree:List[str]
 
 class WatchableIndex:
+    """Contains a copy of the watchable list available on the server side
+    Act as a relay to dispatch value update event to the internal widgets"""
     _trees:  Dict[str, Any]
     _lock:threading.Lock
     _watched_entries:Dict[str, WatchableEntry] 
+    _global_watch_callbacks:Optional[GlobalWatchCallback]
+    _global_unwatch_callbacks:Optional[GlobalUnwatchCallback]
     _logger:logging.Logger
     
     def __init__(self) -> None:
@@ -92,12 +117,16 @@ class WatchableIndex:
         }
         self._lock = threading.Lock()
         self._watched_entries = {}
+        self._global_watch_callbacks = None
+        self._global_unwatch_callbacks = None
         self._logger = logging.getLogger(self.__class__.__name__)
     
     def _get_parts(self, path:str) -> List[str]:
+        """Split a tree path in parts"""
         return [x for x in path.split('/') if x]
 
     def _add_watchable_no_lock(self, path:str, config:sdk.WatchableConfiguration) -> None:
+        """Adds a single watchable to the tree storage without using a lock"""
         parts = self._get_parts(path)
         if len(parts) == 0:
             raise WatchableIndexError(f"Empty path : {path}") 
@@ -115,6 +144,7 @@ class WatchableIndex:
             )
 
     def _get_node_with_lock(self, watchable_type:sdk.WatchableType, path:str) -> Union[WatchableIndexNodeContent, WatchableEntry]:
+        """Read a node in the tree and locks the tree while doing it."""
         with self._lock:
             parts = self._get_parts(path)
             node = self._trees[watchable_type]
@@ -134,6 +164,7 @@ class WatchableIndex:
                 raise WatchableIndexError(f"Unexpected item of type {node.__class__.__name__} inside the index")
     
     def _has_data(self, watchable_type:sdk.WatchableType) -> bool:
+        """Tells if the tree attached to a given watchable type contains data"""
         return len(self._trees[watchable_type]) > 0
 
     def update_value_fqn(self, fqn:str, value:WatchableValue) -> None:
@@ -145,7 +176,7 @@ class WatchableIndex:
         parsed = self.parse_fqn(fqn)
         self.update_value(parsed.watchable_type, parsed.path, value)
 
-    def update_value_by_server_id(self, server_id:str, value:WatchableValue) -> None:
+    def update_watched_entry_value_by_server_id(self, server_id:str, value:WatchableValue) -> None:
         """Update the watchable value and inform all watchers only if part of the watched entries
         
         :param server_id: The server ID received by the server
@@ -172,9 +203,10 @@ class WatchableIndex:
         node.update_value(value)
     
     def watch_fqn(self, watcher_id:str, fqn:str, callback:WatcherValueUpdateCallback) -> None:
-        """Register a callback to be invoked when a value is updated on the given watchable
+        """Adds a watcher on the given watchable and register a callback to be 
+        invoked when its value is updated 
         
-        :param watcher_id: A string identifies the owner of the callback. Passed back when the callback is invoked
+        :param watcher_id: A string that identifies the owner of the callback. Passed back when the callback is invoked
         :param fqn: The watchable fully qualified name
         :param callback: The callback
         """
@@ -182,9 +214,10 @@ class WatchableIndex:
         self.watch(watcher_id, parsed.watchable_type, parsed.path, callback)
 
     def watch(self, watcher_id:str, watchable_type:sdk.WatchableType, path:str, callback:WatcherValueUpdateCallback) -> None:
-        """Register a callback to be invoked when a value is updated on the given watchable
+        """Adds a watcher on the given watchable and register a callback to be 
+        invoked when its value is updated 
         
-        :param watcher_id: A string identifies the owner of the callback. Passed back when the callback is invoked
+        :param watcher_id: A string that identifies the owner of the callback. Passed back when the callback is invoked
         :param watchable_type: The watchable type
         :param path: The watchable tree path
         :param callback: The callback
@@ -197,8 +230,17 @@ class WatchableIndex:
         
         with self._lock:
             self._watched_entries[node.configuration.server_id] = node
+        
+        if self._global_watch_callbacks is not None:
+            self._global_watch_callbacks(watcher_id, node.display_path, node.configuration)
 
     def unwatch(self, watcher_id:str, watchable_type:sdk.WatchableType, path:str) -> None:
+        """Remove a the given watcher from the watcher list of the given node.
+        
+        :param watcher_id: A string that identifies the owner of the callback. Passed back when the callback is invoked
+        :param watchable_type: The watchable type
+        :param path: The watchable tree path
+        """
         node = self._get_node_with_lock(watchable_type, path)
         if not isinstance(node, WatchableEntry):
             raise WatchableIndexError("Cannot unwatch something that is not a Watchable")
@@ -211,12 +253,26 @@ class WatchableIndex:
                 del self._watched_entries[node.configuration.server_id]
             except KeyError:
                 pass
+        
+        if self._global_unwatch_callbacks is not None:
+            self._global_unwatch_callbacks(watcher_id, node.display_path, node.configuration)
     
     def unwatch_fqn(self, watcher_id:str, fqn:str) -> None:
+        """Remove a the given watcher from the watcher list of the given node.
+        
+        :param watcher_id: A string that identifies the owner of the callback. Passed back when the callback is invoked
+        :param watchable_type: The watchable type
+        :param path: The watchable tree path
+        """
         parsed = self.parse_fqn(fqn)
         self.unwatch(watcher_id, parsed.watchable_type, parsed.path)
 
     def watcher_count_by_server_id(self, server_id:str) -> int:
+        """Return the number of watcher on a node, identified by its server_id
+        
+        :param server_id: The watchable server_id
+        :return: The number of watchers 
+        """
         try:
             entry = self._watched_entries[server_id]
         except KeyError:
@@ -224,16 +280,28 @@ class WatchableIndex:
         return entry.watcher_count()
 
     def watcher_count_fqn(self, fqn:str) -> int:
+        """Return the number of watcher on a node
+        
+        :param fqn: The watchable fully qualified name
+        :return: The number of watchers
+        """
         parsed = self.parse_fqn(fqn)
         return self.watcher_count(parsed.watchable_type, parsed.path)
        
     def watcher_count(self, watchable_type:sdk.WatchableType, path:str) -> int:
+        """Return the number of watcher on a node
+        
+        :param watchable_type: The watchable type
+        :param path: The watchable tree path
+        :return: The number of watchers
+        """
         node = self._get_node_with_lock(watchable_type, path)
         if not isinstance(node, WatchableEntry):
             raise WatchableIndexError("Cannot get the watcher count of something that is not a Watchable")
         return node.watcher_count()
     
     def watched_entries_count(self) -> int:
+        """Return the total number of watchable being watched"""
         return len(self._watched_entries)
     
     def get_value_fqn(self, fqn:str) -> Optional[WatchableValue]:
@@ -271,7 +339,7 @@ class WatchableIndex:
         return node
 
     def add_watchable(self, path:str, obj:sdk.WatchableConfiguration) -> None:
-        """Adds a watcahble inside the index
+        """Adds a watchable inside the index
 
         :param path: The tree path of the node
         :param obj: The watchable configuration object
@@ -280,7 +348,7 @@ class WatchableIndex:
             return self._add_watchable_no_lock(path, obj)
     
     def add_watchable_fqn(self, fqn:str, obj:sdk.WatchableConfiguration) -> None:
-        """Adds a watcahble inside the index using a fully qualified name
+        """Adds a watchable inside the index using a fully qualified name
 
         :param fqn: The fully qualified name created using ``make_fqn()``
         :param obj: The watchable configuration object
@@ -364,6 +432,16 @@ class WatchableIndex:
         with self._lock:
             return self._has_data(watchable_type)
 
+
+    def register_global_watch_callback(self, watch_callback:GlobalWatchCallback, unwatch_callback:GlobalUnwatchCallback ) -> None:
+        """Register a callback to be called whenever a new watcher is being added or removed on an entry
+        
+        :param watch_callback: Callback invoked on ``watch`` invocation
+        :param unwatch_callback: Callback invoked on ``unwatch`` invocation
+        """
+        self._global_watch_callbacks = watch_callback
+        self._global_unwatch_callbacks = unwatch_callback
+    
 
     @classmethod
     def _validate_fqn(cls, fqn:ParsedFullyQualifiedName, desc:sdk.WatchableConfiguration) -> None:

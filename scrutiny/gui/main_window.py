@@ -1,3 +1,11 @@
+#    main_window.py
+#        The QT Main window object
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021 Scrutiny Debugger
+
 import logging
 import traceback
 
@@ -18,7 +26,8 @@ from scrutiny.gui.dashboard_components.varlist.varlist_component import VarListC
 from scrutiny.gui.dashboard_components.watch.watch_component import WatchComponent
 from scrutiny.gui.dashboard_components.embedded_graph.embedded_graph_component import EmbeddedGraph
 
-from scrutiny.gui.server_manager import ServerManager
+from scrutiny.gui.core.server_manager import ServerManager
+from scrutiny.gui.core.watchable_index import WatchableIndex
 from typing import List, Type, Dict
 
 
@@ -43,6 +52,7 @@ class MainWindow(QMainWindow):
     _sidebar:Sidebar
     _status_bar:QStatusBar
     _server_config_dialog:ServerConfigDialog
+    _watchable_index:WatchableIndex
     _server_manager:ServerManager
 
     def __init__(self) -> None:
@@ -58,7 +68,8 @@ class MainWindow(QMainWindow):
         self.make_main_zone()
         self.make_status_bar()
 
-        self._server_manager = ServerManager()
+        self._watchable_index = WatchableIndex()
+        self._server_manager = ServerManager(watchable_index=self.watchable_index)
         self._server_config_dialog = ServerConfigDialog(self, self.server_config_changed)
 
     def make_menubar(self) -> None:

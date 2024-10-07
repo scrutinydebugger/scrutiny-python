@@ -1,3 +1,12 @@
+#    server_manager.py
+#        Object that handles the communication with the server and inform the rest of the
+#         GUI about what's happening on the other side of the socket. Based on the SDK ScrutinyClient
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021 Scrutiny Debugger
+
 __all__ = ['ServerManager']
 
 from scrutiny import sdk
@@ -8,20 +17,10 @@ import time
 import traceback
 
 from qtpy.QtCore import Signal, QObject
-from typing import Optional
+from typing import Optional, Dict
 import logging
 
-from scrutiny.gui.watchable_index import WatchableIndex
-
-@dataclass(init=False)
-class ThreadData:
-    thread:Optional[threading.Thread]
-    started_event:threading.Event
-
-    def __init__(self) -> None:
-        self.thread = None
-        self.started_event = threading.Event()
-
+from scrutiny.gui.core.watchable_index import WatchableIndex
 
 class ServerManager:
     """Runs a thread for the synchronous SDK and emit QT events when something interesting happens"""
@@ -66,7 +65,7 @@ class ServerManager:
 
 
     class _Signals(QObject):    # QObject required for signals to work
-        """Signals offered to the outside worl"""
+        """Signals offered to the outside world"""
         server_connected = Signal()
         server_disconnected = Signal()
         device_ready = Signal()
@@ -74,7 +73,7 @@ class ServerManager:
         datalogging_state_changed = Signal()
         sfd_loaded = Signal()
         sfd_unloaded = Signal()
-
+        index_changed = Signal()
 
     RECONNECT_DELAY = 1
     _client:ScrutinyClient              # The SDK client object that talks with the server
@@ -87,7 +86,7 @@ class ServerManager:
     _logger:logging.Logger              # Logger
     _fsm_data:ThreadFSMData             # Data used by the thread to detect state changes
 
-    def __init__(self, client:Optional[ScrutinyClient]=None) -> None:
+    def __init__(self, watchable_index:WatchableIndex, client:Optional[ScrutinyClient]=None) -> None:
         super().__init__()  # Required for signals to work
         if client is None:
             self._client = ScrutinyClient()
@@ -100,7 +99,7 @@ class ServerManager:
         self._auto_reconnect = False
         self._logger = logging.getLogger(self.__class__.__name__)
         self._fsm_data = self.ThreadFSMData()
-        self._index = WatchableIndex()
+        self._index = watchable_index
 
     @property
     def signals(self) -> _Signals:
@@ -170,11 +169,10 @@ class ServerManager:
                     if state_entry: # Will not enter on first loop. On purpose.
                         self._logger.debug("Entering disconnected state")
                         self._signals.server_disconnected.emit()
-                    
-                    self._fsm_data.server_info = None
-                    self._fsm_data.previous_server_info = None
-                    self._fsm_data.clear_download_requests()
-                    self._index.clear()   # Emit signals only on change
+                        self._fsm_data.clear_download_requests()
+                        self._clear_index()
+                        self._fsm_data.server_info = None
+                        self._fsm_data.previous_server_info = None
 
                     if self._auto_reconnect:
                         # timer to prevent going crazy on function call
@@ -206,10 +204,11 @@ class ServerManager:
 
                     # Server is gone
                     if self._fsm_data.server_info is None and self._fsm_data.previous_server_info is not None:
+                        self._clear_index()
                         if self._fsm_data.previous_server_info.sfd is not None:
-                            self._thread_sfd_unloaded()
+                            self._thread_sfd_unloaded()          # No event to avoid sending twice
                         if self._fsm_data.previous_server_info.device_session_id is not None:
-                            self._thread_device_disconnected()
+                            self._thread_device_disconnected()   # No event to avoid sending twice
                     
                     # Server just arrived
                     elif self._fsm_data.server_info is not None and self._fsm_data.previous_server_info is None:
@@ -223,6 +222,7 @@ class ServerManager:
                     elif self._fsm_data.server_info is not None and self._fsm_data.previous_server_info is not None:
                         # Device just left
                         if self._fsm_data.server_info.device_session_id is None and self._fsm_data.previous_server_info.device_session_id is not None:
+                            self._clear_index()
                             if self._fsm_data.server_info.sfd is None and self._fsm_data.previous_server_info.sfd is not None:
                                 self._thread_sfd_unloaded()
                             self._thread_device_disconnected()
@@ -239,6 +239,8 @@ class ServerManager:
                                 # The server did a full reconnect between 2 state update.
                                 # This state hsa a value only when device state is ConnectedReady
                                 
+                                self._clear_index()
+
                                 if self._fsm_data.previous_server_info.sfd is not None:
                                     self._thread_sfd_unloaded()
                                 self._thread_device_disconnected()
@@ -290,68 +292,62 @@ class ServerManager:
     def _thread_handle_download_watchable_logic(self) -> None:
         # Handle download of RPV if the device is ready
         device_ready = self._fsm_data.server_info.device_session_id is not None
-        has_rpv = self._index.has_data(sdk.WatchableType.RuntimePublishedValue)
         
         if device_ready:
-            if not has_rpv:
-                if self._fsm_data.runtime_watchables_download_request is None:
-                    self._logger.critical("Device is ready but no watcahble request has been initiated")     # pragma: no cover
-                elif self._fsm_data.runtime_watchables_download_request.completed:  # Download is ready
+            if self._fsm_data.runtime_watchables_download_request is not None:
+                if self._fsm_data.runtime_watchables_download_request.completed:  
+                    # Download is finished
+                    # Data is already inside the index. Added from the callback
+                    was_success = self._fsm_data.runtime_watchables_download_request.is_success
+                    self._fsm_data.runtime_watchables_download_request = None   # Clear the request.
                     self._logger.debug("Download of watchable list is complete. Group : runtime")
-                    data = self._fsm_data.runtime_watchables_download_request.get()
-                    assert data is not None
-                    # TODO : Write partial data has it comes in. Needs to ensure the index is empty to start with
-                    
-                    data = {    # Remove unexpected data. Remove Alias/Variable that has count=0
-                        sdk.WatchableType.RuntimePublishedValue : data.get(sdk.WatchableType.RuntimePublishedValue, {})
-                    }
-                    self._index.set_content(data)
-                    self._fsm_data.runtime_watchables_download_request = None   # Release the reference to the data
+                    if was_success:
+                        self._signals.index_changed.emit()
+                    else:
+                        self._clear_index_rpv()
                 else:
                     pass # Downloading
         else:
-            if has_rpv: # pragma: no cover
+            if self._index.has_data(sdk.WatchableType.RuntimePublishedValue): # pragma: no cover
                 self._logger.critical("The device is not available but there is still data in the watchable index.")
-                self.index.clear()
+                self._clear_index()
 
     
         # Handle the download of variables and alias if the SFD is loaded
         sfd_loaded = self._fsm_data.server_info.sfd is not None
-        has_alias_var = self._index.has_data(sdk.WatchableType.Alias) and self._index.has_data(sdk.WatchableType.Variable)
         if sfd_loaded:
-            if not has_alias_var:
-                if self._fsm_data.sfd_watchables_download_request is None:  # pragma: no cover
-                   self._logger.critical("Device is ready but no watcahble request has been initiated")  
-
-                elif self._fsm_data.sfd_watchables_download_request.completed:
-                    # Download complete
-                    self._logger.debug("Download of watchable list is complete. Group : SFD")
-                    data = self._fsm_data.sfd_watchables_download_request.get()
-                    assert data is not None
-                    data = {    # Remove unexpected data. Remove RPV that has count=0
-                        sdk.WatchableType.Alias : data.get(sdk.WatchableType.Alias, {}),
-                        sdk.WatchableType.Variable : data.get(sdk.WatchableType.Variable, {})
-                    }
-
-                    # TODO : Write partial data has it comes in. Needs to ensure index is empty to start with
-                    self._index.set_content(data) # Overwrite the whole data
-                    self._fsm_data.sfd_watchables_download_request = None   # Release the reference to the data
-                else:
-                    pass    # Downloading
+                if self._fsm_data.sfd_watchables_download_request is not None: 
+                    if self._fsm_data.sfd_watchables_download_request.completed:
+                        # Download complete
+                        # Data is already inside the index. Added from the callback
+                        self._logger.debug("Download of watchable list is complete. Group : SFD")
+                        was_success = self._fsm_data.sfd_watchables_download_request.is_success
+                        self._fsm_data.sfd_watchables_download_request = None    # Clear the request.
+                        if was_success:
+                            self._signals.index_changed.emit()
+                        else:
+                            self._clear_index_alias_var()
+                    else:
+                        pass    # Downloading
 
         else:   # No SFD loaded
-            if has_alias_var:   # pragma: no cover
+            if self._index.has_data(sdk.WatchableType.Alias) or self._index.has_data(sdk.WatchableType.Variable):   # pragma: no cover
                 self._logger.critical("The SFD is not loaded but there is still data in the watchable index.")
-                self.index.clear()
+                self._clear_index()
 
  
     def _thread_device_ready(self) -> None:
         """To be called once when a device connects"""
         self._logger.debug("Detected device ready")
         self._fsm_data.clear_download_requests()
-        self._index.clear()    
-        self._fsm_data.runtime_watchables_download_request = self._client.download_watchable_list([sdk.WatchableType.RuntimePublishedValue])
+        had_data = self._clear_index(no_changed_event=True) # Event is triggered AFTER device_ready
+        self._fsm_data.runtime_watchables_download_request = self._client.download_watchable_list(
+            types=[sdk.WatchableType.RuntimePublishedValue],
+            partial_reception_callback=self._download_data_partial_response_callback
+            )
         self._signals.device_ready.emit()
+        if had_data:
+            self.signals.index_changed.emit()
 
     def _thread_sfd_loaded(self) -> None:
         """To be called once when a SFD is laoded"""
@@ -359,26 +355,67 @@ class ServerManager:
         req = self._fsm_data.sfd_watchables_download_request    # Get the ref atomically
         if req is not None:
             req.cancel()
-        self._fsm_data.sfd_watchables_download_request = self._client.download_watchable_list([sdk.WatchableType.Variable,sdk.WatchableType.Alias])
+        had_data = self._clear_index_alias_var(no_changed_event=True) # Event is triggered AFTER sfd_loaded
+        self._fsm_data.sfd_watchables_download_request = self._client.download_watchable_list(
+            types=[sdk.WatchableType.Variable,sdk.WatchableType.Alias],
+            partial_reception_callback=self._download_data_partial_response_callback
+            )
         self.signals.sfd_loaded.emit()
+        if had_data:
+            self.signals.index_changed.emit()
+
     
-    def _thread_sfd_unloaded(self) -> None:
+    def _thread_sfd_unloaded(self, no_index_event:bool=False) -> None:
         """To be called once when a SFD is unloaded"""
         self._logger.debug("Detected SFD unloaded")
         req = self._fsm_data.sfd_watchables_download_request    # Get the ref atomically
         if req is not None:
             req.cancel()
         self._fsm_data.sfd_watchables_download_request = None
-        self._index.clear_content_by_types([sdk.WatchableType.Alias, sdk.WatchableType.Variable])
-
+        self._clear_index_alias_var()
         self.signals.sfd_unloaded.emit()
+
 
     def _thread_device_disconnected(self) -> None:
         """To be called once when a device disconnect"""
         self._logger.debug("Detected device disconnected")
         self._fsm_data.clear_download_requests()
-        self._index.clear()
+        self._clear_index()
         self._signals.device_disconnected.emit()
+    
+    def _download_data_partial_response_callback(self, 
+        data:Dict[sdk.WatchableType, Dict[str, sdk.WatchableConfiguration]], 
+        last_segment:bool) -> None:
+        # This method is called from within the client internal worker thread
+        # Qt signals are thread safe.
+
+        if self._logger.isEnabledFor(logging.DEBUG):    # pragma: no cover
+            stats = dict(zip([x.name for x in data.keys()], [len(x) for x in data.values()]))
+            self._logger.debug(f"Received data. Count {stats}")
+
+        self._index.add_content(data)   # Thread safe method
+        if last_segment:
+            self._logger.debug("Finished downloading watchable list")
+
+    def _clear_index(self, no_changed_event:bool=False) -> bool:
+        had_data = self._index.clear()
+        if had_data and not no_changed_event:
+            self.signals.index_changed.emit()
+        return had_data
+    
+    def _clear_index_alias_var(self, no_changed_event:bool=False)->None:
+        had_data_alias = self._index.clear_content_by_type(sdk.WatchableType.Alias)
+        had_data_var = self._index.clear_content_by_type(sdk.WatchableType.Variable)
+        had_data = had_data_var or had_data_alias
+        if had_data and not no_changed_event:
+            self.signals.index_changed.emit()
+        return had_data
+    
+    def _clear_index_rpv(self, no_changed_event:bool=False)->None:
+        had_data = self._index.clear_content_by_type(sdk.WatchableType.RuntimePublishedValue)
+        if had_data and not no_changed_event:
+            self.signals.index_changed.emit()
+        return had_data
 
     def get_server_state(self) -> sdk.ServerState:
         return self._client.server_state
