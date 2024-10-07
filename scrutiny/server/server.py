@@ -42,7 +42,7 @@ DEFAULT_CONFIG: ServerConfig = {
     'autoload_sfd': True,
     'debug': False,    # Requires ipdb. Module must be installed with [dev] extras
     'api': {
-        'client_interface_type': 'websocket',
+        'client_interface_type': 'tcp',
         'client_interface_config': {
             'host': 'localhost',
             'port': 8765

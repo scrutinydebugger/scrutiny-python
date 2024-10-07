@@ -9,7 +9,7 @@
 import logging
 import traceback
 
-from qtpy.QtWidgets import  QWidget, QVBoxLayout, QHBoxLayout, QLabel, QStatusBar
+from qtpy.QtWidgets import  QWidget, QVBoxLayout, QHBoxLayout
 
 from qtpy.QtGui import  QAction, QCloseEvent
 from qtpy.QtCore import Qt, QRect
@@ -18,6 +18,7 @@ from qtpy.QtWidgets import QMainWindow
 from scrutiny.gui.qtads import QtAds    #Advanced Docking System
 from scrutiny.gui.widgets.about_dialog import AboutDialog
 from scrutiny.gui.widgets.sidebar import Sidebar
+from scrutiny.gui.widgets.status_bar import StatusBar
 from scrutiny.gui.widgets.server_config_dialog import ServerConfigDialog
 
 from scrutiny.gui.dashboard_components.base_component import ScrutinyGUIBaseComponent
@@ -50,7 +51,6 @@ class MainWindow(QMainWindow):
     _dock_conainer:QWidget
     _dock_manager:QtAds.CDockManager
     _sidebar:Sidebar
-    _status_bar:QStatusBar
     _server_config_dialog:ServerConfigDialog
     _watchable_index:WatchableIndex
     _server_manager:ServerManager
@@ -66,11 +66,13 @@ class MainWindow(QMainWindow):
 
         self.make_menubar()
         self.make_main_zone()
-        self.make_status_bar()
 
         self._watchable_index = WatchableIndex()
-        self._server_manager = ServerManager(watchable_index=self.watchable_index)
+        self._server_manager = ServerManager(watchable_index=self._watchable_index)
         self._server_config_dialog = ServerConfigDialog(self, self.server_config_changed)
+        
+        status_bar = StatusBar(self, server_manager=self._server_manager)
+        self.setStatusBar(status_bar)
 
     def make_menubar(self) -> None:
         menu_bar = self.menuBar()
@@ -133,10 +135,6 @@ class MainWindow(QMainWindow):
         
     def get_central_widget(self) -> QWidget:
         return self._central_widget
-
-    def make_status_bar(self) -> None:
-        self._status_bar = self.statusBar()
-        self._status_bar.addWidget(QLabel("hello"))
 
     def add_new_component(self, component_class:Type[ScrutinyGUIBaseComponent]) -> None:
         """Adds a new component inside the dashboard

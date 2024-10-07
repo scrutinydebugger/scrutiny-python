@@ -9,6 +9,7 @@
 import logging
 import socket
 import errno
+import traceback
 
 from .abstract_link import AbstractLink, LinkConfig
 
@@ -32,7 +33,7 @@ class UdpLink(AbstractLink):
 
     port: int
     host: str
-    ip_address: str     # Resolved hostname
+    ip_address: Optional[str]     # Resolved hostname
     logger: logging.Logger
     sock: Optional[socket.socket]
     bound: bool
@@ -53,8 +54,7 @@ class UdpLink(AbstractLink):
             'port': int(config['port'])
         })
 
-        self.ip_address = socket.gethostbyname(self.config['host'])  # get the IP of the device
-
+        self.ip_address = None
         self.logger = logging.getLogger(self.__class__.__name__)
         self.sock = None            # the socket
         self.bound = False          # True when address is bound
@@ -66,6 +66,7 @@ class UdpLink(AbstractLink):
     def initialize(self) -> None:
         """Initialize the communication channel. The channel is expected to be usable after this"""
         self.logger.debug('Opening UDP Link. Host=%s (%s). Port=%d' % (self.config['host'], self.ip_address, self.config['port']))
+
         self.init_socket()
         self._initialized = True
 
@@ -75,11 +76,17 @@ class UdpLink(AbstractLink):
             if self.sock is not None:
                 self.sock.close()
 
-            self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            self.sock.bind(('0.0.0.0', 0))  # 0.0.0.0 listen on all interface.  Port 0 = takes any available
-            (addr, port) = self.sock.getsockname()  # Read our own address and port, will tell the receiving port auto attributed
-            self.logger.debug('Socket bound to address=%s and port=%d' % (addr, port))
-            self.bound = True
+            try:
+                self.ip_address = socket.gethostbyname(self.config['host'])
+            except OSError:
+                self.logger.error("Invalid hostname. DNS resolution failed")
+            
+            if self.ip_address:
+                self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                self.sock.bind(('0.0.0.0', 0))  # 0.0.0.0 listen on all interface.  Port 0 = takes any available
+                (addr, port) = self.sock.getsockname()  # Read our own address and port, will tell the receiving port auto attributed
+                self.logger.debug('Socket bound to address=%s and port=%d' % (addr, port))
+                self.bound = True
         except Exception as e:
             self.logger.debug(str(e))
             self.bound = False
@@ -96,7 +103,7 @@ class UdpLink(AbstractLink):
 
     def operational(self) -> bool:
         """ Tells the upper layer if we are in a working state (to the best of our knowledge)"""
-        if self.sock is not None and self.bound == True:    # If bound, we are necessarily initialized
+        if self.sock is not None and self.bound == True and self.sock.fileno() != -1:    # If bound, we are necessarily initialized
             return True
         return False
 
@@ -107,6 +114,7 @@ class UdpLink(AbstractLink):
 
         try:
             assert self.sock is not None
+            assert self.ip_address is not None
             err = None
             self.sock.settimeout(timeout)
             data, (ip_address, port) = self.sock.recvfrom(self.BUFSIZE)

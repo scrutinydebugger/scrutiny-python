@@ -420,5 +420,11 @@ class ServerManager:
     def get_server_state(self) -> sdk.ServerState:
         return self._client.server_state
     
+    def get_server_info(self) -> Optional[sdk.ServerInfo]:
+        try:
+            return self._client.get_server_status()
+        except sdk.exceptions.ScrutinySDKException:
+            return None
+    
     def is_running(self) -> bool:
         return self._thread is not None and self._thread.is_alive()
