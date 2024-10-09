@@ -1,0 +1,11 @@
+{
+    "device": {
+        "response_timeout": 1.0,
+        "link_type": "rtt",
+        "link_config": {
+            "target_device": "CORTEX-M0",
+            "write_timeout_delay": 0.1,
+            "jlink_interface": "SWD"
+        }
+    }
+}
