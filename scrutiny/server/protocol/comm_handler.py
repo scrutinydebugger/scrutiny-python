@@ -192,6 +192,9 @@ class CommHandler:
         elif link_type == 'serial':
             from scrutiny.server.device.links.serial_link import SerialLink
             link_class = SerialLink
+        elif link_type == 'rtt':
+            from scrutiny.server.device.links.rtt_link import RttLink
+            link_class = RttLink    
         elif link_type == 'dummy':
             from scrutiny.server.device.links.dummy_link import DummyLink
             link_class = DummyLink
