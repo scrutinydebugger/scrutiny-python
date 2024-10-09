@@ -36,7 +36,7 @@ class RttLink(AbstractLink):
     config: RttConfig
     _initialized: bool
 
-    jlink: Optional[pylink.JLink]
+    port: Optional[pylink.JLink]
     
     STR_TO_JLINK_INTERFACE: Dict[str, str] = {
         'jtag' : pylink.enums.JLinkInterfaces.JTAG,
@@ -87,21 +87,20 @@ class RttLink(AbstractLink):
         self._initialized = False
         self.port = pylink.JLink()
 
-        if self.port is not None:
-            self.port.open()
-            if self.port.opened():
-                self.logger.debug("J-Link opened: " + str(self.port.product_name))
-            else:
-                self.logger.debug("J-Link not opened." )
-            self.port.set_tif(jlink_interface)
-            self.port.connect(target_device)
-            self.port.rtt_start(None)
+        self.port.open()
+        if self.port.opened():
+            self.logger.debug("J-Link opened: " + str(self.port.product_name))
+        else:
+            self.logger.debug("J-Link not opened." )
+        self.port.set_tif(jlink_interface)
+        self.port.connect(target_device)
+        self.port.rtt_start(None)
 
-            if self.port.target_connected():
-                self._initialized = True
-                self.logger.debug("J-Link connected: " + str(target_device))
-            else:
-                self.logger.debug("J-Link not connected: " + str(target_device))      
+        if self.port.target_connected():
+            self._initialized = True
+            self.logger.debug("J-Link connected: " + str(target_device))
+        else:
+            self.logger.debug("J-Link not connected: " + str(target_device))      
 
     def destroy(self) -> None:
         """ Put the comm channel to a resource-free non-working state"""
@@ -122,7 +121,7 @@ class RttLink(AbstractLink):
             return None
         
         assert self.port is not None    # For mypy
-        data:bytes = None
+        data:Optional[bytes] = None
         try:
             bytesArray = self.port.rtt_read(0, 1024)
             data = bytes(bytesArray)

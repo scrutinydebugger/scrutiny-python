@@ -255,6 +255,9 @@
         "scrutiny/server/device/links/serial_link.py": {
             "docstring": "Represent a Serial Link that can be used to communicate with a device"
         },
+        "scrutiny/server/device/links/rtt_link.py": {
+            "docstring": "Represent a Segger J-Link RTT that can be used to communicate with a device"
+        },
         "test/core/test_types.py": {
             "docstring": "Make some checks on Scrutiny basic types used project wide"
         },
