@@ -312,6 +312,9 @@ class FakeDeviceHandler:
         if link_type == 'udp':
             if link_config['host'] == 'raise':
                 raise ValueError("Bad config")
+        elif link_type == 'rtt':
+            if link_config['target_device'] == 'raise':
+                raise ValueError("Bad config")
 
     def configure_comm(self, link_type: str, link_config: Dict = {}) -> None:
         self.comm_configure_queue.put((link_type, link_config))
@@ -1716,16 +1719,15 @@ class TestClient(ScrutinyUnitTest):
 
         self.assertEqual(self.client.server_state, sdk.ServerState.Disconnected)
 
-    def test_configure_device_link(self):
-        # Serial
+    def test_configure_device_link_serial(self):
         configin = sdk.SerialLinkConfig(
             port='COM123',
             baudrate=115200,
             databits=8,
             stopbits='1',
             parity='none'
-
         )
+        
         self.client.configure_device_link(sdk.DeviceLinkType.Serial, configin)
         self.assertFalse(self.device_handler.comm_configure_queue.empty())
         link_type, configout = self.device_handler.comm_configure_queue.get(block=False)
@@ -1740,7 +1742,7 @@ class TestClient(ScrutinyUnitTest):
         self.assertEqual(configout['stopbits'], '1')
         self.assertEqual(configout['parity'], 'none')
 
-        # TCP
+    def test_configure_device_link_tcp(self):
         configin = sdk.TCPLinkConfig(
             host='192.168.1.100',
             port=1234
@@ -1757,7 +1759,7 @@ class TestClient(ScrutinyUnitTest):
         self.assertEqual(configout['host'], '192.168.1.100')
         self.assertEqual(configout['port'], 1234)
 
-        # UDP
+    def test_configure_device_link_udp(self):
         configin = sdk.UDPLinkConfig(
             host='192.168.1.101',
             port=4567
@@ -1789,6 +1791,52 @@ class TestClient(ScrutinyUnitTest):
             )
 
             self.client.configure_device_link(sdk.DeviceLinkType.Serial, configin)
+
+
+    def test_configure_device_link_rtt(self):
+        configin = sdk.RTTLinkConfig(
+            target_device="CORTEX-M0",
+            jlink_interface=sdk.RTTLinkConfig.JLinkInterface.SWD
+        )
+
+        self.client.configure_device_link(sdk.DeviceLinkType.RTT, configin)
+        self.assertFalse(self.device_handler.comm_configure_queue.empty())
+        link_type, configout = self.device_handler.comm_configure_queue.get(block=False)
+
+        for field in ('target_device', 'jlink_interface'):
+            self.assertIn(field, configout)
+
+        self.assertEqual(link_type, 'rtt')
+        self.assertEqual(configout['target_device'], 'CORTEX-M0')
+        self.assertEqual(configout['jlink_interface'], 'swd')
+
+        with self.assertRaises(sdk.exceptions.OperationFailure):
+            configin = sdk.RTTLinkConfig(
+                target_device='raise',   # Special string that will make the DeviceHandler stub throw an exception
+                jlink_interface=sdk.RTTLinkConfig.JLinkInterface.SWD
+            )
+
+            self.client.configure_device_link(sdk.DeviceLinkType.RTT, configin)
+
+        with self.assertRaises(TypeError):
+            configin = sdk.RTTLinkConfig(
+                target_device="CORTEX-M0",
+                jlink_interface=sdk.RTTLinkConfig.JLinkInterface.SWD
+            )
+
+            self.client.configure_device_link(sdk.DeviceLinkType.Serial, configin)
+
+        with self.assertRaises(TypeError):
+            sdk.RTTLinkConfig(
+                target_device=123,
+                jlink_interface=sdk.RTTLinkConfig.JLinkInterface.SWD
+            )
+        
+        with self.assertRaises(TypeError):
+            sdk.RTTLinkConfig(
+                target_device="CORTEX-M0",
+                jlink_interface=123
+            )
 
     def test_user_command(self):
         # Success case

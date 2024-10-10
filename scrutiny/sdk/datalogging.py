@@ -15,7 +15,6 @@ from scrutiny.sdk.pending_request import PendingRequest
 import enum
 from typing import List, Dict, Union, Optional, TYPE_CHECKING
 import scrutiny.server.api.typing as api_typing
-import threading
 from datetime import datetime
 
 from scrutiny.server.api import API
