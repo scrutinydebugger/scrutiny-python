@@ -42,7 +42,8 @@ __all__ = [
     'DeviceLinkInfo',
     'ServerInfo',
     'UserCommandResponse',
-    'WatchableConfiguration'
+    'WatchableConfiguration',
+    'RTTLinkConfig'
 ]
 
 AddressSize = Literal[8, 16, 32, 64, 128]
@@ -349,27 +350,29 @@ class SerialLinkConfig(BaseLinkConfig):
             'parity': self.parity,
         }
 
-class JLinkInterface(enum.Enum):
-    JTAG = 'jtag'
-    SWD = 'swd'
-    FINE = 'fine'
-    ICSP = 'icsp'
-    SPI = 'spi'
-    C2 = 'c2'
+
 
 @dataclass(frozen=True)
 class RTTLinkConfig(BaseLinkConfig):
     """(Immutable struct) The configuration structure for a device link of type :attr:`RTT<scrutiny.sdk.DeviceLinkType.RTT>`"""
 
+    class JLinkInterface(enum.Enum):
+        JTAG = 'jtag'
+        SWD = 'swd'
+        FINE = 'fine'
+        ICSP = 'icsp'
+        SPI = 'spi'
+        C2 = 'c2'
+
     target_device: str
     """Chip name passed to pylink ``connect()`` method"""
 
     jlink_interface: JLinkInterface
-    """The type of JLink interface. The value """
+    """The type of JLink interface"""
 
     def __post_init__(self) -> None:
         validation.assert_type(self.target_device, 'target_device',str)
-        validation.assert_type(self.jlink_interface, 'jlink_interface',JLinkInterface)
+        validation.assert_type(self.jlink_interface, 'jlink_interface', self.JLinkInterface)
 
     def _to_api_format(self) -> Dict[str, Any]:
         return {

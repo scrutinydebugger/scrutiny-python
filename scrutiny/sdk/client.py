@@ -1628,6 +1628,7 @@ class ScrutinyClient:
             DeviceLinkType.Serial: ('serial', sdk.SerialLinkConfig),
             DeviceLinkType.UDP: ('udp', sdk.UDPLinkConfig),
             DeviceLinkType.TCP: ('tcp', sdk.TCPLinkConfig),
+            DeviceLinkType.RTT: ('rtt', sdk.RTTLinkConfig),
             DeviceLinkType._Dummy: ('dummy', type(None))
         }
 
