@@ -157,8 +157,10 @@ class DeviceLinkType(enum.Enum):
     """TCP/IP Socket"""
     Serial = 3
     """Serial port"""
-    # CAN = 4 # Todo
-    # SPI = 5 # Todo
+    RTT = 4
+    """JLink RTT port"""
+    # CAN = 5 # Todo
+    # SPI = 6 # Todo
 
 
 @dataclass(frozen=True)
@@ -299,7 +301,7 @@ class UDPLinkConfig(BaseLinkConfig):
 
 @dataclass(frozen=True)
 class TCPLinkConfig(BaseLinkConfig):
-    """(Immutable struct)The configuration structure for a device link of type :attr:`TCP<scrutiny.sdk.DeviceLinkType.TCP>`"""
+    """(Immutable struct) The configuration structure for a device link of type :attr:`TCP<scrutiny.sdk.DeviceLinkType.TCP>`"""
 
     host: str
     """Target device hostname"""
@@ -347,8 +349,35 @@ class SerialLinkConfig(BaseLinkConfig):
             'parity': self.parity,
         }
 
+class JLinkInterface(enum.Enum):
+    JTAG = 'jtag'
+    SWD = 'swd'
+    FINE = 'fine'
+    ICSP = 'icsp'
+    SPI = 'spi'
+    C2 = 'c2'
 
-SupportedLinkConfig = Union[UDPLinkConfig, TCPLinkConfig, SerialLinkConfig]
+@dataclass(frozen=True)
+class RTTLinkConfig(BaseLinkConfig):
+    """(Immutable struct) The configuration structure for a device link of type :attr:`RTT<scrutiny.sdk.DeviceLinkType.RTT>`"""
+
+    target_device: str
+    """Chip name passed to pylink ``connect()`` method"""
+
+    jlink_interface: JLinkInterface
+    """The type of JLink interface. The value """
+
+    def __post_init__(self) -> None:
+        validation.assert_type(self.target_device, 'target_device',str)
+        validation.assert_type(self.jlink_interface, 'jlink_interface',JLinkInterface)
+
+    def _to_api_format(self) -> Dict[str, Any]:
+        return {
+            'target_device': self.target_device,
+            'jlink_interface': self.jlink_interface.value
+        }
+
+SupportedLinkConfig = Union[UDPLinkConfig, TCPLinkConfig, SerialLinkConfig, RTTLinkConfig]
 
 
 @dataclass(frozen=True)

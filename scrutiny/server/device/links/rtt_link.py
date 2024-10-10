@@ -10,12 +10,29 @@ import logging
 
 from .abstract_link import AbstractLink, LinkConfig
 
-from typing import Optional, Dict, TypedDict, cast, Union
+from typing import Optional, Dict, TypedDict, cast, Union, Type, Any
 import pylink   # type: ignore
 logging.getLogger("pylink").setLevel(logging.WARNING)
 
 import time
 
+class ClassContainer:
+    theclass:Type[Any]
+    def __init__(self, o:Type[Any]):
+        self.theclass = o
+    
+    def __call__(self) -> Any:
+        return self.theclass()
+
+
+
+JLINK_CLASS = ClassContainer(pylink.JLink)   
+
+def _set_jlink_class(c):  # type:ignore
+    JLINK_CLASS.theclass = c
+
+def _get_jlink_class():  # type:ignore
+    return JLINK_CLASS.theclass
 
 class RttConfig(TypedDict):
     """
@@ -85,7 +102,7 @@ class RttLink(AbstractLink):
         jlink_interface = self.get_jlink_interface(self.config['jlink_interface'])
         
         self._initialized = False
-        self.port = pylink.JLink()
+        self.port = JLINK_CLASS()
 
         self.port.open()
         if self.port.opened():
