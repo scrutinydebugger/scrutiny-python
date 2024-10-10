@@ -159,7 +159,7 @@ class DeviceLinkType(enum.Enum):
     Serial = 3
     """Serial port"""
     RTT = 4
-    """JLink RTT port"""
+    """Segger JLink Real-Time Transfer port"""
     # CAN = 5 # Todo
     # SPI = 6 # Todo
 
