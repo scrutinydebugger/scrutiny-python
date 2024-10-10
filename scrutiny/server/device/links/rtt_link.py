@@ -15,6 +15,8 @@ import pylink   # type: ignore
 logging.getLogger("pylink").setLevel(logging.WARNING)
 
 import time
+import threading
+import queue
 
 # Hook for unit tests.
 # Allow to change the Jlink class with a stub
@@ -25,7 +27,7 @@ class ClassContainer:
     
     def __call__(self) -> Any:
         return self.theclass()
-
+    
 JLINK_CLASS = ClassContainer(pylink.JLink)   
 
 def _set_jlink_class(c):  # type:ignore
@@ -52,6 +54,9 @@ class RttLink(AbstractLink):
     logger: logging.Logger
     config: RttConfig
     _initialized: bool
+    _write_queue:"queue.Queue[Optional[bytes]]" # None is used to wake up the thread
+    _write_thread:Optional[threading.Thread]
+    _request_thread_exit:bool
 
     port: Optional[pylink.JLink]
     
@@ -65,7 +70,7 @@ class RttLink(AbstractLink):
     }
     
     @classmethod
-    def get_jlink_interface(cls, s: str) -> str:
+    def get_jlink_interface(cls, s: str) -> int:
         " Parse a jlink interface string and convert to JLinkInterfaces constant"
         s = str(s)
         s = s.strip().lower()
@@ -85,6 +90,9 @@ class RttLink(AbstractLink):
         self.validate_config(config)
         self._initialized = False
         self.logger = logging.getLogger(self.__class__.__name__)
+        self._write_thread = None
+        self._write_queue = queue.Queue()
+        self._request_thread_exit = False
         
 
         self.config = cast(RttConfig, {
@@ -100,8 +108,13 @@ class RttLink(AbstractLink):
         """ Called by the device Handler when initiating communication. Should reset the channel to a working state"""
         target_device = str(self.config['target_device'])
         jlink_interface = self.get_jlink_interface(self.config['jlink_interface'])
+        if self._write_thread is not None:
+            raise RuntimeError("Thread already running")
         
         self._initialized = False
+        self._write_queue = queue.Queue()   # clear
+        self._request_thread_exit = False
+        self._write_thread = threading.Thread(target=self._write_thread_func, daemon=True)
         self.port = JLINK_CLASS()
 
         self.port.open()
@@ -114,23 +127,56 @@ class RttLink(AbstractLink):
         self.port.rtt_start(None)
 
         if self.port.target_connected():
+            self._write_thread.start()
+
             self._initialized = True
             self.logger.debug("J-Link connected: " + str(target_device))
         else:
-            self.logger.debug("J-Link not connected: " + str(target_device))      
+            self.logger.debug("J-Link not connected: " + str(target_device))     
+
+
+    def _write_thread_func(self) -> None:
+        assert self.port is not None
+        while not self._request_thread_exit:
+            data = self._write_queue.get()
+            if data is not None:
+                while len(data) > 0:
+                    written_count = cast(int, self.port.rtt_write(0, data))
+                    data = data[written_count:]
+            else:
+                pass # Other thread wanted to wake us up. Do nothing, we should exit
+
 
     def destroy(self) -> None:
         """ Put the comm channel to a resource-free non-working state"""
         if self.port is not None:
             if self.port.opened():
                 self.port.close()
+
+        self._request_thread_exit = True
+        self._write_queue.put(None) # Will wake the thread
+        if self._write_thread is not None:
+            if self._write_thread.is_alive():
+                self._write_thread.join(2)
+        
+        self._write_queue = queue.Queue()
+        self._write_thread = None
+
         self._initialized = False
 
     def operational(self) -> bool:
         """ Tells if this comm channel is in proper state to be functional"""
         if self.port is None:
             return False
-        return self.port.connected() and self.initialized() and self.port.opened() and self.port.target_connected()
+        
+        return (
+            self.port.connected() 
+            and self.initialized() 
+            and self.port.opened() 
+            and self.port.target_connected() 
+            and self._write_thread is not None 
+            and self._write_thread.is_alive()
+        )
 
     def read(self, timeout:Optional[float] = None) -> Optional[bytes]:
         """ Reads bytes in a blocking fashion from the comm channel. None if no data available after timeout"""
@@ -151,20 +197,11 @@ class RttLink(AbstractLink):
     def write(self, data: bytes) -> None:
         """ Write data to the comm channel."""
         if self.operational():
-            assert self.port is not None    # For mypy
+            assert self.port is not None
             try:
-                total_number_bytes = len(data)
-                number_byte_written = 0
-                timestamp = time.monotonic()
-                timeout = False
-                while total_number_bytes > number_byte_written and False == timeout:
-                    tmp_number_byte_written = self.port.rtt_write(0, data[number_byte_written:total_number_bytes])
-                    number_byte_written = number_byte_written + tmp_number_byte_written
-                    if (0 < self.config['write_timeout_delay']) and ((time.monotonic()-timestamp) > self.config['write_timeout_delay']):
-                        timeout = True
-                        self.logger.error("Write data timeout: " + str((time.monotonic()-timestamp)))
-            except Exception as e:
-                self.logger.debug("Cannot write data. " + str(e))
+                self._write_queue.put(data)
+            except queue.Full:
+                self.logger.debug("Write queue is full.")
                 self.port.close()
 
     def initialized(self) -> bool:
