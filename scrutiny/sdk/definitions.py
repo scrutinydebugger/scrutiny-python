@@ -357,8 +357,9 @@ class RTTLinkConfig(BaseLinkConfig):
     """(Immutable struct) The configuration structure for a device link of type :attr:`RTT<scrutiny.sdk.DeviceLinkType.RTT>`"""
 
     class JLinkInterface(enum.Enum):
-        """Represent the type of JLink interface, that can be given to ``JLink.Connect()``. 
-        Refer Segger documentation for more details. The values of this enum are not meant to be in synced with the Segger DLL. 
+        """Type of JLink interface used when calling ``JLink.set_tif()``. 
+        Refer to Segger documentation for more details. The values of this enum are not meant to be in sync with the Segger API.
+        The server will convert the SDK value to a JLink enum
         """
 
         JTAG = 'jtag'
