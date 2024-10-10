@@ -1719,16 +1719,15 @@ class TestClient(ScrutinyUnitTest):
 
         self.assertEqual(self.client.server_state, sdk.ServerState.Disconnected)
 
-    def test_configure_device_link(self):
-        # Serial
+    def test_configure_device_link_serial(self):
         configin = sdk.SerialLinkConfig(
             port='COM123',
             baudrate=115200,
             databits=8,
             stopbits='1',
             parity='none'
-
         )
+        
         self.client.configure_device_link(sdk.DeviceLinkType.Serial, configin)
         self.assertFalse(self.device_handler.comm_configure_queue.empty())
         link_type, configout = self.device_handler.comm_configure_queue.get(block=False)
@@ -1743,7 +1742,7 @@ class TestClient(ScrutinyUnitTest):
         self.assertEqual(configout['stopbits'], '1')
         self.assertEqual(configout['parity'], 'none')
 
-        # TCP
+    def test_configure_device_link_tcp(self):
         configin = sdk.TCPLinkConfig(
             host='192.168.1.100',
             port=1234
@@ -1760,7 +1759,7 @@ class TestClient(ScrutinyUnitTest):
         self.assertEqual(configout['host'], '192.168.1.100')
         self.assertEqual(configout['port'], 1234)
 
-        # UDP
+    def test_configure_device_link_udp(self):
         configin = sdk.UDPLinkConfig(
             host='192.168.1.101',
             port=4567
@@ -1794,8 +1793,7 @@ class TestClient(ScrutinyUnitTest):
             self.client.configure_device_link(sdk.DeviceLinkType.Serial, configin)
 
 
-
-        # RTT
+    def test_configure_device_link_rtt(self):
         configin = sdk.RTTLinkConfig(
             target_device="CORTEX-M0",
             jlink_interface=sdk.RTTLinkConfig.JLinkInterface.SWD

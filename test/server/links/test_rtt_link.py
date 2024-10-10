@@ -6,8 +6,8 @@ import time
 class FakeRTTPort:
     data_written:bytearray
     data_to_read:bytearray
-
     write_chunk_size:int
+
     _opened:bool
     _connected:bool
     _target_connected:bool
@@ -64,6 +64,9 @@ class FakeRTTPort:
     def rtt_start(self, block_addr:Optional[int]) -> None:
         self._target_connected = True
 
+def get_link_port(link:rtt_link.RttLink) -> FakeRTTPort:
+    return link.port    # Glue code between internal property and unit test
+
 class TestRTTLink(ScrutinyUnitTest):
 
     def setUp(self):
@@ -97,24 +100,24 @@ class TestRTTLink(ScrutinyUnitTest):
             'target_device' : "CORTEX-M0",
             'jlink_interface' : "SWD"
             }
-        
         link = rtt_link.RttLink(config)
         link.initialize()
-        self.assertIsNotNone(link.port)
-        self.assertIsInstance(link.port, FakeRTTPort)
-        assert isinstance(link.port, FakeRTTPort)   # mypy
+        port = get_link_port(link)
+        self.assertIsNotNone(port)
+        self.assertIsInstance(port, FakeRTTPort)
+        assert isinstance(port, FakeRTTPort)   # mypy
         
-        link.port.data_to_read.extend(b'abcdef')
+        port.data_to_read.extend(b'abcdef')
         data = link.read(timeout=1)
         self.assertIsNotNone(data)
         self.assertEqual(data, b'abcdef')
-        self.assertEqual(len(link.port.data_to_read), 0)
+        self.assertEqual(len(port.data_to_read), 0)
 
         payload = b'abcdefghijk'
-        link.port.write_chunk_size = 5   # Emulate internal buffer size
+        port.write_chunk_size = 5   # Emulate internal buffer size
         link.write(payload)
-        self.wait_true(lambda: len(link.port.data_written) == len(payload), 1)
-        self.assertEqual(bytes(link.port.data_written), payload)
+        self.wait_true(lambda: len(port.data_written) == len(payload), 1)
+        self.assertEqual(bytes(port.data_written), payload)
 
     def test_error_on_bad_interface(self):
         with self.assertRaises(Exception):
@@ -122,6 +125,21 @@ class TestRTTLink(ScrutinyUnitTest):
                 'target_device' : "CORTEX-M0",
                 'jlink_interface' : "idontexist"
             })
+    
+    def test_report_state(self):
+        config = {
+            'target_device' : "CORTEX-M0",
+            'jlink_interface' : "SWD"
+            }
+        link = rtt_link.RttLink(config)
+        link.initialize()
+        port = get_link_port(link)
+        self.assertTrue(link.operational())
+        port._target_connected = False
+        self.assertFalse(link.operational())
+        port._target_connected = True
+        port._connected = False
+        self.assertFalse(link.operational())
 
 
     def tearDown(self) -> None:

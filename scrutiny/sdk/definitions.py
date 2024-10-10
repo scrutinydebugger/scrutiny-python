@@ -357,15 +357,30 @@ class RTTLinkConfig(BaseLinkConfig):
     """(Immutable struct) The configuration structure for a device link of type :attr:`RTT<scrutiny.sdk.DeviceLinkType.RTT>`"""
 
     class JLinkInterface(enum.Enum):
+        """Represent the type of JLink interface, that can be given to ``JLink.Connect()``. 
+        Refer Segger documentation for more details. The values of this enum are not meant to be in synced with the Segger DLL. 
+        """
+
         JTAG = 'jtag'
+        """ARM Multi-ICE compatible JTAG adapter"""
+
         SWD = 'swd'
+        """ARM Serial Wire Debug"""
+
         FINE = 'fine'
+        """Segger Rx Fine adapter"""
+
         ICSP = 'icsp'
+        """Microchip In-Circuit Serial Programming"""
+        
         SPI = 'spi'
+        """Motorola Serial Peripheral Interface"""
+        
         C2 = 'c2'
+        """SiLabs C2 Adapter"""
 
     target_device: str
-    """Chip name passed to pylink ``connect()`` method"""
+    """Chip name passed to pylink ``JLink.connect()`` method"""
 
     jlink_interface: JLinkInterface
     """The type of JLink interface"""

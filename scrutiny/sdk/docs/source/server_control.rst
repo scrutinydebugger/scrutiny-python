@@ -147,3 +147,16 @@ that no device is connected
 .. autoclass:: scrutiny.sdk.SerialLinkConfig
     :exclude-members: __new__, __init__
     :members:
+
+-----
+
+.. autoclass:: scrutiny.sdk.RTTLinkConfig
+    :exclude-members: __new__, __init__, JLinkInterface
+    :members:
+
+-----
+
+.. autoclass:: scrutiny.sdk.RTTLinkConfig.JLinkInterface
+    :exclude-members: __new__, __init__
+    :members:
+    :member-order: bysource

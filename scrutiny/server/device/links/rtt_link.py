@@ -16,6 +16,8 @@ logging.getLogger("pylink").setLevel(logging.WARNING)
 
 import time
 
+# Hook for unit tests.
+# Allow to change the Jlink class with a stub
 class ClassContainer:
     theclass:Type[Any]
     def __init__(self, o:Type[Any]):
@@ -23,8 +25,6 @@ class ClassContainer:
     
     def __call__(self) -> Any:
         return self.theclass()
-
-
 
 JLINK_CLASS = ClassContainer(pylink.JLink)   
 
@@ -55,7 +55,7 @@ class RttLink(AbstractLink):
 
     port: Optional[pylink.JLink]
     
-    STR_TO_JLINK_INTERFACE: Dict[str, str] = {
+    STR_TO_JLINK_INTERFACE: Dict[str, int] = {
         'jtag' : pylink.enums.JLinkInterfaces.JTAG,
         'swd'  : pylink.enums.JLinkInterfaces.SWD,
         'fine' : pylink.enums.JLinkInterfaces.FINE,
