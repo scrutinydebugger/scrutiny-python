@@ -66,6 +66,8 @@ class ServerManager:
 
     class _Signals(QObject):    # QObject required for signals to work
         """Signals offered to the outside world"""
+        started = Signal()
+        stopped = Signal()
         server_connected = Signal()
         server_disconnected = Signal()
         device_ready = Signal()
@@ -74,6 +76,7 @@ class ServerManager:
         sfd_loaded = Signal()
         sfd_unloaded = Signal()
         index_changed = Signal()
+        status_received = Signal()
 
     RECONNECT_DELAY = 1
     _client:ScrutinyClient              # The SDK client object that talks with the server
@@ -119,13 +122,14 @@ class ServerManager:
         self._logger.debug("ServerManager.start() called")
         if self.is_running():
             self.stop()
-
+        
         self._logger.debug("Starting server manager")
         self._auto_reconnect = True
         self._thread_stop_event.clear()
         self._thread = threading.Thread(target=self._thread_func, args=[hostname, port], daemon=True)
         self._thread.start()
         self._logger.debug("Server manager started")
+        self.signals.started.emit()
     
     def stop(self) -> None:
         """Stops the server manager. Will disconnect it from the server and clear all internal data"""
@@ -148,6 +152,7 @@ class ServerManager:
                     self._logger.error("Failed to stop the internal thread")
                 else:
                     self._logger.debug("Server manager stopped")
+            self.signals.stopped.emit()
         
         self._thread = None
 
@@ -197,6 +202,7 @@ class ServerManager:
                     try:
                         self._client.wait_server_status_update(0.2)
                         self._fsm_data.server_info = self._client.get_server_status()
+                        self.signals.status_received.emit()
                     except sdk.exceptions.TimeoutException:
                         pass
                     except sdk.exceptions.ScrutinySDKException:

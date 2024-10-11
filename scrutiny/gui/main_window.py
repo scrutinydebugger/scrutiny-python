@@ -19,6 +19,7 @@ from scrutiny.gui.qtads import QtAds    #Advanced Docking System
 from scrutiny.gui.widgets.about_dialog import AboutDialog
 from scrutiny.gui.widgets.sidebar import Sidebar
 from scrutiny.gui.widgets.status_bar import StatusBar
+from scrutiny.gui.widgets.menu_bar import MenuBar
 from scrutiny.gui.widgets.server_config_dialog import ServerConfigDialog
 
 from scrutiny.gui.dashboard_components.base_component import ScrutinyGUIBaseComponent
@@ -54,6 +55,7 @@ class MainWindow(QMainWindow):
     _server_config_dialog:ServerConfigDialog
     _watchable_index:WatchableIndex
     _server_manager:ServerManager
+    _menu_bar:MenuBar
 
     def __init__(self) -> None:
         super().__init__()
@@ -64,7 +66,6 @@ class MainWindow(QMainWindow):
         self.setGeometry(self.centered(self.INITIAL_W, self.INITIAL_H))
         self.setWindowState(Qt.WindowState.WindowMaximized)
 
-        self.make_menubar()
         self.make_main_zone()
 
         self._watchable_index = WatchableIndex()
@@ -74,32 +75,31 @@ class MainWindow(QMainWindow):
         status_bar = StatusBar(self, server_manager=self._server_manager)
         self.setStatusBar(status_bar)
 
-    def make_menubar(self) -> None:
-        menu_bar = self.menuBar()
-        dashboard_menu = menu_bar.addMenu('Dashboard')
-        dashboard_menu.addAction("Open").setDisabled(True)
-        dashboard_menu.addAction("Save").setDisabled(True)
-        dashboard_menu.addAction("Clear").setDisabled(True)
+        self._menu_bar = MenuBar()
+        self.setMenuBar(self._menu_bar)
 
-        server_menu = menu_bar.addMenu('Server')
-        server_config_action = server_menu.addAction("Configure")
-        server_config_action.triggered.connect(self.menu_server_config_click)
+        self._menu_bar.actions.server_configure.triggered.connect(self.menu_server_config_click)
+        self._menu_bar.actions.server_connect.triggered.connect(self.menu_server_connect_click)
+        self._menu_bar.actions.server_disconnect.triggered.connect(self.menu_server_disconnect_click)
         
-        server_connect_action = server_menu.addAction("Connect")
-        server_connect_action.triggered.connect(self.menu_server_connect_click)
+        self._menu_bar.actions.info_about.triggered.connect(self.show_about)
 
-        server_disconnect_action = server_menu.addAction("Disconnect")
-        server_disconnect_action.triggered.connect(self.menu_server_disconnect_click)
+        self._menu_bar.actions.dashboard_close.setDisabled(True)
+        self._menu_bar.actions.dashboard_open.setDisabled(True)
+        self._menu_bar.actions.dashboard_save.setDisabled(True)
+        self._menu_bar.actions.device_configure.setDisabled(True)
 
-        server_menu.addAction("Launch local").setDisabled(True)
-        server_menu = menu_bar.addMenu('Device')
-        server_menu.addAction("Configure").setDisabled(True)
+        self.update_menubar()
 
-        info_menu = menu_bar.addMenu("Info")
-        show_about_action = QAction("About this software", self)
-        show_about_action.triggered.connect(self.show_about)
-        info_menu.addAction(show_about_action)
-    
+
+    def update_menubar(self) -> None:
+        if self._server_manager.is_running():
+            self._menu_bar.actions.server_connect.setDisabled(True)
+            self._menu_bar.actions.server_disconnect.setDisabled(False)
+        else:
+            self._menu_bar.actions.server_connect.setDisabled(False)
+            self._menu_bar.actions.server_disconnect.setDisabled(True)
+
     def centered(self, w:int, h:int) -> QRect:
         """Returns a rectangle centered in the screen of given width/height"""
         return QRect(
@@ -203,12 +203,26 @@ class MainWindow(QMainWindow):
     def menu_server_config_click(self) -> None:
         self._server_config_dialog.show()
 
+    def start_server_manager(self) -> None:
+        self._server_manager.start(
+            hostname=self._server_config_dialog.get_hostname(),
+            port=self._server_config_dialog.get_port()
+            )
+    
+    def stop_server_manager(self) -> None:
+        self._server_manager.stop()
+
     def menu_server_connect_click(self) -> None:
-        self._server_manager.start("localhost", 8765)
+        self.start_server_manager()
+        self.update_menubar()
 
     def menu_server_disconnect_click(self) -> None:
         self._server_manager.stop()
+        self.update_menubar()
 
     def server_config_changed(self)  -> None:
-        print("config changed")
+        if self._server_manager.is_running():
+            self.stop_server_manager()
+        self.start_server_manager()
+        self.update_menubar()
         

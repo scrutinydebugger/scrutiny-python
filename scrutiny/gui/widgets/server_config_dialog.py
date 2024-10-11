@@ -8,8 +8,10 @@
 
 __all__ = ['ServerConfigDialog']
 
-from qtpy.QtWidgets import QDialog, QDialogButtonBox, QFormLayout, QLabel, QLineEdit, QWidget, QVBoxLayout, QSizePolicy
+from qtpy.QtWidgets import QDialog, QDialogButtonBox, QFormLayout, QLabel, QLineEdit, QWidget, QVBoxLayout
 from qtpy.QtCore import Qt
+from qtpy.QtGui import QPalette, QIntValidator
+
 
 from typing import Callable
 
@@ -46,6 +48,8 @@ class ServerConfigDialog(QDialog):
         port_label = QLabel("Port: ")
         self._hostname_textbox = QLineEdit()
         self._port_textbox = QLineEdit()
+
+        self._port_textbox.setValidator(QIntValidator(1, 0xFFFF))
         
         form_layout.addRow(hostname_label, self._hostname_textbox)
         form_layout.addRow(port_label, self._port_textbox)
@@ -69,10 +73,30 @@ class ServerConfigDialog(QDialog):
     def set_hostname(self, hostname:str) -> None:
         self._hostname = hostname
         self._hostname_textbox.setText(hostname)
+
+    def reset(self) -> None:
+        self.set_hostname(self.get_hostname())
+        self.set_port(self.get_port())
     
+    
+    def _validate(self) -> bool:
+        port_valid = True
+        try:
+            port = int(self._port_textbox.text())
+        except Exception:
+            port_valid=False
+        
+        if port_valid:
+            if port<=0 or port>0xFFFF:
+                port_valid = False
+        
+        
+
     def _btn_ok_click(self) -> None:
+        print(self._port_textbox.validator())
         self.close()
         self._apply_callback()
 
     def _btn_cancel_click(self) -> None:
+        self.reset()
         self.close()
