@@ -17,9 +17,14 @@ from typing import List
 
 class ScrutinyQtGUI:
     debug_layout:bool
+    auto_connect:bool
 
-    def __init__(self, debug_layout:bool=False) -> None:
+    def __init__(self, 
+                 debug_layout:bool=False,
+                 auto_connect:bool=False
+                 ) -> None:
         self.debug_layout = debug_layout
+        self.auto_connect = auto_connect
     
     def run(self, args:List[str]) -> int:
         app = QApplication(args)
@@ -33,7 +38,15 @@ class ScrutinyQtGUI:
             ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(u'scrutiny.gui.%s' % scrutiny.__version__)
 
         window = MainWindow()
+
+        stylesheet = assets.load_text(['stylesheets', 'scrutiny_base.qss'])
+        app.setStyleSheet(stylesheet)
+
         if self.debug_layout:
             window.setStyleSheet("border:1px solid red")
+        
         window.show()
+        
+        if self.auto_connect:
+            window.start_server_manager()
         return app.exec()

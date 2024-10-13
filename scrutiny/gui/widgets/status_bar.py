@@ -4,14 +4,14 @@ from scrutiny.gui.core.server_manager import ServerManager
 from scrutiny.gui import assets
 from scrutiny.sdk import ServerState, DeviceCommState, SFDInfo, DataloggingInfo, DataloggerState
 import enum
-
+import logging
 from typing import Optional
 
 class ServerLabelValue(enum.Enum):
     Disconnected = enum.auto()
+    Disconnecting = enum.auto()
     Waiting = enum.auto()
     Connected = enum.auto()
-
 
 
 class StatusBar(QStatusBar):
@@ -61,7 +61,9 @@ class StatusBar(QStatusBar):
         self._device_status_label.setMinimumWidth(128)
         self._sfd_status_label.setMinimumWidth(64)
         
+        self._server_manager.signals.starting.connect(self.update)
         self._server_manager.signals.started.connect(self.update)
+        self._server_manager.signals.stopping.connect(self.update)
         self._server_manager.signals.stopped.connect(self.update)
         self._server_manager.signals.server_connected.connect(self.update)
         self._server_manager.signals.server_disconnected.connect(self.update)
@@ -78,6 +80,9 @@ class StatusBar(QStatusBar):
         if value == ServerLabelValue.Disconnected :
             self._server_status_indicator.setPixmap(self._red_square)
             self._server_status_label.setText(f"{prefix} Disconnected")
+        elif value == ServerLabelValue.Disconnecting :
+            self._server_status_indicator.setPixmap(self._yellow_square)
+            self._server_status_label.setText(f"{prefix} Disconnecting...")
         elif value == ServerLabelValue.Waiting:
             self._server_status_indicator.setPixmap(self._yellow_square)
             self._server_status_label.setText(f"{prefix} Waiting...")
@@ -142,17 +147,21 @@ class StatusBar(QStatusBar):
 
 
     def update(self) -> None:
-        server_state = self._server_manager.get_server_state()
-        server_info = self._server_manager.get_server_info()
-
         if not self._server_manager.is_running():
-            self.set_server_label_value(ServerLabelValue.Disconnected)
+            if self._server_manager.is_stopping():
+                self.set_server_label_value(ServerLabelValue.Disconnecting)
+            else:
+                self.set_server_label_value(ServerLabelValue.Disconnected)
             self.set_device_label(DeviceCommState.NA)
             self.set_sfd_label(None)
             self.set_datalogging_label(DataloggingInfo(state=DataloggerState.NA, completion_ratio=None))
         else:
+            server_state = self._server_manager.get_server_state()
+            server_info = None
+
             if server_state == ServerState.Connected:
                 self.set_server_label_value(ServerLabelValue.Connected)
+                server_info = self._server_manager.get_server_info()
             else:
                 self.set_server_label_value(ServerLabelValue.Waiting)
         
@@ -164,4 +173,4 @@ class StatusBar(QStatusBar):
                 self.set_device_label(server_info.device_comm_state)
                 self.set_sfd_label(server_info.sfd)
                 self.set_datalogging_label(server_info.datalogging)
-                
+                        

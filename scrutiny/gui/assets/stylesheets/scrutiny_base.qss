@@ -1,6 +1,7 @@
-QWidget.sidebar_element{
-    border-radius:5px
+QLineEdit[state="error"]{
+    background-color:#ff9999;
 }
-QWidget.sidebar_element:hover {
-    background-color: @Dark
+
+QLineEdit[state="success"]{
+    background-color:#99ff99;
 }

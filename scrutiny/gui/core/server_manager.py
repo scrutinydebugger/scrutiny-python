@@ -11,7 +11,6 @@ __all__ = ['ServerManager']
 
 from scrutiny import sdk
 from scrutiny.sdk.client import ScrutinyClient, WatchableListDownloadRequest
-from dataclasses import dataclass
 import threading
 import time
 import traceback
@@ -21,6 +20,7 @@ from typing import Optional, Dict
 import logging
 
 from scrutiny.gui.core.watchable_index import WatchableIndex
+
 
 class ServerManager:
     """Runs a thread for the synchronous SDK and emit QT events when something interesting happens"""
@@ -64,9 +64,15 @@ class ServerManager:
             self.sfd_watchables_download_request = None
 
 
+    class _InternalSignals(QObject):
+        thread_exit_signal = Signal()
+
+
     class _Signals(QObject):    # QObject required for signals to work
         """Signals offered to the outside world"""
         started = Signal()
+        starting = Signal()
+        stopping = Signal()
         stopped = Signal()
         server_connected = Signal()
         server_disconnected = Signal()
@@ -85,24 +91,43 @@ class ServerManager:
 
     _thread_stop_event:threading.Event  # Event used to stop the thread
     _signals:_Signals                   # The signals
+    _internal_signals:_InternalSignals
     _auto_reconnect:bool                # Flag indicating if the thread should try to reconnect the client if disconnected
     _logger:logging.Logger              # Logger
     _fsm_data:ThreadFSMData             # Data used by the thread to detect state changes
 
+    _stop_pending:bool
+
     def __init__(self, watchable_index:WatchableIndex, client:Optional[ScrutinyClient]=None) -> None:
         super().__init__()  # Required for signals to work
+        self._logger = logging.getLogger(self.__class__.__name__)
+
         if client is None:
             self._client = ScrutinyClient()
         else:
             self._client = client   # Mainly useful for unit testing
         self._signals = self._Signals()
+        self._internal_signals = self._InternalSignals()
         
         self._thread = None
         self._thread_stop_event = threading.Event()
         self._auto_reconnect = False
-        self._logger = logging.getLogger(self.__class__.__name__)
+        
         self._fsm_data = self.ThreadFSMData()
         self._index = watchable_index
+
+        self._internal_signals.thread_exit_signal.connect(self._join_thread_and_emit_stopped)
+        self._stop_pending = False
+
+    def _join_thread_and_emit_stopped(self) -> None:
+        self._thread.join(0.5)    # Should be already dead if that signal came in. Wil join instantly
+        if self._thread.is_alive():
+            self._logger.error("Failed to stop the internal thread")
+        else:
+            self._logger.debug("Server manager stopped")
+        self._thread = None
+        self._stop_pending = False
+        self.signals.stopped.emit()
 
     @property
     def signals(self) -> _Signals:
@@ -121,9 +146,13 @@ class ServerManager:
         """
         self._logger.debug("ServerManager.start() called")
         if self.is_running():
-            self.stop()
+            raise RuntimeError("Already running")   # Temporary hard check for debug
+        
+        if self._stop_pending:
+            raise RuntimeError("Stop pending") # Temporary hard check for debug
         
         self._logger.debug("Starting server manager")
+        self.signals.starting.emit()
         self._auto_reconnect = True
         self._thread_stop_event.clear()
         self._thread = threading.Thread(target=self._thread_func, args=[hostname, port], daemon=True)
@@ -134,28 +163,27 @@ class ServerManager:
     def stop(self) -> None:
         """Stops the server manager. Will disconnect it from the server and clear all internal data"""
         self._logger.debug("ServerManager.stop() called")
+        if self._stop_pending:
+            raise RuntimeError("Stop already pending")  # Temporary hard check for debug
+        
+        if not self.is_running():
+            return 
+        
+        self._stop_pending = True
+        self._logger.debug("Stopping server manager")
+        self.signals.stopping.emit()
         self._auto_reconnect = False
-        self._client.disconnect()
+        self._client._cancel_connection()   # Will cancel any pending request in the other thread
 
         # Ensure the server thread has the time to notice the changes and emit all signals
-        t = time.monotonic()
+        t = time.perf_counter()
         timeout = 1
-        while self._fsm_data.server_state != sdk.ServerState.Disconnected and time.monotonic() - t < timeout:
+        while self._fsm_data.server_state != sdk.ServerState.Disconnected and time.perf_counter() - t < timeout:
             time.sleep(0.01)
-
-        if self._thread is not None:
-            if self._thread.is_alive():
-                self._logger.debug("Stopping server manager")
-                self._thread_stop_event.set()
-                self._thread.join(2)
-                if self._thread.is_alive():
-                    self._logger.error("Failed to stop the internal thread")
-                else:
-                    self._logger.debug("Server manager stopped")
-            self.signals.stopped.emit()
         
-        self._thread = None
-
+        # Will cause the thread to exit and emit thread_exit_signal that triggers _join_thread_and_emit_stopped in the UI thread
+        self._thread_stop_event.set()
+        self._logger.debug("Stop initiated")
 
     def _thread_func(self, hostname:str, port:int) -> None:
         """Thread that monitors state change on the server side"""
@@ -290,10 +318,13 @@ class ServerManager:
         except Exception as e:  # pragma: no cover
             self._logger.critical(f"Error in server manager thread: {e}")
             self._logger.debug(traceback.format_exc())
+        finally:
+            self._client.disconnect()
 
         
         self._fsm_data.clear()
         self._logger.debug("Server Manager thread exiting")
+        self._internal_signals.thread_exit_signal.emit()
 
     def _thread_handle_download_watchable_logic(self) -> None:
         # Handle download of RPV if the device is ready
@@ -433,4 +464,7 @@ class ServerManager:
             return None
     
     def is_running(self) -> bool:
-        return self._thread is not None and self._thread.is_alive()
+        return self._thread is not None and self._thread.is_alive() and not self._stop_pending
+
+    def is_stopping(self) -> bool:
+        return self._stop_pending

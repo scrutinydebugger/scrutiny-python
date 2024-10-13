@@ -10,8 +10,9 @@ __all__ = ['ServerConfigDialog']
 
 from qtpy.QtWidgets import QDialog, QDialogButtonBox, QFormLayout, QLabel, QLineEdit, QWidget, QVBoxLayout
 from qtpy.QtCore import Qt
-from qtpy.QtGui import QPalette, QIntValidator
-
+from qtpy.QtGui import QIntValidator
+from scrutiny.gui.tools.validators import IpPortValidator, NotEmptyValidator
+from scrutiny.gui.widgets.validable_line_edit import ValidableLineEdit
 
 from typing import Callable
 
@@ -23,8 +24,8 @@ class ServerConfigDialog(QDialog):
     _hostname:str
     _port:int
 
-    _hostname_textbox:QLineEdit
-    _port_textbox:QLineEdit
+    _hostname_textbox:ValidableLineEdit
+    _port_textbox:ValidableLineEdit
 
     _apply_callback:Callable[[], None]
 
@@ -46,10 +47,11 @@ class ServerConfigDialog(QDialog):
 
         hostname_label = QLabel("Hostname: ")
         port_label = QLabel("Port: ")
-        self._hostname_textbox = QLineEdit()
-        self._port_textbox = QLineEdit()
+        self._hostname_textbox = ValidableLineEdit(soft_validator=NotEmptyValidator())
+        self._port_textbox = ValidableLineEdit(hard_validator=QIntValidator(0,0xFFFF), soft_validator=IpPortValidator())
 
-        self._port_textbox.setValidator(QIntValidator(1, 0xFFFF))
+        self._hostname_textbox.textChanged.connect(self._hostname_textbox.validate_expect_not_wrong)
+        self._port_textbox.textChanged.connect(self._port_textbox.validate_expect_not_wrong)
         
         form_layout.addRow(hostname_label, self._hostname_textbox)
         form_layout.addRow(port_label, self._port_textbox)
@@ -77,26 +79,24 @@ class ServerConfigDialog(QDialog):
     def reset(self) -> None:
         self.set_hostname(self.get_hostname())
         self.set_port(self.get_port())
-    
+        self._port_textbox.default_style()
+        self._hostname_textbox.default_style()
     
     def _validate(self) -> bool:
-        port_valid = True
-        try:
-            port = int(self._port_textbox.text())
-        except Exception:
-            port_valid=False
-        
-        if port_valid:
-            if port<=0 or port>0xFFFF:
-                port_valid = False
-        
-        
+        port_valid = self._port_textbox.validate_expect_valid()
+        host_valid = self._hostname_textbox.validate_expect_valid()
+        return port_valid and host_valid
 
+    
     def _btn_ok_click(self) -> None:
-        print(self._port_textbox.validator())
-        self.close()
-        self._apply_callback()
+        valid_config = self._validate()
+        if valid_config:
+            self._hostname = self._hostname_textbox.text()
+            self._port = int(self._port_textbox.text()) # Validator is supposed to guarantee the validity of this
+            self.close()
+            self._apply_callback()
 
     def _btn_cancel_click(self) -> None:
         self.reset()
+        self._validate()
         self.close()

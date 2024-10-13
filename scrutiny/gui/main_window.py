@@ -11,7 +11,7 @@ import traceback
 
 from qtpy.QtWidgets import  QWidget, QVBoxLayout, QHBoxLayout
 
-from qtpy.QtGui import  QAction, QCloseEvent
+from qtpy.QtGui import  QCloseEvent
 from qtpy.QtCore import Qt, QRect
 from qtpy.QtWidgets import QMainWindow
 
@@ -89,6 +89,10 @@ class MainWindow(QMainWindow):
         self._menu_bar.actions.dashboard_save.setDisabled(True)
         self._menu_bar.actions.device_configure.setDisabled(True)
 
+
+        self._server_manager.signals.started.connect(self.update_menubar)
+        self._server_manager.signals.stopped.connect(self.update_menubar)
+
         self.update_menubar()
 
 
@@ -96,6 +100,9 @@ class MainWindow(QMainWindow):
         if self._server_manager.is_running():
             self._menu_bar.actions.server_connect.setDisabled(True)
             self._menu_bar.actions.server_disconnect.setDisabled(False)
+        elif self._server_manager.is_stopping():
+            self._menu_bar.actions.server_connect.setDisabled(True)
+            self._menu_bar.actions.server_disconnect.setDisabled(True)
         else:
             self._menu_bar.actions.server_connect.setDisabled(False)
             self._menu_bar.actions.server_disconnect.setDisabled(True)
@@ -208,17 +215,17 @@ class MainWindow(QMainWindow):
             hostname=self._server_config_dialog.get_hostname(),
             port=self._server_config_dialog.get_port()
             )
+        self.update_menubar()
     
     def stop_server_manager(self) -> None:
         self._server_manager.stop()
+        self.update_menubar()
 
     def menu_server_connect_click(self) -> None:
         self.start_server_manager()
-        self.update_menubar()
 
     def menu_server_disconnect_click(self) -> None:
-        self._server_manager.stop()
-        self.update_menubar()
+        self.stop_server_manager()
 
     def server_config_changed(self)  -> None:
         if self._server_manager.is_running():

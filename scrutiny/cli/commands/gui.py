@@ -25,11 +25,15 @@ class GUI(BaseCommand):
         self.args = args
         self.parser = argparse.ArgumentParser(prog=self.get_prog())
         self.parser.add_argument("--debug-layout", action='store_true', default=False, help="Enable GUI diagnostic rendering")
+        self.parser.add_argument("--auto-connect", action='store_true', default=False, help="Try to connect to a server as soon as the GUI is ready")
 
     def run(self) -> Optional[int]:
         from scrutiny.gui.gui import ScrutinyQtGUI
 
         args = self.parser.parse_args(self.args)
-        gui = ScrutinyQtGUI(debug_layout=args.debug_layout)
+        gui = ScrutinyQtGUI(
+            debug_layout=args.debug_layout,
+            auto_connect=args.auto_connect
+            )
     
         return gui.run([])

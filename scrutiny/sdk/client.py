@@ -765,14 +765,24 @@ class ScrutinyClient:
             self._last_device_session_id = None
             self._last_sfd_firmware_id = None
 
+    def _cancel_connection(self) -> None:
+        """Forcefully attempt to close a socket to cancel any pending connection"""
+        # Does not respect _sock_lock on purpose.
+        try:
+            if self._sock is not None:
+                self._sock.close()      # Try it. May fail, it's ok.
+        except Exception:
+            pass
+
     def _wt_disconnect(self) -> None:
         """Disconnect from a Scrutiny server, called by the Worker Thread .
             Does not throw an exception in case of broken pipe
         """
+        self._cancel_connection()
 
         with self._sock_lock:
             if self._sock is not None:
-                self._logger.info(f"Disconnecting from server at {self._hostname}:{self._port}")
+                self._logger.debug(f"Disconnecting from server at {self._hostname}:{self._port}")
                 try:
                     self._sock.close()
                 except socket.error:
@@ -790,6 +800,8 @@ class ScrutinyClient:
             self._stream_parser = None
 
         with self._main_lock:
+            if self._server_state == ServerState.Connected and self._hostname is not None and self._port is not None:
+                self._logger.info(f"Disconnected from server at {self._hostname}:{self._port}")
             self._hostname = None
             self._port = None
             self._server_state = ServerState.Disconnected
@@ -1017,12 +1029,12 @@ class ScrutinyClient:
         :raise ConnectionError: In case of failure
         """
         self.disconnect()
-
+        self._locked_for_connect = True
         with self._main_lock:
             self._hostname = hostname
             self._port = port
             connect_error: Optional[Exception] = None
-            self._logger.info(f"Connecting to {hostname}:{port}")
+            self._logger.debug(f"Connecting to {hostname}:{port}")
             with self._sock_lock:
                 try:
                     self._server_state = ServerState.Connecting
@@ -1032,12 +1044,13 @@ class ScrutinyClient:
                     self._selector = selectors.DefaultSelector()
                     self._selector.register(self._sock, selectors.EVENT_READ)
                     self._sock.connect((hostname, port))
+                    self._logger.debug(f"Connected to {hostname}:{port}")
                     self._server_state = ServerState.Connected
                     self._start_worker_thread()
                 except socket.error as e:
                     self._logger.debug(traceback.format_exc())
                     connect_error = e
-
+        self._locked_for_connect = False
         if connect_error is not None:
             self.disconnect()
             raise sdk.exceptions.ConnectionError(f'Failed to connect to the server at "{hostname}:{port}". Error: {connect_error}')
@@ -1056,6 +1069,7 @@ class ScrutinyClient:
             self._wt_disconnect()  # Can call safely from this thread
             return
         
+        self._cancel_connection()
         self._threading_events.disconnected.clear()
         self._threading_events.disconnect.set()
         self._threading_events.disconnected.wait(timeout=2)  # Timeout avoid race condition if the thread was exiting
@@ -1719,15 +1733,18 @@ class ScrutinyClient:
         :raise ConnectionError: If the connection to the server is lost
         :raise InvalidValueError: If the server status is not available (never received it).
         """
+        if self._locked_for_connect:    # Avoid blocking
+            raise sdk.exceptions.ConnectionError(f"Disconnected from server")
 
-        # server_info is readonly and only its reference gets changed when updated.
-        # We can safely return a reference here. The user can't mess it up
         with self._main_lock:
             if not self._server_state == ServerState.Connected:
                 raise sdk.exceptions.ConnectionError(f"Disconnected from server")
             info = self._server_info
         if info is None:
             raise sdk.exceptions.InvalidValueError("Server status is not available")
+        
+        # server_info is readonly and only its reference gets changed when updated.
+        # We can safely return a reference here. The user can't mess it up
         return info
 
     def register_listener(self, listener:listeners.BaseListener) -> None:
@@ -1838,6 +1855,10 @@ class ScrutinyClient:
 
         return request_handle
 
+    @property
+    def logger(self) -> logging.Logger:
+        """The python logger used by the Client"""
+        return self._logger
 
     @property
     def name(self) -> str:
@@ -1846,17 +1867,14 @@ class ScrutinyClient:
     @property
     def server_state(self) -> ServerState:
         """The server communication state"""
-        with self._main_lock:   # Avoid race condition while disconnecting
-            return ServerState(self._server_state)  # Make a copy
+        return ServerState(self._server_state)  # Make a copy
 
     @property
     def hostname(self) -> Optional[str]:
         """Hostname of the server"""
-        with self._main_lock:   # Avoid race condition while disconnecting
-            return str(self._hostname) if self._hostname is not None else None
+        return str(self._hostname) if self._hostname is not None else None
 
     @property
     def port(self) -> Optional[int]:
         """Port of the the server is letening to"""
-        with self._main_lock:   # Avoid race condition while disconnecting
-            return int(self._port) if self._port is not None else None
+        return int(self._port) if self._port is not None else None
