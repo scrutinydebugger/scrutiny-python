@@ -123,11 +123,13 @@ class StatusBar(QStatusBar):
     _red_square:QPixmap
     _yellow_square:QPixmap
     _green_square:QPixmap
+    _one_shot_auto_connect:bool
     
     def __init__(self, parent:QWidget, server_manager:ServerManager) -> None:
         super().__init__(parent)
         self._server_manager=server_manager
-        self._server_config_dialog = ServerConfigDialog(self)
+        self._server_config_dialog = ServerConfigDialog(self, apply_callback=self._server_config_applied)
+        self._one_shot_auto_connect = False
 
         self._server_status_label = IndicatorLabel("", color=IndicatorLabel.Color.RED, label_type=IndicatorLabel.TextLabel.TOOLBAR)
         self._device_status_label = IndicatorLabel("", color=IndicatorLabel.Color.RED, label_type=IndicatorLabel.TextLabel.TOOLBAR)
@@ -141,18 +143,9 @@ class StatusBar(QStatusBar):
 
         self._server_status_label.add_menu(self._connect_disconnect_menu)
 
-        def configure_func() -> None:
-            self._server_config_dialog.show()
-
-        def connect_func() -> None:
-            self._server_manager.start(self._server_config_dialog.get_config())
-        
-        def disconnect_func() -> None:
-            self._server_manager.stop()
-
-        self._server_configure_action.triggered.connect(configure_func)
-        self._server_connect_action.triggered.connect(connect_func)
-        self._server_disconnect_action.triggered.connect(disconnect_func)
+        self._server_configure_action.triggered.connect(self._configure_func)
+        self._server_connect_action.triggered.connect(self._connect_func)
+        self._server_disconnect_action.triggered.connect(self._disconnect_func)
 
 
         self.setContentsMargins(5,0,5,0)    
@@ -171,6 +164,7 @@ class StatusBar(QStatusBar):
         self._server_manager.signals.started.connect(self.update_content)
         self._server_manager.signals.stopping.connect(self.update_content)
         self._server_manager.signals.stopped.connect(self.update_content)
+        self._server_manager.signals.stopped.connect(self._one_shot_reconnect)
         self._server_manager.signals.server_connected.connect(self.update_content)
         self._server_manager.signals.server_disconnected.connect(self.update_content)
         self._server_manager.signals.device_ready.connect(self.update_content)
@@ -181,6 +175,28 @@ class StatusBar(QStatusBar):
 
         self.update_content()
 
+    def _configure_func(self) -> None:
+        self._server_config_dialog.show()
+
+    def _connect_func(self) -> None:
+        self._server_manager.start(self._server_config_dialog.get_config())
+    
+    def _disconnect_func(self) -> None:
+        self._server_manager.stop()
+
+    def _server_config_applied(self) -> None:
+        if self._server_manager.is_running():
+            self._one_shot_auto_connect = True
+            self._server_manager.stop()
+
+        elif not self._server_manager.is_stopping():
+            self._connect_func()
+    
+    def _one_shot_reconnect(self) -> None:
+        if self._one_shot_auto_connect:
+            self._one_shot_auto_connect=False
+            self._connect_func()
+            
 
     def set_server_label_value(self, value:ServerLabelValue) -> None:
         prefix = 'Server:'
