@@ -32,8 +32,6 @@ class MenuBar(QMenuBar):
 
         server_menu =  self.addMenu('Server')
         self.buttons.server_configure = server_menu.addAction("Configure")
-        self.buttons.server_connect = server_menu.addAction("Connect")
-        self.buttons.server_disconnect = server_menu.addAction("Disconnect")
         self.buttons.server_launch_local = server_menu.addAction("Launch local")
 
         server_menu =  self.addMenu('Device')

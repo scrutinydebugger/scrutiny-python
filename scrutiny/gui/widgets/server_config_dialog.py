@@ -8,11 +8,12 @@
 
 __all__ = ['ServerConfigDialog']
 
-from qtpy.QtWidgets import QDialog, QDialogButtonBox, QFormLayout, QLabel, QLineEdit, QWidget, QVBoxLayout
+from qtpy.QtWidgets import QDialog, QDialogButtonBox, QFormLayout, QLabel, QWidget, QVBoxLayout
 from qtpy.QtCore import Qt
 from qtpy.QtGui import QIntValidator
 from scrutiny.gui.tools.validators import IpPortValidator, NotEmptyValidator
 from scrutiny.gui.widgets.validable_line_edit import ValidableLineEdit
+from scrutiny.gui.core.server_manager import ServerConfig
 
 from typing import Callable
 
@@ -100,3 +101,9 @@ class ServerConfigDialog(QDialog):
         self.reset()
         self._validate()
         self.close()
+
+    def get_config(self) -> ServerConfig:
+        return ServerConfig(
+            hostname=self.get_hostname(),
+            port=self.get_port()
+        )

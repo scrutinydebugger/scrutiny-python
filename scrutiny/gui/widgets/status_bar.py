@@ -1,11 +1,11 @@
 from qtpy.QtWidgets import QStatusBar, QWidget, QLabel, QHBoxLayout, QSizePolicy, QPushButton, QToolBar, QMenu
 from qtpy.QtGui import QPixmap, QAction
 from qtpy.QtCore import Qt, QPoint
-from scrutiny.gui.core.server_manager import ServerManager
+from scrutiny.gui.core.server_manager import ServerManager, ServerConfig
 from scrutiny.gui import assets
 from scrutiny.sdk import ServerState, DeviceCommState, SFDInfo, DataloggingInfo, DataloggerState
 import enum
-from typing import Optional, Dict, Generic, TypeVar, cast, Union
+from typing import Optional, Dict, Generic, TypeVar, cast, Union, Callable
 
 class ServerLabelValue(enum.Enum):
     Disconnected = enum.auto()
@@ -113,25 +113,40 @@ class StatusBar(QStatusBar):
     _device_status_label:IndicatorLabel
     _sfd_status_label:QLabel
     _datalogger_status_label:QLabel
+    _connect_disconnect_menu:QMenu
+    _connect_action: QAction
+    _disconnect_action: QAction
 
     _red_square:QPixmap
     _yellow_square:QPixmap
     _green_square:QPixmap
+    _fetch_server_config_callback:Callable[[], ServerConfig]
     
-    def __init__(self, parent:QWidget, server_manager:ServerManager) -> None:
+    def __init__(self, parent:QWidget, server_manager:ServerManager, fetch_server_config_callback:Callable[[], ServerConfig]) -> None:
         super().__init__(parent)
         self._server_manager=server_manager
+        self._fetch_server_config_callback=fetch_server_config_callback
 
         self._server_status_label = IndicatorLabel("", color=IndicatorLabel.Color.RED, label_type=IndicatorLabel.TextLabel.TOOLBAR)
         self._device_status_label = IndicatorLabel("", color=IndicatorLabel.Color.RED, label_type=IndicatorLabel.TextLabel.TOOLBAR)
         self._sfd_status_label = QLabel("")
         self._datalogger_status_label = QLabel("")
 
-        menu = QMenu()
-        menu.addAction("test1")
-        menu.addAction("test2")
+        self._connect_disconnect_menu = QMenu()
+        self._connect_action = self._connect_disconnect_menu.addAction("Connect")
+        self._disconnect_action = self._connect_disconnect_menu.addAction("Disconnect")
 
-        self._server_status_label.add_menu(menu)
+        self._server_status_label.add_menu(self._connect_disconnect_menu)
+
+        def connect_func() -> None:
+            config = self._fetch_server_config_callback()
+            self._server_manager.start(config)
+        
+        def disconnect_func() -> None:
+            self._server_manager.stop()
+            
+        self._connect_action.triggered.connect(connect_func)
+        self._disconnect_action.triggered.connect(disconnect_func)
 
 
         self.setContentsMargins(5,0,5,0)    
@@ -159,6 +174,7 @@ class StatusBar(QStatusBar):
         self._server_manager.signals.sfd_unloaded.connect(self.update_content)
 
         self.update_content()
+
 
     def set_server_label_value(self, value:ServerLabelValue) -> None:
         prefix = 'Server:'
@@ -234,13 +250,19 @@ class StatusBar(QStatusBar):
     def update_content(self) -> None:
         if not self._server_manager.is_running():
             if self._server_manager.is_stopping():
+                self._disconnect_action.setDisabled(True)
+                self._connect_action.setDisabled(True)
                 self.set_server_label_value(ServerLabelValue.Disconnecting)
             else:
                 self.set_server_label_value(ServerLabelValue.Disconnected)
+                self._disconnect_action.setDisabled(True)
+                self._connect_action.setDisabled(False)
             self.set_device_label(DeviceCommState.NA)
             self.set_sfd_label(None)
             self.set_datalogging_label(DataloggingInfo(state=DataloggerState.NA, completion_ratio=None))
         else:
+            self._disconnect_action.setDisabled(False)
+            self._connect_action.setDisabled(True)
             server_state = self._server_manager.get_server_state()
             server_info = None
 

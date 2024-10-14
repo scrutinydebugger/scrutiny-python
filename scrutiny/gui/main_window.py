@@ -72,40 +72,25 @@ class MainWindow(QMainWindow):
         self._server_manager = ServerManager(watchable_index=self._watchable_index)
         self._server_config_dialog = ServerConfigDialog(self, self.server_config_changed)
         
-        status_bar = StatusBar(self, server_manager=self._server_manager)
+        status_bar = StatusBar(self, 
+                               server_manager=self._server_manager, 
+                               fetch_server_config_callback=self._server_config_dialog.get_config
+                               )
         self.setStatusBar(status_bar)
 
         self._menu_bar = MenuBar()
         self.setMenuBar(self._menu_bar)
 
         self._menu_bar.buttons.server_configure.triggered.connect(self.menu_server_config_click)
-        self._menu_bar.buttons.server_connect.triggered.connect(self.menu_server_connect_click)
-        self._menu_bar.buttons.server_disconnect.triggered.connect(self.menu_server_disconnect_click)
-        
         self._menu_bar.buttons.info_about.triggered.connect(self.show_about)
 
         self._menu_bar.buttons.dashboard_close.setDisabled(True)
         self._menu_bar.buttons.dashboard_open.setDisabled(True)
         self._menu_bar.buttons.dashboard_save.setDisabled(True)
         self._menu_bar.buttons.device_configure.setDisabled(True)
+        self._menu_bar.buttons.server_launch_local.setDisabled(True)
 
 
-        self._server_manager.signals.started.connect(self.update_menubar)
-        self._server_manager.signals.stopped.connect(self.update_menubar)
-
-        self.update_menubar()
-
-
-    def update_menubar(self) -> None:
-        if self._server_manager.is_running():
-            self._menu_bar.buttons.server_connect.setDisabled(True)
-            self._menu_bar.buttons.server_disconnect.setDisabled(False)
-        elif self._server_manager.is_stopping():    # There is no is_starting since starting is instantaneous.
-            self._menu_bar.buttons.server_connect.setDisabled(True)
-            self._menu_bar.buttons.server_disconnect.setDisabled(True)
-        else:
-            self._menu_bar.buttons.server_connect.setDisabled(False)
-            self._menu_bar.buttons.server_disconnect.setDisabled(True)
 
     def centered(self, w:int, h:int) -> QRect:
         """Returns a rectangle centered in the screen of given width/height"""
@@ -211,25 +196,13 @@ class MainWindow(QMainWindow):
         self._server_config_dialog.show()
 
     def start_server_manager(self) -> None:
-        self._server_manager.start(
-            hostname=self._server_config_dialog.get_hostname(),
-            port=self._server_config_dialog.get_port()
-            )
-        self.update_menubar()
+        self._server_manager.start(self._server_config_dialog.get_config())
     
     def stop_server_manager(self) -> None:
         self._server_manager.stop()
-        self.update_menubar()
-
-    def menu_server_connect_click(self) -> None:
-        self.start_server_manager()
-
-    def menu_server_disconnect_click(self) -> None:
-        self.stop_server_manager()
 
     def server_config_changed(self)  -> None:
         if self._server_manager.is_running():
             self.stop_server_manager()
         self.start_server_manager()
-        self.update_menubar()
         

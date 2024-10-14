@@ -1048,8 +1048,11 @@ class ScrutinyClient:
                     self._server_state = ServerState.Connected
                     self._start_worker_thread()
                 except socket.error as e:
+                    # Connect may fail in many way. 
+                    # The user can close the socket to unblock the connection thread.
                     self._logger.debug(traceback.format_exc())
                     connect_error = e
+                    
         self._locked_for_connect = False
         if connect_error is not None:
             self.disconnect()

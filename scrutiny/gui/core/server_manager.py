@@ -7,19 +7,25 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
-__all__ = ['ServerManager']
+__all__ = ['ServerManager', 'ServerConfig']
 
 from scrutiny import sdk
 from scrutiny.sdk.client import ScrutinyClient, WatchableListDownloadRequest
 import threading
 import time
 import traceback
+from dataclasses import dataclass
 
 from qtpy.QtCore import Signal, QObject
 from typing import Optional, Dict
 import logging
 
 from scrutiny.gui.core.watchable_index import WatchableIndex
+
+@dataclass
+class ServerConfig:
+    hostname:str
+    port:int
 
 
 class ServerManager:
@@ -141,7 +147,7 @@ class ServerManager:
         return self._index
 
     
-    def start(self, hostname:str, port:int) -> None:
+    def start(self, config:ServerConfig) -> None:
         """Makes the server manager try to connect and monitor server state changes
         Will autoreconnect on disconnection
         """
@@ -156,7 +162,7 @@ class ServerManager:
         self.signals.starting.emit()
         self._auto_reconnect = True
         self._thread_stop_event.clear()
-        self._thread = threading.Thread(target=self._thread_func, args=[hostname, port], daemon=True)
+        self._thread = threading.Thread(target=self._thread_func, args=[config], daemon=True)
         self._thread.start()
         self._logger.debug("Server manager started")
         self.signals.started.emit()
@@ -186,7 +192,7 @@ class ServerManager:
         self._thread_stop_event.set()
         self._logger.debug("Stop initiated")
 
-    def _thread_func(self, hostname:str, port:int) -> None:
+    def _thread_func(self, config:ServerConfig) -> None:
         """Thread that monitors state change on the server side"""
         self._logger.debug("Server manager thread running")
         self._fsm_data.previous_server_state = sdk.ServerState.Disconnected
@@ -214,7 +220,7 @@ class ServerManager:
                             try:
                                 self._logger.debug("Connecting client")
                                 self._fsm_data.connect_timestamp_mono = time.monotonic()
-                                self._client.connect(hostname, port, wait_status=False)
+                                self._client.connect(config.hostname, config.port, wait_status=False)
                             except sdk.exceptions.ConnectionError:
                                 pass
                 
@@ -223,7 +229,7 @@ class ServerManager:
 
                 elif self._fsm_data.server_state == sdk.ServerState.Connected:
                     if state_entry:
-                        self._logger.debug(f"Client connected to {hostname}:{port}")
+                        self._logger.debug(f"Client connected to {config.hostname}:{config.port}")
                         self._signals.server_connected.emit()
                         self._fsm_data.server_info = None
                         self._fsm_data.previous_server_info = None
