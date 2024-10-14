@@ -172,6 +172,8 @@ class StatusBar(QStatusBar):
         self._server_manager.signals.datalogging_state_changed.connect(self.update_content)
         self._server_manager.signals.sfd_loaded.connect(self.update_content)
         self._server_manager.signals.sfd_unloaded.connect(self.update_content)
+        
+        self._server_manager.signals.status_received.connect(self.update_content)
 
         self.update_content()
 
@@ -220,24 +222,30 @@ class StatusBar(QStatusBar):
         if value == DeviceCommState.NA:
             self._device_status_label.set_color(IndicatorLabel.Color.RED)
             self._device_status_label.set_text(f"{prefix} N/A")
+            self._device_status_label.setEnabled(False)
         elif value == DeviceCommState.ConnectedReady:
             self._device_status_label.set_color(IndicatorLabel.Color.GREEN)
             self._device_status_label.set_text(f"{prefix} Connected")
+            self._device_status_label.setEnabled(True)
         elif value == DeviceCommState.Connecting:
             self._device_status_label.set_color(IndicatorLabel.Color.YELLOW)
             self._device_status_label.set_text(f"{prefix} Connecting")
+            self._device_status_label.setEnabled(True)
         elif value == DeviceCommState.Disconnected:
             self._device_status_label.set_color(IndicatorLabel.Color.RED)
             self._device_status_label.set_text(f"{prefix} Disconnected")
+            self._device_status_label.setEnabled(True)
         else:
             raise NotImplementedError(f"Unsupported device comm state value {value}")
         
-    def set_sfd_label(self, value:Optional[SFDInfo]) -> None:
+    def set_sfd_label(self, device_connected:bool, value:Optional[SFDInfo]) -> None:
         prefix = 'SFD:'
         if value is None:
-            self._sfd_status_label.setText(f'{prefix} --- ')
+            self._sfd_status_label.setEnabled(device_connected)
+            self._sfd_status_label.setText(f'{prefix} None ')
             self._sfd_status_label.setToolTip("No Scrutiny Firmware Description file loaded")
         else:
+            self._sfd_status_label.setEnabled(True)
             project_name = "Unnamed project"
             if value.metadata is not None:
                 if value.metadata.project_name is not None:
@@ -283,7 +291,7 @@ class StatusBar(QStatusBar):
                 self._server_disconnect_action.setDisabled(True)
                 self._server_connect_action.setDisabled(False)
             self.set_device_label(DeviceCommState.NA)
-            self.set_sfd_label(None)
+            self.set_sfd_label(device_connected=False, value=None)
             self.set_datalogging_label(DataloggingInfo(state=DataloggerState.NA, completion_ratio=None))
         else:
             self._server_disconnect_action.setDisabled(False)
@@ -299,10 +307,10 @@ class StatusBar(QStatusBar):
         
             if server_info is None:
                 self.set_device_label(DeviceCommState.NA)
-                self.set_sfd_label(None)
+                self.set_sfd_label(device_connected=False, value=None)
                 self.set_datalogging_label(DataloggingInfo(state=DataloggerState.NA, completion_ratio=None))
             else:
                 self.set_device_label(server_info.device_comm_state)
-                self.set_sfd_label(server_info.sfd)
+                self.set_sfd_label(device_connected=server_info.device_comm_state == DeviceCommState.ConnectedReady, value=server_info.sfd)
                 self.set_datalogging_label(server_info.datalogging)
                         

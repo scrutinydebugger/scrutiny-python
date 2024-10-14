@@ -354,6 +354,7 @@ class ScrutinyClient:
         self._callback_storage = {}
         self._last_device_session_id = None
         self._last_sfd_firmware_id = None
+        self._connection_cancel_request = False
 
         self._active_batch_context = None
         self._listeners=[]
@@ -405,7 +406,10 @@ class ScrutinyClient:
                 self._wt_process_device_state()
 
             except sdk.exceptions.ConnectionError as e:
-                self._logger.error(f"Connection error in worker thread: {e}")
+                if self._connection_cancel_request:
+                    self._logger.debug(f"Connection error in worker thread (caused by explicit cancel): {e}")
+                else:
+                    self._logger.error(f"Connection error in worker thread: {e}")
                 self._wt_disconnect()    # Will set _sock to None
             except Exception as e:
                 self._logger.error(f"Unhandled exception in worker thread: {e}")
@@ -517,7 +521,6 @@ class ScrutinyClient:
         req._add_data(content.data, content.done)
         if content.done:
             req._mark_complete(success=True)
-
 
     def _wt_process_next_server_status_update(self) -> None:
         if self._request_status_timer.is_timed_out() or self._require_status_update:
@@ -770,6 +773,7 @@ class ScrutinyClient:
         # Does not respect _sock_lock on purpose.
         try:
             if self._sock is not None:
+                self._connection_cancel_request = True  # Simply to mask the connection error we will cause
                 self._sock.close()      # Try it. May fail, it's ok.
         except Exception:
             pass
@@ -1030,6 +1034,7 @@ class ScrutinyClient:
         """
         self.disconnect()
         self._locked_for_connect = True
+        self._connection_cancel_request = False
         with self._main_lock:
             self._hostname = hostname
             self._port = port
@@ -1052,7 +1057,7 @@ class ScrutinyClient:
                     # The user can close the socket to unblock the connection thread.
                     self._logger.debug(traceback.format_exc())
                     connect_error = e
-                    
+
         self._locked_for_connect = False
         if connect_error is not None:
             self.disconnect()

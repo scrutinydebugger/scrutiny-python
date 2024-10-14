@@ -1,7 +1,7 @@
 {
     "debug" : true,
     "api": {
-        "client_interface_type": "websocket",
+        "client_interface_type": "tcp",
         "client_interface_config": {
             "host": "localhost",
             "port": 8765
