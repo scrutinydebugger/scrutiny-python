@@ -15,7 +15,7 @@ from scrutiny.gui.tools.validators import IpPortValidator, NotEmptyValidator
 from scrutiny.gui.widgets.validable_line_edit import ValidableLineEdit
 from scrutiny.gui.core.server_manager import ServerConfig
 
-from typing import Callable
+from typing import Callable, Optional
 
 
 class ServerConfigDialog(QDialog):
@@ -28,9 +28,9 @@ class ServerConfigDialog(QDialog):
     _hostname_textbox:ValidableLineEdit
     _port_textbox:ValidableLineEdit
 
-    _apply_callback:Callable[[], None]
+    _apply_callback:Optional[Callable[[], None]]
 
-    def __init__(self, parent:QWidget, apply_callback:Callable[[], None]) -> None:
+    def __init__(self, parent:QWidget, apply_callback:Optional[Callable[[], None]]=None) -> None:
         super().__init__(parent)
         self.setWindowFlags(Qt.WindowType.WindowCloseButtonHint | Qt.WindowType.WindowTitleHint | Qt.WindowType.Dialog)
         self.setModal(True)
@@ -95,7 +95,8 @@ class ServerConfigDialog(QDialog):
             self._hostname = self._hostname_textbox.text()
             self._port = int(self._port_textbox.text()) # Validator is supposed to guarantee the validity of this
             self.close()
-            self._apply_callback()
+            if self._apply_callback is not None:
+                self._apply_callback()
 
     def _btn_cancel_click(self) -> None:
         self.reset()

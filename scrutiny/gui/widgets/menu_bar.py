@@ -2,20 +2,13 @@ __all__ = ['MenuBar']
 from qtpy.QtWidgets import QMenuBar
 from qtpy.QtGui import QAction
 
-from typing import cast
-
 class Actions:
     dashboard_open: QAction
     dashboard_save: QAction
     dashboard_close: QAction
     
-    server_configure: QAction
-    server_connect: QAction
-    server_disconnect: QAction
     server_launch_local: QAction
-
     device_configure: QAction
-    
     info_about: QAction
 
 class MenuBar(QMenuBar):
@@ -31,7 +24,6 @@ class MenuBar(QMenuBar):
         self.buttons.dashboard_close = dashboard_menu.addAction("Clear")
 
         server_menu =  self.addMenu('Server')
-        self.buttons.server_configure = server_menu.addAction("Configure")
         self.buttons.server_launch_local = server_menu.addAction("Launch local")
 
         server_menu =  self.addMenu('Device')

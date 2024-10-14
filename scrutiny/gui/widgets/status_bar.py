@@ -2,6 +2,7 @@ from qtpy.QtWidgets import QStatusBar, QWidget, QLabel, QHBoxLayout, QSizePolicy
 from qtpy.QtGui import QPixmap, QAction
 from qtpy.QtCore import Qt, QPoint
 from scrutiny.gui.core.server_manager import ServerManager, ServerConfig
+from scrutiny.gui.widgets.server_config_dialog import ServerConfigDialog
 from scrutiny.gui import assets
 from scrutiny.sdk import ServerState, DeviceCommState, SFDInfo, DataloggingInfo, DataloggerState
 import enum
@@ -114,18 +115,19 @@ class StatusBar(QStatusBar):
     _sfd_status_label:QLabel
     _datalogger_status_label:QLabel
     _connect_disconnect_menu:QMenu
-    _connect_action: QAction
-    _disconnect_action: QAction
+    _server_configure_action: QAction
+    _server_connect_action: QAction
+    _server_disconnect_action: QAction
+    _server_config_dialog:ServerConfigDialog
 
     _red_square:QPixmap
     _yellow_square:QPixmap
     _green_square:QPixmap
-    _fetch_server_config_callback:Callable[[], ServerConfig]
     
-    def __init__(self, parent:QWidget, server_manager:ServerManager, fetch_server_config_callback:Callable[[], ServerConfig]) -> None:
+    def __init__(self, parent:QWidget, server_manager:ServerManager) -> None:
         super().__init__(parent)
         self._server_manager=server_manager
-        self._fetch_server_config_callback=fetch_server_config_callback
+        self._server_config_dialog = ServerConfigDialog(self)
 
         self._server_status_label = IndicatorLabel("", color=IndicatorLabel.Color.RED, label_type=IndicatorLabel.TextLabel.TOOLBAR)
         self._device_status_label = IndicatorLabel("", color=IndicatorLabel.Color.RED, label_type=IndicatorLabel.TextLabel.TOOLBAR)
@@ -133,20 +135,24 @@ class StatusBar(QStatusBar):
         self._datalogger_status_label = QLabel("")
 
         self._connect_disconnect_menu = QMenu()
-        self._connect_action = self._connect_disconnect_menu.addAction("Connect")
-        self._disconnect_action = self._connect_disconnect_menu.addAction("Disconnect")
+        self._server_configure_action = self._connect_disconnect_menu.addAction("Configure")
+        self._server_connect_action = self._connect_disconnect_menu.addAction("Connect")
+        self._server_disconnect_action = self._connect_disconnect_menu.addAction("Disconnect")
 
         self._server_status_label.add_menu(self._connect_disconnect_menu)
 
+        def configure_func() -> None:
+            self._server_config_dialog.show()
+
         def connect_func() -> None:
-            config = self._fetch_server_config_callback()
-            self._server_manager.start(config)
+            self._server_manager.start(self._server_config_dialog.get_config())
         
         def disconnect_func() -> None:
             self._server_manager.stop()
-            
-        self._connect_action.triggered.connect(connect_func)
-        self._disconnect_action.triggered.connect(disconnect_func)
+
+        self._server_configure_action.triggered.connect(configure_func)
+        self._server_connect_action.triggered.connect(connect_func)
+        self._server_disconnect_action.triggered.connect(disconnect_func)
 
 
         self.setContentsMargins(5,0,5,0)    
@@ -246,23 +252,26 @@ class StatusBar(QStatusBar):
 
         self._datalogger_status_label.setText(f"{prefix} {state_str[value.state]}{completion_str}")
 
+    def emulate_connect_click(self)->None:
+        if self._server_connect_action.isEnabled():
+            self._server_connect_action.trigger()
 
     def update_content(self) -> None:
         if not self._server_manager.is_running():
             if self._server_manager.is_stopping():
-                self._disconnect_action.setDisabled(True)
-                self._connect_action.setDisabled(True)
+                self._server_disconnect_action.setDisabled(True)
+                self._server_connect_action.setDisabled(True)
                 self.set_server_label_value(ServerLabelValue.Disconnecting)
             else:
                 self.set_server_label_value(ServerLabelValue.Disconnected)
-                self._disconnect_action.setDisabled(True)
-                self._connect_action.setDisabled(False)
+                self._server_disconnect_action.setDisabled(True)
+                self._server_connect_action.setDisabled(False)
             self.set_device_label(DeviceCommState.NA)
             self.set_sfd_label(None)
             self.set_datalogging_label(DataloggingInfo(state=DataloggerState.NA, completion_ratio=None))
         else:
-            self._disconnect_action.setDisabled(False)
-            self._connect_action.setDisabled(True)
+            self._server_disconnect_action.setDisabled(False)
+            self._server_connect_action.setDisabled(True)
             server_state = self._server_manager.get_server_state()
             server_info = None
 
