@@ -78,16 +78,16 @@ class MainWindow(QMainWindow):
         self._menu_bar = MenuBar()
         self.setMenuBar(self._menu_bar)
 
-        self._menu_bar.actions.server_configure.triggered.connect(self.menu_server_config_click)
-        self._menu_bar.actions.server_connect.triggered.connect(self.menu_server_connect_click)
-        self._menu_bar.actions.server_disconnect.triggered.connect(self.menu_server_disconnect_click)
+        self._menu_bar.buttons.server_configure.triggered.connect(self.menu_server_config_click)
+        self._menu_bar.buttons.server_connect.triggered.connect(self.menu_server_connect_click)
+        self._menu_bar.buttons.server_disconnect.triggered.connect(self.menu_server_disconnect_click)
         
-        self._menu_bar.actions.info_about.triggered.connect(self.show_about)
+        self._menu_bar.buttons.info_about.triggered.connect(self.show_about)
 
-        self._menu_bar.actions.dashboard_close.setDisabled(True)
-        self._menu_bar.actions.dashboard_open.setDisabled(True)
-        self._menu_bar.actions.dashboard_save.setDisabled(True)
-        self._menu_bar.actions.device_configure.setDisabled(True)
+        self._menu_bar.buttons.dashboard_close.setDisabled(True)
+        self._menu_bar.buttons.dashboard_open.setDisabled(True)
+        self._menu_bar.buttons.dashboard_save.setDisabled(True)
+        self._menu_bar.buttons.device_configure.setDisabled(True)
 
 
         self._server_manager.signals.started.connect(self.update_menubar)
@@ -98,14 +98,14 @@ class MainWindow(QMainWindow):
 
     def update_menubar(self) -> None:
         if self._server_manager.is_running():
-            self._menu_bar.actions.server_connect.setDisabled(True)
-            self._menu_bar.actions.server_disconnect.setDisabled(False)
-        elif self._server_manager.is_stopping():
-            self._menu_bar.actions.server_connect.setDisabled(True)
-            self._menu_bar.actions.server_disconnect.setDisabled(True)
+            self._menu_bar.buttons.server_connect.setDisabled(True)
+            self._menu_bar.buttons.server_disconnect.setDisabled(False)
+        elif self._server_manager.is_stopping():    # There is no is_starting since starting is instantaneous.
+            self._menu_bar.buttons.server_connect.setDisabled(True)
+            self._menu_bar.buttons.server_disconnect.setDisabled(True)
         else:
-            self._menu_bar.actions.server_connect.setDisabled(False)
-            self._menu_bar.actions.server_disconnect.setDisabled(True)
+            self._menu_bar.buttons.server_connect.setDisabled(False)
+            self._menu_bar.buttons.server_disconnect.setDisabled(True)
 
     def centered(self, w:int, h:int) -> QRect:
         """Returns a rectangle centered in the screen of given width/height"""
@@ -148,7 +148,7 @@ class MainWindow(QMainWindow):
         :param component_class: The class that represent the component (inhreiting ScrutinyGUIBaseComponent) 
         """
         
-        def make_name(component_class:Type[ScrutinyGUIBaseComponent], instance_number:int):
+        def make_name(component_class:Type[ScrutinyGUIBaseComponent], instance_number:int) -> str:
             return f'{component_class.__name__}_{instance_number}'
 
         instance_number = 0
@@ -202,7 +202,7 @@ class MainWindow(QMainWindow):
         dock_widget.closeRequested.connect(destroy_widget)
         self._dock_manager.addDockWidget(QtAds.TopDockWidgetArea, dock_widget)
 
-    def closeEvent(self, event: QCloseEvent):
+    def closeEvent(self, event: QCloseEvent) -> None:
         self._server_manager.stop()
         self._dock_manager.deleteLater()
         super().closeEvent(event)

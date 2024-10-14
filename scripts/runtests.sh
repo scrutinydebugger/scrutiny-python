@@ -18,6 +18,8 @@ fi
 set -x 
 
 python3 -m coverage run --data-file ${COV_DATAFILE} -m scrutiny runtest
-python3 -m mypy scrutiny    # .mypy.ini dictacte the rules
+
+qt_mypy_args=$(QT_API=pyside6 python3 -m qtpy mypy-args) # For some reason, these options are not working in mypy.ini
+python3 -m mypy scrutiny  $qt_mypy_args    # .mypy.ini dictacte the rules
 python3 -m coverage report --data-file ${COV_DATAFILE}
 python3 -m coverage html --data-file ${COV_DATAFILE} -d $HTML_COVDIR

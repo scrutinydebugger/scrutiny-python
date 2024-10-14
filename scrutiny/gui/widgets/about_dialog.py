@@ -6,16 +6,17 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
-from qtpy.QtWidgets import QDialog, QFormLayout, QLabel
+from qtpy.QtWidgets import QDialog, QFormLayout, QLabel, QWidget
 import qtpy
 import qtpy.QtCore
 import sys
+from typing import Optional
 
 import scrutiny
 
 class AboutDialog(QDialog):
-    def __init__(self, *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
+    def __init__(self, parent:Optional[QWidget] = None) -> None:
+        super().__init__(parent) 
 
         self.setWindowTitle("About this software")
         
@@ -31,7 +32,7 @@ class AboutDialog(QDialog):
 
         if qtpy.PYQT4 or qtpy.PYQT5 or qtpy.PYQT6:
             fields.append(
-                ("PyQT version", qtpy.QtCore.PYQT_VERSION_STR)
+                ("PyQT version", qtpy.QtCore.PYQT_VERSION_STR)  # type: ignore
             )
         elif qtpy.PYSIDE6:
             version_str = "unknown"

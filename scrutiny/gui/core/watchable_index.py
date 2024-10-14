@@ -102,7 +102,7 @@ class WatchableIndexNodeContent:
 class WatchableIndex:
     """Contains a copy of the watchable list available on the server side
     Act as a relay to dispatch value update event to the internal widgets"""
-    _trees:  Dict[str, Any]
+    _trees:  Dict[sdk.WatchableType, Any]
     _lock:threading.Lock
     _watched_entries:Dict[str, WatchableEntry] 
     _global_watch_callbacks:Optional[GlobalWatchCallback]

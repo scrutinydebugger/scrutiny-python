@@ -15,7 +15,8 @@ class ValidableLineEdit(QLineEdit):
         self._hard_validator = hard_validator
         self._soft_validator = soft_validator
 
-        self.setValidator(hard_validator)
+        if hard_validator is not None:
+            self.setValidator(hard_validator)
     
 
     def default_style(self) -> None:

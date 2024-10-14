@@ -28,5 +28,5 @@ def load_text(name:Union[str, List[str]]) -> str:
 def logo_icon() -> Path:
     return get('scrutiny-logo-square-64x64.png')
 
-def load_pixmap(name) -> QPixmap:
+def load_pixmap(name:str) -> QPixmap:
     return QPixmap(str(get(name)))

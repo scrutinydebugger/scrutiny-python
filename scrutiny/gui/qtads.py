@@ -13,10 +13,10 @@ __all__ = ['QtAds']
 
 available = True
 try: 
-    from PyQtAds import ads as QtAds
+    from PyQtAds import ads as QtAds    # type: ignore
 except ImportError:
     try:
-        import PySide6QtAds as QtAds
+        import PySide6QtAds as QtAds    # type: ignore
     except ImportError:
         available = False
 

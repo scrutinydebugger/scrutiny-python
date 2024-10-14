@@ -9,8 +9,9 @@
 __all__ = ['Sidebar']
 
 
-from qtpy.QtWidgets import QWidget,  QToolBar,  QAction, QToolButton, QSizePolicy
+from qtpy.QtWidgets import QWidget,  QToolBar,  QToolButton, QSizePolicy
 from qtpy.QtCore import Qt, QSize, Signal, QEvent
+from qtpy.QtGui import QAction
 from scrutiny.gui.dashboard_components.base_component import ScrutinyGUIBaseComponent
 import functools
 

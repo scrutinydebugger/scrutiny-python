@@ -3,10 +3,10 @@ __all__ = ['IpPortValidator', 'NotEmptyValidator']
 from qtpy.QtGui import  QValidator
 from qtpy.QtWidgets import  QWidget
 
-from typing import Optional
+from typing import Optional, Tuple
 
 class IpPortValidator(QValidator):
-    def validate(self, val:str, pos:int):
+    def validate(self, val:str, pos:int) -> Tuple[QValidator.State, str, int]:
         port_valid = True
         
         if len(val) == 0:
@@ -29,7 +29,8 @@ class NotEmptyValidator(QValidator):
     def __init__(self, empty_state:QValidator.State=QValidator.State.Intermediate, parent:Optional[QWidget] = None) -> None:
         super().__init__(parent)
         self._empty_state = empty_state
-    def validate(self, val:str, pos:int):
+
+    def validate(self, val:str, pos:int) -> Tuple[QValidator.State, str, int]:
         if isinstance(val, str):
             if len(val) == 0:
                 return (self._empty_state, val, pos)

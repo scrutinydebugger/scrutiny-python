@@ -1,5 +1,8 @@
-from qtpy.QtWidgets import QMenuBar, QAction
-from scrutiny.gui.core.server_manager import ServerManager
+__all__ = ['MenuBar']
+from qtpy.QtWidgets import QMenuBar
+from qtpy.QtGui import QAction
+
+from typing import cast
 
 class Actions:
     dashboard_open: QAction
@@ -16,25 +19,25 @@ class Actions:
     info_about: QAction
 
 class MenuBar(QMenuBar):
-    actions:Actions
+    buttons:Actions
     
     def __init__(self, ) -> None:
         super().__init__()
-        self.actions = Actions()
+        self.buttons = Actions()
        
         dashboard_menu = self.addMenu('Dashboard')
-        self.actions.dashboard_open = dashboard_menu.addAction("Open")
-        self.actions.dashboard_save = dashboard_menu.addAction("Save")
-        self.actions.dashboard_close = dashboard_menu.addAction("Clear")
+        self.buttons.dashboard_open = dashboard_menu.addAction("Open")
+        self.buttons.dashboard_save = dashboard_menu.addAction("Save")
+        self.buttons.dashboard_close = dashboard_menu.addAction("Clear")
 
-        server_menu = self.addMenu('Server')
-        self.actions.server_configure = server_menu.addAction("Configure")
-        self.actions.server_connect = server_menu.addAction("Connect")
-        self.actions.server_disconnect = server_menu.addAction("Disconnect")
-        self.actions.server_launch_local = server_menu.addAction("Launch local")
+        server_menu =  self.addMenu('Server')
+        self.buttons.server_configure = server_menu.addAction("Configure")
+        self.buttons.server_connect = server_menu.addAction("Connect")
+        self.buttons.server_disconnect = server_menu.addAction("Disconnect")
+        self.buttons.server_launch_local = server_menu.addAction("Launch local")
 
-        server_menu = self.addMenu('Device')
-        self.actions.device_configure = server_menu.addAction("Configure")
+        server_menu =  self.addMenu('Device')
+        self.buttons.device_configure = server_menu.addAction("Configure")
 
-        info_menu = self.addMenu("Info")
-        self.actions.info_about = info_menu.addAction("About this software")
+        info_menu =  self.addMenu("Info")
+        self.buttons.info_about = info_menu.addAction("About this software")

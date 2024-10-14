@@ -50,7 +50,7 @@ class ServerManager:
             self.connect_timestamp_mono = None
             self.clear_download_requests()
         
-        def clear_download_requests(self):
+        def clear_download_requests(self) -> None:
             # RPV request
             req = self.runtime_watchables_download_request  # Get a reference atomically
             if req is not None:
@@ -120,11 +120,12 @@ class ServerManager:
         self._stop_pending = False
 
     def _join_thread_and_emit_stopped(self) -> None:
-        self._thread.join(0.5)    # Should be already dead if that signal came in. Wil join instantly
-        if self._thread.is_alive():
-            self._logger.error("Failed to stop the internal thread")
-        else:
-            self._logger.debug("Server manager stopped")
+        if self._thread is not None:    # Should always be true
+            self._thread.join(0.5)    # Should be already dead if that signal came in. Wil join instantly
+            if self._thread.is_alive():
+                self._logger.error("Failed to stop the internal thread")
+            else:
+                self._logger.debug("Server manager stopped")
         self._thread = None
         self._stop_pending = False
         self.signals.stopped.emit()
@@ -328,7 +329,9 @@ class ServerManager:
 
     def _thread_handle_download_watchable_logic(self) -> None:
         # Handle download of RPV if the device is ready
-        device_ready = self._fsm_data.server_info.device_session_id is not None
+        device_ready = False
+        if self._fsm_data.server_info is not None:
+            device_ready = self._fsm_data.server_info.device_session_id is not None
         
         if device_ready:
             if self._fsm_data.runtime_watchables_download_request is not None:
@@ -351,7 +354,9 @@ class ServerManager:
 
     
         # Handle the download of variables and alias if the SFD is loaded
-        sfd_loaded = self._fsm_data.server_info.sfd is not None
+        sfd_loaded = False
+        if self._fsm_data.server_info is not None:
+            sfd_loaded = self._fsm_data.server_info.sfd is not None
         if sfd_loaded:
                 if self._fsm_data.sfd_watchables_download_request is not None: 
                     if self._fsm_data.sfd_watchables_download_request.completed:
@@ -440,7 +445,7 @@ class ServerManager:
             self.signals.index_changed.emit()
         return had_data
     
-    def _clear_index_alias_var(self, no_changed_event:bool=False)->None:
+    def _clear_index_alias_var(self, no_changed_event:bool=False) -> bool:
         had_data_alias = self._index.clear_content_by_type(sdk.WatchableType.Alias)
         had_data_var = self._index.clear_content_by_type(sdk.WatchableType.Variable)
         had_data = had_data_var or had_data_alias
@@ -448,7 +453,7 @@ class ServerManager:
             self.signals.index_changed.emit()
         return had_data
     
-    def _clear_index_rpv(self, no_changed_event:bool=False)->None:
+    def _clear_index_rpv(self, no_changed_event:bool=False) -> bool:
         had_data = self._index.clear_content_by_type(sdk.WatchableType.RuntimePublishedValue)
         if had_data and not no_changed_event:
             self.signals.index_changed.emit()
@@ -464,7 +469,9 @@ class ServerManager:
             return None
     
     def is_running(self) -> bool:
+        """Returns ``True`` if the server manager is started and fully working."""
         return self._thread is not None and self._thread.is_alive() and not self._stop_pending
 
     def is_stopping(self) -> bool:
+        """Returns ``True`` if ``stop()`` has been called but the internal thread has not yet exited."""
         return self._stop_pending
