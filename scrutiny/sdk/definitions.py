@@ -19,9 +19,6 @@ from typing import List, Optional, Literal, Union, Dict, get_args, Any
 
 __all__ = [
     'AddressSize',
-    'SerialStopBits',
-    'SerialDataBits',
-    'SerialParity',
     'ServerState',
     'WatchableType',
     'ValueStatus',
@@ -38,19 +35,15 @@ __all__ = [
     'UDPLinkConfig',
     'TCPLinkConfig',
     'SerialLinkConfig',
+    'RTTLinkConfig',
     'SupportedLinkConfig',
     'DeviceLinkInfo',
     'ServerInfo',
     'UserCommandResponse',
-    'WatchableConfiguration',
-    'RTTLinkConfig'
+    'WatchableConfiguration'
 ]
 
 AddressSize = Literal[8, 16, 32, 64, 128]
-SerialStopBits = Literal['1', '1.5', '2']
-SerialDataBits = Literal[5, 6, 7, 8]
-SerialParity = Literal["none", "even", "odd", "mark", "space"]
-
 
 class ServerState(enum.Enum):
     """(Enum) The state of the connection between the client and the server"""
@@ -316,6 +309,7 @@ class TCPLinkConfig(BaseLinkConfig):
 
     def __post_init__(self) -> None:
         validation.assert_int_range(self.port, 'port', 0, 0xFFFF)
+        validation.assert_type(self.host, 'host', str)
 
     def _to_api_format(self) -> Dict[str, Any]:
         return {
@@ -328,31 +322,49 @@ class TCPLinkConfig(BaseLinkConfig):
 class SerialLinkConfig(BaseLinkConfig):
     """(Immutable struct) The configuration structure for a device link of type :attr:`Serial<scrutiny.sdk.DeviceLinkType.Serial>`"""
 
+    class StopBits(enum.Enum):
+        ONE = 1
+        ONE_POINT_FIVE = 1.5
+        TWO = 2
+
+    class DataBits(enum.Enum):
+        FIVE = 5
+        SIX = 6
+        SEVEN = 7
+        EIGHT = 8
+
+    class Parity(enum.Enum):
+        NONE = "none" 
+        EVEN = "even"
+        ODD = "odd"
+        MARK = "mark"
+        SPACE = "space"
+
     port: str
     """Port name on the machine. COMX on Windows. /dev/xxx on posix platforms"""
     baudrate: int
     """Communication speed in baud/sec"""
-    stopbits: SerialStopBits = '1'
+    stopbits: StopBits = StopBits.ONE
     """Number of stop bits. 1, 1.5, 2"""
-    databits: SerialDataBits = 8
+    databits: DataBits = DataBits.EIGHT
     """Number of data bits. 5, 6, 7, 8"""
-    parity: SerialParity = 'none'
+    parity: Parity = Parity.NONE
     """Serial communication parity bits"""
 
     def __post_init__(self) -> None:
         validation.assert_type(self.port, 'port', str)
-        validation.assert_int_range(self.baudrate, 'baudrate', 1)
-        validation.assert_val_in(self.stopbits, 'stopbits', get_args(SerialStopBits))
-        validation.assert_val_in(self.databits, 'databits', get_args(SerialDataBits))
-        validation.assert_val_in(self.parity, 'databits', get_args(SerialParity))
+        validation.assert_int_range(self.baudrate, 'baudrate', minval=1)
+        validation.assert_type(self.stopbits, 'stopbits', self.StopBits)
+        validation.assert_type(self.databits, 'databits', self.DataBits)
+        validation.assert_type(self.parity, 'parity', self.Parity)
 
     def _to_api_format(self) -> Dict[str, Any]:
         return {
             'port': self.port,
             'baudrate': self.baudrate,
-            'stopbits': self.stopbits,
-            'databits': self.databits,
-            'parity': self.parity,
+            'stopbits': str(self.stopbits.value),
+            'databits': self.databits.value,
+            'parity': self.parity.value,
         }
 
 

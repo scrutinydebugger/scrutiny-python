@@ -58,7 +58,7 @@ class SerialLink(AbstractLink):
         '1': serial.STOPBITS_ONE,
         '1.5': serial.STOPBITS_ONE_POINT_FIVE,
         '2': serial.STOPBITS_TWO
-    }
+    }   
 
     INT_TO_DATABITS: Dict[int, int] = {
         5: serial.FIVEBITS,

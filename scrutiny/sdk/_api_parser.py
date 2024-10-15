@@ -465,24 +465,46 @@ def parse_inform_server_status(response: api_typing.S2C.InformServerStatus) -> s
         _check_response_dict(cmd, response, 'device_comm_link.link_config.databits', int)
         _check_response_dict(cmd, response, 'device_comm_link.link_config.parity', str)
 
+        STOPBIT_TO_SDK = {
+            '1' : sdk.SerialLinkConfig.StopBits.ONE,
+            '1.5' : sdk.SerialLinkConfig.StopBits.ONE_POINT_FIVE,
+            '2' : sdk.SerialLinkConfig.StopBits.TWO
+        }
+
+        PARITY_TO_SDK = {
+            'none' : sdk.SerialLinkConfig.Parity.NONE,
+            'even' : sdk.SerialLinkConfig.Parity.EVEN,
+            'odd' : sdk.SerialLinkConfig.Parity.ODD,
+            'mark' : sdk.SerialLinkConfig.Parity.MARK,
+            'space' : sdk.SerialLinkConfig.Parity.SPACE
+        }
+
+        DATABITS_TO_SDK = {
+            5 : sdk.SerialLinkConfig.DataBits.FIVE,
+            6 : sdk.SerialLinkConfig.DataBits.SIX,
+            7 : sdk.SerialLinkConfig.DataBits.SEVEN,
+            8 : sdk.SerialLinkConfig.DataBits.EIGHT,
+        }
+
         api_stopbits = serial_config['stopbits']
-        if api_stopbits not in ('1', '1.5', '2'):
+        if api_stopbits not in STOPBIT_TO_SDK:
             raise sdk.exceptions.BadResponseError(f'Unsupported stop bit value "{api_stopbits}" in message {cmd}')
 
         api_parity = serial_config['parity']
-        if api_parity not in ('none', 'even', 'odd', 'mark', 'space'):
+        if api_parity not in PARITY_TO_SDK:
             raise sdk.exceptions.BadResponseError(f'Unsupported parity value "{api_parity}" in message {cmd}')
 
         api_databits = serial_config['databits']
-        if api_databits not in (5, 6, 7, 8):
+        if api_databits not in DATABITS_TO_SDK:
             raise sdk.exceptions.BadResponseError(f'Unsupported number of databits value "{api_databits}" in message {cmd}')
+
 
         link_config = sdk.SerialLinkConfig(
             port=serial_config['portname'],
             baudrate=serial_config['baudrate'],
-            stopbits=cast(sdk.SerialStopBits, api_stopbits),
-            parity=cast(sdk.SerialParity, api_parity),
-            databits=cast(sdk.SerialDataBits, api_databits)
+            stopbits=STOPBIT_TO_SDK[api_stopbits],
+            parity=PARITY_TO_SDK[api_parity],
+            databits=DATABITS_TO_SDK[api_databits]
         )
     else:
         raise RuntimeError('Unsupported device link type "{link_type}"')

@@ -30,3 +30,4 @@ def logo_icon() -> Path:
 
 def load_pixmap(name:str) -> QPixmap:
     return QPixmap(str(get(name)))
+
