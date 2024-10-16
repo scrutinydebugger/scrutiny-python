@@ -28,9 +28,9 @@ class ServerConfigDialog(QDialog):
     _hostname_textbox:ValidableLineEdit
     _port_textbox:ValidableLineEdit
 
-    _apply_callback:Optional[Callable[[], None]]
+    _apply_callback:Optional[Callable[["ServerConfigDialog"], None]]
 
-    def __init__(self, parent:QWidget, apply_callback:Optional[Callable[[], None]]=None) -> None:
+    def __init__(self, parent:QWidget, apply_callback:Optional[Callable[["ServerConfigDialog"], None]]=None) -> None:
         super().__init__(parent)
         self.setWindowFlags(Qt.WindowType.WindowCloseButtonHint | Qt.WindowType.WindowTitleHint | Qt.WindowType.Dialog)
         self.setModal(True)
@@ -96,7 +96,7 @@ class ServerConfigDialog(QDialog):
             self._port = int(self._port_textbox.text()) # Validator is supposed to guarantee the validity of this
             self.close()
             if self._apply_callback is not None:
-                self._apply_callback()
+                self._apply_callback(self)
 
     def _btn_cancel_click(self) -> None:
         self.reset()

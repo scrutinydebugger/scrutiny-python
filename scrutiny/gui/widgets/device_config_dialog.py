@@ -1,12 +1,11 @@
 
-from qtpy.QtWidgets import QDialog, QWidget, QComboBox, QVBoxLayout, QDialogButtonBox,QFormLayout, QLabel, QLineEdit
+from qtpy.QtWidgets import QDialog, QWidget, QComboBox, QVBoxLayout, QDialogButtonBox,QFormLayout, QLabel
 from qtpy.QtGui import QIntValidator
 from qtpy.QtCore import Qt
 from scrutiny import sdk
 from scrutiny.gui.widgets.validable_line_edit import ValidableLineEdit
 from scrutiny.gui.tools.validators import IpPortValidator, NotEmptyValidator
-import abc
-from typing import Optional, Dict, Union, Type, cast
+from typing import Optional, Dict, Union, Type, cast, Callable, Tuple
 import logging
 import traceback
 
@@ -21,7 +20,7 @@ class BaseConfigPane(QWidget):
     
     def visual_validation(self) -> None:
         pass
-
+    
     @classmethod
     def make_config_valid(self, config:Optional[sdk.BaseLinkConfig]) -> Optional[sdk.BaseLinkConfig]:
         return config
@@ -78,6 +77,7 @@ class IPConfigPane(BaseConfigPane):
         self._hostname_textbox.setText(hostname)
 
     def visual_validation(self) -> None:
+        #Called when OK is clicked
         self._port_textbox.validate_expect_valid()
         self._hostname_textbox.validate_expect_valid()
 
@@ -239,9 +239,66 @@ class SerialConfigPane(BaseConfigPane):
         )
     
     def visual_validation(self) -> None:
+        #Called when OK is clicked
         self._port_name_textbox.validate_expect_valid()
         self._baudrate_textbox.validate_expect_valid()
 
+class RTTConfigPane(BaseConfigPane):
+    _target_device_text_box:ValidableLineEdit
+    _jlink_interface_combo_box:QComboBox
+
+    def __init__(self, parent:Optional[QWidget]=None) -> None:
+        super().__init__(parent)
+
+        layout = QFormLayout(self)
+        
+        self._target_device_text_box = ValidableLineEdit(soft_validator=NotEmptyValidator())
+        self._jlink_interface_combo_box = QComboBox()
+
+        self._jlink_interface_combo_box.addItem("SWD", sdk.RTTLinkConfig.JLinkInterface.SWD)
+        self._jlink_interface_combo_box.addItem("JTAG", sdk.RTTLinkConfig.JLinkInterface.JTAG)
+        self._jlink_interface_combo_box.addItem("ICSP", sdk.RTTLinkConfig.JLinkInterface.ICSP)
+        self._jlink_interface_combo_box.addItem("FINE", sdk.RTTLinkConfig.JLinkInterface.FINE)
+        self._jlink_interface_combo_box.addItem("SPI", sdk.RTTLinkConfig.JLinkInterface.SPI)
+        self._jlink_interface_combo_box.addItem("C2", sdk.RTTLinkConfig.JLinkInterface.C2)
+
+        layout.addRow(QLabel("Interface: "), self._jlink_interface_combo_box)
+        layout.addRow(QLabel("Target Device: "), self._target_device_text_box)
+
+        # Make sure the red background disappear when we type (fixing the invalid content)
+        self._target_device_text_box.textChanged.connect(self._target_device_text_box.validate_expect_not_wrong)
+
+    def get_config(self) -> Optional[sdk.RTTLinkConfig]:
+        target_device = self._target_device_text_box.text()
+        interface = cast(sdk.RTTLinkConfig.JLinkInterface, self._jlink_interface_combo_box.currentData())
+        
+        if len(target_device) == 0:
+            return None
+        
+        return sdk.RTTLinkConfig(
+            target_device=target_device,
+            jlink_interface=interface
+        )
+
+    def load_config(self, config:Optional[sdk.BaseLinkConfig]) -> None:
+        config = self.make_config_valid(config)
+        assert isinstance(config, sdk.RTTLinkConfig)
+
+        self._target_device_text_box.setText(config.target_device)
+        self._jlink_interface_combo_box.setCurrentIndex(self._jlink_interface_combo_box.findData(config.jlink_interface))
+        
+    @classmethod
+    def make_config_valid(self, config:Optional[sdk.BaseLinkConfig]) -> Optional[sdk.BaseLinkConfig]:
+        assert isinstance(config, sdk.RTTLinkConfig)
+        return sdk.RTTLinkConfig(
+            target_device = "<device>" if len(config.target_device) else config.target_device,
+            jlink_interface = config.jlink_interface
+        )
+    
+    def visual_validation(self) -> None:
+        #Called when OK is clicked
+        self._target_device_text_box.validate_expect_valid()
+        
 
 class DeviceConfigDialog(QDialog):
 
@@ -249,18 +306,23 @@ class DeviceConfigDialog(QDialog):
         sdk.DeviceLinkType.NA: NoConfigPane,
         sdk.DeviceLinkType.TCP: TCPConfigPane,
         sdk.DeviceLinkType.UDP: UDPConfigPane,
-        sdk.DeviceLinkType.Serial: SerialConfigPane
+        sdk.DeviceLinkType.Serial: SerialConfigPane,
+        sdk.DeviceLinkType.RTT: RTTConfigPane
     }
 
     _link_type_combo_box:QComboBox
     _config_container:QWidget
     _configs:Dict[sdk.DeviceLinkType, SUPPORTED_CONFIGS]
     _active_pane:Optional[BaseConfigPane]
+    _apply_callback:Optional[Callable[["DeviceConfigDialog"], None]]
 
-    def __init__(self, parent:Optional[QWidget]=None) -> None:
+    def __init__(self, parent:Optional[QWidget]=None,  apply_callback:Optional[Callable[["DeviceConfigDialog"], None]]=None ) -> None:
         super().__init__(parent)
+        self._apply_callback = apply_callback
         self.logger = logging.getLogger(self.__class__.__name__)
+        self.setMinimumWidth(250)
         vlayout = QVBoxLayout(self)
+        # Combobox at the top
         self._link_type_combo_box = QComboBox()
         self._link_type_combo_box.addItem("None", sdk.DeviceLinkType.NA)
         self._link_type_combo_box.addItem("Serial", sdk.DeviceLinkType.Serial)
@@ -279,41 +341,26 @@ class DeviceConfigDialog(QDialog):
         vlayout.addWidget(buttons)
 
         self._configs = {}
-
+        # Preload some default configs to avoid having a blank form
         self._configs[sdk.DeviceLinkType.NA] = None
-        self._configs[sdk.DeviceLinkType.UDP] = sdk.UDPLinkConfig(host="localhost", port=8765)
-        self._configs[sdk.DeviceLinkType.TCP] = sdk.TCPLinkConfig(host="localhost", port=8765)
+        self._configs[sdk.DeviceLinkType.UDP] = sdk.UDPLinkConfig(host="localhost", port=12345)
+        self._configs[sdk.DeviceLinkType.TCP] = sdk.TCPLinkConfig(host="localhost", port=12345)
         self._configs[sdk.DeviceLinkType.Serial] = sdk.SerialLinkConfig(port="<port>", baudrate=115200) # Rest has default values
+        self._configs[sdk.DeviceLinkType.RTT] = sdk.RTTLinkConfig(target_device="<device>", jlink_interface=sdk.RTTLinkConfig.JLinkInterface.SWD)
 
         self._link_type_combo_box.currentIndexChanged.connect(self._combobox_changed)
         self._active_pane = None
         self.swap_config_pane(sdk.DeviceLinkType.NA)
-        
-    def set_config(self, link_type:sdk.DeviceLinkType, config:SUPPORTED_CONFIGS ) -> None:
-        if link_type not in self._configs:
-            raise ValueError("Unsupported config type")
-        
-        try:
-            config = cast(SUPPORTED_CONFIGS, self.CONFIG_TYPE_TO_WIDGET[link_type].make_config_valid(config))
-            self._configs[link_type] = config
-        except Exception as e:
-            self.logger.warning(f"Tried to load an invalid config. {e}")
-            self.logger.debug(traceback.format_exc())
-    
+            
     def _get_selected_link_type(self) -> sdk.DeviceLinkType:
         return cast(sdk.DeviceLinkType, self._link_type_combo_box.currentData())
         
-    def swap_config_pane(self, link_type:sdk.DeviceLinkType) -> None:
-        combobox_index = self._link_type_combo_box.findData(link_type)
-        if combobox_index < 0:
-            raise ValueError(f"Given link type not in the combobox {link_type}")
-        self._link_type_combo_box.setCurrentIndex(combobox_index)
-
     def _combobox_changed(self) -> None:
         link_type = self._get_selected_link_type()
         self._rebuild_config_layout(link_type)
 
     def _rebuild_config_layout(self, link_type:sdk.DeviceLinkType) -> None:
+        """Change the variable part of the dialog based on the type of link the user wants."""
         config = self._configs[link_type]
         layout = self._config_container.layout()
 
@@ -321,12 +368,12 @@ class DeviceConfigDialog(QDialog):
             if isinstance(pane, BaseConfigPane):
                 layout.removeWidget(pane)
 
-        self._active_pane = self.CONFIG_TYPE_TO_WIDGET[link_type]()
+        # Create an instance of the pane associated with the link type
+        self._active_pane = self.CONFIG_TYPE_TO_WIDGET[link_type]() 
         layout.addWidget(self._active_pane)
-        self._config_container
 
         try:
-            self._active_pane.make_config_valid(config)
+            config = self._active_pane.make_config_valid(config)
             self._active_pane.load_config(config)
         except Exception as e:
             self.logger.warning(f"Tried to apply an invalid config to the window. {e}")
@@ -342,9 +389,39 @@ class DeviceConfigDialog(QDialog):
             self._configs[link_type] = cast(SUPPORTED_CONFIGS, config)
             self.close()
 
+            if self._apply_callback is not None:
+                self._apply_callback(self)
+
     def _btn_cancel_click(self) -> None:
         assert self._active_pane is not None
         # Reload to the UI the config that is saved
         config = self._configs[self._get_selected_link_type()]
         self._active_pane.load_config(config)   # Should not raise. This config was there before.
         self.close()
+
+
+    def set_config(self, link_type:sdk.DeviceLinkType, config:SUPPORTED_CONFIGS ) -> None:
+        """Set the config for a given link type. 
+        This config will be displayed when the user select the given link type"""
+        if link_type not in self._configs:
+            raise ValueError("Unsupported config type")
+        
+        try:
+            config = cast(SUPPORTED_CONFIGS, self.CONFIG_TYPE_TO_WIDGET[link_type].make_config_valid(config))
+            self._configs[link_type] = config
+        except Exception as e:
+            self.logger.warning(f"Tried to load an invalid config. {e}")
+            self.logger.debug(traceback.format_exc())
+
+    def get_type_and_config(self) -> Tuple[sdk.DeviceLinkType, Optional[sdk.BaseLinkConfig]]:
+        """Return the device link configuration selected by the user"""
+        link_type = self._get_selected_link_type()
+        config = self._active_pane.get_config()
+        return (link_type, config)
+
+    def swap_config_pane(self, link_type:sdk.DeviceLinkType) -> None:
+        """Reconfigure the dialog for a new device type. Change the combo box value + reconfigure the variable part"""
+        combobox_index = self._link_type_combo_box.findData(link_type)
+        if combobox_index < 0:
+            raise ValueError(f"Given link type not in the combobox {link_type}")
+        self._link_type_combo_box.setCurrentIndex(combobox_index)   # Will trgger "currentIndexChanged"

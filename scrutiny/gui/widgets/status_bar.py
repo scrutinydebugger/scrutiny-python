@@ -1,12 +1,13 @@
 from qtpy.QtWidgets import QStatusBar, QWidget, QLabel, QHBoxLayout, QSizePolicy, QPushButton, QToolBar, QMenu
 from qtpy.QtGui import QPixmap, QAction
 from qtpy.QtCore import Qt, QPoint
-from scrutiny.gui.core.server_manager import ServerManager, ServerConfig
+from scrutiny.gui.core.server_manager import ServerManager
 from scrutiny.gui.widgets.server_config_dialog import ServerConfigDialog
+from scrutiny.gui.widgets.device_config_dialog import DeviceConfigDialog
 from scrutiny.gui import assets
-from scrutiny.sdk import ServerState, DeviceCommState, SFDInfo, DataloggingInfo, DataloggerState
+from scrutiny.sdk import ServerState, DeviceCommState, SFDInfo, DataloggingInfo, DataloggerState, DeviceLinkType
 import enum
-from typing import Optional, Dict, Generic, TypeVar, cast, Union, Callable
+from typing import Optional, Dict, cast, Union
 
 class ServerLabelValue(enum.Enum):
     Disconnected = enum.auto()
@@ -114,11 +115,17 @@ class StatusBar(QStatusBar):
     _device_status_label:IndicatorLabel
     _sfd_status_label:QLabel
     _datalogger_status_label:QLabel
-    _connect_disconnect_menu:QMenu
+    
+    _server_status_label_menu:QMenu
     _server_configure_action: QAction
     _server_connect_action: QAction
     _server_disconnect_action: QAction
     _server_config_dialog:ServerConfigDialog
+    
+    _device_status_label_menu:QMenu
+    _device_configure_action:QAction
+    _device_about_action:QAction
+    _device_config_dialog:DeviceConfigDialog
 
     _red_square:QPixmap
     _yellow_square:QPixmap
@@ -129,6 +136,7 @@ class StatusBar(QStatusBar):
         super().__init__(parent)
         self._server_manager=server_manager
         self._server_config_dialog = ServerConfigDialog(self, apply_callback=self._server_config_applied)
+        self._device_config_dialog = DeviceConfigDialog(self, apply_callback=self._device_config_applied)
         self._one_shot_auto_connect = False
 
         self._server_status_label = IndicatorLabel("", color=IndicatorLabel.Color.RED, label_type=IndicatorLabel.TextLabel.TOOLBAR)
@@ -136,17 +144,23 @@ class StatusBar(QStatusBar):
         self._sfd_status_label = QLabel("")
         self._datalogger_status_label = QLabel("")
 
-        self._connect_disconnect_menu = QMenu()
-        self._server_configure_action = self._connect_disconnect_menu.addAction("Configure")
-        self._server_connect_action = self._connect_disconnect_menu.addAction("Connect")
-        self._server_disconnect_action = self._connect_disconnect_menu.addAction("Disconnect")
+        self._server_status_label_menu = QMenu()
+        self._server_configure_action = self._server_status_label_menu.addAction("Configure")
+        self._server_connect_action = self._server_status_label_menu.addAction("Connect")
+        self._server_disconnect_action = self._server_status_label_menu.addAction("Disconnect")
 
-        self._server_status_label.add_menu(self._connect_disconnect_menu)
+        self._server_status_label.add_menu(self._server_status_label_menu)
+        self._server_configure_action.triggered.connect(self._server_configure_func)
+        self._server_connect_action.triggered.connect(self._server_connect_func)
+        self._server_disconnect_action.triggered.connect(self._server_disconnect_func)
 
-        self._server_configure_action.triggered.connect(self._configure_func)
-        self._server_connect_action.triggered.connect(self._connect_func)
-        self._server_disconnect_action.triggered.connect(self._disconnect_func)
+        self._device_status_label_menu = QMenu()
+        self._device_configure_action = self._device_status_label_menu.addAction("Configure")
+        self._device_about_action = self._device_status_label_menu.addAction("About")
 
+        self._device_status_label.add_menu(self._device_status_label_menu)
+        self._device_configure_action.triggered.connect(self._device_configure_func)
+        self._device_about_action.triggered.connect(self._device_about_func)
 
         self.setContentsMargins(5,0,5,0)    
         self.addWidget(self._server_status_label)
@@ -177,29 +191,47 @@ class StatusBar(QStatusBar):
 
         self.update_content()
 
-    def _configure_func(self) -> None:
+    def _server_configure_func(self) -> None:
         self._server_config_dialog.show()
 
-    def _connect_func(self) -> None:
+    def _server_connect_func(self) -> None:
         self._server_manager.start(self._server_config_dialog.get_config())
     
-    def _disconnect_func(self) -> None:
+    def _server_disconnect_func(self) -> None:
         self._server_manager.stop()
 
-    def _server_config_applied(self) -> None:
+    def _server_config_applied(self, dialog:ServerConfigDialog) -> None:
         if self._server_manager.is_running():
             self._one_shot_auto_connect = True
             self._server_manager.stop()
 
         elif not self._server_manager.is_stopping():
-            self._connect_func()
+            self._server_connect_func()
     
     def _one_shot_reconnect(self) -> None:
         if self._one_shot_auto_connect:
             self._one_shot_auto_connect=False
-            self._connect_func()
-            
+            self._server_connect_func()
+    
+    def _device_configure_func(self) -> None:
+        info = self._server_manager.get_server_info()
+        if info is None:
+            self._device_config_dialog.swap_config_pane(DeviceLinkType.NA)
+        else:
+            self._device_config_dialog.set_config(info.device_link.type, info.device_link.config)
+            self._device_config_dialog.swap_config_pane(info.device_link.type)
 
+        self._device_config_dialog.show()
+
+    def _device_about_func(self) -> None:
+        pass
+
+    def _device_config_applied(self, dialog:DeviceConfigDialog) -> None:
+        link_type, config = dialog.get_type_and_config()
+        # TODO : Check if it is ok to use across thread.
+        # self._server_manager._client.configure_device_link(link_type, config)
+        # TODO
+        
     def set_server_label_value(self, value:ServerLabelValue) -> None:
         prefix = 'Server:'
         if value == ServerLabelValue.Disconnected :
@@ -237,7 +269,7 @@ class StatusBar(QStatusBar):
             self._device_status_label.setEnabled(True)
         else:
             raise NotImplementedError(f"Unsupported device comm state value {value}")
-        
+
     def set_sfd_label(self, device_connected:bool, value:Optional[SFDInfo]) -> None:
         prefix = 'SFD:'
         if value is None:
@@ -282,30 +314,37 @@ class StatusBar(QStatusBar):
 
     def update_content(self) -> None:
         if not self._server_manager.is_running():
+            self._device_configure_action.setEnabled(False)
+            self._device_about_action.setEnabled(False)
+
             if self._server_manager.is_stopping():
-                self._server_disconnect_action.setDisabled(True)
-                self._server_connect_action.setDisabled(True)
+                self._server_disconnect_action.setEnabled(False)
+                self._server_connect_action.setEnabled(False)
                 self.set_server_label_value(ServerLabelValue.Disconnecting)
             else:
+                self._server_disconnect_action.setEnabled(False)
+                self._server_connect_action.setEnabled(True)
                 self.set_server_label_value(ServerLabelValue.Disconnected)
-                self._server_disconnect_action.setDisabled(True)
-                self._server_connect_action.setDisabled(False)
             self.set_device_label(DeviceCommState.NA)
             self.set_sfd_label(device_connected=False, value=None)
             self.set_datalogging_label(DataloggingInfo(state=DataloggerState.NA, completion_ratio=None))
         else:
-            self._server_disconnect_action.setDisabled(False)
-            self._server_connect_action.setDisabled(True)
+            self._server_disconnect_action.setEnabled(True)
+            self._server_connect_action.setEnabled(False)
+            
             server_state = self._server_manager.get_server_state()
             server_info = None
 
             if server_state == ServerState.Connected:
+                self._device_configure_action.setEnabled(True)
                 self.set_server_label_value(ServerLabelValue.Connected)
                 server_info = self._server_manager.get_server_info()
             else:
+                self._device_configure_action.setEnabled(False)
                 self.set_server_label_value(ServerLabelValue.Waiting)
         
             if server_info is None:
+                self._device_about_action.setEnabled(False)
                 self.set_device_label(DeviceCommState.NA)
                 self.set_sfd_label(device_connected=False, value=None)
                 self.set_datalogging_label(DataloggingInfo(state=DataloggerState.NA, completion_ratio=None))
@@ -313,4 +352,5 @@ class StatusBar(QStatusBar):
                 self.set_device_label(server_info.device_comm_state)
                 self.set_sfd_label(device_connected=server_info.device_comm_state == DeviceCommState.ConnectedReady, value=server_info.sfd)
                 self.set_datalogging_label(server_info.datalogging)
+                self._device_about_action.setEnabled(server_info.device_comm_state == DeviceCommState.ConnectedReady)
                         
