@@ -140,3 +140,6 @@ class FakeSDKClient:
     def get_download_watchable_list_function_calls(self) -> List[DownloadWatchableListFunctionCall]:
         """For unit test only. """
         return list(self._pending_download_requests.values())
+
+    def close_socket(self):
+        pass

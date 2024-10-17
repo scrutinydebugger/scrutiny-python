@@ -768,7 +768,7 @@ class ScrutinyClient:
             self._last_device_session_id = None
             self._last_sfd_firmware_id = None
 
-    def _cancel_connection(self) -> None:
+    def close_socket(self) -> None:
         """Forcefully attempt to close a socket to cancel any pending connection"""
         # Does not respect _sock_lock on purpose.
         try:
@@ -782,7 +782,7 @@ class ScrutinyClient:
         """Disconnect from a Scrutiny server, called by the Worker Thread .
             Does not throw an exception in case of broken pipe
         """
-        self._cancel_connection()
+        self.close_socket()
 
         with self._sock_lock:
             if self._sock is not None:
@@ -1077,7 +1077,7 @@ class ScrutinyClient:
             self._wt_disconnect()  # Can call safely from this thread
             return
         
-        self._cancel_connection()
+        self.close_socket()
         self._threading_events.disconnected.clear()
         self._threading_events.disconnect.set()
         self._threading_events.disconnected.wait(timeout=2)  # Timeout avoid race condition if the thread was exiting

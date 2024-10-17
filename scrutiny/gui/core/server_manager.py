@@ -16,8 +16,8 @@ import time
 import traceback
 from dataclasses import dataclass
 
-from qtpy.QtCore import Signal, QObject
-from typing import Optional, Dict
+from qtpy.QtCore import Signal, QObject, SignalInstance
+from typing import Optional, Dict, Any, Callable
 import logging
 
 from scrutiny.gui.core.watchable_index import WatchableIndex
@@ -171,22 +171,18 @@ class ServerManager:
         """Stops the server manager. Will disconnect it from the server and clear all internal data"""
         self._logger.debug("ServerManager.stop() called")
         if self._stop_pending:
-            raise RuntimeError("Stop already pending")  # Temporary hard check for debug
+            self._logger.debug("Stop already pending. Cannot stop")
+            return
         
         if not self.is_running():
+            self._logger.debug("Server manager is not running. Cannot stop")
             return 
         
         self._stop_pending = True
         self._logger.debug("Stopping server manager")
         self.signals.stopping.emit()
         self._auto_reconnect = False
-        self._client._cancel_connection()   # Will cancel any pending request in the other thread
-
-        # Ensure the server thread has the time to notice the changes and emit all signals
-        t = time.perf_counter()
-        timeout = 1
-        while self._fsm_data.server_state != sdk.ServerState.Disconnected and time.perf_counter() - t < timeout:
-            time.sleep(0.01)
+        self._client.close_socket()   # Will cancel any pending request in the other thread
         
         # Will cause the thread to exit and emit thread_exit_signal that triggers _join_thread_and_emit_stopped in the UI thread
         self._thread_stop_event.set()
@@ -204,6 +200,8 @@ class ServerManager:
             while not self._thread_stop_event.is_set():
                 self._fsm_data.server_state = self._client.server_state
                 state_entry = self._fsm_data.server_state != self._fsm_data.previous_server_state
+                if state_entry:
+                    self._logger.debug(f"Switching state from {self._fsm_data.previous_server_state.name} to {self._fsm_data.server_state.name}")
                 
                 if self._fsm_data.server_state == sdk.ServerState.Disconnected:
                     if state_entry: # Will not enter on first loop. On purpose.
@@ -315,8 +313,6 @@ class ServerManager:
                     if self._fsm_data.previous_server_state == sdk.ServerState.Connected:
                         self._signals.server_disconnected.emit()
                     self._auto_reconnect = False
-                    self._client.disconnect()
-                    self._fsm_data.clear_download_requests()
                     self._thread_stop_event.set()
 
                 self._fsm_data.previous_server_state = self._fsm_data.server_state
@@ -327,9 +323,17 @@ class ServerManager:
             self._logger.debug(traceback.format_exc())
         finally:
             self._client.disconnect()
-
+            if self._fsm_data.previous_server_state == sdk.ServerState.Connected:
+                self._signals.server_disconnected.emit()
         
         self._fsm_data.clear()
+        
+        # Ensure the server thread has the time to notice the changes and emit all signals
+        t = time.perf_counter()
+        timeout = 1
+        while self._client.server_state != sdk.ServerState.Disconnected and time.perf_counter() - t < timeout:
+            time.sleep(0.01)
+        
         self._logger.debug("Server Manager thread exiting")
         self._internal_signals.thread_exit_signal.emit()
 
@@ -481,3 +485,23 @@ class ServerManager:
     def is_stopping(self) -> bool:
         """Returns ``True`` if ``stop()`` has been called but the internal thread has not yet exited."""
         return self._stop_pending
+
+    def schedule_client_request(self, user_func:Callable[[ScrutinyClient], None], signal:SignalInstance, data:Optional[Any] = None) -> None:
+        """Runs a client request in a separate thread and triggers a signal when finished"""
+        def threaded_func() -> None:
+            success = False
+            try:
+                args = [self._client]
+                if data is not None:
+                    args.append(data)
+                user_func(*args)
+                success = True
+            except Exception as e:
+                self._logger.critical(f"Unexpected error in scheduled client request {e}")
+                self._logger.debug(traceback.format_exc())
+                raise
+            finally:
+                signal.emit(success)
+
+        t = threading.Thread(target=threaded_func, daemon=True)
+        t.start()

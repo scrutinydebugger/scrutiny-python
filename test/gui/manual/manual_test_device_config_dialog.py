@@ -8,7 +8,7 @@ sys.path.insert(0, project_root)
 
 import logging
 from qtpy.QtWidgets import QApplication, QMainWindow, QPushButton
-from scrutiny.gui.widgets.device_config_dialog import DeviceConfigDialog
+from scrutiny.gui.dialogs.device_config_dialog import DeviceConfigDialog
 from scrutiny import sdk
 from scrutiny.gui import assets
 import functools

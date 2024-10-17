@@ -361,7 +361,6 @@ class DeviceConfigDialog(QDialog):
 
     def _rebuild_config_layout(self, link_type:sdk.DeviceLinkType) -> None:
         """Change the variable part of the dialog based on the type of link the user wants."""
-        config = self._configs[link_type]
         layout = self._config_container.layout()
 
         for pane in self._config_container.children():
@@ -373,7 +372,7 @@ class DeviceConfigDialog(QDialog):
         layout.addWidget(self._active_pane)
 
         try:
-            config = self._active_pane.make_config_valid(config)
+            config = self._active_pane.make_config_valid(self._configs[link_type])
             self._active_pane.load_config(config)
         except Exception as e:
             self.logger.warning(f"Tried to apply an invalid config to the window. {e}")
@@ -416,7 +415,10 @@ class DeviceConfigDialog(QDialog):
     def get_type_and_config(self) -> Tuple[sdk.DeviceLinkType, Optional[sdk.BaseLinkConfig]]:
         """Return the device link configuration selected by the user"""
         link_type = self._get_selected_link_type()
-        config = self._active_pane.get_config()
+        if self._active_pane is not None:
+            config = self._active_pane.get_config()
+        else:
+            config = None   # Should not happen
         return (link_type, config)
 
     def swap_config_pane(self, link_type:sdk.DeviceLinkType) -> None:

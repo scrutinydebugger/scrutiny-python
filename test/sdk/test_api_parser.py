@@ -478,10 +478,10 @@ class TestApiParser(ScrutinyUnitTest):
 
         self.assertEqual(info.device_link.type, DeviceLinkType.Serial)
         self.assertEqual(info.device_link.config.baudrate, 9600)
-        self.assertEqual(info.device_link.config.databits, 8)
-        self.assertEqual(info.device_link.config.parity, 'even')
+        self.assertEqual(info.device_link.config.databits, sdk.SerialLinkConfig.DataBits.EIGHT)
+        self.assertEqual(info.device_link.config.parity, sdk.SerialLinkConfig.Parity.EVEN)
         self.assertEqual(info.device_link.config.port, '/dev/ttyO1')
-        self.assertEqual(info.device_link.config.stopbits, '2')
+        self.assertEqual(info.device_link.config.stopbits, sdk.SerialLinkConfig.StopBits.TWO)
 
         serial_base = copy(msg)
 

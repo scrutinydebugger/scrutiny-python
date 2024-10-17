@@ -7,17 +7,18 @@
 #   Copyright (c) 2021 Scrutiny Debugger
 
 from scrutiny import sdk
-from scrutiny.gui.server_manager import ServerManager
-from scrutiny.gui.watchable_index import WatchableIndex
+from scrutiny.gui.core.server_manager import ServerManager, ServerConfig
+from scrutiny.gui.core.watchable_index import WatchableIndex
 from test.gui.fake_sdk_client import FakeSDKClient, DownloadWatchableListFunctionCall
 from test.gui.base_gui_test import ScrutinyBaseGuiTest, EventType
 import time
+from qtpy.QtCore import QObject, Signal
+from dataclasses import dataclass
 
-from typing import List
+from typing import List, Optional
 
 # These value are not really used as they are given to a fake client
-SERVER_MANAGER_HOST = '127.0.0.1'
-SERVER_MANAGER_PORT = 5555
+SERVER_MANAGER_CONFIG = ServerConfig('127.0.0.1', 5555)
 
 
 DUMMY_DATASET_RPV = {
@@ -79,7 +80,8 @@ class TestServerManager(ScrutinyBaseGuiTest):
         self.server_manager.signals.index_changed.connect(lambda : self.declare_event(EventType.WATCHABLE_INDEX_CHANGED))
     
     def tearDown(self) -> None:
-        self.server_manager.stop()
+        if self.server_manager.is_running():
+            self.server_manager.stop()
         super().tearDown()
     
     def wait_server_state(self, state:sdk.ServerState, timeout:int=1) -> None:
@@ -88,7 +90,7 @@ class TestServerManager(ScrutinyBaseGuiTest):
     def test_hold_5_sec(self):
         self.assertFalse(self.server_manager.is_running())
         self.assertEqual(self.server_manager.get_server_state(), sdk.ServerState.Disconnected)
-        self.server_manager.start(SERVER_MANAGER_HOST, SERVER_MANAGER_PORT)
+        self.server_manager.start(SERVER_MANAGER_CONFIG)
         self.assertTrue(self.server_manager.is_running())
 
         self.wait_equal(self.server_manager.is_running, False, 5, no_assert=True)  # Early exit if it fails
@@ -98,23 +100,25 @@ class TestServerManager(ScrutinyBaseGuiTest):
         self.assertEqual(self.server_manager.get_server_state(), sdk.ServerState.Connected)
         self.server_manager.stop()
         self.assertFalse(self.server_manager.is_running())
+        self.wait_false_with_events(self.server_manager.is_stopping, 2)
         self.assertEqual(self.server_manager.get_server_state(), sdk.ServerState.Disconnected)
 
     def test_events_connect_disconnect(self):
         self.assertEqual(self.event_list, [])
         for i in range(5):
-            self.server_manager.start(SERVER_MANAGER_HOST, SERVER_MANAGER_PORT)
+            self.server_manager.start(SERVER_MANAGER_CONFIG)
             self.wait_events([EventType.SERVER_CONNECTED], timeout=1)
             self.assertEqual(self.server_manager.get_server_state(), sdk.ServerState.Connected)
             
             self.server_manager.stop()
+            self.wait_false_with_events(self.server_manager.is_stopping, 2)
             self.wait_events_and_clear([EventType.SERVER_CONNECTED, EventType.SERVER_DISCONNECTED], timeout=1)
             self.assertEqual(self.server_manager.get_server_state(), sdk.ServerState.Disconnected)
             self.wait_false(self.server_manager.is_running, 1)
 
     def test_event_device_connect_disconnect(self):
         self.assertEqual(self.event_list, [])
-        self.server_manager.start(SERVER_MANAGER_HOST, SERVER_MANAGER_PORT)
+        self.server_manager.start(SERVER_MANAGER_CONFIG)
 
         self.wait_events_and_clear([EventType.SERVER_CONNECTED], timeout=1)
 
@@ -149,7 +153,7 @@ class TestServerManager(ScrutinyBaseGuiTest):
     def test_event_device_connect_disconnect_with_sfd(self):
         # Connect the device and load the SFD at the same time. It has a special code path
         self.assertEqual(self.event_list, [])
-        self.server_manager.start(SERVER_MANAGER_HOST, SERVER_MANAGER_PORT)
+        self.server_manager.start(SERVER_MANAGER_CONFIG)
 
         self.wait_events_and_clear([EventType.SERVER_CONNECTED], timeout=1)
 
@@ -185,7 +189,7 @@ class TestServerManager(ScrutinyBaseGuiTest):
         # Leave some time between device ready and SFD load and vice versa. Will go through a diferent code path than
         # if the SFD is loaded at the same time as the device is ready
         self.assertEqual(self.event_list, [])
-        self.server_manager.start(SERVER_MANAGER_HOST, SERVER_MANAGER_PORT)
+        self.server_manager.start(SERVER_MANAGER_CONFIG)
 
         self.wait_events_and_clear([EventType.SERVER_CONNECTED], timeout=1)
 
@@ -241,7 +245,7 @@ class TestServerManager(ScrutinyBaseGuiTest):
 
     def test_device_disconnect_ready_events_on_session_id_change(self):
         self.assertEqual(self.event_list, [])
-        self.server_manager.start(SERVER_MANAGER_HOST, SERVER_MANAGER_PORT)
+        self.server_manager.start(SERVER_MANAGER_CONFIG)
 
         self.wait_events_and_clear([EventType.SERVER_CONNECTED], timeout=1)
 
@@ -301,7 +305,7 @@ class TestServerManager(ScrutinyBaseGuiTest):
     
     def test_device_disconnect_ready_events_on_session_id_change_with_sfd(self):
         self.assertEqual(self.event_list, [])
-        self.server_manager.start(SERVER_MANAGER_HOST, SERVER_MANAGER_PORT)
+        self.server_manager.start(SERVER_MANAGER_CONFIG)
 
         self.wait_events_and_clear([EventType.SERVER_CONNECTED], timeout=1)
 
@@ -378,7 +382,7 @@ class TestServerManager(ScrutinyBaseGuiTest):
     
     def test_event_datalogging_state_changed(self):
         self.assertEqual(self.event_list, [])
-        self.server_manager.start(SERVER_MANAGER_HOST, SERVER_MANAGER_PORT)
+        self.server_manager.start(SERVER_MANAGER_CONFIG)
 
         self.wait_events_and_clear([EventType.SERVER_CONNECTED], timeout=1)
 
@@ -440,7 +444,7 @@ class TestServerManager(ScrutinyBaseGuiTest):
         self.assert_events([EventType.SERVER_DISCONNECTED])
 
     def test_disconnect_on_error(self):
-        self.server_manager.start(SERVER_MANAGER_HOST, SERVER_MANAGER_PORT)
+        self.server_manager.start(SERVER_MANAGER_CONFIG)
 
         self.wait_events_and_clear([EventType.SERVER_CONNECTED], timeout=1)
         self.assertEqual(self.fake_client.get_call_count('disconnect'), 0)
@@ -451,20 +455,21 @@ class TestServerManager(ScrutinyBaseGuiTest):
         self.assertEqual(self.fake_client.get_call_count('disconnect'), 1)
 
     def test_auto_reconnect(self):
-        self.server_manager.start(SERVER_MANAGER_HOST, SERVER_MANAGER_PORT)
+        self.server_manager.start(SERVER_MANAGER_CONFIG)
+        self.server_manager.RECONNECT_DELAY = 0.2
 
         self.wait_events_and_clear([EventType.SERVER_CONNECTED], timeout=1)
         self.assertEqual(self.fake_client.get_call_count('connect'), 1)
 
         for i in range(5):
             self.fake_client.disconnect()
-            self.wait_events_and_clear([EventType.SERVER_DISCONNECTED, EventType.SERVER_CONNECTED], timeout=1)
+            self.wait_events_and_clear([EventType.SERVER_DISCONNECTED, EventType.SERVER_CONNECTED], timeout=self.server_manager.RECONNECT_DELAY+1)
             self.assertEqual(self.fake_client.get_call_count('connect'), i+2)
     
     def test_auto_retry_connect_on_connect_fail(self):
         RETRY_COUNT = 3
         self.fake_client.force_connect_fail()
-        self.server_manager.start(SERVER_MANAGER_HOST, SERVER_MANAGER_PORT)
+        self.server_manager.start(SERVER_MANAGER_CONFIG)
         self.wait_true(lambda: self.fake_client.get_call_count('connect')>=1, 1)    # Wait for initial attempt
         
         n = self.fake_client.get_call_count('connect')  # Should read 1
@@ -482,7 +487,7 @@ class TestServerManager(ScrutinyBaseGuiTest):
 
     def test_event_device_connect_disconnect_with_data_download(self):
         self.assertEqual(self.event_list, [])
-        self.server_manager.start(SERVER_MANAGER_HOST, SERVER_MANAGER_PORT)
+        self.server_manager.start(SERVER_MANAGER_CONFIG)
         windex = self.server_manager._index
 
         self.wait_events_and_clear([EventType.SERVER_CONNECTED], timeout=1)
@@ -547,7 +552,7 @@ class TestServerManager(ScrutinyBaseGuiTest):
     def test_event_device_connect_disconnect_with_sfd_and_data_download(self):
         # Connect the device and load the SFD at the same time. It has a special code path
         self.assertEqual(self.event_list, [])
-        self.server_manager.start(SERVER_MANAGER_HOST, SERVER_MANAGER_PORT)
+        self.server_manager.start(SERVER_MANAGER_CONFIG)
 
         self.wait_events_and_clear([EventType.SERVER_CONNECTED], timeout=1)
 
@@ -627,7 +632,7 @@ class TestServerManager(ScrutinyBaseGuiTest):
 
     def test_device_disconnect_ready_events_on_session_id_change_with_sfd_and_data_download(self):
         self.assertEqual(self.event_list, [])
-        self.server_manager.start(SERVER_MANAGER_HOST, SERVER_MANAGER_PORT)
+        self.server_manager.start(SERVER_MANAGER_CONFIG)
 
         self.wait_events_and_clear([EventType.SERVER_CONNECTED], timeout=1)
 
@@ -712,3 +717,30 @@ class TestServerManager(ScrutinyBaseGuiTest):
         self.wait_server_state(sdk.ServerState.Disconnected)        
         self.assert_events([EventType.SERVER_DISCONNECTED])
     
+    def test_schedule_client_request(self):
+
+        class SignalOwner(QObject):
+            signal_test = Signal(bool)
+
+        signal_owner = SignalOwner()
+
+        @dataclass
+        class DataContainer:
+            slot_called:bool = False
+            success:bool = False
+
+        data = DataContainer()
+        def slot(success):
+            data.slot_called = True
+            data.success = success
+
+        signal_owner.signal_test.connect(slot)
+
+        def func(client):
+            time.sleep(0.5)
+        
+        self.server_manager.schedule_client_request(func, signal_owner.signal_test)
+        self.wait_true_with_events(lambda:data.slot_called, 3)
+
+        self.assertTrue(data.slot_called)
+        self.assertTrue(data.success)

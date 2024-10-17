@@ -2,8 +2,8 @@ from qtpy.QtWidgets import QStatusBar, QWidget, QLabel, QHBoxLayout, QSizePolicy
 from qtpy.QtGui import QPixmap, QAction
 from qtpy.QtCore import Qt, QPoint
 from scrutiny.gui.core.server_manager import ServerManager
-from scrutiny.gui.widgets.server_config_dialog import ServerConfigDialog
-from scrutiny.gui.widgets.device_config_dialog import DeviceConfigDialog
+from scrutiny.gui.dialogs.server_config_dialog import ServerConfigDialog
+from scrutiny.gui.dialogs.device_config_dialog import DeviceConfigDialog
 from scrutiny.gui import assets
 from scrutiny.sdk import ServerState, DeviceCommState, SFDInfo, DataloggingInfo, DataloggerState, DeviceLinkType
 import enum

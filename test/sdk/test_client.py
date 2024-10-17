@@ -1723,9 +1723,9 @@ class TestClient(ScrutinyUnitTest):
         configin = sdk.SerialLinkConfig(
             port='COM123',
             baudrate=115200,
-            databits=8,
-            stopbits='1',
-            parity='none'
+            databits=sdk.SerialLinkConfig.DataBits.EIGHT,
+            stopbits=sdk.SerialLinkConfig.StopBits.ONE,
+            parity=sdk.SerialLinkConfig.Parity.EVEN
         )
         
         self.client.configure_device_link(sdk.DeviceLinkType.Serial, configin)
@@ -1740,7 +1740,7 @@ class TestClient(ScrutinyUnitTest):
         self.assertEqual(configout['baudrate'], 115200)
         self.assertEqual(configout['databits'], 8)
         self.assertEqual(configout['stopbits'], '1')
-        self.assertEqual(configout['parity'], 'none')
+        self.assertEqual(configout['parity'], 'even')
 
     def test_configure_device_link_tcp(self):
         configin = sdk.TCPLinkConfig(

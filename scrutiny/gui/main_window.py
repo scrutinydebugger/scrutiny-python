@@ -16,11 +16,11 @@ from qtpy.QtCore import Qt, QRect
 from qtpy.QtWidgets import QMainWindow
 
 from scrutiny.gui.qtads import QtAds    #Advanced Docking System
-from scrutiny.gui.widgets.about_dialog import AboutDialog
+from scrutiny.gui.dialogs.about_dialog import AboutDialog
 from scrutiny.gui.widgets.sidebar import Sidebar
 from scrutiny.gui.widgets.status_bar import StatusBar
 from scrutiny.gui.widgets.menu_bar import MenuBar
-from scrutiny.gui.widgets.server_config_dialog import ServerConfigDialog
+from scrutiny.gui.dialogs.server_config_dialog import ServerConfigDialog
 
 from scrutiny.gui.dashboard_components.base_component import ScrutinyGUIBaseComponent
 from scrutiny.gui.dashboard_components.debug.debug_component import DebugComponent

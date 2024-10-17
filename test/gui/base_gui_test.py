@@ -48,12 +48,29 @@ class ScrutinyBaseGuiTest(ScrutinyUnitTest):
             time.sleep(0.01)
         if not no_assert:
             self.assertEqual(fn(), val)
+
+    def wait_equal_with_events(self, fn, val, timeout, no_assert=False):
+        t = time.perf_counter()
+
+        while time.perf_counter() - t < timeout:
+            self.process_events()
+            if fn() == val:
+                break
+            time.sleep(0.01)
+        if not no_assert:
+            self.assertEqual(fn(), val)
     
     def wait_true(self, fn, timeout, no_assert=False):
         return self.wait_equal(fn, True, timeout, no_assert)
 
     def wait_false(self, fn, timeout, no_assert=False):
         return self.wait_equal(fn, False, timeout, no_assert)
+    
+    def wait_true_with_events(self, fn, timeout, no_assert=False):
+        return self.wait_equal_with_events(fn, True, timeout, no_assert)
+
+    def wait_false_with_events(self, fn, timeout, no_assert=False):
+        return self.wait_equal_with_events(fn, False, timeout, no_assert)
     
     def wait_events(self, events:List[EventType], timeout:float,msg=""):
         t = time.perf_counter()
