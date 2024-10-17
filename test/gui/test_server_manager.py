@@ -736,11 +736,25 @@ class TestServerManager(ScrutinyBaseGuiTest):
 
         signal_owner.signal_test.connect(slot)
 
-        def func(client):
+        def func_success(client) -> bool:
             time.sleep(0.5)
+            return True
+
+        def func_fail(client) -> bool:
+            time.sleep(0.5)
+            return False
         
-        self.server_manager.schedule_client_request(func, signal_owner.signal_test)
+        self.server_manager.schedule_client_request(func_success, signal_owner.signal_test)
         self.wait_true_with_events(lambda:data.slot_called, 3)
 
         self.assertTrue(data.slot_called)
         self.assertTrue(data.success)
+
+
+        data.slot_called = False
+        data.success = False
+        self.server_manager.schedule_client_request(func_success, signal_owner.signal_test)
+        self.wait_true_with_events(lambda:data.slot_called, 3)
+
+        self.assertTrue(data.slot_called)
+        self.assertFalse(data.success)

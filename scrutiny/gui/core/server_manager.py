@@ -486,7 +486,7 @@ class ServerManager:
         """Returns ``True`` if ``stop()`` has been called but the internal thread has not yet exited."""
         return self._stop_pending
 
-    def schedule_client_request(self, user_func:Callable[[ScrutinyClient], None], signal:SignalInstance, data:Optional[Any] = None) -> None:
+    def schedule_client_request(self, user_func:Callable[[ScrutinyClient], bool], signal:Optional[SignalInstance] = None, data:Optional[Any] = None) -> None:
         """Runs a client request in a separate thread and triggers a signal when finished"""
         def threaded_func() -> None:
             success = False
@@ -494,14 +494,16 @@ class ServerManager:
                 args = [self._client]
                 if data is not None:
                     args.append(data)
-                user_func(*args)
-                success = True
+                success = user_func(*args)
+                if not isinstance(success, bool):
+                    success = False
             except Exception as e:
                 self._logger.critical(f"Unexpected error in scheduled client request {e}")
                 self._logger.debug(traceback.format_exc())
                 raise
             finally:
-                signal.emit(success)
+                if signal is not None:
+                    signal.emit(success)
 
         t = threading.Thread(target=threaded_func, daemon=True)
         t.start()

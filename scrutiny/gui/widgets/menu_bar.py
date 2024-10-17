@@ -26,8 +26,5 @@ class MenuBar(QMenuBar):
         server_menu =  self.addMenu('Server')
         self.buttons.server_launch_local = server_menu.addAction("Launch local")
 
-        server_menu =  self.addMenu('Device')
-        self.buttons.device_configure = server_menu.addAction("Configure")
-
         info_menu =  self.addMenu("Info")
         self.buttons.info_about = info_menu.addAction("About this software")

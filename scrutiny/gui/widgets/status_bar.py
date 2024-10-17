@@ -1,12 +1,17 @@
 from qtpy.QtWidgets import QStatusBar, QWidget, QLabel, QHBoxLayout, QSizePolicy, QPushButton, QToolBar, QMenu
 from qtpy.QtGui import QPixmap, QAction
-from qtpy.QtCore import Qt, QPoint
+from qtpy.QtCore import Qt, QPoint, QObject, Signal
+from scrutiny.gui.core.gui_logger import gui_logger
 from scrutiny.gui.core.server_manager import ServerManager
 from scrutiny.gui.dialogs.server_config_dialog import ServerConfigDialog
 from scrutiny.gui.dialogs.device_config_dialog import DeviceConfigDialog
 from scrutiny.gui import assets
-from scrutiny.sdk import ServerState, DeviceCommState, SFDInfo, DataloggingInfo, DataloggerState, DeviceLinkType
+from scrutiny.sdk import ServerState, DeviceCommState, SFDInfo, DataloggingInfo, DataloggerState, DeviceLinkType, BaseLinkConfig
+from scrutiny.sdk.client import ScrutinyClient
+from scrutiny.sdk.exceptions import ScrutinySDKException
+import functools
 import enum
+import traceback
 from typing import Optional, Dict, cast, Union
 
 class ServerLabelValue(enum.Enum):
@@ -110,6 +115,9 @@ class IndicatorLabel(QWidget):
 
 class StatusBar(QStatusBar):
 
+    class _InternalSignals(QObject):
+        device_link_changed = Signal(bool)
+
     _server_manager:ServerManager
     _server_status_label:IndicatorLabel
     _device_status_label:IndicatorLabel
@@ -131,6 +139,8 @@ class StatusBar(QStatusBar):
     _yellow_square:QPixmap
     _green_square:QPixmap
     _one_shot_auto_connect:bool
+
+    _internal_signals: _InternalSignals
     
     def __init__(self, parent:QWidget, server_manager:ServerManager) -> None:
         super().__init__(parent)
@@ -189,6 +199,9 @@ class StatusBar(QStatusBar):
         
         self._server_manager.signals.status_received.connect(self.update_content)
 
+        self._internal_signals = self._InternalSignals()
+        self._internal_signals.device_link_changed.connect(self._device_link_change_completed)
+
         self.update_content()
 
     def _server_configure_func(self) -> None:
@@ -228,10 +241,27 @@ class StatusBar(QStatusBar):
 
     def _device_config_applied(self, dialog:DeviceConfigDialog) -> None:
         link_type, config = dialog.get_type_and_config()
-        # TODO : Check if it is ok to use across thread.
-        # self._server_manager._client.configure_device_link(link_type, config)
-        # TODO
+        if config is None:
+            return 
         
+        def change_device_link(link_type:DeviceLinkType, config:BaseLinkConfig, client:ScrutinyClient) -> bool:
+            try:
+                client.configure_device_link(link_type, config)
+            except ScrutinySDKException as e:
+                gui_logger.warning(str(e))
+                gui_logger.debug(traceback.format_exc())
+                return False
+            return True
+        
+        self._server_manager.schedule_client_request(
+            user_func = functools.partial(change_device_link, link_type, config), 
+            signal = self._internal_signals.device_link_changed     # calls _device_link_change_completed
+        )
+        self._device_configure_action.setEnabled(False) # Prevent stacking requests.
+    
+    def _device_link_change_completed(self, success:bool) -> None:
+        self._device_configure_action.setEnabled(True)
+
     def set_server_label_value(self, value:ServerLabelValue) -> None:
         prefix = 'Server:'
         if value == ServerLabelValue.Disconnected :
