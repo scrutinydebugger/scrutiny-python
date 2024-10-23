@@ -217,7 +217,7 @@ class CommHandler:
         self._rx_thread = None
 
     def open(self) -> None:
-        self._logger.debug("Opening communication with device")
+        self._logger.debug(f"Opening communication with device. Link : {self._link_type}")
         """Try to open the communication channel with the device."""
         if self._link is None:
             raise Exception('Link must be set before opening')

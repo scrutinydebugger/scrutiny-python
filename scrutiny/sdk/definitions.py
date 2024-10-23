@@ -369,7 +369,7 @@ class SerialLinkConfig(BaseLinkConfig):
 
     def _to_api_format(self) -> Dict[str, Any]:
         return {
-            'port': self.port,
+            'portname': self.port,
             'baudrate': self.baudrate,
             'stopbits': str(self.stopbits.value),
             'databits': self.databits.value,

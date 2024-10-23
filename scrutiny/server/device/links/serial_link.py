@@ -14,8 +14,6 @@ from typing import Optional, Dict, TypedDict, cast, Union
 import serial   # type: ignore
 import time
 from binascii import hexlify
-import threading
-import os
 
 class SerialConfig(TypedDict):
     """

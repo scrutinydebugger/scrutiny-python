@@ -330,7 +330,7 @@ class StatusBar(QStatusBar):
             self._device_comm_link_label.set_text(f"{prefix} UDP {config.host}:{config.port}")
         elif link_type == DeviceLinkType.Serial:
             config = cast(sdk.SerialLinkConfig, config)
-            line = f"{config.port}@{config.baudrate} [D:{config.databits} S:{config.stopbits} P:{config.parity.name}]"
+            line = f"{config.port}@{config.baudrate} [D:{config.databits.name} S:{config.stopbits.name} P:{config.parity.name}]"
             self._device_comm_link_label.set_text(f"{prefix} Serial {line}")
         elif link_type == DeviceLinkType.RTT:
             config = cast(sdk.RTTLinkConfig, config)
