@@ -1,15 +1,16 @@
 
-from qtpy.QtWidgets import QDialog, QWidget, QComboBox, QVBoxLayout, QDialogButtonBox,QFormLayout, QLabel
+from qtpy.QtWidgets import QDialog, QWidget, QComboBox, QVBoxLayout, QDialogButtonBox,QFormLayout, QLabel, QPushButton
 from qtpy.QtGui import QIntValidator
 from qtpy.QtCore import Qt
 from scrutiny import sdk
 from scrutiny.gui.widgets.validable_line_edit import ValidableLineEdit
 from scrutiny.gui.tools.validators import IpPortValidator, NotEmptyValidator
+from scrutiny.gui.core import WidgetState
 from typing import Optional, Dict, Union, Type, cast, Callable, Tuple
 import logging
 import traceback
 
-SUPPORTED_CONFIGS=Optional[Union[sdk.UDPLinkConfig, sdk.TCPLinkConfig, sdk.SerialLinkConfig, sdk.RTTLinkConfig]]
+SUPPORTED_CONFIGS=Optional[Union[sdk.NoneLinkConfig, sdk.UDPLinkConfig, sdk.TCPLinkConfig, sdk.SerialLinkConfig, sdk.RTTLinkConfig]]
 
 class BaseConfigPane(QWidget):
     def get_config(self) -> Optional[sdk.BaseLinkConfig]:
@@ -28,7 +29,7 @@ class BaseConfigPane(QWidget):
 
 class NoConfigPane(BaseConfigPane):
     def get_config(self) -> Optional[sdk.BaseLinkConfig]:
-        return None
+        return sdk.NoneLinkConfig()
 
     def load_config(self, config:Optional[sdk.BaseLinkConfig]) -> None:
         self.make_config_valid(config)
@@ -303,7 +304,7 @@ class RTTConfigPane(BaseConfigPane):
 class DeviceConfigDialog(QDialog):
 
     CONFIG_TYPE_TO_WIDGET:Dict[sdk.DeviceLinkType, Type[BaseConfigPane]] = {
-        sdk.DeviceLinkType.NA: NoConfigPane,
+        sdk.DeviceLinkType.NONE: NoConfigPane,
         sdk.DeviceLinkType.TCP: TCPConfigPane,
         sdk.DeviceLinkType.UDP: UDPConfigPane,
         sdk.DeviceLinkType.Serial: SerialConfigPane,
@@ -313,8 +314,11 @@ class DeviceConfigDialog(QDialog):
     _link_type_combo_box:QComboBox
     _config_container:QWidget
     _configs:Dict[sdk.DeviceLinkType, SUPPORTED_CONFIGS]
-    _active_pane:Optional[BaseConfigPane]
+    _active_pane:BaseConfigPane
     _apply_callback:Optional[Callable[["DeviceConfigDialog"], None]]
+    _status_label:QLabel
+    _btn_ok:QPushButton
+    _btn_cancel:QPushButton
 
     def __init__(self, parent:Optional[QWidget]=None,  apply_callback:Optional[Callable[["DeviceConfigDialog"], None]]=None ) -> None:
         super().__init__(parent)
@@ -324,7 +328,7 @@ class DeviceConfigDialog(QDialog):
         vlayout = QVBoxLayout(self)
         # Combobox at the top
         self._link_type_combo_box = QComboBox()
-        self._link_type_combo_box.addItem("None", sdk.DeviceLinkType.NA)
+        self._link_type_combo_box.addItem("None", sdk.DeviceLinkType.NONE)
         self._link_type_combo_box.addItem("Serial", sdk.DeviceLinkType.Serial)
         self._link_type_combo_box.addItem("UDP/IP", sdk.DeviceLinkType.UDP)
         self._link_type_combo_box.addItem("TCP/IP", sdk.DeviceLinkType.TCP)
@@ -332,25 +336,33 @@ class DeviceConfigDialog(QDialog):
 
         self._config_container = QWidget()
         self._config_container.setLayout(QVBoxLayout())
+        self._status_label = QLabel()
+        self._status_label.setWordWrap(True)
+        self._status_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        self._status_label.setProperty("state", WidgetState.default)
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         buttons.accepted.connect(self._btn_ok_click)
         buttons.rejected.connect(self._btn_cancel_click)
         
         vlayout.addWidget(self._link_type_combo_box)
         vlayout.addWidget(self._config_container)
+        vlayout.addWidget(self._status_label)
         vlayout.addWidget(buttons)
+
+        self._btn_ok = buttons.button(QDialogButtonBox.StandardButton.Ok)
+        self._btn_cancel = buttons.button(QDialogButtonBox.StandardButton.Cancel)
 
         self._configs = {}
         # Preload some default configs to avoid having a blank form
-        self._configs[sdk.DeviceLinkType.NA] = None
+        self._configs[sdk.DeviceLinkType.NONE] = sdk.NoneLinkConfig()
         self._configs[sdk.DeviceLinkType.UDP] = sdk.UDPLinkConfig(host="localhost", port=12345)
         self._configs[sdk.DeviceLinkType.TCP] = sdk.TCPLinkConfig(host="localhost", port=12345)
         self._configs[sdk.DeviceLinkType.Serial] = sdk.SerialLinkConfig(port="<port>", baudrate=115200) # Rest has default values
         self._configs[sdk.DeviceLinkType.RTT] = sdk.RTTLinkConfig(target_device="<device>", jlink_interface=sdk.RTTLinkConfig.JLinkInterface.SWD)
 
         self._link_type_combo_box.currentIndexChanged.connect(self._combobox_changed)
-        self._active_pane = None
-        self.swap_config_pane(sdk.DeviceLinkType.NA)
+        self._active_pane = NoConfigPane()
+        self.swap_config_pane(sdk.DeviceLinkType.NONE)
             
     def _get_selected_link_type(self) -> sdk.DeviceLinkType:
         return cast(sdk.DeviceLinkType, self._link_type_combo_box.currentData())
@@ -379,23 +391,49 @@ class DeviceConfigDialog(QDialog):
             self.logger.debug(traceback.format_exc())
 
     def _btn_ok_click(self) -> None:
-        assert self._active_pane is not None
         link_type = self._get_selected_link_type()
         config = self._active_pane.get_config()
         self._active_pane.visual_validation()
         # if config is None, it is invalid. Don't close and expect the user to fix
         if config is not None:
             self._configs[link_type] = cast(SUPPORTED_CONFIGS, config)
-            self.close()
-
+            self._btn_ok.setEnabled(False)
+            self._set_waiting_status()
             if self._apply_callback is not None:
                 self._apply_callback(self)
 
+    def change_fail_callback(self, error:str) -> None:
+        """To be called to confirm a device link change fails"""
+        self._set_error_status(error)
+        self._btn_ok.setEnabled(True)
+
+    def change_success_callback(self) -> None:
+        """To be called to confirm a device link change succeeded"""
+        self._clear_status()
+        self._btn_ok.setEnabled(True)
+        self.close()
+
+    def _clear_status(self) -> None:
+        self._status_label.setText("")
+        self._status_label.setProperty("state", WidgetState.default)
+        self._status_label.setCursor(self.cursor())
+
+    def _set_error_status(self, error:str) -> None:
+        self._status_label.setText(error)
+        self._status_label.setProperty("state", WidgetState.error)
+        self._status_label.setCursor(Qt.CursorShape.IBeamCursor)
+    
+    def _set_waiting_status(self) -> None:
+        self._status_label.setText("Waiting for the server...")
+        self._status_label.setProperty("state", WidgetState.default)
+        self._status_label.setCursor(Qt.CursorShape.IBeamCursor)
+    
+
     def _btn_cancel_click(self) -> None:
-        assert self._active_pane is not None
         # Reload to the UI the config that is saved
         config = self._configs[self._get_selected_link_type()]
         self._active_pane.load_config(config)   # Should not raise. This config was there before.
+        self._clear_status()
         self.close()
 
 
@@ -415,10 +453,7 @@ class DeviceConfigDialog(QDialog):
     def get_type_and_config(self) -> Tuple[sdk.DeviceLinkType, Optional[sdk.BaseLinkConfig]]:
         """Return the device link configuration selected by the user"""
         link_type = self._get_selected_link_type()
-        if self._active_pane is not None:
-            config = self._active_pane.get_config()
-        else:
-            config = None   # Should not happen
+        config = self._active_pane.get_config()
         return (link_type, config)
 
     def swap_config_pane(self, link_type:sdk.DeviceLinkType) -> None:

@@ -36,6 +36,7 @@ __all__ = [
     'TCPLinkConfig',
     'SerialLinkConfig',
     'RTTLinkConfig',
+    'NoneLinkConfig',
     'SupportedLinkConfig',
     'DeviceLinkInfo',
     'ServerInfo',
@@ -149,7 +150,7 @@ class DeviceLinkType(enum.Enum):
     """(Enum) The type of communication link used between the server and the device"""
 
     _Dummy = -1
-    NA = 0
+    NONE = 0
     UDP = 1
     """UDP/IP socket"""
     TCP = 2
@@ -277,6 +278,14 @@ class SFDInfo:
 class BaseLinkConfig(abc.ABC):
     def _to_api_format(self) -> Dict[str, Any]:
         raise NotImplementedError("Abstract class")
+
+
+@dataclass(frozen=True)
+class NoneLinkConfig(BaseLinkConfig):
+    """(Immutable struct) The configuration structure for a device link of type :attr:`NONE<scrutiny.sdk.DeviceLinkType.NONE>`"""
+    
+    def _to_api_format(self) -> Dict[str, Any]:
+        return {}
 
 
 @dataclass(frozen=True)

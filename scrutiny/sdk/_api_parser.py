@@ -435,7 +435,7 @@ def parse_inform_server_status(response: api_typing.S2C.InformServerStatus) -> s
 
     def _link_type(api_val: api_typing.LinkType) -> sdk.DeviceLinkType:
         if api_val == 'none':
-            return sdk.DeviceLinkType.NA
+            return sdk.DeviceLinkType.NONE
         if api_val == 'serial':
             return sdk.DeviceLinkType.Serial
         if api_val == 'dummy':
@@ -447,7 +447,7 @@ def parse_inform_server_status(response: api_typing.S2C.InformServerStatus) -> s
     link_type = _link_type(response['device_comm_link']['link_type'])
 
     link_config: Optional[sdk.SupportedLinkConfig]
-    if link_type == sdk.DeviceLinkType.NA:
+    if link_type == sdk.DeviceLinkType.NONE:
         link_config = None
     elif link_type == sdk.DeviceLinkType.UDP:
         udp_config = cast(api_typing.UdpLinkConfig, response['device_comm_link']['link_config'])

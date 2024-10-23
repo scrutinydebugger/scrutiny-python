@@ -5,3 +5,8 @@ QLineEdit[state="error"]{
 QLineEdit[state="success"]{
     background-color:#99ff99;
 }
+
+QLabel[state="error"]{
+    color:#ff0000;
+    background-color:#99ff99;
+}

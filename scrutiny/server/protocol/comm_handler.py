@@ -179,6 +179,8 @@ class CommHandler:
 
     def validate_link_config(self, link_type: str, link_config: LinkConfig) -> None:
         """Raises an exception if the given configuration is wrong for the given link type"""
+        if link_type == "none":
+            return
         link_class = self._get_link_class(link_type)
         return link_class.validate_config(link_config)
 
@@ -279,7 +281,7 @@ class CommHandler:
             # Something broken here. Hardware disconnected maybe?
             self.close()    # Destroy and deinit the link
             return
-
+ 
         if self.is_operational():
             self._link.process()  # Process the link handling
             self._throttler.process()

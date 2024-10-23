@@ -12,10 +12,9 @@ from scrutiny.gui.core.watchable_index import WatchableIndex
 from test.gui.fake_sdk_client import FakeSDKClient, DownloadWatchableListFunctionCall
 from test.gui.base_gui_test import ScrutinyBaseGuiTest, EventType
 import time
-from qtpy.QtCore import QObject, Signal
 from dataclasses import dataclass
 
-from typing import List, Optional
+from typing import List, Optional, Any
 
 # These value are not really used as they are given to a fake client
 SERVER_MANAGER_CONFIG = ServerConfig('127.0.0.1', 5555)
@@ -719,42 +718,44 @@ class TestServerManager(ScrutinyBaseGuiTest):
     
     def test_schedule_client_request(self):
 
-        class SignalOwner(QObject):
-            signal_test = Signal(bool)
-
-        signal_owner = SignalOwner()
-
-        @dataclass
         class DataContainer:
-            slot_called:bool = False
-            success:bool = False
+            callback_called:bool
+            retval:Any
+            error:Optional[Exception]
+
+            def clear(self):
+                self.callback_called = False
+                self.retval = None
+                self.error = None
+            
+            def __init__(self):
+                self.clear()
 
         data = DataContainer()
-        def slot(success):
-            data.slot_called = True
-            data.success = success
-
-        signal_owner.signal_test.connect(slot)
-
+        def ui_callback(retval, error):
+            data.callback_called = True
+            data.retval = retval
+            data.error = error
+            
         def func_success(client) -> bool:
             time.sleep(0.5)
-            return True
+            return "hello"
+
+        self.server_manager.schedule_client_request(func_success, ui_callback)
+        self.wait_true_with_events(lambda:data.callback_called, 3)
+
+        self.assertEqual(data.retval, "hello")
+        self.assertIsNone(data.error)
 
         def func_fail(client) -> bool:
             time.sleep(0.5)
-            return False
+            raise Exception("potato")
         
-        self.server_manager.schedule_client_request(func_success, signal_owner.signal_test)
-        self.wait_true_with_events(lambda:data.slot_called, 3)
+        data.clear()
 
-        self.assertTrue(data.slot_called)
-        self.assertTrue(data.success)
-
-
-        data.slot_called = False
-        data.success = False
-        self.server_manager.schedule_client_request(func_success, signal_owner.signal_test)
-        self.wait_true_with_events(lambda:data.slot_called, 3)
-
-        self.assertTrue(data.slot_called)
-        self.assertFalse(data.success)
+        self.server_manager.schedule_client_request(func_fail, ui_callback)
+        self.wait_true_with_events(lambda:data.callback_called, 3)
+        self.assertIsNone(data.retval)
+        self.assertIsInstance(data.error, Exception)
+        self.assertEqual(str(data.error), "potato")
+            

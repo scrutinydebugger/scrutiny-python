@@ -16,7 +16,7 @@ import time
 import traceback
 from dataclasses import dataclass
 
-from qtpy.QtCore import Signal, QObject, SignalInstance
+from qtpy.QtCore import Signal, QObject
 from typing import Optional, Dict, Any, Callable
 import logging
 
@@ -27,7 +27,47 @@ class ServerConfig:
     hostname:str
     port:int
 
+class ClientRequestStore:
+    @dataclass
+    class ClientRequestEntry:
+        ui_callback: Callable[[Any, Optional[Exception]], None]
+        threaded_func_return_value:Any
+        error:Optional[Exception]
 
+    _next_id:int
+    _storage:Dict[int, ClientRequestEntry]
+    _lock:threading.Lock
+    def __init__(self) -> None:
+        self._next_id = 0
+        self._storage = dict()
+        self._lock = threading.Lock()
+    
+    def clear(self) -> None:
+        with self._lock:
+            self._storage.clear()
+            self._next_id = 0
+    
+    def register(self, entry:ClientRequestEntry) -> int:
+        with self._lock:
+            while self._next_id in self._storage:
+                self._next_id += 1
+            assigned_id = self._next_id
+            self._storage[assigned_id] = entry
+            self._next_id+=1
+        
+        return assigned_id
+        
+    def get(self, storage_id:int) -> Optional[ClientRequestEntry]:
+        try:
+            with self._lock:
+                entry = self._storage[storage_id]
+                del self._storage[storage_id]
+            return entry
+        except KeyError:
+            return None
+        
+        
+        
 class ServerManager:
     """Runs a thread for the synchronous SDK and emit QT events when something interesting happens"""
 
@@ -72,6 +112,7 @@ class ServerManager:
 
     class _InternalSignals(QObject):
         thread_exit_signal = Signal()
+        client_request_completed = Signal(int)
 
 
     class _Signals(QObject):    # QObject required for signals to work
@@ -103,6 +144,7 @@ class ServerManager:
     _fsm_data:ThreadFSMData             # Data used by the thread to detect state changes
 
     _stop_pending:bool
+    _client_request_store:ClientRequestStore
 
     def __init__(self, watchable_index:WatchableIndex, client:Optional[ScrutinyClient]=None) -> None:
         super().__init__()  # Required for signals to work
@@ -123,7 +165,9 @@ class ServerManager:
         self._index = watchable_index
 
         self._internal_signals.thread_exit_signal.connect(self._join_thread_and_emit_stopped)
+        self._internal_signals.client_request_completed.connect(self._client_request_completed)
         self._stop_pending = False
+        self._client_request_store = ClientRequestStore()
 
     def _join_thread_and_emit_stopped(self) -> None:
         if self._thread is not None:    # Should always be true
@@ -159,6 +203,7 @@ class ServerManager:
             raise RuntimeError("Stop pending") # Temporary hard check for debug
         
         self._logger.debug("Starting server manager")
+        self._client_request_store.clear()
         self.signals.starting.emit()
         self._auto_reconnect = True
         self._thread_stop_event.clear()
@@ -324,7 +369,10 @@ class ServerManager:
         finally:
             self._client.disconnect()
             if self._fsm_data.previous_server_state == sdk.ServerState.Connected:
-                self._signals.server_disconnected.emit()
+                try:
+                    self._signals.server_disconnected.emit()
+                except RuntimeError:
+                    pass    # May fail if the window is deleted before this thread exits
         
         self._fsm_data.clear()
         
@@ -335,7 +383,11 @@ class ServerManager:
             time.sleep(0.01)
         
         self._logger.debug("Server Manager thread exiting")
-        self._internal_signals.thread_exit_signal.emit()
+        try:
+            self._internal_signals.thread_exit_signal.emit()
+        except RuntimeError:
+            pass    # May fail if the window is deleted before this thread exits
+
 
     def _thread_handle_download_watchable_logic(self) -> None:
         # Handle download of RPV if the device is ready
@@ -486,24 +538,35 @@ class ServerManager:
         """Returns ``True`` if ``stop()`` has been called but the internal thread has not yet exited."""
         return self._stop_pending
 
-    def schedule_client_request(self, user_func:Callable[[ScrutinyClient], bool], signal:Optional[SignalInstance] = None, data:Optional[Any] = None) -> None:
-        """Runs a client request in a separate thread and triggers a signal when finished"""
+    def _client_request_completed(self, store_id:int) -> None:
+        # This runs in the UI thread
+        entry = self._client_request_store.get(store_id)
+        if entry is not None:
+            entry.ui_callback(entry.threaded_func_return_value, entry.error)
+        
+
+    def schedule_client_request(self, 
+            user_func:Callable[[ScrutinyClient], Any], 
+            ui_thread_callback:Callable[[Any, Optional[Exception]], None]
+            ) -> None:
+        """Runs a client request in a separate thread and call a callback in the UI thread when done."""
+
         def threaded_func() -> None:
-            success = False
+            # This runs in a separate thread
+            error: Optional[Exception] = None
+            return_val:Any = None
             try:
-                args = [self._client]
-                if data is not None:
-                    args.append(data)
-                success = user_func(*args)
-                if not isinstance(success, bool):
-                    success = False
+                return_val = user_func(self._client)
             except Exception as e:
-                self._logger.critical(f"Unexpected error in scheduled client request {e}")
-                self._logger.debug(traceback.format_exc())
-                raise
-            finally:
-                if signal is not None:
-                    signal.emit(success)
+                error = e
+
+            entry = ClientRequestStore.ClientRequestEntry(
+                ui_callback=ui_thread_callback,
+                threaded_func_return_value=return_val,
+                error=error
+            )
+            assigned_id = self._client_request_store.register(entry)
+            self._internal_signals.client_request_completed.emit(assigned_id)
 
         t = threading.Thread(target=threaded_func, daemon=True)
         t.start()

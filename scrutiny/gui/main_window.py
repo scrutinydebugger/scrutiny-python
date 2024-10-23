@@ -83,7 +83,6 @@ class MainWindow(QMainWindow):
         self._menu_bar.buttons.dashboard_close.setDisabled(True)
         self._menu_bar.buttons.dashboard_open.setDisabled(True)
         self._menu_bar.buttons.dashboard_save.setDisabled(True)
-        self._menu_bar.buttons.device_configure.setDisabled(True)
         self._menu_bar.buttons.server_launch_local.setDisabled(True)
 
 

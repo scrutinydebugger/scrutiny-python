@@ -1,18 +1,16 @@
 from qtpy.QtWidgets import QStatusBar, QWidget, QLabel, QHBoxLayout, QSizePolicy, QPushButton, QToolBar, QMenu
 from qtpy.QtGui import QPixmap, QAction
-from qtpy.QtCore import Qt, QPoint, QObject, Signal
-from scrutiny.gui.core.gui_logger import gui_logger
+from qtpy.QtCore import Qt, QPoint
 from scrutiny.gui.core.server_manager import ServerManager
 from scrutiny.gui.dialogs.server_config_dialog import ServerConfigDialog
 from scrutiny.gui.dialogs.device_config_dialog import DeviceConfigDialog
 from scrutiny.gui import assets
 from scrutiny.sdk import ServerState, DeviceCommState, SFDInfo, DataloggingInfo, DataloggerState, DeviceLinkType, BaseLinkConfig
+from scrutiny import sdk
 from scrutiny.sdk.client import ScrutinyClient
-from scrutiny.sdk.exceptions import ScrutinySDKException
 import functools
 import enum
-import traceback
-from typing import Optional, Dict, cast, Union
+from typing import Optional, Dict, cast, Union, Any
 
 class ServerLabelValue(enum.Enum):
     Disconnected = enum.auto()
@@ -23,7 +21,7 @@ class ServerLabelValue(enum.Enum):
 
 TextLabelType = Union[QLabel, QPushButton, QAction]
 
-class IndicatorLabel(QWidget):
+class StatusBarLabel(QWidget):
     INDICATOR_SIZE = 12
     
     class Color(enum.Enum):
@@ -37,10 +35,11 @@ class IndicatorLabel(QWidget):
         TOOLBAR = enum.auto()
 
     _text_label:TextLabelType
-    _indicator_label:QLabel
-    _color:Color
+    _indicator_label:Optional[QLabel]
+    _color:Optional[Color]
     _color_image_map:Dict[Color, QPixmap]
     _label_type:TextLabel
+    _use_indicator:bool
     _toolbar : Optional[QToolBar]
 
     @property
@@ -49,11 +48,18 @@ class IndicatorLabel(QWidget):
     
     @property
     def indicator_label(self) -> QLabel:
+        assert self._indicator_label is not None
         return self._indicator_label
 
-    def __init__(self, text:str, color:"IndicatorLabel.Color", label_type:TextLabel) -> None:
+    def __init__(self, 
+                 text:str, 
+                 label_type:TextLabel,
+                 use_indicator:bool,
+                 color:"Optional[StatusBarLabel.Color]" = None
+                 ) -> None:
         super().__init__()
         self._label_type = label_type
+        self._use_indicator = use_indicator
 
         self._color_image_map = {
             self.Color.RED : assets.load_pixmap('red_square-64x64.png').scaled(self.INDICATOR_SIZE, self.INDICATOR_SIZE),
@@ -64,10 +70,11 @@ class IndicatorLabel(QWidget):
         self._layout = QHBoxLayout(self)
         self._layout.setContentsMargins(5,0,10,0)
         self._layout.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
-        self._indicator_label = QLabel()
-        self._indicator_label.setFixedWidth(self.INDICATOR_SIZE)
-        
-        self._layout.addWidget(self.indicator_label)
+        self._indicator_label = None
+        if use_indicator:
+            self._indicator_label = QLabel()
+            self._indicator_label.setFixedWidth(self.INDICATOR_SIZE)
+            self._layout.addWidget(self.indicator_label)
 
         self._toolbar = None
         if label_type == self.TextLabel.LABEL:
@@ -87,13 +94,21 @@ class IndicatorLabel(QWidget):
         self.set_color(color)
         self.set_text(text)
 
-    def set_color(self, color:Color) -> None:
+    def set_color(self, color:Optional[Color]) -> None:
+        if not self._use_indicator:
+            return
+        assert self._indicator_label is not None
+        assert color is not None
+
         if color not in self._color_image_map:
             raise ValueError("Unsupported color")
         self._color = color
         self._indicator_label.setPixmap(self._color_image_map[color])
 
     def get_color(self) -> Color:
+        if not self._use_indicator:
+            raise RuntimeError("No color on status bar item without indicator")
+        assert self._color is not None
         return self._color
 
     def set_text(self, text:str) -> None:
@@ -112,17 +127,24 @@ class IndicatorLabel(QWidget):
             menu.popup(self.mapToGlobal(self._toolbar.pos() - QPoint(0, menu.height())))
         self._text_label.triggered.connect(show_menu)
 
+    def set_click_action(self, fn:object) -> None:
+        if self._label_type not in [self.TextLabel.TOOLBAR, self.TextLabel.BUTTON] :
+            raise ValueError("Cannot set a click action on label other than toolbar and button")
+        
+        if isinstance(self._text_label, QAction):
+            self._text_label.triggered.connect(fn)
+        elif isinstance(self._text_label, QPushButton):
+            self._text_label.clicked.connect(fn)
+        else:
+            raise ValueError("Unsupported label type")  # Shouldn't happen
 
 class StatusBar(QStatusBar):
-
-    class _InternalSignals(QObject):
-        device_link_changed = Signal(bool)
-
     _server_manager:ServerManager
-    _server_status_label:IndicatorLabel
-    _device_status_label:IndicatorLabel
-    _sfd_status_label:QLabel
-    _datalogger_status_label:QLabel
+    _server_status_label:StatusBarLabel
+    _device_status_label:StatusBarLabel
+    _device_comm_link_label:StatusBarLabel
+    _sfd_status_label:StatusBarLabel
+    _datalogger_status_label:StatusBarLabel
     
     _server_status_label_menu:QMenu
     _server_configure_action: QAction
@@ -131,16 +153,13 @@ class StatusBar(QStatusBar):
     _server_config_dialog:ServerConfigDialog
     
     _device_status_label_menu:QMenu
-    _device_configure_action:QAction
-    _device_about_action:QAction
+    _device_details_action:QAction
     _device_config_dialog:DeviceConfigDialog
 
     _red_square:QPixmap
     _yellow_square:QPixmap
     _green_square:QPixmap
     _one_shot_auto_connect:bool
-
-    _internal_signals: _InternalSignals
     
     def __init__(self, parent:QWidget, server_manager:ServerManager) -> None:
         super().__init__(parent)
@@ -149,38 +168,39 @@ class StatusBar(QStatusBar):
         self._device_config_dialog = DeviceConfigDialog(self, apply_callback=self._device_config_applied)
         self._one_shot_auto_connect = False
 
-        self._server_status_label = IndicatorLabel("", color=IndicatorLabel.Color.RED, label_type=IndicatorLabel.TextLabel.TOOLBAR)
-        self._device_status_label = IndicatorLabel("", color=IndicatorLabel.Color.RED, label_type=IndicatorLabel.TextLabel.TOOLBAR)
-        self._sfd_status_label = QLabel("")
-        self._datalogger_status_label = QLabel("")
+        self._server_status_label = StatusBarLabel("", use_indicator=True, label_type=StatusBarLabel.TextLabel.TOOLBAR, color=StatusBarLabel.Color.RED)
+        self._device_status_label = StatusBarLabel("", use_indicator=True, label_type=StatusBarLabel.TextLabel.TOOLBAR, color=StatusBarLabel.Color.RED)
+        self._device_comm_link_label = StatusBarLabel("", use_indicator=False, label_type=StatusBarLabel.TextLabel.TOOLBAR)
+        self._sfd_status_label = StatusBarLabel("", use_indicator=False, label_type=StatusBarLabel.TextLabel.LABEL)
+        self._datalogger_status_label = StatusBarLabel("", use_indicator=False, label_type=StatusBarLabel.TextLabel.LABEL)
 
         self._server_status_label_menu = QMenu()
         self._server_configure_action = self._server_status_label_menu.addAction("Configure")
         self._server_connect_action = self._server_status_label_menu.addAction("Connect")
         self._server_disconnect_action = self._server_status_label_menu.addAction("Disconnect")
-
         self._server_status_label.add_menu(self._server_status_label_menu)
         self._server_configure_action.triggered.connect(self._server_configure_func)
         self._server_connect_action.triggered.connect(self._server_connect_func)
         self._server_disconnect_action.triggered.connect(self._server_disconnect_func)
 
         self._device_status_label_menu = QMenu()
-        self._device_configure_action = self._device_status_label_menu.addAction("Configure")
-        self._device_about_action = self._device_status_label_menu.addAction("About")
-
+        self._device_details_action = self._device_status_label_menu.addAction("Details")
         self._device_status_label.add_menu(self._device_status_label_menu)
-        self._device_configure_action.triggered.connect(self._device_configure_func)
-        self._device_about_action.triggered.connect(self._device_about_func)
+        self._device_details_action.triggered.connect(self._device_about_func)
+
+        self._device_comm_link_label.set_click_action(self._device_link_click_func)
 
         self.setContentsMargins(5,0,5,0)    
         self.addWidget(self._server_status_label)
         self.addWidget(self._device_status_label)
+        self.addWidget(self._device_comm_link_label)
         self.addWidget(self._sfd_status_label)
         self.addPermanentWidget(self._datalogger_status_label)  # Right aligned
         
         # Allow the window to shrink horizontally. Prevented by the status bar otherwise.
         self._server_status_label.setMinimumWidth(1)    
         self._device_status_label.setMinimumWidth(1)    
+        self._device_comm_link_label.setMinimumWidth(1)    
         self._sfd_status_label.setMinimumWidth(1)   
         self._datalogger_status_label.setMinimumWidth(1)
         
@@ -198,9 +218,6 @@ class StatusBar(QStatusBar):
         self._server_manager.signals.sfd_unloaded.connect(self.update_content)
         
         self._server_manager.signals.status_received.connect(self.update_content)
-
-        self._internal_signals = self._InternalSignals()
-        self._internal_signals.device_link_changed.connect(self._device_link_change_completed)
 
         self.update_content()
 
@@ -226,10 +243,10 @@ class StatusBar(QStatusBar):
             self._one_shot_auto_connect=False
             self._server_connect_func()
     
-    def _device_configure_func(self) -> None:
+    def _device_link_click_func(self) -> None:
         info = self._server_manager.get_server_info()
         if info is None:
-            self._device_config_dialog.swap_config_pane(DeviceLinkType.NA)
+            self._device_config_dialog.swap_config_pane(DeviceLinkType.NONE)
         else:
             self._device_config_dialog.set_config(info.device_link.type, info.device_link.config)
             self._device_config_dialog.swap_config_pane(info.device_link.type)
@@ -242,69 +259,91 @@ class StatusBar(QStatusBar):
     def _device_config_applied(self, dialog:DeviceConfigDialog) -> None:
         link_type, config = dialog.get_type_and_config()
         if config is None:
+            # Invalid config. Do nothing
             return 
         
-        def change_device_link(link_type:DeviceLinkType, config:BaseLinkConfig, client:ScrutinyClient) -> bool:
-            try:
-                client.configure_device_link(link_type, config)
-            except ScrutinySDKException as e:
-                gui_logger.warning(str(e))
-                gui_logger.debug(traceback.format_exc())
-                return False
-            return True
+        def change_device_link(link_type:DeviceLinkType, config:BaseLinkConfig, client:ScrutinyClient) -> None:
+            return client.configure_device_link(link_type, config)
         
+        # Runs the request in a separate thread to avoid blocking the UI thread
         self._server_manager.schedule_client_request(
             user_func = functools.partial(change_device_link, link_type, config), 
-            signal = self._internal_signals.device_link_changed     # calls _device_link_change_completed
+            ui_thread_callback= self._change_device_link_completed
         )
-        self._device_configure_action.setEnabled(False) # Prevent stacking requests.
     
-    def _device_link_change_completed(self, success:bool) -> None:
-        self._device_configure_action.setEnabled(True)
+    def _change_device_link_completed(self, return_val:Any, error:Optional[Exception]) -> None:
+        if error is None:
+            self._device_config_dialog.change_success_callback()
+        else:
+            self._device_config_dialog.change_fail_callback(f"Failed:\n {error}")
+        self.update_content()
 
     def set_server_label_value(self, value:ServerLabelValue) -> None:
+        """Change the server status label"""
         prefix = 'Server:'
         if value == ServerLabelValue.Disconnected :
-            self._server_status_label.set_color(IndicatorLabel.Color.RED)
+            self._server_status_label.set_color(StatusBarLabel.Color.RED)
             self._server_status_label.set_text(f"{prefix} Disconnected")
         elif value == ServerLabelValue.Disconnecting :
-            self._server_status_label.set_color(IndicatorLabel.Color.YELLOW)
+            self._server_status_label.set_color(StatusBarLabel.Color.YELLOW)
             self._server_status_label.set_text(f"{prefix} Stopping...")
         elif value == ServerLabelValue.Waiting:
-            self._server_status_label.set_color(IndicatorLabel.Color.YELLOW)
+            self._server_status_label.set_color(StatusBarLabel.Color.YELLOW)
             self._server_status_label.set_text(f"{prefix} Waiting...")
         elif value == ServerLabelValue.Connected:
-            self._server_status_label.set_color(IndicatorLabel.Color.GREEN)
+            self._server_status_label.set_color(StatusBarLabel.Color.GREEN)
             self._server_status_label.set_text(f"{prefix} Connected")
         else:
             raise NotImplementedError(f"Unsupported label value {value}")
     
     def set_device_label(self, value:DeviceCommState) -> None:
+        """Change the device label status"""
         prefix = 'Device:'
         if value == DeviceCommState.NA:
-            self._device_status_label.set_color(IndicatorLabel.Color.RED)
+            self._device_status_label.set_color(StatusBarLabel.Color.RED)
             self._device_status_label.set_text(f"{prefix} N/A")
             self._device_status_label.setEnabled(False)
         elif value == DeviceCommState.ConnectedReady:
-            self._device_status_label.set_color(IndicatorLabel.Color.GREEN)
+            self._device_status_label.set_color(StatusBarLabel.Color.GREEN)
             self._device_status_label.set_text(f"{prefix} Connected")
             self._device_status_label.setEnabled(True)
         elif value == DeviceCommState.Connecting:
-            self._device_status_label.set_color(IndicatorLabel.Color.YELLOW)
+            self._device_status_label.set_color(StatusBarLabel.Color.YELLOW)
             self._device_status_label.set_text(f"{prefix} Connecting")
             self._device_status_label.setEnabled(True)
         elif value == DeviceCommState.Disconnected:
-            self._device_status_label.set_color(IndicatorLabel.Color.RED)
+            self._device_status_label.set_color(StatusBarLabel.Color.RED)
             self._device_status_label.set_text(f"{prefix} Disconnected")
             self._device_status_label.setEnabled(True)
         else:
             raise NotImplementedError(f"Unsupported device comm state value {value}")
 
+    def set_device_comm_link_label(self, link_type:DeviceLinkType, config:Optional[BaseLinkConfig]) -> None:
+        prefix= "Link:"
+        if link_type == DeviceLinkType.NONE:
+            self._device_comm_link_label.set_text(f"{prefix} None")
+        elif link_type == DeviceLinkType.TCP:
+            config = cast(sdk.TCPLinkConfig, config)
+            self._device_comm_link_label.set_text(f"{prefix} TCP {config.host}:{config.port}")
+        elif link_type == DeviceLinkType.UDP:
+            config = cast(sdk.UDPLinkConfig, config)
+            self._device_comm_link_label.set_text(f"{prefix} UDP {config.host}:{config.port}")
+        elif link_type == DeviceLinkType.Serial:
+            config = cast(sdk.SerialLinkConfig, config)
+            line = f"{config.port}@{config.baudrate} [D:{config.databits} S:{config.stopbits} P:{config.parity.name}]"
+            self._device_comm_link_label.set_text(f"{prefix} Serial {line}")
+        elif link_type == DeviceLinkType.RTT:
+            config = cast(sdk.RTTLinkConfig, config)
+            self._device_comm_link_label.set_text(f"{prefix} RTT {config.jlink_interface.name} ({config.target_device})")
+        else:
+            raise NotImplementedError("Unsupported device link type")
+
     def set_sfd_label(self, device_connected:bool, value:Optional[SFDInfo]) -> None:
+        """Change the loaded SFD label"""
         prefix = 'SFD:'
         if value is None:
             self._sfd_status_label.setEnabled(device_connected)
-            self._sfd_status_label.setText(f'{prefix} None ')
+            self._sfd_status_label.set_text(f'{prefix} None ')
             self._sfd_status_label.setToolTip("No Scrutiny Firmware Description file loaded")
         else:
             self._sfd_status_label.setEnabled(True)
@@ -315,10 +354,11 @@ class StatusBar(QStatusBar):
                     if value.metadata.version is not None:
                         project_name += ' V' + value.metadata.version
             
-            self._sfd_status_label.setText(f'{prefix} {project_name}')
+            self._sfd_status_label.set_text(f'{prefix} {project_name}')
             self._sfd_status_label.setToolTip(f"Firmware ID: {value.firmware_id}")
 
     def set_datalogging_label(self, value:DataloggingInfo) -> None:
+        """Change the datalogger state label"""
         prefix = "Datalogger:"
         completion_str = ""
         if value.completion_ratio is not None:
@@ -336,7 +376,7 @@ class StatusBar(QStatusBar):
         if value.state not in state_str:
             raise NotImplementedError(f"Unsupported datalogger state {value.state}")
 
-        self._datalogger_status_label.setText(f"{prefix} {state_str[value.state]}{completion_str}")
+        self._datalogger_status_label.set_text(f"{prefix} {state_str[value.state]}{completion_str}")
 
     def emulate_connect_click(self)->None:
         if self._server_connect_action.isEnabled():
@@ -344,8 +384,8 @@ class StatusBar(QStatusBar):
 
     def update_content(self) -> None:
         if not self._server_manager.is_running():
-            self._device_configure_action.setEnabled(False)
-            self._device_about_action.setEnabled(False)
+            self._device_details_action.setEnabled(False)
+            self._device_comm_link_label.setEnabled(False)
 
             if self._server_manager.is_stopping():
                 self._server_disconnect_action.setEnabled(False)
@@ -356,6 +396,7 @@ class StatusBar(QStatusBar):
                 self._server_connect_action.setEnabled(True)
                 self.set_server_label_value(ServerLabelValue.Disconnected)
             self.set_device_label(DeviceCommState.NA)
+            self.set_device_comm_link_label(DeviceLinkType.NONE, sdk.NoneLinkConfig())
             self.set_sfd_label(device_connected=False, value=None)
             self.set_datalogging_label(DataloggingInfo(state=DataloggerState.NA, completion_ratio=None))
         else:
@@ -366,21 +407,23 @@ class StatusBar(QStatusBar):
             server_info = None
 
             if server_state == ServerState.Connected:
-                self._device_configure_action.setEnabled(True)
                 self.set_server_label_value(ServerLabelValue.Connected)
                 server_info = self._server_manager.get_server_info()
+                self._device_comm_link_label.setEnabled(True)
             else:
-                self._device_configure_action.setEnabled(False)
                 self.set_server_label_value(ServerLabelValue.Waiting)
+                self._device_comm_link_label.setEnabled(False)
         
             if server_info is None:
-                self._device_about_action.setEnabled(False)
+                self._device_details_action.setEnabled(False)
                 self.set_device_label(DeviceCommState.NA)
+                self.set_device_comm_link_label(DeviceLinkType.NONE, sdk.NoneLinkConfig())
                 self.set_sfd_label(device_connected=False, value=None)
                 self.set_datalogging_label(DataloggingInfo(state=DataloggerState.NA, completion_ratio=None))
             else:
+                self.set_device_comm_link_label(server_info.device_link.type, server_info.device_link.config)
                 self.set_device_label(server_info.device_comm_state)
                 self.set_sfd_label(device_connected=server_info.device_comm_state == DeviceCommState.ConnectedReady, value=server_info.sfd)
                 self.set_datalogging_label(server_info.datalogging)
-                self._device_about_action.setEnabled(server_info.device_comm_state == DeviceCommState.ConnectedReady)
+                self._device_details_action.setEnabled(server_info.device_comm_state == DeviceCommState.ConnectedReady)
                         

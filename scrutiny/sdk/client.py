@@ -358,6 +358,7 @@ class ScrutinyClient:
 
         self._active_batch_context = None
         self._listeners=[]
+        self._locked_for_connect = False
 
     def _start_worker_thread(self) -> None:
         self._threading_events.stop_worker_thread.clear()
@@ -1663,10 +1664,12 @@ class ScrutinyClient:
         validation.assert_type(link_type, "link_type", sdk.DeviceLinkType)
         validation.assert_type(link_config, "link_config", sdk.BaseLinkConfig)
 
+
         assert link_type is not None
         assert link_config is not None
 
         api_map: Dict["DeviceLinkType", Tuple[str, Type[Union[BaseLinkConfig, None]]]] = {
+            DeviceLinkType.NONE: ('none', sdk.NoneLinkConfig),
             DeviceLinkType.Serial: ('serial', sdk.SerialLinkConfig),
             DeviceLinkType.UDP: ('udp', sdk.UDPLinkConfig),
             DeviceLinkType.TCP: ('tcp', sdk.TCPLinkConfig),
@@ -1693,7 +1696,7 @@ class ScrutinyClient:
 
         if future.state != CallbackState.OK:
             raise sdk.exceptions.OperationFailure(
-                f"Failed to configure the device communication link'. {future.error_str}")
+                f"Failed to configure the device communication link. {future.error_str}")
 
     def user_command(self, subfunction: int, data: bytes = bytes()) -> sdk.UserCommandResponse:
         """
