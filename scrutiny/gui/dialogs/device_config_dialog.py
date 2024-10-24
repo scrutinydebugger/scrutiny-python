@@ -6,11 +6,9 @@ from scrutiny import sdk
 from scrutiny.gui.widgets.validable_line_edit import ValidableLineEdit
 from scrutiny.gui.tools.validators import IpPortValidator, NotEmptyValidator
 from scrutiny.gui.core import WidgetState
-from typing import Optional, Dict, Union, Type, cast, Callable, Tuple
+from typing import Optional, Dict, Type, cast, Callable, Tuple
 import logging
 import traceback
-
-SUPPORTED_CONFIGS=Optional[Union[sdk.NoneLinkConfig, sdk.UDPLinkConfig, sdk.TCPLinkConfig, sdk.SerialLinkConfig, sdk.RTTLinkConfig]]
 
 class BaseConfigPane(QWidget):
     def get_config(self) -> Optional[sdk.BaseLinkConfig]:
@@ -23,7 +21,8 @@ class BaseConfigPane(QWidget):
         pass
     
     @classmethod
-    def make_config_valid(self, config:Optional[sdk.BaseLinkConfig]) -> Optional[sdk.BaseLinkConfig]:
+    def make_config_valid(self, config:Optional[sdk.BaseLinkConfig]) -> sdk.BaseLinkConfig:
+        assert config is not None
         return config
 
 
@@ -100,7 +99,7 @@ class TCPConfigPane(IPConfigPane):
         self.set_port(config.port)
 
     @classmethod
-    def make_config_valid(self, config:Optional[sdk.BaseLinkConfig]) -> Optional[sdk.BaseLinkConfig]:
+    def make_config_valid(self, config:Optional[sdk.BaseLinkConfig]) -> sdk.BaseLinkConfig:
         assert isinstance(config, sdk.TCPLinkConfig) 
         port = max(min(config.port, 0xFFFF), 0)
         hostname = config.host
@@ -130,7 +129,7 @@ class UDPConfigPane(IPConfigPane):
         self.set_port(config.port)
 
     @classmethod
-    def make_config_valid(self, config:Optional[sdk.BaseLinkConfig]) -> Optional[sdk.BaseLinkConfig]:
+    def make_config_valid(self, config:Optional[sdk.BaseLinkConfig]) -> sdk.BaseLinkConfig:
         assert isinstance(config, sdk.UDPLinkConfig) 
         port = max(min(config.port, 0xFFFF), 0)
         hostname = config.host
@@ -229,10 +228,10 @@ class SerialConfigPane(BaseConfigPane):
         self._parity_combo_box.setCurrentIndex(self._parity_combo_box.findData(config.parity))
         
     @classmethod
-    def make_config_valid(self, config:Optional[sdk.BaseLinkConfig]) -> Optional[sdk.BaseLinkConfig]:
+    def make_config_valid(self, config:Optional[sdk.BaseLinkConfig]) -> sdk.BaseLinkConfig:
         assert isinstance(config, sdk.SerialLinkConfig)
         return sdk.SerialLinkConfig(
-            port = "<port>" if len(config.port) else config.port,
+            port = "<port>" if len(config.port) == 0 else config.port,
             baudrate = max(config.baudrate, 1),
             stopbits = config.stopbits,
             databits = config.databits,
@@ -289,7 +288,7 @@ class RTTConfigPane(BaseConfigPane):
         self._jlink_interface_combo_box.setCurrentIndex(self._jlink_interface_combo_box.findData(config.jlink_interface))
         
     @classmethod
-    def make_config_valid(self, config:Optional[sdk.BaseLinkConfig]) -> Optional[sdk.BaseLinkConfig]:
+    def make_config_valid(self, config:Optional[sdk.BaseLinkConfig]) -> sdk.BaseLinkConfig:
         assert isinstance(config, sdk.RTTLinkConfig)
         return sdk.RTTLinkConfig(
             target_device = "<device>" if len(config.target_device) else config.target_device,
@@ -313,7 +312,7 @@ class DeviceConfigDialog(QDialog):
 
     _link_type_combo_box:QComboBox
     _config_container:QWidget
-    _configs:Dict[sdk.DeviceLinkType, SUPPORTED_CONFIGS]
+    _configs:Dict[sdk.DeviceLinkType, sdk.BaseLinkConfig]
     _active_pane:BaseConfigPane
     _apply_callback:Optional[Callable[["DeviceConfigDialog"], None]]
     _status_label:QLabel
@@ -396,7 +395,7 @@ class DeviceConfigDialog(QDialog):
         self._active_pane.visual_validation()
         # if config is None, it is invalid. Don't close and expect the user to fix
         if config is not None:
-            self._configs[link_type] = cast(SUPPORTED_CONFIGS, config)
+            self._configs[link_type] = config
             self._btn_ok.setEnabled(False)
             self._set_waiting_status()
             if self._apply_callback is not None:
@@ -437,15 +436,15 @@ class DeviceConfigDialog(QDialog):
         self.close()
 
 
-    def set_config(self, link_type:sdk.DeviceLinkType, config:SUPPORTED_CONFIGS ) -> None:
+    def set_config(self, link_type:sdk.DeviceLinkType, config:sdk.BaseLinkConfig ) -> None:
         """Set the config for a given link type. 
         This config will be displayed when the user select the given link type"""
         if link_type not in self._configs:
             raise ValueError("Unsupported config type")
         
         try:
-            config = cast(SUPPORTED_CONFIGS, self.CONFIG_TYPE_TO_WIDGET[link_type].make_config_valid(config))
-            self._configs[link_type] = config
+            valid_config = self.CONFIG_TYPE_TO_WIDGET[link_type].make_config_valid(config)
+            self._configs[link_type] = valid_config
         except Exception as e:
             self.logger.warning(f"Tried to load an invalid config. {e}")
             self.logger.debug(traceback.format_exc())

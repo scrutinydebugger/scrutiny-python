@@ -313,6 +313,7 @@ class TestApiParser(ScrutinyUnitTest):
                 },
                 "device_comm_link": {
                     "link_type": "udp",
+                    "link_operational" : True,
                     "link_config": {
                         "host": "localhost",
                         "port": 12345

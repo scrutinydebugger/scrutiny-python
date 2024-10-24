@@ -433,6 +433,9 @@ def parse_inform_server_status(response: api_typing.S2C.InformServerStatus) -> s
         state=_datalogging_status(response['device_datalogging_status']['datalogger_state'])
     )
 
+    _check_response_dict(cmd, response, 'device_comm_link.link_type', str)
+    _check_response_dict(cmd, response, 'device_comm_link.link_operational', bool)
+
     def _link_type(api_val: api_typing.LinkType) -> sdk.DeviceLinkType:
         if api_val == 'none':
             return sdk.DeviceLinkType.NONE
@@ -445,7 +448,7 @@ def parse_inform_server_status(response: api_typing.S2C.InformServerStatus) -> s
         raise sdk.exceptions.BadResponseError('Unsupported device link type "{api_val}"')
 
     link_type = _link_type(response['device_comm_link']['link_type'])
-
+    link_operational = response['device_comm_link']['link_operational']
     link_config: Optional[sdk.SupportedLinkConfig]
     if link_type == sdk.DeviceLinkType.NONE:
         link_config = None
@@ -512,7 +515,8 @@ def parse_inform_server_status(response: api_typing.S2C.InformServerStatus) -> s
     _check_response_dict(cmd, response, 'device_comm_link.link_type', str)
     device_link = sdk.DeviceLinkInfo(
         type=link_type,
-        config=link_config
+        config=link_config,
+        operational=link_operational
     )
 
     return sdk.ServerInfo(

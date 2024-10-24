@@ -1732,11 +1732,11 @@ class TestClient(ScrutinyUnitTest):
         self.assertFalse(self.device_handler.comm_configure_queue.empty())
         link_type, configout = self.device_handler.comm_configure_queue.get(block=False)
 
-        for field in ('port', 'baudrate', 'databits', 'stopbits', 'parity'):
+        for field in ('portname', 'baudrate', 'databits', 'stopbits', 'parity'):
             self.assertIn(field, configout)
 
         self.assertEqual(link_type, 'serial')
-        self.assertEqual(configout['port'], 'COM123')
+        self.assertEqual(configout['portname'], 'COM123')
         self.assertEqual(configout['baudrate'], 115200)
         self.assertEqual(configout['databits'], 8)
         self.assertEqual(configout['stopbits'], '1')

@@ -58,6 +58,7 @@ class StubbedDeviceHandler:
     datalogger_state: device_datalogging.DataloggerState
     datalogging_setup: Optional[device_datalogging.DataloggingSetup]
     device_state_change_callbacks: List[DeviceStateChangedCallback]
+    comm_link:DummyLink
 
     read_memory_queue: "queue.Queue[RawMemoryReadRequest]"
     write_memory_queue: "queue.Queue[RawMemoryWriteRequest]"
@@ -80,6 +81,7 @@ class StubbedDeviceHandler:
         self.read_memory_queue = queue.Queue()
         self.write_memory_queue = queue.Queue()
         self.user_command_history_queue = queue.Queue()
+        self.comm_link = DummyLink()
 
     def get_connection_status(self) -> DeviceHandler.ConnectionStatus:
         return self.connection_status
@@ -120,7 +122,7 @@ class StubbedDeviceHandler:
         return 'dummy'
 
     def get_comm_link(self) -> DummyLink:
-        return DummyLink()
+        return self.comm_link
 
     def get_datalogging_acquisition_completion_ratio(self):
         return 0.5
@@ -343,10 +345,10 @@ class TestAPI(ScrutinyUnitTest):
         self.assertIsNone(json_str)
 
     def wait_for_response(self, conn_idx=0, timeout=1):
-        t1 = time.time()
+        t1 = time.perf_counter()
         self.process_all()
         while not self.connections[conn_idx].from_server_available():
-            if time.time() - t1 >= timeout:
+            if time.perf_counter() - t1 >= timeout:
                 break
             self.process_all()
             time.sleep(0.01)
@@ -356,7 +358,9 @@ class TestAPI(ScrutinyUnitTest):
     def wait_and_load_response(self, conn_idx=0, timeout=2):
         json_str = self.wait_for_response(conn_idx=conn_idx, timeout=timeout)
         self.assertIsNotNone(json_str)
-        return json.loads(json_str)
+        return  json.loads(json_str)
+
+
 
     def send_request(self, req, conn_idx=0):
         self.connections[conn_idx].write_to_server(json.dumps(req))
@@ -1025,6 +1029,8 @@ class TestAPI(ScrutinyUnitTest):
             self.sfd_handler.request_load_sfd(sfd2.get_firmware_id_ascii())
             self.sfd_handler.process()
             self.fake_device_handler.set_connection_status(DeviceHandler.ConnectionStatus.CONNECTED_READY)
+            self.fake_device_handler.get_comm_link().initialize()   # Makes operational
+            self.assertTrue(self.fake_device_handler.get_comm_link().operational())
 
             req = {
                 'cmd': 'get_server_status'
@@ -1052,6 +1058,8 @@ class TestAPI(ScrutinyUnitTest):
             self.assertIn('device_comm_link', response)
             self.assertIn('link_type', response['device_comm_link'])
             self.assertEqual(response['device_comm_link']['link_type'], 'dummy')
+            self.assertIn('link_operational', response['device_comm_link'])
+            self.assertEqual(response['device_comm_link']['link_operational'], True)            
             self.assertIn('link_config', response['device_comm_link'])
             self.assertEqual(response['device_comm_link']['link_config'], {})
             self.assertIn('device_info', response)
@@ -1178,6 +1186,10 @@ class TestAPI(ScrutinyUnitTest):
         self.assertEqual(self.fake_device_handler.link_type, 'dummy')
         self.assertEqual(self.fake_device_handler.link_config, {'channel_id': 10})
 
+        inform_status = self.wait_and_load_response()   # Expected when a link change succeed
+        self.assert_no_error(inform_status)
+        self.assertEqual(inform_status['cmd'], API.Command.Api2Client.INFORM_SERVER_STATUS)
+
         # Simulate that the device handler refused the configuration. Make sure we return a proper error
         req = {
             'cmd': 'set_link_config',
@@ -1193,7 +1205,7 @@ class TestAPI(ScrutinyUnitTest):
         self.assertNotEqual(self.fake_device_handler.link_type, 'potato')
         self.assertNotEqual(self.fake_device_handler.link_config, {'mium': 'mium'})
         self.fake_device_handler.reject_link_config = False
-
+        
         # Missing link_config
         req = {
             'cmd': 'set_link_config',

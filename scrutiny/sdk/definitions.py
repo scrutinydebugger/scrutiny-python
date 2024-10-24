@@ -422,7 +422,7 @@ class RTTLinkConfig(BaseLinkConfig):
             'jlink_interface': self.jlink_interface.value
         }
 
-SupportedLinkConfig = Union[UDPLinkConfig, TCPLinkConfig, SerialLinkConfig, RTTLinkConfig]
+SupportedLinkConfig = Union[UDPLinkConfig, TCPLinkConfig, SerialLinkConfig, RTTLinkConfig, NoneLinkConfig]
 
 
 @dataclass(frozen=True)
@@ -433,6 +433,8 @@ class DeviceLinkInfo:
     """Type of communication channel between the server and the device"""
     config: Optional[SupportedLinkConfig]
     """A channel type specific configuration"""
+    operational:bool
+    """Tells if the link is opened and working correctly"""
 
 
 @dataclass(frozen=True)
