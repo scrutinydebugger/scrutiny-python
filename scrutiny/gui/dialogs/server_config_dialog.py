@@ -8,14 +8,14 @@
 
 __all__ = ['ServerConfigDialog']
 
-from qtpy.QtWidgets import QDialog, QDialogButtonBox, QFormLayout, QLabel, QWidget, QVBoxLayout
-from qtpy.QtCore import Qt
-from qtpy.QtGui import QIntValidator
+from PyQt5.QtWidgets import QDialog, QDialogButtonBox, QFormLayout, QLabel, QWidget, QVBoxLayout
+from PyQt5.QtCore import Qt
+from PyQt5.QtGui import QIntValidator
 from scrutiny.gui.tools.validators import IpPortValidator, NotEmptyValidator
 from scrutiny.gui.widgets.validable_line_edit import ValidableLineEdit
 from scrutiny.gui.core.server_manager import ServerConfig
 
-from typing import Callable, Optional
+from typing import Callable, Optional, cast
 
 
 class ServerConfigDialog(QDialog):
@@ -32,14 +32,15 @@ class ServerConfigDialog(QDialog):
 
     def __init__(self, parent:QWidget, apply_callback:Optional[Callable[["ServerConfigDialog"], None]]=None) -> None:
         super().__init__(parent)
-        self.setWindowFlags(Qt.WindowType.WindowCloseButtonHint | Qt.WindowType.WindowTitleHint | Qt.WindowType.Dialog)
+        self.setWindowFlags(cast(Qt.WindowType, Qt.WindowType.WindowCloseButtonHint | Qt.WindowType.WindowTitleHint | Qt.WindowType.Dialog))
         self.setModal(True)
         self.setWindowTitle("Server configuration")
         self._apply_callback = apply_callback
 
         layout = QVBoxLayout(self)
         form = QWidget()
-        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        # cast is for mypy issue
+        buttons = QDialogButtonBox(cast(QDialogButtonBox.StandardButton, QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel))
         layout.addWidget(form)
         layout.addWidget(buttons)
 
@@ -51,8 +52,8 @@ class ServerConfigDialog(QDialog):
         self._hostname_textbox = ValidableLineEdit(soft_validator=NotEmptyValidator())
         self._port_textbox = ValidableLineEdit(hard_validator=QIntValidator(0,0xFFFF), soft_validator=IpPortValidator())
 
-        self._hostname_textbox.textChanged.connect(self._hostname_textbox.validate_expect_not_wrong)
-        self._port_textbox.textChanged.connect(self._port_textbox.validate_expect_not_wrong)
+        self._hostname_textbox.textChanged.connect(self._hostname_textbox.validate_expect_not_wrong_default_slot)
+        self._port_textbox.textChanged.connect(self._port_textbox.validate_expect_not_wrong_default_slot)
         
         form_layout.addRow(hostname_label, self._hostname_textbox)
         form_layout.addRow(port_label, self._port_textbox)

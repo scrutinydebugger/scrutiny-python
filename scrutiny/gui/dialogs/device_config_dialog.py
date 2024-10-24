@@ -1,7 +1,7 @@
 
-from qtpy.QtWidgets import QDialog, QWidget, QComboBox, QVBoxLayout, QDialogButtonBox,QFormLayout, QLabel, QPushButton
-from qtpy.QtGui import QIntValidator
-from qtpy.QtCore import Qt
+from PyQt5.QtWidgets import QDialog, QWidget, QComboBox, QVBoxLayout, QDialogButtonBox,QFormLayout, QLabel, QPushButton
+from PyQt5.QtGui import QIntValidator
+from PyQt5.QtCore import Qt
 from scrutiny import sdk
 from scrutiny.gui.widgets.validable_line_edit import ValidableLineEdit
 from scrutiny.gui.tools.validators import IpPortValidator, NotEmptyValidator
@@ -9,6 +9,7 @@ from scrutiny.gui.core import WidgetState
 from typing import Optional, Dict, Type, cast, Callable, Tuple
 import logging
 import traceback
+from scrutiny.tools import get_not_none
 
 class BaseConfigPane(QWidget):
     def get_config(self) -> Optional[sdk.BaseLinkConfig]:
@@ -49,8 +50,8 @@ class IPConfigPane(BaseConfigPane):
         self._port_textbox = ValidableLineEdit(hard_validator=QIntValidator(0,0xFFFF), soft_validator=IpPortValidator())
 
         # Make sure the red background disappear when we type (fixing the invalid content)
-        self._hostname_textbox.textChanged.connect(self._hostname_textbox.validate_expect_not_wrong)
-        self._port_textbox.textChanged.connect(self._port_textbox.validate_expect_not_wrong)
+        self._hostname_textbox.textChanged.connect(self._hostname_textbox.validate_expect_not_wrong_default_slot)
+        self._port_textbox.textChanged.connect(self._port_textbox.validate_expect_not_wrong_default_slot)
         
         form_layout.addRow(hostname_label, self._hostname_textbox)
         form_layout.addRow(port_label, self._port_textbox)
@@ -187,8 +188,8 @@ class SerialConfigPane(BaseConfigPane):
         layout.addRow(QLabel("Parity: "), self._parity_combo_box)
 
         # Make sure the red background disappear when we type (fixing the invalid content)
-        self._port_name_textbox.textChanged.connect(self._port_name_textbox.validate_expect_not_wrong)
-        self._baudrate_textbox.textChanged.connect(self._baudrate_textbox.validate_expect_not_wrong)
+        self._port_name_textbox.textChanged.connect(self._port_name_textbox.validate_expect_not_wrong_default_slot)
+        self._baudrate_textbox.textChanged.connect(self._baudrate_textbox.validate_expect_not_wrong_default_slot)
 
 
     def get_config(self) -> Optional[sdk.SerialLinkConfig]:
@@ -266,7 +267,7 @@ class RTTConfigPane(BaseConfigPane):
         layout.addRow(QLabel("Target Device: "), self._target_device_text_box)
 
         # Make sure the red background disappear when we type (fixing the invalid content)
-        self._target_device_text_box.textChanged.connect(self._target_device_text_box.validate_expect_not_wrong)
+        self._target_device_text_box.textChanged.connect(self._target_device_text_box.validate_expect_not_wrong_default_slot)
 
     def get_config(self) -> Optional[sdk.RTTLinkConfig]:
         target_device = self._target_device_text_box.text()
@@ -319,7 +320,10 @@ class DeviceConfigDialog(QDialog):
     _btn_ok:QPushButton
     _btn_cancel:QPushButton
 
-    def __init__(self, parent:Optional[QWidget]=None,  apply_callback:Optional[Callable[["DeviceConfigDialog"], None]]=None ) -> None:
+    def __init__(self, 
+                 parent:Optional[QWidget]=None,  
+                 apply_callback:Optional[Callable[["DeviceConfigDialog"], None]]=None 
+                 ) -> None:
         super().__init__(parent)
         self._apply_callback = apply_callback
         self.logger = logging.getLogger(self.__class__.__name__)
@@ -339,7 +343,7 @@ class DeviceConfigDialog(QDialog):
         self._status_label.setWordWrap(True)
         self._status_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         self._status_label.setProperty("state", WidgetState.default)
-        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        buttons = QDialogButtonBox(cast(QDialogButtonBox.StandardButton, QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel))
         buttons.accepted.connect(self._btn_ok_click)
         buttons.rejected.connect(self._btn_cancel_click)
         
@@ -348,8 +352,8 @@ class DeviceConfigDialog(QDialog):
         vlayout.addWidget(self._status_label)
         vlayout.addWidget(buttons)
 
-        self._btn_ok = buttons.button(QDialogButtonBox.StandardButton.Ok)
-        self._btn_cancel = buttons.button(QDialogButtonBox.StandardButton.Cancel)
+        self._btn_ok = get_not_none(buttons.button(QDialogButtonBox.StandardButton.Ok))
+        self._btn_cancel = get_not_none(buttons.button(QDialogButtonBox.StandardButton.Cancel))
 
         self._configs = {}
         # Preload some default configs to avoid having a blank form
@@ -372,7 +376,7 @@ class DeviceConfigDialog(QDialog):
 
     def _rebuild_config_layout(self, link_type:sdk.DeviceLinkType) -> None:
         """Change the variable part of the dialog based on the type of link the user wants."""
-        layout = self._config_container.layout()
+        layout = get_not_none(self._config_container.layout())
 
         for pane in self._config_container.children():
             if isinstance(pane, BaseConfigPane):

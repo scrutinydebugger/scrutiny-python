@@ -17,9 +17,8 @@ dependencies = [
     'sortedcontainers==2.4.0',
     'pyserial==3.5',
     'pylink-square==1.3.0',
-    'QtPy==2.4.1',
-    'PyQtAds==3.8.1',
-    'PyQt5==5.15.11'
+    'PyQt5-QtAds==4.3.1',
+    'PyQt5==6.7.3'
 ]
 
 doc_dependencies = []

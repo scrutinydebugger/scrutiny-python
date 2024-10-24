@@ -9,9 +9,8 @@
 __all__ = ['Sidebar']
 
 
-from qtpy.QtWidgets import QWidget,  QToolBar,  QToolButton, QSizePolicy
-from qtpy.QtCore import Qt, QSize, Signal, QEvent
-from qtpy.QtGui import QAction
+from PyQt5.QtWidgets import QWidget,  QToolBar,  QToolButton, QSizePolicy, QAction
+from PyQt5.QtCore import Qt, QSize, pyqtSignal as Signal
 from scrutiny.gui.dashboard_components.base_component import ScrutinyGUIBaseComponent
 import functools
 
@@ -40,5 +39,5 @@ class Sidebar(QToolBar):
             btn.setDefaultAction(btn_action)
             self.addWidget(btn)
     
-    def trigger_signal(self, component:Type[ScrutinyGUIBaseComponent], event: QEvent) -> None:
+    def trigger_signal(self, component:Type[ScrutinyGUIBaseComponent]) -> None:
         self.insert_component.emit(component)

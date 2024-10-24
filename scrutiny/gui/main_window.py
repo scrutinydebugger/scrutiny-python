@@ -9,11 +9,11 @@
 import logging
 import traceback
 
-from qtpy.QtWidgets import  QWidget, QVBoxLayout, QHBoxLayout
+from PyQt5.QtWidgets import  QWidget, QVBoxLayout, QHBoxLayout
 
-from qtpy.QtGui import  QCloseEvent
-from qtpy.QtCore import Qt, QRect
-from qtpy.QtWidgets import QMainWindow
+from PyQt5.QtGui import  QCloseEvent
+from PyQt5.QtCore import Qt, QRect
+from PyQt5.QtWidgets import QMainWindow
 
 from scrutiny.gui.qtads import QtAds    #Advanced Docking System
 from scrutiny.gui.dialogs.about_dialog import AboutDialog
@@ -30,7 +30,7 @@ from scrutiny.gui.dashboard_components.embedded_graph.embedded_graph_component i
 
 from scrutiny.gui.core.server_manager import ServerManager
 from scrutiny.gui.core.watchable_index import WatchableIndex
-from typing import List, Type, Dict
+from typing import List, Type, Dict, Optional
 
 
 
@@ -89,9 +89,11 @@ class MainWindow(QMainWindow):
 
     def centered(self, w:int, h:int) -> QRect:
         """Returns a rectangle centered in the screen of given width/height"""
+        screen = self.screen()
+        assert screen is not None
         return QRect(
-            max((self.screen().geometry().width() - w), 0) // 2,
-            max((self.screen().geometry().height() - h), 0) // 2,
+            max((screen.geometry().width() - w), 0) // 2,
+            max((screen.geometry().height() - h), 0) // 2,
             w,h)
 
     def show_about(self) -> None:
@@ -185,7 +187,7 @@ class MainWindow(QMainWindow):
     def start_server_manager(self) -> None:
         self._status_bar.emulate_connect_click()
 
-    def closeEvent(self, event: QCloseEvent) -> None:
+    def closeEvent(self, event: Optional[QCloseEvent]) -> None:
         self._server_manager.stop()
         self._dock_manager.deleteLater()
         super().closeEvent(event)

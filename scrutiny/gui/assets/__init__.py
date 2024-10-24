@@ -1,7 +1,7 @@
 import os
 from scrutiny.gui.core.exceptions import GuiError
 from pathlib import Path
-from qtpy.QtGui import QPixmap
+from PyQt5.QtGui import QPixmap
 
 from typing import List, Union
 
@@ -30,4 +30,3 @@ def logo_icon() -> Path:
 
 def load_pixmap(name:str) -> QPixmap:
     return QPixmap(str(get(name)))
-

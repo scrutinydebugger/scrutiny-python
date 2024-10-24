@@ -6,9 +6,8 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
-from qtpy.QtWidgets import QDialog, QFormLayout, QLabel, QWidget
-import qtpy
-import qtpy.QtCore
+from PyQt5.QtWidgets import QDialog, QFormLayout, QLabel, QWidget
+from PyQt5.QtCore import QT_VERSION_STR, PYQT_VERSION_STR
 import sys
 from typing import Optional
 
@@ -26,26 +25,9 @@ class AboutDialog(QDialog):
         fields = [
             ("Scrutiny version", scrutiny.__version__),
             ("Python version", "%d.%d.%d" % (sys.version_info.major, sys.version_info.minor, sys.version_info.micro)),
-            ("qtpy version", qtpy.__version__),
-            ("QT API", qtpy.API_NAME),
+            ("QT version", QT_VERSION_STR),
+            ("PyQt5 version", PYQT_VERSION_STR),
         ]
-
-        if qtpy.PYQT4 or qtpy.PYQT5 or qtpy.PYQT6:
-            fields.append(
-                ("PyQT version", qtpy.QtCore.PYQT_VERSION_STR)  # type: ignore
-            )
-        elif qtpy.PYSIDE6:
-            version_str = "unknown"
-
-            try:
-                import PySide6
-                version_str = PySide6.__version__
-            except ImportError:
-                pass
-
-            fields.append(
-                ("PySide version", version_str)
-            )
 
         for i in range(len(fields)):
             layout.addRow(QLabel(fields[i][0]), QLabel(fields[i][1]) )

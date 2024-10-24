@@ -1,16 +1,17 @@
-from qtpy.QtWidgets import QStatusBar, QWidget, QLabel, QHBoxLayout, QSizePolicy, QPushButton, QToolBar, QMenu
-from qtpy.QtGui import QPixmap, QAction
-from qtpy.QtCore import Qt, QPoint
+from PyQt5.QtWidgets import QStatusBar, QWidget, QLabel, QHBoxLayout, QSizePolicy, QPushButton, QToolBar, QMenu, QAction
+from PyQt5.QtCore import Qt, QPoint
+from PyQt5.QtGui import QPixmap
 from scrutiny.gui.core.server_manager import ServerManager
 from scrutiny.gui.dialogs.server_config_dialog import ServerConfigDialog
 from scrutiny.gui.dialogs.device_config_dialog import DeviceConfigDialog
 from scrutiny.gui import assets
 from scrutiny.sdk import ServerState, DeviceCommState, SFDInfo, DataloggingInfo, DataloggerState, DeviceLinkType, BaseLinkConfig
 from scrutiny import sdk
+from scrutiny.tools import get_not_none
 from scrutiny.sdk.client import ScrutinyClient
 import functools
 import enum
-from typing import Optional, Dict, cast, Union, Any, Tuple
+from typing import Optional, Dict, cast, Union, Any, Tuple, Callable
 
 class ServerLabelValue(enum.Enum):
     Disconnected = enum.auto()
@@ -80,7 +81,7 @@ class StatusBarLabel(QWidget):
         self.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
         self._layout = QHBoxLayout(self)
         self._layout.setContentsMargins(5,0,10,0)
-        self._layout.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        self._layout.setAlignment(cast(Qt.AlignmentFlag, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter))
         self._indicator_label = None
         if use_indicator:
             self._indicator_label = QLabel()
@@ -97,7 +98,7 @@ class StatusBarLabel(QWidget):
             self._layout.addWidget(self._text_label)
         elif label_kind == self.TextLabelKind.TOOLBAR:
             self._toolbar = QToolBar()
-            self._text_label = self._toolbar.addAction(text)
+            self._text_label = get_not_none(self._toolbar.addAction(text))
             self._layout.addWidget(self._toolbar)
         else:
             raise ValueError("Unsupported text label type")
@@ -143,7 +144,7 @@ class StatusBarLabel(QWidget):
             menu.popup(self.mapToGlobal(self._toolbar.pos() - QPoint(0, menu.height())))
         self._text_label.triggered.connect(show_menu)
 
-    def set_click_action(self, fn:object) -> None:
+    def set_click_action(self, fn:Callable[[], None]) -> None:
         """Connect a function to a click signal on the underlying text label. Possible with TOOLBAR and BUTTON kind"""
         if self._label_kind not in [self.TextLabelKind.TOOLBAR, self.TextLabelKind.BUTTON] :
             raise ValueError("Cannot set a click action on label other than toolbar and button")
@@ -210,16 +211,16 @@ class StatusBar(QStatusBar):
         self._datalogger_status_label = StatusBarLabel("", use_indicator=False, label_kind=StatusBarLabel.TextLabelKind.LABEL)
 
         self._server_status_label_menu = QMenu()
-        self._server_configure_action = self._server_status_label_menu.addAction("Configure")
-        self._server_connect_action = self._server_status_label_menu.addAction("Connect")
-        self._server_disconnect_action = self._server_status_label_menu.addAction("Disconnect")
+        self._server_configure_action = get_not_none(self._server_status_label_menu.addAction("Configure"))
+        self._server_connect_action = get_not_none(self._server_status_label_menu.addAction("Connect"))
+        self._server_disconnect_action = get_not_none(self._server_status_label_menu.addAction("Disconnect"))
         self._server_status_label.add_menu(self._server_status_label_menu)
         self._server_configure_action.triggered.connect(self._server_configure_func)
         self._server_connect_action.triggered.connect(self._server_connect_func)
         self._server_disconnect_action.triggered.connect(self._server_disconnect_func)
 
         self._device_status_label_menu = QMenu()
-        self._device_details_action = self._device_status_label_menu.addAction("Details")
+        self._device_details_action = get_not_none(self._device_status_label_menu.addAction("Details"))
         self._device_status_label.add_menu(self._device_status_label_menu)
         self._device_details_action.triggered.connect(self._device_about_func)
 

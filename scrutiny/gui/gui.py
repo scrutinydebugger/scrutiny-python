@@ -6,8 +6,8 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
-from qtpy.QtWidgets import QApplication
-from qtpy.QtGui import QIcon, QPalette
+from PyQt5.QtWidgets import QApplication
+from PyQt5.QtGui import QIcon, QPalette
 from scrutiny.gui.main_window import MainWindow
 from scrutiny.gui import assets
 import scrutiny

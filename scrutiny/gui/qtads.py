@@ -16,9 +16,9 @@ try:
     from PyQtAds import ads as QtAds    # type: ignore
 except ImportError:
     try:
-        import PySide6QtAds as QtAds    # type: ignore
+        import PyQt5QtAds as QtAds    # type: ignore
     except ImportError:
         available = False
 
 if not available:
-    raise ImportError("QT Advanced Docking System is not available. You need either PyQtAds or PySide6QtAds installed.")
+    raise ImportError("QT Advanced Docking System is not available. You need either PyQtAds or PyQt5QtAds installed.")

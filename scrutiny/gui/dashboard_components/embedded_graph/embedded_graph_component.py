@@ -9,7 +9,7 @@
 from scrutiny.gui.dashboard_components.base_component import ScrutinyGUIBaseComponent
 from typing import Dict, Any
 
-from qtpy.QtWidgets import QVBoxLayout, QLabel
+from PyQt5.QtWidgets import QVBoxLayout, QLabel
 
 from scrutiny.gui import assets
 
