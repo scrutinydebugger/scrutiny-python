@@ -18,7 +18,7 @@ dependencies = [
     'pyserial==3.5',
     'pylink-square==1.3.0',
     'QtPy==2.4.1',
-    'PySide6-QtAds==3.8.1',
+    'PyQtAds==3.8.1',
     'PyQt5==5.15.11'
 ]
 
