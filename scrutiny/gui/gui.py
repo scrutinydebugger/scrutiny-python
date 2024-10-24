@@ -35,7 +35,7 @@ class ScrutinyQtGUI:
         if platform.system() == "Windows":
             # Tells windows that python process host another application. Enables the QT icon in the task bar
             # see https://stackoverflow.com/questions/1551605/how-to-set-applications-taskbar-icon-in-windows-7
-            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(u'scrutiny.gui.%s' % scrutiny.__version__)
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(u'scrutiny.gui.%s' % scrutiny.__version__)    # type: ignore
 
         window = MainWindow()
 
