@@ -336,8 +336,8 @@ class SerialLinkConfig(BaseLinkConfig):
         ONE_POINT_FIVE = 1.5
         TWO = 2
 
-        def get_numerical(self) -> int:
-            return self.value
+        def get_numerical(self) -> float:
+            return float(self.value)
 
     class DataBits(enum.Enum):
         FIVE = 5
@@ -346,7 +346,7 @@ class SerialLinkConfig(BaseLinkConfig):
         EIGHT = 8
 
         def get_numerical(self) -> int:
-            return self.value
+            return int(self.value)
 
     class Parity(enum.Enum):
         NONE = "none" 

@@ -17,8 +17,8 @@ dependencies = [
     'sortedcontainers==2.4.0',
     'pyserial==3.5',
     'pylink-square==1.3.0',
-    'PyQtAds==3.8.1',
-    'PyQt5==5.15.11'
+    'PySide6-QtAds==4.3.1',
+    'PySide6==6.7.3'
 ]
 
 doc_dependencies = []
@@ -30,7 +30,7 @@ if (sys.version_info.major, sys.version_info.minor) >= (3, 9):
 
 setup(
     name=scrutiny.__name__,
-    python_requires='>3.8',
+    python_requires='>=3.9',
     description='Scrutiny debugger Python framework',
     url='https://github.com/scrutinydebugger/scrutiny-python',
     version=scrutiny.__version__,

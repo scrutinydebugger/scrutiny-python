@@ -9,11 +9,11 @@
 import logging
 import traceback
 
-from PyQt5.QtWidgets import  QWidget, QVBoxLayout, QHBoxLayout
+from PySide6.QtWidgets import  QWidget, QVBoxLayout, QHBoxLayout
 
-from PyQt5.QtGui import  QCloseEvent
-from PyQt5.QtCore import Qt, QRect
-from PyQt5.QtWidgets import QMainWindow
+from PySide6.QtGui import  QCloseEvent
+from PySide6.QtCore import Qt, QRect
+from PySide6.QtWidgets import QMainWindow
 
 from scrutiny.gui.qtads import QtAds    #Advanced Docking System
 from scrutiny.gui.dialogs.about_dialog import AboutDialog
@@ -187,7 +187,7 @@ class MainWindow(QMainWindow):
     def start_server_manager(self) -> None:
         self._status_bar.emulate_connect_click()
 
-    def closeEvent(self, event: Optional[QCloseEvent]) -> None:
+    def closeEvent(self, event: QCloseEvent) -> None:
         self._server_manager.stop()
         self._dock_manager.deleteLater()
         super().closeEvent(event)

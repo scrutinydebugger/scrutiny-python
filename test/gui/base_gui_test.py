@@ -7,7 +7,7 @@
 #   Copyright (c) 2021 Scrutiny Debugger
 
 from test import ScrutinyUnitTest
-from PyQt5.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication
 import enum
 import time
 from test import logger

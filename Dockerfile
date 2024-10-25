@@ -73,17 +73,3 @@ RUN wget $PYTHON_SRC \
     && cd .. \
     && rm "Python-${PYTHON_VERSION}.tgz" \
     && rm -rf "Python-${PYTHON_VERSION}"
-
-# ============================================
-ARG PYTHON_VERSION="3.8.20"
-ARG PYTHON_SRC="https://www.python.org/ftp/python/${PYTHON_VERSION}/Python-${PYTHON_VERSION}.tgz"
-
-RUN wget $PYTHON_SRC \
-    && tar -xvzf "Python-${PYTHON_VERSION}.tgz" \
-    && cd "Python-${PYTHON_VERSION}" \
-    && ./configure \
-    && make -j 4 \
-    && make install \
-    && cd .. \
-    && rm "Python-${PYTHON_VERSION}.tgz" \
-    && rm -rf "Python-${PYTHON_VERSION}"

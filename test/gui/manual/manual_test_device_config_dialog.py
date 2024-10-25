@@ -7,7 +7,7 @@ project_root = os.path.realpath(os.path.join(os.path.dirname(__file__), '..', '.
 sys.path.insert(0, project_root)
 
 import logging
-from PyQt5.QtWidgets import QApplication, QMainWindow, QPushButton, QWidget, QVBoxLayout
+from PySide6.QtWidgets import QApplication, QMainWindow, QPushButton, QWidget, QVBoxLayout
 from scrutiny.gui.dialogs.device_config_dialog import DeviceConfigDialog
 from scrutiny import sdk
 from scrutiny.gui import assets

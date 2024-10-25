@@ -1,6 +1,6 @@
 __all__ = ['MenuBar']
-from PyQt5.QtWidgets import QMenuBar, QAction
-from scrutiny.tools import get_not_none
+from PySide6.QtWidgets import QMenuBar
+from PySide6.QtGui import QAction
 class Actions:
     dashboard_open: QAction
     dashboard_save: QAction
@@ -17,13 +17,13 @@ class MenuBar(QMenuBar):
         super().__init__()
         self.buttons = Actions()
        
-        dashboard_menu = get_not_none(self.addMenu('Dashboard'))
-        self.buttons.dashboard_open = get_not_none(dashboard_menu.addAction("Open"))
-        self.buttons.dashboard_save = get_not_none(dashboard_menu.addAction("Save"))
-        self.buttons.dashboard_close = get_not_none(dashboard_menu.addAction("Clear"))
+        dashboard_menu = self.addMenu('Dashboard')
+        self.buttons.dashboard_open = dashboard_menu.addAction("Open")
+        self.buttons.dashboard_save = dashboard_menu.addAction("Save")
+        self.buttons.dashboard_close = dashboard_menu.addAction("Clear")
 
-        server_menu =  get_not_none(self.addMenu('Server'))
-        self.buttons.server_launch_local = get_not_none(server_menu.addAction("Launch local"))
+        server_menu =  self.addMenu('Server')
+        self.buttons.server_launch_local = server_menu.addAction("Launch local")
 
-        info_menu =  get_not_none(self.addMenu("Info"))
-        self.buttons.info_about = get_not_none(info_menu.addAction("About this software"))
+        info_menu =  self.addMenu("Info")
+        self.buttons.info_about = info_menu.addAction("About this software")

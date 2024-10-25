@@ -10,8 +10,8 @@ __all__ = ['ScrutinyGUIBaseComponent']
 
 from abc import ABC, abstractmethod
 
-from PyQt5.QtWidgets import QWidget
-from PyQt5.QtGui import QIcon
+from PySide6.QtWidgets import QWidget
+from PySide6.QtGui import QIcon
 from typing import Dict, cast, TYPE_CHECKING, Any
 
 if TYPE_CHECKING:   # Prevent circular dependency

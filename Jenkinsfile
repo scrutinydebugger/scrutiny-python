@@ -54,16 +54,6 @@ pipeline {
                                 '''
                             }
                         }
-                        stage ('Python 3.8') {
-                            steps {
-                                sh '''
-                                rm -rf venv-3.8
-                                python3.8 -m venv venv-3.8
-                                SCRUTINY_VENV_DIR=venv-3.8 scripts/with-venv.sh scripts/check-python-version.sh 3.8
-                                SCRUTINY_VENV_DIR=venv-3.8 SCRUTINY_COVERAGE_SUFFIX=3.8 scripts/with-venv.sh scripts/runtests.sh 
-                                '''
-                            }
-                        }
                     }
                 }
                 stage("Doc"){

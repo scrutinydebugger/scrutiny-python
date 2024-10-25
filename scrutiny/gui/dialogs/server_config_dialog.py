@@ -8,9 +8,9 @@
 
 __all__ = ['ServerConfigDialog']
 
-from PyQt5.QtWidgets import QDialog, QDialogButtonBox, QFormLayout, QLabel, QWidget, QVBoxLayout
-from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QIntValidator
+from PySide6.QtWidgets import QDialog, QDialogButtonBox, QFormLayout, QLabel, QWidget, QVBoxLayout
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QIntValidator
 from scrutiny.gui.tools.validators import IpPortValidator, NotEmptyValidator
 from scrutiny.gui.widgets.validable_line_edit import ValidableLineEdit
 from scrutiny.gui.core.server_manager import ServerConfig
@@ -32,7 +32,7 @@ class ServerConfigDialog(QDialog):
 
     def __init__(self, parent:QWidget, apply_callback:Optional[Callable[["ServerConfigDialog"], None]]=None) -> None:
         super().__init__(parent)
-        self.setWindowFlags(cast(Qt.WindowType, Qt.WindowType.WindowCloseButtonHint | Qt.WindowType.WindowTitleHint | Qt.WindowType.Dialog))
+        self.setWindowFlags(Qt.WindowType.WindowCloseButtonHint | Qt.WindowType.WindowTitleHint | Qt.WindowType.Dialog)
         self.setModal(True)
         self.setWindowTitle("Server configuration")
         self._apply_callback = apply_callback
@@ -40,7 +40,7 @@ class ServerConfigDialog(QDialog):
         layout = QVBoxLayout(self)
         form = QWidget()
         # cast is for mypy issue
-        buttons = QDialogButtonBox(cast(QDialogButtonBox.StandardButton, QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel))
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         layout.addWidget(form)
         layout.addWidget(buttons)
 

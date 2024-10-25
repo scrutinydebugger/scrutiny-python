@@ -1,7 +1,7 @@
 
-from PyQt5.QtWidgets import QDialog, QWidget, QComboBox, QVBoxLayout, QDialogButtonBox,QFormLayout, QLabel, QPushButton
-from PyQt5.QtGui import QIntValidator
-from PyQt5.QtCore import Qt
+from PySide6.QtWidgets import QDialog, QWidget, QComboBox, QVBoxLayout, QDialogButtonBox,QFormLayout, QLabel, QPushButton
+from PySide6.QtGui import QIntValidator
+from PySide6.QtCore import Qt
 from scrutiny import sdk
 from scrutiny.gui.widgets.validable_line_edit import ValidableLineEdit
 from scrutiny.gui.tools.validators import IpPortValidator, NotEmptyValidator
@@ -9,7 +9,6 @@ from scrutiny.gui.core import WidgetState
 from typing import Optional, Dict, Type, cast, Callable, Tuple
 import logging
 import traceback
-from scrutiny.tools import get_not_none
 
 class BaseConfigPane(QWidget):
     def get_config(self) -> Optional[sdk.BaseLinkConfig]:
@@ -344,7 +343,7 @@ class DeviceConfigDialog(QDialog):
         self._status_label.setWordWrap(True)
         self._status_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         self._status_label.setProperty("state", WidgetState.default)
-        buttons = QDialogButtonBox(cast(QDialogButtonBox.StandardButton, QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel))
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         buttons.accepted.connect(self._btn_ok_click)
         buttons.rejected.connect(self._btn_cancel_click)
         
@@ -353,8 +352,8 @@ class DeviceConfigDialog(QDialog):
         vlayout.addWidget(self._status_label)
         vlayout.addWidget(buttons)
 
-        self._btn_ok = get_not_none(buttons.button(QDialogButtonBox.StandardButton.Ok))
-        self._btn_cancel = get_not_none(buttons.button(QDialogButtonBox.StandardButton.Cancel))
+        self._btn_ok = buttons.button(QDialogButtonBox.StandardButton.Ok)
+        self._btn_cancel = buttons.button(QDialogButtonBox.StandardButton.Cancel)
 
         self._configs = {}
         # Preload some default configs to avoid having a blank form
@@ -377,15 +376,15 @@ class DeviceConfigDialog(QDialog):
 
     def _rebuild_config_layout(self, link_type:sdk.DeviceLinkType) -> None:
         """Change the variable part of the dialog based on the type of link the user wants."""
-        layout = get_not_none(self._config_container.layout())
 
         for pane in self._config_container.children():
             if isinstance(pane, BaseConfigPane):
-                layout.removeWidget(pane)
+                pane.setParent(None)
+                pane.deleteLater()
 
         # Create an instance of the pane associated with the link type
         self._active_pane = self.CONFIG_TYPE_TO_WIDGET[link_type]() 
-        layout.addWidget(self._active_pane)
+        self._config_container.layout().addWidget(self._active_pane)
 
         try:
             config = self._active_pane.make_config_valid(self._configs[link_type])

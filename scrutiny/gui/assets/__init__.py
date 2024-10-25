@@ -1,7 +1,7 @@
 import os
 from scrutiny.gui.core.exceptions import GuiError
 from pathlib import Path
-from PyQt5.QtGui import QPixmap
+from PySide6.QtGui import QPixmap
 
 from typing import List, Union
 

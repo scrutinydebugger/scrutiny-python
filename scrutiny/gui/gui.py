@@ -6,13 +6,13 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
-from PyQt5.QtWidgets import QApplication
-from PyQt5.QtGui import QIcon, QPalette
+from PySide6.QtWidgets import QApplication
+from PySide6.QtGui import QIcon, QPalette
 from scrutiny.gui.main_window import MainWindow
 from scrutiny.gui import assets
 import scrutiny
 import ctypes
-import platform
+import sys
 from typing import List
 
 class ScrutinyQtGUI:
@@ -32,10 +32,10 @@ class ScrutinyQtGUI:
         app.setApplicationDisplayName("Scrutiny Debugger")
         app.setApplicationVersion(scrutiny.__version__)
 
-        if platform.system() == "Windows":
+        if sys.platform == "win32":
             # Tells windows that python process host another application. Enables the QT icon in the task bar
             # see https://stackoverflow.com/questions/1551605/how-to-set-applications-taskbar-icon-in-windows-7
-            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(u'scrutiny.gui.%s' % scrutiny.__version__)    # type: ignore
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(u'scrutiny.gui.%s' % scrutiny.__version__)
 
         window = MainWindow()
 

@@ -1,7 +1,7 @@
 __all__ = ['IpPortValidator', 'NotEmptyValidator']
 
-from PyQt5.QtGui import  QValidator
-from PyQt5.QtWidgets import  QWidget
+from PySide6.QtGui import  QValidator
+from PySide6.QtWidgets import  QWidget
 
 from typing import Optional, Tuple
 

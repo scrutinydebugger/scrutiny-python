@@ -16,7 +16,7 @@ import time
 import traceback
 from dataclasses import dataclass
 
-from PyQt5.QtCore import pyqtSignal as Signal, QObject
+from PySide6.QtCore import Signal, QObject
 from typing import Optional, Dict, Any, Callable
 import logging
 
