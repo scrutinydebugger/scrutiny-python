@@ -17,8 +17,6 @@ import functools
 from typing import List, Type, Dict
 
 class Sidebar(QToolBar):
-    _sidebar_elements:Dict[Type[ScrutinyGUIBaseComponent], QWidget]
-
     insert_component=Signal(type)
 
     def __init__(self, components:List[Type[ScrutinyGUIBaseComponent]]) -> None:
@@ -32,7 +30,6 @@ class Sidebar(QToolBar):
             btn.setSizePolicy(QSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed))
         
             btn_action = QAction(component.get_icon(), component.get_name().replace(' ', '\n'), self)
-
             btn_action.triggered.connect( functools.partial(self.trigger_signal, component))
 
             btn.addAction(btn_action)

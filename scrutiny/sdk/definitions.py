@@ -282,7 +282,7 @@ class BaseLinkConfig(abc.ABC):
 
 @dataclass(frozen=True)
 class NoneLinkConfig(BaseLinkConfig):
-    """(Immutable struct) The configuration structure for a device link of type :attr:`NONE<scrutiny.sdk.DeviceLinkType.NONE>`"""
+    """(Immutable struct) An Empty object acting as configuration structure for a device link of type :attr:`NONE<scrutiny.sdk.DeviceLinkType.NONE>`"""
     
     def _to_api_format(self) -> Dict[str, Any]:
         return {}
@@ -336,11 +336,17 @@ class SerialLinkConfig(BaseLinkConfig):
         ONE_POINT_FIVE = 1.5
         TWO = 2
 
+        def get_numerical(self) -> int:
+            return self.value
+
     class DataBits(enum.Enum):
         FIVE = 5
         SIX = 6
         SEVEN = 7
         EIGHT = 8
+
+        def get_numerical(self) -> int:
+            return self.value
 
     class Parity(enum.Enum):
         NONE = "none" 
@@ -348,6 +354,9 @@ class SerialLinkConfig(BaseLinkConfig):
         ODD = "odd"
         MARK = "mark"
         SPACE = "space"
+
+        def get_displayable_name(self) -> str:
+            return self.value
 
     port: str
     """Port name on the machine. COMX on Windows. /dev/xxx on posix platforms"""

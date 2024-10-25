@@ -33,6 +33,7 @@ class NoConfigPane(BaseConfigPane):
 
     def load_config(self, config:Optional[sdk.BaseLinkConfig]) -> None:
         self.make_config_valid(config)
+        
 
 class IPConfigPane(BaseConfigPane):
     _hostname_textbox: ValidableLineEdit
@@ -446,12 +447,9 @@ class DeviceConfigDialog(QDialog):
         if link_type not in self._configs:
             raise ValueError("Unsupported config type")
         
-        try:
-            valid_config = self.CONFIG_TYPE_TO_WIDGET[link_type].make_config_valid(config)
-            self._configs[link_type] = valid_config
-        except Exception as e:
-            self.logger.warning(f"Tried to load an invalid config. {e}")
-            self.logger.debug(traceback.format_exc())
+        valid_config = self.CONFIG_TYPE_TO_WIDGET[link_type].make_config_valid(config)
+        self._configs[link_type] = valid_config
+
 
     def get_type_and_config(self) -> Tuple[sdk.DeviceLinkType, Optional[sdk.BaseLinkConfig]]:
         """Return the device link configuration selected by the user"""

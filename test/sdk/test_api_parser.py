@@ -405,7 +405,7 @@ class TestApiParser(ScrutinyUnitTest):
 
         self.assertIsNone(info.device)
         self.assertIsNone(info.sfd)
-        self.assertIsNone(info.device_link.config)
+        self.assertIsInstance(info.device_link.config, sdk.NoneLinkConfig)
         self.assertEqual(info.device_session_id, None)
         self.assertEqual(info.device_comm_state, DeviceCommState.NA)
 

@@ -451,7 +451,7 @@ def parse_inform_server_status(response: api_typing.S2C.InformServerStatus) -> s
     link_operational = response['device_comm_link']['link_operational']
     link_config: Optional[sdk.SupportedLinkConfig]
     if link_type == sdk.DeviceLinkType.NONE:
-        link_config = None
+        link_config = sdk.NoneLinkConfig()
     elif link_type == sdk.DeviceLinkType.UDP:
         udp_config = cast(api_typing.UdpLinkConfig, response['device_comm_link']['link_config'])
         _check_response_dict(cmd, response, 'device_comm_link.link_config.host', str)

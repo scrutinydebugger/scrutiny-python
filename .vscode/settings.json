@@ -6,9 +6,6 @@
     "editor.insertSpaces": true,
     "python.analysis.autoImportCompletions": false,
     "python.defaultInterpreterPath" : "venv/bin/python3",
-    "mypy-type-checker.reportingScope": "workspace",
-    "mypy-type-checker.preferDaemon": true,
-    "mypy-type-checker.args": ["--config-file=${workspaceFolder}/.mypy.ini",  "--exclude=venv"],
     "[python]": {
         "editor.defaultFormatter": "ms-python.autopep8",
         "editor.formatOnSave": true
