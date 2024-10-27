@@ -159,22 +159,39 @@ class FlushPoint:
 
 @dataclass(init=False)
 class WatchableListDownloadRequest(PendingRequest):
-    """Represents a pending watchable download request. It can be used to wait for completion or cancel the request."""
+    """Represents a pending watchable download request. It can be used to wait for completion or cancel the request.
+    
+    :param client: A reference to the client object
+    :param request_id:  The request ID of the initiating request
+    :param new_data_callback: A callback to process the segmented data as it comes in. Called from the internal thread.     
+    """
     _request_id:int
     _watchable_list:WatchableListType
+    _new_data_callback:Optional[Callable[[ Dict[sdk.WatchableType, Dict[str, sdk.WatchableConfiguration]], bool ], None]]
 
-    def __init__(self, client:"ScrutinyClient", request_id:int) -> None:
+    def __init__(self, 
+                 client:"ScrutinyClient", 
+                 request_id:int, 
+                 new_data_callback:Optional[Callable[[Dict[sdk.WatchableType, Dict[str, sdk.WatchableConfiguration]], bool], None]] = None
+                 ) -> None:
         self._request_id = request_id
         self._watchable_list = {
             WatchableType.Variable : {},
             WatchableType.Alias : {},
             WatchableType.RuntimePublishedValue : {}
         }
+        self._new_data_callback = new_data_callback
+
         super().__init__(client)
 
-    def _add_data(self, content:api_parser.GetWatchableListResponse) -> None:
-        for watchable_type in (WatchableType.Variable, WatchableType.Alias, WatchableType.RuntimePublishedValue):
-            self._watchable_list[watchable_type].update(content.data[watchable_type])
+    def _add_data(self, data:Dict[sdk.WatchableType, Dict[str, sdk.WatchableConfiguration]], done:bool) -> None:
+        if self._new_data_callback is not None:
+            self._new_data_callback(data, done)
+        else:
+            # User has no callback to process it. Let's buffer the response for him
+            for watchable_type in WatchableType.get_valids():
+                if watchable_type in data:
+                    self._watchable_list[watchable_type].update(data[watchable_type])
     
     def cancel(self) -> None:
         """Informs the client that this request can be canceled.
@@ -184,7 +201,7 @@ class WatchableListDownloadRequest(PendingRequest):
         """
         self._client._cancel_download_watchable_list_request(self._request_id)
         try:
-            self.wait_for_completion(2) # Expect to throw when the client mark use as fail.
+            self.wait_for_completion(2)     # Expect to throw when the client mark us as fail.
         except sdk.exceptions.OperationFailure:
             pass
 
@@ -196,10 +213,13 @@ class WatchableListDownloadRequest(PendingRequest):
 
         :return: A dictionary of dictionary containing the difinition of each watchable entry that matched the filters. `foo[type][display_path] = <definition>`
         """
+        if self._new_data_callback is not None:
+            raise sdk.exceptions.InvalidValueError("The watchable list is not stored when a callback is provided to process the partial responses.")
         if not self.completed:
             raise sdk.exceptions.InvalidValueError("Watchable list is not finished downloading")
         if not self.is_success:
             raise sdk.exceptions.InvalidValueError("Watchable list failed to download fully")
+        
         
         return self._watchable_list
     
@@ -264,6 +284,7 @@ class ScrutinyClient:
     _threading_events: ThreadingEvents  # All the threading events grouped under a single object
     _sock_lock: threading.Lock  # A threading lock to access the socket
     _main_lock: threading.Lock  # A threading lock to access the client internal state variables
+    _user_lock: threading.Lock  # A threading lock to access whatever resource the user of the SDK might access
 
     _callback_storage: Dict[int, CallbackStorageEntry]  # Dict of all pending server request indexed by their request ID
     _watchable_storage: Dict[str, WatchableHandle]  # A cache of all the WatchableHandle given to the user, indexed by their display path
@@ -316,6 +337,7 @@ class ScrutinyClient:
         self._threading_events = self.ThreadingEvents()
         self._sock_lock = threading.Lock()
         self._main_lock = threading.Lock()
+        self._user_lock = threading.Lock()
         self._reqid = 0
         self._timeout = timeout
         self._write_timeout = write_timeout
@@ -334,9 +356,11 @@ class ScrutinyClient:
         self._callback_storage = {}
         self._last_device_session_id = None
         self._last_sfd_firmware_id = None
+        self._connection_cancel_request = False
 
         self._active_batch_context = None
         self._listeners=[]
+        self._locked_for_connect = False
 
     def _start_worker_thread(self) -> None:
         self._threading_events.stop_worker_thread.clear()
@@ -385,7 +409,10 @@ class ScrutinyClient:
                 self._wt_process_device_state()
 
             except sdk.exceptions.ConnectionError as e:
-                self._logger.error(f"Connection error in worker thread: {e}")
+                if self._connection_cancel_request:
+                    self._logger.debug(f"Connection error in worker thread (caused by explicit cancel): {e}")
+                else:
+                    self._logger.error(f"Connection error in worker thread: {e}")
                 self._wt_disconnect()    # Will set _sock to None
             except Exception as e:
                 self._logger.error(f"Unhandled exception in worker thread: {e}")
@@ -482,22 +509,21 @@ class ScrutinyClient:
 
     def _wt_process_msg_get_watchable_list_response(self, msg: api_typing.S2C.GetWatchableList, reqid:Optional[int]) -> None:
         if reqid is None:
-            self._logger.warning('Received a watcahble list message, but the request ID was not available.')
+            self._logger.warning('Received a watchable list message, but the request ID was not available.')
             return
         
         content = api_parser.parse_get_watchable_list(msg)
 
         with self._main_lock:
             if reqid not in self._pending_watchable_download_request:
-                self._logger.warning(f'Received a watcahble list message, but the request ID was is not tied to any active request {reqid}')
+                self._logger.warning(f'Received a watchable list message, but the request ID was is not tied to any active request {reqid}')
                 return
 
             req = self._pending_watchable_download_request[reqid]
 
-        req._add_data(content)
+        req._add_data(content.data, content.done)
         if content.done:
             req._mark_complete(success=True)
-
 
     def _wt_process_next_server_status_update(self) -> None:
         if self._request_status_timer.is_timed_out() or self._require_status_update:
@@ -721,7 +747,7 @@ class ScrutinyClient:
             if self._last_device_session_id is not None:
                 if self._last_device_session_id != self._server_info.device_session_id:
                     self._wt_clear_all_watchables(ValueStatus.DeviceGone)
-                    self._logger.info(f"Device is gone. Session ID: {self._last_device_session_id}")
+                    self._logger.info(f"Device is gone. Last session ID: {self._last_device_session_id}")
             else:
                 if self._server_info.device_session_id is not None:
                     device_name = "<unnamed>"
@@ -745,14 +771,25 @@ class ScrutinyClient:
             self._last_device_session_id = None
             self._last_sfd_firmware_id = None
 
+    def close_socket(self) -> None:
+        """Forcefully attempt to close a socket to cancel any pending connection"""
+        # Does not respect _sock_lock on purpose.
+        try:
+            if self._sock is not None:
+                self._connection_cancel_request = True  # Simply to mask the connection error we will cause
+                self._sock.close()      # Try it. May fail, it's ok.
+        except Exception:
+            pass
+
     def _wt_disconnect(self) -> None:
         """Disconnect from a Scrutiny server, called by the Worker Thread .
             Does not throw an exception in case of broken pipe
         """
+        self.close_socket()
 
         with self._sock_lock:
             if self._sock is not None:
-                self._logger.info(f"Disconnecting from server at {self._hostname}:{self._port}")
+                self._logger.debug(f"Disconnecting from server at {self._hostname}:{self._port}")
                 try:
                     self._sock.close()
                 except socket.error:
@@ -768,21 +805,26 @@ class ScrutinyClient:
             self._sock = None
             self._selector = None
             self._stream_parser = None
-
+        
         with self._main_lock:
-            self._hostname = None
-            self._port = None
-            self._server_state = ServerState.Disconnected
-            self._server_info = None
-            self._last_device_session_id = None
+            if self._server_state == ServerState.Connected and self._hostname is not None and self._port is not None:
+                self._logger.info(f"Disconnected from server at {self._hostname}:{self._port}")
+            
+            with self._user_lock:   # Critical part, the user reads those properties
+                self._wt_clear_all_watchables(ValueStatus.ServerGone)
+                self._wt_clear_all_pending_requests("Server is disconnected")
+                self._hostname = None
+                self._port = None
+                self._server_state = ServerState.Disconnected
+                self._server_info = None
+                self._last_device_session_id = None
 
-            self._wt_clear_all_watchables(ValueStatus.ServerGone)
-            self._wt_clear_all_pending_requests("Server is disconnected")
 
             for callback_entry in self._callback_storage.values():
                 if callback_entry._future.state == CallbackState.Pending:
                     callback_entry._future._wt_mark_completed(CallbackState.Cancelled)
             self._callback_storage.clear()
+
 
     def _wt_clear_all_watchables(self, new_status: ValueStatus, watchable_types: Optional[List[WatchableType]] = None) -> None:
         # Don't lock the main lock, supposed to be done beforehand
@@ -859,7 +901,7 @@ class ScrutinyClient:
             
             try:
                 s = json.dumps(obj)
-                if self._logger.isEnabledFor(logging.DEBUG):
+                if self._logger.isEnabledFor(logging.DEBUG):    # pragma: no cover
                     self._logger.debug(f"Sending {s}")
                 self._sock.send(self._stream_maker.encode(s.encode(self._encoding)))
             except socket.error as e:
@@ -889,7 +931,7 @@ class ScrutinyClient:
                 if not data:
                     server_gone = True
                 else:
-                    if self._logger.isEnabledFor(logging.DEBUG):
+                    if self._logger.isEnabledFor(logging.DEBUG):    # pragma: no cover
                         self._logger.debug(f"Received (raw): {data!r}")
                     self._stream_parser.parse(data)
         except  socket.error as e:
@@ -905,7 +947,7 @@ class ScrutinyClient:
         if not self._stream_parser.queue().empty():
             try:
                 data_str = self._stream_parser.queue().get().decode(self._encoding)
-                if self._logger.isEnabledFor(logging.DEBUG):
+                if self._logger.isEnabledFor(logging.DEBUG):    # pragma: no cover
                     self._logger.debug(f"Received: {data_str}")
                 obj = json.loads(data_str)
                 if obj is not None:
@@ -997,12 +1039,13 @@ class ScrutinyClient:
         :raise ConnectionError: In case of failure
         """
         self.disconnect()
-
+        self._locked_for_connect = True
+        self._connection_cancel_request = False
         with self._main_lock:
             self._hostname = hostname
             self._port = port
             connect_error: Optional[Exception] = None
-            self._logger.info(f"Connecting to {hostname}:{port}")
+            self._logger.debug(f"Connecting to {hostname}:{port}")
             with self._sock_lock:
                 try:
                     self._server_state = ServerState.Connecting
@@ -1012,12 +1055,16 @@ class ScrutinyClient:
                     self._selector = selectors.DefaultSelector()
                     self._selector.register(self._sock, selectors.EVENT_READ)
                     self._sock.connect((hostname, port))
+                    self._logger.debug(f"Connected to {hostname}:{port}")
                     self._server_state = ServerState.Connected
                     self._start_worker_thread()
                 except socket.error as e:
+                    # Connect may fail in many way. 
+                    # The user can close the socket to unblock the connection thread.
                     self._logger.debug(traceback.format_exc())
                     connect_error = e
 
+        self._locked_for_connect = False
         if connect_error is not None:
             self.disconnect()
             raise sdk.exceptions.ConnectionError(f'Failed to connect to the server at "{hostname}:{port}". Error: {connect_error}')
@@ -1035,7 +1082,8 @@ class ScrutinyClient:
         if not self._worker_thread.is_alive():
             self._wt_disconnect()  # Can call safely from this thread
             return
-
+        
+        self.close_socket()
         self._threading_events.disconnected.clear()
         self._threading_events.disconnect.set()
         self._threading_events.disconnected.wait(timeout=2)  # Timeout avoid race condition if the thread was exiting
@@ -1621,10 +1669,12 @@ class ScrutinyClient:
         validation.assert_type(link_type, "link_type", sdk.DeviceLinkType)
         validation.assert_type(link_config, "link_config", sdk.BaseLinkConfig)
 
+
         assert link_type is not None
         assert link_config is not None
 
         api_map: Dict["DeviceLinkType", Tuple[str, Type[Union[BaseLinkConfig, None]]]] = {
+            DeviceLinkType.NONE: ('none', sdk.NoneLinkConfig),
             DeviceLinkType.Serial: ('serial', sdk.SerialLinkConfig),
             DeviceLinkType.UDP: ('udp', sdk.UDPLinkConfig),
             DeviceLinkType.TCP: ('tcp', sdk.TCPLinkConfig),
@@ -1651,7 +1701,7 @@ class ScrutinyClient:
 
         if future.state != CallbackState.OK:
             raise sdk.exceptions.OperationFailure(
-                f"Failed to configure the device communication link'. {future.error_str}")
+                f"Failed to configure the device communication link. {future.error_str}")
 
     def user_command(self, subfunction: int, data: bytes = bytes()) -> sdk.UserCommandResponse:
         """
@@ -1699,15 +1749,18 @@ class ScrutinyClient:
         :raise ConnectionError: If the connection to the server is lost
         :raise InvalidValueError: If the server status is not available (never received it).
         """
+        if self._locked_for_connect:    # Avoid blocking
+            raise sdk.exceptions.ConnectionError(f"Disconnected from server")
 
-        # server_info is readonly and only its reference gets changed when updated.
-        # We can safely return a reference here. The user can't mess it up
         with self._main_lock:
             if not self._server_state == ServerState.Connected:
                 raise sdk.exceptions.ConnectionError(f"Disconnected from server")
             info = self._server_info
         if info is None:
             raise sdk.exceptions.InvalidValueError("Server status is not available")
+        
+        # server_info is readonly and only its reference gets changed when updated.
+        # We can safely return a reference here. The user can't mess it up
         return info
 
     def register_listener(self, listener:listeners.BaseListener) -> None:
@@ -1752,7 +1805,8 @@ class ScrutinyClient:
     def download_watchable_list(self, 
                                 types:Optional[List[WatchableType]]=None, 
                                 max_per_response:int=500,
-                                name_patterns:List[str] = []
+                                name_patterns:List[str] = [],
+                                partial_reception_callback:Optional[Callable[[Dict[sdk.WatchableType, Dict[str, sdk.WatchableConfiguration]], bool], None]] = None
                                 ) -> WatchableListDownloadRequest:
         """
             Request the server for the list of watchable items available in its datastore.
@@ -1761,6 +1815,12 @@ class ScrutinyClient:
             :param max_per_response: Maximum number of watchable per datagram sent by the server.
             :param name_patterns: List of name filters in the form of a glob string. Any watchable with a path that matches at least one name filter will be returned. 
                 All watchables are returned if ``None``
+            :param partial_reception_callback: A callback to be called by the client whenever new data is received by the server. Data might be segmented
+                in several parts. Expected signature : ``my_callback(data, last_segment)`` where ``data`` is a dictionary of the form ``data[watchable_type][path] = watchable``
+                and ``last_segment`` indicate if that data segment was the last one.
+                If ``None`` is given, the received data will be stored inside the request object and can be fetched once the request has completed by 
+                calling :meth:`get()<scrutiny.sdk.client.WatchableListDownloadRequest.get>`
+                **Note** This callback is called from an internal thread.
 
             :raise ValueError: Bad parameter value
             :raise TypeError: Given parameter not of the expected type
@@ -1801,7 +1861,7 @@ class ScrutinyClient:
             'filter': filter_dict
         })
 
-        request_handle = WatchableListDownloadRequest(self, request_id=req['reqid'])
+        request_handle = WatchableListDownloadRequest(client=self, request_id=req['reqid'], new_data_callback=partial_reception_callback)
         with self._main_lock:
             self._pending_watchable_download_request[req['reqid']] = request_handle
 
@@ -1811,6 +1871,10 @@ class ScrutinyClient:
 
         return request_handle
 
+    @property
+    def logger(self) -> logging.Logger:
+        """The python logger used by the Client"""
+        return self._logger
 
     @property
     def name(self) -> str:
@@ -1819,17 +1883,17 @@ class ScrutinyClient:
     @property
     def server_state(self) -> ServerState:
         """The server communication state"""
-        with self._main_lock:   # Avoid race condition while disconnecting
+        with self._user_lock:
             return ServerState(self._server_state)  # Make a copy
 
     @property
     def hostname(self) -> Optional[str]:
         """Hostname of the server"""
-        with self._main_lock:   # Avoid race condition while disconnecting
+        with self._user_lock:
             return str(self._hostname) if self._hostname is not None else None
 
     @property
     def port(self) -> Optional[int]:
         """Port of the the server is letening to"""
-        with self._main_lock:   # Avoid race condition while disconnecting
+        with self._user_lock:
             return int(self._port) if self._port is not None else None

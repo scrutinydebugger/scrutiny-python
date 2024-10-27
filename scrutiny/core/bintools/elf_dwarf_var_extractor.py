@@ -175,7 +175,7 @@ class ElfDwarfVarExtractor:
         return f'{die.tag} <{die.offset:x}> "{name}"'
 
     def log_debug_process_die(self, die: "elftools_stubs.Die") -> None:
-        if self.logger.isEnabledFor(logging.DEBUG):
+        if self.logger.isEnabledFor(logging.DEBUG): # pragma: no cover
             stack_depth = len(inspect.stack()) - self.initial_stack_depth-1
             stack_depth = max(stack_depth, 1)
             funcname = inspect.stack()[1][3]
@@ -709,7 +709,7 @@ class ElfDwarfVarExtractor:
             assert member.original_type_name is not None
             location.add_offset(member.byte_offset)
 
-            if self.logger.isEnabledFor(logging.DEBUG):
+            if self.logger.isEnabledFor(logging.DEBUG): # pragma: no cover
                 fullpath = '/'.join(path_segments + [member.name])
                 self.logger.debug(f"Registering {fullpath}")
             self.varmap.add_variable(
@@ -737,7 +737,7 @@ class ElfDwarfVarExtractor:
             :param original_type_name: The name of the underlying type. Must be a name coming from the binary. Will resolve to an EmbeddedDataType
             :param enum: Optional enum to associate with the type
         """
-        if self.logger.isEnabledFor(logging.DEBUG):
+        if self.logger.isEnabledFor(logging.DEBUG): # pragma: no cover
             fullpath = '/'.join(path_segments + [name])
             self.logger.debug(f"Registering {fullpath}")
         self.varmap.add_variable(

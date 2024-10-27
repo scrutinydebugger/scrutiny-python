@@ -148,6 +148,18 @@ that no device is connected
     :exclude-members: __new__, __init__
     :members:
 
+.. autoclass:: scrutiny.sdk.SerialLinkConfig.StopBits
+    :exclude-members: __new__, __init__
+    :members:
+
+.. autoclass:: scrutiny.sdk.SerialLinkConfig.DataBits
+    :exclude-members: __new__, __init__
+    :members:
+
+.. autoclass:: scrutiny.sdk.SerialLinkConfig.Parity
+    :exclude-members: __new__, __init__
+    :members:    
+    
 -----
 
 .. autoclass:: scrutiny.sdk.RTTLinkConfig

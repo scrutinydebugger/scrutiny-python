@@ -19,9 +19,6 @@ from typing import List, Optional, Literal, Union, Dict, get_args, Any
 
 __all__ = [
     'AddressSize',
-    'SerialStopBits',
-    'SerialDataBits',
-    'SerialParity',
     'ServerState',
     'WatchableType',
     'ValueStatus',
@@ -38,19 +35,16 @@ __all__ = [
     'UDPLinkConfig',
     'TCPLinkConfig',
     'SerialLinkConfig',
+    'RTTLinkConfig',
+    'NoneLinkConfig',
     'SupportedLinkConfig',
     'DeviceLinkInfo',
     'ServerInfo',
     'UserCommandResponse',
-    'WatchableConfiguration',
-    'RTTLinkConfig'
+    'WatchableConfiguration'
 ]
 
 AddressSize = Literal[8, 16, 32, 64, 128]
-SerialStopBits = Literal['1', '1.5', '2']
-SerialDataBits = Literal[5, 6, 7, 8]
-SerialParity = Literal["none", "even", "odd", "mark", "space"]
-
 
 class ServerState(enum.Enum):
     """(Enum) The state of the connection between the client and the server"""
@@ -87,6 +81,11 @@ class WatchableType(enum.Enum):
     """A readable/writable element identified by a 16bits ID. Explicitly defined in the device firmware source code"""
     Alias = 3
     """A symbolic link watchable that can refers to a :attr:`Variable` or a :attr:`RuntimePublishedValue`"""
+
+    @classmethod
+    def get_valids(cls) -> List["WatchableType"]:
+        """Return the list of valid Watchable types. Mainly for unit testing"""
+        return [cls.Variable, cls.RuntimePublishedValue, cls.Alias]
 
 
 class ValueStatus(enum.Enum):
@@ -151,7 +150,7 @@ class DeviceLinkType(enum.Enum):
     """(Enum) The type of communication link used between the server and the device"""
 
     _Dummy = -1
-    NA = 0
+    NONE = 0
     UDP = 1
     """UDP/IP socket"""
     TCP = 2
@@ -216,7 +215,7 @@ class DeviceInfo:
     """Amount of time without data being received that the device will wait to restart its reception state machine (new frame)"""
 
     heartbeat_timeout: float
-    """Timeout value without heartbeat message response to consider that the communication is broken"""
+    """Timeout value without heartbeat message response to consider that the communication is broken, in seconds"""
 
     address_size_bits: AddressSize
     """Address size in the device"""
@@ -282,6 +281,14 @@ class BaseLinkConfig(abc.ABC):
 
 
 @dataclass(frozen=True)
+class NoneLinkConfig(BaseLinkConfig):
+    """(Immutable struct) An Empty object acting as configuration structure for a device link of type :attr:`NONE<scrutiny.sdk.DeviceLinkType.NONE>`"""
+    
+    def _to_api_format(self) -> Dict[str, Any]:
+        return {}
+
+
+@dataclass(frozen=True)
 class UDPLinkConfig(BaseLinkConfig):
     """(Immutable struct) The configuration structure for a device link of type :attr:`UDP<scrutiny.sdk.DeviceLinkType.UDP>`"""
 
@@ -311,6 +318,7 @@ class TCPLinkConfig(BaseLinkConfig):
 
     def __post_init__(self) -> None:
         validation.assert_int_range(self.port, 'port', 0, 0xFFFF)
+        validation.assert_type(self.host, 'host', str)
 
     def _to_api_format(self) -> Dict[str, Any]:
         return {
@@ -323,31 +331,58 @@ class TCPLinkConfig(BaseLinkConfig):
 class SerialLinkConfig(BaseLinkConfig):
     """(Immutable struct) The configuration structure for a device link of type :attr:`Serial<scrutiny.sdk.DeviceLinkType.Serial>`"""
 
+    class StopBits(enum.Enum):
+        ONE = 1
+        ONE_POINT_FIVE = 1.5
+        TWO = 2
+
+        def get_numerical(self) -> float:
+            return float(self.value)
+
+    class DataBits(enum.Enum):
+        FIVE = 5
+        SIX = 6
+        SEVEN = 7
+        EIGHT = 8
+
+        def get_numerical(self) -> int:
+            return int(self.value)
+
+    class Parity(enum.Enum):
+        NONE = "none" 
+        EVEN = "even"
+        ODD = "odd"
+        MARK = "mark"
+        SPACE = "space"
+
+        def get_displayable_name(self) -> str:
+            return self.value
+
     port: str
     """Port name on the machine. COMX on Windows. /dev/xxx on posix platforms"""
     baudrate: int
     """Communication speed in baud/sec"""
-    stopbits: SerialStopBits = '1'
+    stopbits: StopBits = StopBits.ONE
     """Number of stop bits. 1, 1.5, 2"""
-    databits: SerialDataBits = 8
+    databits: DataBits = DataBits.EIGHT
     """Number of data bits. 5, 6, 7, 8"""
-    parity: SerialParity = 'none'
+    parity: Parity = Parity.NONE
     """Serial communication parity bits"""
 
     def __post_init__(self) -> None:
         validation.assert_type(self.port, 'port', str)
-        validation.assert_int_range(self.baudrate, 'baudrate', 1)
-        validation.assert_val_in(self.stopbits, 'stopbits', get_args(SerialStopBits))
-        validation.assert_val_in(self.databits, 'databits', get_args(SerialDataBits))
-        validation.assert_val_in(self.parity, 'databits', get_args(SerialParity))
+        validation.assert_int_range(self.baudrate, 'baudrate', minval=1)
+        validation.assert_type(self.stopbits, 'stopbits', self.StopBits)
+        validation.assert_type(self.databits, 'databits', self.DataBits)
+        validation.assert_type(self.parity, 'parity', self.Parity)
 
     def _to_api_format(self) -> Dict[str, Any]:
         return {
-            'port': self.port,
+            'portname': self.port,
             'baudrate': self.baudrate,
-            'stopbits': self.stopbits,
-            'databits': self.databits,
-            'parity': self.parity,
+            'stopbits': str(self.stopbits.value),
+            'databits': self.databits.value,
+            'parity': self.parity.value,
         }
 
 
@@ -396,7 +431,7 @@ class RTTLinkConfig(BaseLinkConfig):
             'jlink_interface': self.jlink_interface.value
         }
 
-SupportedLinkConfig = Union[UDPLinkConfig, TCPLinkConfig, SerialLinkConfig, RTTLinkConfig]
+SupportedLinkConfig = Union[UDPLinkConfig, TCPLinkConfig, SerialLinkConfig, RTTLinkConfig, NoneLinkConfig]
 
 
 @dataclass(frozen=True)
@@ -407,6 +442,8 @@ class DeviceLinkInfo:
     """Type of communication channel between the server and the device"""
     config: Optional[SupportedLinkConfig]
     """A channel type specific configuration"""
+    operational:bool
+    """Tells if the link is opened and working correctly"""
 
 
 @dataclass(frozen=True)

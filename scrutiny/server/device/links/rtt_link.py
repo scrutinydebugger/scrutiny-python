@@ -42,7 +42,6 @@ class RttConfig(TypedDict):
     Can be set through the API or config file with JSON format
     """
     target_device: str
-    write_timeout_delay: float
     jlink_interface: str
 
 
@@ -97,7 +96,6 @@ class RttLink(AbstractLink):
 
         self.config = cast(RttConfig, {
             'target_device': str(config['target_device']),
-            'write_timeout_delay' : float(config.get('write_timeout_delay', 0)),
             'jlink_interface' : str(config.get('jlink_interface','swd'))
         })
 

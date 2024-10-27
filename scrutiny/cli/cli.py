@@ -85,7 +85,7 @@ class CLI:
             logging_level = getattr(logging, logging_level_str.upper())
             format_string = ""
             if logging_level == logging.DEBUG:
-                format_string += "%(relativeCreated)d "    
+                format_string += "%(relativeCreated)d (#%(thread)d) "
             format_string += '[%(levelname)s] <%(name)s> %(message)s'
             logging.basicConfig(level=logging_level, filename=cargs.logfile, format=format_string)
             if cargs.disable_loggers is not None:

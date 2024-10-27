@@ -319,21 +319,18 @@ class API:
     def sfd_loaded_callback(self, sfd: FirmwareDescription) -> None:
         # Called when a SFD is loaded after a device connection
         self.logger.debug("SFD Loaded callback called")
-        for conn_id in self.connections:
-            self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=self.craft_inform_server_status_response()))
+        self.send_server_status_to_all_clients()
 
     def sfd_unloaded_callback(self) -> None:
         # Called when a SFD is unloaded (device disconnected)
         self.logger.debug("SFD unloaded callback called")
-        for conn_id in self.connections:
-            self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=self.craft_inform_server_status_response()))
+        self.send_server_status_to_all_clients()
 
     def device_state_changed_callback(self, new_status: DeviceHandler.ConnectionStatus) -> None:
         """Called when the device state changes"""
         self.logger.debug("Device state change callback called")
         if new_status in [DeviceHandler.ConnectionStatus.DISCONNECTED, DeviceHandler.ConnectionStatus.CONNECTED_READY]:
-            for conn_id in self.connections:
-                self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=self.craft_inform_server_status_response()))
+            self.send_server_status_to_all_clients()
 
     def get_client_handler(self) -> AbstractClientHandler:
         return self.client_handler
@@ -698,12 +695,13 @@ class API:
     #  ===  GET_SERVER_STATUS ===
     def process_get_server_status(self, conn_id: str, req: api_typing.C2S.GetServerStatus) -> None:
         # Request the server status.
-        obj = self.craft_inform_server_status_response(reqid=self.get_req_id(req))
+        obj = self.craft_inform_server_status(reqid=self.get_req_id(req))
         self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=obj))
 
     #  ===  SET_LINK_CONFIG ===
     def process_set_link_config(self, conn_id: str, req: api_typing.C2S.SetLinkConfig) -> None:
         # With this request, the user can change the device connection through an API call
+        #import ipdb; ipdb.set_trace()
         if 'link_type' not in req or not isinstance(req['link_type'], str):
             raise InvalidRequestException(req, 'Invalid link_type')
 
@@ -727,6 +725,8 @@ class API:
         }
 
         self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
+
+        self.send_server_status_to_all_clients()
 
     #  todo
     def process_get_possible_link_config(self, conn_id: str, req: api_typing.C2S.GetPossibleLinkConfig) -> None:
@@ -1550,7 +1550,7 @@ class API:
 
         self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
 
-    def craft_inform_server_status_response(self, reqid: Optional[int] = None) -> api_typing.S2C.InformServerStatus:
+    def craft_inform_server_status(self, reqid: Optional[int] = None) -> api_typing.S2C.InformServerStatus:
         # Make a Server to client message that inform the actual state of the server
         # Query the state of all subpart of the software.
         sfd = self.sfd_handler.get_loaded_sfd()
@@ -1595,8 +1595,11 @@ class API:
 
         if device_comm_link is None:
             link_config = cast(EmptyDict, {})
+            link_operational = False
         else:
             link_config = cast(api_typing.LinkConfig, device_comm_link.get_config())
+            link_operational = device_comm_link.operational()
+            
 
         datalogger_state_api = API.DataloggingStatus.UNAVAILABLE
         datalogger_state = self.device_handler.get_datalogger_state()
@@ -1616,11 +1619,17 @@ class API:
             },
             'device_comm_link': {
                 'link_type': cast(api_typing.LinkType, device_link_type),
+                'link_operational' : link_operational,
                 'link_config': link_config
             }
         }
 
         return response
+    
+    def send_server_status_to_all_clients(self) -> None:
+        msg_obj = self.craft_inform_server_status()
+        for conn_id in self.connections:
+            self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=msg_obj))
 
     def entry_value_change_callback(self, conn_id: str, datastore_entry: DatastoreEntry) -> None:
         # This callback is given to the datastore when we a client start watching an entry.

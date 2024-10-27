@@ -179,6 +179,8 @@ class CommHandler:
 
     def validate_link_config(self, link_type: str, link_config: LinkConfig) -> None:
         """Raises an exception if the given configuration is wrong for the given link type"""
+        if link_type == "none":
+            return
         link_class = self._get_link_class(link_type)
         return link_class.validate_config(link_config)
 
@@ -215,7 +217,7 @@ class CommHandler:
         self._rx_thread = None
 
     def open(self) -> None:
-        self._logger.debug("Opening communication with device")
+        self._logger.debug(f"Opening communication with device. Link : {self._link_type}")
         """Try to open the communication channel with the device."""
         if self._link is None:
             raise Exception('Link must be set before opening')
@@ -239,7 +241,7 @@ class CommHandler:
             full_error = f"Cannot initialize device. {err}"
             if self._last_open_error != err:
                 self._logger.error(full_error)
-            elif self._logger.isEnabledFor(logging.DEBUG):
+            elif self._logger.isEnabledFor(logging.DEBUG):  # pragma: no cover
                 self._logger.debug(full_error)
             self._last_open_error = err
             self._opened = False 
@@ -279,7 +281,7 @@ class CommHandler:
             # Something broken here. Hardware disconnected maybe?
             self.close()    # Destroy and deinit the link
             return
-
+ 
         if self.is_operational():
             self._link.process()  # Process the link handling
             self._throttler.process()

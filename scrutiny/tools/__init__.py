@@ -6,7 +6,13 @@ from .throttler import Throttler
 from .timer import Timer
 
 from copy import deepcopy
-from typing import Dict, Any
+from typing import Dict, Any, Optional, TypeVar
+
+T=TypeVar("T")
+
+def get_not_none(v:Optional[T]) -> T:
+    assert v is not None
+    return v
 
 def update_dict_recursive(d1:Dict[Any, Any], d2:Dict[Any, Any]) -> None:
     if not isinstance(d1, dict):

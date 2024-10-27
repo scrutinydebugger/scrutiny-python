@@ -14,8 +14,6 @@ from typing import Optional, Dict, TypedDict, cast, Union
 import serial   # type: ignore
 import time
 from binascii import hexlify
-import threading
-import os
 
 class SerialConfig(TypedDict):
     """
@@ -58,7 +56,7 @@ class SerialLink(AbstractLink):
         '1': serial.STOPBITS_ONE,
         '1.5': serial.STOPBITS_ONE_POINT_FIVE,
         '2': serial.STOPBITS_TWO
-    }
+    }   
 
     INT_TO_DATABITS: Dict[int, int] = {
         5: serial.FIVEBITS,
@@ -171,7 +169,7 @@ class SerialLink(AbstractLink):
         if self.port.in_waiting > 0:
             data += self.port.read(self.port.in_waiting)
 
-        if len(data) > 0 and self.logger.isEnabledFor(logging.DEBUG):
+        if len(data) > 0 and self.logger.isEnabledFor(logging.DEBUG):   # pragma: no cover
             self.logger.debug(f"Received {len(data)}: " + hexlify(data).decode('ascii'))
         
         return data

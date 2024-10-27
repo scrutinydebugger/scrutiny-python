@@ -94,6 +94,7 @@ class SFDEntry(TypedDict):
 class DeviceCommLinkDef(TypedDict):
     link_type: LinkType
     link_config: LinkConfig
+    link_operational:bool
 
 
 class GetWatchableList_Filter(TypedDict, total=False):
