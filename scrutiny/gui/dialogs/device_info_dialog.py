@@ -53,6 +53,7 @@ class MemoryRegionList(QWidget):
             configure_label(label)
             return label
 
+        layout:Union[QVBoxLayout, QFormLayout]
         if len(regions) == 0:
             layout = QVBoxLayout(self)
             label = QLabel("None")
@@ -66,10 +67,10 @@ class MemoryRegionList(QWidget):
         self.setLayout(layout)
 
 class DeviceInfoDisplayTable(QWidget):
-    layout : QFormLayout
+    form_layout : QFormLayout
     def __init__(self) -> None:
         super().__init__()
-        self.layout = QFormLayout(self)
+        self.form_layout = QFormLayout(self)
     
     def add_row(self, label_txt:str, item:Union[str, QWidget]) -> None:
         label = QLabel(label_txt)
@@ -80,12 +81,12 @@ class DeviceInfoDisplayTable(QWidget):
         if isinstance(item, QLabel):
             configure_label(item)
 
-        is_odd = self.layout.rowCount() % 2 == 0    # Check for 0 because we evaluate for next node
+        is_odd = self.form_layout.rowCount() % 2 == 0    # Check for 0 because we evaluate for next node
         odd_even = "odd" if is_odd else "even"
         label.setProperty("table_odd_even", odd_even)
         item.setProperty("table_odd_even", odd_even)
 
-        self.layout.addRow(label, item)
+        self.form_layout.addRow(label, item)
 
 
 class DeviceInfoDialog(QDialog):
@@ -94,7 +95,7 @@ class DeviceInfoDialog(QDialog):
 
         self.setWindowTitle("Device")
     
-    def rebuild(self, info:DeviceInfo, datalogging:Optional[DataloggingCapabilities]) -> None:
+    def rebuild(self, info:DeviceInfo) -> None:
         layout = QVBoxLayout(self)
 
         def add_section(title:str) -> QVBoxLayout:
@@ -135,13 +136,13 @@ class DeviceInfoDialog(QDialog):
         comm_table.add_row("Protocol version", f"V{info.protocol_major}.{info.protocol_minor}")
 
         datalogging_title="Datalogging"
-        if datalogging is None:
-            add_section_text(datalogging_title, "N/A")
-        else:
-            datalogging_table = add_section_table(datalogging_title)
-            datalogging_table.add_row("Buffer size", f"{datalogging.buffer_size} bytes")
-            datalogging_table.add_row("Encoding", f"{datalogging.encoding.name}")
-            datalogging_table.add_row("Max signals", f"{datalogging.max_nb_signal}")
+        #if datalogging is None:
+        #    add_section_text(datalogging_title, "N/A")
+        #else:
+        #    datalogging_table = add_section_table(datalogging_title)
+        #    datalogging_table.add_row("Buffer size", f"{datalogging.buffer_size} bytes")
+        #    datalogging_table.add_row("Encoding", f"{datalogging.encoding.name}")
+        #    datalogging_table.add_row("Max signals", f"{datalogging.max_nb_signal}")
             
 
     
