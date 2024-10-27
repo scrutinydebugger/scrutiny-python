@@ -215,7 +215,7 @@ class DeviceInfo:
     """Amount of time without data being received that the device will wait to restart its reception state machine (new frame)"""
 
     heartbeat_timeout: float
-    """Timeout value without heartbeat message response to consider that the communication is broken"""
+    """Timeout value without heartbeat message response to consider that the communication is broken, in seconds"""
 
     address_size_bits: AddressSize
     """Address size in the device"""

@@ -34,3 +34,4 @@ class AboutDialog(QDialog):
             layout.addRow(QLabel(fields[i][0]), QLabel(fields[i][1]) )
 
     
+    

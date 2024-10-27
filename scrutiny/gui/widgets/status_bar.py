@@ -4,6 +4,7 @@ from PySide6.QtGui import QPixmap, QAction
 from scrutiny.gui.core.server_manager import ServerManager
 from scrutiny.gui.dialogs.server_config_dialog import ServerConfigDialog
 from scrutiny.gui.dialogs.device_config_dialog import DeviceConfigDialog
+from scrutiny.gui.dialogs.device_info_dialog import DeviceInfoDialog
 from scrutiny.gui import assets
 from scrutiny.sdk import ServerState, DeviceCommState, SFDInfo, DataloggingInfo, DataloggerState, DeviceLinkType, BaseLinkConfig
 from scrutiny import sdk
@@ -201,6 +202,7 @@ class StatusBar(QStatusBar):
         self._server_manager=server_manager
         self._server_config_dialog = ServerConfigDialog(self, apply_callback=self._server_config_applied)
         self._device_config_dialog = DeviceConfigDialog(self, apply_callback=self._device_config_applied)
+        self._device_info_dialog = DeviceInfoDialog(self)
         self._one_shot_auto_connect = False
 
         self._server_status_label = StatusBarLabel("", use_indicator=True, label_kind=StatusBarLabel.TextLabelKind.TOOLBAR, color=StatusBarLabel.Color.RED)
@@ -298,8 +300,11 @@ class StatusBar(QStatusBar):
 
 
     def _device_about_func(self) -> None:
-        # TODO
-        pass
+        server_info = self._server_manager.get_server_info()
+        if server_info is not None:
+            if server_info.device is not None:
+                self._device_info_dialog.rebuild(server_info.device, server_info.device.)
+                self._device_info_dialog.show()
 
     def _device_config_applied(self, dialog:DeviceConfigDialog) -> None:
         # When the user click OK in the DeviceLinkConfigDialog. He wants the change the link between the server and the device

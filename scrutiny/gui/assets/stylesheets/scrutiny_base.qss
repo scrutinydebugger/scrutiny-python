@@ -10,3 +10,15 @@ QLabel[state="error"]{
     color:#ff0000;
     background-color:#99ff99;
 }
+
+QStatusBar{
+    border-top: 1px outset grey;
+}
+
+QLabel[feature_enable=true] {
+    color:green;
+}
+
+QLabel[feature_enable=false] {
+    color:red;
+}
