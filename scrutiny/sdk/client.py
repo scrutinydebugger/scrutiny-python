@@ -284,6 +284,7 @@ class ScrutinyClient:
     _threading_events: ThreadingEvents  # All the threading events grouped under a single object
     _sock_lock: threading.Lock  # A threading lock to access the socket
     _main_lock: threading.Lock  # A threading lock to access the client internal state variables
+    _user_lock: threading.Lock  # A threading lock to access whatever resource the user of the SDK might access
 
     _callback_storage: Dict[int, CallbackStorageEntry]  # Dict of all pending server request indexed by their request ID
     _watchable_storage: Dict[str, WatchableHandle]  # A cache of all the WatchableHandle given to the user, indexed by their display path
@@ -336,6 +337,7 @@ class ScrutinyClient:
         self._threading_events = self.ThreadingEvents()
         self._sock_lock = threading.Lock()
         self._main_lock = threading.Lock()
+        self._user_lock = threading.Lock()
         self._reqid = 0
         self._timeout = timeout
         self._write_timeout = write_timeout
@@ -803,23 +805,26 @@ class ScrutinyClient:
             self._sock = None
             self._selector = None
             self._stream_parser = None
-
+        
         with self._main_lock:
             if self._server_state == ServerState.Connected and self._hostname is not None and self._port is not None:
                 self._logger.info(f"Disconnected from server at {self._hostname}:{self._port}")
-            self._hostname = None
-            self._port = None
-            self._server_state = ServerState.Disconnected
-            self._server_info = None
-            self._last_device_session_id = None
+            
+            with self._user_lock:   # Critical part, the user reads those properties
+                self._wt_clear_all_watchables(ValueStatus.ServerGone)
+                self._wt_clear_all_pending_requests("Server is disconnected")
+                self._hostname = None
+                self._port = None
+                self._server_state = ServerState.Disconnected
+                self._server_info = None
+                self._last_device_session_id = None
 
-            self._wt_clear_all_watchables(ValueStatus.ServerGone)
-            self._wt_clear_all_pending_requests("Server is disconnected")
 
             for callback_entry in self._callback_storage.values():
                 if callback_entry._future.state == CallbackState.Pending:
                     callback_entry._future._wt_mark_completed(CallbackState.Cancelled)
             self._callback_storage.clear()
+
 
     def _wt_clear_all_watchables(self, new_status: ValueStatus, watchable_types: Optional[List[WatchableType]] = None) -> None:
         # Don't lock the main lock, supposed to be done beforehand
@@ -1878,14 +1883,17 @@ class ScrutinyClient:
     @property
     def server_state(self) -> ServerState:
         """The server communication state"""
-        return ServerState(self._server_state)  # Make a copy
+        with self._user_lock:
+            return ServerState(self._server_state)  # Make a copy
 
     @property
     def hostname(self) -> Optional[str]:
         """Hostname of the server"""
-        return str(self._hostname) if self._hostname is not None else None
+        with self._user_lock:
+            return str(self._hostname) if self._hostname is not None else None
 
     @property
     def port(self) -> Optional[int]:
         """Port of the the server is letening to"""
-        return int(self._port) if self._port is not None else None
+        with self._user_lock:
+            return int(self._port) if self._port is not None else None
