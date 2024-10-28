@@ -43,11 +43,15 @@ It includes:
 
 -----
 
-.. automethod:: scrutiny.sdk.client.ScrutinyClient.get_server_status
+.. automethod:: scrutiny.sdk.client.ScrutinyClient.get_latest_server_status
 
 -----
 
 .. automethod:: scrutiny.sdk.client.ScrutinyClient.wait_server_status_update
+
+-----
+
+.. automethod:: scrutiny.sdk.client.ScrutinyClient.request_server_status_update
 
 -----
 

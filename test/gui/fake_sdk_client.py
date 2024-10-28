@@ -84,7 +84,7 @@ class FakeSDKClient:
     def wait_server_status_update(self, timeout=None):
         pass
 
-    def get_server_status(self) -> Optional[sdk.ServerInfo]:
+    def get_latest_server_status(self) -> Optional[sdk.ServerInfo]:
         if self.server_info is None:
             return None
         

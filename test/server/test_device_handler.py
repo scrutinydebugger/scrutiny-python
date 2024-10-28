@@ -87,10 +87,10 @@ class TestDeviceHandler(ScrutinyUnitTest):
         self.disconnect_callback_called = False
         self.disconnect_was_clean = False
         timeout = 2
-        t1 = time.time()
+        t1 = time.monotonic()
         connection_successful = False
         disconnect_sent = False
-        while time.time() - t1 < timeout:
+        while time.monotonic() - t1 < timeout:
             self.device_handler.process()
             time.sleep(0.01)
             status = self.device_handler.get_connection_status()
@@ -114,12 +114,13 @@ class TestDeviceHandler(ScrutinyUnitTest):
     def test_establish_full_connection_and_hold(self):
         setup_timeout = 2
         hold_time = 10
-        t1 = time.time()
+        t1 = time.monotonic()
         connection_successful = False
         hold_time_set = False
         timeout = setup_timeout
-        while time.time() - t1 < timeout:
+        while time.monotonic() - t1 < timeout:
             self.device_handler.process()
+            self.emulated_device.wake_if_sleep()    # speed up
             time.sleep(0.01)
             status = self.device_handler.get_connection_status()
             self.assertEqual(self.device_handler.get_comm_error_count(), 0)
@@ -130,7 +131,7 @@ class TestDeviceHandler(ScrutinyUnitTest):
                 if hold_time_set == False:
                     hold_time_set = True
                     timeout = hold_time
-                    t1 = time.time()
+                    t1 = time.monotonic()
             else:
                 self.assertIsNone(self.device_handler.get_comm_session_id())
 
@@ -142,10 +143,11 @@ class TestDeviceHandler(ScrutinyUnitTest):
 
     def test_read_correct_params(self):
         timeout = 3
-        t1 = time.time()
+        t1 = time.monotonic()
         connection_successful = False
-        while time.time() - t1 < timeout:
+        while time.monotonic() - t1 < timeout:
             self.device_handler.process()
+            self.emulated_device.wake_if_sleep()    # speed up
             time.sleep(0.01)
             status = self.device_handler.get_connection_status()
 
@@ -203,11 +205,12 @@ class TestDeviceHandler(ScrutinyUnitTest):
     def test_auto_disconnect_if_comm_interrupted(self):
         self.device_handler.expect_no_timeout = False
         timeout = 5     # Should take about 2.5 sec to disconnect With heartbeat at every 2 sec
-        t1 = time.time()
+        t1 = time.monotonic()
         connection_completed = False
         connection_lost = False
-        while time.time() - t1 < timeout:
+        while time.monotonic() - t1 < timeout:
             self.device_handler.process()
+            self.emulated_device.wake_if_sleep()    # speed up
             time.sleep(0.01)
             status = self.device_handler.get_connection_status()
 
@@ -227,11 +230,12 @@ class TestDeviceHandler(ScrutinyUnitTest):
         # Should behave exactly the same as test_auto_disconnect_if_comm_interrupted
         self.device_handler.expect_no_timeout = False
         timeout = 5     # Should take about 2.5 sec to disconnect With heartbeat at every 2 sec
-        t1 = time.time()
+        t1 = time.monotonic()
         connection_completed = False
         connection_lost = False
-        while time.time() - t1 < timeout:
+        while time.monotonic() - t1 < timeout:
             self.device_handler.process()
+            self.emulated_device.wake_if_sleep()    # speed up
             time.sleep(0.01)
             status = self.device_handler.get_connection_status()
 
@@ -249,12 +253,13 @@ class TestDeviceHandler(ScrutinyUnitTest):
 
     def test_auto_disconnect_and_reconnect_on_broken_link(self):
         timeout = 10     # Should take about 2.5 sec to disconnect With heartbeat at every 2 sec
-        t1 = time.time()
+        t1 = time.monotonic()
         connection_completed = False
         connection_lost = False
         connection_recovered = False
-        while time.time() - t1 < timeout:
+        while time.monotonic() - t1 < timeout:
             self.device_handler.process()
+            self.emulated_device.wake_if_sleep()    # speed up
             time.sleep(0.01)
             status = self.device_handler.get_connection_status()
 
@@ -285,16 +290,17 @@ class TestDeviceHandler(ScrutinyUnitTest):
         self.emulated_device.max_bitrate_bps = target_bitrate
         self.device_handler.set_operating_mode(DeviceHandler.OperatingMode.Test_CheckThrottling)
         connect_time = None
-        t1 = time.time()
-        while time.time() - t1 < timeout:
+        t1 = time.monotonic()
+        while time.monotonic() - t1 < timeout:
             self.device_handler.process()
+            self.emulated_device.wake_if_sleep()    # speed up
             status = self.device_handler.get_connection_status()
             if status == DeviceHandler.ConnectionStatus.CONNECTED_READY and connect_time is None:
                 self.device_handler.reset_bitrate_monitor()
-                connect_time = time.time()
+                connect_time = time.monotonic()
                 self.assertTrue(self.device_handler.is_throttling_enabled())
                 self.assertEqual(self.device_handler.get_throttling_bitrate(), self.emulated_device.max_bitrate_bps)
-                t1 = time.time()
+                t1 = time.monotonic()
                 timeout = measurement_time
 
         self.assertIsNotNone(connect_time)
@@ -340,15 +346,16 @@ class TestDeviceHandler(ScrutinyUnitTest):
         test_round_to_do = 5
         setup_timeout = 2
         hold_timeout = 5
-        t1 = time.time()
+        t1 = time.monotonic()
         connection_successful = False
         timeout = setup_timeout
         time_margin = 0.1
 
         round_completed = 0
         state = 'init_memory'
-        while time.time() - t1 < timeout and round_completed < test_round_to_do:
+        while time.monotonic() - t1 < timeout and round_completed < test_round_to_do:
             self.device_handler.process()
+            self.emulated_device.wake_if_sleep()    # speed up
             status = self.device_handler.get_connection_status()
             self.assertEqual(self.device_handler.get_comm_error_count(), 0)
 
@@ -365,12 +372,12 @@ class TestDeviceHandler(ScrutinyUnitTest):
                     self.emulated_device.write_memory(0x10000, struct.pack('<f', 3.1415926))
                     self.emulated_device.write_memory(0x10010, struct.pack('<q', 0x123456789abcdef))
                     self.emulated_device.write_memory(0x10020, struct.pack('<b', 1))
-                    init_memory_time = time.time()
+                    init_memory_timestamp = time.time()
                     state = 'read_memory'
 
                 elif state == 'read_memory':
-                    value_updated = (vfloat32.get_value_change_timestamp() > init_memory_time + time_margin) and (vint64.get_value_change_timestamp() >
-                                                                                                                  init_memory_time + time_margin) and (vbool.get_value_change_timestamp() > init_memory_time + time_margin)
+                    value_updated = (vfloat32.get_value_change_timestamp() > init_memory_timestamp + time_margin) and (vint64.get_value_change_timestamp() >
+                                                                                                                  init_memory_timestamp + time_margin) and (vbool.get_value_change_timestamp() > init_memory_timestamp + time_margin)
 
                     if value_updated:
                         self.assertEqual(vfloat32.get_value(), d2f(3.1415926), 'round=%d' % round_completed)
@@ -381,20 +388,20 @@ class TestDeviceHandler(ScrutinyUnitTest):
                         self.datastore.update_target_value(vint64, 0x1122334455667788, no_callback)
                         self.datastore.update_target_value(vbool, False, no_callback)
 
-                        write_time = time.time()
+                        write_timestamp = time.time()
                         state = 'write_memory'
 
-                    elif time.time() - init_memory_time > 1:
+                    elif time.time() - init_memory_timestamp > 1:
                         raise Exception('Value did not update')
 
                 elif state == 'write_memory':
                     value_updated = True
                     value_updated = value_updated and (vfloat32.get_last_target_update_timestamp() is not None) and (
-                        vfloat32.get_last_target_update_timestamp() > write_time)
+                        vfloat32.get_last_target_update_timestamp() > write_timestamp)
                     value_updated = value_updated and (vint64.get_last_target_update_timestamp() is not None) and (
-                        vint64.get_last_target_update_timestamp() > write_time)
+                        vint64.get_last_target_update_timestamp() > write_timestamp)
                     value_updated = value_updated and (vbool.get_last_target_update_timestamp() is not None) and (
-                        vbool.get_last_target_update_timestamp() > write_time)
+                        vbool.get_last_target_update_timestamp() > write_timestamp)
 
                     if value_updated:
                         self.assertEqual(vfloat32.get_value(), d2f(2.7), 'round=%d' % round_completed)
@@ -408,7 +415,7 @@ class TestDeviceHandler(ScrutinyUnitTest):
                         round_completed += 1
                         state = 'init_memory'
 
-                    elif time.time() - write_time > 1:
+                    elif time.monotonic() - write_timestamp > 1:
                         raise Exception('Value not written')
 
             # Make sure we don't disconnect
@@ -428,13 +435,14 @@ class TestDeviceHandler(ScrutinyUnitTest):
 
         timeout = setup_timeout
         round_completed = 0
-        t1 = time.time()
+        t1 = time.monotonic()
         all_entries = []
         state = 'wait_for_connection'
         connected = False
 
-        while time.time() - t1 < timeout and round_completed < test_round_to_do:
+        while time.monotonic() - t1 < timeout and round_completed < test_round_to_do:
             self.device_handler.process()
+            self.emulated_device.wake_if_sleep()    # speed up
 
             status = self.device_handler.get_connection_status()
             self.assertEqual(self.device_handler.get_comm_error_count(), 0)
@@ -550,10 +558,11 @@ class TestDeviceHandler(ScrutinyUnitTest):
         self.assertFalse(self.emulated_device.is_datalogging_enabled(), "Datalogging is disabled on emulated device.")
 
         timeout = 4
-        t1 = time.time()
+        t1 = time.monotonic()
         connection_completed = False
-        while time.time() - t1 < timeout:
+        while time.monotonic() - t1 < timeout:
             self.device_handler.process()
+            self.emulated_device.wake_if_sleep()    # speed up
             time.sleep(0.01)
             status = self.device_handler.get_connection_status()
             if status == DeviceHandler.ConnectionStatus.CONNECTED_READY and connection_completed == False:
@@ -565,8 +574,8 @@ class TestDeviceHandler(ScrutinyUnitTest):
         self.assertFalse(device_info.supported_feature_map['datalogging'])
         self.assertFalse(self.device_handler.datalogging_poller.is_enabled())
 
-        t1 = time.time()
-        while time.time() - t1 < 0.5:
+        t1 = time.monotonic()
+        while time.monotonic() - t1 < 0.5:
             self.device_handler.process()   # Keep processing to see if datalogging feature will do something (it should not)
 
         self.assertIsNone(self.device_handler.get_datalogging_setup())   # Should never be set
@@ -604,10 +613,11 @@ class TestDeviceHandler(ScrutinyUnitTest):
             logger.debug("[iteration=%d] Wait for connection" % iteration)
             # First we wait on connection to be ready with the device
             timeout = 4
-            t1 = time.time()
+            t1 = time.monotonic()
             connection_completed = False
-            while time.time() - t1 < timeout:
+            while time.monotonic() - t1 < timeout:
                 self.device_handler.process()
+                self.emulated_device.wake_if_sleep()    # speed up
                 time.sleep(0.01)
                 status = self.device_handler.get_connection_status()
                 if status == DeviceHandler.ConnectionStatus.CONNECTED_READY and connection_completed == False:
@@ -615,9 +625,10 @@ class TestDeviceHandler(ScrutinyUnitTest):
                     break
 
             timeout = 2
-            t1 = time.time()
-            while time.time() - t1 < timeout:
+            t1 = time.monotonic()
+            while time.monotonic() - t1 < timeout:
                 self.device_handler.process()
+                self.emulated_device.wake_if_sleep()    # speed up
                 time.sleep(0.01)
                 if self.device_handler.get_datalogger_state() is not None:
                     break
@@ -635,10 +646,11 @@ class TestDeviceHandler(ScrutinyUnitTest):
             # Next wait for datalogging poller to retrieve the configuration of the datalogging feature
             logger.debug("[iteration=%d] Wait for setup" % iteration)
             timeout = 2
-            t1 = time.time()
+            t1 = time.monotonic()
             datalogging_setup = None
-            while time.time() - t1 < timeout:
+            while time.monotonic() - t1 < timeout:
                 self.device_handler.process()
+                self.emulated_device.wake_if_sleep()    # speed up
                 datalogging_setup = self.device_handler.get_datalogging_setup()
                 if datalogging_setup is not None and self.device_handler.is_ready_for_datalogging_acquisition_request():  # Expect setup to be read
                     break
@@ -652,6 +664,7 @@ class TestDeviceHandler(ScrutinyUnitTest):
 
             # Make sure nothing happens unless somebody require an acquisition
             self.device_handler.process()
+            self.emulated_device.wake_if_sleep()    # speed up
             time.sleep(0.1)
             self.device_handler.process()
             if iteration == 0:
@@ -687,9 +700,10 @@ class TestDeviceHandler(ScrutinyUnitTest):
                 self.device_handler.cancel_datalogging_acquisition()
                 self.assertTrue(self.device_handler.datalogging_cancel_in_progress())
                 timeout = 1
-                t1 = time.time()
-                while self.device_handler.datalogging_cancel_in_progress() and time.time() - t1 < timeout:
+                t1 = time.monotonic()
+                while self.device_handler.datalogging_cancel_in_progress() and time.monotonic() - t1 < timeout:
                     self.device_handler.process()
+                    self.emulated_device.wake_if_sleep()    # speed up
                 self.assertFalse(self.device_handler.datalogging_cancel_in_progress())
 
                 self.device_handler.request_datalogging_acquisition(loop_id, config, self.acquisition_complete_callback)
@@ -701,9 +715,10 @@ class TestDeviceHandler(ScrutinyUnitTest):
             # Make sure it is received and that the device is waiting for the trigger to happen
             logger.debug("[iteration=%d] Wait for armed" % iteration)
             timeout = 2
-            t1 = time.time()
-            while time.time() - t1 < timeout:
+            t1 = time.monotonic()
+            while time.monotonic() - t1 < timeout:
                 self.device_handler.process()
+                self.emulated_device.wake_if_sleep()    # speed up
                 if self.device_handler.get_datalogger_state() == device_datalogging.DataloggerState.ARMED:
                     break
 
@@ -718,9 +733,10 @@ class TestDeviceHandler(ScrutinyUnitTest):
                 self.device_handler.cancel_datalogging_acquisition()
                 self.assertTrue(self.device_handler.datalogging_cancel_in_progress())
                 timeout = 2
-                t1 = time.time()
-                while self.device_handler.datalogging_cancel_in_progress() and time.time() - t1 < timeout:
+                t1 = time.monotonic()
+                while self.device_handler.datalogging_cancel_in_progress() and time.monotonic() - t1 < timeout:
                     self.device_handler.process()
+                    self.emulated_device.wake_if_sleep()    # speed up
                 self.assertFalse(self.device_handler.datalogging_cancel_in_progress())
 
                 self.device_handler.request_datalogging_acquisition(loop_id, config, self.acquisition_complete_callback)
@@ -731,8 +747,8 @@ class TestDeviceHandler(ScrutinyUnitTest):
                 continue    #
 
             # Make sure it stays it the same state if the trigger never happens
-            t1 = time.time()
-            while time.time() - t1 < 0.5:
+            t1 = time.monotonic()
+            while time.monotonic() - t1 < 0.5:
                 self.device_handler.process()
                 time.sleep(0.05)
 
@@ -746,9 +762,10 @@ class TestDeviceHandler(ScrutinyUnitTest):
 
             logger.debug("[iteration=%d] Wait for acquisition complete" % iteration)
             timeout = 2
-            t1 = time.time()
-            while time.time() - t1 < timeout:
+            t1 = time.monotonic()
+            while time.monotonic() - t1 < timeout:
                 self.device_handler.process()
+                self.emulated_device.wake_if_sleep()    # speed up
                 time.sleep(0.01)
                 if self.acquisition_complete_callback_called:
                     break
@@ -794,9 +811,10 @@ class TestDeviceHandler(ScrutinyUnitTest):
 
     def test_user_command(self):
         timeout = 3
-        t1 = time.time()
-        while time.time() - t1 < timeout:
+        t1 = time.monotonic()
+        while time.monotonic() - t1 < timeout:
             self.device_handler.process()
+            self.emulated_device.wake_if_sleep()    # speed up
             status = self.device_handler.get_connection_status()
             if status == DeviceHandler.ConnectionStatus.CONNECTED_READY:
                 break
@@ -832,8 +850,8 @@ class TestDeviceHandler(ScrutinyUnitTest):
 
         self.device_handler.request_user_command(1, bytes([1, 2, 3, 4]), callback)
 
-        t1 = time.time()
-        while time.time() - t1 < timeout:
+        t1 = time.monotonic()
+        while time.monotonic() - t1 < timeout:
             self.device_handler.process()
             if retval.called:
                 break
@@ -846,8 +864,8 @@ class TestDeviceHandler(ScrutinyUnitTest):
         retval.clear()
         self.device_handler.request_user_command(0xFF, bytes([1, 2, 3, 4]), callback)
 
-        t1 = time.time()
-        while time.time() - t1 < timeout:
+        t1 = time.monotonic()
+        while time.monotonic() - t1 < timeout:
             self.device_handler.process()
             if retval.called:
                 break
@@ -863,9 +881,10 @@ class TestDeviceHandler(ScrutinyUnitTest):
 
         timeout = self.device_handler.config['response_timeout'] + 2
         self.device_handler.expect_no_timeout = False
-        t1 = time.time()
-        while time.time() - t1 < timeout:
+        t1 = time.monotonic()
+        while time.monotonic() - t1 < timeout:
             self.device_handler.process()
+            self.emulated_device.wake_if_sleep()    # speed up
             if retval.called:
                 break
         self.assertTrue(retval.called)
@@ -923,9 +942,9 @@ class TestDeviceHandlerMultipleLink(ScrutinyUnitTest):
 
         # Should behave exactly the same as test_auto_disconnect_if_comm_interrupted
         timeout = 5     # Should take about 2.5 sec to disconnect With heartbeat at every 2 sec
-        t1 = time.time()
+        t1 = time.monotonic()
         connection_completed = False
-        while time.time() - t1 < timeout:
+        while time.monotonic() - t1 < timeout:
             self.device_handler.process()
             time.sleep(0.01)
             status = self.device_handler.get_connection_status()
@@ -944,9 +963,9 @@ class TestDeviceHandlerMultipleLink(ScrutinyUnitTest):
         self.assertNotEqual(self.device_handler.get_connection_status(), DeviceHandler.ConnectionStatus.CONNECTED_READY)
 
         timeout = 5     # Should take about 2.5 sec to disconnect With heartbeat at every 2 sec
-        t1 = time.time()
+        t1 = time.monotonic()
         connection_completed = False
-        while time.time() - t1 < timeout:
+        while time.monotonic() - t1 < timeout:
             self.device_handler.process()
             time.sleep(0.01)
             status = self.device_handler.get_connection_status()

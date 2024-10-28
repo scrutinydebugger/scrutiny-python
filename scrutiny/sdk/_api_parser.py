@@ -304,6 +304,145 @@ def parse_subscribe_watchable_response(response: api_typing.S2C.SubscribeWatchab
     return outdict
 
 
+def parse_get_device_info(response: api_typing.S2C.GetDeviceInfo) -> Optional[sdk.DeviceInfo]:
+    assert isinstance(response, dict)
+    assert 'cmd' in response
+    cmd = response['cmd']
+    assert cmd == API.Command.Api2Client.GET_DEVICE_INFO
+    NoneType: Type[None] = type(None)
+
+    _check_response_dict(cmd, response, 'available', bool)
+    _check_response_dict(cmd, response, 'device_info', (dict, NoneType))
+    
+
+    if response['available'] == False:
+        _check_response_dict(cmd, response, 'device_info', type(None))
+        return None
+    else:
+        _check_response_dict(cmd, response, 'device_info', dict)
+        _check_response_dict(cmd, response, 'device_info.device_id', str)
+        _check_response_dict(cmd, response, 'device_info.display_name', str)
+        _check_response_dict(cmd, response, 'device_info.max_tx_data_size', int)
+        _check_response_dict(cmd, response, 'device_info.max_rx_data_size', int)
+        _check_response_dict(cmd, response, 'device_info.max_bitrate_bps', (int, type(None)))
+        _check_response_dict(cmd, response, 'device_info.rx_timeout_us', int)
+        _check_response_dict(cmd, response, 'device_info.heartbeat_timeout_us', int)
+        _check_response_dict(cmd, response, 'device_info.address_size_bits', int)
+        _check_response_dict(cmd, response, 'device_info.protocol_major', int)
+        _check_response_dict(cmd, response, 'device_info.protocol_minor', int)
+        _check_response_dict(cmd, response, 'device_info.supported_feature_map.memory_write', bool)
+        _check_response_dict(cmd, response, 'device_info.supported_feature_map.datalogging', bool)
+        _check_response_dict(cmd, response, 'device_info.supported_feature_map.user_command', bool)
+        _check_response_dict(cmd, response, 'device_info.supported_feature_map._64bits', bool)
+        _check_response_dict(cmd, response, 'device_info.forbidden_memory_regions', list)
+        _check_response_dict(cmd, response, 'device_info.readonly_memory_regions', list)
+        _check_response_dict(cmd, response, 'device_info.datalogging_capabilities', (dict, type(None)))
+        device_info = response['device_info']
+        assert device_info is not None
+        forbidden_regions: List[sdk.MemoryRegion] = []
+        for region in device_info['forbidden_memory_regions']:
+            _check_response_dict(cmd, region, 'start', int)
+            _check_response_dict(cmd, region, 'end', int)
+            if region['end'] <= region['start']:
+                raise sdk.exceptions.BadResponseError(f'Received a forbidden memory region with incoherent start and end in message "{cmd}"')
+            size = region['end'] - region['start'] + 1
+            if size <= 0:
+                raise sdk.exceptions.BadResponseError(f'Got a forbidden memory region with an invalid size "{cmd}"')
+            forbidden_regions.append(sdk.MemoryRegion(
+                start=region['start'],
+                size=size
+            ))
+
+        readonly_regions: List[sdk.MemoryRegion] = []
+        for region in device_info['readonly_memory_regions']:
+            _check_response_dict(cmd, region, 'start', int)
+            _check_response_dict(cmd, region, 'end', int)
+            if region['end'] <= region['start']:
+                raise sdk.exceptions.BadResponseError(f'Received a readonly memory region with incoherent start and end in message "{cmd}"')
+            size = region['end'] - region['start'] + 1
+            if size <= 0:
+                raise sdk.exceptions.BadResponseError(f'Got a readonly memory region with an invalid size "{cmd}"')
+            readonly_regions.append(sdk.MemoryRegion(
+                start=region['start'],
+                size=size
+            ))
+
+        if device_info['address_size_bits'] not in get_args(sdk.AddressSize):
+            raise sdk.exceptions.BadResponseError(f"Unexpected address size {device_info['address_size_bits']}")
+
+        datalogging_capabilities:Optional[sdk.DataloggingCapabilities] = None
+        if device_info['datalogging_capabilities'] is not None:
+            cap_dict = device_info['datalogging_capabilities']
+
+            _check_response_dict(cmd, cap_dict, 'buffer_size', int)
+            _check_response_dict(cmd, cap_dict, 'encoding', str)
+            _check_response_dict(cmd, cap_dict, 'max_nb_signal', int)
+            _check_response_dict(cmd, cap_dict, 'sampling_rates', list)
+
+            api_to_sdk_encoding_map: Dict[api_typing.DataloggingEncoding, sdk.datalogging.DataloggingEncoding] = {
+                'raw': sdk.datalogging.DataloggingEncoding.RAW,
+            }
+
+            encoding = cap_dict['encoding']
+            if encoding not in api_to_sdk_encoding_map:
+                raise sdk.exceptions.BadResponseError(f'Datalogging encoding is not supported: "{encoding}"')
+
+            sampling_rates: List[sdk.datalogging.SamplingRate] = []
+            for rate_entry in cap_dict['sampling_rates']:
+                _check_response_dict(cmd, rate_entry, 'identifier', int)
+                _check_response_dict(cmd, rate_entry, 'name', str)
+                _check_response_dict(cmd, rate_entry, 'type', str)
+
+                rate: sdk.datalogging.SamplingRate
+                if rate_entry['type'] == 'fixed_freq':
+                    _check_response_dict(cmd, rate_entry, 'frequency', (float, int))
+                    assert rate_entry['frequency'] is not None
+
+                    rate = sdk.datalogging.FixedFreqSamplingRate(
+                        identifier=rate_entry['identifier'],
+                        name=rate_entry['name'],
+                        frequency=float(rate_entry['frequency']),
+                    )
+                elif rate_entry['type'] == 'variable_freq':
+                    rate = sdk.datalogging.VariableFreqSamplingRate(
+                        identifier=rate_entry['identifier'],
+                        name=rate_entry['name'],
+                    )
+                else:
+                    raise sdk.exceptions.BadResponseError(f'Unsupported sampling rate type: {rate_entry["type"]}')
+
+                sampling_rates.append(rate)
+
+            datalogging_capabilities = sdk.datalogging.DataloggingCapabilities(
+                buffer_size=cap_dict['buffer_size'],
+                encoding=api_to_sdk_encoding_map[encoding],
+                max_nb_signal=cap_dict['max_nb_signal'],
+                sampling_rates=sampling_rates
+            )
+
+        return sdk.DeviceInfo(
+            device_id=device_info['device_id'],
+            display_name=device_info['display_name'],
+            max_tx_data_size=device_info['max_tx_data_size'],
+            max_rx_data_size=device_info['max_rx_data_size'],
+            max_bitrate_bps=device_info['max_bitrate_bps'],
+            rx_timeout_us=device_info['rx_timeout_us'],
+            heartbeat_timeout=float(device_info['heartbeat_timeout_us']) * 1e-6,
+            address_size_bits=cast(sdk.AddressSize, device_info['address_size_bits']),
+            protocol_major=device_info['protocol_major'],
+            protocol_minor=device_info['protocol_minor'],
+            supported_features=sdk.SupportedFeatureMap(
+                memory_write=device_info['supported_feature_map']['memory_write'],
+                datalogging=device_info['supported_feature_map']['datalogging'],
+                user_command=device_info['supported_feature_map']['user_command'],
+                sixtyfour_bits=device_info['supported_feature_map']['_64bits'],
+            ),
+            forbidden_memory_regions=forbidden_regions,
+            readonly_memory_regions=readonly_regions,
+            datalogging_capabilities=datalogging_capabilities
+        )
+
+
 def parse_inform_server_status(response: api_typing.S2C.InformServerStatus) -> sdk.ServerInfo:
     """Parse the inform_server_status message"""
 
@@ -328,78 +467,6 @@ def parse_inform_server_status(response: api_typing.S2C.InformServerStatus) -> s
         if api_val == API.DeviceCommStatus.CONNECTED_READY:
             return sdk.DeviceCommState.ConnectedReady
         raise sdk.exceptions.BadResponseError('Unsupported device communication status "{api_val}"')
-
-    _check_response_dict(cmd, response, 'device_info', (dict, NoneType))
-    device_info: Optional[sdk.DeviceInfo] = None
-    if isinstance(response['device_info'], dict):
-        _check_response_dict(cmd, response, 'device_info.device_id', str)
-        _check_response_dict(cmd, response, 'device_info.display_name', str)
-        _check_response_dict(cmd, response, 'device_info.max_tx_data_size', int)
-        _check_response_dict(cmd, response, 'device_info.max_rx_data_size', int)
-        _check_response_dict(cmd, response, 'device_info.max_bitrate_bps', (int, type(None)))
-        _check_response_dict(cmd, response, 'device_info.rx_timeout_us', int)
-        _check_response_dict(cmd, response, 'device_info.heartbeat_timeout_us', int)
-        _check_response_dict(cmd, response, 'device_info.address_size_bits', int)
-        _check_response_dict(cmd, response, 'device_info.protocol_major', int)
-        _check_response_dict(cmd, response, 'device_info.protocol_minor', int)
-        _check_response_dict(cmd, response, 'device_info.supported_feature_map.memory_write', bool)
-        _check_response_dict(cmd, response, 'device_info.supported_feature_map.datalogging', bool)
-        _check_response_dict(cmd, response, 'device_info.supported_feature_map.user_command', bool)
-        _check_response_dict(cmd, response, 'device_info.supported_feature_map._64bits', bool)
-        _check_response_dict(cmd, response, 'device_info.forbidden_memory_regions', list)
-        _check_response_dict(cmd, response, 'device_info.readonly_memory_regions', list)
-
-        forbidden_regions: List[sdk.MemoryRegion] = []
-        for region in response['device_info']['forbidden_memory_regions']:
-            _check_response_dict(cmd, region, 'start', int)
-            _check_response_dict(cmd, region, 'end', int)
-            if region['end'] <= region['start']:
-                raise sdk.exceptions.BadResponseError(f'Received a forbidden memory region with incoherent start and end in message "{cmd}"')
-            size = region['end'] - region['start'] + 1
-            if size <= 0:
-                raise sdk.exceptions.BadResponseError(f'Got a forbidden memory region with an invalid size "{cmd}"')
-            forbidden_regions.append(sdk.MemoryRegion(
-                start=region['start'],
-                size=size
-            ))
-
-        readonly_regions: List[sdk.MemoryRegion] = []
-        for region in response['device_info']['readonly_memory_regions']:
-            _check_response_dict(cmd, region, 'start', int)
-            _check_response_dict(cmd, region, 'end', int)
-            if region['end'] <= region['start']:
-                raise sdk.exceptions.BadResponseError(f'Received a readonly memory region with incoherent start and end in message "{cmd}"')
-            size = region['end'] - region['start'] + 1
-            if size <= 0:
-                raise sdk.exceptions.BadResponseError(f'Got a readonly memory region with an invalid size "{cmd}"')
-            readonly_regions.append(sdk.MemoryRegion(
-                start=region['start'],
-                size=size
-            ))
-
-        if response['device_info']['address_size_bits'] not in get_args(sdk.AddressSize):
-            raise sdk.exceptions.BadResponseError(f"Unexpected address size {response['device_info']['address_size_bits']}")
-
-        device_info = sdk.DeviceInfo(
-            device_id=response['device_info']['device_id'],
-            display_name=response['device_info']['display_name'],
-            max_tx_data_size=response['device_info']['max_tx_data_size'],
-            max_rx_data_size=response['device_info']['max_rx_data_size'],
-            max_bitrate_bps=response['device_info']['max_bitrate_bps'],
-            rx_timeout_us=response['device_info']['rx_timeout_us'],
-            heartbeat_timeout=float(response['device_info']['heartbeat_timeout_us']) * 1e-6,
-            address_size_bits=cast(sdk.AddressSize, response['device_info']['address_size_bits']),
-            protocol_major=response['device_info']['protocol_major'],
-            protocol_minor=response['device_info']['protocol_minor'],
-            supported_features=sdk.SupportedFeatureMap(
-                memory_write=response['device_info']['supported_feature_map']['memory_write'],
-                datalogging=response['device_info']['supported_feature_map']['datalogging'],
-                user_command=response['device_info']['supported_feature_map']['user_command'],
-                sixtyfour_bits=response['device_info']['supported_feature_map']['_64bits'],
-            ),
-            forbidden_memory_regions=forbidden_regions,
-            readonly_memory_regions=readonly_regions
-        )
 
     sfd: Optional[sdk.SFDInfo] = None
     if response['loaded_sfd'] is not None:
@@ -523,7 +590,6 @@ def parse_inform_server_status(response: api_typing.S2C.InformServerStatus) -> s
         device_comm_state=_device_status_from_api(response['device_status']),
         device_session_id=response['device_session_id'],
         datalogging=datalogging,
-        device=device_info,
         sfd=sfd,
         device_link=device_link
     )
@@ -662,66 +728,6 @@ def parse_memory_write_completion(response: api_typing.S2C.WriteMemoryComplete) 
         error=detail_msg if detail_msg is not None else "",
         timestamp=time.time(),
         monotonic_timestamp=time.monotonic()
-    )
-
-
-def parse_get_datalogging_capabilities_response(response: api_typing.S2C.GetDataloggingCapabilities) -> Optional[sdk.datalogging.DataloggingCapabilities]:
-    assert isinstance(response, dict)
-    assert 'cmd' in response
-    cmd = response['cmd']
-    assert cmd == API.Command.Api2Client.GET_DATALOGGING_CAPABILITIES_RESPONSE
-
-    _check_response_dict(cmd, response, 'available', bool)
-    _check_response_dict(cmd, response, 'capabilities', (dict, type(None)))
-
-    if response['capabilities'] is None or not response['available']:
-        return None
-
-    _check_response_dict(cmd, response, 'capabilities.buffer_size', int)
-    _check_response_dict(cmd, response, 'capabilities.encoding', str)
-    _check_response_dict(cmd, response, 'capabilities.max_nb_signal', int)
-    _check_response_dict(cmd, response, 'capabilities.sampling_rates', list)
-
-    api_to_sdk_encoding_map: Dict[api_typing.DataloggingEncoding, sdk.datalogging.DataloggingEncoding] = {
-        'raw': sdk.datalogging.DataloggingEncoding.RAW,
-    }
-
-    encoding = response['capabilities']['encoding']
-    if encoding not in api_to_sdk_encoding_map:
-        raise sdk.exceptions.BadResponseError(f'Datalogging encoding is not supported: "{encoding}"')
-
-    sampling_rates: List[sdk.datalogging.SamplingRate] = []
-    for rate_entry in response['capabilities']['sampling_rates']:
-        _check_response_dict(cmd, rate_entry, 'identifier', int)
-        _check_response_dict(cmd, rate_entry, 'name', str)
-
-        _check_response_dict(cmd, rate_entry, 'type', str)
-
-        rate: sdk.datalogging.SamplingRate
-        if rate_entry['type'] == 'fixed_freq':
-            _check_response_dict(cmd, rate_entry, 'frequency', (float, int))
-            assert rate_entry['frequency'] is not None
-
-            rate = sdk.datalogging.FixedFreqSamplingRate(
-                identifier=rate_entry['identifier'],
-                name=rate_entry['name'],
-                frequency=float(rate_entry['frequency']),
-            )
-        elif rate_entry['type'] == 'variable_freq':
-            rate = sdk.datalogging.VariableFreqSamplingRate(
-                identifier=rate_entry['identifier'],
-                name=rate_entry['name'],
-            )
-        else:
-            raise sdk.exceptions.BadResponseError(f'Unsupported sampling rate type: {rate_entry["type"]}')
-
-        sampling_rates.append(rate)
-
-    return sdk.datalogging.DataloggingCapabilities(
-        buffer_size=response['capabilities']['buffer_size'],
-        encoding=api_to_sdk_encoding_map[encoding],
-        max_nb_signal=response['capabilities']['max_nb_signal'],
-        sampling_rates=sampling_rates
     )
 
 

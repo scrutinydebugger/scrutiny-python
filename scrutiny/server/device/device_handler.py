@@ -297,8 +297,12 @@ class DeviceHandler:
         return self.datalogging_poller.get_datalogger_state()
 
     def get_datalogging_setup(self) -> Optional[device_datalogging.DataloggingSetup]:
-        """Get the device datalogging configuration (encoding, buffer size, etc)"""
-        return self.datalogging_poller.get_device_setup()
+        """Get the device datalogging configuration (encoding, buffer size, etc). Shortcut to avoid reading the device_info struct all the time"""
+        if self.device_info is None:
+            return None
+        if self.device_info.datalogging_setup is None:
+            return None
+        return copy.copy(self.device_info.datalogging_setup) 
 
     def get_datalogging_acquisition_completion_ratio(self) -> Optional[float]:
         """Returns a value between 0 and 1 indicating how far the acquisition is frm being completed once the trigger event has been launched"""
@@ -753,8 +757,10 @@ class DeviceHandler:
                 assert self.device_info is not None
                 assert self.device_info.supported_feature_map is not None
                 if self.device_info.supported_feature_map['datalogging']:
+                    assert self.device_info.datalogging_setup is not None
                     self.logger.debug("Enabling datalogging handling")
                     self.datalogging_poller.enable()
+                    self.datalogging_poller.configure_datalogging_setup(self.device_info.datalogging_setup)
                     self.datalogging_poller.start()
                 else:
                     self.logger.debug("Disabling datalogging handling")

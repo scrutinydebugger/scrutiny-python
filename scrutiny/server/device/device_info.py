@@ -10,6 +10,7 @@ from typing import TypedDict, List, Optional
 from scrutiny.core.basic_types import *
 from enum import Enum
 from abc import abstractmethod
+import scrutiny.server.datalogging.definitions.device as device_datalogging
 
 from typing import Tuple
 
@@ -89,7 +90,8 @@ class DeviceInfo:
         'forbidden_memory_regions',
         'readonly_memory_regions',
         'runtime_published_values',
-        'loops'
+        'loops',
+        'datalogging_setup'
     )
 
     device_id: Optional[str]
@@ -137,6 +139,8 @@ class DeviceInfo:
     loops: Optional[List[ExecLoop]]
     """List of execution loops (tasks) exposed by the embedded device"""
 
+    datalogging_setup:Optional[device_datalogging.DataloggingSetup]
+
     def get_attributes(self) -> Tuple[str, ...]:
         return self.__slots__
 
@@ -145,11 +149,21 @@ class DeviceInfo:
 
     def all_ready(self) -> bool:
         """Returns True when all attributes are set to something (not None)"""
+
+        expected_props = set(self.__slots__)
+        expected_props.remove('datalogging_setup')
         ready = True
-        for attr in self.__slots__:
+        for attr in expected_props:
             if getattr(self, attr) is None:
                 ready = False
                 break
+        
+        # datalogging_setup can be None if not supported.
+        if ready:
+            assert self.supported_feature_map is not None
+            if self.supported_feature_map['datalogging']:
+                if self.datalogging_setup is None:
+                    return False
         return ready
 
     def clear(self) -> None:

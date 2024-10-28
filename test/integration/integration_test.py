@@ -71,7 +71,7 @@ class ScrutinyIntegrationTest(ScrutinyUnitTest):
             self.api_conn.open()    # Client
             cast(DummyClientHandler, self.server.api.get_client_handler()).set_connections([self.api_conn])
 
-            self.wait_for_device_ready(timeout=2)
+            self.wait_for_device_ready(timeout=3)
 
             self.temp_storage_handler = SFDStorage.use_temp_folder()
 
@@ -111,24 +111,25 @@ class ScrutinyIntegrationTest(ScrutinyUnitTest):
             self.assertEqual(entry.aliasdef.offset, offset)
 
     def wait_for_device_ready(self, timeout):
-        t1 = time.time()
+        t1 = time.monotonic()
         self.server.process()
         timed_out = False
         while self.server.device_handler.get_connection_status() != DeviceHandler.ConnectionStatus.CONNECTED_READY:
-            if time.time() - t1 >= timeout:
+            if time.monotonic() - t1 >= timeout:
                 timed_out = True
                 break
             self.server.process()
+            self.emulated_device.wake_if_sleep()
             time.sleep(0.01)
 
         if timed_out:
             raise TimeoutError("Timed out while initializing emulated device")
 
     def wait_for_response(self, timeout=0.4):
-        t1 = time.time()
+        t1 = time.monotonic()
         self.server.process()
         while not self.api_conn.from_server_available():
-            if time.time() - t1 >= timeout:
+            if time.monotonic() - t1 >= timeout:
                 break
             self.server.process()
             time.sleep(0.01)
@@ -136,17 +137,17 @@ class ScrutinyIntegrationTest(ScrutinyUnitTest):
         return self.api_conn.read_from_server()
 
     def wait_for(self, timeout):
-        t1 = time.time()
+        t1 = time.monotonic()
         self.server.process()
-        while time.time() - t1 < timeout:
+        while time.monotonic() - t1 < timeout:
             self.server.process()
             time.sleep(0.01)
 
     def wait_true(self, func, timeout):
-        t1 = time.time()
+        t1 = time.monotonic()
         self.server.process()
         result = False
-        while time.time() - t1 < timeout:
+        while time.monotonic() - t1 < timeout:
             self.server.process()
             result = func()
             if result:
@@ -163,9 +164,9 @@ class ScrutinyIntegrationTest(ScrutinyUnitTest):
             self.server.process()
 
     def spinwait_for(self, timeout):
-        t1 = time.time()
+        t1 = time.monotonic()
         self.server.process()
-        while time.time() - t1 < timeout:
+        while time.monotonic() - t1 < timeout:
             self.server.process()
 
     def wait_and_load_response(self, cmd=None, nbr=1, timeout=1, ignore_error=False):

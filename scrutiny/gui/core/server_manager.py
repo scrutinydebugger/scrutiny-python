@@ -279,7 +279,7 @@ class ServerManager:
 
                     try:
                         self._client.wait_server_status_update(0.2)
-                        self._fsm_data.server_info = self._client.get_server_status()
+                        self._fsm_data.server_info = self._client.get_latest_server_status()
                         self.signals.status_received.emit()
                     except sdk.exceptions.TimeoutException:
                         pass
@@ -526,7 +526,7 @@ class ServerManager:
     
     def get_server_info(self) -> Optional[sdk.ServerInfo]:
         try:
-            return self._client.get_server_status()
+            return self._client.get_latest_server_status()
         except sdk.exceptions.ScrutinySDKException:
             return None
     

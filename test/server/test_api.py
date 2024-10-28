@@ -59,6 +59,7 @@ class StubbedDeviceHandler:
     datalogging_setup: Optional[device_datalogging.DataloggingSetup]
     device_state_change_callbacks: List[DeviceStateChangedCallback]
     comm_link:DummyLink
+    device_info:DeviceInfo
 
     read_memory_queue: "queue.Queue[RawMemoryReadRequest]"
     write_memory_queue: "queue.Queue[RawMemoryWriteRequest]"
@@ -82,6 +83,38 @@ class StubbedDeviceHandler:
         self.write_memory_queue = queue.Queue()
         self.user_command_history_queue = queue.Queue()
         self.comm_link = DummyLink()
+        
+        self.device_info = DeviceInfo()
+        self.device_info.device_id = self.device_id
+        self.device_info.display_name = self.__class__.__name__
+        self.device_info.max_tx_data_size = 128
+        self.device_info.max_rx_data_size = 64
+        self.device_info.max_bitrate_bps = 10000
+        self.device_info.rx_timeout_us = 50000
+        self.device_info.heartbeat_timeout_us = 4000000
+        self.device_info.address_size_bits = 32
+        self.device_info.protocol_major = 1
+        self.device_info.protocol_minor = 0
+        self.device_info.supported_feature_map =  {
+            'memory_write': True,
+            'datalogging': False,
+            'user_command': True,
+            '_64bits': True
+            }
+        self.device_info.forbidden_memory_regions = [MemoryRegion(0x1000, 0x500)]
+        self.device_info.readonly_memory_regions = [MemoryRegion(0x2000, 0x600), MemoryRegion(0x3000, 0x700)]
+        self.device_info.runtime_published_values = []
+        self.device_info.loops = [
+            FixedFreqLoop(1000, "Fixed Freq 1KHz"),
+            FixedFreqLoop(10000, "Fixed Freq 10KHz"),
+            VariableFreqLoop("Variable Freq"),
+            VariableFreqLoop("Variable Freq No DL", support_datalogging=False)
+        ]
+        self.device_info.datalogging_setup = device_datalogging.DataloggingSetup(
+            buffer_size = 4096,
+            encoding = device_datalogging.Encoding.RAW,
+            max_signal_count = 32
+        )
 
     def get_connection_status(self) -> DeviceHandler.ConnectionStatus:
         return self.connection_status
@@ -104,10 +137,10 @@ class StubbedDeviceHandler:
         return self.server_session_id
 
     def set_datalogging_setup(self, setup: Optional[device_datalogging.DataloggingSetup]) -> None:
-        self.datalogging_setup = setup
+        self.device_info.datalogging_setup = setup
 
     def get_datalogging_setup(self) -> Optional[device_datalogging.DataloggingSetup]:
-        return self.datalogging_setup
+        return self.device_info.datalogging_setup
 
     def get_datalogger_state(self) -> device_datalogging.DataloggerState:
         return self.datalogger_state
@@ -128,33 +161,8 @@ class StubbedDeviceHandler:
         return 0.5
 
     def get_device_info(self) -> DeviceInfo:
-        info = DeviceInfo()
-        info.device_id = self.device_id
-        info.display_name = self.__class__.__name__
-        info.max_tx_data_size = 128
-        info.max_rx_data_size = 64
-        info.max_bitrate_bps = 10000
-        info.rx_timeout_us = 50000
-        info.heartbeat_timeout_us = 4000000
-        info.address_size_bits = 32
-        info.protocol_major = 1
-        info.protocol_minor = 0
-        info.supported_feature_map =  {
-            'memory_write': True,
-            'datalogging': False,
-            'user_command': True,
-            '_64bits': True
-            }
-        info.forbidden_memory_regions = [MemoryRegion(0x1000, 0x500)]
-        info.readonly_memory_regions = [MemoryRegion(0x2000, 0x600), MemoryRegion(0x3000, 0x700)]
-        info.runtime_published_values = []
-        info.loops = [
-            FixedFreqLoop(1000, "Fixed Freq 1KHz"),
-            FixedFreqLoop(10000, "Fixed Freq 10KHz"),
-            VariableFreqLoop("Variable Freq"),
-            VariableFreqLoop("Variable Freq No DL", support_datalogging=False)
-        ]
-        return info
+        
+        return self.device_info
 
     def configure_comm(self, link_type: str, link_config: Dict[Any, Any]) -> None:
         self.link_type = link_type
@@ -212,9 +220,6 @@ class StubbedDataloggingManager:
 
     def get_device_setup(self) -> Optional[device_datalogging.DataloggingSetup]:
         return self.fake_device_handler.get_datalogging_setup()
-
-    def set_device_setup(self, setup: Optional[device_datalogging.DataloggingSetup]) -> None:
-        self.fake_device_handler.set_datalogging_setup(setup)
 
     def request_acquisition(self, request: api_datalogging.AcquisitionRequest, callback: api_datalogging.APIAcquisitionRequestCompletionCallback) -> None:
         self.request_queue.put(request)
@@ -1017,9 +1022,58 @@ class TestAPI(ScrutinyUnitTest):
             SFDStorage.uninstall(sfd1.get_firmware_id_ascii())
             SFDStorage.uninstall(sfd2.get_firmware_id_ascii())
 
+    def test_get_device_info(self):
+        self.fake_device_handler.set_connection_status(DeviceHandler.ConnectionStatus.CONNECTED_READY)
+        self.fake_device_handler.get_comm_link().initialize()   # Makes operational
+        self.assertTrue(self.fake_device_handler.get_comm_link().operational())
+        
+        req = {'cmd': 'get_device_info'}
+        self.send_request(req, 0)
+        response = cast(api_typing.S2C.GetDeviceInfo, self.wait_and_load_response())
+        self.assert_no_error(response)
+        
+        self.assertIn('available', response)
+        self.assertIn('device_info', response)
+        self.assertTrue(response['available'])
+        self.assertIsNotNone(response['device_info'])
+        device_info = self.fake_device_handler.get_device_info()
+
+        device_info_exclude_propeties = ['runtime_published_values', 'loops', 'datalogging_setup']  # API does not provide those on purpose
+        for attr in device_info.get_attributes():
+            if attr not in device_info_exclude_propeties:    # Exclude list
+                self.assertIn(attr, response['device_info'])
+
+                if attr not in ['readonly_memory_regions', 'forbidden_memory_regions']:
+                    self.assertEqual(getattr(device_info, attr), response['device_info'][attr])
+                else:
+                    region_list = getattr(device_info, attr)
+                    self.assertEqual(len(region_list), len(response['device_info'][attr]))
+
+                    for i in range(len(region_list)):
+                        self.assertIn('start', response['device_info'][attr][i])
+                        self.assertIn('size', response['device_info'][attr][i])
+                        self.assertIn('end', response['device_info'][attr][i])
+
+                        self.assertEqual(region_list[i].start, response['device_info'][attr][i]['start'])
+                        self.assertEqual(region_list[i].size, response['device_info'][attr][i]['size'])
+                        self.assertEqual(region_list[i].end, response['device_info'][attr][i]['end']) 
+
+
+        self.fake_device_handler.device_info = None
+        req = {'cmd': 'get_device_info'}
+        self.send_request(req, 0)
+        response = cast(api_typing.S2C.GetDeviceInfo, self.wait_and_load_response())
+        self.assert_no_error(response)
+
+        self.assertIn('available', response)
+        self.assertIn('device_info', response)
+        self.assertFalse(response['available'])
+        self.assertIsNone(response['device_info'])
+
+
     def test_get_server_status(self):
         self.fake_device_handler.set_datalogger_state(device_datalogging.DataloggerState.TRIGGERED)
-        device_info_exlude_propeties = ['runtime_published_values', 'loops']
+        
         dummy_sfd1_filename = get_artifact('test_sfd_1.sfd')
         dummy_sfd2_filename = get_artifact('test_sfd_2.sfd')
         with SFDStorage.use_temp_folder():
@@ -1062,28 +1116,8 @@ class TestAPI(ScrutinyUnitTest):
             self.assertEqual(response['device_comm_link']['link_operational'], True)            
             self.assertIn('link_config', response['device_comm_link'])
             self.assertEqual(response['device_comm_link']['link_config'], {})
-            self.assertIn('device_info', response)
-            self.assertIsNotNone(response['device_info'])
-            device_info = self.fake_device_handler.get_device_info()
-            for attr in device_info.get_attributes():
-                if attr not in device_info_exlude_propeties:    # Exclude list
-                    self.assertIn(attr, response['device_info'])
-
-                    if attr not in ['readonly_memory_regions', 'forbidden_memory_regions']:
-                        self.assertEqual(getattr(device_info, attr), response['device_info'][attr])
-                    else:
-                        region_list = getattr(device_info, attr)
-                        self.assertEqual(len(region_list), len(response['device_info'][attr]))
-
-                        for i in range(len(region_list)):
-                            self.assertIn('start', response['device_info'][attr][i])
-                            self.assertIn('size', response['device_info'][attr][i])
-                            self.assertIn('end', response['device_info'][attr][i])
-
-                            self.assertEqual(region_list[i].start, response['device_info'][attr][i]['start'])
-                            self.assertEqual(region_list[i].size, response['device_info'][attr][i]['size'])
-                            self.assertEqual(region_list[i].end, response['device_info'][attr][i]['end'])
-
+           
+               
             # Redo the test, but with no SFD loaded. We should get None
             self.sfd_handler.reset_active_sfd()
             response = self.wait_and_load_response()    # unloading an SFD should trigger an "inform_server_status" message
@@ -1111,26 +1145,7 @@ class TestAPI(ScrutinyUnitTest):
             self.assertIn('link_type', response['device_comm_link'])
             self.assertEqual(response['device_comm_link']['link_type'], 'dummy')
             self.assertIn('link_config', response['device_comm_link'])
-            self.assertEqual(response['device_comm_link']['link_config'], {})
-            self.assertIn('device_info', response)
-            device_info = self.fake_device_handler.get_device_info()
-            for attr in device_info.get_attributes():
-                if attr not in device_info_exlude_propeties:
-                    self.assertIn(attr, response['device_info'])
-                    if attr not in ['readonly_memory_regions', 'forbidden_memory_regions']:
-                        self.assertEqual(getattr(device_info, attr), response['device_info'][attr])
-                    else:
-                        region_list = getattr(device_info, attr)
-                        self.assertEqual(len(region_list), len(response['device_info'][attr]))
-
-                        for i in range(len(region_list)):
-                            self.assertIn('start', response['device_info'][attr][i])
-                            self.assertIn('size', response['device_info'][attr][i])
-                            self.assertIn('end', response['device_info'][attr][i])
-
-                            self.assertEqual(region_list[i].start, response['device_info'][attr][i]['start'])
-                            self.assertEqual(region_list[i].size, response['device_info'][attr][i]['size'])
-                            self.assertEqual(region_list[i].end, response['device_info'][attr][i]['end'])
+            self.assertEqual(response['device_comm_link']['link_config'], {})           
 
             SFDStorage.uninstall(sfd1.get_firmware_id_ascii())
             SFDStorage.uninstall(sfd2.get_firmware_id_ascii())
@@ -1665,54 +1680,56 @@ class TestAPI(ScrutinyUnitTest):
 
 # REQUEST_ACQUISITION
 
-    def test_get_datalogging_capabilities(self):
+    def test_get_device_info_datalogging(self):
         # Check that we can read the datalogging capabilities
-        req: api_typing.C2S.GetDataloggingCapabilities = {
-            'cmd': 'get_datalogging_capabilities'
+        req: api_typing.C2S.GetDeviceInfo = {
+            'cmd': 'get_device_info'
         }
+
         datalogging_device_setup = device_datalogging.DataloggingSetup(
             buffer_size=256,
             encoding=device_datalogging.Encoding.RAW,
             max_signal_count=32
         )
 
-        self.fake_datalogging_manager.set_device_setup(datalogging_device_setup)
+        self.fake_device_handler.set_datalogging_setup(datalogging_device_setup)
 
         self.send_request(req)
-        response = cast(api_typing.S2C.GetDataloggingCapabilities, self.wait_and_load_response())
+        response = cast(api_typing.S2C.GetDeviceInfo, self.wait_and_load_response())
         self.assert_no_error(response)
-        self.assertEqual(response['cmd'], 'get_datalogging_capabilities_response')
+        self.assertEqual(response['cmd'], 'response_get_device_info')
 
         self.assertTrue(response['available'])
-        self.assertIsNotNone(response['capabilities'])
-        capabilities = response['capabilities']
-        self.assertEqual(capabilities['buffer_size'], 256)
-        self.assertEqual(capabilities['encoding'], 'raw')
-        self.assertEqual(capabilities['max_nb_signal'], 32)
+        self.assertIn('device_info', response)
+        info = response['device_info']
+        datalogging_capabilities = info['datalogging_capabilities']
+        self.assertIsNotNone(datalogging_capabilities)
+        self.assertEqual(datalogging_capabilities['buffer_size'], 256)
+        self.assertEqual(datalogging_capabilities['encoding'], 'raw')
+        self.assertEqual(datalogging_capabilities['max_nb_signal'], 32)
 
-        self.assertEqual(len(capabilities['sampling_rates']), 3)
-        self.assertEqual(capabilities['sampling_rates'][0]['identifier'], 0)
-        self.assertEqual(capabilities['sampling_rates'][0]['name'], 'Fixed Freq 1KHz')
-        self.assertEqual(capabilities['sampling_rates'][0]['frequency'], 1000)
-        self.assertEqual(capabilities['sampling_rates'][0]['type'], 'fixed_freq')
+        self.assertEqual(len(datalogging_capabilities['sampling_rates']), 3)
+        self.assertEqual(datalogging_capabilities['sampling_rates'][0]['identifier'], 0)
+        self.assertEqual(datalogging_capabilities['sampling_rates'][0]['name'], 'Fixed Freq 1KHz')
+        self.assertEqual(datalogging_capabilities['sampling_rates'][0]['frequency'], 1000)
+        self.assertEqual(datalogging_capabilities['sampling_rates'][0]['type'], 'fixed_freq')
 
-        self.assertEqual(capabilities['sampling_rates'][1]['identifier'], 1)
-        self.assertEqual(capabilities['sampling_rates'][1]['name'], 'Fixed Freq 10KHz')
-        self.assertEqual(capabilities['sampling_rates'][1]['frequency'], 10000)
-        self.assertEqual(capabilities['sampling_rates'][1]['type'], 'fixed_freq')
+        self.assertEqual(datalogging_capabilities['sampling_rates'][1]['identifier'], 1)
+        self.assertEqual(datalogging_capabilities['sampling_rates'][1]['name'], 'Fixed Freq 10KHz')
+        self.assertEqual(datalogging_capabilities['sampling_rates'][1]['frequency'], 10000)
+        self.assertEqual(datalogging_capabilities['sampling_rates'][1]['type'], 'fixed_freq')
 
-        self.assertEqual(capabilities['sampling_rates'][2]['identifier'], 2)
-        self.assertEqual(capabilities['sampling_rates'][2]['name'], 'Variable Freq')
-        self.assertEqual(capabilities['sampling_rates'][2]['frequency'], None)
-        self.assertEqual(capabilities['sampling_rates'][2]['type'], 'variable_freq')
+        self.assertEqual(datalogging_capabilities['sampling_rates'][2]['identifier'], 2)
+        self.assertEqual(datalogging_capabilities['sampling_rates'][2]['name'], 'Variable Freq')
+        self.assertEqual(datalogging_capabilities['sampling_rates'][2]['frequency'], None)
+        self.assertEqual(datalogging_capabilities['sampling_rates'][2]['type'], 'variable_freq')
 
-        self.fake_datalogging_manager.set_device_setup(None)
+        self.fake_device_handler.set_datalogging_setup(None)
 
         self.send_request(req)
-        response = cast(api_typing.S2C.GetDataloggingCapabilities, self.wait_and_load_response())
-        self.assert_no_error(response)
-        self.assertFalse(response['available'])
-        self.assertIsNone(response['capabilities'])
+        response = cast(api_typing.S2C.GetDeviceInfo, self.wait_and_load_response())
+        self.assertIsNotNone(response['device_info'])
+        self.assertIsNone(response['device_info']['datalogging_capabilities'])
 
     def test_list_datalogging_acquisition(self):
         # Check that we can read the list of acquisition in datalogging storage
@@ -1745,7 +1762,7 @@ class TestAPI(ScrutinyUnitTest):
                 self.send_request(req)
                 response = cast(api_typing.S2C.ListDataloggingAcquisition, self.wait_and_load_response())
                 self.assert_no_error(response)
-                self.assertEqual(response['cmd'], 'list_datalogging_acquisitions_response')
+                self.assertEqual(response['cmd'], 'response_list_datalogging_acquisitions')
                 self.assertEqual(len(response['acquisitions']), 4)
                 self.assertEqual(response['acquisitions'][0]['firmware_id'], sfd1.get_firmware_id_ascii())
                 self.assertEqual(response['acquisitions'][0]['reference_id'], 'refid1')
@@ -1779,7 +1796,7 @@ class TestAPI(ScrutinyUnitTest):
                 self.send_request(req)
                 response = cast(api_typing.S2C.ListDataloggingAcquisition, self.wait_and_load_response())
                 self.assert_no_error(response)
-                self.assertEqual(response['cmd'], 'list_datalogging_acquisitions_response')
+                self.assertEqual(response['cmd'], 'response_list_datalogging_acquisitions')
                 self.assertIn('acquisitions', response)
                 self.assertEqual(len(response['acquisitions']), 2)
                 self.assertEqual(response['acquisitions'][0]['firmware_id'], sfd1.get_firmware_id_ascii())
@@ -1802,7 +1819,7 @@ class TestAPI(ScrutinyUnitTest):
                 self.send_request(req)
                 response = cast(api_typing.S2C.ListDataloggingAcquisition, self.wait_and_load_response())
                 self.assert_no_error(response)
-                self.assertEqual(response['cmd'], 'list_datalogging_acquisitions_response')
+                self.assertEqual(response['cmd'], 'response_list_datalogging_acquisitions')
                 self.assertEqual(len(response['acquisitions']), 4)
 
                 req: api_typing.C2S.ListDataloggingAcquisitions = {
@@ -1813,7 +1830,7 @@ class TestAPI(ScrutinyUnitTest):
                 self.send_request(req)
                 response = cast(api_typing.S2C.ListDataloggingAcquisition, self.wait_and_load_response())
                 self.assert_no_error(response)
-                self.assertEqual(response['cmd'], 'list_datalogging_acquisitions_response')
+                self.assertEqual(response['cmd'], 'response_list_datalogging_acquisitions')
                 self.assertEqual(len(response['acquisitions']), 0)
 
     def test_update_datalogging_acquisition(self):
@@ -2051,7 +2068,7 @@ class TestAPI(ScrutinyUnitTest):
                 self.send_request(req)
                 response = cast(api_typing.S2C.ReadDataloggingAcquisitionContent, self.wait_and_load_response())
                 self.assert_no_error(response)
-                self.assertEqual(response['cmd'], 'read_datalogging_acquisition_content_response')
+                self.assertEqual(response['cmd'], 'response_read_datalogging_acquisition_content')
 
                 self.assertEqual(response['firmware_id'], sfd1.get_firmware_id_ascii())
                 self.assertEqual(response['reference_id'], 'refid1')

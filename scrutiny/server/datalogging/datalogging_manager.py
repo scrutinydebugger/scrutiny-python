@@ -494,7 +494,10 @@ class DataloggingManager:
 
     def get_device_setup(self) -> Optional[device_datalogging.DataloggingSetup]:
         """Reads the datalogging configuration gotten from the device. May not be available"""
-        return self.device_handler.get_datalogging_setup()
+        device_info = self.device_handler.get_device_info()
+        if device_info is None:
+            return None
+        return device_info.datalogging_setup
 
     def get_sampling_rate(self, identifier: int) -> api_datalogging.SamplingRate:
         """Get the sampling rate identified by the given identifier. The identifier is known to the device."""

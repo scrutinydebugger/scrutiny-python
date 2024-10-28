@@ -27,7 +27,6 @@ from typing import Optional, Any, cast, Callable, List, Dict
 
 class FSMState(Enum):
     IDLE = auto()
-    GET_SETUP = auto()
     WAIT_FOR_REQUEST = auto()
     CONFIGURING = auto()
     ARMING = auto()
@@ -44,6 +43,7 @@ DataloggingReceiveSetupCallback = Callable[[device_datalogging.DataloggingSetup]
 
 @dataclass
 class AcquisitionRequest:
+    """Represent a single request for datalogging coming from the user (DataloggingManager)"""
     loop_id: int
     config: device_datalogging.Configuration
     completion_callback: DeviceAcquisitionRequestCompletionCallback
@@ -51,6 +51,7 @@ class AcquisitionRequest:
 
 @dataclass
 class ReceivedChunk:
+    """Chunk of acquisition data read from the device"""
     acquisition_id: int
     crc: Optional[int]
     finished: bool
@@ -96,7 +97,6 @@ class DataloggingPoller:
     bytes_received: bytearray   # Number of bytes received so far while reading an acquisition content
     read_rolling_counter: int   # The rolling counter read from the last read request
     require_status_update: bool  # Flag indicating that it is time to read the datalogger state
-    setup_completed: bool       # Flag indicating that the poller is ready to receive an acquisition request form the datalogging manager.
     reset_completed: bool      # Indicate that the requested reset command has completed successfully.
 
     acquisition_metadata: Optional[device_datalogging.AcquisitionMetadata]
@@ -123,6 +123,7 @@ class DataloggingPoller:
         self.request_pending = {}
         self.request_failed = {}
         self.reset_completed = False
+        self.device_setup = None
         for subfn in DatalogSubfn:
             self.request_pending[subfn] = False
             self.request_failed[subfn] = False
@@ -137,7 +138,6 @@ class DataloggingPoller:
         for k in self.request_pending:
             self.request_pending[k] = False
             self.request_failed[k] = False
-        self.device_setup = None
         self.error = False
         self.state = FSMState.IDLE
         self.previous_state = FSMState.IDLE
@@ -152,8 +152,13 @@ class DataloggingPoller:
         self.read_rolling_counter = 0
         self.acquisition_metadata = None
         self.require_status_update = False
-        self.setup_completed = False
         self.completion_ratio = None
+    
+    def configure_datalogging_setup(self, setup:device_datalogging.DataloggingSetup ) -> None:
+        if self.started:
+            raise RuntimeError("Cannot configure datalogging when started")
+        self.device_setup = setup
+        
 
     def configure_rpvs(self, rpvs: List[RuntimePublishedValue]) -> None:
         self.rpv_map.clear()
@@ -200,10 +205,6 @@ class DataloggingPoller:
     def get_datalogger_state(self) -> Optional[device_datalogging.DataloggerState]:
         """Return the last datalogger state read"""
         return self.device_datalogging_state
-
-    def get_device_setup(self) -> Optional[device_datalogging.DataloggingSetup]:
-        """Return the datalogging setup structure if available. Contains buffer size, encoding and limits """
-        return self.device_setup
 
     def get_completion_ratio(self) -> Optional[float]:
         """Returns a value between 0 and 1 indicating how far the acquisition is frm being completed once the trigger event has been launched"""
@@ -275,7 +276,7 @@ class DataloggingPoller:
 
     def is_ready_to_receive_new_request(self) -> bool:
         """Tells if request_acquisition() can be called. """
-        return self.started and self.setup_completed and not self.error and not self.cancel_requested and not self.stop_requested
+        return self.started and not self.error and not self.cancel_requested and not self.stop_requested and self.device_setup is not None
 
     def process(self) -> None:
         """To be called periodically to make the process move forward"""
@@ -311,26 +312,11 @@ class DataloggingPoller:
 
             if self.state == FSMState.IDLE:
                 self.mark_active_acquisition_failed_if_any("Datalogging state machine is being reset")
-                self.device_setup = None
-                self.setup_completed = False
                 if self.update_status_timer.is_stopped():
                     self.update_status_timer.start()
-                next_state = FSMState.GET_SETUP
-
-            elif self.state == FSMState.GET_SETUP:
-                # We request the device for its datalogging feature configuration (or "setup" to keep vocabulary distinct)
-                if state_entry:
-                    self.request_failed[DatalogSubfn.GetSetup] = False
-
-                if self.request_failed[DatalogSubfn.GetSetup] or self.device_datalogging_state == device_datalogging.DataloggerState.ERROR:
+                
+                if self.device_setup is not None:
                     next_state = FSMState.REQUEST_RESET
-
-                elif self.device_setup is None:   # Set by callback
-                    if not self.request_pending[DatalogSubfn.GetSetup]:
-                        self.dispatch(self.protocol.datalogging_get_setup())
-                else:
-                    next_state = FSMState.WAIT_FOR_REQUEST  # No need to clear the first time.
-                    self.logger.debug("Datalogging setup received. %s" % (self.device_setup.__dict__))
 
             elif self.state == FSMState.REQUEST_RESET:
                 if state_entry:
@@ -355,7 +341,6 @@ class DataloggingPoller:
 
             elif self.state == FSMState.WAIT_FOR_REQUEST:
                 if state_entry:
-                    self.setup_completed = True
                     self.require_status_update = True
 
                 # No need to ask the device for a reset. But we need to tell the user of the completion failure
@@ -585,8 +570,6 @@ class DataloggingPoller:
             try:
                 if subfunction == DatalogSubfn.GetStatus:
                     self.process_get_status_success(response)
-                elif subfunction == DatalogSubfn.GetSetup:
-                    self.process_get_setup_success(response)
                 elif subfunction == DatalogSubfn.ConfigureDatalog:
                     self.process_configure_success(response)
                 elif subfunction == DatalogSubfn.ArmTrigger:
@@ -637,18 +620,6 @@ class DataloggingPoller:
             self.completion_ratio = min(max(self.completion_ratio, 0), 1)
 
         self.require_status_update = False
-
-    def process_get_setup_success(self, response: Response) -> None:
-        """Process the response to GetSetup when the device returns OK code"""
-        if self.state != FSMState.GET_SETUP:
-            raise RuntimeError('Received a GetSetup response when none was asked')
-
-        response_data = cast(protocol_typing.Response.DatalogControl.GetSetup, self.protocol.parse_response(response))
-        self.device_setup = device_datalogging.DataloggingSetup(
-            buffer_size=response_data['buffer_size'],
-            encoding=response_data['encoding'],
-            max_signal_count=response_data['max_signal_count']
-        )
 
     def process_configure_success(self, response: Response) -> None:
         """Process the response to Configure when the device returns OK code"""

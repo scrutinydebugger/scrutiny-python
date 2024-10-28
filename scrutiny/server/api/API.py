@@ -78,10 +78,10 @@ class API:
             GET_LOADED_SFD = 'get_loaded_sfd'
             LOAD_SFD = 'load_sfd'
             GET_SERVER_STATUS = 'get_server_status'
+            GET_DEVICE_INFO = 'get_device_info'
             SET_LINK_CONFIG = "set_link_config"
             GET_POSSIBLE_LINK_CONFIG = "get_possible_link_config"   # todo
             WRITE_WATCHABLE = "write_watchable"
-            GET_DATALOGGING_CAPABILITIES = 'get_datalogging_capabilities'
             REQUEST_DATALOGGING_ACQUISITION = 'request_datalogging_acquisition'
             LIST_DATALOGGING_ACQUISITION = 'list_datalogging_acquisitions'
             READ_DATALOGGING_ACQUISITION_CONTENT = 'read_datalogging_acquisition_content'
@@ -103,19 +103,19 @@ class API:
             GET_INSTALLED_SFD_RESPONSE = 'response_get_installed_sfd'
             GET_LOADED_SFD_RESPONSE = 'response_get_loaded_sfd'
             GET_POSSIBLE_LINK_CONFIG_RESPONSE = "response_get_possible_link_config"
-            SET_LINK_CONFIG_RESPONSE = 'set_link_config_response'
+            SET_LINK_CONFIG_RESPONSE = 'response_set_link_config'
             INFORM_SERVER_STATUS = 'inform_server_status'
+            GET_DEVICE_INFO = 'response_get_device_info'
             WRITE_WATCHABLE_RESPONSE = 'response_write_watchable'
             INFORM_WRITE_COMPLETION = 'inform_write_completion'
-            GET_DATALOGGING_CAPABILITIES_RESPONSE = 'get_datalogging_capabilities_response'
             INFORM_DATALOGGING_LIST_CHANGED = 'inform_datalogging_list_changed'
-            LIST_DATALOGGING_ACQUISITION_RESPONSE = 'list_datalogging_acquisitions_response'
-            REQUEST_DATALOGGING_ACQUISITION_RESPONSE = 'request_datalogging_acquisition_response'
+            LIST_DATALOGGING_ACQUISITION_RESPONSE = 'response_list_datalogging_acquisitions'
+            REQUEST_DATALOGGING_ACQUISITION_RESPONSE = 'response_request_datalogging_acquisition'
             INFORM_DATALOGGING_ACQUISITION_COMPLETE = 'inform_datalogging_acquisition_complete'
-            READ_DATALOGGING_ACQUISITION_CONTENT_RESPONSE = 'read_datalogging_acquisition_content_response'
-            UPDATE_DATALOGGING_ACQUISITION_RESPONSE = 'update_datalogging_acquisition_response'
-            DELETE_DATALOGGING_ACQUISITION_RESPONSE = 'delete_datalogging_acquisition_response'
-            DELETE_ALL_DATALOGGING_ACQUISITION_RESPONSE = 'delete_all_datalogging_acquisition_response'
+            READ_DATALOGGING_ACQUISITION_CONTENT_RESPONSE = 'response_read_datalogging_acquisition_content'
+            UPDATE_DATALOGGING_ACQUISITION_RESPONSE = 'response_update_datalogging_acquisition'
+            DELETE_DATALOGGING_ACQUISITION_RESPONSE = 'response_delete_datalogging_acquisition'
+            DELETE_ALL_DATALOGGING_ACQUISITION_RESPONSE = 'response_delete_all_datalogging_acquisition'
             READ_MEMORY_RESPONSE = "response_read_memory"
             INFORM_MEMORY_READ_COMPLETE = "inform_memory_read_complete"
             WRITE_MEMORY_RESPONSE = "response_write_memory"
@@ -256,10 +256,10 @@ class API:
         Command.Client2Api.LOAD_SFD: 'process_load_sfd',
         Command.Client2Api.GET_LOADED_SFD: 'process_get_loaded_sfd',
         Command.Client2Api.GET_SERVER_STATUS: 'process_get_server_status',
+        Command.Client2Api.GET_DEVICE_INFO: 'process_get_device_info',
         Command.Client2Api.SET_LINK_CONFIG: 'process_set_link_config',
         Command.Client2Api.GET_POSSIBLE_LINK_CONFIG: 'process_get_possible_link_config',
         Command.Client2Api.WRITE_WATCHABLE: 'process_write_value',
-        Command.Client2Api.GET_DATALOGGING_CAPABILITIES: 'process_get_datalogging_capabilities',
         Command.Client2Api.REQUEST_DATALOGGING_ACQUISITION: 'process_datalogging_request_acquisition',
         Command.Client2Api.LIST_DATALOGGING_ACQUISITION: 'process_list_datalogging_acquisition',
         Command.Client2Api.UPDATE_DATALOGGING_ACQUISITION: 'process_update_datalogging_acquisition',
@@ -698,6 +698,77 @@ class API:
         obj = self.craft_inform_server_status(reqid=self.get_req_id(req))
         self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=obj))
 
+    #  ===  GET_DEVICE_INFO ===
+    def process_get_device_info(self, conn_id: str, req: api_typing.C2S.GetDeviceInfo) -> None:
+        device_info_input = self.device_handler.get_device_info()
+        def make_memory_region_map(regions: Optional[List[MemoryRegion]]) -> List[Dict[Literal['start', 'end', 'size'], int]]:
+            output: List[Dict[Literal['start', 'end', 'size'], int]] = []
+            if regions is not None:
+                for region in regions:
+                    output.append({'start': region.start, 'end': region.end, 'size': region.size})
+            return output
+        
+        def make_datalogging_capabilities(
+                dl_setup:Optional[device_datalogging.DataloggingSetup],
+                sampling_rates: List[api_datalogging.SamplingRate]
+                ) -> Optional[api_typing.DataloggingCapabilities]:
+
+            if dl_setup is None or sampling_rates is None:
+                return None
+
+            assert sampling_rates is not None
+
+            output_sampling_rates: List[api_typing.SamplingRate] = []
+            for rate in sampling_rates:
+                output_sampling_rates.append({
+                    'identifier': rate.device_identifier,
+                    'name': rate.name,
+                    'frequency': rate.frequency,
+                    'type': self.LOOP_TYPE_2_APISTR[rate.rate_type]
+                })
+
+            return {
+                'buffer_size': dl_setup.buffer_size,
+                'encoding': self.DATALOGGING_ENCONDING_2_APISTR[dl_setup.encoding],
+                'max_nb_signal': dl_setup.max_signal_count,
+                'sampling_rates': output_sampling_rates
+            }
+            
+        
+        device_info_output: Optional[api_typing.DeviceInfo] = None
+        if device_info_input is not None and device_info_input.all_ready():
+            max_bitrate_bps: Optional[int] = None
+            if device_info_input.max_bitrate_bps is not None and device_info_input.max_bitrate_bps > 0:
+                max_bitrate_bps = device_info_input.max_bitrate_bps
+            device_info_output = {
+                'device_id': cast(str, device_info_input.device_id),
+                'display_name': cast(str, device_info_input.display_name),
+                'max_tx_data_size': cast(int, device_info_input.max_tx_data_size),
+                'max_rx_data_size': cast(int, device_info_input.max_rx_data_size),
+                'max_bitrate_bps': max_bitrate_bps,
+                'rx_timeout_us': cast(int, device_info_input.rx_timeout_us),
+                'heartbeat_timeout_us': cast(int, device_info_input.heartbeat_timeout_us),
+                'address_size_bits': cast(int, device_info_input.address_size_bits),
+                'protocol_major': cast(int, device_info_input.protocol_major),
+                'protocol_minor': cast(int, device_info_input.protocol_minor),
+                'supported_feature_map': cast(Dict[api_typing.SupportedFeature, bool], device_info_input.supported_feature_map),
+                'forbidden_memory_regions': make_memory_region_map(device_info_input.forbidden_memory_regions),
+                'readonly_memory_regions': make_memory_region_map(device_info_input.readonly_memory_regions),
+                'datalogging_capabilities' : make_datalogging_capabilities( # Capabilities = setup + sampling rate (loops)
+                    device_info_input.datalogging_setup, 
+                    self.datalogging_manager.get_available_sampling_rates()
+                    )
+            }
+
+        response: api_typing.S2C.GetDeviceInfo = {
+            'cmd': self.Command.Api2Client.GET_DEVICE_INFO,
+            'reqid': self.get_req_id(req),
+            'available' : True if device_info_output is not None else False,
+            'device_info' : device_info_output
+        }
+
+        self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
+
     #  ===  SET_LINK_CONFIG ===
     def process_set_link_config(self, conn_id: str, req: api_typing.C2S.SetLinkConfig) -> None:
         # With this request, the user can change the device connection through an API call
@@ -1026,46 +1097,6 @@ class API:
 
         self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
 
-    # === GET_DATALOGGING_CAPABILITIES ===
-
-    def process_get_datalogging_capabilities(self, conn_id: str, req: api_typing.C2S.GetDataloggingCapabilities) -> None:
-        setup = self.datalogging_manager.get_device_setup()
-        sampling_rates = self.datalogging_manager.get_available_sampling_rates()
-
-        available: bool = True
-        if setup is None:
-            available = False
-
-        if sampling_rates is None:
-            available = False
-
-        if available:
-            assert sampling_rates is not None
-            assert setup is not None
-            output_sampling_rates: List[api_typing.SamplingRate] = []
-            for rate in sampling_rates:
-                output_sampling_rates.append({
-                    'identifier': rate.device_identifier,
-                    'name': rate.name,
-                    'frequency': rate.frequency,
-                    'type': self.LOOP_TYPE_2_APISTR[rate.rate_type]
-                })
-
-            capabilities: api_typing.DataloggingCapabilities = {
-                'buffer_size': setup.buffer_size,
-                'encoding': self.DATALOGGING_ENCONDING_2_APISTR[setup.encoding],
-                'max_nb_signal': setup.max_signal_count,
-                'sampling_rates': output_sampling_rates
-            }
-
-        response: api_typing.S2C.GetDataloggingCapabilities = {
-            'cmd': API.Command.Api2Client.GET_DATALOGGING_CAPABILITIES_RESPONSE,
-            'reqid': self.get_req_id(req),
-            'available': available,
-            'capabilities': capabilities if available else None
-        }
-
-        self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
 
     # === DATALOGGING_REQUEST_ACQUISITION ==
     def process_datalogging_request_acquisition(self, conn_id: str, req: api_typing.C2S.RequestDataloggingAcquisition) -> None:
@@ -1556,41 +1587,13 @@ class API:
         sfd = self.sfd_handler.get_loaded_sfd()
         device_link_type = self.device_handler.get_link_type()
         device_comm_link = self.device_handler.get_comm_link()
-        device_info_input = self.device_handler.get_device_info()
+        
 
         loaded_sfd: Optional[api_typing.SFDEntry] = None
         if sfd is not None:
             loaded_sfd = {
                 "firmware_id": str(sfd.get_firmware_id_ascii()),
                 "metadata": sfd.get_metadata()
-            }
-
-        def make_memory_region_map(regions: Optional[List[MemoryRegion]]) -> List[Dict[Literal['start', 'end', 'size'], int]]:
-            output: List[Dict[Literal['start', 'end', 'size'], int]] = []
-            if regions is not None:
-                for region in regions:
-                    output.append({'start': region.start, 'end': region.end, 'size': region.size})
-            return output
-
-        device_info_output: Optional[api_typing.DeviceInfo] = None
-        if device_info_input is not None and device_info_input.all_ready():
-            max_bitrate_bps: Optional[int] = None
-            if device_info_input.max_bitrate_bps is not None and device_info_input.max_bitrate_bps > 0:
-                max_bitrate_bps = device_info_input.max_bitrate_bps
-            device_info_output = {
-                'device_id': cast(str, device_info_input.device_id),
-                'display_name': cast(str, device_info_input.display_name),
-                'max_tx_data_size': cast(int, device_info_input.max_tx_data_size),
-                'max_rx_data_size': cast(int, device_info_input.max_rx_data_size),
-                'max_bitrate_bps': max_bitrate_bps,
-                'rx_timeout_us': cast(int, device_info_input.rx_timeout_us),
-                'heartbeat_timeout_us': cast(int, device_info_input.heartbeat_timeout_us),
-                'address_size_bits': cast(int, device_info_input.address_size_bits),
-                'protocol_major': cast(int, device_info_input.protocol_major),
-                'protocol_minor': cast(int, device_info_input.protocol_minor),
-                'supported_feature_map': cast(Dict[api_typing.SupportedFeature, bool], device_info_input.supported_feature_map),
-                'forbidden_memory_regions': make_memory_region_map(device_info_input.forbidden_memory_regions),
-                'readonly_memory_regions': make_memory_region_map(device_info_input.readonly_memory_regions)
             }
 
         if device_comm_link is None:
@@ -1611,7 +1614,6 @@ class API:
             'reqid': reqid,
             'device_status': self.DEVICE_CONN_STATUS_2_APISTR[self.device_handler.get_connection_status()],
             'device_session_id': self.device_handler.get_comm_session_id(),  # str when connected_ready. None when not connected_ready
-            'device_info': device_info_output,
             'loaded_sfd': loaded_sfd,
             'device_datalogging_status': {
                 'datalogger_state': cast(api_typing.DataloggerState, datalogger_state_api),

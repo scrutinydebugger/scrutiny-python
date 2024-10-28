@@ -70,6 +70,19 @@ class WatchableListContent(TypedDict):
     rpv: List[DatastoreEntryDefinitionNoType]
 
 
+class SamplingRate(TypedDict):
+    type: Literal['fixed_freq', 'variable_freq']
+    name: str
+    frequency: Optional[float]
+    identifier: int
+
+
+class DataloggingCapabilities(TypedDict):
+    encoding: Literal['raw']
+    buffer_size: int
+    max_nb_signal: int
+    sampling_rates: List[SamplingRate]
+
 class DeviceInfo(TypedDict):
     device_id: str
     display_name: str
@@ -84,6 +97,7 @@ class DeviceInfo(TypedDict):
     supported_feature_map: Dict[SupportedFeature, bool]
     forbidden_memory_regions: List[Dict[Literal['start', 'size', 'end'], int]]
     readonly_memory_regions: List[Dict[Literal['start', 'size', 'end'], int]]
+    datalogging_capabilities:Optional[DataloggingCapabilities]
 
 
 class SFDEntry(TypedDict):
@@ -119,11 +133,6 @@ class DataloggingOperand(TypedDict):
     value: Union[float, str]
 
 
-class SamplingRate(TypedDict):
-    type: Literal['fixed_freq', 'variable_freq']
-    name: str
-    frequency: Optional[float]
-    identifier: int
 
 
 class SupportedCondition(TypedDict):
@@ -167,13 +176,6 @@ class DataloggingSignalDataWithAxis(DataloggingSignalData):
     axis_id: int
 
 
-class DataloggingCapabilities(TypedDict):
-    encoding: Literal['raw']
-    buffer_size: int
-    max_nb_signal: int
-    sampling_rates: List[SamplingRate]
-
-
 class AxisNameUpdateEntry(TypedDict):
     id: int
     name: str
@@ -200,6 +202,9 @@ class C2S:
     class GetServerStatus(BaseC2SMessage):
         pass
 
+    class GetDeviceInfo(BaseC2SMessage):
+        pass
+
     class GetWatchableCount(BaseC2SMessage):
         pass
 
@@ -222,8 +227,6 @@ class C2S:
     class WriteValue(BaseC2SMessage):
         updates: List[UpdateRecord]
 
-    class GetDataloggingCapabilities(BaseC2SMessage):
-        pass
 
     class RequestDataloggingAcquisition(BaseC2SMessage):
         name: Optional[str]
@@ -290,9 +293,12 @@ class S2C:
         device_status: DeviceCommStatus
         device_session_id: Optional[str]
         device_datalogging_status: DataloggingStatus
-        device_info: Optional[DeviceInfo]
         loaded_sfd: Optional[SFDEntry]
         device_comm_link: DeviceCommLinkDef   # Dict is Any,Any.  Should be EmptyDict.
+
+    class GetDeviceInfo(BaseS2CMessage):
+        available: bool
+        device_info: Optional[DeviceInfo]
 
     class GetWatchableCount(BaseS2CMessage):
         qty: WatchableCount
@@ -323,10 +329,6 @@ class S2C:
         success: bool
         request_token: str
         timestamp: float
-
-    class GetDataloggingCapabilities(BaseS2CMessage):
-        available: bool
-        capabilities: Optional[DataloggingCapabilities]
 
     class RequestDataloggingAcquisition(BaseS2CMessage):
         request_token: str
@@ -388,6 +390,7 @@ C2SMessage = Union[
     C2S.GetInstalledSFD,
     C2S.GetLoadedSFD,
     C2S.GetServerStatus,
+    C2S.GetDeviceInfo,
     C2S.GetWatchableCount,
     C2S.GetWatchableList,
     C2S.LoadSFD,
@@ -395,7 +398,6 @@ C2SMessage = Union[
     C2S.UnsubscribeWatchable,
     C2S.GetPossibleLinkConfig,
     C2S.WriteValue,
-    C2S.GetDataloggingCapabilities,
     C2S.RequestDataloggingAcquisition,
     C2S.ReadDataloggingAcquisitionContent,
     C2S.ListDataloggingAcquisitions,
@@ -413,6 +415,7 @@ S2CMessage = Union[
     S2C.GetInstalledSFD,
     S2C.GetLoadedSFD,
     S2C.InformServerStatus,
+    S2C.GetDeviceInfo,
     S2C.GetWatchableCount,
     S2C.GetWatchableList,
     S2C.SubscribeWatchable,
@@ -421,7 +424,6 @@ S2CMessage = Union[
     S2C.GetPossibleLinkConfig,
     S2C.WriteValue,
     S2C.WriteCompletion,
-    S2C.GetDataloggingCapabilities,
     S2C.RequestDataloggingAcquisition,
     S2C.InformDataloggingListChanged,
     S2C.ListDataloggingAcquisition,

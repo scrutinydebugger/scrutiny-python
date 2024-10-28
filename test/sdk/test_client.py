@@ -43,6 +43,7 @@ import scrutiny.server.device.device_info as server_device
 from test.artifacts import get_artifact
 from test import ScrutinyUnitTest
 import random
+import copy
 
 import threading
 import time
@@ -102,7 +103,7 @@ class FakeDeviceHandler:
     comm_configure_queue: "queue.Queue[Tuple[str, Dict]]"
     write_allowed: bool
     read_allowed: bool
-    emulate_datalogging_not_ready: bool
+    emulate_no_datalogging: bool
     user_command_requests_queue: "queue.Queue[Tuple[int, bytes]]"
 
     def __init__(self, datastore: "datastore.Datastore"):
@@ -156,6 +157,13 @@ class FakeDeviceHandler:
             server_device.FixedFreqLoop(100, "100hz loop", support_datalogging=False),
             server_device.VariableFreqLoop("variable freq loop", support_datalogging=True)
         ]
+
+        self.device_info.datalogging_setup = device_datalogging.DataloggingSetup(
+            buffer_size=4096,
+            encoding=device_datalogging.Encoding.RAW,
+            max_signal_count=32
+        )
+
         self.write_allowed = True
         self.ignore_write = False
         self.read_allowed = True
@@ -164,7 +172,7 @@ class FakeDeviceHandler:
         self.comm_configure_queue = queue.Queue()
 
         self.fake_mem = MemoryContent()
-        self.emulate_datalogging_not_ready = False
+        self.emulate_no_datalogging = False
         self.user_command_requests_queue = queue.Queue()
 
     def force_all_write_failure(self):
@@ -176,8 +184,8 @@ class FakeDeviceHandler:
     def force_all_read_failure(self):
         self.read_allowed = False
 
-    def force_datalogging_not_ready(self):
-        self.emulate_datalogging_not_ready = True
+    def set_no_datalogging(self):
+        self.emulate_no_datalogging = True
 
     def get_link_type(self):
         return self.link_type
@@ -186,7 +194,11 @@ class FakeDeviceHandler:
         return self.link
 
     def get_device_info(self):
-        return self.device_info
+        device_info = copy.copy(self.device_info)
+        if self.emulate_no_datalogging:
+            device_info.datalogging_setup  = None
+            device_info.supported_feature_map['datalogging']  = False
+        return device_info
 
     def get_datalogger_state(self):
         return self.datalogger_state
@@ -299,14 +311,7 @@ class FakeDeviceHandler:
         return req
 
     def get_datalogging_setup(self) -> Optional[device_datalogging.DataloggingSetup]:
-        if self.emulate_datalogging_not_ready:
-            return None
-
-        return device_datalogging.DataloggingSetup(
-            buffer_size=4096,
-            encoding=device_datalogging.Encoding.RAW,
-            max_signal_count=32
-        )
+        return self.get_device_info().datalogging_setup
 
     def validate_link_config(self, link_type: str, link_config: Dict):
         if link_type == 'udp':
@@ -633,9 +638,8 @@ class TestClient(ScrutinyUnitTest):
 
     def test_get_status(self):
         # Make sure we can read the status of the server correctly
-        self.client.wait_server_status_update()
         self.assertEqual(self.client.server_state, sdk.ServerState.Connected)
-        server_info = self.client.get_server_status()
+        server_info = self.client.get_latest_server_status()
         self.assertIsNotNone(server_info)
         assert server_info is not None
 
@@ -644,39 +648,7 @@ class TestClient(ScrutinyUnitTest):
         self.assertIsNotNone(server_info.device_session_id)
 
         assert server_info is not None
-        self.assertIsNotNone(server_info.device)
-        self.assertEqual(server_info.device.device_id, "xyz")
-        self.assertEqual(server_info.device.display_name, "fake device")
-        self.assertEqual(server_info.device.max_tx_data_size, 256)
-        self.assertEqual(server_info.device.max_rx_data_size, 128)
-        self.assertEqual(server_info.device.max_bitrate_bps, 10000)
-        self.assertEqual(server_info.device.rx_timeout_us, 50)
-        self.assertEqual(server_info.device.heartbeat_timeout, 5)
-        self.assertEqual(server_info.device.address_size_bits, 32)
-        self.assertEqual(server_info.device.protocol_major, 1)
-        self.assertEqual(server_info.device.protocol_minor, 0)
-
-        self.assertEqual(server_info.device.supported_features.memory_write, True)
-        self.assertEqual(server_info.device.supported_features.datalogging, True)
-        self.assertEqual(server_info.device.supported_features.sixtyfour_bits, True)
-        self.assertEqual(server_info.device.supported_features.user_command, True)
-
-        self.assertEqual(len(server_info.device.forbidden_memory_regions), 2)
-        self.assertEqual(server_info.device.forbidden_memory_regions[0].start, 0x100000)
-        self.assertEqual(server_info.device.forbidden_memory_regions[0].end, 0x100000 + 128 - 1)
-        self.assertEqual(server_info.device.forbidden_memory_regions[0].size, 128)
-        self.assertEqual(server_info.device.forbidden_memory_regions[1].start, 0x200000)
-        self.assertEqual(server_info.device.forbidden_memory_regions[1].end, 0x200000 + 256 - 1)
-        self.assertEqual(server_info.device.forbidden_memory_regions[1].size, 256)
-
-        self.assertEqual(len(server_info.device.readonly_memory_regions), 2)
-        self.assertEqual(server_info.device.readonly_memory_regions[0].start, 0x300000)
-        self.assertEqual(server_info.device.readonly_memory_regions[0].end, 0x300000 + 128 - 1)
-        self.assertEqual(server_info.device.readonly_memory_regions[0].size, 128)
-        self.assertEqual(server_info.device.readonly_memory_regions[1].start, 0x400000)
-        self.assertEqual(server_info.device.readonly_memory_regions[1].end, 0x400000 + 256 - 1)
-        self.assertEqual(server_info.device.readonly_memory_regions[1].size, 256)
-
+        
         self.assertEqual(server_info.device_link.type, sdk.DeviceLinkType.UDP)
         self.assertIsInstance(server_info.device_link.config, sdk.UDPLinkConfig)
         assert isinstance(server_info.device_link.config, sdk.UDPLinkConfig)
@@ -701,16 +673,88 @@ class TestClient(ScrutinyUnitTest):
 
         # Make sure the class is readonly.
         with self.assertRaises(Exception):
-            server_info.device = None
-        with self.assertRaises(Exception):
-            server_info.device.display_name = "hello"
-        with self.assertRaises(Exception):
             server_info.datalogging = None
         with self.assertRaises(Exception):
             server_info.datalogging.state = None
 
+        status = self.client.request_server_status_update(wait=True)
+        
+        self.assertIsNot(status, server_info)   # Make sure we have a new object with a new reference.
+
+    def test_get_device_info(self):
+        # Make sure we can read the status of the server correctly
         self.client.wait_server_status_update()
-        self.assertIsNot(self.client.get_server_status(), server_info)   # Make sure we have a new object with a new reference.
+        self.assertEqual(self.client.server_state, sdk.ServerState.Connected)
+        
+        device_info = self.client.get_device_info()
+        self.assertIsNotNone(device_info)
+        assert device_info is not None
+
+        self.assertEqual(device_info.device_id, "xyz")
+        self.assertEqual(device_info.display_name, "fake device")
+        self.assertEqual(device_info.max_tx_data_size, 256)
+        self.assertEqual(device_info.max_rx_data_size, 128)
+        self.assertEqual(device_info.max_bitrate_bps, 10000)
+        self.assertEqual(device_info.rx_timeout_us, 50)
+        self.assertEqual(device_info.heartbeat_timeout, 5)
+        self.assertEqual(device_info.address_size_bits, 32)
+        self.assertEqual(device_info.protocol_major, 1)
+        self.assertEqual(device_info.protocol_minor, 0)
+
+        self.assertEqual(device_info.supported_features.memory_write, True)
+        self.assertEqual(device_info.supported_features.datalogging, True)
+        self.assertEqual(device_info.supported_features.sixtyfour_bits, True)
+        self.assertEqual(device_info.supported_features.user_command, True)
+
+        self.assertEqual(len(device_info.forbidden_memory_regions), 2)
+        self.assertEqual(device_info.forbidden_memory_regions[0].start, 0x100000)
+        self.assertEqual(device_info.forbidden_memory_regions[0].end, 0x100000 + 128 - 1)
+        self.assertEqual(device_info.forbidden_memory_regions[0].size, 128)
+        self.assertEqual(device_info.forbidden_memory_regions[1].start, 0x200000)
+        self.assertEqual(device_info.forbidden_memory_regions[1].end, 0x200000 + 256 - 1)
+        self.assertEqual(device_info.forbidden_memory_regions[1].size, 256)
+
+        self.assertEqual(len(device_info.readonly_memory_regions), 2)
+        self.assertEqual(device_info.readonly_memory_regions[0].start, 0x300000)
+        self.assertEqual(device_info.readonly_memory_regions[0].end, 0x300000 + 128 - 1)
+        self.assertEqual(device_info.readonly_memory_regions[0].size, 128)
+        self.assertEqual(device_info.readonly_memory_regions[1].start, 0x400000)
+        self.assertEqual(device_info.readonly_memory_regions[1].end, 0x400000 + 256 - 1)
+        self.assertEqual(device_info.readonly_memory_regions[1].size, 256)
+
+
+    def test_read_datalogging_capabilities(self):
+       device_info = self.client.get_device_info()
+       capabilities = device_info.datalogging_capabilities
+       assert capabilities is not None
+
+       self.assertEqual(capabilities.buffer_size, 4096)
+       self.assertEqual(capabilities.max_nb_signal, 32)
+       self.assertEqual(capabilities.encoding, sdk.datalogging.DataloggingEncoding.RAW)
+       self.assertEqual(len(capabilities.sampling_rates), 3)
+
+       self.assertIsInstance(capabilities.sampling_rates[0], sdk.datalogging.FixedFreqSamplingRate)
+       assert isinstance(capabilities.sampling_rates[0], sdk.datalogging.FixedFreqSamplingRate)
+       self.assertEqual(capabilities.sampling_rates[0].identifier, 0)
+       self.assertEqual(capabilities.sampling_rates[0].name, 'ffloop0')
+       self.assertEqual(capabilities.sampling_rates[0].frequency, 1000)
+
+       self.assertIsInstance(capabilities.sampling_rates[1], sdk.datalogging.FixedFreqSamplingRate)
+       assert isinstance(capabilities.sampling_rates[1], sdk.datalogging.FixedFreqSamplingRate)
+       self.assertEqual(capabilities.sampling_rates[1].identifier, 1)
+       self.assertEqual(capabilities.sampling_rates[1].name, 'ffloop1')
+       self.assertEqual(capabilities.sampling_rates[1].frequency, 9999)
+
+       self.assertIsInstance(capabilities.sampling_rates[2], sdk.datalogging.VariableFreqSamplingRate)
+       assert isinstance(capabilities.sampling_rates[2], sdk.datalogging.VariableFreqSamplingRate)
+       self.assertEqual(capabilities.sampling_rates[2].identifier, 2)
+       self.assertEqual(capabilities.sampling_rates[2].name, 'vfloop0')
+
+    def test_read_datalogging_capabilities_not_available(self):
+       self.device_handler.set_no_datalogging()
+
+       device_info = self.client.get_device_info()
+       self.assertIsNone(device_info.datalogging_capabilities)
 
     def test_request_mechanism(self):
         class Obj:
@@ -768,11 +812,11 @@ class TestClient(ScrutinyUnitTest):
     def test_wait_device_ready(self):
         self.device_handler.set_connection_status(DeviceHandler.ConnectionStatus.DISCONNECTED)
         def is_disconnected(client:ScrutinyClient):
-            server_info = client.get_server_status()
+            server_info = client.get_latest_server_status()
             return server_info.device_comm_state == sdk.DeviceCommState.Disconnected
         
         self.wait_true(partial(is_disconnected, self.client))
-        self.assertEqual(self.client.get_server_status().device_comm_state, sdk.DeviceCommState.Disconnected)
+        self.assertEqual(self.client.get_latest_server_status().device_comm_state, sdk.DeviceCommState.Disconnected)
 
         timeout = 3*ScrutinyClient._UPDATE_SERVER_STATUS_INTERVAL
         t1 = time.perf_counter()
@@ -788,7 +832,7 @@ class TestClient(ScrutinyUnitTest):
         self.client.wait_device_ready(timeout=timeout)
         t2 = time.perf_counter()
         self.assertLessEqual(t2-t1, timeout)
-        self.assertEqual(self.client.get_server_status().device_comm_state, sdk.DeviceCommState.ConnectedReady)
+        self.assertEqual(self.client.get_latest_server_status().device_comm_state, sdk.DeviceCommState.ConnectedReady)
 
 
     
@@ -1143,7 +1187,7 @@ class TestClient(ScrutinyUnitTest):
         self.wait_for_server()
 
         def status_check(commstate):
-            return self.client.get_server_status().device_comm_state == commstate
+            return self.client.get_latest_server_status().device_comm_state == commstate
 
         self.wait_true(partial(status_check, sdk.DeviceCommState.Disconnected))
         time.sleep(0.1)
@@ -1177,10 +1221,10 @@ class TestClient(ScrutinyUnitTest):
         alias_var1 = self.client.watch('/a/b/alias_var1')
 
         def sfd_loaded_check():
-            return self.client.get_server_status().sfd is not None
+            return self.client.get_latest_server_status().sfd is not None
 
         def sfd_unloaded_check():
-            return self.client.get_server_status().sfd is None
+            return self.client.get_latest_server_status().sfd is None
 
         def unload_sfd():
             self.sfd_handler.unload()
@@ -1378,36 +1422,7 @@ class TestClient(ScrutinyUnitTest):
         self.wait_true(is_cleared, 2)
         self.assertEqual(len(self.client._pending_api_batch_writes), 0)
 
-    def test_read_datalogging_capabilities(self):
-        capabilities = self.client.get_datalogging_capabilities()
 
-        self.assertEqual(capabilities.buffer_size, 4096)
-        self.assertEqual(capabilities.max_nb_signal, 32)
-        self.assertEqual(capabilities.encoding, sdk.datalogging.DataloggingEncoding.RAW)
-        self.assertEqual(len(capabilities.sampling_rates), 3)
-
-        self.assertIsInstance(capabilities.sampling_rates[0], sdk.datalogging.FixedFreqSamplingRate)
-        assert isinstance(capabilities.sampling_rates[0], sdk.datalogging.FixedFreqSamplingRate)
-        self.assertEqual(capabilities.sampling_rates[0].identifier, 0)
-        self.assertEqual(capabilities.sampling_rates[0].name, 'ffloop0')
-        self.assertEqual(capabilities.sampling_rates[0].frequency, 1000)
-
-        self.assertIsInstance(capabilities.sampling_rates[1], sdk.datalogging.FixedFreqSamplingRate)
-        assert isinstance(capabilities.sampling_rates[1], sdk.datalogging.FixedFreqSamplingRate)
-        self.assertEqual(capabilities.sampling_rates[1].identifier, 1)
-        self.assertEqual(capabilities.sampling_rates[1].name, 'ffloop1')
-        self.assertEqual(capabilities.sampling_rates[1].frequency, 9999)
-
-        self.assertIsInstance(capabilities.sampling_rates[2], sdk.datalogging.VariableFreqSamplingRate)
-        assert isinstance(capabilities.sampling_rates[2], sdk.datalogging.VariableFreqSamplingRate)
-        self.assertEqual(capabilities.sampling_rates[2].identifier, 2)
-        self.assertEqual(capabilities.sampling_rates[2].name, 'vfloop0')
-
-    def test_read_datalogging_capabilities_not_available(self):
-        self.device_handler.force_datalogging_not_ready()
-
-        with self.assertRaises(sdk.exceptions.OperationFailure):
-            self.client.get_datalogging_capabilities()
 
     def test_read_datalogging_acquisition(self):
         with DataloggingStorage.use_temp_storage():

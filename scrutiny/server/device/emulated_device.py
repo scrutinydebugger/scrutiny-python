@@ -436,7 +436,6 @@ class EmulatedDevice:
     link: DummyLink
     firmware_id: bytes
     request_history: List[RequestLogRecord]
-    request_history_lock: threading.Lock
     protocol: Protocol
     comm_enabled: bool
     connected: bool
@@ -470,6 +469,7 @@ class EmulatedDevice:
     failed_read_request_list: List[Request]
     failed_write_request_list: List[Request]
     ignore_user_command: bool
+    wake_event:threading.Event
 
     def __init__(self, link:DummyLink) -> None:
         if not isinstance(link, DummyLink):
@@ -499,7 +499,7 @@ class EmulatedDevice:
         self.memory_lock = threading.Lock()
         self.rpv_lock = threading.Lock()
         self.additional_tasks_lock = threading.Lock()
-        self.request_history_lock = threading.Lock()
+        self.wake_event = threading.Event()
 
         self.additional_tasks = []
 
@@ -561,8 +561,7 @@ class EmulatedDevice:
                     self.logger.error('Exception while processing Request %s. Error is : %s' % (str(request), str(e)))
                     self.logger.debug(traceback.format_exc())
 
-                with self.request_history_lock:
-                    self.request_history.append(RequestLogRecord(request=request, response=response))
+                self.request_history.append(RequestLogRecord(request=request, response=response))
 
             if self.is_datalogging_enabled():
                 self.datalogger.process()
@@ -571,8 +570,9 @@ class EmulatedDevice:
             with self.additional_tasks_lock:
                 for task in self.additional_tasks:
                     task()
-
-            time.sleep(0.01)
+                    
+            self.wake_event.wait(0.01)
+            self.wake_event.clear()
 
     def process_request(self, req: Request) -> Optional[Response]:
         response = None
@@ -955,9 +955,11 @@ class EmulatedDevice:
         return self.connected
 
     def force_connect(self) -> None:
+        self.logger.info("Forcing a connect")
         self.connected = True
 
     def force_disconnect(self) -> None:
+        self.logger.info("Forcing a disconnect")
         self.connected = False
 
     def disable_comm(self) -> None:
@@ -976,12 +978,10 @@ class EmulatedDevice:
         return self.supported_features['datalogging']
 
     def clear_request_history(self) -> None:
-        with self.request_history_lock:
-            self.request_history = []
+        self.request_history = []
 
     def get_request_history(self) -> List[RequestLogRecord]:
-        with self.request_history_lock:
-            history = self.request_history.copy()
+        history = self.request_history.copy()
         return history
 
     def send(self, response: Response) -> None:
@@ -1094,3 +1094,6 @@ class EmulatedDevice:
         if rpv_id not in self.rpvs:
             raise ValueError('Unknown RuntimePublishedValue with ID 0x%04X' % rpv_id)
         return val
+
+    def wake_if_sleep(self) -> None:
+        self.wake_event.set()
