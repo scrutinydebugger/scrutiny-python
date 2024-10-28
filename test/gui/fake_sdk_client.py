@@ -19,8 +19,7 @@ default_server_info = sdk.ServerInfo(
     device_session_id=None,
     datalogging=sdk.DataloggingInfo(sdk.DataloggerState.NA, completion_ratio=None),
     sfd=None,
-    device=None,
-    device_link=sdk.DeviceLinkInfo(type=sdk.DeviceLinkType.UDP, config=dict(host='localhost', prot=1234))
+    device_link=sdk.DeviceLinkInfo(type=sdk.DeviceLinkType.UDP, config=dict(host='localhost', prot=1234), operational=True)
 )
 
 @dataclass

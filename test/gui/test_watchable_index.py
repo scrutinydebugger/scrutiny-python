@@ -7,7 +7,7 @@
 #   Copyright (c) 2021 Scrutiny Debugger
 
 from scrutiny import sdk
-from scrutiny.gui.watchable_index import WatchableIndex, WatchableIndexError, WatchableIndexNodeContent
+from scrutiny.gui.core.watchable_index import WatchableIndex, WatchableIndexError, WatchableIndexNodeContent
 from test import ScrutinyUnitTest
 
 DUMMY_DATASET_RPV = {

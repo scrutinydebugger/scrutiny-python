@@ -11,7 +11,7 @@ RUN apt-get update && apt-get install -y \
     libreadline-dev \
     zlib1g-dev \
     libsqlite3-dev \
-    libssl-dev \
+    libglib2.0-dev  \
     gcc-avr \
     && rm -rf /var/lib/apt/lists/*
 

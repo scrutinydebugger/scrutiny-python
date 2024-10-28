@@ -12,7 +12,6 @@ from scrutiny.gui.core.watchable_index import WatchableIndex
 from test.gui.fake_sdk_client import FakeSDKClient, DownloadWatchableListFunctionCall
 from test.gui.base_gui_test import ScrutinyBaseGuiTest, EventType
 import time
-from dataclasses import dataclass
 
 from typing import List, Optional, Any
 
@@ -56,6 +55,12 @@ DUMMY_DEVICE = sdk.DeviceInfo(
         datalogging=True,
         sixtyfour_bits=True,
         user_command=True
+    ),
+    datalogging_capabilities=sdk.DataloggingCapabilities(
+        buffer_size=4096,
+        encoding=sdk.DataloggingEncoding.RAW,
+        max_nb_signal=32,
+        sampling_rates=[sdk.FixedFreqSamplingRate(0, "sr1", 10000.0), sdk.VariableFreqSamplingRate(1, 'sr2')]
     )
 )
 
