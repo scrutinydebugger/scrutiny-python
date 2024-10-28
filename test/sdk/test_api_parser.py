@@ -266,13 +266,12 @@ class TestApiParser(ScrutinyUnitTest):
                     msg['subscribed']['/a/b/c']['type'] = val
                 parser.parse_subscribe_watchable_response(msg)
 
-    def test_parse_inform_server_status(self):
-        def base() -> api_typing.S2C.InformServerStatus:
+
+    def test_get_device_info(self):
+        def base() -> api_typing.S2C.GetDeviceInfo:
             return {
-                "cmd": "inform_server_status",
-                "reqid": 2,
-                "device_status": "connected_ready",
-                "device_session_id": "3d41973c65ba42218ab65c829a8c385e",
+                'cmd' : "response_get_device_info",
+                "available" : True,
                 "device_info": {
                     "device_id": "b5c76f482e39e9d6a9115db5b8b7dc35",
                     "display_name": "TestApp Executable",
@@ -291,8 +290,142 @@ class TestApiParser(ScrutinyUnitTest):
                         "_64bits": True
                     },
                     "forbidden_memory_regions": [{'start': 0x1000, 'end': 0x1FFF}, {'start': 0x4000, 'end': 0x4FFF}],
-                    "readonly_memory_regions": [{'start': 0x8000, 'end': 0x8FFF}]
-                },
+                    "readonly_memory_regions": [{'start': 0x8000, 'end': 0x8FFF}],
+                    "datalogging_capabilities" :  {
+                        "buffer_size": 4096,
+                        "encoding": 'raw',
+                        "max_nb_signal": 32,
+                        "sampling_rates": [
+                            {
+                                "identifier": 0,
+                                "name": "loop0",
+                                "frequency": 1000,
+                                "type": "fixed_freq"
+                            },
+                            {
+                                "identifier": 1,
+                                "name": "loop1",
+                                "frequency": None,
+                                "type": "variable_freq"
+                            }
+                        ]
+                    }
+                }
+            }
+
+        msg = base()
+        device_info = parser.parse_get_device_info(msg)
+
+        self.assertIsNotNone(device_info)
+        self.assertEqual(device_info.device_id, "b5c76f482e39e9d6a9115db5b8b7dc35")
+        self.assertEqual(device_info.display_name, "TestApp Executable")
+        self.assertEqual(device_info.max_tx_data_size, 256)
+        self.assertEqual(device_info.max_rx_data_size, 128)
+        self.assertEqual(device_info.max_bitrate_bps, 100000)
+        self.assertEqual(device_info.rx_timeout_us, 50000)
+        self.assertEqual(device_info.heartbeat_timeout, 5)
+        self.assertEqual(device_info.address_size_bits, 64)
+        self.assertEqual(device_info.protocol_major, 1)
+        self.assertEqual(device_info.protocol_minor, 0)
+        self.assertEqual(device_info.supported_features.memory_write, True)
+        self.assertEqual(device_info.supported_features.datalogging, True)
+        self.assertEqual(device_info.supported_features.user_command, False)
+        self.assertEqual(device_info.supported_features.sixtyfour_bits, True)
+
+        self.assertEqual(len(device_info.forbidden_memory_regions), 2)
+        self.assertEqual(device_info.forbidden_memory_regions[0].start, 0x1000)
+        self.assertEqual(device_info.forbidden_memory_regions[0].end, 0x1FFF)
+        self.assertEqual(device_info.forbidden_memory_regions[0].size, 0x1000)
+        self.assertEqual(device_info.forbidden_memory_regions[1].start, 0x4000)
+        self.assertEqual(device_info.forbidden_memory_regions[1].end, 0x4FFF)
+        self.assertEqual(device_info.forbidden_memory_regions[1].size, 0x1000)
+        self.assertEqual(len(device_info.readonly_memory_regions), 1)
+        self.assertEqual(device_info.readonly_memory_regions[0].start, 0x8000)
+        self.assertEqual(device_info.readonly_memory_regions[0].end, 0x8FFF)
+        self.assertEqual(device_info.readonly_memory_regions[0].size, 0x1000)
+
+
+        features = ['memory_write', 'datalogging', 'user_command', '_64bits']
+        vals = [1, 'asd', None, [], {}]
+        for feature in features:
+            for val in vals:
+                logging.debug(f"feature={feature}, val={val}")
+                with self.assertRaises(sdk.exceptions.BadResponseError):
+                    msg = base()
+                    msg['device_info']['supported_feature_map'][feature] = val
+                    parser.parse_get_device_info(msg)
+
+        for feature in features:
+            logging.debug(f"feature={feature}")
+            with self.assertRaises(sdk.exceptions.BadResponseError):
+                msg = base()
+                del msg['device_info']['supported_feature_map'][feature]
+                parser.parse_get_device_info(msg)
+
+
+        capabilities = device_info.datalogging_capabilities
+
+        self.assertIsNotNone(capabilities)
+        self.assertEqual(capabilities.buffer_size, 4096)
+        self.assertEqual(capabilities.encoding, sdk.datalogging.DataloggingEncoding.RAW)
+        self.assertEqual(capabilities.max_nb_signal, 32)
+        self.assertEqual(len(capabilities.sampling_rates), 2)
+
+        self.assertIsInstance(capabilities.sampling_rates[0], sdk.datalogging.FixedFreqSamplingRate)
+        assert isinstance(capabilities.sampling_rates[0], sdk.datalogging.FixedFreqSamplingRate)
+        self.assertEqual(capabilities.sampling_rates[0].name, "loop0")
+        self.assertEqual(capabilities.sampling_rates[0].identifier, 0)
+        self.assertEqual(capabilities.sampling_rates[0].frequency, 1000.0)
+
+        self.assertIsInstance(capabilities.sampling_rates[1], sdk.datalogging.VariableFreqSamplingRate)
+        self.assertEqual(capabilities.sampling_rates[1].name, "loop1")
+        self.assertEqual(capabilities.sampling_rates[1].identifier, 1)
+
+
+
+        ###
+        msg = base()
+        msg['device_info']['datalogging_capabilities'] = None
+        device_info = parser.parse_get_device_info(msg)
+        self.assertIsNone(device_info.datalogging_capabilities)
+
+        with self.assertRaises(sdk.exceptions.BadResponseError):
+            msg = base()
+            msg["device_info"]['forbidden_memory_regions'][0]['end'] = msg["device_info"]['forbidden_memory_regions'][0]['start'] - 1
+            parser.parse_get_device_info(msg)
+
+        with self.assertRaises(sdk.exceptions.BadResponseError):
+            msg = base()
+            msg["device_info"]['readonly_memory_regions'][0]['end'] = msg["device_info"]['readonly_memory_regions'][0]['start'] - 1
+            parser.parse_get_device_info(msg)
+
+        with self.assertRaises(sdk.exceptions.BadResponseError):
+            msg = base()
+            msg["device_info"]['datalogging_capabilities'] = 'asdasdasd'
+            parser.parse_get_device_info(msg)
+
+        fields = ['max_tx_data_size', 'max_rx_data_size', 'max_bitrate_bps', 'rx_timeout_us', 'heartbeat_timeout_us',
+                  'address_size_bits', 'protocol_major', 'protocol_minor']
+        for field in fields:
+            vals = ['asd', 1.5, [], {},]   # bad values
+            for val in vals:
+                logging.debug(f"field={field}, val={val}")
+                with self.assertRaises(sdk.exceptions.BadResponseError, msg=f"field={field}, val={val}"):
+                    msg = base()
+                    msg["device_info"][field] = val
+                    info = parser.parse_get_device_info(msg)
+
+        msg = base()
+        msg["device_info"]["max_bitrate_bps"] = None
+        info = parser.parse_get_device_info(msg)
+
+    def test_parse_inform_server_status(self):
+        def base() -> api_typing.S2C.InformServerStatus:
+            return {
+                "cmd": "inform_server_status",
+                "reqid": 2,
+                "device_status": "connected_ready",
+                "device_session_id": "3d41973c65ba42218ab65c829a8c385e",
                 "loaded_sfd": {
                     "firmware_id": "b5c76f482e39e9d6a9115db5b8b7dc35",
                     "metadata": {
@@ -327,34 +460,6 @@ class TestApiParser(ScrutinyUnitTest):
         self.assertEqual(info.device_comm_state, DeviceCommState.ConnectedReady)
         self.assertEqual(info.device_session_id, "3d41973c65ba42218ab65c829a8c385e")
 
-        self.assertIsNotNone(info.device)
-        self.assertEqual(info.device.device_id, "b5c76f482e39e9d6a9115db5b8b7dc35")
-        self.assertEqual(info.device.display_name, "TestApp Executable")
-        self.assertEqual(info.device.max_tx_data_size, 256)
-        self.assertEqual(info.device.max_rx_data_size, 128)
-        self.assertEqual(info.device.max_bitrate_bps, 100000)
-        self.assertEqual(info.device.rx_timeout_us, 50000)
-        self.assertEqual(info.device.heartbeat_timeout, 5)
-        self.assertEqual(info.device.address_size_bits, 64)
-        self.assertEqual(info.device.protocol_major, 1)
-        self.assertEqual(info.device.protocol_minor, 0)
-        self.assertEqual(info.device.supported_features.memory_write, True)
-        self.assertEqual(info.device.supported_features.datalogging, True)
-        self.assertEqual(info.device.supported_features.user_command, False)
-        self.assertEqual(info.device.supported_features.sixtyfour_bits, True)
-
-        self.assertEqual(len(info.device.forbidden_memory_regions), 2)
-        self.assertEqual(info.device.forbidden_memory_regions[0].start, 0x1000)
-        self.assertEqual(info.device.forbidden_memory_regions[0].end, 0x1FFF)
-        self.assertEqual(info.device.forbidden_memory_regions[0].size, 0x1000)
-        self.assertEqual(info.device.forbidden_memory_regions[1].start, 0x4000)
-        self.assertEqual(info.device.forbidden_memory_regions[1].end, 0x4FFF)
-        self.assertEqual(info.device.forbidden_memory_regions[1].size, 0x1000)
-        self.assertEqual(len(info.device.readonly_memory_regions), 1)
-        self.assertEqual(info.device.readonly_memory_regions[0].start, 0x8000)
-        self.assertEqual(info.device.readonly_memory_regions[0].end, 0x8FFF)
-        self.assertEqual(info.device.readonly_memory_regions[0].size, 0x1000)
-
         self.assertIsNotNone(info.sfd)
         self.assertEqual(info.sfd.firmware_id, "b5c76f482e39e9d6a9115db5b8b7dc35")
         self.assertEqual(info.sfd.metadata.project_name, "Some project")
@@ -376,69 +481,23 @@ class TestApiParser(ScrutinyUnitTest):
         self.assertEqual(info.device_link.config.host, "localhost")
         self.assertEqual(info.device_link.config.port, 12345)
 
-        features = ['memory_write', 'datalogging', 'user_command', '_64bits']
-        vals = [1, 'asd', None, [], {}]
-        for feature in features:
-            for val in vals:
-                logging.debug(f"feature={feature}, val={val}")
-                with self.assertRaises(sdk.exceptions.BadResponseError):
-                    msg = base()
-                    msg['device_info']['supported_feature_map'][feature] = val
-                    parser.parse_inform_server_status(msg)
-
-        for feature in features:
-            logging.debug(f"feature={feature}")
-            with self.assertRaises(sdk.exceptions.BadResponseError):
-                msg = base()
-                del msg['device_info']['supported_feature_map'][feature]
-                parser.parse_inform_server_status(msg)
 
         ##
+        
         msg = base()
         msg['device_status'] = "unknown"
         msg['loaded_sfd'] = None
-        msg['device_info'] = None
         msg['device_session_id'] = None
         msg['device_comm_link']["link_type"] = 'none'
         msg['device_comm_link']["link_config"] = None
         info = parser.parse_inform_server_status(msg)
 
-        self.assertIsNone(info.device)
         self.assertIsNone(info.sfd)
         self.assertIsInstance(info.device_link.config, sdk.NoneLinkConfig)
         self.assertEqual(info.device_session_id, None)
         self.assertEqual(info.device_comm_state, DeviceCommState.NA)
 
-        with self.assertRaises(sdk.exceptions.BadResponseError):
-            msg = base()
-            msg['device_status'] = "asd"
-            parser.parse_inform_server_status(msg)
-
-        with self.assertRaises(sdk.exceptions.BadResponseError):
-            msg = base()
-            msg["device_info"]['forbidden_memory_regions'][0]['end'] = msg["device_info"]['forbidden_memory_regions'][0]['start'] - 1
-            info = parser.parse_inform_server_status(msg)
-
-        with self.assertRaises(sdk.exceptions.BadResponseError):
-            msg = base()
-            msg["device_info"]['readonly_memory_regions'][0]['end'] = msg["device_info"]['readonly_memory_regions'][0]['start'] - 1
-            info = parser.parse_inform_server_status(msg)
-
-        fields = ['max_tx_data_size', 'max_rx_data_size', 'max_bitrate_bps', 'rx_timeout_us', 'heartbeat_timeout_us',
-                  'address_size_bits', 'protocol_major', 'protocol_minor']
-        for field in fields:
-            vals = ['asd', 1.5, [], {},]   # bad values
-            for val in vals:
-                logging.debug(f"field={field}, val={val}")
-                with self.assertRaises(sdk.exceptions.BadResponseError, msg=f"field={field}, val={val}"):
-                    msg = base()
-                    msg["device_info"][field] = val
-                    info = parser.parse_inform_server_status(msg)
-
-        msg = base()
-        msg["device_info"]["max_bitrate_bps"] = None
-        info = parser.parse_inform_server_status(msg)
-
+        # Negative checks
         fields = ["project_name", "author", "version"]
         for field in fields:
             msg = base()
@@ -458,6 +517,12 @@ class TestApiParser(ScrutinyUnitTest):
         msg["device_datalogging_status"]["completion_ratio"] = None
         info = parser.parse_inform_server_status(msg)
         self.assertIsNone(info.datalogging.completion_ratio)
+
+        msg = base()
+        with self.assertRaises(sdk.exceptions.BadResponseError):
+            msg = base()
+            msg['device_status'] = "asd"
+            parser.parse_inform_server_status(msg)
 
         with self.assertRaises(sdk.exceptions.BadResponseError):
             msg = base()
@@ -516,7 +581,6 @@ class TestApiParser(ScrutinyUnitTest):
 
         for field, vals in field_vals.items():
             for val in vals:
-
                 msg = base()
                 logging.debug(f"field={field}, val={val}")
                 with self.assertRaises(sdk.exceptions.BadResponseError):
@@ -530,82 +594,13 @@ class TestApiParser(ScrutinyUnitTest):
                 del msg["device_comm_link"]["link_config"][field]
                 parser.parse_inform_server_status(msg)
 
-    def test_parse_datalogging_capabilities(self):
-        def base() -> api_typing.S2C.GetDataloggingCapabilities:
-            return {
-                "cmd": "get_datalogging_capabilities_response",
-                "reqid": None,
-                "available": True,
-                "capabilities": {
-                    "buffer_size": 4096,
-                    "encoding": 'raw',
-                    "max_nb_signal": 32,
-                    "sampling_rates": [
-                        {
-                            "identifier": 0,
-                            "name": "loop0",
-                            "frequency": 1000,
-                            "type": "fixed_freq"
-                        },
-                        {
-                            "identifier": 1,
-                            "name": "loop1",
-                            "frequency": None,
-                            "type": "variable_freq"
-                        }
-                    ]
-                }
-            }
-
-        msg = base()
-        capabilities = parser.parse_get_datalogging_capabilities_response(msg)
-
-        self.assertIsNotNone(capabilities)
-        self.assertEqual(capabilities.buffer_size, 4096)
-        self.assertEqual(capabilities.encoding, sdk.datalogging.DataloggingEncoding.RAW)
-        self.assertEqual(capabilities.max_nb_signal, 32)
-        self.assertEqual(len(capabilities.sampling_rates), 2)
-
-        self.assertIsInstance(capabilities.sampling_rates[0], sdk.datalogging.FixedFreqSamplingRate)
-        assert isinstance(capabilities.sampling_rates[0], sdk.datalogging.FixedFreqSamplingRate)
-        self.assertEqual(capabilities.sampling_rates[0].name, "loop0")
-        self.assertEqual(capabilities.sampling_rates[0].identifier, 0)
-        self.assertEqual(capabilities.sampling_rates[0].frequency, 1000.0)
-
-        self.assertIsInstance(capabilities.sampling_rates[1], sdk.datalogging.VariableFreqSamplingRate)
-        self.assertEqual(capabilities.sampling_rates[1].name, "loop1")
-        self.assertEqual(capabilities.sampling_rates[1].identifier, 1)
-
-        msg = base()
-        msg["available"] = False
-        self.assertIsNone(parser.parse_get_datalogging_capabilities_response(msg))
-
-        msg = base()
-        msg["available"] = False
-        msg["capabilities"] = None
-        self.assertIsNone(parser.parse_get_datalogging_capabilities_response(msg))
-
-        msg = base()
-        msg["capabilities"] = "asd"
-        with self.assertRaises(sdk.exceptions.BadResponseError):
-            self.assertIsNone(parser.parse_get_datalogging_capabilities_response(msg))
-
-        msg = base()
-        msg["capabilities"]["encoding"] = "asd"
-        with self.assertRaises(sdk.exceptions.BadResponseError):
-            self.assertIsNone(parser.parse_get_datalogging_capabilities_response(msg))
-
-        msg = base()
-        msg["capabilities"]["sampling_rates"][0]["type"] = "asdasd"
-        with self.assertRaises(sdk.exceptions.BadResponseError):
-            self.assertIsNone(parser.parse_get_datalogging_capabilities_response(msg))
 
     def test_parse_read_datalogging_acquisition_content(self):
         now = datetime.now()
 
         def base() -> api_typing.S2C.ReadDataloggingAcquisitionContent:
             return {
-                "cmd": "read_datalogging_acquisition_content_response",
+                "cmd": "response_read_datalogging_acquisition_content",
                 "reqid": None,
                 "firmware_id": "foo",
                 "firmware_name": "hello",
@@ -762,7 +757,7 @@ class TestApiParser(ScrutinyUnitTest):
 
         def base() -> api_typing.S2C.ListDataloggingAcquisition:
             return {
-                "cmd": "list_datalogging_acquisitions_response",
+                "cmd": "response_list_datalogging_acquisitions",
                 "reqid": None,
                 "acquisitions": [
                     {

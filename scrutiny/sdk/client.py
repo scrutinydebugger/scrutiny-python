@@ -751,9 +751,7 @@ class ScrutinyClient:
             else:
                 if self._server_info.device_session_id is not None:
                     device_name = "<unnamed>"
-                    if self._server_info.device is not None:
-                        device_name = self._server_info.device.display_name
-                    self._logger.info(f"Connected to device. Name:{device_name} - Session ID: {self._server_info.device_session_id} ")
+                    self._logger.info(f"Connected to device. Session ID: {self._server_info.device_session_id} ")
 
                     # ====  Check SFD
             new_firmware_id = self._server_info.sfd.firmware_id if self._server_info.sfd is not None else None
@@ -1034,7 +1032,8 @@ class ScrutinyClient:
 
         :param hostname: The hostname or ip address of the server
         :param port: The listening port of the server
-        :param wait_status: Wait for a server status update after the socket connection is established. Ensure that a value is available when calling :meth:`get_server_status()<get_server_status>`
+        :param wait_status: Wait for a server status update after the socket connection is established. 
+            Ensure that a value is available when calling :meth:`get_latest_server_status()<get_latest_server_status>`
 
         :raise ConnectionError: In case of failure
         """
@@ -1252,6 +1251,29 @@ class ScrutinyClient:
         if not self._threading_events.server_status_updated.is_set():
             raise sdk.exceptions.TimeoutException(f"Server status did not update within a {timeout} seconds delay")
 
+    def request_server_status_update(self, wait:bool=False, timeout: Optional[float] = None) -> Optional[sdk.ServerInfo]:
+        """Request the server with an immediate status update. Avoid waiting for the periodic request to be sent. 
+
+        :param wait: Wait for the response if ``True``
+        :param timeout: Amount of time to wait for the update. Have no effect if ``wait=False``. Use the SDK default timeout if ``None``
+
+        :raise OperationFailure: Failed to get the server status
+        :raise TimeoutException: Server status update did not occurred within the timeout time
+
+        :return: The server status if ``wait=True``, ``None`` otherwise
+        """
+        req = self._make_request(API.Command.Client2Api.GET_SERVER_STATUS)
+        self._send(req)
+
+        if wait:
+            kwargs = {}
+            if timeout is not None:
+                kwargs['timeout'] = timeout
+            self.wait_server_status_update(**kwargs)
+            return self.get_latest_server_status()
+        return None
+
+
     def wait_device_ready(self, timeout: float) -> None:
         """Wait for a device to be connected to the server and have finished its handshake.
 
@@ -1267,7 +1289,7 @@ class ScrutinyClient:
 
         t1 = time.perf_counter()
         while True:
-            server_status = self.get_server_status()
+            server_status = self.get_latest_server_status()
             if server_status is not None:
                 if server_status.device_comm_state == sdk.DeviceCommState.ConnectedReady:
                     break
@@ -1485,35 +1507,6 @@ class ScrutinyClient:
         if not completion.success:
             raise sdk.exceptions.OperationFailure(f"Failed to write the device memory. {completion.error}")
 
-    def get_datalogging_capabilities(self) -> sdk.datalogging.DataloggingCapabilities:
-        """Gets the device capabilities in terms of datalogging. This information includes the available sampling rates, the datalogging buffer size, 
-        the data encoding format and the maximum number of signals. 
-
-        :raise OperationFailure: If the request to the server fails
-
-        :return: The datalogging capabilities
-        """
-        req = self._make_request(API.Command.Client2Api.GET_DATALOGGING_CAPABILITIES)
-
-        @dataclass
-        class Container:
-            obj: Optional[sdk.datalogging.DataloggingCapabilities]
-        cb_data: Container = Container(obj=None)  # Force pass by ref
-
-        def callback(state: CallbackState, response: Optional[api_typing.S2CMessage]) -> None:
-            if response is not None and state == CallbackState.OK:
-                cb_data.obj = api_parser.parse_get_datalogging_capabilities_response(cast(api_typing.S2C.GetDataloggingCapabilities, response))
-        future = self._send(req, callback)
-        assert future is not None
-        future.wait()
-
-        if future.state != CallbackState.OK:
-            raise sdk.exceptions.OperationFailure(f"Failed to read the datalogging capabilities. {future.error_str}")
-
-        if cb_data.obj is None:
-            raise sdk.exceptions.OperationFailure(f"Datalogging capabilities are not available at this moment.")
-
-        return cb_data.obj
 
     def read_datalogging_acquisition(self, reference_id: str, timeout: Optional[float] = None) -> sdk.datalogging.DataloggingAcquisition:
         """Reads a datalogging acquisition from the server storage identified by its reference ID
@@ -1742,9 +1735,10 @@ class ScrutinyClient:
 
         return cb_data.obj
 
-    def get_server_status(self) -> ServerInfo:
+    def get_latest_server_status(self) -> ServerInfo:
         """Returns an immutable structure of data containing the latest server status that has been broadcast.
-          It contains everything going on the server side
+        This makes no request to the server, it simply returns the latest value. See :meth:`request_server_status_update<request_server_status_update>`
+        to fetch a new status update from the server
 
         :raise ConnectionError: If the connection to the server is lost
         :raise InvalidValueError: If the server status is not available (never received it).
@@ -1762,6 +1756,34 @@ class ScrutinyClient:
         # server_info is readonly and only its reference gets changed when updated.
         # We can safely return a reference here. The user can't mess it up
         return info
+    
+    def get_device_info(self) -> Optional[sdk.DeviceInfo]:
+        """Gets all the available details about the device. 
+        This information includes device id, name, communication parameters, special memory regions, datalogging details, available sampling rates, etc.
+
+        :raise OperationFailure: If the request to the server fails
+
+        :return: The device informations or ``None`` if not device is connected
+        """
+        req = self._make_request(API.Command.Client2Api.GET_DEVICE_INFO)
+
+        @dataclass
+        class Container:
+            obj: Optional[sdk.DeviceInfo]
+        cb_data: Container = Container(obj=None)  # Force pass by ref
+
+        def callback(state: CallbackState, response: Optional[api_typing.S2CMessage]) -> None:
+            if response is not None and state == CallbackState.OK:
+                cb_data.obj = api_parser.parse_get_device_info(cast(api_typing.S2C.GetDeviceInfo, response))
+        future = self._send(req, callback)
+        assert future is not None
+        future.wait()
+
+        if future.state != CallbackState.OK:
+            raise sdk.exceptions.OperationFailure(f"Failed to read the device information. {future.error_str}")
+
+        return cb_data.obj
+
 
     def register_listener(self, listener:listeners.BaseListener) -> None:
         """Register a new listener. The client will notify it each time a new value update is received from the server

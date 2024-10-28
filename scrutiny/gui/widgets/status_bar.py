@@ -301,10 +301,10 @@ class StatusBar(QStatusBar):
 
     def _device_about_func(self) -> None:
         server_info = self._server_manager.get_server_info()
-        if server_info is not None:
-            if server_info.device is not None:
-                self._device_info_dialog.rebuild(server_info.device)
-                self._device_info_dialog.show()
+        #if server_info is not None:
+            #if server_info.device is not None:
+            #    self._device_info_dialog.rebuild(server_info.device)
+            #    self._device_info_dialog.show()
 
     def _device_config_applied(self, dialog:DeviceConfigDialog) -> None:
         # When the user click OK in the DeviceLinkConfigDialog. He wants the change the link between the server and the device

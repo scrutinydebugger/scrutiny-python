@@ -7,6 +7,7 @@
 #   Copyright (c) 2021 Scrutiny Debugger
 
 from scrutiny import sdk
+from scrutiny.sdk.definitions import *
 from scrutiny.core.datalogging import *
 from scrutiny.core import validation
 from dataclasses import dataclass
@@ -23,67 +24,13 @@ if TYPE_CHECKING:
     from scrutiny.sdk.client import ScrutinyClient
 
 
-class DataloggingEncoding(enum.Enum):
-    """(Enum) Defines the data format used to store the samples in the datalogging buffer"""
-    RAW = 1
-
-
-@dataclass(frozen=True, init=False)
-class SamplingRate:
-    """(Immutable struct) Represent a sampling rate supported by the device"""
-
-    identifier: int
-    """The unique identifier of the sampling rate. Matches the embedded device index in the loop array set in the configuration"""
-
-    name: str
-    """Name for display"""
-
-
-@dataclass(frozen=True)
-class FixedFreqSamplingRate(SamplingRate):
-    """(Immutable struct) Represent a fixed frequency sampling rate supported by the device"""
-
-    frequency: float
-    """The sampling rate frequency"""
-
-    def __post_init__(self) -> None:
-        validation.assert_type(self.identifier, 'identifier', int)
-        validation.assert_type(self.name, 'name', str)
-        validation.assert_type(self.frequency, 'frequency', float)
-
-
-@dataclass(frozen=True)
-class VariableFreqSamplingRate(SamplingRate):
-    """(Immutable struct) Represent a variable frequency sampling rate supported by the device. Has no known frequency"""
-
-    def __post_init__(self) -> None:
-        validation.assert_type(self.identifier, 'identifier', int)
-        validation.assert_type(self.name, 'name', str)
-
-
-@dataclass(frozen=True)
-class DataloggingCapabilities:
-    """(Immutable struct) Tells what the device is able to achieve in terms of datalogging"""
-
-    encoding: DataloggingEncoding
-    """The encoding of data"""
-
-    buffer_size: int
-    """Size of the datalogging buffer"""
-
-    max_nb_signal: int
-    """Maximum number of signal per acquisition (including time if measured)"""
-
-    sampling_rates: List[SamplingRate]
-    """List of available sampling rates"""
-
-    def __post_init__(self) -> None:
-        validation.assert_type(self.encoding, 'encoding', DataloggingEncoding)
-        validation.assert_type(self.buffer_size, 'buffer_size', int)
-        validation.assert_type(self.max_nb_signal, 'max_nb_signal', int)
-        validation.assert_type(self.sampling_rates, 'sampling_rates', list)
-        for i in range(len(self.sampling_rates)):
-            validation.assert_type(self.sampling_rates[i], f'sampling_rates[{i}]', SamplingRate)
+__all__ = [
+    'XAxisType',
+    'TriggerCondition',
+    'DataloggingConfig',
+    'DataloggingRequest',
+    'DataloggingStorageEntry'
+]
 
 
 class XAxisType(enum.Enum):
@@ -173,7 +120,7 @@ class DataloggingConfig:
 
         :param sampling_rate: The acquisition sampling rate. Can be the sampling rate ID in the device or an instance 
             of :class:`SamplingRate<scrutiny.sdk.datalogging.SamplingRate>` gotten from the :class:`DataloggingCapabilities<scrutiny.sdk.datalogging.DataloggingCapabilities>` 
-            returned by :meth:`ScrutinyClient.get_datalogging_capabilities<scrutiny.sdk.client.ScrutinyClient.get_datalogging_capabilities>` 
+            returned by :meth:`ScrutinyClient.get_device_info<scrutiny.sdk.client.ScrutinyClient.get_device_info>` 
         :param decimation: The decimation factor that reduces the effective sampling rate
         :param timeout: Timeout to the acquisition. After the datalogger is armed, it will forcefully trigger after this amount of time. 0 means no timeout
         :param name: Name of the configuration. Save into the database for reference

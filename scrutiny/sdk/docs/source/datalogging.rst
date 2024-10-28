@@ -26,10 +26,8 @@ The first step before configuring the datalogger is knowing what the device is c
 - How many signal can I log?
 - etc
 
-This information can be obtained using the :meth:`ScrutinyClient.get_datalogging_capabilities<scrutiny.sdk.client.ScrutinyClient.get_datalogging_capabilities>` method, 
-which returns a :class:`DataloggingCapabilities<scrutiny.sdk.datalogging.DataloggingCapabilities>` object.
-
-.. automethod:: scrutiny.sdk.client.ScrutinyClient.get_datalogging_capabilities
+This information can be obtained using the :meth:`ScrutinyClient.get_device_info<scrutiny.sdk.client.ScrutinyClient.get_device_info>` method, 
+which returns a :class:`DeviceInfo<scrutiny.sdk.DeviceInfo>` object with attribute :attr:`datalogging_capabilities<scrutiny.sdk.DeviceInfo.datalogging_capabilities>`
 
 -----
 

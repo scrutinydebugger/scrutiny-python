@@ -15,6 +15,7 @@ import traceback
 
 from scrutiny.server.protocol import ResponseCode
 from scrutiny.server.device.device_info import *
+from scrutiny.server.datalogging.definitions import device as device_datalogging
 import scrutiny.server.protocol.commands as cmd
 from scrutiny.server.device.request_dispatcher import RequestDispatcher
 from scrutiny.server.protocol import *
@@ -52,19 +53,20 @@ class InfoPoller:
 
     class FsmState(enum.Enum):
         """Enum representing the InfoPoller State machine possible states"""
-        Error = -1
-        Init = 0
-        GetProtocolVersion = 1
-        GetCommParams = 2
-        GetSupportedFeatures = 3
-        GetSpecialMemoryRegionCount = 4
-        GetForbiddenMemoryRegions = 5
-        GetReadOnlyMemoryRegions = 6
-        GetRPVCount = 7
-        GetRPVDefinition = 8
-        GetLoopCount = 9,
-        GetLoopDefinition = 10,
-        Done = 11
+        Error = enum.auto()
+        Init = enum.auto()
+        GetProtocolVersion = enum.auto()
+        GetCommParams = enum.auto()
+        GetSupportedFeatures = enum.auto()
+        GetSpecialMemoryRegionCount = enum.auto()
+        GetForbiddenMemoryRegions = enum.auto()
+        GetReadOnlyMemoryRegions = enum.auto()
+        GetRPVCount = enum.auto()
+        GetRPVDefinition = enum.auto()
+        GetLoopCount = enum.auto()
+        GetLoopDefinition = enum.auto()
+        GetDataloggingSetup = enum.auto()
+        Done = enum.auto()
 
     def __init__(self, protocol: Protocol, dispatcher: RequestDispatcher, priority: int,
                  protocol_version_callback: Optional[ProtocolVersionCallback] = None,
@@ -331,8 +333,28 @@ class InfoPoller:
                     next_state = self.FsmState.Error
 
                 assert self.info.loops is not None
+                assert self.info.supported_feature_map is not None
                 if len(self.info.loops) >= self.loop_count:
-                    next_state = self.FsmState.Done
+                    if self.info.supported_feature_map['datalogging']:
+                        next_state = self.FsmState.GetDataloggingSetup
+                    else:
+                        next_state = self.FsmState.Done
+        
+        # ======= [GetDataloggingSetup] =====
+        elif self.fsm_state == self.FsmState.GetDataloggingSetup:
+            if state_entry:
+                self.dispatcher.register_request(
+                    request=self.protocol.datalogging_get_setup(),
+                    success_callback=self.success_callback, 
+                    failure_callback=self.failure_callback, 
+                    priority=self.priority
+                    )
+
+            if self.request_failed:
+                next_state = self.FsmState.Error
+
+            if self.info.datalogging_setup is not None:
+                next_state = self.FsmState.Done
 
         elif self.fsm_state == self.FsmState.Done:
             pass
@@ -372,7 +394,8 @@ class InfoPoller:
                 self.FsmState.GetRPVCount: 'Device refused to give RuntimePublishedValues count. Response Code = %s' % response.code,
                 self.FsmState.GetRPVDefinition: 'Device refused to give RuntimePublishedValues definition. Response Code = %s' % response.code,
                 self.FsmState.GetLoopCount: 'Device refused to give the exec loop count. Response Code = %s' % response.code,
-                self.FsmState.GetLoopDefinition: 'Device refused to give loop definition definition. Response Code = %s' % response.code
+                self.FsmState.GetLoopDefinition: 'Device refused to give loop definition definition. Response Code = %s' % response.code,
+                self.FsmState.GetDataloggingSetup: 'Device refused to give the coniguration of the embedded datalogger. Response Code = %s' % response.code
             }
             self.error_message = error_message_map[self.fsm_state] if self.fsm_state in error_message_map else 'Internal error - Request denied. %s - %s' % (
                 str(Request), response.code)
@@ -393,7 +416,8 @@ class InfoPoller:
                     self.FsmState.GetRPVCount: 'Device gave invalid data when polling for RuntimePublishedValues count. Response Code = %s' % response.code,
                     self.FsmState.GetRPVDefinition: 'Device gave invalid data when polling for RuntimePublishedValues definition. Response Code = %s' % response.code,
                     self.FsmState.GetLoopCount: 'Device gave invalid data when polling for loop count. Response Code = %s' % response.code,
-                    self.FsmState.GetLoopDefinition: 'Device gave invalid data when polling for loop definition. Response Code = %s' % response.code
+                    self.FsmState.GetLoopDefinition: 'Device gave invalid data when polling for loop definition. Response Code = %s' % response.code,
+                    self.FsmState.GetDataloggingSetup: 'Device gave invalid data when polling for the datalogger embedded configuration. Response Code = %s' % response.code
                 }
                 self.error_message = error_message_map[self.fsm_state] if self.fsm_state in error_message_map else 'Internal error - Invalid response for request %s' % str(
                     Request)
@@ -473,6 +497,14 @@ class InfoPoller:
                     self.error_message = "Received the loop definition for an unexpected loop id"
                 else:
                     self.info.loops.append(response_data['loop'])
+            
+            elif self.fsm_state == self.FsmState.GetDataloggingSetup:
+                response_data = cast(protocol_typing.Response.DatalogControl.GetSetup, response_data)
+                self.info.datalogging_setup = device_datalogging.DataloggingSetup(
+                    buffer_size=response_data['buffer_size'],
+                    encoding=response_data['encoding'],
+                    max_signal_count=response_data['max_signal_count']
+                )
 
             else:
                 self.fsm_state == self.FsmState.Error
@@ -496,7 +528,8 @@ class InfoPoller:
                 self.FsmState.GetRPVCount: 'Failed to get RuntimePublishedValues count',
                 self.FsmState.GetRPVDefinition: 'Failed to get RuntimePublishedValues count',
                 self.FsmState.GetLoopCount: 'Failed to get loop count',
-                self.FsmState.GetLoopDefinition: 'Failed to get loop definition'
+                self.FsmState.GetLoopDefinition: 'Failed to get loop definition',
+                self.FsmState.GetDataloggingSetup: 'Failed to to read the embedded datalogger setup'
             }
 
             self.error_message = error_message_map[self.fsm_state] if self.fsm_state in error_message_map else 'Internal error - Request failure'

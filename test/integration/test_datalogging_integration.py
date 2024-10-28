@@ -48,24 +48,25 @@ class TestDataloggingIntegration(ScrutinyIntegrationTestWithTestSFD1):
         super().setUp()
         self.wait_for_datalogging_ready()
 
-    def wait_for_datalogging_ready(self, timeout=2):
+    def wait_for_datalogging_ready(self, timeout=3):
 
-        t1 = time.time()
-        while time.time() - t1 < timeout:
+        t1 = time.monotonic()
+        while time.monotonic() - t1 < timeout:
             self.server.process()
+            self.emulated_device.wake_if_sleep()
             if self.server.device_handler.is_ready_for_datalogging_acquisition_request():
                 break
-            time.sleep(0.05)
+            time.sleep(0.01)
         self.assertTrue(self.server.device_handler.is_ready_for_datalogging_acquisition_request())
 
-    def wait_device_disconnected(self):
-        timeout = 2
-        t1 = time.time()
-        while time.time() - t1 < timeout:
+    def wait_device_disconnected(self, timeout=2):
+        t1 = time.monotonic()
+        while time.monotonic() - t1 < timeout:
             self.server.process()
+            self.emulated_device.wake_if_sleep()
             if self.server.device_handler.get_connection_status() == DeviceHandler.ConnectionStatus.DISCONNECTED:
                 break
-            time.sleep(0.05)
+            time.sleep(0.01)
         self.assertEqual(self.server.device_handler.get_connection_status(), DeviceHandler.ConnectionStatus.DISCONNECTED)
 
     def test_setup_is_working(self):
@@ -80,66 +81,7 @@ class TestDataloggingIntegration(ScrutinyIntegrationTestWithTestSFD1):
             if isinstance(entry, DatastoreVariableEntry):
                 self.emulated_device.write_memory(entry.get_address(), b'\x00' * entry.get_size())
 
-    def test_get_datalogger_capabilities(self):
-        def is_datalogging_ready():
-            return self.server.device_handler.get_datalogger_state() is not None
-        self.wait_true(is_datalogging_ready, 1)    # Leave time for the server to poll the datalogger state
-        self.assertIsNotNone(self.server.device_handler.get_datalogging_setup())
-        req = {
-            'cmd': API.Command.Client2Api.GET_SERVER_STATUS,
-        }
-        self.send_request(req)
-        response = cast(api_typing.S2C.InformServerStatus, self.wait_and_load_response(cmd=API.Command.Api2Client.INFORM_SERVER_STATUS))
-        self.assertIn('device_datalogging_status', response)
-        status = response['device_datalogging_status']
-        assert status is not None
-        self.assertIn('datalogger_state', status)
-        self.assertIn('completion_ratio', status)
-        self.assertEqual(status['datalogger_state'], "standby")
-
-        req = {
-            'cmd': API.Command.Client2Api.GET_DATALOGGING_CAPABILITIES
-        }
-
-        self.send_request(req)
-        response = cast(api_typing.S2C.GetDataloggingCapabilities, self.wait_and_load_response(
-            cmd=API.Command.Api2Client.GET_DATALOGGING_CAPABILITIES_RESPONSE))
-
-        self.assertTrue(response['available'])
-        self.assertIsNotNone(response['capabilities'])
-        capabilities = response['capabilities']
-        self.assertEqual(capabilities['buffer_size'], self.emulated_device.datalogger.get_buffer_size())
-        self.assertEqual(capabilities['max_nb_signal'], self.emulated_device.datalogger.MAX_SIGNAL_COUNT)
-
-        if self.emulated_device.datalogger.get_encoding() == self.emulated_device.datalogger.encoding.RAW:
-            self.assertEqual(capabilities['encoding'], 'raw')
-        else:
-            raise NotImplementedError('Unsupported encoding')
-
-        expected_sampling_rates = []
-        for i in range(len(self.emulated_device.loops)):
-            loop = self.emulated_device.loops[i]
-            if loop.support_datalogging:
-                loop_obj = {
-                    'identifier': i,
-                    'name': loop.get_name()
-                }
-                if isinstance(loop, FixedFreqLoop):
-                    loop_obj['frequency'] = loop.get_frequency()
-                    loop_obj['type'] = 'fixed_freq'
-                elif isinstance(loop, VariableFreqLoop):
-                    loop_obj['type'] = 'variable_freq'
-                    loop_obj['frequency'] = None
-                else:
-                    raise NotImplementedError('Unsupported loop type')
-
-                expected_sampling_rates.append(loop_obj)
-
-        self.assertEqual(len(capabilities['sampling_rates']), len(expected_sampling_rates))    # Emulated device has 4 loops, 3 supports datalogging
-
-        for i in range(len(expected_sampling_rates)):
-            self.assertEqual(capabilities['sampling_rates'][i], expected_sampling_rates[i])
-
+ 
     def test_make_acquisition_normal_multiple_connect_disconnect(self):
         # We will create  a task that the emulated device will run in its thread. This task update some memory region with known pattern.
         class ValueUpdateTask:
@@ -174,7 +116,7 @@ class TestDataloggingIntegration(ScrutinyIntegrationTestWithTestSFD1):
 
         for session_iteration in range(3):
             with DataloggingStorage.use_temp_storage():
-                self.wait_for_datalogging_ready(timeout=3)
+                self.wait_for_datalogging_ready()
                 for iteration in range(3):
                     if iteration == 0:
                         requested_xaxis_type = 'ideal_time'

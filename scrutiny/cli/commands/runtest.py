@@ -52,7 +52,7 @@ class RunTest(BaseCommand):
         logging_level_str = self.requested_log_level if self.requested_log_level else "critical"
         logging_level = getattr(logging, logging_level_str.upper())
         if logging_level == logging.DEBUG:
-            format_string += "%(relativeCreated)0.3f "
+            format_string += "%(relativeCreated)0.3f (#%(thread)d)"
         format_string += '[%(levelname)s] <%(name)s> %(message)s'
         logging.getLogger().handlers[0].setFormatter(logging.Formatter(format_string))
         logging.getLogger().setLevel(logging_level)

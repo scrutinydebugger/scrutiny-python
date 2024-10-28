@@ -15,7 +15,7 @@ from scrutiny.core import validation
 import abc
 from binascii import hexlify
 
-from typing import List, Optional, Literal, Union, Dict, get_args, Any
+from typing import List, Optional, Literal, Union, Dict, Any
 
 __all__ = [
     'AddressSize',
@@ -41,7 +41,12 @@ __all__ = [
     'DeviceLinkInfo',
     'ServerInfo',
     'UserCommandResponse',
-    'WatchableConfiguration'
+    'WatchableConfiguration',
+    'DataloggingEncoding',
+    'SamplingRate',
+    'FixedFreqSamplingRate',
+    'VariableFreqSamplingRate',
+    'DataloggingCapabilities'    
 ]
 
 AddressSize = Literal[8, 16, 32, 64, 128]
@@ -192,6 +197,70 @@ class DataloggingInfo:
     """The completion ratio of the actually running acquisition. ``None`` if no acquisition being captured"""
 
 
+
+class DataloggingEncoding(enum.Enum):
+    """(Enum) Defines the data format used to store the samples in the datalogging buffer"""
+    RAW = 1
+
+
+@dataclass(frozen=True, init=False)
+class SamplingRate:
+    """(Immutable struct) Represent a sampling rate supported by the device"""
+
+    identifier: int
+    """The unique identifier of the sampling rate. Matches the embedded device index in the loop array set in the configuration"""
+
+    name: str
+    """Name for display"""
+
+
+@dataclass(frozen=True)
+class FixedFreqSamplingRate(SamplingRate):
+    """(Immutable struct) Represent a fixed frequency sampling rate supported by the device"""
+
+    frequency: float
+    """The sampling rate frequency"""
+
+    def __post_init__(self) -> None:
+        validation.assert_type(self.identifier, 'identifier', int)
+        validation.assert_type(self.name, 'name', str)
+        validation.assert_type(self.frequency, 'frequency', float)
+
+
+@dataclass(frozen=True)
+class VariableFreqSamplingRate(SamplingRate):
+    """(Immutable struct) Represent a variable frequency sampling rate supported by the device. Has no known frequency"""
+
+    def __post_init__(self) -> None:
+        validation.assert_type(self.identifier, 'identifier', int)
+        validation.assert_type(self.name, 'name', str)
+
+
+@dataclass(frozen=True)
+class DataloggingCapabilities:
+    """(Immutable struct) Tells what the device is able to achieve in terms of datalogging"""
+
+    encoding: DataloggingEncoding
+    """The encoding of data"""
+
+    buffer_size: int
+    """Size of the datalogging buffer"""
+
+    max_nb_signal: int
+    """Maximum number of signal per acquisition (including time if measured)"""
+
+    sampling_rates: List[SamplingRate]
+    """List of available sampling rates"""
+
+    def __post_init__(self) -> None:
+        validation.assert_type(self.encoding, 'encoding', DataloggingEncoding)
+        validation.assert_type(self.buffer_size, 'buffer_size', int)
+        validation.assert_type(self.max_nb_signal, 'max_nb_signal', int)
+        validation.assert_type(self.sampling_rates, 'sampling_rates', list)
+        for i in range(len(self.sampling_rates)):
+            validation.assert_type(self.sampling_rates[i], f'sampling_rates[{i}]', SamplingRate)
+
+
 @dataclass(frozen=True)
 class DeviceInfo:
     """(Immutable struct) Information about the device connected to the server"""
@@ -234,6 +303,9 @@ class DeviceInfo:
 
     readonly_memory_regions: List[MemoryRegion]
     """List of memory region that are read-only"""
+
+    datalogging_capabilities:Optional[DataloggingCapabilities]
+    """Contains the device datalogging capabilites. ``None`` if datalogging is not supported"""
 
 
 @dataclass(frozen=True)
@@ -455,9 +527,6 @@ class ServerInfo:
 
     device_session_id: Optional[str]
     """A unique ID created each time a communication with the device is established. ``None`` when no communication with a device."""
-
-    device: Optional[DeviceInfo]
-    """Information about the connected device. ``None`` if no device is connected"""
 
     datalogging: DataloggingInfo
     """Datalogging state"""

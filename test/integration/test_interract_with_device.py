@@ -28,17 +28,15 @@ class TestInterractWithDevice(ScrutinyIntegrationTestWithTestSFD1):
 
         return super().setUp()
 
-    def test_read_status(self):
+    def test_read_device_info(self):
         self.send_request({
-            'cmd': API.Command.Client2Api.GET_SERVER_STATUS,
+            'cmd': API.Command.Client2Api.GET_DEVICE_INFO,
         })
-        response = self.wait_and_load_response(cmd=API.Command.Api2Client.INFORM_SERVER_STATUS)
+        response = self.wait_and_load_response(cmd=API.Command.Api2Client.GET_DEVICE_INFO)
         self.assert_no_error(response)
 
-        response = cast(api_typing.S2C.InformServerStatus, response)
-
-        self.assertEqual(response['device_status'], 'connected_ready')
-
+        self.assertEqual(response['available'], True)
+        self.assertIsNotNone(response['device_info'])
         self.assertEqual(response['device_info']['device_id'], self.emulated_device.get_firmware_id_ascii())
         self.assertEqual(response['device_info']['display_name'], self.emulated_device.display_name)
         self.assertEqual(response['device_info']['max_rx_data_size'], self.emulated_device.max_rx_data_size)
@@ -69,7 +67,18 @@ class TestInterractWithDevice(ScrutinyIntegrationTestWithTestSFD1):
         self.assertEqual(response['device_info']['forbidden_memory_regions'][1]['start'], 0x3000)
         self.assertEqual(response['device_info']['forbidden_memory_regions'][1]['size'], 0x200)
         self.assertEqual(response['device_info']['forbidden_memory_regions'][1]['end'], 0x31FF)
+    
 
+    def test_read_status(self):
+        self.send_request({
+            'cmd': API.Command.Client2Api.GET_SERVER_STATUS,
+        })
+        response = self.wait_and_load_response(cmd=API.Command.Api2Client.INFORM_SERVER_STATUS)
+        self.assert_no_error(response)
+
+        response = cast(api_typing.S2C.InformServerStatus, response)
+
+        self.assertEqual(response['device_status'], 'connected_ready')
         self.assertEqual(response['device_session_id'], self.server.device_handler.get_comm_session_id())
 
         self.assertIn(response['device_datalogging_status']['datalogger_state'], ['standby', 'unavailable'])
@@ -98,12 +107,11 @@ class TestInterractWithDeviceNoThrottling(ScrutinyIntegrationTestWithTestSFD1):
 
     def test_read_status(self):
         self.send_request({
-            'cmd': API.Command.Client2Api.GET_SERVER_STATUS,
+            'cmd': API.Command.Client2Api.GET_DEVICE_INFO,
         })
-        response = self.wait_and_load_response(cmd=API.Command.Api2Client.INFORM_SERVER_STATUS)
+        response = self.wait_and_load_response(cmd=API.Command.Api2Client.GET_DEVICE_INFO)
         self.assert_no_error(response)
 
-        response = cast(api_typing.S2C.InformServerStatus, response)
+        response = cast(api_typing.S2C.GetDeviceInfo, response)
 
-        self.assertEqual(response['device_status'], 'connected_ready')
         self.assertEqual(response['device_info']['max_bitrate_bps'], None)
