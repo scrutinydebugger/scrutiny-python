@@ -1,12 +1,10 @@
 __all__ = ['DeviceInfoDialog']
 
-from PySide6.QtWidgets import QDialog, QFormLayout, QLabel, QWidget, QVBoxLayout, QGroupBox
+from PySide6.QtWidgets import QDialog, QFormLayout, QLabel, QWidget, QVBoxLayout, QGroupBox, QGridLayout
 from PySide6.QtCore import Qt
-from typing import Optional, List, Union
+from typing import Optional, List, Union, Tuple
 
-from scrutiny.sdk import DeviceInfo, SupportedFeatureMap, MemoryRegion
-from scrutiny.sdk.datalogging import DataloggingCapabilities
-
+from scrutiny.sdk import DeviceInfo, SupportedFeatureMap, MemoryRegion, SamplingRate, FixedFreqSamplingRate, VariableFreqSamplingRate
 
 def configure_label(label:QLabel) -> None:
     label.setCursor(Qt.CursorShape.IBeamCursor)
@@ -66,11 +64,55 @@ class MemoryRegionList(QWidget):
         layout.setContentsMargins(0,0,0,0)
         self.setLayout(layout)
 
+class SamplingRateList(QWidget):
+    def __init__(self, sampling_rates:List[SamplingRate]):
+        super().__init__()
+
+        def make_labels(sampling_rate:SamplingRate) -> Tuple[QLabel, QLabel, QLabel]:
+            id_label = QLabel(f"[{sampling_rate.identifier}]  ")
+            name_label = QLabel(f"{sampling_rate.name}  ")
+            freq_label = QLabel()
+
+            if isinstance(sampling_rate, FixedFreqSamplingRate):
+                freq_label.setText(f"({sampling_rate.frequency:0.1f}Hz)")
+            elif isinstance(sampling_rate, VariableFreqSamplingRate):
+                freq_label.setText("(Variable)")
+            else:
+                NotImplementedError("Unsupported sampling rate type")
+            all_labels = (id_label, name_label, freq_label)
+            for label in all_labels:
+                configure_label(label)
+            return all_labels
+
+        layout:Union[QVBoxLayout, QGridLayout]
+        if len(sampling_rates) == 0:
+            layout = QVBoxLayout(self)
+            label = QLabel("None")
+            configure_label(label)
+            layout.addWidget( label )
+        else:
+            layout = QGridLayout()
+            
+            layout.setHorizontalSpacing(0)
+            layout.setVerticalSpacing(0)
+            
+            for i in range(len(sampling_rates)):
+                labels = make_labels(sampling_rates[i])
+                for j in range(len(labels)):
+                    layout.addWidget(labels[j], i, j)
+                    layout.setColumnStretch(j, 100 if j == len(labels)-1 else 0)
+
+
+        layout.setContentsMargins(0,0,0,0)
+        self.setLayout(layout)
+
 class DeviceInfoDisplayTable(QWidget):
     form_layout : QFormLayout
     def __init__(self) -> None:
         super().__init__()
         self.form_layout = QFormLayout(self)
+        self.form_layout.setFormAlignment(Qt.AlignmentFlag.AlignVCenter)
+        
     
     def add_row(self, label_txt:str, item:Union[str, QWidget]) -> None:
         label = QLabel(label_txt)
@@ -87,22 +129,22 @@ class DeviceInfoDisplayTable(QWidget):
         item.setProperty("table_odd_even", odd_even)
 
         self.form_layout.addRow(label, item)
-
+        
 
 class DeviceInfoDialog(QDialog):
-    def __init__(self, parent:Optional[QWidget] = None) -> None:
+    def __init__(self, parent:Optional[QWidget], info:DeviceInfo) -> None:
         super().__init__(parent) 
 
         self.setWindowTitle("Device")
-    
-    def rebuild(self, info:DeviceInfo) -> None:
         layout = QVBoxLayout(self)
+        layout.setAlignment(Qt.AlignmentFlag.AlignTop)
 
         def add_section(title:str) -> QVBoxLayout:
             gb = QGroupBox()
             gb.setTitle(title)
             layout.addWidget(gb)
             internal_layout = QVBoxLayout(gb)
+            internal_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
             return internal_layout
 
         def add_section_table(title:str) -> DeviceInfoDisplayTable:
@@ -120,30 +162,28 @@ class DeviceInfoDialog(QDialog):
 
         device_table = add_section_table("Device")
         comm_table = add_section_table("Communication")
-        
 
         device_table.add_row("Device ID", info.device_id)
         device_table.add_row("Display name", info.display_name)
+        device_table.add_row("Addresses size", f"{info.address_size_bits} bits")
         device_table.add_row("Supported features", SupportedFeatureList(info.supported_features) )
         device_table.add_row("Read-only memory regions", MemoryRegionList(info.readonly_memory_regions, info.address_size_bits) )
         device_table.add_row("Forbidden memory regions",  MemoryRegionList(info.forbidden_memory_regions, info.address_size_bits) )
 
+        comm_table.add_row("Protocol version", f"V{info.protocol_major}.{info.protocol_minor}")
         comm_table.add_row("Rx buffer size", f"{info.max_rx_data_size} bytes")
         comm_table.add_row("Tx buffer size", f"{info.max_tx_data_size} bytes")
         bitrate_str = f"{info.max_bitrate_bps} bps" if info.max_bitrate_bps is not None else "N/A"
         comm_table.add_row("Max bitrate", bitrate_str)
         comm_table.add_row("Heartbeat timeout", f"{info.heartbeat_timeout:0.1f} seconds")
-        comm_table.add_row("Protocol version", f"V{info.protocol_major}.{info.protocol_minor}")
+        comm_table.add_row("Comm timeout", f"{info.rx_timeout_us} us")
 
         datalogging_title="Datalogging"
-        #if datalogging is None:
-        #    add_section_text(datalogging_title, "N/A")
-        #else:
-        #    datalogging_table = add_section_table(datalogging_title)
-        #    datalogging_table.add_row("Buffer size", f"{datalogging.buffer_size} bytes")
-        #    datalogging_table.add_row("Encoding", f"{datalogging.encoding.name}")
-        #    datalogging_table.add_row("Max signals", f"{datalogging.max_nb_signal}")
-            
-
-    
-    
+        if info.datalogging_capabilities is None:   # Will happen if the feature is disabled in the device
+            add_section_text(datalogging_title, "N/A")
+        else:
+            datalogging_table = add_section_table(datalogging_title)
+            datalogging_table.add_row("Buffer size", f"{info.datalogging_capabilities.buffer_size} bytes")
+            datalogging_table.add_row("Encoding", f"{info.datalogging_capabilities.encoding.name}")
+            datalogging_table.add_row("Max signals", f"{info.datalogging_capabilities.max_nb_signal}")
+            datalogging_table.add_row("Sampling rates", SamplingRateList(info.datalogging_capabilities.sampling_rates))
