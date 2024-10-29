@@ -1,3 +1,12 @@
+#    status_bar.py
+#        The status bar shown at the bottom of the app. Contains substantial amount of logic
+#        since many menus are there.
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021 Scrutiny Debugger
+
 from PySide6.QtWidgets import QStatusBar, QWidget, QLabel, QHBoxLayout, QSizePolicy, QPushButton, QToolBar, QMenu
 from PySide6.QtCore import Qt, QPoint
 from PySide6.QtGui import QPixmap, QAction

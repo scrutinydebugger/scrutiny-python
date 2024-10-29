@@ -1,3 +1,12 @@
+#    validable_line_edit.py
+#        An extension of QLine edit that can accept 2 validator. One enforced by Qt, the other
+#        used for visual feedback
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021 Scrutiny Debugger
+
 from PySide6.QtWidgets import QLineEdit, QWidget
 from PySide6.QtGui import QValidator
 from typing import Optional,cast , Tuple

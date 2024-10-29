@@ -1,3 +1,11 @@
+#    device_info_dialog.py
+#        A dialog to visualize the device information downlaoded after a device has connected.
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021 Scrutiny Debugger
+
 __all__ = ['DeviceInfoDialog']
 
 from PySide6.QtWidgets import QDialog, QFormLayout, QLabel, QWidget, QVBoxLayout, QGroupBox, QGridLayout

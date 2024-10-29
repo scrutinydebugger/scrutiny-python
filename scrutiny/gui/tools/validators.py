@@ -1,3 +1,11 @@
+#    validators.py
+#        Some QT validators used across the project
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021 Scrutiny Debugger
+
 __all__ = ['IpPortValidator', 'NotEmptyValidator']
 
 from PySide6.QtGui import  QValidator

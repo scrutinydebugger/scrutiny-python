@@ -1,3 +1,11 @@
+#    device_config_dialog.py
+#        A dialog meant to change the link between the server and the device and its configuration.
+#        Contains no app logic, has callback to integrate with an app.
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021 Scrutiny Debugger
 
 from PySide6.QtWidgets import QDialog, QWidget, QComboBox, QVBoxLayout, QDialogButtonBox,QFormLayout, QLabel, QPushButton
 from PySide6.QtGui import QIntValidator
