@@ -9,6 +9,7 @@
 from PySide6.QtWidgets import QDialog, QFormLayout, QLabel, QWidget
 import PySide6
 import PySide6.QtCore
+from PySide6.QtCore import Qt
 import sys
 from typing import Optional
 
@@ -31,7 +32,12 @@ class AboutDialog(QDialog):
         ]
 
         for i in range(len(fields)):
-            layout.addRow(QLabel(fields[i][0]), QLabel(fields[i][1]) )
+            property_label = QLabel(fields[i][0])
+            value_label = QLabel(fields[i][1])
+            layout.addRow(property_label, value_label )
+
+            for label in (property_label, value_label):
+                label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
 
     
     

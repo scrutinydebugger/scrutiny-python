@@ -522,9 +522,10 @@ class StatusBar(QStatusBar):
         info = self._server_manager.get_server_info()
         if info is not None:
             if info.device_session_id is not None:
-                def func(client:ScrutinyClient) -> None:
+                session_id = info.device_session_id
+                def func(client:ScrutinyClient) -> Tuple[str, Optional[sdk.DeviceInfo]]:
                     device_info = client.get_device_info()
-                    return info.device_session_id, device_info
+                    return session_id, device_info
             
             self._server_manager.schedule_client_request(func, self._receive_device_info)
 

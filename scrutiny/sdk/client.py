@@ -327,6 +327,7 @@ class ScrutinyClient:
         self._server_state = ServerState.Disconnected
         self._hostname = None
         self._port = None
+        
         self._encoding = 'utf8'
         self._sock = None
         self._selector = None
@@ -929,8 +930,6 @@ class ScrutinyClient:
                 if not data:
                     server_gone = True
                 else:
-                    if self._logger.isEnabledFor(logging.DEBUG):    # pragma: no cover
-                        self._logger.debug(f"Received (raw): {data!r}")
                     self._stream_parser.parse(data)
         except  socket.error as e:
             server_gone = True
