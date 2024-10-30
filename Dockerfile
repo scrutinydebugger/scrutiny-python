@@ -2,8 +2,6 @@ FROM ubuntu:20.04 as build-tests
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-ARG QT_LIBS="libgl1 libegl1 libxkbcommon-x11-0 libfontconfig1 libdbus-glib-1-dev"
-
 RUN apt-get update && apt-get install -y \
     git \
     wget \
@@ -15,7 +13,6 @@ RUN apt-get update && apt-get install -y \
     libsqlite3-dev \
     gcc-avr \
     libglib2.0-dev  \
-    ${QT_LIBS} \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /tmp/
@@ -76,3 +73,12 @@ RUN wget $PYTHON_SRC \
     && cd .. \
     && rm "Python-${PYTHON_VERSION}.tgz" \
     && rm -rf "Python-${PYTHON_VERSION}"
+
+# Enable QT for Python inside Docker given that QT_QPA_PLATFORM='offscreen'
+RUN apt-get update && apt-get install -y \
+    libgl1 \
+    libegl1 \
+    libxkbcommon-x11-0 \
+    libfontconfig1 \
+    libdbus-glib-1-dev  \
+    && rm -rf /var/lib/apt/lists/*
