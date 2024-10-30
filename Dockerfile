@@ -13,6 +13,9 @@ RUN apt-get update && apt-get install -y \
     libsqlite3-dev \
     libglib2.0-dev  \
     gcc-avr \
+    ffmpeg      \
+    libsm6      \
+    libxext6    \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /tmp/
