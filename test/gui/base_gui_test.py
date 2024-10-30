@@ -8,7 +8,6 @@
 
 from test import ScrutinyUnitTest
 from PySide6.QtWidgets import QApplication
-import PySide6
 import PySide6.QtGui
 import enum
 import time

@@ -2,6 +2,8 @@ FROM ubuntu:20.04 as build-tests
 
 ENV DEBIAN_FRONTEND=noninteractive
 
+ARG QT_LIBS="libgl1 libegl1 libxkbcommon-x11-0 libfontconfig1 libdbus-glib-1-dev"
+
 RUN apt-get update && apt-get install -y \
     git \
     wget \
@@ -11,11 +13,9 @@ RUN apt-get update && apt-get install -y \
     libreadline-dev \
     zlib1g-dev \
     libsqlite3-dev \
-    libglib2.0-dev  \
     gcc-avr \
-    ffmpeg      \
-    libsm6      \
-    libxext6    \
+    libglib2.0-dev  \
+    ${QT_LIBS} \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /tmp/
