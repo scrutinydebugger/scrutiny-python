@@ -989,18 +989,23 @@ class TestAPI(ScrutinyUnitTest):
             # load #1
             req = {
                 'cmd': 'load_sfd',
-                'firmware_id': sfd1.get_firmware_id_ascii()
+                'firmware_id': sfd1.get_firmware_id_ascii()            
             }
 
             self.send_request(req, 0)
 
             # inform status should be trigger by callback
             response = self.wait_and_load_response()
-
             self.assertEqual(response['cmd'], 'inform_server_status')
-            self.assertIn('loaded_sfd', response)
-            self.assertIn('firmware_id', response['loaded_sfd'])
-            self.assertEqual(response['loaded_sfd']['firmware_id'], sfd1.get_firmware_id_ascii())
+
+            self.send_request({'cmd': 'get_loaded_sfd'})
+            response = self.wait_and_load_response()
+
+            self.assertEqual(response['cmd'], 'response_get_loaded_sfd')
+            self.assertIn('metadata', response)
+            self.assertIn('firmware_id', response)
+            self.assertEqual(response['firmware_id'], sfd1.get_firmware_id_ascii())
+            self.assertEqual(response['metadata'], sfd1.get_metadata() )
 
             # load #2
             req = {
@@ -1013,11 +1018,16 @@ class TestAPI(ScrutinyUnitTest):
             # inform status should be trigger by callback
             response = self.wait_and_load_response()
             self.assert_no_error(response)
-
             self.assertEqual(response['cmd'], 'inform_server_status')
-            self.assertIn('loaded_sfd', response)
-            self.assertIn('firmware_id', response['loaded_sfd'])
-            self.assertEqual(response['loaded_sfd']['firmware_id'], sfd2.get_firmware_id_ascii())
+
+            self.send_request({'cmd': 'get_loaded_sfd'})
+            response = self.wait_and_load_response()
+            self.assertEqual(response['cmd'], 'response_get_loaded_sfd')
+
+            self.assertIn('firmware_id', response)
+            self.assertIn('metadata', response)
+            self.assertEqual(response['firmware_id'], sfd2.get_firmware_id_ascii())
+            self.assertEqual(response['metadata'], sfd2.get_metadata())
 
             SFDStorage.uninstall(sfd1.get_firmware_id_ascii())
             SFDStorage.uninstall(sfd2.get_firmware_id_ascii())
@@ -1104,11 +1114,8 @@ class TestAPI(ScrutinyUnitTest):
             self.assertIn('completion_ratio', response['device_datalogging_status'])
             self.assertEqual(response['device_datalogging_status']['datalogger_state'], 'acquiring')
             self.assertEqual(response['device_datalogging_status']['completion_ratio'], 0.5)
-            self.assertIn('loaded_sfd', response)
-            self.assertIn('firmware_id', response['loaded_sfd'])
-            self.assertEqual(response['loaded_sfd']['firmware_id'], sfd2.get_firmware_id_ascii())
-            self.assertIn('metadata', response['loaded_sfd'])
-            self.assertEqual(response['loaded_sfd']['metadata'], sfd2.get_metadata())
+            self.assertIn('loaded_sfd_firmware_id', response)
+            self.assertEqual(response['loaded_sfd_firmware_id'], sfd2.get_firmware_id_ascii())
             self.assertIn('device_comm_link', response)
             self.assertIn('link_type', response['device_comm_link'])
             self.assertEqual(response['device_comm_link']['link_type'], 'dummy')
@@ -1138,8 +1145,8 @@ class TestAPI(ScrutinyUnitTest):
             self.assertIn('device_session_id', response)
             self.assertIsNotNone(response['device_session_id'])
             self.assertEqual(response['device_status'], 'connected_ready')
-            self.assertIn('loaded_sfd', response)
-            self.assertIsNone(response['loaded_sfd'])
+            self.assertIn('loaded_sfd_firmware_id', response)
+            self.assertIsNone(response['loaded_sfd_firmware_id'])
 
             self.assertIn('device_comm_link', response)
             self.assertIn('link_type', response['device_comm_link'])

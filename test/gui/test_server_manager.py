@@ -131,9 +131,8 @@ class TestServerManager(ScrutinyBaseGuiTest):
                 device_comm_state=sdk.DeviceCommState.ConnectedReady,
                 device_session_id='session_id1', # This value is used to detect connection change on the device side
                 datalogging=sdk.DataloggingInfo(state=sdk.DataloggerState.Standby, completion_ratio=None),
-                device_link=sdk.DeviceLinkInfo(type=sdk.DeviceLinkType._Dummy, config={}),
-                sfd=None,
-                device=DUMMY_DEVICE
+                device_link=sdk.DeviceLinkInfo(type=sdk.DeviceLinkType._Dummy, config={}, operational=True),
+                sfd_firmware_id=None
             )
 
             self.wait_events_and_clear([EventType.DEVICE_READY], timeout=1)
@@ -142,9 +141,8 @@ class TestServerManager(ScrutinyBaseGuiTest):
                 device_comm_state=sdk.DeviceCommState.Disconnected,
                 device_session_id=None, # This value is used to detect connection change on the device side
                 datalogging=sdk.DataloggingInfo(state=sdk.DataloggerState.NA, completion_ratio=None),
-                device_link=sdk.DeviceLinkInfo(type=sdk.DeviceLinkType._Dummy, config={}),
-                sfd=None,
-                device=None
+                device_link=sdk.DeviceLinkInfo(type=sdk.DeviceLinkType._Dummy, config={}, operational=True),
+                sfd_firmware_id=None,
             )
 
             self.wait_events_and_clear([EventType.DEVICE_DISCONNECTED], timeout=1)
@@ -166,9 +164,8 @@ class TestServerManager(ScrutinyBaseGuiTest):
                 device_comm_state=sdk.DeviceCommState.ConnectedReady,
                 device_session_id='session_id1', # This value is used to detect connection change on the device side
                 datalogging=sdk.DataloggingInfo(state=sdk.DataloggerState.Standby, completion_ratio=None),
-                device_link=sdk.DeviceLinkInfo(type=sdk.DeviceLinkType._Dummy, config={}),
-                sfd=sdk.SFDInfo(firmware_id='abcdef', metadata=None),
-                device=DUMMY_DEVICE
+                device_link=sdk.DeviceLinkInfo(type=sdk.DeviceLinkType._Dummy, config={}, operational=True),
+                sfd_firmware_id='abcdef',
             )
 
             self.wait_events_and_clear([EventType.DEVICE_READY, EventType.SFD_LOADED], timeout=1)
@@ -177,9 +174,8 @@ class TestServerManager(ScrutinyBaseGuiTest):
                 device_comm_state=sdk.DeviceCommState.Disconnected,
                 device_session_id=None, # This value is used to detect connection change on the device side
                 datalogging=sdk.DataloggingInfo(state=sdk.DataloggerState.NA, completion_ratio=None),
-                device_link=sdk.DeviceLinkInfo(type=sdk.DeviceLinkType._Dummy, config={}),
-                sfd=None,
-                device=None
+                device_link=sdk.DeviceLinkInfo(type=sdk.DeviceLinkType._Dummy, config={}, operational=True),
+                sfd_firmware_id=None
             )
 
             self.wait_events_and_clear([EventType.SFD_UNLOADED, EventType.DEVICE_DISCONNECTED], timeout=1)
@@ -202,9 +198,8 @@ class TestServerManager(ScrutinyBaseGuiTest):
                 device_comm_state=sdk.DeviceCommState.ConnectedReady,
                 device_session_id='session_id1', # This value is used to detect connection change on the device side
                 datalogging=sdk.DataloggingInfo(state=sdk.DataloggerState.Standby, completion_ratio=None),
-                device_link=sdk.DeviceLinkInfo(type=sdk.DeviceLinkType._Dummy, config={}),
-                sfd=None,
-                device=DUMMY_DEVICE
+                device_link=sdk.DeviceLinkInfo(type=sdk.DeviceLinkType._Dummy, config={}, operational=True),
+                sfd_firmware_id=None
             )
 
             self.wait_events_and_clear([EventType.DEVICE_READY], timeout=1)
@@ -213,9 +208,8 @@ class TestServerManager(ScrutinyBaseGuiTest):
                 device_comm_state=sdk.DeviceCommState.ConnectedReady,
                 device_session_id='session_id1', # This value is used to detect connection change on the device side
                 datalogging=sdk.DataloggingInfo(state=sdk.DataloggerState.Standby, completion_ratio=None),
-                device_link=sdk.DeviceLinkInfo(type=sdk.DeviceLinkType._Dummy, config={}),
-                sfd=sdk.SFDInfo("abc", metadata=None),
-                device=DUMMY_DEVICE
+                device_link=sdk.DeviceLinkInfo(type=sdk.DeviceLinkType._Dummy, config={}, operational=True),
+                sfd_firmware_id="abc"
             )
 
             self.wait_events_and_clear([EventType.SFD_LOADED], timeout=1)
@@ -224,9 +218,8 @@ class TestServerManager(ScrutinyBaseGuiTest):
                 device_comm_state=sdk.DeviceCommState.ConnectedReady,
                 device_session_id='session_id1', # This value is used to detect connection change on the device side
                 datalogging=sdk.DataloggingInfo(state=sdk.DataloggerState.Standby, completion_ratio=None),
-                device_link=sdk.DeviceLinkInfo(type=sdk.DeviceLinkType._Dummy, config={}),
-                sfd=None,
-                device=DUMMY_DEVICE
+                device_link=sdk.DeviceLinkInfo(type=sdk.DeviceLinkType._Dummy, config={}, operational=True),
+                sfd_firmware_id=None
             )
 
             self.wait_events_and_clear([EventType.SFD_UNLOADED], timeout=1)
@@ -235,9 +228,8 @@ class TestServerManager(ScrutinyBaseGuiTest):
                 device_comm_state=sdk.DeviceCommState.Disconnected,
                 device_session_id=None, # This value is used to detect connection change on the device side
                 datalogging=sdk.DataloggingInfo(state=sdk.DataloggerState.NA, completion_ratio=None),
-                device_link=sdk.DeviceLinkInfo(type=sdk.DeviceLinkType._Dummy, config={}),
-                sfd=None,
-                device=None
+                device_link=sdk.DeviceLinkInfo(type=sdk.DeviceLinkType._Dummy, config={}, operational=True),
+                sfd_firmware_id=None
             )
 
             self.wait_events_and_clear([EventType.DEVICE_DISCONNECTED], timeout=1)
@@ -257,9 +249,8 @@ class TestServerManager(ScrutinyBaseGuiTest):
             device_comm_state=sdk.DeviceCommState.ConnectedReady,
             device_session_id='session_id1', # This value is used to detect connection change on the device side
             datalogging=sdk.DataloggingInfo(state=sdk.DataloggerState.Standby, completion_ratio=None),
-            device_link=sdk.DeviceLinkInfo(type=sdk.DeviceLinkType._Dummy, config={}),
-            sfd=None,
-            device=DUMMY_DEVICE
+            device_link=sdk.DeviceLinkInfo(type=sdk.DeviceLinkType._Dummy, config={}, operational=True),
+            sfd_firmware_id=None
         )
 
         self.wait_events_and_clear([EventType.DEVICE_READY], timeout=1)
@@ -278,8 +269,7 @@ class TestServerManager(ScrutinyBaseGuiTest):
                 device_session_id=f'new_session_id{i}',     # We change that.
                 datalogging=self.fake_client.server_info.datalogging,
                 device_link=self.fake_client.server_info.device_link,
-                sfd=self.fake_client.server_info.sfd,
-                device=DUMMY_DEVICE
+                sfd_firmware_id=self.fake_client.server_info.sfd_firmware_id
             )
 
             # Download request never complete, therefore no watchble_index_changed
@@ -317,9 +307,8 @@ class TestServerManager(ScrutinyBaseGuiTest):
             device_comm_state=sdk.DeviceCommState.ConnectedReady,
             device_session_id='session_id1', # This value is used to detect connection change on the device side
             datalogging=sdk.DataloggingInfo(state=sdk.DataloggerState.Standby, completion_ratio=None),
-            device_link=sdk.DeviceLinkInfo(type=sdk.DeviceLinkType._Dummy, config={}),
-            sfd=sdk.SFDInfo(firmware_id="abc", metadata=None),
-            device=DUMMY_DEVICE
+            device_link=sdk.DeviceLinkInfo(type=sdk.DeviceLinkType._Dummy, config={}, operational=True),
+            sfd_firmware_id="abc"
         )
 
         self.wait_events_and_clear([EventType.DEVICE_READY, EventType.SFD_LOADED], timeout=1)
@@ -355,8 +344,7 @@ class TestServerManager(ScrutinyBaseGuiTest):
                 device_session_id=f'new_session_id{i}',     # We change that.
                 datalogging=self.fake_client.server_info.datalogging,
                 device_link=self.fake_client.server_info.device_link,
-                sfd=self.fake_client.server_info.sfd,
-                device=DUMMY_DEVICE
+                sfd_firmware_id=self.fake_client.server_info.sfd_firmware_id
             )
 
             self.wait_events_and_clear([EventType.SFD_UNLOADED, EventType.DEVICE_DISCONNECTED, EventType.DEVICE_READY, EventType.SFD_LOADED], timeout=1)
@@ -394,9 +382,8 @@ class TestServerManager(ScrutinyBaseGuiTest):
             device_comm_state=sdk.DeviceCommState.ConnectedReady,
             device_session_id='session_id1', # This value is used to detect connection change on the device side
             datalogging=sdk.DataloggingInfo(state=sdk.DataloggerState.Standby, completion_ratio=None),
-            device_link=sdk.DeviceLinkInfo(type=sdk.DeviceLinkType._Dummy, config={}),
-            sfd=None,
-            device=DUMMY_DEVICE
+            device_link=sdk.DeviceLinkInfo(type=sdk.DeviceLinkType._Dummy, config={}, operational=True),
+            sfd_firmware_id=None
         )
 
         self.wait_events_and_clear([EventType.DEVICE_READY], timeout=1)
@@ -410,8 +397,7 @@ class TestServerManager(ScrutinyBaseGuiTest):
                 device_session_id=self.fake_client.server_info.device_session_id,     # We change that.
                 datalogging=sdk.DataloggingInfo(state=new_dl_state, completion_ratio=None),
                 device_link=self.fake_client.server_info.device_link,
-                sfd=self.fake_client.server_info.sfd,
-                device=DUMMY_DEVICE
+                sfd_firmware_id=self.fake_client.server_info.sfd_firmware_id,
             )
         
             self.wait_events_and_clear([EventType.DATALOGGING_STATE_CHANGED], timeout=1)
@@ -422,8 +408,7 @@ class TestServerManager(ScrutinyBaseGuiTest):
                 device_session_id=self.fake_client.server_info.device_session_id,     
                 datalogging=sdk.DataloggingInfo(state=sdk.DataloggerState.Acquiring, completion_ratio=None),    # We change that.
                 device_link=self.fake_client.server_info.device_link,
-                sfd=self.fake_client.server_info.sfd,
-                device=DUMMY_DEVICE
+                sfd_firmware_id=self.fake_client.server_info.sfd_firmware_id
             )
             self.wait_events_and_clear([EventType.DATALOGGING_STATE_CHANGED], timeout=1)
 
@@ -434,8 +419,7 @@ class TestServerManager(ScrutinyBaseGuiTest):
                 device_session_id=self.fake_client.server_info.device_session_id,  
                 datalogging=sdk.DataloggingInfo(state=sdk.DataloggerState.Acquiring, completion_ratio=float(i)),    # We change that.  
                 device_link=self.fake_client.server_info.device_link,
-                sfd=self.fake_client.server_info.sfd,
-                device=DUMMY_DEVICE
+                sfd_firmware_id=self.fake_client.server_info.sfd_firmware_id
             )
         
             self.wait_events_and_clear([EventType.DATALOGGING_STATE_CHANGED], timeout=1)
@@ -503,9 +487,8 @@ class TestServerManager(ScrutinyBaseGuiTest):
                 device_comm_state=sdk.DeviceCommState.ConnectedReady,
                 device_session_id='session_id1', # This value is used to detect connection change on the device side
                 datalogging=sdk.DataloggingInfo(state=sdk.DataloggerState.Standby, completion_ratio=None),
-                device_link=sdk.DeviceLinkInfo(type=sdk.DeviceLinkType._Dummy, config={}),
-                sfd=None,
-                device=DUMMY_DEVICE
+                device_link=sdk.DeviceLinkInfo(type=sdk.DeviceLinkType._Dummy, config={}, operational=True),
+                sfd_firmware_id=None
             )
 
             self.wait_events_and_clear([EventType.DEVICE_READY], timeout=1)
@@ -533,9 +516,8 @@ class TestServerManager(ScrutinyBaseGuiTest):
                 device_comm_state=sdk.DeviceCommState.Disconnected,
                 device_session_id=None, # This value is used to detect connection change on the device side
                 datalogging=sdk.DataloggingInfo(state=sdk.DataloggerState.NA, completion_ratio=None),
-                device_link=sdk.DeviceLinkInfo(type=sdk.DeviceLinkType._Dummy, config={}),
-                sfd=None,
-                device=None
+                device_link=sdk.DeviceLinkInfo(type=sdk.DeviceLinkType._Dummy, config={}, operational=True),
+                sfd_firmware_id=None,
             )
 
             if cancel_request:
@@ -603,9 +585,8 @@ class TestServerManager(ScrutinyBaseGuiTest):
                 device_comm_state=sdk.DeviceCommState.ConnectedReady,
                 device_session_id='session_id1', # This value is used to detect connection change on the device side
                 datalogging=sdk.DataloggingInfo(state=sdk.DataloggerState.Standby, completion_ratio=None),
-                device_link=sdk.DeviceLinkInfo(type=sdk.DeviceLinkType._Dummy, config={}),
-                sfd=sdk.SFDInfo(firmware_id='abcdef', metadata=None),
-                device=DUMMY_DEVICE
+                device_link=sdk.DeviceLinkInfo(type=sdk.DeviceLinkType._Dummy, config={}, operational=True),
+                sfd_firmware_id='abcdef'
             )
 
             self.wait_events_and_clear([EventType.DEVICE_READY, EventType.SFD_LOADED], timeout=1)
@@ -616,9 +597,8 @@ class TestServerManager(ScrutinyBaseGuiTest):
                 device_comm_state=sdk.DeviceCommState.Disconnected,
                 device_session_id=None, # This value is used to detect connection change on the device side
                 datalogging=sdk.DataloggingInfo(state=sdk.DataloggerState.NA, completion_ratio=None),
-                device_link=sdk.DeviceLinkInfo(type=sdk.DeviceLinkType._Dummy, config={}),
-                sfd=None,
-                device=None
+                device_link=sdk.DeviceLinkInfo(type=sdk.DeviceLinkType._Dummy, config={}, operational=True),
+                sfd_firmware_id=None,
             )
 
             if cancel_requests:
@@ -644,9 +624,8 @@ class TestServerManager(ScrutinyBaseGuiTest):
             device_comm_state=sdk.DeviceCommState.ConnectedReady,
             device_session_id='session_id1', # This value is used to detect connection change on the device side
             datalogging=sdk.DataloggingInfo(state=sdk.DataloggerState.Standby, completion_ratio=None),
-            device_link=sdk.DeviceLinkInfo(type=sdk.DeviceLinkType._Dummy, config={}),
-            sfd=sdk.SFDInfo(firmware_id="abc", metadata=None),
-            device=DUMMY_DEVICE
+            device_link=sdk.DeviceLinkInfo(type=sdk.DeviceLinkType._Dummy, config={}, operational=True),
+            sfd_firmware_id="abc"
         )
 
         self.wait_events_and_clear([EventType.DEVICE_READY, EventType.SFD_LOADED], timeout=1)
@@ -697,8 +676,7 @@ class TestServerManager(ScrutinyBaseGuiTest):
                 device_session_id=f'new_session_id{i}',     # We change that.
                 datalogging=self.fake_client.server_info.datalogging,
                 device_link=self.fake_client.server_info.device_link,
-                sfd=self.fake_client.server_info.sfd,
-                device=DUMMY_DEVICE
+                sfd_firmware_id=self.fake_client.server_info.sfd_firmware_id,
             )
 
             self.wait_events_and_clear([

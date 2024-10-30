@@ -531,8 +531,8 @@ class ServerInfo:
     datalogging: DataloggingInfo
     """Datalogging state"""
 
-    sfd: Optional[SFDInfo]
-    """The Scrutiny Firmware Description file actually loaded on the server. ``None`` if none is loaded"""
+    sfd_firmware_id: Optional[str]
+    """The firmware ID of the Scrutiny Firmware Description file actually loaded on the server. ``None`` if none is loaded"""
 
     device_link: DeviceLinkInfo
     """Communication channel presently used to communicate with the device"""

@@ -669,13 +669,14 @@ class API:
     #  ===  GET_LOADED_SFD ===
     def process_get_loaded_sfd(self, conn_id: str, req: api_typing.C2S.GetLoadedSFD) -> None:
         # Request to get the actively loaded Scrutiny Firmware Description. Loaded by the SFD Handler
-        # pon connection with a known device
+        # upon connection with a known device
         sfd = self.sfd_handler.get_loaded_sfd()
 
         response: api_typing.S2C.GetLoadedSFD = {
             'cmd': self.Command.Api2Client.GET_LOADED_SFD_RESPONSE,
             'reqid': self.get_req_id(req),
-            'firmware_id': sfd.get_firmware_id_ascii() if sfd is not None else None
+            'firmware_id': sfd.get_firmware_id_ascii() if sfd is not None else None,
+            'metadata' : sfd.get_metadata() if sfd is not None else None
         }
 
         self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
@@ -1589,12 +1590,9 @@ class API:
         device_comm_link = self.device_handler.get_comm_link()
         
 
-        loaded_sfd: Optional[api_typing.SFDEntry] = None
+        loaded_sfd_firmware_id: Optional[str] = None
         if sfd is not None:
-            loaded_sfd = {
-                "firmware_id": str(sfd.get_firmware_id_ascii()),
-                "metadata": sfd.get_metadata()
-            }
+            loaded_sfd_firmware_id = sfd.get_firmware_id_ascii()
 
         if device_comm_link is None:
             link_config = cast(EmptyDict, {})
@@ -1614,7 +1612,7 @@ class API:
             'reqid': reqid,
             'device_status': self.DEVICE_CONN_STATUS_2_APISTR[self.device_handler.get_connection_status()],
             'device_session_id': self.device_handler.get_comm_session_id(),  # str when connected_ready. None when not connected_ready
-            'loaded_sfd': loaded_sfd,
+            'loaded_sfd_firmware_id': loaded_sfd_firmware_id,
             'device_datalogging_status': {
                 'datalogger_state': cast(api_typing.DataloggerState, datalogger_state_api),
                 'completion_ratio': self.device_handler.get_datalogging_acquisition_completion_ratio()

@@ -30,7 +30,7 @@ class SFDContentDialog(QDialog):
         project_gb.setTitle("Project")
         sfd_generation_gb.setTitle("SFD Generation")
         
-        def write_fields(gb:QGroupBox, fields:Tuple[str, str]) -> None:
+        def write_fields(gb:QGroupBox, fields:List[Tuple[str, Optional[str]]]) -> None:
             layout = QFormLayout(gb)
             for field in fields:
                 property_label = QLabel(f"{field[0]}: ")

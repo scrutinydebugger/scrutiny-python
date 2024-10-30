@@ -8,6 +8,8 @@
 
 from test import ScrutinyUnitTest
 from PySide6.QtWidgets import QApplication
+import PySide6
+import PySide6.QtGui
 import enum
 import time
 from test import logger
@@ -33,11 +35,14 @@ class ScrutinyBaseGuiTest(ScrutinyUnitTest):
 
     def setUp(self) -> None:
         self.event_list:List[EventType] = []
-        self.app = QApplication([]) # Required to process event because they are emitted in a different thread, therefore the connectiontype is queued
+        self.app = QApplication.instance()
+        if self.app is None:
+            self.app = QApplication([]) # Required to process event because they are emitted in a different thread, therefore the connectiontype is queued
     
     def tearDown(self):
         self.process_events()
-        self.app.deleteLater()  # Segfault without this. don't know why
+       # self.app.deleteLater()  # Segfault without this. don't know why
+        
 
     def wait_equal(self, fn, val, timeout, no_assert=False):
         t = time.perf_counter()

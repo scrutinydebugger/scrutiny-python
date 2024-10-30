@@ -327,7 +327,7 @@ class ScrutinyClient:
         self._server_state = ServerState.Disconnected
         self._hostname = None
         self._port = None
-        
+
         self._encoding = 'utf8'
         self._sock = None
         self._selector = None
@@ -744,6 +744,7 @@ class ScrutinyClient:
     def _wt_process_device_state(self) -> None:
         """Check the state of the device and take action when it changes"""
         if self._server_info is not None:
+            
             # ====  Check Device conn
             if self._last_device_session_id is not None:
                 if self._last_device_session_id != self._server_info.device_session_id:
@@ -751,27 +752,25 @@ class ScrutinyClient:
                     self._logger.info(f"Device is gone. Last session ID: {self._last_device_session_id}")
             else:
                 if self._server_info.device_session_id is not None:
-                    device_name = "<unnamed>"
                     self._logger.info(f"Connected to device. Session ID: {self._server_info.device_session_id} ")
 
                     # ====  Check SFD
-            new_firmware_id = self._server_info.sfd.firmware_id if self._server_info.sfd is not None else None
             if self._last_sfd_firmware_id is not None:
-                if new_firmware_id is None:
+                if self._server_info.sfd_firmware_id is None:
                     self._wt_clear_all_watchables(ValueStatus.SFDUnloaded, [WatchableType.Alias, WatchableType.Variable])   # RPVs are still there.
                     self._logger.info(f"SFD unloaded. Firmware ID: {self._last_sfd_firmware_id}")
             else:
-                if new_firmware_id is not None:
-                    self._logger.info(f"SFD loaded. Firmware ID: {new_firmware_id}")
+                if self._server_info.sfd_firmware_id is not None:
+                    self._logger.info(f"SFD loaded. Firmware ID: {self._server_info.sfd_firmware_id}")
 
             self._last_device_session_id = self._server_info.device_session_id
-            self._last_sfd_firmware_id = new_firmware_id
+            self._last_sfd_firmware_id = self._server_info.sfd_firmware_id
         else:
             self._last_device_session_id = None
             self._last_sfd_firmware_id = None
 
     def close_socket(self) -> None:
-        """Forcefully attempt to close a socket to cancel any pending connection"""
+        """Forcefully attempt to close a socket to cancel any pending connection or requests"""
         # Does not respect _sock_lock on purpose.
         try:
             if self._sock is not None:
@@ -1774,6 +1773,34 @@ class ScrutinyClient:
         def callback(state: CallbackState, response: Optional[api_typing.S2CMessage]) -> None:
             if response is not None and state == CallbackState.OK:
                 cb_data.obj = api_parser.parse_get_device_info(cast(api_typing.S2C.GetDeviceInfo, response))
+        future = self._send(req, callback)
+        assert future is not None
+        future.wait()
+
+        if future.state != CallbackState.OK:
+            raise sdk.exceptions.OperationFailure(f"Failed to read the device information. {future.error_str}")
+
+        return cb_data.obj
+    
+    def get_loaded_sfd(self) -> Optional[sdk.SFDInfo]:
+        """
+        Reads the details of the Scrutiny Firmware Description loaded on the server side. 
+        This information includes the firmware ID and the SFD metadata such as proejc tname, project version, author, etc..
+
+        :raise OperationFailure: If the request to the server fails
+
+        :return: The loaded SFD details or ``None`` if no SFD is loaded on the server
+        """
+        req = self._make_request(API.Command.Client2Api.GET_LOADED_SFD)
+
+        @dataclass
+        class Container:
+            obj: Optional[sdk.SFDInfo]
+        cb_data: Container = Container(obj=None)  # Force pass by ref
+
+        def callback(state: CallbackState, response: Optional[api_typing.S2CMessage]) -> None:
+            if response is not None and state == CallbackState.OK:
+                cb_data.obj = api_parser.parse_get_loaded_sfd(cast(api_typing.S2C.GetLoadedSFD, response))
         future = self._send(req, callback)
         assert future is not None
         future.wait()

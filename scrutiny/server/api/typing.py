@@ -99,12 +99,6 @@ class DeviceInfo(TypedDict):
     readonly_memory_regions: List[Dict[Literal['start', 'size', 'end'], int]]
     datalogging_capabilities:Optional[DataloggingCapabilities]
 
-
-class SFDEntry(TypedDict):
-    firmware_id: str
-    metadata: SFDMetadata
-
-
 class DeviceCommLinkDef(TypedDict):
     link_type: LinkType
     link_config: LinkConfig
@@ -288,12 +282,13 @@ class S2C:
 
     class GetLoadedSFD(BaseS2CMessage):
         firmware_id: Optional[str]
+        metadata: Optional[SFDMetadata]
 
     class InformServerStatus(BaseS2CMessage):
         device_status: DeviceCommStatus
         device_session_id: Optional[str]
+        loaded_sfd_firmware_id: Optional[str]
         device_datalogging_status: DataloggingStatus
-        loaded_sfd: Optional[SFDEntry]
         device_comm_link: DeviceCommLinkDef   # Dict is Any,Any.  Should be EmptyDict.
 
     class GetDeviceInfo(BaseS2CMessage):

@@ -289,7 +289,7 @@ class ServerManager:
                     # Server is gone
                     if self._fsm_data.server_info is None and self._fsm_data.previous_server_info is not None:
                         self._clear_index()
-                        if self._fsm_data.previous_server_info.sfd is not None:
+                        if self._fsm_data.previous_server_info.sfd_firmware_id is not None:
                             self._thread_sfd_unloaded()          # No event to avoid sending twice
                         if self._fsm_data.previous_server_info.device_session_id is not None:
                             self._thread_device_disconnected()   # No event to avoid sending twice
@@ -298,7 +298,7 @@ class ServerManager:
                     elif self._fsm_data.server_info is not None and self._fsm_data.previous_server_info is None:
                         if self._fsm_data.server_info.device_session_id is not None:
                             self._thread_device_ready()
-                            if self._fsm_data.server_info.sfd is not None:
+                            if self._fsm_data.server_info.sfd_firmware_id is not None:
                                 self._thread_sfd_loaded()
 
 
@@ -307,14 +307,18 @@ class ServerManager:
                         # Device just left
                         if self._fsm_data.server_info.device_session_id is None and self._fsm_data.previous_server_info.device_session_id is not None:
                             self._clear_index()
-                            if self._fsm_data.server_info.sfd is None and self._fsm_data.previous_server_info.sfd is not None:
+                            if self._fsm_data.previous_server_info.sfd_firmware_id is not None:
+                                # We declare "unloaded" even if the server still have one loaded. It's a design choice to make the UI more simpler.
+                                # We don't allow a device disconnected with a SFD loaded
                                 self._thread_sfd_unloaded()
                             self._thread_device_disconnected()
 
                         # Device just arrived
                         elif self._fsm_data.server_info.device_session_id is not None and self._fsm_data.previous_server_info.device_session_id is None:
                             self._thread_device_ready()
-                            if self._fsm_data.server_info.sfd is not None and self._fsm_data.previous_server_info.sfd is None:
+                            if self._fsm_data.server_info.sfd_firmware_id is not None:
+                                # We declare "loaded" even if the server already had one loaded. It's a design choice to make the UI more simpler.
+                                # We don't allow a device disconnected with a SFD loaded
                                 self._thread_sfd_loaded()
 
                         # Device has been there consistently
@@ -325,16 +329,16 @@ class ServerManager:
                                 
                                 self._clear_index()
 
-                                if self._fsm_data.previous_server_info.sfd is not None:
+                                if self._fsm_data.previous_server_info.sfd_firmware_id is not None:
                                     self._thread_sfd_unloaded()
                                 self._thread_device_disconnected()
                                 self._thread_device_ready()
-                                if self._fsm_data.server_info.sfd is not None:
+                                if self._fsm_data.server_info.sfd_firmware_id is not None:
                                     self._thread_sfd_loaded()
                             else:
-                                if self._fsm_data.server_info.sfd is None and self._fsm_data.previous_server_info.sfd is not None:
+                                if self._fsm_data.server_info.sfd_firmware_id is None and self._fsm_data.previous_server_info.sfd_firmware_id is not None:
                                     self._thread_sfd_unloaded()
-                                elif self._fsm_data.server_info.sfd is not None and self._fsm_data.previous_server_info.sfd is None:
+                                elif self._fsm_data.server_info.sfd_firmware_id is not None and self._fsm_data.previous_server_info.sfd_firmware_id is None:
                                     self._thread_sfd_loaded()
                                 else:
                                     pass # SFD state is unchanged (None/None or loaded/loaded). Nothing to do
@@ -418,7 +422,7 @@ class ServerManager:
         # Handle the download of variables and alias if the SFD is loaded
         sfd_loaded = False
         if self._fsm_data.server_info is not None:
-            sfd_loaded = self._fsm_data.server_info.sfd is not None
+            sfd_loaded = self._fsm_data.server_info.sfd_firmware_id is not None
         if sfd_loaded:
                 if self._fsm_data.sfd_watchables_download_request is not None: 
                     if self._fsm_data.sfd_watchables_download_request.completed:

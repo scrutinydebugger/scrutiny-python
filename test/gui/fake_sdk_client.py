@@ -18,7 +18,7 @@ default_server_info = sdk.ServerInfo(
     device_comm_state=sdk.DeviceCommState.Disconnected,
     device_session_id=None,
     datalogging=sdk.DataloggingInfo(sdk.DataloggerState.NA, completion_ratio=None),
-    sfd=None,
+    sfd_firmware_id=None,
     device_link=sdk.DeviceLinkInfo(type=sdk.DeviceLinkType.UDP, config=dict(host='localhost', prot=1234), operational=True)
 )
 

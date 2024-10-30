@@ -174,7 +174,7 @@ class DeviceInfoDialog(QDialog):
         def add_section_text(title:str, text:str) -> QLabel:
             text_layout = add_section(title)
             label = QLabel(text)
-            configure_label(label)
+            configure_value_label(label)
             text_layout.addWidget(label)
             return label
 

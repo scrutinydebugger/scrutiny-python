@@ -14,6 +14,7 @@ from scrutiny.gui.core.server_manager import ServerManager
 from scrutiny.gui.dialogs.server_config_dialog import ServerConfigDialog
 from scrutiny.gui.dialogs.device_config_dialog import DeviceConfigDialog
 from scrutiny.gui.dialogs.device_info_dialog import DeviceInfoDialog
+from scrutiny.gui.dialogs.sfd_content_dialog import SFDContentDialog
 from scrutiny.gui import assets
 from scrutiny.sdk import ServerState, DeviceCommState, SFDInfo, DataloggingInfo, DataloggerState, DeviceLinkType, BaseLinkConfig
 from scrutiny import sdk
@@ -21,6 +22,7 @@ from scrutiny.sdk.client import ScrutinyClient
 import functools
 import enum
 from typing import Optional, Dict, cast, Union, Any, Tuple, Callable
+import logging 
 
 class ServerLabelValue(enum.Enum):
     Disconnected = enum.auto()
@@ -178,6 +180,8 @@ class StatusBar(QStatusBar):
     """Label that shows the actually loaded SFD"""
     _datalogger_status_label:StatusBarLabel
     """Label that shows the state of the datalogger"""
+    _logger:logging.Logger
+    """Logger object"""
     
     _server_status_label_menu:QMenu
     """Menu showed when the user click the server status label"""
@@ -205,6 +209,8 @@ class StatusBar(QStatusBar):
     """Flag used to ensure is single reconnection if the user change the server confiugration"""
     _device_info: Optional[sdk.DeviceInfo]
     """Contains all the info about the actually connected device. ``None`` if not available"""
+    _loaded_sfd: Optional[sdk.SFDInfo]
+    """Contains all the info about the actually loaded Scrutiny Firmware Description. ``None`` if not available"""
     
     def __init__(self, parent:QWidget, server_manager:ServerManager) -> None:
         super().__init__(parent)
@@ -213,13 +219,15 @@ class StatusBar(QStatusBar):
         self._device_config_dialog = DeviceConfigDialog(self, apply_callback=self._device_config_applied)
         self._one_shot_auto_connect = False
         self._device_info = None
+        self._loaded_sfd = None
 
         self._server_status_label = StatusBarLabel("", use_indicator=True, label_kind=StatusBarLabel.TextLabelKind.TOOLBAR, color=StatusBarLabel.Color.RED)
         self._device_comm_link_label = StatusBarLabel("", use_indicator=True, label_kind=StatusBarLabel.TextLabelKind.TOOLBAR, color=StatusBarLabel.Color.RED)
         self._device_status_label = StatusBarLabel("", use_indicator=True, label_kind=StatusBarLabel.TextLabelKind.TOOLBAR, color=StatusBarLabel.Color.RED)
-        self._sfd_status_label = StatusBarLabel("", use_indicator=False, label_kind=StatusBarLabel.TextLabelKind.LABEL)
+        self._sfd_status_label = StatusBarLabel("", use_indicator=False, label_kind=StatusBarLabel.TextLabelKind.TOOLBAR)
         self._datalogger_status_label = StatusBarLabel("", use_indicator=False, label_kind=StatusBarLabel.TextLabelKind.LABEL)
-
+        self._logger = logging.getLogger(self.__class__.__name__)
+        
         self._server_status_label_menu = QMenu()
         self._server_configure_action = self._server_status_label_menu.addAction("Configure")
         self._server_connect_action = self._server_status_label_menu.addAction("Connect")
@@ -235,6 +243,7 @@ class StatusBar(QStatusBar):
         self._device_details_action.triggered.connect(self._device_about_func)
 
         self._device_comm_link_label.set_click_action(self._device_link_click_func)
+        self._sfd_status_label.set_click_action(self._loaded_sfd_click_func)
 
         self.setContentsMargins(5,0,5,0)    
         self.addWidget(self._server_status_label)
@@ -253,6 +262,8 @@ class StatusBar(QStatusBar):
         # Add those callback before update_content because they modify the self._device_info
         self._server_manager.signals.device_ready.connect(self._device_connected_callback)
         self._server_manager.signals.device_disconnected.connect(self._device_disconnected_callback)
+        self._server_manager.signals.sfd_loaded.connect(self._sfd_loaded_callback)
+        self._server_manager.signals.sfd_unloaded.connect(self._sfd_unloaded_callback)
 
         # We catch everything!
         self._server_manager.signals.starting.connect(self.update_content)
@@ -310,6 +321,10 @@ class StatusBar(QStatusBar):
 
         self._device_config_dialog.show()
 
+    def _loaded_sfd_click_func(self) -> None:
+        if self._loaded_sfd is not None:
+            dialog = SFDContentDialog(self, self._loaded_sfd)
+            dialog.show()
 
     def _device_about_func(self) -> None:
         if self._device_info is not None:
@@ -404,15 +419,13 @@ class StatusBar(QStatusBar):
         self._device_comm_link_label.set_color(StatusBarLabel.Color.GREEN if operational else StatusBarLabel.Color.RED)
 
 
-    def set_sfd_label(self, device_connected:bool, value:Optional[SFDInfo]) -> None:
+    def set_sfd_label(self, value:Optional[SFDInfo]) -> None:
         """Change the loaded SFD label"""
         prefix = 'SFD:'
         if value is None:
-            self._sfd_status_label.setEnabled(device_connected)
             self._sfd_status_label.set_text(f'{prefix} None ')
             self._sfd_status_label.setToolTip("No Scrutiny Firmware Description file loaded")
         else:
-            self._sfd_status_label.setEnabled(True)
             project_name = "Unnamed project"
             if value.metadata is not None:
                 if value.metadata.project_name is not None:
@@ -450,8 +463,9 @@ class StatusBar(QStatusBar):
             self._server_connect_action.trigger()
 
     def update_content(self) -> None:
-        """Update the status bar content"""
+        """Update the status bar content and some internal states"""
         if not self._server_manager.is_running():   # Server manager is either stopped or stopping
+            self._loaded_sfd = None
             self._device_details_action.setEnabled(False)
             self._device_comm_link_label.setEnabled(False)
             self._device_status_label.setEnabled(False)
@@ -466,7 +480,7 @@ class StatusBar(QStatusBar):
                 self.set_server_label_value(ServerLabelValue.Disconnected)
             self.set_device_label(DeviceCommState.NA)
             self.set_device_comm_link_label(DeviceLinkType.NONE, False, sdk.NoneLinkConfig())
-            self.set_sfd_label(device_connected=False, value=None)
+            self.set_sfd_label(value=None)
             self.set_datalogging_label(DataloggingInfo(state=DataloggerState.NA, completion_ratio=None))
         else:   # Server manager is running healthy
             self._server_disconnect_action.setEnabled(True)
@@ -485,22 +499,41 @@ class StatusBar(QStatusBar):
             
             # We have no server status available. Only available when the server is connected
             if server_info is None:
+                self._loaded_sfd = None
                 self._device_status_label.setEnabled(False)
                 self._device_details_action.setEnabled(False)
                 self.set_device_label(DeviceCommState.NA)
                 self.set_device_comm_link_label(DeviceLinkType.NONE, False, sdk.NoneLinkConfig())
-                self.set_sfd_label(device_connected=False, value=None)
+                self.set_sfd_label(value=None)
                 self.set_datalogging_label(DataloggingInfo(state=DataloggerState.NA, completion_ratio=None))
             else:
+                # Do some maintenance on some state variable
+                if server_info.sfd_firmware_id is None:
+                    self._loaded_sfd = None
+                else:
+                    if self._loaded_sfd is not None:
+                        if self._loaded_sfd.firmware_id != server_info.sfd_firmware_id:
+                            self._loaded_sfd = None
+
+                if server_info.device_session_id is None:
+                    self._device_info = None
+                else:
+                    if self._device_info is not None:
+                        if self._device_info.device_id != server_info.device_session_id:
+                            self._device_info = None
+
                 self.set_device_comm_link_label(server_info.device_link.type, server_info.device_link.operational, server_info.device_link.config)
                 self.set_device_label(server_info.device_comm_state)
-                self.set_sfd_label(device_connected=server_info.device_comm_state == DeviceCommState.ConnectedReady, value=server_info.sfd)
+                self.set_sfd_label(value=self._loaded_sfd)
                 self.set_datalogging_label(server_info.datalogging)
                 
                 self._device_status_label.setEnabled(server_info.device_link.operational and server_info.device_comm_state != DeviceCommState.NA)
                 self._device_details_action.setEnabled(self._device_info is not None)
+                self._sfd_status_label.setEnabled(server_info.device_comm_state == DeviceCommState.ConnectedReady)
+
     
     def _receive_device_info(self, retval:Optional[Any], error:Optional[Exception]) -> None:
+        # Called when client.get_device_info() completes
         valid = False
         device_info:Optional[sdk.DeviceInfo] = None
         if retval is not None:
@@ -508,8 +541,11 @@ class StatusBar(QStatusBar):
             if server_info is not None:
                 if server_info.device_session_id is not None:
                     session_id, device_info = cast(Tuple[str, sdk.DeviceInfo], retval)
-                    if server_info.device_session_id == session_id:
+                    if server_info.device_session_id == session_id: # Is unchanged since request is initiated
                         valid = True
+        else:
+            if error is not None:
+                self._logger.error(f"Failed to download the device information: {error}")
 
         if valid:
             assert device_info is not None
@@ -518,7 +554,30 @@ class StatusBar(QStatusBar):
             self._device_info = None
         self.update_content()
 
+    def _receive_loaded_sfd_info(self, retval:Optional[Any], error:Optional[Exception]) -> None:
+        # Called when client.get_loaded_sfd() completes.
+        valid = False
+        loaded_sfd:Optional[sdk.SFDInfo] = None
+        if retval is not None:  # Success
+            server_info = self._server_manager.get_server_info()
+            if server_info is not None:
+                if server_info.sfd_firmware_id is not None:
+                    sfd_firmware_id, loaded_sfd = cast(Tuple[str, sdk.SFDInfo], retval)
+                    if server_info.sfd_firmware_id == sfd_firmware_id:  # Is unchanged since request is initiated
+                        valid = True
+        else:
+            if error is not None:
+                self._logger.error(f"Failed to download the SFD details: {error}")
+
+        if valid:
+            assert loaded_sfd is not None
+            self._loaded_sfd = loaded_sfd
+        else:
+            self._loaded_sfd = None
+        self.update_content()
+
     def _device_connected_callback(self) -> None:
+        # Called when the server manager emit the signal : device_connected
         info = self._server_manager.get_server_info()
         if info is not None:
             if info.device_session_id is not None:
@@ -527,7 +586,25 @@ class StatusBar(QStatusBar):
                     device_info = client.get_device_info()
                     return session_id, device_info
             
-            self._server_manager.schedule_client_request(func, self._receive_device_info)
+                self._server_manager.schedule_client_request(func, self._receive_device_info)
+                
 
     def _device_disconnected_callback(self) -> None:
+        # Called when the server manager emit the signal : device_disconnected
         self._device_info = None
+
+    def _sfd_loaded_callback(self) -> None:
+        # Called when the server manager emit the signal : sfd_laoded
+        info = self._server_manager.get_server_info()
+        if info is not None:
+            if info.sfd_firmware_id is not None:
+                sfd_firmware_id = info.sfd_firmware_id
+                def func(client:ScrutinyClient) -> Tuple[str, Optional[sdk.SFDInfo]]:
+                    loaded_sfd = client.get_loaded_sfd()
+                    return sfd_firmware_id, loaded_sfd
+
+                self._server_manager.schedule_client_request(func, self._receive_loaded_sfd_info)
+
+    def _sfd_unloaded_callback(self) -> None:
+        # Called when the server manager emit the signal : sfd_unloaded
+        self._loaded_sfd = None

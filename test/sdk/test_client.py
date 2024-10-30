@@ -658,18 +658,7 @@ class TestClient(ScrutinyUnitTest):
         self.assertIsNone(server_info.datalogging.completion_ratio)
         self.assertEqual(server_info.datalogging.state, sdk.DataloggerState.Standby)
 
-        self.assertIsNotNone(server_info.sfd)
-        assert server_info.sfd is not None
-        sfd = FirmwareDescription(get_artifact('test_sfd_1.sfd'))
-        self.assertEqual(server_info.sfd.firmware_id, sfd.get_firmware_id_ascii())
-        self.assertEqual(server_info.sfd.metadata.author, sfd.metadata['author'])
-        self.assertEqual(server_info.sfd.metadata.project_name, sfd.metadata['project_name'])
-        self.assertEqual(server_info.sfd.metadata.version, sfd.metadata['version'])
-
-        self.assertEqual(server_info.sfd.metadata.generation_info.python_version, sfd.metadata['generation_info']['python_version'])
-        self.assertEqual(server_info.sfd.metadata.generation_info.scrutiny_version, sfd.metadata['generation_info']['scrutiny_version'])
-        self.assertEqual(server_info.sfd.metadata.generation_info.system_type, sfd.metadata['generation_info']['system_type'])
-        self.assertEqual(server_info.sfd.metadata.generation_info.timestamp, datetime.fromtimestamp(sfd.metadata['generation_info']['time']))
+        self.assertIsNotNone(server_info.sfd_firmware_id)
 
         # Make sure the class is readonly.
         with self.assertRaises(Exception):
@@ -680,6 +669,25 @@ class TestClient(ScrutinyUnitTest):
         status = self.client.request_server_status_update(wait=True)
         
         self.assertIsNot(status, server_info)   # Make sure we have a new object with a new reference.
+
+    def test_get_loaded_sfd(self):
+
+        self.assertEqual(self.client.server_state, sdk.ServerState.Connected)
+        server_sfd = self.client.get_loaded_sfd()
+        self.assertIsNotNone(server_sfd)
+        assert server_sfd is not None
+
+        sfd = FirmwareDescription(get_artifact('test_sfd_1.sfd'))
+        self.assertEqual(server_sfd.firmware_id, sfd.get_firmware_id_ascii())
+        self.assertEqual(server_sfd.metadata.author, sfd.metadata['author'])
+        self.assertEqual(server_sfd.metadata.project_name, sfd.metadata['project_name'])
+        self.assertEqual(server_sfd.metadata.version, sfd.metadata['version'])
+
+        self.assertEqual(server_sfd.metadata.generation_info.python_version, sfd.metadata['generation_info']['python_version'])
+        self.assertEqual(server_sfd.metadata.generation_info.scrutiny_version, sfd.metadata['generation_info']['scrutiny_version'])
+        self.assertEqual(server_sfd.metadata.generation_info.system_type, sfd.metadata['generation_info']['system_type'])
+        self.assertEqual(server_sfd.metadata.generation_info.timestamp, datetime.fromtimestamp(sfd.metadata['generation_info']['time']))
+
 
     def test_get_device_info(self):
         # Make sure we can read the status of the server correctly
@@ -1221,10 +1229,10 @@ class TestClient(ScrutinyUnitTest):
         alias_var1 = self.client.watch('/a/b/alias_var1')
 
         def sfd_loaded_check():
-            return self.client.get_latest_server_status().sfd is not None
+            return self.client.get_latest_server_status().sfd_firmware_id is not None
 
         def sfd_unloaded_check():
-            return self.client.get_latest_server_status().sfd is None
+            return self.client.get_latest_server_status().sfd_firmware_id is None
 
         def unload_sfd():
             self.sfd_handler.unload()
