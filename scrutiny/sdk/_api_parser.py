@@ -320,6 +320,7 @@ def parse_get_device_info(response: api_typing.S2C.GetDeviceInfo) -> Optional[sd
         return None
     else:
         _check_response_dict(cmd, response, 'device_info', dict)
+        _check_response_dict(cmd, response, 'device_info.session_id', str)
         _check_response_dict(cmd, response, 'device_info.device_id', str)
         _check_response_dict(cmd, response, 'device_info.display_name', str)
         _check_response_dict(cmd, response, 'device_info.max_tx_data_size', int)
@@ -421,6 +422,7 @@ def parse_get_device_info(response: api_typing.S2C.GetDeviceInfo) -> Optional[sd
             )
 
         return sdk.DeviceInfo(
+            session_id=device_info['session_id'],
             device_id=device_info['device_id'],
             display_name=device_info['display_name'],
             max_tx_data_size=device_info['max_tx_data_size'],

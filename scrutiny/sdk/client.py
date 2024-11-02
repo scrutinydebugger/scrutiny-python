@@ -851,6 +851,12 @@ class ScrutinyClient:
             self._last_device_session_id = self._server_info.device_session_id
             self._last_sfd_firmware_id = self._server_info.sfd_firmware_id
         else:
+            if self._last_device_session_id is not None:
+                self._trigger_event(self.Events.DeviceGoneEvent(session_id=self._last_device_session_id), loglevel=logging.INFO)
+            
+            if self._last_sfd_firmware_id is not None:
+                self._trigger_event(self.Events.SFDUnLoadedEvent(firmware_id=self._last_sfd_firmware_id), loglevel=logging.INFO)
+
             self._last_device_session_id = None
             self._last_sfd_firmware_id = None
 
@@ -889,9 +895,19 @@ class ScrutinyClient:
             self._selector = None
             self._stream_parser = None
         
+        events_to_trigger:List[ScrutinyClient.Events._ANY_EVENTS] = []
         with self._main_lock:
+            if self._last_device_session_id is not None:
+                events_to_trigger.append(self.Events.DeviceGoneEvent(session_id=self._last_device_session_id))
+            
+            if self._last_sfd_firmware_id is not None:
+                events_to_trigger.append(self.Events.SFDUnLoadedEvent(firmware_id=self._last_sfd_firmware_id))
+
             if self._server_state == ServerState.Connected and self._hostname is not None and self._port is not None:
-                self._trigger_event(self.Events.DisconnectedEvent(self._hostname, self._port), loglevel=logging.INFO)
+                events_to_trigger.append(self.Events.DisconnectedEvent(self._hostname, self._port))
+            
+            self._last_device_session_id = None
+            self._last_sfd_firmware_id = None
             
             with self._user_lock:   # Critical part, the user reads those properties
                 self._wt_clear_all_watchables(ValueStatus.ServerGone)
@@ -908,6 +924,8 @@ class ScrutinyClient:
                     callback_entry._future._wt_mark_completed(CallbackState.Cancelled)
             self._callback_storage.clear()
 
+        for event in events_to_trigger:
+            self._trigger_event(event, loglevel=logging.INFO)
 
     def _wt_clear_all_watchables(self, new_status: ValueStatus, watchable_types: Optional[List[WatchableType]] = None) -> None:
         # Don't lock the main lock, supposed to be done beforehand

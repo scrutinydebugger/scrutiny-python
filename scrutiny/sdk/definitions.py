@@ -265,6 +265,9 @@ class DataloggingCapabilities:
 class DeviceInfo:
     """(Immutable struct) Information about the device connected to the server"""
 
+    session_id: str 
+    """The unique ID assigned to the communication session between the server abd the device when this data was gathered"""
+
     device_id: str
     """A unique ID identifying the device and its software (Firmware ID). """
 

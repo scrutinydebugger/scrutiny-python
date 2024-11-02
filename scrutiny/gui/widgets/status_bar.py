@@ -240,7 +240,7 @@ class StatusBar(QStatusBar):
         self._device_status_label_menu = QMenu()
         self._device_details_action = self._device_status_label_menu.addAction("Details")
         self._device_status_label.add_menu(self._device_status_label_menu)
-        self._device_details_action.triggered.connect(self._device_about_func)
+        self._device_details_action.triggered.connect(self._device_details_func)
 
         self._device_comm_link_label.set_click_action(self._device_link_click_func)
         self._sfd_status_label.set_click_action(self._loaded_sfd_click_func)
@@ -326,7 +326,7 @@ class StatusBar(QStatusBar):
             dialog = SFDContentDialog(self, self._loaded_sfd)
             dialog.show()
 
-    def _device_about_func(self) -> None:
+    def _device_details_func(self) -> None:
         if self._device_info is not None:
             dialog = DeviceInfoDialog(parent=self, info=self._device_info)
             dialog.show()
@@ -519,7 +519,7 @@ class StatusBar(QStatusBar):
                     self._device_info = None
                 else:
                     if self._device_info is not None:
-                        if self._device_info.device_id != server_info.device_session_id:
+                        if self._device_info.session_id != server_info.device_session_id:
                             self._device_info = None
 
                 self.set_device_comm_link_label(server_info.device_link.type, server_info.device_link.operational, server_info.device_link.config)

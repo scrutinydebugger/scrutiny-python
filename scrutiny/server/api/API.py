@@ -702,6 +702,7 @@ class API:
     #  ===  GET_DEVICE_INFO ===
     def process_get_device_info(self, conn_id: str, req: api_typing.C2S.GetDeviceInfo) -> None:
         device_info_input = self.device_handler.get_device_info()
+        session_id = self.device_handler.get_comm_session_id()
         def make_memory_region_map(regions: Optional[List[MemoryRegion]]) -> List[Dict[Literal['start', 'end', 'size'], int]]:
             output: List[Dict[Literal['start', 'end', 'size'], int]] = []
             if regions is not None:
@@ -738,10 +739,12 @@ class API:
         
         device_info_output: Optional[api_typing.DeviceInfo] = None
         if device_info_input is not None and device_info_input.all_ready():
+            assert session_id is not None # If we have data, we have a session
             max_bitrate_bps: Optional[int] = None
             if device_info_input.max_bitrate_bps is not None and device_info_input.max_bitrate_bps > 0:
                 max_bitrate_bps = device_info_input.max_bitrate_bps
             device_info_output = {
+                'session_id' : session_id,
                 'device_id': cast(str, device_info_input.device_id),
                 'display_name': cast(str, device_info_input.display_name),
                 'max_tx_data_size': cast(int, device_info_input.max_tx_data_size),

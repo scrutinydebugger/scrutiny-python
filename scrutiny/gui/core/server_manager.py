@@ -79,6 +79,10 @@ class ServerManager:
         last_server_state:sdk.ServerState
 
         def __init__(self) -> None:
+            self.runtime_watchables_download_request = None
+            self.sfd_watchables_download_request = None
+            self.connect_timestamp_mono = None
+            
             self.clear()
 
         def clear(self) -> None:
@@ -129,7 +133,7 @@ class ServerManager:
     _thread_stop_event:threading.Event  # Event used to stop the thread
     _signals:_Signals                   # The signals
     _internal_signals:_InternalSignals
-    _auto_reconnect:bool                # Flag indicating if the thread should try to reconnect the client if disconnected
+    _allow_auto_reconnect:bool                # Flag indicating if the thread should try to reconnect the client if disconnected
     _logger:logging.Logger              # Logger
     _thread_state:ThreadState             # Data used by the thread to detect state changes
 
@@ -144,13 +148,13 @@ class ServerManager:
             self._client = ScrutinyClient()
         else:
             self._client = client   # Mainly useful for unit testing
-        self._client.listen_events(ScrutinyClient.Events.LISTEN_NONE)
+        self._client.listen_events(ScrutinyClient.Events.LISTEN_ALL)
         self._signals = self._Signals()
         self._internal_signals = self._InternalSignals()
         
         self._thread = None
         self._thread_stop_event = threading.Event()
-        self._auto_reconnect = False
+        self._allow_auto_reconnect = False
         
         self._thread_state = self.ThreadState()
         self._index = watchable_index
@@ -159,6 +163,16 @@ class ServerManager:
         self._internal_signals.client_request_completed.connect(self._client_request_completed)
         self._stop_pending = False
         self._client_request_store = ClientRequestStore()
+
+        if self._logger.isEnabledFor(logging.DEBUG):
+            self._signals.server_connected.connect(lambda : self._logger.debug("+Signal: server_connected"))
+            self._signals.server_disconnected.connect(lambda : self._logger.debug("+Signal: server_disconnected"))
+            self._signals.device_ready.connect(lambda : self._logger.debug("+Signal: device_ready"))
+            self._signals.device_disconnected.connect(lambda : self._logger.debug("+Signal: device_disconnected"))
+            self._signals.sfd_loaded.connect(lambda : self._logger.debug("+Signal: sfd_loaded"))
+            self._signals.sfd_unloaded.connect(lambda : self._logger.debug("+Signal: sfd_unloaded"))
+            self._signals.index_changed.connect(lambda : self._logger.debug("+Signal: index_changed"))
+            self._signals.datalogging_state_changed.connect(lambda : self._logger.debug("+Signal: datalogging_state_changed"))
 
     def _join_thread_and_emit_stopped(self) -> None:
         if self._thread is not None:    # Should always be true
@@ -196,7 +210,7 @@ class ServerManager:
         self._logger.debug("Starting server manager")
         self._client_request_store.clear()
         self.signals.starting.emit()
-        self._auto_reconnect = True
+        self._allow_auto_reconnect = True
         self._thread_stop_event.clear()
         self._thread = threading.Thread(target=self._thread_func, args=[config], daemon=True)
         self._thread.start()
@@ -214,14 +228,13 @@ class ServerManager:
             self._logger.debug("Server manager is not running. Cannot stop")
             return 
         
-        self._stop_pending = True
         self._logger.debug("Stopping server manager")
+        self._stop_pending = True
         self.signals.stopping.emit()
-        self._auto_reconnect = False
-        self._client.close_socket()   # Will cancel any pending request in the other thread
         
         # Will cause the thread to exit and emit thread_exit_signal that triggers _join_thread_and_emit_stopped in the UI thread
         self._thread_stop_event.set()
+        self._client.close_socket()   # Will cancel any pending request in the other thread
         self._logger.debug("Stop initiated")
 
     def _thread_func(self, config:ServerConfig) -> None:
@@ -234,11 +247,10 @@ class ServerManager:
         try:
             while not self._thread_stop_event.is_set():
                 server_state = self._thread_handle_reconnect(config)
-                self._thread_process_client_events(server_state)
+                self._thread_process_client_events()
                 self._thread_handle_download_watchable_logic()
 
-
-            self._thread_state.last_server_state = server_state
+                self._thread_state.last_server_state = server_state
             
         except Exception as e:  # pragma: no cover
             self._logger.critical(f"Error in server manager thread: {e}")
@@ -275,7 +287,7 @@ class ServerManager:
     def _thread_handle_reconnect(self, config:ServerConfig) -> sdk.ServerState:
         server_state = self._client.server_state
         if server_state == sdk.ServerState.Disconnected:
-            if self._auto_reconnect:
+            if self._allow_auto_reconnect and not self._stop_pending:
                 # timer to prevent going crazy on function call
                 if self._thread_state.connect_timestamp_mono is None or time.monotonic() - self._thread_state.connect_timestamp_mono > self.RECONNECT_DELAY:
                     try:
@@ -287,27 +299,31 @@ class ServerManager:
         
         return server_state
 
-    def _thread_process_client_events(self, server_state:sdk.ServerState) -> None:
-        event = self._client.read_event(timeout=0.2)
-        if event is None:
-            return
-        
-        if isinstance(event, ScrutinyClient.Events.ConnectedEvent):
-            self._signals.server_connected.emit()
-            self._clear_index()
-        elif isinstance(event, ScrutinyClient.Events.DisconnectedEvent):
-            self._signals.server_disconnected.emit()
-            self._clear_index()
-        elif isinstance(event, ScrutinyClient.Events.DeviceReadyEvent):
-            self._thread_event_device_ready()
-        elif isinstance(event, ScrutinyClient.Events.DeviceGoneEvent):
-            self._thread_event_device_disconnected()
-        elif isinstance(event, ScrutinyClient.Events.SFDLoadedEvent):
-            self._thread_event_sfd_loaded()            
-        elif isinstance(event, ScrutinyClient.Events.SFDUnLoadedEvent):
-            self._thread_event_sfd_unloaded()
-        else:
-            self._logger.error(f"Unsupported event type : {event.__class__.__name__}")    
+    def _thread_process_client_events(self) -> None:
+        while True:
+            event = self._client.read_event(timeout=0.2)
+            if event is None:
+                return
+            
+            self._logger.debug(f"+Event: {event}")
+            if isinstance(event, ScrutinyClient.Events.ConnectedEvent):
+                self._signals.server_connected.emit()
+                self._clear_index()
+                self._allow_auto_reconnect = False    # Ensure we do not try to reconnect until the disconnect event is processed
+            elif isinstance(event, ScrutinyClient.Events.DisconnectedEvent):
+                self._signals.server_disconnected.emit()
+                self._clear_index()
+                self._allow_auto_reconnect = True # Full cycle completed. We allow reconencting
+            elif isinstance(event, ScrutinyClient.Events.DeviceReadyEvent):
+                self._thread_event_device_ready()
+            elif isinstance(event, ScrutinyClient.Events.DeviceGoneEvent):
+                self._thread_event_device_disconnected()
+            elif isinstance(event, ScrutinyClient.Events.SFDLoadedEvent):
+                self._thread_event_sfd_loaded()            
+            elif isinstance(event, ScrutinyClient.Events.SFDUnLoadedEvent):
+                self._thread_event_sfd_unloaded()
+            else:
+                self._logger.error(f"Unsupported event type : {event.__class__.__name__}")    
 
     
     def _thread_handle_download_watchable_logic(self) -> None:
