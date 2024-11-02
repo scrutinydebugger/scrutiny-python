@@ -250,7 +250,7 @@ class ScrutinyClient:
             port:int
 
             def msg(self) -> str:
-                return f"Disconnected from server {self.host}:{self.port}"
+                return f"Disconnected from server at {self.host}:{self.port}"
             
         @dataclass(frozen=True)
         class DeviceReadyEvent:
@@ -258,7 +258,7 @@ class ScrutinyClient:
             session_id:str
 
             def msg(self) -> str:
-                return f"Connected to device. Session ID: {self.session_id} "
+                return f"A new device is connected and ready. Session ID: {self.session_id} "
         
         @dataclass(frozen=True)
         class DeviceGoneEvent:
@@ -362,7 +362,7 @@ class ScrutinyClient:
     _last_sfd_firmware_id: Optional[str]    # The last loaded SFD seen. Used to detect change in SFD
 
     _listeners:List[listeners.BaseListener]   # List of registered listeners
-    _event_queue:"queue.Queue[Events.ANY_EVENTS]"
+    _event_queue:"queue.Queue[Events._ANY_EVENTS]"
     _enabled_events:int
 
     def __enter__(self) -> "ScrutinyClient":
@@ -387,7 +387,6 @@ class ScrutinyClient:
             :param timeout: Default timeout to use when making a request to the server
             :param write_timeout: Default timeout to use when writing to the device memory
         """
-        validation.assert_int_range(enabled_events, 'enabled_events', minval=0)
         logger_name = self.__class__.__name__
         if name is not None:
             logger_name += f"[{name}]"
@@ -434,7 +433,7 @@ class ScrutinyClient:
         self._locked_for_connect = False
 
         self._event_queue = queue.Queue(maxsize=100)   # Not supposed to go much above 1 or 2
-        self._enabled_events = enabled_events
+        self.listen_events(enabled_events)
 
     def _trigger_event(self, evt:Events._ANY_EVENTS, loglevel:int=logging.NOTSET) -> None:
         if self._enabled_events & evt._filter_flag:
@@ -1172,6 +1171,10 @@ class ScrutinyClient:
         self._threading_events.disconnected.wait(timeout=2)  # Timeout avoid race condition if the thread was exiting
 
         self._stop_worker_thread()
+
+    def listen_events(self, enabled_events:int) -> None:
+        validation.assert_int_range(enabled_events, 'enabled_events', minval=0)
+        self._enabled_events = enabled_events
 
     def watch(self, path: str) -> WatchableHandle:
         """Starts watching a watchable element identified by its display path (tree-like path)
@@ -2008,7 +2011,7 @@ class ScrutinyClient:
     def has_event_pending(self) -> bool:
         return not self._event_queue.empty()
     
-    def read_event(self, timeout:Optional[float] = None) -> Optional[int]:
+    def read_event(self, timeout:Optional[float] = None) -> Optional[Events._ANY_EVENTS]:
         try:
             return self._event_queue.get(block=True, timeout = timeout)
         except queue.Empty:

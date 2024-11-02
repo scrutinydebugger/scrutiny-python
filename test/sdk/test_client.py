@@ -2066,6 +2066,9 @@ class TestClient(ScrutinyUnitTest):
                     received_path.add(path)
 
     def test_events(self):
+        client_host = self.client.hostname
+        client_port = self.client.port
+
         self.assertTrue(self.client.has_event_pending())    # Connected
         evt = self.client.read_event(timeout=0.1)
         assert isinstance(evt, ScrutinyClient.Events.ConnectedEvent)
@@ -2090,16 +2093,36 @@ class TestClient(ScrutinyUnitTest):
 
         evt = self.client.read_event(timeout=2)
         assert isinstance(evt, ScrutinyClient.Events.DeviceGoneEvent)
+        self.assertEqual(evt.session_id, device_session_id)
         self.assertFalse(self.client.has_event_pending())
 
+
+        # Check that we can filter events properly
+        self.client.listen_events(ScrutinyClient.Events.ENABLE_DEVICE_READY)
+        self.device_handler.set_connection_status(DeviceHandler.ConnectionStatus.CONNECTED_READY)
+        evt = self.client.read_event(timeout=2)
+        assert isinstance(evt, ScrutinyClient.Events.DeviceReadyEvent)
+        self.assertEqual(evt.session_id, self.device_handler.comm_session_id)
+        self.assertEqual(evt.session_id, self.client.get_latest_server_status().device_session_id)
+        self.assertFalse(self.client.has_event_pending())
+        self.device_handler.set_connection_status(DeviceHandler.ConnectionStatus.DISCONNECTED)
+        evt = self.client.read_event(timeout=1)
+        self.assertIsNone(evt)
+        self.assertFalse(self.client.has_event_pending())
+
+
+        self.client.listen_events(ScrutinyClient.Events.ENABLE_ALL)
         self.sfd_handler.unload()
         evt = self.client.read_event(timeout=2)
         assert isinstance(evt, ScrutinyClient.Events.SFDUnLoadedEvent)
+        self.assertEqual(evt.firmware_id, sfd_firmware_id)
         self.assertFalse(self.client.has_event_pending())
 
         self.client.disconnect()
         evt = self.client.read_event(timeout=2)
         assert isinstance(evt, ScrutinyClient.Events.DisconnectedEvent)
+        self.assertEqual(evt.host, client_host)
+        self.assertEqual(evt.port, client_port)
 
 if __name__ == '__main__':
     unittest.main()
