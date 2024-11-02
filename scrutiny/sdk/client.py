@@ -288,14 +288,14 @@ class ScrutinyClient:
 
 
 
-        ENABLE_NONE = 0x0
-        ENABLE_CONNECTED = ConnectedEvent._filter_flag
-        ENABLE_DISCONENCTED = DisconnectedEvent._filter_flag
-        ENABLE_DEVICE_READY = DeviceReadyEvent._filter_flag
-        ENABLE_DEVICE_GONE = DeviceGoneEvent._filter_flag
-        ENABLE_SFD_LOADED = SFDLoadedEvent._filter_flag
-        ENABLE_SFD_UNLOADED = SFDUnLoadedEvent._filter_flag
-        ENABLE_ALL = 0xFFFFFFFF
+        LISTEN_NONE = 0x0
+        LISTEN_CONNECTED = ConnectedEvent._filter_flag
+        LISTEN_DISCONENCTED = DisconnectedEvent._filter_flag
+        LISTEN_DEVICE_READY = DeviceReadyEvent._filter_flag
+        LISTEN_DEVICE_GONE = DeviceGoneEvent._filter_flag
+        LISTEN_SFD_LOADED = SFDLoadedEvent._filter_flag
+        LISTEN_SFD_UNLOADED = SFDUnLoadedEvent._filter_flag
+        LISTEN_ALL = 0xFFFFFFFF
         
         _ANY_EVENTS = Union[ConnectedEvent, DisconnectedEvent, DeviceReadyEvent, DeviceGoneEvent, SFDLoadedEvent, SFDUnLoadedEvent]
 
@@ -377,7 +377,7 @@ class ScrutinyClient:
                  rx_message_callbacks: Optional[List[RxMessageCallback]] = None,
                  timeout: float = 4.0,
                  write_timeout: float = 5.0,
-                 enabled_events:int = Events.ENABLE_NONE
+                 enabled_events:int = Events.LISTEN_NONE
                  ):
         """ 
             Creates a client that can communicate with a Scrutiny server

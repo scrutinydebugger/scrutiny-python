@@ -2098,7 +2098,7 @@ class TestClient(ScrutinyUnitTest):
 
 
         # Check that we can filter events properly
-        self.client.listen_events(ScrutinyClient.Events.ENABLE_DEVICE_READY)
+        self.client.listen_events(ScrutinyClient.Events.LISTEN_DEVICE_READY)
         self.device_handler.set_connection_status(DeviceHandler.ConnectionStatus.CONNECTED_READY)
         evt = self.client.read_event(timeout=2)
         assert isinstance(evt, ScrutinyClient.Events.DeviceReadyEvent)
@@ -2111,7 +2111,7 @@ class TestClient(ScrutinyUnitTest):
         self.assertFalse(self.client.has_event_pending())
 
 
-        self.client.listen_events(ScrutinyClient.Events.ENABLE_ALL)
+        self.client.listen_events(ScrutinyClient.Events.LISTEN_ALL)
         self.sfd_handler.unload()
         evt = self.client.read_event(timeout=2)
         assert isinstance(evt, ScrutinyClient.Events.SFDUnLoadedEvent)
