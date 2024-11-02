@@ -490,7 +490,7 @@ class TestClient(ScrutinyUnitTest):
 
         port = cast(TCPClientHandler, self.api.client_handler).get_port()
         assert port is not None
-        self.client = ScrutinyClient(rx_message_callbacks=[self.log_rx_request])
+        self.client = ScrutinyClient(rx_message_callbacks=[self.log_rx_request], enabled_events=ScrutinyClient.Events.ENABLE_ALL)
 
         try:
             self.client.connect(localhost, port)
@@ -2065,7 +2065,41 @@ class TestClient(ScrutinyUnitTest):
                     self.assertNotIn(path, received_path, "Received duplicate item")
                     received_path.add(path)
 
+    def test_events(self):
+        self.assertTrue(self.client.has_event_pending())    # Connected
+        evt = self.client.read_event(timeout=0.1)
+        assert isinstance(evt, ScrutinyClient.Events.ConnectedEvent)
+        self.assertEqual(evt.host, self.client.hostname)
+        self.assertEqual(evt.port, self.client.port)
 
+        self.assertTrue(self.client.has_event_pending()) 
+        evt = self.client.read_event(timeout=0.1)
+        assert isinstance(evt, ScrutinyClient.Events.DeviceReadyEvent)
+        device_session_id = self.client.get_latest_server_status().device_session_id
+        self.assertEqual(evt.session_id, device_session_id)
+
+        self.assertTrue(self.client.has_event_pending()) 
+        evt = self.client.read_event(timeout=0.1)
+        assert isinstance(evt, ScrutinyClient.Events.SFDLoadedEvent)
+        sfd_firmware_id = self.client.get_latest_server_status().sfd_firmware_id
+        self.assertEqual(evt.firmware_id, sfd_firmware_id)
+
+        self.assertFalse(self.client.has_event_pending()) 
+
+        self.device_handler.set_connection_status(DeviceHandler.ConnectionStatus.DISCONNECTED)
+
+        evt = self.client.read_event(timeout=2)
+        assert isinstance(evt, ScrutinyClient.Events.DeviceGoneEvent)
+        self.assertFalse(self.client.has_event_pending())
+
+        self.sfd_handler.unload()
+        evt = self.client.read_event(timeout=2)
+        assert isinstance(evt, ScrutinyClient.Events.SFDUnLoadedEvent)
+        self.assertFalse(self.client.has_event_pending())
+
+        self.client.disconnect()
+        evt = self.client.read_event(timeout=2)
+        assert isinstance(evt, ScrutinyClient.Events.DisconnectedEvent)
 
 if __name__ == '__main__':
     unittest.main()

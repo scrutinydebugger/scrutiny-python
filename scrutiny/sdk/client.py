@@ -34,7 +34,6 @@ import socket
 import json
 import time
 import enum
-from datetime import datetime, timedelta
 from dataclasses import dataclass
 from base64 import b64encode
 import queue
@@ -233,8 +232,75 @@ class ScrutinyClient:
     _MEMORY_WRITE_DATA_LIFETIME = 30
     _DOWNLOAD_WATCHABLE_LIST_LIFETIME = 30
 
+    
+    class Events:
+        @dataclass(frozen=True)
+        class ConnectedEvent:
+            _filter_flag = 0x01
+            host:str
+            port:int
+
+            def msg(self) -> str:
+                return f"Connected to a Scrutiny server at {self.host}:{self.port}"
+        
+        @dataclass(frozen=True)
+        class DisconnectedEvent:
+            _filter_flag = 0x02
+            host:str
+            port:int
+
+            def msg(self) -> str:
+                return f"Disconnected from server {self.host}:{self.port}"
+            
+        @dataclass(frozen=True)
+        class DeviceReadyEvent:
+            _filter_flag = 0x04
+            session_id:str
+
+            def msg(self) -> str:
+                return f"Connected to device. Session ID: {self.session_id} "
+        
+        @dataclass(frozen=True)
+        class DeviceGoneEvent:
+            _filter_flag = 0x08
+            session_id:str
+
+            def msg(self) -> str:
+                return f"Device is gone. Last session ID: {self.session_id}"
+
+        @dataclass(frozen=True)
+        class SFDLoadedEvent:
+            _filter_flag = 0x10
+            firmware_id:str
+
+            def msg(self) -> str:
+                return f"Server has loaded a Firmware Decription with firmware ID: {self.firmware_id}"
+
+            
+        
+        @dataclass(frozen=True)
+        class SFDUnLoadedEvent:
+            _filter_flag = 0x20
+            firmware_id:str
+
+            def msg(self) -> str:
+                return f"Server has unloaded a Firmware Decription with firmware ID: {self.firmware_id}"
+
+
+
+        ENABLE_NONE = 0x0
+        ENABLE_CONNECTED = ConnectedEvent._filter_flag
+        ENABLE_DISCONENCTED = DisconnectedEvent._filter_flag
+        ENABLE_DEVICE_READY = DeviceReadyEvent._filter_flag
+        ENABLE_DEVICE_GONE = DeviceGoneEvent._filter_flag
+        ENABLE_SFD_LOADED = SFDLoadedEvent._filter_flag
+        ENABLE_SFD_UNLOADED = SFDUnLoadedEvent._filter_flag
+        ENABLE_ALL = 0xFFFFFFFF
+        
+        _ANY_EVENTS = Union[ConnectedEvent, DisconnectedEvent, DeviceReadyEvent, DeviceGoneEvent, SFDLoadedEvent, SFDUnLoadedEvent]
+
     @dataclass
-    class ThreadingEvents:
+    class _ThreadingEvents:
         stop_worker_thread: threading.Event
         disconnect: threading.Event
         disconnected: threading.Event
@@ -281,7 +347,7 @@ class ScrutinyClient:
     _pending_watchable_download_request: Dict[int, WatchableListDownloadRequest]
 
     _worker_thread: Optional[threading.Thread]  # The thread that handles the communication
-    _threading_events: ThreadingEvents  # All the threading events grouped under a single object
+    _threading_events: _ThreadingEvents  # All the threading events grouped under a single object
     _sock_lock: threading.Lock  # A threading lock to access the socket
     _main_lock: threading.Lock  # A threading lock to access the client internal state variables
     _user_lock: threading.Lock  # A threading lock to access whatever resource the user of the SDK might access
@@ -296,6 +362,8 @@ class ScrutinyClient:
     _last_sfd_firmware_id: Optional[str]    # The last loaded SFD seen. Used to detect change in SFD
 
     _listeners:List[listeners.BaseListener]   # List of registered listeners
+    _event_queue:"queue.Queue[Events.ANY_EVENTS]"
+    _enabled_events:int
 
     def __enter__(self) -> "ScrutinyClient":
         return self
@@ -308,7 +376,8 @@ class ScrutinyClient:
                  name: Optional[str] = None,
                  rx_message_callbacks: Optional[List[RxMessageCallback]] = None,
                  timeout: float = 4.0,
-                 write_timeout: float = 5.0
+                 write_timeout: float = 5.0,
+                 enabled_events:int = Events.ENABLE_NONE
                  ):
         """ 
             Creates a client that can communicate with a Scrutiny server
@@ -318,6 +387,7 @@ class ScrutinyClient:
             :param timeout: Default timeout to use when making a request to the server
             :param write_timeout: Default timeout to use when writing to the device memory
         """
+        validation.assert_int_range(enabled_events, 'enabled_events', minval=0)
         logger_name = self.__class__.__name__
         if name is not None:
             logger_name += f"[{name}]"
@@ -335,7 +405,7 @@ class ScrutinyClient:
         self._stream_maker = None
         self._rx_message_callbacks = [] if rx_message_callbacks is None else rx_message_callbacks
         self._worker_thread = None
-        self._threading_events = self.ThreadingEvents()
+        self._threading_events = self._ThreadingEvents()
         self._sock_lock = threading.Lock()
         self._main_lock = threading.Lock()
         self._user_lock = threading.Lock()
@@ -362,6 +432,18 @@ class ScrutinyClient:
         self._active_batch_context = None
         self._listeners=[]
         self._locked_for_connect = False
+
+        self._event_queue = queue.Queue(maxsize=100)   # Not supposed to go much above 1 or 2
+        self._enabled_events = enabled_events
+
+    def _trigger_event(self, evt:Events._ANY_EVENTS, loglevel:int=logging.NOTSET) -> None:
+        if self._enabled_events & evt._filter_flag:
+            try:
+                if self._logger.isEnabledFor(loglevel):
+                    self._logger.log(loglevel, evt.msg())
+                self._event_queue.put_nowait(evt)
+            except queue.Full:
+                self._logger.error("Event queue is full. Dropping event")
 
     def _start_worker_thread(self) -> None:
         self._threading_events.stop_worker_thread.clear()
@@ -747,21 +829,25 @@ class ScrutinyClient:
             
             # ====  Check Device conn
             if self._last_device_session_id is not None:
-                if self._last_device_session_id != self._server_info.device_session_id:
+                if self._last_device_session_id != self._server_info.device_session_id: # New value or None
                     self._wt_clear_all_watchables(ValueStatus.DeviceGone)
-                    self._logger.info(f"Device is gone. Last session ID: {self._last_device_session_id}")
+                    self._trigger_event(self.Events.DeviceGoneEvent(session_id=self._last_device_session_id), loglevel=logging.INFO)
+                    if self._server_info.device_session_id is not None:
+                        self._trigger_event(self.Events.DeviceReadyEvent(session_id=self._server_info.device_session_id), loglevel=logging.INFO)
             else:
                 if self._server_info.device_session_id is not None:
-                    self._logger.info(f"Connected to device. Session ID: {self._server_info.device_session_id} ")
+                    self._trigger_event(self.Events.DeviceReadyEvent(session_id=self._server_info.device_session_id), loglevel=logging.INFO)
 
-                    # ====  Check SFD
+            # ====  Check SFD
             if self._last_sfd_firmware_id is not None:
-                if self._server_info.sfd_firmware_id is None:
+                if self._server_info.sfd_firmware_id != self._last_sfd_firmware_id :    # None or new value
                     self._wt_clear_all_watchables(ValueStatus.SFDUnloaded, [WatchableType.Alias, WatchableType.Variable])   # RPVs are still there.
-                    self._logger.info(f"SFD unloaded. Firmware ID: {self._last_sfd_firmware_id}")
+                    self._trigger_event(self.Events.SFDUnLoadedEvent(firmware_id=self._last_sfd_firmware_id), loglevel=logging.INFO)
+                    if self._server_info.sfd_firmware_id is not None:
+                        self._trigger_event(self.Events.SFDLoadedEvent(firmware_id=self._server_info.sfd_firmware_id), loglevel=logging.INFO)
             else:
                 if self._server_info.sfd_firmware_id is not None:
-                    self._logger.info(f"SFD loaded. Firmware ID: {self._server_info.sfd_firmware_id}")
+                    self._trigger_event(self.Events.SFDLoadedEvent(firmware_id=self._server_info.sfd_firmware_id), loglevel=logging.INFO)
 
             self._last_device_session_id = self._server_info.device_session_id
             self._last_sfd_firmware_id = self._server_info.sfd_firmware_id
@@ -806,7 +892,7 @@ class ScrutinyClient:
         
         with self._main_lock:
             if self._server_state == ServerState.Connected and self._hostname is not None and self._port is not None:
-                self._logger.info(f"Disconnected from server at {self._hostname}:{self._port}")
+                self._trigger_event(self.Events.DisconnectedEvent(self._hostname, self._port), loglevel=logging.INFO)
             
             with self._user_lock:   # Critical part, the user reads those properties
                 self._wt_clear_all_watchables(ValueStatus.ServerGone)
@@ -1052,7 +1138,7 @@ class ScrutinyClient:
                     self._selector = selectors.DefaultSelector()
                     self._selector.register(self._sock, selectors.EVENT_READ)
                     self._sock.connect((hostname, port))
-                    self._logger.debug(f"Connected to {hostname}:{port}")
+                    self._trigger_event(self.Events.ConnectedEvent(self._hostname, self._port), loglevel=logging.INFO)
                     self._server_state = ServerState.Connected
                     self._start_worker_thread()
                 except socket.error as e:
@@ -1918,6 +2004,15 @@ class ScrutinyClient:
         # using the response request_id echo.
 
         return request_handle
+
+    def has_event_pending(self) -> bool:
+        return not self._event_queue.empty()
+    
+    def read_event(self, timeout:Optional[float] = None) -> Optional[int]:
+        try:
+            return self._event_queue.get(block=True, timeout = timeout)
+        except queue.Empty:
+            return None
 
     @property
     def logger(self) -> logging.Logger:

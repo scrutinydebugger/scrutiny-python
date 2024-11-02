@@ -16,7 +16,7 @@ if ! [[ -z "${BUILD_CONTEXT+x}" ]]; then
 fi
 
 set -x 
-
+export QT_QPA_PLATFORM=offscreen
 python3 -m mypy scrutiny  # .mypy.ini dictacte the rules
 python3 -m coverage run --data-file ${COV_DATAFILE} -m scrutiny runtest
 python3 -m coverage report --data-file ${COV_DATAFILE}
