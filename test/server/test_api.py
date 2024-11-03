@@ -120,7 +120,8 @@ class StubbedDeviceHandler:
         return self.connection_status
 
     def set_connection_status(self, connection_status: DeviceHandler.ConnectionStatus) -> None:
-        if connection_status == DeviceHandler.ConnectionStatus.CONNECTED_READY and self.connection_status != DeviceHandler.ConnectionStatus.CONNECTED_READY:
+        if connection_status == DeviceHandler.ConnectionStatus.CONNECTED_READY and (
+            self.connection_status != DeviceHandler.ConnectionStatus.CONNECTED_READY or self.server_session_id is None): 
             self.server_session_id = uuid4().hex
         elif connection_status != DeviceHandler.ConnectionStatus.CONNECTED_READY:
             self.server_session_id = None
@@ -160,9 +161,10 @@ class StubbedDeviceHandler:
     def get_datalogging_acquisition_completion_ratio(self):
         return 0.5
 
-    def get_device_info(self) -> DeviceInfo:
-        
-        return self.device_info
+    def get_device_info(self) -> Optional[DeviceInfo]:
+        if self.connection_status == DeviceHandler.ConnectionStatus.CONNECTED_READY:
+            return self.device_info
+        return None
 
     def configure_comm(self, link_type: str, link_config: Dict[Any, Any]) -> None:
         self.link_type = link_type
@@ -1689,6 +1691,7 @@ class TestAPI(ScrutinyUnitTest):
 
     def test_get_device_info_datalogging(self):
         # Check that we can read the datalogging capabilities
+        self.fake_device_handler.set_connection_status(DeviceHandler.ConnectionStatus.CONNECTED_READY)
         req: api_typing.C2S.GetDeviceInfo = {
             'cmd': 'get_device_info'
         }
@@ -2145,6 +2148,7 @@ class TestAPI(ScrutinyUnitTest):
         return ar
 
     def test_request_datalogging_acquisition(self):
+        self.fake_device_handler.set_connection_status(DeviceHandler.ConnectionStatus.CONNECTED_READY)
         with DataloggingStorage.use_temp_storage():
 
             var_entries: List[DatastoreVariableEntry] = self.make_dummy_entries(5, entry_type=EntryType.Var, prefix='var')

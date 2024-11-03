@@ -703,6 +703,7 @@ class API:
     def process_get_device_info(self, conn_id: str, req: api_typing.C2S.GetDeviceInfo) -> None:
         device_info_input = self.device_handler.get_device_info()
         session_id = self.device_handler.get_comm_session_id()
+
         def make_memory_region_map(regions: Optional[List[MemoryRegion]]) -> List[Dict[Literal['start', 'end', 'size'], int]]:
             output: List[Dict[Literal['start', 'end', 'size'], int]] = []
             if regions is not None:
