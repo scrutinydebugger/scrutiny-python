@@ -236,42 +236,54 @@ class ScrutinyClient:
     class Events:
         @dataclass(frozen=True)
         class ConnectedEvent:
+            """Triggered when the client connects to a Scrutiny server"""
             _filter_flag = 0x01
             host:str
+            """The server hostname"""
             port:int
+            """The server port"""
 
             def msg(self) -> str:
                 return f"Connected to a Scrutiny server at {self.host}:{self.port}"
         
         @dataclass(frozen=True)
         class DisconnectedEvent:
+            """Triggered when the client disconnects from a Scrutiny server"""
             _filter_flag = 0x02
             host:str
+            """The server hostname"""
             port:int
+            """The server port"""
 
             def msg(self) -> str:
                 return f"Disconnected from server at {self.host}:{self.port}"
             
         @dataclass(frozen=True)
         class DeviceReadyEvent:
+            """Triggered when the server establish a communication with a device and the handshake phase is completed"""
             _filter_flag = 0x04
             session_id:str
+            """A unique ID assigned to the communication session. Will change value if the same device disconnect and reconnect"""
 
             def msg(self) -> str:
                 return f"A new device is connected and ready. Session ID: {self.session_id} "
         
         @dataclass(frozen=True)
         class DeviceGoneEvent:
+            """Triggered when the the communication between the server and a device stops"""
             _filter_flag = 0x08
             session_id:str
+            """The unique ID assigned to the communication session."""
 
             def msg(self) -> str:
                 return f"Device is gone. Last session ID: {self.session_id}"
 
         @dataclass(frozen=True)
         class SFDLoadedEvent:
+            """Triggered when the server loads a Scrutiny Firmware Description file, making Aliases and Variables available through the API """
             _filter_flag = 0x10
             firmware_id:str
+            """The firmware ID that matches the SFD"""
 
             def msg(self) -> str:
                 return f"Server has loaded a Firmware Decription with firmware ID: {self.firmware_id}"
@@ -280,8 +292,10 @@ class ScrutinyClient:
         
         @dataclass(frozen=True)
         class SFDUnLoadedEvent:
+            """Triggered when the server unloads a Scrutiny Firmware Description file"""
             _filter_flag = 0x20
             firmware_id:str
+            """The firmware ID that matches the SFD"""
 
             def msg(self) -> str:
                 return f"Server has unloaded a Firmware Decription with firmware ID: {self.firmware_id}"
@@ -289,13 +303,21 @@ class ScrutinyClient:
 
 
         LISTEN_NONE = 0x0
+        """Listen to no events"""
         LISTEN_CONNECTED = ConnectedEvent._filter_flag
+        """Listen for events of type :class:`ConnectedEvent<scrutiny.sdk.client.ScrutinyClient.Events.ConnectedEvent>`"""
         LISTEN_DISCONENCTED = DisconnectedEvent._filter_flag
+        """Listen for events of type :class:`ConnectedEvent<scrutiny.sdk.client.ScrutinyClient.Events.DisconnectedEvent>`"""
         LISTEN_DEVICE_READY = DeviceReadyEvent._filter_flag
+        """Listen for events of type :class:`ConnectedEvent<scrutiny.sdk.client.ScrutinyClient.Events.DeviceReadyEvent>`"""
         LISTEN_DEVICE_GONE = DeviceGoneEvent._filter_flag
+        """Listen for events of type :class:`ConnectedEvent<scrutiny.sdk.client.ScrutinyClient.Events.DeviceGoneEvent>`"""
         LISTEN_SFD_LOADED = SFDLoadedEvent._filter_flag
+        """Listen for events of type :class:`ConnectedEvent<scrutiny.sdk.client.ScrutinyClient.Events.SFDLoadedEvent>`"""
         LISTEN_SFD_UNLOADED = SFDUnLoadedEvent._filter_flag
+        """Listen for events of type :class:`ConnectedEvent<scrutiny.sdk.client.ScrutinyClient.Events.SFDUnLoadedEvent>`"""
         LISTEN_ALL = 0xFFFFFFFF
+        """Listen to all events"""
         
         _ANY_EVENTS = Union[ConnectedEvent, DisconnectedEvent, DeviceReadyEvent, DeviceGoneEvent, SFDLoadedEvent, SFDUnLoadedEvent]
 
@@ -386,6 +408,8 @@ class ScrutinyClient:
             :param rx_message_callbacks: A callback to call each time a server message is received. Called from a separate thread. Mainly used for debugging and testing
             :param timeout: Default timeout to use when making a request to the server
             :param write_timeout: Default timeout to use when writing to the device memory
+            :param enabled_events: A flag value contructed by ORing values from :class:`ScrutinyClient.Events<scrutiny.sdk.client.ScrutinyClient.Events>`. Can
+                be changed later by invoking :meth:`listen_events<listen_events>`. See :ref:`Using events<page_using_events>` for more details
         """
         logger_name = self.__class__.__name__
         if name is not None:
@@ -1191,6 +1215,13 @@ class ScrutinyClient:
         self._stop_worker_thread()
 
     def listen_events(self, enabled_events:int) -> None:
+        """Select which events are to be listen for when calling :meth:`read_event<read_event>`. See :ref:`Using events<page_using_events>` for more details
+        
+        :param enabled_events: A flag value contructed by ORing values from :class:`ScrutinyClient.Events<scrutiny.sdk.client.ScrutinyClient.Events>`
+
+        :raise TypeError: Given parameter not of the expected type
+        :raise ValueError: If the flag value is negative
+        """
         validation.assert_int_range(enabled_events, 'enabled_events', minval=0)
         self._enabled_events = enabled_events
 
