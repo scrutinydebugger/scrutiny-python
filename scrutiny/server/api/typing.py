@@ -84,6 +84,7 @@ class DataloggingCapabilities(TypedDict):
     sampling_rates: List[SamplingRate]
 
 class DeviceInfo(TypedDict):
+    session_id: str
     device_id: str
     display_name: str
     max_tx_data_size: int
