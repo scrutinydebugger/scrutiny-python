@@ -237,6 +237,7 @@ class ServerManager:
         self._client.close_socket()   # Will cancel any pending request in the other thread
         self._logger.debug("Stop initiated")
 
+
     def _thread_func(self, config:ServerConfig) -> None:
         """Thread that monitors state change on the server side"""
         self._logger.debug("Server manager thread running")
@@ -246,7 +247,13 @@ class ServerManager:
 
         try:
             while not self._thread_stop_event.is_set():
-                server_state = self._thread_handle_reconnect(config)
+                if self._client.server_state == sdk.ServerState.Disconnected:
+                    self._thread_handle_reconnect(config)
+
+                server_state = self._client.server_state
+                if server_state == sdk.ServerState.Error:
+                    self.stop()
+                    break
                 self._thread_process_client_events()
                 self._thread_handle_download_watchable_logic()
 
@@ -257,7 +264,8 @@ class ServerManager:
             self._logger.debug(traceback.format_exc())
         finally:
             self._client.disconnect()
-            if self._thread_state.last_server_state == sdk.ServerState.Connected:
+            was_connected = self._thread_state.last_server_state == sdk.ServerState.Connected
+            if was_connected:
                 try:
                     self._signals.server_disconnected.emit()
                 except RuntimeError:
@@ -284,20 +292,17 @@ class ServerManager:
         while self._client.has_event_pending():
             self._client.read_event(timeout=0)
 
-    def _thread_handle_reconnect(self, config:ServerConfig) -> sdk.ServerState:
-        server_state = self._client.server_state
-        if server_state == sdk.ServerState.Disconnected:
-            if self._allow_auto_reconnect and not self._stop_pending:
-                # timer to prevent going crazy on function call
-                if self._thread_state.connect_timestamp_mono is None or time.monotonic() - self._thread_state.connect_timestamp_mono > self.RECONNECT_DELAY:
-                    try:
-                        self._logger.debug("Connecting client")
-                        self._thread_state.connect_timestamp_mono = time.monotonic()
-                        self._client.connect(config.hostname, config.port, wait_status=False)
-                    except sdk.exceptions.ConnectionError:
-                        pass
-        
-        return server_state
+    def _thread_handle_reconnect(self, config:ServerConfig) -> None:
+        if self._allow_auto_reconnect and not self._stop_pending:
+            # timer to prevent going crazy on function call
+            if self._thread_state.connect_timestamp_mono is None or time.monotonic() - self._thread_state.connect_timestamp_mono > self.RECONNECT_DELAY:
+                try:
+                    self._logger.debug("Connecting client")
+                    self._thread_state.connect_timestamp_mono = time.monotonic()
+                    self._client.connect(config.hostname, config.port, wait_status=False)
+                except sdk.exceptions.ConnectionError:
+                    pass
+
 
     def _thread_process_client_events(self) -> None:
         while True:
@@ -361,7 +366,9 @@ class ServerManager:
     def _thread_event_device_ready(self) -> None:
         """To be called once when a device connects"""
         self._logger.debug("Detected device ready")
-        self._thread_state.clear_download_requests()
+        req = self._thread_state.runtime_watchables_download_request    # Get the ref atomically
+        if req is not None:
+            req.cancel()
         had_data = self._clear_index(no_changed_event=True) # Event is triggered AFTER device_ready
         self._thread_state.runtime_watchables_download_request = self._client.download_watchable_list(
             types=[sdk.WatchableType.RuntimePublishedValue],

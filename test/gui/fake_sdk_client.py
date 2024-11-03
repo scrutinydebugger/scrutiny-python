@@ -9,10 +9,11 @@
 __all__ = ['FakeSDKClient']
 
 from scrutiny import sdk
-from scrutiny.sdk.client import WatchableListDownloadRequest
+from scrutiny.sdk.client import WatchableListDownloadRequest, ScrutinyClient
 from typing import Optional, List, Dict, Callable
 from dataclasses import dataclass
 import inspect
+import queue
 
 default_server_info = sdk.ServerInfo(
     device_comm_state=sdk.DeviceCommState.Disconnected,
@@ -42,6 +43,8 @@ class FakeSDKClient:
     _force_connect_fail:bool
 
     _req_id:int
+    _event_queue:"queue.Queue[ScrutinyClient.Events._ANY_EVENTS]"
+    _enabled_events:int
 
 
     def __init__(self):
@@ -51,6 +54,8 @@ class FakeSDKClient:
         self._pending_download_requests = {}
         self._func_call_log = {}
         self._force_connect_fail = False
+        self._enabled_events = 0
+        self._event_queue = queue.Queue()
     
     def get_call_count(self, funcname:str) -> int:
         if funcname not in self._func_call_log:
@@ -72,12 +77,18 @@ class FakeSDKClient:
         if self._force_connect_fail:
             raise sdk.exceptions.ConnectionError("Failed to connect (simulated)")
         self.server_state = sdk.ServerState.Connected
+        self.trigger_event(ScrutinyClient.Events.ConnectedEvent(hostname, port))
+        self.hostname = hostname
+        self.port = port
         if wait_status:
             self.server_info = default_server_info
 
     def disconnect(self):
         self._log_call()
+        was_connected = (self.server_state == sdk.ServerState.Connected)
         self.server_state = sdk.ServerState.Disconnected
+        if was_connected:
+            self.trigger_event(ScrutinyClient.Events.DisconnectedEvent(self.hostname, self.port))
         self.server_info = None
 
     def wait_server_status_update(self, timeout=None):
@@ -96,7 +107,7 @@ class FakeSDKClient:
                                 partial_reception_callback:Optional[Callable[[Dict[sdk.WatchableType, Dict[str, sdk.WatchableConfiguration]], bool], None]] = None
                                 ) -> WatchableListDownloadRequest:
         req = WatchableListDownloadRequest(self, self._req_id, new_data_callback=partial_reception_callback)
-
+        
         self._pending_download_requests[self._req_id] = DownloadWatchableListFunctionCall(
             types=types,
             max_per_response=max_per_response,
@@ -142,3 +153,88 @@ class FakeSDKClient:
 
     def close_socket(self):
         pass
+
+    def listen_events(self, enabled_events:int):
+        self._enabled_events = enabled_events
+
+    def trigger_event(self, event:ScrutinyClient.Events._ANY_EVENTS):
+        if self._enabled_events & event._filter_flag:
+            self._event_queue.put(event)
+
+    def read_event(self, timeout:Optional[float] = None) -> Optional[ScrutinyClient.Events._ANY_EVENTS]:
+        try:
+            return self._event_queue.get(block=True, timeout=timeout)
+        except queue.Empty:
+            return None
+
+    def has_event_pending(self) -> bool:
+        return not self._event_queue.empty()
+
+
+    def _simulate_receive_status(self, info:Optional[sdk.ServerInfo] = None):
+        if info is None:
+            self.server_info = default_server_info
+        else:
+            self.server_info = info
+
+    def _simulate_device_connect(self, session_id):
+        if self.server_state != sdk.ServerState.Connected:
+            raise RuntimeError("Cannot simulate device connect if the server is not connected")
+        
+        assert self.server_info is not None
+        
+        self.server_info = sdk.ServerInfo(
+            datalogging=self.server_info.datalogging,
+            device_comm_state=sdk.DeviceCommState.ConnectedReady,
+            device_link=sdk.NoneLinkConfig,
+            device_session_id=session_id,
+            sfd_firmware_id=self.server_info.sfd_firmware_id
+        )
+
+        self.trigger_event(ScrutinyClient.Events.DeviceReadyEvent(session_id))
+
+    def _simulate_device_disconnect(self):
+        if self.server_state != sdk.ServerState.Connected:
+            raise RuntimeError("Cannot simulate device disconnect if the server is not connected")
+        
+        assert self.server_info is not None
+        previous_session_id = self.server_info.device_session_id
+        self.server_info = sdk.ServerInfo(
+            datalogging=self.server_info.datalogging,
+            device_comm_state=sdk.DeviceCommState.Disconnected,
+            device_link=sdk.NoneLinkConfig,
+            device_session_id=None,
+            sfd_firmware_id=self.server_info.sfd_firmware_id
+        )
+        self.trigger_event(ScrutinyClient.Events.DeviceGoneEvent(previous_session_id))
+    
+    def _simulate_sfd_loaded(self, firmware_id):
+        if self.server_state != sdk.ServerState.Connected:
+            raise RuntimeError("Cannot simulate SFD loading if the server is not connected")
+        
+        assert self.server_info is not None
+        self.server_info = sdk.ServerInfo(
+            datalogging=self.server_info.datalogging,
+            device_comm_state=self.server_info.device_comm_state,
+            device_link=self.server_info.device_link,
+            device_session_id=self.server_info.device_session_id,
+            sfd_firmware_id=self.server_info.sfd_firmware_id
+        )
+
+        self.trigger_event(ScrutinyClient.Events.SFDLoadedEvent(firmware_id))
+
+    def _simulate_sfd_unloaded(self):
+        if self.server_state != sdk.ServerState.Connected:
+            raise RuntimeError("Cannot simulate SFD unloading if the server is not connected")
+        
+        assert self.server_info is not None
+        previous_firmware_id = self.server_info.sfd_firmware_id
+        self.server_info = sdk.ServerInfo(
+            datalogging=self.server_info.datalogging,
+            device_comm_state=self.server_info.device_comm_state,
+            device_link=self.server_info.device_link,
+            device_session_id=self.server_info.device_session_id,
+            sfd_firmware_id=None
+        )
+
+        self.trigger_event(ScrutinyClient.Events.SFDUnLoadedEvent(previous_firmware_id))

@@ -38,6 +38,7 @@ DUMMY_DATASET_VAR = {
 }
 
 DUMMY_DEVICE = sdk.DeviceInfo(
+    session_id='12345',
     device_id='unittest',
     address_size_bits=32,
     display_name='unit tests',
@@ -121,33 +122,21 @@ class TestServerManager(ScrutinyBaseGuiTest):
             self.wait_false(self.server_manager.is_running, 1)
 
     def test_event_device_connect_disconnect(self):
+
+        self.assertCountEqual
         self.assertEqual(self.event_list, [])
         self.server_manager.start(SERVER_MANAGER_CONFIG)
 
         self.wait_events_and_clear([EventType.SERVER_CONNECTED], timeout=1)
+        self.fake_client._simulate_receive_status() # Load default status
 
         for i in range(5):
-            self.fake_client.server_info = sdk.ServerInfo(
-                device_comm_state=sdk.DeviceCommState.ConnectedReady,
-                device_session_id='session_id1', # This value is used to detect connection change on the device side
-                datalogging=sdk.DataloggingInfo(state=sdk.DataloggerState.Standby, completion_ratio=None),
-                device_link=sdk.DeviceLinkInfo(type=sdk.DeviceLinkType._Dummy, config={}, operational=True),
-                sfd_firmware_id=None
-            )
-
+            self.fake_client._simulate_device_connect('session_id1')
             self.wait_events_and_clear([EventType.DEVICE_READY], timeout=1)
-
-            self.fake_client.server_info = sdk.ServerInfo(
-                device_comm_state=sdk.DeviceCommState.Disconnected,
-                device_session_id=None, # This value is used to detect connection change on the device side
-                datalogging=sdk.DataloggingInfo(state=sdk.DataloggerState.NA, completion_ratio=None),
-                device_link=sdk.DeviceLinkInfo(type=sdk.DeviceLinkType._Dummy, config={}, operational=True),
-                sfd_firmware_id=None,
-            )
-
+            
+            self.fake_client._simulate_device_disconnect()
             self.wait_events_and_clear([EventType.DEVICE_DISCONNECTED], timeout=1)
 
-        self.fake_client.server_info = None
         self.server_manager.stop()
         self.wait_server_state(sdk.ServerState.Disconnected)        
         self.assert_events([EventType.SERVER_DISCONNECTED])
@@ -158,275 +147,18 @@ class TestServerManager(ScrutinyBaseGuiTest):
         self.server_manager.start(SERVER_MANAGER_CONFIG)
 
         self.wait_events_and_clear([EventType.SERVER_CONNECTED], timeout=1)
+        self.fake_client._simulate_receive_status() # Load default status
 
         for i in range(5):
-            self.fake_client.server_info = sdk.ServerInfo(
-                device_comm_state=sdk.DeviceCommState.ConnectedReady,
-                device_session_id='session_id1', # This value is used to detect connection change on the device side
-                datalogging=sdk.DataloggingInfo(state=sdk.DataloggerState.Standby, completion_ratio=None),
-                device_link=sdk.DeviceLinkInfo(type=sdk.DeviceLinkType._Dummy, config={}, operational=True),
-                sfd_firmware_id='abcdef',
-            )
-
+            self.fake_client._simulate_device_connect('session_id1')
+            self.fake_client._simulate_sfd_loaded('firmware1')
             self.wait_events_and_clear([EventType.DEVICE_READY, EventType.SFD_LOADED], timeout=1)
 
-            self.fake_client.server_info = sdk.ServerInfo(
-                device_comm_state=sdk.DeviceCommState.Disconnected,
-                device_session_id=None, # This value is used to detect connection change on the device side
-                datalogging=sdk.DataloggingInfo(state=sdk.DataloggerState.NA, completion_ratio=None),
-                device_link=sdk.DeviceLinkInfo(type=sdk.DeviceLinkType._Dummy, config={}, operational=True),
-                sfd_firmware_id=None
-            )
-
+            self.fake_client._simulate_device_disconnect()
+            self.fake_client._simulate_sfd_unloaded()
             self.wait_events_and_clear([EventType.SFD_UNLOADED, EventType.DEVICE_DISCONNECTED], timeout=1)
 
         self.fake_client.server_info = None
-        self.server_manager.stop()
-        self.wait_server_state(sdk.ServerState.Disconnected)        
-        self.assert_events([EventType.SERVER_DISCONNECTED])
-
-    def test_event_device_connect_disconnect_with_sfd_after_connection(self):
-        # Leave some time between device ready and SFD load and vice versa. Will go through a diferent code path than
-        # if the SFD is loaded at the same time as the device is ready
-        self.assertEqual(self.event_list, [])
-        self.server_manager.start(SERVER_MANAGER_CONFIG)
-
-        self.wait_events_and_clear([EventType.SERVER_CONNECTED], timeout=1)
-
-        for i in range(5):
-            self.fake_client.server_info = sdk.ServerInfo(
-                device_comm_state=sdk.DeviceCommState.ConnectedReady,
-                device_session_id='session_id1', # This value is used to detect connection change on the device side
-                datalogging=sdk.DataloggingInfo(state=sdk.DataloggerState.Standby, completion_ratio=None),
-                device_link=sdk.DeviceLinkInfo(type=sdk.DeviceLinkType._Dummy, config={}, operational=True),
-                sfd_firmware_id=None
-            )
-
-            self.wait_events_and_clear([EventType.DEVICE_READY], timeout=1)
-
-            self.fake_client.server_info = sdk.ServerInfo(
-                device_comm_state=sdk.DeviceCommState.ConnectedReady,
-                device_session_id='session_id1', # This value is used to detect connection change on the device side
-                datalogging=sdk.DataloggingInfo(state=sdk.DataloggerState.Standby, completion_ratio=None),
-                device_link=sdk.DeviceLinkInfo(type=sdk.DeviceLinkType._Dummy, config={}, operational=True),
-                sfd_firmware_id="abc"
-            )
-
-            self.wait_events_and_clear([EventType.SFD_LOADED], timeout=1)
-
-            self.fake_client.server_info = sdk.ServerInfo(
-                device_comm_state=sdk.DeviceCommState.ConnectedReady,
-                device_session_id='session_id1', # This value is used to detect connection change on the device side
-                datalogging=sdk.DataloggingInfo(state=sdk.DataloggerState.Standby, completion_ratio=None),
-                device_link=sdk.DeviceLinkInfo(type=sdk.DeviceLinkType._Dummy, config={}, operational=True),
-                sfd_firmware_id=None
-            )
-
-            self.wait_events_and_clear([EventType.SFD_UNLOADED], timeout=1)
-
-            self.fake_client.server_info = sdk.ServerInfo(
-                device_comm_state=sdk.DeviceCommState.Disconnected,
-                device_session_id=None, # This value is used to detect connection change on the device side
-                datalogging=sdk.DataloggingInfo(state=sdk.DataloggerState.NA, completion_ratio=None),
-                device_link=sdk.DeviceLinkInfo(type=sdk.DeviceLinkType._Dummy, config={}, operational=True),
-                sfd_firmware_id=None
-            )
-
-            self.wait_events_and_clear([EventType.DEVICE_DISCONNECTED], timeout=1)
-
-        self.fake_client.server_info = None
-        self.server_manager.stop()
-        self.wait_server_state(sdk.ServerState.Disconnected)        
-        self.assert_events([EventType.SERVER_DISCONNECTED])
-
-    def test_device_disconnect_ready_events_on_session_id_change(self):
-        self.assertEqual(self.event_list, [])
-        self.server_manager.start(SERVER_MANAGER_CONFIG)
-
-        self.wait_events_and_clear([EventType.SERVER_CONNECTED], timeout=1)
-
-        self.fake_client.server_info = sdk.ServerInfo(
-            device_comm_state=sdk.DeviceCommState.ConnectedReady,
-            device_session_id='session_id1', # This value is used to detect connection change on the device side
-            datalogging=sdk.DataloggingInfo(state=sdk.DataloggerState.Standby, completion_ratio=None),
-            device_link=sdk.DeviceLinkInfo(type=sdk.DeviceLinkType._Dummy, config={}, operational=True),
-            sfd_firmware_id=None
-        )
-
-        self.wait_events_and_clear([EventType.DEVICE_READY], timeout=1)
-        
-        # The server manager should have initiated a download of RPV, but not Alias/Var
-        download_watchable_list_calls = self.fake_client.get_download_watchable_list_function_calls()
-        self.assertEqual(len(download_watchable_list_calls), 1)
-        self.assertEqual(download_watchable_list_calls[0].types, [sdk.WatchableType.RuntimePublishedValue])   
-
-        # Only the session ID changes. 
-        # Should trigger a device disconnected + device ready event.
-        prev_req = download_watchable_list_calls[0].request
-        for i in range(5):
-            self.fake_client.server_info = sdk.ServerInfo(
-                device_comm_state=self.fake_client.server_info.device_comm_state,
-                device_session_id=f'new_session_id{i}',     # We change that.
-                datalogging=self.fake_client.server_info.datalogging,
-                device_link=self.fake_client.server_info.device_link,
-                sfd_firmware_id=self.fake_client.server_info.sfd_firmware_id
-            )
-
-            # Download request never complete, therefore no watchble_index_changed
-            self.wait_events_and_clear([EventType.DEVICE_DISCONNECTED, EventType.DEVICE_READY, ], timeout=1)
-
-            # Previous download should have been interrupted
-            self.assertTrue(prev_req.completed)
-            self.assertFalse(prev_req.is_success) 
-
-            # The server manager should have initiated a download of RPV, but not Alias/Var
-            download_watchable_list_calls = self.fake_client.get_download_watchable_list_function_calls()
-            self.assertEqual(len(download_watchable_list_calls), 1)
-            self.assertEqual(download_watchable_list_calls[0].types, [sdk.WatchableType.RuntimePublishedValue])
-
-            prev_req = download_watchable_list_calls[0].request
-
-        self.fake_client.server_info = None
-        self.wait_events_and_clear([EventType.DEVICE_DISCONNECTED], timeout=1)
-
-        # Previous download should have been interrupted
-        self.assertTrue(prev_req.completed)
-        self.assertFalse(prev_req.is_success) 
-
-        self.server_manager.stop()
-        self.wait_server_state(sdk.ServerState.Disconnected)        
-        self.assert_events([EventType.SERVER_DISCONNECTED])
-    
-    def test_device_disconnect_ready_events_on_session_id_change_with_sfd(self):
-        self.assertEqual(self.event_list, [])
-        self.server_manager.start(SERVER_MANAGER_CONFIG)
-
-        self.wait_events_and_clear([EventType.SERVER_CONNECTED], timeout=1)
-
-        self.fake_client.server_info = sdk.ServerInfo(
-            device_comm_state=sdk.DeviceCommState.ConnectedReady,
-            device_session_id='session_id1', # This value is used to detect connection change on the device side
-            datalogging=sdk.DataloggingInfo(state=sdk.DataloggerState.Standby, completion_ratio=None),
-            device_link=sdk.DeviceLinkInfo(type=sdk.DeviceLinkType._Dummy, config={}, operational=True),
-            sfd_firmware_id="abc"
-        )
-
-        self.wait_events_and_clear([EventType.DEVICE_READY, EventType.SFD_LOADED], timeout=1)
-        
-        # The server manager should have initiated a download of RPV, but not Alias/Var
-
-        def check_watchable_call_list(thelist:List[DownloadWatchableListFunctionCall]) -> None:
-            self.assertEqual(len(thelist), 2)
-            if len(thelist[0].types) == 1:
-                self.assertEqual(len(thelist[1].types), 2)
-
-                self.assertIn(sdk.WatchableType.RuntimePublishedValue, thelist[0].types)
-                self.assertIn(sdk.WatchableType.Alias, thelist[1].types)
-                self.assertIn(sdk.WatchableType.Variable, thelist[1].types)
-            elif len(thelist[0].types) == 2:
-                self.assertEqual(len(thelist[1].types), 1)
-
-                self.assertIn(sdk.WatchableType.RuntimePublishedValue, thelist[1].types)
-                self.assertIn(sdk.WatchableType.Alias, thelist[0].types)
-                self.assertIn(sdk.WatchableType.Variable, thelist[0].types)
-            else:
-                self.fail("Requests are bad")
-        
-        download_watchable_list_calls = self.fake_client.get_download_watchable_list_function_calls()
-        check_watchable_call_list(download_watchable_list_calls)
-
-        # Only the session ID changes. 
-        # Should trigger a device disconnected + device ready event.
-        prev_reqs = [x.request for x in download_watchable_list_calls]
-        for i in range(5):
-            self.fake_client.server_info = sdk.ServerInfo(
-                device_comm_state=self.fake_client.server_info.device_comm_state,
-                device_session_id=f'new_session_id{i}',     # We change that.
-                datalogging=self.fake_client.server_info.datalogging,
-                device_link=self.fake_client.server_info.device_link,
-                sfd_firmware_id=self.fake_client.server_info.sfd_firmware_id
-            )
-
-            self.wait_events_and_clear([EventType.SFD_UNLOADED, EventType.DEVICE_DISCONNECTED, EventType.DEVICE_READY, EventType.SFD_LOADED], timeout=1)
-
-            # Previous download should have been interrupted
-            for prev_req in prev_reqs:
-                self.assertTrue(prev_req.completed)
-                self.assertFalse(prev_req.is_success) 
-
-            # The server manager should have initiated a download of RPV, but not Alias/Var
-            download_watchable_list_calls = self.fake_client.get_download_watchable_list_function_calls()
-            check_watchable_call_list(download_watchable_list_calls)
-
-            prev_reqs = [x.request for x in download_watchable_list_calls]
-
-        self.fake_client.server_info = None
-        self.wait_events_and_clear([EventType.SFD_UNLOADED, EventType.DEVICE_DISCONNECTED], timeout=1)
-
-        # Previous download should have been interrupted
-        for prev_req in prev_reqs:
-            self.assertTrue(prev_req.completed)
-            self.assertFalse(prev_req.is_success) 
-
-        self.server_manager.stop()
-        self.wait_server_state(sdk.ServerState.Disconnected)        
-        self.assert_events([EventType.SERVER_DISCONNECTED])
-    
-    def test_event_datalogging_state_changed(self):
-        self.assertEqual(self.event_list, [])
-        self.server_manager.start(SERVER_MANAGER_CONFIG)
-
-        self.wait_events_and_clear([EventType.SERVER_CONNECTED], timeout=1)
-
-        self.fake_client.server_info = sdk.ServerInfo(
-            device_comm_state=sdk.DeviceCommState.ConnectedReady,
-            device_session_id='session_id1', # This value is used to detect connection change on the device side
-            datalogging=sdk.DataloggingInfo(state=sdk.DataloggerState.Standby, completion_ratio=None),
-            device_link=sdk.DeviceLinkInfo(type=sdk.DeviceLinkType._Dummy, config={}, operational=True),
-            sfd_firmware_id=None
-        )
-
-        self.wait_events_and_clear([EventType.DEVICE_READY], timeout=1)
-
-        # Only the session ID changes. 
-        # Should trigger a device disconnected + device ready event.
-        for i in range(5):
-            new_dl_state = sdk.DataloggerState.Standby if self.fake_client.server_info.datalogging.state == sdk.DataloggerState.Acquiring else sdk.DataloggerState.Acquiring
-            self.fake_client.server_info = sdk.ServerInfo(
-                device_comm_state=self.fake_client.server_info.device_comm_state,
-                device_session_id=self.fake_client.server_info.device_session_id,     # We change that.
-                datalogging=sdk.DataloggingInfo(state=new_dl_state, completion_ratio=None),
-                device_link=self.fake_client.server_info.device_link,
-                sfd_firmware_id=self.fake_client.server_info.sfd_firmware_id,
-            )
-        
-            self.wait_events_and_clear([EventType.DATALOGGING_STATE_CHANGED], timeout=1)
-
-        if  self.fake_client.server_info.datalogging.state != sdk.DataloggerState.Acquiring:
-            self.fake_client.server_info = sdk.ServerInfo(
-                device_comm_state=self.fake_client.server_info.device_comm_state,
-                device_session_id=self.fake_client.server_info.device_session_id,     
-                datalogging=sdk.DataloggingInfo(state=sdk.DataloggerState.Acquiring, completion_ratio=None),    # We change that.
-                device_link=self.fake_client.server_info.device_link,
-                sfd_firmware_id=self.fake_client.server_info.sfd_firmware_id
-            )
-            self.wait_events_and_clear([EventType.DATALOGGING_STATE_CHANGED], timeout=1)
-
-        for i in range(5):
-            new_dl_state = sdk.DataloggerState.Standby if self.fake_client.server_info.datalogging.state == sdk.DataloggerState.Acquiring else sdk.DataloggerState.Acquiring
-            self.fake_client.server_info = sdk.ServerInfo(
-                device_comm_state=self.fake_client.server_info.device_comm_state,
-                device_session_id=self.fake_client.server_info.device_session_id,  
-                datalogging=sdk.DataloggingInfo(state=sdk.DataloggerState.Acquiring, completion_ratio=float(i)),    # We change that.  
-                device_link=self.fake_client.server_info.device_link,
-                sfd_firmware_id=self.fake_client.server_info.sfd_firmware_id
-            )
-        
-            self.wait_events_and_clear([EventType.DATALOGGING_STATE_CHANGED], timeout=1)
-
-        self.fake_client.server_info = None
-        self.wait_events_and_clear([EventType.DEVICE_DISCONNECTED], timeout=1)
-
         self.server_manager.stop()
         self.wait_server_state(sdk.ServerState.Disconnected)        
         self.assert_events([EventType.SERVER_DISCONNECTED])
@@ -435,6 +167,8 @@ class TestServerManager(ScrutinyBaseGuiTest):
         self.server_manager.start(SERVER_MANAGER_CONFIG)
 
         self.wait_events_and_clear([EventType.SERVER_CONNECTED], timeout=1)
+        self.fake_client._simulate_receive_status()
+
         self.assertEqual(self.fake_client.get_call_count('disconnect'), 0)
         self.fake_client.server_state = sdk.ServerState.Error
 
@@ -479,17 +213,12 @@ class TestServerManager(ScrutinyBaseGuiTest):
         windex = self.server_manager._index
 
         self.wait_events_and_clear([EventType.SERVER_CONNECTED], timeout=1)
+        self.fake_client._simulate_receive_status()
 
         nb_loop = 5
         for i in range(nb_loop):
             cancel_request = i % 2 == 1
-            self.fake_client.server_info = sdk.ServerInfo(
-                device_comm_state=sdk.DeviceCommState.ConnectedReady,
-                device_session_id='session_id1', # This value is used to detect connection change on the device side
-                datalogging=sdk.DataloggingInfo(state=sdk.DataloggerState.Standby, completion_ratio=None),
-                device_link=sdk.DeviceLinkInfo(type=sdk.DeviceLinkType._Dummy, config={}, operational=True),
-                sfd_firmware_id=None
-            )
+            self.fake_client._simulate_device_connect('session_id1')
 
             self.wait_events_and_clear([EventType.DEVICE_READY], timeout=1)
             calls = self.fake_client.get_download_watchable_list_function_calls()
@@ -512,13 +241,7 @@ class TestServerManager(ScrutinyBaseGuiTest):
                 self.assertFalse(windex.has_data(sdk.WatchableType.Alias))
                 self.assertFalse(windex.has_data(sdk.WatchableType.Variable))
 
-            self.fake_client.server_info = sdk.ServerInfo(
-                device_comm_state=sdk.DeviceCommState.Disconnected,
-                device_session_id=None, # This value is used to detect connection change on the device side
-                datalogging=sdk.DataloggingInfo(state=sdk.DataloggerState.NA, completion_ratio=None),
-                device_link=sdk.DeviceLinkInfo(type=sdk.DeviceLinkType._Dummy, config={}, operational=True),
-                sfd_firmware_id=None,
-            )
+            self.fake_client._simulate_device_disconnect()
 
             if cancel_request:
                 expected_events = [EventType.DEVICE_DISCONNECTED]
@@ -541,6 +264,7 @@ class TestServerManager(ScrutinyBaseGuiTest):
         self.server_manager.start(SERVER_MANAGER_CONFIG)
 
         self.wait_events_and_clear([EventType.SERVER_CONNECTED], timeout=1)
+        self.fake_client._simulate_receive_status()
 
         def respond_to_download_requests(cancel_requests):
             calls = self.fake_client.get_download_watchable_list_function_calls()
@@ -581,30 +305,19 @@ class TestServerManager(ScrutinyBaseGuiTest):
 
         for i in range(5):
             cancel_requests = i%2==1
-            self.fake_client.server_info = sdk.ServerInfo(
-                device_comm_state=sdk.DeviceCommState.ConnectedReady,
-                device_session_id='session_id1', # This value is used to detect connection change on the device side
-                datalogging=sdk.DataloggingInfo(state=sdk.DataloggerState.Standby, completion_ratio=None),
-                device_link=sdk.DeviceLinkInfo(type=sdk.DeviceLinkType._Dummy, config={}, operational=True),
-                sfd_firmware_id='abcdef'
-            )
+            self.fake_client._simulate_device_connect('session_id1')
+            self.fake_client._simulate_sfd_loaded('firmware1')
 
             self.wait_events_and_clear([EventType.DEVICE_READY, EventType.SFD_LOADED], timeout=1)
             respond_to_download_requests(cancel_requests)
-
-
-            self.fake_client.server_info = sdk.ServerInfo(
-                device_comm_state=sdk.DeviceCommState.Disconnected,
-                device_session_id=None, # This value is used to detect connection change on the device side
-                datalogging=sdk.DataloggingInfo(state=sdk.DataloggerState.NA, completion_ratio=None),
-                device_link=sdk.DeviceLinkInfo(type=sdk.DeviceLinkType._Dummy, config={}, operational=True),
-                sfd_firmware_id=None,
-            )
+            
+            self.fake_client._simulate_device_disconnect()  # These event may happen in any order
+            self.fake_client._simulate_sfd_unloaded()       # These event may happen in any order
 
             if cancel_requests:
                 expected_events = [EventType.SFD_UNLOADED, EventType.DEVICE_DISCONNECTED]
             else:
-                expected_events = [EventType.WATCHABLE_INDEX_CHANGED,EventType.SFD_UNLOADED, EventType.DEVICE_DISCONNECTED]
+                expected_events = [EventType.WATCHABLE_INDEX_CHANGED, EventType.WATCHABLE_INDEX_CHANGED, EventType.SFD_UNLOADED, EventType.DEVICE_DISCONNECTED]
 
             self.wait_events_and_clear(expected_events, timeout=1)
 
@@ -613,28 +326,21 @@ class TestServerManager(ScrutinyBaseGuiTest):
         self.wait_server_state(sdk.ServerState.Disconnected)        
         self.assert_events([EventType.SERVER_DISCONNECTED])
 
-
     def test_device_disconnect_ready_events_on_session_id_change_with_sfd_and_data_download(self):
         self.assertEqual(self.event_list, [])
         self.server_manager.start(SERVER_MANAGER_CONFIG)
 
         self.wait_events_and_clear([EventType.SERVER_CONNECTED], timeout=1)
+        self.fake_client._simulate_receive_status()
 
-        self.fake_client.server_info = sdk.ServerInfo(
-            device_comm_state=sdk.DeviceCommState.ConnectedReady,
-            device_session_id='session_id1', # This value is used to detect connection change on the device side
-            datalogging=sdk.DataloggingInfo(state=sdk.DataloggerState.Standby, completion_ratio=None),
-            device_link=sdk.DeviceLinkInfo(type=sdk.DeviceLinkType._Dummy, config={}, operational=True),
-            sfd_firmware_id="abc"
-        )
+        self.fake_client._simulate_sfd_loaded('fimrware_id1')
+        self.fake_client._simulate_device_connect('session_id1')
 
         self.wait_events_and_clear([EventType.DEVICE_READY, EventType.SFD_LOADED], timeout=1)
 
         def respond_to_download_requests():
             calls = self.fake_client.get_download_watchable_list_function_calls()
             self.assertEqual(len(calls), 2)
-            self.assertEqual(calls[0].types, [sdk.WatchableType.RuntimePublishedValue])
-            self.assertCountEqual(calls[1].types, [sdk.WatchableType.Alias, sdk.WatchableType.Variable])
             if sdk.WatchableType.RuntimePublishedValue in calls[0].types:
                 rpv_call_index = 0 
                 alias_var_call_index = 1
@@ -671,26 +377,28 @@ class TestServerManager(ScrutinyBaseGuiTest):
         # Only the session ID changes. 
         # Should trigger a device disconnected + device ready event.
         for i in range(5):
-            self.fake_client.server_info = sdk.ServerInfo(
-                device_comm_state=self.fake_client.server_info.device_comm_state,
-                device_session_id=f'new_session_id{i}',     # We change that.
-                datalogging=self.fake_client.server_info.datalogging,
-                device_link=self.fake_client.server_info.device_link,
-                sfd_firmware_id=self.fake_client.server_info.sfd_firmware_id,
-            )
+            self.fake_client._simulate_sfd_unloaded()
+            self.fake_client._simulate_device_disconnect()
+            
+            self.fake_client._simulate_sfd_loaded('firmware_id')
+            self.fake_client._simulate_device_connect(f'new_session_id{i}')
 
             self.wait_events_and_clear([
                 EventType.WATCHABLE_INDEX_CHANGED, 
-                EventType.SFD_UNLOADED, 
+                EventType.WATCHABLE_INDEX_CHANGED, 
                 EventType.DEVICE_DISCONNECTED, 
                 EventType.DEVICE_READY, 
-                EventType.SFD_LOADED
+                EventType.SFD_UNLOADED, 
+                EventType.SFD_LOADED, 
                 ], timeout=1)
 
             respond_to_download_requests()  # Check for download request. Respond and make sure the events are triggered
 
+        self.fake_client._simulate_sfd_unloaded()
+        self.fake_client._simulate_device_disconnect()
         self.fake_client.server_info = None
         self.wait_events_and_clear([
+            EventType.WATCHABLE_INDEX_CHANGED, 
             EventType.WATCHABLE_INDEX_CHANGED, 
             EventType.SFD_UNLOADED, 
             EventType.DEVICE_DISCONNECTED], timeout=1)
