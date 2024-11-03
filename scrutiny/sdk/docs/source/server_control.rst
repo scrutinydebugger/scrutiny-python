@@ -136,11 +136,17 @@ that no device is connected
 
 -----
 
+TCP
+###
+
 .. autoclass:: scrutiny.sdk.TCPLinkConfig
     :exclude-members: __new__, __init__
     :members:
 
 -----
+
+UDP
+###
 
 .. autoclass:: scrutiny.sdk.UDPLinkConfig
     :exclude-members: __new__, __init__
@@ -148,29 +154,37 @@ that no device is connected
 
 -----
 
+Serial
+######
+
 .. autoclass:: scrutiny.sdk.SerialLinkConfig
-    :exclude-members: __new__, __init__
+    :exclude-members: __new__, __init__, StopBits, DataBits, Parity
     :members:
 
 .. autoclass:: scrutiny.sdk.SerialLinkConfig.StopBits
     :exclude-members: __new__, __init__
     :members:
+    :undoc-members:
 
 .. autoclass:: scrutiny.sdk.SerialLinkConfig.DataBits
     :exclude-members: __new__, __init__
     :members:
+    :undoc-members:
 
 .. autoclass:: scrutiny.sdk.SerialLinkConfig.Parity
     :exclude-members: __new__, __init__
-    :members:    
+    :members: 
+    :undoc-members:   
     
 -----
+
+Seger RTT
+#########
 
 .. autoclass:: scrutiny.sdk.RTTLinkConfig
     :exclude-members: __new__, __init__, JLinkInterface
     :members:
 
------
 
 .. autoclass:: scrutiny.sdk.RTTLinkConfig.JLinkInterface
     :exclude-members: __new__, __init__

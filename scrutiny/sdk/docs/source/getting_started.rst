@@ -40,7 +40,7 @@ Using the Scrutiny Python :abbr:`SDK (Software Development Kit)` starts by creat
         else:
             print("No device connected to the server")
  
-Most operation with the Python :abbr:`SDK (Software dEvelopment Kit)` are synchronized, meaning they will block until completion. When relevant for performance, some operations will return a reference to a ``future`` 
+Most operation with the Python :abbr:`SDK (Software Development Kit)` are synchronized, meaning they will block until completion. When relevant for performance, some operations will return a reference to a ``future`` 
 object that can be waited for when necessary.
 
 Operations that fail raise an exception. All exceptions defined in the Scrutiny SDK inherit the :class:`sdk.ScrutinySDKException<scrutiny.sdk.ScrutinySDKException>`. 

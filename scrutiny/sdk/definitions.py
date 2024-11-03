@@ -407,23 +407,28 @@ class SerialLinkConfig(BaseLinkConfig):
     """(Immutable struct) The configuration structure for a device link of type :attr:`Serial<scrutiny.sdk.DeviceLinkType.Serial>`"""
 
     class StopBits(enum.Enum):
+        """Number of stop bits as defined by RS-232"""
         ONE = 1
         ONE_POINT_FIVE = 1.5
         TWO = 2
 
         def get_numerical(self) -> float:
+            """Return the number of stop bits as ``float``"""
             return float(self.value)
 
     class DataBits(enum.Enum):
+        """Number of data bits as defined by RS-232"""
         FIVE = 5
         SIX = 6
         SEVEN = 7
         EIGHT = 8
 
         def get_numerical(self) -> int:
+            """Return the number of data bits as ``int``"""
             return int(self.value)
 
     class Parity(enum.Enum):
+        """A serial port parity configuration"""
         NONE = "none" 
         EVEN = "even"
         ODD = "odd"
@@ -431,6 +436,7 @@ class SerialLinkConfig(BaseLinkConfig):
         SPACE = "space"
 
         def get_displayable_name(self) -> str:
+            """Return the value as ``str``"""
             return self.value
 
     port: str

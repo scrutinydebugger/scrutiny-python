@@ -263,7 +263,7 @@ class ScrutinyClient:
             """Triggered when the server establish a communication with a device and the handshake phase is completed"""
             _filter_flag = 0x04
             session_id:str
-            """A unique ID assigned to the communication session. Will change value if the same device disconnect and reconnect"""
+            """A unique ID assigned to the communication session. This ID will change if the same device disconnects and reconnects."""
 
             def msg(self) -> str:
                 return f"A new device is connected and ready. Session ID: {self.session_id} "
@@ -307,15 +307,15 @@ class ScrutinyClient:
         LISTEN_CONNECTED = ConnectedEvent._filter_flag
         """Listen for events of type :class:`ConnectedEvent<scrutiny.sdk.client.ScrutinyClient.Events.ConnectedEvent>`"""
         LISTEN_DISCONENCTED = DisconnectedEvent._filter_flag
-        """Listen for events of type :class:`ConnectedEvent<scrutiny.sdk.client.ScrutinyClient.Events.DisconnectedEvent>`"""
+        """Listen for events of type :class:`DisconnectedEvent<scrutiny.sdk.client.ScrutinyClient.Events.DisconnectedEvent>`"""
         LISTEN_DEVICE_READY = DeviceReadyEvent._filter_flag
-        """Listen for events of type :class:`ConnectedEvent<scrutiny.sdk.client.ScrutinyClient.Events.DeviceReadyEvent>`"""
+        """Listen for events of type :class:`DeviceReadyEvent<scrutiny.sdk.client.ScrutinyClient.Events.DeviceReadyEvent>`"""
         LISTEN_DEVICE_GONE = DeviceGoneEvent._filter_flag
-        """Listen for events of type :class:`ConnectedEvent<scrutiny.sdk.client.ScrutinyClient.Events.DeviceGoneEvent>`"""
+        """Listen for events of type :class:`DeviceGoneEvent<scrutiny.sdk.client.ScrutinyClient.Events.DeviceGoneEvent>`"""
         LISTEN_SFD_LOADED = SFDLoadedEvent._filter_flag
-        """Listen for events of type :class:`ConnectedEvent<scrutiny.sdk.client.ScrutinyClient.Events.SFDLoadedEvent>`"""
+        """Listen for events of type :class:`SFDLoadedEvent<scrutiny.sdk.client.ScrutinyClient.Events.SFDLoadedEvent>`"""
         LISTEN_SFD_UNLOADED = SFDUnLoadedEvent._filter_flag
-        """Listen for events of type :class:`ConnectedEvent<scrutiny.sdk.client.ScrutinyClient.Events.SFDUnLoadedEvent>`"""
+        """Listen for events of type :class:`SFDUnLoadedEvent<scrutiny.sdk.client.ScrutinyClient.Events.SFDUnLoadedEvent>`"""
         LISTEN_ALL = 0xFFFFFFFF
         """Listen to all events"""
         
@@ -1215,7 +1215,7 @@ class ScrutinyClient:
         self._stop_worker_thread()
 
     def listen_events(self, enabled_events:int) -> None:
-        """Select which events are to be listen for when calling :meth:`read_event<read_event>`. See :ref:`Using events<page_using_events>` for more details
+        """Select which events are to be listen for when calling :meth:`read_event<read_event>`.
         
         :param enabled_events: A flag value contructed by ORing values from :class:`ScrutinyClient.Events<scrutiny.sdk.client.ScrutinyClient.Events>`
 
@@ -2061,6 +2061,14 @@ class ScrutinyClient:
         return not self._event_queue.empty()
     
     def read_event(self, timeout:Optional[float] = None) -> Optional[Events._ANY_EVENTS]:
+        """
+        Read an event from the event queue using a blocking read operation
+        
+        :param timeout: Maximum amount of time to block. Blocks indefinetely if ``None``
+
+        :return: The next event in the queue or ``None`` if there is no events after timeout is expired
+        
+        """
         try:
             return self._event_queue.get(block=True, timeout = timeout)
         except queue.Empty:
