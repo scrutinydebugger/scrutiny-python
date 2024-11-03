@@ -490,7 +490,7 @@ class TestClient(ScrutinyUnitTest):
 
         port = cast(TCPClientHandler, self.api.client_handler).get_port()
         assert port is not None
-        self.client = ScrutinyClient(rx_message_callbacks=[self.log_rx_request], enabled_events=ScrutinyClient.Events.ENABLE_ALL)
+        self.client = ScrutinyClient(rx_message_callbacks=[self.log_rx_request], enabled_events=ScrutinyClient.Events.LISTEN_ALL)
 
         try:
             self.client.connect(localhost, port)
