@@ -515,7 +515,7 @@
         },
         "test/server/links/test_rtt_link.py": {
             "docstring": "Test suite to test Segger Rtt Link "
-        },                   
+        },
         "scrutiny/gui/core/gui_logger.py": {
             "docstring": "Logger used for the Graphical User Interface"
         },
@@ -545,6 +545,12 @@
         },
         "scrutiny/gui/widgets/menu_bar.py": {
             "docstring": "The window top menubar"
+        },
+        "test/gui/manual/manual_test_sfd_content_dialog.py": {
+            "docstring": "Create an environment to manually test the SFDContentDialog window"
+        },
+        "scrutiny/gui/dialogs/sfd_content_dialog.py": {
+            "docstring": "Window that displays the metadata associated with a Scrutiny Firmware Description file"
         }
     }
 }

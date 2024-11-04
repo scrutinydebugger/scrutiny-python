@@ -303,7 +303,8 @@ class ScrutinyClient:
         
         @dataclass(frozen=True)
         class DataloggerStateChanged:
-            """Triggered when the server unloads a Scrutiny Firmware Description file"""
+            """Triggered when the datalogger state changes or when the completion ratio is updated while acquiring"""
+            
             _filter_flag = 0x40
             details:sdk.DataloggingInfo
             """The state of the datalogger and the completion ratio"""
