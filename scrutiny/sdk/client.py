@@ -304,7 +304,7 @@ class ScrutinyClient:
         @dataclass(frozen=True)
         class DataloggerStateChanged:
             """Triggered when the datalogger state changes or when the completion ratio is updated while acquiring"""
-            
+
             _filter_flag = 0x40
             details:sdk.DataloggingInfo
             """The state of the datalogger and the completion ratio"""
@@ -319,7 +319,7 @@ class ScrutinyClient:
         """Listen to no events"""
         LISTEN_CONNECTED = ConnectedEvent._filter_flag
         """Listen for events of type :class:`ConnectedEvent<scrutiny.sdk.client.ScrutinyClient.Events.ConnectedEvent>`"""
-        LISTEN_DISCONENCTED = DisconnectedEvent._filter_flag
+        LISTEN_DISCONNECTED = DisconnectedEvent._filter_flag
         """Listen for events of type :class:`DisconnectedEvent<scrutiny.sdk.client.ScrutinyClient.Events.DisconnectedEvent>`"""
         LISTEN_DEVICE_READY = DeviceReadyEvent._filter_flag
         """Listen for events of type :class:`DeviceReadyEvent<scrutiny.sdk.client.ScrutinyClient.Events.DeviceReadyEvent>`"""

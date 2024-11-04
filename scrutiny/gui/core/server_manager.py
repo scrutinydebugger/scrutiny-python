@@ -318,7 +318,7 @@ class ServerManager:
             elif isinstance(event, ScrutinyClient.Events.DisconnectedEvent):
                 self._signals.server_disconnected.emit()
                 self._clear_index()
-                self._allow_auto_reconnect = True # Full cycle completed. We allow reconencting
+                self._allow_auto_reconnect = True # Full cycle completed. We allow reconnecting
             elif isinstance(event, ScrutinyClient.Events.DeviceReadyEvent):
                 self._thread_event_device_ready()
             elif isinstance(event, ScrutinyClient.Events.DeviceGoneEvent):
