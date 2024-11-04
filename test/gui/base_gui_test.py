@@ -12,7 +12,7 @@ import enum
 import time
 from test import logger
 
-from typing import List
+from typing import List, Optional
 
 
 class EventType(enum.Enum):
@@ -33,11 +33,14 @@ class ScrutinyBaseGuiTest(ScrutinyUnitTest):
 
     def setUp(self) -> None:
         self.event_list:List[EventType] = []
-        self.app = QApplication([]) # Required to process event because they are emitted in a different thread, therefore the connectiontype is queued
+        self.app = QApplication.instance()
+        if self.app is None:
+            self.app = QApplication([]) # Required to process event because they are emitted in a different thread, therefore the connectiontype is queued
     
     def tearDown(self):
         self.process_events()
-        self.app.deleteLater()  # Segfault without this. don't know why
+       # self.app.deleteLater()  # Segfault without this. don't know why
+        
 
     def wait_equal(self, fn, val, timeout, no_assert=False):
         t = time.perf_counter()
@@ -72,7 +75,7 @@ class ScrutinyBaseGuiTest(ScrutinyUnitTest):
     def wait_false_with_events(self, fn, timeout, no_assert=False):
         return self.wait_equal_with_events(fn, False, timeout, no_assert)
     
-    def wait_events(self, events:List[EventType], timeout:float,msg=""):
+    def wait_events(self, events:List[EventType], timeout:float, enforce_order:bool=True, msg=""):
         t = time.perf_counter()
 
         while time.perf_counter() - t < timeout:
@@ -81,22 +84,29 @@ class ScrutinyBaseGuiTest(ScrutinyUnitTest):
                 break
             time.sleep(0.01)
 
-        self.assert_events(events, f"Condition did not happen after {timeout} sec." + msg)
+        self.assert_events(events, enforce_order=enforce_order, msg=f"Condition did not happen after {timeout} sec." + msg)
     
     def wait_events_and_clear(self, events:List[EventType], timeout:float, msg=""):
         self.wait_events(events, timeout, msg)
-        self.clear_events()
+        self.clear_events(len(events))
     
-    def clear_events(self):
-        self.event_list = []
+    def clear_events(self, count:Optional[int]=None):
+        if count is None:
+            self.event_list = []
+        else:
+            for i in range(count):
+                self.event_list.pop(0)
 
-    def assert_events(self, events:List[EventType], msg="") -> None:
+    def assert_events(self,  events:List[EventType], enforce_order:bool=True, msg="") -> None:
         self.process_events()
-        self.assertEqual(self.event_list, events, msg=msg)
+        if enforce_order:
+            self.assertEqual(self.event_list, events, msg=msg)
+        else:
+            self.assertCountEqual(self.event_list, events, msg=msg)
     
     def process_events(self):
         self.app.processEvents()
     
-    def assert_events_and_clear(self, events:List[EventType])->None:
-        self.assert_events(events)
-        self.clear_events()
+    def assert_events_and_clear(self, events:List[EventType], enforce_order:bool=True)->None:
+        self.assert_events(events, enforce_order=enforce_order)
+        self.clear_events(len(events))

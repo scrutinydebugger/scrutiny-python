@@ -265,6 +265,9 @@ class DataloggingCapabilities:
 class DeviceInfo:
     """(Immutable struct) Information about the device connected to the server"""
 
+    session_id: str 
+    """The unique ID assigned to the communication session between the server abd the device when this data was gathered"""
+
     device_id: str
     """A unique ID identifying the device and its software (Firmware ID). """
 
@@ -404,23 +407,28 @@ class SerialLinkConfig(BaseLinkConfig):
     """(Immutable struct) The configuration structure for a device link of type :attr:`Serial<scrutiny.sdk.DeviceLinkType.Serial>`"""
 
     class StopBits(enum.Enum):
+        """Number of stop bits as defined by RS-232"""
         ONE = 1
         ONE_POINT_FIVE = 1.5
         TWO = 2
 
         def get_numerical(self) -> float:
+            """Return the number of stop bits as ``float``"""
             return float(self.value)
 
     class DataBits(enum.Enum):
+        """Number of data bits as defined by RS-232"""
         FIVE = 5
         SIX = 6
         SEVEN = 7
         EIGHT = 8
 
         def get_numerical(self) -> int:
+            """Return the number of data bits as ``int``"""
             return int(self.value)
 
     class Parity(enum.Enum):
+        """A serial port parity configuration"""
         NONE = "none" 
         EVEN = "even"
         ODD = "odd"
@@ -428,6 +436,7 @@ class SerialLinkConfig(BaseLinkConfig):
         SPACE = "space"
 
         def get_displayable_name(self) -> str:
+            """Return the value as ``str``"""
             return self.value
 
     port: str
@@ -531,8 +540,8 @@ class ServerInfo:
     datalogging: DataloggingInfo
     """Datalogging state"""
 
-    sfd: Optional[SFDInfo]
-    """The Scrutiny Firmware Description file actually loaded on the server. ``None`` if none is loaded"""
+    sfd_firmware_id: Optional[str]
+    """The firmware ID of the Scrutiny Firmware Description file actually loaded on the server. ``None`` if none is loaded"""
 
     device_link: DeviceLinkInfo
     """Communication channel presently used to communicate with the device"""

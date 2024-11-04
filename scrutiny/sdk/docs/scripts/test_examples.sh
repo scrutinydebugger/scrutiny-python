@@ -37,4 +37,9 @@ g++ -c "$outfile" -o $tempdir/calibration.o
 g++ -c "$outfile" -o $tempdir/calibration.o -DENABLE_TUNNING
 python3 -m mypy --cache-dir $tempdir calibration_1_pi_graph.py --strict 
 
+
+# Event looping
+cd $EXAMPLES_ROOT/event_looping
+python3 -m mypy --cache-dir $tempdir event_looping.py --strict 
+
 rm -rf $tempdir

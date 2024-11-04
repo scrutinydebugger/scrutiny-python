@@ -1,3 +1,11 @@
+#    test_rtt_link.py
+#        Test suite to test Segger Rtt Link
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021 Scrutiny Debugger
+
 from typing import List, Optional
 from scrutiny.server.device.links import rtt_link
 from test import ScrutinyUnitTest

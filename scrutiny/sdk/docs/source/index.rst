@@ -12,6 +12,7 @@ Scrutiny Python SDK
    server_control
    firmware_descriptions
    extending_the_protocol
+   using_events
    basic_types
    exceptions
    use_cases

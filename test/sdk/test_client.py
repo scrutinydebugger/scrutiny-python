@@ -32,7 +32,9 @@ from scrutiny.server.api import API
 from scrutiny.server.api import APIConfig
 import scrutiny.server.datastore.datastore as datastore
 from scrutiny.server.api.tcp_client_handler import TCPClientHandler
-from scrutiny.server.device.device_handler import DeviceHandler, DeviceStateChangedCallback, RawMemoryReadRequest, RawMemoryWriteRequest, UserCommandCallback
+from scrutiny.server.device.device_handler import (
+    DeviceHandler, DeviceStateChangedCallback,  RawMemoryReadRequest, RawMemoryWriteRequest, UserCommandCallback, DataloggerStateChangedCallback
+    )
 from scrutiny.server.device.submodules.memory_writer import RawMemoryWriteRequestCompletionCallback
 from scrutiny.server.device.submodules.memory_reader import RawMemoryReadRequestCompletionCallback
 
@@ -97,6 +99,7 @@ class FakeDeviceHandler:
     write_logs: List[Union[WriteMemoryLog, WriteRPVLog]]
     read_logs: List[ReadMemoryLog]
     device_state_change_callbacks: List[DeviceStateChangedCallback]
+    datalogger_state_change_callbacks: List[DataloggerStateChangedCallback]
     read_memory_queue: "queue.Queue[RawMemoryReadRequest]"
     write_memory_queue: "queue.Queue[RawMemoryWriteRequest]"
     fake_mem: MemoryContent
@@ -120,6 +123,7 @@ class FakeDeviceHandler:
         self.device_conn_status = DeviceHandler.ConnectionStatus.DISCONNECTED
         self.comm_session_id = None
         self.device_state_change_callbacks = []
+        self.datalogger_state_change_callbacks = []
         self.set_connection_status(DeviceHandler.ConnectionStatus.CONNECTED_READY)
         self.write_logs = []
         self.read_logs = []
@@ -205,6 +209,19 @@ class FakeDeviceHandler:
 
     def get_connection_status(self):
         return self.device_conn_status
+    
+    def set_datalogger_state(self, state:Optional[device_datalogging.DataloggerState], ratio:Optional[float]):
+        old_state = self.datalogger_state
+        old_ratio = self.datalogging_completion_ratio
+        self.datalogger_state = state
+        self.datalogging_completion_ratio = ratio
+        if ratio is not None:
+            assert self.datalogger_state in [device_datalogging.DataloggerState.TRIGGERED, device_datalogging.DataloggerState.ACQUISITION_COMPLETED]
+
+        if state is not None and (old_state!=state or old_ratio != ratio):
+            for callback in self.datalogger_state_change_callbacks:
+                callback(self.datalogger_state, self.datalogging_completion_ratio)
+    
 
     def set_connection_status(self, status: DeviceHandler.ConnectionStatus):
         previous_state = self.device_conn_status
@@ -223,6 +240,9 @@ class FakeDeviceHandler:
 
     def register_device_state_change_callback(self, callback: DeviceStateChangedCallback) -> None:
         self.device_state_change_callbacks.append(callback)
+
+    def register_datalogger_state_change_callback(self, callback: DataloggerStateChangedCallback) -> None:
+        self.datalogger_state_change_callbacks.append(callback)
 
     def get_comm_session_id(self):
         return self.comm_session_id
@@ -490,7 +510,7 @@ class TestClient(ScrutinyUnitTest):
 
         port = cast(TCPClientHandler, self.api.client_handler).get_port()
         assert port is not None
-        self.client = ScrutinyClient(rx_message_callbacks=[self.log_rx_request])
+        self.client = ScrutinyClient(rx_message_callbacks=[self.log_rx_request], enabled_events=ScrutinyClient.Events.LISTEN_ALL)
 
         try:
             self.client.connect(localhost, port)
@@ -658,18 +678,7 @@ class TestClient(ScrutinyUnitTest):
         self.assertIsNone(server_info.datalogging.completion_ratio)
         self.assertEqual(server_info.datalogging.state, sdk.DataloggerState.Standby)
 
-        self.assertIsNotNone(server_info.sfd)
-        assert server_info.sfd is not None
-        sfd = FirmwareDescription(get_artifact('test_sfd_1.sfd'))
-        self.assertEqual(server_info.sfd.firmware_id, sfd.get_firmware_id_ascii())
-        self.assertEqual(server_info.sfd.metadata.author, sfd.metadata['author'])
-        self.assertEqual(server_info.sfd.metadata.project_name, sfd.metadata['project_name'])
-        self.assertEqual(server_info.sfd.metadata.version, sfd.metadata['version'])
-
-        self.assertEqual(server_info.sfd.metadata.generation_info.python_version, sfd.metadata['generation_info']['python_version'])
-        self.assertEqual(server_info.sfd.metadata.generation_info.scrutiny_version, sfd.metadata['generation_info']['scrutiny_version'])
-        self.assertEqual(server_info.sfd.metadata.generation_info.system_type, sfd.metadata['generation_info']['system_type'])
-        self.assertEqual(server_info.sfd.metadata.generation_info.timestamp, datetime.fromtimestamp(sfd.metadata['generation_info']['time']))
+        self.assertIsNotNone(server_info.sfd_firmware_id)
 
         # Make sure the class is readonly.
         with self.assertRaises(Exception):
@@ -680,6 +689,25 @@ class TestClient(ScrutinyUnitTest):
         status = self.client.request_server_status_update(wait=True)
         
         self.assertIsNot(status, server_info)   # Make sure we have a new object with a new reference.
+
+    def test_get_loaded_sfd(self):
+
+        self.assertEqual(self.client.server_state, sdk.ServerState.Connected)
+        server_sfd = self.client.get_loaded_sfd()
+        self.assertIsNotNone(server_sfd)
+        assert server_sfd is not None
+
+        sfd = FirmwareDescription(get_artifact('test_sfd_1.sfd'))
+        self.assertEqual(server_sfd.firmware_id, sfd.get_firmware_id_ascii())
+        self.assertEqual(server_sfd.metadata.author, sfd.metadata['author'])
+        self.assertEqual(server_sfd.metadata.project_name, sfd.metadata['project_name'])
+        self.assertEqual(server_sfd.metadata.version, sfd.metadata['version'])
+
+        self.assertEqual(server_sfd.metadata.generation_info.python_version, sfd.metadata['generation_info']['python_version'])
+        self.assertEqual(server_sfd.metadata.generation_info.scrutiny_version, sfd.metadata['generation_info']['scrutiny_version'])
+        self.assertEqual(server_sfd.metadata.generation_info.system_type, sfd.metadata['generation_info']['system_type'])
+        self.assertEqual(server_sfd.metadata.generation_info.timestamp, datetime.fromtimestamp(sfd.metadata['generation_info']['time']))
+
 
     def test_get_device_info(self):
         # Make sure we can read the status of the server correctly
@@ -1221,10 +1249,10 @@ class TestClient(ScrutinyUnitTest):
         alias_var1 = self.client.watch('/a/b/alias_var1')
 
         def sfd_loaded_check():
-            return self.client.get_latest_server_status().sfd is not None
+            return self.client.get_latest_server_status().sfd_firmware_id is not None
 
         def sfd_unloaded_check():
-            return self.client.get_latest_server_status().sfd is None
+            return self.client.get_latest_server_status().sfd_firmware_id is None
 
         def unload_sfd():
             self.sfd_handler.unload()
@@ -2057,7 +2085,95 @@ class TestClient(ScrutinyUnitTest):
                     self.assertNotIn(path, received_path, "Received duplicate item")
                     received_path.add(path)
 
+    def test_events(self):
+        client_host = self.client.hostname
+        client_port = self.client.port
 
+        # This timer is too small to be reliable when relying on the client polling loop
+        # It also ensure that the server sends a status update for data changes that can trigger an event.
+        EVENT_READ_TIMEOUT = 1 
+
+        evt = self.client.read_event(timeout=EVENT_READ_TIMEOUT)
+        self.assertIsInstance(evt, ScrutinyClient.Events.ConnectedEvent)
+        assert isinstance(evt, ScrutinyClient.Events.ConnectedEvent)
+        self.assertEqual(evt.host, self.client.hostname)
+        self.assertEqual(evt.port, self.client.port)
+
+        evt = self.client.read_event(timeout=EVENT_READ_TIMEOUT)
+        self.assertIsInstance(evt, ScrutinyClient.Events.DeviceReadyEvent)
+        assert isinstance(evt, ScrutinyClient.Events.DeviceReadyEvent)
+        device_session_id = self.client.get_latest_server_status().device_session_id
+        self.assertEqual(evt.session_id, device_session_id)
+
+        evt = self.client.read_event(timeout=EVENT_READ_TIMEOUT)
+        self.assertIsInstance(evt, ScrutinyClient.Events.SFDLoadedEvent)
+        assert isinstance(evt, ScrutinyClient.Events.SFDLoadedEvent)
+        sfd_firmware_id = self.client.get_latest_server_status().sfd_firmware_id
+        self.assertEqual(evt.firmware_id, sfd_firmware_id)
+
+        self.assertFalse(self.client.has_event_pending()) 
+
+        self.device_handler.set_connection_status(DeviceHandler.ConnectionStatus.DISCONNECTED)
+
+        evt = self.client.read_event(timeout=EVENT_READ_TIMEOUT)
+        self.assertIsInstance(evt, ScrutinyClient.Events.DeviceGoneEvent)
+        assert isinstance(evt, ScrutinyClient.Events.DeviceGoneEvent)
+        self.assertEqual(evt.session_id, device_session_id)
+        self.assertFalse(self.client.has_event_pending())
+
+
+        # Check that we can filter events properly
+        self.client.listen_events(ScrutinyClient.Events.LISTEN_DEVICE_READY)
+        self.device_handler.set_connection_status(DeviceHandler.ConnectionStatus.CONNECTED_READY)
+        evt = self.client.read_event(timeout=EVENT_READ_TIMEOUT)
+        self.assertIsInstance(evt, ScrutinyClient.Events.DeviceReadyEvent)
+        assert isinstance(evt, ScrutinyClient.Events.DeviceReadyEvent)
+        self.assertEqual(evt.session_id, self.device_handler.comm_session_id)
+        self.assertEqual(evt.session_id, self.client.get_latest_server_status().device_session_id)
+        self.assertFalse(self.client.has_event_pending())
+        self.device_handler.set_connection_status(DeviceHandler.ConnectionStatus.DISCONNECTED)
+        evt = self.client.read_event(timeout=EVENT_READ_TIMEOUT)
+        self.assertIsNone(evt)
+        self.assertFalse(self.client.has_event_pending())
+
+
+        self.client.listen_events(ScrutinyClient.Events.LISTEN_ALL)
+
+        self.device_handler.set_datalogger_state(device_datalogging.DataloggerState.ARMED, None)
+        evt = self.client.read_event(timeout=EVENT_READ_TIMEOUT)
+        self.assertIsInstance(evt, ScrutinyClient.Events.DataloggerStateChanged)
+        assert isinstance(evt, ScrutinyClient.Events.DataloggerStateChanged)
+        self.assertEqual(evt.details.state, sdk.DataloggerState.WaitForTrigger)
+        self.assertIsNone(evt.details.completion_ratio)
+
+        self.device_handler.set_datalogger_state(device_datalogging.DataloggerState.TRIGGERED, 0.5)
+        evt = self.client.read_event(timeout=EVENT_READ_TIMEOUT)
+        self.assertIsInstance(evt, ScrutinyClient.Events.DataloggerStateChanged)
+        assert isinstance(evt, ScrutinyClient.Events.DataloggerStateChanged)
+        self.assertEqual(evt.details.state, sdk.DataloggerState.Acquiring)
+        self.assertEqual(evt.details.completion_ratio, 0.5)
+        
+        self.device_handler.set_datalogger_state(device_datalogging.DataloggerState.TRIGGERED, 0.75)
+        evt = self.client.read_event(timeout=EVENT_READ_TIMEOUT)
+        self.assertIsInstance(evt, ScrutinyClient.Events.DataloggerStateChanged)
+        assert isinstance(evt, ScrutinyClient.Events.DataloggerStateChanged)
+        self.assertEqual(evt.details.state, sdk.DataloggerState.Acquiring)
+        self.assertEqual(evt.details.completion_ratio, 0.75)
+
+
+        self.sfd_handler.unload()
+        evt = self.client.read_event(timeout=EVENT_READ_TIMEOUT)
+        self.assertIsInstance(evt, ScrutinyClient.Events.SFDUnLoadedEvent)
+        assert isinstance(evt, ScrutinyClient.Events.SFDUnLoadedEvent)
+        self.assertEqual(evt.firmware_id, sfd_firmware_id)
+        self.assertFalse(self.client.has_event_pending())
+
+        self.client.disconnect()
+        evt = self.client.read_event(timeout=EVENT_READ_TIMEOUT)
+        self.assertIsInstance(evt, ScrutinyClient.Events.DisconnectedEvent)
+        assert isinstance(evt, ScrutinyClient.Events.DisconnectedEvent)
+        self.assertEqual(evt.host, client_host)
+        self.assertEqual(evt.port, client_port)
 
 if __name__ == '__main__':
     unittest.main()

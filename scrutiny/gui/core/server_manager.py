@@ -71,29 +71,23 @@ class ClientRequestStore:
 class ServerManager:
     """Runs a thread for the synchronous SDK and emit QT events when something interesting happens"""
 
-    class ThreadFSMData:
+    class ThreadState:
         """Data used by the server thread used to detect changes and emit events"""
-        previous_server_state:sdk.ServerState
-        server_state:sdk.ServerState
-        server_info:Optional[sdk.ServerInfo]
-        previous_server_info:Optional[sdk.ServerInfo]
-        
         runtime_watchables_download_request:Optional[WatchableListDownloadRequest]
         sfd_watchables_download_request:Optional[WatchableListDownloadRequest]
-
         connect_timestamp_mono:Optional[float]
+        last_server_state:sdk.ServerState
 
         def __init__(self) -> None:
+            self.runtime_watchables_download_request = None
+            self.sfd_watchables_download_request = None
+            self.connect_timestamp_mono = None
+            
             self.clear()
 
         def clear(self) -> None:
-            self.sfd_watchables_download_request = None
-            self.runtime_watchables_download_request = None
-            self.previous_server_state = sdk.ServerState.Disconnected
-            self.server_state = sdk.ServerState.Disconnected
-            self.server_info = None
-            self.previous_server_info = None
             self.connect_timestamp_mono = None
+            self.last_server_state = sdk.ServerState.Disconnected
             self.clear_download_requests()
         
         def clear_download_requests(self) -> None:
@@ -139,9 +133,9 @@ class ServerManager:
     _thread_stop_event:threading.Event  # Event used to stop the thread
     _signals:_Signals                   # The signals
     _internal_signals:_InternalSignals
-    _auto_reconnect:bool                # Flag indicating if the thread should try to reconnect the client if disconnected
+    _allow_auto_reconnect:bool                # Flag indicating if the thread should try to reconnect the client if disconnected
     _logger:logging.Logger              # Logger
-    _fsm_data:ThreadFSMData             # Data used by the thread to detect state changes
+    _thread_state:ThreadState             # Data used by the thread to detect state changes
 
     _stop_pending:bool
     _client_request_store:ClientRequestStore
@@ -154,20 +148,31 @@ class ServerManager:
             self._client = ScrutinyClient()
         else:
             self._client = client   # Mainly useful for unit testing
+        self._client.listen_events(ScrutinyClient.Events.LISTEN_ALL)
         self._signals = self._Signals()
         self._internal_signals = self._InternalSignals()
         
         self._thread = None
         self._thread_stop_event = threading.Event()
-        self._auto_reconnect = False
+        self._allow_auto_reconnect = False
         
-        self._fsm_data = self.ThreadFSMData()
+        self._thread_state = self.ThreadState()
         self._index = watchable_index
 
         self._internal_signals.thread_exit_signal.connect(self._join_thread_and_emit_stopped)
         self._internal_signals.client_request_completed.connect(self._client_request_completed)
         self._stop_pending = False
         self._client_request_store = ClientRequestStore()
+
+        if self._logger.isEnabledFor(logging.DEBUG):
+            self._signals.server_connected.connect(lambda : self._logger.debug("+Signal: server_connected"))
+            self._signals.server_disconnected.connect(lambda : self._logger.debug("+Signal: server_disconnected"))
+            self._signals.device_ready.connect(lambda : self._logger.debug("+Signal: device_ready"))
+            self._signals.device_disconnected.connect(lambda : self._logger.debug("+Signal: device_disconnected"))
+            self._signals.sfd_loaded.connect(lambda : self._logger.debug("+Signal: sfd_loaded"))
+            self._signals.sfd_unloaded.connect(lambda : self._logger.debug("+Signal: sfd_unloaded"))
+            self._signals.index_changed.connect(lambda : self._logger.debug("+Signal: index_changed"))
+            self._signals.datalogging_state_changed.connect(lambda : self._logger.debug("+Signal: datalogging_state_changed"))
 
     def _join_thread_and_emit_stopped(self) -> None:
         if self._thread is not None:    # Should always be true
@@ -205,7 +210,7 @@ class ServerManager:
         self._logger.debug("Starting server manager")
         self._client_request_store.clear()
         self.signals.starting.emit()
-        self._auto_reconnect = True
+        self._allow_auto_reconnect = True
         self._thread_stop_event.clear()
         self._thread = threading.Thread(target=self._thread_func, args=[config], daemon=True)
         self._thread.start()
@@ -223,158 +228,53 @@ class ServerManager:
             self._logger.debug("Server manager is not running. Cannot stop")
             return 
         
-        self._stop_pending = True
         self._logger.debug("Stopping server manager")
+        self._stop_pending = True
         self.signals.stopping.emit()
-        self._auto_reconnect = False
-        self._client.close_socket()   # Will cancel any pending request in the other thread
         
         # Will cause the thread to exit and emit thread_exit_signal that triggers _join_thread_and_emit_stopped in the UI thread
         self._thread_stop_event.set()
+        self._client.close_socket()   # Will cancel any pending request in the other thread
         self._logger.debug("Stop initiated")
+
 
     def _thread_func(self, config:ServerConfig) -> None:
         """Thread that monitors state change on the server side"""
         self._logger.debug("Server manager thread running")
-        self._fsm_data.previous_server_state = sdk.ServerState.Disconnected
-        self._fsm_data.server_state = sdk.ServerState.Disconnected
-        self._fsm_data.server_info = None
-        self._fsm_data.previous_server_info = None
-        self._fsm_data.connect_timestamp_mono = None
+        self._thread_state.clear()
+        
+        self._thread_clear_client_events()
+
         try:
             while not self._thread_stop_event.is_set():
-                self._fsm_data.server_state = self._client.server_state
-                state_entry = self._fsm_data.server_state != self._fsm_data.previous_server_state
-                if state_entry:
-                    self._logger.debug(f"Switching state from {self._fsm_data.previous_server_state.name} to {self._fsm_data.server_state.name}")
-                
-                if self._fsm_data.server_state == sdk.ServerState.Disconnected:
-                    if state_entry: # Will not enter on first loop. On purpose.
-                        self._logger.debug("Entering disconnected state")
-                        self._signals.server_disconnected.emit()
-                        self._fsm_data.clear_download_requests()
-                        self._clear_index()
-                        self._fsm_data.server_info = None
-                        self._fsm_data.previous_server_info = None
+                if self._client.server_state == sdk.ServerState.Disconnected:
+                    self._thread_handle_reconnect(config)
 
-                    if self._auto_reconnect:
-                        # timer to prevent going crazy on function call
-                        if self._fsm_data.connect_timestamp_mono is None or time.monotonic() - self._fsm_data.connect_timestamp_mono > self.RECONNECT_DELAY:
-                            try:
-                                self._logger.debug("Connecting client")
-                                self._fsm_data.connect_timestamp_mono = time.monotonic()
-                                self._client.connect(config.hostname, config.port, wait_status=False)
-                            except sdk.exceptions.ConnectionError:
-                                pass
-                
-                elif self._fsm_data.server_state == sdk.ServerState.Connecting: # pragma: no cover
-                    pass    # This state should never happen here because connect block until completion or failure
+                server_state = self._client.server_state
+                if server_state == sdk.ServerState.Error:
+                    self.stop()
+                    break
+                self._thread_process_client_events()
+                self._thread_handle_download_watchable_logic()
 
-                elif self._fsm_data.server_state == sdk.ServerState.Connected:
-                    if state_entry:
-                        self._logger.debug(f"Client connected to {config.hostname}:{config.port}")
-                        self._signals.server_connected.emit()
-                        self._fsm_data.server_info = None
-                        self._fsm_data.previous_server_info = None
-
-                    try:
-                        self._client.wait_server_status_update(0.2)
-                        self._fsm_data.server_info = self._client.get_latest_server_status()
-                        self.signals.status_received.emit()
-                    except sdk.exceptions.TimeoutException:
-                        pass
-                    except sdk.exceptions.ScrutinySDKException:
-                        self._fsm_data.server_info = None
-
-                    # Server is gone
-                    if self._fsm_data.server_info is None and self._fsm_data.previous_server_info is not None:
-                        self._clear_index()
-                        if self._fsm_data.previous_server_info.sfd is not None:
-                            self._thread_sfd_unloaded()          # No event to avoid sending twice
-                        if self._fsm_data.previous_server_info.device_session_id is not None:
-                            self._thread_device_disconnected()   # No event to avoid sending twice
-                    
-                    # Server just arrived
-                    elif self._fsm_data.server_info is not None and self._fsm_data.previous_server_info is None:
-                        if self._fsm_data.server_info.device_session_id is not None:
-                            self._thread_device_ready()
-                            if self._fsm_data.server_info.sfd is not None:
-                                self._thread_sfd_loaded()
-
-
-                    # Server is running
-                    elif self._fsm_data.server_info is not None and self._fsm_data.previous_server_info is not None:
-                        # Device just left
-                        if self._fsm_data.server_info.device_session_id is None and self._fsm_data.previous_server_info.device_session_id is not None:
-                            self._clear_index()
-                            if self._fsm_data.server_info.sfd is None and self._fsm_data.previous_server_info.sfd is not None:
-                                self._thread_sfd_unloaded()
-                            self._thread_device_disconnected()
-
-                        # Device just arrived
-                        elif self._fsm_data.server_info.device_session_id is not None and self._fsm_data.previous_server_info.device_session_id is None:
-                            self._thread_device_ready()
-                            if self._fsm_data.server_info.sfd is not None and self._fsm_data.previous_server_info.sfd is None:
-                                self._thread_sfd_loaded()
-
-                        # Device has been there consistently
-                        elif self._fsm_data.server_info.device_session_id is not None and self._fsm_data.previous_server_info.device_session_id is not None:
-                            if self._fsm_data.server_info.device_session_id != self._fsm_data.previous_server_info.device_session_id:
-                                # The server did a full reconnect between 2 state update.
-                                # This state hsa a value only when device state is ConnectedReady
-                                
-                                self._clear_index()
-
-                                if self._fsm_data.previous_server_info.sfd is not None:
-                                    self._thread_sfd_unloaded()
-                                self._thread_device_disconnected()
-                                self._thread_device_ready()
-                                if self._fsm_data.server_info.sfd is not None:
-                                    self._thread_sfd_loaded()
-                            else:
-                                if self._fsm_data.server_info.sfd is None and self._fsm_data.previous_server_info.sfd is not None:
-                                    self._thread_sfd_unloaded()
-                                elif self._fsm_data.server_info.sfd is not None and self._fsm_data.previous_server_info.sfd is None:
-                                    self._thread_sfd_loaded()
-                                else:
-                                    pass # SFD state is unchanged (None/None or loaded/loaded). Nothing to do
-
-                            # Check change on datalogging state
-                            if (self._fsm_data.server_info.datalogging.state != self._fsm_data.previous_server_info.datalogging.state 
-                                or self._fsm_data.server_info.datalogging.completion_ratio != self._fsm_data.previous_server_info.datalogging.completion_ratio):
-                                self._signals.datalogging_state_changed.emit()
-
-                        else: # Both None, nothing to do
-                            pass
-
-                        self._thread_handle_download_watchable_logic()
-                    else:
-                        pass # Nothing to do
-
-                    self._fsm_data.previous_server_info=self._fsm_data.server_info
-
-                elif self._fsm_data.server_state == sdk.ServerState.Error:
-                    self._logger.error("Server state is Error. Stopping the server manager")
-                    if self._fsm_data.previous_server_state == sdk.ServerState.Connected:
-                        self._signals.server_disconnected.emit()
-                    self._auto_reconnect = False
-                    self._thread_stop_event.set()
-
-                self._fsm_data.previous_server_state = self._fsm_data.server_state
-
+                self._thread_state.last_server_state = server_state
             
         except Exception as e:  # pragma: no cover
             self._logger.critical(f"Error in server manager thread: {e}")
             self._logger.debug(traceback.format_exc())
         finally:
             self._client.disconnect()
-            if self._fsm_data.previous_server_state == sdk.ServerState.Connected:
+            was_connected = self._thread_state.last_server_state == sdk.ServerState.Connected
+            if was_connected:
                 try:
                     self._signals.server_disconnected.emit()
                 except RuntimeError:
                     pass    # May fail if the window is deleted before this thread exits
-        
-        self._fsm_data.clear()
+            
+            # Empty the event queue
+            self._thread_clear_client_events()
+
+        self._thread_state.clear()
         
         # Ensure the server thread has the time to notice the changes and emit all signals
         t = time.perf_counter()
@@ -388,64 +288,91 @@ class ServerManager:
         except RuntimeError:
             pass    # May fail if the window is deleted before this thread exits
 
+    def _thread_clear_client_events(self) -> None:
+        while self._client.has_event_pending():
+            self._client.read_event(timeout=0)
 
-    def _thread_handle_download_watchable_logic(self) -> None:
-        # Handle download of RPV if the device is ready
-        device_ready = False
-        if self._fsm_data.server_info is not None:
-            device_ready = self._fsm_data.server_info.device_session_id is not None
-        
-        if device_ready:
-            if self._fsm_data.runtime_watchables_download_request is not None:
-                if self._fsm_data.runtime_watchables_download_request.completed:  
-                    # Download is finished
-                    # Data is already inside the index. Added from the callback
-                    was_success = self._fsm_data.runtime_watchables_download_request.is_success
-                    self._fsm_data.runtime_watchables_download_request = None   # Clear the request.
-                    self._logger.debug("Download of watchable list is complete. Group : runtime")
-                    if was_success:
-                        self._signals.index_changed.emit()
-                    else:
-                        self._clear_index_rpv()
-                else:
-                    pass # Downloading
-        else:
-            if self._index.has_data(sdk.WatchableType.RuntimePublishedValue): # pragma: no cover
-                self._logger.critical("The device is not available but there is still data in the watchable index.")
+    def _thread_handle_reconnect(self, config:ServerConfig) -> None:
+        if self._allow_auto_reconnect and not self._stop_pending:
+            # timer to prevent going crazy on function call
+            if self._thread_state.connect_timestamp_mono is None or time.monotonic() - self._thread_state.connect_timestamp_mono > self.RECONNECT_DELAY:
+                try:
+                    self._logger.debug("Connecting client")
+                    self._thread_state.connect_timestamp_mono = time.monotonic()
+                    self._client.connect(config.hostname, config.port, wait_status=False)
+                except sdk.exceptions.ConnectionError:
+                    pass
+
+
+    def _thread_process_client_events(self) -> None:
+        while True:
+            event = self._client.read_event(timeout=0.2)
+            if event is None:
+                return
+            
+            self._logger.debug(f"+Event: {event}")
+            if isinstance(event, ScrutinyClient.Events.ConnectedEvent):
+                self._signals.server_connected.emit()
                 self._clear_index()
+                self._allow_auto_reconnect = False    # Ensure we do not try to reconnect until the disconnect event is processed
+            elif isinstance(event, ScrutinyClient.Events.DisconnectedEvent):
+                self._signals.server_disconnected.emit()
+                self._clear_index()
+                self._allow_auto_reconnect = True # Full cycle completed. We allow reconnecting
+            elif isinstance(event, ScrutinyClient.Events.DeviceReadyEvent):
+                self._thread_event_device_ready()
+            elif isinstance(event, ScrutinyClient.Events.DeviceGoneEvent):
+                self._thread_event_device_disconnected()
+            elif isinstance(event, ScrutinyClient.Events.SFDLoadedEvent):
+                self._thread_event_sfd_loaded()            
+            elif isinstance(event, ScrutinyClient.Events.SFDUnLoadedEvent):
+                self._thread_event_sfd_unloaded()
+            elif isinstance(event, ScrutinyClient.Events.DataloggerStateChanged):
+                self._signals.datalogging_state_changed.emit()
+            else:
+                self._logger.error(f"Unsupported event type : {event.__class__.__name__}")    
 
     
-        # Handle the download of variables and alias if the SFD is loaded
-        sfd_loaded = False
-        if self._fsm_data.server_info is not None:
-            sfd_loaded = self._fsm_data.server_info.sfd is not None
-        if sfd_loaded:
-                if self._fsm_data.sfd_watchables_download_request is not None: 
-                    if self._fsm_data.sfd_watchables_download_request.completed:
-                        # Download complete
-                        # Data is already inside the index. Added from the callback
-                        self._logger.debug("Download of watchable list is complete. Group : SFD")
-                        was_success = self._fsm_data.sfd_watchables_download_request.is_success
-                        self._fsm_data.sfd_watchables_download_request = None    # Clear the request.
-                        if was_success:
-                            self._signals.index_changed.emit()
-                        else:
-                            self._clear_index_alias_var()
-                    else:
-                        pass    # Downloading
+    def _thread_handle_download_watchable_logic(self) -> None:
+        if self._thread_state.runtime_watchables_download_request is not None:
+            if self._thread_state.runtime_watchables_download_request.completed:  
+                # Download is finished
+                # Data is already inside the index. Added from the callback
+                was_success = self._thread_state.runtime_watchables_download_request.is_success
+                self._thread_state.runtime_watchables_download_request = None   # Clear the request.
+                self._logger.debug("Download of watchable list is complete. Group : runtime")
+                if was_success:
+                    self._signals.index_changed.emit()
+                else:
+                    self._clear_index_rpv()
+            else:
+                pass # Downloading
+    
 
-        else:   # No SFD loaded
-            if self._index.has_data(sdk.WatchableType.Alias) or self._index.has_data(sdk.WatchableType.Variable):   # pragma: no cover
-                self._logger.critical("The SFD is not loaded but there is still data in the watchable index.")
-                self._clear_index()
+        if self._thread_state.sfd_watchables_download_request is not None: 
+            if self._thread_state.sfd_watchables_download_request.completed:
+                # Download complete
+                # Data is already inside the index. Added from the callback
+                self._logger.debug("Download of watchable list is complete. Group : SFD")
+                was_success = self._thread_state.sfd_watchables_download_request.is_success
+                self._thread_state.sfd_watchables_download_request = None    # Clear the request.
+                if was_success:
+                    self._signals.index_changed.emit()
+                else:
+                    self._clear_index_alias_var()
+            else:
+                pass    # Downloading
+
 
  
-    def _thread_device_ready(self) -> None:
+    def _thread_event_device_ready(self) -> None:
         """To be called once when a device connects"""
         self._logger.debug("Detected device ready")
-        self._fsm_data.clear_download_requests()
+        req = self._thread_state.runtime_watchables_download_request    # Get the ref atomically
+        if req is not None:
+            req.cancel()
         had_data = self._clear_index(no_changed_event=True) # Event is triggered AFTER device_ready
-        self._fsm_data.runtime_watchables_download_request = self._client.download_watchable_list(
+        self._thread_state.runtime_watchables_download_request = self._client.download_watchable_list(
             types=[sdk.WatchableType.RuntimePublishedValue],
             partial_reception_callback=self._download_data_partial_response_callback
             )
@@ -453,14 +380,14 @@ class ServerManager:
         if had_data:
             self.signals.index_changed.emit()
 
-    def _thread_sfd_loaded(self) -> None:
+    def _thread_event_sfd_loaded(self) -> None:
         """To be called once when a SFD is laoded"""
         self._logger.debug("Detected SFD loaded")
-        req = self._fsm_data.sfd_watchables_download_request    # Get the ref atomically
+        req = self._thread_state.sfd_watchables_download_request    # Get the ref atomically
         if req is not None:
             req.cancel()
         had_data = self._clear_index_alias_var(no_changed_event=True) # Event is triggered AFTER sfd_loaded
-        self._fsm_data.sfd_watchables_download_request = self._client.download_watchable_list(
+        self._thread_state.sfd_watchables_download_request = self._client.download_watchable_list(
             types=[sdk.WatchableType.Variable,sdk.WatchableType.Alias],
             partial_reception_callback=self._download_data_partial_response_callback
             )
@@ -468,24 +395,27 @@ class ServerManager:
         if had_data:
             self.signals.index_changed.emit()
 
-    
-    def _thread_sfd_unloaded(self, no_index_event:bool=False) -> None:
+    def _thread_event_sfd_unloaded(self, no_index_event:bool=False) -> None:
         """To be called once when a SFD is unloaded"""
         self._logger.debug("Detected SFD unloaded")
-        req = self._fsm_data.sfd_watchables_download_request    # Get the ref atomically
+        req = self._thread_state.sfd_watchables_download_request    # Get the ref atomically
         if req is not None:
             req.cancel()
-        self._fsm_data.sfd_watchables_download_request = None
-        self._clear_index_alias_var()
+        self._thread_state.sfd_watchables_download_request = None
+        self._clear_index_alias_var()   # May trigger index_changed signal
         self.signals.sfd_unloaded.emit()
 
-
-    def _thread_device_disconnected(self) -> None:
+    def _thread_event_device_disconnected(self) -> None:
         """To be called once when a device disconnect"""
         self._logger.debug("Detected device disconnected")
-        self._fsm_data.clear_download_requests()
-        self._clear_index()
-        self._signals.device_disconnected.emit()
+
+        req = self._thread_state.runtime_watchables_download_request    # Get the ref atomically
+        if req is not None:
+            req.cancel()
+        self._thread_state.runtime_watchables_download_request = None
+        self._clear_index_rpv()   # May trigger index_changed signal
+        self.signals.device_disconnected.emit()
+
     
     def _download_data_partial_response_callback(self, 
         data:Dict[sdk.WatchableType, Dict[str, sdk.WatchableConfiguration]], 

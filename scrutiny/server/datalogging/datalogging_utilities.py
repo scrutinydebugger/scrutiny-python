@@ -32,7 +32,6 @@ def extract_signal_from_data(data: bytes, config: device_datalogging.Configurati
                     datasize = signaldef.size
                 elif isinstance(signaldef, device_datalogging.RPVLoggableSignal):
                     if signaldef.rpv_id not in rpv_map:
-                        print(rpv_map.keys())
                         raise ValueError("RPV 0x%04X not part of given rpv_map" % signaldef.rpv_id)
                     rpv = rpv_map[signaldef.rpv_id]
                     datasize = rpv.datatype.get_size_byte()

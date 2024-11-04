@@ -11,8 +11,8 @@ RUN apt-get update && apt-get install -y \
     libreadline-dev \
     zlib1g-dev \
     libsqlite3-dev \
-    libssl-dev \
     gcc-avr \
+    libglib2.0-dev  \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /tmp/
@@ -73,3 +73,12 @@ RUN wget $PYTHON_SRC \
     && cd .. \
     && rm "Python-${PYTHON_VERSION}.tgz" \
     && rm -rf "Python-${PYTHON_VERSION}"
+
+# Enable QT for Python inside Docker given that QT_QPA_PLATFORM='offscreen'
+RUN apt-get update && apt-get install -y \
+    libgl1 \
+    libegl1 \
+    libxkbcommon-x11-0 \
+    libfontconfig1 \
+    libdbus-glib-1-dev  \
+    && rm -rf /var/lib/apt/lists/*

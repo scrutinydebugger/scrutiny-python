@@ -22,7 +22,7 @@ from scrutiny.server.protocol.crc32 import crc32
 from scrutiny.core.basic_types import RuntimePublishedValue
 from scrutiny.server.datalogging.datalogging_utilities import extract_signal_from_data
 
-from typing import Optional, Any, cast, Callable, List, Dict
+from typing import Optional, Any, cast, Callable, List, Dict, Tuple
 
 
 class FSMState(Enum):
@@ -209,6 +209,9 @@ class DataloggingPoller:
     def get_completion_ratio(self) -> Optional[float]:
         """Returns a value between 0 and 1 indicating how far the acquisition is frm being completed once the trigger event has been launched"""
         return self.completion_ratio
+    
+    def get_state_and_completion_ratio(self) -> Tuple[Optional[device_datalogging.DataloggerState], Optional[float]]:
+        return self.get_datalogger_state(), self.get_completion_ratio()
 
     def mark_active_acquisition_failed_if_any(self, detail: str = "") -> None:
         """Mark the currently processed acquisition request as completed with failure. Will call the completing callback with success=False"""

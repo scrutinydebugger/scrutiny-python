@@ -320,6 +320,7 @@ def parse_get_device_info(response: api_typing.S2C.GetDeviceInfo) -> Optional[sd
         return None
     else:
         _check_response_dict(cmd, response, 'device_info', dict)
+        _check_response_dict(cmd, response, 'device_info.session_id', str)
         _check_response_dict(cmd, response, 'device_info.device_id', str)
         _check_response_dict(cmd, response, 'device_info.display_name', str)
         _check_response_dict(cmd, response, 'device_info.max_tx_data_size', int)
@@ -421,6 +422,7 @@ def parse_get_device_info(response: api_typing.S2C.GetDeviceInfo) -> Optional[sd
             )
 
         return sdk.DeviceInfo(
+            session_id=device_info['session_id'],
             device_id=device_info['device_id'],
             display_name=device_info['display_name'],
             max_tx_data_size=device_info['max_tx_data_size'],
@@ -468,15 +470,8 @@ def parse_inform_server_status(response: api_typing.S2C.InformServerStatus) -> s
             return sdk.DeviceCommState.ConnectedReady
         raise sdk.exceptions.BadResponseError('Unsupported device communication status "{api_val}"')
 
-    sfd: Optional[sdk.SFDInfo] = None
-    if response['loaded_sfd'] is not None:
-        _check_response_dict(cmd, response, 'loaded_sfd.firmware_id', str)
-        _check_response_dict(cmd, response, 'loaded_sfd.metadata', dict)
-        sfd = sdk.SFDInfo(
-            firmware_id=response['loaded_sfd']['firmware_id'],
-            metadata=_read_sfd_metadata_from_incomplete_dict(response['loaded_sfd']['metadata'])
-        )
-
+    _check_response_dict(cmd, response, 'loaded_sfd_firmware_id', (str, type(None)))
+   
     _check_response_dict(cmd, response, 'device_datalogging_status.datalogger_state', str)
     _check_response_dict(cmd, response, 'device_datalogging_status.completion_ratio', [NoneType, float])
 
@@ -590,7 +585,7 @@ def parse_inform_server_status(response: api_typing.S2C.InformServerStatus) -> s
         device_comm_state=_device_status_from_api(response['device_status']),
         device_session_id=response['device_session_id'],
         datalogging=datalogging,
-        sfd=sfd,
+        sfd_firmware_id=response['loaded_sfd_firmware_id'],
         device_link=device_link
     )
 
@@ -917,3 +912,21 @@ def parse_get_watchable_count(response:api_typing.S2C.GetWatchableCount) -> Dict
         sdk.WatchableType.Alias : response['qty']['alias'],
         sdk.WatchableType.RuntimePublishedValue : response['qty']['rpv']
     }
+
+
+def parse_get_loaded_sfd(response:api_typing.S2C.GetLoadedSFD) -> Optional[sdk.SFDInfo]:
+        assert isinstance(response, dict)
+        assert 'cmd' in response
+        cmd = response['cmd']
+        assert cmd == API.Command.Api2Client.GET_LOADED_SFD_RESPONSE
+
+        _check_response_dict(cmd, response, 'firmware_id', (str, type(None)))
+        _check_response_dict(cmd, response, 'metadata', (dict, type(None)))
+        
+        if response['firmware_id'] is None:
+            return None
+        
+        return sdk.SFDInfo(
+            firmware_id=response['firmware_id'],
+            metadata=_read_sfd_metadata_from_incomplete_dict(response['metadata'])
+        )  

@@ -1,3 +1,11 @@
+#    menu_bar.py
+#        The window top menubar
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021 Scrutiny Debugger
+
 __all__ = ['MenuBar']
 from PySide6.QtWidgets import QMenuBar
 from PySide6.QtGui import QAction

@@ -273,6 +273,7 @@ class TestApiParser(ScrutinyUnitTest):
                 'cmd' : "response_get_device_info",
                 "available" : True,
                 "device_info": {
+                    "session_id": "5b8b7dc35b5c766a9115dbf482e39e9d",
                     "device_id": "b5c76f482e39e9d6a9115db5b8b7dc35",
                     "display_name": "TestApp Executable",
                     "max_tx_data_size": 256,
@@ -426,20 +427,7 @@ class TestApiParser(ScrutinyUnitTest):
                 "reqid": 2,
                 "device_status": "connected_ready",
                 "device_session_id": "3d41973c65ba42218ab65c829a8c385e",
-                "loaded_sfd": {
-                    "firmware_id": "b5c76f482e39e9d6a9115db5b8b7dc35",
-                    "metadata": {
-                        "project_name": "Some project",
-                        "author": "unit test",
-                        "version": "1.2.3",
-                        "generation_info": {
-                            "time": 1688431050,
-                            "python_version": "3.10.5",
-                            "scrutiny_version": "0.0.1",
-                            "system_type": "Linux"
-                        }
-                    }
-                },
+                "loaded_sfd_firmware_id": "b5c76f482e39e9d6a9115db5b8b7dc35",
                 "device_datalogging_status": {
                     "datalogger_state": "standby",
                     "completion_ratio": 0.56
@@ -460,17 +448,9 @@ class TestApiParser(ScrutinyUnitTest):
         self.assertEqual(info.device_comm_state, DeviceCommState.ConnectedReady)
         self.assertEqual(info.device_session_id, "3d41973c65ba42218ab65c829a8c385e")
 
-        self.assertIsNotNone(info.sfd)
-        self.assertEqual(info.sfd.firmware_id, "b5c76f482e39e9d6a9115db5b8b7dc35")
-        self.assertEqual(info.sfd.metadata.project_name, "Some project")
-        self.assertEqual(info.sfd.metadata.author, "unit test")
-        self.assertEqual(info.sfd.metadata.version, "1.2.3")
-        self.assertIsNotNone(info.sfd.metadata.generation_info)
-        self.assertEqual(info.sfd.metadata.generation_info.python_version, "3.10.5")
-        self.assertEqual(info.sfd.metadata.generation_info.scrutiny_version, "0.0.1")
-        self.assertEqual(info.sfd.metadata.generation_info.system_type, "Linux")
-        self.assertEqual(info.sfd.metadata.generation_info.timestamp, datetime.fromtimestamp(1688431050))
-
+        self.assertIsNotNone(info.sfd_firmware_id)
+        self.assertEqual(info.sfd_firmware_id, "b5c76f482e39e9d6a9115db5b8b7dc35")
+        
         self.assertEqual(info.datalogging.state, DataloggerState.Standby)
         self.assertEqual(info.datalogging.completion_ratio, 0.56)
 
@@ -486,32 +466,16 @@ class TestApiParser(ScrutinyUnitTest):
         
         msg = base()
         msg['device_status'] = "unknown"
-        msg['loaded_sfd'] = None
+        msg['loaded_sfd_firmware_id'] = None
         msg['device_session_id'] = None
         msg['device_comm_link']["link_type"] = 'none'
         msg['device_comm_link']["link_config"] = None
         info = parser.parse_inform_server_status(msg)
 
-        self.assertIsNone(info.sfd)
+        self.assertIsNone(info.sfd_firmware_id)
         self.assertIsInstance(info.device_link.config, sdk.NoneLinkConfig)
         self.assertEqual(info.device_session_id, None)
         self.assertEqual(info.device_comm_state, DeviceCommState.NA)
-
-        # Negative checks
-        fields = ["project_name", "author", "version"]
-        for field in fields:
-            msg = base()
-            msg['loaded_sfd']['metadata'][field] = None
-            info = parser.parse_inform_server_status(msg)
-            self.assertIsNone(getattr(info.sfd.metadata, field), f"field={field}")
-
-            msg = base()
-            msg['loaded_sfd']['metadata']["generation_info"] = None
-            info = parser.parse_inform_server_status(msg)
-            self.assertIsNone(info.sfd.metadata.generation_info.python_version)
-            self.assertIsNone(info.sfd.metadata.generation_info.scrutiny_version)
-            self.assertIsNone(info.sfd.metadata.generation_info.system_type)
-            self.assertIsNone(info.sfd.metadata.generation_info.timestamp)
 
         msg = base()
         msg["device_datalogging_status"]["completion_ratio"] = None
@@ -978,6 +942,61 @@ class TestApiParser(ScrutinyUnitTest):
                     else:
                         msg['qty'][key] = val
                     parser.parse_get_watchable_count(msg)
+
+    def test_parse_get_loaded_sfd(self):
+        def base():
+            return {
+                "cmd": "response_get_loaded_sfd",
+                "reqid": None,
+                "firmware_id": "b5c76f482e39e9d6a9115db5b8b7dc35",
+                "metadata": {
+                    "project_name": "Some project",
+                    "author": "unit test",
+                    "version": "1.2.3",
+                    "generation_info": {
+                        "time": 1688431050,
+                        "python_version": "3.10.5",
+                        "scrutiny_version": "0.0.1",
+                        "system_type": "Linux"
+                    }
+                }
+            }
+        
+        msg = base()
+        sfd = parser.parse_get_loaded_sfd(msg)
+        
+        self.assertIsNotNone(sfd)
+        self.assertEqual(sfd.metadata.project_name, "Some project")
+        self.assertEqual(sfd.metadata.author, "unit test")
+        self.assertEqual(sfd.metadata.version, "1.2.3")
+        self.assertIsNotNone(sfd.metadata.generation_info)
+        self.assertEqual(sfd.metadata.generation_info.python_version, "3.10.5")
+        self.assertEqual(sfd.metadata.generation_info.scrutiny_version, "0.0.1")
+        self.assertEqual(sfd.metadata.generation_info.system_type, "Linux")
+        self.assertEqual(sfd.metadata.generation_info.timestamp, datetime.fromtimestamp(1688431050))
+
+        msg = base()
+        msg['firmware_id'] = None
+        msg['metadata'] = None
+        sfd = parser.parse_get_loaded_sfd(msg)
+        self.assertIsNone(sfd)
+
+        # Negative checks
+        fields = ["project_name", "author", "version"]
+        for field in fields:
+            msg = base()
+            msg['metadata'][field] = None
+            sfd = parser.parse_get_loaded_sfd(msg)
+            assert sfd is not None
+            self.assertIsNone(getattr(sfd.metadata, field), f"field={field}")
+
+            msg = base()
+            msg['metadata']["generation_info"] = None
+            sfd = parser.parse_get_loaded_sfd(msg)
+            self.assertIsNone(sfd.metadata.generation_info.python_version)
+            self.assertIsNone(sfd.metadata.generation_info.scrutiny_version)
+            self.assertIsNone(sfd.metadata.generation_info.system_type)
+            self.assertIsNone(sfd.metadata.generation_info.timestamp)
 
 
 if __name__ == '__main__':
