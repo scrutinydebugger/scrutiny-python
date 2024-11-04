@@ -238,3 +238,17 @@ class FakeSDKClient:
         )
 
         self.trigger_event(ScrutinyClient.Events.SFDUnLoadedEvent(previous_firmware_id))
+    
+    def _simulate_datalogger_state_changed(self, datalogger_info:sdk.DataloggingInfo):
+        if self.server_state != sdk.ServerState.Connected:
+            raise RuntimeError("Cannot simulate datalogger state change if the server is not connected")
+
+        assert self.server_info is not None
+        self.server_info = sdk.ServerInfo(
+            datalogging=datalogger_info,
+            device_comm_state=self.server_info.device_comm_state,
+            device_link=self.server_info.device_link,
+            device_session_id=self.server_info.device_session_id,
+            sfd_firmware_id=self.server_info.sfd_firmware_id
+        )
+        self.trigger_event(ScrutinyClient.Events.DataloggerStateChanged(datalogger_info))

@@ -299,6 +299,18 @@ class ScrutinyClient:
 
             def msg(self) -> str:
                 return f"Server has unloaded a Firmware Decription with firmware ID: {self.firmware_id}"
+            
+        
+        @dataclass(frozen=True)
+        class DataloggerStateChanged:
+            """Triggered when the server unloads a Scrutiny Firmware Description file"""
+            _filter_flag = 0x40
+            details:sdk.DataloggingInfo
+            """The state of the datalogger and the completion ratio"""
+
+            def msg(self) -> str:
+                percent = "N/A" if self.details.completion_ratio is None else f"{round(self.details.completion_ratio*100)}%"
+                return f"Datalogger state changed: {self.details.state.name} ({percent})"
 
 
 
@@ -316,10 +328,12 @@ class ScrutinyClient:
         """Listen for events of type :class:`SFDLoadedEvent<scrutiny.sdk.client.ScrutinyClient.Events.SFDLoadedEvent>`"""
         LISTEN_SFD_UNLOADED = SFDUnLoadedEvent._filter_flag
         """Listen for events of type :class:`SFDUnLoadedEvent<scrutiny.sdk.client.ScrutinyClient.Events.SFDUnLoadedEvent>`"""
+        LISTEN_DATALOGGER_STATE_CHANGED = DataloggerStateChanged._filter_flag
+        """Listen for events of type :class:`DataloggerStateChanged<scrutiny.sdk.client.ScrutinyClient.Events.DataloggerStateChanged>`"""
         LISTEN_ALL = 0xFFFFFFFF
         """Listen to all events"""
         
-        _ANY_EVENTS = Union[ConnectedEvent, DisconnectedEvent, DeviceReadyEvent, DeviceGoneEvent, SFDLoadedEvent, SFDUnLoadedEvent]
+        _ANY_EVENTS = Union[ConnectedEvent, DisconnectedEvent, DeviceReadyEvent, DeviceGoneEvent, SFDLoadedEvent, SFDUnLoadedEvent, DataloggerStateChanged]
 
     @dataclass
     class _ThreadingEvents:
@@ -378,10 +392,9 @@ class ScrutinyClient:
     _watchable_storage: Dict[str, WatchableHandle]  # A cache of all the WatchableHandle given to the user, indexed by their display path
     _watchable_path_to_id_map: Dict[str, str]   # A dict that maps the watchables from display path to their server id
     _server_info: Optional[ServerInfo]  # The actual server internal state given by inform_server_status
+    _last_server_info: Optional[ServerInfo]  # The actual server internal state given by inform_server_status
 
     _active_batch_context: Optional[BatchWriteContext]  # The active write batch. All writes are appended to it if not None
-    _last_device_session_id: Optional[str]  # The last device session ID observed. Used to detect disconnection/reconnection
-    _last_sfd_firmware_id: Optional[str]    # The last loaded SFD seen. Used to detect change in SFD
 
     _listeners:List[listeners.BaseListener]   # List of registered listeners
     _event_queue:"queue.Queue[Events._ANY_EVENTS]"
@@ -438,6 +451,7 @@ class ScrutinyClient:
         self._request_status_timer = Timer(self._UPDATE_SERVER_STATUS_INTERVAL)
         self._require_status_update = False
         self._server_info = None
+        self._last_server_info = None
         self._write_request_queue = queue.Queue()
         self._pending_api_batch_writes = {}
         self._memory_read_completion_dict = {}
@@ -448,8 +462,6 @@ class ScrutinyClient:
         self._watchable_storage = {}
         self._watchable_path_to_id_map = {}
         self._callback_storage = {}
-        self._last_device_session_id = None
-        self._last_sfd_firmware_id = None
         self._connection_cancel_request = False
 
         self._active_batch_context = None
@@ -851,10 +863,10 @@ class ScrutinyClient:
         if self._server_info is not None:
             
             # ====  Check Device conn
-            if self._last_device_session_id is not None:
-                if self._last_device_session_id != self._server_info.device_session_id: # New value or None
+            if self._last_server_info is not None and self._last_server_info.device_session_id is not None:
+                if self._last_server_info.device_session_id != self._server_info.device_session_id: # New value or None
                     self._wt_clear_all_watchables(ValueStatus.DeviceGone)
-                    self._trigger_event(self.Events.DeviceGoneEvent(session_id=self._last_device_session_id), loglevel=logging.INFO)
+                    self._trigger_event(self.Events.DeviceGoneEvent(session_id=self._last_server_info.device_session_id), loglevel=logging.INFO)
                     if self._server_info.device_session_id is not None:
                         self._trigger_event(self.Events.DeviceReadyEvent(session_id=self._server_info.device_session_id), loglevel=logging.INFO)
             else:
@@ -862,27 +874,30 @@ class ScrutinyClient:
                     self._trigger_event(self.Events.DeviceReadyEvent(session_id=self._server_info.device_session_id), loglevel=logging.INFO)
 
             # ====  Check SFD
-            if self._last_sfd_firmware_id is not None:
-                if self._server_info.sfd_firmware_id != self._last_sfd_firmware_id :    # None or new value
+            if self._last_server_info is not None and self._last_server_info.sfd_firmware_id is not None:
+                if self._server_info.sfd_firmware_id != self._last_server_info.sfd_firmware_id :    # None or new value
                     self._wt_clear_all_watchables(ValueStatus.SFDUnloaded, [WatchableType.Alias, WatchableType.Variable])   # RPVs are still there.
-                    self._trigger_event(self.Events.SFDUnLoadedEvent(firmware_id=self._last_sfd_firmware_id), loglevel=logging.INFO)
+                    self._trigger_event(self.Events.SFDUnLoadedEvent(firmware_id=self._last_server_info.sfd_firmware_id), loglevel=logging.INFO)
                     if self._server_info.sfd_firmware_id is not None:
                         self._trigger_event(self.Events.SFDLoadedEvent(firmware_id=self._server_info.sfd_firmware_id), loglevel=logging.INFO)
             else:
                 if self._server_info.sfd_firmware_id is not None:
                     self._trigger_event(self.Events.SFDLoadedEvent(firmware_id=self._server_info.sfd_firmware_id), loglevel=logging.INFO)
 
-            self._last_device_session_id = self._server_info.device_session_id
-            self._last_sfd_firmware_id = self._server_info.sfd_firmware_id
+            if self._last_server_info is not None:
+                if self._last_server_info.datalogging.state != self._server_info.datalogging.state:
+                    self._trigger_event(self.Events.DataloggerStateChanged(self._server_info.datalogging), loglevel=logging.INFO)
+                elif self._last_server_info.datalogging.completion_ratio != self._server_info.datalogging.completion_ratio:
+                    self._trigger_event(self.Events.DataloggerStateChanged(self._server_info.datalogging), loglevel=logging.DEBUG)
         else:
-            if self._last_device_session_id is not None:
-                self._trigger_event(self.Events.DeviceGoneEvent(session_id=self._last_device_session_id), loglevel=logging.INFO)
-            
-            if self._last_sfd_firmware_id is not None:
-                self._trigger_event(self.Events.SFDUnLoadedEvent(firmware_id=self._last_sfd_firmware_id), loglevel=logging.INFO)
+            if self._last_server_info is not None:
+                if self._last_server_info.device_session_id is not None:
+                    self._trigger_event(self.Events.DeviceGoneEvent(session_id=self._last_server_info.device_session_id), loglevel=logging.INFO)
+                
+                if self._last_server_info.sfd_firmware_id is not None:
+                    self._trigger_event(self.Events.SFDUnLoadedEvent(firmware_id=self._last_server_info.sfd_firmware_id), loglevel=logging.INFO)
 
-            self._last_device_session_id = None
-            self._last_sfd_firmware_id = None
+        self._last_server_info = self._server_info
 
     def close_socket(self) -> None:
         """Forcefully attempt to close a socket to cancel any pending connection or requests"""
@@ -921,17 +936,17 @@ class ScrutinyClient:
         
         events_to_trigger:List[ScrutinyClient.Events._ANY_EVENTS] = []
         with self._main_lock:
-            if self._last_device_session_id is not None:
-                events_to_trigger.append(self.Events.DeviceGoneEvent(session_id=self._last_device_session_id))
-            
-            if self._last_sfd_firmware_id is not None:
-                events_to_trigger.append(self.Events.SFDUnLoadedEvent(firmware_id=self._last_sfd_firmware_id))
+            if self._last_server_info is not None:
+                if self._last_server_info.device_session_id is not None:
+                    events_to_trigger.append(self.Events.DeviceGoneEvent(session_id=self._last_server_info.device_session_id))
+                
+                if self._last_server_info.sfd_firmware_id is not None:
+                    events_to_trigger.append(self.Events.SFDUnLoadedEvent(firmware_id=self._last_server_info.sfd_firmware_id))
 
-            if self._server_state == ServerState.Connected and self._hostname is not None and self._port is not None:
-                events_to_trigger.append(self.Events.DisconnectedEvent(self._hostname, self._port))
+                if self._server_state == ServerState.Connected and self._hostname is not None and self._port is not None:
+                    events_to_trigger.append(self.Events.DisconnectedEvent(self._hostname, self._port))
             
-            self._last_device_session_id = None
-            self._last_sfd_firmware_id = None
+            self._last_server_info = None
             
             with self._user_lock:   # Critical part, the user reads those properties
                 self._wt_clear_all_watchables(ValueStatus.ServerGone)
@@ -940,7 +955,6 @@ class ScrutinyClient:
                 self._port = None
                 self._server_state = ServerState.Disconnected
                 self._server_info = None
-                self._last_device_session_id = None
 
 
             for callback_entry in self._callback_storage.values():

@@ -327,6 +327,8 @@ class ServerManager:
                 self._thread_event_sfd_loaded()            
             elif isinstance(event, ScrutinyClient.Events.SFDUnLoadedEvent):
                 self._thread_event_sfd_unloaded()
+            elif isinstance(event, ScrutinyClient.Events.DataloggerStateChanged):
+                self._signals.datalogging_state_changed.emit()
             else:
                 self._logger.error(f"Unsupported event type : {event.__class__.__name__}")    
 

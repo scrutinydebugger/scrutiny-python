@@ -308,6 +308,7 @@ class API:
         self.sfd_handler.register_sfd_loaded_callback(self.sfd_loaded_callback)
         self.sfd_handler.register_sfd_unloaded_callback(self.sfd_unloaded_callback)
         self.device_handler.register_device_state_change_callback(self.device_state_changed_callback)
+        self.device_handler.register_datalogger_state_change_callback(self.datalogger_state_changed_callback)
 
     @classmethod
     def get_datatype_name(cls, datatype: EmbeddedDataType) -> api_typing.Datatype:
@@ -330,6 +331,14 @@ class API:
         """Called when the device state changes"""
         self.logger.debug("Device state change callback called")
         if new_status in [DeviceHandler.ConnectionStatus.DISCONNECTED, DeviceHandler.ConnectionStatus.CONNECTED_READY]:
+            self.send_server_status_to_all_clients()
+    
+    def datalogger_state_changed_callback(self, 
+                                          datalogger_state: Optional[device_datalogging.DataloggerState], 
+                                          completion_ratio:Optional[float]) -> None:
+        """Called when the datalogger state or completion ratio changes"""
+        self.logger.debug("Datalogger state change callback called")
+        if datalogger_state is not None:
             self.send_server_status_to_all_clients()
 
     def get_client_handler(self) -> AbstractClientHandler:
