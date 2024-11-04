@@ -273,6 +273,7 @@ class TestApiParser(ScrutinyUnitTest):
                 'cmd' : "response_get_device_info",
                 "available" : True,
                 "device_info": {
+                    "session_id": "5b8b7dc35b5c766a9115dbf482e39e9d",
                     "device_id": "b5c76f482e39e9d6a9115db5b8b7dc35",
                     "display_name": "TestApp Executable",
                     "max_tx_data_size": 256,
