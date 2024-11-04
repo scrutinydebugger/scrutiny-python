@@ -24,6 +24,7 @@ def configure_value_label(label:QLabel) -> None:
     label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)    
 
 class SupportedFeatureList(QWidget):
+    """A widget to display the device supported features as a list with a Yes/No flag next to it"""
     def __init__(self, features:SupportedFeatureMap):
         super().__init__()
         layout = QFormLayout(self)
@@ -51,6 +52,7 @@ class SupportedFeatureList(QWidget):
         layout.setSpacing(1)
 
 class MemoryRegionList(QWidget):
+    """A widget to display a list of memory regions. Used to print the list of read-only and forbidden regions"""
     def __init__(self, regions:List[MemoryRegion], address_size_bits:int=64):
         super().__init__()
         address_size = address_size_bits//8
@@ -77,6 +79,7 @@ class MemoryRegionList(QWidget):
         self.setLayout(layout)
 
 class SamplingRateList(QWidget):
+    """A widget to display the list of sampling rates of the device."""
     def __init__(self, sampling_rates:List[SamplingRate]):
         super().__init__()
 
@@ -122,6 +125,7 @@ class SamplingRateList(QWidget):
         self.setLayout(layout)
 
 class DeviceInfoDisplayTable(QWidget):
+    """A table of properties/value. One per section displayed in DeviceInfoDialog"""
     form_layout : QFormLayout
     def __init__(self) -> None:
         super().__init__()
@@ -150,6 +154,7 @@ class DeviceInfoDisplayTable(QWidget):
         
 
 class DeviceInfoDialog(QDialog):
+    """Window that display the device information, including capabilities and configuration"""
     def __init__(self, parent:Optional[QWidget], info:DeviceInfo) -> None:
         super().__init__(parent) 
 
