@@ -59,7 +59,7 @@ class ServerState(enum.Enum):
     Connecting = 1
     """Client is trying to connect, full TCP handshake is in progress"""
     Connected = 2
-    """Websocket is open and functional"""
+    """Socket is open and functional"""
     Error = -1
     """The communication closed after an error"""
 

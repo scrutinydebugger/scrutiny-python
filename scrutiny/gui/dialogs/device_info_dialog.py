@@ -32,7 +32,7 @@ class SupportedFeatureList(QWidget):
         feature_list = [
             ("Memory write", features.memory_write, "Allow writing memory"),
             ("Datalogging", features.datalogging, "The device is able make data acquisitions for embedded graphs"),
-            ("64 bits", features.sixtyfour_bits, "The device is able use 64bits value as RPVs and datalogger oeprands."),
+            ("64 bits", features.sixtyfour_bits, "The device is able use 64bits value as RPVs and datalogger operands."),
             ("User command", features.user_command, "The device has a callback registered for the UserCommand request. (Custom extension of the protocol)")
         ]
         for feature in feature_list:

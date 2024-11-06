@@ -57,7 +57,7 @@ def main() -> None:
     parser.add_argument('--port', type=int, default=1234, help="The output file")
     args = parser.parse_args()
     client = ScrutinyClient()
-    with client.connect(args.hostname, args.port, wait_status=True):    # Establish a websocket connection and wait for a first server status update
+    with client.connect(args.hostname, args.port, wait_status=True):    # Establish a connection and wait for a first server status update
         client.wait_device_ready(timeout=5)
         configurator = EepromConfiguration(client)
         
