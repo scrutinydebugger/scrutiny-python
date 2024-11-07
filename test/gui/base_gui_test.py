@@ -39,8 +39,7 @@ class ScrutinyBaseGuiTest(ScrutinyUnitTest):
     
     def tearDown(self):
         self.process_events()
-       # self.app.deleteLater()  # Segfault without this. don't know why
-        
+       
 
     def wait_equal(self, fn, val, timeout, no_assert=False):
         t = time.perf_counter()

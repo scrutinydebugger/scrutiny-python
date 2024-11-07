@@ -312,6 +312,17 @@ class ScrutinyClient:
             def msg(self) -> str:
                 percent = "N/A" if self.details.completion_ratio is None else f"{round(self.details.completion_ratio*100)}%"
                 return f"Datalogger state changed: {self.details.state.name} ({percent})"
+        
+        @dataclass(frozen=True)
+        class StatusUpdateEvent:
+            """Triggered when the a new server status is received"""
+
+            _filter_flag = 0x80
+            info:sdk.ServerInfo
+            """The status info received"""
+
+            def msg(self) -> str:
+                return f"New server status update received"
 
 
 
@@ -331,10 +342,15 @@ class ScrutinyClient:
         """Listen for events of type :class:`SFDUnLoadedEvent<scrutiny.sdk.client.ScrutinyClient.Events.SFDUnLoadedEvent>`"""
         LISTEN_DATALOGGER_STATE_CHANGED = DataloggerStateChanged._filter_flag
         """Listen for events of type :class:`DataloggerStateChanged<scrutiny.sdk.client.ScrutinyClient.Events.DataloggerStateChanged>`"""
+        LISTEN_STATUS_UPDATE_CHANGED = StatusUpdateEvent._filter_flag
+        """Listen for events of type :class:`DataloggerStateChanged<scrutiny.sdk.client.ScrutinyClient.Events.StatusUpdateEvent>`"""
         LISTEN_ALL = 0xFFFFFFFF
         """Listen to all events"""
         
-        _ANY_EVENTS = Union[ConnectedEvent, DisconnectedEvent, DeviceReadyEvent, DeviceGoneEvent, SFDLoadedEvent, SFDUnLoadedEvent, DataloggerStateChanged]
+        _ANY_EVENTS = Union[
+            ConnectedEvent, DisconnectedEvent, DeviceReadyEvent, DeviceGoneEvent, 
+            SFDLoadedEvent, SFDUnLoadedEvent, DataloggerStateChanged, StatusUpdateEvent
+            ]
 
     @dataclass
     class _ThreadingEvents:
@@ -557,6 +573,7 @@ class ScrutinyClient:
         with self._main_lock:
             self._server_info = info
             self._threading_events.server_status_updated.set()
+        self._trigger_event(self.Events.StatusUpdateEvent(info=info))
 
     def _wt_process_msg_watchable_update(self, msg: api_typing.S2C.WatchableUpdate, reqid: Optional[int]) -> None:
         updates = api_parser.parse_watchable_update(msg)
@@ -1170,7 +1187,7 @@ class ScrutinyClient:
     def connect(self, hostname: str, port: int, wait_status: bool = True) -> "ScrutinyClient":
         """Connect to a Scrutiny server through a TCP socket. 
 
-        :param hostname: The hostname or ip address of the server
+        :param hostname: The hostname or IP address of the server
         :param port: The listening port of the server
         :param wait_status: Wait for a server status update after the socket connection is established. 
             Ensure that a value is available when calling :meth:`get_latest_server_status()<get_latest_server_status>`
@@ -1229,7 +1246,7 @@ class ScrutinyClient:
 
         self._stop_worker_thread()
 
-    def listen_events(self, enabled_events:int) -> None:
+    def listen_events(self, enabled_events:int, disabled_events:int=0) -> None:
         """Select which events are to be listen for when calling :meth:`read_event<read_event>`.
         
         :param enabled_events: A flag value contructed by ORing values from :class:`ScrutinyClient.Events<scrutiny.sdk.client.ScrutinyClient.Events>`
@@ -1238,7 +1255,7 @@ class ScrutinyClient:
         :raise ValueError: If the flag value is negative
         """
         validation.assert_int_range(enabled_events, 'enabled_events', minval=0)
-        self._enabled_events = enabled_events
+        self._enabled_events = enabled_events & (self.Events.LISTEN_ALL ^ disabled_events)
 
     def watch(self, path: str) -> WatchableHandle:
         """Starts watching a watchable element identified by its display path (tree-like path)

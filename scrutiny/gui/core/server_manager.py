@@ -173,6 +173,7 @@ class ServerManager:
             self._signals.sfd_unloaded.connect(lambda : self._logger.debug("+Signal: sfd_unloaded"))
             self._signals.index_changed.connect(lambda : self._logger.debug("+Signal: index_changed"))
             self._signals.datalogging_state_changed.connect(lambda : self._logger.debug("+Signal: datalogging_state_changed"))
+            self._signals.status_received.connect(lambda : self._logger.debug("+Signal: status_received"))
 
     def _join_thread_and_emit_stopped(self) -> None:
         if self._thread is not None:    # Should always be true
@@ -329,6 +330,8 @@ class ServerManager:
                 self._thread_event_sfd_unloaded()
             elif isinstance(event, ScrutinyClient.Events.DataloggerStateChanged):
                 self._signals.datalogging_state_changed.emit()
+            elif isinstance(event, ScrutinyClient.Events.StatusUpdateEvent):
+                self._signals.status_received.emit()
             else:
                 self._logger.error(f"Unsupported event type : {event.__class__.__name__}")    
 

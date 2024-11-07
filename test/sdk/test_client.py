@@ -510,7 +510,8 @@ class TestClient(ScrutinyUnitTest):
 
         port = cast(TCPClientHandler, self.api.client_handler).get_port()
         assert port is not None
-        self.client = ScrutinyClient(rx_message_callbacks=[self.log_rx_request], enabled_events=ScrutinyClient.Events.LISTEN_ALL)
+        self.client = ScrutinyClient(rx_message_callbacks=[self.log_rx_request])
+        self.client.listen_events(ScrutinyClient.Events.LISTEN_ALL, disabled_events=ScrutinyClient.Events.LISTEN_STATUS_UPDATE_CHANGED)
 
         try:
             self.client.connect(localhost, port)
@@ -2137,7 +2138,7 @@ class TestClient(ScrutinyUnitTest):
         self.assertFalse(self.client.has_event_pending())
 
 
-        self.client.listen_events(ScrutinyClient.Events.LISTEN_ALL)
+        self.client.listen_events(ScrutinyClient.Events.LISTEN_ALL, disabled_events=ScrutinyClient.Events.LISTEN_STATUS_UPDATE_CHANGED)
 
         self.device_handler.set_datalogger_state(device_datalogging.DataloggerState.ARMED, None)
         evt = self.client.read_event(timeout=EVENT_READ_TIMEOUT)

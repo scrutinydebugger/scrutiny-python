@@ -18,22 +18,33 @@ pip install scrutinydebugger
 
 Launch Server
 ```
-scrutiny launch-server --config config/serial.json
+scrutiny server --config config/serial.json
 ```
 
-## Getting started - Developper
+Launch GUI (under development)
+```
+scrutiny gui
+```
+
+## Getting started - Developper 
 
 Install
 
 ```
 git clone git@github.com:scrutinydebugger/scrutiny-python.git
-cd scrutiny-python
-git submodule update --init
 ```
 
-Launch Server
+Launch Server (Linux)
 ```
-./scripts/with-venv.sh scrutiny launch-server --config config/serial.json
+./scripts/with-venv.sh scrutiny server --config config/serial.json
+```
+
+Launch Server (Windows):
+
+No automation available. Dependencies can be installed manually inside a venv then the following command can be used:
+
+```
+python -m scrutiny server --config config/serial.json
 ```
 
 ## More info

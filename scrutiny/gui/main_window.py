@@ -11,11 +11,11 @@ import traceback
 
 from PySide6.QtWidgets import  QWidget, QVBoxLayout, QHBoxLayout
 
-from PySide6.QtGui import  QCloseEvent
+from PySide6.QtGui import  QCloseEvent, QAction
 from PySide6.QtCore import Qt, QRect
 from PySide6.QtWidgets import QMainWindow
 
-from scrutiny.gui.qtads import QtAds    #Advanced Docking System
+import PySide6QtAds  as QtAds   # type: ignore
 from scrutiny.gui.dialogs.about_dialog import AboutDialog
 from scrutiny.gui.widgets.sidebar import Sidebar
 from scrutiny.gui.widgets.status_bar import StatusBar
@@ -111,7 +111,10 @@ class MainWindow(QMainWindow):
         hlayout.setSpacing(0)
         
         self._dock_conainer = QWidget()
+        QtAds.CDockManager.setConfigFlag(QtAds.CDockManager.OpaqueSplitterResize)
+        QtAds.CDockManager.setConfigFlag(QtAds.CDockManager.FloatingContainerHasWidgetTitle)
         self._dock_manager = QtAds.CDockManager(self._dock_conainer)
+        
         dock_vlayout = QVBoxLayout(self._dock_conainer)
         dock_vlayout.setContentsMargins(0,0,0,0)
         
@@ -140,21 +143,27 @@ class MainWindow(QMainWindow):
             name = make_name(component_class, instance_number)
         
         try:
-            widget = component_class(self, name)
+            widget = component_class(self, 
+                                     instance_name=name, 
+                                     server_manager = self._server_manager
+                                     )
         except Exception:
             self._logger.error(f"Failed to create a dashboard component of type {component_class.__name__}")
             self._logger.debug(traceback.format_exc())
             return
-
+        QtAds.CDockWidgetTab.mouseDoubleClickEvent = None
         dock_widget = QtAds.CDockWidget(component_class.get_name())
+        #dock_widget.tabWidget().setText("potato")
+        dock_widget.tabWidget().mouseDoubleClickEvent = None
         dock_widget.setFeature(QtAds.CDockWidget.DockWidgetDeleteOnClose, True)
         dock_widget.setWidget(widget)
+        dock_widget.setTitleBarActions([QAction("asd")])
 
         try:
             self._logger.debug(f"Setuping component {widget.instance_name}")
             widget.setup()
-        except Exception:
-            self._logger.error(f"Exception while setuping component of type {component_class.__name__} (instance name: {widget.instance_name})")
+        except Exception as e:
+            self._logger.error(f"Exception while setuping component of type {component_class.__name__} (instance name: {widget.instance_name}). {e}")
             self._logger.debug(traceback.format_exc())
             try:
                 widget.teardown()

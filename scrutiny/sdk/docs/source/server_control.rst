@@ -190,3 +190,13 @@ Seger RTT
     :exclude-members: __new__, __init__
     :members:
     :member-order: bysource
+
+------
+
+None
+####
+
+.. autoclass:: scrutiny.sdk.RTTLinkConfig.NoneLinkConfig
+    :exclude-members: __new__, __init__
+    :members:
+    :member-order: bysource
