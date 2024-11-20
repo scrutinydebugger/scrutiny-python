@@ -13,6 +13,7 @@ from PySide6.QtWidgets import  QWidget, QVBoxLayout, QHBoxLayout
 
 from PySide6.QtGui import  QCloseEvent, QAction
 from PySide6.QtCore import Qt, QRect
+
 from PySide6.QtWidgets import QMainWindow
 
 import PySide6QtAds  as QtAds   # type: ignore
@@ -79,6 +80,9 @@ class MainWindow(QMainWindow):
         self.setMenuBar(self._menu_bar)
 
         self._menu_bar.buttons.info_about.triggered.connect(self.show_about)
+        self._menu_bar.buttons.dashboard_close.triggered.connect(self.dashboard_close_click)
+        self._menu_bar.buttons.dashboard_save.triggered.connect(self.dashboard_save_click)
+        self._menu_bar.buttons.dashboard_open.triggered.connect(self.dashboard_open_click)
 
         self._menu_bar.buttons.dashboard_close.setDisabled(True)
         self._menu_bar.buttons.dashboard_open.setDisabled(True)
@@ -113,6 +117,7 @@ class MainWindow(QMainWindow):
         self._dock_conainer = QWidget()
         QtAds.CDockManager.setConfigFlag(QtAds.CDockManager.OpaqueSplitterResize)
         QtAds.CDockManager.setConfigFlag(QtAds.CDockManager.FloatingContainerHasWidgetTitle)
+        QtAds.CDockManager.setConfigFlag(QtAds.CDockManager.XmlCompressionEnabled, False)
         self._dock_manager = QtAds.CDockManager(self._dock_conainer)
         
         dock_vlayout = QVBoxLayout(self._dock_conainer)
@@ -153,11 +158,8 @@ class MainWindow(QMainWindow):
             return
         QtAds.CDockWidgetTab.mouseDoubleClickEvent = None
         dock_widget = QtAds.CDockWidget(component_class.get_name())
-        #dock_widget.tabWidget().setText("potato")
-        dock_widget.tabWidget().mouseDoubleClickEvent = None
         dock_widget.setFeature(QtAds.CDockWidget.DockWidgetDeleteOnClose, True)
         dock_widget.setWidget(widget)
-        dock_widget.setTitleBarActions([QAction("asd")])
 
         try:
             self._logger.debug(f"Setuping component {widget.instance_name}")
@@ -201,3 +203,11 @@ class MainWindow(QMainWindow):
         self._dock_manager.deleteLater()
         super().closeEvent(event)
         
+    def dashboard_close_click(self) -> None:
+        pass
+
+    def dashboard_save_click(self) -> None:
+        print(self._dock_manager.saveState())
+
+    def dashboard_open_click(self) -> None:
+        pass

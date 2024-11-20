@@ -20,7 +20,7 @@ __all__ = [
 
 
 from scrutiny import sdk
-from typing import Dict, List, Union, Optional, Callable, Set, Any
+from typing import Dict, List, Union, Optional, Callable, Set, Any, Tuple
 import threading
 from dataclasses import dataclass
 import logging
@@ -50,7 +50,7 @@ GlobalWatchCallback = Callable[[str, str, sdk.WatchableConfiguration], None]
 GlobalUnwatchCallback = Callable[[str, str, sdk.WatchableConfiguration], None]
 
 @dataclass(init=False)
-class WatchableEntry:
+class WatchableIndexEntryNode:
     """Leaf node in the tree. This object is internal and never given to the user."""
     configuration:sdk.WatchableConfiguration
     value:Optional[WatchableValue]
@@ -59,7 +59,7 @@ class WatchableEntry:
 
     def __init__(self, display_path:str, config:sdk.WatchableConfiguration) -> None:
         self.display_path = display_path
-        self.configuration=config
+        self.configuration = config
         self.value=None
         self.watchers={}
 
@@ -96,7 +96,7 @@ class WatchableEntry:
 class WatchableIndexNodeContent:
     """Node in the tree. This can be given to the user."""
     __slots__ = ['watchables', 'subtree']
-    watchables:List[sdk.WatchableConfiguration]
+    watchables:Dict[str, sdk.WatchableConfiguration]
     subtree:List[str]
 
 class WatchableIndex:
@@ -104,10 +104,11 @@ class WatchableIndex:
     Act as a relay to dispatch value update event to the internal widgets"""
     _trees:  Dict[sdk.WatchableType, Any]
     _lock:threading.Lock
-    _watched_entries:Dict[str, WatchableEntry] 
+    _watched_entries:Dict[str, WatchableIndexEntryNode] 
     _global_watch_callbacks:Optional[GlobalWatchCallback]
     _global_unwatch_callbacks:Optional[GlobalUnwatchCallback]
     _logger:logging.Logger
+    _tree_change_counters: Dict[sdk.WatchableType, int]
     
     def __init__(self) -> None:
         self._trees = {
@@ -115,6 +116,12 @@ class WatchableIndex:
             sdk.WatchableType.Alias : {},
             sdk.WatchableType.RuntimePublishedValue : {}
         }
+        self._tree_change_counters = {
+            sdk.WatchableType.Variable : 0,
+            sdk.WatchableType.Alias : 0,
+            sdk.WatchableType.RuntimePublishedValue : 0
+        }
+
         self._lock = threading.Lock()
         self._watched_entries = {}
         self._global_watch_callbacks = None
@@ -138,12 +145,12 @@ class WatchableIndex:
             node = node[part]
         if parts[-1] in node:
             raise WatchableIndexError(f"Cannot insert a watchable at location {path}. Another watchable already uses that path.")
-        node[parts[-1]] = WatchableEntry(
+        node[parts[-1]] = WatchableIndexEntryNode(
             display_path=path,  # Required for proper error messages.
             config=config
             )
 
-    def _get_node_with_lock(self, watchable_type:sdk.WatchableType, path:str) -> Union[WatchableIndexNodeContent, WatchableEntry]:
+    def _get_node_with_lock(self, watchable_type:sdk.WatchableType, path:str) -> Union[WatchableIndexNodeContent, WatchableIndexEntryNode]:
         """Read a node in the tree and locks the tree while doing it."""
         with self._lock:
             parts = self._get_parts(path)
@@ -155,10 +162,10 @@ class WatchableIndex:
 
             if isinstance(node, dict):
                 return WatchableIndexNodeContent(
-                    watchables=[val.configuration for val in node.values() if isinstance(val, WatchableEntry)],
+                    watchables=dict( (name, val.configuration) for name, val in node.items() if isinstance(val, WatchableIndexEntryNode)),
                     subtree=[name for name, val in node.items() if isinstance(val, dict)]
                 )
-            elif isinstance(node, WatchableEntry):
+            elif isinstance(node, WatchableIndexEntryNode):
                 return node
             else:
                 raise WatchableIndexError(f"Unexpected item of type {node.__class__.__name__} inside the index")
@@ -198,7 +205,7 @@ class WatchableIndex:
         :param value: The value to broadcast
         """
         node = self._get_node_with_lock(watchable_type, path)
-        if not isinstance(node, WatchableEntry):
+        if not isinstance(node, WatchableIndexEntryNode):
             raise WatchableIndexError("Cannot update a value on something that is not a Watchable")
         node.update_value(value)
     
@@ -223,7 +230,7 @@ class WatchableIndex:
         :param callback: The callback
         """
         node = self._get_node_with_lock(watchable_type, path)
-        if not isinstance(node, WatchableEntry):
+        if not isinstance(node, WatchableIndexEntryNode):
             raise WatchableIndexError("Cannot watch something that is not a Watchable")
         
         node.register_value_update_callback(watcher_id, callback)
@@ -242,7 +249,7 @@ class WatchableIndex:
         :param path: The watchable tree path
         """
         node = self._get_node_with_lock(watchable_type, path)
-        if not isinstance(node, WatchableEntry):
+        if not isinstance(node, WatchableIndexEntryNode):
             raise WatchableIndexError("Cannot unwatch something that is not a Watchable")
         
         if node.has_callback_registered(watcher_id):
@@ -296,7 +303,7 @@ class WatchableIndex:
         :return: The number of watchers
         """
         node = self._get_node_with_lock(watchable_type, path)
-        if not isinstance(node, WatchableEntry):
+        if not isinstance(node, WatchableIndexEntryNode):
             raise WatchableIndexError("Cannot get the watcher count of something that is not a Watchable")
         return node.watcher_count()
     
@@ -321,7 +328,7 @@ class WatchableIndex:
         :return: The last value written or ``None``
         """
         node = self._get_node_with_lock(watchable_type, path)
-        if not isinstance(node, WatchableEntry):
+        if not isinstance(node, WatchableIndexEntryNode):
             raise WatchableIndexError("Cannot read a value on something that is not a Watchable")
         return node.get_value()
 
@@ -334,7 +341,7 @@ class WatchableIndex:
         :return: The node content. Either a watchable or a description of the subnodes
         """
         node = self._get_node_with_lock(watchable_type, path)
-        if isinstance(node, WatchableEntry):
+        if isinstance(node, WatchableIndexEntryNode):
             return node.configuration
         return node
 
@@ -373,10 +380,20 @@ class WatchableIndex:
         
         :param data: The data to add. Classified in dict[watchable_type][path]. 
         """
+        touched = {
+            sdk.WatchableType.Variable : False,
+            sdk.WatchableType.Alias : False,
+            sdk.WatchableType.RuntimePublishedValue : False,
+        }
         with self._lock:
             for subdata in data.values():
                 for path, wc in subdata.items():
+                    touched[wc.watchable_type] = True
                     self._add_watchable_no_lock(path, wc)
+            
+            for wt in touched:
+                if touched[wt]:
+                    self._tree_change_counters[wt] += 1
     
     def clear_content_by_type(self, watchable_type:sdk.WatchableType) -> bool:
         """
@@ -392,6 +409,7 @@ class WatchableIndex:
 
             if had_data:
                 changed = True
+                self._tree_change_counters[watchable_type] += 1
 
             to_remove:Set[str] = set()
             for server_id, entry in self._watched_entries.items():
@@ -416,6 +434,7 @@ class WatchableIndex:
             for wt in [sdk.WatchableType.Variable, sdk.WatchableType.Alias, sdk.WatchableType.RuntimePublishedValue]:
                 if self._has_data(wt):
                     had_data = True
+                    self._tree_change_counters[wt] += 1
 
             self._trees[sdk.WatchableType.Variable] = {}
             self._trees[sdk.WatchableType.Alias] = {}
@@ -442,6 +461,9 @@ class WatchableIndex:
         self._global_watch_callbacks = watch_callback
         self._global_unwatch_callbacks = unwatch_callback
     
+
+    def get_change_counters(self) -> Dict[sdk.WatchableType, int]:
+        return self._tree_change_counters.copy()
 
     @classmethod
     def _validate_fqn(cls, fqn:ParsedFullyQualifiedName, desc:sdk.WatchableConfiguration) -> None:
