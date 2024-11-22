@@ -43,14 +43,14 @@ def load_pixmap(name:str) -> QPixmap:
         pixmap_cache[name] = QPixmap(str(get(name)))
     return pixmap_cache[name]
 
-def load_icon(name:str) -> QPixmap:
+def load_icon(name:str) -> QIcon:
     if name not in icon_cache:
         icon_cache[name] = QIcon(str(get(name)))
     return icon_cache[name]
 
 
 icon_cache: Dict[str, QIcon] = {}
-pixmap_cache: Dict[str, QIcon] = {}
+pixmap_cache: Dict[str, QPixmap] = {}
 
 class Icons:
     TreeFolder = "folder-16x16.png"
