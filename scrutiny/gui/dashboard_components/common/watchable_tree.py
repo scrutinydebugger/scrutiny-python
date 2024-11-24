@@ -1,16 +1,23 @@
 __all__ = [
+    'get_watchable_icon',
+    'NodeSerializableData',
+    'WatchableItemSerializableData',
+    'FolderItemSerializableData',
+    'BaseWatchableIndexTreeStandardItem',
     'FolderStandardItem',
     'WatchableStandardItem',
-    'BaseWatchableIndexTreeStandardItem',
-    'WatchableTreeWidget',
+    'item_from_serializable_data',
+    'WatchableTreeModel',
+    'WatchableTreeWidget'
 ]
 
 from scrutiny.sdk import WatchableType, WatchableConfiguration
-from PySide6.QtGui import  QStandardItem, QIcon, QKeyEvent, QStandardItemModel, QColor
+from PySide6.QtGui import  QStandardItem, QIcon, QKeyEvent, QStandardItemModel, QColor, QDropEvent
 from PySide6.QtCore import Qt, QModelIndex
 from PySide6.QtWidgets import QTreeView, QWidget
 from scrutiny.gui import assets
-from typing import Any, List, Optional
+from scrutiny.gui.core.watchable_index import WatchableIndex
+from typing import Any, List, Optional, TypedDict,  cast, Type
 
 def get_watchable_icon(wt:WatchableType) -> QIcon:
     if wt == WatchableType.Variable:
@@ -21,39 +28,113 @@ def get_watchable_icon(wt:WatchableType) -> QIcon:
         return assets.load_icon(assets.Icons.TreeRpv)
     raise NotImplementedError(f"Unsupported icon for {wt}")
 
-class BaseWatchableIndexTreeStandardItem(QStandardItem):
-    _fqn:str
+class NodeSerializableData(TypedDict):
+    type:str
+    display_text: str
+    fqn:Optional[str]
+    
 
-    def __init__(self, fqn:str, *args:Any, **kwargs:Any) -> None:
+class WatchableItemSerializableData(NodeSerializableData):
+    pass
+
+class FolderItemSerializableData(NodeSerializableData):
+    pass
+
+class BaseWatchableIndexTreeStandardItem(QStandardItem):
+    _fqn:Optional[str]
+
+    def __init__(self, fqn:Optional[str], *args:Any, **kwargs:Any):
         self._fqn = fqn
         super().__init__(*args, **kwargs)
 
+    def to_serialized_data(self) -> NodeSerializableData:
+        raise NotImplementedError(f"Cannot serialize node of type {self.__class__.__name__}")
+
     @property
-    def fqn(self) -> str:
+    def fqn(self) -> Optional[str]:
         return self._fqn
 
 
 class FolderStandardItem(BaseWatchableIndexTreeStandardItem):
-    def __init__(self, text:str, fqn:str):
+    _NODE_TYPE='folder'
+      # fqn is optional for folders. They might be created by the user
+
+    def __init__(self, text:str, fqn:Optional[str]=None):
         folder_icon = assets.load_icon(assets.Icons.TreeFolder)
         super().__init__(fqn, folder_icon, text)
     
+    def to_serialized_data(self) -> FolderItemSerializableData:
+        return {
+            'type' : self._NODE_TYPE,
+            'display_text' : self.text(),
+            'fqn' : self._fqn
+        }
+
+    @classmethod
+    def from_serializable_data(cls, data:FolderItemSerializableData) -> "FolderStandardItem":
+        assert data['type'] == cls._NODE_TYPE
+        return FolderStandardItem(
+            text=data['display_text'],
+            fqn=data['fqn']
+        )
+    
+
 
 class WatchableStandardItem(BaseWatchableIndexTreeStandardItem):
+    _NODE_TYPE='watchable'
+
     def __init__(self, watchable_type:WatchableType, text:str, fqn:str):
         icon = get_watchable_icon(watchable_type)
         super().__init__(fqn, icon, text)
 
+    @property
+    def fqn(self) -> str:
+        assert self._fqn is not None
+        return self._fqn
+    
+    def to_serialized_data(self) -> WatchableItemSerializableData:
+        return {
+            'type' : self._NODE_TYPE,
+            'display_text' : self.text(),
+            'fqn' : self.fqn
+        }
+
+    @classmethod
+    def from_serializable_data(cls, data:WatchableItemSerializableData) -> "WatchableStandardItem":
+        assert data['type'] == cls._NODE_TYPE
+        assert data['fqn'] is not None
+        prased = WatchableIndex.parse_fqn(data['fqn'])
+        
+        return WatchableStandardItem(
+            watchable_type=prased.watchable_type,
+            text=data['display_text'], 
+            fqn=data['fqn']
+        ) 
+
+def item_from_serializable_data(data:NodeSerializableData) -> BaseWatchableIndexTreeStandardItem:
+    if data['type'] == FolderStandardItem._NODE_TYPE:
+        return FolderStandardItem.from_serializable_data(cast(FolderItemSerializableData, data))
+    if data['type'] == WatchableStandardItem._NODE_TYPE:
+        return WatchableStandardItem.from_serializable_data(cast(WatchableItemSerializableData, data))
+    
+    raise NotImplementedError(f"Cannot create an item from serializable data of type {data['type']}")
+
+class WatchableTreeModel(QStandardItemModel):
+    pass
 
 class WatchableTreeWidget(QTreeView):
-    _model:QStandardItemModel
+    _model:WatchableTreeModel
 
     DEFAULT_ITEM0_WIDTH = 400
     DEFAULT_ITEM_WIDTH = 100
 
-    def __init__(self, parent:Optional[QWidget]=None) -> None:
+    def __init__(self, parent:Optional[QWidget]=None, model_class:Optional[Type[WatchableTreeModel]]=None) -> None:
         super().__init__(parent)
-        self._model = QStandardItemModel(self)
+        if model_class is None:
+            self._model = WatchableTreeModel(self)
+        else:
+            self._model = model_class(self)
+
         self.setModel(self._model)
         self.setUniformRowHeights(True)   # Documentation says it helps performance
         self.setAnimated(False)
@@ -93,7 +174,7 @@ class WatchableTreeWidget(QTreeView):
         else:
             return super().keyReleaseEvent(event)
     
-    def get_model(self) -> QStandardItemModel:
+    def get_model(self) -> WatchableTreeModel:
         return self._model
     
     def set_row_color(self, index:QModelIndex, color:QColor) -> None:
@@ -125,4 +206,5 @@ class WatchableTreeWidget(QTreeView):
         item.setDragEnabled(True)
         return [item]
 
-    
+
+        
