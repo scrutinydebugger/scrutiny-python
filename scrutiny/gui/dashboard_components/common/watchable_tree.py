@@ -12,12 +12,12 @@ __all__ = [
 ]
 
 from scrutiny.sdk import WatchableType, WatchableConfiguration
-from PySide6.QtGui import  QStandardItem, QIcon, QKeyEvent, QStandardItemModel, QColor, QDropEvent
+from PySide6.QtGui import  QStandardItem, QIcon, QKeyEvent, QStandardItemModel, QColor
 from PySide6.QtCore import Qt, QModelIndex
 from PySide6.QtWidgets import QTreeView, QWidget
 from scrutiny.gui import assets
-from scrutiny.gui.core.watchable_index import WatchableIndex
-from typing import Any, List, Optional, TypedDict,  cast, Type
+from scrutiny.gui.core.watchable_index import WatchableIndex, WatchableIndexNodeContent
+from typing import Any, List, Optional, TypedDict,  cast, Callable, Literal
 
 def get_watchable_icon(wt:WatchableType) -> QIcon:
     if wt == WatchableType.Variable:
@@ -29,7 +29,7 @@ def get_watchable_icon(wt:WatchableType) -> QIcon:
     raise NotImplementedError(f"Unsupported icon for {wt}")
 
 class NodeSerializableData(TypedDict):
-    type:str
+    type:Literal['watchable', 'folder']
     display_text: str
     fqn:Optional[str]
     
@@ -42,13 +42,21 @@ class FolderItemSerializableData(NodeSerializableData):
 
 class BaseWatchableIndexTreeStandardItem(QStandardItem):
     _fqn:Optional[str]
+    _loaded:bool
 
     def __init__(self, fqn:Optional[str], *args:Any, **kwargs:Any):
         self._fqn = fqn
+        self._loaded = False
         super().__init__(*args, **kwargs)
 
     def to_serialized_data(self) -> NodeSerializableData:
         raise NotImplementedError(f"Cannot serialize node of type {self.__class__.__name__}")
+
+    def set_loaded(self) -> None:
+        self._loaded = True
+    
+    def is_loaded(self) -> bool:
+        return self._loaded
 
     @property
     def fqn(self) -> Optional[str]:
@@ -120,7 +128,107 @@ def item_from_serializable_data(data:NodeSerializableData) -> BaseWatchableIndex
     raise NotImplementedError(f"Cannot create an item from serializable data of type {data['type']}")
 
 class WatchableTreeModel(QStandardItemModel):
-    pass
+    """Extension of the Standard Item Model to represent watchables in a tree. The generic model is specialized to get :
+     - Automatic icon choice
+     - Leaf nodes that cannot accept children
+     - Autofill from the global watchable index (with possible lazy loading)
+    
+    """
+    _watchable_index:WatchableIndex
+
+    def __init__(self, parent:Optional[QWidget], watchable_index:WatchableIndex) -> None:
+        super().__init__(parent)
+        self._watchable_index = watchable_index
+
+    def get_watchable_columns(self,  watchable_config:WatchableConfiguration) -> List[QStandardItem]:
+        return []
+
+    @classmethod
+    def make_watchable_row(cls, 
+                        name:str, 
+                        watchable_type:WatchableType, 
+                        fqn:str, 
+                        editable:bool, 
+                        extra_columns:List[QStandardItem]=[]) -> List[QStandardItem]:
+        
+        item =  WatchableStandardItem(watchable_type, name, fqn)
+        item.setEditable(editable)
+        item.setDragEnabled(True)
+        for col in extra_columns:
+            col.setDragEnabled(True)
+        return [item] + extra_columns
+        
+
+    @classmethod
+    def make_folder_row(cls,  name:str, fqn:Optional[str], editable:bool ) -> List[QStandardItem]:
+        item =  FolderStandardItem(name, fqn)
+        item.setEditable(editable)
+        item.setDragEnabled(True)
+        return [item]
+    
+    def add_row(self, index:QModelIndex, row_index:int, row_content:List[QStandardItem]):
+        if index.isValid():
+            parent_item = self.itemFromIndex(index)
+            if row_index == -1:
+                parent_item.appendRow(row_content)
+            else:
+                parent_item.insertRow(row_index, row_content)
+        else:
+            if row_index == -1:
+                self.appendRow(row_content)
+            else:
+                self.insertRow(row_index, row_content)
+
+    def lazy_load(self, parent:BaseWatchableIndexTreeStandardItem, watchable_type:WatchableType, path:str) -> None:
+        self.fill_from_index_recursive(parent, watchable_type, path, max_level=0)
+
+    def fill_from_index_recursive(self, 
+                                  parent:BaseWatchableIndexTreeStandardItem, 
+                                  watchable_type:WatchableType, 
+                                  path:str,
+                                  max_level:Optional[int]=None,
+                                  keep_folder_fqn:bool=True,
+                                  editable:bool=False,
+                                  level:int=0
+                                  ) -> None:
+        parent.set_loaded()
+        content = self._watchable_index.read(watchable_type, path)
+        if path.endswith('/'):
+            path=path[:-1]
+
+        if isinstance(content, WatchableIndexNodeContent):  # Equivalent to a folder
+            for name in content.subtree:
+                subtree_path = f'{path}/{name}'
+                folder_fqn:Optional[str] = None
+                if keep_folder_fqn:
+                    folder_fqn = self._watchable_index.make_fqn(watchable_type, subtree_path)
+                row = self.make_folder_row(
+                    name=name,
+                    fqn=folder_fqn,
+                    editable=editable
+                )
+                parent.appendRow(row)
+
+                if max_level is None or level < max_level:
+                    self.fill_from_index_recursive(
+                        parent = row[0], 
+                        watchable_type=watchable_type, 
+                        path=subtree_path,
+                        editable=editable, 
+                        max_level=max_level, 
+                        level=level+1)
+            
+            for name, watchable_config in content.watchables.items():
+                watchable_path = f'{path}/{name}'
+                row = self.make_watchable_row(
+                    name = name, 
+                    watchable_type = watchable_config.watchable_type, 
+                    fqn = self._watchable_index.make_fqn(watchable_type, watchable_path), 
+                    editable=editable,
+                    extra_columns=self.get_watchable_columns(watchable_config)
+                )
+                parent.appendRow(row)
+
 
 class WatchableTreeWidget(QTreeView):
     _model:WatchableTreeModel
@@ -128,12 +236,9 @@ class WatchableTreeWidget(QTreeView):
     DEFAULT_ITEM0_WIDTH = 400
     DEFAULT_ITEM_WIDTH = 100
 
-    def __init__(self, parent:Optional[QWidget]=None, model_class:Optional[Type[WatchableTreeModel]]=None) -> None:
+    def __init__(self, parent:Optional[QWidget]=None, model:Optional[WatchableTreeModel]=None) -> None:
         super().__init__(parent)
-        if model_class is None:
-            self._model = WatchableTreeModel(self)
-        else:
-            self._model = model_class(self)
+        self._model = model if model is not None else WatchableTreeModel(self)
 
         self.setModel(self._model)
         self.setUniformRowHeights(True)   # Documentation says it helps performance
@@ -161,6 +266,8 @@ class WatchableTreeWidget(QTreeView):
             self.setSelectionMode(self.SelectionMode.MultiSelection)
         elif event.key() == Qt.Key.Key_Shift:
             self.setSelectionMode(self.SelectionMode.ContiguousSelection)
+        elif event.key() == Qt.Key.Key_Escape:
+            self.clearSelection()
         else:
             return super().keyPressEvent(event)
     
@@ -183,28 +290,4 @@ class WatchableTreeWidget(QTreeView):
             item = self._model.itemFromIndex(index.siblingAtColumn(i))
             if item is not None:
                 item.setBackground(color)
-        
-
-    def make_watchable_row(self, 
-                          name:str, 
-                          watchable_config:WatchableConfiguration, 
-                          fqn:str, 
-                          editable:bool, 
-                          extra_columns:List[QStandardItem]=[]) -> List[QStandardItem]:
-        
-        item =  WatchableStandardItem(watchable_config.watchable_type, name, fqn)
-        item.setEditable(editable)
-        item.setDragEnabled(True)
-        for col in extra_columns:
-            col.setDragEnabled(True)
-        return [item] + extra_columns
-        
-
-    def make_folder_row(self,  name:str, fqn:str, editable:bool ) -> List[QStandardItem]:
-        item =  FolderStandardItem(name, fqn)
-        item.setEditable(editable)
-        item.setDragEnabled(True)
-        return [item]
-
-
         

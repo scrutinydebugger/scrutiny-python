@@ -9,7 +9,7 @@
 
 from typing import Dict, Any, List, cast, Optional, Sequence
 
-from PySide6.QtWidgets import QVBoxLayout
+from PySide6.QtWidgets import QVBoxLayout, QWidget
 from PySide6.QtGui import QStandardItem, QStandardItemModel
 from PySide6.QtCore import QModelIndex, Qt, QMimeData, QByteArray
 
@@ -22,12 +22,20 @@ from scrutiny.gui.dashboard_components.common.watchable_tree import (
 from scrutiny.sdk import WatchableType, WatchableConfiguration
 import json
 
+class VarListComponentTreeModel(WatchableTreeModel):
+    """An extension of the data model used by Watchable Trees dedicated for the Variable List Component
+    Mainly handles drag&drop logic
+    """
 
-LOADED_ROLE = Qt.ItemDataRole.UserRole + 1
-
-class VarListTreeModel(WatchableTreeModel):
-    """Extension of the standard data model that sets a custom mime data
-    to enable drag and drop custom logic"""
+    def get_watchable_columns(self,  watchable_config:WatchableConfiguration) -> List[QStandardItem]:
+        typecol = QStandardItem(watchable_config.datatype.name)
+        typecol.setEditable(False)
+        if watchable_config.enum is not None:
+            enumcol = QStandardItem(watchable_config.enum.name)
+            enumcol.setEditable(False)
+            return [ typecol, enumcol ]
+        else:
+            return [ typecol]
 
     def mimeData(self, indexes: Sequence[QModelIndex]) -> QMimeData:
         indexes_without_nested_values = set(indexes)
@@ -57,6 +65,11 @@ class VarListTreeModel(WatchableTreeModel):
         data.setData("text/plain", QByteArray.fromStdString(json.dumps(serializable_data)))
         return data
 
+
+class VarlistComponentTreeWidget(WatchableTreeWidget):
+    def __init__(self, parent: Optional[QWidget], model:VarListComponentTreeModel) -> None:
+        super().__init__(parent, model)
+
 class VarListComponent(ScrutinyGUIBaseComponent):
     instance_name : str
 
@@ -64,7 +77,8 @@ class VarListComponent(ScrutinyGUIBaseComponent):
     _NAME = "Variable List"
 
     _HEADERS = ['', 'Type', 'Enum']
-    _tree:WatchableTreeWidget
+    _tree:VarlistComponentTreeWidget
+    _tree_model:VarListComponentTreeModel
 
     _var_folder:QStandardItem
     _alias_folder:QStandardItem
@@ -74,11 +88,12 @@ class VarListComponent(ScrutinyGUIBaseComponent):
     def setup(self) -> None:
         layout = QVBoxLayout(self)
 
-        self._tree = WatchableTreeWidget(self, VarListTreeModel)
+        self._tree_model = VarListComponentTreeModel(self, watchable_index=self.server_manager.index)
+        self._tree = VarlistComponentTreeWidget(self, self._tree_model)
         
-        var_row = self._tree.make_folder_row("Var", WatchableIndex.make_fqn(WatchableType.Variable, '/'), editable=False)
-        alias_row = self._tree.make_folder_row("Alias", WatchableIndex.make_fqn(WatchableType.Alias, '/'), editable=False)
-        rpv_row = self._tree.make_folder_row("RPV", WatchableIndex.make_fqn(WatchableType.RuntimePublishedValue, '/'), editable=False)
+        var_row = self._tree_model.make_folder_row("Var", WatchableIndex.make_fqn(WatchableType.Variable, '/'), editable=False)
+        alias_row = self._tree_model.make_folder_row("Alias", WatchableIndex.make_fqn(WatchableType.Alias, '/'), editable=False)
+        rpv_row = self._tree_model.make_folder_row("RPV", WatchableIndex.make_fqn(WatchableType.RuntimePublishedValue, '/'), editable=False)
 
         self._tree.get_model().appendRow(var_row)
         self._tree.get_model().appendRow(alias_row)
@@ -104,11 +119,11 @@ class VarListComponent(ScrutinyGUIBaseComponent):
         item = cast(BaseWatchableIndexTreeStandardItem, cast(QStandardItemModel, index.model()).itemFromIndex(index))
         for row in range(item.rowCount()):
             child = cast(BaseWatchableIndexTreeStandardItem, item.child(row, 0))
-            if not child.data(LOADED_ROLE):
+            if not child.is_loaded():
                 fqn = child.fqn
                 assert fqn is not None  # All data is coming from the index, so it has an Fully Qualified Name
                 parsed_fqn = WatchableIndex.parse_fqn(fqn)
-                self.add_items_recursive(child, parsed_fqn.watchable_type, parsed_fqn.path, max_level=0)
+                self._tree_model.lazy_load(child, parsed_fqn.watchable_type, parsed_fqn.path)
         
 
         self._tree.expand_first_column_to_content()
@@ -129,56 +144,17 @@ class VarListComponent(ScrutinyGUIBaseComponent):
         # reload first level with max_level=0 as we do lazy loading
         if WatchableType.RuntimePublishedValue in watchable_types:
             self._rpv_folder.removeRows(0, self._rpv_folder.rowCount())
-            self.add_items_recursive(self._rpv_folder, WatchableType.RuntimePublishedValue, '/', max_level=0)
+            self._tree_model.lazy_load(self._rpv_folder, WatchableType.RuntimePublishedValue, '/')
         
         if WatchableType.Alias in watchable_types:
             self._alias_folder.removeRows(0, self._alias_folder.rowCount())
-            self.add_items_recursive(self._alias_folder, WatchableType.Alias, '/', max_level=0)
+            self._tree_model.lazy_load(self._alias_folder, WatchableType.Alias, '/')
         
         if WatchableType.Variable in watchable_types:
             self._var_folder.removeRows(0, self._var_folder.rowCount())
-            self.add_items_recursive(self._var_folder, WatchableType.Variable, '/', max_level=0)
+            self._tree_model.lazy_load(self._var_folder, WatchableType.Variable, '/')
         
-    def get_watchable_columns(self,  watchable_config:WatchableConfiguration) -> List[QStandardItem]:
-        typecol = QStandardItem(watchable_config.datatype.name)
-        typecol.setEditable(False)
-        if watchable_config.enum is not None:
-            enumcol = QStandardItem(watchable_config.enum.name)
-            enumcol.setEditable(False)
-            return [ typecol, enumcol ]
-        else:
-            return [ typecol]
-        
-    
-    def add_items_recursive(self, parent:QStandardItem, watchable_type:WatchableType, path:str, max_level:Optional[int]=None, level:int=0) -> None:
-        parent.setData(True, LOADED_ROLE)
-        content = self.server_manager.index.read(watchable_type, path)
-        if path.endswith('/'):
-            path=path[:-1]
 
-        if isinstance(content, WatchableIndexNodeContent):
-            for name in content.subtree:
-                subtree_path = f'{path}/{name}'
-                row = self._tree.make_folder_row(
-                    name=name,
-                    fqn=WatchableIndex.make_fqn(watchable_type, subtree_path),
-                    editable=False
-                )
-                parent.appendRow(row)
-
-                if max_level is None or level < max_level:
-                    self.add_items_recursive(row[0], watchable_type, subtree_path, max_level=max_level, level=level+1)
-            
-            for name, watchable_config in content.watchables.items():
-                watchable_path = f'{path}/{name}'
-                row = self._tree.make_watchable_row(
-                    name = name, 
-                    watchable_config = watchable_config, 
-                    fqn = WatchableIndex.make_fqn(watchable_type, watchable_path), 
-                    editable=False,
-                    extra_columns=self.get_watchable_columns(watchable_config)
-                )
-                parent.appendRow(row)
 
 
     def teardown(self) -> None:
