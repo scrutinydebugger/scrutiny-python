@@ -20,7 +20,7 @@ from scrutiny.gui.dashboard_components.common.watchable_tree import (
     BaseWatchableIndexTreeStandardItem, WatchableTreeWidget, WatchableTreeModel, NodeSerializableData, FolderStandardItem, WatchableStandardItem)
 
 from scrutiny.sdk import WatchableType, WatchableConfiguration
-import json
+from scrutiny.gui.core.drag_mime_data import DragData
 
 class VarListComponentTreeModel(WatchableTreeModel):
     """An extension of the data model used by Watchable Trees dedicated for the Variable List Component
@@ -56,19 +56,15 @@ class VarListComponentTreeModel(WatchableTreeModel):
             if isinstance(item, BaseWatchableIndexTreeStandardItem): # Only keep column 0 
                 serializable_items.append(item.to_serialized_data())
         
-        serializable_data = {
-            'source' : 'varlist',
-            'data' : serializable_items
-        }
-
-        data = QMimeData()
-        data.setData("text/plain", QByteArray.fromStdString(json.dumps(serializable_data)))
+        data = DragData(type=DragData.DataType.WatchableTreeNodesTiedToIndex, data=serializable_items).to_mime()
+        assert data is not None
         return data
 
 
 class VarlistComponentTreeWidget(WatchableTreeWidget):
     def __init__(self, parent: Optional[QWidget], model:VarListComponentTreeModel) -> None:
         super().__init__(parent, model)
+        self.set_header_labels(['', 'Type', 'Enum'])
 
 class VarListComponent(ScrutinyGUIBaseComponent):
     instance_name : str
@@ -76,7 +72,6 @@ class VarListComponent(ScrutinyGUIBaseComponent):
     _ICON = assets.get("treelist-96x128.png")
     _NAME = "Variable List"
 
-    _HEADERS = ['', 'Type', 'Enum']
     _tree:VarlistComponentTreeWidget
     _tree_model:VarListComponentTreeModel
 
@@ -98,7 +93,6 @@ class VarListComponent(ScrutinyGUIBaseComponent):
         self._tree.get_model().appendRow(var_row)
         self._tree.get_model().appendRow(alias_row)
         self._tree.get_model().appendRow(rpv_row)
-        self._tree.set_header_labels(self._HEADERS)
         self._tree.setDragDropMode(self._tree.DragDropMode.DragOnly)
 
         self._var_folder = var_row[0]

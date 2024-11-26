@@ -9,14 +9,13 @@
 from scrutiny.gui.dashboard_components.base_component import ScrutinyGUIBaseComponent
 from typing import Dict, Any, List, Union, Optional, cast, Sequence
 
-from PySide6.QtCore import QMimeData, QModelIndex, QPersistentModelIndex, Qt, QByteArray
+from PySide6.QtCore import QMimeData, QModelIndex, QPersistentModelIndex, Qt, QModelIndex
 from PySide6.QtWidgets import QVBoxLayout, QWidget
-from PySide6.QtGui import QDragMoveEvent, QDropEvent, QDragEnterEvent, QKeyEvent, QStandardItem
+from PySide6.QtGui import QDropEvent, QDragEnterEvent, QKeyEvent
 
 from scrutiny.gui import assets
-from scrutiny.gui.core.watchable_index import WatchableIndexError
 from scrutiny.gui.dashboard_components.common.watchable_tree import WatchableTreeWidget, WatchableTreeModel, NodeSerializableData, FolderStandardItem
-import json
+from scrutiny.gui.core.drag_mime_data import DragData
 
 
 class WatchComponentTreeModel(WatchableTreeModel):
@@ -24,67 +23,55 @@ class WatchComponentTreeModel(WatchableTreeModel):
     Mainly handles drag&drop logic
     """
 
-    def read_mime_data(self, data: QMimeData) -> Optional[NodeSerializableData]:
-        if not data.hasText():
-            return None
-        mimestr = data.data('text/plain').toStdString()
-        try:
-            decoded =  json.loads(mimestr)
-            if 'source' not in decoded:
-                return None
-            if 'data' not in decoded:
-                return None
-            
-            return decoded
-        except json.JSONDecodeError:
-            return None
-
     def mimeData(self, indexes: Sequence[QModelIndex]) -> QMimeData:
-        serializable_data = {
-            'source' : 'watch',
-            'data' : {}
-        }    
+        drag_data = DragData(type=DragData.DataType.WatchableTreeNodes, data = [])    # Todo  
+        mime_data = drag_data.to_mime()
+        assert mime_data is not None
 
-        data = QMimeData()
-        data.setData("text/plain", QByteArray.fromStdString(json.dumps(serializable_data)))
-        return data
+        return mime_data
 
-    def canDropMimeData(self, mime_data: QMimeData, action: Qt.DropAction, row: int, column: int, parent: QModelIndex | QPersistentModelIndex) -> bool:
+    def canDropMimeData(self, 
+                        mime_data: QMimeData, 
+                        action: Qt.DropAction, 
+                        row_index: int, 
+                        column_index: int, 
+                        parent: Union[QModelIndex, QPersistentModelIndex]
+                        ) -> bool:
         print(f"canDropMimeData {action}")
-        data = self.read_mime_data(mime_data)
-        if data is None:
-            print("bad mime")
+        drag_data = DragData.from_mime(mime_data)
+        if drag_data is None:
+            return False
+
+        if drag_data.type not in (DragData.DataType.WatchableTreeNodes, DragData.DataType.WatchableTreeNodesTiedToIndex):
             return False
         
         if parent.isValid():
             if not isinstance(self.itemFromIndex(parent), FolderStandardItem):
-                print("Bad parent")
                 return False
         
         return True
 
-    def dropMimeData(self, mime_data: QMimeData, action: Qt.DropAction, row_index: int, column_index: int, parent: Union[QModelIndex, QPersistentModelIndex]) -> bool:
-        print(f"dropMimeData {action}")
-        
-        
+    def dropMimeData(self, 
+                     mime_data: QMimeData, 
+                     action: Qt.DropAction, 
+                     row_index: int, 
+                     column_index: int, 
+                     parent: Union[QModelIndex, QPersistentModelIndex]
+                     ) -> bool:
+
         # We can only drop on root or on a folder
         if parent.isValid():
             if not isinstance(self.itemFromIndex(parent), FolderStandardItem):
                 return False
         
-        data = self.read_mime_data(mime_data)
-        if data is None:
+        drag_data = DragData.from_mime(mime_data)
+        if drag_data is None:
             return False
         
         try:
-            if 'source' in data:
-                if data['source'] == 'varlist':
-                    assert 'data' in data
-                    self.handle_drop_varlist(action, parent, row_index, data['data'])
-                elif data['source'] == 'watch':
-                    pass
-                else:
-                    pass
+            if drag_data.type == DragData.DataType.WatchableTreeNodesTiedToIndex:
+                self.handle_drop_varlist(action, parent, row_index, drag_data.data)
+
         except AssertionError:
             return False
 
@@ -126,13 +113,17 @@ class WatchComponentTreeWidget(WatchableTreeWidget):
         self.setDragEnabled(True)
         self.setDropIndicatorShown(True)
         self.setDragDropMode(self.DragDropMode.DragDrop)
+        self.set_header_labels(['', 'Value'])
 
     def keyPressEvent(self, event: QKeyEvent) -> None:
         if event.key() == Qt.Key.Key_Delete:
             for index in self.selectedIndexes():
                 item = cast(WatchComponentTreeModel, self.model()).itemFromIndex(index)
                 if item is not None:
-                    self.model().removeRow(item.row(), item.parent().index())
+                    parent_index=QModelIndex() # Invalid index
+                    if item.parent():
+                        parent_index = item.parent().index()
+                    self.model().removeRow(item.row(), parent_index)
         else:
             super().keyPressEvent(event)
 
@@ -152,7 +143,6 @@ class WatchComponent(ScrutinyGUIBaseComponent):
     _ICON = assets.get("eye-96x128.png")
     _NAME = "Watch Window"
 
-    _HEADERS = ['', 'Value']
     _tree:WatchComponentTreeWidget
     _tree_model:WatchComponentTreeModel
 
