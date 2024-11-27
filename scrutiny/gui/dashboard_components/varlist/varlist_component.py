@@ -11,23 +11,30 @@ from typing import Dict, Any, List, cast, Optional, Sequence
 
 from PySide6.QtWidgets import QVBoxLayout, QWidget
 from PySide6.QtGui import QStandardItem, QStandardItemModel
-from PySide6.QtCore import QModelIndex, Qt, QMimeData, QByteArray
+from PySide6.QtCore import QModelIndex, QMimeData
 
 from scrutiny.gui import assets
-from scrutiny.gui.core.watchable_index import  WatchableIndexNodeContent, WatchableIndex
+from scrutiny.gui.core.watchable_index import   WatchableIndex
 from scrutiny.gui.dashboard_components.base_component import ScrutinyGUIBaseComponent
 from scrutiny.gui.dashboard_components.common.watchable_tree import (
-    BaseWatchableIndexTreeStandardItem, WatchableTreeWidget, WatchableTreeModel, NodeSerializableData, FolderStandardItem, WatchableStandardItem)
+    BaseWatchableIndexTreeStandardItem, 
+    WatchableTreeWidget, 
+    WatchableTreeModel, 
+    NodeSerializableData, 
+    TreeDragData
+    )
 
 from scrutiny.sdk import WatchableType, WatchableConfiguration
-from scrutiny.gui.core.drag_mime_data import DragData
+from scrutiny.gui.dashboard_components.common.watchable_tree import TreeDragData
 
 class VarListComponentTreeModel(WatchableTreeModel):
     """An extension of the data model used by Watchable Trees dedicated for the Variable List Component
     Mainly handles drag&drop logic
     """
 
-    def get_watchable_columns(self,  watchable_config:WatchableConfiguration) -> List[QStandardItem]:
+    def get_watchable_columns(self,  watchable_config:Optional[WatchableConfiguration]=None) -> List[QStandardItem]:
+        if watchable_config is None:
+            return []
         typecol = QStandardItem(watchable_config.datatype.name)
         typecol.setEditable(False)
         if watchable_config.enum is not None:
@@ -38,15 +45,7 @@ class VarListComponentTreeModel(WatchableTreeModel):
             return [ typecol]
 
     def mimeData(self, indexes: Sequence[QModelIndex]) -> QMimeData:
-        indexes_without_nested_values = set(indexes)
-        # If we have nested nodes, we only keep the parent.
-        for index in indexes:
-            parent = index.parent()
-            while parent.isValid():
-                if parent in indexes_without_nested_values:
-                    indexes_without_nested_values.remove(index)
-                    break
-                parent = parent.parent()
+        indexes_without_nested_values = self.remove_nested_indexes(indexes)
         
         # Make a serialized version of the data that will be passed a text
         serializable_items:List[NodeSerializableData] = []
@@ -56,13 +55,13 @@ class VarListComponentTreeModel(WatchableTreeModel):
             if isinstance(item, BaseWatchableIndexTreeStandardItem): # Only keep column 0 
                 serializable_items.append(item.to_serialized_data())
         
-        data = DragData(type=DragData.DataType.WatchableTreeNodesTiedToIndex, data=serializable_items).to_mime()
+        data = TreeDragData(type=TreeDragData.DataType.WatchableTreeNodesTiedToIndex, data_copy=serializable_items).to_mime()
         assert data is not None
         return data
 
 
 class VarlistComponentTreeWidget(WatchableTreeWidget):
-    def __init__(self, parent: Optional[QWidget], model:VarListComponentTreeModel) -> None:
+    def __init__(self, parent: QWidget, model:VarListComponentTreeModel) -> None:
         super().__init__(parent, model)
         self.set_header_labels(['', 'Type', 'Enum'])
 
@@ -75,9 +74,9 @@ class VarListComponent(ScrutinyGUIBaseComponent):
     _tree:VarlistComponentTreeWidget
     _tree_model:VarListComponentTreeModel
 
-    _var_folder:QStandardItem
-    _alias_folder:QStandardItem
-    _rpv_folder:QStandardItem
+    _var_folder:BaseWatchableIndexTreeStandardItem
+    _alias_folder:BaseWatchableIndexTreeStandardItem
+    _rpv_folder:BaseWatchableIndexTreeStandardItem
     _index_change_counters:Dict[WatchableType, int]
 
     def setup(self) -> None:
@@ -95,9 +94,9 @@ class VarListComponent(ScrutinyGUIBaseComponent):
         self._tree.get_model().appendRow(rpv_row)
         self._tree.setDragDropMode(self._tree.DragDropMode.DragOnly)
 
-        self._var_folder = var_row[0]
-        self._alias_folder = alias_row[0]
-        self._rpv_folder = rpv_row[0]
+        self._var_folder = cast(BaseWatchableIndexTreeStandardItem, var_row[0])
+        self._alias_folder = cast(BaseWatchableIndexTreeStandardItem, alias_row[0])
+        self._rpv_folder = cast(BaseWatchableIndexTreeStandardItem, rpv_row[0])
         
         layout.addWidget(self._tree)
 
@@ -119,7 +118,6 @@ class VarListComponent(ScrutinyGUIBaseComponent):
                 parsed_fqn = WatchableIndex.parse_fqn(fqn)
                 self._tree_model.lazy_load(child, parsed_fqn.watchable_type, parsed_fqn.path)
         
-
         self._tree.expand_first_column_to_content()
 
     

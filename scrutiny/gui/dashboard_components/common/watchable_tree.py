@@ -12,12 +12,16 @@ __all__ = [
 ]
 
 from scrutiny.sdk import WatchableType, WatchableConfiguration
-from PySide6.QtGui import  QStandardItem, QIcon, QKeyEvent, QStandardItemModel, QColor
-from PySide6.QtCore import Qt, QModelIndex
+from PySide6.QtGui import  QFocusEvent, QStandardItem, QIcon, QKeyEvent, QStandardItemModel, QColor
+from PySide6.QtCore import Qt, QModelIndex, QByteArray, QMimeData, QPersistentModelIndex
 from PySide6.QtWidgets import QTreeView, QWidget
 from scrutiny.gui import assets
 from scrutiny.gui.core.watchable_index import WatchableIndex, WatchableIndexNodeContent
-from typing import Any, List, Optional, TypedDict,  cast, Callable, Literal
+from scrutiny.core import validation
+from typing import Any, List, Optional, TypedDict,  cast, Literal, Dict, Union, Sequence, Set
+from dataclasses import dataclass
+import enum
+import json
 
 def get_watchable_icon(wt:WatchableType) -> QIcon:
     if wt == WatchableType.Variable:
@@ -28,8 +32,9 @@ def get_watchable_icon(wt:WatchableType) -> QIcon:
         return assets.load_icon(assets.Icons.TreeRpv)
     raise NotImplementedError(f"Unsupported icon for {wt}")
 
+NodeSerializableType = Literal['watchable', 'folder']
 class NodeSerializableData(TypedDict):
-    type:Literal['watchable', 'folder']
+    type:NodeSerializableType
     display_text: str
     fqn:Optional[str]
     
@@ -39,6 +44,57 @@ class WatchableItemSerializableData(NodeSerializableData):
 
 class FolderItemSerializableData(NodeSerializableData):
     pass
+
+
+@dataclass(frozen=True)
+class TreeDragData:
+    class DataType(enum.Enum):
+        WatchableTreeNodesTiedToIndex = 'watchable_tree_nodes_tied_to_index'
+        WatchableTreeNodes = 'watchable_tree_nodes'
+
+    type:DataType
+    data_copy:Any = None
+    data_move:Any = None
+
+    def __post_init__(self) -> None:
+        validation.assert_type(self.type, 'type', (self.DataType))
+         
+    def to_mime(self) -> Optional[QMimeData]:
+        d = {
+             'type' : self.type.value,
+             'data_copy' : self.data_copy,
+             'data_move' : self.data_move
+        }
+
+        try:
+             s = json.dumps(d)
+        except Exception:
+             return None
+
+        data = QMimeData()
+        data.setData('application/json', QByteArray.fromStdString(s))
+        return data
+    
+    @classmethod
+    def from_mime(cls, data:QMimeData) -> Optional["TreeDragData"]:
+        if not data.hasFormat('application/json'):
+            return None
+        s = QByteArray(data.data('application/json')).toStdString()
+            
+        try:
+            d = json.loads(s)
+        except Exception:
+            return None
+        
+        try:
+            return TreeDragData(
+                type = TreeDragData.DataType(d['type']), 
+                data_copy = d['data_copy'],
+                data_move = d['data_move']
+                )
+        except Exception:
+            return None
+
 
 class BaseWatchableIndexTreeStandardItem(QStandardItem):
     _fqn:Optional[str]
@@ -64,7 +120,7 @@ class BaseWatchableIndexTreeStandardItem(QStandardItem):
 
 
 class FolderStandardItem(BaseWatchableIndexTreeStandardItem):
-    _NODE_TYPE='folder'
+    _NODE_TYPE:NodeSerializableType='folder'
       # fqn is optional for folders. They might be created by the user
 
     def __init__(self, text:str, fqn:Optional[str]=None):
@@ -89,7 +145,7 @@ class FolderStandardItem(BaseWatchableIndexTreeStandardItem):
 
 
 class WatchableStandardItem(BaseWatchableIndexTreeStandardItem):
-    _NODE_TYPE='watchable'
+    _NODE_TYPE:NodeSerializableType='watchable'
 
     def __init__(self, watchable_type:WatchableType, text:str, fqn:str):
         icon = get_watchable_icon(watchable_type)
@@ -140,8 +196,19 @@ class WatchableTreeModel(QStandardItemModel):
         super().__init__(parent)
         self._watchable_index = watchable_index
 
-    def get_watchable_columns(self,  watchable_config:WatchableConfiguration) -> List[QStandardItem]:
+    def get_watchable_columns(self,  watchable_config:Optional[WatchableConfiguration] = None) -> List[QStandardItem]:
         return []
+
+    @classmethod
+    def make_watchable_row_from_existing_item(cls,
+                        item:WatchableStandardItem,
+                        editable:bool, 
+                        extra_columns:List[QStandardItem]=[]) -> List[QStandardItem]:
+        item.setEditable(editable)
+        item.setDragEnabled(True)
+        for col in extra_columns:
+            col.setDragEnabled(True)
+        return [item] + extra_columns
 
     @classmethod
     def make_watchable_row(cls, 
@@ -152,21 +219,21 @@ class WatchableTreeModel(QStandardItemModel):
                         extra_columns:List[QStandardItem]=[]) -> List[QStandardItem]:
         
         item =  WatchableStandardItem(watchable_type, name, fqn)
+        return cls.make_watchable_row_from_existing_item(item, editable, extra_columns)
+
+        
+    @classmethod
+    def make_folder_row_existing_item(cls, item:FolderStandardItem, editable:bool) -> List[QStandardItem]:
         item.setEditable(editable)
         item.setDragEnabled(True)
-        for col in extra_columns:
-            col.setDragEnabled(True)
-        return [item] + extra_columns
-        
+        return [item]
 
     @classmethod
     def make_folder_row(cls,  name:str, fqn:Optional[str], editable:bool ) -> List[QStandardItem]:
         item =  FolderStandardItem(name, fqn)
-        item.setEditable(editable)
-        item.setDragEnabled(True)
-        return [item]
+        return cls.make_folder_row_existing_item(item, editable)
     
-    def add_row(self, index:QModelIndex, row_index:int, row_content:List[QStandardItem]):
+    def add_row(self, index:Union[QModelIndex, QPersistentModelIndex], row_index:int, row_content:List[QStandardItem]) -> None:
         if index.isValid():
             parent_item = self.itemFromIndex(index)
             if row_index == -1:
@@ -211,11 +278,12 @@ class WatchableTreeModel(QStandardItemModel):
 
                 if max_level is None or level < max_level:
                     self.fill_from_index_recursive(
-                        parent = row[0], 
+                        parent = cast(BaseWatchableIndexTreeStandardItem, row[0]), 
                         watchable_type=watchable_type, 
                         path=subtree_path,
                         editable=editable, 
-                        max_level=max_level, 
+                        max_level=max_level,
+                        keep_folder_fqn=keep_folder_fqn,
                         level=level+1)
             
             for name, watchable_config in content.watchables.items():
@@ -229,6 +297,18 @@ class WatchableTreeModel(QStandardItemModel):
                 )
                 parent.appendRow(row)
 
+    def remove_nested_indexes(self, indexes:Sequence[QModelIndex]) -> Set[QModelIndex]:
+        indexes_without_nested_values = set(indexes)
+        # If we have nested nodes, we only keep the parent.
+        for index in indexes:
+            parent = index.parent()
+            while parent.isValid():
+                if parent in indexes_without_nested_values:
+                    indexes_without_nested_values.remove(index)
+                    break
+                parent = parent.parent()
+        
+        return indexes_without_nested_values
 
 class WatchableTreeWidget(QTreeView):
     _model:WatchableTreeModel
@@ -236,9 +316,9 @@ class WatchableTreeWidget(QTreeView):
     DEFAULT_ITEM0_WIDTH = 400
     DEFAULT_ITEM_WIDTH = 100
 
-    def __init__(self, parent:Optional[QWidget]=None, model:Optional[WatchableTreeModel]=None) -> None:
+    def __init__(self, parent:QWidget, model:WatchableTreeModel) -> None:
         super().__init__(parent)
-        self._model = model if model is not None else WatchableTreeModel(self)
+        self._model = model
 
         self.setModel(self._model)
         self.setUniformRowHeights(True)   # Documentation says it helps performance
@@ -280,6 +360,10 @@ class WatchableTreeWidget(QTreeView):
                 self.setSelectionMode(self.SelectionMode.SingleSelection)
         else:
             return super().keyReleaseEvent(event)
+    
+    def focusOutEvent(self, event: QFocusEvent) -> None:
+        self.setSelectionMode(self.SelectionMode.SingleSelection)
+        return super().focusOutEvent(event)
     
     def get_model(self) -> WatchableTreeModel:
         return self._model

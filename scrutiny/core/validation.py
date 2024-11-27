@@ -78,3 +78,7 @@ def assert_is_iterable(val:Any, name:str) -> None:
         iter(val)
     except TypeError:
         raise ValueError(f"{name} is not iterable. Got type: {val.__class__.__name__}")
+
+def assert_not_none(val:Any, name:str) -> None:
+    if val is None:
+        raise ValueError(f"{name} is None")

@@ -12,7 +12,7 @@ import traceback
 from PySide6.QtWidgets import  QWidget, QVBoxLayout, QHBoxLayout
 
 from PySide6.QtGui import  QCloseEvent, QAction
-from PySide6.QtCore import Qt, QRect
+from PySide6.QtCore import Qt, QRect, QEvent, QObject
 
 from PySide6.QtWidgets import QMainWindow
 
@@ -88,7 +88,6 @@ class MainWindow(QMainWindow):
         self._menu_bar.buttons.dashboard_open.setDisabled(True)
         self._menu_bar.buttons.dashboard_save.setDisabled(True)
         self._menu_bar.buttons.server_launch_local.setDisabled(True)
-
 
 
     def centered(self, w:int, h:int) -> QRect:
