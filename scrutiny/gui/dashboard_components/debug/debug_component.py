@@ -9,11 +9,21 @@
 from scrutiny.gui.dashboard_components.base_component import ScrutinyGUIBaseComponent
 from typing import Dict,Any
 
-from PySide6.QtWidgets import QFormLayout, QLabel, QLineEdit, QCheckBox, QRadioButton
-from PySide6.QtCore import Qt
-
+from PySide6.QtWidgets import QFormLayout, QLabel, QLineEdit, QCheckBox, QRadioButton, QTextEdit
+from PySide6.QtCore import QMimeData, Qt
 
 from scrutiny.gui import assets
+
+class DroppableTextEdit(QTextEdit):
+    def __init__(self, *args:Any, **kwargs:Any) -> None:
+        super().__init__(*args, **kwargs)
+        self.setAcceptDrops(True)
+
+    def canInsertFromMimeData(self, source: QMimeData) -> bool:
+        return source.hasFormat('application/json')
+    
+    def insertFromMimeData(self, source: QMimeData) -> None:
+        self.setText(source.data('application/json').toStdString())
 
 class DebugComponent(ScrutinyGUIBaseComponent):
     _ICON = assets.get("debug-96x128.png")
@@ -24,6 +34,7 @@ class DebugComponent(ScrutinyGUIBaseComponent):
     _test_textbox:QLineEdit
     _test_checkbox:QCheckBox
     _test_radio:QRadioButton
+    _dnd_text_edit:DroppableTextEdit
 
 
     def setup(self) -> None:
@@ -34,12 +45,17 @@ class DebugComponent(ScrutinyGUIBaseComponent):
         self._test_textbox.setMaximumWidth(100)
         self._test_checkbox = QCheckBox()
         self._test_radio = QRadioButton()
+        self._dnd_text_edit = DroppableTextEdit()
+        self._dnd_text_edit.setMaximumSize(600,300)
+
         layout.addRow(QLabel("Component name:"), QLabel(self._NAME))
         layout.addRow(QLabel("Instance name:"), QLabel(self.instance_name))
         layout.addRow(QLabel("Status update count:"), self._label_nb_status_update)
         layout.addRow(QLabel("Test textbox:"), self._test_textbox)
         layout.addRow(QLabel("Test checkbox:"), self._test_checkbox)
         layout.addRow(QLabel("Test radio button:"), self._test_radio)
+        layout.addRow(QLabel("Drag & Drop zone:"), self._dnd_text_edit)
+
         
 
         self.server_manager.signals.status_received.connect(self.update_status)

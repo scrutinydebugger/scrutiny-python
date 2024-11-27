@@ -7,19 +7,16 @@
 #   Copyright (c) 2021 Scrutiny Debugger
 
 
-from PySide6.QtCore import QMimeData, QModelIndex, QPersistentModelIndex, Qt, QModelIndex, Signal
+from PySide6.QtCore import QModelIndex, Qt, QModelIndex, Signal
 from PySide6.QtWidgets import QVBoxLayout, QWidget
-from PySide6.QtGui import QDragMoveEvent, QDropEvent, QDragEnterEvent, QDragLeaveEvent, QKeyEvent, QStandardItemModel, QStandardItem
+from PySide6.QtGui import QDragMoveEvent, QDropEvent, QDragEnterEvent, QKeyEvent
 
 from scrutiny.gui import assets
 from scrutiny.gui.dashboard_components.base_component import ScrutinyGUIBaseComponent
 from scrutiny.gui.dashboard_components.common.watchable_tree import WatchableTreeWidget
 from scrutiny.gui.dashboard_components.watch.watch_tree_model import WatchComponentTreeModel
 
-
-from typing import Dict, Any, List, Union, Optional, cast, Sequence, TypedDict
-
-
+from typing import Dict, Any, Union, cast
 
 class WatchComponentTreeWidget(WatchableTreeWidget):
 
@@ -56,7 +53,6 @@ class WatchComponentTreeWidget(WatchableTreeWidget):
     def dragEnterEvent(self, event: QDragEnterEvent) -> None:
         self._set_drag_and_drop_action(event)
         super().dragEnterEvent(event)
-        # Required to accept, otherwise dragmove may not be called if the first canDropMime returns False.
         event.accept()
         
 

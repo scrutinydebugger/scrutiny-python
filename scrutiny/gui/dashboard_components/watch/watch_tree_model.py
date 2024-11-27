@@ -16,7 +16,6 @@ from scrutiny.gui.dashboard_components.common.watchable_tree import (
     TreeDragData,
     item_from_serializable_data
 )
-from scrutiny.sdk import WatchableType
 from typing import List, Union, Optional, cast, Sequence, TypedDict, Generator, Iterable
 
 class SerializableItemIndexDescriptor(TypedDict):

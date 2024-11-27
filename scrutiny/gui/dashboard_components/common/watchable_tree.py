@@ -297,8 +297,8 @@ class WatchableTreeModel(QStandardItemModel):
                 )
                 parent.appendRow(row)
 
-    def remove_nested_indexes(self, indexes:Sequence[QModelIndex]) -> Set[QModelIndex]:
-        indexes_without_nested_values = set(indexes)
+    def remove_nested_indexes(self, indexes:Sequence[QModelIndex], columns_to_keep:List[int]=[0]) -> Set[QModelIndex]:
+        indexes_without_nested_values = set([index for index in indexes if index.column() in columns_to_keep])
         # If we have nested nodes, we only keep the parent.
         for index in indexes:
             parent = index.parent()
