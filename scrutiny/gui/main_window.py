@@ -11,8 +11,8 @@ import traceback
 
 from PySide6.QtWidgets import  QWidget, QVBoxLayout, QHBoxLayout
 
-from PySide6.QtGui import  QCloseEvent, QAction
-from PySide6.QtCore import Qt, QRect, QEvent, QObject
+from PySide6.QtGui import  QCloseEvent
+from PySide6.QtCore import Qt, QRect
 
 from PySide6.QtWidgets import QMainWindow
 
@@ -31,8 +31,7 @@ from scrutiny.gui.dashboard_components.embedded_graph.embedded_graph_component i
 
 from scrutiny.gui.core.server_manager import ServerManager
 from scrutiny.gui.core.watchable_index import WatchableIndex
-from typing import List, Type, Dict, Optional
-
+from typing import Type, Dict
 
 
 class MainWindow(QMainWindow):

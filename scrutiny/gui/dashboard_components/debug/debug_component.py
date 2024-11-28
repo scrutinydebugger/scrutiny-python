@@ -9,8 +9,9 @@
 from scrutiny.gui.dashboard_components.base_component import ScrutinyGUIBaseComponent
 from typing import Dict,Any
 
-from PySide6.QtWidgets import QFormLayout, QLabel, QLineEdit, QCheckBox, QRadioButton, QTextEdit
+from PySide6.QtWidgets import QFormLayout, QVBoxLayout, QLabel, QLineEdit, QCheckBox, QRadioButton, QTextEdit, QWidget
 from PySide6.QtCore import QMimeData, Qt
+from scrutiny.gui.dashboard_components.common.watchable_line_edit import WatchableLineEdit
 
 from scrutiny.gui import assets
 
@@ -34,7 +35,9 @@ class DebugComponent(ScrutinyGUIBaseComponent):
     _test_textbox:QLineEdit
     _test_checkbox:QCheckBox
     _test_radio:QRadioButton
+    _watchable_line_edit:WatchableLineEdit
     _dnd_text_edit:DroppableTextEdit
+
 
 
     def setup(self) -> None:
@@ -45,6 +48,8 @@ class DebugComponent(ScrutinyGUIBaseComponent):
         self._test_textbox.setMaximumWidth(100)
         self._test_checkbox = QCheckBox()
         self._test_radio = QRadioButton()
+        self._watchable_line_edit = WatchableLineEdit()
+        self._watchable_line_edit.setMaximumWidth(100)
         self._dnd_text_edit = DroppableTextEdit()
         self._dnd_text_edit.setMaximumSize(600,300)
 
@@ -54,9 +59,8 @@ class DebugComponent(ScrutinyGUIBaseComponent):
         layout.addRow(QLabel("Test textbox:"), self._test_textbox)
         layout.addRow(QLabel("Test checkbox:"), self._test_checkbox)
         layout.addRow(QLabel("Test radio button:"), self._test_radio)
+        layout.addRow(QLabel("Droppable line edit:"), self._watchable_line_edit)
         layout.addRow(QLabel("Drag & Drop zone:"), self._dnd_text_edit)
-
-        
 
         self.server_manager.signals.status_received.connect(self.update_status)
 

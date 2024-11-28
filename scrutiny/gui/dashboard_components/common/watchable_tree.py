@@ -46,56 +46,6 @@ class FolderItemSerializableData(NodeSerializableData):
     pass
 
 
-@dataclass(frozen=True)
-class TreeDragData:
-    class DataType(enum.Enum):
-        WatchableTreeNodesTiedToIndex = 'watchable_tree_nodes_tied_to_index'
-        WatchableTreeNodes = 'watchable_tree_nodes'
-
-    type:DataType
-    data_copy:Any = None
-    data_move:Any = None
-
-    def __post_init__(self) -> None:
-        validation.assert_type(self.type, 'type', (self.DataType))
-         
-    def to_mime(self) -> Optional[QMimeData]:
-        d = {
-             'type' : self.type.value,
-             'data_copy' : self.data_copy,
-             'data_move' : self.data_move
-        }
-
-        try:
-             s = json.dumps(d)
-        except Exception:
-             return None
-
-        data = QMimeData()
-        data.setData('application/json', QByteArray.fromStdString(s))
-        return data
-    
-    @classmethod
-    def from_mime(cls, data:QMimeData) -> Optional["TreeDragData"]:
-        if not data.hasFormat('application/json'):
-            return None
-        s = QByteArray(data.data('application/json')).toStdString()
-            
-        try:
-            d = json.loads(s)
-        except Exception:
-            return None
-        
-        try:
-            return TreeDragData(
-                type = TreeDragData.DataType(d['type']), 
-                data_copy = d['data_copy'],
-                data_move = d['data_move']
-                )
-        except Exception:
-            return None
-
-
 class BaseWatchableIndexTreeStandardItem(QStandardItem):
     _fqn:Optional[str]
     _loaded:bool

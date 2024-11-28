@@ -16,16 +16,16 @@ from PySide6.QtCore import QModelIndex, QMimeData
 from scrutiny.gui import assets
 from scrutiny.gui.core.watchable_index import   WatchableIndex
 from scrutiny.gui.dashboard_components.base_component import ScrutinyGUIBaseComponent
+from scrutiny.gui.dashboard_components.common.scrutiny_drag_data import ScrutinyDragData, SingleWatchableDescriptor
 from scrutiny.gui.dashboard_components.common.watchable_tree import (
     BaseWatchableIndexTreeStandardItem, 
-    WatchableTreeWidget, 
+    WatchableStandardItem,
     WatchableTreeModel, 
-    NodeSerializableData, 
-    TreeDragData
+    NodeSerializableData,
+    WatchableTreeWidget
     )
 
 from scrutiny.sdk import WatchableType, WatchableConfiguration
-from scrutiny.gui.dashboard_components.common.watchable_tree import TreeDragData
 
 class VarListComponentTreeModel(WatchableTreeModel):
     """An extension of the data model used by Watchable Trees dedicated for the Variable List Component
@@ -46,18 +46,31 @@ class VarListComponentTreeModel(WatchableTreeModel):
 
     def mimeData(self, indexes: Sequence[QModelIndex]) -> QMimeData:
         indexes_without_nested_values = self.remove_nested_indexes(indexes)
+        data:Optional[QMimeData] = None
+
+        # There is a special case for single watchables. They can be dropped in outside of trees, 
+        # We prioritize them.
+        if len(indexes_without_nested_values) == 1:
+            single_item = cast(BaseWatchableIndexTreeStandardItem, self.itemFromIndex(list(indexes_without_nested_values)[0]))
+            if single_item is not None:
+                if isinstance(single_item, WatchableStandardItem):
+                    data = SingleWatchableDescriptor(text=single_item.text(), fqn=single_item.fqn).to_mime()
         
-        # Make a serialized version of the data that will be passed a text
-        serializable_items:List[NodeSerializableData] = []
-        
-        for index in indexes_without_nested_values:
-            item = self.itemFromIndex(index)
-            if isinstance(item, BaseWatchableIndexTreeStandardItem): # Only keep column 0 
-                serializable_items.append(item.to_serialized_data())
-        
-        data = TreeDragData(type=TreeDragData.DataType.WatchableTreeNodesTiedToIndex, data_copy=serializable_items).to_mime()
-        assert data is not None
+        # We do not have a single element, resort to pass the tree data, 
+        # Can only be dropped in a watch window
+        if data is None:
+            # Make a serialized version of the data that will be passed a text
+            serializable_items:List[NodeSerializableData] = []
+            
+            for index in indexes_without_nested_values:
+                item = self.itemFromIndex(index)
+                if isinstance(item, BaseWatchableIndexTreeStandardItem): # Only keep column 0 
+                    serializable_items.append(item.to_serialized_data())
+            
+            data = ScrutinyDragData(type=ScrutinyDragData.DataType.WatchableTreeNodesTiedToIndex, data_copy=serializable_items).to_mime()
+            assert data is not None
         return data
+    
 
 
 class VarlistComponentTreeWidget(WatchableTreeWidget):
