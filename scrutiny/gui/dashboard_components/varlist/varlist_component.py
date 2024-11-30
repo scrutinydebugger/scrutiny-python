@@ -39,6 +39,7 @@ class VarListComponentTreeModel(WatchableTreeModel):
     """
 
     def get_watchable_columns(self,  watchable_config:Optional[WatchableConfiguration]=None) -> List[QStandardItem]:
+        """Define the columns to add for a watchable (leaf) row. Called by the parent class"""
         if watchable_config is None:
             return []
         typecol = QStandardItem(watchable_config.datatype.name)
@@ -51,9 +52,12 @@ class VarListComponentTreeModel(WatchableTreeModel):
             return [ typecol]
 
     def mimeData(self, indexes: Sequence[QModelIndex]) -> QMimeData:
+        """Generate the mimeData when a drag&drop starts"""
+
         indexes_without_nested_values = self.remove_nested_indexes(indexes)
         items = [cast(Optional[BaseWatchableRegistryTreeStandardItem], self.itemFromIndex(x)) for x in indexes_without_nested_values]
         
+        # We first start use to most supported format of watchable list.
         drag_data = self.make_watchable_list_dragdata_if_possible(items)
 
         # If the item selection had folders in it, we can't make a WatchableList mime data.
@@ -187,6 +191,7 @@ class VarListComponent(ScrutinyGUIBaseComponent):
 
     
     def registry_changed_slot(self) -> None:
+        """CAlled when the server manager finsishes downloading the server watchable list and update the registry"""
         index_change_counters = self.server_manager.registry.get_change_counters()
         # Identify all the types that changed since the last model update
         types_to_reload = []
@@ -198,6 +203,10 @@ class VarListComponent(ScrutinyGUIBaseComponent):
 
 
     def reload_model(self, watchable_types:List[WatchableType]) -> None:
+        """Fully reload to model
+        
+        :param watchable_types: The list of watchable types to reload
+        """
         # reload first level with max_level=0 as we do lazy loading
         if WatchableType.RuntimePublishedValue in watchable_types:
             self._rpv_folder.removeRows(0, self._rpv_folder.rowCount())

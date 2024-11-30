@@ -1,5 +1,5 @@
 #    watchable_line_edit.py
-#        A QLineEdit that can accept textual input or drag&drop of a single watcahble element
+#        A QLineEdit that can accept textual input or drag&drop of a single watchable element
 #
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)

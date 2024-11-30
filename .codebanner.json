@@ -553,13 +553,13 @@
             "docstring": "Test suite for the dashboard Variable List component"
         },
         "scrutiny/gui/core/scrutiny_drag_data.py": {
-            "docstring": "Application-wide drag&drop data format. Used to drag watcahbles items around"
+            "docstring": "Application-wide drag&drop data format. Used to drag watchables items around"
         },
         "scrutiny/gui/dashboard_components/common/watchable_tree.py": {
             "docstring": "An enhanced QTreeView with a data model dedicated to Watchables displayed in folder structure."
         },
         "scrutiny/gui/dashboard_components/common/watchable_line_edit.py": {
-            "docstring": "A QLineEdit that can accept textual input or drag&drop of a single watcahble element"
+            "docstring": "A QLineEdit that can accept textual input or drag&drop of a single watchable element"
         },
         "scrutiny/gui/dashboard_components/watch/watch_tree_model.py": {
             "docstring": "The data model used by the Watch component treeview"

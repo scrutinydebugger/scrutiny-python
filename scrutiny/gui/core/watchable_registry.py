@@ -529,6 +529,13 @@ class WatchableRegistry:
 
     @staticmethod
     def fqn_equal(fqn1:str, fqn2:str) -> bool:
+        """Compares 2 Fully Qualified Names and return ``True`` if they point to the same node
+        
+        :param fqn1: First oeprand
+        :param fqn2: Second oeprand
+
+        :return: ``True`` if equals
+        """
         parsed1 = WatchableRegistry.parse_fqn(fqn1)
         parsed2 = WatchableRegistry.parse_fqn(fqn2)
 

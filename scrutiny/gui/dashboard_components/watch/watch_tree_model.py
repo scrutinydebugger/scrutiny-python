@@ -29,10 +29,15 @@ from scrutiny.gui.dashboard_components.common.watchable_tree import (
 from typing import List, Union, Optional, cast, Sequence, TypedDict, Generator, Iterable
 
 class SerializableItemIndexDescriptor(TypedDict):
+    """A serializable path to a QStandardItem in a QStandardItemModel. It's a series of row index separated by a /
+    example : "2/1/3".
+    Used to describe communicate a reference when doing a data move
+    """
     path:List[int]
     object_id:int
 
 class SerializableTreeDescriptor(TypedDict):
+    """A serializable description of a node (not the path to it). Used to describe a tree when doing a copy"""
     node:NodeSerializableData
     sortkey:int
     children:List["SerializableTreeDescriptor"]
@@ -50,6 +55,12 @@ class WatchComponentTreeModel(WatchableTreeModel):
         self.logger = logging.getLogger(self.__class__.__name__)
 
     def _check_support_drag_data(self, drag_data:Optional[ScrutinyDragData], action:Qt.DropAction) -> bool:
+        """Tells if a drop would be supported
+        
+        :param drag_data: The data to be dropped
+        :param action: The drag&drop action
+        :return: ``True`` if drop is supported/allowed
+        """
         if drag_data is None:
             return False
         # Deny unsupported data type 
@@ -76,6 +87,9 @@ class WatchComponentTreeModel(WatchableTreeModel):
         return True
     
     def _make_path_list(self, item:QStandardItem) -> List[int]:
+        """Describe the location of a tree item with a series of nested row index.
+        example  : "2/1/0/4"
+        """
         path_list:List[int] = [item.row()]
         index = item.index()
         while index.parent().isValid():
@@ -84,6 +98,7 @@ class WatchComponentTreeModel(WatchableTreeModel):
         return path_list
         
     def _make_serializable_item_index_descriptor(self, item:Optional[BaseWatchableRegistryTreeStandardItem]) -> SerializableItemIndexDescriptor:
+        """Create a serializable reference to a tree node"""
         if item is None:
             return {
                 'path' : [],
@@ -96,6 +111,7 @@ class WatchComponentTreeModel(WatchableTreeModel):
         }
     
     def sort_items_by_path(self, items:List[BaseWatchableRegistryTreeStandardItem], top_to_bottom:bool=True) -> None:
+        """Sort the a list of tree items by their path. From top to bottom or bottom to top"""
         mult = 1 if top_to_bottom else -1
         def sort_compare(item1:QStandardItem, item2:QStandardItem) -> int:
             path1 = self._make_path_list(item1)
@@ -117,6 +133,7 @@ class WatchComponentTreeModel(WatchableTreeModel):
         items.sort(key=functools.cmp_to_key(sort_compare))
     
     def _make_serializable_tree_descriptor(self, top_level_item:BaseWatchableRegistryTreeStandardItem, sortkey:int=0) -> SerializableTreeDescriptor:
+        """Generate a serializable description of a tree without references"""
         assert top_level_item is not None
        
         dict_out : SerializableTreeDescriptor = {
@@ -133,6 +150,7 @@ class WatchComponentTreeModel(WatchableTreeModel):
 
     
     def _get_item_from_serializable_index_descriptor(self, data:SerializableItemIndexDescriptor) -> Optional[BaseWatchableRegistryTreeStandardItem]:
+        """Find the item in the data model from a serializable node reference"""
         assert 'path' in data
         assert 'object_id' in data
         path  = data['path']
@@ -151,6 +169,7 @@ class WatchComponentTreeModel(WatchableTreeModel):
         return item
 
     def mimeData(self, indexes: Sequence[QModelIndex]) -> QMimeData:
+        """Generate the mimeData when a drag&drop starts"""
         
         def get_items(indexes:Iterable[QModelIndex]) -> Generator[BaseWatchableRegistryTreeStandardItem, None, None]:
             for index in indexes:
@@ -191,6 +210,7 @@ class WatchComponentTreeModel(WatchableTreeModel):
                         column_index: int, 
                         parent: Union[QModelIndex, QPersistentModelIndex]
                         ) -> bool:
+        """ Tells QT if a dragged data can be dropped on the actual location """
         drag_data = ScrutinyDragData.from_mime(mime_data)
         if not self._check_support_drag_data(drag_data, action):
             return False
@@ -208,7 +228,7 @@ class WatchComponentTreeModel(WatchableTreeModel):
                      column_index: int, 
                      parent: Union[QModelIndex, QPersistentModelIndex]
                      ) -> bool:
-
+        """React to a drop event and insert the dropped data to the specified location"""
         # We can only drop on root or on a folder
         if parent.isValid():
             if not isinstance(self.itemFromIndex(parent), FolderStandardItem):
@@ -243,10 +263,10 @@ class WatchComponentTreeModel(WatchableTreeModel):
                 return self.handle_internal_move(parent, row_index, cast(List[SerializableItemIndexDescriptor], drag_data.data_move))
             elif action == Qt.DropAction.CopyAction:
                 self.logger.debug(f"{log_prefix}: Watch external copy with single element")
-                watcahble_elements = WatchableListDescriptor.from_drag_data(drag_data)
-                if watcahble_elements is None:
+                watchable_elements = WatchableListDescriptor.from_drag_data(drag_data)
+                if watchable_elements is None:
                     return False
-                self.handle_watchable_list_element_drop(parent, row_index,  watcahble_elements)
+                self.handle_watchable_list_element_drop(parent, row_index,  watchable_elements)
             else:
                 return False
             
@@ -284,38 +304,18 @@ class WatchComponentTreeModel(WatchableTreeModel):
         
         return True
 
-    def moveRow(self, 
-                source_parent_index: Union[QModelIndex, QPersistentModelIndex], 
-                sourceRow: int, 
-                destination_parent_index: Union[QModelIndex, QPersistentModelIndex], 
-                destinationChild: int) -> bool:
-        
-        destination_parent:Optional[QStandardItem] = None
-        if destination_parent_index.isValid():
-            destination_parent = self.itemFromIndex(destination_parent_index)  # get the item before we take a row, it can change it's position
-
-        if source_parent_index == destination_parent_index:
-            if destinationChild > sourceRow:
-                destinationChild-=1
-
-        row: Optional[List[QStandardItem]] = None
-        if source_parent_index.isValid():
-            if sourceRow >= 0:
-                row = self.itemFromIndex(source_parent_index).takeRow(sourceRow)
-        else:
-            if sourceRow >= 0:
-                row = self.takeRow(sourceRow)
-                
-
-        if row is not None:
-            self.add_row_to_parent(destination_parent, destinationChild, row)
-       
-        return True
-
     def handle_internal_move(self,
                             dest_parent_index: Union[QModelIndex, QPersistentModelIndex],
                             dest_row_index:int,
                             data:List[SerializableItemIndexDescriptor]) -> bool:
+        """Handles a row move generated by a drag&drop 
+        
+        :param dest_parent_index: The new parent index. invalid index when root
+        :param dest_row_index: The row index under the new parent. -1 to append
+        :param data: List of serializable references to items in the tree
+        :return: ``True`` On success
+        """
+
         try:
             items = [self._get_item_from_serializable_index_descriptor(descriptor) for descriptor in data]
             if dest_row_index > 0:
@@ -353,7 +353,15 @@ class WatchComponentTreeModel(WatchableTreeModel):
                         dest_parent_index: Union[QModelIndex, QPersistentModelIndex],
                         dest_row_index:int,
                         data:List[SerializableTreeDescriptor]) -> bool:
+        """Handle the insertion of multiple tree nodes coming from a drag&drop.
+        Only comes from a watch component (this one or another one)
         
+        :param dest_parent_index: The new parent index. invalid index when root
+        :param dest_row_index: The row index under the new parent. -1 to append
+        :param data: List of tree description. no reference, a full copy of the tree
+        
+        :return: ``True`` On success
+        """
         def fill_from_tree_recursive( 
                                   parent:Optional[BaseWatchableRegistryTreeStandardItem],
                                   row_index:int, 
@@ -400,7 +408,15 @@ class WatchComponentTreeModel(WatchableTreeModel):
                         dest_parent_index: Union[QModelIndex, QPersistentModelIndex],
                         dest_row_index:int,
                         descriptors:WatchableListDescriptor) -> bool:
+        """Handle the insertion of multiple watchable (leaf) nodes from a drag&drop.
+        This can come from anywhere in the application, not necessarily from this component
         
+        :param dest_parent_index: The new parent index. invalid index when root
+        :param dest_row_index: The row index under the new parent. -1 to append
+        :param descriptors: List of watchable nodes with a reference to their WatchableRegistry location
+        
+        :return: ``True`` On success
+        """
         dest_parent = self.itemFromIndex(dest_parent_index)
         rows:List[List[QStandardItem]] = []
         for descriptor in descriptors.data:
