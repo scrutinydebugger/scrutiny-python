@@ -3,9 +3,7 @@ from scrutiny.gui.dashboard_components.varlist.varlist_component import VarListC
 from scrutiny.gui.dashboard_components.common.watchable_tree import FolderStandardItem, WatchableStandardItem
 from scrutiny.gui.core.watchable_registry import WatchableRegistry
 from scrutiny import sdk
-from scrutiny.gui.dashboard_components.common.scrutiny_drag_data import ScrutinyDragData
-
-import json
+from scrutiny.gui.core.scrutiny_drag_data import ScrutinyDragData
 
 from typing import cast,List,Union
 
@@ -142,9 +140,66 @@ class TestVarlistTreeModel(ScrutinyBaseGuiTest):
         data = ScrutinyDragData.from_mime(mime_data)
         self.assertIsNotNone(data)
         
-        self.assertEqual(data.type, ScrutinyDragData.DataType.SingleWatchable)
+        self.assertEqual(data.type, ScrutinyDragData.DataType.WatchableList)
         self.assertIsNone(data.data_move)
         self.assertIsNotNone(data.data_copy)
 
-        self.assertEqual(data.data_copy['text'], node.text())
-        self.assertEqual(data.data_copy['fqn'], node.fqn)
+        self.assertIsInstance(data.data_copy, list)
+        self.assertEqual(len(data.data_copy), 1)
+        self.assertEqual(data.data_copy[0]['text'], node.text())
+        self.assertEqual(data.data_copy[0]['fqn'], node.fqn)
+
+    def test_drag_mime_multiple_watchable(self):
+        self.model.fill_from_index_recursive(self.var_node, sdk.WatchableType.Variable, '/')
+        self.model.fill_from_index_recursive(self.alias_node, sdk.WatchableType.Alias, '/')
+        self.model.fill_from_index_recursive(self.rpv_node, sdk.WatchableType.RuntimePublishedValue, '/')
+
+        node1 = self.model.find_item_by_fqn('alias:/alias/alias2')
+        node2 = self.model.find_item_by_fqn('var:/var/xxx/var2')
+        self.assertIsNotNone(node1)
+        self.assertIsNotNone(node2)
+
+        mime_data = self.model.mimeData([node1.index(), node2.index()])
+        data = ScrutinyDragData.from_mime(mime_data)
+        self.assertIsNotNone(data)
+        
+        self.assertEqual(data.type, ScrutinyDragData.DataType.WatchableList)
+        self.assertIsNone(data.data_move)
+        self.assertIsNotNone(data.data_copy)
+
+        self.assertIsInstance(data.data_copy, list)
+        self.assertEqual(len(data.data_copy), 2)
+        self.assertEqual(data.data_copy[0]['text'], node1.text())
+        self.assertEqual(data.data_copy[0]['fqn'], node1.fqn)
+        self.assertEqual(data.data_copy[1]['text'], node2.text())
+        self.assertEqual(data.data_copy[1]['fqn'], node2.fqn)
+
+    def test_drag_mime_tree(self):
+        self.model.fill_from_index_recursive(self.var_node, sdk.WatchableType.Variable, '/')
+        self.model.fill_from_index_recursive(self.alias_node, sdk.WatchableType.Alias, '/')
+        self.model.fill_from_index_recursive(self.rpv_node, sdk.WatchableType.RuntimePublishedValue, '/')
+
+        node1 = self.model.find_item_by_fqn('alias:/alias/alias2')
+        node2 = self.model.find_item_by_fqn('var:/var/xxx/var2')
+        node3 = self.model.find_item_by_fqn('var:/var/xxx') # This is a folder, it changes everything.
+        self.assertIsNotNone(node1)
+        self.assertIsNotNone(node2)
+        self.assertIsNotNone(node3)
+
+        mime_data = self.model.mimeData([node1.index(), node2.index(), node3.index()])
+        data = ScrutinyDragData.from_mime(mime_data)
+        self.assertIsNotNone(data)
+        
+        self.assertEqual(data.type, ScrutinyDragData.DataType.WatchableTreeNodesTiedToRegistry)
+        self.assertIsNone(data.data_move)
+        self.assertIsNotNone(data.data_copy)
+
+        self.assertIsInstance(data.data_copy, list)
+        self.assertEqual(len(data.data_copy), 2)    # 2 not 3. var2 is removed because we also have its parent
+        self.assertEqual(data.data_copy[0]['type'], 'watchable')
+        self.assertEqual(data.data_copy[0]['text'], node1.text())
+        self.assertEqual(data.data_copy[0]['fqn'], node1.fqn)
+
+        self.assertEqual(data.data_copy[1]['type'], 'folder')
+        self.assertEqual(data.data_copy[1]['text'], node3.text())
+        self.assertEqual(data.data_copy[1]['fqn'], node3.fqn)

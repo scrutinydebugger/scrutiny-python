@@ -20,8 +20,8 @@ from PySide6.QtCore import QModelIndex, QMimeData
 
 from scrutiny.gui import assets
 from scrutiny.gui.core.watchable_registry import   WatchableRegistry
+from scrutiny.gui.core.scrutiny_drag_data import ScrutinyDragData
 from scrutiny.gui.dashboard_components.base_component import ScrutinyGUIBaseComponent
-from scrutiny.gui.dashboard_components.common.scrutiny_drag_data import ScrutinyDragData, SingleWatchableDescriptor
 from scrutiny.gui.dashboard_components.common.watchable_tree import (
     BaseWatchableRegistryTreeStandardItem, 
     WatchableStandardItem,
@@ -51,19 +51,13 @@ class VarListComponentTreeModel(WatchableTreeModel):
 
     def mimeData(self, indexes: Sequence[QModelIndex]) -> QMimeData:
         indexes_without_nested_values = self.remove_nested_indexes(indexes)
-        data:Optional[QMimeData] = None
-
-        # There is a special case for single watchables. They can be dropped in outside of trees, 
-        # We prioritize them.
-        if len(indexes_without_nested_values) == 1:
-            single_item = cast(BaseWatchableRegistryTreeStandardItem, self.itemFromIndex(list(indexes_without_nested_values)[0]))
-            if single_item is not None:
-                if isinstance(single_item, WatchableStandardItem):
-                    data = SingleWatchableDescriptor(text=single_item.text(), fqn=single_item.fqn).to_mime()
+        items = [cast(Optional[BaseWatchableRegistryTreeStandardItem], self.itemFromIndex(x)) for x in indexes_without_nested_values]
         
-        # We do not have a single element, resort to pass the tree data, 
-        # Can only be dropped in a watch window
-        if data is None:
+        drag_data = self.make_watchable_list_dragdata_if_possible(items)
+
+        # If the item selection had folders in it, we can't make a WatchableList mime data.
+        # Let's make a WatchableTreeNodesTiedToRegistry instead, can only be dropped in a watch window
+        if drag_data is None:
             # Make a serialized version of the data that will be passed a text
             serializable_items:List[NodeSerializableData] = []
             
@@ -72,9 +66,10 @@ class VarListComponentTreeModel(WatchableTreeModel):
                 if isinstance(item, BaseWatchableRegistryTreeStandardItem): # Only keep column 0 
                     serializable_items.append(item.to_serialized_data())
             
-            data = ScrutinyDragData(type=ScrutinyDragData.DataType.WatchableTreeNodesTiedToIndex, data_copy=serializable_items).to_mime()
-            assert data is not None
-        return data
+            drag_data = ScrutinyDragData(type=ScrutinyDragData.DataType.WatchableTreeNodesTiedToRegistry, data_copy=serializable_items)
+        mime_data = drag_data.to_mime()
+        assert mime_data is not None
+        return mime_data
 
     def find_item_by_fqn(self, fqn:str) -> Optional[BaseWatchableRegistryTreeStandardItem]:
         """Find an item in the model using the Watchable registry.

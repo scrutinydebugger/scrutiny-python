@@ -13,15 +13,12 @@ __all__ = [
 
 from scrutiny.sdk import WatchableType, WatchableConfiguration
 from PySide6.QtGui import  QFocusEvent, QStandardItem, QIcon, QKeyEvent, QStandardItemModel, QColor
-from PySide6.QtCore import Qt, QModelIndex, QByteArray, QMimeData, QPersistentModelIndex
+from PySide6.QtCore import Qt, QModelIndex
 from PySide6.QtWidgets import QTreeView, QWidget
 from scrutiny.gui import assets
 from scrutiny.gui.core.watchable_registry import WatchableRegistry, WatchableRegistryNodeContent
-from scrutiny.core import validation
-from typing import Any, List, Optional, TypedDict,  cast, Literal, Dict, Union, Sequence, Set
-from dataclasses import dataclass
-import enum
-import json
+from scrutiny.gui.core.scrutiny_drag_data import WatchableListDescriptor, SingleWatchableDescriptor, ScrutinyDragData
+from typing import Any, List, Optional, TypedDict,  cast, Literal, Sequence, Set, Iterable
 
 def get_watchable_icon(wt:WatchableType) -> QIcon:
     if wt == WatchableType.Variable:
@@ -35,7 +32,7 @@ def get_watchable_icon(wt:WatchableType) -> QIcon:
 NodeSerializableType = Literal['watchable', 'folder']
 class NodeSerializableData(TypedDict):
     type:NodeSerializableType
-    display_text: str
+    text: str
     fqn:Optional[str]
     
 
@@ -80,7 +77,7 @@ class FolderStandardItem(BaseWatchableRegistryTreeStandardItem):
     def to_serialized_data(self) -> FolderItemSerializableData:
         return {
             'type' : self._NODE_TYPE,
-            'display_text' : self.text(),
+            'text' : self.text(),
             'fqn' : self._fqn
         }
 
@@ -88,7 +85,7 @@ class FolderStandardItem(BaseWatchableRegistryTreeStandardItem):
     def from_serializable_data(cls, data:FolderItemSerializableData) -> "FolderStandardItem":
         assert data['type'] == cls._NODE_TYPE
         return FolderStandardItem(
-            text=data['display_text'],
+            text=data['text'],
             fqn=data['fqn']
         )
     
@@ -109,7 +106,7 @@ class WatchableStandardItem(BaseWatchableRegistryTreeStandardItem):
     def to_serialized_data(self) -> WatchableItemSerializableData:
         return {
             'type' : self._NODE_TYPE,
-            'display_text' : self.text(),
+            'text' : self.text(),
             'fqn' : self.fqn
         }
 
@@ -121,7 +118,7 @@ class WatchableStandardItem(BaseWatchableRegistryTreeStandardItem):
         
         return WatchableStandardItem(
             watchable_type=prased.watchable_type,
-            text=data['display_text'], 
+            text=data['text'], 
             fqn=data['fqn']
         ) 
 
@@ -184,20 +181,26 @@ class WatchableTreeModel(QStandardItemModel):
         return cls.make_folder_row_existing_item(item, editable)
     
     def add_row_to_parent(self, parent:Optional[QStandardItem], row_index:int, row:Sequence[QStandardItem] ) -> None:
+        row2 = list(row)    # Make a copy
+        while len(row2) > 0 and row2[-1] is None:
+            row2 = row2[:-1]  # insert row doesn't like trailing None. Mystery
+
         if parent is not None:
             if row_index != -1:
                 parent.insertRow(row_index, row)
             else:
                 parent.appendRow(row)
         else:
-            row2 = list(row)    # Make a copy
-            while len(row2) > 0 and row2[-1] is None:
-                row2 = row2[:-1]  # Root insert don't like None in the list apparently. Mystery
-
             if row_index != -1:
                 self.insertRow(row_index, row2)
             else:
                 self.appendRow(row2)
+    
+    def add_multiple_rows_to_parent(self, parent:Optional[QStandardItem], row_index:int, rows:Sequence[Sequence[QStandardItem]] ) -> None:
+        for row in rows:
+            self.add_row_to_parent(parent, row_index, row)
+            if row_index != -1:
+                row_index += 1
 
     def lazy_load(self, parent:BaseWatchableRegistryTreeStandardItem, watchable_type:WatchableType, path:str) -> None:
         self.fill_from_index_recursive(parent, watchable_type, path, max_level=0)
@@ -253,7 +256,7 @@ class WatchableTreeModel(QStandardItemModel):
     def remove_nested_indexes(self, indexes:Sequence[QModelIndex], columns_to_keep:List[int]=[0]) -> Set[QModelIndex]:
         indexes_without_nested_values = set([index for index in indexes if index.column() in columns_to_keep])
         # If we have nested nodes, we only keep the parent.
-        for index in indexes:
+        for index in list(indexes_without_nested_values):   # Make copy
             parent = index.parent()
             while parent.isValid():
                 if parent in indexes_without_nested_values:
@@ -262,6 +265,23 @@ class WatchableTreeModel(QStandardItemModel):
                 parent = parent.parent()
         
         return indexes_without_nested_values
+
+    def make_watchable_list_dragdata_if_possible(self, 
+                                             items:Iterable[Optional[BaseWatchableRegistryTreeStandardItem]],
+                                             data_move:Optional[Any] = None
+                                             ) -> Optional[ScrutinyDragData]:
+        watchables_only = True
+        for item in items:
+            if item is None or not isinstance(item, WatchableStandardItem):
+                watchables_only = False
+                break
+
+        if watchables_only:
+            watchable_items = cast(List[WatchableStandardItem], items)
+            return WatchableListDescriptor(
+                data = [SingleWatchableDescriptor(text=item.text(), fqn=item.fqn) for item in watchable_items]
+            ).to_drag_data(data_move=data_move)
+        return None
 
 class WatchableTreeWidget(QTreeView):
     _model:WatchableTreeModel
