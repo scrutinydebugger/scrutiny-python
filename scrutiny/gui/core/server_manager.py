@@ -20,7 +20,7 @@ from PySide6.QtCore import Signal, QObject
 from typing import Optional, Dict, Any, Callable
 import logging
 
-from scrutiny.gui.core.watchable_index import WatchableIndex
+from scrutiny.gui.core.watchable_registry import WatchableRegistry
 
 @dataclass
 class ServerConfig:
@@ -122,13 +122,13 @@ class ServerManager:
         datalogging_state_changed = Signal()
         sfd_loaded = Signal()
         sfd_unloaded = Signal()
-        index_changed = Signal()
+        registry_changed = Signal()
         status_received = Signal()
 
     RECONNECT_DELAY = 1
     _client:ScrutinyClient              # The SDK client object that talks with the server
     _thread:Optional[threading.Thread]  # The thread tyhat runs the synchronous client
-    _index:WatchableIndex
+    _registry:WatchableRegistry
 
     _thread_stop_event:threading.Event  # Event used to stop the thread
     _signals:_Signals                   # The signals
@@ -140,7 +140,7 @@ class ServerManager:
     _stop_pending:bool
     _client_request_store:ClientRequestStore
 
-    def __init__(self, watchable_index:WatchableIndex, client:Optional[ScrutinyClient]=None) -> None:
+    def __init__(self, watchable_registry:WatchableRegistry, client:Optional[ScrutinyClient]=None) -> None:
         super().__init__()  # Required for signals to work
         self._logger = logging.getLogger(self.__class__.__name__)
 
@@ -157,7 +157,7 @@ class ServerManager:
         self._allow_auto_reconnect = False
         
         self._thread_state = self.ThreadState()
-        self._index = watchable_index
+        self._registry = watchable_registry
 
         self._internal_signals.thread_exit_signal.connect(self._join_thread_and_emit_stopped)
         self._internal_signals.client_request_completed.connect(self._client_request_completed)
@@ -171,7 +171,7 @@ class ServerManager:
             self._signals.device_disconnected.connect(lambda : self._logger.debug("+Signal: device_disconnected"))
             self._signals.sfd_loaded.connect(lambda : self._logger.debug("+Signal: sfd_loaded"))
             self._signals.sfd_unloaded.connect(lambda : self._logger.debug("+Signal: sfd_unloaded"))
-            self._signals.index_changed.connect(lambda : self._logger.debug("+Signal: index_changed"))
+            self._signals.registry_changed.connect(lambda : self._logger.debug("+Signal: registry_changed"))
             self._signals.datalogging_state_changed.connect(lambda : self._logger.debug("+Signal: datalogging_state_changed"))
             self._signals.status_received.connect(lambda : self._logger.debug("+Signal: status_received"))
 
@@ -192,9 +192,9 @@ class ServerManager:
         return self._signals
 
     @property
-    def index(self) -> WatchableIndex:
-        """The watchable index containing a definition of all the watchables available on the server"""
-        return self._index
+    def registry(self) -> WatchableRegistry:
+        """The watchable registry containing a definition of all the watchables available on the server"""
+        return self._registry
 
     
     def start(self, config:ServerConfig) -> None:
@@ -314,11 +314,11 @@ class ServerManager:
             self._logger.debug(f"+Event: {event}")
             if isinstance(event, ScrutinyClient.Events.ConnectedEvent):
                 self._signals.server_connected.emit()
-                self._clear_index()
+                self._clear_registry()
                 self._allow_auto_reconnect = False    # Ensure we do not try to reconnect until the disconnect event is processed
             elif isinstance(event, ScrutinyClient.Events.DisconnectedEvent):
                 self._signals.server_disconnected.emit()
-                self._clear_index()
+                self._clear_registry()
                 self._allow_auto_reconnect = True # Full cycle completed. We allow reconnecting
             elif isinstance(event, ScrutinyClient.Events.DeviceReadyEvent):
                 self._thread_event_device_ready()
@@ -340,14 +340,14 @@ class ServerManager:
         if self._thread_state.runtime_watchables_download_request is not None:
             if self._thread_state.runtime_watchables_download_request.completed:  
                 # Download is finished
-                # Data is already inside the index. Added from the callback
+                # Data is already inside the registry. Added from the callback
                 was_success = self._thread_state.runtime_watchables_download_request.is_success
                 self._thread_state.runtime_watchables_download_request = None   # Clear the request.
                 self._logger.debug("Download of watchable list is complete. Group : runtime")
                 if was_success:
-                    self._signals.index_changed.emit()
+                    self._signals.registry_changed.emit()
                 else:
-                    self._clear_index_rpv()
+                    self._clear_registry_rpv()
             else:
                 pass # Downloading
     
@@ -355,14 +355,14 @@ class ServerManager:
         if self._thread_state.sfd_watchables_download_request is not None: 
             if self._thread_state.sfd_watchables_download_request.completed:
                 # Download complete
-                # Data is already inside the index. Added from the callback
+                # Data is already inside the registry. Added from the callback
                 self._logger.debug("Download of watchable list is complete. Group : SFD")
                 was_success = self._thread_state.sfd_watchables_download_request.is_success
                 self._thread_state.sfd_watchables_download_request = None    # Clear the request.
                 if was_success:
-                    self._signals.index_changed.emit()
+                    self._signals.registry_changed.emit()
                 else:
-                    self._clear_index_alias_var()
+                    self._clear_registry_alias_var()
             else:
                 pass    # Downloading
 
@@ -374,14 +374,14 @@ class ServerManager:
         req = self._thread_state.runtime_watchables_download_request    # Get the ref atomically
         if req is not None:
             req.cancel()
-        had_data = self._clear_index(no_changed_event=True) # Event is triggered AFTER device_ready
+        had_data = self._clear_registry(no_changed_event=True) # Event is triggered AFTER device_ready
         self._thread_state.runtime_watchables_download_request = self._client.download_watchable_list(
             types=[sdk.WatchableType.RuntimePublishedValue],
             partial_reception_callback=self._download_data_partial_response_callback
             )
         self._signals.device_ready.emit()
         if had_data:
-            self.signals.index_changed.emit()
+            self.signals.registry_changed.emit()
 
     def _thread_event_sfd_loaded(self) -> None:
         """To be called once when a SFD is laoded"""
@@ -389,23 +389,23 @@ class ServerManager:
         req = self._thread_state.sfd_watchables_download_request    # Get the ref atomically
         if req is not None:
             req.cancel()
-        had_data = self._clear_index_alias_var(no_changed_event=True) # Event is triggered AFTER sfd_loaded
+        had_data = self._clear_registry_alias_var(no_changed_event=True) # Event is triggered AFTER sfd_loaded
         self._thread_state.sfd_watchables_download_request = self._client.download_watchable_list(
             types=[sdk.WatchableType.Variable,sdk.WatchableType.Alias],
             partial_reception_callback=self._download_data_partial_response_callback
             )
         self.signals.sfd_loaded.emit()
         if had_data:
-            self.signals.index_changed.emit()
+            self.signals.registry_changed.emit()
 
-    def _thread_event_sfd_unloaded(self, no_index_event:bool=False) -> None:
+    def _thread_event_sfd_unloaded(self) -> None:
         """To be called once when a SFD is unloaded"""
         self._logger.debug("Detected SFD unloaded")
         req = self._thread_state.sfd_watchables_download_request    # Get the ref atomically
         if req is not None:
             req.cancel()
         self._thread_state.sfd_watchables_download_request = None
-        self._clear_index_alias_var()   # May trigger index_changed signal
+        self._clear_registry_alias_var()   # May trigger registry_changed signal
         self.signals.sfd_unloaded.emit()
 
     def _thread_event_device_disconnected(self) -> None:
@@ -416,7 +416,7 @@ class ServerManager:
         if req is not None:
             req.cancel()
         self._thread_state.runtime_watchables_download_request = None
-        self._clear_index_rpv()   # May trigger index_changed signal
+        self._clear_registry_rpv()   # May trigger registry_changed signal
         self.signals.device_disconnected.emit()
 
     
@@ -430,28 +430,28 @@ class ServerManager:
             stats = dict(zip([x.name for x in data.keys()], [len(x) for x in data.values()]))
             self._logger.debug(f"Received data. Count {stats}")
 
-        self._index.add_content(data)   # Thread safe method
+        self._registry.add_content(data)   # Thread safe method
         if last_segment:
             self._logger.debug("Finished downloading watchable list")
 
-    def _clear_index(self, no_changed_event:bool=False) -> bool:
-        had_data = self._index.clear()
+    def _clear_registry(self, no_changed_event:bool=False) -> bool:
+        had_data = self._registry.clear()
         if had_data and not no_changed_event:
-            self.signals.index_changed.emit()
+            self.signals.registry_changed.emit()
         return had_data
     
-    def _clear_index_alias_var(self, no_changed_event:bool=False) -> bool:
-        had_data_alias = self._index.clear_content_by_type(sdk.WatchableType.Alias)
-        had_data_var = self._index.clear_content_by_type(sdk.WatchableType.Variable)
+    def _clear_registry_alias_var(self, no_changed_event:bool=False) -> bool:
+        had_data_alias = self._registry.clear_content_by_type(sdk.WatchableType.Alias)
+        had_data_var = self._registry.clear_content_by_type(sdk.WatchableType.Variable)
         had_data = had_data_var or had_data_alias
         if had_data and not no_changed_event:
-            self.signals.index_changed.emit()
+            self.signals.registry_changed.emit()
         return had_data
     
-    def _clear_index_rpv(self, no_changed_event:bool=False) -> bool:
-        had_data = self._index.clear_content_by_type(sdk.WatchableType.RuntimePublishedValue)
+    def _clear_registry_rpv(self, no_changed_event:bool=False) -> bool:
+        had_data = self._registry.clear_content_by_type(sdk.WatchableType.RuntimePublishedValue)
         if had_data and not no_changed_event:
-            self.signals.index_changed.emit()
+            self.signals.registry_changed.emit()
         return had_data
 
     def get_server_state(self) -> sdk.ServerState:

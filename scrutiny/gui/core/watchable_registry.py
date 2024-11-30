@@ -1,5 +1,5 @@
-#    watchable_index.py
-#        A storage object that keeps a local copy of all the watcahble (Variable/Alias/RPV)
+#    watchable_registry.py
+#        A storage object that keeps a local copy of all the watchable (Variable/Alias/RPV)
 #        avaialble on the server.
 #        Lots of overlapping feature with the server datastore, with few fundamentals differences.
 #
@@ -9,9 +9,9 @@
 #   Copyright (c) 2021 Scrutiny Debugger
 
 __all__ = [
-    'WatchableIndex', 
-    'WatchableIndexError', 
-    'WatchableIndexNodeContent',
+    'WatchableRegistry', 
+    'WatchableRegistryError', 
+    'WatchableRegistryNodeContent',
     'WatchableValue',
     'WatcherValueUpdateCallback',
     'GlobalWatchCallback',
@@ -33,7 +33,7 @@ class ParsedFullyQualifiedName:
     watchable_type:sdk.WatchableType
     path:str
 
-class WatchableIndexError(Exception):
+class WatchableRegistryError(Exception):
     pass
 
 TYPESTR_MAP_S2WT = {
@@ -50,7 +50,7 @@ GlobalWatchCallback = Callable[[str, str, sdk.WatchableConfiguration], None]
 GlobalUnwatchCallback = Callable[[str, str, sdk.WatchableConfiguration], None]
 
 @dataclass(init=False)
-class WatchableIndexEntryNode:
+class WatchableRegistryEntryNode:
     """Leaf node in the tree. This object is internal and never given to the user."""
     configuration:sdk.WatchableConfiguration
     value:Optional[WatchableValue]
@@ -65,7 +65,7 @@ class WatchableIndexEntryNode:
 
     def register_value_update_callback(self, watcher_id:str, callback:WatcherValueUpdateCallback) -> None:
         if watcher_id in self.watchers:
-            raise WatchableIndexError(f"A callback on {self.configuration.watchable_type.name}:{self.display_path} has already been registered to watcher {watcher_id}")
+            raise WatchableRegistryError(f"A callback on {self.configuration.watchable_type.name}:{self.display_path} has already been registered to watcher {watcher_id}")
         
         if not callable(callback):
             raise ValueError("Callback is not a callable")
@@ -74,7 +74,7 @@ class WatchableIndexEntryNode:
     
     def unregister_value_update_callback(self, watcher_id:str) -> None:
         if watcher_id not in self.watchers:
-            raise WatchableIndexError(f"No callback has been registered to watcher {watcher_id}")
+            raise WatchableRegistryError(f"No callback has been registered to watcher {watcher_id}")
         
         del self.watchers[watcher_id]
     
@@ -93,18 +93,18 @@ class WatchableIndexEntryNode:
         return self.value
 
 @dataclass(frozen=True)
-class WatchableIndexNodeContent:
+class WatchableRegistryNodeContent:
     """Node in the tree. This can be given to the user."""
     __slots__ = ['watchables', 'subtree']
     watchables:Dict[str, sdk.WatchableConfiguration]
     subtree:List[str]
 
-class WatchableIndex:
+class WatchableRegistry:
     """Contains a copy of the watchable list available on the server side
     Act as a relay to dispatch value update event to the internal widgets"""
     _trees:  Dict[sdk.WatchableType, Any]
     _lock:threading.Lock
-    _watched_entries:Dict[str, WatchableIndexEntryNode] 
+    _watched_entries:Dict[str, WatchableRegistryEntryNode] 
     _global_watch_callbacks:Optional[GlobalWatchCallback]
     _global_unwatch_callbacks:Optional[GlobalUnwatchCallback]
     _logger:logging.Logger
@@ -128,15 +128,21 @@ class WatchableIndex:
         self._global_unwatch_callbacks = None
         self._logger = logging.getLogger(self.__class__.__name__)
     
-    def _get_parts(self, path:str) -> List[str]:
+    @staticmethod
+    def split_path(path:str) -> List[str]:
         """Split a tree path in parts"""
         return [x for x in path.split('/') if x]
+    
+    @staticmethod
+    def join_path(pieces:List[str]) -> str:
+        """Merge tree path together"""
+        return '/'.join([x for x in pieces if x])
 
     def _add_watchable_no_lock(self, path:str, config:sdk.WatchableConfiguration) -> None:
         """Adds a single watchable to the tree storage without using a lock"""
-        parts = self._get_parts(path)
+        parts = self.split_path(path)
         if len(parts) == 0:
-            raise WatchableIndexError(f"Empty path : {path}") 
+            raise WatchableRegistryError(f"Empty path : {path}") 
         node = self._trees[config.watchable_type]
         for i in range(len(parts)-1):
             part = parts[i]
@@ -144,31 +150,31 @@ class WatchableIndex:
                 node[part] = {}
             node = node[part]
         if parts[-1] in node:
-            raise WatchableIndexError(f"Cannot insert a watchable at location {path}. Another watchable already uses that path.")
-        node[parts[-1]] = WatchableIndexEntryNode(
+            raise WatchableRegistryError(f"Cannot insert a watchable at location {path}. Another watchable already uses that path.")
+        node[parts[-1]] = WatchableRegistryEntryNode(
             display_path=path,  # Required for proper error messages.
             config=config
             )
 
-    def _get_node_with_lock(self, watchable_type:sdk.WatchableType, path:str) -> Union[WatchableIndexNodeContent, WatchableIndexEntryNode]:
+    def _get_node_with_lock(self, watchable_type:sdk.WatchableType, path:str) -> Union[WatchableRegistryNodeContent, WatchableRegistryEntryNode]:
         """Read a node in the tree and locks the tree while doing it."""
         with self._lock:
-            parts = self._get_parts(path)
+            parts = self.split_path(path)
             node = self._trees[watchable_type]
             for part in parts:
                 if part not in node:
-                    raise WatchableIndexError(f"Inexistent path : {path} ")
+                    raise WatchableRegistryError(f"Inexistent path : {path} ")
                 node = node[part]
 
             if isinstance(node, dict):
-                return WatchableIndexNodeContent(
-                    watchables=dict( (name, val.configuration) for name, val in node.items() if isinstance(val, WatchableIndexEntryNode)),
+                return WatchableRegistryNodeContent(
+                    watchables=dict( (name, val.configuration) for name, val in node.items() if isinstance(val, WatchableRegistryEntryNode)),
                     subtree=[name for name, val in node.items() if isinstance(val, dict)]
                 )
-            elif isinstance(node, WatchableIndexEntryNode):
+            elif isinstance(node, WatchableRegistryEntryNode):
                 return node
             else:
-                raise WatchableIndexError(f"Unexpected item of type {node.__class__.__name__} inside the index")
+                raise WatchableRegistryError(f"Unexpected item of type {node.__class__.__name__} inside the registry")
     
     def _has_data(self, watchable_type:sdk.WatchableType) -> bool:
         """Tells if the tree attached to a given watchable type contains data"""
@@ -205,8 +211,8 @@ class WatchableIndex:
         :param value: The value to broadcast
         """
         node = self._get_node_with_lock(watchable_type, path)
-        if not isinstance(node, WatchableIndexEntryNode):
-            raise WatchableIndexError("Cannot update a value on something that is not a Watchable")
+        if not isinstance(node, WatchableRegistryEntryNode):
+            raise WatchableRegistryError("Cannot update a value on something that is not a Watchable")
         node.update_value(value)
     
     def watch_fqn(self, watcher_id:str, fqn:str, callback:WatcherValueUpdateCallback) -> None:
@@ -230,8 +236,8 @@ class WatchableIndex:
         :param callback: The callback
         """
         node = self._get_node_with_lock(watchable_type, path)
-        if not isinstance(node, WatchableIndexEntryNode):
-            raise WatchableIndexError("Cannot watch something that is not a Watchable")
+        if not isinstance(node, WatchableRegistryEntryNode):
+            raise WatchableRegistryError("Cannot watch something that is not a Watchable")
         
         node.register_value_update_callback(watcher_id, callback)
         
@@ -249,8 +255,8 @@ class WatchableIndex:
         :param path: The watchable tree path
         """
         node = self._get_node_with_lock(watchable_type, path)
-        if not isinstance(node, WatchableIndexEntryNode):
-            raise WatchableIndexError("Cannot unwatch something that is not a Watchable")
+        if not isinstance(node, WatchableRegistryEntryNode):
+            raise WatchableRegistryError("Cannot unwatch something that is not a Watchable")
         
         if node.has_callback_registered(watcher_id):
             node.unregister_value_update_callback(watcher_id)
@@ -303,8 +309,8 @@ class WatchableIndex:
         :return: The number of watchers
         """
         node = self._get_node_with_lock(watchable_type, path)
-        if not isinstance(node, WatchableIndexEntryNode):
-            raise WatchableIndexError("Cannot get the watcher count of something that is not a Watchable")
+        if not isinstance(node, WatchableRegistryEntryNode):
+            raise WatchableRegistryError("Cannot get the watcher count of something that is not a Watchable")
         return node.watcher_count()
     
     def watched_entries_count(self) -> int:
@@ -328,12 +334,12 @@ class WatchableIndex:
         :return: The last value written or ``None``
         """
         node = self._get_node_with_lock(watchable_type, path)
-        if not isinstance(node, WatchableIndexEntryNode):
-            raise WatchableIndexError("Cannot read a value on something that is not a Watchable")
+        if not isinstance(node, WatchableRegistryEntryNode):
+            raise WatchableRegistryError("Cannot read a value on something that is not a Watchable")
         return node.get_value()
 
-    def read(self, watchable_type:sdk.WatchableType, path:str) -> Union[WatchableIndexNodeContent, sdk.WatchableConfiguration]:
-        """Read a node inside the index.
+    def read(self, watchable_type:sdk.WatchableType, path:str) -> Union[WatchableRegistryNodeContent, sdk.WatchableConfiguration]:
+        """Read a node inside the registry.
         
         :watchable_type: The type of node to read
         :path: The tree path of the node
@@ -341,12 +347,12 @@ class WatchableIndex:
         :return: The node content. Either a watchable or a description of the subnodes
         """
         node = self._get_node_with_lock(watchable_type, path)
-        if isinstance(node, WatchableIndexEntryNode):
+        if isinstance(node, WatchableRegistryEntryNode):
             return node.configuration
         return node
 
     def add_watchable(self, path:str, obj:sdk.WatchableConfiguration) -> None:
-        """Adds a watchable inside the index
+        """Adds a watchable inside the registry
 
         :param path: The tree path of the node
         :param obj: The watchable configuration object
@@ -355,7 +361,7 @@ class WatchableIndex:
             return self._add_watchable_no_lock(path, obj)
     
     def add_watchable_fqn(self, fqn:str, obj:sdk.WatchableConfiguration) -> None:
-        """Adds a watchable inside the index using a fully qualified name
+        """Adds a watchable inside the registry using a fully qualified name
 
         :param fqn: The fully qualified name created using ``make_fqn()``
         :param obj: The watchable configuration object
@@ -364,8 +370,8 @@ class WatchableIndex:
         self._validate_fqn(parsed, obj)
         return self.add_watchable(parsed.path, obj)
     
-    def read_fqn(self, fqn:str) -> Union[WatchableIndexNodeContent, sdk.WatchableConfiguration]:
-        """Read a node inside the index using a fully qualified name.
+    def read_fqn(self, fqn:str) -> Union[WatchableRegistryNodeContent, sdk.WatchableConfiguration]:
+        """Read a node inside the registry using a fully qualified name.
         
         :param fqn: The fully qualified name created using ``make_fqn()``
 
@@ -397,7 +403,7 @@ class WatchableIndex:
     
     def clear_content_by_type(self, watchable_type:sdk.WatchableType) -> bool:
         """
-        Clear the content of the given type from the index. 
+        Clear the content of the given type from the registry. 
         May triggers ``changed`` and ``cleared`` if data was actually removed.
 
         :return: ``True`` if data was removed. ``False`` if the nothing was removed (already empty)
@@ -424,7 +430,7 @@ class WatchableIndex:
 
     def clear(self) -> bool:
         """
-        Clear all the content from the index.
+        Clear all the content from the registry.
 
         :return: ``True`` if data was removed. ``False`` if the nothing was removed (already empty) 
         """
@@ -443,7 +449,7 @@ class WatchableIndex:
         return had_data
 
     def has_data(self, watchable_type:sdk.WatchableType) -> bool:
-        """Tells if there is data of the given type inside the index
+        """Tells if there is data of the given type inside the registry
         
         :param watchable_type: The type of watchable to look for
         :return: ``True`` if there is data of that type. ``False otherwise``
@@ -468,31 +474,31 @@ class WatchableIndex:
     @classmethod
     def _validate_fqn(cls, fqn:ParsedFullyQualifiedName, desc:sdk.WatchableConfiguration) -> None:
         if fqn.watchable_type!= desc.watchable_type:
-            raise WatchableIndexError("Watchable fully qualified name doesn't embded the type correctly.")
+            raise WatchableRegistryError("Watchable fully qualified name doesn't embded the type correctly.")
   
     @staticmethod
     def parse_fqn(fqn:str) -> ParsedFullyQualifiedName:
-        """Parses a fully qualified name and return the information needed to query the index.
+        """Parses a fully qualified name and return the information needed to query the registry.
         
         :param fqn: The fully qualified name
         
         :return: An object containing the type and the tree path separated
         """
-        index = fqn.find(':')
-        if index == -1:
-            raise WatchableIndexError("Bad fully qualified name")
-        typestr = fqn[0:index]
+        colon_position = fqn.find(':')
+        if colon_position == -1:
+            raise WatchableRegistryError("Bad fully qualified name")
+        typestr = fqn[0:colon_position]
         if typestr not in TYPESTR_MAP_S2WT:
-            raise WatchableIndexError(f"Unknown watchable type {typestr}")
+            raise WatchableRegistryError(f"Unknown watchable type {typestr}")
     
         return ParsedFullyQualifiedName(
             watchable_type=TYPESTR_MAP_S2WT[typestr],
-            path=fqn[index+1:]
+            path=fqn[colon_position+1:]
         )
 
     @staticmethod
     def make_fqn(watchable_type:sdk.WatchableType, path:str) -> str:
-        """Create a string representation that conveys enough information to find a specific element in the index.
+        """Create a string representation that conveys enough information to find a specific element in the registry.
         Contains the type and the tree path. 
         
         :param watchable_type: The SDK watchable type
@@ -502,3 +508,40 @@ class WatchableIndex:
         """
         return f"{TYPESTR_MAP_WT2S[watchable_type]}:{path}"
     
+    @staticmethod
+    def extend_fqn(fqn:str, pieces:Union[str, List[str]]) -> str:
+        """Add one or many path parts to an existing Fully Qualified Name
+        Ex. var:/a/b/c + ['x', 'y'] = var:/a/b/c/x/y
+        
+        :param fqn: The Fully Qualified Name to extend
+        :param pieces: The parts to add
+        """
+        if isinstance(pieces, str):
+            pieces = [pieces]
+        parsed = WatchableRegistry.parse_fqn(fqn)
+        path_parts = WatchableRegistry.split_path(parsed.path)
+        prefix = ''
+        if len(path_parts) > 0:
+            index = parsed.path.find(path_parts[0])
+            if index >= 0:
+                prefix = parsed.path[0:index]
+        return WatchableRegistry.make_fqn(parsed.watchable_type, prefix+WatchableRegistry.join_path(path_parts + pieces) )
+
+    @staticmethod
+    def fqn_equal(fqn1:str, fqn2:str) -> bool:
+        parsed1 = WatchableRegistry.parse_fqn(fqn1)
+        parsed2 = WatchableRegistry.parse_fqn(fqn2)
+
+        if parsed1.watchable_type != parsed2.watchable_type:
+            return False
+        
+        path1 = WatchableRegistry.split_path(parsed1.path)
+        path2 = WatchableRegistry.split_path(parsed2.path)
+
+        if len(path1) != len(path2):
+            return False
+        for i in range(len(path1)):
+            if path1[i] != path2[i]:
+                return False
+
+        return True

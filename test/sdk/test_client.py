@@ -2019,7 +2019,7 @@ class TestClient(ScrutinyUnitTest):
         self.assertEqual(len(watchables[sdk.WatchableType.Alias]), 2)
         self.assertEqual(len(watchables[sdk.WatchableType.RuntimePublishedValue]), 1)
 
-        # Make sure the server transmitted 1 watcahble definition per message. We use the client logs to validate
+        # Make sure the server transmitted 1 watchable definition per message. We use the client logs to validate
         nb_response_msg = 0
         for object in self.rx_rquest_log:
             if 'cmd' in object and object['cmd'] == API.Command.Api2Client.GET_WATCHABLE_LIST_RESPONSE:

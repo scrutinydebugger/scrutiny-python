@@ -30,7 +30,7 @@ from scrutiny.gui.dashboard_components.watch.watch_component import WatchCompone
 from scrutiny.gui.dashboard_components.embedded_graph.embedded_graph_component import EmbeddedGraph
 
 from scrutiny.gui.core.server_manager import ServerManager
-from scrutiny.gui.core.watchable_index import WatchableIndex
+from scrutiny.gui.core.watchable_registry import WatchableRegistry
 from typing import Type, Dict
 
 
@@ -53,7 +53,7 @@ class MainWindow(QMainWindow):
     _dock_manager:QtAds.CDockManager
     _sidebar:Sidebar
     _server_config_dialog:ServerConfigDialog
-    _watchable_index:WatchableIndex
+    _watchable_registry:WatchableRegistry
     _server_manager:ServerManager
     _menu_bar:MenuBar
     _status_bar:StatusBar
@@ -69,8 +69,8 @@ class MainWindow(QMainWindow):
 
         self.make_main_zone()
 
-        self._watchable_index = WatchableIndex()
-        self._server_manager = ServerManager(watchable_index=self._watchable_index)
+        self._watchable_registry = WatchableRegistry()
+        self._server_manager = ServerManager(watchable_registry=self._watchable_registry)
         
         self._status_bar = StatusBar(self, server_manager=self._server_manager)
         self.setStatusBar(self._status_bar)

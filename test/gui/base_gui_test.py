@@ -21,7 +21,7 @@ class EventType(enum.Enum):
     DEVICE_READY = enum.auto()
     DEVICE_DISCONNECTED = enum.auto()
     DATALOGGING_STATE_CHANGED = enum.auto()
-    WATCHABLE_INDEX_CHANGED = enum.auto()
+    WATCHABLE_REGISTRY_CHANGED = enum.auto()
     SFD_LOADED = enum.auto()
     SFD_UNLOADED = enum.auto()
 

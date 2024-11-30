@@ -3,7 +3,7 @@ __all__ = [
     'NodeSerializableData',
     'WatchableItemSerializableData',
     'FolderItemSerializableData',
-    'BaseWatchableIndexTreeStandardItem',
+    'BaseWatchableRegistryTreeStandardItem',
     'FolderStandardItem',
     'WatchableStandardItem',
     'item_from_serializable_data',
@@ -16,7 +16,7 @@ from PySide6.QtGui import  QFocusEvent, QStandardItem, QIcon, QKeyEvent, QStanda
 from PySide6.QtCore import Qt, QModelIndex, QByteArray, QMimeData, QPersistentModelIndex
 from PySide6.QtWidgets import QTreeView, QWidget
 from scrutiny.gui import assets
-from scrutiny.gui.core.watchable_index import WatchableIndex, WatchableIndexNodeContent
+from scrutiny.gui.core.watchable_registry import WatchableRegistry, WatchableRegistryNodeContent
 from scrutiny.core import validation
 from typing import Any, List, Optional, TypedDict,  cast, Literal, Dict, Union, Sequence, Set
 from dataclasses import dataclass
@@ -46,7 +46,7 @@ class FolderItemSerializableData(NodeSerializableData):
     pass
 
 
-class BaseWatchableIndexTreeStandardItem(QStandardItem):
+class BaseWatchableRegistryTreeStandardItem(QStandardItem):
     _fqn:Optional[str]
     _loaded:bool
 
@@ -69,7 +69,7 @@ class BaseWatchableIndexTreeStandardItem(QStandardItem):
         return self._fqn
 
 
-class FolderStandardItem(BaseWatchableIndexTreeStandardItem):
+class FolderStandardItem(BaseWatchableRegistryTreeStandardItem):
     _NODE_TYPE:NodeSerializableType='folder'
       # fqn is optional for folders. They might be created by the user
 
@@ -94,7 +94,7 @@ class FolderStandardItem(BaseWatchableIndexTreeStandardItem):
     
 
 
-class WatchableStandardItem(BaseWatchableIndexTreeStandardItem):
+class WatchableStandardItem(BaseWatchableRegistryTreeStandardItem):
     _NODE_TYPE:NodeSerializableType='watchable'
 
     def __init__(self, watchable_type:WatchableType, text:str, fqn:str):
@@ -117,7 +117,7 @@ class WatchableStandardItem(BaseWatchableIndexTreeStandardItem):
     def from_serializable_data(cls, data:WatchableItemSerializableData) -> "WatchableStandardItem":
         assert data['type'] == cls._NODE_TYPE
         assert data['fqn'] is not None
-        prased = WatchableIndex.parse_fqn(data['fqn'])
+        prased = WatchableRegistry.parse_fqn(data['fqn'])
         
         return WatchableStandardItem(
             watchable_type=prased.watchable_type,
@@ -125,7 +125,7 @@ class WatchableStandardItem(BaseWatchableIndexTreeStandardItem):
             fqn=data['fqn']
         ) 
 
-def item_from_serializable_data(data:NodeSerializableData) -> BaseWatchableIndexTreeStandardItem:
+def item_from_serializable_data(data:NodeSerializableData) -> BaseWatchableRegistryTreeStandardItem:
     if data['type'] == FolderStandardItem._NODE_TYPE:
         return FolderStandardItem.from_serializable_data(cast(FolderItemSerializableData, data))
     if data['type'] == WatchableStandardItem._NODE_TYPE:
@@ -137,14 +137,14 @@ class WatchableTreeModel(QStandardItemModel):
     """Extension of the Standard Item Model to represent watchables in a tree. The generic model is specialized to get :
      - Automatic icon choice
      - Leaf nodes that cannot accept children
-     - Autofill from the global watchable index (with possible lazy loading)
+     - Autofill from the global watchable registry (with possible lazy loading)
     
     """
-    _watchable_index:WatchableIndex
+    _watchable_registry:WatchableRegistry
 
-    def __init__(self, parent:Optional[QWidget], watchable_index:WatchableIndex) -> None:
+    def __init__(self, parent:Optional[QWidget], watchable_registry:WatchableRegistry) -> None:
         super().__init__(parent)
-        self._watchable_index = watchable_index
+        self._watchable_registry = watchable_registry
 
     def get_watchable_columns(self,  watchable_config:Optional[WatchableConfiguration] = None) -> List[QStandardItem]:
         return []
@@ -183,24 +183,27 @@ class WatchableTreeModel(QStandardItemModel):
         item =  FolderStandardItem(name, fqn)
         return cls.make_folder_row_existing_item(item, editable)
     
-    def add_row(self, index:Union[QModelIndex, QPersistentModelIndex], row_index:int, row_content:List[QStandardItem]) -> None:
-        if index.isValid():
-            parent_item = self.itemFromIndex(index)
-            if row_index == -1:
-                parent_item.appendRow(row_content)
+    def add_row_to_parent(self, parent:Optional[QStandardItem], row_index:int, row:Sequence[QStandardItem] ) -> None:
+        if parent is not None:
+            if row_index != -1:
+                parent.insertRow(row_index, row)
             else:
-                parent_item.insertRow(row_index, row_content)
+                parent.appendRow(row)
         else:
-            if row_index == -1:
-                self.appendRow(row_content)
-            else:
-                self.insertRow(row_index, row_content)
+            row2 = list(row)    # Make a copy
+            while len(row2) > 0 and row2[-1] is None:
+                row2 = row2[:-1]  # Root insert don't like None in the list apparently. Mystery
 
-    def lazy_load(self, parent:BaseWatchableIndexTreeStandardItem, watchable_type:WatchableType, path:str) -> None:
+            if row_index != -1:
+                self.insertRow(row_index, row2)
+            else:
+                self.appendRow(row2)
+
+    def lazy_load(self, parent:BaseWatchableRegistryTreeStandardItem, watchable_type:WatchableType, path:str) -> None:
         self.fill_from_index_recursive(parent, watchable_type, path, max_level=0)
 
     def fill_from_index_recursive(self, 
-                                  parent:BaseWatchableIndexTreeStandardItem, 
+                                  parent:BaseWatchableRegistryTreeStandardItem, 
                                   watchable_type:WatchableType, 
                                   path:str,
                                   max_level:Optional[int]=None,
@@ -209,16 +212,16 @@ class WatchableTreeModel(QStandardItemModel):
                                   level:int=0
                                   ) -> None:
         parent.set_loaded()
-        content = self._watchable_index.read(watchable_type, path)
+        content = self._watchable_registry.read(watchable_type, path)
         if path.endswith('/'):
             path=path[:-1]
 
-        if isinstance(content, WatchableIndexNodeContent):  # Equivalent to a folder
+        if isinstance(content, WatchableRegistryNodeContent):  # Equivalent to a folder
             for name in content.subtree:
                 subtree_path = f'{path}/{name}'
                 folder_fqn:Optional[str] = None
                 if keep_folder_fqn:
-                    folder_fqn = self._watchable_index.make_fqn(watchable_type, subtree_path)
+                    folder_fqn = self._watchable_registry.make_fqn(watchable_type, subtree_path)
                 row = self.make_folder_row(
                     name=name,
                     fqn=folder_fqn,
@@ -228,7 +231,7 @@ class WatchableTreeModel(QStandardItemModel):
 
                 if max_level is None or level < max_level:
                     self.fill_from_index_recursive(
-                        parent = cast(BaseWatchableIndexTreeStandardItem, row[0]), 
+                        parent = cast(BaseWatchableRegistryTreeStandardItem, row[0]), 
                         watchable_type=watchable_type, 
                         path=subtree_path,
                         editable=editable, 
@@ -241,7 +244,7 @@ class WatchableTreeModel(QStandardItemModel):
                 row = self.make_watchable_row(
                     name = name, 
                     watchable_type = watchable_config.watchable_type, 
-                    fqn = self._watchable_index.make_fqn(watchable_type, watchable_path), 
+                    fqn = self._watchable_registry.make_fqn(watchable_type, watchable_path), 
                     editable=editable,
                     extra_columns=self.get_watchable_columns(watchable_config)
                 )

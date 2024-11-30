@@ -9,7 +9,7 @@
 from scrutiny.gui.dashboard_components.base_component import ScrutinyGUIBaseComponent
 from typing import Dict,Any
 
-from PySide6.QtWidgets import QFormLayout, QVBoxLayout, QLabel, QLineEdit, QCheckBox, QRadioButton, QTextEdit, QWidget
+from PySide6.QtWidgets import QFormLayout, QLabel, QLineEdit, QCheckBox, QRadioButton, QTextEdit
 from PySide6.QtCore import QMimeData, Qt
 from scrutiny.gui.dashboard_components.common.watchable_line_edit import WatchableLineEdit
 

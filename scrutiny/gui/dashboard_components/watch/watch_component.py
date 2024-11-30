@@ -6,6 +6,10 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
+__all__ = [
+    'WatchComponentTreeWidget',
+    'WatchComponent'
+]
 
 from PySide6.QtCore import QModelIndex, Qt, QModelIndex, Signal
 from PySide6.QtWidgets import QVBoxLayout, QWidget
@@ -62,9 +66,7 @@ class WatchComponentTreeWidget(WatchableTreeWidget):
 
     def dropEvent(self, event: QDropEvent) -> None:
         self._set_drag_and_drop_action(event)
-        return super().dropEvent(event)
-    
-        
+        return super().dropEvent(event)    
 
 class WatchComponent(ScrutinyGUIBaseComponent):
     instance_name : str
@@ -78,7 +80,7 @@ class WatchComponent(ScrutinyGUIBaseComponent):
     expand_if_needed = Signal()
 
     def setup(self) -> None:
-        self._tree_model = WatchComponentTreeModel(self, watchable_index=self.server_manager.index)
+        self._tree_model = WatchComponentTreeModel(self, watchable_registry=self.server_manager.registry)
         self._tree = WatchComponentTreeWidget(self, self._tree_model)
 
         layout = QVBoxLayout(self)
