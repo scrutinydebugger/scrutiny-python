@@ -1,3 +1,11 @@
+#    test_varlist_component.py
+#        Test suite for the dashboard Variable List component
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021 Scrutiny Debugger
+
 from test.gui.base_gui_test import ScrutinyBaseGuiTest
 from scrutiny.gui.dashboard_components.varlist.varlist_component import VarListComponentTreeModel
 from scrutiny.gui.dashboard_components.common.watchable_tree import FolderStandardItem, WatchableStandardItem

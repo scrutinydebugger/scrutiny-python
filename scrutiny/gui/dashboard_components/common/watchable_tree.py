@@ -1,3 +1,12 @@
+#    watchable_tree.py
+#        An enhanced QTreeView with a data model dedicated to Watchables displayed in folder
+#        structure.
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021 Scrutiny Debugger
+
 __all__ = [
     'get_watchable_icon',
     'NodeSerializableData',

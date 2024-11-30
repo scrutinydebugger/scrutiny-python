@@ -1,3 +1,11 @@
+#    watch_tree_model.py
+#        The data model used by the Watch component treeview
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021 Scrutiny Debugger
+
 __all__ = ['WatchComponentTreeModel']
 
 import logging
