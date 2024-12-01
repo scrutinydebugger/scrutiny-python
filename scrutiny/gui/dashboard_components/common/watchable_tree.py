@@ -265,7 +265,7 @@ class WatchableTreeModel(QStandardItemModel):
 
         if parent is not None:
             if row_index != -1:
-                parent.insertRow(row_index, row)
+                parent.insertRow(row_index, row2)
             else:
                 parent.appendRow(row)
         else:

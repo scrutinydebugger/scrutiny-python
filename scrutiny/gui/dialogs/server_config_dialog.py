@@ -15,7 +15,7 @@ from scrutiny.gui.tools.validators import IpPortValidator, NotEmptyValidator
 from scrutiny.gui.widgets.validable_line_edit import ValidableLineEdit
 from scrutiny.gui.core.server_manager import ServerConfig
 
-from typing import Callable, Optional, cast
+from typing import Callable, Optional
 
 
 class ServerConfigDialog(QDialog):
