@@ -501,7 +501,7 @@ class WatchableTreeWidget(QTreeView):
         self.setSelectionMode(self.SelectionMode.SingleSelection)
         return super().focusOutEvent(event)
     
-    def get_model(self) -> WatchableTreeModel:
+    def model(self) -> WatchableTreeModel:
         return self._model
     
     def set_row_color(self, index:QModelIndex, color:QColor) -> None:

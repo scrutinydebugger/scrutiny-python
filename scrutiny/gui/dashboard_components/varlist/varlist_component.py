@@ -161,9 +161,9 @@ class VarListComponent(ScrutinyGUIBaseComponent):
         alias_row = self._tree_model.make_folder_row("Alias", WatchableRegistry.make_fqn(WatchableType.Alias, '/'), editable=False)
         rpv_row = self._tree_model.make_folder_row("RPV", WatchableRegistry.make_fqn(WatchableType.RuntimePublishedValue, '/'), editable=False)
 
-        self._tree.get_model().appendRow(var_row)
-        self._tree.get_model().appendRow(alias_row)
-        self._tree.get_model().appendRow(rpv_row)
+        self._tree.model().appendRow(var_row)
+        self._tree.model().appendRow(alias_row)
+        self._tree.model().appendRow(rpv_row)
         self._tree.setDragDropMode(self._tree.DragDropMode.DragOnly)
 
         self._var_folder = cast(BaseWatchableRegistryTreeStandardItem, var_row[0])
