@@ -21,10 +21,6 @@ from PySide6.QtCore import QMimeData, QByteArray
 from scrutiny.core import validation
 from typing import Any, Optional, TypedDict, cast, List
 
-class SerializableWatchableElement(TypedDict):
-    """Representation of a single watchable element through a serializable dict"""
-    text:str
-    fqn:str
 
 @dataclass(frozen=True)
 class ScrutinyDragData:
@@ -89,6 +85,12 @@ class ScrutinyDragData:
         except Exception:
             return None
 
+
+class SerializableWatchableElement(TypedDict):
+    """Representation of a single watchable element through a serializable dict"""
+    text:str
+    fqn:str
+    
 
 @dataclass(frozen=True)
 class SingleWatchableDescriptor:

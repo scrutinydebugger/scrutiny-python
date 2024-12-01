@@ -134,6 +134,9 @@ class VarlistComponentTreeWidget(WatchableTreeWidget):
         super().__init__(parent, model)
         self.set_header_labels(['', 'Type', 'Enum'])
 
+    def model(self) -> VarListComponentTreeModel:
+        return cast(VarListComponentTreeModel, super().model())
+
 class VarListComponent(ScrutinyGUIBaseComponent):
     instance_name : str
 
@@ -191,7 +194,7 @@ class VarListComponent(ScrutinyGUIBaseComponent):
 
     
     def registry_changed_slot(self) -> None:
-        """CAlled when the server manager finsishes downloading the server watchable list and update the registry"""
+        """Called when the server manager finsishes downloading the server watchable list and update the registry"""
         index_change_counters = self.server_manager.registry.get_change_counters()
         # Identify all the types that changed since the last model update
         types_to_reload = []
@@ -204,7 +207,7 @@ class VarListComponent(ScrutinyGUIBaseComponent):
 
     def reload_model(self, watchable_types:List[WatchableType]) -> None:
         """Fully reload to model
-        
+
         :param watchable_types: The list of watchable types to reload
         """
         # reload first level with max_level=0 as we do lazy loading

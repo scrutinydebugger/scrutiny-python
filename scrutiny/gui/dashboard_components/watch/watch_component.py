@@ -17,7 +17,7 @@ from PySide6.QtGui import QDragMoveEvent, QDropEvent, QDragEnterEvent, QKeyEvent
 
 from scrutiny.gui import assets
 from scrutiny.gui.dashboard_components.base_component import ScrutinyGUIBaseComponent
-from scrutiny.gui.dashboard_components.common.watchable_tree import WatchableTreeWidget
+from scrutiny.gui.dashboard_components.common.watchable_tree import WatchableTreeWidget, WatchableStandardItem
 from scrutiny.gui.dashboard_components.watch.watch_tree_model import WatchComponentTreeModel
 
 from typing import Dict, Any, Union, cast
@@ -31,10 +31,12 @@ class WatchComponentTreeWidget(WatchableTreeWidget):
         self.setDragDropMode(self.DragDropMode.DragDrop)
         self.set_header_labels(['', 'Value'])
         
+    def model(self) -> WatchComponentTreeModel:
+        return cast(WatchComponentTreeModel, super().model())
 
     def keyPressEvent(self, event: QKeyEvent) -> None:
         if event.key() == Qt.Key.Key_Delete:
-            model = cast(WatchComponentTreeModel, self.model())
+            model = self.model()
             indexes_without_nested_values = model.remove_nested_indexes(self.selectedIndexes()) # Avoid errors when parent is deleted before children
             items = [model.itemFromIndex(index) for index in  indexes_without_nested_values]
             for item in items:
@@ -60,7 +62,7 @@ class WatchComponentTreeWidget(WatchableTreeWidget):
         event.accept()
         
 
-    def dragMoveEvent(self, event: QDragMoveEvent) -> None:
+    def dragMoveEvent(self, event: QDragMoveEvent) -> None:        
         self._set_drag_and_drop_action(event)
         return super().dragMoveEvent(event)
 

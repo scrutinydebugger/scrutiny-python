@@ -53,6 +53,9 @@ class WatchComponentTreeModel(WatchableTreeModel):
         super().__init__(parent, watchable_registry)
         self._dragged_item_list = None
         self.logger = logging.getLogger(self.__class__.__name__)
+    
+    def itemFromIndex(self, index:Union[QModelIndex, QPersistentModelIndex]) -> BaseWatchableRegistryTreeStandardItem:
+        return cast(BaseWatchableRegistryTreeStandardItem, super().itemFromIndex(index))
 
     def _check_support_drag_data(self, drag_data:Optional[ScrutinyDragData], action:Qt.DropAction) -> bool:
         """Tells if a drop would be supported
@@ -110,7 +113,7 @@ class WatchComponentTreeModel(WatchableTreeModel):
             'object_id' : id(item)
         }
     
-    def sort_items_by_path(self, items:List[BaseWatchableRegistryTreeStandardItem], top_to_bottom:bool=True) -> None:
+    def _sort_items_by_path(self, items:List[BaseWatchableRegistryTreeStandardItem], top_to_bottom:bool=True) -> None:
         """Sort the a list of tree items by their path. From top to bottom or bottom to top"""
         mult = 1 if top_to_bottom else -1
         def sort_compare(item1:QStandardItem, item2:QStandardItem) -> int:
@@ -148,7 +151,6 @@ class WatchComponentTreeModel(WatchableTreeModel):
 
         return dict_out
 
-    
     def _get_item_from_serializable_index_descriptor(self, data:SerializableItemIndexDescriptor) -> Optional[BaseWatchableRegistryTreeStandardItem]:
         """Find the item in the data model from a serializable node reference"""
         assert 'path' in data
@@ -176,11 +178,11 @@ class WatchComponentTreeModel(WatchableTreeModel):
                 if index.column() == 0:
                     item = self.itemFromIndex(index)
                     assert item is not None
-                    yield cast(BaseWatchableRegistryTreeStandardItem, item)
+                    yield item
 
         top_level_items = [item for item in get_items(self.remove_nested_indexes(indexes))]
 
-        self.sort_items_by_path(top_level_items, top_to_bottom=True)
+        self._sort_items_by_path(top_level_items, top_to_bottom=True)
         move_data = [self._make_serializable_item_index_descriptor(item) for item in top_level_items]
         
         drag_data =  self.make_watchable_list_dragdata_if_possible(top_level_items, data_move=move_data)
@@ -243,36 +245,36 @@ class WatchComponentTreeModel(WatchableTreeModel):
         if drag_data.type == ScrutinyDragData.DataType.WatchableTreeNodesTiedToRegistry:
             if action == Qt.DropAction.CopyAction:
                 self.logger.debug(f"{log_prefix}: Varlist data with {len(drag_data.data_copy)} nodes")
-                return self.handle_drop_varlist_copy(parent, row_index, cast(List[NodeSerializableData], drag_data.data_copy))
+                return self._handle_drop_varlist_copy(parent, row_index, cast(List[NodeSerializableData], drag_data.data_copy))
             else:
                 return False
 
         elif drag_data.type == ScrutinyDragData.DataType.WatchableFullTree:
             if action == Qt.DropAction.MoveAction:
                 self.logger.debug(f"{log_prefix}: Watch internal move with {len(drag_data.data_move)} nodes")
-                return self.handle_internal_move(parent, row_index, cast(List[SerializableItemIndexDescriptor], drag_data.data_move))
+                return self._handle_internal_move(parent, row_index, cast(List[SerializableItemIndexDescriptor], drag_data.data_move))
             elif action == Qt.DropAction.CopyAction:
                 self.logger.debug(f"{log_prefix}: Watch external copy with {len(drag_data.data_copy)} nodes")
-                self.handle_tree_drop(parent, row_index, cast(List[SerializableTreeDescriptor], drag_data.data_copy))
+                self._handle_tree_drop(parent, row_index, cast(List[SerializableTreeDescriptor], drag_data.data_copy))
             else:
                 return False
             
         elif drag_data.type == ScrutinyDragData.DataType.WatchableList:
             if action == Qt.DropAction.MoveAction:
                 self.logger.debug(f"{log_prefix}: Watch internal move with single element")
-                return self.handle_internal_move(parent, row_index, cast(List[SerializableItemIndexDescriptor], drag_data.data_move))
+                return self._handle_internal_move(parent, row_index, cast(List[SerializableItemIndexDescriptor], drag_data.data_move))
             elif action == Qt.DropAction.CopyAction:
                 self.logger.debug(f"{log_prefix}: Watch external copy with single element")
                 watchable_elements = WatchableListDescriptor.from_drag_data(drag_data)
                 if watchable_elements is None:
                     return False
-                self.handle_watchable_list_element_drop(parent, row_index,  watchable_elements)
+                self._handle_watchable_list_element_drop(parent, row_index,  watchable_elements)
             else:
                 return False
             
         return False
 
-    def handle_drop_varlist_copy(self, 
+    def _handle_drop_varlist_copy(self, 
                             parent_index: Union[QModelIndex, QPersistentModelIndex],
                             row_index:int,
                             data:List[NodeSerializableData]) -> bool:
@@ -304,7 +306,7 @@ class WatchComponentTreeModel(WatchableTreeModel):
         
         return True
 
-    def handle_internal_move(self,
+    def _handle_internal_move(self,
                             dest_parent_index: Union[QModelIndex, QPersistentModelIndex],
                             dest_row_index:int,
                             data:List[SerializableItemIndexDescriptor]) -> bool:
@@ -349,7 +351,7 @@ class WatchComponentTreeModel(WatchableTreeModel):
             return False
         return True
     
-    def handle_tree_drop(self,
+    def _handle_tree_drop(self,
                         dest_parent_index: Union[QModelIndex, QPersistentModelIndex],
                         dest_row_index:int,
                         data:List[SerializableTreeDescriptor]) -> bool:
@@ -392,7 +394,7 @@ class WatchComponentTreeModel(WatchableTreeModel):
         try:
             for descriptor in data:
                 if dest_parent_index.isValid():
-                    dest_parent_item = cast(BaseWatchableRegistryTreeStandardItem, self.itemFromIndex(dest_parent_index))
+                    dest_parent_item =  self.itemFromIndex(dest_parent_index)
                     fill_from_tree_recursive(dest_parent_item, dest_row_index, descriptor)
                 else:
                     fill_from_tree_recursive(None, dest_row_index, descriptor)
@@ -402,9 +404,8 @@ class WatchComponentTreeModel(WatchableTreeModel):
         except AssertionError:
             return False
         return True
-
-                
-    def handle_watchable_list_element_drop(self,
+             
+    def _handle_watchable_list_element_drop(self,
                         dest_parent_index: Union[QModelIndex, QPersistentModelIndex],
                         dest_row_index:int,
                         descriptors:WatchableListDescriptor) -> bool:

@@ -101,6 +101,7 @@ class FolderStandardItem(BaseWatchableRegistryTreeStandardItem):
     def __init__(self, text:str, fqn:Optional[str]=None):
         folder_icon = assets.load_icon(assets.Icons.TreeFolder)
         super().__init__(fqn, folder_icon, text)
+        self.setDropEnabled(True)
     
     def to_serialized_data(self) -> FolderItemSerializableData:
         """Create a serializable version of this node (using a dict). Used for Drag&Drop"""
@@ -118,8 +119,6 @@ class FolderStandardItem(BaseWatchableRegistryTreeStandardItem):
             text=data['text'],
             fqn=data['fqn']
         )
-    
-
 
 class WatchableStandardItem(BaseWatchableRegistryTreeStandardItem):
     """A tree model QStandardItem that represent a watchable (leaf node)
@@ -134,6 +133,7 @@ class WatchableStandardItem(BaseWatchableRegistryTreeStandardItem):
     def __init__(self, watchable_type:WatchableType, text:str, fqn:str):
         icon = get_watchable_icon(watchable_type)
         super().__init__(fqn, icon, text)
+        self.setDropEnabled(False)
 
     @property
     def fqn(self) -> str:
