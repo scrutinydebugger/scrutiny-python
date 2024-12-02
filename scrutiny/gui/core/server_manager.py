@@ -164,7 +164,7 @@ class ServerManager:
         self._stop_pending = False
         self._client_request_store = ClientRequestStore()
 
-        if self._logger.isEnabledFor(logging.DEBUG):
+        if self._logger.isEnabledFor(logging.DEBUG):    # pragma: no cover
             self._signals.server_connected.connect(lambda : self._logger.debug("+Signal: server_connected"))
             self._signals.server_disconnected.connect(lambda : self._logger.debug("+Signal: server_disconnected"))
             self._signals.device_ready.connect(lambda : self._logger.debug("+Signal: device_ready"))

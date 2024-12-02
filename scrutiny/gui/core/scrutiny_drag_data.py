@@ -66,6 +66,8 @@ class ScrutinyDragData:
         
         :return: The DragData object data if valid. ``None`` otherwise
         """
+        if not isinstance(data, QMimeData):
+            return None
 
         if not data.hasFormat('application/json'):
             return None
@@ -154,6 +156,8 @@ class WatchableListDescriptor:
     @classmethod
     def from_serializable(cls, data:List[SerializableWatchableElement]) -> Optional["WatchableListDescriptor"]:
         """Creates an descriptor object from a seraializable dict created by ``to_serializable()``"""
+        if not isinstance(data, list):
+            return None
         deserialized_data:List[SingleWatchableDescriptor] = []
         for x in data:
             deserialized = SingleWatchableDescriptor.from_serializable(x)
@@ -166,6 +170,9 @@ class WatchableListDescriptor:
     @classmethod
     def from_drag_data(cls, data:ScrutinyDragData) -> Optional["WatchableListDescriptor"]:
         """Creates an descriptor object from a ScrutinyDragData received after a drop event"""
+        if not isinstance(data, ScrutinyDragData):
+            return None
+        
         if data.type != ScrutinyDragData.DataType.WatchableList:
             return None
         

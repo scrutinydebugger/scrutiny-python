@@ -153,10 +153,12 @@ class WatchComponentTreeModel(WatchableTreeModel):
 
     def _get_item_from_serializable_index_descriptor(self, data:SerializableItemIndexDescriptor) -> Optional[BaseWatchableRegistryTreeStandardItem]:
         """Find the item in the data model from a serializable node reference"""
-        assert 'path' in data
-        assert 'object_id' in data
+        if 'path' not in data or 'object_id' not in data:
+            return None
         path  = data['path']
         object_id = data['object_id']
+        if not isinstance(path, list) or not isinstance(object_id, int):
+            return None
         if len(path) == 0 or object_id == 0:
             return None
         item = cast(BaseWatchableRegistryTreeStandardItem, self.item(path[0], 0))
