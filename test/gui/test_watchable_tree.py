@@ -605,7 +605,7 @@ class TestWatchTreeModel(BaseWatchableTreeTest):
         self.assertIs(var2_node.parent(), folder_yyy_node)
 
 
-    def test_drop_move_full_tree(self):
+    def test_drop_move_full_tree_append(self):
         self.model.fill_from_index_recursive(self.var_node, sdk.WatchableType.Variable, '/', keep_folder_fqn=False)
         self.model.fill_from_index_recursive(self.alias_node, sdk.WatchableType.Alias, '/', keep_folder_fqn=False)
         self.model.fill_from_index_recursive(self.rpv_node, sdk.WatchableType.RuntimePublishedValue, '/', keep_folder_fqn=False)
@@ -643,6 +643,134 @@ class TestWatchTreeModel(BaseWatchableTreeTest):
 
         self.assertEqual(folder_xxx_node.rowCount(), xxx_children_at_beginning )
         self.assertEqual(folder_rpv_node.rowCount(), rpv_children_at_beginning )
+
+        # var2 is not there on purpose. it's nested into another selection (xxx)
+        positions = [x.row() for x in cast(List[QStandardItem], [folder_xxx_node, folder_rpv_node])]    
+        self.assertCountEqual(positions, [1,2]) # Ensure append
+
+    def test_drop_move_full_tree_insert_index0(self):
+        self.model.fill_from_index_recursive(self.var_node, sdk.WatchableType.Variable, '/', keep_folder_fqn=False)
+        self.model.fill_from_index_recursive(self.alias_node, sdk.WatchableType.Alias, '/', keep_folder_fqn=False)
+        self.model.fill_from_index_recursive(self.rpv_node, sdk.WatchableType.RuntimePublishedValue, '/', keep_folder_fqn=False)
+        
+        var2_node = self.get_node('var2')
+        assert isinstance(var2_node, WatchableStandardItem)
+        
+        var3_node = self.get_node('var3')
+        assert isinstance(var3_node, WatchableStandardItem)
+
+        folder_yyy_node = self.get_node('yyy')
+        assert isinstance(folder_yyy_node, FolderStandardItem)
+
+        folder_xxx_node = self.get_node('xxx')
+        assert isinstance(folder_xxx_node, FolderStandardItem)
+
+        folder_rpv_node = self.get_node('rpv')
+        assert isinstance(folder_rpv_node, FolderStandardItem)
+        self.assertEqual(folder_rpv_node.rowCount(), 2)
+
+        xxx_children_at_beginning = folder_xxx_node.rowCount()
+        rpv_children_at_beginning = folder_rpv_node.rowCount()
+
+        mime_data = self.model.mimeData([var2_node.index(), folder_xxx_node.index(), folder_rpv_node.index()])
+        data = ScrutinyDragData.from_mime(mime_data)
+        self.assertIsNotNone(data)
+
+        self.assertFalse(self.model.canDropMimeData(mime_data, Qt.DropAction.MoveAction, 0, 0, var3_node.index())) # Cannot drop on leaf node
+        self.assertTrue(self.model.canDropMimeData(mime_data, Qt.DropAction.MoveAction, 0, 0, folder_yyy_node.index()))
+
+        self.assertTrue(self.model.dropMimeData(mime_data, Qt.DropAction.MoveAction, 0, 0, folder_yyy_node.index()))
+        self.assertIs(var2_node.parent(), folder_xxx_node)  # Unchanged bcause var2 is nested into xxx
+        self.assertIs(folder_xxx_node.parent(), folder_yyy_node)
+        self.assertIs(folder_rpv_node.parent(), folder_yyy_node)
+
+        self.assertEqual(folder_xxx_node.rowCount(), xxx_children_at_beginning )
+        self.assertEqual(folder_rpv_node.rowCount(), rpv_children_at_beginning )
+
+        # var2 is not there on purpose. it's nested into another selection (xxx)
+        positions = [x.row() for x in cast(List[QStandardItem], [folder_xxx_node, folder_rpv_node])]    
+        self.assertCountEqual(positions, [0,1]) # insert at 0
+
+    def test_drop_move_full_tree_insert(self):
+        self.model.fill_from_index_recursive(self.var_node, sdk.WatchableType.Variable, '/', keep_folder_fqn=False)
+        self.model.fill_from_index_recursive(self.alias_node, sdk.WatchableType.Alias, '/', keep_folder_fqn=False)
+        self.model.fill_from_index_recursive(self.rpv_node, sdk.WatchableType.RuntimePublishedValue, '/', keep_folder_fqn=False)
+        
+        rpv1000_node = self.get_node('rpv1000')
+        assert isinstance(rpv1000_node, WatchableStandardItem)
+        
+        rpv1001_node = self.get_node('rpv1001')
+        assert isinstance(rpv1001_node, WatchableStandardItem)
+
+        folder_xxx_node = self.get_node('xxx')
+        assert isinstance(folder_xxx_node, FolderStandardItem)
+
+
+        xxx_children_at_beginning = folder_xxx_node.rowCount()
+
+        mime_data = self.model.mimeData([rpv1000_node.index(), rpv1001_node.index()])
+        data = ScrutinyDragData.from_mime(mime_data)
+        self.assertIsNotNone(data)
+
+        self.assertTrue(self.model.canDropMimeData(mime_data, Qt.DropAction.MoveAction, 1, 0, folder_xxx_node.index()))
+
+        self.assertTrue(self.model.dropMimeData(mime_data, Qt.DropAction.MoveAction, 1, 0, folder_xxx_node.index()))
+        self.assertIs(rpv1000_node.parent(), folder_xxx_node) 
+        self.assertIs(rpv1001_node.parent(), folder_xxx_node) 
+
+        self.assertEqual(folder_xxx_node.rowCount(), xxx_children_at_beginning+2 )
+
+        # var2 is not there on purpose. it's nested into another selection (xxx)
+        positions = [x.row() for x in cast(List[QStandardItem], [rpv1000_node, rpv1001_node])]    
+        self.assertCountEqual(positions, [1,2]) # insert at 0 
+
+        var1_node = self.get_node('var1')
+        var2_node = self.get_node('var2')
+        self.assertIsNotNone(var1_node)
+        self.assertIsNotNone(var2_node)
+
+        self.assertEqual(var1_node.row(), 0)
+        self.assertEqual(var2_node.row(), 3)
+
+    def test_drop_move_full_tree_insert_at_root(self):
+        self.model.fill_from_index_recursive(self.var_node, sdk.WatchableType.Variable, '/', keep_folder_fqn=False)
+        self.model.fill_from_index_recursive(self.alias_node, sdk.WatchableType.Alias, '/', keep_folder_fqn=False)
+        self.model.fill_from_index_recursive(self.rpv_node, sdk.WatchableType.RuntimePublishedValue, '/', keep_folder_fqn=False)
+        
+        rpv1000_node = self.get_node('rpv1000')
+        assert isinstance(rpv1000_node, WatchableStandardItem)
+        
+        rpv1001_node = self.get_node('rpv1001')
+        assert isinstance(rpv1001_node, WatchableStandardItem)
+
+        root_nodes = [self.var_node, self.rpv_node, self.alias_node]
+
+        root_nodes_by_initial_index = dict(zip([x.row() for x in root_nodes], root_nodes)) # Dict {0 : rpv, 1:alias, 2:var}
+
+        mime_data = self.model.mimeData([rpv1000_node.index(), rpv1001_node.index()])
+        data = ScrutinyDragData.from_mime(mime_data)
+        self.assertIsNotNone(data)
+
+        invalid_index = QModelIndex()
+        self.assertTrue(self.model.canDropMimeData(mime_data, Qt.DropAction.MoveAction, 1, 0, invalid_index))
+
+        self.assertTrue(self.model.dropMimeData(mime_data, Qt.DropAction.MoveAction, 1, 0, invalid_index))
+        self.assertIsNone(rpv1000_node.parent()) 
+        self.assertIsNone(rpv1001_node.parent()) 
+
+        self.assertEqual(self.model.rowCount(), 5 )
+
+        # var2 is not there on purpose. it's nested into another selection (xxx)
+        positions = [x.row() for x in cast(List[QStandardItem], [rpv1000_node, rpv1001_node])]    
+        self.assertCountEqual(positions, [1,2]) # insert at 0 
+
+        root_nodes_by_new_index = dict(zip([x.row() for x in root_nodes], root_nodes)) # Dict {0 : rpv, 3:alias, 4:var}
+        
+        # Ensure shift is correct
+        self.assertIs(root_nodes_by_initial_index[0], root_nodes_by_new_index[0])
+        self.assertIs(root_nodes_by_initial_index[1], root_nodes_by_new_index[3])
+        self.assertIs(root_nodes_by_initial_index[2], root_nodes_by_new_index[4])
+
 
     def test_drop_copy_from_watch(self):
         self.model.fill_from_index_recursive(self.var_node, sdk.WatchableType.Variable, '/', keep_folder_fqn=False)
