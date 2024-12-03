@@ -21,7 +21,7 @@ class EventType(enum.Enum):
     DEVICE_READY = enum.auto()
     DEVICE_DISCONNECTED = enum.auto()
     DATALOGGING_STATE_CHANGED = enum.auto()
-    WATCHABLE_INDEX_CHANGED = enum.auto()
+    WATCHABLE_REGISTRY_CHANGED = enum.auto()
     SFD_LOADED = enum.auto()
     SFD_UNLOADED = enum.auto()
 
@@ -39,8 +39,7 @@ class ScrutinyBaseGuiTest(ScrutinyUnitTest):
     
     def tearDown(self):
         self.process_events()
-       # self.app.deleteLater()  # Segfault without this. don't know why
-        
+       
 
     def wait_equal(self, fn, val, timeout, no_assert=False):
         t = time.perf_counter()

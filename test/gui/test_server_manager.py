@@ -8,7 +8,7 @@
 
 from scrutiny import sdk
 from scrutiny.gui.core.server_manager import ServerManager, ServerConfig
-from scrutiny.gui.core.watchable_index import WatchableIndex
+from scrutiny.gui.core.watchable_registry import WatchableRegistry
 from test.gui.fake_sdk_client import FakeSDKClient, DownloadWatchableListFunctionCall
 from test.gui.base_gui_test import ScrutinyBaseGuiTest, EventType
 import time
@@ -71,7 +71,7 @@ class TestServerManager(ScrutinyBaseGuiTest):
         super().setUp()
         self.fake_client = FakeSDKClient()   
         self.server_manager = ServerManager(
-            watchable_index=WatchableIndex(),
+            watchable_registry=WatchableRegistry(),
             client=self.fake_client
             )    # Inject a stub of the SDK.
 
@@ -82,7 +82,7 @@ class TestServerManager(ScrutinyBaseGuiTest):
         self.server_manager.signals.datalogging_state_changed.connect(lambda : self.declare_event(EventType.DATALOGGING_STATE_CHANGED))
         self.server_manager.signals.sfd_loaded.connect(lambda : self.declare_event(EventType.SFD_LOADED))
         self.server_manager.signals.sfd_unloaded.connect(lambda : self.declare_event(EventType.SFD_UNLOADED))
-        self.server_manager.signals.index_changed.connect(lambda : self.declare_event(EventType.WATCHABLE_INDEX_CHANGED))
+        self.server_manager.signals.registry_changed.connect(lambda : self.declare_event(EventType.WATCHABLE_REGISTRY_CHANGED))
     
     def tearDown(self) -> None:
         if self.server_manager.is_running():
@@ -233,7 +233,7 @@ class TestServerManager(ScrutinyBaseGuiTest):
     def test_event_device_connect_disconnect_with_data_download(self):
         self.assertEqual(self.event_list, [])
         self.server_manager.start(SERVER_MANAGER_CONFIG)
-        windex = self.server_manager._index
+        windex = self.server_manager.registry
 
         self.wait_events_and_clear([EventType.SERVER_CONNECTED], timeout=1)
         self.fake_client._simulate_receive_status()
@@ -259,7 +259,7 @@ class TestServerManager(ScrutinyBaseGuiTest):
                     sdk.WatchableType.RuntimePublishedValue : DUMMY_DATASET_RPV
                 }, done=True)
                 self.fake_client._complete_success_watchable_list_request(req._request_id)
-                self.wait_events_and_clear([EventType.WATCHABLE_INDEX_CHANGED], timeout=1)
+                self.wait_events_and_clear([EventType.WATCHABLE_REGISTRY_CHANGED], timeout=1)
                 self.assertTrue(windex.has_data(sdk.WatchableType.RuntimePublishedValue))
                 self.assertFalse(windex.has_data(sdk.WatchableType.Alias))
                 self.assertFalse(windex.has_data(sdk.WatchableType.Variable))
@@ -269,12 +269,12 @@ class TestServerManager(ScrutinyBaseGuiTest):
             if cancel_request:
                 expected_events = [EventType.DEVICE_DISCONNECTED]
             else:
-                expected_events = [EventType.WATCHABLE_INDEX_CHANGED, EventType.DEVICE_DISCONNECTED]
+                expected_events = [EventType.WATCHABLE_REGISTRY_CHANGED, EventType.DEVICE_DISCONNECTED]
             self.wait_events_and_clear(expected_events, timeout=1, msg=f"cancel_request={cancel_request}")
 
-            self.assertFalse(self.server_manager._index.has_data(sdk.WatchableType.RuntimePublishedValue))
-            self.assertFalse(self.server_manager._index.has_data(sdk.WatchableType.Alias))
-            self.assertFalse(self.server_manager._index.has_data(sdk.WatchableType.Variable))
+            self.assertFalse(self.server_manager.registry.has_data(sdk.WatchableType.RuntimePublishedValue))
+            self.assertFalse(self.server_manager.registry.has_data(sdk.WatchableType.Alias))
+            self.assertFalse(self.server_manager.registry.has_data(sdk.WatchableType.Variable))
 
         self.fake_client.server_info = None 
         self.server_manager.stop()
@@ -295,17 +295,17 @@ class TestServerManager(ScrutinyBaseGuiTest):
             self.assertEqual(calls[0].types, [sdk.WatchableType.RuntimePublishedValue])
             self.assertCountEqual(calls[1].types, [sdk.WatchableType.Alias, sdk.WatchableType.Variable])
             if sdk.WatchableType.RuntimePublishedValue in calls[0].types:
-                rpv_call_index = 0 
-                alias_var_call_index = 1
+                rpv_call_registry = 0 
+                alias_var_call_registry = 1
             else:
-                rpv_call_index = 1 
-                alias_var_call_index = 0
+                rpv_call_registry = 1 
+                alias_var_call_registry = 0
             
-            self.assertCountEqual(calls[rpv_call_index].types, [sdk.WatchableType.RuntimePublishedValue])
-            self.assertCountEqual(calls[alias_var_call_index].types, [sdk.WatchableType.Alias, sdk.WatchableType.Variable])
+            self.assertCountEqual(calls[rpv_call_registry].types, [sdk.WatchableType.RuntimePublishedValue])
+            self.assertCountEqual(calls[alias_var_call_registry].types, [sdk.WatchableType.Alias, sdk.WatchableType.Variable])
 
-            req_rpv = calls[rpv_call_index].request
-            req_alias_var = calls[alias_var_call_index].request
+            req_rpv = calls[rpv_call_registry].request
+            req_alias_var = calls[alias_var_call_registry].request
 
             if cancel_requests:
                 req_rpv.cancel()
@@ -315,7 +315,7 @@ class TestServerManager(ScrutinyBaseGuiTest):
                     sdk.WatchableType.RuntimePublishedValue : DUMMY_DATASET_RPV
                 }, done=True)
                 self.fake_client._complete_success_watchable_list_request(req_rpv._request_id)
-                self.wait_events_and_clear([EventType.WATCHABLE_INDEX_CHANGED], timeout=1)
+                self.wait_events_and_clear([EventType.WATCHABLE_REGISTRY_CHANGED], timeout=1)
 
                 req_alias_var._add_data({
                     sdk.WatchableType.Alias : DUMMY_DATASET_ALIAS
@@ -324,7 +324,7 @@ class TestServerManager(ScrutinyBaseGuiTest):
                     sdk.WatchableType.Variable : DUMMY_DATASET_VAR
                 }, done=False)
                 self.fake_client._complete_success_watchable_list_request(req_alias_var._request_id)
-                self.wait_events_and_clear([EventType.WATCHABLE_INDEX_CHANGED], timeout=1)
+                self.wait_events_and_clear([EventType.WATCHABLE_REGISTRY_CHANGED], timeout=1)
 
         for i in range(5):
             cancel_requests = i%2==1
@@ -340,7 +340,7 @@ class TestServerManager(ScrutinyBaseGuiTest):
             if cancel_requests:
                 expected_events = [EventType.SFD_UNLOADED, EventType.DEVICE_DISCONNECTED]
             else:
-                expected_events = [EventType.WATCHABLE_INDEX_CHANGED, EventType.WATCHABLE_INDEX_CHANGED, EventType.SFD_UNLOADED, EventType.DEVICE_DISCONNECTED]
+                expected_events = [EventType.WATCHABLE_REGISTRY_CHANGED, EventType.WATCHABLE_REGISTRY_CHANGED, EventType.SFD_UNLOADED, EventType.DEVICE_DISCONNECTED]
 
             self.wait_events_and_clear(expected_events, timeout=1)
 
@@ -365,23 +365,23 @@ class TestServerManager(ScrutinyBaseGuiTest):
             calls = self.fake_client.get_download_watchable_list_function_calls()
             self.assertEqual(len(calls), 2)
             if sdk.WatchableType.RuntimePublishedValue in calls[0].types:
-                rpv_call_index = 0 
-                alias_var_call_index = 1
+                rpv_call_registry = 0 
+                alias_var_call_registry = 1
             else:
-                rpv_call_index = 1 
-                alias_var_call_index = 0
+                rpv_call_registry = 1 
+                alias_var_call_registry = 0
             
-            self.assertCountEqual(calls[rpv_call_index].types, [sdk.WatchableType.RuntimePublishedValue])
-            self.assertCountEqual(calls[alias_var_call_index].types, [sdk.WatchableType.Alias, sdk.WatchableType.Variable])
+            self.assertCountEqual(calls[rpv_call_registry].types, [sdk.WatchableType.RuntimePublishedValue])
+            self.assertCountEqual(calls[alias_var_call_registry].types, [sdk.WatchableType.Alias, sdk.WatchableType.Variable])
 
-            req_rpv = calls[rpv_call_index].request
-            req_alias_var = calls[alias_var_call_index].request
+            req_rpv = calls[rpv_call_registry].request
+            req_alias_var = calls[alias_var_call_registry].request
 
             req_rpv._add_data({
                 sdk.WatchableType.RuntimePublishedValue : DUMMY_DATASET_RPV
             }, done=True)
             self.fake_client._complete_success_watchable_list_request(req_rpv._request_id)
-            self.wait_events_and_clear([EventType.WATCHABLE_INDEX_CHANGED], timeout=1)
+            self.wait_events_and_clear([EventType.WATCHABLE_REGISTRY_CHANGED], timeout=1)
 
             req_alias_var._add_data({
                 sdk.WatchableType.Alias : DUMMY_DATASET_ALIAS
@@ -390,13 +390,13 @@ class TestServerManager(ScrutinyBaseGuiTest):
                 sdk.WatchableType.Variable : DUMMY_DATASET_VAR
             }, done=False)
             self.fake_client._complete_success_watchable_list_request(req_alias_var._request_id)
-            self.wait_events_and_clear([EventType.WATCHABLE_INDEX_CHANGED], timeout=1)
+            self.wait_events_and_clear([EventType.WATCHABLE_REGISTRY_CHANGED], timeout=1)
 
         respond_to_download_requests()
 
-        self.assertTrue(self.server_manager._index.has_data(sdk.WatchableType.RuntimePublishedValue))
-        self.assertTrue(self.server_manager._index.has_data(sdk.WatchableType.Alias))
-        self.assertTrue(self.server_manager._index.has_data(sdk.WatchableType.Variable))
+        self.assertTrue(self.server_manager.registry.has_data(sdk.WatchableType.RuntimePublishedValue))
+        self.assertTrue(self.server_manager.registry.has_data(sdk.WatchableType.Alias))
+        self.assertTrue(self.server_manager.registry.has_data(sdk.WatchableType.Variable))
         # Only the session ID changes. 
         # Should trigger a device disconnected + device ready event.
         for i in range(5):
@@ -407,8 +407,8 @@ class TestServerManager(ScrutinyBaseGuiTest):
             self.fake_client._simulate_device_connect(f'new_session_id{i}')
 
             self.wait_events_and_clear([
-                EventType.WATCHABLE_INDEX_CHANGED, 
-                EventType.WATCHABLE_INDEX_CHANGED, 
+                EventType.WATCHABLE_REGISTRY_CHANGED, 
+                EventType.WATCHABLE_REGISTRY_CHANGED, 
                 EventType.DEVICE_DISCONNECTED, 
                 EventType.DEVICE_READY, 
                 EventType.SFD_UNLOADED, 
@@ -421,8 +421,8 @@ class TestServerManager(ScrutinyBaseGuiTest):
         self.fake_client._simulate_device_disconnect()
         self.fake_client.server_info = None
         self.wait_events_and_clear([
-            EventType.WATCHABLE_INDEX_CHANGED, 
-            EventType.WATCHABLE_INDEX_CHANGED, 
+            EventType.WATCHABLE_REGISTRY_CHANGED, 
+            EventType.WATCHABLE_REGISTRY_CHANGED, 
             EventType.SFD_UNLOADED, 
             EventType.DEVICE_DISCONNECTED], timeout=1)
 

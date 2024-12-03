@@ -29,5 +29,5 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
     def get_state(self) -> Dict[Any, Any]:
         raise NotImplementedError()
 
-    def load_state(self) -> Dict[Any, Any]:
+    def load_state(self, state: Dict[Any, Any]) -> None:
         raise NotImplementedError()

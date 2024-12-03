@@ -13,9 +13,10 @@ from PySide6.QtWidgets import  QWidget, QVBoxLayout, QHBoxLayout
 
 from PySide6.QtGui import  QCloseEvent
 from PySide6.QtCore import Qt, QRect
+
 from PySide6.QtWidgets import QMainWindow
 
-from scrutiny.gui.qtads import QtAds    #Advanced Docking System
+import PySide6QtAds  as QtAds   # type: ignore
 from scrutiny.gui.dialogs.about_dialog import AboutDialog
 from scrutiny.gui.widgets.sidebar import Sidebar
 from scrutiny.gui.widgets.status_bar import StatusBar
@@ -29,9 +30,8 @@ from scrutiny.gui.dashboard_components.watch.watch_component import WatchCompone
 from scrutiny.gui.dashboard_components.embedded_graph.embedded_graph_component import EmbeddedGraph
 
 from scrutiny.gui.core.server_manager import ServerManager
-from scrutiny.gui.core.watchable_index import WatchableIndex
-from typing import List, Type, Dict, Optional
-
+from scrutiny.gui.core.watchable_registry import WatchableRegistry
+from typing import Type, Dict
 
 
 class MainWindow(QMainWindow):
@@ -53,7 +53,7 @@ class MainWindow(QMainWindow):
     _dock_manager:QtAds.CDockManager
     _sidebar:Sidebar
     _server_config_dialog:ServerConfigDialog
-    _watchable_index:WatchableIndex
+    _watchable_registry:WatchableRegistry
     _server_manager:ServerManager
     _menu_bar:MenuBar
     _status_bar:StatusBar
@@ -69,8 +69,8 @@ class MainWindow(QMainWindow):
 
         self.make_main_zone()
 
-        self._watchable_index = WatchableIndex()
-        self._server_manager = ServerManager(watchable_index=self._watchable_index)
+        self._watchable_registry = WatchableRegistry()
+        self._server_manager = ServerManager(watchable_registry=self._watchable_registry)
         
         self._status_bar = StatusBar(self, server_manager=self._server_manager)
         self.setStatusBar(self._status_bar)
@@ -79,12 +79,14 @@ class MainWindow(QMainWindow):
         self.setMenuBar(self._menu_bar)
 
         self._menu_bar.buttons.info_about.triggered.connect(self.show_about)
+        self._menu_bar.buttons.dashboard_close.triggered.connect(self.dashboard_close_click)
+        self._menu_bar.buttons.dashboard_save.triggered.connect(self.dashboard_save_click)
+        self._menu_bar.buttons.dashboard_open.triggered.connect(self.dashboard_open_click)
 
         self._menu_bar.buttons.dashboard_close.setDisabled(True)
         self._menu_bar.buttons.dashboard_open.setDisabled(True)
         self._menu_bar.buttons.dashboard_save.setDisabled(True)
         self._menu_bar.buttons.server_launch_local.setDisabled(True)
-
 
 
     def centered(self, w:int, h:int) -> QRect:
@@ -111,7 +113,11 @@ class MainWindow(QMainWindow):
         hlayout.setSpacing(0)
         
         self._dock_conainer = QWidget()
+        QtAds.CDockManager.setConfigFlag(QtAds.CDockManager.OpaqueSplitterResize)
+        QtAds.CDockManager.setConfigFlag(QtAds.CDockManager.FloatingContainerHasWidgetTitle)
+        QtAds.CDockManager.setConfigFlag(QtAds.CDockManager.XmlCompressionEnabled, False)
         self._dock_manager = QtAds.CDockManager(self._dock_conainer)
+        
         dock_vlayout = QVBoxLayout(self._dock_conainer)
         dock_vlayout.setContentsMargins(0,0,0,0)
         
@@ -140,12 +146,15 @@ class MainWindow(QMainWindow):
             name = make_name(component_class, instance_number)
         
         try:
-            widget = component_class(self, name)
+            widget = component_class(self, 
+                                     instance_name=name, 
+                                     server_manager = self._server_manager
+                                     )
         except Exception:
             self._logger.error(f"Failed to create a dashboard component of type {component_class.__name__}")
             self._logger.debug(traceback.format_exc())
             return
-
+        QtAds.CDockWidgetTab.mouseDoubleClickEvent = None
         dock_widget = QtAds.CDockWidget(component_class.get_name())
         dock_widget.setFeature(QtAds.CDockWidget.DockWidgetDeleteOnClose, True)
         dock_widget.setWidget(widget)
@@ -153,8 +162,8 @@ class MainWindow(QMainWindow):
         try:
             self._logger.debug(f"Setuping component {widget.instance_name}")
             widget.setup()
-        except Exception:
-            self._logger.error(f"Exception while setuping component of type {component_class.__name__} (instance name: {widget.instance_name})")
+        except Exception as e:
+            self._logger.error(f"Exception while setuping component of type {component_class.__name__} (instance name: {widget.instance_name}). {e}")
             self._logger.debug(traceback.format_exc())
             try:
                 widget.teardown()
@@ -192,3 +201,11 @@ class MainWindow(QMainWindow):
         self._dock_manager.deleteLater()
         super().closeEvent(event)
         
+    def dashboard_close_click(self) -> None:
+        pass
+
+    def dashboard_save_click(self) -> None:
+        print(self._dock_manager.saveState())
+
+    def dashboard_open_click(self) -> None:
+        pass

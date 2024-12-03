@@ -3,7 +3,7 @@ from scrutiny.sdk.client import ScrutinyClient
 hostname = 'localhost'
 port = 1234
 client = ScrutinyClient()
-with client.connect(hostname, port, wait_status=True):    # Establish a websocket connection and wait for a first server status update
+with client.connect(hostname, port, wait_status=True):    # Establish a connection and wait for a first server status update
     client.wait_device_ready(timeout=5)
     
     # The following watch uses "aliases". For HIL testing, it is a good practice to keep 

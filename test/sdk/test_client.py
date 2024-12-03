@@ -510,7 +510,8 @@ class TestClient(ScrutinyUnitTest):
 
         port = cast(TCPClientHandler, self.api.client_handler).get_port()
         assert port is not None
-        self.client = ScrutinyClient(rx_message_callbacks=[self.log_rx_request], enabled_events=ScrutinyClient.Events.LISTEN_ALL)
+        self.client = ScrutinyClient(rx_message_callbacks=[self.log_rx_request])
+        self.client.listen_events(ScrutinyClient.Events.LISTEN_ALL, disabled_events=ScrutinyClient.Events.LISTEN_STATUS_UPDATE_CHANGED)
 
         try:
             self.client.connect(localhost, port)
@@ -2018,7 +2019,7 @@ class TestClient(ScrutinyUnitTest):
         self.assertEqual(len(watchables[sdk.WatchableType.Alias]), 2)
         self.assertEqual(len(watchables[sdk.WatchableType.RuntimePublishedValue]), 1)
 
-        # Make sure the server transmitted 1 watcahble definition per message. We use the client logs to validate
+        # Make sure the server transmitted 1 watchable definition per message. We use the client logs to validate
         nb_response_msg = 0
         for object in self.rx_rquest_log:
             if 'cmd' in object and object['cmd'] == API.Command.Api2Client.GET_WATCHABLE_LIST_RESPONSE:
@@ -2137,7 +2138,7 @@ class TestClient(ScrutinyUnitTest):
         self.assertFalse(self.client.has_event_pending())
 
 
-        self.client.listen_events(ScrutinyClient.Events.LISTEN_ALL)
+        self.client.listen_events(ScrutinyClient.Events.LISTEN_ALL, disabled_events=ScrutinyClient.Events.LISTEN_STATUS_UPDATE_CHANGED)
 
         self.device_handler.set_datalogger_state(device_datalogging.DataloggerState.ARMED, None)
         evt = self.client.read_event(timeout=EVENT_READ_TIMEOUT)

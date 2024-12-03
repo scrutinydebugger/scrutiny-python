@@ -1,5 +1,6 @@
 #    sfd_content_dialog.py
-#         A dialog to visualize the information inside a Scrutiny Firmware Description.
+#        Window that displays the metadata associated with a Scrutiny Firmware Description
+#        file
 #
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)

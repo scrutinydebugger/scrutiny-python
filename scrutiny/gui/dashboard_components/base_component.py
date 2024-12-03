@@ -14,16 +14,23 @@ from PySide6.QtWidgets import QWidget
 from PySide6.QtGui import QIcon
 from typing import Dict, cast, TYPE_CHECKING, Any
 
+from scrutiny.gui.core.server_manager import ServerManager
+
 if TYPE_CHECKING:   # Prevent circular dependency
     from scrutiny.gui.main_window import MainWindow
 
 class ScrutinyGUIBaseComponent(QWidget):
     instance_name:str
     main_window:"MainWindow"
+    server_manager:ServerManager
 
-    def __init__(self, main_window:"MainWindow", instance_name:str) -> None:
+    def __init__(self, main_window:"MainWindow", 
+                 instance_name:str,
+                 server_manager:ServerManager
+                 ) -> None:
         self.instance_name = instance_name
         self.main_window = main_window
+        self.server_manager = server_manager
         super().__init__()
 
     @classmethod
@@ -51,5 +58,5 @@ class ScrutinyGUIBaseComponent(QWidget):
         pass
 
     @abstractmethod
-    def load_state(self) -> Dict[Any, Any]:
+    def load_state(self, state:Dict[Any, Any]) -> None:
         pass

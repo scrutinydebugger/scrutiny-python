@@ -4,7 +4,7 @@ Server Control
 Establishing a connection
 -------------------------
 
-The communication with the server is done through a websocket. One can call :meth:`connect()<scrutiny.sdk.client.ScrutinyClient.connect>` 
+The communication with the server is done through a TCP socket. One can call :meth:`connect()<scrutiny.sdk.client.ScrutinyClient.connect>` 
 and :meth:`disconnect()<scrutiny.sdk.client.ScrutinyClient.disconnect>`.  It is also possible to use :meth:`connect()<scrutiny.sdk.client.ScrutinyClient.connect>`
 in a ``with`` block
 
@@ -32,13 +32,13 @@ Getting the server status
 -------------------------
 
 Upon establishing a connection with a client, and at regular intervals thereafter, the server broadcasts a status. 
-This status is a data structure that encapsulates all the pertinent information about what is happening at the other end of the websocket. 
+This status is a data structure that encapsulates all the pertinent information about what is happening at the other end of the TCP socet. 
 It includes:
 
 - The type of connection used by the device
-- Details about the device if one is connected
+- A unique session ID with the device (if connected).
 - The state of the datalogger within the device
-- The loaded :abbr:`SFD (Scrutiny Frimware Description)` and its metadata if any
+- The loaded :abbr:`SFD (Scrutiny Frimware Description)`.
 - etc.
 
 -----
@@ -187,6 +187,16 @@ Seger RTT
 
 
 .. autoclass:: scrutiny.sdk.RTTLinkConfig.JLinkInterface
+    :exclude-members: __new__, __init__
+    :members:
+    :member-order: bysource
+
+------
+
+None
+####
+
+.. autoclass:: scrutiny.sdk.RTTLinkConfig.NoneLinkConfig
     :exclude-members: __new__, __init__
     :members:
     :member-order: bysource

@@ -59,7 +59,7 @@ class ServerState(enum.Enum):
     Connecting = 1
     """Client is trying to connect, full TCP handshake is in progress"""
     Connected = 2
-    """Websocket is open and functional"""
+    """Socket is open and functional"""
     Error = -1
     """The communication closed after an error"""
 
@@ -182,13 +182,13 @@ class SupportedFeatureMap:
     """Indicates if the device has a callback set for the user command"""
 
     sixtyfour_bits: bool
-    """Indicates if the device supports 64bits element. 64bits RPV and datalogging of 64bits elements (variable or RPV) are not possible if False. 
+    """Indicates if the device supports 64bits element. 64bits RPV and datalogging of 64bits elements (variable or RPV) are not possible if ``False``. 
     Watching 64 bits variables does not depends on the device and is therefore always possible"""
 
 
 @dataclass(frozen=True)
 class DataloggingInfo:
-    """(Immutable struct) Information about the datalogger that are volatile"""
+    """(Immutable struct) Information about the datalogger that are volatile (change during the normal operation)"""
 
     state: DataloggerState
     """The state of the datalogger in the device"""
@@ -199,8 +199,11 @@ class DataloggingInfo:
 
 
 class DataloggingEncoding(enum.Enum):
-    """(Enum) Defines the data format used to store the samples in the datalogging buffer"""
+    """(Enum) Defines the data format used to store the samples in the datalogging buffer.
+    This structure is a provision for the future where new encoding methods may be implementated (supporting compression for example)
+    """
     RAW = 1
+    
 
 
 @dataclass(frozen=True, init=False)
@@ -211,7 +214,7 @@ class SamplingRate:
     """The unique identifier of the sampling rate. Matches the embedded device index in the loop array set in the configuration"""
 
     name: str
-    """Name for display"""
+    """Name for display only"""
 
 
 @dataclass(frozen=True)
@@ -247,7 +250,7 @@ class DataloggingCapabilities:
     """Size of the datalogging buffer"""
 
     max_nb_signal: int
-    """Maximum number of signal per acquisition (including time if measured)"""
+    """Maximum number of signals per acquisition (including time if measured)"""
 
     sampling_rates: List[SamplingRate]
     """List of available sampling rates"""
@@ -357,7 +360,9 @@ class BaseLinkConfig(abc.ABC):
 
 @dataclass(frozen=True)
 class NoneLinkConfig(BaseLinkConfig):
-    """(Immutable struct) An Empty object acting as configuration structure for a device link of type :attr:`NONE<scrutiny.sdk.DeviceLinkType.NONE>`"""
+    """(Immutable struct) An Empty object acting as configuration structure for a device link of type :attr:`NONE<scrutiny.sdk.DeviceLinkType.NONE>`
+    Exists only to differentiate ``None`` (data not available) from ``NoneLinkConfig`` (data available - no link configured)
+    """
     
     def _to_api_format(self) -> Dict[str, Any]:
         return {}

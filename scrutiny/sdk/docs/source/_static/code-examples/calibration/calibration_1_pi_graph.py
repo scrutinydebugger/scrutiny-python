@@ -36,7 +36,7 @@ def main() -> None:
     hostname = 'localhost'
     port = 1234
     client = ScrutinyClient()
-    with client.connect(hostname, port, wait_status=True):    # Establish a websocket connection and wait for a first server status update
+    with client.connect(hostname, port, wait_status=True):    # Establish a connection and wait for a first server status update
         client.wait_device_ready(timeout=5)
 
         controller = PIController(client, '/var/global/m_controller')

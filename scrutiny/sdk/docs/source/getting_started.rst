@@ -32,7 +32,7 @@ Using the Scrutiny Python :abbr:`SDK (Software Development Kit)` starts by creat
     hostname = 'localhost'
     port = 1234
     client = ScrutinyClient()
-    with client.connect(hostname, port, wait_status=True):    # Establish a websocket connection and wait for a first server status update
+    with client.connect(hostname, port, wait_status=True):    # Establish a connection and wait for a first server status update
         print("Connected to server")
         server_status = client.get_server_status()       # Status is dynamic and updated by a background thread. Get an immutable reference
         if server_status.device_comm_state == sdk.DeviceCommState.ConnectedReady:
