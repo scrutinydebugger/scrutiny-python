@@ -210,17 +210,22 @@ class VarListComponent(ScrutinyGUIBaseComponent):
 
         :param watchable_types: The list of watchable types to reload
         """
+
         # reload first level with max_level=0 as we do lazy loading
+        # Collapse root node to avoid lazy loading glitch that require to collapse/reexpand to load new data
         if WatchableType.RuntimePublishedValue in watchable_types:
             self._rpv_folder.removeRows(0, self._rpv_folder.rowCount())
+            self._tree.collapse(self._rpv_folder.index())
             self._tree_model.lazy_load(self._rpv_folder, WatchableType.RuntimePublishedValue, '/')
         
         if WatchableType.Alias in watchable_types:
             self._alias_folder.removeRows(0, self._alias_folder.rowCount())
+            self._tree.collapse(self._alias_folder.index())
             self._tree_model.lazy_load(self._alias_folder, WatchableType.Alias, '/')
         
         if WatchableType.Variable in watchable_types:
             self._var_folder.removeRows(0, self._var_folder.rowCount())
+            self._tree.collapse(self._var_folder.index())
             self._tree_model.lazy_load(self._var_folder, WatchableType.Variable, '/')
         
 
