@@ -75,12 +75,13 @@ class StatusBarLabel(QWidget):
         return self._indicator_label
 
     def __init__(self, 
+                 parent:QWidget,
                  text:str, 
                  label_kind:TextLabelKind,
                  use_indicator:bool,
                  color:"Optional[StatusBarLabel.Color]" = None
                  ) -> None:
-        super().__init__()
+        super().__init__(parent)
         self._label_kind = label_kind
         self._use_indicator = use_indicator
 
@@ -221,11 +222,11 @@ class StatusBar(QStatusBar):
         self._device_info = None
         self._loaded_sfd = None
 
-        self._server_status_label = StatusBarLabel("", use_indicator=True, label_kind=StatusBarLabel.TextLabelKind.TOOLBAR, color=StatusBarLabel.Color.RED)
-        self._device_comm_link_label = StatusBarLabel("", use_indicator=True, label_kind=StatusBarLabel.TextLabelKind.TOOLBAR, color=StatusBarLabel.Color.RED)
-        self._device_status_label = StatusBarLabel("", use_indicator=True, label_kind=StatusBarLabel.TextLabelKind.TOOLBAR, color=StatusBarLabel.Color.RED)
-        self._sfd_status_label = StatusBarLabel("", use_indicator=False, label_kind=StatusBarLabel.TextLabelKind.TOOLBAR)
-        self._datalogger_status_label = StatusBarLabel("", use_indicator=False, label_kind=StatusBarLabel.TextLabelKind.LABEL)
+        self._server_status_label = StatusBarLabel(self, "", use_indicator=True, label_kind=StatusBarLabel.TextLabelKind.TOOLBAR, color=StatusBarLabel.Color.RED)
+        self._device_comm_link_label = StatusBarLabel(self, "", use_indicator=True, label_kind=StatusBarLabel.TextLabelKind.TOOLBAR, color=StatusBarLabel.Color.RED)
+        self._device_status_label = StatusBarLabel(self, "", use_indicator=True, label_kind=StatusBarLabel.TextLabelKind.TOOLBAR, color=StatusBarLabel.Color.RED)
+        self._sfd_status_label = StatusBarLabel(self, "", use_indicator=False, label_kind=StatusBarLabel.TextLabelKind.TOOLBAR)
+        self._datalogger_status_label = StatusBarLabel(self, "", use_indicator=False, label_kind=StatusBarLabel.TextLabelKind.LABEL)
         self._logger = logging.getLogger(self.__class__.__name__)
         
         self._server_status_label_menu = QMenu()

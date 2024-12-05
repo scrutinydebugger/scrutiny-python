@@ -16,6 +16,7 @@ from scrutiny.gui.dashboard_components.watch.watch_component import WatchCompone
 from scrutiny.gui.core.watchable_registry import WatchableRegistry
 
 from test.gui.fake_server_manager import FakeServerManager, ServerConfig
+from typing import List
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -48,14 +49,17 @@ vlayout.addWidget(component_container)
 vlayout.addWidget(status_container)
 
 button_layout = QHBoxLayout(button_container)
-button_layout.addWidget(btn_start)
-button_layout.addWidget(btn_stop)
-button_layout.addWidget(btn_connect)
-button_layout.addWidget(btn_disconnect)
-button_layout.addWidget(btn_device_ready)
-button_layout.addWidget(btn_device_gone)
-button_layout.addWidget(btn_load_sfd)
-button_layout.addWidget(btn_unload_sfd)
+def add_per_group(widgets:List[QWidget]):
+    container = QWidget()
+    layout = QVBoxLayout(container)
+    for widget in widgets:
+        layout.addWidget(widget)
+    button_layout.addWidget(container)
+
+add_per_group([QLabel("Server Manager"), btn_start, btn_stop])
+add_per_group([QLabel("Server Connection"), btn_connect, btn_disconnect])
+add_per_group([QLabel("Device Connection"), btn_device_ready, btn_device_gone])
+add_per_group([QLabel("Firmware Description"), btn_load_sfd, btn_unload_sfd])
 
 component_layout = QHBoxLayout(component_container)
 

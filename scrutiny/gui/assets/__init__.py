@@ -57,3 +57,4 @@ class Icons:
     TreeVar = "var-16x16.png"
     TreeRpv = "rpv-16x16.png"
     TreeAlias = "alias-16x16.png"
+    RedX = "redx-16x16.png"

@@ -11,18 +11,19 @@ __all__ = [
     'WatchComponent'
 ]
 
-from PySide6.QtCore import QModelIndex, Qt, QModelIndex, Signal
-from PySide6.QtWidgets import QVBoxLayout, QWidget
-from PySide6.QtGui import QDragMoveEvent, QDropEvent, QDragEnterEvent, QKeyEvent
+from PySide6.QtCore import QModelIndex, Qt, QModelIndex, Signal, QPoint
+from PySide6.QtWidgets import QVBoxLayout, QWidget, QMenu
+from PySide6.QtGui import QContextMenuEvent, QDragMoveEvent, QDropEvent, QDragEnterEvent, QKeyEvent, QStandardItem, QAction
 
 from scrutiny.gui import assets
 from scrutiny.gui.dashboard_components.base_component import ScrutinyGUIBaseComponent
-from scrutiny.gui.dashboard_components.common.watchable_tree import WatchableTreeWidget, WatchableStandardItem
+from scrutiny.gui.dashboard_components.common.watchable_tree import WatchableTreeWidget, WatchableStandardItem, FolderStandardItem
 from scrutiny.gui.dashboard_components.watch.watch_tree_model import WatchComponentTreeModel
 
-from typing import Dict, Any, Union, cast
+from typing import Dict, Any, Union, cast, Optional, Tuple
 
 class WatchComponentTreeWidget(WatchableTreeWidget):
+    NEW_FOLDER_DEFAULT_NAME = "New Folder"
 
     def __init__(self, parent: QWidget, model:WatchComponentTreeModel) -> None:
         super().__init__(parent, model)
@@ -30,6 +31,39 @@ class WatchComponentTreeWidget(WatchableTreeWidget):
         self.setDropIndicatorShown(True)
         self.setDragDropMode(self.DragDropMode.DragDrop)
         self.set_header_labels(['', 'Value'])
+
+    def contextMenuEvent(self, event: QContextMenuEvent) -> None:
+        context_menu = QMenu(self)
+        selected_indexes_no_nested = self.model().remove_nested_indexes(self.selectedIndexes())
+        selected_items_no_nested = [self.model().itemFromIndex(index) for index in selected_indexes_no_nested if index.column()==0]
+
+        parent, insert_row = self._find_new_folder_position_from_position(event.pos())
+        
+        def new_folder_action_slot():
+            self._new_folder(self.NEW_FOLDER_DEFAULT_NAME, parent, insert_row)
+        
+        def remove_actionslot():
+            for item in selected_items_no_nested:
+                self.model().removeRow(item.row(), item.index().parent())
+        
+        new_folder_action = context_menu.addAction(assets.load_icon(assets.Icons.TreeFolder), "New Folder")
+        new_folder_action.triggered.connect(new_folder_action_slot)
+        
+        remove_action = context_menu.addAction(assets.load_icon(assets.Icons.RedX), "Remove")
+        remove_action.setEnabled( len(selected_items_no_nested) > 0 )
+        remove_action.triggered.connect(remove_actionslot)
+        
+        self.display_context_menu(context_menu, event.pos())
+        event.accept()
+        
+    def display_context_menu(self, menu:QMenu, pos:QPoint) -> None:
+        """Display a menu at given relative position, and make sure it goes below the cursor to mimic what most people are used to"""
+        actions = menu.actions()
+        at: Optional[QAction] = None
+        if len(actions) > 0:
+            pos += QPoint(0, menu.actionGeometry(actions[0]).height())
+            at = actions[0]
+        menu.popup(self.mapToGlobal(pos), at)
         
     def model(self) -> WatchComponentTreeModel:
         return cast(WatchComponentTreeModel, super().model())
@@ -45,10 +79,58 @@ class WatchComponentTreeWidget(WatchableTreeWidget):
                     if item.parent():
                         parent_index = item.parent().index()
                     model.removeRow(item.row(), parent_index)
+        elif event.key() == Qt.Key.Key_N and event.modifiers() == Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.ShiftModifier:
+            parent, insert_row = self._find_new_folder_position_from_selection()
+            self._new_folder(self.NEW_FOLDER_DEFAULT_NAME, parent, insert_row)
         else:
             super().keyPressEvent(event)
 
+    def _find_new_folder_position_from_selection(self) -> Tuple[Optional[QStandardItem], int]:
+        # USed by keyboard shortcut
+        model = self.model()
+        selected_list = [index for index in self.selectedIndexes() if index.column() == 0]
+        selected_index = QModelIndex()
+        insert_row = -1
+        parent:Optional[QStandardItem] = None
+        if len(selected_list) > 0:
+            selected_index = selected_list[0]
 
+        if selected_index.isValid():
+            selected_item = model.itemFromIndex(selected_index)
+            if isinstance(selected_item, WatchableStandardItem):
+                insert_row = selected_item.row()
+                parent = selected_item.parent()
+            elif isinstance(selected_item, FolderStandardItem):
+                insert_row = -1
+                parent = selected_item
+            else:
+                raise NotImplementedError(f"Unknown item type for {selected_item}")
+
+        return parent, insert_row
+
+    def _find_new_folder_position_from_position(self, position:QPoint) -> Tuple[Optional[QStandardItem], int]:
+        # Used by right-click
+        index = self.indexAt(position)
+        if not index.isValid():
+            return None, -1
+        model = self.model()
+        item = model.itemFromIndex(index)
+        assert item is not None
+
+        if isinstance(item, FolderStandardItem):
+            return item, -1
+        parent_index = index.parent()
+        if not parent_index.isValid():
+            return None, index.row()
+        return model.itemFromIndex(parent_index), index.row()
+
+    def _new_folder(self, name:str, parent:Optional[QStandardItem], insert_row:int) -> None:
+        model = self.model()
+        new_row = model.make_folder_row(name, fqn=None, editable=True)
+        model.add_row_to_parent(parent, insert_row, new_row)
+        if parent is not None:
+            self.expand(parent.index()) 
+        self.edit(new_row[0].index())
 
     def _set_drag_and_drop_action(self, event:Union[QDragEnterEvent, QDragMoveEvent, QDropEvent]) -> None:
         if event.source() is self:
