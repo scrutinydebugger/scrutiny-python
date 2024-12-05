@@ -39,10 +39,10 @@ class WatchComponentTreeWidget(WatchableTreeWidget):
 
         parent, insert_row = self._find_new_folder_position_from_position(event.pos())
         
-        def new_folder_action_slot():
+        def new_folder_action_slot() -> None:
             self._new_folder(self.NEW_FOLDER_DEFAULT_NAME, parent, insert_row)
         
-        def remove_actionslot():
+        def remove_actionslot() -> None:
             for item in selected_items_no_nested:
                 self.model().removeRow(item.row(), item.index().parent())
         
