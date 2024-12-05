@@ -84,6 +84,8 @@ class WatchComponentTreeWidget(WatchableTreeWidget):
             self._new_folder(self.NEW_FOLDER_DEFAULT_NAME, parent, insert_row)
         else:
             super().keyPressEvent(event)
+        
+    
 
     def _find_new_folder_position_from_selection(self) -> Tuple[Optional[QStandardItem], int]:
         # USed by keyboard shortcut

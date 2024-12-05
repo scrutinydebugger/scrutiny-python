@@ -13,7 +13,7 @@ import functools
 
 from PySide6.QtCore import QMimeData, QModelIndex, QPersistentModelIndex, Qt, QModelIndex
 from PySide6.QtWidgets import QWidget
-from PySide6.QtGui import QStandardItem
+from PySide6.QtGui import QStandardItem,QColor
 
 from scrutiny.gui.core.scrutiny_drag_data import ScrutinyDragData, WatchableListDescriptor
 from scrutiny.gui.core.watchable_registry import WatchableRegistry
@@ -28,6 +28,10 @@ from scrutiny.gui.dashboard_components.common.watchable_tree import (
 
 from typing import List, Union, Optional, cast, Sequence, TypedDict, Generator, Iterable
 
+from scrutiny.sdk.definitions import WatchableConfiguration
+
+class ValueStandardItem(QStandardItem):
+    pass
 class SerializableItemIndexDescriptor(TypedDict):
     """A serializable path to a QStandardItem in a QStandardItemModel. It's a series of row index separated by a /
     example : "2/1/3".
@@ -56,6 +60,9 @@ class WatchComponentTreeModel(WatchableTreeModel):
     
     def itemFromIndex(self, index:Union[QModelIndex, QPersistentModelIndex]) -> BaseWatchableRegistryTreeStandardItem:
         return cast(BaseWatchableRegistryTreeStandardItem, super().itemFromIndex(index))
+    
+    def get_watchable_columns(self, watchable_config: Optional[WatchableConfiguration] = None) -> List[QStandardItem]:
+        return [ValueStandardItem()]
 
     def _check_support_drag_data(self, drag_data:Optional[ScrutinyDragData], action:Qt.DropAction) -> bool:
         """Tells if a drop would be supported
@@ -353,7 +360,7 @@ class WatchComponentTreeModel(WatchableTreeModel):
             return False
         return True
     
-    def _handle_tree_drop(self,
+    def _handle_tree_drop(self, 
                         dest_parent_index: Union[QModelIndex, QPersistentModelIndex],
                         dest_row_index:int,
                         data:List[SerializableTreeDescriptor]) -> bool:
@@ -435,3 +442,21 @@ class WatchComponentTreeModel(WatchableTreeModel):
 
         self.add_multiple_rows_to_parent(dest_parent, dest_row_index, rows)
         return True
+
+    def set_unavailable(self, index:QModelIndex) -> None:
+        item = self.itemFromIndex(index)
+        for i in range(self.columnCount()):
+            item = self.itemFromIndex(index.siblingAtColumn(i))
+            if item is not None:
+                item.setBackground(QColor(235,235,235)) # Fixme : Handle better
+                if isinstance(item, ValueStandardItem):
+                    item.setEditable(False)
+    
+    def set_available(self, index:QModelIndex) -> None:
+        item = self.itemFromIndex(index)
+        for i in range(self.columnCount()):
+            item = self.itemFromIndex(index.siblingAtColumn(i))
+            if item is not None:
+                item.setBackground(QColor(255,255,255)) # Fixme : Handle better
+                if isinstance(item, ValueStandardItem):
+                    item.setEditable(True)
