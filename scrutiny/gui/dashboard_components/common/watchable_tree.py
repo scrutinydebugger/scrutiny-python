@@ -21,7 +21,7 @@ __all__ = [
 ]
 
 from scrutiny.sdk import WatchableType, WatchableConfiguration
-from PySide6.QtGui import  QFocusEvent, QStandardItem, QIcon, QKeyEvent, QStandardItemModel, QColor
+from PySide6.QtGui import  QFocusEvent, QMouseEvent, QStandardItem, QIcon, QKeyEvent, QStandardItemModel, QColor
 from PySide6.QtCore import Qt, QModelIndex, QPersistentModelIndex
 from PySide6.QtWidgets import QTreeView, QWidget
 from scrutiny.gui import assets
@@ -261,13 +261,13 @@ class WatchableTreeModel(QStandardItemModel):
         """
         row2 = list(row)    # Make a copy
         while len(row2) > 0 and row2[-1] is None:
-            row2 = row2[:-1]  # insert row doesn't like trailing None. Mystery
+            row2 = row2[:-1]  # insert row doesn't like trailing None, but sometime does. Mystery
 
         if parent is not None:
             if row_index != -1:
                 parent.insertRow(row_index, row2)
             else:
-                parent.appendRow(row)
+                parent.appendRow(row2)
         else:
             if row_index != -1:
                 self.insertRow(row_index, row2)
@@ -496,6 +496,15 @@ class WatchableTreeWidget(QTreeView):
         else:
             return super().keyReleaseEvent(event)
     
+    def mousePressEvent(self, event: QMouseEvent) -> None:
+        if event.button() == Qt.MouseButton.RightButton:
+            # This condition prevents to change the selection on a right click if it happens on an existing selection
+            # Makes it easier to right click a multi-selection (no need to hold shift or control)
+            index = self.indexAt(event.pos())
+            if index.isValid() and index in self.selectedIndexes():
+                return  # Don't change the selection
+        return super().mousePressEvent(event)
+
     def focusOutEvent(self, event: QFocusEvent) -> None:
         # Needs to do that, other wise holding ctrl/shift and cliking outside of the tree will not detect the key release
         self.setSelectionMode(self.SelectionMode.SingleSelection)

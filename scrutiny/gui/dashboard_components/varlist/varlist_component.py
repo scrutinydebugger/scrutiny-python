@@ -25,7 +25,6 @@ from scrutiny.gui.core.scrutiny_drag_data import ScrutinyDragData
 from scrutiny.gui.dashboard_components.base_component import ScrutinyGUIBaseComponent
 from scrutiny.gui.dashboard_components.common.watchable_tree import (
     BaseWatchableRegistryTreeStandardItem, 
-    WatchableStandardItem,
     WatchableTreeModel, 
     NodeSerializableData,
     WatchableTreeWidget

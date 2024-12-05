@@ -13,10 +13,10 @@ import functools
 
 from PySide6.QtCore import QMimeData, QModelIndex, QPersistentModelIndex, Qt, QModelIndex
 from PySide6.QtWidgets import QWidget
-from PySide6.QtGui import QStandardItem,QColor
+from PySide6.QtGui import QStandardItem,QPalette
 
 from scrutiny.gui.core.scrutiny_drag_data import ScrutinyDragData, WatchableListDescriptor
-from scrutiny.gui.core.watchable_registry import WatchableRegistry
+from scrutiny.gui.core.watchable_registry import WatchableRegistry, WatchableRegistryError
 from scrutiny.gui.dashboard_components.common.watchable_tree import (
     WatchableTreeModel, 
     NodeSerializableData, 
@@ -53,11 +53,27 @@ class WatchComponentTreeModel(WatchableTreeModel):
     """
     logger:logging.Logger
 
-    def __init__(self, parent: Optional[QWidget], watchable_registry: WatchableRegistry) -> None:
+    def __init__(self, 
+                 parent: Optional[QWidget], 
+                 watchable_registry: WatchableRegistry, 
+                 available_palette:Optional[QPalette]=None, 
+                 unavailable_palette:Optional[QPalette]=None) -> None:
         super().__init__(parent, watchable_registry)
-        self._dragged_item_list = None
         self.logger = logging.getLogger(self.__class__.__name__)
+        
+        if available_palette is not None:
+            self._available_palette =available_palette
+        else:
+            self._available_palette = QPalette()
+            self._available_palette.setCurrentColorGroup(QPalette.ColorGroup.Active)
+
+        if unavailable_palette is not None:
+            self._unavailable_palette =available_palette
+        else:
+            self._unavailable_palette = QPalette()
+            self._unavailable_palette.setCurrentColorGroup(QPalette.ColorGroup.Disabled)
     
+
     def itemFromIndex(self, index:Union[QModelIndex, QPersistentModelIndex]) -> BaseWatchableRegistryTreeStandardItem:
         return cast(BaseWatchableRegistryTreeStandardItem, super().itemFromIndex(index))
     
@@ -443,20 +459,54 @@ class WatchComponentTreeModel(WatchableTreeModel):
         self.add_multiple_rows_to_parent(dest_parent, dest_row_index, rows)
         return True
 
-    def set_unavailable(self, index:QModelIndex) -> None:
-        item = self.itemFromIndex(index)
+    
+    def get_all_watchable_items(self) -> Generator[WatchableStandardItem, None, None]:
+        def recurse(parent:QStandardItem) -> Generator[WatchableStandardItem, None, None]:
+            for i in range(parent.rowCount()):
+                child = parent.child(i, 0)
+                if isinstance(child, FolderStandardItem):
+                    yield from recurse(child)
+                elif isinstance(child, WatchableStandardItem):
+                    yield child
+                else:
+                    raise NotImplementedError(f"Unsupported item type: {child}")
+        
+        for i in range(self.rowCount()):
+            child = self.item(i, 0)
+            if isinstance(child, FolderStandardItem):
+                yield from recurse(child)
+            elif isinstance(child, WatchableStandardItem):
+                yield child
+            else:
+                raise NotImplementedError(f"Unsupported item type: {child}")
+            
+    def update_availability(self) -> None:
+        all_watchables = self.get_all_watchable_items()
+        for watchable in all_watchables:
+            if self._watchable_registry.is_watchable_fqn(watchable.fqn):
+                self.set_available(watchable)
+            else:
+                self.set_unavailable(watchable)
+        
+
+    def set_unavailable(self, item:WatchableStandardItem) -> None:
+        background_color = self._unavailable_palette.color(QPalette.ColorRole.Base)
+        forground_color = self._unavailable_palette.color(QPalette.ColorRole.Text)
         for i in range(self.columnCount()):
-            item = self.itemFromIndex(index.siblingAtColumn(i))
+            item = self.itemFromIndex(item.index().siblingAtColumn(i))
             if item is not None:
-                item.setBackground(QColor(235,235,235)) # Fixme : Handle better
+                item.setBackground(background_color)
+                item.setForeground(forground_color)
                 if isinstance(item, ValueStandardItem):
                     item.setEditable(False)
     
-    def set_available(self, index:QModelIndex) -> None:
-        item = self.itemFromIndex(index)
+    def set_available(self, item:WatchableStandardItem) -> None:
+        background_color = self._available_palette.color(QPalette.ColorRole.Base)
+        forground_color = self._available_palette.color(QPalette.ColorRole.Text)
         for i in range(self.columnCount()):
-            item = self.itemFromIndex(index.siblingAtColumn(i))
+            item = self.itemFromIndex(item.index().siblingAtColumn(i))
             if item is not None:
-                item.setBackground(QColor(255,255,255)) # Fixme : Handle better
+                item.setBackground(background_color)
+                item.setForeground(forground_color)
                 if isinstance(item, ValueStandardItem):
                     item.setEditable(True)

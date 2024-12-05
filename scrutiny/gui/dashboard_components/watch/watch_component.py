@@ -174,12 +174,16 @@ class WatchComponent(ScrutinyGUIBaseComponent):
 
         self._tree.expanded.connect(self.node_expanded_slot)
         self.expand_if_needed.connect(self._tree.expand_first_column_to_content, Qt.ConnectionType.QueuedConnection)
+        self.server_manager.signals.registry_changed.connect(self._tree_model.update_availability)
+
+        self._tree_model.update_availability()
     
     def node_expanded_slot(self) -> None:
         # Added at the end of the event loop because it is a queuedConnection
         # Expanding with star requires that
         self.expand_if_needed.emit()
     
+
         
     def teardown(self) -> None:
         pass

@@ -20,7 +20,7 @@ __all__ = [
 
 
 from scrutiny import sdk
-from typing import Dict, List, Union, Optional, Callable, Set, Any, Tuple
+from typing import Dict, List, Union, Optional, Callable, Set, Any
 import threading
 from dataclasses import dataclass
 import logging
@@ -379,6 +379,36 @@ class WatchableRegistry:
         """        
         parsed = self.parse_fqn(fqn)
         return self.read(parsed.watchable_type, parsed.path)
+    
+    def is_watchable_fqn(self, fqn:str) -> bool:
+        """Tells if the item referred to by the Fully Qualified Name exists and is a watchable.
+        
+        :param fqn: The fully qualified name created using ``make_fqn()``
+
+        :return: ``True`` if exists and is a watchable
+        """   
+        try:
+            node = self.read_fqn(fqn)
+            return isinstance(node, sdk.WatchableConfiguration)
+        except WatchableRegistryError:
+            return False
+        
+    def is_watchable_of_type_fqn(self, fqn:str, watchable_type:sdk.WatchableType) -> bool:
+        """Tells if the item referred to by the Fully Qualified Name exists and is a watchable of the given type.
+        
+        :param fqn: The fully qualified name created using ``make_fqn()``
+        :param watchable_type: The watchable type to check for
+
+        :return: ``True`` if exists and is a watchable of the given type
+        """   
+        try:
+            node = self.read_fqn(fqn)
+            if isinstance(node, sdk.WatchableConfiguration):
+                return node.watchable_type == watchable_type
+            else:
+                return False
+        except WatchableRegistryError:
+            return False
 
     def add_content(self, data:Dict[sdk.WatchableType, Dict[str, sdk.WatchableConfiguration]]) -> None:
         """Add content of the given types.
