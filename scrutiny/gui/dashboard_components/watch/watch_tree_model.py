@@ -52,6 +52,8 @@ class WatchComponentTreeModel(WatchableTreeModel):
     Mainly handles drag&drop logic
     """
     logger:logging.Logger
+    _available_palette:QPalette
+    _unavailable_palette:QPalette
 
     def __init__(self, 
                  parent: Optional[QWidget], 
@@ -62,13 +64,13 @@ class WatchComponentTreeModel(WatchableTreeModel):
         self.logger = logging.getLogger(self.__class__.__name__)
         
         if available_palette is not None:
-            self._available_palette =available_palette
+            self._available_palette = available_palette
         else:
             self._available_palette = QPalette()
             self._available_palette.setCurrentColorGroup(QPalette.ColorGroup.Active)
 
         if unavailable_palette is not None:
-            self._unavailable_palette =available_palette
+            self._unavailable_palette = unavailable_palette
         else:
             self._unavailable_palette = QPalette()
             self._unavailable_palette.setCurrentColorGroup(QPalette.ColorGroup.Disabled)
@@ -489,22 +491,22 @@ class WatchComponentTreeModel(WatchableTreeModel):
                 self.set_unavailable(watchable)
         
 
-    def set_unavailable(self, item:WatchableStandardItem) -> None:
+    def set_unavailable(self, arg_item:WatchableStandardItem) -> None:
         background_color = self._unavailable_palette.color(QPalette.ColorRole.Base)
         forground_color = self._unavailable_palette.color(QPalette.ColorRole.Text)
         for i in range(self.columnCount()):
-            item = self.itemFromIndex(item.index().siblingAtColumn(i))
+            item = self.itemFromIndex(arg_item.index().siblingAtColumn(i))
             if item is not None:
                 item.setBackground(background_color)
                 item.setForeground(forground_color)
                 if isinstance(item, ValueStandardItem):
                     item.setEditable(False)
     
-    def set_available(self, item:WatchableStandardItem) -> None:
+    def set_available(self, arg_item:WatchableStandardItem) -> None:
         background_color = self._available_palette.color(QPalette.ColorRole.Base)
         forground_color = self._available_palette.color(QPalette.ColorRole.Text)
         for i in range(self.columnCount()):
-            item = self.itemFromIndex(item.index().siblingAtColumn(i))
+            item = self.itemFromIndex(arg_item.index().siblingAtColumn(i))
             if item is not None:
                 item.setBackground(background_color)
                 item.setForeground(forground_color)
