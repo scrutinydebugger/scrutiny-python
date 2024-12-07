@@ -11,7 +11,7 @@ import logging
 import threading
 import traceback
 import types
-from typing import Union, List, Set, Iterable,Optional, Tuple, Type, Literal
+from typing import Union, List, Set, Iterable,Optional, Type, Literal
 
 from scrutiny.core.basic_types import EmbeddedDataType
 from scrutiny.sdk.watchable_handle import WatchableHandle, WatchableType
@@ -43,6 +43,8 @@ class BaseListener(abc.ABC):
     """Name of the listener for logging"""
     _subscriptions:Set[WatchableHandle]
     """List of watchable to listen for"""
+    _subscriptions_lock:threading.Lock
+    """A lock used to do subsequent operations on the subscription list"""
     _update_queue:Optional["queue.Queue[Optional[List[ValueUpdate]]]"]
     """Queue of updates moving from the client worker thread to the listener thread"""
     _logger:logging.Logger
@@ -87,6 +89,7 @@ class BaseListener(abc.ABC):
         
         self._name = name
         self._subscriptions = set()
+        self._subscriptions_lock = threading.Lock()
         self._update_queue = None
         self._logger = logging.getLogger(self._name)
         self._drop_count = 0
@@ -108,7 +111,9 @@ class BaseListener(abc.ABC):
         """
         if self._started:
             update_list:List[ValueUpdate] =[]
-            for watchable in watchables:
+            with self._subscriptions_lock:
+                subscribed_watchables = [w for w in watchables if w in self._subscriptions ]
+            for watchable in subscribed_watchables:
                 if watchable in self._subscriptions:
                     timestamp = watchable.last_update_timestamp
                     if timestamp is None:
@@ -186,6 +191,11 @@ class BaseListener(abc.ABC):
         self.stop()
         return False
 
+    def _assert_can_change_subscriptions(self) -> None:
+        """Raise an exception if it is not permitted to change the subscription list"""
+        if self._started and not self.allow_subcription_changes_while_running():
+            raise sdk_exceptions.NotAllowedError("Changing the number of watchable subscription is not allowed when the listener is started")
+
     def setup(self) -> None:
         """Overridable function called by the listener from its thread when starting, before monitoring"""
         pass
@@ -195,24 +205,52 @@ class BaseListener(abc.ABC):
         pass
     
     def subscribe(self, watchables:Union[WatchableHandle, Iterable[WatchableHandle]]) -> None:
-        """Add one or many new watchables to the list of monitored watchables. Can only be called before the listener
-        is started.
+        """Add one or many new watchables to the list of monitored watchables. 
         
         :param watchables: The list of watchables to add to the monitor list
 
         :raise TypeError: Given parameter not of the expected type
         :raise ValueError: Given parameter has an invalid value
-        :raise OperationFailure: Failed to complete the batch write
         """
-        if self._started:
-            raise sdk_exceptions.OperationFailure("Cannot subscribe a watchable once the listener is started")
+#        if self._started:
+#            raise sdk_exceptions.OperationFailure("Cannot subscribe a watchable once the listener is started")
         if isinstance(watchables, WatchableHandle):
             watchables = [watchables]
         validation.assert_is_iterable(watchables, 'watchables')
         for watchable in watchables:
             validation.assert_type(watchable, 'watchable', WatchableHandle)
-            self._subscriptions.add(watchable)
+        
+        with self._subscriptions_lock:
+            self._assert_can_change_subscriptions()
+            for watchable in watchables:
+                self._subscriptions.add(watchable)
     
+    def unsubscribe(self, watchables:Union[WatchableHandle, Iterable[WatchableHandle]]) -> None:
+        """Remove one or many watchables from the list of monitored watchables. 
+        
+        :param watchables: The list of watchables to remove from the monitor list
+
+        :raise TypeError: Given parameter not of the expected type
+        :raise ValueError: Given parameter has an invalid value
+        :raise KeyError: Given watchable was not monitored previously
+        """
+#        if self._started:
+#            raise sdk_exceptions.OperationFailure("Cannot subscribe a watchable once the listener is started")
+        if isinstance(watchables, WatchableHandle):
+            watchables = [watchables]
+        validation.assert_is_iterable(watchables, 'watchables')
+        for watchable in watchables:
+            validation.assert_type(watchable, 'watchable', WatchableHandle)
+        
+        with self._subscriptions_lock:
+            self._assert_can_change_subscriptions()
+            for watchable in watchables:
+                self._subscriptions.remove(watchable)
+
+    def unsubscribe_all(self) -> None:
+        """Removes all watchables from the monitored list. Does not stop the listener"""
+        self._assert_can_change_subscriptions()
+        self._subscriptions.clear()
 
     def start(self) -> "BaseListener":
         """Starts the listener thread. Once started, no more subscription can be added.
@@ -279,6 +317,32 @@ class BaseListener(abc.ABC):
     def get_subscriptions(self) -> Set[WatchableHandle]:
         """Returns a set with all the watchables that this listener is subscribed to"""
         return self._subscriptions.copy()
+
+    def prune_subscriptions(self) -> None:
+        """Release the references to any subscribed watchables that are not being watched anymore"""
+
+        with self._subscriptions_lock:
+            self._assert_can_change_subscriptions()
+            for handle in self._subscriptions.copy():
+                if handle._is_dead():
+                    try:
+                        self._subscriptions.remove(handle)
+                    except KeyError:
+                        pass
+
+    def allow_subcription_changes_while_running(self) -> bool:
+        """Indicate if it is allowed to change the subscription list after the listener is started.
+        This method can be overriden.
+        
+        The following methods affect the watchable subscription list
+         - :meth:`subscribe()<subscribe>`
+         - :meth:`unsubscribe()<unsubscribe>`
+         - :meth:`unsubscribe_all()<unsubscribe_all>`
+         - :meth:`prune_subscriptions()<prune_subscriptions>`
+        
+         :return: ``True`` if it is allowed to modify the subscriptions when running. ``False`` otherwise
+        """
+        return False
 
     @property
     def is_started(self) -> bool:

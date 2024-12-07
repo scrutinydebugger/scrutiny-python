@@ -158,6 +158,7 @@ class MainWindow(QMainWindow):
         dock_widget = QtAds.CDockWidget(component_class.get_name())
         dock_widget.setFeature(QtAds.CDockWidget.DockWidgetDeleteOnClose, True)
         dock_widget.setWidget(widget)
+        dock_widget.visibilityChanged.connect(widget.visibilityChanged) # Pass down the event
 
         try:
             self._logger.debug(f"Setuping component {widget.instance_name}")

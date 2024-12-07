@@ -30,6 +30,8 @@ class TextStreamListener(BaseListener):
         - <path> is the tree path used to identify the watchable at the server level    
         - <value> Value converted to text
 
+        Adding/removing subscriptions while running is allowed
+
         :param stream: The text stream to write to. Defaults to ``stdout``
         :param args: Passed to :class:`BaseListener<scrutiny.sdk.listeners.BaseListener>`
         :param kwargs: Passed to :class:`BaseListener<scrutiny.sdk.listeners.BaseListener>`
@@ -48,3 +50,6 @@ class TextStreamListener(BaseListener):
     
     def teardown(self) -> None:
         self._stream.flush()
+
+    def allow_subcription_changes_while_running(self) -> bool:
+        return True

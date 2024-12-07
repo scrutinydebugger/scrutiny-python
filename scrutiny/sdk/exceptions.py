@@ -39,6 +39,10 @@ class BadEnumError(ScrutinySDKException):
     """Raised when trying access an enum value that does not exists"""
     pass
 
+class NotAllowedError(ScrutinySDKException):
+    """Raise when an operation is not allowed by the SDK"""
+    pass
+
 
 class ApiError(ScrutinySDKException):
     """Base class for all error related to the API"""

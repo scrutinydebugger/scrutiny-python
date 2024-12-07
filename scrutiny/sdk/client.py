@@ -1111,7 +1111,6 @@ class ScrutinyClient:
                 self._logger.error(f"Received malformed JSON from the server. {e}")
                 self._logger.debug(traceback.format_exc())
                 
-
     def _make_request(self, command: str, data: Optional[Dict[str, Any]] = None) -> api_typing.C2SMessage:
         with self._main_lock:
             reqid = self._reqid
@@ -1257,6 +1256,29 @@ class ScrutinyClient:
         validation.assert_int_range(enabled_events, 'enabled_events', minval=0)
         self._enabled_events = enabled_events & (self.Events.LISTEN_ALL ^ disabled_events)
 
+    def try_get_existing_watch_handle(self, path:str) -> Optional[WatchableHandle]:
+        """Retrieve an existing watchable handle created after a call to :meth:`watch()<watch>` if it exists.
+        This methods makes no request to the server and is therefore non-blocking.
+
+        :param path: The path of the element being watched
+
+        :raise TypeError: Given parameter not of the expected type
+
+        :return: A handle that can read/write the watched element or ``None`` if the element is not being watched.
+        """
+
+        validation.assert_type(path, 'path', str)
+
+        cached_watchable: Optional[WatchableHandle] = None
+        with self._main_lock:
+            if path in self._watchable_path_to_id_map:
+                server_id = self._watchable_path_to_id_map[path]
+                if server_id in self._watchable_storage:
+                    cached_watchable = self._watchable_storage[path]
+
+        if cached_watchable is not None:
+            return cached_watchable
+
     def watch(self, path: str) -> WatchableHandle:
         """Starts watching a watchable element identified by its display path (tree-like path)
 
@@ -1269,14 +1291,8 @@ class ScrutinyClient:
         """
         validation.assert_type(path, 'path', str)
 
-        cached_watchable: Optional[WatchableHandle] = None
-        with self._main_lock:
-            if path in self._watchable_path_to_id_map:
-                server_id = self._watchable_path_to_id_map[path]
-                if server_id in self._watchable_storage:
-                    cached_watchable = self._watchable_storage[path]
-
-        if cached_watchable is not None:
+        cached_watchable = self.try_get_existing_watch_handle(path)
+        if cached_watchable:
             return cached_watchable
 
         watchable = WatchableHandle(self, path)

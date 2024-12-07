@@ -163,6 +163,7 @@ class ServerManager:
         self._internal_signals.client_request_completed.connect(self._client_request_completed)
         self._stop_pending = False
         self._client_request_store = ClientRequestStore()
+        self.registry.register_global_watch_callback(self._registry_watch_callback, self._registry_unwatch_callback)
 
         if self._logger.isEnabledFor(logging.DEBUG):    # pragma: no cover
             self._signals.server_connected.connect(lambda : self._logger.debug("+Signal: server_connected"))
@@ -238,7 +239,6 @@ class ServerManager:
         self._client.close_socket()   # Will cancel any pending request in the other thread
         self._logger.debug("Stop initiated")
 
-
     def _thread_func(self, config:ServerConfig) -> None:
         """Thread that monitors state change on the server side"""
         self._logger.debug("Server manager thread running")
@@ -304,7 +304,6 @@ class ServerManager:
                 except sdk.exceptions.ConnectionError:
                     pass
 
-
     def _thread_process_client_events(self) -> None:
         while True:
             event = self._client.read_event(timeout=0.2)
@@ -335,7 +334,6 @@ class ServerManager:
             else:
                 self._logger.error(f"Unsupported event type : {event.__class__.__name__}")    
 
-    
     def _thread_handle_download_watchable_logic(self) -> None:
         if self._thread_state.runtime_watchables_download_request is not None:
             if self._thread_state.runtime_watchables_download_request.completed:  
@@ -366,8 +364,6 @@ class ServerManager:
             else:
                 pass    # Downloading
 
-
- 
     def _thread_event_device_ready(self) -> None:
         """To be called once when a device connects"""
         self._logger.debug("Detected device ready")
@@ -419,7 +415,6 @@ class ServerManager:
         self._clear_registry_rpv()   # May trigger registry_changed signal
         self.signals.device_disconnected.emit()
 
-    
     def _download_data_partial_response_callback(self, 
         data:Dict[sdk.WatchableType, Dict[str, sdk.WatchableConfiguration]], 
         last_segment:bool) -> None:
@@ -453,6 +448,15 @@ class ServerManager:
         if had_data and not no_changed_event:
             self.signals.registry_changed.emit()
         return had_data
+
+    def _registry_watch_callback(self, watcher_id:str, display_path:str, watchable_config:sdk.WatchableConfiguration) -> None:
+        watcher_count = self._registry.watcher_count(watchable_config.watchable_type, display_path)
+        if watcher_count == 1:
+            pass
+
+    def _registry_unwatch_callback(self, watcher_id:str, display_path:str, watchable_config:sdk.WatchableConfiguration) -> None:
+        watcher_count = self._registry.watcher_count(watchable_config.watchable_type, display_path)
+
 
     def get_server_state(self) -> sdk.ServerState:
         return self._client.server_state

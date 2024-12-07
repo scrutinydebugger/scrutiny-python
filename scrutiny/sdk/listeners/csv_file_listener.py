@@ -73,6 +73,8 @@ class CSVFileListener(BaseListener):
                  csv_config:Optional[CSVConfig]=None,
                  *args:Any, **kwargs:Any):
         """Listener that writes the watchable values into a CSV file as they are received
+
+        Adding/removing subscriptions while running is **not** allowed since it affects the list of columns
         
         :param folder: Folder in which to save the CSV file
         :param filename: Name of the file to create
@@ -248,3 +250,6 @@ class CSVFileListener(BaseListener):
         self._csv_writer = None
         if self._actual_file_handle is not None:
             self._actual_file_handle.close()
+
+    def allow_subcription_changes_while_running(self) -> bool:
+        return False    # Do not allow becaus eit affect the list of columns

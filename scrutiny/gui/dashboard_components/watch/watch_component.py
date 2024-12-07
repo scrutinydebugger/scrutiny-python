@@ -16,9 +16,12 @@ from PySide6.QtWidgets import QVBoxLayout, QWidget, QMenu
 from PySide6.QtGui import QContextMenuEvent, QDragMoveEvent, QDropEvent, QDragEnterEvent, QKeyEvent, QStandardItem, QAction
 
 from scrutiny.gui import assets
+from scrutiny.gui.core.watchable_registry import WatchableRegistryError
 from scrutiny.gui.dashboard_components.base_component import ScrutinyGUIBaseComponent
 from scrutiny.gui.dashboard_components.common.watchable_tree import WatchableTreeWidget, WatchableStandardItem, FolderStandardItem
 from scrutiny.gui.dashboard_components.watch.watch_tree_model import WatchComponentTreeModel
+
+from scrutiny import sdk
 
 from typing import Dict, Any, Union, cast, Optional, Tuple
 
@@ -177,6 +180,14 @@ class WatchComponent(ScrutinyGUIBaseComponent):
         self.server_manager.signals.registry_changed.connect(self._tree_model.update_availability)
 
         self._tree_model.update_availability()
+        self._tree_model.rowsInserted.connect(self.row_inserted)
+        self._tree_model.rowsRemoved.connect(self.row_removed)
+    
+    def row_inserted(index:QModelIndex, a:int, b:int) -> None:
+        print(f"inserted: {index}, {a}, {b}")
+
+    def row_removed(index:QModelIndex, a:int, b:int) -> None:
+        print(f"removed: {index}, {a}, {b}")
     
     def node_expanded_slot(self) -> None:
         # Added at the end of the event loop because it is a queuedConnection
@@ -184,7 +195,35 @@ class WatchComponent(ScrutinyGUIBaseComponent):
         self.expand_if_needed.emit()
     
 
-        
+    def visibilityChanged(self, visible:bool) -> None:
+        for item in self._tree_model.get_all_watchable_items():
+            if visible:
+                self._watch_item(item)
+            else:
+                self._unwatch_item(item)
+    
+    
+    
+    def _watch_item(self, item:WatchableStandardItem):
+        watcher_id = self._make_watcher_id(item)
+        try:
+            self.server_manager.registry.watch_fqn(watcher_id, item.fqn, self.update_val_callback)
+        except WatchableRegistryError:
+            pass
+    
+    def _unwatch_item(self, item:WatchableStandardItem):
+        watcher_id = self._make_watcher_id(item)
+        try:
+            self.server_manager.registry.watch_fqn(watcher_id, item.fqn, self.update_val_callback)
+        except WatchableRegistryError:
+            pass
+    
+    def _make_watcher_id(self, item:WatchableStandardItem) -> str:
+        return str(id(item))    # TODO : use uuid? Attach data with Qt?
+    
+    def update_val_callback(self, watcher_id:str, config:sdk.WatchableConfiguration, val:float) -> None:
+        print(f"[{self.instance_name}] watcher_id={watcher_id} --> {val}")
+
     def teardown(self) -> None:
         pass
 

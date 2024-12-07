@@ -60,3 +60,6 @@ class ScrutinyGUIBaseComponent(QWidget):
     @abstractmethod
     def load_state(self, state:Dict[Any, Any]) -> None:
         pass
+    
+    def visibilityChanged(self, visible:bool) -> None:
+        pass

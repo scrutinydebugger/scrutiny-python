@@ -11,7 +11,8 @@ import unittest
 
 from scrutiny.core.basic_types import *
 import scrutiny.sdk
-sdk = scrutiny.sdk  # Workaround for vscode linter an submodule on alias
+import scrutiny.sdk.client
+sdk = scrutiny.sdk  # Workaround for vscode linter and submodule on alias
 from datetime import datetime
 
 from scrutiny.sdk.listeners import BaseListener, ValueUpdate
@@ -53,6 +54,13 @@ class WorkingTestListener(BaseListener):
     def receive(self, updates: List[ValueUpdate]) -> None:
         self.recv_time=time.perf_counter()
         self.recv_list.extend(updates)
+    
+    def allow_subcription_changes_while_running(self) -> bool:
+        return False
+    
+class WorkingTestListenerAllowSubscriptionChange(WorkingTestListener):
+    def allow_subcription_changes_while_running(self) -> bool:
+        return True
 
 class SetupFailedListener(BaseListener):
     def __init__(self, *args, **kwargs):
@@ -196,6 +204,51 @@ class TestListeners(ScrutinyUnitTest):
 
         self.assertFalse(listener.error_occured)
 
+    def test_listener_subscription_change(self):
+        listener = WorkingTestListener()
+        listener.subscribe([self.w1,self.w2,self.w4])  # w3 is not there on purpose
+
+        with listener.start():
+            self.assertTrue(listener.is_started)
+            
+            with self.assertRaises(sdk.exceptions.NotAllowedError):
+                listener.subscribe(self.w3)
+            with self.assertRaises(sdk.exceptions.NotAllowedError):
+                listener.unsubscribe(self.w4)
+            with self.assertRaises(sdk.exceptions.NotAllowedError):
+                listener.unsubscribe_all()
+            with self.assertRaises(sdk.exceptions.NotAllowedError):
+                listener.prune_subscriptions()
+            
+            self.assertEqual(len(listener.get_subscriptions()), 3)
+        
+        self.w2._set_invalid(scrutiny.sdk.client.ValueStatus.NotWatched)    # Simulate unwatch
+        listener.subscribe(self.w3)
+        listener.unsubscribe(self.w4)
+        listener.prune_subscriptions()  # w2 gets removed
+        subscriptions = listener.get_subscriptions()
+        self.assertEqual(len(subscriptions), 2)
+        self.assertIn(self.w1, subscriptions)
+        self.assertIn(self.w3, subscriptions)
+        listener.unsubscribe_all()
+        self.assertEqual(len(listener.get_subscriptions()), 0)
+
+        # redo the test with a listener that allows it
+        listener = WorkingTestListenerAllowSubscriptionChange()
+        listener.subscribe([self.w1,self.w5,self.w4])  # w3 is not there on purpose
+
+        with listener.start():
+            self.w5._set_invalid(scrutiny.sdk.client.ValueStatus.NotWatched)    # Simulate unwatch
+            listener.subscribe(self.w3)
+            listener.unsubscribe(self.w4)
+            listener.prune_subscriptions()  # w5 gets removed
+            subscriptions = listener.get_subscriptions()
+           
+            self.assertEqual(len(subscriptions), 2)
+            self.assertIn(self.w1, subscriptions)
+            self.assertIn(self.w3, subscriptions)
+            listener.unsubscribe_all()
+            self.assertEqual(len(listener.get_subscriptions()), 0)
 
     def test_listener_failing_setup(self):
         listener = SetupFailedListener()
@@ -235,7 +288,6 @@ class TestListeners(ScrutinyUnitTest):
         self.assertFalse(listener.is_started)
         self.assertTrue(listener.error_occured)
      
-    
     def test_queue_overflow_dropped(self):
         listener = WorkingTestListener(queue_max_size=1)
         listener.subscribe([self.w1])
@@ -253,7 +305,6 @@ class TestListeners(ScrutinyUnitTest):
         self.assertLess(listener.update_count, count)
         self.assertGreater(listener.drop_count, 0)
         self.assertEqual(listener.update_count + listener.drop_count, count)
-
 
     def test_text_stream_listener(self):
         stream = StringIO()
@@ -317,6 +368,8 @@ class TestListeners(ScrutinyUnitTest):
             listener.subscribe([self.w1,self.w2, self.w3, self.w4, self.w5])
             
             with listener.start():
+                with self.assertRaises(sdk.exceptions.NotAllowedError):
+                    listener.unsubscribe(self.w1)   # Not allowed in this lsitener. Column count is fixed
                 count = 10
                 for i in range(count):
                     self.w1._update_value(i*1.1)
@@ -388,7 +441,6 @@ class TestListeners(ScrutinyUnitTest):
                                 self.assertEqual(row[col], i*4.4123)
                         elif headers[col] == self.w5.display_path:
                             self.assertEqual(row[col], 1 if i%2==0 else 0)
-
 
     def test_csv_writer_listener_file_split(self):
         with TemporaryDirectory() as tempdir:

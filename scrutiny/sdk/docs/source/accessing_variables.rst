@@ -44,7 +44,14 @@ and won't necessitate user input for selection.
 Once an element is being watched, the server starts polling for the value of that element. 
 Each time the value is updated, the server broadcast a value update to all subscribers, in this case, our client. 
 Concurrently, a background thread is actively listening listen for these updates and accordingly 
-modifies the value that the :class:`WatchableHandle<scrutiny.sdk.watchable_handle.WatchableHandle>` refers to
+modifies the value that the :class:`WatchableHandle<scrutiny.sdk.watchable_handle.WatchableHandle>` refers to.
+
+Calling :meth:`watch<scrutiny.sdk.client.ScrutinyClient.watch>` multiple time on the same element will always return the same handle.
+It is possible to query wether a handle already exists for a given element with 
+:meth:`try_get_existing_watch_handle<scrutiny.sdk.client.ScrutinyClient.try_get_existing_watch_handle>`. A handle will exist if a previous call to 
+:meth:`watch<scrutiny.sdk.client.ScrutinyClient.watch>` has been done.
+
+.. automethod:: scrutiny.sdk.client.ScrutinyClient.try_get_existing_watch_handle
 
 -----
 

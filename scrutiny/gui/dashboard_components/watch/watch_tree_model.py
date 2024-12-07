@@ -463,6 +463,7 @@ class WatchComponentTreeModel(WatchableTreeModel):
 
     
     def get_all_watchable_items(self) -> Generator[WatchableStandardItem, None, None]:
+        """Return every elements in the tree that points to a watchable item in the registry"""
         def recurse(parent:QStandardItem) -> Generator[WatchableStandardItem, None, None]:
             for i in range(parent.rowCount()):
                 child = parent.child(i, 0)
@@ -483,6 +484,9 @@ class WatchComponentTreeModel(WatchableTreeModel):
                 raise NotImplementedError(f"Unsupported item type: {child}")
             
     def update_availability(self) -> None:
+        """Change the availability of each intems in the widget. 
+        When the watchable refered by an element is not in the registry, becomes "unavailable" (grayed out).
+        """
         all_watchables = self.get_all_watchable_items()
         for watchable in all_watchables:
             if self._watchable_registry.is_watchable_fqn(watchable.fqn):
@@ -492,6 +496,7 @@ class WatchComponentTreeModel(WatchableTreeModel):
         
 
     def set_unavailable(self, arg_item:WatchableStandardItem) -> None:
+        """Make an item in the tree unavailable (grayed out)"""
         background_color = self._unavailable_palette.color(QPalette.ColorRole.Base)
         forground_color = self._unavailable_palette.color(QPalette.ColorRole.Text)
         for i in range(self.columnCount()):
@@ -503,6 +508,7 @@ class WatchComponentTreeModel(WatchableTreeModel):
                     item.setEditable(False)
     
     def set_available(self, arg_item:WatchableStandardItem) -> None:
+        """Make an item in the tree available (normal color)"""
         background_color = self._available_palette.color(QPalette.ColorRole.Base)
         forground_color = self._available_palette.color(QPalette.ColorRole.Text)
         for i in range(self.columnCount()):

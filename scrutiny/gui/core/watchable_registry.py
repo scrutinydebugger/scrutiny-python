@@ -20,6 +20,7 @@ __all__ = [
 
 
 from scrutiny import sdk
+from scrutiny.sdk.listeners import ValueUpdate
 from typing import Dict, List, Union, Optional, Callable, Set, Any
 import threading
 from dataclasses import dataclass
@@ -44,8 +45,8 @@ TYPESTR_MAP_S2WT = {
 
 TYPESTR_MAP_WT2S: Dict[sdk.WatchableType, str] = {v: k for k, v in TYPESTR_MAP_S2WT.items()}
 
-WatchableValue = Union[int, float, bool]
-WatcherValueUpdateCallback = Callable[[str, sdk.WatchableConfiguration, WatchableValue], None]
+
+WatcherValueUpdateCallback = Callable[[str, sdk.WatchableConfiguration, ValueUpdate ], None]
 GlobalWatchCallback = Callable[[str, str, sdk.WatchableConfiguration], None]
 GlobalUnwatchCallback = Callable[[str, str, sdk.WatchableConfiguration], None]
 
@@ -53,7 +54,7 @@ GlobalUnwatchCallback = Callable[[str, str, sdk.WatchableConfiguration], None]
 class WatchableRegistryEntryNode:
     """Leaf node in the tree. This object is internal and never given to the user."""
     configuration:sdk.WatchableConfiguration
-    value:Optional[WatchableValue]
+    value:Optional[ValueUpdate]
     watchers:Dict[str, WatcherValueUpdateCallback]
     display_path:str
 
@@ -84,12 +85,12 @@ class WatchableRegistryEntryNode:
     def has_callback_registered(self, watcher_id:str) -> bool:
         return watcher_id in self.watchers
 
-    def update_value(self, value:WatchableValue) -> None:
+    def update_value(self, value:ValueUpdate) -> None:
         self.value = value
         for watcher_id, callback in self.watchers.items():
             callback(watcher_id, self.configuration, value)
 
-    def get_value(self) -> Optional[WatchableValue]:
+    def get_value(self) -> Optional[ValueUpdate]:
         return self.value
 
 @dataclass(frozen=True)
@@ -180,7 +181,7 @@ class WatchableRegistry:
         """Tells if the tree attached to a given watchable type contains data"""
         return len(self._trees[watchable_type]) > 0
 
-    def update_value_fqn(self, fqn:str, value:WatchableValue) -> None:
+    def update_value_fqn(self, fqn:str, value:ValueUpdate) -> None:
         """Update the watchable value and inform all watchers
         
         :param fqn: The watchable fully qualified name
@@ -189,7 +190,7 @@ class WatchableRegistry:
         parsed = self.parse_fqn(fqn)
         self.update_value(parsed.watchable_type, parsed.path, value)
 
-    def update_watched_entry_value_by_server_id(self, server_id:str, value:WatchableValue) -> None:
+    def update_watched_entry_value_by_server_id(self, server_id:str, value:ValueUpdate) -> None:
         """Update the watchable value and inform all watchers only if part of the watched entries
         
         :param server_id: The server ID received by the server
@@ -203,7 +204,7 @@ class WatchableRegistry:
         
         entry.update_value(value)
 
-    def update_value(self, watchable_type:sdk.WatchableType, path:str, value:WatchableValue) -> None:
+    def update_value(self, watchable_type:sdk.WatchableType, path:str, value:ValueUpdate) -> None:
         """Update the watchable value and inform all watchers
         
         :param watchable_type: The watchable type
@@ -235,6 +236,8 @@ class WatchableRegistry:
         :param path: The watchable tree path
         :param callback: The callback
         """
+        if self._logger.isEnabledFor(logging.DEBUG):    # pragma: no cover
+            self._logger.debug(f"Watcher {watcher_id} now watches {path} ({watchable_type.name})")
         node = self._get_node_with_lock(watchable_type, path)
         if not isinstance(node, WatchableRegistryEntryNode):
             raise WatchableRegistryError("Cannot watch something that is not a Watchable")
@@ -254,6 +257,8 @@ class WatchableRegistry:
         :param watchable_type: The watchable type
         :param path: The watchable tree path
         """
+        if self._logger.isEnabledFor(logging.DEBUG):    # pragma: no cover
+            self._logger.debug(f"Watcher {watcher_id} stopped watching {path} ({watchable_type.name})")
         node = self._get_node_with_lock(watchable_type, path)
         if not isinstance(node, WatchableRegistryEntryNode):
             raise WatchableRegistryError("Cannot unwatch something that is not a Watchable")
@@ -317,7 +322,7 @@ class WatchableRegistry:
         """Return the total number of watchable being watched"""
         return len(self._watched_entries)
     
-    def get_value_fqn(self, fqn:str) -> Optional[WatchableValue]:
+    def get_value_fqn(self, fqn:str) -> Optional[ValueUpdate]:
         """Reads the last value written to this watchable
         
         :param fqn: The watchable fully qualified name
@@ -326,7 +331,7 @@ class WatchableRegistry:
         parsed = self.parse_fqn(fqn)
         return self.get_value(parsed.watchable_type, parsed.path)
 
-    def get_value(self, watchable_type:sdk.WatchableType, path:str) -> Optional[WatchableValue]:
+    def get_value(self, watchable_type:sdk.WatchableType, path:str) -> Optional[ValueUpdate]:
         """Reads the last value written to this watchable
         
         :param watchable_type: The watchable type

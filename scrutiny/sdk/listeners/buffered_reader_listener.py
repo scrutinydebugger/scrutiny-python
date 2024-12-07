@@ -21,6 +21,8 @@ class BufferedReaderListener(BaseListener):
         """Creates a listener that makes a copy of every received :class:`ValueUpdate<scrutiny.sdk.listeners.ValueUpdate>` 
         object and push them into a queue, waiting for the user to read them.
 
+        Adding/removing subscriptions while running is allowed
+
         :param args: Passed to :class:`BaseListener<scrutiny.sdk.listeners.BaseListener>`
         :param kwargs: Passed to :class:`BaseListener<scrutiny.sdk.listeners.BaseListener>`
         """
@@ -34,3 +36,6 @@ class BufferedReaderListener(BaseListener):
     def get_queue(self) -> "SimpleQueue[ValueUpdate]":
         """Returns the queue used for storage"""
         return self._queue
+    
+    def allow_subcription_changes_while_running(self) -> bool:
+        return True
