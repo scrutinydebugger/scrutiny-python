@@ -16,6 +16,7 @@ from typing import Union, List, Set, Iterable,Optional, Type, Literal
 from scrutiny.core.basic_types import EmbeddedDataType
 from scrutiny.sdk.watchable_handle import WatchableHandle, WatchableType
 from scrutiny.core import validation
+from scrutiny.core.logging import DUMP_DATA_LOGLEVEL
 from scrutiny.sdk import exceptions as sdk_exceptions
 
 @dataclass(frozen=True)
@@ -128,8 +129,8 @@ class BaseListener(abc.ABC):
                     update_list.append(update)
             
             if len(update_list) > 0 and self._update_queue is not None:
-                if self._logger.isEnabledFor(logging.DEBUG):    # pragma: no cover
-                    self._logger.debug(f"Received {len(update_list)} updates")
+                if self._logger.isEnabledFor(DUMP_DATA_LOGLEVEL):    # pragma: no cover
+                    self._logger.log(DUMP_DATA_LOGLEVEL, f"Received {len(update_list)} updates")
                 try:
                     self._update_queue.put(update_list, block=False)
                 except queue.Full:
@@ -269,7 +270,7 @@ class BaseListener(abc.ABC):
         self._update_count=0
         self._update_queue = queue.Queue(self._queue_max_size)
         self._thread = threading.Thread(target=self._thread_task, daemon=True)
-        self._thread.start()
+        self._thread.start()    
 
         self._started_event.wait(2)
         if not self._started_event.is_set():

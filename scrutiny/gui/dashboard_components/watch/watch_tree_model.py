@@ -462,7 +462,7 @@ class WatchComponentTreeModel(WatchableTreeModel):
         return True
 
     
-    def get_all_watchable_items(self) -> Generator[WatchableStandardItem, None, None]:
+    def get_all_watchable_items(self, parent:Optional[BaseWatchableRegistryTreeStandardItem]=None) -> Generator[WatchableStandardItem, None, None]:
         """Return every elements in the tree that points to a watchable item in the registry"""
         def recurse(parent:QStandardItem) -> Generator[WatchableStandardItem, None, None]:
             for i in range(parent.rowCount()):
@@ -474,25 +474,26 @@ class WatchComponentTreeModel(WatchableTreeModel):
                 else:
                     raise NotImplementedError(f"Unsupported item type: {child}")
         
-        for i in range(self.rowCount()):
-            child = self.item(i, 0)
-            if isinstance(child, FolderStandardItem):
-                yield from recurse(child)
-            elif isinstance(child, WatchableStandardItem):
-                yield child
-            else:
-                raise NotImplementedError(f"Unsupported item type: {child}")
+        if parent is None:
+            for i in range(self.rowCount()):
+                child = self.item(i, 0)
+                if isinstance(child, FolderStandardItem):
+                    yield from recurse(child)
+                elif isinstance(child, WatchableStandardItem):
+                    yield child
+                else:
+                    raise NotImplementedError(f"Unsupported item type: {child}")
+        else:
+            recurse(parent)
             
-    def update_availability(self) -> None:
-        """Change the availability of each intems in the widget. 
+    def update_availability(self, watchable:WatchableStandardItem) -> None:
+        """Change the availability of an item based on its availibility in the registry. 
         When the watchable refered by an element is not in the registry, becomes "unavailable" (grayed out).
         """
-        all_watchables = self.get_all_watchable_items()
-        for watchable in all_watchables:
-            if self._watchable_registry.is_watchable_fqn(watchable.fqn):
-                self.set_available(watchable)
-            else:
-                self.set_unavailable(watchable)
+        if self._watchable_registry.is_watchable_fqn(watchable.fqn):
+            self.set_available(watchable)
+        else:
+            self.set_unavailable(watchable)
         
 
     def set_unavailable(self, arg_item:WatchableStandardItem) -> None:

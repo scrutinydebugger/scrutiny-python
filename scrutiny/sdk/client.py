@@ -28,6 +28,7 @@ from scrutiny.tools.stream_datagrams import StreamMaker, StreamParser
 import selectors
 
 import logging
+from scrutiny.core.logging import DUMP_DATA_LOGLEVEL
 import traceback
 import threading
 import socket
@@ -589,7 +590,8 @@ class ScrutinyClient:
                 self._logger.error(f"Got watchable update for unknown watchable {update.server_id}")
                 continue
             else:
-                self._logger.debug(f"Updating value of {update.server_id} ({watchable.name})")
+                if self._logger.isEnabledFor(DUMP_DATA_LOGLEVEL):   # prgama: no cover
+                    self._logger.log(DUMP_DATA_LOGLEVEL, f"Updating value of {update.server_id} ({watchable.name})")
 
             watchable._update_value(update.value)
             updated_watchables.append(watchable)
@@ -1102,8 +1104,8 @@ class ScrutinyClient:
         if not self._stream_parser.queue().empty():
             try:
                 data_str = self._stream_parser.queue().get().decode(self._encoding)
-                if self._logger.isEnabledFor(logging.DEBUG):    # pragma: no cover
-                    self._logger.debug(f"Received: {data_str}")
+                if self._logger.isEnabledFor(DUMP_DATA_LOGLEVEL):    # pragma: no cover
+                    self._logger.log(DUMP_DATA_LOGLEVEL, f"Received: {data_str}")
                 obj = json.loads(data_str)
                 if obj is not None:
                     yield obj
@@ -1274,10 +1276,10 @@ class ScrutinyClient:
             if path in self._watchable_path_to_id_map:
                 server_id = self._watchable_path_to_id_map[path]
                 if server_id in self._watchable_storage:
-                    cached_watchable = self._watchable_storage[path]
+                    cached_watchable = self._watchable_storage[server_id]
 
-        if cached_watchable is not None:
-            return cached_watchable
+        return cached_watchable
+        
 
     def watch(self, path: str) -> WatchableHandle:
         """Starts watching a watchable element identified by its display path (tree-like path)

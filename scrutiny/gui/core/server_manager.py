@@ -7,25 +7,49 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
-__all__ = ['ServerManager', 'ServerConfig']
+__all__ = ['ServerManager', 'ServerConfig', 'ValueUpdate']
 
 from scrutiny import sdk
 from scrutiny.sdk.client import ScrutinyClient, WatchableListDownloadRequest
 import threading
 import time
 import traceback
+import logging
+from queue import SimpleQueue
 from dataclasses import dataclass
 
 from PySide6.QtCore import Signal, QObject
-from typing import Optional, Dict, Any, Callable
-import logging
+from typing import Optional, Dict, Any, Callable, List
 
 from scrutiny.gui.core.watchable_registry import WatchableRegistry
+from scrutiny.sdk.listeners import BaseListener, ValueUpdate 
+from scrutiny.sdk.watchable_handle import WatchableHandle
 
 @dataclass
 class ServerConfig:
     hostname:str
     port:int
+
+class QtBufferedListener(BaseListener):
+
+    class _Signals(QObject):
+        data_received = Signal()
+    
+    queue:"SimpleQueue[ValueUpdate]"
+    signals:_Signals
+
+    def __init__(self, *args:Any, **kwargs:Any):
+        BaseListener.__init__(self, *args, **kwargs)
+        self.queue = SimpleQueue()
+        self.signals = self._Signals()
+
+    def receive(self, updates: List[ValueUpdate]) -> None:
+        for update in updates:
+            self.queue.put(update)
+        self.signals.data_received.emit()
+
+    def allow_subcription_changes_while_running(self) -> bool:
+        return True
 
 class ClientRequestStore:
     @dataclass
@@ -139,6 +163,7 @@ class ServerManager:
 
     _stop_pending:bool
     _client_request_store:ClientRequestStore
+    _listener : QtBufferedListener
 
     def __init__(self, watchable_registry:WatchableRegistry, client:Optional[ScrutinyClient]=None) -> None:
         super().__init__()  # Required for signals to work
@@ -164,6 +189,10 @@ class ServerManager:
         self._stop_pending = False
         self._client_request_store = ClientRequestStore()
         self.registry.register_global_watch_callback(self._registry_watch_callback, self._registry_unwatch_callback)
+
+        self._listener = QtBufferedListener()
+        self._client.register_listener(self._listener)
+        self._listener.signals.data_received.connect(self._value_update_received)
 
         if self._logger.isEnabledFor(logging.DEBUG):    # pragma: no cover
             self._signals.server_connected.connect(lambda : self._logger.debug("+Signal: server_connected"))
@@ -233,7 +262,7 @@ class ServerManager:
         self._logger.debug("Stopping server manager")
         self._stop_pending = True
         self.signals.stopping.emit()
-        
+
         # Will cause the thread to exit and emit thread_exit_signal that triggers _join_thread_and_emit_stopped in the UI thread
         self._thread_stop_event.set()
         self._client.close_socket()   # Will cancel any pending request in the other thread
@@ -247,6 +276,7 @@ class ServerManager:
         self._thread_clear_client_events()
 
         try:
+            self._listener.start()
             while not self._thread_stop_event.is_set():
                 if self._client.server_state == sdk.ServerState.Disconnected:
                     self._thread_handle_reconnect(config)
@@ -276,6 +306,8 @@ class ServerManager:
             self._thread_clear_client_events()
 
         self._thread_state.clear()
+        self._listener.stop()
+        self._listener.unsubscribe_all()
         
         # Ensure the server thread has the time to notice the changes and emit all signals
         t = time.perf_counter()
@@ -450,13 +482,44 @@ class ServerManager:
         return had_data
 
     def _registry_watch_callback(self, watcher_id:str, display_path:str, watchable_config:sdk.WatchableConfiguration) -> None:
+        """Called when a gui component register a watcher on the registry"""
         watcher_count = self._registry.watcher_count(watchable_config.watchable_type, display_path)
         if watcher_count == 1:
-            pass
+            def func(client:ScrutinyClient) -> WatchableHandle:
+                # Runs in a separate thread. 
+                return client.watch(display_path)   # Blocks until a response is received
+
+            def finish_callback(handle:Optional[WatchableHandle], exception:Optional[Exception]) -> None:
+                # Runs in the GUI thread
+                if handle is not None and self._listener.is_started:
+                    self._listener.subscribe(handle)
+                if exception:
+                    self._logger.warning(str(exception))
+                    self._logger.debug(traceback.format_exc())
+            self.schedule_client_request(func, finish_callback)
 
     def _registry_unwatch_callback(self, watcher_id:str, display_path:str, watchable_config:sdk.WatchableConfiguration) -> None:
+        """Called when a gui component unregister a watcher on the registry"""
+        # This runs from the GUI thread
         watcher_count = self._registry.watcher_count(watchable_config.watchable_type, display_path)
+        if watcher_count == 0:
+            handle = self._client.try_get_existing_watch_handle(display_path)
+            if handle is not None:
+                def func(client:ScrutinyClient) -> None:
+                    # Runs in a separate thread.
+                    handle.unwatch()    # Blocks until a response is received
 
+                def finish_callback(result:None, exception:Optional[Exception]) -> None:
+                    # Runs in the GUI thread
+                    pass
+                self.schedule_client_request(func, finish_callback)
+
+    def _value_update_received(self) -> None:
+        # Called in the GUI thread when a value update is received by the lsitener (the client)
+        while not self._listener.queue.empty():
+            update = self._listener.queue.get_nowait()
+            # Broadcast to every GUI components that are watching
+            self._registry.update_value(update.watchable_type, update.display_path, update) 
 
     def get_server_state(self) -> sdk.ServerState:
         return self._client.server_state
