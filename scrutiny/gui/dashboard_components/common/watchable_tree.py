@@ -521,3 +521,18 @@ class WatchableTreeWidget(QTreeView):
             if item is not None:
                 item.setBackground(color)
         
+
+    def is_visible(self, item:BaseWatchableRegistryTreeStandardItem) -> bool:
+        """Tells if a node is visible, i.e. all parents are expanded.
+        
+        :item: The node to check
+        :return: ``True`` if visible. ``False`` otherwise
+        """
+
+        visible = True
+        parent = item.parent()
+        while parent is not None:
+            if isinstance(parent, FolderStandardItem) and not self.isExpanded(parent.index()):
+                visible = False
+            parent = parent.parent()
+        return visible

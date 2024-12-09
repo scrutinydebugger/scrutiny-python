@@ -30,8 +30,11 @@ from typing import List, Union, Optional, cast, Sequence, TypedDict, Generator, 
 
 from scrutiny.sdk.definitions import WatchableConfiguration
 
+AVAILABLE_DATA_ROLE = Qt.ItemDataRole.UserRole+1
+
 class ValueStandardItem(QStandardItem):
     pass
+
 class SerializableItemIndexDescriptor(TypedDict):
     """A serializable path to a QStandardItem in a QStandardItemModel. It's a series of row index separated by a /
     example : "2/1/3".
@@ -503,6 +506,7 @@ class WatchComponentTreeModel(WatchableTreeModel):
         for i in range(self.columnCount()):
             item = self.itemFromIndex(arg_item.index().siblingAtColumn(i))
             if item is not None:
+                item.setData(AVAILABLE_DATA_ROLE, False)
                 item.setBackground(background_color)
                 item.setForeground(forground_color)
                 if isinstance(item, ValueStandardItem):
@@ -515,7 +519,14 @@ class WatchComponentTreeModel(WatchableTreeModel):
         for i in range(self.columnCount()):
             item = self.itemFromIndex(arg_item.index().siblingAtColumn(i))
             if item is not None:
+                item.setData(AVAILABLE_DATA_ROLE, True)
                 item.setBackground(background_color)
                 item.setForeground(forground_color)
                 if isinstance(item, ValueStandardItem):
                     item.setEditable(True)
+    
+    def is_available(self, arg_item:WatchableStandardItem) -> bool:
+        v = cast(Optional[bool], arg_item.data(AVAILABLE_DATA_ROLE))
+        if v == True:
+            return True
+        return False

@@ -11,20 +11,22 @@ __all__ = [
     'WatchComponent'
 ]
 
+import functools
+
 from PySide6.QtCore import QModelIndex, Qt, QModelIndex, Signal, QPoint
 from PySide6.QtWidgets import QVBoxLayout, QWidget, QMenu
 from PySide6.QtGui import QContextMenuEvent, QDragMoveEvent, QDropEvent, QDragEnterEvent, QKeyEvent, QStandardItem, QAction
 
 from scrutiny.gui import assets
-from scrutiny.gui.core.watchable_registry import WatchableRegistryError
+from scrutiny.gui.core.watchable_registry import WatchableRegistryNodeNotFoundError
 from scrutiny.gui.dashboard_components.base_component import ScrutinyGUIBaseComponent
 from scrutiny.gui.dashboard_components.common.watchable_tree import WatchableTreeWidget, WatchableStandardItem, FolderStandardItem, BaseWatchableRegistryTreeStandardItem
-from scrutiny.gui.dashboard_components.watch.watch_tree_model import WatchComponentTreeModel
+from scrutiny.gui.dashboard_components.watch.watch_tree_model import WatchComponentTreeModel, ValueStandardItem
 
 from scrutiny import sdk
 from scrutiny.gui.core.server_manager import ValueUpdate
 
-from typing import Dict, Any, Union, cast, Optional, Tuple, Generator, Callable
+from typing import Dict, Any, Union, cast, Optional, Tuple, Callable
 
 class WatchComponentTreeWidget(WatchableTreeWidget):
     NEW_FOLDER_DEFAULT_NAME = "New Folder"
@@ -175,8 +177,8 @@ class WatchComponentTreeWidget(WatchableTreeWidget):
                 raise NotImplementedError(f"Unsupported item type: {item}")
         
         if parent is not None:
-            recurse(parent, True)
-        else:
+            recurse(parent, self.is_visible(parent))
+        else:   # Root node. Iter all root items
             for i in range(model.rowCount()):
                 recurse(model.item(i, 0), True)
 
@@ -186,7 +188,6 @@ class WatchComponentTreeWidget(WatchableTreeWidget):
             model.update_availability(item)
         self.map_to_watchable_node(update_func)
     
-
 class WatchComponent(ScrutinyGUIBaseComponent):
     instance_name : str
 
@@ -208,40 +209,61 @@ class WatchComponent(ScrutinyGUIBaseComponent):
         self.expand_if_needed.connect(self._tree.expand_first_column_to_content, Qt.ConnectionType.QueuedConnection)
         
         self._tree.expanded.connect(self.node_expanded_slot)
-        self._tree.expanded.connect(self.node_collapsed_slot)
+        self._tree.collapsed.connect(self.node_collapsed_slot)
         self.server_manager.signals.registry_changed.connect(self._tree.update_availability_of_all)
 
         self._tree_model.rowsInserted.connect(self.row_inserted_slot)
         self._tree_model.rowsAboutToBeRemoved.connect(self.row_about_to_be_removed_slot)
+        self._tree_model.rowsMoved.connect(self.row_moved_slot)
     
         self._tree.update_availability_of_all()
+        self.update_watch_unwatch_state()
     
     def _get_item(self, parent:QModelIndex, row_index:int) -> Optional[BaseWatchableRegistryTreeStandardItem]:
+        """Get the item pointed by the index and the row (column is assumed 0). Handles the no-parent case
+        
+        :parent: The parent index. Invalid index for root.
+        :row_index: The row number of the item
+
+        :return: The item or ``None`` if not available
+        """
         if not parent.isValid():
             return cast(Optional[BaseWatchableRegistryTreeStandardItem], self._tree_model.item(row_index, 0))
         
         return cast(Optional[BaseWatchableRegistryTreeStandardItem], self._tree_model.itemFromIndex(parent).child(row_index, 0))
-        
 
+    
     def row_inserted_slot(self, parent:QModelIndex, row_index:int, col_index:int) -> None:
+        # This slots is called for every row inserted, even if nested
         item_inserted = self._get_item(parent, row_index)
-        self.update_watch_unwatch_state(start_node=item_inserted)
+        if isinstance(item_inserted, WatchableStandardItem) and self._tree.is_visible(item_inserted):
+            self._watch_item(item_inserted)
 
     def row_about_to_be_removed_slot(self, parent:QModelIndex, row_index:int, col_index:int) -> None:
+        # This slot is called only on the node removed, not on the children.
         item_removed = self._get_item(parent, row_index)
-        self.update_watch_unwatch_state(start_node=item_removed)
-    
 
+        def func (item:WatchableStandardItem, visible:bool) -> None:
+            if visible:
+                self._unwatch_item(item)
+        self._tree.map_to_watchable_node(func, item_removed)
+        
     def node_expanded_slot(self, index:QModelIndex) -> None:
         # Added at the end of the event loop because it is a queuedConnection
         # Expanding with star requires that
         self.expand_if_needed.emit()
-        
         self.update_watch_unwatch_state(start_node=self._tree_model.itemFromIndex(index))
 
     def node_collapsed_slot(self, index:QModelIndex) -> None:
         self.update_watch_unwatch_state(start_node=self._tree_model.itemFromIndex(index))
     
+    def row_moved_slot(self, src_parent:QModelIndex, src_row:int, src_col:int, dest_parent:QModelIndex, dst_row:int) -> None:
+        self.update_watch_unwatch_state(start_node=self._tree_model.itemFromIndex(dest_parent))
+    
+    def _get_value_item(self, item:WatchableStandardItem) -> ValueStandardItem:
+        o = cast(ValueStandardItem, self._tree_model.itemFromIndex(item.index().siblingAtColumn(1)))
+        assert o is not None
+        return o
 
     def visibilityChanged(self, visible:bool) -> None:
         """Called when the dashboard component is either hidden or showed"""
@@ -252,36 +274,43 @@ class WatchComponent(ScrutinyGUIBaseComponent):
                 self._unwatch_item(item)
     
     def _watch_item(self, item:WatchableStandardItem) -> None:
+        value_item = self._get_value_item(item)
         watcher_id = self._make_watcher_id(item)
+        func = functools.partial(self.update_val_callback, value_item)
         try:
-            self.server_manager.registry.watch_fqn(watcher_id, item.fqn, self.update_val_callback)
-        except WatchableRegistryError:
-            pass
+            self.server_manager.registry.watch_fqn(watcher_id, item.fqn, func, ignore_duplicate=True)
+        except WatchableRegistryNodeNotFoundError:
+            # we tolerate because a race condition could cause this if the server dies while the GUI is working
+            # Should not happen normally
+            self.logger.debug(f"Cannot watch {item.fqn}. Does not exist")
     
     def _unwatch_item(self, item:WatchableStandardItem) -> None:
         watcher_id = self._make_watcher_id(item)
         try:
-            self.server_manager.registry.unwatch_fqn(watcher_id, item.fqn)
-        except WatchableRegistryError:
-            pass
+            self.server_manager.registry.unwatch_fqn(watcher_id, item.fqn, ignore_missing=True)
+        except WatchableRegistryNodeNotFoundError:
+            # We tolerate because a race condition could cause this if the server dies while the GUI is working
+            # Should not happen normally
+            self.logger.debug(f"Cannot unwatch {item.fqn}. Does not exist")
     
     def _make_watcher_id(self, item:WatchableStandardItem) -> str:
         return str(id(item))    # TODO : use uuid? Attach data with Qt?
     
     def update_watch_unwatch_state(self, start_node:Optional[BaseWatchableRegistryTreeStandardItem]=None) -> None:
         def update_func(item:WatchableStandardItem, visible:bool) -> None:
-            if visible:
+            if visible :
                 self._watch_item(item)
             else:
                 self._unwatch_item(item)
         self._tree.map_to_watchable_node(update_func, start_node)
 
-    def update_val_callback(self, watcher_id:str, config:sdk.WatchableConfiguration, val:ValueUpdate) -> None:
-        pass
+    def update_val_callback(self, item:ValueStandardItem, watcher_id:str, config:sdk.WatchableConfiguration, val:ValueUpdate) -> None:
+        item.setText(str(val.value))
         #print(f"[{self.instance_name}] watcher_id={watcher_id} --> {val}")
 
     def teardown(self) -> None:
-        pass
+        for item in self._tree_model.get_all_watchable_items():
+            self._unwatch_item(item)
 
     def get_state(self) -> Dict[Any, Any]:
         raise NotImplementedError()

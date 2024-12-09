@@ -316,7 +316,10 @@ class TestWatchableRegistry(ScrutinyUnitTest):
         self.assertEqual(self.registry.watcher_count_fqn(var1fqn), 0)
         self.assertEqual(self.registry.watcher_count_fqn(var2fqn), 0)
         
-        self.registry.unwatch_fqn('watcher1', var1fqn)     # Already unwatched. No error
+        self.registry.unwatch_fqn('watcher1', var1fqn, ignore_missing=True)     # Already unwatched. No error
+
+        with self.assertRaises(WatchableRegistryError):
+            self.registry.unwatch_fqn('watcher1', var1fqn, ignore_missing=False)
 
 
         with self.assertRaises(WatchableRegistryError):

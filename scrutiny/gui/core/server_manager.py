@@ -21,6 +21,7 @@ from dataclasses import dataclass
 from PySide6.QtCore import Signal, QObject
 from typing import Optional, Dict, Any, Callable, List
 
+from scrutiny.core.logging import DUMP_DATA_LOGLEVEL
 from scrutiny.gui.core.watchable_registry import WatchableRegistry
 from scrutiny.sdk.listeners import BaseListener, ValueUpdate 
 from scrutiny.sdk.watchable_handle import WatchableHandle
@@ -194,16 +195,16 @@ class ServerManager:
         self._client.register_listener(self._listener)
         self._listener.signals.data_received.connect(self._value_update_received)
 
-        if self._logger.isEnabledFor(logging.DEBUG):    # pragma: no cover
-            self._signals.server_connected.connect(lambda : self._logger.debug("+Signal: server_connected"))
-            self._signals.server_disconnected.connect(lambda : self._logger.debug("+Signal: server_disconnected"))
-            self._signals.device_ready.connect(lambda : self._logger.debug("+Signal: device_ready"))
-            self._signals.device_disconnected.connect(lambda : self._logger.debug("+Signal: device_disconnected"))
-            self._signals.sfd_loaded.connect(lambda : self._logger.debug("+Signal: sfd_loaded"))
-            self._signals.sfd_unloaded.connect(lambda : self._logger.debug("+Signal: sfd_unloaded"))
-            self._signals.registry_changed.connect(lambda : self._logger.debug("+Signal: registry_changed"))
-            self._signals.datalogging_state_changed.connect(lambda : self._logger.debug("+Signal: datalogging_state_changed"))
-            self._signals.status_received.connect(lambda : self._logger.debug("+Signal: status_received"))
+        if self._logger.isEnabledFor(DUMP_DATA_LOGLEVEL):    # pragma: no cover
+            self._signals.server_connected.connect(lambda : self._logger.log(DUMP_DATA_LOGLEVEL, "+Signal: server_connected"))
+            self._signals.server_disconnected.connect(lambda : self._logger.log(DUMP_DATA_LOGLEVEL, "+Signal: server_disconnected"))
+            self._signals.device_ready.connect(lambda : self._logger.log(DUMP_DATA_LOGLEVEL, "+Signal: device_ready"))
+            self._signals.device_disconnected.connect(lambda : self._logger.log(DUMP_DATA_LOGLEVEL, "+Signal: device_disconnected"))
+            self._signals.sfd_loaded.connect(lambda : self._logger.log(DUMP_DATA_LOGLEVEL, "+Signal: sfd_loaded"))
+            self._signals.sfd_unloaded.connect(lambda : self._logger.log(DUMP_DATA_LOGLEVEL, "+Signal: sfd_unloaded"))
+            self._signals.registry_changed.connect(lambda : self._logger.log(DUMP_DATA_LOGLEVEL, "+Signal: registry_changed"))
+            self._signals.datalogging_state_changed.connect(lambda : self._logger.log(DUMP_DATA_LOGLEVEL, "+Signal: datalogging_state_changed"))
+            self._signals.status_received.connect(lambda : self._logger.log(DUMP_DATA_LOGLEVEL, "+Signal: status_received"))
 
     def _join_thread_and_emit_stopped(self) -> None:
         if self._thread is not None:    # Should always be true
@@ -342,7 +343,7 @@ class ServerManager:
             if event is None:
                 return
             
-            self._logger.debug(f"+Event: {event}")
+            self._logger.log(DUMP_DATA_LOGLEVEL, f"+Event: {event}")
             if isinstance(event, ScrutinyClient.Events.ConnectedEvent):
                 self._signals.server_connected.emit()
                 self._clear_registry()

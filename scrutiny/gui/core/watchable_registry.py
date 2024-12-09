@@ -11,6 +11,7 @@
 __all__ = [
     'WatchableRegistry', 
     'WatchableRegistryError', 
+    'WatchableRegistryNodeNotFoundError', 
     'WatchableRegistryNodeContent',
     'WatchableValue',
     'WatcherValueUpdateCallback',
@@ -35,6 +36,9 @@ class ParsedFullyQualifiedName:
     path:str
 
 class WatchableRegistryError(Exception):
+    pass
+
+class WatchableRegistryNodeNotFoundError(WatchableRegistryError):
     pass
 
 TYPESTR_MAP_S2WT = {
@@ -164,7 +168,7 @@ class WatchableRegistry:
             node = self._trees[watchable_type]
             for part in parts:
                 if part not in node:
-                    raise WatchableRegistryError(f"Inexistent path : {path} ")
+                    raise WatchableRegistryNodeNotFoundError(f"Inexistent path : {path} ")
                 node = node[part]
 
             if isinstance(node, dict):
@@ -216,18 +220,20 @@ class WatchableRegistry:
             raise WatchableRegistryError("Cannot update a value on something that is not a Watchable")
         node.update_value(value)
     
-    def watch_fqn(self, watcher_id:str, fqn:str, callback:WatcherValueUpdateCallback) -> None:
+    def watch_fqn(self, watcher_id:str, fqn:str, callback:WatcherValueUpdateCallback, ignore_duplicate:bool=False) -> None:
         """Adds a watcher on the given watchable and register a callback to be 
         invoked when its value is updated 
         
         :param watcher_id: A string that identifies the owner of the callback. Passed back when the callback is invoked
         :param fqn: The watchable fully qualified name
         :param callback: The callback
+        :param ignore_duplicate: When ``False`, an exception is raised if a callback is already registered. If ``True``, new callback 
+            is ignored and previous one is kept 
         """
         parsed = self.parse_fqn(fqn)
-        self.watch(watcher_id, parsed.watchable_type, parsed.path, callback)
+        self.watch(watcher_id, parsed.watchable_type, parsed.path, callback, ignore_duplicate=ignore_duplicate)
 
-    def watch(self, watcher_id:str, watchable_type:sdk.WatchableType, path:str, callback:WatcherValueUpdateCallback) -> None:
+    def watch(self, watcher_id:str, watchable_type:sdk.WatchableType, path:str, callback:WatcherValueUpdateCallback, ignore_duplicate:bool=False) -> None:
         """Adds a watcher on the given watchable and register a callback to be 
         invoked when its value is updated 
         
@@ -235,55 +241,72 @@ class WatchableRegistry:
         :param watchable_type: The watchable type
         :param path: The watchable tree path
         :param callback: The callback
+        :param ignore_duplicate: When ``False`, an exception is raised if a callback is already registered. If ``True``, new callback 
+            is ignored and previous one is kept 
         """
-        if self._logger.isEnabledFor(logging.DEBUG):    # pragma: no cover
-            self._logger.debug(f"Watcher {watcher_id} now watches {path} ({watchable_type.name})")
         node = self._get_node_with_lock(watchable_type, path)
         if not isinstance(node, WatchableRegistryEntryNode):
             raise WatchableRegistryError("Cannot watch something that is not a Watchable")
         
-        node.register_value_update_callback(watcher_id, callback)
+        happened = False
+        try:
+            node.register_value_update_callback(watcher_id, callback)
+            happened=True
+            if self._logger.isEnabledFor(logging.DEBUG):    # pragma: no cover
+                self._logger.debug(f"Watcher {watcher_id} now watches {path} ({watchable_type.name})")
+        except WatchableRegistryError:
+            if not ignore_duplicate:
+                raise
         
-        with self._lock:
-            self._watched_entries[node.configuration.server_id] = node
-        
-        if self._global_watch_callbacks is not None:
-            self._global_watch_callbacks(watcher_id, node.display_path, node.configuration)
+        if happened:
+            with self._lock:
+                self._watched_entries[node.configuration.server_id] = node
+            
+            if self._global_watch_callbacks is not None:
+                self._global_watch_callbacks(watcher_id, node.display_path, node.configuration)
 
-    def unwatch(self, watcher_id:str, watchable_type:sdk.WatchableType, path:str) -> None:
+    def unwatch(self, watcher_id:str, watchable_type:sdk.WatchableType, path:str, ignore_missing:bool=False) -> None:
         """Remove a the given watcher from the watcher list of the given node.
         
         :param watcher_id: A string that identifies the owner of the callback. Passed back when the callback is invoked
         :param watchable_type: The watchable type
         :param path: The watchable tree path
+        :param ignore_missing: When ``False``, raise an exception if the watcher has not callback registered. Ignore the error when ``True``
         """
-        if self._logger.isEnabledFor(logging.DEBUG):    # pragma: no cover
-            self._logger.debug(f"Watcher {watcher_id} stopped watching {path} ({watchable_type.name})")
         node = self._get_node_with_lock(watchable_type, path)
         if not isinstance(node, WatchableRegistryEntryNode):
             raise WatchableRegistryError("Cannot unwatch something that is not a Watchable")
         
-        if node.has_callback_registered(watcher_id):
+        happened = False
+        try:
             node.unregister_value_update_callback(watcher_id)
+            happened = True
+            if self._logger.isEnabledFor(logging.DEBUG):    # pragma: no cover
+                self._logger.debug(f"Watcher {watcher_id} stopped watching {path} ({watchable_type.name})")
+        except WatchableRegistryError:
+            if not ignore_missing:
+                raise
         
-        if node.watcher_count() == 0:
-            try:
-                del self._watched_entries[node.configuration.server_id]
-            except KeyError:
-                pass
-        
-        if self._global_unwatch_callbacks is not None:
-            self._global_unwatch_callbacks(watcher_id, node.display_path, node.configuration)
+        if happened:
+            if node.watcher_count() == 0:
+                try:
+                    del self._watched_entries[node.configuration.server_id]
+                except KeyError:
+                    pass
+            
+            if self._global_unwatch_callbacks is not None:
+                self._global_unwatch_callbacks(watcher_id, node.display_path, node.configuration)
     
-    def unwatch_fqn(self, watcher_id:str, fqn:str) -> None:
+    def unwatch_fqn(self, watcher_id:str, fqn:str, ignore_missing:bool=False) -> None:
         """Remove a the given watcher from the watcher list of the given node.
         
         :param watcher_id: A string that identifies the owner of the callback. Passed back when the callback is invoked
         :param watchable_type: The watchable type
         :param path: The watchable tree path
+        :param ignore_missing: When ``False``, raise an exception if the watcher has not callback registered.Ignore the error when ``True``
         """
         parsed = self.parse_fqn(fqn)
-        self.unwatch(watcher_id, parsed.watchable_type, parsed.path)
+        self.unwatch(watcher_id, parsed.watchable_type, parsed.path, ignore_missing=ignore_missing)
 
     def watcher_count_by_server_id(self, server_id:str) -> int:
         """Return the number of watcher on a node, identified by its server_id

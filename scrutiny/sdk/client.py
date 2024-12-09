@@ -1060,8 +1060,8 @@ class ScrutinyClient:
             
             try:
                 s = json.dumps(obj)
-                if self._logger.isEnabledFor(logging.DEBUG):    # pragma: no cover
-                    self._logger.debug(f"Sending {s}")
+                if self._logger.isEnabledFor(DUMP_DATA_LOGLEVEL):    # pragma: no cover
+                    self._logger.log(DUMP_DATA_LOGLEVEL, f"Sending {s}")
                 self._sock.send(self._stream_maker.encode(s.encode(self._encoding)))
             except socket.error as e:
                 error = e

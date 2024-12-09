@@ -162,5 +162,4 @@ btn_unload_sfd.clicked.connect(btn_unload_sfd_slot)
 
 update_ui()
 
-
 sys.exit(app.exec())

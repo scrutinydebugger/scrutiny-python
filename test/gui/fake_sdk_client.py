@@ -10,6 +10,7 @@ __all__ = ['FakeSDKClient']
 
 from scrutiny import sdk
 from scrutiny.sdk.client import WatchableListDownloadRequest, ScrutinyClient
+from scrutiny.sdk.listeners import BaseListener
 from typing import Optional, List, Dict, Callable
 from dataclasses import dataclass
 import inspect
@@ -45,7 +46,7 @@ class FakeSDKClient:
     _req_id:int
     _event_queue:"queue.Queue[ScrutinyClient.Events._ANY_EVENTS]"
     _enabled_events:int
-
+    _listeners: List[BaseListener]
 
     def __init__(self):
         self.server_state = sdk.ServerState.Disconnected
@@ -56,6 +57,7 @@ class FakeSDKClient:
         self._force_connect_fail = False
         self._enabled_events = 0
         self._event_queue = queue.Queue()
+        self._listeners = []
     
     def get_call_count(self, funcname:str) -> int:
         if funcname not in self._func_call_log:
@@ -170,6 +172,8 @@ class FakeSDKClient:
     def has_event_pending(self) -> bool:
         return not self._event_queue.empty()
 
+    def register_listener(self, listener:BaseListener):
+        self._listeners.append(listener)
 
     def _simulate_receive_status(self, info:Optional[sdk.ServerInfo] = None):
         if info is None:

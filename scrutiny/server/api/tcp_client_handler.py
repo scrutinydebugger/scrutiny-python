@@ -19,6 +19,7 @@ import queue
 from scrutiny.server.api.abstract_client_handler import AbstractClientHandler, ClientHandlerConfig, ClientHandlerMessage
 from scrutiny.tools.stream_datagrams import StreamMaker, StreamParser
 import selectors
+from scrutiny.core.logging import DUMP_DATA_LOGLEVEL
 
 from typing import Dict, Any, Optional, TypedDict, cast, List, Tuple
 
@@ -96,7 +97,7 @@ class TCPClientHandler(AbstractClientHandler):
         
         data = json.dumps(msg.obj, indent=None, separators=(',', ':')).encode('utf8')
         payload = self.stream_maker.encode(data)
-        self.logger.debug(f"Sending {len(payload)} bytes to client ID: {msg.conn_id}")
+        self.logger.log(DUMP_DATA_LOGLEVEL, f"Sending {len(payload)} bytes to client ID: {msg.conn_id}")
 
         try:
             if not self.force_silent:
@@ -251,7 +252,7 @@ class TCPClientHandler(AbstractClientHandler):
                             # Client is gone
                             self.unregister_client(client_id)
                         else:
-                            self.logger.debug(f"Received {len(data)} bytes from client ID: {client_id}")
+                            self.logger.log(DUMP_DATA_LOGLEVEL, f"Received {len(data)} bytes from client ID: {client_id}")
                             stream_parser.parse(data)
                             while not stream_parser.queue().empty():
                                 datagram = stream_parser.queue().get()
