@@ -13,7 +13,7 @@ from .abstract_link import AbstractLink, LinkConfig
 from typing import Optional, Dict, TypedDict, cast, Union
 import serial   # type: ignore
 import time
-from binascii import hexlify
+from scrutiny.core.logging import DUMPDATA_LOGLEVEL
 
 class SerialConfig(TypedDict):
     """
@@ -169,9 +169,6 @@ class SerialLink(AbstractLink):
         if self.port.in_waiting > 0:
             data += self.port.read(self.port.in_waiting)
 
-        if len(data) > 0 and self.logger.isEnabledFor(logging.DEBUG):   # pragma: no cover
-            self.logger.debug(f"Received {len(data)}: " + hexlify(data).decode('ascii'))
-        
         return data
 
     def write(self, data: bytes) -> None:

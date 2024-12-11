@@ -154,7 +154,6 @@ class MainWindow(QMainWindow):
             self._logger.error(f"Failed to create a dashboard component of type {component_class.__name__}")
             self._logger.debug(traceback.format_exc())
             return
-        QtAds.CDockWidgetTab.mouseDoubleClickEvent = None
         dock_widget = QtAds.CDockWidget(component_class.get_name())
         dock_widget.setFeature(QtAds.CDockWidget.DockWidgetDeleteOnClose, True)
         dock_widget.setWidget(widget)
@@ -191,8 +190,9 @@ class MainWindow(QMainWindow):
                 widget.deleteLater()
 
         self._dashboard_components[name] = widget
+        #widget.hasFocus()
         dock_widget.closeRequested.connect(destroy_widget)
-        self._dock_manager.addDockWidget(QtAds.TopDockWidgetArea, dock_widget)
+        self._dock_manager.addDockWidgetTab(QtAds.TopDockWidgetArea, dock_widget)
 
     def start_server_manager(self) -> None:
         self._status_bar.emulate_connect_click()
@@ -206,6 +206,7 @@ class MainWindow(QMainWindow):
         pass
 
     def dashboard_save_click(self) -> None:
+        # todo
         print(self._dock_manager.saveState())
 
     def dashboard_open_click(self) -> None:

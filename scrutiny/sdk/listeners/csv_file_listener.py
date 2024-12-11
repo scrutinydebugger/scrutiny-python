@@ -228,13 +228,13 @@ class CSVFileListener(BaseListener):
         self._val_dict[self.DATETIME_HEADER] = datetime.now().strftime(self._datetime_format)
         update_flags = [0]*len(self.get_subscriptions())
         for update in updates:
-            self._val_dict[update.display_path] = update.value
-            if self._convert_bool_to_int and update.datatype == EmbeddedDataType.boolean:
-                    self._val_dict[update.display_path] = int(self._val_dict[update.display_path])
+            self._val_dict[update.watchable.display_path] = update.value
+            if self._convert_bool_to_int and update.watchable.datatype == EmbeddedDataType.boolean:
+                    self._val_dict[update.watchable.display_path] = int(self._val_dict[update.watchable.display_path])
             
             field_index = self.WATCHABLE_FIRST_COL
             for i in range(len(self.get_subscriptions())):
-                if update.display_path == self._fieldnames[field_index]:
+                if update.watchable.display_path == self._fieldnames[field_index]:
                     update_flags[i]=1 
                 field_index += 1
                 

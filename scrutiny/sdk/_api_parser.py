@@ -507,7 +507,9 @@ def parse_inform_server_status(response: api_typing.S2C.InformServerStatus) -> s
             return sdk.DeviceLinkType._Dummy
         if api_val == 'udp':
             return sdk.DeviceLinkType.UDP
-        raise sdk.exceptions.BadResponseError('Unsupported device link type "{api_val}"')
+        if api_val == 'rtt':
+            return sdk.DeviceLinkType.RTT
+        raise sdk.exceptions.BadResponseError(f'Unsupported device link type "{api_val}"')
 
     link_type = _link_type(response['device_comm_link']['link_type'])
     link_operational = response['device_comm_link']['link_operational']
@@ -571,8 +573,22 @@ def parse_inform_server_status(response: api_typing.S2C.InformServerStatus) -> s
             parity=PARITY_TO_SDK[api_parity],
             databits=DATABITS_TO_SDK[api_databits]
         )
+    elif link_type == sdk.DeviceLinkType.RTT:
+        _check_response_dict(cmd, response, 'device_comm_link.link_config.jlink_interface', str)
+        _check_response_dict(cmd, response, 'device_comm_link.link_config.target_device', str)
+        rtt_config = cast(api_typing.RttLinkConfig, response['device_comm_link']['link_config'])
+        
+        try:
+            jlink_interface = sdk.RTTLinkConfig.JLinkInterface(rtt_config['jlink_interface'])
+        except ValueError:
+            raise sdk.exceptions.BadResponseError(f'Invalid JLink Interface "{rtt_config['jlink_interface']}"')
+        
+        link_config = sdk.RTTLinkConfig(
+            target_device=rtt_config['target_device'],
+            jlink_interface=jlink_interface
+        )
     else:
-        raise RuntimeError('Unsupported device link type "{link_type}"')
+        raise RuntimeError(f'Unsupported device link type "{link_type}"')
 
     _check_response_dict(cmd, response, 'device_comm_link.link_type', str)
     device_link = sdk.DeviceLinkInfo(

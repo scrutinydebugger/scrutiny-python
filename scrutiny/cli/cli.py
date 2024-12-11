@@ -13,6 +13,7 @@ import logging
 import traceback
 
 from scrutiny.cli.commands import *
+from scrutiny.core.logging import DUMPDATA_LOGLEVEL
 
 from typing import Optional, List, Type
 
@@ -38,9 +39,9 @@ class CLI:
             formatter_class=argparse.RawTextHelpFormatter
         )
         self.parser.add_argument('command', help='Command to execute')
-        self.parser.add_argument('--loglevel', help='Log level to use', default=None, metavar='LEVEL')
+        self.parser.add_argument('--loglevel', help='Log level to use.', default=None, choices=['critical', 'error', 'warning', 'info', 'debug', 'dumpdata'], metavar='LEVEL')
         self.parser.add_argument('--logfile', help='File to write logs', default=None, metavar='FILENAME')
-        self.parser.add_argument('--disable_loggers', help='list of loggers to disable', default=None, metavar='LOGGERS')
+        self.parser.add_argument('--disable-loggers', nargs='+', help='list of loggers to disable', default=None, metavar='LOGGERS')
 
     def make_command_list_help(self) -> str:
         """Return a string meant to be displayed in the command line explaining the possible commands"""
@@ -82,14 +83,17 @@ class CLI:
         error = None
         try:
             logging_level_str = cargs.loglevel if cargs.loglevel else self.default_log_level
-            logging_level = getattr(logging, logging_level_str.upper())
+            if logging_level_str.upper().strip() == 'DUMPDATA':
+                logging_level = DUMPDATA_LOGLEVEL 
+            else:  
+                logging_level = getattr(logging, logging_level_str.upper())
             format_string = ""
-            if logging_level == logging.DEBUG:
+            if logging_level <= logging.DEBUG:
                 format_string += "%(relativeCreated)d (#%(thread)d) "
             format_string += '[%(levelname)s] <%(name)s> %(message)s'
             logging.basicConfig(level=logging_level, filename=cargs.logfile, format=format_string)
             if cargs.disable_loggers is not None:
-                for logger_name in cargs.disable_loggers.split(','):
+                for logger_name in cargs.disable_loggers:
                     logging.getLogger(logger_name).disabled = True
 
             for cmd in self.command_list:

@@ -1,6 +1,7 @@
 __all__ = [
-    'DUMP_DATA_LOGLEVEL'
+    'DUMPDATA_LOGLEVEL'
 ]
 
 import logging
-DUMP_DATA_LOGLEVEL = logging.DEBUG-1
+DUMPDATA_LOGLEVEL = logging.DEBUG-1
+logging.addLevelName(DUMPDATA_LOGLEVEL, "DUMPDATA")

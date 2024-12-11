@@ -46,7 +46,7 @@ class TextStreamListener(BaseListener):
     def receive(self, updates: List[ValueUpdate]) -> None:
         update_time = (time.perf_counter() - self._start_time)*1e3
         for update in updates:
-            self._stream.write(f'{update_time:0.2f}ms\t ({update.watchable_type.name}/{update.datatype.name}) {update.display_path}: {update.value}\n')
+            self._stream.write(f'{update_time:0.2f}ms\t ({update.watchable.type.name}/{update.watchable.datatype.name}) {update.watchable.display_path}: {update.value}\n')
     
     def teardown(self) -> None:
         self._stream.flush()

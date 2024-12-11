@@ -10,11 +10,10 @@ import logging
 
 from .abstract_link import AbstractLink, LinkConfig
 
-from typing import Optional, Dict, TypedDict, cast, Union, Type, Any
+from typing import Optional, Dict, TypedDict, cast, Type, Any
 import pylink   # type: ignore
 logging.getLogger("pylink").setLevel(logging.WARNING)
 
-import time
 import threading
 import queue
 

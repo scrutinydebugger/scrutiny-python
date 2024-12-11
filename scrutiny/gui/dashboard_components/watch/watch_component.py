@@ -12,6 +12,7 @@ __all__ = [
 ]
 
 import functools
+import time
 
 from PySide6.QtCore import QModelIndex, Qt, QModelIndex, Signal, QPoint
 from PySide6.QtWidgets import QVBoxLayout, QWidget, QMenu
@@ -26,7 +27,7 @@ from scrutiny.gui.dashboard_components.watch.watch_tree_model import WatchCompon
 from scrutiny import sdk
 from scrutiny.gui.core.server_manager import ValueUpdate
 
-from typing import Dict, Any, Union, cast, Optional, Tuple, Callable
+from typing import Dict, Any, Union, cast, Optional, Tuple, Callable, List
 
 class WatchComponentTreeWidget(WatchableTreeWidget):
     NEW_FOLDER_DEFAULT_NAME = "New Folder"
@@ -164,7 +165,7 @@ class WatchComponentTreeWidget(WatchableTreeWidget):
                             callback:Callable[[WatchableStandardItem, bool], None],
                             parent:Optional[BaseWatchableRegistryTreeStandardItem]=None
                             ) -> None:
-        """Apply a callback to every watcahble row in the tree and tells if it is visible to the user"""
+        """Apply a callback to every watchable row in the tree and tells if it is visible to the user"""
 
         model = self.model()
         def recurse(item:QStandardItem, content_visible:bool) -> None:
@@ -181,12 +182,6 @@ class WatchComponentTreeWidget(WatchableTreeWidget):
         else:   # Root node. Iter all root items
             for i in range(model.rowCount()):
                 recurse(model.item(i, 0), True)
-
-    def update_availability_of_all(self) -> None:
-        model = self.model()
-        def update_func(item:WatchableStandardItem, visible:bool) -> None:
-            model.update_availability(item)
-        self.map_to_watchable_node(update_func)
     
 class WatchComponent(ScrutinyGUIBaseComponent):
     instance_name : str
@@ -210,14 +205,13 @@ class WatchComponent(ScrutinyGUIBaseComponent):
         
         self._tree.expanded.connect(self.node_expanded_slot)
         self._tree.collapsed.connect(self.node_collapsed_slot)
-        self.server_manager.signals.registry_changed.connect(self._tree.update_availability_of_all)
+        self.server_manager.signals.registry_changed.connect(self.update_all_watchable_state)
 
         self._tree_model.rowsInserted.connect(self.row_inserted_slot)
         self._tree_model.rowsAboutToBeRemoved.connect(self.row_about_to_be_removed_slot)
         self._tree_model.rowsMoved.connect(self.row_moved_slot)
     
-        self._tree.update_availability_of_all()
-        self.update_watch_unwatch_state()
+        self.update_all_watchable_state()
     
     def _get_item(self, parent:QModelIndex, row_index:int) -> Optional[BaseWatchableRegistryTreeStandardItem]:
         """Get the item pointed by the index and the row (column is assumed 0). Handles the no-parent case
@@ -236,29 +230,38 @@ class WatchComponent(ScrutinyGUIBaseComponent):
     def row_inserted_slot(self, parent:QModelIndex, row_index:int, col_index:int) -> None:
         # This slots is called for every row inserted, even if nested
         item_inserted = self._get_item(parent, row_index)
-        if isinstance(item_inserted, WatchableStandardItem) and self._tree.is_visible(item_inserted):
-            self._watch_item(item_inserted)
+        if isinstance(item_inserted, WatchableStandardItem):
+            value_item = self._get_value_item(item_inserted)
+            func = functools.partial(self.update_val_callback, value_item)
+            watcher_id = self._make_watcher_id(item_inserted)
+            self.server_manager.registry.register_watcher(watcher_id, func, override=True)
+
+            if self._tree.is_visible(item_inserted):
+                self._watch_item(item_inserted)
 
     def row_about_to_be_removed_slot(self, parent:QModelIndex, row_index:int, col_index:int) -> None:
         # This slot is called only on the node removed, not on the children.
         item_removed = self._get_item(parent, row_index)
+        watcher_id = self._make_watcher_id(item_removed)
 
         def func (item:WatchableStandardItem, visible:bool) -> None:
             if visible:
                 self._unwatch_item(item)
         self._tree.map_to_watchable_node(func, item_removed)
+        if isinstance(item_removed, WatchableStandardItem):
+            self.server_manager.registry.unregister_watcher(watcher_id)
         
     def node_expanded_slot(self, index:QModelIndex) -> None:
         # Added at the end of the event loop because it is a queuedConnection
         # Expanding with star requires that
         self.expand_if_needed.emit()
-        self.update_watch_unwatch_state(start_node=self._tree_model.itemFromIndex(index))
+        self.update_all_watchable_state(start_node=self._tree_model.itemFromIndex(index))
 
     def node_collapsed_slot(self, index:QModelIndex) -> None:
-        self.update_watch_unwatch_state(start_node=self._tree_model.itemFromIndex(index))
+        self.update_all_watchable_state(start_node=self._tree_model.itemFromIndex(index))
     
     def row_moved_slot(self, src_parent:QModelIndex, src_row:int, src_col:int, dest_parent:QModelIndex, dst_row:int) -> None:
-        self.update_watch_unwatch_state(start_node=self._tree_model.itemFromIndex(dest_parent))
+        self.update_all_watchable_state(start_node=self._tree_model.itemFromIndex(dest_parent))
     
     def _get_value_item(self, item:WatchableStandardItem) -> ValueStandardItem:
         o = cast(ValueStandardItem, self._tree_model.itemFromIndex(item.index().siblingAtColumn(1)))
@@ -268,49 +271,53 @@ class WatchComponent(ScrutinyGUIBaseComponent):
     def visibilityChanged(self, visible:bool) -> None:
         """Called when the dashboard component is either hidden or showed"""
         if visible:
-            self.update_watch_unwatch_state()
+            self.update_all_watchable_state()
         else:
             for item in self._tree_model.get_all_watchable_items():
-                self._unwatch_item(item)
+                self._unwatch_item(item, quiet=True)
     
     def _watch_item(self, item:WatchableStandardItem) -> None:
-        value_item = self._get_value_item(item)
         watcher_id = self._make_watcher_id(item)
-        func = functools.partial(self.update_val_callback, value_item)
         try:
-            self.server_manager.registry.watch_fqn(watcher_id, item.fqn, func, ignore_duplicate=True)
+            self.server_manager.registry.watch_fqn(watcher_id, item.fqn)
         except WatchableRegistryNodeNotFoundError:
             # we tolerate because a race condition could cause this if the server dies while the GUI is working
             # Should not happen normally
             self.logger.debug(f"Cannot watch {item.fqn}. Does not exist")
     
-    def _unwatch_item(self, item:WatchableStandardItem) -> None:
+    def _unwatch_item(self, item:WatchableStandardItem, quiet:bool=False) -> None:
         watcher_id = self._make_watcher_id(item)
         try:
-            self.server_manager.registry.unwatch_fqn(watcher_id, item.fqn, ignore_missing=True)
+            self.server_manager.registry.unwatch_fqn(watcher_id, item.fqn)
         except WatchableRegistryNodeNotFoundError:
             # We tolerate because a race condition could cause this if the server dies while the GUI is working
             # Should not happen normally
             self.logger.debug(f"Cannot unwatch {item.fqn}. Does not exist")
+            if not quiet:
+                raise
     
     def _make_watcher_id(self, item:WatchableStandardItem) -> str:
         return str(id(item))    # TODO : use uuid? Attach data with Qt?
     
-    def update_watch_unwatch_state(self, start_node:Optional[BaseWatchableRegistryTreeStandardItem]=None) -> None:
+    def update_all_watchable_state(self, start_node:Optional[BaseWatchableRegistryTreeStandardItem]=None) -> None:
         def update_func(item:WatchableStandardItem, visible:bool) -> None:
             if visible :
                 self._watch_item(item)
             else:
                 self._unwatch_item(item)
+            self._tree_model.update_availability(item)
+
         self._tree.map_to_watchable_node(update_func, start_node)
 
-    def update_val_callback(self, item:ValueStandardItem, watcher_id:str, config:sdk.WatchableConfiguration, val:ValueUpdate) -> None:
-        item.setText(str(val.value))
+    def update_val_callback(self, item:ValueStandardItem, watcher_id:str, vals:List[ValueUpdate]) -> None:
+        item.setText(str(vals[-1].value))
+        #print(self.server_manager._listener.update_per_sec_avg)
+        #print(f"Got {len(vals)} updates. {time.perf_counter()}")
         #print(f"[{self.instance_name}] watcher_id={watcher_id} --> {val}")
 
     def teardown(self) -> None:
         for item in self._tree_model.get_all_watchable_items():
-            self._unwatch_item(item)
+            self._unwatch_item(item, quiet=True)
 
     def get_state(self) -> Dict[Any, Any]:
         raise NotImplementedError()

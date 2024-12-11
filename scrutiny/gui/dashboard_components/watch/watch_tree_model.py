@@ -464,7 +464,6 @@ class WatchComponentTreeModel(WatchableTreeModel):
         self.add_multiple_rows_to_parent(dest_parent, dest_row_index, rows)
         return True
 
-    
     def get_all_watchable_items(self, parent:Optional[BaseWatchableRegistryTreeStandardItem]=None) -> Generator[WatchableStandardItem, None, None]:
         """Return every elements in the tree that points to a watchable item in the registry"""
         def recurse(parent:QStandardItem) -> Generator[WatchableStandardItem, None, None]:
@@ -498,7 +497,6 @@ class WatchComponentTreeModel(WatchableTreeModel):
         else:
             self.set_unavailable(watchable)
         
-
     def set_unavailable(self, arg_item:WatchableStandardItem) -> None:
         """Make an item in the tree unavailable (grayed out)"""
         background_color = self._unavailable_palette.color(QPalette.ColorRole.Base)
@@ -506,11 +504,12 @@ class WatchComponentTreeModel(WatchableTreeModel):
         for i in range(self.columnCount()):
             item = self.itemFromIndex(arg_item.index().siblingAtColumn(i))
             if item is not None:
-                item.setData(AVAILABLE_DATA_ROLE, False)
+                item.setData(False, AVAILABLE_DATA_ROLE)
                 item.setBackground(background_color)
                 item.setForeground(forground_color)
                 if isinstance(item, ValueStandardItem):
                     item.setEditable(False)
+                    item.setText('N/A')
     
     def set_available(self, arg_item:WatchableStandardItem) -> None:
         """Make an item in the tree available (normal color)"""
@@ -519,7 +518,7 @@ class WatchComponentTreeModel(WatchableTreeModel):
         for i in range(self.columnCount()):
             item = self.itemFromIndex(arg_item.index().siblingAtColumn(i))
             if item is not None:
-                item.setData(AVAILABLE_DATA_ROLE, True)
+                item.setData(True, AVAILABLE_DATA_ROLE)
                 item.setBackground(background_color)
                 item.setForeground(forground_color)
                 if isinstance(item, ValueStandardItem):

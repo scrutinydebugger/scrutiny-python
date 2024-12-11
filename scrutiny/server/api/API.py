@@ -803,7 +803,6 @@ class API:
             raise InvalidRequestException(req, "Link configuration is not good for given link type. " + str(link_config_err))
 
         self.device_handler.configure_comm(req['link_type'], cast(LinkConfig, req['link_config']))
-
         response: api_typing.S2C.Empty = {
             'cmd': self.Command.Api2Client.SET_LINK_CONFIG_RESPONSE,
             'reqid': self.get_req_id(req)

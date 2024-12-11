@@ -12,6 +12,7 @@
 
 from scrutiny.server.protocol import Request, Response
 from scrutiny.tools import Timer, Throttler
+from scrutiny.core.logging import DUMPDATA_LOGLEVEL
 from copy import copy
 import logging
 import struct
@@ -304,7 +305,8 @@ class CommHandler:
         datasize_bits = len(data) * 8
         self._throttler.consume_bandwidth(datasize_bits)
         self.rx_bitcount += datasize_bits
-        self._logger.debug('Received : %s' % (hexlify(data).decode('ascii')))
+        if self._logger.isEnabledFor(DUMPDATA_LOGLEVEL): #pragma: no cover
+            self._logger.log(DUMPDATA_LOGLEVEL, 'Received : %s' % (hexlify(data).decode('ascii')))
 
         if self.response_available() or not self.waiting_response():
             self._logger.debug('Received unwanted data: ' + hexlify(data).decode('ascii'))
@@ -357,7 +359,8 @@ class CommHandler:
                 self._pending_request = None
                 data = self._active_request.to_bytes()
                 self._logger.debug("Sending request %s" % self._active_request)
-                self._logger.debug("Sending : %s" % (hexlify(data).decode('ascii')))
+                if self._logger.isEnabledFor(DUMPDATA_LOGLEVEL):   # pragma: no cover
+                    self._logger.log(DUMPDATA_LOGLEVEL, "Sending : %s" % (hexlify(data).decode('ascii')))
                 datasize_bits = len(data) * 8
                 try:
                     self._link.write(data)

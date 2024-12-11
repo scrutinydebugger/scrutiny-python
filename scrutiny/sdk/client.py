@@ -28,7 +28,7 @@ from scrutiny.tools.stream_datagrams import StreamMaker, StreamParser
 import selectors
 
 import logging
-from scrutiny.core.logging import DUMP_DATA_LOGLEVEL
+from scrutiny.core.logging import DUMPDATA_LOGLEVEL
 import traceback
 import threading
 import socket
@@ -590,8 +590,8 @@ class ScrutinyClient:
                 self._logger.error(f"Got watchable update for unknown watchable {update.server_id}")
                 continue
             else:
-                if self._logger.isEnabledFor(DUMP_DATA_LOGLEVEL):   # prgama: no cover
-                    self._logger.log(DUMP_DATA_LOGLEVEL, f"Updating value of {update.server_id} ({watchable.name})")
+                if self._logger.isEnabledFor(DUMPDATA_LOGLEVEL):   # prgama: no cover
+                    self._logger.log(DUMPDATA_LOGLEVEL, f"Updating value of {update.server_id} ({watchable.name})")
 
             watchable._update_value(update.value)
             updated_watchables.append(watchable)
@@ -610,7 +610,6 @@ class ScrutinyClient:
             self._logger.error("The server returned a write completion with an unknown batch_index")
             return
             
-
         write_request = batch_write.update_dict[completion.batch_index]
         if completion.success:
             write_request._watchable._set_last_write_datetime()
@@ -906,7 +905,9 @@ class ScrutinyClient:
 
             if self._last_server_info is not None:
                 if self._last_server_info.datalogging.state != self._server_info.datalogging.state:
-                    self._trigger_event(self.Events.DataloggerStateChanged(self._server_info.datalogging), loglevel=logging.INFO)
+                    # Passage from/to NA are logged as debug only to keep the info log clean
+                    loglevel = logging.DEBUG if DataloggerState.NA in (self._last_server_info.datalogging.state, self._server_info.datalogging.state) else logging.INFO
+                    self._trigger_event(self.Events.DataloggerStateChanged(self._server_info.datalogging), loglevel=loglevel)
                 elif self._last_server_info.datalogging.completion_ratio != self._server_info.datalogging.completion_ratio:
                     self._trigger_event(self.Events.DataloggerStateChanged(self._server_info.datalogging), loglevel=logging.DEBUG)
         else:
@@ -1060,8 +1061,8 @@ class ScrutinyClient:
             
             try:
                 s = json.dumps(obj)
-                if self._logger.isEnabledFor(DUMP_DATA_LOGLEVEL):    # pragma: no cover
-                    self._logger.log(DUMP_DATA_LOGLEVEL, f"Sending {s}")
+                if self._logger.isEnabledFor(DUMPDATA_LOGLEVEL):    # pragma: no cover
+                    self._logger.log(DUMPDATA_LOGLEVEL, f"Sending {s}")
                 self._sock.send(self._stream_maker.encode(s.encode(self._encoding)))
             except socket.error as e:
                 error = e
@@ -1104,8 +1105,8 @@ class ScrutinyClient:
         if not self._stream_parser.queue().empty():
             try:
                 data_str = self._stream_parser.queue().get().decode(self._encoding)
-                if self._logger.isEnabledFor(DUMP_DATA_LOGLEVEL):    # pragma: no cover
-                    self._logger.log(DUMP_DATA_LOGLEVEL, f"Received: {data_str}")
+                if self._logger.isEnabledFor(DUMPDATA_LOGLEVEL):    # pragma: no cover
+                    self._logger.log(DUMPDATA_LOGLEVEL, f"Received: {data_str}")
                 obj = json.loads(data_str)
                 if obj is not None:
                     yield obj
@@ -1328,6 +1329,8 @@ class ScrutinyClient:
         with self._main_lock:
             self._watchable_path_to_id_map[watchable.display_path] = watchable._configuration.server_id
             self._watchable_storage[watchable._configuration.server_id] = watchable
+        if self._logger.isEnabledFor(logging.DEBUG):
+            self._logger.debug(f"Now watching {watchable.display_path}")
 
         return watchable
 
@@ -1391,6 +1394,8 @@ class ScrutinyClient:
                         del self._watchable_storage[watchable._configuration.server_id]
 
             watchable._set_invalid(ValueStatus.NotWatched)
+            if self._logger.isEnabledFor(logging.DEBUG):
+                self._logger.debug(f"Done watching {watchable.display_path}")
 
         if error:
             raise error

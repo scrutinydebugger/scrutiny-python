@@ -11,34 +11,29 @@ import logging
 import threading
 import traceback
 import types
+import time
 from typing import Union, List, Set, Iterable,Optional, Type, Literal
 
-from scrutiny.core.basic_types import EmbeddedDataType
-from scrutiny.sdk.watchable_handle import WatchableHandle, WatchableType
+from scrutiny.sdk.watchable_handle import WatchableHandle
 from scrutiny.core import validation
-from scrutiny.core.logging import DUMP_DATA_LOGLEVEL
+from scrutiny.core.logging import DUMPDATA_LOGLEVEL
 from scrutiny.sdk import exceptions as sdk_exceptions
 
 @dataclass(frozen=True)
 class ValueUpdate:
     """(Immutable struct) Contains the relevant information about a watchable update broadcast by the server """
 
-    display_path:str
-    """The textual tree-path used to identify watchables on the server"""
-
-    datatype:EmbeddedDataType
-    """The datatype of the watchable in the device"""
+    watchable:WatchableHandle
+    """A reference to the watchable object that generated the update"""
 
     value: Union[int, float, bool]
     """Value received in the update"""
 
     update_timestamp:datetime
     """Timestamp of the update"""
-    
-    watchable_type:WatchableType
-    """The type of watchable (var, rpv, alias)"""
 
 class BaseListener(abc.ABC):
+    TARGET_PROCESS_INTERVAL = 0.2
 
     _name:str
     """Name of the listener for logging"""
@@ -120,17 +115,15 @@ class BaseListener(abc.ABC):
                     if timestamp is None:
                         timestamp = datetime.now()
                     update = ValueUpdate(
-                        datatype=watchable.datatype,
-                        display_path=watchable.display_path,
+                        watchable=watchable,
                         value=watchable.value,
                         update_timestamp=timestamp,
-                        watchable_type=watchable.type
                     )
                     update_list.append(update)
             
             if len(update_list) > 0 and self._update_queue is not None:
-                if self._logger.isEnabledFor(DUMP_DATA_LOGLEVEL):    # pragma: no cover
-                    self._logger.log(DUMP_DATA_LOGLEVEL, f"Received {len(update_list)} updates")
+                if self._logger.isEnabledFor(DUMPDATA_LOGLEVEL):    # pragma: no cover
+                    self._logger.log(DUMPDATA_LOGLEVEL, f"Received {len(update_list)} updates")
                 try:
                     self._update_queue.put(update_list, block=False)
                 except queue.Full:
@@ -160,12 +153,26 @@ class BaseListener(abc.ABC):
 
         try:
             if not self._setup_error:
+                 self.process()
+                 last_process_timer = time.perf_counter()
                  while not self._stop_request_event.is_set():
                     if self._update_queue is not None:
-                        updates = self._update_queue.get()
+                        updates:Optional[List[ValueUpdate]] = None
+                        try:
+                            time_since_process = (time.perf_counter() - last_process_timer)
+                            timeout = max(self.TARGET_PROCESS_INTERVAL - time_since_process, 0)
+                            updates = self._update_queue.get(block=True, timeout=timeout)
+                        except queue.Empty:
+                            pass
+                        
                         if updates is not None:
                             self._update_count += len(updates)
                             self.receive(updates)
+                        
+                        if time.perf_counter() - last_process_timer >= self.TARGET_PROCESS_INTERVAL:
+                            self.process()
+                            last_process_timer = time.perf_counter()
+                            
         except Exception as e:
             self._receive_error = True
             self._logger.error(f"{e}")
@@ -205,6 +212,10 @@ class BaseListener(abc.ABC):
         """Overridable function called by the listener from its thread when stopping, right after being done monitoring"""
         pass
     
+    def process(self) -> None:
+        """Method periodically called inside the listener thread. Does nothing by default"""
+        pass
+
     def subscribe(self, watchables:Union[WatchableHandle, Iterable[WatchableHandle]]) -> None:
         """Add one or many new watchables to the list of monitored watchables. 
         
@@ -212,6 +223,7 @@ class BaseListener(abc.ABC):
 
         :raise TypeError: Given parameter not of the expected type
         :raise ValueError: Given parameter has an invalid value
+        :raise InvalidValueError: If the watchable handle is not ready to be used (not configured by the server)
         """
 #        if self._started:
 #            raise sdk_exceptions.OperationFailure("Cannot subscribe a watchable once the listener is started")
@@ -220,6 +232,7 @@ class BaseListener(abc.ABC):
         validation.assert_is_iterable(watchables, 'watchables')
         for watchable in watchables:
             validation.assert_type(watchable, 'watchable', WatchableHandle)
+            watchable._assert_configured() # Paranoid check.
         
         with self._subscriptions_lock:
             self._assert_can_change_subscriptions()

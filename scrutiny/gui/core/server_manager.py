@@ -15,14 +15,14 @@ import threading
 import time
 import traceback
 import logging
-from queue import SimpleQueue
+import queue
 from dataclasses import dataclass
 
 from PySide6.QtCore import Signal, QObject
 from typing import Optional, Dict, Any, Callable, List
 
-from scrutiny.core.logging import DUMP_DATA_LOGLEVEL
-from scrutiny.gui.core.watchable_registry import WatchableRegistry
+from scrutiny.core.logging import DUMPDATA_LOGLEVEL
+from scrutiny.gui.core.watchable_registry import WatchableRegistry, WatchableRegistryNodeNotFoundError
 from scrutiny.sdk.listeners import BaseListener, ValueUpdate 
 from scrutiny.sdk.watchable_handle import WatchableHandle
 
@@ -31,26 +31,130 @@ class ServerConfig:
     hostname:str
     port:int
 
+class ThroughputMeasurement:
+    timeslice_length_sec:float
+    time_slice_count:int
+    measurements_history:List[int]
+    timestamps_history:List[int]
+    started:bool
+    measurement_sum:int
+    oldest_time:float
+
+    def __init__(self, timeslice_length_sec:float, time_slice_count:int) -> None:
+        self.timeslice_length_sec = timeslice_length_sec
+        self.time_slice_count = time_slice_count
+        self.reset()
+    
+    def set_started(self, val:bool) -> None:
+        self.started = val
+
+    def start(self) -> None:
+        self.set_started(True)
+    
+    def stop(self) -> None:
+        self.set_started(False)
+
+    def reset(self) -> None:
+        self.oldest_time = 0
+        self.measurements_history = []
+        self.timestamps_history = []
+        self.measurement_sum = 0
+    
+    def update(self) -> None:
+        if not self.started:
+            self.reset()
+            return
+        
+        t = time.perf_counter()
+
+        while len(self.timestamps_history) > 0:
+            t2 = self.timestamps_history[0]
+            if t - t2 > self.timeslice_length_sec:
+                self.timestamps_history.pop(0)
+                n_to_remove = self.measurements_history.pop(0)
+                self.measurement_sum -= n_to_remove
+            else:
+                break
+        
+        if len(self.timestamps_history) > 0:
+            self.oldest_time = self.timestamps_history[0]
+
+    def add_data(self, val: int) -> None:
+        if not self.started:
+            return
+        
+        t = time.perf_counter()
+        self.measurement_sum += val
+        if len(self.timestamps_history) == 0:
+            self.timestamps_history.append(t)
+            self.measurements_history.append(val)
+        else:
+            last_time = self.timestamps_history[-1]
+            if t - last_time > self.timeslice_length_sec:
+                self.timestamps_history.append(t)
+                self.measurements_history.append(val)
+            else:
+                self.measurements_history[-1] += val
+
+        self.oldest_time = self.timestamps_history[0]
+    
+    def get_avg(self) -> float:
+        if len(self.timestamps_history) == 0:
+            return 0
+        return self.measurement_sum/(time.perf_counter() - self.oldest_time)
+
+
 class QtBufferedListener(BaseListener):
+    SIGNALS_PER_SEC = 5
 
     class _Signals(QObject):
         data_received = Signal()
     
-    queue:"SimpleQueue[ValueUpdate]"
+    to_gui_thread_queue:"queue.Queue[List[ValueUpdate]]"
     signals:_Signals
+    last_signal_perf_cnt_ns:int
+    inter_signal_delay_ns:int = int(1e9/SIGNALS_PER_SEC)
+    measurement:ThroughputMeasurement
 
     def __init__(self, *args:Any, **kwargs:Any):
         BaseListener.__init__(self, *args, **kwargs)
-        self.queue = SimpleQueue()
+        self.to_gui_thread_queue = queue.Queue(maxsize=1000)
         self.signals = self._Signals()
-
+        self.last_signal_perf_cnt_ns  = time.perf_counter_ns()
+        
+        self.time_slices = []
+        self.update_count_measurement = ThroughputMeasurement(timeslice_length_sec=0.1, time_slice_count=10)
+    
     def receive(self, updates: List[ValueUpdate]) -> None:
-        for update in updates:
-            self.queue.put(update)
-        self.signals.data_received.emit()
+        self.update_count_measurement.add_data(len(updates))
+        try:
+            self.to_gui_thread_queue.put(updates.copy(), block=False)
+        except queue.Full:
+            self._logger.error("Dropping")  # TODO
+        tnow = time.perf_counter_ns()
+        if tnow - self.last_signal_perf_cnt_ns >= self.inter_signal_delay_ns: 
+            self.last_signal_perf_cnt_ns = tnow
+            self.signals.data_received.emit()
 
     def allow_subcription_changes_while_running(self) -> bool:
         return True
+    
+    def process(self) -> None:
+        self.update_count_measurement.set_started(self._started)
+        self.update_count_measurement.update()
+        print(self.update_per_sec_avg)
+
+    @property
+    def gui_qsize(self) -> int:
+        return self.to_gui_thread_queue.qsize()
+
+    @property
+    def internal_qsize(self) -> int:
+        return self._update_queue.qsize()
+    
+    @property
+    def update_per_sec_avg(self) -> float:
+        return self.update_count_measurement.get_avg()
 
 class ClientRequestStore:
     @dataclass
@@ -195,16 +299,16 @@ class ServerManager:
         self._client.register_listener(self._listener)
         self._listener.signals.data_received.connect(self._value_update_received)
 
-        if self._logger.isEnabledFor(DUMP_DATA_LOGLEVEL):    # pragma: no cover
-            self._signals.server_connected.connect(lambda : self._logger.log(DUMP_DATA_LOGLEVEL, "+Signal: server_connected"))
-            self._signals.server_disconnected.connect(lambda : self._logger.log(DUMP_DATA_LOGLEVEL, "+Signal: server_disconnected"))
-            self._signals.device_ready.connect(lambda : self._logger.log(DUMP_DATA_LOGLEVEL, "+Signal: device_ready"))
-            self._signals.device_disconnected.connect(lambda : self._logger.log(DUMP_DATA_LOGLEVEL, "+Signal: device_disconnected"))
-            self._signals.sfd_loaded.connect(lambda : self._logger.log(DUMP_DATA_LOGLEVEL, "+Signal: sfd_loaded"))
-            self._signals.sfd_unloaded.connect(lambda : self._logger.log(DUMP_DATA_LOGLEVEL, "+Signal: sfd_unloaded"))
-            self._signals.registry_changed.connect(lambda : self._logger.log(DUMP_DATA_LOGLEVEL, "+Signal: registry_changed"))
-            self._signals.datalogging_state_changed.connect(lambda : self._logger.log(DUMP_DATA_LOGLEVEL, "+Signal: datalogging_state_changed"))
-            self._signals.status_received.connect(lambda : self._logger.log(DUMP_DATA_LOGLEVEL, "+Signal: status_received"))
+        if self._logger.isEnabledFor(DUMPDATA_LOGLEVEL):    # pragma: no cover
+            self._signals.server_connected.connect(lambda : self._logger.log(DUMPDATA_LOGLEVEL, "+Signal: server_connected"))
+            self._signals.server_disconnected.connect(lambda : self._logger.log(DUMPDATA_LOGLEVEL, "+Signal: server_disconnected"))
+            self._signals.device_ready.connect(lambda : self._logger.log(DUMPDATA_LOGLEVEL, "+Signal: device_ready"))
+            self._signals.device_disconnected.connect(lambda : self._logger.log(DUMPDATA_LOGLEVEL, "+Signal: device_disconnected"))
+            self._signals.sfd_loaded.connect(lambda : self._logger.log(DUMPDATA_LOGLEVEL, "+Signal: sfd_loaded"))
+            self._signals.sfd_unloaded.connect(lambda : self._logger.log(DUMPDATA_LOGLEVEL, "+Signal: sfd_unloaded"))
+            self._signals.registry_changed.connect(lambda : self._logger.log(DUMPDATA_LOGLEVEL, "+Signal: registry_changed"))
+            self._signals.datalogging_state_changed.connect(lambda : self._logger.log(DUMPDATA_LOGLEVEL, "+Signal: datalogging_state_changed"))
+            self._signals.status_received.connect(lambda : self._logger.log(DUMPDATA_LOGLEVEL, "+Signal: status_received"))
 
     def _join_thread_and_emit_stopped(self) -> None:
         if self._thread is not None:    # Should always be true
@@ -343,7 +447,7 @@ class ServerManager:
             if event is None:
                 return
             
-            self._logger.log(DUMP_DATA_LOGLEVEL, f"+Event: {event}")
+            self._logger.log(DUMPDATA_LOGLEVEL, f"+Event: {event}")
             if isinstance(event, ScrutinyClient.Events.ConnectedEvent):
                 self._signals.server_connected.emit()
                 self._clear_registry()
@@ -517,11 +621,18 @@ class ServerManager:
 
     def _value_update_received(self) -> None:
         # Called in the GUI thread when a value update is received by the lsitener (the client)
-        while not self._listener.queue.empty():
-            update = self._listener.queue.get_nowait()
-            # Broadcast to every GUI components that are watching
-            self._registry.update_value(update.watchable_type, update.display_path, update) 
+        aggregated_updates:List[ValueUpdate] = []
+        size_before = self._listener.to_gui_thread_queue.qsize()
+        internal_size_before = self._listener._update_queue.qsize()
+        while not self._listener.to_gui_thread_queue.empty():
+            update_list = self._listener.to_gui_thread_queue.get_nowait()
+            aggregated_updates.extend(update_list)
+        size_after = self._listener.to_gui_thread_queue.qsize()
+        internal_size_after = self._listener._update_queue.qsize()
+        #print(f"GUI queue : {size_before} -> {size_after}. Internal queue : {internal_size_before} --> {internal_size_after}")
 
+        self._registry.broadcast_value_updates_to_watchers(aggregated_updates) 
+ 
     def get_server_state(self) -> sdk.ServerState:
         return self._client.server_state
     
@@ -545,7 +656,6 @@ class ServerManager:
         if entry is not None:
             entry.ui_callback(entry.threaded_func_return_value, entry.error)
         
-
     def schedule_client_request(self, 
             user_func:Callable[[ScrutinyClient], Any], 
             ui_thread_callback:Callable[[Any, Optional[Exception]], None]
