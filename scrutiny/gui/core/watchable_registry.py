@@ -89,6 +89,7 @@ class WatchableRegistry:
     """Contains a copy of the watchable list available on the server side
     Act as a relay to dispatch value update event to the internal widgets"""
     _trees:  Dict[sdk.WatchableType, Any]
+    _watchable_count:  Dict[sdk.WatchableType, int]
     _lock:threading.Lock
     _global_watch_callbacks:Optional[GlobalWatchCallback]
     _global_unwatch_callbacks:Optional[GlobalUnwatchCallback]
@@ -104,6 +105,11 @@ class WatchableRegistry:
             sdk.WatchableType.RuntimePublishedValue : {}
         }
         self._tree_change_counters = {
+            sdk.WatchableType.Variable : 0,
+            sdk.WatchableType.Alias : 0,
+            sdk.WatchableType.RuntimePublishedValue : 0
+        }
+        self._watchable_count = {
             sdk.WatchableType.Variable : 0,
             sdk.WatchableType.Alias : 0,
             sdk.WatchableType.RuntimePublishedValue : 0
@@ -143,6 +149,7 @@ class WatchableRegistry:
             display_path=path,  # Required for proper error messages.
             config=config
             )
+        self._watchable_count[config.watchable_type]+=1
 
     def _get_node_with_lock(self, watchable_type:sdk.WatchableType, path:str) -> Union[WatchableRegistryNodeContent, WatchableRegistryEntryNode]:
         """Read a node in the tree and locks the tree while doing it."""
@@ -174,7 +181,6 @@ class WatchableRegistry:
             if len(filtered_updates) > 0:
                 watcher.value_update_callback(watcher_id, filtered_updates)
 
-
     def register_watcher(self, watcher_id:str, value_update_callback:WatcherValueUpdateCallback, override:bool=False) -> None:
         if watcher_id in self._watchers:
             if not override:
@@ -187,6 +193,10 @@ class WatchableRegistry:
             del self._watchers[watcher_id]
         except KeyError:
             pass
+    
+    def registered_watcher_count(self) -> int:
+        """Return the number of active registered watchers"""
+        return len(self._watchers)
 
     def watch_fqn(self, watcher_id:str, fqn:str) -> None:
         """Adds a watcher on the given watchable and register a callback to be 
@@ -280,16 +290,16 @@ class WatchableRegistry:
             return 0
         return entry.watcher_count
 
-    def watcher_count_fqn(self, fqn:str) -> int:
+    def node_watcher_count_fqn(self, fqn:str) -> int:
         """Return the number of watcher on a node
         
         :param fqn: The watchable fully qualified name
         :return: The number of watchers
         """
         parsed = self.parse_fqn(fqn)
-        return self.watcher_count(parsed.watchable_type, parsed.path)
+        return self.node_watcher_count(parsed.watchable_type, parsed.path)
        
-    def watcher_count(self, watchable_type:sdk.WatchableType, path:str) -> int:
+    def node_watcher_count(self, watchable_type:sdk.WatchableType, path:str) -> int:
         """Return the number of watcher on a node
         
         :param watchable_type: The watchable type
@@ -409,6 +419,7 @@ class WatchableRegistry:
             changed = False
             had_data = len(self._trees[watchable_type]) > 0
             self._trees[watchable_type] = {}
+            self._watchable_count[watchable_type]=0
 
             if had_data:
                 changed = True
@@ -442,9 +453,8 @@ class WatchableRegistry:
                     had_data = True
                     self._tree_change_counters[wt] += 1
 
-            self._trees[sdk.WatchableType.Variable] = {}
-            self._trees[sdk.WatchableType.Alias] = {}
-            self._trees[sdk.WatchableType.RuntimePublishedValue] = {}
+                self._trees[wt] = {}
+                self._watchable_count[wt] = 0
         
         return had_data
 
@@ -466,9 +476,11 @@ class WatchableRegistry:
         self._global_watch_callbacks = watch_callback
         self._global_unwatch_callbacks = unwatch_callback
     
-
     def get_change_counters(self) -> Dict[sdk.WatchableType, int]:
         return self._tree_change_counters.copy()
+
+    def get_watchable_count(self, watchable_type:sdk.WatchableType) -> int:
+        return self._watchable_count[watchable_type]
 
     @classmethod
     def _validate_fqn(cls, fqn:ParsedFullyQualifiedName, desc:sdk.WatchableConfiguration) -> None:

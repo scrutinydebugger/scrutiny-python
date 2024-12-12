@@ -18,6 +18,7 @@ from scrutiny.sdk.watchable_handle import WatchableHandle
 from scrutiny.core import validation
 from scrutiny.core.logging import DUMPDATA_LOGLEVEL
 from scrutiny.sdk import exceptions as sdk_exceptions
+from scrutiny.tools.profiling import VariableRateExponentialAverager
 
 @dataclass(frozen=True)
 class ValueUpdate:
@@ -67,6 +68,9 @@ class BaseListener(abc.ABC):
     _update_count:int
     """Number of updates received"""
 
+    _update_rate_measurement:VariableRateExponentialAverager
+    """A low pass filter meant to measure the number of value update per seconds that this listener receives"""
+
     def __init__(self, 
                  name:Optional[str]=None, 
                  queue_max_size:int=1000
@@ -98,6 +102,7 @@ class BaseListener(abc.ABC):
         self._receive_error=False
         self._queue_max_size=queue_max_size
         self._update_count=0
+        self._update_rate_measurement = VariableRateExponentialAverager(time_estimation_window=0.1, tau=1, near_zero=0.1)
 
     def _broadcast_update(self, watchables:List[WatchableHandle]) -> None:
         """
@@ -125,7 +130,7 @@ class BaseListener(abc.ABC):
                 if self._logger.isEnabledFor(DUMPDATA_LOGLEVEL):    # pragma: no cover
                     self._logger.log(DUMPDATA_LOGLEVEL, f"Received {len(update_list)} updates")
                 try:
-                    self._update_queue.put(update_list, block=False)
+                    self._update_queue.put_nowait(update_list)
                 except queue.Full:
                     self._drop_count += 1
                     must_print = (self._drop_count < 10 or self._drop_count % 10 == 0)
@@ -153,6 +158,7 @@ class BaseListener(abc.ABC):
 
         try:
             if not self._setup_error:
+                 self._update_rate_measurement.enable()
                  self.process()
                  last_process_timer = time.perf_counter()
                  while not self._stop_request_event.is_set():
@@ -167,9 +173,11 @@ class BaseListener(abc.ABC):
                         
                         if updates is not None:
                             self._update_count += len(updates)
+                            self._update_rate_measurement.add_data(len(updates))
                             self.receive(updates)
                         
                         if time.perf_counter() - last_process_timer >= self.TARGET_PROCESS_INTERVAL:
+                            self._update_rate_measurement.update()
                             self.process()
                             last_process_timer = time.perf_counter()
                             
@@ -178,6 +186,7 @@ class BaseListener(abc.ABC):
             self._logger.error(f"{e}")
             self._logger.debug(traceback.format_exc())
         finally:
+            self._update_rate_measurement.disable()
             self._logger.debug("Thread exiting. Calling teardown()")
             try:
                 self.teardown()
@@ -283,7 +292,7 @@ class BaseListener(abc.ABC):
         self._update_count=0
         self._update_queue = queue.Queue(self._queue_max_size)
         self._thread = threading.Thread(target=self._thread_task, daemon=True)
-        self._thread.start()    
+        self._thread.start() 
 
         self._started_event.wait(2)
         if not self._started_event.is_set():
@@ -307,11 +316,11 @@ class BaseListener(abc.ABC):
                 self._stop_request_event.set()
                 if self._update_queue is not None:
                     try:
-                        self._update_queue.put(None, block=False)
+                        self._update_queue.put_nowait(None)
                     except queue.Full:
                         self._empty_update_queue()
                         try:
-                            self._update_queue.put(None, block=False)
+                            self._update_queue.put_nowait(None)
                         except queue.Full:
                             self._thread.setDaemon(True)
 
@@ -379,10 +388,21 @@ class BaseListener(abc.ABC):
         return self._update_count
     
     @property
+    def update_per_sec(self) -> float:
+        return self._update_rate_measurement.get_value()
+    
+    @property
     def error_occured(self) -> int:
         """Tells if an error occured while running the listener"""
         return self._setup_error or self._receive_error or self._teardown_error
 
+    @property
+    def internal_qsize(self) -> int:
+        """Return the number of value updates presently stored in the queue linking the SDK client thread and the listener thread."""
+        if self._update_queue is None:
+            return 0
+        return self._update_queue.qsize()
+    
     @abc.abstractmethod
     def receive(self, updates:List[ValueUpdate]) -> None:
         """Method called by the listener thread each time the client notifies the listeners for one or many updates

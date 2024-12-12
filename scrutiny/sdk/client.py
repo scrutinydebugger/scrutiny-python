@@ -379,8 +379,8 @@ class ScrutinyClient:
     _encoding: str              # The API string encoding. utf-8
     _sock: Optional[socket.socket]    # The socket talking with the server
     _selector: Optional[selectors.DefaultSelector]  # Used for socket communication
-    _stream_parser : Optional[StreamParser]         # Used for socket communication
-    _stream_maker : Optional[StreamMaker]           # Used for socket communication
+    _stream_parser : StreamParser         # Used for socket communication
+    _stream_maker : StreamMaker           # Used for socket communication
     _rx_message_callbacks: List[RxMessageCallback]  # List of callbacks to call for each message received. (mainly for testing)
     _reqid: int                 # The actual request ID. Increasing integer
     _timeout: float             # Default timeout value for server requests
@@ -455,8 +455,6 @@ class ScrutinyClient:
         self._encoding = 'utf8'
         self._sock = None
         self._selector = None
-        self._stream_parser = None
-        self._stream_maker = None
         self._rx_message_callbacks = [] if rx_message_callbacks is None else rx_message_callbacks
         self._worker_thread = None
         self._threading_events = self._ThreadingEvents()
@@ -485,6 +483,9 @@ class ScrutinyClient:
         self._active_batch_context = None
         self._listeners=[]
         self._locked_for_connect = False
+
+        self._stream_parser = TCPClientHandler.get_compatible_stream_parser()
+        self._stream_maker = TCPClientHandler.get_compatible_stream_maker()
 
         self._event_queue = queue.Queue(maxsize=100)   # Not supposed to go much above 1 or 2
         self.listen_events(enabled_events)
@@ -543,6 +544,8 @@ class ScrutinyClient:
                     
                 self._wt_process_write_watchable_requests()
                 self._wt_process_device_state()
+                
+                self._stream_parser.process()
 
             except sdk.exceptions.ConnectionError as e:
                 if self._connection_cancel_request:
@@ -948,12 +951,10 @@ class ScrutinyClient:
             if self._selector is not None:
                 self._selector.close()
             
-            if self._stream_parser is not None:
-                self._stream_parser.reset()
+            self._stream_parser.reset()
 
             self._sock = None
             self._selector = None
-            self._stream_parser = None
         
         events_to_trigger:List[ScrutinyClient.Events._ANY_EVENTS] = []
         with self._main_lock:
@@ -1079,7 +1080,7 @@ class ScrutinyClient:
         error: Optional[Exception] = None
         obj: Optional[Dict[str, Any]] = None
 
-        if self._sock is None or self._stream_parser is None or self._selector is None:
+        if self._sock is None  or self._selector is None:
             raise sdk.exceptions.ConnectionError(f"Disconnected from server")
 
         server_gone = False
@@ -1102,7 +1103,7 @@ class ScrutinyClient:
             err_str = str(error) if error else ""
             raise sdk.exceptions.ConnectionError(f"Disconnected from server. {err_str}")
 
-        if not self._stream_parser.queue().empty():
+        while not self._stream_parser.queue().empty():
             try:
                 data_str = self._stream_parser.queue().get().decode(self._encoding)
                 if self._logger.isEnabledFor(DUMPDATA_LOGLEVEL):    # pragma: no cover
@@ -1207,8 +1208,7 @@ class ScrutinyClient:
             with self._sock_lock:
                 try:
                     self._server_state = ServerState.Connecting
-                    self._stream_parser = TCPClientHandler.get_compatible_stream_parser()
-                    self._stream_maker = TCPClientHandler.get_compatible_stream_maker()
+                    self._stream_parser.reset()
                     self._sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                     self._selector = selectors.DefaultSelector()
                     self._selector.register(self._sock, selectors.EVENT_READ)
@@ -2155,3 +2155,13 @@ class ScrutinyClient:
         """Port of the the server is letening to"""
         with self._user_lock:
             return int(self._port) if self._port is not None else None
+
+    @property
+    def rx_bytes_per_sec(self) -> float:
+        """Return the approximated data input rate coming from the server in Bytes/sec"""
+        return self._stream_parser.bytes_in_per_sec
+    
+    @property
+    def rx_msg_per_sec(self) -> float:
+        """Return the approximated message input rate coming from the server in msg/sec"""
+        return self._stream_parser.datagram_out_per_sec

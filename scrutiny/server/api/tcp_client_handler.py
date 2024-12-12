@@ -15,14 +15,15 @@ import socket
 from dataclasses import dataclass
 import traceback
 import queue
+import selectors
+import time
 
 from scrutiny.server.api.abstract_client_handler import AbstractClientHandler, ClientHandlerConfig, ClientHandlerMessage
 from scrutiny.tools.stream_datagrams import StreamMaker, StreamParser
-import selectors
 from scrutiny.core.logging import DUMPDATA_LOGLEVEL
+from scrutiny.tools.profiling import VariableRateExponentialAverager
 
-from typing import Dict, Any, Optional, TypedDict, cast, List, Tuple
-
+from typing import Dict, Optional, TypedDict, cast, List, Tuple
 
 class TCPClientHandlerConfig(TypedDict):
     host:str
@@ -60,6 +61,7 @@ class TCPClientHandler(AbstractClientHandler):
 
     registry_lock:threading.Lock
     force_silent: bool  # For unit testing of timeouts
+    bitrate_measurement:VariableRateExponentialAverager
 
     def __init__(self, config: ClientHandlerConfig, rx_event:Optional[threading.Event]=None):
         if 'host' not in config:
@@ -85,6 +87,7 @@ class TCPClientHandler(AbstractClientHandler):
         self.rx_queue = queue.Queue()
         self.registry_lock = threading.Lock()
         self.force_silent = False
+        self.bitrate_measurement = VariableRateExponentialAverager(time_estimation_window=0.1, tau=0.5, near_zero=1)
         
     def send(self, msg: ClientHandlerMessage) -> None:
         assert isinstance(msg, ClientHandlerMessage)
@@ -101,9 +104,10 @@ class TCPClientHandler(AbstractClientHandler):
 
         try:
             if not self.force_silent:
+                self.bitrate_measurement.add_data(len(payload))
                 sock.send(payload)
         except OSError:
-            # Client is gone. Did not get cleaned by the server thread. Should ot happen.
+            # Client is gone. Did not get cleaned by the server thread. Should not happen.
             self.unregister_client(msg.conn_id)
             
     
@@ -115,6 +119,7 @@ class TCPClientHandler(AbstractClientHandler):
         return cast(int, port)
 
     def start(self) -> None:
+        self.last_process = time.perf_counter()
         self.logger.info('Starting TCP socket listener on %s:%s' % (self.config['host'], self.config['port']))
         self.server_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.server_sock.bind((self.config['host'], self.config['port']))
@@ -130,8 +135,10 @@ class TCPClientHandler(AbstractClientHandler):
         )
         self.server_thread_info.thread.start()
         self.server_thread_info.started_event.wait()
+        self.bitrate_measurement.enable()
 
     def stop(self) -> None:
+        self.bitrate_measurement.disable()
         if self.server_thread_info is not None:
             self.server_thread_info.stop_event.set()
             if self.server_sock is not None:
@@ -156,6 +163,7 @@ class TCPClientHandler(AbstractClientHandler):
 
 
     def process(self) -> None:
+        self.bitrate_measurement.update()
         pass
 
 

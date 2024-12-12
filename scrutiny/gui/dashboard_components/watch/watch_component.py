@@ -242,13 +242,13 @@ class WatchComponent(ScrutinyGUIBaseComponent):
     def row_about_to_be_removed_slot(self, parent:QModelIndex, row_index:int, col_index:int) -> None:
         # This slot is called only on the node removed, not on the children.
         item_removed = self._get_item(parent, row_index)
-        watcher_id = self._make_watcher_id(item_removed)
 
         def func (item:WatchableStandardItem, visible:bool) -> None:
             if visible:
                 self._unwatch_item(item)
         self._tree.map_to_watchable_node(func, item_removed)
         if isinstance(item_removed, WatchableStandardItem):
+            watcher_id = self._make_watcher_id(item_removed)
             self.server_manager.registry.unregister_watcher(watcher_id)
         
     def node_expanded_slot(self, index:QModelIndex) -> None:

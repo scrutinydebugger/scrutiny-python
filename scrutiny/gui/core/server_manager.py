@@ -7,7 +7,7 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
-__all__ = ['ServerManager', 'ServerConfig', 'ValueUpdate']
+__all__ = ['ServerManager', 'ServerConfig', 'ValueUpdate', 'Statistics']
 
 from scrutiny import sdk
 from scrutiny.sdk.client import ScrutinyClient, WatchableListDownloadRequest
@@ -22,90 +22,47 @@ from PySide6.QtCore import Signal, QObject
 from typing import Optional, Dict, Any, Callable, List
 
 from scrutiny.core.logging import DUMPDATA_LOGLEVEL
-from scrutiny.gui.core.watchable_registry import WatchableRegistry, WatchableRegistryNodeNotFoundError
+from scrutiny.gui.core.watchable_registry import WatchableRegistry
 from scrutiny.sdk.listeners import BaseListener, ValueUpdate 
 from scrutiny.sdk.watchable_handle import WatchableHandle
+from scrutiny.tools.profiling import VariableRateExponentialAverager
+
+@dataclass(frozen=True)
+class Statistics:
+    update_received_count:int
+    update_drop_count:int
+    update_per_sec:float
+    listener_internal_qsize:int
+    listener_gui_qsize:int
+    watched_entries_count:int
+    registered_watcher_count:int
+    registry_var_count:int
+    registry_alias_count:int
+    registry_rpv_count:int
+    client_rx_bytes_per_sec:float
+    client_rx_msg_per_sec:float
+
+    def __str__(self) -> str:
+        return f"update_received_count={self.update_received_count}\n" +  \
+        f"update_drop_count={self.update_drop_count}\n" +                 \
+        f"update_per_sec={self.update_per_sec:0.2f}\n" +                       \
+        f"listener_internal_qsize={self.listener_internal_qsize}\n" +     \
+        f"listener_gui_qsize={self.listener_gui_qsize}\n" +               \
+        f"watched_entries_count={self.watched_entries_count}\n" +         \
+        f"registered_watcher_count={self.registered_watcher_count}\n" +   \
+        f"registry_var_count={self.registry_var_count}\n" +               \
+        f"registry_alias_count={self.registry_alias_count}\n" +           \
+        f"registry_rpv_count={self.registry_rpv_count}\n" +               \
+        f"client_rx_bytes_per_sec={self.client_rx_bytes_per_sec:0.2f}\n" +     \
+        f"client_rx_msg_per_sec={self.client_rx_msg_per_sec:0.2f}\n"
 
 @dataclass
 class ServerConfig:
     hostname:str
     port:int
 
-class ThroughputMeasurement:
-    timeslice_length_sec:float
-    time_slice_count:int
-    measurements_history:List[int]
-    timestamps_history:List[int]
-    started:bool
-    measurement_sum:int
-    oldest_time:float
-
-    def __init__(self, timeslice_length_sec:float, time_slice_count:int) -> None:
-        self.timeslice_length_sec = timeslice_length_sec
-        self.time_slice_count = time_slice_count
-        self.reset()
-    
-    def set_started(self, val:bool) -> None:
-        self.started = val
-
-    def start(self) -> None:
-        self.set_started(True)
-    
-    def stop(self) -> None:
-        self.set_started(False)
-
-    def reset(self) -> None:
-        self.oldest_time = 0
-        self.measurements_history = []
-        self.timestamps_history = []
-        self.measurement_sum = 0
-    
-    def update(self) -> None:
-        if not self.started:
-            self.reset()
-            return
-        
-        t = time.perf_counter()
-
-        while len(self.timestamps_history) > 0:
-            t2 = self.timestamps_history[0]
-            if t - t2 > self.timeslice_length_sec:
-                self.timestamps_history.pop(0)
-                n_to_remove = self.measurements_history.pop(0)
-                self.measurement_sum -= n_to_remove
-            else:
-                break
-        
-        if len(self.timestamps_history) > 0:
-            self.oldest_time = self.timestamps_history[0]
-
-    def add_data(self, val: int) -> None:
-        if not self.started:
-            return
-        
-        t = time.perf_counter()
-        self.measurement_sum += val
-        if len(self.timestamps_history) == 0:
-            self.timestamps_history.append(t)
-            self.measurements_history.append(val)
-        else:
-            last_time = self.timestamps_history[-1]
-            if t - last_time > self.timeslice_length_sec:
-                self.timestamps_history.append(t)
-                self.measurements_history.append(val)
-            else:
-                self.measurements_history[-1] += val
-
-        self.oldest_time = self.timestamps_history[0]
-    
-    def get_avg(self) -> float:
-        if len(self.timestamps_history) == 0:
-            return 0
-        return self.measurement_sum/(time.perf_counter() - self.oldest_time)
-
-
 class QtBufferedListener(BaseListener):
-    SIGNALS_PER_SEC = 5
+    SIGNALS_PER_SEC = 10
 
     class _Signals(QObject):
         data_received = Signal()
@@ -114,19 +71,14 @@ class QtBufferedListener(BaseListener):
     signals:_Signals
     last_signal_perf_cnt_ns:int
     inter_signal_delay_ns:int = int(1e9/SIGNALS_PER_SEC)
-    measurement:ThroughputMeasurement
 
     def __init__(self, *args:Any, **kwargs:Any):
         BaseListener.__init__(self, *args, **kwargs)
         self.to_gui_thread_queue = queue.Queue(maxsize=1000)
         self.signals = self._Signals()
         self.last_signal_perf_cnt_ns  = time.perf_counter_ns()
-        
-        self.time_slices = []
-        self.update_count_measurement = ThroughputMeasurement(timeslice_length_sec=0.1, time_slice_count=10)
     
     def receive(self, updates: List[ValueUpdate]) -> None:
-        self.update_count_measurement.add_data(len(updates))
         try:
             self.to_gui_thread_queue.put(updates.copy(), block=False)
         except queue.Full:
@@ -138,23 +90,12 @@ class QtBufferedListener(BaseListener):
 
     def allow_subcription_changes_while_running(self) -> bool:
         return True
-    
-    def process(self) -> None:
-        self.update_count_measurement.set_started(self._started)
-        self.update_count_measurement.update()
-        print(self.update_per_sec_avg)
 
     @property
     def gui_qsize(self) -> int:
+        """Return the number of value updates presently stored in the queue linking the listener thread and the QT GUI thread."""
         return self.to_gui_thread_queue.qsize()
 
-    @property
-    def internal_qsize(self) -> int:
-        return self._update_queue.qsize()
-    
-    @property
-    def update_per_sec_avg(self) -> float:
-        return self.update_count_measurement.get_avg()
 
 class ClientRequestStore:
     @dataclass
@@ -588,7 +529,7 @@ class ServerManager:
 
     def _registry_watch_callback(self, watcher_id:str, display_path:str, watchable_config:sdk.WatchableConfiguration) -> None:
         """Called when a gui component register a watcher on the registry"""
-        watcher_count = self._registry.watcher_count(watchable_config.watchable_type, display_path)
+        watcher_count = self._registry.node_watcher_count(watchable_config.watchable_type, display_path)
         if watcher_count == 1:
             def func(client:ScrutinyClient) -> WatchableHandle:
                 # Runs in a separate thread. 
@@ -606,7 +547,7 @@ class ServerManager:
     def _registry_unwatch_callback(self, watcher_id:str, display_path:str, watchable_config:sdk.WatchableConfiguration) -> None:
         """Called when a gui component unregister a watcher on the registry"""
         # This runs from the GUI thread
-        watcher_count = self._registry.watcher_count(watchable_config.watchable_type, display_path)
+        watcher_count = self._registry.node_watcher_count(watchable_config.watchable_type, display_path)
         if watcher_count == 0:
             handle = self._client.try_get_existing_watch_handle(display_path)
             if handle is not None:
@@ -622,14 +563,9 @@ class ServerManager:
     def _value_update_received(self) -> None:
         # Called in the GUI thread when a value update is received by the lsitener (the client)
         aggregated_updates:List[ValueUpdate] = []
-        size_before = self._listener.to_gui_thread_queue.qsize()
-        internal_size_before = self._listener._update_queue.qsize()
         while not self._listener.to_gui_thread_queue.empty():
             update_list = self._listener.to_gui_thread_queue.get_nowait()
             aggregated_updates.extend(update_list)
-        size_after = self._listener.to_gui_thread_queue.qsize()
-        internal_size_after = self._listener._update_queue.qsize()
-        #print(f"GUI queue : {size_before} -> {size_after}. Internal queue : {internal_size_before} --> {internal_size_after}")
 
         self._registry.broadcast_value_updates_to_watchers(aggregated_updates) 
  
@@ -681,3 +617,19 @@ class ServerManager:
 
         t = threading.Thread(target=threaded_func, daemon=True)
         t.start()
+
+    def get_internal_stats(self) -> Statistics:
+        return Statistics(
+            update_received_count=self._listener.update_count,
+            update_drop_count=self._listener.drop_count,
+            update_per_sec=self._listener.update_per_sec,
+            listener_internal_qsize=self._listener.internal_qsize,
+            listener_gui_qsize=self._listener.gui_qsize,
+            watched_entries_count=self.registry.watched_entries_count(),
+            registered_watcher_count=self.registry.registered_watcher_count(),
+            registry_alias_count=self.registry.get_watchable_count(sdk.WatchableType.Alias),
+            registry_rpv_count=self.registry.get_watchable_count(sdk.WatchableType.RuntimePublishedValue),
+            registry_var_count=self.registry.get_watchable_count(sdk.WatchableType.Variable),
+            client_rx_bytes_per_sec=self._client.rx_bytes_per_sec,
+            client_rx_msg_per_sec=self._client.rx_msg_per_sec
+        )
