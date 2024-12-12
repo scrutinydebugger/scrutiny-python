@@ -1,3 +1,10 @@
+#    manual_test_varlist_watch_components.py
+#        A test file that can be invoked manually to check on the varlist/watch widget
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021 Scrutiny Debugger
 
 if __name__ != '__main__' : 
     raise RuntimeError("This script is expected to run from the command line")

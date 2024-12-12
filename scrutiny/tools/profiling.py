@@ -1,3 +1,11 @@
+#    profiling.py
+#        Some tools for profiling the application
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021 Scrutiny Debugger
+
 import time
 
 class VariableRateExponentialAverager:
