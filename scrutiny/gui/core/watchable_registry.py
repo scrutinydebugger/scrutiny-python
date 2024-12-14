@@ -273,7 +273,7 @@ class WatchableRegistry:
 
     def _unwatch_node_list_with_lock(self, nodes:Iterable[WatchableRegistryEntryNode], watcher:Watcher) -> None:
         with self._lock:
-            removed_list:Set[WatchableRegistryEntryNode] = []
+            removed_list:List[WatchableRegistryEntryNode] = []
             for node in nodes:
                 if node.configuration.server_id in watcher.subscribed_server_id:
                     watcher.subscribed_server_id.remove(node.configuration.server_id)
