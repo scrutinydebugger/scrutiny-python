@@ -1,12 +1,12 @@
-#    sidebar.py
-#        The GUI sidebar
+#    component_sidebar.py
+#        The sidebar with the dashboard component that can be added
 #
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
-__all__ = ['Sidebar']
+__all__ = ['ComponentSidebar']
 
 
 from PySide6.QtWidgets import QWidget,  QToolBar,  QToolButton, QSizePolicy
@@ -17,7 +17,7 @@ import functools
 
 from typing import List, Type, Dict
 
-class Sidebar(QToolBar):
+class ComponentSidebar(QToolBar):
     insert_component=Signal(type)
 
     def __init__(self, components:List[Type[ScrutinyGUIBaseComponent]]) -> None:

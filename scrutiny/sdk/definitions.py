@@ -531,7 +531,6 @@ class DeviceLinkInfo:
     operational:bool
     """Tells if the link is opened and working correctly"""
 
-
 @dataclass(frozen=True)
 class ServerInfo:
     """(Immutable struct) A summary of everything going on on the server side. Status broadcast by the server to every client."""

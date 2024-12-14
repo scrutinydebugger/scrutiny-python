@@ -172,37 +172,33 @@ class TestListeners(ScrutinyUnitTest):
         self.assertGreater(listener.recv_time, listener.setup_time )
         self.assertGreater(listener.teardown_time, listener.recv_time )
 
-        self.assertEqual(listener.recv_list[0].display_path, self.w1.display_path)
-        self.assertEqual(listener.recv_list[0].datatype, self.w1.datatype)
+        self.assertIs(listener.recv_list[0].watchable, self.w1)
         self.assertIsInstance(listener.recv_list[0].update_timestamp, datetime)
         self.assertEqual(listener.recv_list[0].value, 3.1415)
 
-        self.assertEqual(listener.recv_list[1].display_path, self.w2.display_path)
-        self.assertEqual(listener.recv_list[1].datatype, self.w2.datatype)
+        self.assertIs(listener.recv_list[1].watchable, self.w2)
         self.assertIsInstance(listener.recv_list[1].update_timestamp, datetime)
         self.assertEqual(listener.recv_list[1].value, -1234)
 
-        self.assertEqual(listener.recv_list[2].display_path, self.w4.display_path)
-        self.assertEqual(listener.recv_list[2].datatype, self.w4.datatype)
+        self.assertIs(listener.recv_list[2].watchable, self.w4)
         self.assertIsInstance(listener.recv_list[2].update_timestamp, datetime)
         self.assertEqual(listener.recv_list[2].value, 1.23456789)
 
-        self.assertEqual(listener.recv_list[3].display_path, self.w1.display_path)
-        self.assertEqual(listener.recv_list[3].datatype, self.w1.datatype)
+        self.assertIs(listener.recv_list[3].watchable, self.w1)
         self.assertIsInstance(listener.recv_list[3].update_timestamp, datetime)
         self.assertEqual(listener.recv_list[3].value, -5.2)
 
-        self.assertEqual(listener.recv_list[4].display_path, self.w2.display_path)
-        self.assertEqual(listener.recv_list[4].datatype, self.w2.datatype)
+        self.assertIs(listener.recv_list[4].watchable, self.w2)
         self.assertIsInstance(listener.recv_list[4].update_timestamp, datetime)
         self.assertEqual(listener.recv_list[4].value, 0x5555)
 
-        self.assertEqual(listener.recv_list[5].display_path, self.w4.display_path)
-        self.assertEqual(listener.recv_list[5].datatype, self.w4.datatype)
+        self.assertIs(listener.recv_list[5].watchable, self.w4)
         self.assertIsInstance(listener.recv_list[5].update_timestamp, datetime)
         self.assertEqual(listener.recv_list[5].value, -9.999)
 
         self.assertFalse(listener.error_occured)
+
+        listener.get_stats()
 
     def test_listener_subscription_change(self):
         listener = WorkingTestListener()
@@ -331,7 +327,7 @@ class TestListeners(ScrutinyUnitTest):
         self.assertEqual(len(lines), 2*count)
     
     def test_buffered_reader_listener(self):
-        listener = BufferedReaderListener()
+        listener = BufferedReaderListener(queue_max_size=100)
         listener.subscribe([self.w1, self.w2, self.w3, self.w4])
         
         listener.start()
@@ -354,6 +350,28 @@ class TestListeners(ScrutinyUnitTest):
             received += 1
         self.assertEqual(received, 2*count)
     
+    def test_buffered_reader_listener_overflow(self):
+        queue_max_size= 10
+        listener = BufferedReaderListener(queue_max_size=queue_max_size)
+        listener.subscribe([self.w1, self.w2, self.w3, self.w4])
+        
+        listener.start()
+        count = 10
+        for i in range(count):
+            self.w1._update_value(i)
+            self.w2._update_value(2*i)
+            listener._broadcast_update([self.w1, self.w2])
+
+        wait_cond(lambda: listener.update_count >= queue_max_size, 0.5, "Not all received in time")
+
+        listener.stop() 
+        
+        received = 0
+        while not listener.get_queue().empty():
+            listener.get_queue().get()
+            received += 1
+        self.assertEqual(received, queue_max_size)
+
     def test_csv_writer_listener_no_limits(self):
 
         with TemporaryDirectory() as tempdir:

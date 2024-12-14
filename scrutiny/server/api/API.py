@@ -46,8 +46,10 @@ import scrutiny.server.api.typing as api_typing
 from .abstract_client_handler import AbstractClientHandler, ClientHandlerMessage
 from scrutiny.server.device.links.abstract_link import LinkConfig as DeviceLinkConfig
 
-from typing import List, Dict, Set, Optional, Callable, Any, TypedDict, cast, Generator, Literal, Type
+from typing import List, Dict, Set, Optional, Callable, Any, TypedDict, cast, Generator, Literal, Type, TYPE_CHECKING
 
+if TYPE_CHECKING:
+    from scrutiny.server.server import ScrutinyServer
 
 class APIConfig(TypedDict, total=False):
     client_interface_type: str
@@ -122,6 +124,12 @@ class API:
             INFORM_MEMORY_WRITE_COMPLETE = "inform_memory_write_complete"
             USER_COMMAND_RESPONSE = "response_user_command"
             ERROR_RESPONSE = 'error'
+
+    @dataclass(frozen=True)
+    class Statistics:
+        client_handler:AbstractClientHandler.Statistics
+        invalid_request_count:int
+        unexpected_error_count:int
 
     class DataloggingStatus:
         UNAVAILABLE: api_typing.DataloggerState = 'unavailable'
@@ -244,6 +252,8 @@ class API:
     sfd_handler: ActiveSFDHandler
     datalogging_manager: DataloggingManager
     handle_unexpected_errors: bool   # Always true, except during unit tests
+    invalid_request_count:int
+    unexpected_error_count:int
 
     # The method to call for each command
     ApiRequestCallbacks: Dict[str, str] = {
@@ -273,10 +283,7 @@ class API:
 
     def __init__(self,
                  config: APIConfig,
-                 datastore: Datastore,
-                 device_handler: DeviceHandler,
-                 sfd_handler: ActiveSFDHandler,
-                 datalogging_manager: DataloggingManager,
+                 server:"ScrutinyServer",
                  enable_debug: bool = False,
                  rx_event:Optional[threading.Event]=None):
         self.validate_config(config)
@@ -288,15 +295,18 @@ class API:
         else:
             raise NotImplementedError('Unsupported client interface type. %s', config['client_interface_type'])
 
-        self.datastore = datastore
-        self.device_handler = device_handler
-        self.sfd_handler = sfd_handler
-        self.datalogging_manager = datalogging_manager
+        self.server = server
+        self.datastore = self.server.datastore
+        self.device_handler = self.server.device_handler
+        self.sfd_handler = self.server.sfd_handler
+        self.datalogging_manager = self.server.datalogging_manager
         self.logger = logging.getLogger('scrutiny.' + self.__class__.__name__)
         self.connections = set()            # Keep a list of all clients connections
         self.streamer = ValueStreamer()     # The value streamer takes cares of publishing values to the client without polling.
         self.req_count = 0
         self.handle_unexpected_errors = True
+        self.invalid_request_count = 0
+        self.unexpected_error_count = 0
 
         self.enable_debug = enable_debug
 
@@ -436,6 +446,7 @@ class API:
                 raise InvalidRequestException(req, 'Unsupported command %s' % cmd)
 
         except InvalidRequestException as e:
+            self.invalid_request_count += 1
             # Client sent a bad request. Controlled error
             self.logger.debug('[Conn:%s] Invalid request #%d. %s' % (conn_id, self.req_count, str(e)))
             response = self.make_error_response(req, str(e))
@@ -443,6 +454,7 @@ class API:
         except Exception as e:
             # Unknown internal error
             if self.handle_unexpected_errors:
+                self.unexpected_error_count += 1
                 self.logger.error('[Conn:%s] Unexpected error while processing request #%d. %s' % (conn_id, self.req_count, str(e)))
                 self.logger.debug(traceback.format_exc())
                 response = self.make_error_response(req, 'Internal error')
@@ -1707,3 +1719,10 @@ class API:
 
     def close(self) -> None:
         self.client_handler.stop()
+
+    def get_stats(self) -> Statistics:
+        return self.Statistics(
+            invalid_request_count=self.invalid_request_count,
+            unexpected_error_count=self.unexpected_error_count,
+            client_handler=self.client_handler.get_stats()
+        )

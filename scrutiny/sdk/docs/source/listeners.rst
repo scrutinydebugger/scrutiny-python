@@ -163,6 +163,23 @@ a :meth:`teardown<scrutiny.sdk.listeners.BaseListener.teardown>`. If not overrid
 
 -----
 
+Performance statistics
+----------------------
+
+It is possible to get some interesting numbers about the performance of the listener using :meth:`get_stats()<scrutiny.sdk.listeners.BaseListener.get_stats>`
+
+.. automethod:: scrutiny.sdk.listeners.BaseListener.get_stats 
+
+-----
+
+.. automethod:: scrutiny.sdk.listeners.BaseListener.reset_stats
+
+-----
+
+.. autoclass:: scrutiny.sdk.listeners.ListenerStatistics
+
+-----
+
 Available listeners
 -------------------
 

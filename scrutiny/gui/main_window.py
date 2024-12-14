@@ -18,7 +18,7 @@ from PySide6.QtWidgets import QMainWindow
 
 import PySide6QtAds  as QtAds   # type: ignore
 from scrutiny.gui.dialogs.about_dialog import AboutDialog
-from scrutiny.gui.widgets.sidebar import Sidebar
+from scrutiny.gui.widgets.component_sidebar import ComponentSidebar
 from scrutiny.gui.widgets.status_bar import StatusBar
 from scrutiny.gui.widgets.menu_bar import MenuBar
 from scrutiny.gui.dialogs.server_config_dialog import ServerConfigDialog
@@ -51,7 +51,7 @@ class MainWindow(QMainWindow):
     _central_widget:QWidget
     _dock_conainer:QWidget
     _dock_manager:QtAds.CDockManager
-    _sidebar:Sidebar
+    _component_sidebar:ComponentSidebar
     _server_config_dialog:ServerConfigDialog
     _watchable_registry:WatchableRegistry
     _server_manager:ServerManager
@@ -121,9 +121,9 @@ class MainWindow(QMainWindow):
         dock_vlayout = QVBoxLayout(self._dock_conainer)
         dock_vlayout.setContentsMargins(0,0,0,0)
         
-        self._sidebar = Sidebar(self.ENABLED_COMPONENTS)
-        self.addToolBar(Qt.ToolBarArea.LeftToolBarArea, self._sidebar)
-        self._sidebar.insert_component.connect(self.add_new_component)
+        self._component_sidebar = ComponentSidebar(self.ENABLED_COMPONENTS)
+        self.addToolBar(Qt.ToolBarArea.LeftToolBarArea, self._component_sidebar)
+        self._component_sidebar.insert_component.connect(self.add_new_component)
 
         hlayout.addWidget(self._dock_conainer)
         dock_vlayout.addWidget(self._dock_manager)

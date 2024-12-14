@@ -59,9 +59,13 @@ class TCPClientHandler(AbstractClientHandler):
     rx_queue:"queue.Queue[ClientHandlerMessage]"
     stream_maker:StreamMaker
 
-    registry_lock:threading.Lock
+    index_lock:threading.Lock
     force_silent: bool  # For unit testing of timeouts
-    bitrate_measurement:VariableRateExponentialAverager
+    rx_datarate_measurement:VariableRateExponentialAverager
+    tx_datarate_measurement:VariableRateExponentialAverager
+
+    rx_msg_count:int
+    tx_msg_count:int
 
     def __init__(self, config: ClientHandlerConfig, rx_event:Optional[threading.Event]=None):
         if 'host' not in config:
@@ -85,9 +89,12 @@ class TCPClientHandler(AbstractClientHandler):
             use_hash=self.STREAM_USE_HASH
             )
         self.rx_queue = queue.Queue()
-        self.registry_lock = threading.Lock()
+        self.index_lock = threading.Lock()
         self.force_silent = False
-        self.bitrate_measurement = VariableRateExponentialAverager(time_estimation_window=0.1, tau=0.5, near_zero=1)
+        self.rx_datarate_measurement = VariableRateExponentialAverager(time_estimation_window=0.1, tau=0.5, near_zero=1)
+        self.tx_datarate_measurement = VariableRateExponentialAverager(time_estimation_window=0.1, tau=0.5, near_zero=1)
+        self.rx_msg_count = 0
+        self.tx_msg_count = 0
         
     def send(self, msg: ClientHandlerMessage) -> None:
         assert isinstance(msg, ClientHandlerMessage)
@@ -104,8 +111,9 @@ class TCPClientHandler(AbstractClientHandler):
 
         try:
             if not self.force_silent:
-                self.bitrate_measurement.add_data(len(payload))
+                self.tx_datarate_measurement.add_data(len(payload))
                 sock.send(payload)
+                self.tx_msg_count += 1
         except OSError:
             # Client is gone. Did not get cleaned by the server thread. Should not happen.
             self.unregister_client(msg.conn_id)
@@ -135,10 +143,12 @@ class TCPClientHandler(AbstractClientHandler):
         )
         self.server_thread_info.thread.start()
         self.server_thread_info.started_event.wait()
-        self.bitrate_measurement.enable()
+        self.rx_datarate_measurement.enable()
+        self.tx_datarate_measurement.enable()
 
     def stop(self) -> None:
-        self.bitrate_measurement.disable()
+        self.rx_datarate_measurement.disable()
+        self.tx_datarate_measurement.disable()
         if self.server_thread_info is not None:
             self.server_thread_info.stop_event.set()
             if self.server_sock is not None:
@@ -163,9 +173,8 @@ class TCPClientHandler(AbstractClientHandler):
 
 
     def process(self) -> None:
-        self.bitrate_measurement.update()
-        pass
-
+        self.rx_datarate_measurement.update()
+        self.tx_datarate_measurement.update()
 
     def available(self) -> bool:
         return not self.rx_queue.empty()
@@ -178,7 +187,7 @@ class TCPClientHandler(AbstractClientHandler):
 
     def is_connection_active(self, conn_id: str) -> bool:
         """Tells if a client connection is presently functional and alive"""
-        with self.registry_lock:
+        with self.index_lock:
             try:
                 sock = self.id2sock_map[conn_id]
             except KeyError:
@@ -190,7 +199,7 @@ class TCPClientHandler(AbstractClientHandler):
         return True
     
     def get_number_client(self) -> int:
-        with self.registry_lock:
+        with self.index_lock:
             return len(self.id2sock_map)
 
     @classmethod
@@ -260,6 +269,7 @@ class TCPClientHandler(AbstractClientHandler):
                             # Client is gone
                             self.unregister_client(client_id)
                         else:
+                            self.rx_datarate_measurement.add_data(len(data))
                             self.logger.log(DUMPDATA_LOGLEVEL, f"Received {len(data)} bytes from client ID: {client_id}")
                             stream_parser.parse(data)
                             while not stream_parser.queue().empty():
@@ -272,6 +282,7 @@ class TCPClientHandler(AbstractClientHandler):
                                     continue
                                 
                                 self.rx_queue.put(ClientHandlerMessage(conn_id=client_id, obj=obj))
+                                self.rx_msg_count+=1
                                 new_data = True
                 if new_data and self.rx_event is not None:
                     self.rx_event.set()
@@ -285,13 +296,13 @@ class TCPClientHandler(AbstractClientHandler):
                 self.unregister_client(conn_id)
 
     def get_client_list(self) -> List[str]:
-        with self.registry_lock:
+        with self.index_lock:
             return list(self.id2sock_map.keys())
             
     def st_register_client(self, sock:socket.socket, sockaddr:str) -> str:
         """Register a client. Called by the server thread (st)."""
         conn_id = uuid.uuid4().hex
-        with self.registry_lock:
+        with self.index_lock:
             self.id2sock_map[conn_id] = sock
             self.sock2id_map[sock] = conn_id
         
@@ -303,7 +314,7 @@ class TCPClientHandler(AbstractClientHandler):
     
     def unregister_client(self, conn_id:str) -> None:
         """Close the communication with a client and clear internal entry"""
-        with self.registry_lock:
+        with self.index_lock:
             try:
                 sock = self.id2sock_map[conn_id]
             except KeyError:
@@ -335,3 +346,12 @@ class TCPClientHandler(AbstractClientHandler):
 
         sockaddr_str = str(sockaddr) if sockaddr is not None else ""
         self.logger.info(f"Client disconnected {sockaddr_str} (ID={conn_id}). {nb_client} clients total")
+
+    def get_stats(self) -> AbstractClientHandler.Statistics:
+        return AbstractClientHandler.Statistics(
+            client_count=self.get_number_client(),
+            input_datarate_byte_per_sec=self.rx_datarate_measurement.get_value(),
+            output_datarate_byte_per_sec=self.tx_datarate_measurement.get_value(),
+            msg_received=self.rx_msg_count,
+            msg_sent=self.tx_msg_count,
+        )

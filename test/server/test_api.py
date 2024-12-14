@@ -15,6 +15,7 @@ import math
 from uuid import uuid4
 from scrutiny.core.basic_types import RuntimePublishedValue, MemoryRegion
 from base64 import b64encode, b64decode
+from dataclasses import dataclass
 
 from scrutiny.server.api.API import API
 from scrutiny.server.datastore.datastore import Datastore
@@ -301,6 +302,13 @@ class StubbedDataloggingManager:
             i += 1
         return sampling_rates
 
+@dataclass
+class FakeServer:
+    datastore: Datastore
+    device_handler: StubbedDeviceHandler
+    datalogging_manager : StubbedDataloggingManager
+    sfd_handler: ActiveSFDHandler
+
 
 class TestAPI(ScrutinyUnitTest):
 
@@ -325,12 +333,15 @@ class TestAPI(ScrutinyUnitTest):
         self.fake_device_handler = StubbedDeviceHandler('0' * 64, DeviceHandler.ConnectionStatus.DISCONNECTED)
         self.fake_datalogging_manager = StubbedDataloggingManager(self.datastore, self.fake_device_handler)
         self.sfd_handler = ActiveSFDHandler(device_handler=self.fake_device_handler, datastore=self.datastore, autoload=False)
+        fake_server = FakeServer(
+            datastore=self.datastore,
+            datalogging_manager=self.fake_datalogging_manager,
+            device_handler=self.fake_device_handler,
+            sfd_handler=self.sfd_handler
+            )
         self.api = API(
             config=config,
-            datastore=self.datastore,
-            device_handler=self.fake_device_handler,
-            sfd_handler=self.sfd_handler,
-            datalogging_manager=self.fake_datalogging_manager
+            server=fake_server
         )
         self.api.handle_unexpected_errors = False
         client_handler = self.api.get_client_handler()

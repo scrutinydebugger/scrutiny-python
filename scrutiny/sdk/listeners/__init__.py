@@ -34,6 +34,21 @@ class ValueUpdate:
     """Timestamp of the update"""
 
 class BaseListener(abc.ABC):
+
+    @dataclass(frozen=True)
+    class Statistics:
+        """(Immutable struct) A data structure containing several useful debugging metrics for a listener"""
+
+        update_received_count:int
+        """Total number of value update received by the server. This value can grow very large"""
+        update_drop_count:int
+        """Number of value update that needed to be dropped because of queue overflow"""
+        update_per_sec:float
+        """Estimated rate of update/sec averaged of the few seconds"""
+        internal_qsize:int
+        """Number of element in the internal queue"""
+
+
     TARGET_PROCESS_INTERVAL = 0.2
 
     _name:str
@@ -367,6 +382,21 @@ class BaseListener(abc.ABC):
         """
         return False
 
+    def get_stats(self) -> Statistics:
+        """Returns internal performance metrics for debugging purpose"""
+        return self.Statistics(
+            internal_qsize=self._update_queue.qsize() if self._update_queue is not None else 0,
+            update_drop_count=self._drop_count,
+            update_per_sec=self._update_rate_measurement.get_value(),
+            update_received_count=self._update_count
+        )
+    
+    def reset_stats(self) -> None:
+        """Reset performance metrics that can reset"""
+        self._drop_count = 0
+        self._update_rate_measurement.reset()
+        self._update_count = 0
+
     @property
     def is_started(self) -> bool:
         """Tells if the listener thread is running"""
@@ -376,7 +406,12 @@ class BaseListener(abc.ABC):
     def name(self) -> str:
         """The name of the listener"""
         return self._name
-    
+
+    @property
+    def error_occured(self) -> int:
+        """Tells if an error occured while running the listener"""
+        return self._setup_error or self._receive_error or self._teardown_error
+
     @property
     def drop_count(self) -> int:
         """The number of update dropped due to a full internal queue"""
@@ -386,23 +421,7 @@ class BaseListener(abc.ABC):
     def update_count(self) -> int:
         """The number of update received (not dropped)"""
         return self._update_count
-    
-    @property
-    def update_per_sec(self) -> float:
-        return self._update_rate_measurement.get_value()
-    
-    @property
-    def error_occured(self) -> int:
-        """Tells if an error occured while running the listener"""
-        return self._setup_error or self._receive_error or self._teardown_error
 
-    @property
-    def internal_qsize(self) -> int:
-        """Return the number of value updates presently stored in the queue linking the SDK client thread and the listener thread."""
-        if self._update_queue is None:
-            return 0
-        return self._update_queue.qsize()
-    
     @abc.abstractmethod
     def receive(self, updates:List[ValueUpdate]) -> None:
         """Method called by the listener thread each time the client notifies the listeners for one or many updates

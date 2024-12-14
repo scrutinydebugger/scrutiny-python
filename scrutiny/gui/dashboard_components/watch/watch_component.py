@@ -19,12 +19,11 @@ from PySide6.QtWidgets import QVBoxLayout, QWidget, QMenu
 from PySide6.QtGui import QContextMenuEvent, QDragMoveEvent, QDropEvent, QDragEnterEvent, QKeyEvent, QStandardItem, QAction
 
 from scrutiny.gui import assets
-from scrutiny.gui.core.watchable_registry import WatchableRegistryNodeNotFoundError
+from scrutiny.gui.core.watchable_registry import WatchableRegistryNodeNotFoundError, WatcherNotFoundError
 from scrutiny.gui.dashboard_components.base_component import ScrutinyGUIBaseComponent
 from scrutiny.gui.dashboard_components.common.watchable_tree import WatchableTreeWidget, WatchableStandardItem, FolderStandardItem, BaseWatchableRegistryTreeStandardItem
 from scrutiny.gui.dashboard_components.watch.watch_tree_model import WatchComponentTreeModel, ValueStandardItem
 
-from scrutiny import sdk
 from scrutiny.gui.core.server_manager import ValueUpdate
 
 from typing import Dict, Any, Union, cast, Optional, Tuple, Callable, List
@@ -249,7 +248,12 @@ class WatchComponent(ScrutinyGUIBaseComponent):
         self._tree.map_to_watchable_node(func, item_removed)
         if isinstance(item_removed, WatchableStandardItem):
             watcher_id = self._make_watcher_id(item_removed)
-            self.server_manager.registry.unregister_watcher(watcher_id)
+            try:
+                self.server_manager.registry.unregister_watcher(watcher_id)
+            except WatcherNotFoundError:
+                # Should not happen (hopefully)
+                self.logger.error(f"Tried to unregister watcher {watcher_id}, but was not registered")
+
         
     def node_expanded_slot(self, index:QModelIndex) -> None:
         # Added at the end of the event loop because it is a queuedConnection

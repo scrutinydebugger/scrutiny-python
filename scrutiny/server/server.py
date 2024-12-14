@@ -17,6 +17,7 @@ import logging
 import traceback
 from copy import copy
 import threading
+from dataclasses import dataclass
 
 from scrutiny.server.api import API, APIConfig
 from scrutiny.server.datastore.datastore import Datastore
@@ -60,6 +61,14 @@ DEFAULT_CONFIG: ServerConfig = {
 class ScrutinyServer:
     """The Scrutiny server that communicate with a device running libscrutiny-embedded and make
     the device internal data available through a multi-client socket API"""
+
+
+    @dataclass(frozen=True)
+    class Statistics:
+        device:DeviceHandler.Statistics
+        api:API.Statistics
+        uptime:float
+
     server_name: str
     logger: logging.Logger
     config: ServerConfig
@@ -69,6 +78,7 @@ class ScrutinyServer:
     sfd_handler: ActiveSFDHandler
     datalogging_manager: DataloggingManager
     rx_data_event:threading.Event
+    start_time:float
 
     def __init__(self, 
                  input_config: Optional[Union[str, ServerConfig]] = None,
@@ -116,13 +126,11 @@ class ScrutinyServer:
         )
         self.api = API(
             self.config['api'],
-            datastore=self.datastore,
-            device_handler=self.device_handler,
-            sfd_handler=self.sfd_handler,
-            datalogging_manager=self.datalogging_manager,
+            server=self,
             enable_debug=self.config['debug'],
             rx_event=self.rx_data_event
         )
+        self.start_time = time.monotonic()
 
     def validate_config(self) -> None:
         if self.config['debug']:
@@ -177,3 +185,11 @@ class ScrutinyServer:
             self.sfd_handler.close()
 
         self.logger.info('Closing server instance "%s"' % self.server_name)
+
+    def get_stats(self) -> Statistics:
+        """Return the server statistics"""
+        return self.Statistics(
+            device=self.device_handler.get_stats(),
+            api = self.api.get_stats(),
+            uptime=time.monotonic() - self.start_time
+        )

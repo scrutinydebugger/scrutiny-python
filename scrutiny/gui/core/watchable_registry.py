@@ -16,13 +16,14 @@ __all__ = [
     'WatchableValue',
     'WatcherValueUpdateCallback',
     'GlobalWatchCallback',
-    'GlobalUnwatchCallback'
+    'GlobalUnwatchCallback',
+    'ValueUpdate'   # Re-export from listener
     ]
 
 
 from scrutiny import sdk
 from scrutiny.sdk.listeners import ValueUpdate
-from typing import Dict, List, Union, Optional, Callable, Set, Any, Tuple
+from typing import Dict, List, Union, Optional, Callable, Set, Any, Iterable
 import threading
 from dataclasses import dataclass
 import logging
@@ -39,6 +40,9 @@ class WatchableRegistryError(Exception):
     pass
 
 class WatchableRegistryNodeNotFoundError(WatchableRegistryError):
+    pass
+
+class WatcherNotFoundError(Exception):
     pass
 
 TYPESTR_MAP_S2WT = {
@@ -81,6 +85,11 @@ class Watcher:
     subscribed_server_id:Set[str]
 
     def __init__(self, watcher_id:str, value_update_callback:WatcherValueUpdateCallback) -> None:
+        if not isinstance(watcher_id, str):
+            raise ValueError("watcher_id is not a string")
+        if not callable(value_update_callback):
+            raise ValueError("value_update_callback is not a function")
+        
         self.watcher_id = watcher_id
         self.value_update_callback = value_update_callback
         self.subscribed_server_id = set()
@@ -88,6 +97,17 @@ class Watcher:
 class WatchableRegistry:
     """Contains a copy of the watchable list available on the server side
     Act as a relay to dispatch value update event to the internal widgets"""
+
+    @dataclass(frozen=True)
+    class Statistics:
+        """(Immutable struct) Internal metrics for debugging and disagnostics"""
+        watched_entries_count:int
+        registered_watcher_count:int
+        alias_count:int
+        rpv_count:int
+        var_count:int
+
+
     _trees:  Dict[sdk.WatchableType, Any]
     _watchable_count:  Dict[sdk.WatchableType, int]
     _lock:threading.Lock
@@ -190,6 +210,21 @@ class WatchableRegistry:
     
     def unregister_watcher(self, watcher_id:str ) -> None:
         try:
+            watcher = self._watchers[watcher_id]
+        except KeyError:
+            raise WatcherNotFoundError(f"No watchers with ID {watcher_id}")
+        
+        nodes:List[WatchableRegistryEntryNode] = []
+        with self._lock:
+            for server_id in list(watcher.subscribed_server_id):
+                try:
+                    nodes.append(self._watched_entries[server_id])
+                except KeyError:
+                    continue
+        
+        self._unwatch_node_list_with_lock(nodes, watcher)
+       
+        try:
             del self._watchers[watcher_id]
         except KeyError:
             pass
@@ -219,7 +254,7 @@ class WatchableRegistry:
         try:
             watcher = self._watchers[watcher_id]
         except KeyError:
-            raise WatchableRegistryError(f"No watchers with ID {watcher_id}")
+            raise WatcherNotFoundError(f"No watchers with ID {watcher_id}")
         
         node = self._get_node_with_lock(watchable_type, path)
         if not isinstance(node, WatchableRegistryEntryNode):
@@ -236,6 +271,27 @@ class WatchableRegistry:
         if added and self._global_watch_callbacks is not None:
             self._global_watch_callbacks(watcher_id, node.display_path, node.configuration)
 
+    def _unwatch_node_list_with_lock(self, nodes:Iterable[WatchableRegistryEntryNode], watcher:Watcher) -> None:
+        with self._lock:
+            removed_list:Set[WatchableRegistryEntryNode] = []
+            for node in nodes:
+                if node.configuration.server_id in watcher.subscribed_server_id:
+                    watcher.subscribed_server_id.remove(node.configuration.server_id)
+                    removed_list.append(node)
+                    node.watcher_count = max(node.watcher_count, 0)
+                    node.watcher_count -= 1
+                    if node.watcher_count == 0:
+                        try:
+                            del self._watched_entries[node.configuration.server_id]
+                        except KeyError:
+                            pass
+        
+        # Callback is outside of lock on purpose to allow it to access the registry too. Deadlock will happen otherwise
+        if self._global_unwatch_callbacks is not None:
+            for node in removed_list:
+                self._global_unwatch_callbacks(watcher.watcher_id, node.display_path, node.configuration)
+       
+
     def unwatch(self, watcher_id:str, watchable_type:sdk.WatchableType, path:str) -> None:
         """Remove a the given watcher from the watcher list of the given node.
         
@@ -246,27 +302,14 @@ class WatchableRegistry:
         try:
             watcher = self._watchers[watcher_id]
         except KeyError:
-            raise WatchableRegistryError(f"No watchers with ID {watcher_id}")
+            raise WatcherNotFoundError(f"No watchers with ID {watcher_id}")
         
         node = self._get_node_with_lock(watchable_type, path)
         if not isinstance(node, WatchableRegistryEntryNode):
             raise WatchableRegistryError("Cannot unwatch something that is not a Watchable")
         
-        with self._lock:
-            removed = False
-            if node.configuration.server_id in watcher.subscribed_server_id:
-                watcher.subscribed_server_id.remove(node.configuration.server_id)
-                removed = True
-                node.watcher_count -= 1
-                node.watcher_count = max(node.watcher_count, 0)
-                if node.watcher_count == 0:
-                    try:
-                        del self._watched_entries[node.configuration.server_id]
-                    except KeyError:
-                        pass
+        self._unwatch_node_list_with_lock([node], watcher)
 
-        if removed and self._global_unwatch_callbacks is not None:
-            self._global_unwatch_callbacks(watcher_id, node.display_path, node.configuration)
     
     def unwatch_fqn(self, watcher_id:str, fqn:str) -> None:
         """Remove a the given watcher from the watcher list of the given node.
@@ -370,23 +413,6 @@ class WatchableRegistry:
         except WatchableRegistryError:
             return False
         
-    def is_watchable_of_type_fqn(self, fqn:str, watchable_type:sdk.WatchableType) -> bool:
-        """Tells if the item referred to by the Fully Qualified Name exists and is a watchable of the given type.
-        
-        :param fqn: The fully qualified name created using ``make_fqn()``
-        :param watchable_type: The watchable type to check for
-
-        :return: ``True`` if exists and is a watchable of the given type
-        """   
-        try:
-            node = self.read_fqn(fqn)
-            if isinstance(node, sdk.WatchableConfiguration):
-                return node.watchable_type == watchable_type
-            else:
-                return False
-        except WatchableRegistryError:
-            return False
-
     def add_content(self, data:Dict[sdk.WatchableType, Dict[str, sdk.WatchableConfiguration]]) -> None:
         """Add content of the given types.
         Triggers ``changed``.  May trigger ``filled`` if all types have data after calling this function.
@@ -433,7 +459,10 @@ class WatchableRegistry:
             for server_id in to_remove:
                 del self._watched_entries[server_id]
                 for watchers in self._watchers.values():
-                    watchers.subscribed_server_id.remove(server_id) # Force unwatch
+                    try:
+                        watchers.subscribed_server_id.remove(server_id) # Force unwatch
+                    except KeyError:
+                        pass
 
         return changed
 
@@ -481,6 +510,17 @@ class WatchableRegistry:
 
     def get_watchable_count(self, watchable_type:sdk.WatchableType) -> int:
         return self._watchable_count[watchable_type]
+
+    def get_stats(self) -> Statistics:
+        """Return internal performance metrics for diagnostic and debugging"""
+        return self.Statistics(
+            alias_count=self.get_watchable_count(sdk.WatchableType.Alias),
+            rpv_count=self.get_watchable_count(sdk.WatchableType.RuntimePublishedValue),
+            var_count=self.get_watchable_count(sdk.WatchableType.Variable),
+            watched_entries_count=self.watched_entries_count(),
+            registered_watcher_count=self.registered_watcher_count()
+        )
+
 
     @classmethod
     def _validate_fqn(cls, fqn:ParsedFullyQualifiedName, desc:sdk.WatchableConfiguration) -> None:

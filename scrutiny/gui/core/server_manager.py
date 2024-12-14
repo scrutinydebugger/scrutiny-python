@@ -25,36 +25,6 @@ from scrutiny.core.logging import DUMPDATA_LOGLEVEL
 from scrutiny.gui.core.watchable_registry import WatchableRegistry
 from scrutiny.sdk.listeners import BaseListener, ValueUpdate 
 from scrutiny.sdk.watchable_handle import WatchableHandle
-from scrutiny.tools.profiling import VariableRateExponentialAverager
-
-@dataclass(frozen=True)
-class Statistics:
-    update_received_count:int
-    update_drop_count:int
-    update_per_sec:float
-    listener_internal_qsize:int
-    listener_gui_qsize:int
-    watched_entries_count:int
-    registered_watcher_count:int
-    registry_var_count:int
-    registry_alias_count:int
-    registry_rpv_count:int
-    client_rx_bytes_per_sec:float
-    client_rx_msg_per_sec:float
-
-    def __str__(self) -> str:
-        return f"update_received_count={self.update_received_count}\n" +  \
-        f"update_drop_count={self.update_drop_count}\n" +                 \
-        f"update_per_sec={self.update_per_sec:0.2f}\n" +                       \
-        f"listener_internal_qsize={self.listener_internal_qsize}\n" +     \
-        f"listener_gui_qsize={self.listener_gui_qsize}\n" +               \
-        f"watched_entries_count={self.watched_entries_count}\n" +         \
-        f"registered_watcher_count={self.registered_watcher_count}\n" +   \
-        f"registry_var_count={self.registry_var_count}\n" +               \
-        f"registry_alias_count={self.registry_alias_count}\n" +           \
-        f"registry_rpv_count={self.registry_rpv_count}\n" +               \
-        f"client_rx_bytes_per_sec={self.client_rx_bytes_per_sec:0.2f}\n" +     \
-        f"client_rx_msg_per_sec={self.client_rx_msg_per_sec:0.2f}\n"
 
 @dataclass
 class ServerConfig:
@@ -82,7 +52,8 @@ class QtBufferedListener(BaseListener):
         try:
             self.to_gui_thread_queue.put(updates.copy(), block=False)
         except queue.Full:
-            self._logger.error("Dropping")  # TODO
+            self._logger.error("Dropping an update")
+            
         tnow = time.perf_counter_ns()
         if tnow - self.last_signal_perf_cnt_ns >= self.inter_signal_delay_ns: 
             self.last_signal_perf_cnt_ns = tnow
@@ -141,6 +112,14 @@ class ClientRequestStore:
 class ServerManager:
     """Runs a thread for the synchronous SDK and emit QT events when something interesting happens"""
 
+    @dataclass(frozen=True)
+    class Statistics:
+        listener: BaseListener.Statistics
+        client:ScrutinyClient.Statistics
+        watchable_registry:WatchableRegistry.Statistics
+        listener_to_gui_qsize:int
+        status_update_received:int
+        
     class ThreadState:
         """Data used by the server thread used to detect changes and emit events"""
         runtime_watchables_download_request:Optional[WatchableListDownloadRequest]
@@ -198,18 +177,19 @@ class ServerManager:
     RECONNECT_DELAY = 1
     _client:ScrutinyClient              # The SDK client object that talks with the server
     _thread:Optional[threading.Thread]  # The thread tyhat runs the synchronous client
-    _registry:WatchableRegistry
+    _registry:WatchableRegistry         # The watchable registry that holds the list of available watchables, downloaded from the server
 
     _thread_stop_event:threading.Event  # Event used to stop the thread
     _signals:_Signals                   # The signals
-    _internal_signals:_InternalSignals
-    _allow_auto_reconnect:bool                # Flag indicating if the thread should try to reconnect the client if disconnected
+    _internal_signals:_InternalSignals  # Some signals used internally, mainly for synchronization
+    _allow_auto_reconnect:bool          # Flag indicating if the thread should try to reconnect the client if disconnected
     _logger:logging.Logger              # Logger
-    _thread_state:ThreadState             # Data used by the thread to detect state changes
+    _thread_state:ThreadState           # Data used by the thread to detect state changes
 
     _stop_pending:bool
     _client_request_store:ClientRequestStore
     _listener : QtBufferedListener
+    _status_update_received : int
 
     def __init__(self, watchable_registry:WatchableRegistry, client:Optional[ScrutinyClient]=None) -> None:
         super().__init__()  # Required for signals to work
@@ -239,6 +219,11 @@ class ServerManager:
         self._listener = QtBufferedListener()
         self._client.register_listener(self._listener)
         self._listener.signals.data_received.connect(self._value_update_received)
+
+        self._status_update_received = 0
+        def inc_status_update_count() -> None:
+            self._status_update_received += 1
+        self._signals.status_received.connect(inc_status_update_count)
 
         if self._logger.isEnabledFor(DUMPDATA_LOGLEVEL):    # pragma: no cover
             self._signals.server_connected.connect(lambda : self._logger.log(DUMPDATA_LOGLEVEL, "+Signal: server_connected"))
@@ -290,6 +275,7 @@ class ServerManager:
         self._allow_auto_reconnect = True
         self._thread_stop_event.clear()
         self._thread = threading.Thread(target=self._thread_func, args=[config], daemon=True)
+        self._listener.reset_stats()
         self._thread.start()
         self._logger.debug("Server manager started")
         self.signals.started.emit()
@@ -596,7 +582,7 @@ class ServerManager:
             user_func:Callable[[ScrutinyClient], Any], 
             ui_thread_callback:Callable[[Any, Optional[Exception]], None]
             ) -> None:
-        """Runs a client request in a separate thread and call a callback in the UI thread when done."""
+        """Runs a client request in a separate thread and calls a callback in the UI thread when done."""
 
         def threaded_func() -> None:
             # This runs in a separate thread
@@ -618,18 +604,11 @@ class ServerManager:
         t = threading.Thread(target=threaded_func, daemon=True)
         t.start()
 
-    def get_internal_stats(self) -> Statistics:
-        return Statistics(
-            update_received_count=self._listener.update_count,
-            update_drop_count=self._listener.drop_count,
-            update_per_sec=self._listener.update_per_sec,
-            listener_internal_qsize=self._listener.internal_qsize,
-            listener_gui_qsize=self._listener.gui_qsize,
-            watched_entries_count=self.registry.watched_entries_count(),
-            registered_watcher_count=self.registry.registered_watcher_count(),
-            registry_alias_count=self.registry.get_watchable_count(sdk.WatchableType.Alias),
-            registry_rpv_count=self.registry.get_watchable_count(sdk.WatchableType.RuntimePublishedValue),
-            registry_var_count=self.registry.get_watchable_count(sdk.WatchableType.Variable),
-            client_rx_bytes_per_sec=self._client.rx_bytes_per_sec,
-            client_rx_msg_per_sec=self._client.rx_msg_per_sec
+    def get_stats(self) -> Statistics:
+        return self.Statistics(
+            listener=self._listener.get_stats(),
+            client=self._client.get_stats(),
+            watchable_registry=self._registry.get_stats(),
+            listener_to_gui_qsize=self._listener.gui_qsize,
+            status_update_received=self._status_update_received
         )

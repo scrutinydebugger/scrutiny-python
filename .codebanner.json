@@ -498,9 +498,6 @@
         "scrutiny/gui/dashboard_components/watch/watch_component.py": {
             "docstring": "A component to look at the value of watchable items broadcast by the server"
         },
-        "scrutiny/gui/widgets/sidebar.py": {
-            "docstring": "The GUI sidebar"
-        },
         "scrutiny/sdk/pending_request.py": {
             "docstring": "A base class for Future objects given to the suer"
         },
@@ -575,6 +572,12 @@
         },
         "scrutiny/tools/profiling.py": {
             "docstring": "Some tools for profiling the application"
+        },
+        "scrutiny/gui/widgets/component_sidebar.py": {
+            "docstring": "The sidebar with the dashboard component that can be added"
+        },
+        "scrutiny/gui/widgets/app_stats_display.py": {
+            "docstring": "A widget to display the application stats"
         }
     }
 }

@@ -457,6 +457,13 @@ class FakeActiveSFDHandler:
     def get_loaded_sfd(self) -> Optional[FirmwareDescription]:
         return self.loaded_sfd
 
+@dataclass
+class FakeServer:
+    datastore: "datastore.Datastore"
+    device_handler: FakeDeviceHandler
+    datalogging_manager : FakeDataloggingManager
+    sfd_handler: FakeActiveSFDHandler
+
 
 class TestClient(ScrutinyUnitTest):
     datastore: "datastore.Datastore"
@@ -487,12 +494,15 @@ class TestClient(ScrutinyUnitTest):
                 'port': 0
             }
         }
+        fake_server = FakeServer(
+            datastore=self.datastore,
+            datalogging_manager=self.datalogging_manager,
+            device_handler=self.device_handler,
+            sfd_handler=self.sfd_handler
+            )
         self.api = API(
             api_config,
-            datastore=self.datastore,
-            device_handler=self.device_handler,             # type: ignore
-            sfd_handler=self.sfd_handler,                   # type: ignore
-            datalogging_manager=self.datalogging_manager,   # type: ignore
+            server=fake_server,
             enable_debug=False)
 
         self.api.handle_unexpected_errors = False

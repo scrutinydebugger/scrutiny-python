@@ -25,6 +25,7 @@ from scrutiny.server.api import typing as api_typing
 from scrutiny.server.api import API
 from scrutiny.server.api.tcp_client_handler import TCPClientHandler
 from scrutiny.tools.stream_datagrams import StreamMaker, StreamParser
+from scrutiny.tools.profiling import VariableRateExponentialAverager
 import selectors
 
 import logging
@@ -224,6 +225,41 @@ class WatchableListDownloadRequest(PendingRequest):
         return self._watchable_list
     
 
+class DataRateMeasurements:
+    rx_data_rate:VariableRateExponentialAverager
+    tx_data_rate:VariableRateExponentialAverager
+    rx_message_rate:VariableRateExponentialAverager
+    tx_message_rate:VariableRateExponentialAverager
+    
+    def __init__(self) -> None:
+        self.rx_data_rate = VariableRateExponentialAverager(time_estimation_window=0.1, tau=0.5, near_zero=1)
+        self.tx_data_rate = VariableRateExponentialAverager(time_estimation_window=0.1, tau=0.5, near_zero=1)
+        self.rx_message_rate = VariableRateExponentialAverager(time_estimation_window=0.1, tau=0.5, near_zero=0.1)
+        self.tx_message_rate = VariableRateExponentialAverager(time_estimation_window=0.1, tau=0.5, near_zero=0.1)
+    
+    def update(self) -> None:
+        self.rx_data_rate.update()
+        self.tx_data_rate.update()
+        self.rx_message_rate.update()
+        self.tx_message_rate.update()
+    
+    def enable(self) -> None:
+        self.rx_data_rate.enable()
+        self.tx_data_rate.enable()
+        self.rx_message_rate.enable()
+        self.tx_message_rate.enable()
+
+    def disable(self) -> None:
+        self.rx_data_rate.disable()
+        self.tx_data_rate.disable()
+        self.rx_message_rate.disable()
+        self.tx_message_rate.disable()
+
+    def reset(self) -> None:
+        self.rx_data_rate.reset()
+        self.tx_data_rate.reset()
+        self.rx_message_rate.reset()
+        self.tx_message_rate.reset()
 
 class ScrutinyClient:
     RxMessageCallback = Callable[["ScrutinyClient", object], None]
@@ -233,6 +269,18 @@ class ScrutinyClient:
     _MEMORY_WRITE_DATA_LIFETIME = 30
     _DOWNLOAD_WATCHABLE_LIST_LIFETIME = 30
 
+    @dataclass(frozen=True)
+    class Statistics:
+        """Performance metrics given by the client useful for diagnostic and debugging"""
+
+        rx_data_rate:float
+        """Returns the approximated data input rate coming from the server in Bytes/sec"""
+        rx_message_rate:float
+        """Returns the approximated message input rate coming from the server in msg/sec"""
+        tx_data_rate:float
+        """Returns the approximated data output rate sent to the server in Bytes/sec"""
+        tx_message_rate:float
+        """Returns the approximated message output rate sent to the server in msg/sec"""
     
     class Events:
         @dataclass(frozen=True)
@@ -417,6 +465,7 @@ class ScrutinyClient:
     _listeners:List[listeners.BaseListener]   # List of registered listeners
     _event_queue:"queue.Queue[Events._ANY_EVENTS]"
     _enabled_events:int
+    _datarate_measurements:DataRateMeasurements
 
     def __enter__(self) -> "ScrutinyClient":
         return self
@@ -486,6 +535,7 @@ class ScrutinyClient:
 
         self._stream_parser = TCPClientHandler.get_compatible_stream_parser()
         self._stream_maker = TCPClientHandler.get_compatible_stream_maker()
+        self._datarate_measurements = DataRateMeasurements()
 
         self._event_queue = queue.Queue(maxsize=100)   # Not supposed to go much above 1 or 2
         self.listen_events(enabled_events)
@@ -521,6 +571,7 @@ class ScrutinyClient:
 
     def _worker_thread_task(self, started_event: threading.Event) -> None:
         self._require_status_update = True  # Bootstrap status update loop
+        self._datarate_measurements.enable()
         started_event.set()
         
         self._request_status_timer.start()
@@ -544,8 +595,7 @@ class ScrutinyClient:
                     
                 self._wt_process_write_watchable_requests()
                 self._wt_process_device_state()
-                
-                self._stream_parser.process()
+                self._datarate_measurements.update()
 
             except sdk.exceptions.ConnectionError as e:
                 if self._connection_cancel_request:
@@ -567,6 +617,7 @@ class ScrutinyClient:
                 self._threading_events.require_sync.clear()
                 self._threading_events.sync_complete.set()
 
+        self._datarate_measurements.disable()
         self._logger.debug('Worker thread is exiting')
         self._threading_events.stop_worker_thread.clear()
 
@@ -1064,7 +1115,10 @@ class ScrutinyClient:
                 s = json.dumps(obj)
                 if self._logger.isEnabledFor(DUMPDATA_LOGLEVEL):    # pragma: no cover
                     self._logger.log(DUMPDATA_LOGLEVEL, f"Sending {s}")
-                self._sock.send(self._stream_maker.encode(s.encode(self._encoding)))
+                data = self._stream_maker.encode(s.encode(self._encoding))
+                self._sock.send(data)
+                self._datarate_measurements.tx_data_rate.add_data(len(data))
+                self._datarate_measurements.tx_message_rate.add_data(1)
             except socket.error as e:
                 error = e
                 self._logger.debug(traceback.format_exc())
@@ -1092,6 +1146,7 @@ class ScrutinyClient:
                 if not data:
                     server_gone = True
                 else:
+                    self._datarate_measurements.rx_data_rate.add_data(len(data))
                     self._stream_parser.parse(data)
         except  socket.error as e:
             server_gone = True
@@ -1110,6 +1165,7 @@ class ScrutinyClient:
                     self._logger.log(DUMPDATA_LOGLEVEL, f"Received: {data_str}")
                 obj = json.loads(data_str)
                 if obj is not None:
+                    self._datarate_measurements.rx_message_rate.add_data(1)
                     yield obj
             except json.JSONDecodeError as e:
                 self._logger.error(f"Received malformed JSON from the server. {e}")
@@ -2129,6 +2185,22 @@ class ScrutinyClient:
         except queue.Empty:
             return None
 
+    def get_stats(self) -> Statistics:
+        """Return internal performance metrics"""
+
+        return self.Statistics(
+            rx_data_rate=self._datarate_measurements.rx_data_rate.get_value(),
+            rx_message_rate=self._datarate_measurements.rx_message_rate.get_value(),
+            tx_data_rate=self._datarate_measurements.tx_data_rate.get_value(),
+            tx_message_rate=self._datarate_measurements.tx_message_rate.get_value()
+        )
+    
+    def reset_stats(self) -> None:
+        """Reset all performance metrics that are resettable (have an internal state)"""
+        self._datarate_measurements.reset()
+
+
+    
     @property
     def logger(self) -> logging.Logger:
         """The python logger used by the Client"""
@@ -2155,13 +2227,3 @@ class ScrutinyClient:
         """Port of the the server is letening to"""
         with self._user_lock:
             return int(self._port) if self._port is not None else None
-
-    @property
-    def rx_bytes_per_sec(self) -> float:
-        """Return the approximated data input rate coming from the server in Bytes/sec"""
-        return self._stream_parser.bytes_in_per_sec
-    
-    @property
-    def rx_msg_per_sec(self) -> float:
-        """Return the approximated message input rate coming from the server in msg/sec"""
-        return self._stream_parser.datagram_out_per_sec

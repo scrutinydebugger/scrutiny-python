@@ -77,8 +77,6 @@ class StreamParser:
     _last_chunk_timestamp:float
     _interchunk_timeout:Optional[float]
     _mtu:int
-    _datarate_measurement:VariableRateExponentialAverager
-    _datagram_rate_measurement:VariableRateExponentialAverager
 
     def __init__(self, mtu:int, interchunk_timeout:Optional[float]=None):
         if mtu > MAX_MTU:
@@ -92,14 +90,6 @@ class StreamParser:
         self._last_chunk_timestamp = time.perf_counter()
         self._interchunk_timeout = interchunk_timeout
         self._mtu = mtu
-        self._datarate_measurement = VariableRateExponentialAverager(time_estimation_window=0.1, tau=0.5, near_zero=1)
-        self._datagram_rate_measurement = VariableRateExponentialAverager(time_estimation_window=0.1, tau=0.5, near_zero=0.1)
-        self._datarate_measurement.enable()
-        self._datagram_rate_measurement.enable()
-
-    def process(self) -> None:
-        self._datarate_measurement.update()
-        self._datagram_rate_measurement.update()
 
     def parse(self, chunk:Union[bytes, bytearray]) -> None:
         done = False
@@ -107,7 +97,6 @@ class StreamParser:
             if time.perf_counter() - self._last_chunk_timestamp > self._interchunk_timeout:
                 self.reset()
 
-        self._datarate_measurement.add_data(len(chunk))
         self._buffer.extend(chunk)
         while not done:
             if self._payload_properties is None:   # We are waiting for a header
@@ -164,7 +153,6 @@ class StreamParser:
     
     def _receive_data(self, data:bytes, compressed:bool) -> None:
         try:
-            self._datagram_rate_measurement.add_data(1)
             if compressed:
                 data = zlib.decompress(data)
             self._msg_queue.put_nowait(data)
@@ -179,13 +167,3 @@ class StreamParser:
     def reset(self) -> None:
         self._data_length = None
         self._buffer.clear()
-        self._datarate_measurement.reset()
-        self._datagram_rate_measurement.reset()
-
-    @property
-    def datagram_out_per_sec(self) -> float:
-        return self._datagram_rate_measurement.get_value()
-    
-    @property
-    def bytes_in_per_sec(self) -> float:
-        return self._datarate_measurement.get_value()
