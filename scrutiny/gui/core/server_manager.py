@@ -46,7 +46,7 @@ class QtBufferedListener(BaseListener):
     minimal_inter_signal_delay_ns:int = int(1e9/MAX_SIGNALS_PER_SEC)
     """Minimal amount of time between two data_received signals"""
     emit_allowed:bool
-    """Flag preventing overflowing the event loop if the GUI thread is overlkaded"""
+    """Flag preventing overflowing the event loop if the GUI thread is overloaded"""
 
     def __init__(self, *args:Any, **kwargs:Any):
         BaseListener.__init__(self, *args, **kwargs)
@@ -94,6 +94,7 @@ class QtBufferedListener(BaseListener):
 
     @property
     def get_effective_event_rate(self) -> float:
+        """Returned the measured rate at which the ``data_received`` signal is being emitted"""
         return self.qt_event_rate_measurement.get_value()
 
 class ClientRequestStore:

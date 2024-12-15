@@ -238,20 +238,18 @@ class WatchComponent(ScrutinyGUIBaseComponent):
 
     def row_about_to_be_removed_slot(self, parent:QModelIndex, row_index:int, col_index:int) -> None:
         # This slot is called only on the node removed, not on the children.
-        item_removed = self._get_item(parent, row_index)
-
         def func (item:WatchableStandardItem, visible:bool) -> None:
-            if visible:
-                self._unwatch_item(item)
-        self._tree.map_to_watchable_node(func, item_removed)
-        if isinstance(item_removed, WatchableStandardItem):
-            watcher_id = self._get_watcher_id(item_removed)
+            watcher_id = self._get_watcher_id(item)
             try:
+                # Unregistering causes an unwatch of all watched items. 
+                # In this component, each watcher has a single watched item
                 self.server_manager.registry.unregister_watcher(watcher_id)
             except WatcherNotFoundError:
                 # Should not happen (hopefully)
                 self.logger.error(f"Tried to unregister watcher {watcher_id}, but was not registered")
-
+        
+        item_removed = self._get_item(parent, row_index)
+        self._tree.map_to_watchable_node(func, parent=item_removed)
         
     def node_expanded_slot(self, index:QModelIndex) -> None:
         # Added at the end of the event loop because it is a queuedConnection
