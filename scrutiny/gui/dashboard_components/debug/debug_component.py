@@ -9,8 +9,8 @@
 from scrutiny.gui.dashboard_components.base_component import ScrutinyGUIBaseComponent
 from typing import Dict,Any
 
-from PySide6.QtWidgets import QFormLayout, QLabel, QLineEdit, QCheckBox, QRadioButton, QTextEdit
-from PySide6.QtCore import QMimeData, Qt, QTimer
+from PySide6.QtWidgets import QFormLayout, QLabel,  QTextEdit
+from PySide6.QtCore import QMimeData,  QTimer
 from scrutiny.gui.dashboard_components.common.watchable_line_edit import WatchableLineEdit
 from scrutiny.gui.widgets.app_stats_display import ApplicationStatsDisplay
 from scrutiny.gui import assets
@@ -43,7 +43,7 @@ class DebugComponent(ScrutinyGUIBaseComponent):
         self._watchable_line_edit = WatchableLineEdit()
         self._watchable_line_edit.setMaximumWidth(100)
         self._dnd_text_edit = DroppableTextEdit()
-        self._dnd_text_edit.setMaximumSize(600,300)
+        self._dnd_text_edit.setMaximumSize(400,300)
         self.app_stats = ApplicationStatsDisplay(self)
 
 

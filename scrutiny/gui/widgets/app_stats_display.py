@@ -62,6 +62,7 @@ class ApplicationStatsDisplay(QWidget):
     listener_update_per_sec_label:QLabel
     listener_internal_qsize_label:QLabel
     listener_gui_qsize_label:QLabel
+    listener_event_rate_label:QLabel
     registry_var_count_label:QLabel
     registry_alias_count_label:QLabel
     registry_rpv_count_label:QLabel
@@ -79,11 +80,12 @@ class ApplicationStatsDisplay(QWidget):
         self.status_update_count_label = client_table.add_row("Status update count", "")
 
         listener_table = self.add_section_table("Listener")
-        self.listener_update_count_label = listener_table.add_row("Update received", "")
-        self.listener_drop_count_label = listener_table.add_row("Update dropped", "")
+        self.listener_update_count_label = listener_table.add_row("Total update received", "")
+        self.listener_drop_count_label = listener_table.add_row("Total update dropped", "")
         self.listener_update_per_sec_label = listener_table.add_row("Update/sec", "")
         self.listener_internal_qsize_label = listener_table.add_row("Internal queue size", "")
         self.listener_gui_qsize_label = listener_table.add_row("GUI thread queue size", "")
+        self.listener_event_rate_label = listener_table.add_row("QT broadcast event rate", "")
 
         registry_table = self.add_section_table("Watchable registry")
         self.registry_var_count_label = registry_table.add_row("Variable count", "")
@@ -103,6 +105,7 @@ class ApplicationStatsDisplay(QWidget):
         self.listener_update_per_sec_label.setText(f"{stats.listener.update_per_sec:0.1f} update/sec")
         self.listener_internal_qsize_label.setText(f"{stats.listener.internal_qsize}")
         self.listener_gui_qsize_label.setText(f"{stats.listener_to_gui_qsize}")
+        self.listener_event_rate_label.setText(f"{stats.listener_event_rate:0.1f} signal/sec")
 
         self.registry_var_count_label.setText(f"{stats.watchable_registry.var_count}")
         self.registry_alias_count_label.setText(f"{stats.watchable_registry.alias_count}")

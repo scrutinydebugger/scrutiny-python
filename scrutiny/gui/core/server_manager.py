@@ -25,28 +25,45 @@ from scrutiny.core.logging import DUMPDATA_LOGLEVEL
 from scrutiny.gui.core.watchable_registry import WatchableRegistry
 from scrutiny.sdk.listeners import BaseListener, ValueUpdate 
 from scrutiny.sdk.watchable_handle import WatchableHandle
-
+from scrutiny.tools.profiling import VariableRateExponentialAverager
 @dataclass
 class ServerConfig:
     hostname:str
     port:int
 
 class QtBufferedListener(BaseListener):
-    SIGNALS_PER_SEC = 10
+    MAX_SIGNALS_PER_SEC = 15
 
     class _Signals(QObject):
         data_received = Signal()
     
     to_gui_thread_queue:"queue.Queue[List[ValueUpdate]]"
+    """A queue to transfer the value updates to the GUI thread"""
     signals:_Signals
+    """The signals that this listener can emit"""
     last_signal_perf_cnt_ns:int
-    inter_signal_delay_ns:int = int(1e9/SIGNALS_PER_SEC)
+    """Timestamp of the last signal being sent"""
+    minimal_inter_signal_delay_ns:int = int(1e9/MAX_SIGNALS_PER_SEC)
+    """Minimal amount of time between two data_received signals"""
+    emit_allowed:bool
+    """Flag preventing overflowing the event loop if the GUI thread is overlkaded"""
 
     def __init__(self, *args:Any, **kwargs:Any):
         BaseListener.__init__(self, *args, **kwargs)
         self.to_gui_thread_queue = queue.Queue(maxsize=1000)
         self.signals = self._Signals()
         self.last_signal_perf_cnt_ns  = time.perf_counter_ns()
+        self.emit_allowed = True
+        self.qt_event_rate_measurement = VariableRateExponentialAverager(time_estimation_window=0.1, tau=0.5, near_zero=0.1)
+    
+    def setup(self) -> None:
+        self.qt_event_rate_measurement.enable()
+    
+    def teardown(self) -> None:
+        self.qt_event_rate_measurement.disable()
+
+    def ready_for_next_update(self):
+        self.emit_allowed = True
     
     def receive(self, updates: List[ValueUpdate]) -> None:
         try:
@@ -55,18 +72,29 @@ class QtBufferedListener(BaseListener):
             self._logger.error("Dropping an update")
 
         tnow = time.perf_counter_ns()
-        if tnow - self.last_signal_perf_cnt_ns >= self.inter_signal_delay_ns: 
+        tdiff = tnow - self.last_signal_perf_cnt_ns
+        expired = tdiff >= self.minimal_inter_signal_delay_ns or tdiff < 0  # Unclear if that counter can wrap. being careful here
+        if expired and self.emit_allowed: 
+            self.qt_event_rate_measurement.add_data(1)
             self.last_signal_perf_cnt_ns = tnow
+            self.emit_allowed = False
             self.signals.data_received.emit()
+    
+    def process(self):
+        self.qt_event_rate_measurement.update()
 
     def allow_subcription_changes_while_running(self) -> bool:
         return True
+    
 
     @property
     def gui_qsize(self) -> int:
         """Return the number of value updates presently stored in the queue linking the listener thread and the QT GUI thread."""
         return self.to_gui_thread_queue.qsize()
 
+    @property
+    def get_effective_event_rate(self) -> float:
+        return self.qt_event_rate_measurement.get_value()
 
 class ClientRequestStore:
     @dataclass
@@ -117,8 +145,10 @@ class ServerManager:
         listener: BaseListener.Statistics
         client:ScrutinyClient.Statistics
         watchable_registry:WatchableRegistry.Statistics
-        listener_to_gui_qsize:int
         status_update_received:int
+        listener_to_gui_qsize:int
+        listener_event_rate:int
+
         
     class ThreadState:
         """Data used by the server thread used to detect changes and emit events"""
@@ -553,7 +583,8 @@ class ServerManager:
             update_list = self._listener.to_gui_thread_queue.get_nowait()
             aggregated_updates.extend(update_list)
 
-        self._registry.broadcast_value_updates_to_watchers(aggregated_updates) 
+        self._registry.broadcast_value_updates_to_watchers(aggregated_updates)
+        self._listener.ready_for_next_update()
  
     def get_server_state(self) -> sdk.ServerState:
         return self._client.server_state
@@ -610,5 +641,6 @@ class ServerManager:
             client=self._client.get_stats(),
             watchable_registry=self._registry.get_stats(),
             listener_to_gui_qsize=self._listener.gui_qsize,
+            listener_event_rate=self._listener.get_effective_event_rate,
             status_update_received=self._status_update_received
         )
