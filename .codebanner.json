@@ -578,6 +578,9 @@
         },
         "scrutiny/gui/widgets/app_stats_display.py": {
             "docstring": "A widget to display the application stats"
+        },
+        "scrutiny/gui/tools/global_counters.py": {
+            "docstring": "A file that provide some global counter atomic counter for unique ID generation"
         }
     }
 }

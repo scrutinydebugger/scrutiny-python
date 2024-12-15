@@ -188,6 +188,14 @@ class WatchableTreeModel(QStandardItemModel):
 
     def get_watchable_columns(self,  watchable_config:Optional[WatchableConfiguration] = None) -> List[QStandardItem]:
         return []
+    
+    def watchable_item_created(self, item:WatchableStandardItem) -> None:
+        """Overridable callback called each time a WatchableStandardItem is created"""
+        pass
+
+    def folder_item_created(self, item:FolderStandardItem) -> None:
+        """Overridable callback called each time a FolderStandardItem is created"""
+        pass
 
     @classmethod
     def make_watchable_row_from_existing_item(cls,
@@ -208,8 +216,7 @@ class WatchableTreeModel(QStandardItemModel):
             col.setDragEnabled(True)
         return [item] + extra_columns
 
-    @classmethod
-    def make_watchable_row(cls, 
+    def make_watchable_row(self, 
                         name:str, 
                         watchable_type:WatchableType, 
                         fqn:str, 
@@ -226,7 +233,8 @@ class WatchableTreeModel(QStandardItemModel):
         :return: the list of items in the row
         """
         item =  WatchableStandardItem(watchable_type, name, fqn)
-        return cls.make_watchable_row_from_existing_item(item, editable, extra_columns)
+        self.watchable_item_created(item)
+        return self.make_watchable_row_from_existing_item(item, editable, extra_columns)
 
         
     @classmethod
@@ -240,8 +248,7 @@ class WatchableTreeModel(QStandardItemModel):
         item.setDragEnabled(True)
         return [item]
 
-    @classmethod
-    def make_folder_row(cls,  name:str, fqn:Optional[str], editable:bool ) -> List[QStandardItem]:
+    def make_folder_row(self,  name:str, fqn:Optional[str], editable:bool ) -> List[QStandardItem]:
         """Creates a folder row
         
         :param name: The name displayed in the GUI
@@ -249,7 +256,8 @@ class WatchableTreeModel(QStandardItemModel):
         :editable: Makes the row editable by the user through the GUI
         """
         item =  FolderStandardItem(name, fqn)
-        return cls.make_folder_row_existing_item(item, editable)
+        self.folder_item_created(item)
+        return self.make_folder_row_existing_item(item, editable)
     
     def add_row_to_parent(self, parent:Optional[QStandardItem], row_index:int, row:Sequence[QStandardItem] ) -> None:
         """Add a row to a given parent or at the root if no parent is given

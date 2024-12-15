@@ -28,6 +28,7 @@ import threading
 from dataclasses import dataclass
 import logging
 
+WatcherIdType = Union[str, int]
 
 @dataclass
 class ParsedFullyQualifiedName:
@@ -54,9 +55,9 @@ TYPESTR_MAP_S2WT = {
 TYPESTR_MAP_WT2S: Dict[sdk.WatchableType, str] = {v: k for k, v in TYPESTR_MAP_S2WT.items()}
 
 
-WatcherValueUpdateCallback = Callable[[str, List[ValueUpdate] ], None]
-GlobalWatchCallback = Callable[[str, str, sdk.WatchableConfiguration], None]
-GlobalUnwatchCallback = Callable[[str, str, sdk.WatchableConfiguration], None]
+WatcherValueUpdateCallback = Callable[[WatcherIdType, List[ValueUpdate] ], None]
+GlobalWatchCallback = Callable[[WatcherIdType, str, sdk.WatchableConfiguration], None]
+GlobalUnwatchCallback = Callable[[WatcherIdType, str, sdk.WatchableConfiguration], None]
 
 @dataclass(init=False)
 class WatchableRegistryEntryNode:
@@ -80,13 +81,13 @@ class WatchableRegistryNodeContent:
 
 @dataclass(init=False)
 class Watcher:
-    watcher_id:str
+    watcher_id:WatcherIdType
     value_update_callback:WatcherValueUpdateCallback
     subscribed_server_id:Set[str]
 
-    def __init__(self, watcher_id:str, value_update_callback:WatcherValueUpdateCallback) -> None:
-        if not isinstance(watcher_id, str):
-            raise ValueError("watcher_id is not a string")
+    def __init__(self, watcher_id:WatcherIdType, value_update_callback:WatcherValueUpdateCallback) -> None:
+        if not isinstance(watcher_id, (str, int)):
+            raise ValueError("watcher_id is not a string or an int")
         if not callable(value_update_callback):
             raise ValueError("value_update_callback is not a function")
         
@@ -115,7 +116,7 @@ class WatchableRegistry:
     _global_unwatch_callbacks:Optional[GlobalUnwatchCallback]
     _logger:logging.Logger
     _tree_change_counters: Dict[sdk.WatchableType, int]
-    _watchers:Dict[str, Watcher]
+    _watchers:Dict[WatcherIdType, Watcher]
     _watched_entries:Dict[str, WatchableRegistryEntryNode]
     
     def __init__(self) -> None:
@@ -201,17 +202,21 @@ class WatchableRegistry:
             if len(filtered_updates) > 0:
                 watcher.value_update_callback(watcher_id, filtered_updates)
 
-    def register_watcher(self, watcher_id:str, value_update_callback:WatcherValueUpdateCallback, override:bool=False) -> None:
+    def register_watcher(self, watcher_id:WatcherIdType, value_update_callback:WatcherValueUpdateCallback, override:bool=False) -> None:
+        watcher = Watcher(watcher_id=watcher_id, value_update_callback=value_update_callback)   # Validation happens here
         if watcher_id in self._watchers:
             if not override:
                 raise WatchableRegistryError(f"Duplicate watcher with ID {watcher_id}")
         
-        self._watchers[watcher_id] = Watcher(watcher_id=watcher_id, value_update_callback=value_update_callback)
+        self._watchers[watcher_id] = watcher
     
-    def unregister_watcher(self, watcher_id:str ) -> None:
+    def unregister_watcher(self, watcher_id:WatcherIdType ) -> None:
+        watcher: Optional[Watcher] = None
         try:
             watcher = self._watchers[watcher_id]
         except KeyError:
+            pass
+        if watcher is None:
             raise WatcherNotFoundError(f"No watchers with ID {watcher_id}")
         
         nodes:List[WatchableRegistryEntryNode] = []
@@ -233,27 +238,31 @@ class WatchableRegistry:
         """Return the number of active registered watchers"""
         return len(self._watchers)
 
-    def watch_fqn(self, watcher_id:str, fqn:str) -> None:
+    def watch_fqn(self, watcher_id:WatcherIdType, fqn:str) -> None:
         """Adds a watcher on the given watchable and register a callback to be 
         invoked when its value is updated 
         
-        :param watcher_id: A string that identifies the owner of the callback. Passed back when the callback is invoked
+        :param watcher_id: A string/int that identifies the owner of the callback. Passed back when the callback is invoked
         :param fqn: The watchable fully qualified name
         """
         parsed = self.parse_fqn(fqn)
         self.watch(watcher_id, parsed.watchable_type, parsed.path)
 
-    def watch(self, watcher_id:str, watchable_type:sdk.WatchableType, path:str) -> None:
+    def watch(self, watcher_id:WatcherIdType, watchable_type:sdk.WatchableType, path:str) -> None:
         """Adds a watcher on the given watchable and register a callback to be 
         invoked when its value is updated 
         
-        :param watcher_id: A string that identifies the owner of the callback. Passed back when the callback is invoked
+        :param watcher_id: A string/int that identifies the owner of the callback. Passed back when the callback is invoked
         :param watchable_type: The watchable type
         :param path: The watchable tree path
         """
+        watcher:Optional[Watcher] = None
         try:
             watcher = self._watchers[watcher_id]
         except KeyError:
+            pass
+
+        if watcher is None:
             raise WatcherNotFoundError(f"No watchers with ID {watcher_id}")
         
         node = self._get_node_with_lock(watchable_type, path)
@@ -292,10 +301,10 @@ class WatchableRegistry:
                 self._global_unwatch_callbacks(watcher.watcher_id, node.display_path, node.configuration)
        
 
-    def unwatch(self, watcher_id:str, watchable_type:sdk.WatchableType, path:str) -> None:
+    def unwatch(self, watcher_id:WatcherIdType, watchable_type:sdk.WatchableType, path:str) -> None:
         """Remove a the given watcher from the watcher list of the given node.
         
-        :param watcher_id: A string that identifies the owner of the callback. Passed back when the callback is invoked
+        :param watcher_id: A string/int that identifies the owner of the callback. Passed back when the callback is invoked
         :param watchable_type: The watchable type
         :param path: The watchable tree path
         """
@@ -311,10 +320,10 @@ class WatchableRegistry:
         self._unwatch_node_list_with_lock([node], watcher)
 
     
-    def unwatch_fqn(self, watcher_id:str, fqn:str) -> None:
+    def unwatch_fqn(self, watcher_id:WatcherIdType, fqn:str) -> None:
         """Remove a the given watcher from the watcher list of the given node.
         
-        :param watcher_id: A string that identifies the owner of the callback. Passed back when the callback is invoked
+        :param watcher_id: A string/int that identifies the owner of the callback. Passed back when the callback is invoked
         :param watchable_type: The watchable type
         :param path: The watchable tree path
         """

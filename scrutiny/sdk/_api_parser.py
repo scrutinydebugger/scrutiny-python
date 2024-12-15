@@ -577,11 +577,11 @@ def parse_inform_server_status(response: api_typing.S2C.InformServerStatus) -> s
         _check_response_dict(cmd, response, 'device_comm_link.link_config.jlink_interface', str)
         _check_response_dict(cmd, response, 'device_comm_link.link_config.target_device', str)
         rtt_config = cast(api_typing.RttLinkConfig, response['device_comm_link']['link_config'])
-        
+        interface_name = rtt_config['jlink_interface']
         try:
-            jlink_interface = sdk.RTTLinkConfig.JLinkInterface(rtt_config['jlink_interface'])
+            jlink_interface = sdk.RTTLinkConfig.JLinkInterface(interface_name)
         except ValueError:
-            raise sdk.exceptions.BadResponseError(f'Invalid JLink Interface "{rtt_config['jlink_interface']}"')
+            raise sdk.exceptions.BadResponseError(f'Invalid JLink Interface "{interface_name}"')
         
         link_config = sdk.RTTLinkConfig(
             target_device=rtt_config['target_device'],

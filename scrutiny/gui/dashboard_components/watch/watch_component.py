@@ -11,9 +11,6 @@ __all__ = [
     'WatchComponent'
 ]
 
-import functools
-import time
-
 from PySide6.QtCore import QModelIndex, Qt, QModelIndex, Signal, QPoint
 from PySide6.QtWidgets import QVBoxLayout, QWidget, QMenu
 from PySide6.QtGui import QContextMenuEvent, QDragMoveEvent, QDropEvent, QDragEnterEvent, QKeyEvent, QStandardItem, QAction
@@ -231,9 +228,10 @@ class WatchComponent(ScrutinyGUIBaseComponent):
         item_inserted = self._get_item(parent, row_index)
         if isinstance(item_inserted, WatchableStandardItem):
             value_item = self._get_value_item(item_inserted)
-            func = functools.partial(self.update_val_callback, value_item)
-            watcher_id = self._make_watcher_id(item_inserted)
-            self.server_manager.registry.register_watcher(watcher_id, func, override=True)
+            def callback_closure(watcher_id:Union[str, int], vals:List[ValueUpdate]) -> None:
+                return self.update_val_callback(value_item, watcher_id, vals )
+            watcher_id = self._get_watcher_id(item_inserted)
+            self.server_manager.registry.register_watcher(watcher_id, callback_closure, override=True)
 
             if self._tree.is_visible(item_inserted):
                 self._watch_item(item_inserted)
@@ -247,7 +245,7 @@ class WatchComponent(ScrutinyGUIBaseComponent):
                 self._unwatch_item(item)
         self._tree.map_to_watchable_node(func, item_removed)
         if isinstance(item_removed, WatchableStandardItem):
-            watcher_id = self._make_watcher_id(item_removed)
+            watcher_id = self._get_watcher_id(item_removed)
             try:
                 self.server_manager.registry.unregister_watcher(watcher_id)
             except WatcherNotFoundError:
@@ -281,7 +279,7 @@ class WatchComponent(ScrutinyGUIBaseComponent):
                 self._unwatch_item(item, quiet=True)
     
     def _watch_item(self, item:WatchableStandardItem) -> None:
-        watcher_id = self._make_watcher_id(item)
+        watcher_id = self._get_watcher_id(item)
         try:
             self.server_manager.registry.watch_fqn(watcher_id, item.fqn)
         except WatchableRegistryNodeNotFoundError:
@@ -290,7 +288,7 @@ class WatchComponent(ScrutinyGUIBaseComponent):
             self.logger.debug(f"Cannot watch {item.fqn}. Does not exist")
     
     def _unwatch_item(self, item:WatchableStandardItem, quiet:bool=False) -> None:
-        watcher_id = self._make_watcher_id(item)
+        watcher_id = self._get_watcher_id(item)
         try:
             self.server_manager.registry.unwatch_fqn(watcher_id, item.fqn)
         except WatchableRegistryNodeNotFoundError:
@@ -300,8 +298,8 @@ class WatchComponent(ScrutinyGUIBaseComponent):
             if not quiet:
                 raise
     
-    def _make_watcher_id(self, item:WatchableStandardItem) -> str:
-        return str(id(item))    # TODO : use uuid? Attach data with Qt?
+    def _get_watcher_id(self, item:WatchableStandardItem) -> int:
+        return self._tree_model.get_watcher_id(item)
     
     def update_all_watchable_state(self, start_node:Optional[BaseWatchableRegistryTreeStandardItem]=None) -> None:
         def update_func(item:WatchableStandardItem, visible:bool) -> None:
@@ -313,11 +311,9 @@ class WatchComponent(ScrutinyGUIBaseComponent):
 
         self._tree.map_to_watchable_node(update_func, start_node)
 
-    def update_val_callback(self, item:ValueStandardItem, watcher_id:str, vals:List[ValueUpdate]) -> None:
+    def update_val_callback(self, item:ValueStandardItem, watcher_id:Union[str, int], vals:List[ValueUpdate]) -> None:
+        assert len(vals) > 0
         item.setText(str(vals[-1].value))
-        #print(self.server_manager._listener.update_per_sec_avg)
-        #print(f"Got {len(vals)} updates. {time.perf_counter()}")
-        #print(f"[{self.instance_name}] watcher_id={watcher_id} --> {val}")
 
     def teardown(self) -> None:
         for item in self._tree_model.get_all_watchable_items():

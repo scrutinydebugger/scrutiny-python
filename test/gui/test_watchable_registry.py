@@ -385,6 +385,7 @@ class TestWatchableRegistry(ScrutinyUnitTest):
         callback_history = {
             'watcher1' : [],
             'watcher2' : [],
+            123:[]   
         }
     
         def watch_callback(watcher, value_list):
@@ -392,32 +393,39 @@ class TestWatchableRegistry(ScrutinyUnitTest):
 
         self.registry.register_watcher('watcher1', watch_callback)
         self.registry.register_watcher('watcher2', watch_callback)
-        self.assertEqual(self.registry.registered_watcher_count(), 2)
+        self.registry.register_watcher(123, watch_callback)
+        self.assertEqual(self.registry.registered_watcher_count(), 3)
 
         with self.assertRaises(WatcherNotFoundError):
             self.registry.unregister_watcher('idontexist')
         
         var1fqn = f'var:/var/xxx/var1'
         var2fqn = f'var:/var/xxx/var2'
+        var3fqn = f'var:/var/var3'
        
         var1_sdk_handle = self.make_fake_watchable_from_registry(var1fqn)
         var2_sdk_handle = self.make_fake_watchable_from_registry(var2fqn)
+        var3_sdk_handle = self.make_fake_watchable_from_registry(var3fqn)
 
         self.registry.watch_fqn('watcher1', var1fqn)
         self.registry.watch_fqn('watcher2', var1fqn)
         self.registry.watch_fqn('watcher2', var2fqn)
+        self.registry.watch_fqn(123, var3fqn)
         
 
         update1 = ValueUpdate(var1_sdk_handle, 123, datetime.now())
         update2 = ValueUpdate(var2_sdk_handle, 456, datetime.now())
-        self.registry.broadcast_value_updates_to_watchers([update1, update2])
+        update3 = ValueUpdate(var3_sdk_handle, 1.5, datetime.now())
+        self.registry.broadcast_value_updates_to_watchers([update1, update2, update3])
         self.assertEqual(len(callback_history['watcher1']), 1)
         self.assertEqual(len(callback_history['watcher2']), 1)
+        self.assertEqual(len(callback_history[123]), 1)
         self.assertEqual(self.registry.node_watcher_count_fqn(var1fqn), 2)
         self.assertEqual(self.registry.node_watcher_count_fqn(var2fqn), 1)
+        self.assertEqual(self.registry.node_watcher_count_fqn(var3fqn), 1)
         
         self.registry.unregister_watcher('watcher2')
-        self.assertEqual(self.registry.registered_watcher_count(), 1)
+        self.assertEqual(self.registry.registered_watcher_count(), 2)
         self.assertEqual(self.registry.node_watcher_count_fqn(var1fqn), 1)
         self.assertEqual(self.registry.node_watcher_count_fqn(var2fqn), 0)
         self.registry.broadcast_value_updates_to_watchers([update1, update2])
@@ -425,20 +433,35 @@ class TestWatchableRegistry(ScrutinyUnitTest):
         self.assertEqual(len(callback_history['watcher2']), 1)
         
         self.registry.unregister_watcher('watcher1')
-        self.assertEqual(self.registry.registered_watcher_count(), 0)
+        self.assertEqual(self.registry.registered_watcher_count(), 1)
         self.assertEqual(self.registry.node_watcher_count_fqn(var1fqn), 0)
         self.assertEqual(self.registry.node_watcher_count_fqn(var2fqn), 0)
+        self.assertEqual(self.registry.node_watcher_count_fqn(var3fqn), 1)
         self.registry.broadcast_value_updates_to_watchers([update1, update2])
         self.assertEqual(len(callback_history['watcher1']), 2)
         self.assertEqual(len(callback_history['watcher2']), 1)
-    
+        self.assertEqual(len(callback_history[123]), 1)
+
+        self.registry.unregister_watcher(123)
+        self.assertEqual(self.registry.registered_watcher_count(), 0)
+        self.assertEqual(self.registry.node_watcher_count_fqn(var1fqn), 0)
+        self.assertEqual(self.registry.node_watcher_count_fqn(var2fqn), 0)
+        self.assertEqual(self.registry.node_watcher_count_fqn(var3fqn), 0)
+        self.registry.broadcast_value_updates_to_watchers([update1, update2, update3])
+        self.assertEqual(len(callback_history['watcher1']), 2)
+        self.assertEqual(len(callback_history['watcher2']), 1)
+        self.assertEqual(len(callback_history[123]), 1)
+            
     def test_watch_bad_values(self):
         self.registry.add_content(All_DUMMY_DATA) 
         with self.assertRaises(ValueError):
             self.registry.register_watcher('watcher1', 'iamnotacallback')
         
         with self.assertRaises(ValueError):
-            self.registry.register_watcher(123, lambda *x, **y:None)
+            self.registry.register_watcher(None, lambda *x, **y:None)
+        
+        with self.assertRaises(ValueError):
+            self.registry.register_watcher([], lambda *x, **y:None)
 
 
     def test_unwatch_on_clear(self):

@@ -25,12 +25,15 @@ from scrutiny.gui.dashboard_components.common.watchable_tree import (
     BaseWatchableRegistryTreeStandardItem,
     item_from_serializable_data
 )
+from uuid import uuid4
+from scrutiny.gui.tools.global_counters import global_i64_counter
 
 from typing import List, Union, Optional, cast, Sequence, TypedDict, Generator, Iterable
 
 from scrutiny.sdk.definitions import WatchableConfiguration
 
 AVAILABLE_DATA_ROLE = Qt.ItemDataRole.UserRole+1
+WATCHER_ID_ROLE = Qt.ItemDataRole.UserRole+2
 
 class ValueStandardItem(QStandardItem):
     pass
@@ -77,7 +80,19 @@ class WatchComponentTreeModel(WatchableTreeModel):
         else:
             self._unavailable_palette = QPalette()
             self._unavailable_palette.setCurrentColorGroup(QPalette.ColorGroup.Disabled)
+
+    def _assign_unique_watcher_id(self, item:WatchableStandardItem) -> None:
+        watcher_id = global_i64_counter()
+        item.setData(watcher_id, WATCHER_ID_ROLE)
     
+    def get_watcher_id(self, item:WatchableStandardItem) -> int:
+        uid = item.data(WATCHER_ID_ROLE)
+        assert uid is not None
+        return cast(int, uid)
+
+    def watchable_item_created(self, item:WatchableStandardItem) -> None:
+        self._assign_unique_watcher_id(item)
+        return super().watchable_item_created(item)
 
     def itemFromIndex(self, index:Union[QModelIndex, QPersistentModelIndex]) -> BaseWatchableRegistryTreeStandardItem:
         return cast(BaseWatchableRegistryTreeStandardItem, super().itemFromIndex(index))

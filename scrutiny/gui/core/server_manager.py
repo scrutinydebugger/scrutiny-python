@@ -19,7 +19,7 @@ import queue
 from dataclasses import dataclass
 
 from PySide6.QtCore import Signal, QObject
-from typing import Optional, Dict, Any, Callable, List
+from typing import Optional, Dict, Any, Callable, List, Union
 
 from scrutiny.core.logging import DUMPDATA_LOGLEVEL
 from scrutiny.gui.core.watchable_registry import WatchableRegistry
@@ -53,7 +53,7 @@ class QtBufferedListener(BaseListener):
             self.to_gui_thread_queue.put(updates.copy(), block=False)
         except queue.Full:
             self._logger.error("Dropping an update")
-            
+
         tnow = time.perf_counter_ns()
         if tnow - self.last_signal_perf_cnt_ns >= self.inter_signal_delay_ns: 
             self.last_signal_perf_cnt_ns = tnow
@@ -513,7 +513,7 @@ class ServerManager:
             self.signals.registry_changed.emit()
         return had_data
 
-    def _registry_watch_callback(self, watcher_id:str, display_path:str, watchable_config:sdk.WatchableConfiguration) -> None:
+    def _registry_watch_callback(self, watcher_id:Union[str,int], display_path:str, watchable_config:sdk.WatchableConfiguration) -> None:
         """Called when a gui component register a watcher on the registry"""
         watcher_count = self._registry.node_watcher_count(watchable_config.watchable_type, display_path)
         if watcher_count == 1:
@@ -530,7 +530,7 @@ class ServerManager:
                     self._logger.debug(traceback.format_exc())
             self.schedule_client_request(func, finish_callback)
 
-    def _registry_unwatch_callback(self, watcher_id:str, display_path:str, watchable_config:sdk.WatchableConfiguration) -> None:
+    def _registry_unwatch_callback(self, watcher_id:Union[str,int], display_path:str, watchable_config:sdk.WatchableConfiguration) -> None:
         """Called when a gui component unregister a watcher on the registry"""
         # This runs from the GUI thread
         watcher_count = self._registry.node_watcher_count(watchable_config.watchable_type, display_path)
