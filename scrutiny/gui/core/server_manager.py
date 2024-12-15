@@ -62,7 +62,7 @@ class QtBufferedListener(BaseListener):
     def teardown(self) -> None:
         self.qt_event_rate_measurement.disable()
 
-    def ready_for_next_update(self):
+    def ready_for_next_update(self) -> None:
         self.emit_allowed = True
     
     def receive(self, updates: List[ValueUpdate]) -> None:
@@ -80,7 +80,7 @@ class QtBufferedListener(BaseListener):
             self.emit_allowed = False
             self.signals.data_received.emit()
     
-    def process(self):
+    def process(self) -> None:
         self.qt_event_rate_measurement.update()
 
     def allow_subcription_changes_while_running(self) -> bool:
@@ -147,7 +147,7 @@ class ServerManager:
         watchable_registry:WatchableRegistry.Statistics
         status_update_received:int
         listener_to_gui_qsize:int
-        listener_event_rate:int
+        listener_event_rate:float
 
         
     class ThreadState:
