@@ -548,7 +548,6 @@ class TestServerManagerRegistryInteraction(ScrutinyBaseGuiTest):
         # watch failed. We have no watcher. Should do nothing more
         self.asssert_no_watch_or_unwatch_request(max_wait=0.5)
 
-
         # We are back to 0 watcher.
         # Start a new series of watch unwatch.
         watchable_config = sdk.WatchableConfiguration('xxx', sdk.WatchableType.Variable, datatype=sdk.EmbeddedDataType.float32, enum=None)
@@ -570,7 +569,7 @@ class TestServerManagerRegistryInteraction(ScrutinyBaseGuiTest):
 
 
     def test_no_stacking_with_multiple_watchers(self):
-        
+
         self.registry.add_watchable('a/b/c', sdk.WatchableConfiguration(
             datatype=sdk.EmbeddedDataType.float32,
             enum=None,
