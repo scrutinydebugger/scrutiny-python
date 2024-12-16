@@ -5,6 +5,7 @@ __all__ = [
 from .throttler import Throttler
 from .timer import Timer
 
+import traceback
 from copy import deepcopy
 from typing import Dict, Any, Optional, TypeVar, List, Tuple
 
@@ -78,5 +79,6 @@ def format_eng_unit(val:float, decimal:int=0, unit:str="", binary:bool=False) ->
     format_string = f"%0.{decimal}f"
     return (format_string % val) + prefix + unit 
 
-            
-            
+
+def format_exception(e:Exception) -> str:
+    return ''.join(traceback.format_exception(type(e), e, e.__traceback__))

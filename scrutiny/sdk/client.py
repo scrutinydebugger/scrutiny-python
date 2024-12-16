@@ -1436,28 +1436,22 @@ class ScrutinyClient:
         future = self._send(req, wt_unsubscribe_callback)
         assert future is not None
         error: Optional[Exception] = None
-        try:
-            future.wait()
-        except sdk.exceptions.TimeoutException as e:
-            error = e
-        finally:
-            with self._main_lock:
-                if watchable.display_path in self._watchable_path_to_id_map:
-                    del self._watchable_path_to_id_map[watchable.display_path]
-
-                if watchable._configuration is not None:
-                    if watchable._configuration.server_id in self._watchable_storage:
-                        del self._watchable_storage[watchable._configuration.server_id]
-
-            watchable._set_invalid(ValueStatus.NotWatched)
-            if self._logger.isEnabledFor(logging.DEBUG):
-                self._logger.debug(f"Done watching {watchable.display_path}")
-
-        if error:
-            raise error
+        future.wait()
 
         if future.state != CallbackState.OK:
             raise sdk.exceptions.OperationFailure(f"Failed to unsubscribe to the watchable. {future.error_str}")
+        
+        with self._main_lock:
+            if watchable.display_path in self._watchable_path_to_id_map:
+                del self._watchable_path_to_id_map[watchable.display_path]
+
+            if watchable._configuration is not None:
+                if watchable._configuration.server_id in self._watchable_storage:
+                    del self._watchable_storage[watchable._configuration.server_id]
+
+        watchable._set_invalid(ValueStatus.NotWatched)
+        if self._logger.isEnabledFor(logging.DEBUG):
+            self._logger.debug(f"Done watching {watchable.display_path}")
 
     def wait_new_value_for_all(self, timeout: float = 5) -> None:
         """Wait for all watched elements to be updated at least once after the call to this method

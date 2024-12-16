@@ -63,11 +63,11 @@ GlobalUnwatchCallback = Callable[[WatcherIdType, str, sdk.WatchableConfiguration
 class WatchableRegistryEntryNode:
     """Leaf node in the tree. This object is internal and never given to the user."""
     configuration:sdk.WatchableConfiguration
-    display_path:str
+    server_path:str
     watcher_count:int
 
-    def __init__(self, display_path:str, config:sdk.WatchableConfiguration) -> None:
-        self.display_path = display_path
+    def __init__(self, server_path:str, config:sdk.WatchableConfiguration) -> None:
+        self.server_path = server_path
         self.configuration = config
         self.watcher_count = 0
 
@@ -167,7 +167,7 @@ class WatchableRegistry:
         if parts[-1] in node:
             raise WatchableRegistryError(f"Cannot insert a watchable at location {path}. Another watchable already uses that path.")
         node[parts[-1]] = WatchableRegistryEntryNode(
-            display_path=path,  # Required for proper error messages.
+            server_path=path,  # Required for proper error messages.
             config=config
             )
         self._watchable_count[config.watchable_type]+=1
@@ -278,7 +278,7 @@ class WatchableRegistry:
                 added = True
         
         if added and self._global_watch_callbacks is not None:
-            self._global_watch_callbacks(watcher_id, node.display_path, node.configuration)
+            self._global_watch_callbacks(watcher_id, node.server_path, node.configuration)
 
     def _unwatch_node_list_with_lock(self, nodes:Iterable[WatchableRegistryEntryNode], watcher:Watcher) -> None:
         with self._lock:
@@ -298,7 +298,7 @@ class WatchableRegistry:
         # Callback is outside of lock on purpose to allow it to access the registry too. Deadlock will happen otherwise
         if self._global_unwatch_callbacks is not None:
             for node in removed_list:
-                self._global_unwatch_callbacks(watcher.watcher_id, node.display_path, node.configuration)
+                self._global_unwatch_callbacks(watcher.watcher_id, node.server_path, node.configuration)
        
 
     def unwatch(self, watcher_id:WatcherIdType, watchable_type:sdk.WatchableType, path:str) -> None:
@@ -397,7 +397,8 @@ class WatchableRegistry:
         :param obj: The watchable configuration object
         """
         with self._lock:
-            return self._add_watchable_no_lock(path, obj)
+            self._add_watchable_no_lock(path, obj)
+            self._tree_change_counters[obj.watchable_type] += 1
     
     def add_watchable_fqn(self, fqn:str, obj:sdk.WatchableConfiguration) -> None:
         """Adds a watchable inside the registry using a fully qualified name

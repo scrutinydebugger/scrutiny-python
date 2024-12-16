@@ -264,6 +264,7 @@ class WatchComponent(ScrutinyGUIBaseComponent):
         self.update_all_watchable_state(start_node=self._tree_model.itemFromIndex(dest_parent))
     
     def _get_value_item(self, item:WatchableStandardItem) -> ValueStandardItem:
+        # TODO : Can we do better than a hard coded index? What if the column can be reordered (possible with an option)
         o = cast(ValueStandardItem, self._tree_model.itemFromIndex(item.index().siblingAtColumn(1)))
         assert o is not None
         return o

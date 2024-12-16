@@ -16,6 +16,7 @@ import time
 import traceback
 import logging
 import queue
+import enum
 from dataclasses import dataclass
 
 from PySide6.QtCore import Signal, QObject
@@ -26,6 +27,8 @@ from scrutiny.gui.core.watchable_registry import WatchableRegistry
 from scrutiny.sdk.listeners import BaseListener, ValueUpdate 
 from scrutiny.sdk.watchable_handle import WatchableHandle
 from scrutiny.tools.profiling import VariableRateExponentialAverager
+from scrutiny.tools import format_exception
+
 @dataclass
 class ServerConfig:
     hostname:str
@@ -136,8 +139,6 @@ class ClientRequestStore:
         except KeyError:
             return None
         
-        
-        
 class ServerManager:
     """Runs a thread for the synchronous SDK and emit QT events when something interesting happens"""
 
@@ -150,6 +151,22 @@ class ServerManager:
         listener_to_gui_qsize:int
         listener_event_rate:float
 
+    class WatchableRegistrationState(enum.Enum):
+        SUBSCRIBING = enum.auto()
+        SUBSCRIBED=enum.auto()
+        UNSUBSCRIBING = enum.auto()
+        UNSUBSCRIBED=enum.auto()
+    
+    class WatchablePendingAction(enum.Enum):
+        NONE = enum.auto()
+        SUBSCRIBE = enum.auto()
+        UNSUBSCRIBE = enum.auto()
+
+    @dataclass
+    class WatchableRegistrationStatus:
+        active_state:"ServerManager.WatchableRegistrationState"
+        pending_action:"ServerManager.WatchablePendingAction"
+        server_path:str
         
     class ThreadState:
         """Data used by the server thread used to detect changes and emit events"""
@@ -222,6 +239,9 @@ class ServerManager:
     _listener : QtBufferedListener
     _status_update_received : int
 
+    _registration_status_store:Dict[str, WatchableRegistrationStatus]
+    _registration_status_lock:threading.Lock
+
     def __init__(self, watchable_registry:WatchableRegistry, client:Optional[ScrutinyClient]=None) -> None:
         super().__init__()  # Required for signals to work
         self._logger = logging.getLogger(self.__class__.__name__)
@@ -250,6 +270,9 @@ class ServerManager:
         self._listener = QtBufferedListener()
         self._client.register_listener(self._listener)
         self._listener.signals.data_received.connect(self._value_update_received)
+
+        self._registration_status_store = {}
+        self._registration_status_lock = threading.Lock()
 
         self._status_update_received = 0
         def inc_status_update_count() -> None:
@@ -544,38 +567,167 @@ class ServerManager:
             self.signals.registry_changed.emit()
         return had_data
 
-    def _registry_watch_callback(self, watcher_id:Union[str,int], display_path:str, watchable_config:sdk.WatchableConfiguration) -> None:
+    def _watch_unwatch_ui_callback(self, 
+                                   store_entry:WatchableRegistrationStatus, 
+                                   handle:Optional[WatchableHandle], 
+                                   e:Optional[Exception]) -> None:
+        # No complex error handling on purpose.
+        # If an error happens, the state of the registration will stay unchanged. A toggle on the watchable visibility
+        # will bring it back alive. We don't auto-magically fix issues, but we stay resilient and don't crash
+        if handle is None:
+            store_entry.active_state = self.WatchableRegistrationState.UNSUBSCRIBED
+        else:
+            store_entry.active_state = self.WatchableRegistrationState.SUBSCRIBED
+            self._listener.subscribe(handle)
+        
+        with self._registration_status_lock:
+            if (store_entry.active_state == self.WatchableRegistrationState.UNSUBSCRIBED 
+                and store_entry.pending_action==self.WatchablePendingAction.NONE):
+                if store_entry.server_path in self._registration_status_store:
+                    del self._registration_status_store[store_entry.server_path]
+
+        if e is not None:
+            self._logger.error(str(e))
+            if self._logger.isEnabledFor(logging.DEBUG):    # pragma: no cover
+                self._logger.debug(format_exception(e))
+
+    def _anonymous_thread_process_watch_unwatch_request(self, 
+                                                         status_entry:WatchableRegistrationStatus,
+                                                         server_path:str,
+                                                         client:ScrutinyClient, 
+                                                         action:WatchablePendingAction 
+                                                         ) -> Optional[WatchableHandle]:
+        # The logic belows consider that  ``watch`` and ``unwatch`` takes some time to complete, and react right
+        # away if someone stacked another request during that time.
+
+        # In 99% of the case, this function will do a single operation and exit happily. 
+        # The loop here handle stacked requests. Only a single pending action is possible to
+        # avoid many watch/unwatch/watch/unwatch.  
+        
+        handle:Optional[WatchableHandle] = None
+        while action != self.WatchablePendingAction.NONE:
+            if action == self.WatchablePendingAction.SUBSCRIBE:
+                status_entry.active_state == self.WatchableRegistrationState.SUBSCRIBING
+                try:
+                    success = True
+                    handle = client.watch(server_path)
+                except sdk.exceptions.ScrutinySDKException as e:
+                    self._logger.error(f"Failed to watch {server_path}. {e}")
+                    success = False
+
+                with self._registration_status_lock:
+                    if success:
+                        status_entry.active_state = self.WatchableRegistrationState.SUBSCRIBED
+                        action = status_entry.pending_action
+                    else:
+                        # Resilient on error. Keep state unchanged so that visibility toggle can
+                        # bring back the GUI functional
+                        status_entry.active_state = self.WatchableRegistrationState.UNSUBSCRIBED
+                        action = self.WatchablePendingAction.NONE
+                    status_entry.pending_action = self.WatchablePendingAction.NONE
+
+            # unregistration
+            elif action == self.WatchablePendingAction.UNSUBSCRIBE:
+                status_entry.active_state == self.WatchableRegistrationState.UNSUBSCRIBING
+                try:
+                    success = True
+                    client.unwatch(server_path)
+                except sdk.exceptions.ScrutinySDKException as e:
+                    self._logger.error(f"Failed to unwatch {server_path}. {e}")
+                    success = False
+
+                with self._registration_status_lock:
+                    if success:
+                        status_entry.active_state = self.WatchableRegistrationState.UNSUBSCRIBED
+                        action = status_entry.pending_action
+                    else:
+                        # Resilient on error. Keep state unchanged so that visibility toggle can
+                        # bring back the GUI functional
+                        status_entry.active_state = self.WatchableRegistrationState.SUBSCRIBED
+                        action = self.WatchablePendingAction.NONE
+                    status_entry.pending_action = self.WatchablePendingAction.NONE
+        
+        return handle
+        
+
+    def _maybe_request_watch(self, server_path:str) -> None:
+        """Will request the server for a watch subscription if not already done or working on it."""
+        with self._registration_status_lock:
+            if not server_path in self._registration_status_store:
+                self._registration_status_store[server_path] = self.WatchableRegistrationStatus(
+                    active_state=self.WatchableRegistrationState.UNSUBSCRIBED,
+                    pending_action=self.WatchablePendingAction.NONE,
+                    server_path=server_path
+                )
+            store_entry = self._registration_status_store[server_path]
+            
+            if store_entry.active_state in [self.WatchableRegistrationState.SUBSCRIBED, self.WatchableRegistrationState.SUBSCRIBING]:
+                store_entry.pending_action = self.WatchablePendingAction.NONE
+            elif store_entry.active_state == self.WatchableRegistrationState.UNSUBSCRIBING:
+                store_entry.pending_action = self.WatchablePendingAction.SUBSCRIBE
+            elif store_entry.active_state == self.WatchableRegistrationState.UNSUBSCRIBED:
+                store_entry.pending_action = self.WatchablePendingAction.NONE
+                store_entry.active_state = self.WatchableRegistrationState.SUBSCRIBING
+                def func(client:ScrutinyClient) -> Optional[WatchableHandle]:
+                    return self._anonymous_thread_process_watch_unwatch_request(
+                        status_entry = store_entry,
+                        server_path = server_path,
+                        client = client,
+                        action = self.WatchablePendingAction.SUBSCRIBE
+                    )
+
+                def ui_callback(handle:Optional[WatchableHandle], exception:Optional[Exception]) -> None:
+                    self._watch_unwatch_ui_callback(store_entry, handle, exception)
+
+                self.schedule_client_request(func,ui_callback)
+            else:   # pragma: no cover
+                raise NotImplementedError("Unsupported state")
+
+    def _maybe_request_unwatch(self, server_path:str) -> None:
+        """Will request the server to unsubscribe to a watchif not already done or working on it."""
+        with self._registration_status_lock:
+            if not server_path in self._registration_status_store:
+                self._registration_status_store[server_path] = self.WatchableRegistrationStatus(
+                    active_state=self.WatchableRegistrationState.UNSUBSCRIBED,
+                    pending_action=self.WatchablePendingAction.NONE,
+                    server_path=server_path
+                )
+            store_entry = self._registration_status_store[server_path]
+            
+            if store_entry.active_state in [self.WatchableRegistrationState.UNSUBSCRIBED, self.WatchableRegistrationState.UNSUBSCRIBING]:
+                store_entry.pending_action = self.WatchablePendingAction.NONE
+            elif store_entry.active_state == self.WatchableRegistrationState.SUBSCRIBING:
+                store_entry.pending_action = self.WatchablePendingAction.UNSUBSCRIBE
+            elif store_entry.active_state == self.WatchableRegistrationState.SUBSCRIBED:
+                store_entry.pending_action = self.WatchablePendingAction.NONE
+                store_entry.active_state = self.WatchableRegistrationState.UNSUBSCRIBING
+                def func(client:ScrutinyClient) -> Optional[WatchableHandle]:
+                    return self._anonymous_thread_process_watch_unwatch_request(
+                        status_entry = store_entry,
+                        server_path = server_path,
+                        client = client,
+                        action = self.WatchablePendingAction.UNSUBSCRIBE
+                    )
+
+                def ui_callback(handle:Optional[WatchableHandle], exception:Optional[Exception]) -> None:
+                    self._watch_unwatch_ui_callback(store_entry, handle, exception)
+
+                self.schedule_client_request(func,ui_callback)
+            else:   # pragma: no cover
+                raise NotImplementedError("Unsupported state")
+
+    def _registry_watch_callback(self, watcher_id:Union[str,int], server_path:str, watchable_config:sdk.WatchableConfiguration) -> None:
         """Called when a gui component register a watcher on the registry"""
-        watcher_count = self._registry.node_watcher_count(watchable_config.watchable_type, display_path)
-        if watcher_count == 1:
-            def func(client:ScrutinyClient) -> WatchableHandle:
-                # Runs in a separate thread. 
-                return client.watch(display_path)   # Blocks until a response is received
+        watcher_count = self._registry.node_watcher_count(watchable_config.watchable_type, server_path)
+        if watcher_count > 0:
+            self._maybe_request_watch(server_path)
 
-            def finish_callback(handle:Optional[WatchableHandle], exception:Optional[Exception]) -> None:
-                # Runs in the GUI thread
-                if handle is not None and self._listener.is_started:
-                    self._listener.subscribe(handle)
-                if exception:
-                    self._logger.warning(str(exception))
-                    self._logger.debug(traceback.format_exc())
-            self.schedule_client_request(func, finish_callback)
-
-    def _registry_unwatch_callback(self, watcher_id:Union[str,int], display_path:str, watchable_config:sdk.WatchableConfiguration) -> None:
+    def _registry_unwatch_callback(self, watcher_id:Union[str,int], server_path:str, watchable_config:sdk.WatchableConfiguration) -> None:
         """Called when a gui component unregister a watcher on the registry"""
         # This runs from the GUI thread
-        watcher_count = self._registry.node_watcher_count(watchable_config.watchable_type, display_path)
+        watcher_count = self._registry.node_watcher_count(watchable_config.watchable_type, server_path)
         if watcher_count == 0:
-            handle = self._client.try_get_existing_watch_handle(display_path)
-            if handle is not None:
-                def func(client:ScrutinyClient) -> None:
-                    # Runs in a separate thread.
-                    handle.unwatch()    # Blocks until a response is received
-
-                def finish_callback(result:None, exception:Optional[Exception]) -> None:
-                    # Runs in the GUI thread
-                    pass
-                self.schedule_client_request(func, finish_callback)
+            self._maybe_request_unwatch(server_path)
 
     def _value_update_received(self) -> None:
         # Called in the GUI thread when a value update is received by the lsitener (the client)
