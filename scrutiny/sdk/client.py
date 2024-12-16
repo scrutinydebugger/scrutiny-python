@@ -51,6 +51,7 @@ class CallbackState(enum.Enum):
     Cancelled = enum.auto()
     ServerError = enum.auto()
     CallbackError = enum.auto()
+    SimulatedError = enum.auto()
 
 
 ApiResponseCallback = Callable[[CallbackState, Optional[api_typing.S2CMessage]], None]
@@ -467,6 +468,8 @@ class ScrutinyClient:
     _enabled_events:int
     _datarate_measurements:DataRateMeasurements
 
+    _force_fail_request:bool     #  Flag for unit testing that will cause requests to fail prematurely 
+
     def __enter__(self) -> "ScrutinyClient":
         return self
 
@@ -539,6 +542,7 @@ class ScrutinyClient:
 
         self._event_queue = queue.Queue(maxsize=100)   # Not supposed to go much above 1 or 2
         self.listen_events(enabled_events)
+        self._force_fail_request = False
 
     def _trigger_event(self, evt:Events._ANY_EVENTS, loglevel:int=logging.NOTSET) -> None:
         if self._enabled_events & evt._filter_flag:
@@ -1106,26 +1110,29 @@ class ScrutinyClient:
                 raise RuntimeError("Missing reqid in request")
 
             future = self._register_callback(obj['reqid'], callback, timeout=timeout)
+            if self._force_fail_request:
+                future._wt_mark_completed(CallbackState.SimulatedError, None)
 
-        with self._sock_lock:
-            if self._sock is None or self._stream_maker is None:
-                raise sdk.exceptions.ConnectionError(f"Disconnected from server")
-            
-            try:
-                s = json.dumps(obj)
-                if self._logger.isEnabledFor(DUMPDATA_LOGLEVEL):    # pragma: no cover
-                    self._logger.log(DUMPDATA_LOGLEVEL, f"Sending {s}")
-                data = self._stream_maker.encode(s.encode(self._encoding))
-                self._sock.send(data)
-                self._datarate_measurements.tx_data_rate.add_data(len(data))
-                self._datarate_measurements.tx_message_rate.add_data(1)
-            except socket.error as e:
-                error = e
-                self._logger.debug(traceback.format_exc())
+        if not self._force_fail_request:   
+            with self._sock_lock:
+                if self._sock is None or self._stream_maker is None:
+                    raise sdk.exceptions.ConnectionError(f"Disconnected from server")
+                
+                try:
+                    s = json.dumps(obj)
+                    if self._logger.isEnabledFor(DUMPDATA_LOGLEVEL):    # pragma: no cover
+                        self._logger.log(DUMPDATA_LOGLEVEL, f"Sending {s}")
+                    data = self._stream_maker.encode(s.encode(self._encoding))
+                    self._sock.send(data)
+                    self._datarate_measurements.tx_data_rate.add_data(len(data))
+                    self._datarate_measurements.tx_message_rate.add_data(1)
+                except socket.error as e:
+                    error = e
+                    self._logger.debug(traceback.format_exc())
 
-        if error:
-            self.disconnect()
-            raise sdk.exceptions.ConnectionError(f"Disconnected from server. {error}")
+            if error:
+                self.disconnect()
+                raise sdk.exceptions.ConnectionError(f"Disconnected from server. {error}")
 
         return future
 

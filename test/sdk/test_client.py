@@ -1321,6 +1321,24 @@ class TestClient(ScrutinyUnitTest):
         with self.assertRaises(sdk.exceptions.InvalidValueError):
             var1.value
 
+    def test_no_unsubscribe_on_failed_unwatch(self):
+        var1 = self.client.watch('/a/b/var1')
+        self.execute_in_server_thread(partial(self.set_entry_val, var1.display_path, 0x13245678))
+        time.sleep(0.5)
+        self.assertEqual(var1.value, 0x13245678)
+
+        # Attempt to unwatch will fail. The handle must stay valid and keep accept updates.
+        # We want to avoid receiving updates from the server without the sdk knowing why
+        self.client._force_fail_request=True
+        with self.assertRaises(sdk.exceptions.ScrutinySDKException):
+            var1.unwatch()
+        self.client._force_fail_request=False
+
+        self.execute_in_server_thread(partial(self.set_entry_val, var1.display_path, 0xabcd1234))
+        time.sleep(0.5)
+        self.assertEqual(var1.value, 0xabcd1234)
+
+
     def test_handle_cannot_be_reused_after_unwatch(self):
         var1 = self.client.watch('/a/b/var1')
         self.execute_in_server_thread(partial(self.set_entry_val, var1.display_path, 0x11111111))
