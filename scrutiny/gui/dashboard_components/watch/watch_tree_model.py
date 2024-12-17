@@ -420,6 +420,7 @@ class WatchComponentTreeModel(WatchableTreeModel):
             if parent is not None:
                 parent.set_loaded()
             item = item_from_serializable_data(descriptor['node'])
+            self._assign_unique_watcher_id(item)
             if isinstance(item, FolderStandardItem):
                 row = self.make_folder_row_existing_item(item, editable=True)
             elif isinstance(item, WatchableStandardItem):

@@ -275,7 +275,7 @@ class WatchComponent(ScrutinyGUIBaseComponent):
             self.update_all_watchable_state()
         else:
             for item in self._tree_model.get_all_watchable_items():
-                self._unwatch_item(item, quiet=True)
+                self._unwatch_item(item)
     
     def _watch_item(self, item:WatchableStandardItem) -> None:
         watcher_id = self._get_watcher_id(item)
@@ -286,7 +286,7 @@ class WatchComponent(ScrutinyGUIBaseComponent):
             # Should not happen normally
             self.logger.debug(f"Cannot watch {item.fqn}. Does not exist")
     
-    def _unwatch_item(self, item:WatchableStandardItem, quiet:bool=False) -> None:
+    def _unwatch_item(self, item:WatchableStandardItem, quiet:bool=True) -> None:
         watcher_id = self._get_watcher_id(item)
         try:
             self.server_manager.registry.unwatch_fqn(watcher_id, item.fqn)
@@ -316,7 +316,7 @@ class WatchComponent(ScrutinyGUIBaseComponent):
 
     def teardown(self) -> None:
         for item in self._tree_model.get_all_watchable_items():
-            self._unwatch_item(item, quiet=True)
+            self._unwatch_item(item)
 
     def get_state(self) -> Dict[Any, Any]:
         raise NotImplementedError()
