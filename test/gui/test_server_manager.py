@@ -639,6 +639,32 @@ class TestServerManagerRegistryInteraction(ScrutinyBaseGuiTest):
         self.asssert_no_unwatch_request(max_wait=0.5) 
         self.assertEqual(self.registry.node_watcher_count(sdk.WatchableType.Variable, 'a/b/c'), 0)
 
+    def test_data_reaches_watchers(self):
+        # Simulate a value update broadcast by the client. 
+        # expect a gui watcher that subscribe to the registry to receive the update
+        watch1 =  StubbedWatchableHandle(
+            display_path='/aaa/bbb/ccc',
+            datatype=sdk.EmbeddedDataType.float32,
+            enum=None,
+            server_id='aaa',
+            watchable_type=sdk.WatchableType.Variable
+        )
+        self.server_manager.registry.add_watchable(watch1.display_path, watch1.configuration)
+        all_updates = []
+        def callback(watcher, updates):
+            for update in updates:
+                all_updates.append(update)
+
+        self.server_manager.registry.register_watcher('hello', callback)
+        self.server_manager.registry.watch('hello', watch1.configuration.watchable_type, watch1.display_path)
+        watch1.set_value(1234)
+        self.server_manager._listener.subscribe(watch1)
+
+        self.server_manager._listener._broadcast_update([watch1])
+
+        self.wait_true_with_events(lambda : len(all_updates) > 0, timeout=1)
+        self.assertEqual(len(all_updates), 1)
+        self.assertEqual(all_updates[0].value, 1234)
 
 class TestQtListener(ScrutinyBaseGuiTest):
 
@@ -691,17 +717,18 @@ class TestQtListener(ScrutinyBaseGuiTest):
 
         self.listener.signals.data_received.connect(callback)
 
+        # Simulate what the client does. Date comes in from the network
         self.listener._broadcast_update([self.watch1, self.watch2, self.watch3])
 
-        self.wait_true_with_events(lambda: len(data_received) >=2, timeout=1)
+        self.wait_true_with_events(lambda: len(data_received) >=2, timeout=1)   # Wait for callback to be called through a QT signal
         self.assertEqual(len(data_received), 2)
         self.assertEqual(counter.count, 1)
         self.assertIs(data_received[0].watchable, self.watch1)
         # watch2 was not subscribed
         self.assertIs(data_received[1].watchable, self.watch3)
-        data_received.clear()
+        data_received.clear()   # All goo, clear the data for enxt test
 
-        self.assertEqual(self.listener.gui_qsize, 0)
+        self.assertEqual(self.listener.gui_qsize, 0)    # Nothing is buffered internally.
         self.listener._broadcast_update([self.watch1, self.watch2, self.watch3])
         time.sleep(0.5)
         # We have not authorized the listener to emit a new QT signal. So no callback called.
@@ -709,7 +736,8 @@ class TestQtListener(ScrutinyBaseGuiTest):
         self.assertEqual(len(data_received), 0)
         self.assertEqual(counter.count, 1)
         self.listener.ready_for_next_update()  
-
+        
+        # Now that we authorized it, a new QT signal will be emitted so that we empty the gui_queue
         self.wait_true_with_events(lambda: len(data_received) >=2, timeout=1)
         self.assertEqual(len(data_received), 2)
         self.assertEqual(counter.count, 2)
