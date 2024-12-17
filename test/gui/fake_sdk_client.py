@@ -13,13 +13,14 @@ from scrutiny.sdk.client import WatchableListDownloadRequest, ScrutinyClient
 from scrutiny.core.embedded_enum import EmbeddedEnum
 from scrutiny.core.basic_types import EmbeddedDataType
 from scrutiny.sdk.listeners import BaseListener
-from typing import Optional, List, Dict, Callable
+from typing import Optional, List, Dict, Callable, Union
 from dataclasses import dataclass
 import inspect
 import queue
 import threading
 from test import logger
 from scrutiny.tools import UnitTestStub
+from datetime import datetime
 
 default_server_info = sdk.ServerInfo(
     device_comm_state=sdk.DeviceCommState.Disconnected,
@@ -33,6 +34,7 @@ class StubbedWatchableHandle(UnitTestStub):
     display_path:str
     configuration:sdk.WatchableConfiguration
     _invalid:bool
+    _value:Union[int, str, float, bool]
 
     def __init__(self, display_path:str,
                 watchable_type:sdk.WatchableType,
@@ -49,6 +51,8 @@ class StubbedWatchableHandle(UnitTestStub):
             server_id=server_id
         )
         self._invalid = False
+        self._value = 0
+        self._last_update_timestamp = None
 
     def _assert_configured(self) -> None:
         pass
@@ -59,9 +63,22 @@ class StubbedWatchableHandle(UnitTestStub):
     def simulate_death(self) -> None:
         self._invalid = True
 
+    def set_value(self, val):
+        self._value = val
+        self._last_update_timestamp = datetime.now()
+
+
     @property
-    def server_id(self):
+    def server_id(self) -> str:
         return self.configuration.server_id
+    
+    @property
+    def last_update_timestamp(self) -> Optional[datetime]:
+        return self._last_update_timestamp
+    
+    @property
+    def value(self) -> Union[int, bool, float, str]:
+        return self._value
 
 @dataclass
 class DownloadWatchableListFunctionCall:

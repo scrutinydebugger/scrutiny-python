@@ -7,9 +7,9 @@
 #   Copyright (c) 2021 Scrutiny Debugger
 
 from scrutiny import sdk
-from scrutiny.gui.core.server_manager import ServerManager, ServerConfig
+from scrutiny.gui.core.server_manager import ServerManager, ServerConfig, QtBufferedListener
 from scrutiny.gui.core.watchable_registry import WatchableRegistry
-from test.gui.fake_sdk_client import FakeSDKClient, DownloadWatchableListFunctionCall
+from test.gui.fake_sdk_client import FakeSDKClient, StubbedWatchableHandle
 from test.gui.base_gui_test import ScrutinyBaseGuiTest, EventType
 import time
 
@@ -638,3 +638,81 @@ class TestServerManagerRegistryInteraction(ScrutinyBaseGuiTest):
         
         self.asssert_no_unwatch_request(max_wait=0.5) 
         self.assertEqual(self.registry.node_watcher_count(sdk.WatchableType.Variable, 'a/b/c'), 0)
+
+
+class TestQtListener(ScrutinyBaseGuiTest):
+
+    def setUp(self):
+        super().setUp()
+        self.listener = QtBufferedListener()
+        self.listener.start()
+
+        self.watch1 =  StubbedWatchableHandle(
+            display_path='/aaa/bbb/ccc',
+            datatype=sdk.EmbeddedDataType.float32,
+            enum=None,
+            server_id='aaa',
+            watchable_type=sdk.WatchableType.Variable
+        )
+        self.watch2 =  StubbedWatchableHandle(
+            display_path='/aaa/bbb/ddd',
+            datatype=sdk.EmbeddedDataType.float32,
+            enum=None,
+            server_id='bbb',
+            watchable_type=sdk.WatchableType.Alias
+        )
+        self.watch3 =  StubbedWatchableHandle(
+            display_path='/aaa/bbb/eee',
+            datatype=sdk.EmbeddedDataType.float32,
+            enum=None,
+            server_id='ccc',
+            watchable_type=sdk.WatchableType.RuntimePublishedValue
+        )
+
+    def tearDown(self):
+        self.listener.stop()
+        super().tearDown()
+
+    def test_qt_listener(self):
+        self.listener.subscribe(self.watch1)
+        self.listener.subscribe(self.watch3)
+       
+        data_received = []
+        class CounterObj:
+            def __init__(self):
+                self.count = 0
+        counter = CounterObj()
+
+        def callback():
+            counter.count +=1
+            while not self.listener.to_gui_thread_queue.empty():
+                for update in self.listener.to_gui_thread_queue.get_nowait():
+                    data_received.append(update)
+
+        self.listener.signals.data_received.connect(callback)
+
+        self.listener._broadcast_update([self.watch1, self.watch2, self.watch3])
+
+        self.wait_true_with_events(lambda: len(data_received) >=2, timeout=1)
+        self.assertEqual(len(data_received), 2)
+        self.assertEqual(counter.count, 1)
+        self.assertIs(data_received[0].watchable, self.watch1)
+        # watch2 was not subscribed
+        self.assertIs(data_received[1].watchable, self.watch3)
+        data_received.clear()
+
+        self.assertEqual(self.listener.gui_qsize, 0)
+        self.listener._broadcast_update([self.watch1, self.watch2, self.watch3])
+        time.sleep(0.5)
+        # We have not authorized the listener to emit a new QT signal. So no callback called.
+        self.assertGreater(self.listener.gui_qsize, 0)  # Enqueued, waiting for callback to empty it
+        self.assertEqual(len(data_received), 0)
+        self.assertEqual(counter.count, 1)
+        self.listener.ready_for_next_update()  
+
+        self.wait_true_with_events(lambda: len(data_received) >=2, timeout=1)
+        self.assertEqual(len(data_received), 2)
+        self.assertEqual(counter.count, 2)
+        self.assertIs(data_received[0].watchable, self.watch1)
+        # watch2 was not subscribed
+        self.assertIs(data_received[1].watchable, self.watch3)

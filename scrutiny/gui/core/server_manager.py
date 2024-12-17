@@ -359,6 +359,7 @@ class ServerManager:
 
     
     def start(self, config:ServerConfig) -> None:
+        # Called from the QT thread
         """Makes the server manager try to connect and monitor server state changes
         Will autoreconnect on disconnection
         """
@@ -382,6 +383,7 @@ class ServerManager:
     
     def stop(self) -> None:
         """Stops the server manager. Will disconnect it from the server and clear all internal data"""
+        # Called from the QT thread + Server thread
         self._logger.debug("ServerManager.stop() called")
         if self._stop_pending:
             self._logger.debug("Stop already pending. Cannot stop")
@@ -402,6 +404,7 @@ class ServerManager:
 
     def _thread_func(self, config:ServerConfig) -> None:
         """Thread that monitors state change on the server side"""
+        # Is the server thread
         self._logger.debug("Server manager thread running")
         self._thread_state.clear()
         
@@ -415,7 +418,7 @@ class ServerManager:
 
                 server_state = self._client.server_state
                 if server_state == sdk.ServerState.Error:
-                    self.stop()
+                    self.stop()      # Race conditon?
                     break
                 self._thread_process_client_events()
                 self._thread_handle_download_watchable_logic()
@@ -454,10 +457,12 @@ class ServerManager:
             pass    # May fail if the window is deleted before this thread exits
 
     def _thread_clear_client_events(self) -> None:
+        # Called from internal thread
         while self._client.has_event_pending():
             self._client.read_event(timeout=0)
 
     def _thread_handle_reconnect(self, config:ServerConfig) -> None:
+        # Called from internal thread
         if self._allow_auto_reconnect and not self._stop_pending:
             # timer to prevent going crazy on function call
             if self._thread_state.connect_timestamp_mono is None or time.monotonic() - self._thread_state.connect_timestamp_mono > self.RECONNECT_DELAY:
@@ -469,6 +474,7 @@ class ServerManager:
                     pass
 
     def _thread_process_client_events(self) -> None:
+        # Called from internal thread
         while True:
             event = self._client.read_event(timeout=0.2)
             if event is None:
@@ -499,6 +505,7 @@ class ServerManager:
                 self._logger.error(f"Unsupported event type : {event.__class__.__name__}")    
 
     def _thread_handle_download_watchable_logic(self) -> None:
+        # Called from internal thread 
         if self._thread_state.runtime_watchables_download_request is not None:
             if self._thread_state.runtime_watchables_download_request.completed:  
                 # Download is finished
@@ -752,19 +759,20 @@ class ServerManager:
 
     def _registry_watch_callback(self, watcher_id:Union[str,int], server_path:str, watchable_config:sdk.WatchableConfiguration) -> None:
         """Called when a gui component register a watcher on the registry"""
+        # Runs from QT thread
         watcher_count = self._registry.node_watcher_count(watchable_config.watchable_type, server_path)
         if watcher_count > 0:
             self._maybe_request_watch(watchable_config.watchable_type, server_path)
 
     def _registry_unwatch_callback(self, watcher_id:Union[str,int], server_path:str, watchable_config:sdk.WatchableConfiguration) -> None:
         """Called when a gui component unregister a watcher on the registry"""
-        # This runs from the GUI thread
+        # Runs from QT thread
         watcher_count = self._registry.node_watcher_count(watchable_config.watchable_type, server_path)
         if watcher_count == 0:
             self._maybe_request_unwatch(watchable_config.watchable_type, server_path)
 
     def _value_update_received(self) -> None:
-        # Called in the GUI thread when a value update is received by the lsitener (the client)
+        # Called in the QT thread when a value update is received by the lsitener (the client)
         aggregated_updates:List[ValueUpdate] = []
         while not self._listener.to_gui_thread_queue.empty():
             update_list = self._listener.to_gui_thread_queue.get_nowait()
@@ -774,9 +782,11 @@ class ServerManager:
         self._listener.ready_for_next_update()
  
     def get_server_state(self) -> sdk.ServerState:
+        # Called from QT thread + Server thread. atomic
         return self._client.server_state
     
     def get_server_info(self) -> Optional[sdk.ServerInfo]:
+        # Called from QT thread + Server thread. atomic
         try:
             return self._client.get_latest_server_status()
         except sdk.exceptions.ScrutinySDKException:
