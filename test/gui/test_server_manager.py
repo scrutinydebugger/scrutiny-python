@@ -480,7 +480,7 @@ class TestServerManagerRegistryInteraction(ScrutinyBaseGuiTest):
     # The registry is independant from the network. It doesn't wait for server confirmation before returning of a watch/unwatch.
     # The server manager should try to register as long as the number of watcher is greater than 0, and unregister when there is 0 watchers asynchronously. 
     # No request stacking should happen. while nb_watcher > 0: keep trying to watch. When nb_watch == 0, stop trying watching and/or keep trying to unwatch
-
+    
     def setUp(self) -> None:
         super().setUp()
         self.registry = WatchableRegistry()
@@ -489,6 +489,7 @@ class TestServerManagerRegistryInteraction(ScrutinyBaseGuiTest):
             watchable_registry=self.registry, # Real registry
             client=self.fake_client
             )
+        self.server_manager._unit_test = True
         self.server_manager.start(SERVER_MANAGER_CONFIG)
         self.wait_true(lambda: self.server_manager.get_server_state()==sdk.ServerState.Connected, timeout=1)
         
@@ -507,16 +508,16 @@ class TestServerManagerRegistryInteraction(ScrutinyBaseGuiTest):
         return request
     
     def asssert_no_watch_request(self, max_wait:int=1):
-        self.wait_true(lambda: len(self.fake_client._pending_watch_request) > 0, timeout=max_wait, no_assert=True)
+        self.wait_true_with_events(lambda: len(self.fake_client._pending_watch_request) > 0, timeout=max_wait, no_assert=True)
         self.assertEqual(len(self.fake_client._pending_watch_request), 0)
     
     def asssert_no_unwatch_request(self, max_wait:int=1):
-        self.wait_true(lambda: len(self.fake_client._pending_unwatch_request) > 0, timeout=max_wait, no_assert=True)
+        self.wait_true_with_events(lambda: len(self.fake_client._pending_unwatch_request) > 0, timeout=max_wait, no_assert=True)
         self.assertEqual(len(self.fake_client._pending_unwatch_request), 0)
 
     def asssert_no_watch_or_unwatch_request(self, max_wait:int=1):
         func = lambda: len(self.fake_client._pending_unwatch_request) > 0 or len(self.fake_client._pending_watch_request) > 0
-        self.wait_true(func, timeout=max_wait, no_assert=True)
+        self.wait_true_with_events(func, timeout=max_wait, no_assert=True)
         self.assertFalse(func())
 
     def test_no_request_stacking(self):
@@ -534,6 +535,8 @@ class TestServerManagerRegistryInteraction(ScrutinyBaseGuiTest):
         self.registry.register_watcher(watcher2, lambda *x,**y:None)
         self.registry.register_watcher(watcher3, lambda *x,**y:None)
 
+        ui_callback_count = self.server_manager._watch_unwatch_ui_callback_call_count
+
         # Start a new series of watch unwatch.
         self.registry.watch(watcher1, sdk.WatchableType.Variable, 'a/b/c')
         self.registry.unwatch(watcher1, sdk.WatchableType.Variable, 'a/b/c')
@@ -544,12 +547,15 @@ class TestServerManagerRegistryInteraction(ScrutinyBaseGuiTest):
 
         watch_request = self.get_watch_request(assert_single=True)
         self.asssert_no_watch_or_unwatch_request(max_wait=0.5)
+        self.assertEqual(ui_callback_count, self.server_manager._watch_unwatch_ui_callback_call_count)
         watch_request.simulate_failure()
+        self.wait_true_with_events(lambda : self.server_manager._watch_unwatch_ui_callback_call_count != ui_callback_count, timeout=1 )
         # watch failed. We have no watcher. Should do nothing more
         self.asssert_no_watch_or_unwatch_request(max_wait=0.5)
-
+ 
         # We are back to 0 watcher.
         # Start a new series of watch unwatch.
+        ui_callback_count = self.server_manager._watch_unwatch_ui_callback_call_count
         watchable_config = sdk.WatchableConfiguration('xxx', sdk.WatchableType.Variable, datatype=sdk.EmbeddedDataType.float32, enum=None)
         self.registry.watch(watcher1, sdk.WatchableType.Variable, 'a/b/c')
         self.registry.unwatch(watcher1, sdk.WatchableType.Variable, 'a/b/c')
@@ -557,10 +563,12 @@ class TestServerManagerRegistryInteraction(ScrutinyBaseGuiTest):
         self.registry.unwatch(watcher1, sdk.WatchableType.Variable, 'a/b/c')
         self.registry.watch(watcher1, sdk.WatchableType.Variable, 'a/b/c')
         self.registry.unwatch(watcher1, sdk.WatchableType.Variable, 'a/b/c')
-
+    
         watch_request = self.get_watch_request(assert_single=True)
         self.asssert_no_watch_or_unwatch_request(max_wait=0.5)
+        self.assertEqual(ui_callback_count, self.server_manager._watch_unwatch_ui_callback_call_count)
         watch_request.simulate_success(watchable_config)
+        self.wait_true_with_events(lambda : self.server_manager._watch_unwatch_ui_callback_call_count != ui_callback_count, timeout=1 )
         # We are supposed to have no watcher. Expect an unwatch request
 
         unwatch_request = self.get_unwatch_request(assert_single=True)
@@ -589,29 +597,33 @@ class TestServerManagerRegistryInteraction(ScrutinyBaseGuiTest):
         self.registry.watch(watcher2, sdk.WatchableType.Variable, 'a/b/c')
         self.assertEqual(self.registry.node_watcher_count(sdk.WatchableType.Variable, 'a/b/c'), 2)   # Independant of network request status
 
+        call_count = self.server_manager._watch_unwatch_ui_callback_call_count
         request1 = self.get_watch_request(assert_single=True)
         self.asssert_no_watch_request(max_wait=0.5) # Should have a single watch request for the 2 watches
         request1.simulate_failure() #  Should stay unwatched
-        time.sleep(0.3) # There's no clean way to wait on this. 
+        self.wait_true_with_events(lambda : call_count != self.server_manager._watch_unwatch_ui_callback_call_count, timeout=1 )
 
         self.registry.watch(watcher3, sdk.WatchableType.Variable, 'a/b/c')  # Will trigger a retry
         
         request2 = self.get_watch_request(assert_single=True)
         self.asssert_no_watch_request(max_wait=0.5) 
         some_watchable_config = sdk.WatchableConfiguration(server_id='aaa', watchable_type=sdk.WatchableType.Variable, datatype=sdk.EmbeddedDataType.float32, enum=None )
+        
+        call_count = self.server_manager._watch_unwatch_ui_callback_call_count
         request2.simulate_success(some_watchable_config) 
+        self.wait_true_with_events(lambda : call_count != self.server_manager._watch_unwatch_ui_callback_call_count, timeout=1 )
 
         # We have 3 watchers here.
         self.assertEqual(self.registry.node_watcher_count(sdk.WatchableType.Variable, 'a/b/c'), 3)
         self.registry.unwatch(watcher1, sdk.WatchableType.Variable, 'a/b/c')    # No effect. 2 remaining
         self.registry.unwatch(watcher2, sdk.WatchableType.Variable, 'a/b/c')    # No effect. 1 remaining
 
-        
         self.registry.unwatch(watcher3, sdk.WatchableType.Variable, 'a/b/c')  # Should trigger a unwatch to the server
         request1 = self.get_unwatch_request(assert_single=True)
         self.asssert_no_unwatch_request(max_wait=0.5) 
+        call_count = self.server_manager._watch_unwatch_ui_callback_call_count
         request1.simulate_failure() #  Should stay watched
-        time.sleep(0.3)
+        self.wait_true_with_events(lambda : call_count != self.server_manager._watch_unwatch_ui_callback_call_count, timeout=1 )
 
         # Registry now consider that watcher3 is not listening, but the client is still subscribed
         # The following watch will cause the registry to consider watcher3 as a watcher, but will not trigger a request to the server
@@ -619,8 +631,10 @@ class TestServerManagerRegistryInteraction(ScrutinyBaseGuiTest):
         self.registry.unwatch(watcher3, sdk.WatchableType.Variable, 'a/b/c')
         request3 = self.get_unwatch_request(assert_single=True)
         self.asssert_no_unwatch_request(max_wait=0.5) 
+        
+        call_count = self.server_manager._watch_unwatch_ui_callback_call_count
         request3.simulate_success() 
+        self.wait_true_with_events(lambda : call_count != self.server_manager._watch_unwatch_ui_callback_call_count, timeout=1 )
         
         self.asssert_no_unwatch_request(max_wait=0.5) 
-
         self.assertEqual(self.registry.node_watcher_count(sdk.WatchableType.Variable, 'a/b/c'), 0)

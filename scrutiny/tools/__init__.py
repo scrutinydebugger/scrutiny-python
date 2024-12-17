@@ -35,6 +35,10 @@ def update_dict_recursive(d1:Dict[Any, Any], d2:Dict[Any, Any]) -> None:
 
 def format_eng_unit(val:float, decimal:int=0, unit:str="", binary:bool=False) -> str:
     assert decimal >= 0
+    format_string = f"%0.{decimal}f"
+    if val == 0:    # Special case to avoid writing : 0piB instead of 0B
+        return (format_string % val) + unit 
+    
     prefixes:List[Tuple[float, str]]
     if binary:      
         prefixes = [
@@ -76,9 +80,11 @@ def format_eng_unit(val:float, decimal:int=0, unit:str="", binary:bool=False) ->
     assert prefix is not None
 
     val = round(val / base, decimal)
-    format_string = f"%0.{decimal}f"
     return (format_string % val) + prefix + unit 
 
 
 def format_exception(e:Exception) -> str:
     return ''.join(traceback.format_exception(type(e), e, e.__traceback__))
+
+class UnitTestStub:
+    pass

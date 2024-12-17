@@ -19,6 +19,7 @@ from scrutiny.core import validation
 from scrutiny.core.logging import DUMPDATA_LOGLEVEL
 from scrutiny.sdk import exceptions as sdk_exceptions
 from scrutiny.tools.profiling import VariableRateExponentialAverager
+from scrutiny.tools import UnitTestStub
 
 @dataclass(frozen=True)
 class ValueUpdate:
@@ -117,7 +118,7 @@ class BaseListener(abc.ABC):
         self._receive_error=False
         self._queue_max_size=queue_max_size
         self._update_count=0
-        self._update_rate_measurement = VariableRateExponentialAverager(time_estimation_window=0.1, tau=1, near_zero=0.1)
+        self._update_rate_measurement = VariableRateExponentialAverager(time_estimation_window=0.1, tau=0.5, near_zero=0.1)
 
     def _broadcast_update(self, watchables:List[WatchableHandle]) -> None:
         """
@@ -251,11 +252,11 @@ class BaseListener(abc.ABC):
         """
 #        if self._started:
 #            raise sdk_exceptions.OperationFailure("Cannot subscribe a watchable once the listener is started")
-        if isinstance(watchables, WatchableHandle):
+        if isinstance(watchables, (WatchableHandle, UnitTestStub)):
             watchables = [watchables]
         validation.assert_is_iterable(watchables, 'watchables')
         for watchable in watchables:
-            validation.assert_type(watchable, 'watchable', WatchableHandle)
+            validation.assert_type(watchable, 'watchable', (WatchableHandle, UnitTestStub))
             watchable._assert_configured() # Paranoid check.
         
         with self._subscriptions_lock:

@@ -19,6 +19,7 @@ import inspect
 import queue
 import threading
 from test import logger
+from scrutiny.tools import UnitTestStub
 
 default_server_info = sdk.ServerInfo(
     device_comm_state=sdk.DeviceCommState.Disconnected,
@@ -28,9 +29,10 @@ default_server_info = sdk.ServerInfo(
     device_link=sdk.DeviceLinkInfo(type=sdk.DeviceLinkType.UDP, config=dict(host='localhost', prot=1234), operational=True)
 )
 
-class StubbedWatchableHandle:
+class StubbedWatchableHandle(UnitTestStub):
     display_path:str
     configuration:sdk.WatchableConfiguration
+    _invalid:bool
 
     def __init__(self, display_path:str,
                 watchable_type:sdk.WatchableType,
@@ -46,6 +48,16 @@ class StubbedWatchableHandle:
             enum=enum,
             server_id=server_id
         )
+        self._invalid = False
+
+    def _assert_configured(self) -> None:
+        pass
+    
+    def _is_dead(self) -> bool:
+        return self._invalid
+    
+    def simulate_death(self) -> None:
+        self._invalid = True
 
     @property
     def server_id(self):
@@ -61,7 +73,7 @@ class DownloadWatchableListFunctionCall:
 
     request:WatchableListDownloadRequest    # Output
 
-class FakeSDKClient:
+class FakeSDKClient(UnitTestStub):
 
     class FakeRequest:
         requested_path:str
@@ -385,6 +397,7 @@ class FakeSDKClient:
         )
 
         self._handle_cache[path] = handle
+        return handle
 
     def unwatch(self, path: str) -> StubbedWatchableHandle:
         logger.debug(f"Fake call to unwatch({path})")

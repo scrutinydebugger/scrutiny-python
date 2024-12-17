@@ -45,7 +45,7 @@ DEFAULT_CONFIG: ServerConfig = {
     'api': {
         'client_interface_type': 'tcp',
         'client_interface_config': {
-            'host': 'localhost',
+            'host': '0.0.0.0',
             'port': 8765
         }
     },

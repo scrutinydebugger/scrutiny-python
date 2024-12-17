@@ -9,6 +9,7 @@
 import time
 
 class VariableRateExponentialAverager:
+    """Runs a low pass filter of type exponential averager and adjust the coefficients """
 
     enabled: bool
     """Enable/disable flag"""
@@ -53,18 +54,20 @@ class VariableRateExponentialAverager:
 
         t = time.perf_counter()
         dt = t - self.last_process_timestamp
-        if dt > self.time_estimation_window:
-            instant_bitrate = self.sum_since_last_estimation / dt  # Filter inputs
+        if dt >= self.time_estimation_window:
+            self.last_process_timestamp = t        # Sets new timestamp
+            
+            instant_bitrate = self.sum_since_last_estimation / dt 
+            self.sum_since_last_estimation = 0     # Reset the data counter
 
             # Let's adjust the transfer function tor espect the given time constant
             b = min(1, dt / self.tau)   # Approximation. Exact equation is 1-exp(-dt/tau)
             a = 1 - b
-            self.estimated_value = b * instant_bitrate + a * self.estimated_value
-            if abs(self.estimated_value) < self.near_zero:
-                self.estimated_value = 0
+            val = b * instant_bitrate + a * self.estimated_value
+            if abs(val) < self.near_zero:
+                val = 0
+            self.estimated_value = val
             
-            self.sum_since_last_estimation = 0     # Reset the data counter
-            self.last_process_timestamp = t        # Sets new timestamp
 
     def add_data(self, value: int) -> None:
         """Increase the amount of data measured"""
