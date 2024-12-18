@@ -7,7 +7,7 @@
 #   Copyright (c) 2021 Scrutiny Debugger
 
 from PySide6.QtGui import QDragEnterEvent, QDropEvent
-from PySide6.QtWidgets import QWidget, QLineEdit
+from PySide6.QtWidgets import QLineEdit
 
 from typing import Any
 

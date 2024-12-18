@@ -9,10 +9,10 @@
 from scrutiny.gui.dashboard_components.base_component import ScrutinyGUIBaseComponent
 from typing import Dict,Any
 
-from PySide6.QtWidgets import QFormLayout, QLabel, QLineEdit, QCheckBox, QRadioButton, QTextEdit
-from PySide6.QtCore import QMimeData, Qt
+from PySide6.QtWidgets import QFormLayout, QLabel,  QTextEdit
+from PySide6.QtCore import QMimeData,  QTimer
 from scrutiny.gui.dashboard_components.common.watchable_line_edit import WatchableLineEdit
-
+from scrutiny.gui.widgets.app_stats_display import ApplicationStatsDisplay
 from scrutiny.gui import assets
 
 class DroppableTextEdit(QTextEdit):
@@ -32,9 +32,6 @@ class DebugComponent(ScrutinyGUIBaseComponent):
 
     _label_nb_status_update:QLabel
     _nb_status_update:int
-    _test_textbox:QLineEdit
-    _test_checkbox:QCheckBox
-    _test_radio:QRadioButton
     _watchable_line_edit:WatchableLineEdit
     _dnd_text_edit:DroppableTextEdit
 
@@ -43,48 +40,32 @@ class DebugComponent(ScrutinyGUIBaseComponent):
     def setup(self) -> None:
         layout = QFormLayout(self)
         self._nb_status_update = 0
-        self._label_nb_status_update = QLabel(str(self._nb_status_update))
-        self._test_textbox = QLineEdit()
-        self._test_textbox.setMaximumWidth(100)
-        self._test_checkbox = QCheckBox()
-        self._test_radio = QRadioButton()
         self._watchable_line_edit = WatchableLineEdit()
         self._watchable_line_edit.setMaximumWidth(100)
         self._dnd_text_edit = DroppableTextEdit()
-        self._dnd_text_edit.setMaximumSize(600,300)
+        self._dnd_text_edit.setMaximumSize(400,300)
+        self.app_stats = ApplicationStatsDisplay(self)
+
 
         layout.addRow(QLabel("Component name:"), QLabel(self._NAME))
         layout.addRow(QLabel("Instance name:"), QLabel(self.instance_name))
-        layout.addRow(QLabel("Status update count:"), self._label_nb_status_update)
-        layout.addRow(QLabel("Test textbox:"), self._test_textbox)
-        layout.addRow(QLabel("Test checkbox:"), self._test_checkbox)
-        layout.addRow(QLabel("Test radio button:"), self._test_radio)
         layout.addRow(QLabel("Droppable line edit:"), self._watchable_line_edit)
         layout.addRow(QLabel("Drag & Drop zone:"), self._dnd_text_edit)
+        layout.addRow(QLabel("stats:"), self.app_stats)
+        
+        self.timer = QTimer()
+        self.timer.setInterval(200)
+        self.timer.timeout.connect(self.stats_timer_timeout)
+        self.timer.start()
 
-        self.server_manager.signals.status_received.connect(self.update_status)
-
-    def update_status(self) -> None:
-        self._nb_status_update += 1
-        self._label_nb_status_update.setText(str(self._nb_status_update))
+    def stats_timer_timeout(self) -> None:
+        self.app_stats.update_data(self.server_manager.get_stats())
 
     def teardown(self) -> None:
         pass
 
     def get_state(self) -> Dict[Any, Any]:
-        return {
-            "textbox" : self._test_textbox.text(),
-            "checkbox" : self._test_checkbox.checkState().value,
-            "radio" : self._test_radio.isChecked()
-        }
+        return {}
 
     def load_state(self, state:Dict[Any, Any]) -> None:
-        if 'textbox' in state:
-            self._test_textbox.setText(state['textbox'])
-        
-        if 'checkbox' in state:
-            self._test_checkbox.setCheckState(Qt.CheckState(state['checkbox']))
-
-        if 'radio' in state:
-            self._test_radio.setChecked(state['radio'])
-        
+        pass

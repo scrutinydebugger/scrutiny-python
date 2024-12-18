@@ -1,3 +1,11 @@
+#    test_drag_data.py
+#        A test suite to test the tools that revolves around drag & drop
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021 Scrutiny Debugger
+
 from test import ScrutinyUnitTest
 from scrutiny.gui.core.scrutiny_drag_data import ScrutinyDragData, SingleWatchableDescriptor, WatchableListDescriptor
 from PySide6.QtCore import QMimeData, QByteArray

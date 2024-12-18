@@ -498,9 +498,6 @@
         "scrutiny/gui/dashboard_components/watch/watch_component.py": {
             "docstring": "A component to look at the value of watchable items broadcast by the server"
         },
-        "scrutiny/gui/widgets/sidebar.py": {
-            "docstring": "The GUI sidebar"
-        },
         "scrutiny/sdk/pending_request.py": {
             "docstring": "A base class for Future objects given to the suer"
         },
@@ -512,9 +509,6 @@
         },
         "test/server/links/test_rtt_link.py": {
             "docstring": "Test suite to test Segger Rtt Link "
-        },
-        "scrutiny/gui/core/gui_logger.py": {
-            "docstring": "Logger used for the Graphical User Interface"
         },
         "scrutiny/gui/core/definitions.py": {
             "docstring": "Some GUI wide definitions"
@@ -549,9 +543,6 @@
         "scrutiny/gui/dialogs/sfd_content_dialog.py": {
             "docstring": "Window that displays the metadata associated with a Scrutiny Firmware Description file"
         },
-        "test/gui/test_varlist_component.py": {
-            "docstring": "Test suite for the dashboard Variable List component"
-        },
         "scrutiny/gui/core/scrutiny_drag_data.py": {
             "docstring": "Application-wide drag&drop data format. Used to drag watchables items around"
         },
@@ -563,6 +554,33 @@
         },
         "scrutiny/gui/dashboard_components/watch/watch_tree_model.py": {
             "docstring": "The data model used by the Watch component treeview"
+        },
+        "test/gui/fake_server_manager.py": {
+            "docstring": "A stubbed Server MAnager for unit test purpose"
+        },
+        "test/gui/test_drag_data.py": {
+            "docstring": "A test suite to test the tools that revolves around drag & drop"
+        },
+        "test/gui/test_watchable_tree.py": {
+            "docstring": "Test suite for Custom TreeView widget dedicated to show watchables"
+        },
+        "test/gui/manual/manual_test_varlist_watch_components.py": {
+            "docstring": "A test file that can be invoked manually to check on the varlist/watch widget"
+        },
+        "scrutiny/core/logging.py": {
+            "docstring": "Some global definition for logging"
+        },
+        "scrutiny/tools/profiling.py": {
+            "docstring": "Some tools for profiling the application"
+        },
+        "scrutiny/gui/widgets/component_sidebar.py": {
+            "docstring": "The sidebar with the dashboard component that can be added"
+        },
+        "scrutiny/gui/widgets/app_stats_display.py": {
+            "docstring": "A widget to display the application stats"
+        },
+        "scrutiny/gui/tools/global_counters.py": {
+            "docstring": "A file that provide some global counter atomic counter for unique ID generation"
         }
     }
 }

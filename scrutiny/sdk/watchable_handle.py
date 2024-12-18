@@ -90,7 +90,6 @@ class WatchableHandle:
         with self._lock:
             self._value = None
             self._status = status
-            self._configuration = None
 
     def _is_dead(self) -> bool:
         return self._status != ValueStatus.Valid and self._status != ValueStatus.NeverSet
@@ -259,8 +258,16 @@ class WatchableHandle:
     @property
     def datatype(self) -> EmbeddedDataType:
         """The data type of the device element pointed by this watchable. (sint16, float32, etc.)"""
+        self._assert_configured()
         assert self._configuration is not None
         return self._configuration.datatype
+
+    @property
+    def server_id(self) -> str:
+        """The unique ID assigned by the server for this watchable"""
+        self._assert_configured()
+        assert self._configuration is not None
+        return self._configuration.server_id
 
     @property
     def value(self) -> ValType:

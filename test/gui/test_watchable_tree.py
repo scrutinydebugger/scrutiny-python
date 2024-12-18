@@ -1,3 +1,11 @@
+#    test_watchable_tree.py
+#        Test suite for Custom TreeView widget dedicated to show watchables
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021 Scrutiny Debugger
+
 from PySide6.QtGui import QStandardItem
 from PySide6.QtCore import QModelIndex, Qt
 

@@ -12,6 +12,7 @@
 
 from scrutiny.server.protocol import Request, Response
 from scrutiny.tools import Timer, Throttler
+from scrutiny.core.logging import DUMPDATA_LOGLEVEL
 from copy import copy
 import logging
 import struct
@@ -20,6 +21,8 @@ import time
 from scrutiny.server.device.links import AbstractLink, LinkConfig
 import traceback
 import queue
+from dataclasses import dataclass
+from scrutiny.tools.profiling import VariableRateExponentialAverager
 
 from typing import TypedDict, Optional, Any, Dict, Type, cast
 import threading
@@ -33,6 +36,12 @@ class CommHandler:
 
     This class also act as a Link Factory.
     """
+
+    @dataclass
+    class Statistics:
+        tx_datarate_byte_per_sec:float
+        rx_datarate_byte_per_sec:float
+
 
     class Params(TypedDict):
         response_timeout: int
@@ -67,9 +76,7 @@ class CommHandler:
     _logger: logging.Logger
     _opened: bool
     _throttler: Throttler
-    _rx_bitcount: int
     _tx_bitcount: int
-    _bitcount_time: float
     _timed_out: bool
     _pending_request: Optional[Request]
     _link_type: str
@@ -80,6 +87,9 @@ class CommHandler:
     _rx_thread:Optional[threading.Thread]
     _rx_thread_started:threading.Event
     _rx_thread_stop_requested:threading.Event
+
+    _tx_datarate_measurement:VariableRateExponentialAverager
+    _rx_datarate_measurement:VariableRateExponentialAverager
 
     def __init__(self, params: Dict[str, Any] = {}) -> None:
         self._active_request = None      # Contains the request object that has been sent to the device. When None, no request sent and we are standby
@@ -102,6 +112,9 @@ class CommHandler:
         self._rx_thread_started = threading.Event()
         self._rx_thread = None
         self._rx_thread_stop_requested = threading.Event()
+
+        self._tx_datarate_measurement = VariableRateExponentialAverager(time_estimation_window=0.1, tau=0.5, near_zero=1)
+        self._rx_datarate_measurement = VariableRateExponentialAverager(time_estimation_window=0.1, tau=0.5, near_zero=1)
 
     def _rx_thread_task(self) -> None:
         self._logger.debug("RX thread started")
@@ -149,9 +162,7 @@ class CommHandler:
 
     def reset_bitrate_monitor(self) -> None:
         """Reset data size counters"""
-        self.rx_bitcount = 0
         self.tx_bitcount = 0
-        self.bitcount_time = time.perf_counter()
 
     def get_link(self) -> Optional[AbstractLink]:
         """Return the Link object used to talk with the device."""
@@ -228,6 +239,8 @@ class CommHandler:
             self._rx_thread = threading.Thread(target=self._rx_thread_task, daemon=True)
             self._rx_thread_started.clear()
             self._rx_thread_stop_requested.clear()
+            self._tx_datarate_measurement.enable()
+            self._rx_datarate_measurement.enable()
             self._rx_thread.start()
             if not self._rx_thread_started.wait(timeout=1):
                 self._stop_rx_thread()
@@ -258,6 +271,8 @@ class CommHandler:
         if self._link is not None:
             self._link.destroy()
 
+        self._tx_datarate_measurement.disable()
+        self._rx_datarate_measurement.disable()
         self.reset()
         self._last_open_error = None
         self._opened = False
@@ -275,6 +290,9 @@ class CommHandler:
         if self._link is None:
             self.reset()
             return
+        
+        self._tx_datarate_measurement.update()
+        self._rx_datarate_measurement.update()
 
         if self._link.initialized() and not self._link.operational():
             self._logger.error('Communication link stopped working. Stopping communication')
@@ -303,8 +321,9 @@ class CommHandler:
 
         datasize_bits = len(data) * 8
         self._throttler.consume_bandwidth(datasize_bits)
-        self.rx_bitcount += datasize_bits
-        self._logger.debug('Received : %s' % (hexlify(data).decode('ascii')))
+        self._rx_datarate_measurement.add_data(len(data))
+        if self._logger.isEnabledFor(DUMPDATA_LOGLEVEL): #pragma: no cover
+            self._logger.log(DUMPDATA_LOGLEVEL, 'Received : %s' % (hexlify(data).decode('ascii')))
 
         if self.response_available() or not self.waiting_response():
             self._logger.debug('Received unwanted data: ' + hexlify(data).decode('ascii'))
@@ -357,8 +376,8 @@ class CommHandler:
                 self._pending_request = None
                 data = self._active_request.to_bytes()
                 self._logger.debug("Sending request %s" % self._active_request)
-                self._logger.debug("Sending : %s" % (hexlify(data).decode('ascii')))
-                datasize_bits = len(data) * 8
+                if self._logger.isEnabledFor(DUMPDATA_LOGLEVEL):   # pragma: no cover
+                    self._logger.log(DUMPDATA_LOGLEVEL, "Sending : %s" % (hexlify(data).decode('ascii')))
                 try:
                     self._link.write(data)
                     err = None
@@ -368,8 +387,8 @@ class CommHandler:
                     self._logger.debug(traceback.format_exc())
 
                 if not err:
-                    self.tx_bitcount += datasize_bits
-                    self._throttler.consume_bandwidth(datasize_bits)
+                    self._tx_datarate_measurement.add_data(len(data))
+                    self._throttler.consume_bandwidth(len(data)*8)
                     self._response_timer.start(self.params['response_timeout'])
             elif not self._throttler.possible(approx_delta_bandwidth):
                 self._logger.critical("Throttling doesn't allow to send request. Dropping %s" % self._pending_request)
@@ -434,8 +453,15 @@ class CommHandler:
         """Put back the CommHandler to its startup state"""
         self.reset_rx()
         self.clear_timeout()
+        self._tx_datarate_measurement.reset()
+        self._rx_datarate_measurement.reset()
 
     def get_average_bitrate(self) -> float:
-        """Get the measured average bitrate since last counter reset"""
-        dt = time.perf_counter() - self.bitcount_time
-        return float(self.rx_bitcount + self.tx_bitcount) / float(dt)
+        """Get the measured average bitrate since last reset. Use an IIR low pass filter"""
+        return (self._rx_datarate_measurement.get_value() + self._tx_datarate_measurement.get_value())*8
+
+    def get_stats(self) -> Statistics:
+        return self.Statistics(
+            rx_datarate_byte_per_sec=self._rx_datarate_measurement.get_value(),
+            tx_datarate_byte_per_sec=self._tx_datarate_measurement.get_value()
+        )

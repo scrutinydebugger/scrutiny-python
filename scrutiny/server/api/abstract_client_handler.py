@@ -23,6 +23,15 @@ class ClientHandlerMessage:
 
 
 class AbstractClientHandler:
+    
+    @dataclass
+    class Statistics:
+        client_count:int
+        output_datarate_byte_per_sec:float
+        input_datarate_byte_per_sec:float
+        msg_received:int
+        msg_sent:int
+
 
     @abstractmethod
     def __init__(self, config: ClientHandlerConfig, rx_event:Optional[threading.Event]=None):
@@ -55,3 +64,12 @@ class AbstractClientHandler:
     @abstractmethod
     def is_connection_active(self, conn_id: str) -> bool:
         pass
+
+    def get_stats(self) -> Statistics:
+        return self.Statistics(
+            client_count=0,
+            input_datarate_byte_per_sec=0,
+            msg_received=0,
+            msg_sent=0,
+            output_datarate_byte_per_sec=0
+        )

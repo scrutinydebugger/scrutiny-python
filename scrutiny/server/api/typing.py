@@ -11,6 +11,7 @@ from scrutiny.core.typehints import EmptyDict
 
 import scrutiny.core.firmware_description
 from scrutiny.core.embedded_enum import EmbeddedEnumDef
+import scrutiny.server.device.links.rtt_link
 import scrutiny.server.device.links.serial_link
 import scrutiny.server.device.links.udp_link
 
@@ -19,8 +20,9 @@ WatchableType = Literal['alias', 'var', 'rpv']
 SFDMetadata = scrutiny.core.firmware_description.MetadataType
 SerialLinkConfig = scrutiny.server.device.links.serial_link.SerialConfig
 UdpLinkConfig = scrutiny.server.device.links.udp_link.UdpConfig
-LinkConfig = Union[EmptyDict, UdpLinkConfig, SerialLinkConfig]
-LinkType = Literal['none', 'udp', 'serial', 'dummy']
+RttLinkConfig = scrutiny.server.device.links.rtt_link.RttConfig
+LinkConfig = Union[EmptyDict, UdpLinkConfig, SerialLinkConfig, RttLinkConfig]
+LinkType = Literal['none', 'udp', 'serial', 'dummy', 'rtt']
 SupportedFeature = Literal['memory_write', 'datalogging', 'user_command', '_64bits']
 Datatype = Literal[
     'sint8', 'sint16', 'sint32', 'sint64', 'sint128', 'sint256',

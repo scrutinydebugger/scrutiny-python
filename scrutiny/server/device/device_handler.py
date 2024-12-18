@@ -29,6 +29,8 @@ import traceback
 from uuid import uuid4
 import math
 import threading
+from dataclasses import dataclass
+
 from scrutiny.server.datastore.datastore_entry import DatastoreRPVEntry, EntryType
 import scrutiny.server.datalogging.definitions.device as device_datalogging
 from scrutiny.server.protocol import *
@@ -108,6 +110,11 @@ class DeviceHandler:
     and will run read/write request on the device to keep the datastore in sync with the embedded device.
     """
 
+    @dataclass(frozen=True)
+    class Statistics:
+        comm_handler:CommHandler.Statistics
+        device_session_count:int
+
     logger: logging.Logger
     config: DeviceHandlerConfig             # The configuration coming from the user
     datastore: Datastore    # A reference to the main Datastore
@@ -140,6 +147,7 @@ class DeviceHandler:
     device_state_changed_callbacks: List[DeviceStateChangedCallback]    # Calback called when the state machine changes state
     datalogger_state_changed_callbacks: List[DataloggerStateChangedCallback]    # Calback called when the datalogger changes state (including completion ratio)
     expect_no_timeout: bool  # Flag that makes communicaiton timeout a critical error. Used for unit testing.
+    device_session_count:int    # Counter to keep track of how many device the server has connected to
 
     DEFAULT_PARAMS: DeviceHandlerConfig = {
         'response_timeout': 1.0,    # If a response take more than this delay to be received after a request is sent, drop the response.
@@ -243,6 +251,7 @@ class DeviceHandler:
         self.device_state_changed_callbacks = []
         self.datalogger_state_changed_callbacks = []
         self.expect_no_timeout = False  # Unit tests will set this to True
+        self.device_session_count = 0
         
 
         if 'link_type' in self.config and 'link_config' in self.config:
@@ -800,6 +809,7 @@ class DeviceHandler:
                     self.datastore.add_entry(DatastoreRPVEntry.make(rpv))
                 self.protocol.configure_rpvs(self.device_info.runtime_published_values)
                 self.datalogging_poller.configure_rpvs(self.device_info.runtime_published_values)
+                self.device_session_count+=1
 
                 self.server_session_id = uuid4().hex
                 self.logger.info('Communication with device "%s" (ID: %s) fully ready. Assigning session ID: %s' %
@@ -935,3 +945,9 @@ class DeviceHandler:
         self.heartbeat_generator.stop()
         self.device_searcher.stop()
         self.session_initializer.stop()
+
+    def get_stats(self) -> Statistics:
+        return self.Statistics(
+            comm_handler=self.comm_handler.get_stats(),
+            device_session_count=self.device_session_count
+        )

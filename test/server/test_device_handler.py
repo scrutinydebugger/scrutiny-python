@@ -285,7 +285,7 @@ class TestDeviceHandler(ScrutinyUnitTest):
 
     def test_throttling(self):
         timeout = 3
-        measurement_time = 10
+        measurement_time = 5
         target_bitrate = 5000
         self.emulated_device.max_bitrate_bps = target_bitrate
         self.device_handler.set_operating_mode(DeviceHandler.OperatingMode.Test_CheckThrottling)
@@ -302,6 +302,7 @@ class TestDeviceHandler(ScrutinyUnitTest):
                 self.assertEqual(self.device_handler.get_throttling_bitrate(), self.emulated_device.max_bitrate_bps)
                 t1 = time.monotonic()
                 timeout = measurement_time
+
 
         self.assertIsNotNone(connect_time)
         measured_bitrate = self.device_handler.get_average_bitrate()

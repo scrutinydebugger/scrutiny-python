@@ -538,6 +538,58 @@ class TestApiParser(ScrutinyUnitTest):
                 del msg["device_comm_link"]["link_config"][field]
                 parser.parse_inform_server_status(msg)
 
+        ## Test RTT Link
+        msg = base()
+        msg["device_comm_link"]["link_type"] = 'rtt'
+        msg["device_comm_link"]["link_config"] = {
+            "jlink_interface": "icsp",
+            "target_device": "some_device"
+        }
+        info = parser.parse_inform_server_status(msg)
+        self.assertEqual(info.device_link.type, DeviceLinkType.RTT)
+        assert isinstance(info.device_link.config, sdk.RTTLinkConfig)
+        self.assertEqual(info.device_link.config.jlink_interface, sdk.RTTLinkConfig.JLinkInterface.ICSP)
+        self.assertEqual(info.device_link.config.target_device, "some_device")
+
+        for val in ["jtag", "swd", "fine", "icsp", "spi", "c2"]:
+            msg = base()
+            msg["device_comm_link"]["link_type"] = 'rtt'
+            msg["device_comm_link"]["link_config"] = {
+                "jlink_interface": val,
+                "target_device": "some_device"
+            }
+            parser.parse_inform_server_status(msg)  # no error
+
+        with self.assertRaises(sdk.exceptions.BadResponseError):
+            msg = base()
+            msg["device_comm_link"]["link_type"] = 'rtt'
+            msg["device_comm_link"]["link_config"] = {
+                "jlink_interface": "notvalid",  # Cause a failure
+                "target_device": "some_device"
+            }
+            parser.parse_inform_server_status(msg)
+
+        class Delete:
+            pass
+        
+        for field in['jlink_interface', 'target_device']:
+            for val in [1, None, 1.5, True, [], Delete()]:
+                msg = base()
+                msg["device_comm_link"]["link_type"] = 'rtt'
+                msg["device_comm_link"]["link_config"] = {
+                    "jlink_interface": "jtag",
+                    "target_device": "some_device"
+                }
+
+                if isinstance(val, Delete):
+                    del msg["device_comm_link"]['link_config'][field]
+                else:
+                    msg["device_comm_link"]['link_config'][field] = val
+
+                with self.assertRaises(sdk.exceptions.BadResponseError, msg=f"field={field}. val={val}"):
+                    parser.parse_inform_server_status(msg)
+
+        # Test bad UDP vals
         field_vals = {
             'host': [None, 1, 1.5, [], {}],
             'port': [None, 1.5, [], {}, 'asd']

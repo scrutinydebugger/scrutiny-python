@@ -457,6 +457,13 @@ class FakeActiveSFDHandler:
     def get_loaded_sfd(self) -> Optional[FirmwareDescription]:
         return self.loaded_sfd
 
+@dataclass
+class FakeServer:
+    datastore: "datastore.Datastore"
+    device_handler: FakeDeviceHandler
+    datalogging_manager : FakeDataloggingManager
+    sfd_handler: FakeActiveSFDHandler
+
 
 class TestClient(ScrutinyUnitTest):
     datastore: "datastore.Datastore"
@@ -487,12 +494,15 @@ class TestClient(ScrutinyUnitTest):
                 'port': 0
             }
         }
+        fake_server = FakeServer(
+            datastore=self.datastore,
+            datalogging_manager=self.datalogging_manager,
+            device_handler=self.device_handler,
+            sfd_handler=self.sfd_handler
+            )
         self.api = API(
             api_config,
-            datastore=self.datastore,
-            device_handler=self.device_handler,             # type: ignore
-            sfd_handler=self.sfd_handler,                   # type: ignore
-            datalogging_manager=self.datalogging_manager,   # type: ignore
+            server=fake_server,
             enable_debug=False)
 
         self.api.handle_unexpected_errors = False
@@ -1310,6 +1320,24 @@ class TestClient(ScrutinyUnitTest):
 
         with self.assertRaises(sdk.exceptions.InvalidValueError):
             var1.value
+
+    def test_no_unsubscribe_on_failed_unwatch(self):
+        var1 = self.client.watch('/a/b/var1')
+        self.execute_in_server_thread(partial(self.set_entry_val, var1.display_path, 0x13245678))
+        time.sleep(0.5)
+        self.assertEqual(var1.value, 0x13245678)
+
+        # Attempt to unwatch will fail. The handle must stay valid and keep accept updates.
+        # We want to avoid receiving updates from the server without the sdk knowing why
+        self.client._force_fail_request=True
+        with self.assertRaises(sdk.exceptions.ScrutinySDKException):
+            var1.unwatch()
+        self.client._force_fail_request=False
+
+        self.execute_in_server_thread(partial(self.set_entry_val, var1.display_path, 0xabcd1234))
+        time.sleep(0.5)
+        self.assertEqual(var1.value, 0xabcd1234)
+
 
     def test_handle_cannot_be_reused_after_unwatch(self):
         var1 = self.client.watch('/a/b/var1')

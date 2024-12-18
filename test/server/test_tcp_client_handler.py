@@ -13,8 +13,20 @@ from test import ScrutinyUnitTest
 import socket
 import time
 import json
+import queue
 from typing import Dict
 import threading
+
+class TestBadParams(ScrutinyUnitTest):
+    def test_bad_params(self):
+        with self.assertRaises(ValueError):
+            TCPClientHandler(config={})
+        with self.assertRaises(ValueError):
+            TCPClientHandler(config=dict(host='localhost'))
+        with self.assertRaises(ValueError):
+            TCPClientHandler(config=dict(port=12345))
+        
+        TCPClientHandler(config=dict(host='localhost', port=12345))
 
 class TestTCPClientHandler(ScrutinyUnitTest):
     
@@ -106,6 +118,11 @@ class TestTCPClientHandler(ScrutinyUnitTest):
         self.assertNotEqual(msg1.conn_id, msg2.conn_id)
         self.assertNotEqual(msg1.conn_id, msg3.conn_id)
         self.assertNotEqual(msg2.conn_id, msg3.conn_id)
+        
+        stats = self.handler.get_stats()
+        self.assertEqual(stats.client_count, 3)
+        self.assertEqual(stats.msg_received, 3)
+        self.assertEqual(stats.msg_sent, 0)
 
         self.assertEqual(set([1,2,3]), set([x['socket'] for x in [msg1.obj, msg2.obj, msg3.obj]]))
 
@@ -139,6 +156,11 @@ class TestTCPClientHandler(ScrutinyUnitTest):
         self.assertEqual(reply2, {'reply' : 2})
         self.assertEqual(reply3, {'reply' : 3})
 
+        stats = self.handler.get_stats()
+        self.assertEqual(stats.client_count, 3)
+        self.assertEqual(stats.msg_received, 3)
+        self.assertEqual(stats.msg_sent, 3)
+
         self.assert_client_count_eq(3)
         s1.close()
         self.assert_client_count_eq(2)
@@ -146,6 +168,11 @@ class TestTCPClientHandler(ScrutinyUnitTest):
         self.assert_client_count_eq(1)
         s3.close()
         self.assert_client_count_eq(0)
+
+        stats = self.handler.get_stats()
+        self.assertEqual(stats.client_count, 0)
+        self.assertEqual(stats.msg_received, 3)
+        self.assertEqual(stats.msg_sent, 3)
 
     def test_send_to_inexistent_client(self):
         self.handler.send(ClientHandlerMessage("idonotexist", {}))  # Should not raise
@@ -205,7 +232,31 @@ class TestTCPClientHandler(ScrutinyUnitTest):
         s1.send(self.stream_maker.encode(self.serialize_dict({})))
         self.wait_true(lambda : self.rx_event.is_set(), 1)
 
+    def test_get_stats(self):
+        stats = self.handler.get_stats()
 
-        
+        self.assertEqual(stats.client_count, 0)
+        self.assertEqual(stats.input_datarate_byte_per_sec, 0)
+        self.assertEqual(stats.output_datarate_byte_per_sec, 0)
+        self.assertEqual(stats.msg_received, 0)
+        self.assertEqual(stats.msg_sent, 0)
+
+    def test_ignore_bad_json(self):
+        s1 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.assertEqual(self.handler.get_number_client(), 0)
+        s1.connect((self.server_host, self.server_port))
+        self.assert_client_count_eq(1)
+
+
+        s1.send(self.stream_maker.encode("I AM NOT JSON".encode('utf8')))
+
+        with self.assertRaises(queue.Empty):
+            self.handler.rx_queue.get(timeout=1)
+
+        s1.send(self.stream_maker.encode(self.serialize_dict({'socket' : 1})))
+        msg1 = self.handler.rx_queue.get(timeout=1)
+        self.assertEqual(msg1.obj, {'socket' : 1})
+
+
     def tearDown(self) -> None:
         self.handler.stop()

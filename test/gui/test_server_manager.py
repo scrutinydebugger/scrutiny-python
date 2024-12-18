@@ -7,9 +7,9 @@
 #   Copyright (c) 2021 Scrutiny Debugger
 
 from scrutiny import sdk
-from scrutiny.gui.core.server_manager import ServerManager, ServerConfig
+from scrutiny.gui.core.server_manager import ServerManager, ServerConfig, QtBufferedListener
 from scrutiny.gui.core.watchable_registry import WatchableRegistry
-from test.gui.fake_sdk_client import FakeSDKClient, DownloadWatchableListFunctionCall
+from test.gui.fake_sdk_client import FakeSDKClient, StubbedWatchableHandle
 from test.gui.base_gui_test import ScrutinyBaseGuiTest, EventType
 import time
 
@@ -472,4 +472,275 @@ class TestServerManager(ScrutinyBaseGuiTest):
         self.assertIsNone(data.retval)
         self.assertIsInstance(data.error, Exception)
         self.assertEqual(str(data.error), "potato")
-            
+    
+
+class TestServerManagerRegistryInteraction(ScrutinyBaseGuiTest):
+    # This test suite make sure that WatchableRegistry watch/unwatch calls correctly triggers
+    # watch/unwatch request to the server.  
+    # The registry is independant from the network. It doesn't wait for server confirmation before returning of a watch/unwatch.
+    # The server manager should try to register as long as the number of watcher is greater than 0, and unregister when there is 0 watchers asynchronously. 
+    # No request stacking should happen. while nb_watcher > 0: keep trying to watch. When nb_watch == 0, stop trying watching and/or keep trying to unwatch
+    
+    def setUp(self) -> None:
+        super().setUp()
+        self.registry = WatchableRegistry()
+        self.fake_client = FakeSDKClient()   
+        self.server_manager = ServerManager(
+            watchable_registry=self.registry, # Real registry
+            client=self.fake_client
+            )
+        self.server_manager._unit_test = True
+        self.server_manager.start(SERVER_MANAGER_CONFIG)
+        self.wait_true(lambda: self.server_manager.get_server_state()==sdk.ServerState.Connected, timeout=1)
+        
+    def get_watch_request(self, timeout:int=1, assert_single:bool=True):
+        self.wait_true(lambda: len(self.fake_client._pending_watch_request) > 0, timeout=timeout)
+        request = self.fake_client._pending_watch_request.pop()
+        if assert_single:
+            self.assertEqual(len(self.fake_client._pending_watch_request), 0)
+        return request
+        
+    def get_unwatch_request(self, timeout:int=1, assert_single:bool=True):
+        self.wait_true(lambda: len(self.fake_client._pending_unwatch_request) > 0, timeout=timeout)
+        request = self.fake_client._pending_unwatch_request.pop()
+        if assert_single:
+            self.assertEqual(len(self.fake_client._pending_unwatch_request), 0)
+        return request
+    
+    def asssert_no_watch_request(self, max_wait:int=1):
+        self.wait_true_with_events(lambda: len(self.fake_client._pending_watch_request) > 0, timeout=max_wait, no_assert=True)
+        self.assertEqual(len(self.fake_client._pending_watch_request), 0)
+    
+    def asssert_no_unwatch_request(self, max_wait:int=1):
+        self.wait_true_with_events(lambda: len(self.fake_client._pending_unwatch_request) > 0, timeout=max_wait, no_assert=True)
+        self.assertEqual(len(self.fake_client._pending_unwatch_request), 0)
+
+    def asssert_no_watch_or_unwatch_request(self, max_wait:int=1):
+        func = lambda: len(self.fake_client._pending_unwatch_request) > 0 or len(self.fake_client._pending_watch_request) > 0
+        self.wait_true_with_events(func, timeout=max_wait, no_assert=True)
+        self.assertFalse(func())
+
+    def test_no_request_stacking(self):
+        # Make sure that we don't queue useless register/unregister/register/unregister sequence if the UI is faster than the network
+        self.registry.add_watchable('a/b/c', sdk.WatchableConfiguration(
+            datatype=sdk.EmbeddedDataType.float32,
+            enum=None,
+            server_id='abc',
+            watchable_type=sdk.WatchableType.Variable
+        ))
+        watcher1 = 'watcher1'
+        watcher2 = 'watcher2'
+        watcher3 = 'watcher3'
+        self.registry.register_watcher(watcher1, lambda *x,**y:None)
+        self.registry.register_watcher(watcher2, lambda *x,**y:None)
+        self.registry.register_watcher(watcher3, lambda *x,**y:None)
+
+        ui_callback_count = self.server_manager._watch_unwatch_ui_callback_call_count
+
+        # Start a new series of watch unwatch.
+        self.registry.watch(watcher1, sdk.WatchableType.Variable, 'a/b/c')
+        self.registry.unwatch(watcher1, sdk.WatchableType.Variable, 'a/b/c')
+        self.registry.watch(watcher1, sdk.WatchableType.Variable, 'a/b/c')
+        self.registry.unwatch(watcher1, sdk.WatchableType.Variable, 'a/b/c')
+        self.registry.watch(watcher1, sdk.WatchableType.Variable, 'a/b/c')
+        self.registry.unwatch(watcher1, sdk.WatchableType.Variable, 'a/b/c')
+
+        watch_request = self.get_watch_request(assert_single=True)
+        self.asssert_no_watch_or_unwatch_request(max_wait=0.5)
+        self.assertEqual(ui_callback_count, self.server_manager._watch_unwatch_ui_callback_call_count)
+        watch_request.simulate_failure()
+        self.wait_true_with_events(lambda : self.server_manager._watch_unwatch_ui_callback_call_count != ui_callback_count, timeout=1 )
+        # watch failed. We have no watcher. Should do nothing more
+        self.asssert_no_watch_or_unwatch_request(max_wait=0.5)
+ 
+        # We are back to 0 watcher.
+        # Start a new series of watch unwatch.
+        ui_callback_count = self.server_manager._watch_unwatch_ui_callback_call_count
+        watchable_config = sdk.WatchableConfiguration('xxx', sdk.WatchableType.Variable, datatype=sdk.EmbeddedDataType.float32, enum=None)
+        self.registry.watch(watcher1, sdk.WatchableType.Variable, 'a/b/c')
+        self.registry.unwatch(watcher1, sdk.WatchableType.Variable, 'a/b/c')
+        self.registry.watch(watcher1, sdk.WatchableType.Variable, 'a/b/c')
+        self.registry.unwatch(watcher1, sdk.WatchableType.Variable, 'a/b/c')
+        self.registry.watch(watcher1, sdk.WatchableType.Variable, 'a/b/c')
+        self.registry.unwatch(watcher1, sdk.WatchableType.Variable, 'a/b/c')
+    
+        watch_request = self.get_watch_request(assert_single=True)
+        self.asssert_no_watch_or_unwatch_request(max_wait=0.5)
+        self.assertEqual(ui_callback_count, self.server_manager._watch_unwatch_ui_callback_call_count)
+        watch_request.simulate_success(watchable_config)
+        self.wait_true_with_events(lambda : self.server_manager._watch_unwatch_ui_callback_call_count != ui_callback_count, timeout=1 )
+        # We are supposed to have no watcher. Expect an unwatch request
+
+        unwatch_request = self.get_unwatch_request(assert_single=True)
+        unwatch_request.simulate_success()
+        self.asssert_no_watch_or_unwatch_request(max_wait=0.5)
+
+
+    def test_no_stacking_with_multiple_watchers(self):
+
+        self.registry.add_watchable('a/b/c', sdk.WatchableConfiguration(
+            datatype=sdk.EmbeddedDataType.float32,
+            enum=None,
+            server_id='abc',
+            watchable_type=sdk.WatchableType.Variable
+        ))
+
+        watcher1 = 'watcher1'
+        watcher2 = 'watcher2'
+        watcher3 = 'watcher3'
+        self.registry.register_watcher(watcher1, lambda *x,**y:None)
+        self.registry.register_watcher(watcher2, lambda *x,**y:None)
+        self.registry.register_watcher(watcher3, lambda *x,**y:None)
+
+        # Watch request comes in faster than network. No server request stacking should happen
+        self.registry.watch(watcher1, sdk.WatchableType.Variable, 'a/b/c')
+        self.registry.watch(watcher2, sdk.WatchableType.Variable, 'a/b/c')
+        self.assertEqual(self.registry.node_watcher_count(sdk.WatchableType.Variable, 'a/b/c'), 2)   # Independant of network request status
+
+        call_count = self.server_manager._watch_unwatch_ui_callback_call_count
+        request1 = self.get_watch_request(assert_single=True)
+        self.asssert_no_watch_request(max_wait=0.5) # Should have a single watch request for the 2 watches
+        request1.simulate_failure() #  Should stay unwatched
+        self.wait_true_with_events(lambda : call_count != self.server_manager._watch_unwatch_ui_callback_call_count, timeout=1 )
+
+        self.registry.watch(watcher3, sdk.WatchableType.Variable, 'a/b/c')  # Will trigger a retry
+        
+        request2 = self.get_watch_request(assert_single=True)
+        self.asssert_no_watch_request(max_wait=0.5) 
+        some_watchable_config = sdk.WatchableConfiguration(server_id='aaa', watchable_type=sdk.WatchableType.Variable, datatype=sdk.EmbeddedDataType.float32, enum=None )
+        
+        call_count = self.server_manager._watch_unwatch_ui_callback_call_count
+        request2.simulate_success(some_watchable_config) 
+        self.wait_true_with_events(lambda : call_count != self.server_manager._watch_unwatch_ui_callback_call_count, timeout=1 )
+
+        # We have 3 watchers here.
+        self.assertEqual(self.registry.node_watcher_count(sdk.WatchableType.Variable, 'a/b/c'), 3)
+        self.registry.unwatch(watcher1, sdk.WatchableType.Variable, 'a/b/c')    # No effect. 2 remaining
+        self.registry.unwatch(watcher2, sdk.WatchableType.Variable, 'a/b/c')    # No effect. 1 remaining
+
+        self.registry.unwatch(watcher3, sdk.WatchableType.Variable, 'a/b/c')  # Should trigger a unwatch to the server
+        request1 = self.get_unwatch_request(assert_single=True)
+        self.asssert_no_unwatch_request(max_wait=0.5) 
+        call_count = self.server_manager._watch_unwatch_ui_callback_call_count
+        request1.simulate_failure() #  Should stay watched
+        self.wait_true_with_events(lambda : call_count != self.server_manager._watch_unwatch_ui_callback_call_count, timeout=1 )
+
+        # Registry now consider that watcher3 is not listening, but the client is still subscribed
+        # The following watch will cause the registry to consider watcher3 as a watcher, but will not trigger a request to the server
+        self.registry.watch(watcher3, sdk.WatchableType.Variable, 'a/b/c')  
+        self.registry.unwatch(watcher3, sdk.WatchableType.Variable, 'a/b/c')
+        request3 = self.get_unwatch_request(assert_single=True)
+        self.asssert_no_unwatch_request(max_wait=0.5) 
+        
+        call_count = self.server_manager._watch_unwatch_ui_callback_call_count
+        request3.simulate_success() 
+        self.wait_true_with_events(lambda : call_count != self.server_manager._watch_unwatch_ui_callback_call_count, timeout=1 )
+        
+        self.asssert_no_unwatch_request(max_wait=0.5) 
+        self.assertEqual(self.registry.node_watcher_count(sdk.WatchableType.Variable, 'a/b/c'), 0)
+
+    def test_data_reaches_watchers(self):
+        # Simulate a value update broadcast by the client. 
+        # expect a gui watcher that subscribe to the registry to receive the update
+        watch1 =  StubbedWatchableHandle(
+            display_path='/aaa/bbb/ccc',
+            datatype=sdk.EmbeddedDataType.float32,
+            enum=None,
+            server_id='aaa',
+            watchable_type=sdk.WatchableType.Variable
+        )
+        self.server_manager.registry.add_watchable(watch1.display_path, watch1.configuration)
+        all_updates = []
+        def callback(watcher, updates):
+            for update in updates:
+                all_updates.append(update)
+
+        self.server_manager.registry.register_watcher('hello', callback)
+        self.server_manager.registry.watch('hello', watch1.configuration.watchable_type, watch1.display_path)
+        watch1.set_value(1234)
+        self.server_manager._listener.subscribe(watch1)
+
+        self.server_manager._listener._broadcast_update([watch1])
+
+        self.wait_true_with_events(lambda : len(all_updates) > 0, timeout=1)
+        self.assertEqual(len(all_updates), 1)
+        self.assertEqual(all_updates[0].value, 1234)
+
+class TestQtListener(ScrutinyBaseGuiTest):
+
+    def setUp(self):
+        super().setUp()
+        self.listener = QtBufferedListener()
+        self.listener.start()
+
+        self.watch1 =  StubbedWatchableHandle(
+            display_path='/aaa/bbb/ccc',
+            datatype=sdk.EmbeddedDataType.float32,
+            enum=None,
+            server_id='aaa',
+            watchable_type=sdk.WatchableType.Variable
+        )
+        self.watch2 =  StubbedWatchableHandle(
+            display_path='/aaa/bbb/ddd',
+            datatype=sdk.EmbeddedDataType.float32,
+            enum=None,
+            server_id='bbb',
+            watchable_type=sdk.WatchableType.Alias
+        )
+        self.watch3 =  StubbedWatchableHandle(
+            display_path='/aaa/bbb/eee',
+            datatype=sdk.EmbeddedDataType.float32,
+            enum=None,
+            server_id='ccc',
+            watchable_type=sdk.WatchableType.RuntimePublishedValue
+        )
+
+    def tearDown(self):
+        self.listener.stop()
+        super().tearDown()
+
+    def test_qt_listener(self):
+        self.listener.subscribe(self.watch1)
+        self.listener.subscribe(self.watch3)
+       
+        data_received = []
+        class CounterObj:
+            def __init__(self):
+                self.count = 0
+        counter = CounterObj()
+
+        def callback():
+            counter.count +=1
+            while not self.listener.to_gui_thread_queue.empty():
+                for update in self.listener.to_gui_thread_queue.get_nowait():
+                    data_received.append(update)
+
+        self.listener.signals.data_received.connect(callback)
+
+        # Simulate what the client does. Date comes in from the network
+        self.listener._broadcast_update([self.watch1, self.watch2, self.watch3])
+
+        self.wait_true_with_events(lambda: len(data_received) >=2, timeout=1)   # Wait for callback to be called through a QT signal
+        self.assertEqual(len(data_received), 2)
+        self.assertEqual(counter.count, 1)
+        self.assertIs(data_received[0].watchable, self.watch1)
+        # watch2 was not subscribed
+        self.assertIs(data_received[1].watchable, self.watch3)
+        data_received.clear()   # All goo, clear the data for enxt test
+
+        self.assertEqual(self.listener.gui_qsize, 0)    # Nothing is buffered internally.
+        self.listener._broadcast_update([self.watch1, self.watch2, self.watch3])
+        time.sleep(0.5)
+        # We have not authorized the listener to emit a new QT signal. So no callback called.
+        self.assertGreater(self.listener.gui_qsize, 0)  # Enqueued, waiting for callback to empty it
+        self.assertEqual(len(data_received), 0)
+        self.assertEqual(counter.count, 1)
+        self.listener.ready_for_next_update()  
+        
+        # Now that we authorized it, a new QT signal will be emitted so that we empty the gui_queue
+        self.wait_true_with_events(lambda: len(data_received) >=2, timeout=1)
+        self.assertEqual(len(data_received), 2)
+        self.assertEqual(counter.count, 2)
+        self.assertIs(data_received[0].watchable, self.watch1)
+        # watch2 was not subscribed
+        self.assertIs(data_received[1].watchable, self.watch3)

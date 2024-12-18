@@ -21,7 +21,7 @@ __all__ = [
 ]
 
 from scrutiny.sdk import WatchableType, WatchableConfiguration
-from PySide6.QtGui import  QFocusEvent, QStandardItem, QIcon, QKeyEvent, QStandardItemModel, QColor
+from PySide6.QtGui import  QFocusEvent, QMouseEvent, QStandardItem, QIcon, QKeyEvent, QStandardItemModel, QColor
 from PySide6.QtCore import Qt, QModelIndex, QPersistentModelIndex
 from PySide6.QtWidgets import QTreeView, QWidget
 from scrutiny.gui import assets
@@ -188,6 +188,14 @@ class WatchableTreeModel(QStandardItemModel):
 
     def get_watchable_columns(self,  watchable_config:Optional[WatchableConfiguration] = None) -> List[QStandardItem]:
         return []
+    
+    def watchable_item_created(self, item:WatchableStandardItem) -> None:
+        """Overridable callback called each time a WatchableStandardItem is created"""
+        pass
+
+    def folder_item_created(self, item:FolderStandardItem) -> None:
+        """Overridable callback called each time a FolderStandardItem is created"""
+        pass
 
     @classmethod
     def make_watchable_row_from_existing_item(cls,
@@ -208,8 +216,7 @@ class WatchableTreeModel(QStandardItemModel):
             col.setDragEnabled(True)
         return [item] + extra_columns
 
-    @classmethod
-    def make_watchable_row(cls, 
+    def make_watchable_row(self, 
                         name:str, 
                         watchable_type:WatchableType, 
                         fqn:str, 
@@ -226,7 +233,8 @@ class WatchableTreeModel(QStandardItemModel):
         :return: the list of items in the row
         """
         item =  WatchableStandardItem(watchable_type, name, fqn)
-        return cls.make_watchable_row_from_existing_item(item, editable, extra_columns)
+        self.watchable_item_created(item)
+        return self.make_watchable_row_from_existing_item(item, editable, extra_columns)
 
         
     @classmethod
@@ -240,8 +248,7 @@ class WatchableTreeModel(QStandardItemModel):
         item.setDragEnabled(True)
         return [item]
 
-    @classmethod
-    def make_folder_row(cls,  name:str, fqn:Optional[str], editable:bool ) -> List[QStandardItem]:
+    def make_folder_row(self,  name:str, fqn:Optional[str], editable:bool ) -> List[QStandardItem]:
         """Creates a folder row
         
         :param name: The name displayed in the GUI
@@ -249,7 +256,8 @@ class WatchableTreeModel(QStandardItemModel):
         :editable: Makes the row editable by the user through the GUI
         """
         item =  FolderStandardItem(name, fqn)
-        return cls.make_folder_row_existing_item(item, editable)
+        self.folder_item_created(item)
+        return self.make_folder_row_existing_item(item, editable)
     
     def add_row_to_parent(self, parent:Optional[QStandardItem], row_index:int, row:Sequence[QStandardItem] ) -> None:
         """Add a row to a given parent or at the root if no parent is given
@@ -261,13 +269,13 @@ class WatchableTreeModel(QStandardItemModel):
         """
         row2 = list(row)    # Make a copy
         while len(row2) > 0 and row2[-1] is None:
-            row2 = row2[:-1]  # insert row doesn't like trailing None. Mystery
+            row2 = row2[:-1]  # insert row doesn't like trailing None, but sometime does. Mystery
 
         if parent is not None:
             if row_index != -1:
                 parent.insertRow(row_index, row2)
             else:
-                parent.appendRow(row)
+                parent.appendRow(row2)
         else:
             if row_index != -1:
                 self.insertRow(row_index, row2)
@@ -496,6 +504,15 @@ class WatchableTreeWidget(QTreeView):
         else:
             return super().keyReleaseEvent(event)
     
+    def mousePressEvent(self, event: QMouseEvent) -> None:
+        if event.button() == Qt.MouseButton.RightButton:
+            # This condition prevents to change the selection on a right click if it happens on an existing selection
+            # Makes it easier to right click a multi-selection (no need to hold shift or control)
+            index = self.indexAt(event.pos())
+            if index.isValid() and index in self.selectedIndexes():
+                return  # Don't change the selection
+        return super().mousePressEvent(event)
+
     def focusOutEvent(self, event: QFocusEvent) -> None:
         # Needs to do that, other wise holding ctrl/shift and cliking outside of the tree will not detect the key release
         self.setSelectionMode(self.SelectionMode.SingleSelection)
@@ -512,3 +529,18 @@ class WatchableTreeWidget(QTreeView):
             if item is not None:
                 item.setBackground(color)
         
+
+    def is_visible(self, item:BaseWatchableRegistryTreeStandardItem) -> bool:
+        """Tells if a node is visible, i.e. all parents are expanded.
+        
+        :item: The node to check
+        :return: ``True`` if visible. ``False`` otherwise
+        """
+
+        visible = True
+        parent = item.parent()
+        while parent is not None:
+            if isinstance(parent, FolderStandardItem) and not self.isExpanded(parent.index()):
+                visible = False
+            parent = parent.parent()
+        return visible

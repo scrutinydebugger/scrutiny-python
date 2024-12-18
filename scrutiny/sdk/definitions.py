@@ -156,6 +156,7 @@ class DeviceLinkType(enum.Enum):
 
     _Dummy = -1
     NONE = 0
+    """No link. No device communication will happen"""
     UDP = 1
     """UDP/IP socket"""
     TCP = 2
@@ -530,7 +531,6 @@ class DeviceLinkInfo:
     """A channel type specific configuration"""
     operational:bool
     """Tells if the link is opened and working correctly"""
-
 
 @dataclass(frozen=True)
 class ServerInfo:

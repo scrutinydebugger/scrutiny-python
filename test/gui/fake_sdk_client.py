@@ -10,10 +10,17 @@ __all__ = ['FakeSDKClient']
 
 from scrutiny import sdk
 from scrutiny.sdk.client import WatchableListDownloadRequest, ScrutinyClient
-from typing import Optional, List, Dict, Callable
+from scrutiny.core.embedded_enum import EmbeddedEnum
+from scrutiny.core.basic_types import EmbeddedDataType
+from scrutiny.sdk.listeners import BaseListener
+from typing import Optional, List, Dict, Callable, Union
 from dataclasses import dataclass
 import inspect
 import queue
+import threading
+from test import logger
+from scrutiny.tools import UnitTestStub
+from datetime import datetime
 
 default_server_info = sdk.ServerInfo(
     device_comm_state=sdk.DeviceCommState.Disconnected,
@@ -22,6 +29,56 @@ default_server_info = sdk.ServerInfo(
     sfd_firmware_id=None,
     device_link=sdk.DeviceLinkInfo(type=sdk.DeviceLinkType.UDP, config=dict(host='localhost', prot=1234), operational=True)
 )
+
+class StubbedWatchableHandle(UnitTestStub):
+    display_path:str
+    configuration:sdk.WatchableConfiguration
+    _invalid:bool
+    _value:Union[int, str, float, bool]
+
+    def __init__(self, display_path:str,
+                watchable_type:sdk.WatchableType,
+                datatype:EmbeddedDataType,
+                enum:Optional[EmbeddedEnum],
+                server_id:str
+                 ) -> None:
+        
+        self.display_path = display_path
+        self.configuration = sdk.WatchableConfiguration(
+            watchable_type=watchable_type,
+            datatype=datatype,
+            enum=enum,
+            server_id=server_id
+        )
+        self._invalid = False
+        self._value = 0
+        self._last_update_timestamp = None
+
+    def _assert_configured(self) -> None:
+        pass
+    
+    def _is_dead(self) -> bool:
+        return self._invalid
+    
+    def simulate_death(self) -> None:
+        self._invalid = True
+
+    def set_value(self, val):
+        self._value = val
+        self._last_update_timestamp = datetime.now()
+
+
+    @property
+    def server_id(self) -> str:
+        return self.configuration.server_id
+    
+    @property
+    def last_update_timestamp(self) -> Optional[datetime]:
+        return self._last_update_timestamp
+    
+    @property
+    def value(self) -> Union[int, bool, float, str]:
+        return self._value
 
 @dataclass
 class DownloadWatchableListFunctionCall:
@@ -33,7 +90,75 @@ class DownloadWatchableListFunctionCall:
 
     request:WatchableListDownloadRequest    # Output
 
-class FakeSDKClient:
+class FakeSDKClient(UnitTestStub):
+
+    class FakeRequest:
+        requested_path:str
+        lock : threading.Lock
+        completed:threading.Event
+        success:bool
+
+        def __init__(self) -> None:
+            self.success=False
+            self.completed=threading.Event()
+            self.lock = threading.Lock()
+
+        def simulate_failure(self):
+            with self.lock:
+                self.success = False
+                self.completed.set()
+
+        def simulate_success(self):
+            with self.lock:
+                self.success = True
+                self.completed.set()
+        
+        def is_completed(self) -> bool:
+            return self.completed.is_set()
+        
+        def wait_completion(self, timeout:Optional[float]=None):
+            self.completed.wait(timeout)
+        
+        def is_success(self) -> bool:
+            with self.lock:
+                if not self.completed.is_set():
+                    return False
+                return self.success
+        
+    
+
+    class FakeWatchRequest(FakeRequest):
+        requested_path:str
+        received_configuration:sdk.WatchableConfiguration
+
+        def __init__(self, path:str) -> None:
+            self.requested_path = path
+            self.received_configuration = None
+            super().__init__()
+        
+        def get_path(self) -> str:
+            return self.requested_path
+
+        def simulate_success(self, configuration:sdk.WatchableConfiguration) -> None:
+            self.received_configuration = configuration
+            super().simulate_success()
+
+        def get_config(self) -> sdk.WatchableConfiguration:
+            assert self.is_success()
+            assert self.received_configuration is not None, "missing configuration"
+            return self.received_configuration
+
+    class FakeUnwatchRequest(FakeRequest):
+        requested_path:str
+
+        def __init__(self, path:str) -> None:
+            self.requested_path = path
+            super().__init__()
+        
+        def get_path(self) -> str:
+            return self.requested_path
+ 
+
     server_state:sdk.ServerState
     hostname:Optional[str]
     port:Optional[int]
@@ -45,7 +170,10 @@ class FakeSDKClient:
     _req_id:int
     _event_queue:"queue.Queue[ScrutinyClient.Events._ANY_EVENTS]"
     _enabled_events:int
-
+    _listeners: List[BaseListener]
+    _pending_watch_request:List[FakeWatchRequest]
+    _pending_unwatch_request:List[FakeUnwatchRequest]
+    _handle_cache:Dict[str, StubbedWatchableHandle]
 
     def __init__(self):
         self.server_state = sdk.ServerState.Disconnected
@@ -56,6 +184,10 @@ class FakeSDKClient:
         self._force_connect_fail = False
         self._enabled_events = 0
         self._event_queue = queue.Queue()
+        self._listeners = []
+        self._pending_watch_request = []
+        self._pending_unwatch_request = []
+        self._handle_cache = {}
     
     def get_call_count(self, funcname:str) -> int:
         if funcname not in self._func_call_log:
@@ -100,6 +232,12 @@ class FakeSDKClient:
         
         return self.server_info
     
+    def try_get_existing_watch_handle(self, path:str) ->  Optional[StubbedWatchableHandle]:
+        try:
+            return self._handle_cache[path]
+        except KeyError:
+            return None
+
 
     def download_watchable_list(self, types:Optional[List[sdk.WatchableType]]=None, 
                                 max_per_response:int=500,
@@ -170,6 +308,8 @@ class FakeSDKClient:
     def has_event_pending(self) -> bool:
         return not self._event_queue.empty()
 
+    def register_listener(self, listener:BaseListener):
+        self._listeners.append(listener)
 
     def _simulate_receive_status(self, info:Optional[sdk.ServerInfo] = None):
         if info is None:
@@ -252,3 +392,43 @@ class FakeSDKClient:
             sfd_firmware_id=self.server_info.sfd_firmware_id
         )
         self.trigger_event(ScrutinyClient.Events.DataloggerStateChanged(datalogger_info))
+
+    def watch(self, path: str) -> StubbedWatchableHandle:
+        logger.debug(f"Fake call to watch({path})")
+        request = self.FakeWatchRequest(path)
+        self._pending_watch_request.append(request)
+        request.wait_completion(timeout = 5)
+        if not request.is_completed():
+            raise sdk.exceptions.TimeoutException(f"Timeout on watch request for {path}. Simulated failure")
+        
+        if not request.is_success():
+            raise sdk.exceptions.OperationFailure(f"Failed to watch {path}. Simulated failure")
+        
+        wconfig = request.get_config()
+        handle =  StubbedWatchableHandle(
+            display_path=path,
+            datatype=wconfig.datatype,
+            enum=wconfig.enum,
+            server_id=wconfig.server_id,
+            watchable_type=wconfig.watchable_type
+        )
+
+        self._handle_cache[path] = handle
+        return handle
+
+    def unwatch(self, path: str) -> StubbedWatchableHandle:
+        logger.debug(f"Fake call to unwatch({path})")
+        request = self.FakeUnwatchRequest(path)
+        self._pending_unwatch_request.append(request)
+        request.wait_completion(timeout = 5)
+        if not request.is_completed():
+            raise sdk.exceptions.TimeoutException(f"Timedout on unwatch request for {path}. Simulated failure")
+        
+        if not request.is_success():
+            raise sdk.exceptions.OperationFailure(f"Failed to unwatch {path}. Simulated failure")
+
+        try:
+            del self._handle_cache[path]
+        except KeyError:
+            pass
+        

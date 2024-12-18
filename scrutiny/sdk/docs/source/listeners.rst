@@ -24,13 +24,25 @@ Registering a listener is done through :meth:`register_listener<scrutiny.sdk.cli
 Using a listener
 ----------------
 
-The first step in using a listener is to subscribe watchables to it by calling :meth:`subscribe()<scrutiny.sdk.listeners.BaseListener.subscribe>`.
+In order to use a listener, one must create it, register it to the client, subscribe to watchables elements with 
+:meth:`subscribe()<scrutiny.sdk.listeners.BaseListener.subscribe>` and then start the listener.
 
 .. automethod:: scrutiny.sdk.listeners.BaseListener.subscribe
 
+It is possible to unsubscribe to watchables with one of the following method
 
-Once this is done, the listener can be started, after which, subscribing to new watchables is not allowed.
+.. automethod:: scrutiny.sdk.listeners.BaseListener.unsubscribe
+
+-----
+
+.. automethod:: scrutiny.sdk.listeners.BaseListener.unsubscribe_all
+
+-----
+
+.. automethod:: scrutiny.sdk.listeners.BaseListener.prune_subscriptions
+
 Each listener has a :meth:`start()<scrutiny.sdk.listeners.BaseListener.start>` and a :meth:`stop()<scrutiny.sdk.listeners.BaseListener.stop>` method.
+These methods launches an internal thread that will handle each new value updates. 
 
 .. automethod:: scrutiny.sdk.listeners.BaseListener.start
 
@@ -64,6 +76,21 @@ Each listener has a :meth:`start()<scrutiny.sdk.listeners.BaseListener.start>` a
         print("We are done")
     # Client is automatically disconnected
 
+
+Listeners may or may not allow a user to add or remove watchables from their subscription list while the listener is active.
+This behavior is controlled by overriding :meth:`allow_subcription_changes_while_running()<scrutiny.sdk.listeners.BaseListener.allow_subcription_changes_while_running>`.
+
+Some listeners will allow it (like the :class:`TextStreamListener<scrutiny.sdk.listeners.TextStreamListener>` or the :class:`BufferedReaderListener<scrutiny.sdk.listeners.BufferedReaderListener>`) 
+, but some does not (like the :class:`CSVFileListener<scrutiny.sdk.listeners.CSVFileListener>`). When not allowed, a :class:`NotAllowedError<scrutiny.sdk.exceptions.NotAllowedError>` will
+be raised if one of the following method is called after :meth:`start()<scrutiny.sdk.listeners.BaseListener.start>` has been called.
+
+- :meth:`subscribe()<scrutiny.sdk.listeners.BaseListener.subscribe>`
+- :meth:`unsubscribe()<scrutiny.sdk.listeners.BaseListener.unsubscribe>`
+- :meth:`unsubscribe_all()<scrutiny.sdk.listeners.BaseListener.unsubscribe_all>`
+- :meth:`prune_subscriptions()<scrutiny.sdk.listeners.BaseListener.prune_subscriptions>`
+
+
+.. automethod:: scrutiny.sdk.listeners.BaseListener.allow_subcription_changes_while_running
 
 -----
 
@@ -107,6 +134,7 @@ the :meth:`receive()<scrutiny.sdk.listeners.BaseListener.receive>` method.
 .. autoclass:: scrutiny.sdk.listeners.BaseListener
     :exclude-members: __new__, setup, teardown, start, stop, receive, subscribe
     :members:
+    :no-index: 
     :member-order: bysource
 
 -----
@@ -133,6 +161,23 @@ a :meth:`teardown<scrutiny.sdk.listeners.BaseListener.teardown>`. If not overrid
 -----
 
 .. automethod:: scrutiny.sdk.listeners.BaseListener.teardown
+
+-----
+
+Performance statistics
+----------------------
+
+It is possible to get some interesting numbers about the performance of the listener using :meth:`get_stats()<scrutiny.sdk.listeners.BaseListener.get_stats>`
+
+.. automethod:: scrutiny.sdk.listeners.BaseListener.get_stats 
+
+-----
+
+.. automethod:: scrutiny.sdk.listeners.BaseListener.reset_stats
+
+-----
+
+.. autoclass:: scrutiny.sdk.listeners.BaseListener.Statistics
 
 -----
 

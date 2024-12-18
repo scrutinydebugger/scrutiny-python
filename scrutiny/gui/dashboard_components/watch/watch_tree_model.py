@@ -13,10 +13,10 @@ import functools
 
 from PySide6.QtCore import QMimeData, QModelIndex, QPersistentModelIndex, Qt, QModelIndex
 from PySide6.QtWidgets import QWidget
-from PySide6.QtGui import QStandardItem
+from PySide6.QtGui import QStandardItem,QPalette
 
 from scrutiny.gui.core.scrutiny_drag_data import ScrutinyDragData, WatchableListDescriptor
-from scrutiny.gui.core.watchable_registry import WatchableRegistry
+from scrutiny.gui.core.watchable_registry import WatchableRegistry, WatchableRegistryError
 from scrutiny.gui.dashboard_components.common.watchable_tree import (
     WatchableTreeModel, 
     NodeSerializableData, 
@@ -25,8 +25,18 @@ from scrutiny.gui.dashboard_components.common.watchable_tree import (
     BaseWatchableRegistryTreeStandardItem,
     item_from_serializable_data
 )
+from uuid import uuid4
+from scrutiny.gui.tools.global_counters import global_i64_counter
 
 from typing import List, Union, Optional, cast, Sequence, TypedDict, Generator, Iterable
+
+from scrutiny.sdk.definitions import WatchableConfiguration
+
+AVAILABLE_DATA_ROLE = Qt.ItemDataRole.UserRole+1
+WATCHER_ID_ROLE = Qt.ItemDataRole.UserRole+2
+
+class ValueStandardItem(QStandardItem):
+    pass
 
 class SerializableItemIndexDescriptor(TypedDict):
     """A serializable path to a QStandardItem in a QStandardItemModel. It's a series of row index separated by a /
@@ -48,14 +58,47 @@ class WatchComponentTreeModel(WatchableTreeModel):
     Mainly handles drag&drop logic
     """
     logger:logging.Logger
+    _available_palette:QPalette
+    _unavailable_palette:QPalette
 
-    def __init__(self, parent: Optional[QWidget], watchable_registry: WatchableRegistry) -> None:
+    def __init__(self, 
+                 parent: Optional[QWidget], 
+                 watchable_registry: WatchableRegistry, 
+                 available_palette:Optional[QPalette]=None, 
+                 unavailable_palette:Optional[QPalette]=None) -> None:
         super().__init__(parent, watchable_registry)
-        self._dragged_item_list = None
         self.logger = logging.getLogger(self.__class__.__name__)
+        
+        if available_palette is not None:
+            self._available_palette = available_palette
+        else:
+            self._available_palette = QPalette()
+            self._available_palette.setCurrentColorGroup(QPalette.ColorGroup.Active)
+
+        if unavailable_palette is not None:
+            self._unavailable_palette = unavailable_palette
+        else:
+            self._unavailable_palette = QPalette()
+            self._unavailable_palette.setCurrentColorGroup(QPalette.ColorGroup.Disabled)
+
+    def _assign_unique_watcher_id(self, item:WatchableStandardItem) -> None:
+        watcher_id = global_i64_counter()
+        item.setData(watcher_id, WATCHER_ID_ROLE)
     
+    def get_watcher_id(self, item:WatchableStandardItem) -> int:
+        uid = item.data(WATCHER_ID_ROLE)
+        assert uid is not None
+        return cast(int, uid)
+
+    def watchable_item_created(self, item:WatchableStandardItem) -> None:
+        self._assign_unique_watcher_id(item)
+        return super().watchable_item_created(item)
+
     def itemFromIndex(self, index:Union[QModelIndex, QPersistentModelIndex]) -> BaseWatchableRegistryTreeStandardItem:
         return cast(BaseWatchableRegistryTreeStandardItem, super().itemFromIndex(index))
+    
+    def get_watchable_columns(self, watchable_config: Optional[WatchableConfiguration] = None) -> List[QStandardItem]:
+        return [ValueStandardItem()]
 
     def _check_support_drag_data(self, drag_data:Optional[ScrutinyDragData], action:Qt.DropAction) -> bool:
         """Tells if a drop would be supported
@@ -353,7 +396,7 @@ class WatchComponentTreeModel(WatchableTreeModel):
             return False
         return True
     
-    def _handle_tree_drop(self,
+    def _handle_tree_drop(self, 
                         dest_parent_index: Union[QModelIndex, QPersistentModelIndex],
                         dest_row_index:int,
                         data:List[SerializableTreeDescriptor]) -> bool:
@@ -380,6 +423,7 @@ class WatchComponentTreeModel(WatchableTreeModel):
             if isinstance(item, FolderStandardItem):
                 row = self.make_folder_row_existing_item(item, editable=True)
             elif isinstance(item, WatchableStandardItem):
+                self._assign_unique_watcher_id(item)
                 row = self.make_watchable_row_from_existing_item(item, editable=True, extra_columns=self.get_watchable_columns())
             else:
                 raise NotImplementedError("Unsupported item type")
@@ -435,3 +479,69 @@ class WatchComponentTreeModel(WatchableTreeModel):
 
         self.add_multiple_rows_to_parent(dest_parent, dest_row_index, rows)
         return True
+
+    def get_all_watchable_items(self, parent:Optional[BaseWatchableRegistryTreeStandardItem]=None) -> Generator[WatchableStandardItem, None, None]:
+        """Return every elements in the tree that points to a watchable item in the registry"""
+        def recurse(parent:QStandardItem) -> Generator[WatchableStandardItem, None, None]:
+            for i in range(parent.rowCount()):
+                child = parent.child(i, 0)
+                if isinstance(child, FolderStandardItem):
+                    yield from recurse(child)
+                elif isinstance(child, WatchableStandardItem):
+                    yield child
+                else:
+                    raise NotImplementedError(f"Unsupported item type: {child}")
+        
+        if parent is None:
+            for i in range(self.rowCount()):
+                child = self.item(i, 0)
+                if isinstance(child, FolderStandardItem):
+                    yield from recurse(child)
+                elif isinstance(child, WatchableStandardItem):
+                    yield child
+                else:
+                    raise NotImplementedError(f"Unsupported item type: {child}")
+        else:
+            recurse(parent)
+            
+    def update_availability(self, watchable:WatchableStandardItem) -> None:
+        """Change the availability of an item based on its availibility in the registry. 
+        When the watchable refered by an element is not in the registry, becomes "unavailable" (grayed out).
+        """
+        if self._watchable_registry.is_watchable_fqn(watchable.fqn):
+            self.set_available(watchable)
+        else:
+            self.set_unavailable(watchable)
+        
+    def set_unavailable(self, arg_item:WatchableStandardItem) -> None:
+        """Make an item in the tree unavailable (grayed out)"""
+        background_color = self._unavailable_palette.color(QPalette.ColorRole.Base)
+        forground_color = self._unavailable_palette.color(QPalette.ColorRole.Text)
+        for i in range(self.columnCount()):
+            item = self.itemFromIndex(arg_item.index().siblingAtColumn(i))
+            if item is not None:
+                item.setData(False, AVAILABLE_DATA_ROLE)
+                item.setBackground(background_color)
+                item.setForeground(forground_color)
+                if isinstance(item, ValueStandardItem):
+                    item.setEditable(False)
+                    item.setText('N/A')
+    
+    def set_available(self, arg_item:WatchableStandardItem) -> None:
+        """Make an item in the tree available (normal color)"""
+        background_color = self._available_palette.color(QPalette.ColorRole.Base)
+        forground_color = self._available_palette.color(QPalette.ColorRole.Text)
+        for i in range(self.columnCount()):
+            item = self.itemFromIndex(arg_item.index().siblingAtColumn(i))
+            if item is not None:
+                item.setData(True, AVAILABLE_DATA_ROLE)
+                item.setBackground(background_color)
+                item.setForeground(forground_color)
+                if isinstance(item, ValueStandardItem):
+                    item.setEditable(True)
+    
+    def is_available(self, arg_item:WatchableStandardItem) -> bool:
+        v = cast(Optional[bool], arg_item.data(AVAILABLE_DATA_ROLE))
+        if v == True:
+            return True
+        return False

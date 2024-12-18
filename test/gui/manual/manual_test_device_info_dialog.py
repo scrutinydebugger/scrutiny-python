@@ -10,6 +10,7 @@ if __name__ != '__main__' :
     raise RuntimeError("This script is expected to run from the command line")
 
 import sys, os
+os.environ['SCRUTINY_MANUAL_TEST'] = '1'
 project_root = os.path.realpath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
 sys.path.insert(0, project_root)
 

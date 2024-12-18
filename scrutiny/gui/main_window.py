@@ -18,7 +18,7 @@ from PySide6.QtWidgets import QMainWindow
 
 import PySide6QtAds  as QtAds   # type: ignore
 from scrutiny.gui.dialogs.about_dialog import AboutDialog
-from scrutiny.gui.widgets.sidebar import Sidebar
+from scrutiny.gui.widgets.component_sidebar import ComponentSidebar
 from scrutiny.gui.widgets.status_bar import StatusBar
 from scrutiny.gui.widgets.menu_bar import MenuBar
 from scrutiny.gui.dialogs.server_config_dialog import ServerConfigDialog
@@ -51,7 +51,7 @@ class MainWindow(QMainWindow):
     _central_widget:QWidget
     _dock_conainer:QWidget
     _dock_manager:QtAds.CDockManager
-    _sidebar:Sidebar
+    _component_sidebar:ComponentSidebar
     _server_config_dialog:ServerConfigDialog
     _watchable_registry:WatchableRegistry
     _server_manager:ServerManager
@@ -121,9 +121,9 @@ class MainWindow(QMainWindow):
         dock_vlayout = QVBoxLayout(self._dock_conainer)
         dock_vlayout.setContentsMargins(0,0,0,0)
         
-        self._sidebar = Sidebar(self.ENABLED_COMPONENTS)
-        self.addToolBar(Qt.ToolBarArea.LeftToolBarArea, self._sidebar)
-        self._sidebar.insert_component.connect(self.add_new_component)
+        self._component_sidebar = ComponentSidebar(self.ENABLED_COMPONENTS)
+        self.addToolBar(Qt.ToolBarArea.LeftToolBarArea, self._component_sidebar)
+        self._component_sidebar.insert_component.connect(self.add_new_component)
 
         hlayout.addWidget(self._dock_conainer)
         dock_vlayout.addWidget(self._dock_manager)
@@ -154,10 +154,10 @@ class MainWindow(QMainWindow):
             self._logger.error(f"Failed to create a dashboard component of type {component_class.__name__}")
             self._logger.debug(traceback.format_exc())
             return
-        QtAds.CDockWidgetTab.mouseDoubleClickEvent = None
         dock_widget = QtAds.CDockWidget(component_class.get_name())
         dock_widget.setFeature(QtAds.CDockWidget.DockWidgetDeleteOnClose, True)
         dock_widget.setWidget(widget)
+        dock_widget.visibilityChanged.connect(widget.visibilityChanged) # Pass down the event
 
         try:
             self._logger.debug(f"Setuping component {widget.instance_name}")
@@ -190,8 +190,9 @@ class MainWindow(QMainWindow):
                 widget.deleteLater()
 
         self._dashboard_components[name] = widget
+        #widget.hasFocus()
         dock_widget.closeRequested.connect(destroy_widget)
-        self._dock_manager.addDockWidget(QtAds.TopDockWidgetArea, dock_widget)
+        self._dock_manager.addDockWidgetTab(QtAds.TopDockWidgetArea, dock_widget)
 
     def start_server_manager(self) -> None:
         self._status_bar.emulate_connect_click()
@@ -205,6 +206,7 @@ class MainWindow(QMainWindow):
         pass
 
     def dashboard_save_click(self) -> None:
+        # todo
         print(self._dock_manager.saveState())
 
     def dashboard_open_click(self) -> None:

@@ -15,6 +15,7 @@ from PySide6.QtGui import QIcon
 from typing import Dict, cast, TYPE_CHECKING, Any
 
 from scrutiny.gui.core.server_manager import ServerManager
+import logging
 
 if TYPE_CHECKING:   # Prevent circular dependency
     from scrutiny.gui.main_window import MainWindow
@@ -23,6 +24,7 @@ class ScrutinyGUIBaseComponent(QWidget):
     instance_name:str
     main_window:"MainWindow"
     server_manager:ServerManager
+    logger:logging.Logger
 
     def __init__(self, main_window:"MainWindow", 
                  instance_name:str,
@@ -31,6 +33,7 @@ class ScrutinyGUIBaseComponent(QWidget):
         self.instance_name = instance_name
         self.main_window = main_window
         self.server_manager = server_manager
+        self.logger = logging.getLogger(self.__class__.__name__)
         super().__init__()
 
     @classmethod
@@ -59,4 +62,7 @@ class ScrutinyGUIBaseComponent(QWidget):
 
     @abstractmethod
     def load_state(self, state:Dict[Any, Any]) -> None:
+        pass
+    
+    def visibilityChanged(self, visible:bool) -> None:
         pass

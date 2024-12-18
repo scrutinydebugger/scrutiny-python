@@ -25,9 +25,11 @@ from scrutiny.server.api import typing as api_typing
 from scrutiny.server.api import API
 from scrutiny.server.api.tcp_client_handler import TCPClientHandler
 from scrutiny.tools.stream_datagrams import StreamMaker, StreamParser
+from scrutiny.tools.profiling import VariableRateExponentialAverager
 import selectors
 
 import logging
+from scrutiny.core.logging import DUMPDATA_LOGLEVEL
 import traceback
 import threading
 import socket
@@ -49,6 +51,7 @@ class CallbackState(enum.Enum):
     Cancelled = enum.auto()
     ServerError = enum.auto()
     CallbackError = enum.auto()
+    SimulatedError = enum.auto()
 
 
 ApiResponseCallback = Callable[[CallbackState, Optional[api_typing.S2CMessage]], None]
@@ -223,6 +226,41 @@ class WatchableListDownloadRequest(PendingRequest):
         return self._watchable_list
     
 
+class DataRateMeasurements:
+    rx_data_rate:VariableRateExponentialAverager
+    tx_data_rate:VariableRateExponentialAverager
+    rx_message_rate:VariableRateExponentialAverager
+    tx_message_rate:VariableRateExponentialAverager
+    
+    def __init__(self) -> None:
+        self.rx_data_rate = VariableRateExponentialAverager(time_estimation_window=0.1, tau=0.5, near_zero=1)
+        self.tx_data_rate = VariableRateExponentialAverager(time_estimation_window=0.1, tau=0.5, near_zero=1)
+        self.rx_message_rate = VariableRateExponentialAverager(time_estimation_window=0.1, tau=0.5, near_zero=0.1)
+        self.tx_message_rate = VariableRateExponentialAverager(time_estimation_window=0.1, tau=0.5, near_zero=0.1)
+    
+    def update(self) -> None:
+        self.rx_data_rate.update()
+        self.tx_data_rate.update()
+        self.rx_message_rate.update()
+        self.tx_message_rate.update()
+    
+    def enable(self) -> None:
+        self.rx_data_rate.enable()
+        self.tx_data_rate.enable()
+        self.rx_message_rate.enable()
+        self.tx_message_rate.enable()
+
+    def disable(self) -> None:
+        self.rx_data_rate.disable()
+        self.tx_data_rate.disable()
+        self.rx_message_rate.disable()
+        self.tx_message_rate.disable()
+
+    def reset(self) -> None:
+        self.rx_data_rate.reset()
+        self.tx_data_rate.reset()
+        self.rx_message_rate.reset()
+        self.tx_message_rate.reset()
 
 class ScrutinyClient:
     RxMessageCallback = Callable[["ScrutinyClient", object], None]
@@ -232,6 +270,18 @@ class ScrutinyClient:
     _MEMORY_WRITE_DATA_LIFETIME = 30
     _DOWNLOAD_WATCHABLE_LIST_LIFETIME = 30
 
+    @dataclass(frozen=True)
+    class Statistics:
+        """Performance metrics given by the client useful for diagnostic and debugging"""
+
+        rx_data_rate:float
+        """Returns the approximated data input rate coming from the server in Bytes/sec"""
+        rx_message_rate:float
+        """Returns the approximated message input rate coming from the server in msg/sec"""
+        tx_data_rate:float
+        """Returns the approximated data output rate sent to the server in Bytes/sec"""
+        tx_message_rate:float
+        """Returns the approximated message output rate sent to the server in msg/sec"""
     
     class Events:
         @dataclass(frozen=True)
@@ -378,8 +428,8 @@ class ScrutinyClient:
     _encoding: str              # The API string encoding. utf-8
     _sock: Optional[socket.socket]    # The socket talking with the server
     _selector: Optional[selectors.DefaultSelector]  # Used for socket communication
-    _stream_parser : Optional[StreamParser]         # Used for socket communication
-    _stream_maker : Optional[StreamMaker]           # Used for socket communication
+    _stream_parser : StreamParser         # Used for socket communication
+    _stream_maker : StreamMaker           # Used for socket communication
     _rx_message_callbacks: List[RxMessageCallback]  # List of callbacks to call for each message received. (mainly for testing)
     _reqid: int                 # The actual request ID. Increasing integer
     _timeout: float             # Default timeout value for server requests
@@ -416,6 +466,9 @@ class ScrutinyClient:
     _listeners:List[listeners.BaseListener]   # List of registered listeners
     _event_queue:"queue.Queue[Events._ANY_EVENTS]"
     _enabled_events:int
+    _datarate_measurements:DataRateMeasurements
+
+    _force_fail_request:bool     #  Flag for unit testing that will cause requests to fail prematurely 
 
     def __enter__(self) -> "ScrutinyClient":
         return self
@@ -454,8 +507,6 @@ class ScrutinyClient:
         self._encoding = 'utf8'
         self._sock = None
         self._selector = None
-        self._stream_parser = None
-        self._stream_maker = None
         self._rx_message_callbacks = [] if rx_message_callbacks is None else rx_message_callbacks
         self._worker_thread = None
         self._threading_events = self._ThreadingEvents()
@@ -485,8 +536,13 @@ class ScrutinyClient:
         self._listeners=[]
         self._locked_for_connect = False
 
+        self._stream_parser = TCPClientHandler.get_compatible_stream_parser()
+        self._stream_maker = TCPClientHandler.get_compatible_stream_maker()
+        self._datarate_measurements = DataRateMeasurements()
+
         self._event_queue = queue.Queue(maxsize=100)   # Not supposed to go much above 1 or 2
         self.listen_events(enabled_events)
+        self._force_fail_request = False
 
     def _trigger_event(self, evt:Events._ANY_EVENTS, loglevel:int=logging.NOTSET) -> None:
         if self._enabled_events & evt._filter_flag:
@@ -519,6 +575,7 @@ class ScrutinyClient:
 
     def _worker_thread_task(self, started_event: threading.Event) -> None:
         self._require_status_update = True  # Bootstrap status update loop
+        self._datarate_measurements.enable()
         started_event.set()
         
         self._request_status_timer.start()
@@ -542,6 +599,7 @@ class ScrutinyClient:
                     
                 self._wt_process_write_watchable_requests()
                 self._wt_process_device_state()
+                self._datarate_measurements.update()
 
             except sdk.exceptions.ConnectionError as e:
                 if self._connection_cancel_request:
@@ -563,6 +621,7 @@ class ScrutinyClient:
                 self._threading_events.require_sync.clear()
                 self._threading_events.sync_complete.set()
 
+        self._datarate_measurements.disable()
         self._logger.debug('Worker thread is exiting')
         self._threading_events.stop_worker_thread.clear()
 
@@ -589,7 +648,8 @@ class ScrutinyClient:
                 self._logger.error(f"Got watchable update for unknown watchable {update.server_id}")
                 continue
             else:
-                self._logger.debug(f"Updating value of {update.server_id} ({watchable.name})")
+                if self._logger.isEnabledFor(DUMPDATA_LOGLEVEL):   # prgama: no cover
+                    self._logger.log(DUMPDATA_LOGLEVEL, f"Updating value of {update.server_id} ({watchable.name})")
 
             watchable._update_value(update.value)
             updated_watchables.append(watchable)
@@ -608,7 +668,6 @@ class ScrutinyClient:
             self._logger.error("The server returned a write completion with an unknown batch_index")
             return
             
-
         write_request = batch_write.update_dict[completion.batch_index]
         if completion.success:
             write_request._watchable._set_last_write_datetime()
@@ -904,7 +963,9 @@ class ScrutinyClient:
 
             if self._last_server_info is not None:
                 if self._last_server_info.datalogging.state != self._server_info.datalogging.state:
-                    self._trigger_event(self.Events.DataloggerStateChanged(self._server_info.datalogging), loglevel=logging.INFO)
+                    # Passage from/to NA are logged as debug only to keep the info log clean
+                    loglevel = logging.DEBUG if DataloggerState.NA in (self._last_server_info.datalogging.state, self._server_info.datalogging.state) else logging.INFO
+                    self._trigger_event(self.Events.DataloggerStateChanged(self._server_info.datalogging), loglevel=loglevel)
                 elif self._last_server_info.datalogging.completion_ratio != self._server_info.datalogging.completion_ratio:
                     self._trigger_event(self.Events.DataloggerStateChanged(self._server_info.datalogging), loglevel=logging.DEBUG)
         else:
@@ -945,12 +1006,10 @@ class ScrutinyClient:
             if self._selector is not None:
                 self._selector.close()
             
-            if self._stream_parser is not None:
-                self._stream_parser.reset()
+            self._stream_parser.reset()
 
             self._sock = None
             self._selector = None
-            self._stream_parser = None
         
         events_to_trigger:List[ScrutinyClient.Events._ANY_EVENTS] = []
         with self._main_lock:
@@ -1051,23 +1110,29 @@ class ScrutinyClient:
                 raise RuntimeError("Missing reqid in request")
 
             future = self._register_callback(obj['reqid'], callback, timeout=timeout)
+            if self._force_fail_request:
+                future._wt_mark_completed(CallbackState.SimulatedError, None)
 
-        with self._sock_lock:
-            if self._sock is None or self._stream_maker is None:
-                raise sdk.exceptions.ConnectionError(f"Disconnected from server")
-            
-            try:
-                s = json.dumps(obj)
-                if self._logger.isEnabledFor(logging.DEBUG):    # pragma: no cover
-                    self._logger.debug(f"Sending {s}")
-                self._sock.send(self._stream_maker.encode(s.encode(self._encoding)))
-            except socket.error as e:
-                error = e
-                self._logger.debug(traceback.format_exc())
+        if not self._force_fail_request:   
+            with self._sock_lock:
+                if self._sock is None or self._stream_maker is None:
+                    raise sdk.exceptions.ConnectionError(f"Disconnected from server")
+                
+                try:
+                    s = json.dumps(obj)
+                    if self._logger.isEnabledFor(DUMPDATA_LOGLEVEL):    # pragma: no cover
+                        self._logger.log(DUMPDATA_LOGLEVEL, f"Sending {s}")
+                    data = self._stream_maker.encode(s.encode(self._encoding))
+                    self._sock.send(data)
+                    self._datarate_measurements.tx_data_rate.add_data(len(data))
+                    self._datarate_measurements.tx_message_rate.add_data(1)
+                except socket.error as e:
+                    error = e
+                    self._logger.debug(traceback.format_exc())
 
-        if error:
-            self.disconnect()
-            raise sdk.exceptions.ConnectionError(f"Disconnected from server. {error}")
+            if error:
+                self.disconnect()
+                raise sdk.exceptions.ConnectionError(f"Disconnected from server. {error}")
 
         return future
 
@@ -1076,7 +1141,7 @@ class ScrutinyClient:
         error: Optional[Exception] = None
         obj: Optional[Dict[str, Any]] = None
 
-        if self._sock is None or self._stream_parser is None or self._selector is None:
+        if self._sock is None  or self._selector is None:
             raise sdk.exceptions.ConnectionError(f"Disconnected from server")
 
         server_gone = False
@@ -1088,6 +1153,7 @@ class ScrutinyClient:
                 if not data:
                     server_gone = True
                 else:
+                    self._datarate_measurements.rx_data_rate.add_data(len(data))
                     self._stream_parser.parse(data)
         except  socket.error as e:
             server_gone = True
@@ -1099,19 +1165,19 @@ class ScrutinyClient:
             err_str = str(error) if error else ""
             raise sdk.exceptions.ConnectionError(f"Disconnected from server. {err_str}")
 
-        if not self._stream_parser.queue().empty():
+        while not self._stream_parser.queue().empty():
             try:
                 data_str = self._stream_parser.queue().get().decode(self._encoding)
-                if self._logger.isEnabledFor(logging.DEBUG):    # pragma: no cover
-                    self._logger.debug(f"Received: {data_str}")
+                if self._logger.isEnabledFor(DUMPDATA_LOGLEVEL):    # pragma: no cover
+                    self._logger.log(DUMPDATA_LOGLEVEL, f"Received: {data_str}")
                 obj = json.loads(data_str)
                 if obj is not None:
+                    self._datarate_measurements.rx_message_rate.add_data(1)
                     yield obj
             except json.JSONDecodeError as e:
                 self._logger.error(f"Received malformed JSON from the server. {e}")
                 self._logger.debug(traceback.format_exc())
                 
-
     def _make_request(self, command: str, data: Optional[Dict[str, Any]] = None) -> api_typing.C2SMessage:
         with self._main_lock:
             reqid = self._reqid
@@ -1205,8 +1271,7 @@ class ScrutinyClient:
             with self._sock_lock:
                 try:
                     self._server_state = ServerState.Connecting
-                    self._stream_parser = TCPClientHandler.get_compatible_stream_parser()
-                    self._stream_maker = TCPClientHandler.get_compatible_stream_maker()
+                    self._stream_parser.reset()
                     self._sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                     self._selector = selectors.DefaultSelector()
                     self._selector.register(self._sock, selectors.EVENT_READ)
@@ -1257,6 +1322,29 @@ class ScrutinyClient:
         validation.assert_int_range(enabled_events, 'enabled_events', minval=0)
         self._enabled_events = enabled_events & (self.Events.LISTEN_ALL ^ disabled_events)
 
+    def try_get_existing_watch_handle(self, path:str) -> Optional[WatchableHandle]:
+        """Retrieve an existing watchable handle created after a call to :meth:`watch()<watch>` if it exists.
+        This methods makes no request to the server and is therefore non-blocking.
+
+        :param path: The path of the element being watched
+
+        :raise TypeError: Given parameter not of the expected type
+
+        :return: A handle that can read/write the watched element or ``None`` if the element is not being watched.
+        """
+
+        validation.assert_type(path, 'path', str)
+
+        cached_watchable: Optional[WatchableHandle] = None
+        with self._main_lock:
+            if path in self._watchable_path_to_id_map:
+                server_id = self._watchable_path_to_id_map[path]
+                if server_id in self._watchable_storage:
+                    cached_watchable = self._watchable_storage[server_id]
+
+        return cached_watchable
+        
+
     def watch(self, path: str) -> WatchableHandle:
         """Starts watching a watchable element identified by its display path (tree-like path)
 
@@ -1269,14 +1357,8 @@ class ScrutinyClient:
         """
         validation.assert_type(path, 'path', str)
 
-        cached_watchable: Optional[WatchableHandle] = None
-        with self._main_lock:
-            if path in self._watchable_path_to_id_map:
-                server_id = self._watchable_path_to_id_map[path]
-                if server_id in self._watchable_storage:
-                    cached_watchable = self._watchable_storage[path]
-
-        if cached_watchable is not None:
+        cached_watchable = self.try_get_existing_watch_handle(path)
+        if cached_watchable:
             return cached_watchable
 
         watchable = WatchableHandle(self, path)
@@ -1310,6 +1392,8 @@ class ScrutinyClient:
         with self._main_lock:
             self._watchable_path_to_id_map[watchable.display_path] = watchable._configuration.server_id
             self._watchable_storage[watchable._configuration.server_id] = watchable
+        if self._logger.isEnabledFor(logging.DEBUG):
+            self._logger.debug(f"Now watching {watchable.display_path}")
 
         return watchable
 
@@ -1359,26 +1443,22 @@ class ScrutinyClient:
         future = self._send(req, wt_unsubscribe_callback)
         assert future is not None
         error: Optional[Exception] = None
-        try:
-            future.wait()
-        except sdk.exceptions.TimeoutException as e:
-            error = e
-        finally:
-            with self._main_lock:
-                if watchable.display_path in self._watchable_path_to_id_map:
-                    del self._watchable_path_to_id_map[watchable.display_path]
-
-                if watchable._configuration is not None:
-                    if watchable._configuration.server_id in self._watchable_storage:
-                        del self._watchable_storage[watchable._configuration.server_id]
-
-            watchable._set_invalid(ValueStatus.NotWatched)
-
-        if error:
-            raise error
+        future.wait()
 
         if future.state != CallbackState.OK:
             raise sdk.exceptions.OperationFailure(f"Failed to unsubscribe to the watchable. {future.error_str}")
+        
+        with self._main_lock:
+            if watchable.display_path in self._watchable_path_to_id_map:
+                del self._watchable_path_to_id_map[watchable.display_path]
+
+            if watchable._configuration is not None:
+                if watchable._configuration.server_id in self._watchable_storage:
+                    del self._watchable_storage[watchable._configuration.server_id]
+
+        watchable._set_invalid(ValueStatus.NotWatched)
+        if self._logger.isEnabledFor(logging.DEBUG):
+            self._logger.debug(f"Done watching {watchable.display_path}")
 
     def wait_new_value_for_all(self, timeout: float = 5) -> None:
         """Wait for all watched elements to be updated at least once after the call to this method
@@ -2106,6 +2186,22 @@ class ScrutinyClient:
         except queue.Empty:
             return None
 
+    def get_local_stats(self) -> Statistics:
+        """Return internal performance metrics"""
+
+        return self.Statistics(
+            rx_data_rate=self._datarate_measurements.rx_data_rate.get_value(),
+            rx_message_rate=self._datarate_measurements.rx_message_rate.get_value(),
+            tx_data_rate=self._datarate_measurements.tx_data_rate.get_value(),
+            tx_message_rate=self._datarate_measurements.tx_message_rate.get_value()
+        )
+    
+    def reset_stats(self) -> None:
+        """Reset all performance metrics that are resettable (have an internal state)"""
+        self._datarate_measurements.reset()
+
+
+    
     @property
     def logger(self) -> logging.Logger:
         """The python logger used by the Client"""
