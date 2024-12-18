@@ -836,7 +836,7 @@ class ServerManager:
         """Return some internal metrics for diagnostic"""
         return self.Statistics(
             listener=self._listener.get_stats(),
-            client=self._client.get_stats(),
+            client=self._client.get_local_stats(),
             watchable_registry=self._registry.get_stats(),
             listener_to_gui_qsize=self._listener.gui_qsize,
             listener_event_rate=self._listener.get_effective_event_rate,

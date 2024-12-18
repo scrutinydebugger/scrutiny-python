@@ -115,6 +115,26 @@ It includes:
 
 -----
 
+
+Diagnostic metrics
+------------------
+
+The client can also provide some diagnostic metrics to monitor the well being of the system.  
+Local metrics (measured by the client) are available trhough :meth:`get_local_stats()<scrutiny.sdk.client.ScrutinyClient.get_local_stats>`
+
+-----
+
+.. automethod:: scrutiny.sdk.client.ScrutinyClient.get_local_stats
+
+-----
+
+.. autoclass:: scrutiny.sdk.client.ScrutinyClient.Statistics
+    :exclude-members: __init__, __new__
+    :members:
+    :member-order: bysource
+
+-----
+
 Configuring the device link
 ----------------------------
 
@@ -196,7 +216,7 @@ Seger RTT
 None
 ####
 
-.. autoclass:: scrutiny.sdk.RTTLinkConfig.NoneLinkConfig
+.. autoclass:: scrutiny.sdk.NoneLinkConfig
     :exclude-members: __new__, __init__
     :members:
     :member-order: bysource

@@ -2186,7 +2186,7 @@ class ScrutinyClient:
         except queue.Empty:
             return None
 
-    def get_stats(self) -> Statistics:
+    def get_local_stats(self) -> Statistics:
         """Return internal performance metrics"""
 
         return self.Statistics(

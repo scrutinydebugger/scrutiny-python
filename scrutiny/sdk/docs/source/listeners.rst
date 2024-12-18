@@ -134,6 +134,7 @@ the :meth:`receive()<scrutiny.sdk.listeners.BaseListener.receive>` method.
 .. autoclass:: scrutiny.sdk.listeners.BaseListener
     :exclude-members: __new__, setup, teardown, start, stop, receive, subscribe
     :members:
+    :no-index: 
     :member-order: bysource
 
 -----
@@ -176,7 +177,7 @@ It is possible to get some interesting numbers about the performance of the list
 
 -----
 
-.. autoclass:: scrutiny.sdk.listeners.ListenerStatistics
+.. autoclass:: scrutiny.sdk.listeners.BaseListener.Statistics
 
 -----
 
