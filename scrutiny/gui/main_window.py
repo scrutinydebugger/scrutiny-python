@@ -200,7 +200,7 @@ class MainWindow(QMainWindow):
         self._status_bar.emulate_connect_click()
 
     def closeEvent(self, event: QCloseEvent) -> None:
-        self._server_manager.stop()
+        self._server_manager.exit()
         self._dock_manager.deleteLater()
         super().closeEvent(event)
         

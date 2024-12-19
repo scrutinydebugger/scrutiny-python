@@ -1822,14 +1822,15 @@ class TestClient(ScrutinyUnitTest):
             baudrate=115200,
             databits=sdk.SerialLinkConfig.DataBits.EIGHT,
             stopbits=sdk.SerialLinkConfig.StopBits.ONE,
-            parity=sdk.SerialLinkConfig.Parity.EVEN
+            parity=sdk.SerialLinkConfig.Parity.EVEN,
+            start_delay=0.5
         )
         
         self.client.configure_device_link(sdk.DeviceLinkType.Serial, configin)
         self.assertFalse(self.device_handler.comm_configure_queue.empty())
         link_type, configout = self.device_handler.comm_configure_queue.get(block=False)
 
-        for field in ('portname', 'baudrate', 'databits', 'stopbits', 'parity'):
+        for field in ('portname', 'baudrate', 'databits', 'stopbits', 'parity', 'start_delay'):
             self.assertIn(field, configout)
 
         self.assertEqual(link_type, 'serial')
@@ -1838,6 +1839,7 @@ class TestClient(ScrutinyUnitTest):
         self.assertEqual(configout['databits'], 8)
         self.assertEqual(configout['stopbits'], '1')
         self.assertEqual(configout['parity'], 'even')
+        self.assertEqual(configout['start_delay'], 0.5)
 
     def test_configure_device_link_tcp(self):
         configin = sdk.TCPLinkConfig(
