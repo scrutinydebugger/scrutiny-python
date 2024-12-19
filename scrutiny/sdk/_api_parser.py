@@ -531,6 +531,7 @@ def parse_inform_server_status(response: api_typing.S2C.InformServerStatus) -> s
         _check_response_dict(cmd, response, 'device_comm_link.link_config.stopbits', str)
         _check_response_dict(cmd, response, 'device_comm_link.link_config.databits', int)
         _check_response_dict(cmd, response, 'device_comm_link.link_config.parity', str)
+        _check_response_dict(cmd, response, 'device_comm_link.link_config.start_delay', (int, float))
 
         STOPBIT_TO_SDK = {
             '1' : sdk.SerialLinkConfig.StopBits.ONE,
@@ -565,13 +566,17 @@ def parse_inform_server_status(response: api_typing.S2C.InformServerStatus) -> s
         if api_databits not in DATABITS_TO_SDK:
             raise sdk.exceptions.BadResponseError(f'Unsupported number of databits value "{api_databits}" in message {cmd}')
 
+        start_delay = float(serial_config['start_delay'])
+        if start_delay < 0:
+            raise sdk.exceptions.BadResponseError(f'Unsupported start delay value "{start_delay}" in message {cmd}')
 
         link_config = sdk.SerialLinkConfig(
             port=serial_config['portname'],
             baudrate=serial_config['baudrate'],
             stopbits=STOPBIT_TO_SDK[api_stopbits],
             parity=PARITY_TO_SDK[api_parity],
-            databits=DATABITS_TO_SDK[api_databits]
+            databits=DATABITS_TO_SDK[api_databits],
+            start_delay=serial_config['start_delay']
         )
     elif link_type == sdk.DeviceLinkType.RTT:
         _check_response_dict(cmd, response, 'device_comm_link.link_config.jlink_interface', str)
@@ -946,3 +951,39 @@ def parse_get_loaded_sfd(response:api_typing.S2C.GetLoadedSFD) -> Optional[sdk.S
             firmware_id=response['firmware_id'],
             metadata=_read_sfd_metadata_from_incomplete_dict(response['metadata'])
         )  
+
+
+def parser_server_stats(response:api_typing.S2C.GetServerStats) -> sdk.ServerStatistics:
+    assert isinstance(response, dict)
+    assert 'cmd' in response
+    cmd = response['cmd']
+    assert cmd == API.Command.Api2Client.GET_SERVER_STATS
+
+    _check_response_dict(cmd, response, 'uptime', (float, int))
+    _check_response_dict(cmd, response, 'invalid_request_count', int)
+    _check_response_dict(cmd, response, 'unexpected_error_count', int)
+    _check_response_dict(cmd, response, 'client_count', int)
+    _check_response_dict(cmd, response, 'to_all_clients_datarate_byte_per_sec', (float, int))
+    _check_response_dict(cmd, response, 'from_any_client_datarate_byte_per_sec', (float, int))
+    _check_response_dict(cmd, response, 'msg_received', int)
+    _check_response_dict(cmd, response, 'msg_sent', int)
+    _check_response_dict(cmd, response, 'device_session_count', int)
+    _check_response_dict(cmd, response, 'to_device_datarate_byte_per_sec', (float, int))
+    _check_response_dict(cmd, response, 'from_device_datarate_byte_per_sec', (float, int))
+    _check_response_dict(cmd, response, 'device_request_per_sec', (float, int))
+
+
+    return sdk.ServerStatistics(
+        uptime = float(response['uptime']),
+        invalid_request_count = response['invalid_request_count'],
+        unexpected_error_count = response['unexpected_error_count'],
+        client_count = response['client_count'],
+        to_all_clients_datarate_byte_per_sec = float(response['to_all_clients_datarate_byte_per_sec']),
+        from_any_client_datarate_byte_per_sec = float(response['from_any_client_datarate_byte_per_sec']),
+        msg_received = response['msg_received'],
+        msg_sent = response['msg_sent'],
+        device_session_count = response['device_session_count'],
+        to_device_datarate_byte_per_sec = float(response['to_device_datarate_byte_per_sec']),
+        from_device_datarate_byte_per_sec = float(response['from_device_datarate_byte_per_sec']),
+        device_request_per_sec = float(response['device_request_per_sec'])
+        )

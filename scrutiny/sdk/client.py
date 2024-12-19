@@ -590,7 +590,7 @@ class ScrutinyClient:
                 self._wt_process_next_server_status_update()
                 
                 for msg in self._wt_recv(timeout=0.005):
-                    self.wt_process_rx_api_message(msg)
+                    self._wt_process_rx_api_message(msg)
 
                 self._wt_check_callbacks_timeouts()
                 if time.monotonic() - last_deferred_response_timeout_check > 1.0:   # Avoid locking the main lock too often
@@ -768,7 +768,7 @@ class ScrutinyClient:
                 if self._pending_watchable_download_request[kint]._is_expired(self._DOWNLOAD_WATCHABLE_LIST_LIFETIME):
                     del self._pending_watchable_download_request[kint]
 
-    def wt_process_rx_api_message(self, msg: Dict[str, Any]) -> None:
+    def _wt_process_rx_api_message(self, msg: Dict[str, Any]) -> None:
         self._threading_events.msg_received.set()
         # These callbacks are mainly for testing.
         for callback in self._rx_message_callbacks:
@@ -2196,11 +2196,38 @@ class ScrutinyClient:
             tx_message_rate=self._datarate_measurements.tx_message_rate.get_value()
         )
     
-    def reset_stats(self) -> None:
+    def reset_local_stats(self) -> None:
         """Reset all performance metrics that are resettable (have an internal state)"""
         self._datarate_measurements.reset()
 
 
+    def get_server_stats(self, timeout: Optional[float] = None) -> sdk.ServerStatistics:
+        if timeout is None:
+            timeout = self._timeout
+
+        req = self._make_request(API.Command.Client2Api.GET_SERVER_STATS)
+
+        @dataclass
+        class Container:
+            obj: Optional[sdk.ServerStatistics]
+        cb_data: Container = Container(obj=None)  # Force pass by ref
+
+        def callback(state: CallbackState, response: Optional[api_typing.S2CMessage]) -> None:
+            if response is not None and state == CallbackState.OK:
+                cb_data.obj = api_parser.parser_server_stats(
+                    cast(api_typing.S2C.GetServerStats, response)
+                )
+        future = self._send(req, callback)
+        assert future is not None
+        future.wait(timeout)
+
+        if future.state != CallbackState.OK:
+            raise sdk.exceptions.OperationFailure(
+                f"Failed to read the server statistics. {future.error_str}")
+
+        assert cb_data.obj is not None
+        stats = cb_data.obj
+        return stats
     
     @property
     def logger(self) -> logging.Logger:

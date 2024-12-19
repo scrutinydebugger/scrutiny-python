@@ -120,7 +120,8 @@ Diagnostic metrics
 ------------------
 
 The client can also provide some diagnostic metrics to monitor the well being of the system.  
-Local metrics (measured by the client) are available trhough :meth:`get_local_stats()<scrutiny.sdk.client.ScrutinyClient.get_local_stats>`
+Local metrics (measured by the client) are available trhough :meth:`get_local_stats()<scrutiny.sdk.client.ScrutinyClient.get_local_stats>`.
+Server metrics (measured by the server) are available trhough :meth:`get_server_stats()<scrutiny.sdk.client.ScrutinyClient.get_server_stats>`.
 
 -----
 
@@ -129,6 +130,17 @@ Local metrics (measured by the client) are available trhough :meth:`get_local_st
 -----
 
 .. autoclass:: scrutiny.sdk.client.ScrutinyClient.Statistics
+    :exclude-members: __init__, __new__
+    :members:
+    :member-order: bysource
+
+-----
+
+.. automethod:: scrutiny.sdk.client.ScrutinyClient.get_server_stats
+
+-----
+
+.. autoclass:: scrutiny.sdk.ServerStatistics
     :exclude-members: __init__, __new__
     :members:
     :member-order: bysource

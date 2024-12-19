@@ -93,6 +93,7 @@ class API:
             READ_MEMORY = "read_memory"
             WRITE_MEMORY = "write_memory"
             USER_COMMAND = "user_command"
+            GET_SERVER_STATS = 'get_server_stats'
             DEBUG = 'debug'
 
         class Api2Client:
@@ -123,6 +124,7 @@ class API:
             WRITE_MEMORY_RESPONSE = "response_write_memory"
             INFORM_MEMORY_WRITE_COMPLETE = "inform_memory_write_complete"
             USER_COMMAND_RESPONSE = "response_user_command"
+            GET_SERVER_STATS = 'response_get_server_stats'
             ERROR_RESPONSE = 'error'
 
     @dataclass(frozen=True)
@@ -255,32 +257,6 @@ class API:
     invalid_request_count:int
     unexpected_error_count:int
 
-    # The method to call for each command
-    ApiRequestCallbacks: Dict[str, str] = {
-        Command.Client2Api.ECHO: 'process_echo',
-        Command.Client2Api.GET_WATCHABLE_LIST: 'process_get_watchable_list',
-        Command.Client2Api.GET_WATCHABLE_COUNT: 'process_get_watchable_count',
-        Command.Client2Api.SUBSCRIBE_WATCHABLE: 'process_subscribe_watchable',
-        Command.Client2Api.UNSUBSCRIBE_WATCHABLE: 'process_unsubscribe_watchable',
-        Command.Client2Api.GET_INSTALLED_SFD: 'process_get_installed_sfd',
-        Command.Client2Api.LOAD_SFD: 'process_load_sfd',
-        Command.Client2Api.GET_LOADED_SFD: 'process_get_loaded_sfd',
-        Command.Client2Api.GET_SERVER_STATUS: 'process_get_server_status',
-        Command.Client2Api.GET_DEVICE_INFO: 'process_get_device_info',
-        Command.Client2Api.SET_LINK_CONFIG: 'process_set_link_config',
-        Command.Client2Api.GET_POSSIBLE_LINK_CONFIG: 'process_get_possible_link_config',
-        Command.Client2Api.WRITE_WATCHABLE: 'process_write_value',
-        Command.Client2Api.REQUEST_DATALOGGING_ACQUISITION: 'process_datalogging_request_acquisition',
-        Command.Client2Api.LIST_DATALOGGING_ACQUISITION: 'process_list_datalogging_acquisition',
-        Command.Client2Api.UPDATE_DATALOGGING_ACQUISITION: 'process_update_datalogging_acquisition',
-        Command.Client2Api.DELETE_DATALOGGING_ACQUISITION: 'process_delete_datalogging_acquisition',
-        Command.Client2Api.DELETE_ALL_DATALOGGING_ACQUISITION: 'process_delete_all_datalogging_acquisition',
-        Command.Client2Api.READ_DATALOGGING_ACQUISITION_CONTENT: 'process_read_datalogging_acquisition_content',
-        Command.Client2Api.READ_MEMORY: "process_read_memory",
-        Command.Client2Api.WRITE_MEMORY: "process_write_memory",
-        Command.Client2Api.USER_COMMAND: "process_user_command"
-    }
-
     def __init__(self,
                  config: APIConfig,
                  server:"ScrutinyServer",
@@ -310,10 +286,37 @@ class API:
 
         self.enable_debug = enable_debug
 
+        # The method to call for each command
+        self.ApiRequestCallbacks: Dict[str, Callable[[str, Any], None]] = {
+            self.Command.Client2Api.ECHO: self.process_echo,
+            self.Command.Client2Api.GET_WATCHABLE_LIST: self.process_get_watchable_list,
+            self.Command.Client2Api.GET_WATCHABLE_COUNT: self.process_get_watchable_count,
+            self.Command.Client2Api.SUBSCRIBE_WATCHABLE: self.process_subscribe_watchable,
+            self.Command.Client2Api.UNSUBSCRIBE_WATCHABLE: self.process_unsubscribe_watchable,
+            self.Command.Client2Api.GET_INSTALLED_SFD: self.process_get_installed_sfd,
+            self.Command.Client2Api.LOAD_SFD: self.process_load_sfd,
+            self.Command.Client2Api.GET_LOADED_SFD: self.process_get_loaded_sfd,
+            self.Command.Client2Api.GET_SERVER_STATUS: self.process_get_server_status,
+            self.Command.Client2Api.GET_DEVICE_INFO: self.process_get_device_info,
+            self.Command.Client2Api.SET_LINK_CONFIG: self.process_set_link_config,
+            self.Command.Client2Api.GET_POSSIBLE_LINK_CONFIG: self.process_get_possible_link_config,
+            self.Command.Client2Api.WRITE_WATCHABLE: self.process_write_value,
+            self.Command.Client2Api.REQUEST_DATALOGGING_ACQUISITION: self.process_datalogging_request_acquisition,
+            self.Command.Client2Api.LIST_DATALOGGING_ACQUISITION: self.process_list_datalogging_acquisition,
+            self.Command.Client2Api.UPDATE_DATALOGGING_ACQUISITION: self.process_update_datalogging_acquisition,
+            self.Command.Client2Api.DELETE_DATALOGGING_ACQUISITION: self.process_delete_datalogging_acquisition,
+            self.Command.Client2Api.DELETE_ALL_DATALOGGING_ACQUISITION: self.process_delete_all_datalogging_acquisition,
+            self.Command.Client2Api.READ_DATALOGGING_ACQUISITION_CONTENT: self.process_read_datalogging_acquisition_content,
+            self.Command.Client2Api.READ_MEMORY: self.process_read_memory,
+            self.Command.Client2Api.WRITE_MEMORY: self.process_write_memory,
+            self.Command.Client2Api.USER_COMMAND: self.process_user_command,
+            self.Command.Client2Api.GET_SERVER_STATS: self.process_server_stats
+        }
+
         if enable_debug:
             import ipdb # type: ignore
             API.Command.Client2Api.DEBUG = 'debug'
-            self.ApiRequestCallbacks[API.Command.Client2Api.DEBUG] = 'process_debug'
+            self.ApiRequestCallbacks[API.Command.Client2Api.DEBUG] = self.process_debug
 
         self.sfd_handler.register_sfd_loaded_callback(self.sfd_loaded_callback)
         self.sfd_handler.register_sfd_unloaded_callback(self.sfd_unloaded_callback)
@@ -440,8 +443,7 @@ class API:
             # Fetch the right function from a global dict and call it
             # Response are sent in each callback. Not all requests requires a response
             if cmd in self.ApiRequestCallbacks:
-                callback = cast(Callable[[str, api_typing.C2SMessage], None], getattr(self, self.ApiRequestCallbacks[cmd]))
-                callback(conn_id, req)
+                self.ApiRequestCallbacks[cmd](conn_id, req)
             else:
                 raise InvalidRequestException(req, 'Unsupported command %s' % cmd)
 
@@ -1602,6 +1604,28 @@ class API:
             'signals': signals,
             'xdata': dataseries_to_api_signal_data(acquisition.xdata),
             'yaxes': yaxis_list
+        }
+
+        self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
+
+    # === GET_SERVER_STATS ===
+    def process_server_stats(self, conn_id: str, req: api_typing.C2S.ReadDataloggingAcquisitionContent) -> None:
+        stats = self.server.get_stats()
+        response: api_typing.S2C.GetServerStats = {
+            'cmd': API.Command.Api2Client.GET_SERVER_STATS,
+            'reqid': self.get_req_id(req),
+            'uptime' : stats.uptime,
+            'invalid_request_count' : stats.api.invalid_request_count,
+            'unexpected_error_count' : stats.api.unexpected_error_count,
+            'client_count' : stats.api.client_handler.client_count,
+            'to_all_clients_datarate_byte_per_sec' : stats.api.client_handler.output_datarate_byte_per_sec,
+            'from_any_client_datarate_byte_per_sec' : stats.api.client_handler.input_datarate_byte_per_sec,
+            'msg_received' : stats.api.client_handler.msg_received,
+            'msg_sent' : stats.api.client_handler.msg_sent,
+            'device_session_count' : stats.device.device_session_count,
+            'to_device_datarate_byte_per_sec' : stats.device.comm_handler.tx_datarate_byte_per_sec,
+            'from_device_datarate_byte_per_sec' : stats.device.comm_handler.rx_datarate_byte_per_sec,
+            'device_request_per_sec' : stats.device.comm_handler.request_per_sec,
         }
 
         self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))

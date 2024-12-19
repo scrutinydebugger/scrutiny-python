@@ -28,6 +28,7 @@ from scrutiny.gui.dashboard_components.debug.debug_component import DebugCompone
 from scrutiny.gui.dashboard_components.varlist.varlist_component import VarListComponent
 from scrutiny.gui.dashboard_components.watch.watch_component import WatchComponent
 from scrutiny.gui.dashboard_components.embedded_graph.embedded_graph_component import EmbeddedGraph
+from scrutiny.gui.dashboard_components.metrics.metrics_component import MetricsComponent
 
 from scrutiny.gui.core.server_manager import ServerManager
 from scrutiny.gui.core.watchable_registry import WatchableRegistry
@@ -42,7 +43,8 @@ class MainWindow(QMainWindow):
         DebugComponent,
         VarListComponent,
         WatchComponent,
-        EmbeddedGraph
+        EmbeddedGraph,
+        MetricsComponent
     ]
 
     _dashboard_components:Dict[str, ScrutinyGUIBaseComponent]

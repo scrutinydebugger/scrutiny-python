@@ -102,7 +102,7 @@ class QtBufferedListener(BaseListener):
         return self.to_gui_thread_queue.qsize()
 
     @property
-    def get_effective_event_rate(self) -> float:
+    def effective_event_rate(self) -> float:
         """Returned the measured rate at which the ``data_received`` signal is being emitted"""
         return self.qt_event_rate_measurement.get_value()
 
@@ -803,8 +803,17 @@ class ServerManager:
     def _client_request_completed(self, store_id:int) -> None:
         # This runs in the UI thread
         entry = self._client_request_store.get(store_id)
-        if entry is not None:
-            entry.ui_callback(entry.threaded_func_return_value, entry.error)
+        if entry is None:
+            self._logger.debug("Client request compelted, but entry not part of the store.")
+            return 
+    
+        if not self.is_running():
+            # Prevents weird behavior on app exit, like accessing deleted resources
+            # The main window is expected to call stop() before exiting.
+            self._logger.debug("Client request completed, but the serve rmanager has been stop. Ignoring.")
+            return  
+        
+        entry.ui_callback(entry.threaded_func_return_value, entry.error)
         
     def schedule_client_request(self, 
             user_func:Callable[[ScrutinyClient], Any], 
@@ -839,6 +848,11 @@ class ServerManager:
             client=self._client.get_local_stats(),
             watchable_registry=self._registry.get_stats(),
             listener_to_gui_qsize=self._listener.gui_qsize,
-            listener_event_rate=self._listener.get_effective_event_rate,
+            listener_event_rate=self._listener.effective_event_rate,
             status_update_received=self._status_update_received
         )
+    
+    def reset_stats(self) -> None:
+        self._listener.reset_stats()
+        self._client.reset_local_stats()
+        self._status_update_received = 0

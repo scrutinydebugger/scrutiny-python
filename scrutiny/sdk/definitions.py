@@ -46,7 +46,8 @@ __all__ = [
     'SamplingRate',
     'FixedFreqSamplingRate',
     'VariableFreqSamplingRate',
-    'DataloggingCapabilities'    
+    'DataloggingCapabilities',
+    'ServerStatistics'
 ]
 
 AddressSize = Literal[8, 16, 32, 64, 128]
@@ -449,6 +450,8 @@ class SerialLinkConfig(BaseLinkConfig):
     """Port name on the machine. COMX on Windows. /dev/xxx on posix platforms"""
     baudrate: int
     """Communication speed in baud/sec"""
+    start_delay:float
+    """A delay of communication silence after opening the port. Accomodate devices that triggers a bootloader upon port open (like Arduino)."""
     stopbits: StopBits = StopBits.ONE
     """Number of stop bits. 1, 1.5, 2"""
     databits: DataBits = DataBits.EIGHT
@@ -456,12 +459,14 @@ class SerialLinkConfig(BaseLinkConfig):
     parity: Parity = Parity.NONE
     """Serial communication parity bits"""
 
+
     def __post_init__(self) -> None:
         validation.assert_type(self.port, 'port', str)
         validation.assert_int_range(self.baudrate, 'baudrate', minval=1)
         validation.assert_type(self.stopbits, 'stopbits', self.StopBits)
         validation.assert_type(self.databits, 'databits', self.DataBits)
         validation.assert_type(self.parity, 'parity', self.Parity)
+        validation.assert_float_range(self.start_delay, 'start_delay', minval=0)
 
     def _to_api_format(self) -> Dict[str, Any]:
         return {
@@ -470,6 +475,7 @@ class SerialLinkConfig(BaseLinkConfig):
             'stopbits': str(self.stopbits.value),
             'databits': self.databits.value,
             'parity': self.parity.value,
+            'start_delay' : self.start_delay
         }
 
 
@@ -580,3 +586,43 @@ class WatchableConfiguration:
 
     enum:Optional[EmbeddedEnum]
     """An optional enumeration associated with the possible values of the item"""
+
+
+@dataclass(frozen=True)
+class ServerStatistics:
+
+    uptime:float
+    """Time in seconds elapsed since the server has been started"""
+    
+    invalid_request_count:int
+    """Number of invalid request the server received"""
+
+    unexpected_error_count:int
+    """Number of unexpected error the server encountered while processing a request"""
+
+    client_count:int
+    """Number of clients actually connected to the server"""
+
+    to_all_clients_datarate_byte_per_sec:float
+    """Datarate (byte/sec) going out of the API, all clients summed together"""
+
+    from_any_client_datarate_byte_per_sec:float
+    """Datarate (byte/sec) going in the API, all clients summed together"""
+
+    msg_received:int
+    """Number of message received, all clients summed together"""
+
+    msg_sent:int
+    """Number of message sent, all clients summed together"""
+
+    device_session_count:int
+    """Counter indicating how many new working connections has been established with a device """
+
+    to_device_datarate_byte_per_sec:float
+    """Datarate (byte/sec) traveling from the server to the device"""
+
+    from_device_datarate_byte_per_sec:float
+    """Datarate (byte/sec) traveling from the device to the server"""
+
+    device_request_per_sec:float
+    """Number of request/response per seconds exchanged between the server and the device"""
