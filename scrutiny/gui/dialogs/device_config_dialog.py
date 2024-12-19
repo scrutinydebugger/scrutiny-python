@@ -8,7 +8,7 @@
 #   Copyright (c) 2021 Scrutiny Debugger
 
 from PySide6.QtWidgets import QDialog, QWidget, QComboBox, QVBoxLayout, QDialogButtonBox,QFormLayout, QLabel, QPushButton
-from PySide6.QtGui import QIntValidator
+from PySide6.QtGui import QIntValidator, QDoubleValidator
 from PySide6.QtCore import Qt
 from scrutiny import sdk
 from scrutiny.gui.widgets.validable_line_edit import ValidableLineEdit
@@ -157,6 +157,7 @@ class SerialConfigPane(BaseConfigPane):
     _stopbits_combo_box:QComboBox
     _databits_combo_box:QComboBox
     _parity_combo_box:QComboBox
+    _start_delay_textbox:ValidableLineEdit
 
 
     def __init__(self, parent:Optional[QWidget]=None) -> None:
@@ -166,6 +167,10 @@ class SerialConfigPane(BaseConfigPane):
         self._port_name_textbox = ValidableLineEdit(soft_validator=NotEmptyValidator())
         self._baudrate_textbox = ValidableLineEdit(
             hard_validator=QIntValidator(0,0x7FFFFFFF),
+            soft_validator=NotEmptyValidator()
+        )
+        self._start_delay_textbox = ValidableLineEdit(
+            hard_validator=QDoubleValidator(0, 5, 2, self),
             soft_validator=NotEmptyValidator()
         )
         self._stopbits_combo_box = QComboBox()
@@ -194,10 +199,12 @@ class SerialConfigPane(BaseConfigPane):
         layout.addRow(QLabel("Stop bits: "), self._stopbits_combo_box)
         layout.addRow(QLabel("Data bits: "), self._databits_combo_box)
         layout.addRow(QLabel("Parity: "), self._parity_combo_box)
+        layout.addRow(QLabel("Start delay (sec): "), self._start_delay_textbox)
 
         # Make sure the red background disappear when we type (fixing the invalid content)
         self._port_name_textbox.textChanged.connect(self._port_name_textbox.validate_expect_not_wrong_default_slot)
         self._baudrate_textbox.textChanged.connect(self._baudrate_textbox.validate_expect_not_wrong_default_slot)
+        self._start_delay_textbox.textChanged.connect(self._baudrate_textbox.validate_expect_not_wrong_default_slot)
 
 
     def get_config(self) -> Optional[sdk.SerialLinkConfig]:
@@ -206,6 +213,10 @@ class SerialConfigPane(BaseConfigPane):
         stopbits = cast(sdk.SerialLinkConfig.StopBits, self._stopbits_combo_box.currentData())
         databits = cast(sdk.SerialLinkConfig.DataBits, self._databits_combo_box.currentData())
         parity = cast(sdk.SerialLinkConfig.Parity, self._parity_combo_box.currentData())
+        try:
+            start_delay = float(self._start_delay_textbox.text())
+        except Exception:
+            return None
         
         if len(port) == 0:
             return None
@@ -223,7 +234,8 @@ class SerialConfigPane(BaseConfigPane):
             baudrate = baudrate,
             stopbits = stopbits,
             databits = databits,
-            parity = parity
+            parity = parity,
+            start_delay = start_delay
         )
 
     def load_config(self, config:Optional[sdk.BaseLinkConfig]) -> None:
@@ -235,6 +247,7 @@ class SerialConfigPane(BaseConfigPane):
         self._stopbits_combo_box.setCurrentIndex(self._stopbits_combo_box.findData(config.stopbits))
         self._databits_combo_box.setCurrentIndex(self._databits_combo_box.findData(config.databits))
         self._parity_combo_box.setCurrentIndex(self._parity_combo_box.findData(config.parity))
+        self._start_delay_textbox.setText(str(config.start_delay))
         
     @classmethod
     def make_config_valid(self, config:Optional[sdk.BaseLinkConfig]) -> sdk.BaseLinkConfig:
@@ -244,13 +257,15 @@ class SerialConfigPane(BaseConfigPane):
             baudrate = max(config.baudrate, 1),
             stopbits = config.stopbits,
             databits = config.databits,
-            parity = config.parity
+            parity = config.parity,
+            start_delay = max(config.start_delay, 0)
         )
     
     def visual_validation(self) -> None:
         #Called when OK is clicked
         self._port_name_textbox.validate_expect_valid()
         self._baudrate_textbox.validate_expect_valid()
+        self._start_delay_textbox.validate_expect_valid()
 
 class RTTConfigPane(BaseConfigPane):
     _target_device_text_box:ValidableLineEdit
@@ -368,7 +383,7 @@ class DeviceConfigDialog(QDialog):
         self._configs[sdk.DeviceLinkType.NONE] = sdk.NoneLinkConfig()
         self._configs[sdk.DeviceLinkType.UDP] = sdk.UDPLinkConfig(host="localhost", port=12345)
         self._configs[sdk.DeviceLinkType.TCP] = sdk.TCPLinkConfig(host="localhost", port=12345)
-        self._configs[sdk.DeviceLinkType.Serial] = sdk.SerialLinkConfig(port="<port>", baudrate=115200) # Rest has default values
+        self._configs[sdk.DeviceLinkType.Serial] = sdk.SerialLinkConfig(port="<port>", baudrate=115200, start_delay=0) # Rest has default values
         self._configs[sdk.DeviceLinkType.RTT] = sdk.RTTLinkConfig(target_device="<device>", jlink_interface=sdk.RTTLinkConfig.JLinkInterface.SWD)
 
         self._link_type_combo_box.currentIndexChanged.connect(self._combobox_changed)

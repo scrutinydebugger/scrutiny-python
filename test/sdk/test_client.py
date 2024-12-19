@@ -27,9 +27,10 @@ from scrutiny.core.sfd_storage import SFDStorage
 from scrutiny.core.memory_content import MemoryContent
 from scrutiny.server.datalogging.datalogging_storage import DataloggingStorage
 
-
-from scrutiny.server.api import API
-from scrutiny.server.api import APIConfig
+from scrutiny.server.server import ScrutinyServer
+from scrutiny.server.api import API, APIConfig
+from scrutiny.server.api.abstract_client_handler import AbstractClientHandler
+from scrutiny.server.protocol.comm_handler import CommHandler
 import scrutiny.server.datastore.datastore as datastore
 from scrutiny.server.api.tcp_client_handler import TCPClientHandler
 from scrutiny.server.device.device_handler import (
@@ -464,6 +465,30 @@ class FakeServer:
     datalogging_manager : FakeDataloggingManager
     sfd_handler: FakeActiveSFDHandler
 
+    def get_stats(self) -> ScrutinyServer.Statistics:
+        return ScrutinyServer.Statistics(
+            api=API.Statistics(
+                invalid_request_count=10,
+                unexpected_error_count=20,
+                client_handler=AbstractClientHandler.Statistics(
+                    client_count=1,
+                    msg_received=2,
+                    msg_sent=3,
+                    input_datarate_byte_per_sec=10.1,
+                    output_datarate_byte_per_sec=20.2
+                )
+            ),
+            device=DeviceHandler.Statistics(
+                device_session_count=30,
+                comm_handler=CommHandler.Statistics(
+                    rx_datarate_byte_per_sec=30.3,
+                    tx_datarate_byte_per_sec=40.4,
+                    request_per_sec=50.5
+                )
+            ),
+            uptime=100.123
+        )
+
 
 class TestClient(ScrutinyUnitTest):
     datastore: "datastore.Datastore"
@@ -494,7 +519,7 @@ class TestClient(ScrutinyUnitTest):
                 'port': 0
             }
         }
-        fake_server = FakeServer(
+        self.fake_server = FakeServer(
             datastore=self.datastore,
             datalogging_manager=self.datalogging_manager,
             device_handler=self.device_handler,
@@ -502,7 +527,7 @@ class TestClient(ScrutinyUnitTest):
             )
         self.api = API(
             api_config,
-            server=fake_server,
+            server=self.fake_server,
             enable_debug=False)
 
         self.api.handle_unexpected_errors = False
@@ -1797,14 +1822,15 @@ class TestClient(ScrutinyUnitTest):
             baudrate=115200,
             databits=sdk.SerialLinkConfig.DataBits.EIGHT,
             stopbits=sdk.SerialLinkConfig.StopBits.ONE,
-            parity=sdk.SerialLinkConfig.Parity.EVEN
+            parity=sdk.SerialLinkConfig.Parity.EVEN,
+            start_delay=0.5
         )
         
         self.client.configure_device_link(sdk.DeviceLinkType.Serial, configin)
         self.assertFalse(self.device_handler.comm_configure_queue.empty())
         link_type, configout = self.device_handler.comm_configure_queue.get(block=False)
 
-        for field in ('portname', 'baudrate', 'databits', 'stopbits', 'parity'):
+        for field in ('portname', 'baudrate', 'databits', 'stopbits', 'parity', 'start_delay'):
             self.assertIn(field, configout)
 
         self.assertEqual(link_type, 'serial')
@@ -1813,6 +1839,7 @@ class TestClient(ScrutinyUnitTest):
         self.assertEqual(configout['databits'], 8)
         self.assertEqual(configout['stopbits'], '1')
         self.assertEqual(configout['parity'], 'even')
+        self.assertEqual(configout['start_delay'], 0.5)
 
     def test_configure_device_link_tcp(self):
         configin = sdk.TCPLinkConfig(
@@ -2203,6 +2230,25 @@ class TestClient(ScrutinyUnitTest):
         assert isinstance(evt, ScrutinyClient.Events.DisconnectedEvent)
         self.assertEqual(evt.host, client_host)
         self.assertEqual(evt.port, client_port)
+
+    def test_get_server_stats(self):
+        stats = self.fake_server.get_stats()
+        received_stats = self.client.get_server_stats()
+        self.assertEqual(received_stats.uptime, stats.uptime)
+        self.assertEqual(received_stats.invalid_request_count, stats.api.invalid_request_count)
+        self.assertEqual(received_stats.unexpected_error_count, stats.api.unexpected_error_count)
+        self.assertEqual(received_stats.client_count, stats.api.client_handler.client_count)
+        self.assertEqual(received_stats.to_all_clients_datarate_byte_per_sec, stats.api.client_handler.output_datarate_byte_per_sec)
+        self.assertEqual(received_stats.from_any_client_datarate_byte_per_sec, stats.api.client_handler.input_datarate_byte_per_sec)
+        self.assertEqual(received_stats.msg_received, stats.api.client_handler.msg_received)
+        self.assertEqual(received_stats.msg_sent, stats.api.client_handler.msg_sent)
+        self.assertEqual(received_stats.device_session_count, stats.device.device_session_count)
+        self.assertEqual(received_stats.to_device_datarate_byte_per_sec, stats.device.comm_handler.tx_datarate_byte_per_sec)
+        self.assertEqual(received_stats.from_device_datarate_byte_per_sec, stats.device.comm_handler.rx_datarate_byte_per_sec)
+        self.assertEqual(received_stats.device_request_per_sec, stats.device.comm_handler.request_per_sec)
+
+
+        
 
 if __name__ == '__main__':
     unittest.main()

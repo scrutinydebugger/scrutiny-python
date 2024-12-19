@@ -41,6 +41,7 @@ class CommHandler:
     class Statistics:
         tx_datarate_byte_per_sec:float
         rx_datarate_byte_per_sec:float
+        request_per_sec:float
 
 
     class Params(TypedDict):
@@ -90,6 +91,7 @@ class CommHandler:
 
     _tx_datarate_measurement:VariableRateExponentialAverager
     _rx_datarate_measurement:VariableRateExponentialAverager
+    _request_per_sec_measurement:VariableRateExponentialAverager
 
     def __init__(self, params: Dict[str, Any] = {}) -> None:
         self._active_request = None      # Contains the request object that has been sent to the device. When None, no request sent and we are standby
@@ -115,6 +117,7 @@ class CommHandler:
 
         self._tx_datarate_measurement = VariableRateExponentialAverager(time_estimation_window=0.1, tau=0.5, near_zero=1)
         self._rx_datarate_measurement = VariableRateExponentialAverager(time_estimation_window=0.1, tau=0.5, near_zero=1)
+        self._request_per_sec_measurement = VariableRateExponentialAverager(time_estimation_window=0.1, tau=0.5, near_zero=0.1)
 
     def _rx_thread_task(self) -> None:
         self._logger.debug("RX thread started")
@@ -241,6 +244,7 @@ class CommHandler:
             self._rx_thread_stop_requested.clear()
             self._tx_datarate_measurement.enable()
             self._rx_datarate_measurement.enable()
+            self._request_per_sec_measurement.enable()
             self._rx_thread.start()
             if not self._rx_thread_started.wait(timeout=1):
                 self._stop_rx_thread()
@@ -273,6 +277,7 @@ class CommHandler:
 
         self._tx_datarate_measurement.disable()
         self._rx_datarate_measurement.disable()
+        self._request_per_sec_measurement.disable()
         self.reset()
         self._last_open_error = None
         self._opened = False
@@ -293,6 +298,7 @@ class CommHandler:
         
         self._tx_datarate_measurement.update()
         self._rx_datarate_measurement.update()
+        self._request_per_sec_measurement.update()
 
         if self._link.initialized() and not self._link.operational():
             self._logger.error('Communication link stopped working. Stopping communication')
@@ -439,6 +445,7 @@ class CommHandler:
             self._pending_request = request
             self._received_response = None
             self.timed_out = False
+            self._request_per_sec_measurement.add_data(1)
             self._process_tx(newrequest=True)
 
     def waiting_response(self) -> bool:
@@ -455,6 +462,7 @@ class CommHandler:
         self.clear_timeout()
         self._tx_datarate_measurement.reset()
         self._rx_datarate_measurement.reset()
+        self._request_per_sec_measurement.reset()
 
     def get_average_bitrate(self) -> float:
         """Get the measured average bitrate since last reset. Use an IIR low pass filter"""
@@ -463,5 +471,6 @@ class CommHandler:
     def get_stats(self) -> Statistics:
         return self.Statistics(
             rx_datarate_byte_per_sec=self._rx_datarate_measurement.get_value(),
-            tx_datarate_byte_per_sec=self._tx_datarate_measurement.get_value()
+            tx_datarate_byte_per_sec=self._tx_datarate_measurement.get_value(),
+            request_per_sec=self._request_per_sec_measurement.get_value()
         )

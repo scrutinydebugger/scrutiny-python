@@ -17,16 +17,18 @@ from scrutiny.core.basic_types import RuntimePublishedValue, MemoryRegion
 from base64 import b64encode, b64decode
 from dataclasses import dataclass
 
+from scrutiny.server.server import ScrutinyServer
 from scrutiny.server.api.API import API
 from scrutiny.server.datastore.datastore import Datastore
 from scrutiny.server.datastore.datastore_entry import *
 from scrutiny.server.datastore.entry_type import EntryType
 from scrutiny.core.sfd_storage import SFDStorage
 from scrutiny.core.basic_types import EmbeddedDataType, Endianness
-from scrutiny.server.api.dummy_client_handler import DummyConnection, DummyClientHandler
+from scrutiny.server.api.dummy_client_handler import DummyConnection, DummyClientHandler, AbstractClientHandler
 from scrutiny.server.device.device_handler import DeviceHandler, DeviceStateChangedCallback, RawMemoryReadRequest, \
     RawMemoryWriteRequest, RawMemoryReadRequestCompletionCallback, RawMemoryWriteRequestCompletionCallback, UserCommandCallback, DataloggerStateChangedCallback
 from scrutiny.server.device.device_info import DeviceInfo, FixedFreqLoop, VariableFreqLoop
+from scrutiny.server.protocol.comm_handler import CommHandler
 from scrutiny.server.active_sfd_handler import ActiveSFDHandler
 from scrutiny.server.device.links.dummy_link import DummyLink
 from scrutiny.core.variable import *
@@ -308,6 +310,30 @@ class FakeServer:
     device_handler: StubbedDeviceHandler
     datalogging_manager : StubbedDataloggingManager
     sfd_handler: ActiveSFDHandler
+
+    def get_stats(self) -> ScrutinyServer.Statistics:
+        return ScrutinyServer.Statistics(
+            api=API.Statistics(
+                invalid_request_count=10,
+                unexpected_error_count=20,
+                client_handler=AbstractClientHandler.Statistics(
+                    client_count=1,
+                    msg_received=2,
+                    msg_sent=3,
+                    input_datarate_byte_per_sec=10.1,
+                    output_datarate_byte_per_sec=20.2
+                )
+            ),
+            device=DeviceHandler.Statistics(
+                device_session_count=30,
+                comm_handler=CommHandler.Statistics(
+                    rx_datarate_byte_per_sec=30.3,
+                    tx_datarate_byte_per_sec=40.4,
+                    request_per_sec=50.5
+                )
+            ),
+            uptime=100.123
+        )
 
 
 class TestAPI(ScrutinyUnitTest):
@@ -2522,6 +2548,33 @@ class TestAPI(ScrutinyUnitTest):
             self.send_request(req)
             self.assertTrue(self.fake_device_handler.user_command_history_queue.empty())    # API does not forward the request
             self.assert_is_error(self.wait_and_load_response())
+
+    def test_get_server_stats(self):
+        def base() -> api_typing.C2S.GetServerStats:
+            return {
+                'cmd': 'get_server_stats'
+            }
+
+        req = base()
+
+        self.send_request(req)
+        stats = self.api.server.get_stats()
+        response = self.wait_and_load_response()
+        
+        self.assertEqual(response['uptime'], stats.uptime)
+        self.assertEqual(response['invalid_request_count'], stats.api.invalid_request_count)
+        self.assertEqual(response['unexpected_error_count'], stats.api.unexpected_error_count)
+        self.assertEqual(response['client_count'], stats.api.client_handler.client_count)
+        self.assertEqual(response['to_all_clients_datarate_byte_per_sec'], stats.api.client_handler.output_datarate_byte_per_sec)
+        self.assertEqual(response['from_any_client_datarate_byte_per_sec'], stats.api.client_handler.input_datarate_byte_per_sec)
+        self.assertEqual(response['msg_received'], stats.api.client_handler.msg_received)
+        self.assertEqual(response['msg_sent'], stats.api.client_handler.msg_sent)
+        self.assertEqual(response['device_session_count'], stats.device.device_session_count)
+        self.assertEqual(response['to_device_datarate_byte_per_sec'], stats.device.comm_handler.tx_datarate_byte_per_sec)
+        self.assertEqual(response['from_device_datarate_byte_per_sec'], stats.device.comm_handler.rx_datarate_byte_per_sec)
+        self.assertEqual(response['device_request_per_sec'], stats.device.comm_handler.request_per_sec)
+
+
 
 
 # endregion

@@ -264,6 +264,9 @@ class C2S:
     class UserCommand(BaseC2SMessage):
         subfunction: int
         data: str
+    
+    class GetServerStats(BaseC2SMessage):
+        pass
 
     GetPossibleLinkConfig = Dict[Any, Any]  # Todo
 
@@ -381,6 +384,20 @@ class S2C:
     class UserCommand(BaseS2CMessage):
         subfunction: int
         data: str
+
+    class GetServerStats(BaseS2CMessage):
+        uptime:float
+        invalid_request_count:int
+        unexpected_error_count:int
+        client_count:int
+        to_all_clients_datarate_byte_per_sec:float
+        from_any_client_datarate_byte_per_sec:float
+        msg_received:int
+        msg_sent:int
+        device_session_count:int
+        to_device_datarate_byte_per_sec:float
+        from_device_datarate_byte_per_sec:float
+        device_request_per_sec:float
 
 
 C2SMessage = Union[

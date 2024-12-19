@@ -501,7 +501,8 @@ class TestApiParser(ScrutinyUnitTest):
             "databits": 8,
             "parity": 'even',
             "portname": '/dev/ttyO1',
-            'stopbits': '2'
+            'stopbits': '2',
+            'start_delay':0.2
         }
         # We forgot to update the config.
         info = parser.parse_inform_server_status(msg)
@@ -512,6 +513,7 @@ class TestApiParser(ScrutinyUnitTest):
         self.assertEqual(info.device_link.config.parity, sdk.SerialLinkConfig.Parity.EVEN)
         self.assertEqual(info.device_link.config.port, '/dev/ttyO1')
         self.assertEqual(info.device_link.config.stopbits, sdk.SerialLinkConfig.StopBits.TWO)
+        self.assertEqual(info.device_link.config.start_delay, 0.2)
 
         serial_base = copy(msg)
 
@@ -520,7 +522,8 @@ class TestApiParser(ScrutinyUnitTest):
             'databits': [None, -1, 1.5, [], {}, 0, 'asd'],
             'parity': ['xx', 1, -1, None, [], {}],
             'portname': [1, None, [], {}],
-            'stopbits': [None, -1, 1.5, [], {}, 0, 'asd']
+            'stopbits': [None, -1, 1.5, [], {}, 0, 'asd'],
+            'start_delay': [None, -1, [], {}, 'asd']
         }
 
         for field, vals in field_vals.items():
@@ -1050,6 +1053,89 @@ class TestApiParser(ScrutinyUnitTest):
             self.assertIsNone(sfd.metadata.generation_info.system_type)
             self.assertIsNone(sfd.metadata.generation_info.timestamp)
 
+
+    def test_parse_get_server_stats(self):
+        def base() : 
+            return {
+                'cmd': 'response_get_server_stats',
+                'reqid': None,
+                'uptime' : 10.1,
+                'invalid_request_count' : 1,
+                'unexpected_error_count' : 2,
+                'client_count' : 3,
+                'to_all_clients_datarate_byte_per_sec' : 20.2,
+                'from_any_client_datarate_byte_per_sec' : 30.3,
+                'msg_received' : 4,
+                'msg_sent' : 5,
+                'device_session_count' : 6,
+                'to_device_datarate_byte_per_sec' : 40.4,
+                'from_device_datarate_byte_per_sec' : 50.5,
+                'device_request_per_sec' : 60.6
+            }
+            
+        msg = base()
+        stats = parser.parser_server_stats(msg)
+
+        self.assertEqual(stats.uptime,  10.1)
+        self.assertEqual(stats.invalid_request_count,  1)
+        self.assertEqual(stats.unexpected_error_count,  2)
+        self.assertEqual(stats.client_count,  3)
+        self.assertEqual(stats.to_all_clients_datarate_byte_per_sec,  20.2)
+        self.assertEqual(stats.from_any_client_datarate_byte_per_sec,  30.3)
+        self.assertEqual(stats.msg_received,  4)
+        self.assertEqual(stats.msg_sent,  5)
+        self.assertEqual(stats.device_session_count,  6)
+        self.assertEqual(stats.to_device_datarate_byte_per_sec,  40.4)
+        self.assertEqual(stats.from_device_datarate_byte_per_sec,  50.5)
+        self.assertEqual(stats.device_request_per_sec,  60.6)
+
+        all_fields = [
+            'uptime',
+            'invalid_request_count',
+            'unexpected_error_count',
+            'client_count',
+            'to_all_clients_datarate_byte_per_sec',
+            'from_any_client_datarate_byte_per_sec',
+            'msg_received',
+            'msg_sent',
+            'device_session_count',
+            'to_device_datarate_byte_per_sec',
+            'from_device_datarate_byte_per_sec',
+            'device_request_per_sec',
+        ]
+
+        float_field = [
+            'uptime',
+            'to_all_clients_datarate_byte_per_sec',
+            'from_any_client_datarate_byte_per_sec',
+            'to_device_datarate_byte_per_sec',
+            'from_device_datarate_byte_per_sec',
+            'device_request_per_sec'
+        ]
+
+        class Delete:
+            pass
+
+        for field in all_fields:
+            for val in [None, [], {}, "asd", Delete]:
+                msg = base()
+                if val == Delete:
+                    del msg[field]
+                else:
+                    msg[field] = val
+
+                with self.assertRaises(sdk.exceptions.BadResponseError):
+                    parser.parser_server_stats(msg)
+
+        for field in float_field:
+            for val in [1, 1.1]:
+                # Make sure we accept int and converts to float
+                msg = base()
+                msg[field] = val
+
+                stats = parser.parser_server_stats(msg)
+                self.assertEqual(getattr(stats, field), val)
+                self.assertIsInstance(getattr(stats, field), float)
 
 if __name__ == '__main__':
     unittest.main()

@@ -581,6 +581,9 @@
         },
         "scrutiny/gui/tools/global_counters.py": {
             "docstring": "A file that provide some global counter atomic counter for unique ID generation"
+        },
+        "scrutiny/gui/dashboard_components/metrics/metrics_component.py": {
+            "docstring": ""
         }
     }
 }

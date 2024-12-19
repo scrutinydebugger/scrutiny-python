@@ -102,7 +102,7 @@ class QtBufferedListener(BaseListener):
         return self.to_gui_thread_queue.qsize()
 
     @property
-    def get_effective_event_rate(self) -> float:
+    def effective_event_rate(self) -> float:
         """Returned the measured rate at which the ``data_received`` signal is being emitted"""
         return self.qt_event_rate_measurement.get_value()
 
@@ -264,6 +264,8 @@ class ServerManager:
     """Enable some internal instrumentation for unit testing"""
     _watch_unwatch_ui_callback_call_count:int
     """For unit testing. USed for synchronization of threads"""
+    _exit_in_progress:bool
+    """Flag set by the main window informing that the application is exiting. Cancel callbacks"""
 
     def __init__(self, watchable_registry:WatchableRegistry, client:Optional[ScrutinyClient]=None) -> None:
         super().__init__()  # Required for signals to work
@@ -322,6 +324,7 @@ class ServerManager:
 
         self._unit_test = False
         self._watch_unwatch_ui_callback_call_count = 0
+        self._exit_in_progress = False
 
         # Logging logic
         if self._logger.isEnabledFor(DUMPDATA_LOGLEVEL):    # pragma: no cover
@@ -401,7 +404,7 @@ class ServerManager:
         self._thread_stop_event.set()
         self._client.close_socket()   # Will cancel any pending request in the other thread
         self._logger.debug("Stop initiated")
-
+    
     def _thread_func(self, config:ServerConfig) -> None:
         """Thread that monitors state change on the server side"""
         # Is the server thread
@@ -803,8 +806,17 @@ class ServerManager:
     def _client_request_completed(self, store_id:int) -> None:
         # This runs in the UI thread
         entry = self._client_request_store.get(store_id)
-        if entry is not None:
-            entry.ui_callback(entry.threaded_func_return_value, entry.error)
+        if entry is None:
+            self._logger.debug("Client request compelted, but entry not part of the store.")
+            return 
+    
+        if self._exit_in_progress:
+            # Prevents weird behavior on app exit, like accessing deleted resources
+            # The main window is expected to call exit() before exiting.
+            self._logger.debug("Client request completed, but the server manager has been stopped. Ignoring.")
+            return  
+        
+        entry.ui_callback(entry.threaded_func_return_value, entry.error)
         
     def schedule_client_request(self, 
             user_func:Callable[[ScrutinyClient], Any], 
@@ -839,6 +851,15 @@ class ServerManager:
             client=self._client.get_local_stats(),
             watchable_registry=self._registry.get_stats(),
             listener_to_gui_qsize=self._listener.gui_qsize,
-            listener_event_rate=self._listener.get_effective_event_rate,
+            listener_event_rate=self._listener.effective_event_rate,
             status_update_received=self._status_update_received
         )
+    
+    def reset_stats(self) -> None:
+        self._listener.reset_stats()
+        self._client.reset_local_stats()
+        self._status_update_received = 0
+
+    def exit(self)->None:
+        self.stop()
+        self._exit_in_progress = True
