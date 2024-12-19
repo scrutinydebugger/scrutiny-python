@@ -53,10 +53,10 @@ class MetricsComponent(ScrutinyGUIBaseComponent):
             self.server_data_timer.start()
 
     
-    def server_connected_slot(self):
+    def server_connected_slot(self) -> None:
         self.server_data_timer.start()
 
-    def server_disconnected_slot(self):
+    def server_disconnected_slot(self) -> None:
         self.app_stats.clear_server_labels()
         self.server_data_timer.stop()
 

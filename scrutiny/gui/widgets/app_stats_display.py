@@ -168,8 +168,8 @@ class ApplicationStatsDisplay(QWidget):
         self.server_device_datarate_byte_per_sec_label.setText("%s (%0.1f req/s)" % (format_eng_unit(total_datarate*8, 1, "bit/s", binary=False), stats.device_request_per_sec))
 
         if total_datarate == 0:
-            tx_ratio = 0
-            rx_ratio = 0
+            tx_ratio = 0.0
+            rx_ratio = 0.0
         else:
             tx_ratio = round(min(100, max(0, stats.to_device_datarate_byte_per_sec/total_datarate *100)), 1)
             rx_ratio = round(min(100, max(0, stats.from_device_datarate_byte_per_sec/total_datarate *100)), 1)
