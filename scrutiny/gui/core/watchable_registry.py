@@ -410,6 +410,12 @@ class WatchableRegistry:
         self._validate_fqn(parsed, obj)
         return self.add_watchable(parsed.path, obj)
     
+    def get_watchable_fqn(self, fqn:str) -> sdk.WatchableConfiguration:
+        node = self.read_fqn(fqn)
+        if not isinstance(node, sdk.WatchableConfiguration):
+            raise WatchableRegistryNodeNotFoundError(f"No watchable entry for {fqn}")
+        return node
+
     def is_watchable_fqn(self, fqn:str) -> bool:
         """Tells if the item referred to by the Fully Qualified Name exists and is a watchable.
         
@@ -530,7 +536,6 @@ class WatchableRegistry:
             watched_entries_count=self.watched_entries_count(),
             registered_watcher_count=self.registered_watcher_count()
         )
-
 
     @classmethod
     def _validate_fqn(cls, fqn:ParsedFullyQualifiedName, desc:sdk.WatchableConfiguration) -> None:

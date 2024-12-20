@@ -490,6 +490,9 @@ class WatchableTreeWidget(QTreeView):
             self.setSelectionMode(self.SelectionMode.ContiguousSelection)
         elif event.key() == Qt.Key.Key_Escape:
             self.clearSelection()
+        elif event.key() == Qt.Key.Key_F2:
+            self.setCurrentIndex(self.currentIndex().siblingAtColumn(0))
+            return super().keyPressEvent(event)
         else:
             return super().keyPressEvent(event)
     

@@ -545,3 +545,9 @@ class WatchComponentTreeModel(WatchableTreeModel):
         if v == True:
             return True
         return False
+
+    def get_value_item(self, item:WatchableStandardItem) -> ValueStandardItem:
+        # TODO : Can we do better than a hard coded index? What if the column can be reordered (possible with an option)
+        o = self.itemFromIndex(item.index().siblingAtColumn(1))
+        assert isinstance(o, ValueStandardItem)
+        return o

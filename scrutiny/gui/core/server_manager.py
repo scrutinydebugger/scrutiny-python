@@ -28,6 +28,7 @@ from scrutiny.sdk.listeners import BaseListener, ValueUpdate
 from scrutiny.sdk.watchable_handle import WatchableHandle
 from scrutiny.tools.profiling import VariableRateExponentialAverager
 from scrutiny.tools import format_exception
+from scrutiny.core import validation
 
 @dataclass
 class ServerConfig:
@@ -667,7 +668,9 @@ class ServerManager:
             client.unwatch(server_path)
             success = True
         except sdk.exceptions.ScrutinySDKException as e:
-            self._logger.error(f"Failed to unwatch {server_path}. {e}")
+            # Abnormal only if the server is present. otherwise we expect a failure.
+            if client.server_state == sdk.ServerState.Connected:
+                self._logger.error(f"Failed to unwatch {server_path}. {e}")
         
         if not success:
             handle = client.try_get_existing_watch_handle(server_path)
@@ -833,13 +836,24 @@ class ServerManager:
             except Exception as e:
                 error = e
 
+            if self._exit_in_progress:
+                return 
+            
+            # A race condition is possible here when exiting the application
+            # Resources can be deleted between here and the end.
+
             entry = ClientRequestStore.ClientRequestEntry(
                 ui_callback=ui_thread_callback,
                 threaded_func_return_value=return_val,
                 error=error
             )
             assigned_id = self._client_request_store.register(entry)
-            self._internal_signals.client_request_completed.emit(assigned_id)
+            try:
+                self._internal_signals.client_request_completed.emit(assigned_id)
+            except Exception as e:
+                # Expected to fail if QT has deleted internal resources
+                if not self._exit_in_progress:
+                    self._logger.error(f"Failed to emit client_request_completed signal. {e}")
 
         t = threading.Thread(target=threaded_func, daemon=True)
         t.start()
@@ -863,3 +877,21 @@ class ServerManager:
     def exit(self)->None:
         self.stop()
         self._exit_in_progress = True
+
+   
+    def write_watchable_value(self, fqn:str, value:Union[str, int, float, bool], callback:Callable[[Optional[Exception]], None]) -> None:
+        def threaded_func(client:ScrutinyClient) -> None:
+            watchable_config = self.registry.get_watchable_fqn(fqn)
+            handle = client.try_get_existing_watch_handle_by_server_id(watchable_config.server_id)
+            if handle is None:
+                raise Exception(f"Item {fqn} is not being watched. Cannot write its value")
+            
+            if isinstance(value, str):
+                handle.write_value_str(value)  # Defer data parsing to the server
+            else:
+                handle.value = value
+                
+        def ui_callback(_:None, exception:Optional[Exception]) -> None:
+            callback(exception)
+
+        self.schedule_client_request(threaded_func, ui_callback)
