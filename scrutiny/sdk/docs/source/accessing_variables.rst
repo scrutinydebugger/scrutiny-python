@@ -48,10 +48,15 @@ modifies the value that the :class:`WatchableHandle<scrutiny.sdk.watchable_handl
 
 Calling :meth:`watch<scrutiny.sdk.client.ScrutinyClient.watch>` multiple time on the same element will always return the same handle.
 It is possible to query wether a handle already exists for a given element with 
-:meth:`try_get_existing_watch_handle<scrutiny.sdk.client.ScrutinyClient.try_get_existing_watch_handle>`. A handle will exist if a previous call to 
-:meth:`watch<scrutiny.sdk.client.ScrutinyClient.watch>` has been done.
+:meth:`try_get_existing_watch_handle<scrutiny.sdk.client.ScrutinyClient.try_get_existing_watch_handle>` and 
+:meth:`try_get_existing_watch_handle_by_server_id<scrutiny.sdk.client.ScrutinyClient.try_get_existing_watch_handle_by_server_id>`. 
+A handle will exist if a previous call to  :meth:`watch<scrutiny.sdk.client.ScrutinyClient.watch>` has been done.
 
 .. automethod:: scrutiny.sdk.client.ScrutinyClient.try_get_existing_watch_handle
+
+-----
+
+.. automethod:: scrutiny.sdk.client.ScrutinyClient.try_get_existing_watch_handle_by_server_id
 
 -----
 
@@ -59,7 +64,7 @@ It is possible to query wether a handle already exists for a given element with
     :exclude-members: __new__
     :member-order: bysource
     :members: display_path, name, type, datatype, value, value_bool, value_int, value_float, 
-        value_enum, has_enum, get_enum, parse_enum_val, 
+        value_enum, has_enum, get_enum, parse_enum_val, write_value_str,
         last_update_timestamp, last_write_timestamp, update_counter
 
 -----

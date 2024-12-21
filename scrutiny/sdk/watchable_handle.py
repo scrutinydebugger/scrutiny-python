@@ -104,8 +104,10 @@ class WatchableHandle:
 
         return val
 
-    def _write(self, val: Union[ValType, str]) -> WriteRequest:
-        if isinstance(val, str):
+    def _write(self, val: Union[ValType, str], parse_enum:bool) -> WriteRequest:
+        if parse_enum:
+            if not isinstance(val, str):
+                raise ValueError(f"Value is not an enum string")
             val = self.parse_enum_val(val)  # check for enum is done inside this
         write_request = WriteRequest(self, val)
         self._client._process_write_request(write_request)
@@ -237,6 +239,18 @@ class WatchableHandle:
         
         return self._configuration.enum.get_value(val)
 
+    def write_value_str(self, val:str) -> None:
+        """Write a value as a string and let the server parse it to a numerical value.
+        Supports true/false, hexadecimal (with 0x prefix), float, int and possibly more. 
+        
+        :param val: The string value
+        
+        :raise TypeError: Given parameter not of the expected type
+        :raise TimeoutException: If the request times out
+        :raise OperationFailure: If the request fails for any reason, including an unparsable value.
+        """
+        validation.assert_type(val, 'val', str)
+        self._write(val, parse_enum=False)
 
     @property
     def display_path(self) -> str:
@@ -271,12 +285,11 @@ class WatchableHandle:
 
     @property
     def value(self) -> ValType:
-        """The last value received for this watchable. Can be written"""
         return self._read()
 
     @value.setter
     def value(self, val: ValType) -> None:
-        self._write(val)
+        self._write(val, parse_enum=False)
 
     @property
     def value_bool(self) -> bool:
@@ -308,8 +321,7 @@ class WatchableHandle:
 
     @value_enum.setter
     def value_enum(self, val: str) -> None:
-        # This setter only exists because mypy does not handle getter/setter with different signature. See issue #3004
-        self._write(val)
+        self._write(val, parse_enum=True)
 
     @property
     def last_update_timestamp(self) -> Optional[datetime]:

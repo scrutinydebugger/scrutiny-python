@@ -961,9 +961,9 @@ class API:
                     except Exception:
                         value = None
             if value is None or not isinstance(value, (int, float, bool)):
-                raise InvalidRequestException(req, 'Invalid "value" field')
+                raise InvalidRequestException(req, 'Invalid value')
             if not math.isfinite(value):
-                raise InvalidRequestException(req, 'Invalid "value" field')
+                raise InvalidRequestException(req, 'Invalid value')
             update['value'] = value
 
             try:

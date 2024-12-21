@@ -11,22 +11,27 @@ __all__ = [
     'WatchComponent'
 ]
 
-from PySide6.QtCore import QModelIndex, Qt, QModelIndex, Signal, QPoint
-from PySide6.QtWidgets import QVBoxLayout, QWidget, QMenu
+from PySide6.QtCore import QModelIndex, Qt, QModelIndex, Signal, QPoint, QObject, Signal
+from PySide6.QtWidgets import QVBoxLayout, QWidget, QMenu, QAbstractItemDelegate
 from PySide6.QtGui import QContextMenuEvent, QDragMoveEvent, QDropEvent, QDragEnterEvent, QKeyEvent, QStandardItem, QAction
 
 from scrutiny.gui import assets
+from scrutiny.gui.core.server_manager import ValueUpdate
 from scrutiny.gui.core.watchable_registry import WatchableRegistryNodeNotFoundError, WatcherNotFoundError
 from scrutiny.gui.dashboard_components.base_component import ScrutinyGUIBaseComponent
 from scrutiny.gui.dashboard_components.common.watchable_tree import WatchableTreeWidget, WatchableStandardItem, FolderStandardItem, BaseWatchableRegistryTreeStandardItem
 from scrutiny.gui.dashboard_components.watch.watch_tree_model import WatchComponentTreeModel, ValueStandardItem
-
-from scrutiny.gui.core.server_manager import ValueUpdate
+from scrutiny.tools import format_exception
 
 from typing import Dict, Any, Union, cast, Optional, Tuple, Callable, List
 
 class WatchComponentTreeWidget(WatchableTreeWidget):
     NEW_FOLDER_DEFAULT_NAME = "New Folder"
+
+    class _Signals(QObject):
+        value_written = Signal(str, str)    # fqn, value
+
+    signals:_Signals
 
     def __init__(self, parent: QWidget, model:WatchComponentTreeModel) -> None:
         super().__init__(parent, model)
@@ -34,6 +39,7 @@ class WatchComponentTreeWidget(WatchableTreeWidget):
         self.setDropIndicatorShown(True)
         self.setDragDropMode(self.DragDropMode.DragDrop)
         self.set_header_labels(['', 'Value'])
+        self.signals = self._Signals()
 
     def contextMenuEvent(self, event: QContextMenuEvent) -> None:
         context_menu = QMenu(self)
@@ -82,16 +88,25 @@ class WatchComponentTreeWidget(WatchableTreeWidget):
                     if item.parent():
                         parent_index = item.parent().index()
                     model.removeRow(item.row(), parent_index)
+
+        elif event.key() in [Qt.Key.Key_Enter, Qt.Key.Key_Return] and self.state() != self.State.EditingState:
+            selected_index_col0 = [idx for idx in self.selectedIndexes() if idx.column() == 0]
+            if len(selected_index_col0) == 1:
+                model = self.model()
+                item = model.itemFromIndex(selected_index_col0[0])
+                if isinstance(item,WatchableStandardItem):
+                    value_item = model.get_value_item(item)
+                    self.setCurrentIndex(value_item.index())
+                    self.edit(value_item.index())
+                    
         elif event.key() == Qt.Key.Key_N and event.modifiers() == Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.ShiftModifier:
             parent, insert_row = self._find_new_folder_position_from_selection()
             self._new_folder(self.NEW_FOLDER_DEFAULT_NAME, parent, insert_row)
         else:
             super().keyPressEvent(event)
         
-    
-
     def _find_new_folder_position_from_selection(self) -> Tuple[Optional[QStandardItem], int]:
-        # USed by keyboard shortcut
+        # Used by keyboard shortcut
         model = self.model()
         selected_list = [index for index in self.selectedIndexes() if index.column() == 0]
         selected_index = QModelIndex()
@@ -148,7 +163,6 @@ class WatchComponentTreeWidget(WatchableTreeWidget):
         super().dragEnterEvent(event)
         event.accept()
         
-
     def dragMoveEvent(self, event: QDragMoveEvent) -> None:        
         self._set_drag_and_drop_action(event)
         return super().dragMoveEvent(event)
@@ -179,6 +193,24 @@ class WatchComponentTreeWidget(WatchableTreeWidget):
             for i in range(model.rowCount()):
                 recurse(model.item(i, 0), True)
     
+    def closeEditor(self, editor:QWidget, hint:QAbstractItemDelegate.EndEditHint) -> None:
+        """Called when the user finishes editing a value. Press enter or blur foxus"""
+        item_written = self._model.itemFromIndex(self.currentIndex())
+        if isinstance(item_written, ValueStandardItem):
+            watchable_item = self._model.itemFromIndex(item_written.index().siblingAtColumn(0))
+            if isinstance(watchable_item, WatchableStandardItem):   # paranoid check. Should never be false. Folders have no Value column
+                fqn = watchable_item.fqn
+                value = item_written.text()
+                self.signals.value_written.emit(fqn, value)
+
+        # Make arrow navigation easier because elements are nested on columns 0. 
+        # If current index is at another column, we can't go up in the tree witht he keyboard
+        self.setCurrentIndex(self.currentIndex().siblingAtColumn(0))
+        
+        return super().closeEditor(editor, hint)
+
+
+
 class WatchComponent(ScrutinyGUIBaseComponent):
     instance_name : str
 
@@ -206,9 +238,21 @@ class WatchComponent(ScrutinyGUIBaseComponent):
         self._tree_model.rowsInserted.connect(self.row_inserted_slot)
         self._tree_model.rowsAboutToBeRemoved.connect(self.row_about_to_be_removed_slot)
         self._tree_model.rowsMoved.connect(self.row_moved_slot)
+        self._tree.signals.value_written.connect(self._value_written_slot)
     
         self.update_all_watchable_state()
     
+    def teardown(self) -> None:
+        for item in self._tree_model.get_all_watchable_items():
+            self._unwatch_item(item)
+
+    def get_state(self) -> Dict[Any, Any]:
+        raise NotImplementedError()
+
+    def load_state(self, state: Dict[Any, Any]) -> None:
+        raise NotImplementedError()
+
+
     def _get_item(self, parent:QModelIndex, row_index:int) -> Optional[BaseWatchableRegistryTreeStandardItem]:
         """Get the item pointed by the index and the row (column is assumed 0). Handles the no-parent case
         
@@ -227,7 +271,7 @@ class WatchComponent(ScrutinyGUIBaseComponent):
         # This slots is called for every row inserted, even if nested
         item_inserted = self._get_item(parent, row_index)
         if isinstance(item_inserted, WatchableStandardItem):
-            value_item = self._get_value_item(item_inserted)
+            value_item = self._tree_model.get_value_item(item_inserted)
             def callback_closure(watcher_id:Union[str, int], vals:List[ValueUpdate]) -> None:
                 return self.update_val_callback(value_item, watcher_id, vals )
             watcher_id = self._get_watcher_id(item_inserted)
@@ -262,12 +306,6 @@ class WatchComponent(ScrutinyGUIBaseComponent):
     
     def row_moved_slot(self, src_parent:QModelIndex, src_row:int, src_col:int, dest_parent:QModelIndex, dst_row:int) -> None:
         self.update_all_watchable_state(start_node=self._tree_model.itemFromIndex(dest_parent))
-    
-    def _get_value_item(self, item:WatchableStandardItem) -> ValueStandardItem:
-        # TODO : Can we do better than a hard coded index? What if the column can be reordered (possible with an option)
-        o = cast(ValueStandardItem, self._tree_model.itemFromIndex(item.index().siblingAtColumn(1)))
-        assert o is not None
-        return o
 
     def visibilityChanged(self, visible:bool) -> None:
         """Called when the dashboard component is either hidden or showed"""
@@ -312,14 +350,21 @@ class WatchComponent(ScrutinyGUIBaseComponent):
 
     def update_val_callback(self, item:ValueStandardItem, watcher_id:Union[str, int], vals:List[ValueUpdate]) -> None:
         assert len(vals) > 0
-        item.setText(str(vals[-1].value))
+        can_update = True
+        if self._tree.state() == WatchableTreeWidget.State.EditingState:
+            if item.index().siblingAtColumn(0) == self._tree.currentIndex().siblingAtColumn(0):
+                can_update = False  # Don't change the content. The user is writing something
+        
+        if can_update:
+            item.setText(str(vals[-1].value))
 
-    def teardown(self) -> None:
-        for item in self._tree_model.get_all_watchable_items():
-            self._unwatch_item(item)
+    def _value_written_slot(self, fqn:str, value:str) -> None:
+        def ui_callback(exception:Optional[Exception]) -> None:
+            if exception is not None:
+                self.logger.warning(f"Failed to write {fqn}. {exception}")
+                self.logger.debug(format_exception(exception))
 
-    def get_state(self) -> Dict[Any, Any]:
-        raise NotImplementedError()
-
-    def load_state(self, state: Dict[Any, Any]) -> None:
-        raise NotImplementedError()
+        # No need to parse strings. The server auto-converts
+        # Supports : Number as strings. Hexadecimal with 0x prefix, true/false, etc.
+        self.server_manager.write_watchable_value(fqn, value, ui_callback)
+        

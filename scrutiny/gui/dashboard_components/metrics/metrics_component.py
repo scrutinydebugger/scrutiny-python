@@ -86,7 +86,8 @@ class MetricsComponent(ScrutinyGUIBaseComponent):
         self.server_manager.reset_stats()
 
     def teardown(self) -> None:
-        pass
+        self.local_data_timer.stop()
+        self.server_data_timer.stop()
 
     def get_state(self) -> Dict[Any, Any]:
         return {}
