@@ -154,7 +154,7 @@ class WatchableStandardItem(BaseWatchableRegistryTreeStandardItem):
         """Loads from a serializable dict. Used for Drag&Drop"""
         assert data['type'] == cls._NODE_TYPE
         assert data['fqn'] is not None
-        prased = WatchableRegistry.parse_fqn(data['fqn'])
+        prased = WatchableRegistry.FQN.parse(data['fqn'])
         
         return WatchableStandardItem(
             watchable_type=prased.watchable_type,
@@ -371,7 +371,7 @@ class WatchableTreeModel(QStandardItemModel):
                 subtree_path = f'{path}/{name}'
                 folder_fqn:Optional[str] = None
                 if keep_folder_fqn:
-                    folder_fqn = self._watchable_registry.make_fqn(watchable_type, subtree_path)
+                    folder_fqn = WatchableRegistry.FQN.make(watchable_type, subtree_path)
                 row = self.make_folder_row(
                     name=name,
                     fqn=folder_fqn,
@@ -394,7 +394,7 @@ class WatchableTreeModel(QStandardItemModel):
                 row = self.make_watchable_row(
                     name = name, 
                     watchable_type = watchable_config.watchable_type, 
-                    fqn = self._watchable_registry.make_fqn(watchable_type, watchable_path), 
+                    fqn = WatchableRegistry.FQN.make(watchable_type, watchable_path), 
                     editable=editable,
                     extra_columns=self.get_watchable_columns(watchable_config)
                 )

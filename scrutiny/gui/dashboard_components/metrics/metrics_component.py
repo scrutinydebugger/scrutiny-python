@@ -1,5 +1,5 @@
 #    metrics_component.py
-#        A component used to display the internal operating metrics
+#        A dashboard component that shows internal metrics for debugging purpose
 #
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)

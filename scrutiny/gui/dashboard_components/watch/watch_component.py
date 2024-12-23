@@ -44,7 +44,7 @@ class WatchComponentTreeWidget(WatchableTreeWidget):
     def contextMenuEvent(self, event: QContextMenuEvent) -> None:
         context_menu = QMenu(self)
         selected_indexes_no_nested = self.model().remove_nested_indexes(self.selectedIndexes())
-        selected_items_no_nested = [self.model().itemFromIndex(index) for index in selected_indexes_no_nested if index.column()==0]
+        selected_items_no_nested = [self.model().itemFromIndex(index) for index in selected_indexes_no_nested if index.column()==self.model().item_col()]
 
         parent, insert_row = self._find_new_folder_position_from_position(event.pos())
         
@@ -90,10 +90,10 @@ class WatchComponentTreeWidget(WatchableTreeWidget):
                     model.removeRow(item.row(), parent_index)
 
         elif event.key() in [Qt.Key.Key_Enter, Qt.Key.Key_Return] and self.state() != self.State.EditingState:
-            selected_index_col0 = [idx for idx in self.selectedIndexes() if idx.column() == 0]
-            if len(selected_index_col0) == 1:
+            selected_index_item_col = [idx for idx in self.selectedIndexes() if idx.column() == self.model().item_col()]
+            if len(selected_index_item_col) == 1:
                 model = self.model()
-                item = model.itemFromIndex(selected_index_col0[0])
+                item = model.itemFromIndex(selected_index_item_col[0])
                 if isinstance(item,WatchableStandardItem):
                     value_item = model.get_value_item(item)
                     self.setCurrentIndex(value_item.index())
@@ -108,7 +108,7 @@ class WatchComponentTreeWidget(WatchableTreeWidget):
     def _find_new_folder_position_from_selection(self) -> Tuple[Optional[QStandardItem], int]:
         # Used by keyboard shortcut
         model = self.model()
-        selected_list = [index for index in self.selectedIndexes() if index.column() == 0]
+        selected_list = [index for index in self.selectedIndexes() if index.column() == self.model().item_col()]
         selected_index = QModelIndex()
         insert_row = -1
         parent:Optional[QStandardItem] = None
@@ -183,7 +183,7 @@ class WatchComponentTreeWidget(WatchableTreeWidget):
                 callback(item, content_visible)
             elif isinstance(item, FolderStandardItem):
                 for i in range(item.rowCount()):
-                    recurse(item.child(i,0), content_visible and self.isExpanded(item.index()))
+                    recurse(item.child(i,model.item_col()), content_visible and self.isExpanded(item.index()))
             else:
                 raise NotImplementedError(f"Unsupported item type: {item}")
         
@@ -191,13 +191,13 @@ class WatchComponentTreeWidget(WatchableTreeWidget):
             recurse(parent, self.is_visible(parent))
         else:   # Root node. Iter all root items
             for i in range(model.rowCount()):
-                recurse(model.item(i, 0), True)
+                recurse(model.item(i, self.model().item_col()), True)
     
     def closeEditor(self, editor:QWidget, hint:QAbstractItemDelegate.EndEditHint) -> None:
         """Called when the user finishes editing a value. Press enter or blur foxus"""
         item_written = self._model.itemFromIndex(self.currentIndex())
         if isinstance(item_written, ValueStandardItem):
-            watchable_item = self._model.itemFromIndex(item_written.index().siblingAtColumn(0))
+            watchable_item = self._model.itemFromIndex(item_written.index().siblingAtColumn(self.model().item_col()))
             if isinstance(watchable_item, WatchableStandardItem):   # paranoid check. Should never be false. Folders have no Value column
                 fqn = watchable_item.fqn
                 value = item_written.text()
@@ -205,7 +205,7 @@ class WatchComponentTreeWidget(WatchableTreeWidget):
 
         # Make arrow navigation easier because elements are nested on columns 0. 
         # If current index is at another column, we can't go up in the tree witht he keyboard
-        self.setCurrentIndex(self.currentIndex().siblingAtColumn(0))
+        self.setCurrentIndex(self.currentIndex().siblingAtColumn(self.model().item_col()))
         
         return super().closeEditor(editor, hint)
 
@@ -223,7 +223,7 @@ class WatchComponent(ScrutinyGUIBaseComponent):
     expand_if_needed = Signal()
 
     def setup(self) -> None:
-        self._tree_model = WatchComponentTreeModel(self, watchable_registry=self.server_manager.registry)
+        self._tree_model = WatchComponentTreeModel(self, watchable_registry=self.watchable_registry)
         self._tree = WatchComponentTreeWidget(self, self._tree_model)
 
         layout = QVBoxLayout(self)
@@ -262,9 +262,9 @@ class WatchComponent(ScrutinyGUIBaseComponent):
         :return: The item or ``None`` if not available
         """
         if not parent.isValid():
-            return cast(Optional[BaseWatchableRegistryTreeStandardItem], self._tree_model.item(row_index, 0))
+            return cast(Optional[BaseWatchableRegistryTreeStandardItem], self._tree_model.item(row_index, self._tree_model.item_col()))
         
-        return cast(Optional[BaseWatchableRegistryTreeStandardItem], self._tree_model.itemFromIndex(parent).child(row_index, 0))
+        return cast(Optional[BaseWatchableRegistryTreeStandardItem], self._tree_model.itemFromIndex(parent).child(row_index, self._tree_model.item_col()))
 
     
     def row_inserted_slot(self, parent:QModelIndex, row_index:int, col_index:int) -> None:
@@ -275,7 +275,7 @@ class WatchComponent(ScrutinyGUIBaseComponent):
             def callback_closure(watcher_id:Union[str, int], vals:List[ValueUpdate]) -> None:
                 return self.update_val_callback(value_item, watcher_id, vals )
             watcher_id = self._get_watcher_id(item_inserted)
-            self.server_manager.registry.register_watcher(watcher_id, callback_closure, override=True)
+            self.watchable_registry.register_watcher(watcher_id, callback_closure, override=True)
 
             if self._tree.is_visible(item_inserted):
                 self._watch_item(item_inserted)
@@ -287,7 +287,7 @@ class WatchComponent(ScrutinyGUIBaseComponent):
             try:
                 # Unregistering causes an unwatch of all watched items. 
                 # In this component, each watcher has a single watched item
-                self.server_manager.registry.unregister_watcher(watcher_id)
+                self.watchable_registry.unregister_watcher(watcher_id)
             except WatcherNotFoundError:
                 # Should not happen (hopefully)
                 self.logger.error(f"Tried to unregister watcher {watcher_id}, but was not registered")
@@ -318,7 +318,7 @@ class WatchComponent(ScrutinyGUIBaseComponent):
     def _watch_item(self, item:WatchableStandardItem) -> None:
         watcher_id = self._get_watcher_id(item)
         try:
-            self.server_manager.registry.watch_fqn(watcher_id, item.fqn)
+            self.watchable_registry.watch_fqn(watcher_id, item.fqn)
         except WatchableRegistryNodeNotFoundError:
             # we tolerate because a race condition could cause this if the server dies while the GUI is working
             # Should not happen normally
@@ -327,7 +327,7 @@ class WatchComponent(ScrutinyGUIBaseComponent):
     def _unwatch_item(self, item:WatchableStandardItem, quiet:bool=True) -> None:
         watcher_id = self._get_watcher_id(item)
         try:
-            self.server_manager.registry.unwatch_fqn(watcher_id, item.fqn)
+            self.watchable_registry.unwatch_fqn(watcher_id, item.fqn)
         except WatchableRegistryNodeNotFoundError:
             # We tolerate because a race condition could cause this if the server dies while the GUI is working
             # Should not happen normally
@@ -352,7 +352,7 @@ class WatchComponent(ScrutinyGUIBaseComponent):
         assert len(vals) > 0
         can_update = True
         if self._tree.state() == WatchableTreeWidget.State.EditingState:
-            if item.index().siblingAtColumn(0) == self._tree.currentIndex().siblingAtColumn(0):
+            if item.index().siblingAtColumn(self._tree_model.item_col()) == self._tree.currentIndex().siblingAtColumn(self._tree_model.item_col()):
                 can_update = False  # Don't change the content. The user is writing something
         
         if can_update:
@@ -366,5 +366,5 @@ class WatchComponent(ScrutinyGUIBaseComponent):
 
         # No need to parse strings. The server auto-converts
         # Supports : Number as strings. Hexadecimal with 0x prefix, true/false, etc.
-        self.server_manager.write_watchable_value(fqn, value, ui_callback)
+        self.server_manager.qt_write_watchable_value(fqn, value, ui_callback)
         

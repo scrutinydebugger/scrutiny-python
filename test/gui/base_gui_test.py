@@ -11,6 +11,8 @@ from PySide6.QtWidgets import QApplication
 import enum
 import time
 from test import logger
+from scrutiny.gui.core.threads import QT_THREAD_NAME
+from scrutiny.tools.thread_enforcer import ThreadEnforcer
 
 from typing import List, Optional
 
@@ -36,7 +38,8 @@ class ScrutinyBaseGuiTest(ScrutinyUnitTest):
         self.app = QApplication.instance()
         if self.app is None:
             self.app = QApplication([]) # Required to process event because they are emitted in a different thread, therefore the connectiontype is queued
-    
+        ThreadEnforcer.register_thread(QT_THREAD_NAME)
+
     def tearDown(self):
         self.process_events()
        
@@ -85,8 +88,8 @@ class ScrutinyBaseGuiTest(ScrutinyUnitTest):
 
         self.assert_events(events, enforce_order=enforce_order, msg=f"Condition did not happen after {timeout} sec." + msg)
     
-    def wait_events_and_clear(self, events:List[EventType], timeout:float, msg=""):
-        self.wait_events(events, timeout, msg)
+    def wait_events_and_clear(self, events:List[EventType], timeout:float, enforce_order:bool=True, msg=""):
+        self.wait_events(events, timeout, enforce_order=enforce_order, msg=msg)
         self.clear_events(len(events))
     
     def clear_events(self, count:Optional[int]=None):

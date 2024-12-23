@@ -148,10 +148,7 @@ class MainWindow(QMainWindow):
             name = make_name(component_class, instance_number)
         
         try:
-            widget = component_class(self, 
-                                     instance_name=name, 
-                                     server_manager = self._server_manager
-                                     )
+            widget = component_class(self, name, self._watchable_registry, self._server_manager)
         except Exception:
             self._logger.error(f"Failed to create a dashboard component of type {component_class.__name__}")
             self._logger.debug(traceback.format_exc())
@@ -201,6 +198,7 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event: QCloseEvent) -> None:
         self._server_manager.exit()
+        self._watchable_registry.clear()
         self._dock_manager.deleteLater()
         super().closeEvent(event)
         
