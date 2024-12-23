@@ -488,7 +488,6 @@ class TestWatchTreeModel(BaseWatchableTreeTest):
         self.assertFalse(self.model.canDropMimeData(missing_copy_fulltree, Qt.DropAction.CopyAction, -1, 0, QModelIndex()))
         self.assertFalse(self.model.canDropMimeData(missing_move_fulltree, Qt.DropAction.MoveAction, -1, 0, QModelIndex()))
 
-
     def test_drag_mime_single_watchable(self):
         self.model.fill_from_index_recursive(self.var_node, sdk.WatchableType.Variable, '/')
         self.model.fill_from_index_recursive(self.alias_node, sdk.WatchableType.Alias, '/')
@@ -778,6 +777,58 @@ class TestWatchTreeModel(BaseWatchableTreeTest):
         self.assertIs(root_nodes_by_initial_index[0], root_nodes_by_new_index[0])
         self.assertIs(root_nodes_by_initial_index[1], root_nodes_by_new_index[3])
         self.assertIs(root_nodes_by_initial_index[2], root_nodes_by_new_index[4])
+
+    def test_drop_move_full_tree_from_root_to_subfolder(self):
+
+        self.registry.clear()
+        self.registry.write_content({
+            sdk.WatchableType.Variable: {
+                'aaa' : sdk.WatchableConfiguration('aaa', sdk.WatchableType.Variable, sdk.EmbeddedDataType.boolean, None),
+                'bbb' : sdk.WatchableConfiguration('bbb', sdk.WatchableType.Variable, sdk.EmbeddedDataType.boolean, None),
+                'ccc/ddd' : sdk.WatchableConfiguration('ddd', sdk.WatchableType.Variable, sdk.EmbeddedDataType.boolean, None),
+                'eee' : sdk.WatchableConfiguration('eee', sdk.WatchableType.Variable, sdk.EmbeddedDataType.boolean, None),
+                'fff' : sdk.WatchableConfiguration('fff', sdk.WatchableType.Variable, sdk.EmbeddedDataType.boolean, None),
+            }
+        })
+
+        self.model.fill_from_index_recursive(self.var_node, sdk.WatchableType.Variable, '/', keep_folder_fqn=False)
+
+        self.model
+        
+        aaa_node = self.get_node('aaa')
+        bbb_node = self.get_node('bbb')
+        eee_node = self.get_node('eee')
+        fff_node = self.get_node('fff')
+        assert isinstance(aaa_node, WatchableStandardItem)
+        assert isinstance(bbb_node, WatchableStandardItem)
+        assert isinstance(eee_node, WatchableStandardItem)
+        assert isinstance(fff_node, WatchableStandardItem)
+        
+        # First we put everything at the root because fill_index_from_recursive organize by type
+        ccc_folder = self.get_node('ccc')
+        assert isinstance(ccc_folder, FolderStandardItem)
+        item:QStandardItem
+        for item in [aaa_node, bbb_node, ccc_folder, eee_node, fff_node]:
+            self.model.moveRow(item.parent().index(), item.row(), QModelIndex(), -1)
+
+        # We have 2 items before the folder, 2 items after folder.   
+        # Step 1 : Check that we can move 2nodes AFTER the folder into the folder
+        mime_data = self.model.mimeData([eee_node.index(), fff_node.index()])
+        data = ScrutinyDragData.from_mime(mime_data)
+        self.assertIsNotNone(data)
+        self.assertTrue(self.model.canDropMimeData(mime_data, Qt.DropAction.MoveAction, -1, 0, ccc_folder.index()))
+        self.assertTrue(self.model.dropMimeData(mime_data, Qt.DropAction.MoveAction, -1, 0, ccc_folder.index()))
+        self.assertIs(eee_node.parent(), ccc_folder) 
+        self.assertIs(fff_node.parent(), ccc_folder) 
+
+        # Step 2 : Check that we can move 2 nodes BEFORE the folder into the folder
+        mime_data = self.model.mimeData([aaa_node.index(), bbb_node.index()])
+        data = ScrutinyDragData.from_mime(mime_data)
+        self.assertIsNotNone(data)
+        self.assertTrue(self.model.canDropMimeData(mime_data, Qt.DropAction.MoveAction, -1, 0, ccc_folder.index()))
+        self.assertTrue(self.model.dropMimeData(mime_data, Qt.DropAction.MoveAction, -1, 0, ccc_folder.index()))
+        self.assertIs(aaa_node.parent(), ccc_folder) 
+        self.assertIs(bbb_node.parent(), ccc_folder) 
 
 
     def test_drop_copy_from_watch(self):

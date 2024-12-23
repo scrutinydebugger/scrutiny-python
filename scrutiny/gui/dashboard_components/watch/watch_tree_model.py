@@ -369,6 +369,8 @@ class WatchComponentTreeModel(WatchableTreeModel):
         """
 
         try:
+            dest_parent = self.itemFromIndex(dest_parent_index)
+
             items = [self._get_item_from_serializable_index_descriptor(descriptor) for descriptor in data]
             if dest_row_index > 0:
                 if dest_parent_index.isValid():
@@ -387,6 +389,10 @@ class WatchComponentTreeModel(WatchableTreeModel):
                         new_dest_row_index = insert_offset
                     else:
                         new_dest_row_index = previous_item.row() + 1 + insert_offset
+                    
+                    dest_parent_index = QModelIndex()
+                    if dest_parent is not None:
+                        dest_parent_index = dest_parent.index() # Recompute each time because position can change in the loop
                     self.moveRow(
                         source_parent_index,
                         item.row(),
