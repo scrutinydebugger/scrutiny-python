@@ -369,7 +369,7 @@ class ServerManager:
 
                 server_state = self._client.server_state
                 if server_state == sdk.ServerState.Error:
-                    self.stop()      # Race conditon?
+                    self.stop()      # Race conditon?   We have bigger problems than that if we reach here.
                     break
                 self._thread_process_client_events()
                 self._thread_handle_download_watchable_logic()
@@ -873,7 +873,8 @@ class ServerManager:
     
     def stop(self) -> None:
         """Stops the server manager. Will disconnect it from the server and clear all internal data"""
-        # Called from the QT thread + Server thread
+        # Called from the QT thread + Server thread in case of error.
+        # Should we bother about a race condition here? Probably not.. 
         self._logger.debug("ServerManager.stop() called")
         if self._stop_pending:
             self._logger.debug("Stop already pending. Cannot stop")

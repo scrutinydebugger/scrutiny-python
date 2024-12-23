@@ -40,9 +40,9 @@ DUMMY_DATASET_VAR = {
 
 TreeItem = Union[FolderStandardItem, WatchableStandardItem]
 
-var_fqn = lambda x: WatchableRegistry.make_fqn(sdk.WatchableType.Variable, x)
-alias_fqn = lambda x: WatchableRegistry.make_fqn(sdk.WatchableType.Alias, x)
-rpv_fqn = lambda x: WatchableRegistry.make_fqn(sdk.WatchableType.RuntimePublishedValue, x)
+var_fqn = lambda x: WatchableRegistry.FQN.make(sdk.WatchableType.Variable, x)
+alias_fqn = lambda x: WatchableRegistry.FQN.make(sdk.WatchableType.Alias, x)
+rpv_fqn = lambda x: WatchableRegistry.FQN.make(sdk.WatchableType.RuntimePublishedValue, x)
 
 
 class BaseWatchableTreeTest(ScrutinyBaseGuiTest):
@@ -59,7 +59,7 @@ class BaseWatchableTreeTest(ScrutinyBaseGuiTest):
         self.registry = WatchableRegistry()
         self.model = self.MODEL_CLASS(parent=None, watchable_registry=self.registry)
         assert isinstance(self.model, WatchableTreeModel)   # base class
-        self.registry.add_content({
+        self.registry.write_content({
             sdk.WatchableType.Alias : DUMMY_DATASET_ALIAS,
             sdk.WatchableType.RuntimePublishedValue : DUMMY_DATASET_RPV,
             sdk.WatchableType.Variable : DUMMY_DATASET_VAR,
@@ -67,9 +67,9 @@ class BaseWatchableTreeTest(ScrutinyBaseGuiTest):
 
     
     def load_root_nodes(self):
-        var_row = self.model.make_folder_row('Var', self.registry.make_fqn(sdk.WatchableType.Variable, '/'), editable=True)
-        alias_row = self.model.make_folder_row('Alias', self.registry.make_fqn(sdk.WatchableType.Alias, '/'), editable=True)
-        rpv_row = self.model.make_folder_row('RPV', self.registry.make_fqn(sdk.WatchableType.RuntimePublishedValue, '/'), editable=True)
+        var_row = self.model.make_folder_row('Var', WatchableRegistry.FQN.make(sdk.WatchableType.Variable, '/'), editable=True)
+        alias_row = self.model.make_folder_row('Alias', WatchableRegistry.FQN.make(sdk.WatchableType.Alias, '/'), editable=True)
+        rpv_row = self.model.make_folder_row('RPV', WatchableRegistry.FQN.make(sdk.WatchableType.RuntimePublishedValue, '/'), editable=True)
 
         self.model.appendRow(var_row)
         self.model.appendRow(alias_row)
@@ -102,7 +102,7 @@ class TestWatchableTree(BaseWatchableTreeTest):
     MODEL_CLASS = WatchableTreeModel
     
     def test_fill_from_registry(self):
-        var_row = self.model.make_folder_row('Var', self.registry.make_fqn(sdk.WatchableType.Variable, '/'), editable=True)
+        var_row = self.model.make_folder_row('Var', WatchableRegistry.FQN.make(sdk.WatchableType.Variable, '/'), editable=True)
         root_node = var_row[0]
         self.model.appendRow(var_row)
         self.model.fill_from_index_recursive(root_node, sdk.WatchableType.Variable, '/')
@@ -901,15 +901,15 @@ class TestVarlistToWatchDrop(ScrutinyBaseGuiTest):
         self.registry = WatchableRegistry()
         self.varlist_model = VarListComponentTreeModel(parent=None, watchable_registry=self.registry)
         self.watch_model = WatchComponentTreeModel(parent=None, watchable_registry=self.registry)
-        self.registry.add_content({
+        self.registry.write_content({
             sdk.WatchableType.Alias : DUMMY_DATASET_ALIAS,
             sdk.WatchableType.RuntimePublishedValue : DUMMY_DATASET_RPV,
             sdk.WatchableType.Variable : DUMMY_DATASET_VAR,
         })
 
-        var_row = self.varlist_model.make_folder_row('Var', self.registry.make_fqn(sdk.WatchableType.Variable, '/'), editable=True)
-        alias_row = self.varlist_model.make_folder_row('Alias', self.registry.make_fqn(sdk.WatchableType.Alias, '/'), editable=True)
-        rpv_row = self.varlist_model.make_folder_row('RPV', self.registry.make_fqn(sdk.WatchableType.RuntimePublishedValue, '/'), editable=True)
+        var_row = self.varlist_model.make_folder_row('Var', WatchableRegistry.FQN.make(sdk.WatchableType.Variable, '/'), editable=True)
+        alias_row = self.varlist_model.make_folder_row('Alias', WatchableRegistry.FQN.make(sdk.WatchableType.Alias, '/'), editable=True)
+        rpv_row = self.varlist_model.make_folder_row('RPV', WatchableRegistry.FQN.make(sdk.WatchableType.RuntimePublishedValue, '/'), editable=True)
 
         self.varlist_model.appendRow(var_row)
         self.varlist_model.appendRow(alias_row)
