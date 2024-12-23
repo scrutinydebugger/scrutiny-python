@@ -18,6 +18,7 @@ from scrutiny.gui.core.threads import QT_THREAD_NAME
 from test import ScrutinyUnitTest
 from datetime import datetime
 from typing import Optional
+from typing import List, Tuple
 
 DUMMY_DATASET_RPV = {
     '/rpv/rpv1000' : sdk.WatchableConfiguration(server_id='rpv_111', watchable_type=sdk.WatchableType.RuntimePublishedValue, datatype=sdk.EmbeddedDataType.float32, enum=None),
@@ -639,6 +640,86 @@ class TestWatchableRegistry(ScrutinyUnitTest):
         self.assertEqual(stats.registered_watcher_count, 2)
         self.assertEqual(stats.watched_entries_count, 3)
 
+    
+    def test_unregister_on_clear(self):
+        self.registry.write_content(All_DUMMY_DATA)
+
+        self.registry.register_watcher('watcher1', lambda *x,**y:None)
+        self.registry.register_watcher('watcher2', lambda *x,**y:None)
+
+        watch_callback_list:List[Tuple[str, str]] = []
+        unwatch_callback_list:List[Tuple[str, str]] = []
+
+        def watch_callback(watcher_id:str, server_path:str, watchable_config:sdk.WatchableConfiguration):
+            watch_callback_list.append((watcher_id, server_path))
+        
+        def unwatch_callback(watcher_id:str, server_path:str, watchable_config:sdk.WatchableConfiguration):
+            unwatch_callback_list.append((watcher_id, server_path))
+
+        self.registry.register_global_watch_callback(watch_callback, unwatch_callback)
+
+        var1fqn = f'var:/var/xxx/var1'
+        var2fqn = f'var:/var/xxx/var2'
+        alias1fqn = f'alias:/alias/xxx/alias1'
+        alias2fqn = f'alias:/alias/alias2'
+        self.registry.watch_fqn('watcher1', var1fqn)
+        self.registry.watch_fqn('watcher1', alias2fqn)
+        self.registry.watch_fqn('watcher2', var1fqn)
+        self.registry.watch_fqn('watcher2', var2fqn)
+        self.registry.watch_fqn('watcher2', alias1fqn)
+
+        self.assertEqual(self.registry.watched_entries_count(), 4)
+        def fqn_to_args(fqn):
+            parsed = WatchableRegistry.FQN.parse(fqn)
+            return (parsed.watchable_type, parsed.path)
+        
+        self.assertEqual(self.registry.node_watcher_count(*fqn_to_args(var1fqn)), 2)
+        self.assertEqual(self.registry.node_watcher_count(*fqn_to_args(var2fqn)), 1)
+        self.assertEqual(self.registry.node_watcher_count(*fqn_to_args(alias1fqn)), 1)
+        self.assertEqual(self.registry.node_watcher_count(*fqn_to_args(alias2fqn)), 1)
+
+        self.assertEqual(len(watch_callback_list), 5)
+        self.assertCountEqual(watch_callback_list, [
+            ('watcher1', WatchableRegistry.FQN.parse(var1fqn).path),
+            ('watcher1', WatchableRegistry.FQN.parse(alias2fqn).path),
+            ('watcher2', WatchableRegistry.FQN.parse(var1fqn).path),
+            ('watcher2', WatchableRegistry.FQN.parse(var2fqn).path),
+            ('watcher2', WatchableRegistry.FQN.parse(alias1fqn).path)
+        ])
+
+        self.assertEqual(len(unwatch_callback_list), 0)
+        watch_callback_list.clear()
+
+        self.registry.clear_content_by_type(sdk.WatchableType.Alias)
+        self.assertCountEqual(unwatch_callback_list, [
+            ('watcher1', WatchableRegistry.FQN.parse(alias2fqn).path),
+            ('watcher2', WatchableRegistry.FQN.parse(alias1fqn).path)
+        ])
+        unwatch_callback_list.clear()
+
+        self.assertEqual(self.registry.node_watcher_count(*fqn_to_args(var1fqn)), 2)
+        self.assertEqual(self.registry.node_watcher_count(*fqn_to_args(var2fqn)), 1)
+        with self.assertRaises(WatchableRegistryNodeNotFoundError):
+            self.registry.node_watcher_count(*fqn_to_args(alias1fqn))
+        with self.assertRaises(WatchableRegistryNodeNotFoundError):
+            self.registry.node_watcher_count(*fqn_to_args(alias2fqn))
+
+        self.registry.clear_content_by_type(sdk.WatchableType.Variable)
+        self.assertCountEqual(unwatch_callback_list, [
+            ('watcher1', WatchableRegistry.FQN.parse(var1fqn).path),
+            ('watcher2', WatchableRegistry.FQN.parse(var1fqn).path),
+            ('watcher2', WatchableRegistry.FQN.parse(var2fqn).path)
+            ])
+        unwatch_callback_list.clear()
+
+        with self.assertRaises(WatchableRegistryNodeNotFoundError):
+            self.assertEqual(self.registry.node_watcher_count(*fqn_to_args(var1fqn)), 0)
+        with self.assertRaises(WatchableRegistryNodeNotFoundError):
+            self.assertEqual(self.registry.node_watcher_count(*fqn_to_args(var2fqn)), 0)
+        with self.assertRaises(WatchableRegistryNodeNotFoundError):
+            self.assertEqual(self.registry.node_watcher_count(*fqn_to_args(alias1fqn)), 0)
+        with self.assertRaises(WatchableRegistryNodeNotFoundError):
+            self.assertEqual(self.registry.node_watcher_count(*fqn_to_args(alias2fqn)), 0)
 
     def tearDown(self):
         super().tearDown()

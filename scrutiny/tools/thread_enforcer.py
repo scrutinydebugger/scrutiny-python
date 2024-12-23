@@ -52,7 +52,7 @@ class ThreadEnforcer:
         
         thread_name_set = cls._thread_to_name_map[thread_id]
         if name not in thread_name_set:
-            raise ThreadValidationError(f"Not running from thread {name}. Actual thread ID ({thread_id} is associated with these names : {thread_name_set})")
+            raise ThreadValidationError(f"Not running from thread {name}. Actual thread ID ({thread_id}) is associated with these names : {thread_name_set})")
 
 T = TypeVar('T')
 

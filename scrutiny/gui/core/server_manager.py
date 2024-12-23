@@ -29,7 +29,6 @@ from scrutiny.sdk.listeners import BaseListener, ValueUpdate
 from scrutiny.sdk.watchable_handle import WatchableHandle
 from scrutiny.tools.profiling import VariableRateExponentialAverager
 from scrutiny.tools import format_exception
-from scrutiny.core import validation
 from scrutiny.gui.core.threads import QT_THREAD_NAME, SERVER_MANAGER_THREAD_NAME
 from scrutiny.gui.tools.invoker import InvokeInQtThreadSynchronized
 
@@ -433,11 +432,15 @@ class ServerManager:
             
             self._logger.log(DUMPDATA_LOGLEVEL, f"+Event: {event}")
             if isinstance(event, ScrutinyClient.Events.ConnectedEvent):
-                InvokeInQtThreadSynchronized(self._registry.clear, timeout=2)
+                changed = InvokeInQtThreadSynchronized(self._registry.clear, timeout=2)
                 self._signals.server_connected.emit()
+                if changed:
+                    self.signals.registry_changed.emit()
                 self._allow_auto_reconnect = False    # Ensure we do not try to reconnect until the disconnect event is processed
             elif isinstance(event, ScrutinyClient.Events.DisconnectedEvent):
-                InvokeInQtThreadSynchronized(self._registry.clear, timeout=2)
+                changed = InvokeInQtThreadSynchronized(self._registry.clear, timeout=2)
+                if changed:
+                    self.signals.registry_changed.emit()
                 self._signals.server_disconnected.emit()
                 self._allow_auto_reconnect = True # Full cycle completed. We allow reconnecting
             elif isinstance(event, ScrutinyClient.Events.DeviceReadyEvent):
@@ -540,6 +543,8 @@ class ServerManager:
         if self._logger.isEnabledFor(logging.DEBUG):    # pragma: no cover
             self._logger.debug("Clearing registry for types: %s" % ([x.name for x in type_list]))
         InvokeInQtThreadSynchronized(clear_func, timeout=2)
+        if self._logger.isEnabledFor(logging.DEBUG):    # pragma: no cover
+            self._logger.debug("Cleared registry for types: %s" % ([x.name for x in type_list]))
         if ctx.had_data:
             self._signals.registry_changed.emit()
 
@@ -579,12 +584,14 @@ class ServerManager:
                 pending_action=self.WatchablePendingAction.NONE
             )
         registration_status = self._registration_status_store[watchable_type][server_path]
+        self._logger.debug("_qt_maybe_request_watch")
+        self._logger.debug(str(registration_status))
         
         if registration_status.active_state in [self.WatchableRegistrationState.SUBSCRIBED, self.WatchableRegistrationState.SUBSCRIBING]:
             # Nothing to do. Ensure we do nothing
             registration_status.pending_action = self.WatchablePendingAction.NONE
         elif registration_status.active_state == self.WatchableRegistrationState.UNSUBSCRIBING:
-            # enqueue. Existing thread will pick this up
+            # enqueue. Next callback will pick this up
             registration_status.pending_action = self.WatchablePendingAction.SUBSCRIBE
         elif registration_status.active_state == self.WatchableRegistrationState.UNSUBSCRIBED:
             # Proceed with subscription
@@ -622,12 +629,14 @@ class ServerManager:
                 pending_action=self.WatchablePendingAction.NONE
             )
         registration_status = self._registration_status_store[watchable_type][server_path]
+        self._logger.debug("_qt_maybe_request_unwatch")
+        self._logger.debug(str(registration_status))
         
         if registration_status.active_state in [self.WatchableRegistrationState.UNSUBSCRIBED, self.WatchableRegistrationState.UNSUBSCRIBING]:
             # Nothing to do. Ensure we do nothing
             registration_status.pending_action = self.WatchablePendingAction.NONE
         elif registration_status.active_state == self.WatchableRegistrationState.SUBSCRIBING:
-            # enqueue. Existing thread will pick this up
+            # enqueue. Next callback will pick this up
             registration_status.pending_action = self.WatchablePendingAction.UNSUBSCRIBE
         elif registration_status.active_state == self.WatchableRegistrationState.SUBSCRIBED:
             # Proceed with unsubscription
@@ -717,6 +726,7 @@ class ServerManager:
         new_state = self.WatchableRegistrationState.SUBSCRIBED
         handle:Optional[WatchableHandle] = None
         try:
+            self._logger.debug(f"Requesting watch of {server_path}")
             handle = client.watch(server_path)
         except sdk.exceptions.ScrutinySDKException as e:
             self._logger.error(f"Failed to watch {server_path}. {e}")
@@ -726,18 +736,19 @@ class ServerManager:
 
     def _anonymous_thread_process_unwatch_request(self, server_path:str, client:ScrutinyClient) -> WatchableRegistrationState:
         new_state = self.WatchableRegistrationState.UNSUBSCRIBED
-        success = False
+        error:Optional[Exception] = None
         try:
+            self._logger.debug(f"Requesting unwatch of {server_path}")
             client.unwatch(server_path)
-            success = True
         except sdk.exceptions.ScrutinySDKException as e:
-            # Abnormal only if the server is present. otherwise we expect a failure.
-            if client.server_state == sdk.ServerState.Connected:
-                self._logger.error(f"Failed to unwatch {server_path}. {e}")
+            error = e
         
-        if not success:
+        if error is not None:
             handle = client.try_get_existing_watch_handle(server_path)
             if handle is not None and not handle._is_dead():
+                self._logger.error(f"Failed to unwatch {server_path}")
+                if self._logger.isEnabledFor(logging.DEBUG): #pragma: no cover
+                    self._logger.debug(format_exception(error))
                 new_state = self.WatchableRegistrationState.SUBSCRIBED
 
         return new_state

@@ -11,10 +11,11 @@ __all__ = [
     'InvokeInQtThreadSynchronized'
 ]
 
-from typing import Callable, Any, Optional
+from typing import Callable, Any, Optional, TypeVar
 from PySide6.QtCore import QObject, Signal
 from PySide6.QtWidgets import QApplication
 import threading
+from typing import cast
 
 class InvokeInQtThread(QObject):
 
@@ -39,10 +40,10 @@ class InvokeInQtThread(QObject):
         self.method()
         self.setParent(None)
         
-
-def InvokeInQtThreadSynchronized(method: Callable[[], Any], timeout:Optional[int]=None) -> Any:
+T = TypeVar('T')
+def InvokeInQtThreadSynchronized(method: Callable[[], T], timeout:Optional[int]=None) -> T:
     class CallbackReturn:
-        return_val:Any = None
+        return_val:Optional[T] = None
         exception:Optional[Exception] = None
         finished:threading.Event
 
@@ -68,5 +69,5 @@ def InvokeInQtThreadSynchronized(method: Callable[[], Any], timeout:Optional[int
     
     if sync_var.exception is not None:
         raise sync_var.exception
-
-    return sync_var.return_val
+    
+    return cast(T, sync_var.return_val)

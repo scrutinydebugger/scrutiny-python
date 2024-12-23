@@ -442,29 +442,37 @@ class WatchableRegistry:
         """
         if isinstance(watchable_types, sdk.WatchableType):
             watchable_types = [watchable_types]
-        
+        self._logger.debug(f"Clearing content for types {watchable_types}")
         changed = False
         for watchable_type in watchable_types:
             had_data = len(self._trees[watchable_type]) > 0
-            self._trees[watchable_type] = {}
-            self._watchable_count[watchable_type]=0
+
+            to_unwatch:List[WatchableRegistryEntryNode] = []
+            for entry in self._watched_entries.values():
+                if entry.configuration.watchable_type == watchable_type:
+                    to_unwatch.append(entry)
+            
+            to_unwatch_per_watcher:Dict[WatcherIdType, List[WatchableRegistryEntryNode]] = {}
+            for entry in to_unwatch:
+                for watcher in self._watchers.values():
+                    if entry.configuration.server_id in watcher.subscribed_server_id:
+                        if watcher.watcher_id not in to_unwatch_per_watcher:
+                            to_unwatch_per_watcher[watcher.watcher_id] = []
+                        to_unwatch_per_watcher[watcher.watcher_id].append(entry)
+
+            for watcher_id, node_list in to_unwatch_per_watcher.items():
+                self._unwatch_node_list(node_list, self._watchers[watcher_id])
+            
+            for entry in to_unwatch:
+                if entry.configuration.server_id in self._watched_entries:
+                    self._logger.warning(f"Incoherence in Watchable Registry. Entry {entry.server_path} is still watched, but has no watcher")
+                    del self._watched_entries[entry.configuration.server_id]
 
             if had_data:
                 changed = True
                 self._tree_change_counters[watchable_type] += 1
-
-            to_remove:Set[str] = set()
-            for server_id, entry in self._watched_entries.items():
-                if entry.configuration.watchable_type == watchable_type:
-                    to_remove.add(server_id)
-            
-            for server_id in to_remove:
-                del self._watched_entries[server_id]
-                for watchers in self._watchers.values():
-                    try:
-                        watchers.subscribed_server_id.remove(server_id) # Force unwatch
-                    except KeyError:
-                        pass
+            self._trees[watchable_type] = {}
+            self._watchable_count[watchable_type]=0
 
         return changed
 

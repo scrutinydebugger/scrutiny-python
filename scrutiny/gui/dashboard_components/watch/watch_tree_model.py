@@ -193,8 +193,9 @@ class WatchComponentTreeModel(WatchableTreeModel):
             'children' : []
         }
 
+        item_col = self.item_col()
         for row_index in range(top_level_item.rowCount()):
-            child = cast(BaseWatchableRegistryTreeStandardItem, top_level_item.child(row_index, self.item_col()))
+            child = cast(BaseWatchableRegistryTreeStandardItem, top_level_item.child(row_index, item_col))
             dict_out['children'].append(self._make_serializable_tree_descriptor(child, sortkey=row_index))
 
         return dict_out
@@ -209,11 +210,12 @@ class WatchComponentTreeModel(WatchableTreeModel):
             return None
         if len(path) == 0 or object_id == 0:
             return None
-        item = cast(BaseWatchableRegistryTreeStandardItem, self.item(path[0], self.item_col()))
+        item_col = self.item_col()
+        item = cast(BaseWatchableRegistryTreeStandardItem, self.item(path[0], item_col))
         if item is None:
             return None
         for row_index in path[1:]:
-            item = cast(BaseWatchableRegistryTreeStandardItem, item.child(row_index, self.item_col()))
+            item = cast(BaseWatchableRegistryTreeStandardItem, item.child(row_index, item_col))
             if item is None:
                 return None
         if id(item) != object_id:
@@ -223,9 +225,10 @@ class WatchComponentTreeModel(WatchableTreeModel):
     def mimeData(self, indexes: Sequence[QModelIndex]) -> QMimeData:
         """Generate the mimeData when a drag&drop starts"""
         
+        item_col = self.item_col()
         def get_items(indexes:Iterable[QModelIndex]) -> Generator[BaseWatchableRegistryTreeStandardItem, None, None]:
             for index in indexes:
-                if index.column() == self.item_col():
+                if index.column() == item_col:
                     item = self.itemFromIndex(index)
                     assert item is not None
                     yield item
@@ -370,13 +373,14 @@ class WatchComponentTreeModel(WatchableTreeModel):
 
         try:
             dest_parent = self.itemFromIndex(dest_parent_index)
+            item_col = self.item_col()
 
             items = [self._get_item_from_serializable_index_descriptor(descriptor) for descriptor in data]
             if dest_row_index > 0:
                 if dest_parent_index.isValid():
-                    previous_item = self.itemFromIndex(dest_parent_index).child(dest_row_index-1, self.item_col())
+                    previous_item = self.itemFromIndex(dest_parent_index).child(dest_row_index-1, item_col)
                 else:
-                    previous_item = self.item(dest_row_index-1, self.item_col())
+                    previous_item = self.item(dest_row_index-1, item_col)
             insert_offset = 0        
             for item in items:
                 if item is not None:
@@ -504,8 +508,9 @@ class WatchComponentTreeModel(WatchableTreeModel):
                     raise NotImplementedError(f"Unsupported item type: {child}")
         
         if parent is None:
+            item_col = self.item_col()
             for i in range(self.rowCount()):
-                child = self.item(i, self.item_col())
+                child = self.item(i, item_col)
                 if isinstance(child, FolderStandardItem):
                     yield from recurse(child)
                 elif isinstance(child, WatchableStandardItem):
