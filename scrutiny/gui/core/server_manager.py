@@ -514,7 +514,7 @@ class ServerManager:
         """To be called once when a SFD is unloaded"""
         self._logger.debug("Detected SFD unloaded")
         req = self._thread_state.sfd_watchables_download_request    # Get the ref atomically
-        if req is not None:
+        if req is not None and not req.completed:
             req.cancel()
         self._thread_state.sfd_watchables_download_request = None
         self._thread_clear_registry_synchronized([sdk.WatchableType.Alias, sdk.WatchableType.Variable])
@@ -524,7 +524,7 @@ class ServerManager:
         """To be called once when a device disconnect"""
         self._logger.debug("Detected device disconnected")
         req = self._thread_state.runtime_watchables_download_request    # Get the ref atomically
-        if req is not None:
+        if req is not None and not req.completed:
             req.cancel()
         self._thread_state.runtime_watchables_download_request = None
         self._thread_clear_registry_synchronized([sdk.WatchableType.RuntimePublishedValue])

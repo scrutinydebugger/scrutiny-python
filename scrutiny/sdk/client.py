@@ -200,6 +200,7 @@ class WatchableListDownloadRequest(PendingRequest):
          Subsequent server response will be ignored and this request will be marked as completed, but failed.
         
         :raise TimeoutException: If the client fails to cancel the request. Should never happen
+        :raise OperationFailure: If called on a completed request
         """
         self._client._cancel_download_watchable_list_request(self._request_id)
         try:
