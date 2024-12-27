@@ -29,6 +29,7 @@ import logging
 from scrutiny.tools.thread_enforcer import enforce_thread
 from scrutiny.gui import QT_THREAD_NAME
 from scrutiny import tools
+from scrutiny.core import validation
 
 WatcherIdType = Union[str, int]
 
@@ -214,17 +215,19 @@ class WatchableRegistry:
                          value_update_callback:WatcherValueUpdateCallback,
                          unwatch_callback:UnwatchCallback,
                          ignore_duplicate:bool=False) -> None:
-        
+        # Create the Watcher first to validate the args
+        watcher =  Watcher(  
+            watcher_id=watcher_id, 
+            value_update_callback=value_update_callback, 
+            unwatch_callback=unwatch_callback
+            )   
+
         if watcher_id in self._watchers:
             if ignore_duplicate:
                 return
             raise WatchableRegistryError(f"Duplicate watcher with ID {watcher_id}")
         
-        self._watchers[watcher_id] = Watcher(  # Validation happens here
-            watcher_id=watcher_id, 
-            value_update_callback=value_update_callback, 
-            unwatch_callback=unwatch_callback
-            )   
+        self._watchers[watcher_id] = watcher
             
     @enforce_thread(QT_THREAD_NAME)
     def unregister_watcher(self, watcher_id:WatcherIdType ) -> None:
@@ -296,10 +299,11 @@ class WatchableRegistry:
         removed_list:List[WatchableRegistryEntryNode] = []
         for node in nodes:
             if node.configuration.server_id in watcher.subscribed_server_id:
+                fqn = WatchableRegistry.FQN.make(node.configuration.watchable_type, node.server_path)
                 try:
-                    watcher.unwatch_callback(watcher.watcher_id, node.server_path, node.configuration)
+                    watcher.unwatch_callback(watcher.watcher_id, fqn, node.configuration)
                 except Exception as e:
-                    msg = f"Error in unwatch_callback callback for watcher ID {watcher.watcher_id} while unwatching {node.server_path}"
+                    msg = f"Error in unwatch_callback callback for watcher ID {watcher.watcher_id} while unwatching {fqn}"
                     tools.log_exception(self._logger, e, msg)
 
                 watcher.subscribed_server_id.remove(node.configuration.server_id)

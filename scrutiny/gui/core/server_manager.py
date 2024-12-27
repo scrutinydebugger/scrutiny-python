@@ -21,7 +21,7 @@ from scrutiny.tools.thread_enforcer import thread_func, enforce_thread
 from scrutiny import tools
 
 from PySide6.QtCore import Signal, QObject
-from typing import Optional, Dict, Any, Callable, List, Union, Tuple
+from typing import Optional, Dict, Any, Callable, List, Union, cast
 
 from scrutiny.core.logging import DUMPDATA_LOGLEVEL
 from scrutiny.gui.core.watchable_registry import WatchableRegistry
@@ -162,9 +162,12 @@ class ServerManager:
 
     class WatchableRegistrationState(enum.Enum):
         SUBSCRIBING = enum.auto()
-        SUBSCRIBED=enum.auto()
+        SUBSCRIBED = enum.auto()
         UNSUBSCRIBING = enum.auto()
-        UNSUBSCRIBED=enum.auto()
+        UNSUBSCRIBED = enum.auto()
+
+        def is_transition_state(self) -> bool:
+            return self in cast(List[ServerManager.WatchableRegistrationState], [self.SUBSCRIBING, self.UNSUBSCRIBING])
     
     class WatchableRegistrationAction(enum.Enum):
         NONE = enum.auto()
@@ -607,9 +610,10 @@ class ServerManager:
         registration_status = self._registration_status_store[watchable_type][server_path]
 
         # Update state based on SDK client
-        client_handle = self._client.try_get_existing_watch_handle(server_path)
-        self._qt_update_registration_from_watchable_handle(registration_status, client_handle)
-        
+        if not registration_status.active_state.is_transition_state(): 
+            client_handle = self._client.try_get_existing_watch_handle(server_path)
+            self._qt_update_registration_from_watchable_handle(registration_status, client_handle)
+
         # Decide what to do based on active state and pending action
         if registration_status.active_state in [self.WatchableRegistrationState.SUBSCRIBED, self.WatchableRegistrationState.SUBSCRIBING]:
             # Nothing to do. Ensure we do nothing
@@ -655,8 +659,9 @@ class ServerManager:
         registration_status = self._registration_status_store[watchable_type][server_path]
 
         # Update state based on SDK client
-        client_handle = self._client.try_get_existing_watch_handle(server_path)
-        self._qt_update_registration_from_watchable_handle(registration_status, client_handle)
+        if not registration_status.active_state.is_transition_state(): # Handle is subscribed or unsubscribed. no intermediate state
+            client_handle = self._client.try_get_existing_watch_handle(server_path)
+            self._qt_update_registration_from_watchable_handle(registration_status, client_handle)
         
         if registration_status.active_state in [self.WatchableRegistrationState.UNSUBSCRIBED, self.WatchableRegistrationState.UNSUBSCRIBING]:
             # Nothing to do. Ensure we do nothing

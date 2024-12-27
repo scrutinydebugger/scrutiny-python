@@ -549,9 +549,9 @@ class TestServerManagerRegistryInteraction(ScrutinyBaseGuiTest):
         watcher1 = 'watcher1'
         watcher2 = 'watcher2'
         watcher3 = 'watcher3'
-        self.registry.register_watcher(watcher1, lambda *x,**y:None)
-        self.registry.register_watcher(watcher2, lambda *x,**y:None)
-        self.registry.register_watcher(watcher3, lambda *x,**y:None)
+        self.registry.register_watcher(watcher1, lambda *x,**y:None, lambda *x,**y:None)
+        self.registry.register_watcher(watcher2, lambda *x,**y:None, lambda *x,**y:None)
+        self.registry.register_watcher(watcher3, lambda *x,**y:None, lambda *x,**y:None)
 
         ui_callback_count = self.server_manager._qt_watch_unwatch_ui_callback_call_count
 
@@ -595,7 +595,6 @@ class TestServerManagerRegistryInteraction(ScrutinyBaseGuiTest):
 
 
     def test_no_stacking_with_multiple_watchers(self):
-
         self.registry._add_watchable('a/b/c', sdk.WatchableConfiguration(
             datatype=sdk.EmbeddedDataType.float32,
             enum=None,
@@ -606,9 +605,9 @@ class TestServerManagerRegistryInteraction(ScrutinyBaseGuiTest):
         watcher1 = 'watcher1'
         watcher2 = 'watcher2'
         watcher3 = 'watcher3'
-        self.registry.register_watcher(watcher1, lambda *x,**y:None)
-        self.registry.register_watcher(watcher2, lambda *x,**y:None)
-        self.registry.register_watcher(watcher3, lambda *x,**y:None)
+        self.registry.register_watcher(watcher1, lambda *x,**y:None, lambda *x,**y:None)
+        self.registry.register_watcher(watcher2, lambda *x,**y:None, lambda *x,**y:None)
+        self.registry.register_watcher(watcher3, lambda *x,**y:None, lambda *x,**y:None)
 
         # Watch request comes in faster than network. No server request stacking should happen
         self.registry.watch(watcher1, sdk.WatchableType.Variable, 'a/b/c')
@@ -673,7 +672,7 @@ class TestServerManagerRegistryInteraction(ScrutinyBaseGuiTest):
             for update in updates:
                 all_updates.append(update)
 
-        self.registry.register_watcher('hello', callback)
+        self.registry.register_watcher('hello', callback, lambda *x,**y:None)
         self.registry.watch('hello', watch1.configuration.watchable_type, watch1.display_path)
         watch1.set_value(1234)
         self.server_manager._listener.subscribe(watch1)

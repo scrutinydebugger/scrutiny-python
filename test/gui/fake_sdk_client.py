@@ -57,7 +57,8 @@ class StubbedWatchableHandle(tools.UnitTestStub):
     def _assert_configured(self) -> None:
         pass
     
-    def _is_dead(self) -> bool:
+    @property
+    def is_dead(self) -> bool:
         return self._invalid
     
     def simulate_death(self) -> None:
