@@ -28,6 +28,7 @@ from dataclasses import dataclass
 import logging
 from scrutiny.tools.thread_enforcer import enforce_thread
 from scrutiny.gui import QT_THREAD_NAME
+from scrutiny import tools
 
 WatcherIdType = Union[str, int]
 
@@ -210,10 +211,9 @@ class WatchableRegistry:
     @enforce_thread(QT_THREAD_NAME)
     def unregister_watcher(self, watcher_id:WatcherIdType ) -> None:
         watcher: Optional[Watcher] = None
-        try:
+        with tools.SuppressException(KeyError):
             watcher = self._watchers[watcher_id]
-        except KeyError:
-            pass
+
         if watcher is None:
             raise WatcherNotFoundError(f"No watchers with ID {watcher_id}")
         
@@ -226,10 +226,8 @@ class WatchableRegistry:
         
         self._unwatch_node_list(nodes, watcher)
        
-        try:
+        with tools.SuppressException(KeyError):
             del self._watchers[watcher_id]
-        except KeyError:
-            pass
     
     def registered_watcher_count(self) -> int:
         """Return the number of active registered watchers"""
@@ -255,10 +253,8 @@ class WatchableRegistry:
         :param path: The watchable tree path
         """
         watcher:Optional[Watcher] = None
-        try:
+        with tools.SuppressException(KeyError):
             watcher = self._watchers[watcher_id]
-        except KeyError:
-            pass
 
         if watcher is None:
             raise WatcherNotFoundError(f"No watchers with ID {watcher_id}")
@@ -287,10 +283,8 @@ class WatchableRegistry:
                 node.watcher_count = max(node.watcher_count, 0)
                 node.watcher_count -= 1
                 if node.watcher_count == 0:
-                    try:
+                    with tools.SuppressException(KeyError):
                         del self._watched_entries[node.configuration.server_id]
-                    except KeyError:
-                        pass
         
         # Callback is outside of lock on purpose to allow it to access the registry too. Deadlock will happen otherwise
         if self._global_unwatch_callbacks is not None:

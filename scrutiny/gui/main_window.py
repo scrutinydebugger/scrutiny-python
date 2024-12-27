@@ -32,6 +32,7 @@ from scrutiny.gui.dashboard_components.metrics.metrics_component import MetricsC
 
 from scrutiny.gui.core.server_manager import ServerManager
 from scrutiny.gui.core.watchable_registry import WatchableRegistry
+from scrutiny import tools
 from typing import Type, Dict
 
 
@@ -150,8 +151,7 @@ class MainWindow(QMainWindow):
         try:
             widget = component_class(self, name, self._watchable_registry, self._server_manager)
         except Exception:
-            self._logger.error(f"Failed to create a dashboard component of type {component_class.__name__}")
-            self._logger.debug(traceback.format_exc())
+            tools.log_exception(self._logger, e, f"Failed to create a dashboard component of type {component_class.__name__}")    
             return
         dock_widget = QtAds.CDockWidget(component_class.get_name())
         dock_widget.setFeature(QtAds.CDockWidget.DockWidgetDeleteOnClose, True)
@@ -162,12 +162,9 @@ class MainWindow(QMainWindow):
             self._logger.debug(f"Setuping component {widget.instance_name}")
             widget.setup()
         except Exception as e:
-            self._logger.error(f"Exception while setuping component of type {component_class.__name__} (instance name: {widget.instance_name}). {e}")
-            self._logger.debug(traceback.format_exc())
-            try:
+            tools.log_exception(self._logger, e, f"Exception while setuping component of type {component_class.__name__} (instance name: {widget.instance_name}).")
+            with tools.SuppressException():
                 widget.teardown()
-            except Exception:
-                pass
             widget.deleteLater()
             dock_widget.deleteLater()
             return
@@ -182,8 +179,7 @@ class MainWindow(QMainWindow):
                 self._logger.debug(f"Tearing down component {widget.instance_name}")
                 widget.teardown()
             except Exception:
-                self._logger.error(f"Exception while tearing down component {component_class.__name__} (instance name: {widget.instance_name})")
-                self._logger.debug(traceback.format_exc())
+                tools.log_exception(self._logger, e, f"Exception while tearing down component {component_class.__name__} (instance name: {widget.instance_name})")
                 return
             finally:
                 widget.deleteLater()

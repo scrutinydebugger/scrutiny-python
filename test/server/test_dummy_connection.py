@@ -11,6 +11,7 @@ import time
 
 from scrutiny.server.api.abstract_client_handler import ClientHandlerMessage
 from scrutiny.server.api.dummy_client_handler import DummyConnection, DummyClientHandler
+from scrutiny import tools
 from test import ScrutinyUnitTest
 
 
@@ -74,10 +75,8 @@ class TestDummyConnectionHandler(ScrutinyUnitTest):
                 break
             time.sleep(0.01)
 
-        try:
+        with tools.SuppressException():
             return self.handler.recv()
-        except Exception:
-            pass
 
     def wait_conn_recv_from_server(self, conn, timeout=0.4):
         t1 = time.time()
@@ -86,10 +85,8 @@ class TestDummyConnectionHandler(ScrutinyUnitTest):
                 break
             time.sleep(0.01)
 
-        try:
+        with tools.SuppressException():
             return conn.read_from_server()
-        except Exception:
-            pass
 
     def test_client_to_server(self):
         msg = json.dumps({'a': 'b'})

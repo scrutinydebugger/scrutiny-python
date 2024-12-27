@@ -22,6 +22,7 @@ from scrutiny.server.api.abstract_client_handler import AbstractClientHandler, C
 from scrutiny.tools.stream_datagrams import StreamMaker, StreamParser
 from scrutiny.core.logging import DUMPDATA_LOGLEVEL
 from scrutiny.tools.profiling import VariableRateExponentialAverager
+from scrutiny import tools
 
 from typing import Dict, Optional, TypedDict, cast, List, Tuple
 
@@ -251,11 +252,9 @@ class TCPClientHandler(AbstractClientHandler):
                             client_id = self.sock2id_map[client_socket]
                         except KeyError:
                             self.logger.critical("Received message from unregistered socket")
-                            try:
-                                # Race condition possible here
+                            # Race condition possible here
+                            with tools.SuppressException():
                                 self.selector.unregister(client_socket)
-                            except Exception:
-                                pass
                             continue
 
                         try:
@@ -321,27 +320,20 @@ class TCPClientHandler(AbstractClientHandler):
                 return
             
             sockaddr : Optional[Tuple[str, int]] = None
-            try:
+            with tools.SuppressException(OSError):
                 sockaddr = sock.getsockname()
                 sock.close()
-            except OSError:
-                pass
 
-            try:
+            with tools.SuppressException(KeyError):
                 if self.selector is not None:
                     self.selector.unregister(sock)
-            except KeyError:
-                pass
         
-            try:
+            with tools.SuppressException(KeyError):
                 del self.id2sock_map[conn_id]
-            except KeyError:
-                pass
 
-            try:
+            with tools.SuppressException(KeyError):
                 del self.sock2id_map[sock]
-            except KeyError:
-                pass
+
             nb_client = len(self.id2sock_map)
 
         sockaddr_str = str(sockaddr) if sockaddr is not None else ""

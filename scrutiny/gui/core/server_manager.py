@@ -19,6 +19,7 @@ import queue
 import enum
 from dataclasses import dataclass
 from scrutiny.tools.thread_enforcer import thread_func, enforce_thread
+from scrutiny import tools
 
 from PySide6.QtCore import Signal, QObject
 from typing import Optional, Dict, Any, Callable, List, Union, Tuple
@@ -376,16 +377,13 @@ class ServerManager:
                 self._thread_state.last_server_state = server_state
             
         except Exception as e:  # pragma: no cover
-            self._logger.critical(f"Error in server manager thread: {e}")
-            self._logger.debug(traceback.format_exc())
+            tools.log_exception(self._logger, e, "Error in server manager thread", str_level=logging.CRITICAL)
         finally:
             self._client.disconnect()
             was_connected = self._thread_state.last_server_state == sdk.ServerState.Connected
             if was_connected:
-                try:
+                with tools.SuppressException(RuntimeError): # May fail if the window is deleted before this thread exits
                     self._signals.server_disconnected.emit()
-                except RuntimeError:
-                    pass    # May fail if the window is deleted before this thread exits
             
             # Empty the event queue
             self._thread_clear_client_events()
@@ -401,10 +399,8 @@ class ServerManager:
             time.sleep(0.01)
         
         self._logger.debug("Server Manager thread exiting")
-        try:
+        with tools.SuppressException(RuntimeError): # May fail if the window is deleted before this thread exits
             self._internal_signals.thread_exit_signal.emit()
-        except RuntimeError:
-            pass    # May fail if the window is deleted before this thread exits
 
     def _thread_clear_client_events(self) -> None:
         # Called from internal thread
@@ -416,12 +412,10 @@ class ServerManager:
         if self._allow_auto_reconnect and not self._stop_pending:
             # timer to prevent going crazy on function call
             if self._thread_state.connect_timestamp_mono is None or time.monotonic() - self._thread_state.connect_timestamp_mono > self.RECONNECT_DELAY:
-                try:
+                with tools.SuppressException(sdk.exceptions.ConnectionError):
                     self._logger.debug("Connecting client")
                     self._thread_state.connect_timestamp_mono = time.monotonic()
                     self._client.connect(config.hostname, config.port, wait_status=False)
-                except sdk.exceptions.ConnectionError:
-                    pass
 
     def _thread_process_client_events(self) -> None:
         # Called from internal thread
@@ -729,7 +723,9 @@ class ServerManager:
             self._logger.debug(f"Requesting watch of {server_path}")
             handle = client.watch(server_path)
         except sdk.exceptions.ScrutinySDKException as e:
-            self._logger.error(f"Failed to watch {server_path}. {e}")
+            self._logger.error(f"Failed to watch {server_path}. \n\t{e}")
+            if self._logger.isEnabledFor(logging.DEBUG): #pragma: no cover
+                    self._logger.debug(format_exception(e))
             new_state = self.WatchableRegistrationState.UNSUBSCRIBED
         
         return (new_state, handle)

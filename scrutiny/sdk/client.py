@@ -26,6 +26,7 @@ from scrutiny.server.api import API
 from scrutiny.server.api.tcp_client_handler import TCPClientHandler
 from scrutiny.tools.stream_datagrams import StreamMaker, StreamParser
 from scrutiny.tools.profiling import VariableRateExponentialAverager
+from scrutiny import tools
 import selectors
 
 import logging
@@ -609,8 +610,7 @@ class ScrutinyClient:
                     self._logger.error(f"Connection error in worker thread: {e}")
                 self._wt_disconnect()    # Will set _sock to None
             except Exception as e:
-                self._logger.error(f"Unhandled exception in worker thread: {e}")
-                self._logger.debug(traceback.format_exc())
+                tools.log_exception(self._logger, e, "Unhandled exception in worker thread")
                 self._wt_disconnect()    # Will set _sock to None
 
             if self._threading_events.disconnect.is_set():
@@ -798,8 +798,7 @@ class ScrutinyClient:
                 elif cmd == API.Command.Api2Client.GET_WATCHABLE_LIST_RESPONSE:
                     self._wt_process_msg_get_watchable_list_response(cast(api_typing.S2C.GetWatchableList, msg), reqid)
             except sdk.exceptions.BadResponseError as e:
-                self._logger.error(f"Bad message from server. {e}")
-                self._logger.debug(traceback.format_exc())
+                tools.log_exception(self._logger, e, "Bad message from server")
 
             if reqid is not None:   # message is a response to a request
                 self._wt_process_callbacks(cmd, msg, reqid)
@@ -836,8 +835,7 @@ class ScrutinyClient:
                     error = e
 
                 if error is not None:
-                    self._logger.error(f"Callback raised an exception. cmd={cmd}, reqid={reqid}. {error}")
-                    self._logger.debug(traceback.format_exc())
+                    tools.log_exception(self._logger, e, f"Callback raised an exception. cmd={cmd}, reqid={reqid}.")
                     callback_entry._future._wt_mark_completed(CallbackState.CallbackError, error=error)
 
                 elif callback_entry._future.state == CallbackState.Pending:
@@ -989,12 +987,10 @@ class ScrutinyClient:
     def close_socket(self) -> None:
         """Forcefully attempt to close a socket to cancel any pending connection or requests"""
         # Does not respect _sock_lock on purpose.
-        try:
+        with tools.SuppressException():
             if self._sock is not None:
                 self._connection_cancel_request = True  # Simply to mask the connection error we will cause
                 self._sock.close()      # Try it. May fail, it's ok.
-        except Exception:
-            pass
 
     def _wt_disconnect(self) -> None:
         """Disconnect from a Scrutiny server, called by the Worker Thread .
@@ -1007,9 +1003,8 @@ class ScrutinyClient:
                 self._logger.debug(f"Disconnecting from server at {self._hostname}:{self._port}")
                 try:
                     self._sock.close()
-                except socket.error:
-                    self._logger.debug("Failed to close the socket")
-                    self._logger.debug(traceback.format_exc())
+                except socket.error as e:
+                    tools.log_exception(self._logger, e, "Failed to close the socket", str_level=logging.DEBUG)
             
             if self._selector is not None:
                 self._selector.close()
@@ -1342,10 +1337,9 @@ class ScrutinyClient:
         """
         validation.assert_type(server_id, 'server_id', str)        
         handle:Optional[WatchableHandle] = None
-        try:
+        with tools.SuppressException(KeyError):
             handle = self._watchable_storage[server_id] # No need to lock. This is atomic
-        except KeyError:
-            pass
+
         return handle
 
     def try_get_existing_watch_handle(self, path:str) -> Optional[WatchableHandle]:

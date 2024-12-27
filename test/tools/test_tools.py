@@ -6,7 +6,7 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
-from scrutiny.tools import Throttler
+from scrutiny.tools import Throttler, SuppressException
 from scrutiny.tools.thread_enforcer import enforce_thread, register_thread, thread_func
 import time
 import math
@@ -165,6 +165,21 @@ class TestThreadEnforcer(ScrutinyUnitTest):
         self.assertFalse(thread_BBB2.is_alive())
         exit_bbb.set()
 
+
+    def test_ignore_error(self):
+        with self.assertRaises(ValueError):
+            with SuppressException(TypeError):
+                raise TypeError("aaa")
+            
+            with SuppressException(TypeError):
+                raise ValueError("bbb")
+            
+        
+        with SuppressException(TypeError, NotImplementedError):
+            raise NotImplementedError("aaa")
+        
+        with SuppressException():
+            raise ValueError("aaa")
 
         
 

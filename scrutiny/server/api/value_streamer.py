@@ -8,6 +8,7 @@
 #   Copyright (c) 2021 Scrutiny Debugger
 
 from scrutiny.server.datastore.datastore_entry import DatastoreEntry
+from scrutiny import tools
 
 from typing import List, Set, Dict
 
@@ -39,10 +40,8 @@ class ValueStreamer:
     def publish(self, entry: DatastoreEntry, conn_id: str) -> None:
         # inform the value streamer that a new value should be published.
         # This is called by the datastore set_value callback
-        try:
+        with tools.SuppressException():
             self.entry_to_publish[conn_id].add(entry)
-        except Exception:
-            pass
 
     def get_stream_chunk(self, conn_id: str) -> List[DatastoreEntry]:
         # Returns a list of entry to be flushed per connection

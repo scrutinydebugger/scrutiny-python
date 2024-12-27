@@ -13,13 +13,13 @@ from scrutiny.sdk.client import WatchableListDownloadRequest, ScrutinyClient
 from scrutiny.core.embedded_enum import EmbeddedEnum
 from scrutiny.core.basic_types import EmbeddedDataType
 from scrutiny.sdk.listeners import BaseListener
+from scrutiny import tools
 from typing import Optional, List, Dict, Callable, Union
 from dataclasses import dataclass
 import inspect
 import queue
 import threading
 from test import logger
-from scrutiny.tools import UnitTestStub
 from datetime import datetime
 
 default_server_info = sdk.ServerInfo(
@@ -30,7 +30,7 @@ default_server_info = sdk.ServerInfo(
     device_link=sdk.DeviceLinkInfo(type=sdk.DeviceLinkType.UDP, config=dict(host='localhost', prot=1234), operational=True)
 )
 
-class StubbedWatchableHandle(UnitTestStub):
+class StubbedWatchableHandle(tools.UnitTestStub):
     display_path:str
     configuration:sdk.WatchableConfiguration
     _invalid:bool
@@ -90,7 +90,7 @@ class DownloadWatchableListFunctionCall:
 
     request:WatchableListDownloadRequest    # Output
 
-class FakeSDKClient(UnitTestStub):
+class FakeSDKClient(tools.UnitTestStub):
 
     class FakeRequest:
         requested_path:str
@@ -258,32 +258,24 @@ class FakeSDKClient(UnitTestStub):
     def _cancel_download_watchable_list_request(self, reqid:int) -> None:
         self._log_call()
         req = None
-        try:
+        with tools.SuppressException(KeyError):
             req = self._pending_download_requests[reqid].request
-        except KeyError:
-            pass
 
         if req is not None:
             req._mark_complete(success=False, failure_reason="Cancelled")
-            try:
+            with tools.SuppressException(KeyError):
                 del self._pending_download_requests[reqid]
-            except KeyError:
-                pass
     
     def _complete_success_watchable_list_request(self, reqid:int) -> None:
         self._log_call()
         req = None
-        try:
+        with tools.SuppressException(KeyError):
             req = self._pending_download_requests[reqid].request
-        except KeyError:
-            pass
 
         if req is not None:
             req._mark_complete(success=True)
-            try:
+            with tools.SuppressException(KeyError):
                 del self._pending_download_requests[reqid]
-            except KeyError:
-                pass
     
     def get_download_watchable_list_function_calls(self) -> List[DownloadWatchableListFunctionCall]:
         """For unit test only. """
@@ -427,8 +419,6 @@ class FakeSDKClient(UnitTestStub):
         if not request.is_success():
             raise sdk.exceptions.OperationFailure(f"Failed to unwatch {path}. Simulated failure")
 
-        try:
+        with tools.SuppressException(KeyError):
             del self._handle_cache[path]
-        except KeyError:
-            pass
         

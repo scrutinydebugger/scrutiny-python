@@ -14,6 +14,7 @@ import os
 import re
 import tempfile
 import types
+from scrutiny import tools
 
 from typing import List, Optional, Type, Literal
 
@@ -151,15 +152,12 @@ class SFDStorageManager:
     def is_valid_firmware_id(cls, firmware_id: str) -> bool:
         """Returns True if the given string respect the expected format for a firmware ID"""
         retval = False
-        try:
+        with tools.SuppressException(Exception):
             firmware_id = cls.clean_firmware_id(firmware_id)
             regex = '[0-9a-f]{%d}' % FirmwareDescription.firmware_id_length() * 2   # Match only check first line, which is good
             if not re.match(regex, firmware_id):
                 raise Exception('regex not match')
-
             retval = True
-        except Exception:
-            pass
 
         return retval
 
