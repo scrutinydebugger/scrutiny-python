@@ -130,14 +130,16 @@ def log_exception(logger:logging.Logger,
             str_level:Optional[int]=logging.ERROR, 
             traceback_level:Optional[int]=logging.DEBUG) -> None:
     if str_level is not None:
-        if msg is not None:
-            error_str = f"{msg}\n  Underlying error: {exc}"
-        else:
-            error_str = str(exc)
-        logger.log(str_level, error_str)
+        if logger.isEnabledFor(str_level):
+            if msg is not None:
+                error_str = f"{msg}\n  Underlying error: {exc}"
+            else:
+                error_str = str(exc)
+            logger.log(str_level, error_str)
     
     if traceback_level is not None:
-        logger.log(traceback_level, format_exception(exc))
+        if logger.isEnabledFor(traceback_level):
+            logger.log(traceback_level, format_exception(exc))
 
 class LogException:
     logger:logging.Logger

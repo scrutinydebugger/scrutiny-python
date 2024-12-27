@@ -553,7 +553,8 @@ class ServerManager:
                                    registration_status:WatchableRegistrationStatus, 
                                    handle:Optional[WatchableHandle]) -> None:
         registration_status.active_state = new_state
-        if handle is not None:
+        #fixme : check if client handle exist
+        if new_state== self.WatchableRegistrationState.SUBSCRIBED and handle is not None:
             self._listener.subscribe(handle)
         
         if (registration_status.active_state == self.WatchableRegistrationState.UNSUBSCRIBED 
@@ -578,7 +579,6 @@ class ServerManager:
                 pending_action=self.WatchablePendingAction.NONE
             )
         registration_status = self._registration_status_store[watchable_type][server_path]
-        self._logger.debug("_qt_maybe_request_watch")
         self._logger.debug(str(registration_status))
         
         if registration_status.active_state in [self.WatchableRegistrationState.SUBSCRIBED, self.WatchableRegistrationState.SUBSCRIBING]:
@@ -623,8 +623,6 @@ class ServerManager:
                 pending_action=self.WatchablePendingAction.NONE
             )
         registration_status = self._registration_status_store[watchable_type][server_path]
-        self._logger.debug("_qt_maybe_request_unwatch")
-        self._logger.debug(str(registration_status))
         
         if registration_status.active_state in [self.WatchableRegistrationState.UNSUBSCRIBED, self.WatchableRegistrationState.UNSUBSCRIBING]:
             # Nothing to do. Ensure we do nothing
@@ -720,12 +718,9 @@ class ServerManager:
         new_state = self.WatchableRegistrationState.SUBSCRIBED
         handle:Optional[WatchableHandle] = None
         try:
-            self._logger.debug(f"Requesting watch of {server_path}")
             handle = client.watch(server_path)
         except sdk.exceptions.ScrutinySDKException as e:
-            self._logger.error(f"Failed to watch {server_path}. \n\t{e}")
-            if self._logger.isEnabledFor(logging.DEBUG): #pragma: no cover
-                    self._logger.debug(format_exception(e))
+            tools.log_exception(self._logger, e, f"Failed to watch {server_path}")
             new_state = self.WatchableRegistrationState.UNSUBSCRIBED
         
         return (new_state, handle)
@@ -734,7 +729,6 @@ class ServerManager:
         new_state = self.WatchableRegistrationState.UNSUBSCRIBED
         error:Optional[Exception] = None
         try:
-            self._logger.debug(f"Requesting unwatch of {server_path}")
             client.unwatch(server_path)
         except sdk.exceptions.ScrutinySDKException as e:
             error = e
@@ -742,9 +736,7 @@ class ServerManager:
         if error is not None:
             handle = client.try_get_existing_watch_handle(server_path)
             if handle is not None and not handle._is_dead():
-                self._logger.error(f"Failed to unwatch {server_path}")
-                if self._logger.isEnabledFor(logging.DEBUG): #pragma: no cover
-                    self._logger.debug(format_exception(error))
+                tools.log_exception(self._logger, error,f"Failed to unwatch {server_path}" )
                 new_state = self.WatchableRegistrationState.SUBSCRIBED
 
         return new_state

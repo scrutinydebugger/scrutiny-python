@@ -200,11 +200,12 @@ class WatchableRegistry:
                 watcher.value_update_callback(watcher_id, filtered_updates)
 
     @enforce_thread(QT_THREAD_NAME)
-    def register_watcher(self, watcher_id:WatcherIdType, value_update_callback:WatcherValueUpdateCallback, override:bool=False) -> None:
+    def register_watcher(self, watcher_id:WatcherIdType, value_update_callback:WatcherValueUpdateCallback, ignore_duplicate:bool=False) -> None:
         watcher = Watcher(watcher_id=watcher_id, value_update_callback=value_update_callback)   # Validation happens here
         if watcher_id in self._watchers:
-            if not override:
-                raise WatchableRegistryError(f"Duplicate watcher with ID {watcher_id}")
+            if ignore_duplicate:
+                return
+            raise WatchableRegistryError(f"Duplicate watcher with ID {watcher_id}")
         
         self._watchers[watcher_id] = watcher
     
@@ -280,8 +281,8 @@ class WatchableRegistry:
             if node.configuration.server_id in watcher.subscribed_server_id:
                 watcher.subscribed_server_id.remove(node.configuration.server_id)
                 removed_list.append(node)
-                node.watcher_count = max(node.watcher_count, 0)
                 node.watcher_count -= 1
+                node.watcher_count = max(node.watcher_count, 0)
                 if node.watcher_count == 0:
                     with tools.SuppressException(KeyError):
                         del self._watched_entries[node.configuration.server_id]
@@ -459,7 +460,7 @@ class WatchableRegistry:
             
             for entry in to_unwatch:
                 if entry.configuration.server_id in self._watched_entries:
-                    self._logger.warning(f"Incoherence in Watchable Registry. Entry {entry.server_path} is still watched, but has no watcher")
+                    self._logger.error(f"Incoherence in Watchable Registry. Entry {entry.server_path} is still watched, but has no watcher")
                     del self._watched_entries[entry.configuration.server_id]
 
             if had_data:
