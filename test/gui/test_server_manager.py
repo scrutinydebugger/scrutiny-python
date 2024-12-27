@@ -12,6 +12,9 @@ from scrutiny.gui.core.watchable_registry import WatchableRegistry
 from test.gui.fake_sdk_client import FakeSDKClient, StubbedWatchableHandle
 from test.gui.base_gui_test import ScrutinyBaseGuiTest, EventType
 import time
+from dataclasses import dataclass
+import threading
+from test import logger
 
 from typing import List, Optional, Any
 
@@ -70,8 +73,9 @@ class TestServerManager(ScrutinyBaseGuiTest):
     def setUp(self) -> None:
         super().setUp()
         self.fake_client = FakeSDKClient()   
+        self.registry = WatchableRegistry()
         self.server_manager = ServerManager(
-            watchable_registry=WatchableRegistry(),
+            watchable_registry=self.registry,
             client=self.fake_client
             )    # Inject a stub of the SDK.
 
@@ -87,6 +91,7 @@ class TestServerManager(ScrutinyBaseGuiTest):
     def tearDown(self) -> None:
         if self.server_manager.is_running():
             self.server_manager.stop()
+            self.wait_true_with_events(lambda : not self.server_manager.is_running() and not self.server_manager.is_stopping(), timeout=1)
         super().tearDown()
     
     def wait_server_state(self, state:sdk.ServerState, timeout:int=1) -> None:
@@ -98,7 +103,7 @@ class TestServerManager(ScrutinyBaseGuiTest):
         self.server_manager.start(SERVER_MANAGER_CONFIG)
         self.assertTrue(self.server_manager.is_running())
 
-        self.wait_equal(self.server_manager.is_running, False, 5, no_assert=True)  # Early exit if it fails
+        self.wait_equal_with_events(self.server_manager.is_running, False, 5, no_assert=True)  # Early exit if it fails
         
         
         self.assertTrue(self.server_manager.is_running())
@@ -156,7 +161,7 @@ class TestServerManager(ScrutinyBaseGuiTest):
 
             self.fake_client._simulate_device_disconnect()
             self.fake_client._simulate_sfd_unloaded()
-            self.wait_events_and_clear([EventType.SFD_UNLOADED, EventType.DEVICE_DISCONNECTED], timeout=1)
+            self.wait_events_and_clear([EventType.DEVICE_DISCONNECTED, EventType.SFD_UNLOADED], timeout=1)
 
         self.fake_client.server_info = None
         self.server_manager.stop()
@@ -168,23 +173,22 @@ class TestServerManager(ScrutinyBaseGuiTest):
         self.assertEqual(self.event_list, [])
         self.server_manager.start(SERVER_MANAGER_CONFIG)
 
-        self.wait_events_and_clear([EventType.SERVER_CONNECTED], timeout=1)
+        self.wait_events_and_clear([EventType.SERVER_CONNECTED], timeout=2)
         self.fake_client._simulate_receive_status() # Load default status
 
         for i in range(5):
             self.fake_client._simulate_datalogger_state_changed(sdk.DataloggingInfo(sdk.DataloggerState.WaitForTrigger, None))
-            self.wait_events_and_clear([EventType.DATALOGGING_STATE_CHANGED], timeout=1)
+            self.wait_events_and_clear([EventType.DATALOGGING_STATE_CHANGED], timeout=2)
             
             self.fake_client._simulate_datalogger_state_changed(sdk.DataloggingInfo(sdk.DataloggerState.Acquiring, 0.5))
-            self.wait_events_and_clear([EventType.DATALOGGING_STATE_CHANGED], timeout=1)
+            self.wait_events_and_clear([EventType.DATALOGGING_STATE_CHANGED], timeout=2)
 
             self.fake_client._simulate_datalogger_state_changed(sdk.DataloggingInfo(sdk.DataloggerState.Acquiring, 0.75))
-            self.wait_events_and_clear([EventType.DATALOGGING_STATE_CHANGED], timeout=1)
+            self.wait_events_and_clear([EventType.DATALOGGING_STATE_CHANGED], timeout=2)
 
         self.server_manager.stop()
         self.wait_server_state(sdk.ServerState.Disconnected)        
         self.assert_events([EventType.SERVER_DISCONNECTED])
-    
 
     def test_disconnect_on_error(self):
         self.server_manager.start(SERVER_MANAGER_CONFIG)
@@ -233,13 +237,13 @@ class TestServerManager(ScrutinyBaseGuiTest):
     def test_event_device_connect_disconnect_with_data_download(self):
         self.assertEqual(self.event_list, [])
         self.server_manager.start(SERVER_MANAGER_CONFIG)
-        windex = self.server_manager.registry
 
         self.wait_events_and_clear([EventType.SERVER_CONNECTED], timeout=1)
         self.fake_client._simulate_receive_status()
 
         nb_loop = 5
         for i in range(nb_loop):
+            logger.debug(f"loop={i}")
             cancel_request = i % 2 == 1
             self.fake_client._simulate_device_connect('session_id1')
 
@@ -251,18 +255,18 @@ class TestServerManager(ScrutinyBaseGuiTest):
             
             if cancel_request:
                 req.cancel()
-                self.assertFalse(windex.has_data(sdk.WatchableType.RuntimePublishedValue))
-                self.assertFalse(windex.has_data(sdk.WatchableType.Alias))
-                self.assertFalse(windex.has_data(sdk.WatchableType.Variable))
+                self.assertFalse(self.registry.has_data(sdk.WatchableType.RuntimePublishedValue))
+                self.assertFalse(self.registry.has_data(sdk.WatchableType.Alias))
+                self.assertFalse(self.registry.has_data(sdk.WatchableType.Variable))
             else:
                 req._add_data({
                     sdk.WatchableType.RuntimePublishedValue : DUMMY_DATASET_RPV
                 }, done=True)
                 self.fake_client._complete_success_watchable_list_request(req._request_id)
                 self.wait_events_and_clear([EventType.WATCHABLE_REGISTRY_CHANGED], timeout=1)
-                self.assertTrue(windex.has_data(sdk.WatchableType.RuntimePublishedValue))
-                self.assertFalse(windex.has_data(sdk.WatchableType.Alias))
-                self.assertFalse(windex.has_data(sdk.WatchableType.Variable))
+                self.assertTrue(self.registry.has_data(sdk.WatchableType.RuntimePublishedValue))
+                self.assertFalse(self.registry.has_data(sdk.WatchableType.Alias))
+                self.assertFalse(self.registry.has_data(sdk.WatchableType.Variable))
 
             self.fake_client._simulate_device_disconnect()
 
@@ -272,9 +276,9 @@ class TestServerManager(ScrutinyBaseGuiTest):
                 expected_events = [EventType.WATCHABLE_REGISTRY_CHANGED, EventType.DEVICE_DISCONNECTED]
             self.wait_events_and_clear(expected_events, timeout=1, msg=f"cancel_request={cancel_request}")
 
-            self.assertFalse(self.server_manager.registry.has_data(sdk.WatchableType.RuntimePublishedValue))
-            self.assertFalse(self.server_manager.registry.has_data(sdk.WatchableType.Alias))
-            self.assertFalse(self.server_manager.registry.has_data(sdk.WatchableType.Variable))
+            self.assertFalse(self.registry.has_data(sdk.WatchableType.RuntimePublishedValue))
+            self.assertFalse(self.registry.has_data(sdk.WatchableType.Alias))
+            self.assertFalse(self.registry.has_data(sdk.WatchableType.Variable))
 
         self.fake_client.server_info = None 
         self.server_manager.stop()
@@ -322,27 +326,28 @@ class TestServerManager(ScrutinyBaseGuiTest):
                 }, done=False)
                 req_alias_var._add_data({
                     sdk.WatchableType.Variable : DUMMY_DATASET_VAR
-                }, done=False)
+                }, done=True)
                 self.fake_client._complete_success_watchable_list_request(req_alias_var._request_id)
                 self.wait_events_and_clear([EventType.WATCHABLE_REGISTRY_CHANGED], timeout=1)
 
         for i in range(5):
+            logger.debug(f"loop={i}")
             cancel_requests = i%2==1
             self.fake_client._simulate_device_connect('session_id1')
             self.fake_client._simulate_sfd_loaded('firmware1')
 
             self.wait_events_and_clear([EventType.DEVICE_READY, EventType.SFD_LOADED], timeout=1)
             respond_to_download_requests(cancel_requests)
-            
+
             self.fake_client._simulate_device_disconnect()  # These event may happen in any order
             self.fake_client._simulate_sfd_unloaded()       # These event may happen in any order
 
             if cancel_requests:
-                expected_events = [EventType.SFD_UNLOADED, EventType.DEVICE_DISCONNECTED]
+                expected_events = [EventType.DEVICE_DISCONNECTED, EventType.SFD_UNLOADED]
             else:
-                expected_events = [EventType.WATCHABLE_REGISTRY_CHANGED, EventType.WATCHABLE_REGISTRY_CHANGED, EventType.SFD_UNLOADED, EventType.DEVICE_DISCONNECTED]
+                expected_events = [EventType.WATCHABLE_REGISTRY_CHANGED, EventType.DEVICE_DISCONNECTED, EventType.WATCHABLE_REGISTRY_CHANGED, EventType.SFD_UNLOADED,]
 
-            self.wait_events_and_clear(expected_events, timeout=1)
+            self.wait_events_and_clear(expected_events, timeout=1, enforce_order=True)
 
         self.fake_client.server_info = None
         self.server_manager.stop()
@@ -359,7 +364,7 @@ class TestServerManager(ScrutinyBaseGuiTest):
         self.fake_client._simulate_sfd_loaded('fimrware_id1')
         self.fake_client._simulate_device_connect('session_id1')
 
-        self.wait_events_and_clear([EventType.DEVICE_READY, EventType.SFD_LOADED], timeout=1)
+        self.wait_events_and_clear([EventType.SFD_LOADED, EventType.DEVICE_READY], timeout=1)
 
         def respond_to_download_requests():
             calls = self.fake_client.get_download_watchable_list_function_calls()
@@ -388,15 +393,15 @@ class TestServerManager(ScrutinyBaseGuiTest):
             }, done=False)
             req_alias_var._add_data({
                 sdk.WatchableType.Variable : DUMMY_DATASET_VAR
-            }, done=False)
+            }, done=True)
             self.fake_client._complete_success_watchable_list_request(req_alias_var._request_id)
             self.wait_events_and_clear([EventType.WATCHABLE_REGISTRY_CHANGED], timeout=1)
 
         respond_to_download_requests()
 
-        self.assertTrue(self.server_manager.registry.has_data(sdk.WatchableType.RuntimePublishedValue))
-        self.assertTrue(self.server_manager.registry.has_data(sdk.WatchableType.Alias))
-        self.assertTrue(self.server_manager.registry.has_data(sdk.WatchableType.Variable))
+        self.assertTrue(self.registry.has_data(sdk.WatchableType.RuntimePublishedValue))
+        self.assertTrue(self.registry.has_data(sdk.WatchableType.Alias))
+        self.assertTrue(self.registry.has_data(sdk.WatchableType.Variable))
         # Only the session ID changes. 
         # Should trigger a device disconnected + device ready event.
         for i in range(5):
@@ -408,11 +413,11 @@ class TestServerManager(ScrutinyBaseGuiTest):
 
             self.wait_events_and_clear([
                 EventType.WATCHABLE_REGISTRY_CHANGED, 
+                EventType.SFD_UNLOADED, 
                 EventType.WATCHABLE_REGISTRY_CHANGED, 
                 EventType.DEVICE_DISCONNECTED, 
-                EventType.DEVICE_READY, 
-                EventType.SFD_UNLOADED, 
                 EventType.SFD_LOADED, 
+                EventType.DEVICE_READY, 
                 ], timeout=1)
 
             respond_to_download_requests()  # Check for download request. Respond and make sure the events are triggered
@@ -422,8 +427,8 @@ class TestServerManager(ScrutinyBaseGuiTest):
         self.fake_client.server_info = None
         self.wait_events_and_clear([
             EventType.WATCHABLE_REGISTRY_CHANGED, 
-            EventType.WATCHABLE_REGISTRY_CHANGED, 
             EventType.SFD_UNLOADED, 
+            EventType.WATCHABLE_REGISTRY_CHANGED, 
             EventType.DEVICE_DISCONNECTED], timeout=1)
 
         self.server_manager.stop()
@@ -491,8 +496,21 @@ class TestServerManagerRegistryInteraction(ScrutinyBaseGuiTest):
             )
         self.server_manager._unit_test = True
         self.server_manager.start(SERVER_MANAGER_CONFIG)
-        self.wait_true(lambda: self.server_manager.get_server_state()==sdk.ServerState.Connected, timeout=1)
-        
+    
+        @dataclass
+        class Container:
+            ready:bool=False
+        obj = Container()
+        def ready():
+            obj.ready = True
+        self.server_manager.signals.server_connected.connect(ready)
+        self.wait_true_with_events(lambda: obj.ready, timeout=1)
+
+    def tearDown(self):
+        self.server_manager.stop()
+        self.wait_true_with_events(lambda : not self.server_manager.is_running() and not self.server_manager.is_stopping(), timeout=1)
+        return super().tearDown()
+
     def get_watch_request(self, timeout:int=1, assert_single:bool=True):
         self.wait_true(lambda: len(self.fake_client._pending_watch_request) > 0, timeout=timeout)
         request = self.fake_client._pending_watch_request.pop()
@@ -522,7 +540,7 @@ class TestServerManagerRegistryInteraction(ScrutinyBaseGuiTest):
 
     def test_no_request_stacking(self):
         # Make sure that we don't queue useless register/unregister/register/unregister sequence if the UI is faster than the network
-        self.registry.add_watchable('a/b/c', sdk.WatchableConfiguration(
+        self.registry._add_watchable('a/b/c', sdk.WatchableConfiguration(
             datatype=sdk.EmbeddedDataType.float32,
             enum=None,
             server_id='abc',
@@ -531,11 +549,11 @@ class TestServerManagerRegistryInteraction(ScrutinyBaseGuiTest):
         watcher1 = 'watcher1'
         watcher2 = 'watcher2'
         watcher3 = 'watcher3'
-        self.registry.register_watcher(watcher1, lambda *x,**y:None)
-        self.registry.register_watcher(watcher2, lambda *x,**y:None)
-        self.registry.register_watcher(watcher3, lambda *x,**y:None)
+        self.registry.register_watcher(watcher1, lambda *x,**y:None, lambda *x,**y:None)
+        self.registry.register_watcher(watcher2, lambda *x,**y:None, lambda *x,**y:None)
+        self.registry.register_watcher(watcher3, lambda *x,**y:None, lambda *x,**y:None)
 
-        ui_callback_count = self.server_manager._watch_unwatch_ui_callback_call_count
+        ui_callback_count = self.server_manager._qt_watch_unwatch_ui_callback_call_count
 
         # Start a new series of watch unwatch.
         self.registry.watch(watcher1, sdk.WatchableType.Variable, 'a/b/c')
@@ -547,15 +565,15 @@ class TestServerManagerRegistryInteraction(ScrutinyBaseGuiTest):
 
         watch_request = self.get_watch_request(assert_single=True)
         self.asssert_no_watch_or_unwatch_request(max_wait=0.5)
-        self.assertEqual(ui_callback_count, self.server_manager._watch_unwatch_ui_callback_call_count)
+        self.assertEqual(ui_callback_count, self.server_manager._qt_watch_unwatch_ui_callback_call_count)
         watch_request.simulate_failure()
-        self.wait_true_with_events(lambda : self.server_manager._watch_unwatch_ui_callback_call_count != ui_callback_count, timeout=1 )
+        self.wait_true_with_events(lambda : self.server_manager._qt_watch_unwatch_ui_callback_call_count != ui_callback_count, timeout=1 )
         # watch failed. We have no watcher. Should do nothing more
         self.asssert_no_watch_or_unwatch_request(max_wait=0.5)
  
         # We are back to 0 watcher.
         # Start a new series of watch unwatch.
-        ui_callback_count = self.server_manager._watch_unwatch_ui_callback_call_count
+        ui_callback_count = self.server_manager._qt_watch_unwatch_ui_callback_call_count
         watchable_config = sdk.WatchableConfiguration('xxx', sdk.WatchableType.Variable, datatype=sdk.EmbeddedDataType.float32, enum=None)
         self.registry.watch(watcher1, sdk.WatchableType.Variable, 'a/b/c')
         self.registry.unwatch(watcher1, sdk.WatchableType.Variable, 'a/b/c')
@@ -566,9 +584,9 @@ class TestServerManagerRegistryInteraction(ScrutinyBaseGuiTest):
     
         watch_request = self.get_watch_request(assert_single=True)
         self.asssert_no_watch_or_unwatch_request(max_wait=0.5)
-        self.assertEqual(ui_callback_count, self.server_manager._watch_unwatch_ui_callback_call_count)
+        self.assertEqual(ui_callback_count, self.server_manager._qt_watch_unwatch_ui_callback_call_count)
         watch_request.simulate_success(watchable_config)
-        self.wait_true_with_events(lambda : self.server_manager._watch_unwatch_ui_callback_call_count != ui_callback_count, timeout=1 )
+        self.wait_true_with_events(lambda : self.server_manager._qt_watch_unwatch_ui_callback_call_count != ui_callback_count, timeout=1 )
         # We are supposed to have no watcher. Expect an unwatch request
 
         unwatch_request = self.get_unwatch_request(assert_single=True)
@@ -577,8 +595,7 @@ class TestServerManagerRegistryInteraction(ScrutinyBaseGuiTest):
 
 
     def test_no_stacking_with_multiple_watchers(self):
-
-        self.registry.add_watchable('a/b/c', sdk.WatchableConfiguration(
+        self.registry._add_watchable('a/b/c', sdk.WatchableConfiguration(
             datatype=sdk.EmbeddedDataType.float32,
             enum=None,
             server_id='abc',
@@ -588,20 +605,20 @@ class TestServerManagerRegistryInteraction(ScrutinyBaseGuiTest):
         watcher1 = 'watcher1'
         watcher2 = 'watcher2'
         watcher3 = 'watcher3'
-        self.registry.register_watcher(watcher1, lambda *x,**y:None)
-        self.registry.register_watcher(watcher2, lambda *x,**y:None)
-        self.registry.register_watcher(watcher3, lambda *x,**y:None)
+        self.registry.register_watcher(watcher1, lambda *x,**y:None, lambda *x,**y:None)
+        self.registry.register_watcher(watcher2, lambda *x,**y:None, lambda *x,**y:None)
+        self.registry.register_watcher(watcher3, lambda *x,**y:None, lambda *x,**y:None)
 
         # Watch request comes in faster than network. No server request stacking should happen
         self.registry.watch(watcher1, sdk.WatchableType.Variable, 'a/b/c')
         self.registry.watch(watcher2, sdk.WatchableType.Variable, 'a/b/c')
         self.assertEqual(self.registry.node_watcher_count(sdk.WatchableType.Variable, 'a/b/c'), 2)   # Independant of network request status
 
-        call_count = self.server_manager._watch_unwatch_ui_callback_call_count
+        call_count = self.server_manager._qt_watch_unwatch_ui_callback_call_count
         request1 = self.get_watch_request(assert_single=True)
         self.asssert_no_watch_request(max_wait=0.5) # Should have a single watch request for the 2 watches
         request1.simulate_failure() #  Should stay unwatched
-        self.wait_true_with_events(lambda : call_count != self.server_manager._watch_unwatch_ui_callback_call_count, timeout=1 )
+        self.wait_true_with_events(lambda : call_count != self.server_manager._qt_watch_unwatch_ui_callback_call_count, timeout=1 )
 
         self.registry.watch(watcher3, sdk.WatchableType.Variable, 'a/b/c')  # Will trigger a retry
         
@@ -609,9 +626,9 @@ class TestServerManagerRegistryInteraction(ScrutinyBaseGuiTest):
         self.asssert_no_watch_request(max_wait=0.5) 
         some_watchable_config = sdk.WatchableConfiguration(server_id='aaa', watchable_type=sdk.WatchableType.Variable, datatype=sdk.EmbeddedDataType.float32, enum=None )
         
-        call_count = self.server_manager._watch_unwatch_ui_callback_call_count
+        call_count = self.server_manager._qt_watch_unwatch_ui_callback_call_count
         request2.simulate_success(some_watchable_config) 
-        self.wait_true_with_events(lambda : call_count != self.server_manager._watch_unwatch_ui_callback_call_count, timeout=1 )
+        self.wait_true_with_events(lambda : call_count != self.server_manager._qt_watch_unwatch_ui_callback_call_count, timeout=1 )
 
         # We have 3 watchers here.
         self.assertEqual(self.registry.node_watcher_count(sdk.WatchableType.Variable, 'a/b/c'), 3)
@@ -621,9 +638,9 @@ class TestServerManagerRegistryInteraction(ScrutinyBaseGuiTest):
         self.registry.unwatch(watcher3, sdk.WatchableType.Variable, 'a/b/c')  # Should trigger a unwatch to the server
         request1 = self.get_unwatch_request(assert_single=True)
         self.asssert_no_unwatch_request(max_wait=0.5) 
-        call_count = self.server_manager._watch_unwatch_ui_callback_call_count
+        call_count = self.server_manager._qt_watch_unwatch_ui_callback_call_count
         request1.simulate_failure() #  Should stay watched
-        self.wait_true_with_events(lambda : call_count != self.server_manager._watch_unwatch_ui_callback_call_count, timeout=1 )
+        self.wait_true_with_events(lambda : call_count != self.server_manager._qt_watch_unwatch_ui_callback_call_count, timeout=1 )
 
         # Registry now consider that watcher3 is not listening, but the client is still subscribed
         # The following watch will cause the registry to consider watcher3 as a watcher, but will not trigger a request to the server
@@ -632,9 +649,9 @@ class TestServerManagerRegistryInteraction(ScrutinyBaseGuiTest):
         request3 = self.get_unwatch_request(assert_single=True)
         self.asssert_no_unwatch_request(max_wait=0.5) 
         
-        call_count = self.server_manager._watch_unwatch_ui_callback_call_count
+        call_count = self.server_manager._qt_watch_unwatch_ui_callback_call_count
         request3.simulate_success() 
-        self.wait_true_with_events(lambda : call_count != self.server_manager._watch_unwatch_ui_callback_call_count, timeout=1 )
+        self.wait_true_with_events(lambda : call_count != self.server_manager._qt_watch_unwatch_ui_callback_call_count, timeout=1 )
         
         self.asssert_no_unwatch_request(max_wait=0.5) 
         self.assertEqual(self.registry.node_watcher_count(sdk.WatchableType.Variable, 'a/b/c'), 0)
@@ -649,14 +666,14 @@ class TestServerManagerRegistryInteraction(ScrutinyBaseGuiTest):
             server_id='aaa',
             watchable_type=sdk.WatchableType.Variable
         )
-        self.server_manager.registry.add_watchable(watch1.display_path, watch1.configuration)
+        self.registry._add_watchable(watch1.display_path, watch1.configuration)
         all_updates = []
         def callback(watcher, updates):
             for update in updates:
                 all_updates.append(update)
 
-        self.server_manager.registry.register_watcher('hello', callback)
-        self.server_manager.registry.watch('hello', watch1.configuration.watchable_type, watch1.display_path)
+        self.registry.register_watcher('hello', callback, lambda *x,**y:None)
+        self.registry.watch('hello', watch1.configuration.watchable_type, watch1.display_path)
         watch1.set_value(1234)
         self.server_manager._listener.subscribe(watch1)
 

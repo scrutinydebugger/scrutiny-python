@@ -36,6 +36,7 @@ from scrutiny.server.device.device_info import ExecLoopType
 from scrutiny.core.basic_types import MemoryRegion
 import scrutiny.core.datalogging as core_datalogging
 from scrutiny.core.typehints import EmptyDict
+from scrutiny import tools
 
 
 from .tcp_client_handler import TCPClientHandler
@@ -1215,10 +1216,8 @@ class API:
             if not isinstance(req['x_axis_signal']['path'], str):
                 raise InvalidRequestException(req, 'Invalid x_axis_signal.path field')
 
-            try:
+            with tools.SuppressException():
                 x_axis_entry = self.datastore.get_entry_by_display_path(req['x_axis_signal']['path'])
-            except Exception:
-                pass
 
             if x_axis_entry is None:
                 raise InvalidRequestException(req, 'Cannot find watchable with given path %s' % req['x_axis_signal']['path'])
@@ -1243,10 +1242,8 @@ class API:
                 if not isinstance(given_operand['value'], str):
                     raise InvalidRequestException(req, "Unsupported datatype for operand")
                 watchable: Optional[DatastoreEntry] = None
-                try:
+                with tools.SuppressException():
                     watchable = self.datastore.get_entry_by_display_path(given_operand['value'])
-                except Exception:
-                    pass
 
                 if watchable is None:
                     raise InvalidRequestException(req, "Cannot find watchable with given path %s" % given_operand['value'])
@@ -1295,10 +1292,8 @@ class API:
             if not isinstance(signal_def['path'], str):
                 raise InvalidRequestException(req, 'Invalid signal watchable path')
 
-            try:
+            with tools.SuppressException():
                 signal_entry = self.datastore.get_entry_by_display_path(signal_def['path'])
-            except Exception:
-                pass
 
             if signal_entry is None:
                 raise InvalidRequestException(req, "Cannot find watchable with given path : %s" % signal_def['path'])

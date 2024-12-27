@@ -19,7 +19,7 @@ from scrutiny.core import validation
 from scrutiny.core.logging import DUMPDATA_LOGLEVEL
 from scrutiny.sdk import exceptions as sdk_exceptions
 from scrutiny.tools.profiling import VariableRateExponentialAverager
-from scrutiny.tools import UnitTestStub
+from scrutiny import tools
 
 @dataclass(frozen=True)
 class ValueUpdate:
@@ -252,11 +252,11 @@ class BaseListener(abc.ABC):
         """
 #        if self._started:
 #            raise sdk_exceptions.OperationFailure("Cannot subscribe a watchable once the listener is started")
-        if isinstance(watchables, (WatchableHandle, UnitTestStub)):
+        if isinstance(watchables, (WatchableHandle, tools.UnitTestStub)):
             watchables = [watchables]
         validation.assert_is_iterable(watchables, 'watchables')
         for watchable in watchables:
-            validation.assert_type(watchable, 'watchable', (WatchableHandle, UnitTestStub))
+            validation.assert_type(watchable, 'watchable', (WatchableHandle, tools.UnitTestStub))
             watchable._assert_configured() # Paranoid check.
         
         with self._subscriptions_lock:
@@ -363,11 +363,9 @@ class BaseListener(abc.ABC):
         with self._subscriptions_lock:
             self._assert_can_change_subscriptions()
             for handle in self._subscriptions.copy():
-                if handle._is_dead():
-                    try:
+                if handle.is_dead:
+                    with tools.SuppressException(KeyError):
                         self._subscriptions.remove(handle)
-                    except KeyError:
-                        pass
 
     def allow_subcription_changes_while_running(self) -> bool:
         """Indicate if it is allowed to change the subscription list after the listener is started.

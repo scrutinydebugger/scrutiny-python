@@ -583,7 +583,19 @@
             "docstring": "A file that provide some global counter atomic counter for unique ID generation"
         },
         "scrutiny/gui/dashboard_components/metrics/metrics_component.py": {
-            "docstring": ""
+            "docstring": "A dashboard component that shows internal metrics for debugging purpose"
+        },
+        "test/gui/test_invoker.py": {
+            "docstring": "A test suite to test the cross thread invocation helpers"
+        },
+        "scrutiny/gui/core/threads.py": {
+            "docstring": "Some threading global definition used to enforce thread"
+        },
+        "scrutiny/gui/tools/invoker.py": {
+            "docstring": "Some tools to invoke methods across threads in the GUI"
+        },
+        "scrutiny/tools/thread_enforcer.py": {
+            "docstring": "A runtime checker that enforces the thread ID of function caller. Prevents race conditions from misusage of internal APIs"
         }
     }
 }

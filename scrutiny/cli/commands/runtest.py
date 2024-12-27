@@ -12,6 +12,7 @@ import unittest
 import logging
 from typing import Optional, List
 import traceback
+from scrutiny.core.logging import DUMPDATA_LOGLEVEL
 
 
 class RunTest(BaseCommand):
@@ -50,7 +51,10 @@ class RunTest(BaseCommand):
 
         format_string = ""
         logging_level_str = self.requested_log_level if self.requested_log_level else "critical"
-        logging_level = getattr(logging, logging_level_str.upper())
+        if logging_level_str.upper().strip() == 'DUMPDATA':
+            logging_level = DUMPDATA_LOGLEVEL 
+        else:  
+            logging_level = getattr(logging, logging_level_str.upper())
         if logging_level == logging.DEBUG:
             format_string += "%(relativeCreated)0.3f (#%(thread)d)"
         format_string += '[%(levelname)s] <%(name)s> %(message)s'

@@ -11,8 +11,8 @@ import argparse
 from .base_command import BaseCommand
 from typing import Optional, List
 import logging
-import traceback
 import time
+from scrutiny import tools
 
 
 class PrintableSFDEntry:
@@ -75,29 +75,23 @@ class ListSFD(BaseCommand):
                 entry.scrutiny_version = metadata['generation_info']['scrutiny_version']
                 str(entry)  # Make sure it can be rendered. Otherwise exception will be raised
 
-                try:
+                with tools.SuppressException(Exception):
                     entry.project_name = metadata['project_name']
-                except Exception:
-                    pass
 
-                try:
+                with tools.SuppressException(Exception):
                     entry.version = metadata['version']
-                except Exception:
-                    pass
 
-                try:
+                with tools.SuppressException(Exception):
                     entry.author = metadata['author']
-                except Exception:
-                    pass
 
                 padding = max(padding, entry.get_len_for_padding())
 
                 sfd_list.append(entry)
 
             except Exception as e:
-                logging.warning('Cannot read SFD with firmware ID %s. %s' % (firmware_id, str(e)))
-                logging.debug(traceback.format_exc())
-
+                tools.log_exception(logging.root, e, 
+                                f'Cannot read SFD with firmware ID {firmware_id}', 
+                                str_level=logging.WARNING)
         print('Number of valid SFD installed: %d' % len(sfd_list))
 
         sfd_list.sort(key=lambda x: (x.project_name, x.version, x.create_time))

@@ -15,6 +15,7 @@ from PySide6.QtGui import QIcon
 from typing import Dict, cast, TYPE_CHECKING, Any
 
 from scrutiny.gui.core.server_manager import ServerManager
+from scrutiny.gui.core.watchable_registry import WatchableRegistry
 import logging
 
 if TYPE_CHECKING:   # Prevent circular dependency
@@ -24,15 +25,18 @@ class ScrutinyGUIBaseComponent(QWidget):
     instance_name:str
     main_window:"MainWindow"
     server_manager:ServerManager
+    watchable_registry:WatchableRegistry
     logger:logging.Logger
 
     def __init__(self, main_window:"MainWindow", 
                  instance_name:str,
+                 watchable_registry:WatchableRegistry,
                  server_manager:ServerManager
                  ) -> None:
         self.instance_name = instance_name
         self.main_window = main_window
         self.server_manager = server_manager
+        self.watchable_registry=watchable_registry
         self.logger = logging.getLogger(self.__class__.__name__)
         super().__init__()
 

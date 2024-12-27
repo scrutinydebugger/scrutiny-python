@@ -89,13 +89,13 @@ class VarListComponentTreeModel(WatchableTreeModel):
         # We do not expect the application to query this data model 
         # with a WatchableRegistry path, it will query the registry directly.
 
-        parsed = WatchableRegistry.parse_fqn(fqn)
+        parsed = WatchableRegistry.FQN.parse(fqn)
         path_parts = WatchableRegistry.split_path(parsed.path)
         if len(path_parts) == 0:
             return None
         
-        empty_fqn = WatchableRegistry.make_fqn(parsed.watchable_type, '')
-        first_fqn = WatchableRegistry.extend_fqn(empty_fqn, [path_parts.pop(0)])
+        empty_fqn = WatchableRegistry.FQN.make(parsed.watchable_type, '')
+        first_fqn = WatchableRegistry.FQN.extend(empty_fqn, [path_parts.pop(0)])
 
         def find_item_recursive(
                 item:BaseWatchableRegistryTreeStandardItem, 
@@ -109,10 +109,10 @@ class VarListComponentTreeModel(WatchableTreeModel):
                 if child.fqn is None:
                     continue
 
-                if WatchableRegistry.fqn_equal(child.fqn, wanted_fqn):
+                if WatchableRegistry.FQN.is_equal(child.fqn, wanted_fqn):
                     if len(remaining_parts) == 0:
                         return child
-                    new_fqn = WatchableRegistry.extend_fqn(wanted_fqn, [remaining_parts.pop(0)])
+                    new_fqn = WatchableRegistry.FQN.extend(wanted_fqn, [remaining_parts.pop(0)])
                     return find_item_recursive(child, new_fqn, remaining_parts.copy())
             
             return None
@@ -122,7 +122,7 @@ class VarListComponentTreeModel(WatchableTreeModel):
             start_node = cast(Optional[BaseWatchableRegistryTreeStandardItem], self.item(i, 0))
             if start_node is not None:
                 if start_node.fqn is not None:
-                    if WatchableRegistry.parse_fqn(start_node.fqn).watchable_type == parsed.watchable_type:
+                    if WatchableRegistry.FQN.parse(start_node.fqn).watchable_type == parsed.watchable_type:
                         result = find_item_recursive(start_node, first_fqn, path_parts.copy() )
                         if result is not None:
                             return result
@@ -153,12 +153,12 @@ class VarListComponent(ScrutinyGUIBaseComponent):
     def setup(self) -> None:
         layout = QVBoxLayout(self)
 
-        self._tree_model = VarListComponentTreeModel(self, watchable_registry=self.server_manager.registry)
+        self._tree_model = VarListComponentTreeModel(self, watchable_registry=self.watchable_registry)
         self._tree = VarlistComponentTreeWidget(self, self._tree_model)
         
-        var_row = self._tree_model.make_folder_row("Var", WatchableRegistry.make_fqn(WatchableType.Variable, '/'), editable=False)
-        alias_row = self._tree_model.make_folder_row("Alias", WatchableRegistry.make_fqn(WatchableType.Alias, '/'), editable=False)
-        rpv_row = self._tree_model.make_folder_row("RPV", WatchableRegistry.make_fqn(WatchableType.RuntimePublishedValue, '/'), editable=False)
+        var_row = self._tree_model.make_folder_row("Var", WatchableRegistry.FQN.make(WatchableType.Variable, '/'), editable=False)
+        alias_row = self._tree_model.make_folder_row("Alias", WatchableRegistry.FQN.make(WatchableType.Alias, '/'), editable=False)
+        rpv_row = self._tree_model.make_folder_row("RPV", WatchableRegistry.FQN.make(WatchableType.RuntimePublishedValue, '/'), editable=False)
 
         self._tree.model().appendRow(var_row)
         self._tree.model().appendRow(alias_row)
@@ -172,7 +172,7 @@ class VarListComponent(ScrutinyGUIBaseComponent):
         layout.addWidget(self._tree)
 
         self.reload_model([WatchableType.RuntimePublishedValue, WatchableType.Alias, WatchableType.Variable])
-        self._index_change_counters = self.server_manager.registry.get_change_counters()
+        self._index_change_counters =self.watchable_registry.get_change_counters()
 
         self.server_manager.signals.registry_changed.connect(self.registry_changed_slot)
         self._tree.expanded.connect(self.node_expanded_slot)
@@ -186,7 +186,7 @@ class VarListComponent(ScrutinyGUIBaseComponent):
             if not child.is_loaded():
                 fqn = child.fqn
                 assert fqn is not None  # All data is coming from the index, so it has an Fully Qualified Name
-                parsed_fqn = WatchableRegistry.parse_fqn(fqn)
+                parsed_fqn = WatchableRegistry.FQN.parse(fqn)
                 self._tree_model.lazy_load(child, parsed_fqn.watchable_type, parsed_fqn.path)
         
         self._tree.expand_first_column_to_content()
@@ -194,7 +194,7 @@ class VarListComponent(ScrutinyGUIBaseComponent):
     
     def registry_changed_slot(self) -> None:
         """Called when the server manager finsishes downloading the server watchable list and update the registry"""
-        index_change_counters = self.server_manager.registry.get_change_counters()
+        index_change_counters =self.watchable_registry.get_change_counters()
         # Identify all the types that changed since the last model update
         types_to_reload = []
         for wt, count in index_change_counters.items():

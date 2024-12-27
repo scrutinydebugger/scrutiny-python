@@ -12,7 +12,7 @@ from .base_command import BaseCommand
 from typing import Optional, List
 import logging
 import os
-import traceback
+from scrutiny import tools
 
 
 class AddAlias(BaseCommand):
@@ -101,8 +101,7 @@ class AddAlias(BaseCommand):
             try:
                 alias.set_target_type(FirmwareDescription.get_alias_target_type(alias, varmap))
             except Exception as e:
-                self.logger.error('Cannot deduce type of alias %s referring to %s. %s' % (alias.get_fullpath(), alias.get_target(), str(e)))
-                self.logger.debug(traceback.format_exc())
+                tools.log_exception(self.logger, e, f'Cannot deduce type of alias {alias.get_fullpath()} referring to {alias.get_target()}.')
                 continue
 
             if k in all_alliases:

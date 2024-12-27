@@ -1,13 +1,23 @@
 __all__ = [
     'Throttler',
-    'Timer'
+    'Timer',
+    'get_not_none',
+    'update_dict_recursive',
+    'format_eng_unit',
+    'format_exception',
+    'UnitTestStub',
+    'SuppressException',
+    'log_exception'
 ]
+
 from .throttler import Throttler
 from .timer import Timer
 
 import traceback
 from copy import deepcopy
-from typing import Dict, Any, Optional, TypeVar, List, Tuple
+from typing import Dict, Any, Optional, TypeVar, List, Tuple, Type, cast, Union
+import types
+import logging
 
 T=TypeVar("T")
 
@@ -83,8 +93,84 @@ def format_eng_unit(val:float, decimal:int=0, unit:str="", binary:bool=False) ->
     return (format_string % val) + prefix + unit 
 
 
-def format_exception(e:Exception) -> str:
+def format_exception(e:BaseException) -> str:
     return ''.join(traceback.format_exception(type(e), e, e.__traceback__))
 
 class UnitTestStub:
     pass
+
+
+class SuppressException:
+    ignore_types:List[Type[BaseException]]
+
+    def __init__(self, *args:Any) -> None:
+        self.ignore_types = [] 
+        for arg in args:
+            self.ignore_types.append(cast(Type[BaseException], arg))
+        if len(args) == 0:
+            self.ignore_types.append(Exception)
+    
+    def __enter__(self) -> "SuppressException":
+        return self
+
+    def __exit__(self, 
+                 exc_type: Optional[Type[BaseException]], 
+                 exc_val: Optional[BaseException], 
+                 exc_tb: Optional[types.TracebackType]) -> bool:
+        if exc_type is not None: 
+            for exc_type in self.ignore_types:
+                if isinstance(exc_val, exc_type):
+                    return True
+        return False
+
+
+def log_exception(logger:logging.Logger,
+            exc:BaseException,
+            msg:Optional[str] = None,
+            str_level:Optional[int]=logging.ERROR, 
+            traceback_level:Optional[int]=logging.DEBUG) -> None:
+    if str_level is not None:
+        if logger.isEnabledFor(str_level):
+            if msg is not None:
+                error_str = f"{msg}\n  Underlying error: {exc}"
+            else:
+                error_str = str(exc)
+            logger.log(str_level, error_str)
+    
+    if traceback_level is not None:
+        if logger.isEnabledFor(traceback_level):
+            logger.log(traceback_level, format_exception(exc))
+
+class LogException:
+    logger:logging.Logger
+    str_level:Optional[int]
+    traceback_level:Optional[int]
+    exc:List[Type[BaseException]]
+
+    def __init__(self, 
+                 logger:logging.Logger, 
+                 exc:Union[List[Type[BaseException]], Type[BaseException]],
+                 msg:Optional[str] = None,
+                 str_level:Optional[int]=logging.ERROR, 
+                 traceback_level:Optional[int]=logging.DEBUG) -> None:
+        self.logger = logger
+        self.str_level = str_level
+        self.traceback_level = traceback_level
+        self.msg = msg
+        if not isinstance(exc, list):
+            exc = [exc]
+        self.exc = exc
+
+    def __enter__(self) -> "LogException":
+        return self
+    
+    def __exit__(self, 
+                 exc_type: Optional[Type[BaseException]], 
+                 exc_val: Optional[BaseException], 
+                 exc_tb: Optional[types.TracebackType]) -> bool:
+        if exc_val is not None:
+            if exc_type in self.exc:
+                log_exception(self.logger, exc_val, self.msg, self.str_level, self.traceback_level)
+                return True
+            
+        return False

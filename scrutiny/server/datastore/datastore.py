@@ -12,6 +12,7 @@ import logging
 import functools
 from scrutiny.server.datastore.datastore_entry import *
 from scrutiny.server.datastore.entry_type import EntryType
+from scrutiny import tools
 
 from typing import Callable, List, Dict, Generator, Set, List, Optional, Union, Any
 
@@ -183,12 +184,10 @@ class Datastore:
         entry_id = self.interpret_entry_id(entry_id)
         entry = self.get_entry(entry_id)
 
-        try:
+        with tools.SuppressException():
             self.watcher_map[entry.get_type()][entry_id].remove(watcher)
-        except Exception:
-            pass
 
-        try:
+        with tools.SuppressException():
             if len(self.watcher_map[entry.get_type()][entry_id]) == 0:
                 del self.watcher_map[entry.get_type()][entry_id]
 
@@ -196,8 +195,6 @@ class Datastore:
                     # Special handling for Aliases.
                     # If nobody watches this alias, then we can remove the internal subscription to the referenced entry
                     self.stop_watching(entry.resolve(), self.make_owner_from_alias_entry(entry))
-        except Exception:
-            pass
 
         entry.unregister_value_change_callback(watcher)
 

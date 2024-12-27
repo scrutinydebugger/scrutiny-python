@@ -6,12 +6,13 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
-from scrutiny.tools import Throttler
+from scrutiny.tools import Throttler, SuppressException
+from scrutiny.tools.thread_enforcer import enforce_thread, register_thread, thread_func
 import time
 import math
 from test import logger
 from test import ScrutinyUnitTest
-
+import threading
 
 class TestThrottler(ScrutinyUnitTest):
 
@@ -91,6 +92,96 @@ class TestTools(ScrutinyUnitTest):
 
         self.assertEqual(d, expected_dict)
 
+
+class TestThreadEnforcer(ScrutinyUnitTest):
+    def test_thread_enforce(self):
+        
+        @enforce_thread("AAA")
+        def func_AAA():
+            pass
+
+        @enforce_thread("BBB")
+        def func_BBB():
+            pass
+
+        with self.assertRaises(Exception):
+            func_AAA()
+
+        register_thread("AAA")  # register self thread
+        func_AAA()
+
+        bbb_started = threading.Event()
+        call_bbb = threading.Event()
+        bbb_called = threading.Event()
+        exit_bbb = threading.Event()
+
+
+        @thread_func("BBB")
+        def BBB_thread_func():
+            bbb_started.set()
+            
+            with self.assertRaises(Exception):
+                func_AAA()
+            
+            call_bbb.wait(2)
+            func_BBB()
+            bbb_called.set()
+            exit_bbb.wait(2)
+
+
+        BBB2_started = threading.Event()
+        
+        @thread_func("BBB")
+        def duplicate_BBB():
+            BBB2_started.set()
+
+        thread_BBB = threading.Thread(target=BBB_thread_func, daemon=True)
+        thread_BBB.start()
+        bbb_started.wait(1)
+
+        with self.assertRaises(Exception):
+            func_BBB()
+        
+        call_bbb.set()
+        bbb_called.wait(1)
+        self.assertTrue(bbb_called.is_set())
+        self.assertTrue(thread_BBB.is_alive())
+
+        BBB2_dead = threading.Event()
+        def duplicate_BBB_no_exc():
+            try:
+                duplicate_BBB()
+            except Exception:
+                BBB2_dead.set()
+            
+
+        thread_BBB2 = threading.Thread(target=duplicate_BBB_no_exc, daemon=True)
+        thread_BBB2.start()
+        BBB2_dead.wait(1)
+
+        self.assertFalse(BBB2_started.is_set())
+        self.assertTrue(BBB2_dead.is_set())
+        thread_BBB2.join(1)
+        self.assertFalse(thread_BBB2.is_alive())
+        exit_bbb.set()
+
+
+    def test_ignore_error(self):
+        with self.assertRaises(ValueError):
+            with SuppressException(TypeError):
+                raise TypeError("aaa")
+            
+            with SuppressException(TypeError):
+                raise ValueError("bbb")
+            
+        
+        with SuppressException(TypeError, NotImplementedError):
+            raise NotImplementedError("aaa")
+        
+        with SuppressException():
+            raise ValueError("aaa")
+
+        
 
 if __name__ == '__main__':
     import unittest

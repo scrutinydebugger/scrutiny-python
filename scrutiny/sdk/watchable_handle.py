@@ -91,9 +91,6 @@ class WatchableHandle:
             self._value = None
             self._status = status
 
-    def _is_dead(self) -> bool:
-        return self._status != ValueStatus.Valid and self._status != ValueStatus.NeverSet
-
     def _read(self) -> ValType:
         with self._lock:
             val = self._value
@@ -337,3 +334,8 @@ class WatchableHandle:
     def update_counter(self) -> int:
         """Number of value update gotten since the creation of the handle. Can be safely used for change detection"""
         return self._update_counter
+
+    @property
+    def is_dead(self) -> bool:
+        status = ValueStatus(self._status)  # copy for atomicity
+        return status not in (ValueStatus.Valid, ValueStatus.NeverSet)

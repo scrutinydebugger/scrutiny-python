@@ -24,9 +24,12 @@ __all__ = [
 from scrutiny import sdk
 from scrutiny.sdk.listeners import ValueUpdate
 from typing import Dict, List, Union, Optional, Callable, Set, Any, Iterable
-import threading
 from dataclasses import dataclass
 import logging
+from scrutiny.tools.thread_enforcer import enforce_thread
+from scrutiny.gui import QT_THREAD_NAME
+from scrutiny import tools
+from scrutiny.core import validation
 
 WatcherIdType = Union[str, int]
 
@@ -56,6 +59,7 @@ TYPESTR_MAP_WT2S: Dict[sdk.WatchableType, str] = {v: k for k, v in TYPESTR_MAP_S
 
 
 WatcherValueUpdateCallback = Callable[[WatcherIdType, List[ValueUpdate] ], None]
+UnwatchCallback = Callable[[WatcherIdType, str, sdk.WatchableConfiguration ], None]
 GlobalWatchCallback = Callable[[WatcherIdType, str, sdk.WatchableConfiguration], None]
 GlobalUnwatchCallback = Callable[[WatcherIdType, str, sdk.WatchableConfiguration], None]
 
@@ -83,16 +87,24 @@ class WatchableRegistryNodeContent:
 class Watcher:
     watcher_id:WatcherIdType
     value_update_callback:WatcherValueUpdateCallback
+    unwatch_callback:UnwatchCallback
     subscribed_server_id:Set[str]
 
-    def __init__(self, watcher_id:WatcherIdType, value_update_callback:WatcherValueUpdateCallback) -> None:
+    def __init__(self, 
+                 watcher_id:WatcherIdType, 
+                 value_update_callback:WatcherValueUpdateCallback,
+                 unwatch_callback:UnwatchCallback
+                 ) -> None:
         if not isinstance(watcher_id, (str, int)):
             raise ValueError("watcher_id is not a string or an int")
         if not callable(value_update_callback):
             raise ValueError("value_update_callback is not a function")
+        if not callable(unwatch_callback):
+            raise ValueError("unwatch_callback is not a function")
         
         self.watcher_id = watcher_id
         self.value_update_callback = value_update_callback
+        self.unwatch_callback = unwatch_callback
         self.subscribed_server_id = set()
 
 class WatchableRegistry:
@@ -111,13 +123,22 @@ class WatchableRegistry:
 
     _trees:  Dict[sdk.WatchableType, Any]
     _watchable_count:  Dict[sdk.WatchableType, int]
-    _lock:threading.Lock
     _global_watch_callbacks:Optional[GlobalWatchCallback]
     _global_unwatch_callbacks:Optional[GlobalUnwatchCallback]
     _logger:logging.Logger
     _tree_change_counters: Dict[sdk.WatchableType, int]
     _watchers:Dict[WatcherIdType, Watcher]
     _watched_entries:Dict[str, WatchableRegistryEntryNode]
+    
+    @staticmethod
+    def split_path(path:str) -> List[str]:
+        """Split a tree path in parts"""
+        return [x for x in path.split('/') if x]
+    
+    @staticmethod
+    def join_path(pieces:List[str]) -> str:
+        """Merge tree path together"""
+        return '/'.join([x for x in pieces if x])
     
     def __init__(self) -> None:
         self._trees = {
@@ -136,24 +157,14 @@ class WatchableRegistry:
             sdk.WatchableType.RuntimePublishedValue : 0
         }
         
-        self._lock = threading.Lock()
         self._watchers = {}
         self._watched_entries = {}
         self._global_watch_callbacks = None
         self._global_unwatch_callbacks = None
         self._logger = logging.getLogger(self.__class__.__name__)
     
-    @staticmethod
-    def split_path(path:str) -> List[str]:
-        """Split a tree path in parts"""
-        return [x for x in path.split('/') if x]
-    
-    @staticmethod
-    def join_path(pieces:List[str]) -> str:
-        """Merge tree path together"""
-        return '/'.join([x for x in pieces if x])
-
-    def _add_watchable_no_lock(self, path:str, config:sdk.WatchableConfiguration) -> None:
+    @enforce_thread(QT_THREAD_NAME)  
+    def _add_watchable(self, path:str, config:sdk.WatchableConfiguration) -> None:
         """Adds a single watchable to the tree storage without using a lock"""
         parts = self.split_path(path)
         if len(parts) == 0:
@@ -172,67 +183,72 @@ class WatchableRegistry:
             )
         self._watchable_count[config.watchable_type]+=1
 
-    def _get_node_with_lock(self, watchable_type:sdk.WatchableType, path:str) -> Union[WatchableRegistryNodeContent, WatchableRegistryEntryNode]:
+    @enforce_thread(QT_THREAD_NAME)  
+    def _get_node(self, watchable_type:sdk.WatchableType, path:str) -> Union[WatchableRegistryNodeContent, WatchableRegistryEntryNode]:
         """Read a node in the tree and locks the tree while doing it."""
-        with self._lock:
-            parts = self.split_path(path)
-            node = self._trees[watchable_type]
-            for part in parts:
-                if part not in node:
-                    raise WatchableRegistryNodeNotFoundError(f"Inexistent path : {path} ")
-                node = node[part]
+        parts = self.split_path(path)
+        node = self._trees[watchable_type]
+        for part in parts:
+            if part not in node:
+                raise WatchableRegistryNodeNotFoundError(f"Inexistent path : {path} ")
+            node = node[part]
 
-            if isinstance(node, dict):
-                return WatchableRegistryNodeContent(
-                    watchables=dict( (name, val.configuration) for name, val in node.items() if isinstance(val, WatchableRegistryEntryNode)),
-                    subtree=[name for name, val in node.items() if isinstance(val, dict)]
-                )
-            elif isinstance(node, WatchableRegistryEntryNode):
-                return node
-            else:
-                raise WatchableRegistryError(f"Unexpected item of type {node.__class__.__name__} inside the registry")
+        if isinstance(node, dict):
+            return WatchableRegistryNodeContent(
+                watchables=dict( (name, val.configuration) for name, val in node.items() if isinstance(val, WatchableRegistryEntryNode)),
+                subtree=[name for name, val in node.items() if isinstance(val, dict)]
+            )
+        elif isinstance(node, WatchableRegistryEntryNode):
+            return node
+        else:
+            raise WatchableRegistryError(f"Unexpected item of type {node.__class__.__name__} inside the registry")
     
-    def _has_data(self, watchable_type:sdk.WatchableType) -> bool:
-        """Tells if the tree attached to a given watchable type contains data"""
-        return len(self._trees[watchable_type]) > 0
-
     def broadcast_value_updates_to_watchers(self, updates:List[ValueUpdate]) -> None:
         for watcher_id, watcher in self._watchers.items():
             filtered_updates = [update for update in updates if update.watchable.server_id in watcher.subscribed_server_id]
             if len(filtered_updates) > 0:
                 watcher.value_update_callback(watcher_id, filtered_updates)
 
-    def register_watcher(self, watcher_id:WatcherIdType, value_update_callback:WatcherValueUpdateCallback, override:bool=False) -> None:
-        watcher = Watcher(watcher_id=watcher_id, value_update_callback=value_update_callback)   # Validation happens here
+    @enforce_thread(QT_THREAD_NAME)
+    def register_watcher(self, 
+                         watcher_id:WatcherIdType, 
+                         value_update_callback:WatcherValueUpdateCallback,
+                         unwatch_callback:UnwatchCallback,
+                         ignore_duplicate:bool=False) -> None:
+        # Create the Watcher first to validate the args
+        watcher =  Watcher(  
+            watcher_id=watcher_id, 
+            value_update_callback=value_update_callback, 
+            unwatch_callback=unwatch_callback
+            )   
+
         if watcher_id in self._watchers:
-            if not override:
-                raise WatchableRegistryError(f"Duplicate watcher with ID {watcher_id}")
+            if ignore_duplicate:
+                return
+            raise WatchableRegistryError(f"Duplicate watcher with ID {watcher_id}")
         
         self._watchers[watcher_id] = watcher
-    
+            
+    @enforce_thread(QT_THREAD_NAME)
     def unregister_watcher(self, watcher_id:WatcherIdType ) -> None:
         watcher: Optional[Watcher] = None
-        try:
+        with tools.SuppressException(KeyError):
             watcher = self._watchers[watcher_id]
-        except KeyError:
-            pass
+
         if watcher is None:
             raise WatcherNotFoundError(f"No watchers with ID {watcher_id}")
         
         nodes:List[WatchableRegistryEntryNode] = []
-        with self._lock:
-            for server_id in list(watcher.subscribed_server_id):
-                try:
-                    nodes.append(self._watched_entries[server_id])
-                except KeyError:
-                    continue
+        for server_id in list(watcher.subscribed_server_id):
+            try:
+                nodes.append(self._watched_entries[server_id])
+            except KeyError:
+                continue
         
-        self._unwatch_node_list_with_lock(nodes, watcher)
+        self._unwatch_node_list(nodes, watcher)
        
-        try:
+        with tools.SuppressException(KeyError):
             del self._watchers[watcher_id]
-        except KeyError:
-            pass
     
     def registered_watcher_count(self) -> int:
         """Return the number of active registered watchers"""
@@ -245,9 +261,10 @@ class WatchableRegistry:
         :param watcher_id: A string/int that identifies the owner of the callback. Passed back when the callback is invoked
         :param fqn: The watchable fully qualified name
         """
-        parsed = self.parse_fqn(fqn)
+        parsed = self.FQN.parse(fqn)
         self.watch(watcher_id, parsed.watchable_type, parsed.path)
 
+    @enforce_thread(QT_THREAD_NAME)
     def watch(self, watcher_id:WatcherIdType, watchable_type:sdk.WatchableType, path:str) -> None:
         """Adds a watcher on the given watchable and register a callback to be 
         invoked when its value is updated 
@@ -257,43 +274,45 @@ class WatchableRegistry:
         :param path: The watchable tree path
         """
         watcher:Optional[Watcher] = None
-        try:
+        with tools.SuppressException(KeyError):
             watcher = self._watchers[watcher_id]
-        except KeyError:
-            pass
 
         if watcher is None:
             raise WatcherNotFoundError(f"No watchers with ID {watcher_id}")
         
-        node = self._get_node_with_lock(watchable_type, path)
+        node = self._get_node(watchable_type, path)
         if not isinstance(node, WatchableRegistryEntryNode):
             raise WatchableRegistryError("Cannot watch something that is not a Watchable")
         
-        with self._lock:
-            self._watched_entries[node.configuration.server_id] = node
-            added = False
-            if node.configuration.server_id not in watcher.subscribed_server_id:
-                watcher.subscribed_server_id.add(node.configuration.server_id)
-                node.watcher_count += 1 
-                added = True
+        self._watched_entries[node.configuration.server_id] = node
+        added = False
+        if node.configuration.server_id not in watcher.subscribed_server_id:
+            watcher.subscribed_server_id.add(node.configuration.server_id)
+            node.watcher_count += 1 
+            added = True
         
         if added and self._global_watch_callbacks is not None:
             self._global_watch_callbacks(watcher_id, node.server_path, node.configuration)
 
-    def _unwatch_node_list_with_lock(self, nodes:Iterable[WatchableRegistryEntryNode], watcher:Watcher) -> None:
-        with self._lock:
-            removed_list:List[WatchableRegistryEntryNode] = []
-            for node in nodes:
-                if node.configuration.server_id in watcher.subscribed_server_id:
-                    watcher.subscribed_server_id.remove(node.configuration.server_id)
-                    removed_list.append(node)
-                    node.watcher_count = max(node.watcher_count, 0)
-                    node.watcher_count -= 1
-                    if node.watcher_count == 0:
-                        try:
-                            del self._watched_entries[node.configuration.server_id]
-                        except KeyError:
-                            pass
+    @enforce_thread(QT_THREAD_NAME)  
+    def _unwatch_node_list(self, nodes:Iterable[WatchableRegistryEntryNode], watcher:Watcher) -> None:
+        removed_list:List[WatchableRegistryEntryNode] = []
+        for node in nodes:
+            if node.configuration.server_id in watcher.subscribed_server_id:
+                fqn = WatchableRegistry.FQN.make(node.configuration.watchable_type, node.server_path)
+                try:
+                    watcher.unwatch_callback(watcher.watcher_id, fqn, node.configuration)
+                except Exception as e:
+                    msg = f"Error in unwatch_callback callback for watcher ID {watcher.watcher_id} while unwatching {fqn}"
+                    tools.log_exception(self._logger, e, msg)
+
+                watcher.subscribed_server_id.remove(node.configuration.server_id)
+                removed_list.append(node)
+                node.watcher_count -= 1
+                node.watcher_count = max(node.watcher_count, 0)
+                if node.watcher_count == 0:
+                    with tools.SuppressException(KeyError):
+                        del self._watched_entries[node.configuration.server_id]
         
         # Callback is outside of lock on purpose to allow it to access the registry too. Deadlock will happen otherwise
         if self._global_unwatch_callbacks is not None:
@@ -301,6 +320,7 @@ class WatchableRegistry:
                 self._global_unwatch_callbacks(watcher.watcher_id, node.server_path, node.configuration)
        
 
+    @enforce_thread(QT_THREAD_NAME)
     def unwatch(self, watcher_id:WatcherIdType, watchable_type:sdk.WatchableType, path:str) -> None:
         """Remove a the given watcher from the watcher list of the given node.
         
@@ -313,13 +333,12 @@ class WatchableRegistry:
         except KeyError:
             raise WatcherNotFoundError(f"No watchers with ID {watcher_id}")
         
-        node = self._get_node_with_lock(watchable_type, path)
+        node = self._get_node(watchable_type, path)
         if not isinstance(node, WatchableRegistryEntryNode):
             raise WatchableRegistryError("Cannot unwatch something that is not a Watchable")
         
-        self._unwatch_node_list_with_lock([node], watcher)
+        self._unwatch_node_list([node], watcher)
 
-    
     def unwatch_fqn(self, watcher_id:WatcherIdType, fqn:str) -> None:
         """Remove a the given watcher from the watcher list of the given node.
         
@@ -327,7 +346,7 @@ class WatchableRegistry:
         :param watchable_type: The watchable type
         :param path: The watchable tree path
         """
-        parsed = self.parse_fqn(fqn)
+        parsed = self.FQN.parse(fqn)
         self.unwatch(watcher_id, parsed.watchable_type, parsed.path)
 
     def watcher_count_by_server_id(self, server_id:str) -> int:
@@ -348,7 +367,7 @@ class WatchableRegistry:
         :param fqn: The watchable fully qualified name
         :return: The number of watchers
         """
-        parsed = self.parse_fqn(fqn)
+        parsed = self.FQN.parse(fqn)
         return self.node_watcher_count(parsed.watchable_type, parsed.path)
        
     def node_watcher_count(self, watchable_type:sdk.WatchableType, path:str) -> int:
@@ -358,7 +377,7 @@ class WatchableRegistry:
         :param path: The watchable tree path
         :return: The number of watchers
         """
-        node = self._get_node_with_lock(watchable_type, path)
+        node = self._get_node(watchable_type, path)
         if not isinstance(node, WatchableRegistryEntryNode):
             raise WatchableRegistryError("Cannot get the watcher count of something that is not a Watchable")
         return node.watcher_count
@@ -367,6 +386,7 @@ class WatchableRegistry:
         """Return the total number of watchable being watched"""
         return len(self._watched_entries)
 
+    @enforce_thread(QT_THREAD_NAME)
     def read(self, watchable_type:sdk.WatchableType, path:str) -> Union[WatchableRegistryNodeContent, sdk.WatchableConfiguration]:
         """Read a node inside the registry.
         
@@ -375,7 +395,7 @@ class WatchableRegistry:
 
         :return: The node content. Either a watchable or a description of the subnodes
         """
-        node = self._get_node_with_lock(watchable_type, path)
+        node = self._get_node(watchable_type, path)
         if isinstance(node, WatchableRegistryEntryNode):
             return node.configuration
         return node
@@ -387,29 +407,9 @@ class WatchableRegistry:
 
         :return: The node content. Either a watchable or a description of the subnodes
         """        
-        parsed = self.parse_fqn(fqn)
+        parsed = self.FQN.parse(fqn)
         return self.read(parsed.watchable_type, parsed.path)
 
-    def add_watchable(self, path:str, obj:sdk.WatchableConfiguration) -> None:
-        """Adds a watchable inside the registry
-
-        :param path: The tree path of the node
-        :param obj: The watchable configuration object
-        """
-        with self._lock:
-            self._add_watchable_no_lock(path, obj)
-            self._tree_change_counters[obj.watchable_type] += 1
-    
-    def add_watchable_fqn(self, fqn:str, obj:sdk.WatchableConfiguration) -> None:
-        """Adds a watchable inside the registry using a fully qualified name
-
-        :param fqn: The fully qualified name created using ``make_fqn()``
-        :param obj: The watchable configuration object
-        """
-        parsed = self.parse_fqn(fqn)
-        self._validate_fqn(parsed, obj)
-        return self.add_watchable(parsed.path, obj)
-    
     def get_watchable_fqn(self, fqn:str) -> sdk.WatchableConfiguration:
         node = self.read_fqn(fqn)
         if not isinstance(node, sdk.WatchableConfiguration):
@@ -428,9 +428,10 @@ class WatchableRegistry:
             return isinstance(node, sdk.WatchableConfiguration)
         except WatchableRegistryError:
             return False
-        
-    def add_content(self, data:Dict[sdk.WatchableType, Dict[str, sdk.WatchableConfiguration]]) -> None:
-        """Add content of the given types.
+
+    @enforce_thread(QT_THREAD_NAME)  
+    def write_content(self, data:Dict[sdk.WatchableType, Dict[str, sdk.WatchableConfiguration]]) -> None:
+        """Write content of the given types.
         Triggers ``changed``.  May trigger ``filled`` if all types have data after calling this function.
         
         :param data: The data to add. Classified in dict[watchable_type][path]. 
@@ -440,45 +441,60 @@ class WatchableRegistry:
             sdk.WatchableType.Alias : False,
             sdk.WatchableType.RuntimePublishedValue : False,
         }
-        with self._lock:
-            for subdata in data.values():
-                for path, wc in subdata.items():
-                    touched[wc.watchable_type] = True
-                    self._add_watchable_no_lock(path, wc)
-            
-            for wt in touched:
-                if touched[wt]:
-                    self._tree_change_counters[wt] += 1
+        for wt in data.keys():
+            if len(data[wt]) > 0:
+                self.clear_content_by_type(wt)
+
+        for subdata in data.values():
+            for path, wc in subdata.items():
+                touched[wc.watchable_type] = True
+                self._add_watchable(path, wc)
+        
+        for wt in touched:
+            if touched[wt]:
+                self._tree_change_counters[wt] += 1
     
-    def clear_content_by_type(self, watchable_type:sdk.WatchableType) -> bool:
+    @enforce_thread(QT_THREAD_NAME)  
+    def clear_content_by_type(self, watchable_types:Union[sdk.WatchableType, Iterable[sdk.WatchableType]]) -> bool:
         """
         Clear the content of the given type from the registry. 
         May triggers ``changed`` and ``cleared`` if data was actually removed.
 
         :return: ``True`` if data was removed. ``False`` if the nothing was removed (already empty)
         """
-        with self._lock:
-            changed = False
+        if isinstance(watchable_types, sdk.WatchableType):
+            watchable_types = [watchable_types]
+        self._logger.debug(f"Clearing content for types {watchable_types}")
+        changed = False
+        for watchable_type in watchable_types:
             had_data = len(self._trees[watchable_type]) > 0
-            self._trees[watchable_type] = {}
-            self._watchable_count[watchable_type]=0
+
+            to_unwatch:List[WatchableRegistryEntryNode] = []
+            for entry in self._watched_entries.values():
+                if entry.configuration.watchable_type == watchable_type:
+                    to_unwatch.append(entry)
+            
+            to_unwatch_per_watcher:Dict[WatcherIdType, List[WatchableRegistryEntryNode]] = {}
+            for entry in to_unwatch:
+                for watcher in self._watchers.values():
+                    if entry.configuration.server_id in watcher.subscribed_server_id:
+                        if watcher.watcher_id not in to_unwatch_per_watcher:
+                            to_unwatch_per_watcher[watcher.watcher_id] = []
+                        to_unwatch_per_watcher[watcher.watcher_id].append(entry)
+
+            for watcher_id, node_list in to_unwatch_per_watcher.items():
+                self._unwatch_node_list(node_list, self._watchers[watcher_id])
+            
+            for entry in to_unwatch:
+                if entry.configuration.server_id in self._watched_entries:
+                    self._logger.error(f"Incoherence in Watchable Registry. Entry {entry.server_path} is still watched, but has no watcher")
+                    del self._watched_entries[entry.configuration.server_id]    # Resilience on error
 
             if had_data:
                 changed = True
                 self._tree_change_counters[watchable_type] += 1
-
-            to_remove:Set[str] = set()
-            for server_id, entry in self._watched_entries.items():
-                if entry.configuration.watchable_type == watchable_type:
-                    to_remove.add(server_id)
-            
-            for server_id in to_remove:
-                del self._watched_entries[server_id]
-                for watchers in self._watchers.values():
-                    try:
-                        watchers.subscribed_server_id.remove(server_id) # Force unwatch
-                    except KeyError:
-                        pass
+            self._trees[watchable_type] = {}
+            self._watchable_count[watchable_type]=0
 
         return changed
 
@@ -488,18 +504,17 @@ class WatchableRegistry:
 
         :return: ``True`` if data was removed. ``False`` if the nothing was removed (already empty) 
         """
-        with self._lock:
-            self._watched_entries.clear()
-            for watchers in self._watchers.values():
-                watchers.subscribed_server_id.clear()
-            had_data = False
-            for wt in [sdk.WatchableType.Variable, sdk.WatchableType.Alias, sdk.WatchableType.RuntimePublishedValue]:
-                if self._has_data(wt):
-                    had_data = True
-                    self._tree_change_counters[wt] += 1
+        had_data = False
+        for wt in [sdk.WatchableType.Variable, sdk.WatchableType.Alias, sdk.WatchableType.RuntimePublishedValue]:
+            temp = self.clear_content_by_type(wt)
+            had_data = had_data or temp
 
-                self._trees[wt] = {}
-                self._watchable_count[wt] = 0
+        if len(self._watched_entries) > 0:
+            self._logger.critical("Failed to clear the registry properly. _watched_entries is not empty")
+        
+        for watcher in self._watchers.values():
+            if len(watcher.subscribed_server_id) > 0:
+                self._logger.critical(f"Failed to clear the registry properly. watcher {watcher.watcher_id} still have registered nodes")
         
         return had_data
 
@@ -509,8 +524,7 @@ class WatchableRegistry:
         :param watchable_type: The type of watchable to look for
         :return: ``True`` if there is data of that type. ``False otherwise``
         """
-        with self._lock:
-            return self._has_data(watchable_type)
+        return len(self._trees[watchable_type]) > 0
 
     def register_global_watch_callback(self, watch_callback:GlobalWatchCallback, unwatch_callback:GlobalUnwatchCallback ) -> None:
         """Register a callback to be called whenever a new watcher is being added or removed on an entry
@@ -537,84 +551,80 @@ class WatchableRegistry:
             registered_watcher_count=self.registered_watcher_count()
         )
 
-    @classmethod
-    def _validate_fqn(cls, fqn:ParsedFullyQualifiedName, desc:sdk.WatchableConfiguration) -> None:
-        if fqn.watchable_type!= desc.watchable_type:
-            raise WatchableRegistryError("Watchable fully qualified name doesn't embded the type correctly.")
-  
-    @staticmethod
-    def parse_fqn(fqn:str) -> ParsedFullyQualifiedName:
-        """Parses a fully qualified name and return the information needed to query the registry.
+    class FQN:
+        @staticmethod
+        def parse(fqn:str) -> ParsedFullyQualifiedName:
+            """Parses a fully qualified name and return the information needed to query the registry.
+            
+            :param fqn: The fully qualified name
+            
+            :return: An object containing the type and the tree path separated
+            """
+            colon_position = fqn.find(':')
+            if colon_position == -1:
+                raise WatchableRegistryError("Bad fully qualified name")
+            typestr = fqn[0:colon_position]
+            if typestr not in TYPESTR_MAP_S2WT:
+                raise WatchableRegistryError(f"Unknown watchable type {typestr}")
         
-        :param fqn: The fully qualified name
-        
-        :return: An object containing the type and the tree path separated
-        """
-        colon_position = fqn.find(':')
-        if colon_position == -1:
-            raise WatchableRegistryError("Bad fully qualified name")
-        typestr = fqn[0:colon_position]
-        if typestr not in TYPESTR_MAP_S2WT:
-            raise WatchableRegistryError(f"Unknown watchable type {typestr}")
-    
-        return ParsedFullyQualifiedName(
-            watchable_type=TYPESTR_MAP_S2WT[typestr],
-            path=fqn[colon_position+1:]
-        )
+            return ParsedFullyQualifiedName(
+                watchable_type=TYPESTR_MAP_S2WT[typestr],
+                path=fqn[colon_position+1:]
+            )
 
-    @staticmethod
-    def make_fqn(watchable_type:sdk.WatchableType, path:str) -> str:
-        """Create a string representation that conveys enough information to find a specific element in the registry.
-        Contains the type and the tree path. 
+        @staticmethod
+        def make(watchable_type:sdk.WatchableType, path:str) -> str:
+            """Create a string representation that conveys enough information to find a specific element in the registry.
+            Contains the type and the tree path. 
+            
+            :param watchable_type: The SDK watchable type
+            :param path: The tree path
+            
+            :return: A fully qualified name containing the type and the tree path
+            """
+            return f"{TYPESTR_MAP_WT2S[watchable_type]}:{path}"
         
-        :param watchable_type: The SDK watchable type
-        :param path: The tree path
-        
-        :return: A fully qualified name containing the type and the tree path
-        """
-        return f"{TYPESTR_MAP_WT2S[watchable_type]}:{path}"
-    
-    @staticmethod
-    def extend_fqn(fqn:str, pieces:Union[str, List[str]]) -> str:
-        """Add one or many path parts to an existing Fully Qualified Name
-        Ex. var:/a/b/c + ['x', 'y'] = var:/a/b/c/x/y
-        
-        :param fqn: The Fully Qualified Name to extend
-        :param pieces: The parts to add
-        """
-        if isinstance(pieces, str):
-            pieces = [pieces]
-        parsed = WatchableRegistry.parse_fqn(fqn)
-        path_parts = WatchableRegistry.split_path(parsed.path)
-        prefix = ''
-        if len(path_parts) > 0:
-            index = parsed.path.find(path_parts[0])
-            if index >= 0:
-                prefix = parsed.path[0:index]
-        return WatchableRegistry.make_fqn(parsed.watchable_type, prefix+WatchableRegistry.join_path(path_parts + pieces) )
+        @staticmethod
+        def extend(fqn:str, pieces:Union[str, List[str]]) -> str:
+            """Add one or many path parts to an existing Fully Qualified Name
+            Ex. var:/a/b/c + ['x', 'y'] = var:/a/b/c/x/y
+            
+            :param fqn: The Fully Qualified Name to extend
+            :param pieces: The parts to add
+            """
+            if isinstance(pieces, str):
+                pieces = [pieces]
+            parsed = WatchableRegistry.FQN.parse(fqn)
+            path_parts = WatchableRegistry.split_path(parsed.path)
+            prefix = ''
+            if len(path_parts) > 0:
+                index = parsed.path.find(path_parts[0])
+                if index >= 0:
+                    prefix = parsed.path[0:index]
+            return WatchableRegistry.FQN.make(parsed.watchable_type, prefix+WatchableRegistry.join_path(path_parts + pieces) )
 
-    @staticmethod
-    def fqn_equal(fqn1:str, fqn2:str) -> bool:
-        """Compares 2 Fully Qualified Names and return ``True`` if they point to the same node
-        
-        :param fqn1: First oeprand
-        :param fqn2: Second oeprand
+        @staticmethod
+        def is_equal(fqn1:str, fqn2:str) -> bool:
+            """Compares 2 Fully Qualified Names and return ``True`` if they point to the same node
+            
+            :param fqn1: First oeprand
+            :param fqn2: Second oeprand
 
-        :return: ``True`` if equals
-        """
-        parsed1 = WatchableRegistry.parse_fqn(fqn1)
-        parsed2 = WatchableRegistry.parse_fqn(fqn2)
+            :return: ``True`` if equals
+            """
+            parsed1 = WatchableRegistry.FQN.parse(fqn1)
+            parsed2 = WatchableRegistry.FQN.parse(fqn2)
 
-        if parsed1.watchable_type != parsed2.watchable_type:
-            return False
-        
-        path1 = WatchableRegistry.split_path(parsed1.path)
-        path2 = WatchableRegistry.split_path(parsed2.path)
-
-        if len(path1) != len(path2):
-            return False
-        for i in range(len(path1)):
-            if path1[i] != path2[i]:
+            if parsed1.watchable_type != parsed2.watchable_type:
                 return False
+            
+            path1 = WatchableRegistry.split_path(parsed1.path)
+            path2 = WatchableRegistry.split_path(parsed2.path)
 
-        return True
+            if len(path1) != len(path2):
+                return False
+            for i in range(len(path1)):
+                if path1[i] != path2[i]:
+                    return False
+
+            return True

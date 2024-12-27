@@ -10,6 +10,7 @@ __all__ = ['WatchComponentTreeModel']
 
 import logging
 import functools
+import enum
 
 from PySide6.QtCore import QMimeData, QModelIndex, QPersistentModelIndex, Qt, QModelIndex
 from PySide6.QtWidgets import QWidget
@@ -25,7 +26,6 @@ from scrutiny.gui.dashboard_components.common.watchable_tree import (
     BaseWatchableRegistryTreeStandardItem,
     item_from_serializable_data
 )
-from uuid import uuid4
 from scrutiny.gui.tools.global_counters import global_i64_counter
 
 from typing import List, Union, Optional, cast, Sequence, TypedDict, Generator, Iterable
@@ -57,6 +57,11 @@ class WatchComponentTreeModel(WatchableTreeModel):
     """An extension of the data model used by Watchable Trees dedicated for the Watch Component
     Mainly handles drag&drop logic
     """
+
+    class Column(enum.Enum):
+        ITEM = 0
+        VALUE = 1
+
     logger:logging.Logger
     _available_palette:QPalette
     _unavailable_palette:QPalette
@@ -188,8 +193,9 @@ class WatchComponentTreeModel(WatchableTreeModel):
             'children' : []
         }
 
+        item_col = self.item_col()
         for row_index in range(top_level_item.rowCount()):
-            child = cast(BaseWatchableRegistryTreeStandardItem, top_level_item.child(row_index, 0))
+            child = cast(BaseWatchableRegistryTreeStandardItem, top_level_item.child(row_index, item_col))
             dict_out['children'].append(self._make_serializable_tree_descriptor(child, sortkey=row_index))
 
         return dict_out
@@ -204,11 +210,12 @@ class WatchComponentTreeModel(WatchableTreeModel):
             return None
         if len(path) == 0 or object_id == 0:
             return None
-        item = cast(BaseWatchableRegistryTreeStandardItem, self.item(path[0], 0))
+        item_col = self.item_col()
+        item = cast(BaseWatchableRegistryTreeStandardItem, self.item(path[0], item_col))
         if item is None:
             return None
         for row_index in path[1:]:
-            item = cast(BaseWatchableRegistryTreeStandardItem, item.child(row_index, 0))
+            item = cast(BaseWatchableRegistryTreeStandardItem, item.child(row_index, item_col))
             if item is None:
                 return None
         if id(item) != object_id:
@@ -218,9 +225,10 @@ class WatchComponentTreeModel(WatchableTreeModel):
     def mimeData(self, indexes: Sequence[QModelIndex]) -> QMimeData:
         """Generate the mimeData when a drag&drop starts"""
         
+        item_col = self.item_col()
         def get_items(indexes:Iterable[QModelIndex]) -> Generator[BaseWatchableRegistryTreeStandardItem, None, None]:
             for index in indexes:
-                if index.column() == 0:
+                if index.column() == item_col:
                     item = self.itemFromIndex(index)
                     assert item is not None
                     yield item
@@ -332,7 +340,7 @@ class WatchComponentTreeModel(WatchableTreeModel):
                 assert 'text' in node
                 assert 'fqn' in node
                 assert node['fqn'] is not None  # Varlist component guarantees a FQN
-                parsed_fqn = self._watchable_registry.parse_fqn(node['fqn'])
+                parsed_fqn = WatchableRegistry.FQN.parse(node['fqn'])
 
                 if node['type'] == 'folder':
                     folder_row = self.make_folder_row(node['text'], fqn=None, editable=True)
@@ -364,12 +372,15 @@ class WatchComponentTreeModel(WatchableTreeModel):
         """
 
         try:
+            dest_parent = self.itemFromIndex(dest_parent_index)
+            item_col = self.item_col()
+
             items = [self._get_item_from_serializable_index_descriptor(descriptor) for descriptor in data]
             if dest_row_index > 0:
                 if dest_parent_index.isValid():
-                    previous_item = self.itemFromIndex(dest_parent_index).child(dest_row_index-1, 0)
+                    previous_item = self.itemFromIndex(dest_parent_index).child(dest_row_index-1, item_col)
                 else:
-                    previous_item = self.item(dest_row_index-1, 0)
+                    previous_item = self.item(dest_row_index-1, item_col)
             insert_offset = 0        
             for item in items:
                 if item is not None:
@@ -382,6 +393,10 @@ class WatchComponentTreeModel(WatchableTreeModel):
                         new_dest_row_index = insert_offset
                     else:
                         new_dest_row_index = previous_item.row() + 1 + insert_offset
+                    
+                    dest_parent_index = QModelIndex()
+                    if dest_parent is not None:
+                        dest_parent_index = dest_parent.index() # Recompute each time because position can change in the loop
                     self.moveRow(
                         source_parent_index,
                         item.row(),
@@ -467,7 +482,7 @@ class WatchComponentTreeModel(WatchableTreeModel):
         dest_parent = self.itemFromIndex(dest_parent_index)
         rows:List[List[QStandardItem]] = []
         for descriptor in descriptors.data:
-            watchable_type = WatchableRegistry.parse_fqn(descriptor.fqn).watchable_type
+            watchable_type = WatchableRegistry.FQN.parse(descriptor.fqn).watchable_type
             row = self.make_watchable_row(
                 watchable_type=watchable_type,
                 name = descriptor.text,
@@ -493,8 +508,9 @@ class WatchComponentTreeModel(WatchableTreeModel):
                     raise NotImplementedError(f"Unsupported item type: {child}")
         
         if parent is None:
+            item_col = self.item_col()
             for i in range(self.rowCount()):
-                child = self.item(i, 0)
+                child = self.item(i, item_col)
                 if isinstance(child, FolderStandardItem):
                     yield from recurse(child)
                 elif isinstance(child, WatchableStandardItem):
@@ -547,7 +563,16 @@ class WatchComponentTreeModel(WatchableTreeModel):
         return False
 
     def get_value_item(self, item:WatchableStandardItem) -> ValueStandardItem:
-        # TODO : Can we do better than a hard coded index? What if the column can be reordered (possible with an option)
-        o = self.itemFromIndex(item.index().siblingAtColumn(1))
+        o = self.itemFromIndex(item.index().siblingAtColumn(self.value_col()))
         assert isinstance(o, ValueStandardItem)
         return o
+
+    def item_col(self) -> int:
+        return self.get_column_index(self.Column.ITEM)
+
+    def value_col(self) -> int:
+        return self.get_column_index(self.Column.VALUE)    
+
+    def get_column_index(self, col:Column) -> int:
+        # Indirection layer to make it easier to enable column reorder
+        return col.value

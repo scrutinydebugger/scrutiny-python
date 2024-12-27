@@ -7,13 +7,16 @@
 #   Copyright (c) 2021 Scrutiny Debugger
 
 from PySide6.QtWidgets import QApplication
-from PySide6.QtGui import QIcon, QPalette
+from PySide6.QtGui import QIcon
 from scrutiny.gui.main_window import MainWindow
 from scrutiny.gui import assets
 import scrutiny
 import ctypes
 import sys
 from typing import List
+from scrutiny.tools.thread_enforcer import register_thread
+from scrutiny.gui import QT_THREAD_NAME
+
 
 class ScrutinyQtGUI:
     debug_layout:bool
@@ -27,6 +30,7 @@ class ScrutinyQtGUI:
         self.auto_connect = auto_connect
     
     def run(self, args:List[str]) -> int:
+        register_thread(QT_THREAD_NAME)
         app = QApplication(args)
         app.setWindowIcon(QIcon(str(assets.logo_icon())))
         app.setApplicationDisplayName("Scrutiny Debugger")

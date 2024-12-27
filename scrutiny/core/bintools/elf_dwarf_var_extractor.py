@@ -25,6 +25,7 @@ from scrutiny.core.variable import *
 from scrutiny.core.embedded_enum import *
 from scrutiny.exceptions import EnvionmentNotSetUpException
 from scrutiny.core.bintools import elftools_stubs
+from scrutiny import tools
 
 from typing import Optional, List, Dict, Union, cast, Set, Tuple
 
@@ -425,8 +426,7 @@ class ElfDwarfVarExtractor:
             try:
                 self.extract_var_recursive(child)
             except Exception as e:
-                self.logger.error(f"Failed to extract var under {child}. {e}")
-                self.logger.debug(traceback.format_exc()) 
+                tools.log_exception(self.logger, e, f"Failed to extract var under {child}.") 
     
     def get_typename_from_die(self, die: "elftools_stubs.Die") -> str:
         return cast(bytes, die.attributes['DW_AT_name'].value).decode('ascii')
@@ -847,12 +847,11 @@ class ElfDwarfVarExtractor:
         """Generate path segments by parsing the linkage name. Relies on the ability to demangle"""
         demangled = self.get_linkage_name(die)
         segments = demangled.split('::')
-        try:
+        with tools.SuppressException():
             name = self.get_name(die)
             if segments[-1] == name:
                 segments.pop()
-        except Exception:
-            pass
+        
         return segments
 
     def make_varpath(self, die: "elftools_stubs.Die") -> List[str]:
