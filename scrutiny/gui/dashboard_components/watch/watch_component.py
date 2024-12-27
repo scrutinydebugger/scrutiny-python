@@ -291,10 +291,14 @@ class WatchComponent(ScrutinyGUIBaseComponent):
 
     def _register_watcher_for_row(self, item:WatchableStandardItem)-> None:
         value_item = self._tree_model.get_value_item(item)
-        def callback_closure(watcher_id:Union[str, int], vals:List[ValueUpdate]) -> None:
+        def update_val_closure(watcher_id:Union[str, int], vals:List[ValueUpdate]) -> None:
             return self.update_val_callback(value_item, watcher_id, vals )
+        
+        def unwatch_closure(watcher_id:Union[str, int], server_path:str, watchable_config:sdk.WatchableConfiguration) -> None:
+            pass
+        
         watcher_id = self._get_watcher_id(item)
-        self.watchable_registry.register_watcher(watcher_id, callback_closure, ignore_duplicate=True)
+        self.watchable_registry.register_watcher(watcher_id, update_val_closure, unwatch_closure, ignore_duplicate=True)
 
 
     def row_inserted_slot(self, parent:QModelIndex, row_index:int, col_index:int) -> None:

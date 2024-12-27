@@ -150,7 +150,7 @@ class MainWindow(QMainWindow):
         
         try:
             widget = component_class(self, name, self._watchable_registry, self._server_manager)
-        except Exception:
+        except Exception as e:
             tools.log_exception(self._logger, e, f"Failed to create a dashboard component of type {component_class.__name__}")    
             return
         dock_widget = QtAds.CDockWidget(component_class.get_name())
@@ -178,7 +178,7 @@ class MainWindow(QMainWindow):
             try:
                 self._logger.debug(f"Tearing down component {widget.instance_name}")
                 widget.teardown()
-            except Exception:
+            except Exception as e:
                 tools.log_exception(self._logger, e, f"Exception while tearing down component {component_class.__name__} (instance name: {widget.instance_name})")
                 return
             finally:

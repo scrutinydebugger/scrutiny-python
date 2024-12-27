@@ -58,6 +58,7 @@ TYPESTR_MAP_WT2S: Dict[sdk.WatchableType, str] = {v: k for k, v in TYPESTR_MAP_S
 
 
 WatcherValueUpdateCallback = Callable[[WatcherIdType, List[ValueUpdate] ], None]
+UnwatchCallback = Callable[[WatcherIdType, str, sdk.WatchableConfiguration ], None]
 GlobalWatchCallback = Callable[[WatcherIdType, str, sdk.WatchableConfiguration], None]
 GlobalUnwatchCallback = Callable[[WatcherIdType, str, sdk.WatchableConfiguration], None]
 
@@ -85,16 +86,24 @@ class WatchableRegistryNodeContent:
 class Watcher:
     watcher_id:WatcherIdType
     value_update_callback:WatcherValueUpdateCallback
+    unwatch_callback:UnwatchCallback
     subscribed_server_id:Set[str]
 
-    def __init__(self, watcher_id:WatcherIdType, value_update_callback:WatcherValueUpdateCallback) -> None:
+    def __init__(self, 
+                 watcher_id:WatcherIdType, 
+                 value_update_callback:WatcherValueUpdateCallback,
+                 unwatch_callback:UnwatchCallback
+                 ) -> None:
         if not isinstance(watcher_id, (str, int)):
             raise ValueError("watcher_id is not a string or an int")
         if not callable(value_update_callback):
             raise ValueError("value_update_callback is not a function")
+        if not callable(unwatch_callback):
+            raise ValueError("unwatch_callback is not a function")
         
         self.watcher_id = watcher_id
         self.value_update_callback = value_update_callback
+        self.unwatch_callback = unwatch_callback
         self.subscribed_server_id = set()
 
 class WatchableRegistry:
@@ -200,15 +209,23 @@ class WatchableRegistry:
                 watcher.value_update_callback(watcher_id, filtered_updates)
 
     @enforce_thread(QT_THREAD_NAME)
-    def register_watcher(self, watcher_id:WatcherIdType, value_update_callback:WatcherValueUpdateCallback, ignore_duplicate:bool=False) -> None:
-        watcher = Watcher(watcher_id=watcher_id, value_update_callback=value_update_callback)   # Validation happens here
+    def register_watcher(self, 
+                         watcher_id:WatcherIdType, 
+                         value_update_callback:WatcherValueUpdateCallback,
+                         unwatch_callback:UnwatchCallback,
+                         ignore_duplicate:bool=False) -> None:
+        
         if watcher_id in self._watchers:
             if ignore_duplicate:
                 return
             raise WatchableRegistryError(f"Duplicate watcher with ID {watcher_id}")
         
-        self._watchers[watcher_id] = watcher
-    
+        self._watchers[watcher_id] = Watcher(  # Validation happens here
+            watcher_id=watcher_id, 
+            value_update_callback=value_update_callback, 
+            unwatch_callback=unwatch_callback
+            )   
+            
     @enforce_thread(QT_THREAD_NAME)
     def unregister_watcher(self, watcher_id:WatcherIdType ) -> None:
         watcher: Optional[Watcher] = None
@@ -279,6 +296,12 @@ class WatchableRegistry:
         removed_list:List[WatchableRegistryEntryNode] = []
         for node in nodes:
             if node.configuration.server_id in watcher.subscribed_server_id:
+                try:
+                    watcher.unwatch_callback(watcher.watcher_id, node.server_path, node.configuration)
+                except Exception as e:
+                    msg = f"Error in unwatch_callback callback for watcher ID {watcher.watcher_id} while unwatching {node.server_path}"
+                    tools.log_exception(self._logger, e, msg)
+
                 watcher.subscribed_server_id.remove(node.configuration.server_id)
                 removed_list.append(node)
                 node.watcher_count -= 1
@@ -461,7 +484,7 @@ class WatchableRegistry:
             for entry in to_unwatch:
                 if entry.configuration.server_id in self._watched_entries:
                     self._logger.error(f"Incoherence in Watchable Registry. Entry {entry.server_path} is still watched, but has no watcher")
-                    del self._watched_entries[entry.configuration.server_id]
+                    del self._watched_entries[entry.configuration.server_id]    # Resilience on error
 
             if had_data:
                 changed = True

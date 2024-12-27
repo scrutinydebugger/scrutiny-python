@@ -363,7 +363,7 @@ class BaseListener(abc.ABC):
         with self._subscriptions_lock:
             self._assert_can_change_subscriptions()
             for handle in self._subscriptions.copy():
-                if handle._is_dead():
+                if handle.is_dead:
                     with tools.SuppressException(KeyError):
                         self._subscriptions.remove(handle)
 

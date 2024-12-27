@@ -835,7 +835,7 @@ class ScrutinyClient:
                     error = e
 
                 if error is not None:
-                    tools.log_exception(self._logger, e, f"Callback raised an exception. cmd={cmd}, reqid={reqid}.")
+                    tools.log_exception(self._logger, error, f"Callback raised an exception. cmd={cmd}, reqid={reqid}.")
                     callback_entry._future._wt_mark_completed(CallbackState.CallbackError, error=error)
 
                 elif callback_entry._future.state == CallbackState.Pending:
@@ -863,7 +863,7 @@ class ScrutinyClient:
                     del self._pending_api_batch_writes[token]
                 else:
                     for request in pending_batch.update_dict.values():  # Completed request are already removed of that dict.
-                        if request.watchable._is_dead():
+                        if request.watchable.is_dead:
                             request._mark_complete(False, f"{request.watchable.name} is not available anymore")
 
                 # Once a batch is fully processed, meaning all requests have been treated and removed
