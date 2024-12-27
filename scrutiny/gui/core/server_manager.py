@@ -57,7 +57,7 @@ class QtBufferedListener(BaseListener):
 
     def __init__(self, *args:Any, **kwargs:Any):
         BaseListener.__init__(self, *args, **kwargs)
-        self.to_gui_thread_queue = queue.Queue(maxsize=1000)
+        self.to_gui_thread_queue = queue.Queue(maxsize=1000)    # Full load test peaks at 50
         self.signals = self._Signals()
         self.last_signal_perf_cnt_ns  = time.perf_counter_ns()
         self.emit_allowed = True

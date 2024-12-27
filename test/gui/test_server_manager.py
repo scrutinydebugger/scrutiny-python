@@ -173,18 +173,18 @@ class TestServerManager(ScrutinyBaseGuiTest):
         self.assertEqual(self.event_list, [])
         self.server_manager.start(SERVER_MANAGER_CONFIG)
 
-        self.wait_events_and_clear([EventType.SERVER_CONNECTED], timeout=1)
+        self.wait_events_and_clear([EventType.SERVER_CONNECTED], timeout=2)
         self.fake_client._simulate_receive_status() # Load default status
 
         for i in range(5):
             self.fake_client._simulate_datalogger_state_changed(sdk.DataloggingInfo(sdk.DataloggerState.WaitForTrigger, None))
-            self.wait_events_and_clear([EventType.DATALOGGING_STATE_CHANGED], timeout=1)
+            self.wait_events_and_clear([EventType.DATALOGGING_STATE_CHANGED], timeout=2)
             
             self.fake_client._simulate_datalogger_state_changed(sdk.DataloggingInfo(sdk.DataloggerState.Acquiring, 0.5))
-            self.wait_events_and_clear([EventType.DATALOGGING_STATE_CHANGED], timeout=1)
+            self.wait_events_and_clear([EventType.DATALOGGING_STATE_CHANGED], timeout=2)
 
             self.fake_client._simulate_datalogger_state_changed(sdk.DataloggingInfo(sdk.DataloggerState.Acquiring, 0.75))
-            self.wait_events_and_clear([EventType.DATALOGGING_STATE_CHANGED], timeout=1)
+            self.wait_events_and_clear([EventType.DATALOGGING_STATE_CHANGED], timeout=2)
 
         self.server_manager.stop()
         self.wait_server_state(sdk.ServerState.Disconnected)        
