@@ -21,12 +21,15 @@ from scrutiny.gui import assets
 from scrutiny.gui.dashboard_components.varlist.varlist_component import VarListComponent
 from scrutiny.gui.dashboard_components.watch.watch_component import WatchComponent
 from scrutiny.gui.core.watchable_registry import WatchableRegistry
+from scrutiny.gui.core.threads import QT_THREAD_NAME
+from scrutiny.tools.thread_enforcer import register_thread
 
 from test.gui.fake_server_manager import FakeServerManager, ServerConfig
 from typing import List
 
 logging.basicConfig(level=logging.DEBUG)
 
+register_thread(QT_THREAD_NAME)
 app = QApplication([])
 app.setStyleSheet(assets.load_text(["stylesheets", "scrutiny_base.qss"]))
 
@@ -70,9 +73,9 @@ add_per_group([QLabel("Firmware Description"), btn_load_sfd, btn_unload_sfd])
 
 component_layout = QHBoxLayout(component_container)
 
-varlist = VarListComponent(main_window=window, instance_name="varlist1", server_manager=server_manager)
-watch1 = WatchComponent(main_window=window, instance_name="watch1", server_manager=server_manager)
-watch2 = WatchComponent(main_window=window, instance_name="watch2", server_manager=server_manager)
+varlist = VarListComponent(main_window=window, instance_name="varlist1", server_manager=server_manager, watchable_registry=registry)
+watch1 = WatchComponent(main_window=window, instance_name="watch1", server_manager=server_manager, watchable_registry=registry)
+watch2 = WatchComponent(main_window=window, instance_name="watch2", server_manager=server_manager, watchable_registry=registry)
 
 varlist.setup()
 watch1.setup()

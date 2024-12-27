@@ -154,12 +154,22 @@ class WatchableStandardItem(BaseWatchableRegistryTreeStandardItem):
         """Loads from a serializable dict. Used for Drag&Drop"""
         assert data['type'] == cls._NODE_TYPE
         assert data['fqn'] is not None
-        prased = WatchableRegistry.FQN.parse(data['fqn'])
+        parsed = WatchableRegistry.FQN.parse(data['fqn'])
         
         return WatchableStandardItem(
-            watchable_type=prased.watchable_type,
+            watchable_type=parsed.watchable_type,
             text=data['text'], 
             fqn=data['fqn']
+        ) 
+    
+    @classmethod
+    def from_drag_watchable_descriptor(cls, desc:SingleWatchableDescriptor) -> "WatchableStandardItem" :
+        """Create from global representation of a watchable defined in the global drag n' drop module"""
+        parsed = WatchableRegistry.FQN.parse(desc.fqn)
+        return WatchableStandardItem(
+            watchable_type=parsed.watchable_type,
+            text=desc.text, 
+            fqn=desc.fqn
         ) 
 
 def item_from_serializable_data(data:NodeSerializableData) -> BaseWatchableRegistryTreeStandardItem:
