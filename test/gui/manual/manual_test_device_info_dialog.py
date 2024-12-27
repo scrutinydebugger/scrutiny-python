@@ -62,6 +62,7 @@ def make_device_info(config:Config) -> DeviceInfo:
         )
 
     return DeviceInfo(
+        session_id="SessionID",
         device_id="The device ID",
         display_name="The display",
         address_size_bits=32,

@@ -139,7 +139,7 @@ class FakeServerManager:
         self._device_connected = True
         self._signals.device_ready.emit()
         self.registry.clear_content_by_type(sdk.WatchableType.RuntimePublishedValue)
-        self.registry.add_content({
+        self.registry.write_content({
             sdk.WatchableType.RuntimePublishedValue : DUMMY_DATASET_RPV
         })
         self._signals.registry_changed.emit()
@@ -159,7 +159,7 @@ class FakeServerManager:
         self._signals.sfd_loaded.emit()
         self.registry.clear_content_by_type(sdk.WatchableType.Alias)
         self.registry.clear_content_by_type(sdk.WatchableType.Variable)
-        self.registry.add_content({
+        self.registry.write_content({
             sdk.WatchableType.Variable : DUMMY_DATASET_VAR,
             sdk.WatchableType.Alias : DUMMY_DATASET_ALIAS,
         })
