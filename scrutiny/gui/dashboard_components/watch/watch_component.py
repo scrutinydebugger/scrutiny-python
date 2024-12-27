@@ -351,6 +351,7 @@ class WatchComponent(ScrutinyGUIBaseComponent):
                 self._unwatch_item(item)
     
     def _watch_item(self, item:WatchableStandardItem) -> None:
+        """Internal function registering a tree line from the watchable registry"""
         watcher_id = self._get_watcher_id(item)
         if self.logger.isEnabledFor(logging.DEBUG): #pragma: no cover
             self.logger.debug(f"Watching item {item.fqn} (watcher ID = {watcher_id})")
@@ -362,6 +363,7 @@ class WatchComponent(ScrutinyGUIBaseComponent):
             self.logger.debug(f"Cannot watch {item.fqn}. Does not exist")
     
     def _unwatch_item(self, item:WatchableStandardItem, quiet:bool=True) -> None:
+        """Internal function unregistering a tree line from the watchable registry"""
         watcher_id = self._get_watcher_id(item)
         if self.logger.isEnabledFor(logging.DEBUG): #pragma: no cover
             self.logger.debug(f"Unwatching item {item.fqn} (watcher ID = {watcher_id})")
@@ -378,7 +380,7 @@ class WatchComponent(ScrutinyGUIBaseComponent):
         return self._tree_model.get_watcher_id(item)
     
     def resubscribe_all_rows_as_watcher(self) -> None:
-        """Iterate all watcahble row in the tree and (re)subscribe them as watchers"""
+        """Iterate all watchable row in the tree and (re)subscribe them as watchers"""
         def subscribe_func(item:WatchableStandardItem, visible:bool) -> None:
             self._register_watcher_for_row(item)
         self._tree.map_to_watchable_node(subscribe_func)
@@ -395,6 +397,7 @@ class WatchComponent(ScrutinyGUIBaseComponent):
         self._tree.map_to_watchable_node(update_func, start_node)
 
     def update_val_callback(self, item:ValueStandardItem, watcher_id:Union[str, int], vals:List[ValueUpdate]) -> None:
+        """The function called when we receive value updates from the server"""
         assert len(vals) > 0
         can_update = True
         item_col = self._tree_model.item_col()
@@ -406,6 +409,7 @@ class WatchComponent(ScrutinyGUIBaseComponent):
             item.setText(str(vals[-1].value))
 
     def _value_written_slot(self, fqn:str, value:str) -> None:
+        """The QT slot called when the user input a new value in a value field"""
         def ui_callback(exception:Optional[Exception]) -> None:
             if exception is not None:
                 self.logger.warning(f"Failed to write {fqn}. {exception}")

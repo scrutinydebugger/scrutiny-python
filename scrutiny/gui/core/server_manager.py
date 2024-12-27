@@ -269,7 +269,7 @@ class ServerManager:
     _unit_test:bool
     """Enable some internal instrumentation for unit testing"""
     _qt_watch_unwatch_ui_callback_call_count:int
-    """For unit testing. USed for synchronization of threads"""
+    """For unit testing. Used for synchronization of threads"""
     _exit_in_progress:bool
     """Flag set by the main window informing that the application is exiting. Cancel callbacks"""
 
@@ -379,7 +379,13 @@ class ServerManager:
                 self._thread_state.last_server_state = server_state
             
         except Exception as e:  # pragma: no cover
-            tools.log_exception(self._logger, e, "Error in server manager thread", str_level=logging.CRITICAL, traceback_level=logging.INFO)
+            if not self._exit_in_progress:
+                str_level = logging.CRITICAL
+                traceback_level = logging.INFO
+            else:
+                str_level = logging.DEBUG
+                traceback_level = logging.DEBUG
+            tools.log_exception(self._logger, e, "Error in server manager thread", str_level=str_level, traceback_level=traceback_level)
         finally:
             self._client.disconnect()
             was_connected = self._thread_state.last_server_state == sdk.ServerState.Connected
