@@ -435,26 +435,26 @@ class TestWatchTreeModel(BaseWatchableTreeTest):
         item = self.model.item(1).child(0,0).child(1,0)
         self.assertIsNotNone(item)
         data = {'path' : [1,0,1], 'object_id' : id(item)}
-        item2 = self.model._get_item_from_serializable_index_descriptor(data)
+        item2 = self.model.get_item_from_serializable_index_descriptor(data)
         self.assertIs(item2, item)
 
         data = {'path' : [1,0,1], 'object_id' : id(item)+1}
-        self.assertIsNone(self.model._get_item_from_serializable_index_descriptor(data))
+        self.assertIsNone(self.model.get_item_from_serializable_index_descriptor(data))
         
         data = {'path' : [1,0,1], 'object_id' : 0}
-        self.assertIsNone(self.model._get_item_from_serializable_index_descriptor(data))
+        self.assertIsNone(self.model.get_item_from_serializable_index_descriptor(data))
 
         data = {'path' : [1,0,1]}
-        self.assertIsNone(self.model._get_item_from_serializable_index_descriptor(data))
+        self.assertIsNone(self.model.get_item_from_serializable_index_descriptor(data))
        
         data = { 'object_id' : id(item)}
-        self.assertIsNone(self.model._get_item_from_serializable_index_descriptor(data))
+        self.assertIsNone(self.model.get_item_from_serializable_index_descriptor(data))
 
         data = {'path': 'aaa', 'object_id' : id(item)}
-        self.assertIsNone(self.model._get_item_from_serializable_index_descriptor(data))
+        self.assertIsNone(self.model.get_item_from_serializable_index_descriptor(data))
 
         data = {'path': [1000,555], 'object_id' : id(item)}
-        self.assertIsNone(self.model._get_item_from_serializable_index_descriptor(data))
+        self.assertIsNone(self.model.get_item_from_serializable_index_descriptor(data))
 
     def test_refuse_bad_drag_data(self):
         self.model.fill_from_index_recursive(self.var_node, sdk.WatchableType.Variable, '/')
