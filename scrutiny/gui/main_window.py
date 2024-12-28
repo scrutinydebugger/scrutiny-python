@@ -12,7 +12,7 @@ import traceback
 from PySide6.QtWidgets import  QWidget, QVBoxLayout, QHBoxLayout
 
 from PySide6.QtGui import  QCloseEvent
-from PySide6.QtCore import Qt, QRect
+from PySide6.QtCore import Qt, QRect, QTimer
 
 from PySide6.QtWidgets import QMainWindow
 
@@ -27,7 +27,8 @@ from scrutiny.gui.dashboard_components.base_component import ScrutinyGUIBaseComp
 from scrutiny.gui.dashboard_components.debug.debug_component import DebugComponent
 from scrutiny.gui.dashboard_components.varlist.varlist_component import VarListComponent
 from scrutiny.gui.dashboard_components.watch.watch_component import WatchComponent
-from scrutiny.gui.dashboard_components.embedded_graph.embedded_graph_component import EmbeddedGraph
+from scrutiny.gui.dashboard_components.continuous_graph.continuous_graph_component import ContinuousGraphComponent
+#from scrutiny.gui.dashboard_components.embedded_graph.embedded_graph_component import EmbeddedGraph
 from scrutiny.gui.dashboard_components.metrics.metrics_component import MetricsComponent
 
 from scrutiny.gui.core.server_manager import ServerManager
@@ -44,7 +45,8 @@ class MainWindow(QMainWindow):
         DebugComponent,
         VarListComponent,
         WatchComponent,
-        EmbeddedGraph,
+        ContinuousGraphComponent,
+        #EmbeddedGraph,
         MetricsComponent
     ]
 
@@ -161,6 +163,7 @@ class MainWindow(QMainWindow):
         try:
             self._logger.debug(f"Setuping component {widget.instance_name}")
             widget.setup()
+            
         except Exception as e:
             tools.log_exception(self._logger, e, f"Exception while setuping component of type {component_class.__name__} (instance name: {widget.instance_name}).")
             with tools.SuppressException():
@@ -168,6 +171,12 @@ class MainWindow(QMainWindow):
             widget.deleteLater()
             dock_widget.deleteLater()
             return
+
+        timer = QTimer(self)
+        timer.setSingleShot(True)
+        timer.setInterval(0)
+        timer.timeout.connect(widget.ready)
+        timer.start()
 
 
         def destroy_widget() -> None:

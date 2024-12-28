@@ -231,21 +231,7 @@ class WatchableRegistry:
             
     @enforce_thread(QT_THREAD_NAME)
     def unregister_watcher(self, watcher_id:WatcherIdType ) -> None:
-        watcher: Optional[Watcher] = None
-        with tools.SuppressException(KeyError):
-            watcher = self._watchers[watcher_id]
-
-        if watcher is None:
-            raise WatcherNotFoundError(f"No watchers with ID {watcher_id}")
-        
-        nodes:List[WatchableRegistryEntryNode] = []
-        for server_id in list(watcher.subscribed_server_id):
-            try:
-                nodes.append(self._watched_entries[server_id])
-            except KeyError:
-                continue
-        
-        self._unwatch_node_list(nodes, watcher)
+        self.unwatch_all(watcher_id)
        
         with tools.SuppressException(KeyError):
             del self._watchers[watcher_id]
@@ -318,7 +304,24 @@ class WatchableRegistry:
         if self._global_unwatch_callbacks is not None:
             for node in removed_list:
                 self._global_unwatch_callbacks(watcher.watcher_id, node.server_path, node.configuration)
-       
+    
+    @enforce_thread(QT_THREAD_NAME)
+    def unwatch_all(self, watcher_id:WatcherIdType) -> None:
+        try:
+            watcher = self._watchers[watcher_id]
+        except KeyError:
+            raise WatcherNotFoundError(f"No watchers with ID {watcher_id}")
+        
+        nodes:List[WatchableRegistryEntryNode] = []
+        for server_id in watcher.subscribed_server_id:
+            try:
+                nodes.append(self._watched_entries[server_id])
+            except KeyError as e:
+                tools.log_exception(self._logger, e, "Missing node in watched_entry", str_level=logging.WARNING)
+        
+        self._unwatch_node_list(nodes, watcher)
+
+
 
     @enforce_thread(QT_THREAD_NAME)
     def unwatch(self, watcher_id:WatcherIdType, watchable_type:sdk.WatchableType, path:str) -> None:

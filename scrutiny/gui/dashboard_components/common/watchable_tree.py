@@ -21,13 +21,14 @@ __all__ = [
 ]
 
 from scrutiny.sdk import WatchableType, WatchableConfiguration
-from PySide6.QtGui import  QFocusEvent, QMouseEvent, QStandardItem, QIcon, QKeyEvent, QStandardItemModel, QColor
-from PySide6.QtCore import Qt, QModelIndex, QPersistentModelIndex
-from PySide6.QtWidgets import QTreeView, QWidget
+from PySide6.QtGui import  QMouseEvent, QStandardItem, QIcon, QKeyEvent
+from PySide6.QtWidgets import  QWidget
+from PySide6.QtCore import  Qt
 from scrutiny.gui import assets
 from scrutiny.gui.core.watchable_registry import WatchableRegistry, WatchableRegistryNodeContent
 from scrutiny.gui.core.scrutiny_drag_data import WatchableListDescriptor, SingleWatchableDescriptor, ScrutinyDragData
-from typing import Any, List, Optional, TypedDict,  cast, Literal, Sequence, Set, Iterable, Union
+from typing import Any, List, Optional, TypedDict,  cast, Literal, Set, Iterable
+from scrutiny.gui.dashboard_components.common.base_tree import BaseTreeModel, BaseTreeView
 
 
 def get_watchable_icon(wt:WatchableType) -> QIcon:
@@ -180,7 +181,7 @@ def item_from_serializable_data(data:NodeSerializableData) -> BaseWatchableRegis
     
     raise NotImplementedError(f"Cannot create an item from serializable data of type {data['type']}")
 
-class WatchableTreeModel(QStandardItemModel):
+class WatchableTreeModel(BaseTreeModel):
     """Extension of the QT Standard Item Model to represent watchables in a tree. The generic model is specialized to get :
      - Automatic icon choice
      - Leaf nodes that cannot accept children
@@ -269,79 +270,6 @@ class WatchableTreeModel(QStandardItemModel):
         self.folder_item_created(item)
         return self.make_folder_row_existing_item(item, editable)
     
-    def add_row_to_parent(self, parent:Optional[QStandardItem], row_index:int, row:Sequence[QStandardItem] ) -> None:
-        """Add a row to a given parent or at the root if no parent is given
-        
-        :param parent: The parent of the row to be inserted or ``None`` if the row must be added at the root
-        :param row_index: The index of the new row. -1 to append
-        :param row: The list of Items that act as a row
-        
-        """
-        row2 = list(row)    # Make a copy
-        while len(row2) > 0 and row2[-1] is None:
-            row2 = row2[:-1]  # insert row doesn't like trailing None, but sometime does. Mystery
-
-        if parent is not None:
-            if row_index != -1:
-                parent.insertRow(row_index, row2)
-            else:
-                parent.appendRow(row2)
-        else:
-            if row_index != -1:
-                self.insertRow(row_index, row2)
-            else:
-                self.appendRow(row2)
-    
-    def add_multiple_rows_to_parent(self, parent:Optional[QStandardItem], row_index:int, rows:Sequence[Sequence[QStandardItem]] ) -> None:
-        """Add multiple rows to a given parent or at the root if no parent is given
-        
-        :param parent: The parent of the row to be inserted or ``None`` if the row must be added at the root
-        :param row_index: The index of the new row. -1 to append
-        :param rows: The list of rows
-        
-        """
-        for row in rows:
-            self.add_row_to_parent(parent, row_index, row)
-            if row_index != -1:
-                row_index += 1
-    
-    def moveRow(self, 
-                source_parent_index: Union[QModelIndex, QPersistentModelIndex], 
-                sourceRow: int, 
-                destination_parent_index: Union[QModelIndex, QPersistentModelIndex], 
-                destinationChild: int) -> bool:
-        """Move a row from source to destination
-        
-        :param source_parent_index: An index pointing to the parent node. Invalid index if root
-        :param sourceRow: The row index of the source under the parent
-        :param destination_parent_index: An index pointing to the destination parent node. Invalid index if root
-        :param destinationChild: The row number to insert the row under the new parent. -1 to append
-        
-        :return: ``True`` on success
-        """
-
-
-        destination_parent:Optional[QStandardItem] = None
-        if destination_parent_index.isValid():
-            destination_parent = self.itemFromIndex(destination_parent_index)  # get the item before we take a row, it can change it's position
-
-        if source_parent_index == destination_parent_index:
-            if destinationChild > sourceRow:
-                destinationChild-=1
-
-        row: Optional[List[QStandardItem]] = None
-        if source_parent_index.isValid():
-            if sourceRow >= 0:
-                row = self.itemFromIndex(source_parent_index).takeRow(sourceRow)
-        else:
-            if sourceRow >= 0:
-                row = self.takeRow(sourceRow)
-                
-        if row is not None:
-            self.add_row_to_parent(destination_parent, destinationChild, row)
-       
-        return True
-
     def lazy_load(self, parent:BaseWatchableRegistryTreeStandardItem, watchable_type:WatchableType, path:str) -> None:
         """Lazy load a everything under a parent based on the content of the watchable registry
         
@@ -410,26 +338,6 @@ class WatchableTreeModel(QStandardItemModel):
                 )
                 parent.appendRow(row)
 
-    def remove_nested_indexes(self, indexes:Sequence[QModelIndex], columns_to_keep:List[int]=[0]) -> Set[QModelIndex]:
-        """Takes a list of indexes and remove any indexes nested under another index part of the input
-        
-        :param indexes: The list of indexes to filter
-        :param columns_to_keep: A list of column number to keep. Generally wants to leave at 0 since we put children only on column 0
-        
-        :return: A set of indexes that has no nested indexes
-        """
-        indexes_without_nested_values = set([index for index in indexes if index.column() in columns_to_keep])
-        # If we have nested nodes, we only keep the parent.
-        for index in list(indexes_without_nested_values):   # Make copy
-            parent = index.parent()
-            while parent.isValid():
-                if parent in indexes_without_nested_values:
-                    indexes_without_nested_values.remove(index)
-                    break
-                parent = parent.parent()
-        
-        return indexes_without_nested_values
-
     def make_watchable_list_dragdata_if_possible(self, 
                                              items:Iterable[Optional[BaseWatchableRegistryTreeStandardItem]],
                                              data_move:Optional[Any] = None
@@ -456,7 +364,7 @@ class WatchableTreeModel(QStandardItemModel):
             ).to_drag_data(data_move=data_move)
         return None
 
-class WatchableTreeWidget(QTreeView):
+class WatchableTreeWidget(BaseTreeView):
     """An extension of the QTreeView dedicated to display a tree of folders and watchables (leaf) nodes.
     
     :param parent: The parent
@@ -494,28 +402,11 @@ class WatchableTreeWidget(QTreeView):
 
     def keyPressEvent(self, event: QKeyEvent) -> None:
         """Some convenient behavior. Ctrl to multiselect. Shift to select a range"""
-        if event.key() == Qt.Key.Key_Control:
-            self.setSelectionMode(self.SelectionMode.MultiSelection)
-        elif event.key() == Qt.Key.Key_Shift:
-            self.setSelectionMode(self.SelectionMode.ContiguousSelection)
-        elif event.key() == Qt.Key.Key_Escape:
-            self.clearSelection()
-        elif event.key() == Qt.Key.Key_F2:
+        if event.key() == Qt.Key.Key_F2:
             self.setCurrentIndex(self.currentIndex().siblingAtColumn(0))
             return super().keyPressEvent(event)
         else:
             return super().keyPressEvent(event)
-    
-    def keyReleaseEvent(self, event: QKeyEvent) -> None:
-        """Some convenient behavior. Ctrl to multiselect. Shift to select a range"""
-        if event.key() == Qt.Key.Key_Control:
-            if self.selectionMode() == self.SelectionMode.MultiSelection:
-                self.setSelectionMode(self.SelectionMode.SingleSelection)
-        elif event.key() == Qt.Key.Key_Shift:
-            if self.selectionMode() == self.SelectionMode.ContiguousSelection:
-                self.setSelectionMode(self.SelectionMode.SingleSelection)
-        else:
-            return super().keyReleaseEvent(event)
     
     def mousePressEvent(self, event: QMouseEvent) -> None:
         if event.button() == Qt.MouseButton.RightButton:
@@ -525,35 +416,6 @@ class WatchableTreeWidget(QTreeView):
             if index.isValid() and index in self.selectedIndexes():
                 return  # Don't change the selection
         return super().mousePressEvent(event)
-
-    def focusOutEvent(self, event: QFocusEvent) -> None:
-        # Needs to do that, other wise holding ctrl/shift and cliking outside of the tree will not detect the key release
-        self.setSelectionMode(self.SelectionMode.SingleSelection)
-        return super().focusOutEvent(event)
     
     def model(self) -> WatchableTreeModel:
-        return self._model
-    
-    def set_row_color(self, index:QModelIndex, color:QColor) -> None:
-        """Change the background color of a row"""
-        item = self._model.itemFromIndex(index)
-        for i in range(self._model.columnCount()):
-            item = self._model.itemFromIndex(index.siblingAtColumn(i))
-            if item is not None:
-                item.setBackground(color)
-        
-
-    def is_visible(self, item:BaseWatchableRegistryTreeStandardItem) -> bool:
-        """Tells if a node is visible, i.e. all parents are expanded.
-        
-        :item: The node to check
-        :return: ``True`` if visible. ``False`` otherwise
-        """
-
-        visible = True
-        parent = item.parent()
-        while parent is not None:
-            if isinstance(parent, FolderStandardItem) and not self.isExpanded(parent.index()):
-                visible = False
-            parent = parent.parent()
-        return visible
+        return self._model      
