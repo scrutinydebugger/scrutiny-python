@@ -1,3 +1,11 @@
+#    manual_test_graph_axis.py
+#        A dummy app to test the graph axis tree widget
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021 Scrutiny Debugger
+
 if __name__ != '__main__' : 
     raise RuntimeError("This script is expected to run from the command line")
 

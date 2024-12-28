@@ -1,3 +1,12 @@
+#    graph_signal_tree.py
+#        The widget that allow the user to define a graph axis/signals using a 2 level tree.
+#        First level for axes, Second level for watchables
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021 Scrutiny Debugger
+
 __all__ = [
     'AxisStandardItem',
     'GraphSignalModel',

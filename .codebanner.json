@@ -579,9 +579,6 @@
         "scrutiny/gui/widgets/app_stats_display.py": {
             "docstring": "A widget to display the application stats"
         },
-        "scrutiny/gui/tools/global_counters.py": {
-            "docstring": "A file that provide some global counter atomic counter for unique ID generation"
-        },
         "scrutiny/gui/dashboard_components/metrics/metrics_component.py": {
             "docstring": "A dashboard component that shows internal metrics for debugging purpose"
         },
@@ -596,6 +593,21 @@
         },
         "scrutiny/tools/thread_enforcer.py": {
             "docstring": "A runtime checker that enforces the thread ID of function caller. Prevents race conditions from misusage of internal APIs"
+        },
+        "test/gui/manual/manual_test_graph_axis.py": {
+            "docstring": "A dummy app to test the graph axis tree widget"
+        },
+        "scrutiny/gui/dashboard_components/common/graph_signal_tree.py": {
+            "docstring": "The widget that allow the user to define a graph axis/signals using a 2 level tree. First level for axes, Second level for watchables"
+        },
+        "scrutiny/gui/dashboard_components/common/base_tree.py": {
+            "docstring": "An extension of the QT QTreeView that suits this application. Defines some helper functions and common keyboard/mouse behaviors "
+        },
+        "scrutiny/gui/dashboard_components/continuous_graph/continuous_graph_component.py": {
+            "docstring": "A component that makes a real time graphs of the values streamed by the server"
+        },
+        "scrutiny/tools/global_counters.py": {
+            "docstring": "A file that provide some global counter atomic counter for unique ID generation"
         }
     }
 }

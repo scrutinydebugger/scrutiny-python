@@ -17,7 +17,6 @@ __all__ = [
     'UserValueChangeCallback'
 ]
 
-import uuid
 import time
 import abc
 import re
@@ -29,6 +28,7 @@ from scrutiny.core.basic_types import EmbeddedDataType, Endianness
 from scrutiny.core.variable import Variable
 from scrutiny.core.embedded_enum import EmbeddedEnum
 from scrutiny.core.codecs import *
+from scrutiny.tools.global_counters import global_i64_counter
 
 from scrutiny.core.alias import Alias
 from typing import Any, Optional, Dict, Callable, Tuple, Union
@@ -135,7 +135,7 @@ class DatastoreEntry(abc.ABC):
         display_path = display_path.strip()
         self.value_change_callback = {}
         self.target_update_callback = {}
-        self.entry_id = uuid.uuid4().hex    # unique ID
+        self.entry_id = hex(global_i64_counter())    # unique ID
         self.display_path = display_path
         self.last_target_update_timestamp = None
         self.last_value_update_timestamp = time.time()

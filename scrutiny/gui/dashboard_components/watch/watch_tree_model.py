@@ -28,7 +28,7 @@ from scrutiny.gui.dashboard_components.common.watchable_tree import (
     item_from_serializable_data
 )
 from scrutiny.gui.dashboard_components.common.base_tree import SerializableItemIndexDescriptor
-from scrutiny.gui.tools.global_counters import global_i64_counter
+from scrutiny.tools.global_counters import global_i64_counter
 
 from typing import List, Union, Optional, cast, Sequence, TypedDict, Generator, Iterable
 

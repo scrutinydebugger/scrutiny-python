@@ -1,3 +1,10 @@
+#    continuous_graph_component.py
+#        A component that makes a real time graphs of the values streamed by the server
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021 Scrutiny Debugger
 
 from datetime import datetime
 
@@ -168,7 +175,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
 
     def val_update_callback(self, watcher_id:Union[str, int], vals:List[ValueUpdate]) -> None:
         if self._xaxis is None or self._yaxis is None:
-            self.logger.error("Received value updates when no graph was built")
+            self.logger.error("Received value updates when no graph was ready")
             return 
         
         self._xaxis.setRange(self._xaxis.min(), vals[-1].update_timestamp.timestamp())

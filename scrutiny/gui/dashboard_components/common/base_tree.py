@@ -1,3 +1,12 @@
+#    base_tree.py
+#        An extension of the QT QTreeView that suits this application. Defines some helper
+#        functions and common keyboard/mouse behaviors
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021 Scrutiny Debugger
+
 __all__ = [
     'SerializableItemIndexDescriptor',
     'BaseTreeModel',
