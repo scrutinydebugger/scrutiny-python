@@ -60,7 +60,7 @@ class WatchComponentTreeModel(WatchableTreeModel):
     _unavailable_palette:QPalette
 
     def __init__(self, 
-                 parent: Optional[QWidget], 
+                 parent: QWidget, 
                  watchable_registry: WatchableRegistry, 
                  available_palette:Optional[QPalette]=None, 
                  unavailable_palette:Optional[QPalette]=None) -> None:

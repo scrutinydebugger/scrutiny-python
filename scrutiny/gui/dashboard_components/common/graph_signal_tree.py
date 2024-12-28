@@ -42,7 +42,8 @@ class GraphSignalModel(BaseTreeModel):
         super().__init__(parent)
 
     def make_axis_row(self, axis_name:str) -> List[AxisStandardItem]:
-        return [AxisStandardItem(axis_name)]
+        axis_item = AxisStandardItem(axis_name)
+        return [axis_item]
     
     def dtype_col(self) -> int:
         return 1
@@ -105,7 +106,9 @@ class GraphSignalModel(BaseTreeModel):
         move_data = [self.make_serializable_item_index_descriptor(item) for item in item_list]
         drag_data = WatchableListDescriptor(item_descriptors).to_drag_data(move_data)
 
-        return drag_data.to_mime()
+        mime_data = drag_data.to_mime()
+        assert mime_data is not None
+        return mime_data
     
     def canDropMimeData(self, mime_data: QMimeData, 
                         action: Qt.DropAction, 
@@ -190,11 +193,14 @@ class GraphSignalModel(BaseTreeModel):
 
 class GraphSignalTree(BaseTreeView):
 
+    _locked:bool
+
     def model(self) -> GraphSignalModel:
         return cast(GraphSignalModel, super().model())
 
     def __init__(self, parent:QWidget) -> None:
         super().__init__(parent)
+        self._locked = False
 
         self.setModel(GraphSignalModel(self))
         self.model().add_axis("Axis 1")
@@ -222,7 +228,7 @@ class GraphSignalTree(BaseTreeView):
         super().dragEnterEvent(event)
         event.accept()
         
-    def dragMoveEvent(self, event: QDragMoveEvent) -> None:        
+    def dragMoveEvent(self, event: QDragMoveEvent) -> None:     
         self._set_drag_and_drop_action(event)
         return super().dragMoveEvent(event)
 
@@ -243,17 +249,19 @@ class GraphSignalTree(BaseTreeView):
             for item in selected_items_no_nested:
                 self.model().removeRow(item.row(), item.index().parent())
         
-        new_folder_action = context_menu.addAction(assets.load_icon(assets.Icons.GraphAxis), "New Axis")
-        new_folder_action.triggered.connect(new_axis_action_slot)
+        new_axis_action = context_menu.addAction(assets.load_icon(assets.Icons.GraphAxis), "New Axis")
+        new_axis_action.triggered.connect(new_axis_action_slot)
         
         remove_action = context_menu.addAction(assets.load_icon(assets.Icons.RedX), "Remove")
         remove_action.setEnabled( len(selected_items_no_nested) > 0 )
         remove_action.triggered.connect(remove_action_slot)
+
+        if self._locked:
+            new_axis_action.setDisabled(True)
+            remove_action.setDisabled(True)
         
         self.display_context_menu(context_menu, event.pos())
         event.accept()
-
-
     
     def display_context_menu(self, menu:QMenu, pos:QPoint) -> None:
         """Display a menu at given relative position, and make sure it goes below the cursor to mimic what most people are used to"""
@@ -266,7 +274,7 @@ class GraphSignalTree(BaseTreeView):
 
 
     def keyPressEvent(self, event: QKeyEvent) -> None:
-        if event.key() == Qt.Key.Key_Delete:
+        if event.key() == Qt.Key.Key_Delete and not self._locked:
             model = self.model()
             indexes_without_nested_values = model.remove_nested_indexes(self.selectedIndexes()) # Avoid errors when parent is deleted before children
             items = [model.itemFromIndex(index) for index in  indexes_without_nested_values]
@@ -278,3 +286,12 @@ class GraphSignalTree(BaseTreeView):
         
     def get_signals(self) -> List[AxisContent]:
         return self.model().get_signals()
+
+    def lock(self) -> None:
+        self.setDragDropMode(self.DragDropMode.NoDragDrop)
+        self._locked = True
+    
+    def unlock(self) -> None:
+        self.setDragDropMode(self.DragDropMode.DragDrop)
+        self._locked = False
+        

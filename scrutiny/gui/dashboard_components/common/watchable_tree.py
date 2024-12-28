@@ -193,7 +193,7 @@ class WatchableTreeModel(BaseTreeModel):
     """
     _watchable_registry:WatchableRegistry
 
-    def __init__(self, parent:Optional[QWidget], watchable_registry:WatchableRegistry) -> None:
+    def __init__(self, parent:QWidget, watchable_registry:WatchableRegistry) -> None:
         super().__init__(parent)
         self._watchable_registry = watchable_registry
 

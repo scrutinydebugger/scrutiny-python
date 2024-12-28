@@ -17,7 +17,7 @@ __all__ = [
     'WatcherValueUpdateCallback',
     'GlobalWatchCallback',
     'GlobalUnwatchCallback',
-    'ValueUpdate'   # Re-export from listener
+    'ValueUpdate'
     ]
 
 
@@ -29,7 +29,6 @@ import logging
 from scrutiny.tools.thread_enforcer import enforce_thread
 from scrutiny.gui import QT_THREAD_NAME
 from scrutiny import tools
-from scrutiny.core import validation
 
 WatcherIdType = Union[str, int]
 
@@ -39,6 +38,7 @@ class ParsedFullyQualifiedName:
 
     watchable_type:sdk.WatchableType
     path:str
+
 
 class WatchableRegistryError(Exception):
     pass
@@ -240,24 +240,27 @@ class WatchableRegistry:
         """Return the number of active registered watchers"""
         return len(self._watchers)
 
-    def watch_fqn(self, watcher_id:WatcherIdType, fqn:str) -> None:
+    def watch_fqn(self, watcher_id:WatcherIdType, fqn:str) -> str:
         """Adds a watcher on the given watchable and register a callback to be 
         invoked when its value is updated 
         
         :param watcher_id: A string/int that identifies the owner of the callback. Passed back when the callback is invoked
         :param fqn: The watchable fully qualified name
+        :return: The ID assigned to the value updates that will be broadcast for that item
         """
         parsed = self.FQN.parse(fqn)
-        self.watch(watcher_id, parsed.watchable_type, parsed.path)
+        return self.watch(watcher_id, parsed.watchable_type, parsed.path)
 
     @enforce_thread(QT_THREAD_NAME)
-    def watch(self, watcher_id:WatcherIdType, watchable_type:sdk.WatchableType, path:str) -> None:
+    def watch(self, watcher_id:WatcherIdType, watchable_type:sdk.WatchableType, path:str) -> str:
         """Adds a watcher on the given watchable and register a callback to be 
         invoked when its value is updated 
         
         :param watcher_id: A string/int that identifies the owner of the callback. Passed back when the callback is invoked
         :param watchable_type: The watchable type
         :param path: The watchable tree path
+
+        :return: The ID assigned to the value updates that will be broadcast for that item
         """
         watcher:Optional[Watcher] = None
         with tools.SuppressException(KeyError):
@@ -279,6 +282,8 @@ class WatchableRegistry:
         
         if added and self._global_watch_callbacks is not None:
             self._global_watch_callbacks(watcher_id, node.server_path, node.configuration)
+        
+        return node.configuration.server_id
 
     @enforce_thread(QT_THREAD_NAME)  
     def _unwatch_node_list(self, nodes:Iterable[WatchableRegistryEntryNode], watcher:Watcher) -> None:

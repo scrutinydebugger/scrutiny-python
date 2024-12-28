@@ -1,6 +1,8 @@
 
+from datetime import datetime
+
 from PySide6.QtWidgets import QHBoxLayout, QSplitter, QWidget, QVBoxLayout, QPushButton, QLabel
-from PySide6.QtCharts import QChart, QChartView
+from PySide6.QtCharts import QChart, QChartView, QLineSeries, QValueAxis, QDateTimeAxis
 from PySide6.QtCore import Qt
 
 from scrutiny.gui import assets
@@ -8,8 +10,9 @@ from scrutiny.gui.dashboard_components.base_component import ScrutinyGUIBaseComp
 from scrutiny.gui.dashboard_components.common.graph_signal_tree import GraphSignalTree
 from scrutiny.gui.core.watchable_registry import WatchableRegistryNodeNotFoundError, ValueUpdate
 from scrutiny import sdk
+from scrutiny.tools import SuppressException
 
-from typing import Dict, Any, Union, List
+from typing import Dict, Any, Union, List, Optional, cast
 
 class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
     instance_name : str
@@ -17,16 +20,22 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
     _ICON = assets.get("graph-96x128.png")
     _NAME = "Continuous Graph"
 
-    _chart:QChart
     _chartview:QChartView
     _signal_tree:GraphSignalTree
     _start_stop_btn:QPushButton
     _message_label:QLabel
     _splitter:QSplitter
     _acquiring:bool
+    _serverid2series_map:Dict[str, QLineSeries]
+
+    _xaxis:Optional[QValueAxis]
+    _yaxis:Optional[List[QValueAxis]]
 
     def setup(self) -> None:
         self._acquiring = False
+        self._serverid2series_map = {}
+        self._xaxis = None
+        self._yaxis = None
         self.watchable_registry.register_watcher(self.instance_name, self.val_update_callback, self.unwatch_callback)
         
         self._splitter = QSplitter(self)
@@ -61,7 +70,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         layout.addWidget(self._splitter)
 
         
-    def ready(self):
+    def ready(self) -> None:
         self._splitter.setSizes([self.width(), self._signal_tree.minimumWidth()])
         self.update_visual()
 
@@ -74,36 +83,82 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
     def load_state(self, state: Dict[Any, Any]) -> None:
         raise NotImplementedError()
 
+    def clear_graph(self) -> None:
+        self._chartview.chart().removeAllSeries()
+        if self._xaxis is not None:
+            with SuppressException():
+                self._chartview.chart().removeAxis(self._xaxis)
+        
+        if self._yaxis is not None:
+            for yaxis in self._yaxis:
+                with SuppressException():
+                    self._chartview.chart().removeAxis(yaxis)
+
+        self._serverid2series_map.clear()
+        self._xaxis = None
+        self._yaxis = None
+    
+    def stop_acquisition(self) -> None:
+        if not self._acquiring:
+            return 
+
+        self.watchable_registry.unwatch_all(self.watcher_id())
+        self._acquiring = False
+        self.update_visual()
+
+    def start_acquisition(self) -> None:
+        if self._acquiring:
+            return 
+        self.clear_graph()
+        signals = self._signal_tree.get_signals()
+        if len(signals) == 0:
+            self.report_error("No signals")
+            return
+        
+        self._xaxis = QValueAxis(self)
+        self._xaxis.setRange(datetime.now().timestamp(), datetime.now().timestamp() + 30)
+        self._chartview.chart().addAxis(self._xaxis, Qt.AlignmentFlag.AlignBottom)
+        self._yaxis = []
+        for axis in signals:
+            yaxis = QValueAxis(self)
+            yaxis.setTitleText(axis.axis_name)
+            yaxis.setTitleVisible(True)
+            self._yaxis.append(yaxis)
+            self._chartview.chart().addAxis(yaxis, Qt.AlignmentFlag.AlignRight)
+            
+            for signal in axis.signals:
+                try:
+                    server_id = self.watchable_registry.watch_fqn(self.watcher_id(), signal.watchable_fqn)
+                except WatchableRegistryNodeNotFoundError as e:
+                    self.report_error(f"Signal {signal.name} ({signal.watchable_fqn}) is not available.")
+                    self.watchable_registry.unwatch_all(self.watcher_id())
+                    self.clear_graph()
+                    return
+        
+                series = QLineSeries(self)
+                self._chartview.chart().addSeries(series)
+                self._serverid2series_map[server_id] = series
+                series.setName(signal.name)
+                series.attachAxis(self._xaxis)
+                series.attachAxis(yaxis)
+
+        self._acquiring = True
+        self.update_visual()
+        
 
     def start_stop_btn_slot(self) -> None:
-        if not self._acquiring:
-            signals = self._signal_tree.get_signals()
-            if len(signals) == 0:
-                self.report_error("No signals")
-                return
-            
-            for axis in signals:
-                for signal in axis.signals:
-                    try:
-                        self.watchable_registry.watch_fqn(self.watcher_id(), signal.watchable_fqn)
-                    except WatchableRegistryNodeNotFoundError as e:
-                        self.report_error(f"Signal {signal.name} ({signal.watchable_fqn}) is not available.")
-                        self.watchable_registry.unwatch_all(self.watcher_id())
-                        return
-            
-            self._acquiring = True
-            
+        if self._acquiring:           
+            self.stop_acquisition()
         else:
-            self.watchable_registry.unwatch_all(self.watcher_id())
-            self._acquiring = False
-
-        self.update_visual()
+            self.start_acquisition()
     
     def update_visual(self) -> None:
         if self._acquiring:
             self._start_stop_btn.setText("Stop")
+            self._signal_tree.lock()
         else:
             self._start_stop_btn.setText("Start")
+            self._signal_tree.unlock()
 
     def watcher_id(self) -> str:
         return self.instance_name
@@ -112,7 +167,17 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         self._message_label.setText(msg)
 
     def val_update_callback(self, watcher_id:Union[str, int], vals:List[ValueUpdate]) -> None:
-        print(f"Updates: {len(vals)}")
-
+        if self._xaxis is None or self._yaxis is None:
+            self.logger.error("Received value updates when no graph was built")
+            return 
+        
+        self._xaxis.setRange(self._xaxis.min(), vals[-1].update_timestamp.timestamp())
+        for val in vals:
+            floatval = float(val.value)
+            series = self._serverid2series_map[val.watchable.server_id]
+            yaxis = cast(QValueAxis, self._chartview.chart().axisY(series))
+            yaxis.setRange(min(yaxis.min(), floatval), max(yaxis.max(), floatval))
+            series.append(val.update_timestamp.timestamp(), floatval)
+            
     def unwatch_callback(self, watcher_id:Union[str, int], server_path:str, watchable_config:sdk.WatchableConfiguration) -> None:
         pass
