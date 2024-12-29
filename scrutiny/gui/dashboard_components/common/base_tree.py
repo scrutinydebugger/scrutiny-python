@@ -13,7 +13,7 @@ __all__ = [
     'BaseTreeView',
 ]
 
-from PySide6.QtGui import  QFocusEvent, QStandardItem, QKeyEvent, QStandardItemModel, QColor
+from PySide6.QtGui import  QFocusEvent, QStandardItem, QKeyEvent, QStandardItemModel, QColor, QMouseEvent
 from PySide6.QtCore import Qt, QModelIndex, QPersistentModelIndex, QAbstractItemModel
 from PySide6.QtWidgets import QTreeView,QWidget
 from typing import Any, List, Optional, cast, Sequence, Set, Union, TypedDict
@@ -30,15 +30,16 @@ class SerializableItemIndexDescriptor(TypedDict):
 
 class BaseTreeModel(QStandardItemModel):
     logger:logging.Logger
+    _nesting_col:int
 
-    def __init__(self, parent:QWidget) -> None:
+    def __init__(self, parent:QWidget, nesting_col:int=0) -> None:
         super().__init__(parent)
+        self._nesting_col = nesting_col
         if not hasattr(self, 'logger'):
             self.logger = logging.getLogger(self.__class__.__name__)
     
-    @classmethod
-    def item_col(cls) -> int:
-        return 0
+    def nesting_col(self) -> int:
+        return self._nesting_col
 
     def add_row_to_parent(self, parent:Optional[QStandardItem], row_index:int, row:Sequence[QStandardItem] ) -> None:
         """Add a row to a given parent or at the root if no parent is given
@@ -124,12 +125,12 @@ class BaseTreeModel(QStandardItemModel):
             return None
         if len(path) == 0 or object_id == 0:
             return None
-        item_col = self.item_col()
-        item = self.item(path[0], item_col)
+        nesting_col = self.nesting_col()
+        item = self.item(path[0], nesting_col)
         if item is None:
             return None
         for row_index in path[1:]:
-            item = item.child(row_index, item_col)
+            item = item.child(row_index, nesting_col)
             if item is None:
                 return None
         if id(item) != object_id:
@@ -150,7 +151,7 @@ class BaseTreeModel(QStandardItemModel):
 
         try:
             dest_parent = self.itemFromIndex(dest_parent_index) # Where we move the stuff to
-            item_col = self.item_col()  # The index of the column that stores the main boject (watchable/folder)
+            nesting_col = self.nesting_col()  # The index of the column that stores the main boject (watchable/folder)
 
             # Finds all the items to move
             items = [self.get_item_from_serializable_index_descriptor(descriptor) for descriptor in data]
@@ -158,9 +159,9 @@ class BaseTreeModel(QStandardItemModel):
                 # Let's take note of what item was before the insert point. We will use it as a reference ton find the insert index
                 # When ther eis many items to move at once because each item will changes all the indexes
                 if dest_parent_index.isValid():
-                    previous_item = self.itemFromIndex(dest_parent_index).child(dest_row_index-1, item_col)
+                    previous_item = self.itemFromIndex(dest_parent_index).child(dest_row_index-1, nesting_col)
                 else:
-                    previous_item = self.item(dest_row_index-1, item_col)
+                    previous_item = self.item(dest_row_index-1, nesting_col)
             
             insert_offset = 0   # The offset since the initial insert point
             for item in items:
@@ -301,7 +302,7 @@ class BaseTreeView(QTreeView):
             return super().keyReleaseEvent(event)    
 
     def focusOutEvent(self, event: QFocusEvent) -> None:
-        # Needs to do that, other wise holding ctrl/shift and cliking outside of the tree will not detect the key release
+        # Needs to do that, otherwise holding ctrl/shift and cliking outside of the tree will not detect the key release
         self.setSelectionMode(self.SelectionMode.SingleSelection)
         return super().focusOutEvent(event)
     
@@ -326,3 +327,12 @@ class BaseTreeView(QTreeView):
                 visible = False
             parent = parent.parent()
         return visible
+
+    def mousePressEvent(self, event: QMouseEvent) -> None:
+        if event.button() == Qt.MouseButton.RightButton:
+            # This condition prevents to change the selection on a right click if it happens on an existing selection
+            # Makes it easier to right click a multi-selection (no need to hold shift or control)
+            index = self.indexAt(event.pos())
+            if index.isValid() and index in self.selectedIndexes():
+                return  # Don't change the selection
+        return super().mousePressEvent(event)

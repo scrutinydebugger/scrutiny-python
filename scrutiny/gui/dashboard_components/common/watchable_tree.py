@@ -27,7 +27,7 @@ from PySide6.QtCore import  Qt
 from scrutiny.gui import assets
 from scrutiny.gui.core.watchable_registry import WatchableRegistry, WatchableRegistryNodeContent
 from scrutiny.gui.core.scrutiny_drag_data import WatchableListDescriptor, SingleWatchableDescriptor, ScrutinyDragData
-from typing import Any, List, Optional, TypedDict,  cast, Literal, Set, Iterable
+from typing import Any, List, Optional, TypedDict,  cast, Literal, Set, Iterable, Self, Type
 from scrutiny.gui.dashboard_components.common.base_tree import BaseTreeModel, BaseTreeView
 
 
@@ -131,7 +131,10 @@ class WatchableStandardItem(BaseWatchableRegistryTreeStandardItem):
     """
     _NODE_TYPE:NodeSerializableType='watchable'
 
+    _watchable_type:WatchableType
+
     def __init__(self, watchable_type:WatchableType, text:str, fqn:str):
+        self._watchable_type = watchable_type
         icon = get_watchable_icon(watchable_type)
         super().__init__(fqn, icon, text)
         self.setDropEnabled(False)
@@ -142,6 +145,10 @@ class WatchableStandardItem(BaseWatchableRegistryTreeStandardItem):
         assert self._fqn is not None
         return self._fqn
     
+    @property
+    def watchable_type(self) -> WatchableType:
+        return self._watchable_type
+    
     def to_serialized_data(self) -> WatchableItemSerializableData:
         """Create a serializable version of this node (using a dict). Used for Drag&Drop"""
         return {
@@ -151,23 +158,23 @@ class WatchableStandardItem(BaseWatchableRegistryTreeStandardItem):
         }
 
     @classmethod
-    def from_serializable_data(cls, data:WatchableItemSerializableData) -> "WatchableStandardItem":
+    def from_serializable_data(cls, data:WatchableItemSerializableData) -> Self:
         """Loads from a serializable dict. Used for Drag&Drop"""
         assert data['type'] == cls._NODE_TYPE
         assert data['fqn'] is not None
         parsed = WatchableRegistry.FQN.parse(data['fqn'])
         
-        return WatchableStandardItem(
+        return cls(
             watchable_type=parsed.watchable_type,
             text=data['text'], 
             fqn=data['fqn']
         ) 
     
     @classmethod
-    def from_drag_watchable_descriptor(cls, desc:SingleWatchableDescriptor) -> "WatchableStandardItem" :
+    def from_drag_watchable_descriptor(cls, desc:SingleWatchableDescriptor) -> Self:
         """Create from global representation of a watchable defined in the global drag n' drop module"""
         parsed = WatchableRegistry.FQN.parse(desc.fqn)
-        return WatchableStandardItem(
+        return cls(
             watchable_type=parsed.watchable_type,
             text=desc.text, 
             fqn=desc.fqn
@@ -407,15 +414,6 @@ class WatchableTreeWidget(BaseTreeView):
             return super().keyPressEvent(event)
         else:
             return super().keyPressEvent(event)
-    
-    def mousePressEvent(self, event: QMouseEvent) -> None:
-        if event.button() == Qt.MouseButton.RightButton:
-            # This condition prevents to change the selection on a right click if it happens on an existing selection
-            # Makes it easier to right click a multi-selection (no need to hold shift or control)
-            index = self.indexAt(event.pos())
-            if index.isValid() and index in self.selectedIndexes():
-                return  # Don't change the selection
-        return super().mousePressEvent(event)
     
     def model(self) -> WatchableTreeModel:
         return self._model      

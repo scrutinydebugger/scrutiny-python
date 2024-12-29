@@ -9,34 +9,29 @@
 
 __all__ = [
     'AxisStandardItem',
+    'ChartSignalStandardItem',
     'GraphSignalModel',
     'GraphSignalTree',
-    'GraphSignal',
     'AxisContent'
 ]
 
 from dataclasses import dataclass
 
 from PySide6.QtWidgets import QWidget, QMenu
-from PySide6.QtGui import QStandardItem, QDropEvent, QDragEnterEvent, QDragMoveEvent, QDragEnterEvent, QDragMoveEvent, QContextMenuEvent, QAction, QKeyEvent
+from PySide6.QtGui import ( QStandardItem, QDropEvent, QDragEnterEvent, QDragMoveEvent, QDragEnterEvent, 
+                           QDragMoveEvent, QContextMenuEvent, QAction, QKeyEvent, QColor, QPixmap
+                           )
 from PySide6.QtCore import QMimeData, QModelIndex, Qt, QPersistentModelIndex, QPoint
+from PySide6.QtCharts import QLineSeries, QAbstractSeries
 
-from scrutiny.gui.dashboard_components.common.watchable_tree import WatchableStandardItem
 from scrutiny.gui import assets
 from scrutiny.gui.core.scrutiny_drag_data import ScrutinyDragData, WatchableListDescriptor, SingleWatchableDescriptor
+from scrutiny.gui.dashboard_components.common.watchable_tree import WatchableStandardItem, get_watchable_icon
 from scrutiny.gui.dashboard_components.common.base_tree import BaseTreeModel, BaseTreeView, SerializableItemIndexDescriptor
 
-from typing import Optional, List, Union, Sequence, cast
 
-@dataclass
-class GraphSignal:
-    name:str
-    watchable_fqn:str
+from typing import Optional, List, Union, Sequence, cast, Any
 
-@dataclass
-class AxisContent:
-    axis_name:str
-    signals:List[GraphSignal]
 
 class AxisStandardItem(QStandardItem):
     def __init__(self, name:str):
@@ -45,24 +40,99 @@ class AxisStandardItem(QStandardItem):
         self.setDropEnabled(True)
         self.setDragEnabled(False)
 
+class ChartSignalStandardItem(WatchableStandardItem):
+    _chart_series:Optional[QLineSeries] = None
+
+    def __init__(self, *args:Any, **kwargs:Any):
+        super().__init__(*args, **kwargs)
+        self._chart_series = None
+
+    def _assert_series_set(self) -> None:
+        if self._chart_series is None:
+            raise RuntimeError("A serie smust be attached first")
+
+    def attach_series(self, series:QLineSeries) -> None:
+        if not isinstance(series, QAbstractSeries):
+            raise ValueError("A chart series must be given")
+        self._chart_series = series
+        self.change_icon_to_series_color()
+
+    def detach_series(self) -> None:
+        self._assert_series_set()
+        self._chart_series = None
+        self.reload_watchable_icon()
+
+    def series_attached(self) -> bool:
+        return self._chart_series is not None
+
+    def series(self) -> QLineSeries:
+        self._assert_series_set()
+        assert self._chart_series is not None   # for mypy
+        return self._chart_series
+    
+    def change_icon_to_series_color(self) -> None:
+        LINE_WIDTH = 12
+        LINE_HEIGHT = 5
+        color = self.series().color()
+        new_pix = QPixmap(LINE_WIDTH, LINE_HEIGHT)
+        new_pix.fill(color)
+        self.setIcon(new_pix)
+
+    def reload_watchable_icon(self) -> None:
+        self.setIcon(get_watchable_icon(self.watchable_type))
+
+    def hide_series(self) -> None:
+        series = self.series()
+        series.hide()
+        font = self.font()
+        font.setStrikeOut(True)
+        self.setFont(font)
+
+    def show_series(self) -> None:
+        series = self.series()
+        series.show()
+        font = self.font()
+        font.setStrikeOut(False)
+        self.setFont(font)
+
+    def series_visible(self) -> bool:
+        series = self.series()
+        return series.isVisible()
+
+
+@dataclass
+class AxisContent:
+    axis_name:str
+    signal_items:List[ChartSignalStandardItem]
+
 class GraphSignalModel(BaseTreeModel):
 
     def __init__(self, parent:QWidget) -> None:
-        super().__init__(parent)
+        super().__init__(parent, nesting_col= self.axis_col())
+        self.setColumnCount(2)
 
     def make_axis_row(self, axis_name:str) -> List[AxisStandardItem]:
         axis_item = AxisStandardItem(axis_name)
         return [axis_item]
+
+    def axis_col(self) -> int:
+        return 0
     
-    def dtype_col(self) -> int:
+    def watchable_col(self) -> int:
+        return 0
+    
+    def value_col(self) -> int:
         return 1
-  
+    
     def get_watchable_row_from_dragged_watchable_desc(self, watchable_desc:SingleWatchableDescriptor) -> List[QStandardItem]:
-        watchable_item = WatchableStandardItem.from_drag_watchable_descriptor(watchable_desc)
+        watchable_item = ChartSignalStandardItem.from_drag_watchable_descriptor(watchable_desc)
         watchable_item.setEditable(True)
         watchable_item.setDragEnabled(True)
 
-        return [watchable_item]
+        value_item=QStandardItem()
+        value_item.setEditable(False)
+
+        return [watchable_item, value_item]
  
     def _validate_drag_data(self, drag_data:Optional[ScrutinyDragData], action:Qt.DropAction) -> bool:
         
@@ -89,7 +159,7 @@ class GraphSignalModel(BaseTreeModel):
         if self.rowCount() == 0:
             self.add_axis("Axis 1")
 
-        axis_item = self.item(self.rowCount()-1, self.item_col())
+        axis_item = self.item(self.rowCount()-1, self.axis_col())
         assert isinstance(axis_item, AxisStandardItem)
         return axis_item
     
@@ -99,7 +169,7 @@ class GraphSignalModel(BaseTreeModel):
     def mimeData(self, indexes:Sequence[QModelIndex]) -> QMimeData:
         item_list:List[WatchableStandardItem] = []
         for index in indexes:
-            if index.isValid() and index.column() == self.item_col():
+            if index.isValid() and index.column() == self.watchable_col():
                 item = self.itemFromIndex(index)
                 if isinstance(item, WatchableStandardItem):
                     item_list.append(item)
@@ -181,27 +251,29 @@ class GraphSignalModel(BaseTreeModel):
         outlist:List[AxisContent] = [] 
 
         for i in range(self.rowCount()):
-            axis_item = self.item(i, self.item_col())
+            axis_item = self.item(i, self.axis_col())
             assert isinstance(axis_item, AxisStandardItem)
             
             if axis_item.rowCount() == 0:
                 continue
-            axis = AxisContent(axis_name=axis_item.text(), signals=[])
+            axis = AxisContent(axis_name=axis_item.text(), signal_items=[])
 
             for i in range(axis_item.rowCount()):
-                watchable_item = axis_item.child(i, self.item_col())
-                assert isinstance(watchable_item, WatchableStandardItem)
-
-                axis.signals.append(GraphSignal(
-                    name = watchable_item.text(),
-                    watchable_fqn=watchable_item.fqn
-                ))
+                watchable_item = axis_item.child(i, self.watchable_col())
+                assert isinstance(watchable_item, ChartSignalStandardItem)
+                axis.signal_items.append(watchable_item)
             outlist.append(axis)
         return outlist
-
+    
+    def reload_original_icons(self) -> None:
+        for axis_index in range(self.rowCount()):
+            axis = self.item(axis_index, self.axis_col())
+            for signal_index in range(axis.rowCount()):
+                signal_item = axis.child(signal_index, self.watchable_col())
+                assert isinstance(signal_item, ChartSignalStandardItem)
+                signal_item.reload_watchable_icon()
 
 class GraphSignalTree(BaseTreeView):
-
     _locked:bool
 
     def model(self) -> GraphSignalModel:
@@ -224,7 +296,12 @@ class GraphSignalTree(BaseTreeView):
     def rowsInserted(self, parent:Union[QModelIndex, QPersistentModelIndex], start:int, end:int) -> None:
         if parent.isValid():
             self.expand(parent)
-        return super().rowsInserted(parent, start, end)
+        super().rowsInserted(parent, start, end)
+        self.resizeColumnToContents(0)
+    
+    def rowsRemoved(self, parent:Union[QModelIndex, QPersistentModelIndex], first:int, last:int) -> None:
+        super().rowsRemoved(parent, first, last)
+        self.resizeColumnToContents(0)
     
     def _set_drag_and_drop_action(self, event:Union[QDragEnterEvent, QDragMoveEvent, QDropEvent]) -> None:
         if event.source() is self:
@@ -244,12 +321,13 @@ class GraphSignalTree(BaseTreeView):
     def dropEvent(self, event: QDropEvent) -> None:
         self._set_drag_and_drop_action(event)
         return super().dropEvent(event)    
+
     
     def contextMenuEvent(self, event: QContextMenuEvent) -> None:
         context_menu = QMenu(self)
         selected_indexes_no_nested = self.model().remove_nested_indexes(self.selectedIndexes())
-        item_col = self.model().item_col()
-        selected_items_no_nested = [self.model().itemFromIndex(index) for index in selected_indexes_no_nested if index.column()==item_col]
+        nesting_col = self.model().nesting_col()
+        selected_items_no_nested = [self.model().itemFromIndex(index) for index in selected_indexes_no_nested if index.column()==nesting_col]
         
         def new_axis_action_slot() -> None:
             self.model().appendRow(self.model().make_axis_row("New Axis"))
@@ -260,6 +338,30 @@ class GraphSignalTree(BaseTreeView):
         
         new_axis_action = context_menu.addAction(assets.load_icon(assets.Icons.GraphAxis), "New Axis")
         new_axis_action.triggered.connect(new_axis_action_slot)
+
+        indexes = self.selectedIndexes()
+
+        items = [self.model().itemFromIndex(index) for index in indexes if index.isValid()]
+        signals_with_series = [item for item in items if isinstance(item, ChartSignalStandardItem) and item.series_attached() ]
+
+        if len(signals_with_series) > 0:
+            all_visible = True
+            for item in signals_with_series:
+                if not item.series_visible():
+                    all_visible = False
+            
+            if all_visible:
+                show_hide_action = context_menu.addAction(assets.load_icon(assets.Icons.Hide), "Hide")
+                def hide_action_slot() -> None:
+                    for item in signals_with_series:
+                        item.hide_series()
+                show_hide_action.triggered.connect(hide_action_slot)
+            else:
+                show_hide_action = context_menu.addAction(assets.load_icon(assets.Icons.Show), "Show")
+                def show_action_slot() -> None:
+                    for item in signals_with_series:
+                        item.show_series()
+                show_hide_action.triggered.connect(show_action_slot)
         
         remove_action = context_menu.addAction(assets.load_icon(assets.Icons.RedX), "Remove")
         remove_action.setEnabled( len(selected_items_no_nested) > 0 )
@@ -303,4 +405,9 @@ class GraphSignalTree(BaseTreeView):
     def unlock(self) -> None:
         self.setDragDropMode(self.DragDropMode.DragDrop)
         self._locked = False
+
+    def reload_original_icons(self) -> None:
+        self.model().reload_original_icons()
+
+
         

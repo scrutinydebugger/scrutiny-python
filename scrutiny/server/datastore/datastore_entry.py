@@ -135,7 +135,7 @@ class DatastoreEntry(abc.ABC):
         display_path = display_path.strip()
         self.value_change_callback = {}
         self.target_update_callback = {}
-        self.entry_id = hex(global_i64_counter())    # unique ID
+        self.entry_id = hex(global_i64_counter())[2:]    # unique ID. Remove 0x prefix
         self.display_path = display_path
         self.last_target_update_timestamp = None
         self.last_value_update_timestamp = time.time()

@@ -11,7 +11,6 @@ from typing import Dict,Any
 
 from PySide6.QtWidgets import QFormLayout, QLabel,  QTextEdit
 from PySide6.QtCore import QMimeData
-from scrutiny.gui.dashboard_components.common.watchable_line_edit import WatchableLineEdit
 from scrutiny.gui import assets
 
 
@@ -32,21 +31,16 @@ class DebugComponent(ScrutinyGUIBaseComponent):
 
     _label_nb_status_update:QLabel
     _nb_status_update:int
-    _watchable_line_edit:WatchableLineEdit
     _dnd_text_edit:DroppableTextEdit
 
     def setup(self) -> None:
         layout = QFormLayout(self)
         self._nb_status_update = 0
-        self._watchable_line_edit = WatchableLineEdit()
-        self._watchable_line_edit.setMaximumWidth(100)
         self._dnd_text_edit = DroppableTextEdit()
         self._dnd_text_edit.setMaximumSize(400,300)
 
-
         layout.addRow(QLabel("Component name:"), QLabel(self._NAME))
         layout.addRow(QLabel("Instance name:"), QLabel(self.instance_name))
-        layout.addRow(QLabel("Droppable line edit:"), self._watchable_line_edit)
         layout.addRow(QLabel("Drag & Drop zone:"), self._dnd_text_edit)
 
     def teardown(self) -> None:

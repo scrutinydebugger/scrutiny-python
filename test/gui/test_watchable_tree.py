@@ -611,7 +611,6 @@ class TestWatchTreeModel(BaseWatchableTreeTest):
         self.assertTrue(self.model.dropMimeData(mime_data, Qt.DropAction.MoveAction, -1, 0, folder_yyy_node.index()))
         self.assertIs(var2_node.parent(), folder_yyy_node)
 
-
     def test_drop_move_full_tree_append(self):
         self.model.fill_from_index_recursive(self.var_node, sdk.WatchableType.Variable, '/', keep_folder_fqn=False)
         self.model.fill_from_index_recursive(self.alias_node, sdk.WatchableType.Alias, '/', keep_folder_fqn=False)
@@ -829,7 +828,6 @@ class TestWatchTreeModel(BaseWatchableTreeTest):
         self.assertTrue(self.model.dropMimeData(mime_data, Qt.DropAction.MoveAction, -1, 0, ccc_folder.index()))
         self.assertIs(aaa_node.parent(), ccc_folder) 
         self.assertIs(bbb_node.parent(), ccc_folder) 
-
 
     def test_drop_copy_from_watch(self):
         self.model.fill_from_index_recursive(self.var_node, sdk.WatchableType.Variable, '/', keep_folder_fqn=False)

@@ -59,3 +59,5 @@ class Icons:
     TreeAlias = "alias-16x16.png"
     RedX = "redx-16x16.png"
     GraphAxis = "axis-16x16.png"
+    Show = "show-16x16.png"
+    Hide = "hide-16x16.png"

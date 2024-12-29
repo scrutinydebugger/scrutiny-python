@@ -495,7 +495,7 @@ class WatchableRegistry:
             
             for entry in to_unwatch:
                 if entry.configuration.server_id in self._watched_entries:
-                    self._logger.error(f"Incoherence in Watchable Registry. Entry {entry.server_path} is still watched, but has no watcher")
+                    self._logger.error(f"Inconsistency in Watchable Registry. Entry {entry.server_path} is still watched, but has no watcher")
                     del self._watched_entries[entry.configuration.server_id]    # Resilience on error
 
             if had_data:

@@ -142,9 +142,9 @@ class WatchComponentTreeModel(WatchableTreeModel):
             'children' : []
         }
 
-        item_col = self.item_col()
+        nesting_col = self.nesting_col()
         for row_index in range(top_level_item.rowCount()):
-            child = cast(BaseWatchableRegistryTreeStandardItem, top_level_item.child(row_index, item_col))
+            child = cast(BaseWatchableRegistryTreeStandardItem, top_level_item.child(row_index, nesting_col))
             dict_out['children'].append(self._make_serializable_tree_descriptor(child, sortkey=row_index))
 
         return dict_out
@@ -153,10 +153,10 @@ class WatchComponentTreeModel(WatchableTreeModel):
     def mimeData(self, indexes: Sequence[QModelIndex]) -> QMimeData:
         """Generate the mimeData when a drag&drop starts"""
         
-        item_col = self.item_col()
+        nesting_col = self.nesting_col()
         def get_items(indexes:Iterable[QModelIndex]) -> Generator[BaseWatchableRegistryTreeStandardItem, None, None]:
             for index in indexes:
-                if index.column() == item_col:
+                if index.column() == nesting_col:
                     item = self.itemFromIndex(index)
                     assert item is not None
                     yield item
@@ -385,9 +385,9 @@ class WatchComponentTreeModel(WatchableTreeModel):
                     raise NotImplementedError(f"Unsupported item type: {child}")
         
         if parent is None:
-            item_col = self.item_col()
+            nesting_col = self.nesting_col()
             for i in range(self.rowCount()):
-                child = self.item(i, item_col)
+                child = self.item(i, nesting_col)
                 if isinstance(child, FolderStandardItem):
                     yield from recurse(child)
                 elif isinstance(child, WatchableStandardItem):
