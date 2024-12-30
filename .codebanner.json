@@ -549,9 +549,6 @@
         "scrutiny/gui/dashboard_components/common/watchable_tree.py": {
             "docstring": "An enhanced QTreeView with a data model dedicated to Watchables displayed in folder structure."
         },
-        "scrutiny/gui/dashboard_components/common/watchable_line_edit.py": {
-            "docstring": "A QLineEdit that can accept textual input or drag&drop of a single watchable element"
-        },
         "scrutiny/gui/dashboard_components/watch/watch_tree_model.py": {
             "docstring": "The data model used by the Watch component treeview"
         },
@@ -608,6 +605,9 @@
         },
         "scrutiny/tools/global_counters.py": {
             "docstring": "A file that provide some global counter atomic counter for unique ID generation"
+        },
+        "scrutiny/gui/dashboard_components/common/base_chart.py": {
+            "docstring": "Some customized extensions of the QT Charts for the Scrutiny GUI"
         }
     }
 }

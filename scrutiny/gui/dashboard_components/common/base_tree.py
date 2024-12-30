@@ -329,10 +329,15 @@ class BaseTreeView(QTreeView):
         return visible
 
     def mousePressEvent(self, event: QMouseEvent) -> None:
+        index = self.indexAt(event.pos())
         if event.button() == Qt.MouseButton.RightButton:
             # This condition prevents to change the selection on a right click if it happens on an existing selection
             # Makes it easier to right click a multi-selection (no need to hold shift or control)
-            index = self.indexAt(event.pos())
             if index.isValid() and index in self.selectedIndexes():
                 return  # Don't change the selection
+        elif event.button() == Qt.MouseButton.LeftButton:
+            if not index.isValid():
+                self.clearSelection()
+                return
+
         return super().mousePressEvent(event)

@@ -9,7 +9,7 @@
 
 __all__ = [
     'AxisStandardItem',
-    'ChartSignalStandardItem',
+    'ChartSeriesWatchableStandardItem',
     'GraphSignalModel',
     'GraphSignalTree',
     'AxisContent'
@@ -19,9 +19,9 @@ from dataclasses import dataclass
 
 from PySide6.QtWidgets import QWidget, QMenu
 from PySide6.QtGui import ( QStandardItem, QDropEvent, QDragEnterEvent, QDragMoveEvent, QDragEnterEvent, 
-                           QDragMoveEvent, QContextMenuEvent, QAction, QKeyEvent, QColor, QPixmap
+                           QDragMoveEvent, QContextMenuEvent, QAction, QKeyEvent, QPixmap
                            )
-from PySide6.QtCore import QMimeData, QModelIndex, Qt, QPersistentModelIndex, QPoint
+from PySide6.QtCore import QMimeData, QModelIndex, Qt, QPersistentModelIndex, QPoint, QItemSelection, QObject, Signal
 from PySide6.QtCharts import QLineSeries, QAbstractSeries
 
 from scrutiny.gui import assets
@@ -40,7 +40,7 @@ class AxisStandardItem(QStandardItem):
         self.setDropEnabled(True)
         self.setDragEnabled(False)
 
-class ChartSignalStandardItem(WatchableStandardItem):
+class ChartSeriesWatchableStandardItem(WatchableStandardItem):
     _chart_series:Optional[QLineSeries] = None
 
     def __init__(self, *args:Any, **kwargs:Any):
@@ -98,12 +98,12 @@ class ChartSignalStandardItem(WatchableStandardItem):
     def series_visible(self) -> bool:
         series = self.series()
         return series.isVisible()
-
+    
 
 @dataclass
 class AxisContent:
     axis_name:str
-    signal_items:List[ChartSignalStandardItem]
+    signal_items:List[ChartSeriesWatchableStandardItem]
 
 class GraphSignalModel(BaseTreeModel):
 
@@ -125,7 +125,7 @@ class GraphSignalModel(BaseTreeModel):
         return 1
     
     def get_watchable_row_from_dragged_watchable_desc(self, watchable_desc:SingleWatchableDescriptor) -> List[QStandardItem]:
-        watchable_item = ChartSignalStandardItem.from_drag_watchable_descriptor(watchable_desc)
+        watchable_item = ChartSeriesWatchableStandardItem.from_drag_watchable_descriptor(watchable_desc)
         watchable_item.setEditable(True)
         watchable_item.setDragEnabled(True)
 
@@ -260,7 +260,7 @@ class GraphSignalModel(BaseTreeModel):
 
             for i in range(axis_item.rowCount()):
                 watchable_item = axis_item.child(i, self.watchable_col())
-                assert isinstance(watchable_item, ChartSignalStandardItem)
+                assert isinstance(watchable_item, ChartSeriesWatchableStandardItem)
                 axis.signal_items.append(watchable_item)
             outlist.append(axis)
         return outlist
@@ -270,11 +270,16 @@ class GraphSignalModel(BaseTreeModel):
             axis = self.item(axis_index, self.axis_col())
             for signal_index in range(axis.rowCount()):
                 signal_item = axis.child(signal_index, self.watchable_col())
-                assert isinstance(signal_item, ChartSignalStandardItem)
+                assert isinstance(signal_item, ChartSeriesWatchableStandardItem)
                 signal_item.reload_watchable_icon()
 
 class GraphSignalTree(BaseTreeView):
+    
+    class _Signals(QObject):
+        selection_changed = Signal()
+    
     _locked:bool
+    _signals:_Signals
 
     def model(self) -> GraphSignalModel:
         return cast(GraphSignalModel, super().model())
@@ -282,6 +287,7 @@ class GraphSignalTree(BaseTreeView):
     def __init__(self, parent:QWidget) -> None:
         super().__init__(parent)
         self._locked = False
+        self._signals = self._Signals()
 
         self.setModel(GraphSignalModel(self))
         self.model().add_axis("Axis 1")
@@ -292,6 +298,10 @@ class GraphSignalTree(BaseTreeView):
         self.setDragEnabled(True)
         self.setDropIndicatorShown(True)
         self.setDragDropMode(self.DragDropMode.DragDrop)
+
+    @property
+    def signals(self) -> _Signals:
+        return self._signals
 
     def rowsInserted(self, parent:Union[QModelIndex, QPersistentModelIndex], start:int, end:int) -> None:
         if parent.isValid():
@@ -342,7 +352,7 @@ class GraphSignalTree(BaseTreeView):
         indexes = self.selectedIndexes()
 
         items = [self.model().itemFromIndex(index) for index in indexes if index.isValid()]
-        signals_with_series = [item for item in items if isinstance(item, ChartSignalStandardItem) and item.series_attached() ]
+        signals_with_series = [item for item in items if isinstance(item, ChartSeriesWatchableStandardItem) and item.series_attached() ]
 
         if len(signals_with_series) > 0:
             all_visible = True
@@ -409,5 +419,6 @@ class GraphSignalTree(BaseTreeView):
     def reload_original_icons(self) -> None:
         self.model().reload_original_icons()
 
-
-        
+    def selectionChanged(self, selected:QItemSelection, deselected:QItemSelection) -> None:
+        super().selectionChanged(selected, deselected)
+        self._signals.selection_changed.emit()
