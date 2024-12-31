@@ -28,7 +28,7 @@ from scrutiny.gui import assets
 from scrutiny.gui.core.scrutiny_drag_data import ScrutinyDragData, WatchableListDescriptor, SingleWatchableDescriptor
 from scrutiny.gui.dashboard_components.common.watchable_tree import WatchableStandardItem, get_watchable_icon
 from scrutiny.gui.dashboard_components.common.base_tree import BaseTreeModel, BaseTreeView, SerializableItemIndexDescriptor
-
+from scrutiny import tools
 
 from typing import Optional, List, Union, Sequence, cast, Any
 
@@ -43,6 +43,7 @@ class AxisStandardItem(QStandardItem):
 class ChartSeriesWatchableStandardItem(WatchableStandardItem):
     _chart_series:Optional[QLineSeries] = None
 
+    @tools.copy_type(WatchableStandardItem.__init__)
     def __init__(self, *args:Any, **kwargs:Any):
         super().__init__(*args, **kwargs)
         self._chart_series = None
@@ -106,10 +107,18 @@ class AxisContent:
     signal_items:List[ChartSeriesWatchableStandardItem]
 
 class GraphSignalModel(BaseTreeModel):
+    _has_value_col:bool
 
-    def __init__(self, parent:QWidget) -> None:
+    def __init__(self, parent:QWidget, has_value_col:bool) -> None:
         super().__init__(parent, nesting_col= self.axis_col())
-        self.setColumnCount(2)
+        if has_value_col:
+            self.setColumnCount(2)
+        else:
+            self.setColumnCount(1)
+        self._has_value_col = has_value_col
+    
+    def has_value_col(self) -> bool:
+        return self._has_value_col
 
     def make_axis_row(self, axis_name:str) -> List[AxisStandardItem]:
         axis_item = AxisStandardItem(axis_name)
@@ -122,6 +131,7 @@ class GraphSignalModel(BaseTreeModel):
         return 0
     
     def value_col(self) -> int:
+        assert self._has_value_col
         return 1
     
     def get_watchable_row_from_dragged_watchable_desc(self, watchable_desc:SingleWatchableDescriptor) -> List[QStandardItem]:
@@ -284,12 +294,12 @@ class GraphSignalTree(BaseTreeView):
     def model(self) -> GraphSignalModel:
         return cast(GraphSignalModel, super().model())
 
-    def __init__(self, parent:QWidget) -> None:
+    def __init__(self, parent:QWidget, has_value_col:bool) -> None:
         super().__init__(parent)
         self._locked = False
         self._signals = self._Signals()
 
-        self.setModel(GraphSignalModel(self))
+        self.setModel(GraphSignalModel(self, has_value_col))
         self.model().add_axis("Axis 1")
         self.setUniformRowHeights(True)   # Documentation says it helps performance
         self.setAnimated(False)
@@ -422,3 +432,6 @@ class GraphSignalTree(BaseTreeView):
     def selectionChanged(self, selected:QItemSelection, deselected:QItemSelection) -> None:
         super().selectionChanged(selected, deselected)
         self._signals.selection_changed.emit()
+
+    def has_value_col(self) -> bool:
+        return self.model()._has_value_col

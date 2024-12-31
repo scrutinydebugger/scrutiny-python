@@ -7,15 +7,17 @@
 #   Copyright (c) 2021 Scrutiny Debugger
 
 from datetime import datetime
+import functools
 
 from PySide6.QtWidgets import QHBoxLayout, QSplitter, QWidget, QVBoxLayout, QPushButton, QLabel
 from PySide6.QtCharts import QChart, QChartView
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QItemSelectionModel, QPointF, QTimer
+from PySide6.QtGui import QMouseEvent
 
 from scrutiny.gui import assets
 from scrutiny.gui.dashboard_components.base_component import ScrutinyGUIBaseComponent
 from scrutiny.gui.dashboard_components.common.graph_signal_tree import GraphSignalTree, ChartSeriesWatchableStandardItem
-from scrutiny.gui.dashboard_components.common.base_chart import ScrutinyLineSeries, ScrutinyValueAxis
+from scrutiny.gui.dashboard_components.common.base_chart import ScrutinyLineSeries, ScrutinyValueAxis, ChartCallout
 from scrutiny.gui.core.watchable_registry import WatchableRegistryNodeNotFoundError, ValueUpdate
 from scrutiny import sdk
 from scrutiny import tools
@@ -30,6 +32,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
     _NAME = "Continuous Graph"
 
     _chartview:QChartView
+    _callout:ChartCallout
     _signal_tree:GraphSignalTree
     _btn_start_stop:QPushButton
     _btn_clear:QPushButton
@@ -37,7 +40,8 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
     _splitter:QSplitter
     _acquiring:bool
     _chart_has_content:bool
-    _serverid2item:Dict[str, ChartSeriesWatchableStandardItem]
+    _serverid2sgnal_item:Dict[str, ChartSeriesWatchableStandardItem]
+    _callout_hide_timer:QTimer
 
     _xaxis:ScrutinyValueAxis
     _yaxes:List[ScrutinyValueAxis]
@@ -45,7 +49,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
     def setup(self) -> None:
         self._acquiring = False
         self._chart_has_content = False
-        self._serverid2item = {}
+        self._serverid2sgnal_item = {}
         self._xaxis = ScrutinyValueAxis(self)
         self._xaxis.setTitleText("Time [s]")
         self._xaxis.setTitleVisible(True)
@@ -59,14 +63,22 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         self._splitter.setHandleWidth(5)
         
         self._chartview = QChartView(self)
-        self._chartview.setChart(QChart())
-        self._chartview.chart().layout().setContentsMargins(0,0,0,0)
-        self._chartview.chart().setAxisX(self._xaxis)
+        chart = QChart()
+        chart.layout().setContentsMargins(0,0,0,0)
+        chart.setAxisX(self._xaxis)
+        self._chartview.setChart(chart)
+        self._callout = ChartCallout(chart)
+        self._callout_hide_timer = QTimer()
+        self._callout_hide_timer.setInterval(250)
+        self._callout_hide_timer.setSingleShot(True)
+        self._callout_hide_timer.timeout.connect(self.callout_hide_timer_slot)
         
         right_side = QWidget()
         right_side_layout = QVBoxLayout(right_side)
-        
-        self._signal_tree = GraphSignalTree(self)
+
+        # Series on continuous graph don't have their X value aligned. 
+        # We can only show the value next to each point, not all together in the tree
+        self._signal_tree = GraphSignalTree(self, has_value_col=False)
         self._signal_tree.setMinimumWidth(150)
         self._btn_start_stop = QPushButton("")
         self._btn_start_stop.clicked.connect(self.btn_start_stop_slot)
@@ -104,15 +116,16 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
 
     def clear_graph(self) -> None:
         self._chartview.chart().removeAllSeries()
+        self._callout.hide()
         
         for yaxis in self._yaxes:
             with tools.SuppressException():
                 self._chartview.chart().removeAxis(yaxis)
 
-        for signal_item in self._serverid2item.values():
+        for signal_item in self._serverid2sgnal_item.values():
             if signal_item.series_attached():
                 signal_item.detach_series() # Will reload original icons if any
-        self._serverid2item.clear()
+        self._serverid2sgnal_item.clear()
         self._xaxis.setRange(0,1)
         self._yaxes.clear()
         self._chart_has_content = False
@@ -152,11 +165,13 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
                     series = ScrutinyLineSeries(self)
                     self._chartview.chart().addSeries(series)
                     signal_item.attach_series(series)
-                    signal_item.change_icon_to_series_color()
-                    self._serverid2item[server_id] = signal_item
+                    self._serverid2sgnal_item[server_id] = signal_item
                     series.setName(signal_item.text())
                     series.attachAxis(self._xaxis)
                     series.attachAxis(yaxis)
+
+                    series.clicked.connect(functools.partial(self.series_clicked_slot, signal_item))
+                    series.hovered.connect(functools.partial(self.series_hovered_slot, signal_item))
 
             self._chart_has_content = True
             self._acquiring = True
@@ -211,7 +226,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         self._xaxis.setRange(self._xaxis.min(), vals[-1].update_timestamp.timestamp())
         try:
             for val in vals:
-                series = self._serverid2item[val.watchable.server_id].series()
+                series = self._serverid2sgnal_item[val.watchable.server_id].series()
                 floatval = float(val.value)
                 yaxis = cast(ScrutinyValueAxis, self._chartview.chart().axisY(series))
                 yaxis.setRange(min(yaxis.min(), floatval), max(yaxis.max(), floatval))
@@ -230,7 +245,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
     def update_emphasize_state(self) -> None:
         emphasized_yaxes_id:Set[int] = set()
         selected_index = self._signal_tree.selectedIndexes()
-        for item in self._serverid2item.values():
+        for item in self._serverid2sgnal_item.values():
             if item.series_attached():
                 series = cast(ScrutinyLineSeries, item.series())
                 if item.index() in selected_index:
@@ -239,7 +254,6 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
                     emphasized_yaxes_id.add(id(yaxis))
                 else:
                     series.deemphasize()
-
 
         for axis in self._yaxes:
             if id(axis) in emphasized_yaxes_id:
@@ -250,3 +264,25 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
     def selection_changed_slot(self) -> None:
         self.update_emphasize_state()
         
+    def series_clicked_slot(self, signal_item:ChartSeriesWatchableStandardItem, point:QPointF):
+        sel = self._signal_tree.selectionModel()
+        sel.select(signal_item.index(), QItemSelectionModel.SelectionFlag.ClearAndSelect | QItemSelectionModel.SelectionFlag.Rows)
+
+    def series_hovered_slot(self, signal_item:ChartSeriesWatchableStandardItem, point:QPointF, state:bool):
+        # FIXME : If the scale changes, the data may change but not the callout.
+        # Only allow callout when the data is not moving. Fixed range or stopped
+
+        # FIXME : Snap zone is too small. QT source code says it is computed with markersize, but changing it has no effect.
+        if state :
+            series = signal_item.series()
+            self._callout_hide_timer.stop()
+            txt = f"{signal_item.text()}\nX: {point.x()}\nY: {point.y()}"
+            pos = self._chartview.chart().mapToPosition(point, series)
+            color = series.color()
+            self._callout.set_content(pos, txt, color)
+            self._callout.show()
+        else:
+            self._callout_hide_timer.start()
+
+    def callout_hide_timer_slot(self)-> None:
+        self._callout.hide()

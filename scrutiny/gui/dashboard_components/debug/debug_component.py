@@ -6,15 +6,18 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
-from scrutiny.gui.dashboard_components.base_component import ScrutinyGUIBaseComponent
 from typing import Dict,Any
 
 from PySide6.QtWidgets import QFormLayout, QLabel,  QTextEdit
 from PySide6.QtCore import QMimeData
+
 from scrutiny.gui import assets
+from scrutiny.gui.dashboard_components.base_component import ScrutinyGUIBaseComponent
+from scrutiny import tools
 
 
 class DroppableTextEdit(QTextEdit):
+    @tools.copy_type(QTextEdit.__init__)
     def __init__(self, *args:Any, **kwargs:Any) -> None:
         super().__init__(*args, **kwargs)
         self.setAcceptDrops(True)

@@ -8,6 +8,7 @@
 #   Copyright (c) 2021 Scrutiny Debugger
 
 import threading
+from scrutiny import tools
 from typing import Optional, Dict, Set, Callable, Any, TypeVar
 
 class ThreadValidationError(Exception):
