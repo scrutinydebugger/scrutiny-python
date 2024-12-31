@@ -4,11 +4,14 @@ from datetime import datetime, timedelta
 from typing import Union
 
 class RelativeTimebase:
-    _launch_ref_ns:int = time.perf_counter_ns()
-    _launch_dt = datetime.now()
+    _launch_ref_ns:int
+    _launch_dt:datetime
+
+    def __init__(self) -> None:
+        self.set_zero()
 
     def set_zero(self) -> None:
-        self._launch_ref_ns:int = time.perf_counter_ns()
+        self._launch_ref_ns = time.perf_counter_ns()
         self._launch_dt = datetime.now()
 
     def get_nano(self) -> int:
