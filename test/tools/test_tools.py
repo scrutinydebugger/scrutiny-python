@@ -8,11 +8,13 @@
 
 from scrutiny.tools import Throttler, SuppressException
 from scrutiny.tools.thread_enforcer import enforce_thread, register_thread, thread_func
+from scrutiny.tools.timebase import RelativeTimebase
 import time
 import math
 from test import logger
 from test import ScrutinyUnitTest
 import threading
+from datetime import datetime
 
 class TestThrottler(ScrutinyUnitTest):
 
@@ -180,6 +182,56 @@ class TestThreadEnforcer(ScrutinyUnitTest):
         
         with SuppressException():
             raise ValueError("aaa")
+
+
+class TestRelativeTimebase(ScrutinyUnitTest):
+    def test_relative_timebase(self):
+        tb = RelativeTimebase()
+        self.assertLess(tb.get_nano(), 0.5e9)
+        self.assertLess(tb.get_micro(), 0.5e6)
+        self.assertLess(tb.get_milli(), 0.5e3)
+        self.assertLess(tb.get_sec(), 0.5)
+
+        for i in range (3):
+            tb.set_zero()
+            now = datetime.now()
+            self.assertLess(tb.get_nano(), 0.5e9)
+            self.assertLess(tb.get_micro(), 0.5e6)
+            self.assertLess(tb.get_milli(), 0.5e3)
+            self.assertLess(tb.get_sec(), 0.5)
+
+            self.assertLess(tb.dt_to_nano(now), 0.5e9)
+            self.assertLess(tb.dt_to_micro(now), 0.5e6)
+            self.assertLess(tb.dt_to_milli(now), 0.5e3)
+            self.assertLess(tb.dt_to_sec(now), 0.5)
+
+
+            self.assertLess((tb.nano_to_dt(0) - now).total_seconds(), 0.5)
+            self.assertLess((tb.micro_to_dt(0) - now).total_seconds(), 0.5)
+            self.assertLess((tb.milli_to_dt(0) - now).total_seconds(), 0.5)
+            self.assertLess((tb.sec_to_dt(0) - now).total_seconds(), 0.5)
+
+            sec = 10
+            margin = 0.5
+            self.assertLess((tb.nano_to_dt(sec * 1e9) - now).total_seconds(),sec + margin)
+            self.assertLess((tb.micro_to_dt(sec * 1e6) - now).total_seconds(),sec + margin)
+            self.assertLess((tb.milli_to_dt(sec * 1e3) - now).total_seconds(),sec + margin)
+            self.assertLess((tb.sec_to_dt(sec * 1) - now).total_seconds(),sec + margin)
+            self.assertGreater((tb.nano_to_dt(sec * 1e9) - now).total_seconds(),sec-margin)
+            self.assertGreater((tb.micro_to_dt(sec * 1e6) - now).total_seconds(),sec-margin)
+            self.assertGreater((tb.milli_to_dt(sec * 1e3) - now).total_seconds(),sec-margin)
+            self.assertGreater((tb.sec_to_dt(sec * 1) - now).total_seconds(),sec-margin)
+
+            time.sleep(1)   # make sure the clock moves
+
+            self.assertGreater(tb.get_sec(), 1)
+            self.assertLess(tb.get_sec(), 2)
+            self.assertGreater(tb.get_milli(), 1e3)
+            self.assertLess(tb.get_milli(), 2e3)
+            self.assertGreater(tb.get_micro(), 1e6)
+            self.assertLess(tb.get_micro(), 2e6)
+            self.assertGreater(tb.get_nano(), 1e9)
+            self.assertLess(tb.get_nano(), 2e9)
 
         
 

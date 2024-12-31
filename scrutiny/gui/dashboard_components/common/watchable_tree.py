@@ -30,7 +30,8 @@ from scrutiny.gui.core.scrutiny_drag_data import WatchableListDescriptor, Single
 from scrutiny.gui.dashboard_components.common.base_tree import BaseTreeModel, BaseTreeView
 from scrutiny import tools
 
-from typing import Any, List, Optional, TypedDict,  cast, Literal, Set, Iterable, Self, Type
+from typing import Any, List, Optional, TypedDict,  cast, Literal, Set, Iterable, Type
+from typing_extensions import Self
 
 def get_watchable_icon(wt:WatchableType) -> QIcon:
     """Return the proper tree icon for a given watchable type (car, alias, rpv)"""
@@ -67,7 +68,7 @@ class BaseWatchableRegistryTreeStandardItem(QStandardItem):
     """
     _fqn:Optional[str]
     _loaded:bool
-    
+
     def __init__(self, fqn:Optional[str], *args:Any, **kwargs:Any) -> None:
         self._fqn = fqn
         self._loaded = False
