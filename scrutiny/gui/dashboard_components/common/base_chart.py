@@ -9,15 +9,19 @@
 __all__ = [
     'ScrutinyLineSeries',
     'ScrutinyValueAxis', 
-    'ChartCallout'
+    'ScrutinyChartCallout',
+    'ScrutinyChartView'
 ]
 
-from PySide6.QtCharts import QLineSeries, QValueAxis, QChart
-from PySide6.QtWidgets import QGraphicsItem, QStyleOptionGraphicsItem, QWidget
-from PySide6.QtCore import QObject, QPointF, QRect, QRectF, QSizeF, Qt
-from PySide6.QtGui import QFont, QPainter, QPainterPath, QFontMetrics, QColor
+from PySide6.QtCharts import QLineSeries, QValueAxis, QChart, QChartView
+from PySide6.QtWidgets import QGraphicsItem, QStyleOptionGraphicsItem, QWidget, QMenu, QFileDialog
+from PySide6.QtCore import QObject, QPointF, QRect, QRectF, Qt
+from PySide6.QtGui import QFont, QPainter, QFontMetrics, QColor, QContextMenuEvent
 from scrutiny.gui.themes import get_theme_prop, ScrutinyThemeProperties
+from scrutiny.gui import assets
+from scrutiny import tools
 import enum
+from typing import Any, Optional
 
 class ScrutinyLineSeries(QLineSeries):
     def __init__(self, parent:QObject) -> None:
@@ -49,7 +53,7 @@ class ScrutinyValueAxis(QValueAxis):
         self.setTitleFont(font)
 
 
-class ChartCallout(QGraphicsItem):
+class ScrutinyChartCallout(QGraphicsItem):
 
     CALLOUT_RECT_DIST = 10  # Distance between point marker and 
     PADDING = 5             # padding between text and callout border
@@ -85,7 +89,7 @@ class ChartCallout(QGraphicsItem):
         self.hide()
         self.setZValue(11)
 
-    def _compute_geometry(self):
+    def _compute_geometry(self) -> None:
 
         self.prepareGeometryChange()
         metrics = QFontMetrics(self._font)
@@ -135,7 +139,7 @@ class ChartCallout(QGraphicsItem):
         # Inform QT about the size we need
         return self._bounding_box
 
-    def paint(self, painter: QPainter, option: QStyleOptionGraphicsItem, widget: QWidget):
+    def paint(self, painter: QPainter, option: QStyleOptionGraphicsItem, widget: Optional[QWidget]=None) -> None:
         painter.setBrush(self._color)   # Fill color
         painter.setPen(self._color)     # Border color
         painter.drawRoundedRect(self._callout_rect, 5, 5)
@@ -144,3 +148,37 @@ class ChartCallout(QGraphicsItem):
         painter.drawEllipse(anchor, self._marker_radius, self._marker_radius)
         painter.setPen(QColor(0,0,0))
         painter.drawText(self._text_rect, self._text)
+
+
+
+
+class ScrutinyChartView(QChartView):
+
+    _allow_save_img:bool
+
+    @tools.copy_type(QChartView.__init__)
+    def __init__(self, *args:Any, **kwargs:Any) -> None:
+        super().__init__(*args, **kwargs)
+        self._allow_save_img = False
+
+    def allow_save_img(self, val:bool) -> None:
+        self._allow_save_img=val
+
+    def contextMenuEvent(self, event: QContextMenuEvent) -> None:
+        context_menu = QMenu(self)
+
+        save_action = context_menu.addAction(assets.load_icon(assets.Icons.Download), "Save as image")
+        save_action.triggered.connect(self.save_image_slot)
+
+        save_action.setEnabled(self._allow_save_img)
+        context_menu.popup(self.mapToGlobal(event.pos()))
+
+    def save_image_slot(self) -> None:
+        if not self._allow_save_img:
+            return 
+        pix = self.grab()
+        filename, _ = QFileDialog.getSaveFileName(self, "Save", "", "*.png")  # FIXME : Use last save dir.
+        if not filename.lower().endswith('.png'):
+            filename += ".png"
+        
+        pix.save(filename, "png", 100)

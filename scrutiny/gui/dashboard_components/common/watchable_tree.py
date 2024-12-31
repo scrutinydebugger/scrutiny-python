@@ -67,9 +67,8 @@ class BaseWatchableRegistryTreeStandardItem(QStandardItem):
     """
     _fqn:Optional[str]
     _loaded:bool
-
-    @tools.copy_type(QStandardItem.__init__)
-    def __init__(self, fqn:Optional[str], *args:Any, **kwargs:Any):
+    
+    def __init__(self, fqn:Optional[str], *args:Any, **kwargs:Any) -> None:
         self._fqn = fqn
         self._loaded = False
         super().__init__(*args, **kwargs)

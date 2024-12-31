@@ -10,14 +10,13 @@ from datetime import datetime
 import functools
 
 from PySide6.QtWidgets import QHBoxLayout, QSplitter, QWidget, QVBoxLayout, QPushButton, QLabel
-from PySide6.QtCharts import QChart, QChartView
+from PySide6.QtCharts import QChart
 from PySide6.QtCore import Qt, QItemSelectionModel, QPointF, QTimer
-from PySide6.QtGui import QMouseEvent
 
 from scrutiny.gui import assets
 from scrutiny.gui.dashboard_components.base_component import ScrutinyGUIBaseComponent
 from scrutiny.gui.dashboard_components.common.graph_signal_tree import GraphSignalTree, ChartSeriesWatchableStandardItem
-from scrutiny.gui.dashboard_components.common.base_chart import ScrutinyLineSeries, ScrutinyValueAxis, ChartCallout
+from scrutiny.gui.dashboard_components.common.base_chart import ScrutinyLineSeries, ScrutinyValueAxis, ScrutinyChartCallout, ScrutinyChartView
 from scrutiny.gui.core.watchable_registry import WatchableRegistryNodeNotFoundError, ValueUpdate
 from scrutiny import sdk
 from scrutiny import tools
@@ -31,8 +30,8 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
     _ICON = assets.get("graph-96x128.png")
     _NAME = "Continuous Graph"
 
-    _chartview:QChartView
-    _callout:ChartCallout
+    _chartview:ScrutinyChartView
+    _callout:ScrutinyChartCallout
     _signal_tree:GraphSignalTree
     _btn_start_stop:QPushButton
     _btn_clear:QPushButton
@@ -62,12 +61,12 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         self._splitter.setContentsMargins(0,0,0,0)
         self._splitter.setHandleWidth(5)
         
-        self._chartview = QChartView(self)
+        self._chartview = ScrutinyChartView(self)
         chart = QChart()
         chart.layout().setContentsMargins(0,0,0,0)
         chart.setAxisX(self._xaxis)
         self._chartview.setChart(chart)
-        self._callout = ChartCallout(chart)
+        self._callout = ScrutinyChartCallout(chart)
         self._callout_hide_timer = QTimer()
         self._callout_hide_timer.setInterval(250)
         self._callout_hide_timer.setSingleShot(True)
@@ -129,6 +128,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         self._xaxis.setRange(0,1)
         self._yaxes.clear()
         self._chart_has_content = False
+        self._chartview.allow_save_img(False)
     
     def stop_acquisition(self) -> None:
         self.watchable_registry.unwatch_all(self.watcher_id())
@@ -208,8 +208,10 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         
         if self._chart_has_content and not self._acquiring:
             self._btn_clear.setEnabled(True)
+            self._chartview.allow_save_img(True)
         else:
             self._btn_clear.setDisabled(True)
+            self._chartview.allow_save_img(False)
 
 
     def watcher_id(self) -> str:
@@ -264,11 +266,11 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
     def selection_changed_slot(self) -> None:
         self.update_emphasize_state()
         
-    def series_clicked_slot(self, signal_item:ChartSeriesWatchableStandardItem, point:QPointF):
+    def series_clicked_slot(self, signal_item:ChartSeriesWatchableStandardItem, point:QPointF) -> None:
         sel = self._signal_tree.selectionModel()
         sel.select(signal_item.index(), QItemSelectionModel.SelectionFlag.ClearAndSelect | QItemSelectionModel.SelectionFlag.Rows)
 
-    def series_hovered_slot(self, signal_item:ChartSeriesWatchableStandardItem, point:QPointF, state:bool):
+    def series_hovered_slot(self, signal_item:ChartSeriesWatchableStandardItem, point:QPointF, state:bool) -> None:
         # FIXME : If the scale changes, the data may change but not the callout.
         # Only allow callout when the data is not moving. Fixed range or stopped
 

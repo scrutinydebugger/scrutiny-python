@@ -1,7 +1,7 @@
 
 from scrutiny.gui.themes import ScrutinyTheme, ScrutinyThemeProperties
-from PySide6.QtGui import QColor
 
+from typing import Any
 class DefaultTheme(ScrutinyTheme):
 
     pro_dict = {
@@ -10,6 +10,6 @@ class DefaultTheme(ScrutinyTheme):
         ScrutinyThemeProperties.CHART_CALLOUT_MARKER_RADIUS : 5,
     }
 
-    def get_val(self, prop:ScrutinyThemeProperties):
+    def get_val(self, prop:ScrutinyThemeProperties) -> Any:
         return self.pro_dict[prop]
         
