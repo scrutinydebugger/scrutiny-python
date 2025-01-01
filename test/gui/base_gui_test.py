@@ -13,6 +13,7 @@ import time
 from test import logger
 from scrutiny.gui.core.threads import QT_THREAD_NAME
 from scrutiny.tools.thread_enforcer import ThreadEnforcer
+from scrutiny.gui.tools.invoker import Invoker
 
 from typing import List, Optional
 
@@ -39,6 +40,7 @@ class ScrutinyBaseGuiTest(ScrutinyUnitTest):
         if self.app is None:
             self.app = QApplication([]) # Required to process event because they are emitted in a different thread, therefore the connectiontype is queued
         ThreadEnforcer.register_thread(QT_THREAD_NAME)
+        Invoker.init()
 
     def tearDown(self):
         self.process_events()

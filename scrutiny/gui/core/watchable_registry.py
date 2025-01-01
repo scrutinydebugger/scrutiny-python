@@ -27,7 +27,7 @@ from typing import Dict, List, Union, Optional, Callable, Set, Any, Iterable
 from dataclasses import dataclass
 import logging
 from scrutiny.tools.thread_enforcer import enforce_thread
-from scrutiny.gui import QT_THREAD_NAME
+from scrutiny.gui.core.threads import QT_THREAD_NAME
 from scrutiny import tools
 
 WatcherIdType = Union[str, int]

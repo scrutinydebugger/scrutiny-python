@@ -1,2 +1,0 @@
-
-QT_THREAD_NAME="QT"

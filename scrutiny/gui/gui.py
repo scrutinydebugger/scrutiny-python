@@ -15,7 +15,8 @@ import ctypes
 import sys
 from typing import List
 from scrutiny.tools.thread_enforcer import register_thread
-from scrutiny.gui import QT_THREAD_NAME
+from scrutiny.gui.core.threads import QT_THREAD_NAME
+from scrutiny.gui.tools.invoker import Invoker
 from scrutiny.gui.themes import set_theme
 from scrutiny.gui.themes.default_theme import DefaultTheme
 
@@ -51,6 +52,7 @@ class ScrutinyQtGUI:
 
         if self.debug_layout:
             window.setStyleSheet("border:1px solid red")
+        Invoker.init()  # Internal tool to run functions in the QT Thread fromother thread
         
         window.show()
         
