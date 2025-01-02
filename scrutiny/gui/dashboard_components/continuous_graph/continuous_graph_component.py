@@ -41,6 +41,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
     _chart_has_content:bool
     _serverid2sgnal_item:Dict[str, ChartSeriesWatchableStandardItem]
     _callout_hide_timer:QTimer
+    _first_val_dt:Optional[datetime]
 
     _xaxis:ScrutinyValueAxis
     _yaxes:List[ScrutinyValueAxis]
@@ -74,6 +75,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         
         right_side = QWidget()
         right_side_layout = QVBoxLayout(right_side)
+        self._first_val_dt = None
 
         # Series on continuous graph don't have their X value aligned. 
         # We can only show the value next to each point, not all together in the tree
@@ -129,6 +131,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         self._yaxes.clear()
         self._chart_has_content = False
         self._chartview.allow_save_img(False)
+        self._first_val_dt = None
     
     def stop_acquisition(self) -> None:
         self.watchable_registry.unwatch_all(self.watcher_id())
@@ -145,7 +148,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
                 self.report_error("No signals")
                 return
             
-            self._xaxis.setRange(datetime.now().timestamp(), datetime.now().timestamp() + 30)   # FIXME
+            self._xaxis.setRange(0, 1)
             for axis in signals:
                 yaxis = ScrutinyValueAxis(self)
                 yaxis.setTitleText(axis.axis_name)
@@ -173,6 +176,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
                     series.clicked.connect(functools.partial(self.series_clicked_slot, signal_item))
                     series.hovered.connect(functools.partial(self.series_hovered_slot, signal_item))
 
+            self._first_val_dt = None
             self._chart_has_content = True
             self._acquiring = True
             self.update_emphasize_state()
@@ -225,14 +229,20 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
             self.logger.error("Received value updates when no graph was ready")
             return 
         
-        self._xaxis.setRange(self._xaxis.min(), vals[-1].update_timestamp.timestamp())
+        if self._first_val_dt is None:
+            self._first_val_dt = vals[0].update_timestamp   # precise to the microsecond. Coming form server
+
+        def get_x(val:ValueUpdate) -> float:
+            return  (val.update_timestamp-self._first_val_dt).total_seconds()
+
+        self._xaxis.setRange(self._xaxis.min(), get_x(vals[-1]))
         try:
             for val in vals:
                 series = self._serverid2sgnal_item[val.watchable.server_id].series()
                 floatval = float(val.value)
                 yaxis = cast(ScrutinyValueAxis, self._chartview.chart().axisY(series))
                 yaxis.setRange(min(yaxis.min(), floatval), max(yaxis.max(), floatval))
-                series.append(val.update_timestamp.timestamp(), floatval)
+                series.append(get_x(val), floatval)
         except KeyError as e:
             tools.log_exception(self.logger, e, "Received a value update from a watchable that maps to no valid series in the chart")
             self.stop_acquisition()
