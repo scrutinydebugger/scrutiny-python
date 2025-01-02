@@ -232,8 +232,9 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         if self._first_val_dt is None:
             self._first_val_dt = vals[0].update_timestamp   # precise to the microsecond. Coming form server
 
+        tstart = self._first_val_dt
         def get_x(val:ValueUpdate) -> float:
-            return  (val.update_timestamp-self._first_val_dt).total_seconds()
+            return  (val.update_timestamp-tstart).total_seconds()
 
         self._xaxis.setRange(self._xaxis.min(), get_x(vals[-1]))
         try:
