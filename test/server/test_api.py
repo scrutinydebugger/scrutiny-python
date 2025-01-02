@@ -1001,7 +1001,7 @@ class TestAPI(ScrutinyUnitTest):
         self.assertEqual(len(var_update_msg['updates']), 1)     # Only one update
 
         self.assertEqual(var_update_msg['updates'][0]['id'], subscribed_entry.get_id())
-        self.assertEqual(var_update_msg['updates'][0]['value'], 4567)   # Got latest value
+        self.assertEqual(var_update_msg['updates'][0]['v'], 4567)   # Got latest value
 
         self.assertIsNone(self.wait_for_response(0, timeout=0.1))   # No more message to send
 
