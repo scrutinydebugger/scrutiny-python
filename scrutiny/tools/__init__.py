@@ -15,7 +15,7 @@ from .timer import Timer
 
 import traceback
 from copy import deepcopy
-from typing import Dict, Any, Optional, TypeVar, List, Tuple, Type, cast, Union
+from typing import Dict, Any, Optional, TypeVar, List, Tuple, Type, cast, Union, Callable
 import types
 import logging
 
@@ -24,6 +24,9 @@ T=TypeVar("T")
 def get_not_none(v:Optional[T]) -> T:
     assert v is not None
     return v
+
+def copy_type(f: T) -> Callable[[Any], T]:
+    return lambda x: x
 
 def update_dict_recursive(d1:Dict[Any, Any], d2:Dict[Any, Any]) -> None:
     if not isinstance(d1, dict):

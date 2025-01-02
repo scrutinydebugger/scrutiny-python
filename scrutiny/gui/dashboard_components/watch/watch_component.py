@@ -46,8 +46,8 @@ class WatchComponentTreeWidget(WatchableTreeWidget):
     def contextMenuEvent(self, event: QContextMenuEvent) -> None:
         context_menu = QMenu(self)
         selected_indexes_no_nested = self.model().remove_nested_indexes(self.selectedIndexes())
-        item_col = self.model().item_col()
-        selected_items_no_nested = [self.model().itemFromIndex(index) for index in selected_indexes_no_nested if index.column()==item_col]
+        nesting_col = self.model().nesting_col()
+        selected_items_no_nested = [self.model().itemFromIndex(index) for index in selected_indexes_no_nested if index.column()==nesting_col]
 
         parent, insert_row = self._find_new_folder_position_from_position(event.pos())
         
@@ -93,11 +93,11 @@ class WatchComponentTreeWidget(WatchableTreeWidget):
                     model.removeRow(item.row(), parent_index)
 
         elif event.key() in [Qt.Key.Key_Enter, Qt.Key.Key_Return] and self.state() != self.State.EditingState:
-            item_col = self.model().item_col()
-            selected_index_item_col = [idx for idx in self.selectedIndexes() if idx.column() == item_col]
-            if len(selected_index_item_col) == 1:
+            nesting_col = self.model().nesting_col()
+            selected_index_nesting_col = [idx for idx in self.selectedIndexes() if idx.column() == nesting_col]
+            if len(selected_index_nesting_col) == 1:
                 model = self.model()
-                item = model.itemFromIndex(selected_index_item_col[0])
+                item = model.itemFromIndex(selected_index_nesting_col[0])
                 if isinstance(item,WatchableStandardItem):
                     value_item = model.get_value_item(item)
                     self.setCurrentIndex(value_item.index())
@@ -112,8 +112,8 @@ class WatchComponentTreeWidget(WatchableTreeWidget):
     def _find_new_folder_position_from_selection(self) -> Tuple[Optional[QStandardItem], int]:
         # Used by keyboard shortcut
         model = self.model()
-        item_col = self.model().item_col()
-        selected_list = [index for index in self.selectedIndexes() if index.column() == item_col]
+        nesting_col = self.model().nesting_col()
+        selected_list = [index for index in self.selectedIndexes() if index.column() == nesting_col]
         selected_index = QModelIndex()
         insert_row = -1
         parent:Optional[QStandardItem] = None
@@ -183,13 +183,13 @@ class WatchComponentTreeWidget(WatchableTreeWidget):
         """Apply a callback to every watchable row in the tree and tells if it is visible to the user"""
 
         model = self.model()
-        item_col = model.item_col()
+        nesting_col = model.nesting_col()
         def recurse(item:QStandardItem, content_visible:bool) -> None:
             if isinstance(item, WatchableStandardItem):
                 callback(item, content_visible)
             elif isinstance(item, FolderStandardItem):
                 for i in range(item.rowCount()):
-                    recurse(item.child(i,item_col), content_visible and self.isExpanded(item.index()))
+                    recurse(item.child(i,nesting_col), content_visible and self.isExpanded(item.index()))
             else:
                 raise NotImplementedError(f"Unsupported item type: {item}")
         
@@ -197,15 +197,15 @@ class WatchComponentTreeWidget(WatchableTreeWidget):
             recurse(parent, self.is_visible(parent))
         else:   # Root node. Iter all root items
             for i in range(model.rowCount()):
-                recurse(model.item(i, item_col), True)
+                recurse(model.item(i, nesting_col), True)
     
     def closeEditor(self, editor:QWidget, hint:QAbstractItemDelegate.EndEditHint) -> None:
         """Called when the user finishes editing a value. Press enter or blur foxus"""
         item_written = self._model.itemFromIndex(self.currentIndex())
         model = self.model()
-        item_col = model.item_col()
+        nesting_col = model.nesting_col()
         if isinstance(item_written, ValueStandardItem):
-            watchable_item = model.itemFromIndex(item_written.index().siblingAtColumn(item_col))
+            watchable_item = model.itemFromIndex(item_written.index().siblingAtColumn(nesting_col))
             if isinstance(watchable_item, WatchableStandardItem):   # paranoid check. Should never be false. Folders have no Value column
                 fqn = watchable_item.fqn
                 value = item_written.text()
@@ -213,7 +213,7 @@ class WatchComponentTreeWidget(WatchableTreeWidget):
 
         # Make arrow navigation easier because elements are nested on columns 0. 
         # If current index is at another column, we can't go up in the tree witht he keyboard
-        self.setCurrentIndex(self.currentIndex().siblingAtColumn(item_col))
+        self.setCurrentIndex(self.currentIndex().siblingAtColumn(nesting_col))
         
         return super().closeEditor(editor, hint)
 
@@ -279,11 +279,11 @@ class WatchComponent(ScrutinyGUIBaseComponent):
 
         :return: The item or ``None`` if not available
         """
-        item_col = self._tree_model.item_col()
+        nesting_col = self._tree_model.nesting_col()
         if not parent.isValid():
-            return cast(Optional[BaseWatchableRegistryTreeStandardItem], self._tree_model.item(row_index, item_col))
+            return cast(Optional[BaseWatchableRegistryTreeStandardItem], self._tree_model.item(row_index, nesting_col))
         
-        return cast(Optional[BaseWatchableRegistryTreeStandardItem], self._tree_model.itemFromIndex(parent).child(row_index, item_col))
+        return cast(Optional[BaseWatchableRegistryTreeStandardItem], self._tree_model.itemFromIndex(parent).child(row_index, nesting_col))
 
     def registry_changed_slot(self) -> None:
         self.resubscribe_all_rows_as_watcher()
@@ -302,12 +302,15 @@ class WatchComponent(ScrutinyGUIBaseComponent):
 
 
     def row_inserted_slot(self, parent:QModelIndex, row_index:int, col_index:int) -> None:
-        # This slots is called for every row inserted, even if nested
+        # This slots is called for every row inserted when new rows. Only parent when existing row
+
+        def func (item:WatchableStandardItem, visible:bool) -> None:
+            self._register_watcher_for_row(item)
+            if visible:
+                self._watch_item(item)
+
         item_inserted = self._get_item(parent, row_index)
-        if isinstance(item_inserted, WatchableStandardItem):
-            self._register_watcher_for_row(item_inserted)
-            if self._tree.is_visible(item_inserted):
-                self._watch_item(item_inserted)
+        self._tree.map_to_watchable_node(func, item_inserted)
 
     
     def row_about_to_be_removed_slot(self, parent:QModelIndex, row_index:int, col_index:int) -> None:
@@ -400,9 +403,9 @@ class WatchComponent(ScrutinyGUIBaseComponent):
         """The function called when we receive value updates from the server"""
         assert len(vals) > 0
         can_update = True
-        item_col = self._tree_model.item_col()
+        nesting_col = self._tree_model.nesting_col()
         if self._tree.state() == WatchableTreeWidget.State.EditingState:
-            if item.index().siblingAtColumn(item_col) == self._tree.currentIndex().siblingAtColumn(item_col):
+            if item.index().siblingAtColumn(nesting_col) == self._tree.currentIndex().siblingAtColumn(nesting_col):
                 can_update = False  # Don't change the content. The user is writing something
         
         if can_update:

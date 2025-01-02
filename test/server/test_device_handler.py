@@ -16,6 +16,7 @@ import random
 from dataclasses import dataclass
 
 import scrutiny.server.datalogging.definitions.device as device_datalogging
+from scrutiny.server.timebase import server_timebase
 from scrutiny.server.device.emulated_device import EmulatedDevice
 from scrutiny.server.device.device_handler import DeviceHandler
 from scrutiny.server.device.links.dummy_link import DummyLink
@@ -373,12 +374,12 @@ class TestDeviceHandler(ScrutinyUnitTest):
                     self.emulated_device.write_memory(0x10000, struct.pack('<f', 3.1415926))
                     self.emulated_device.write_memory(0x10010, struct.pack('<q', 0x123456789abcdef))
                     self.emulated_device.write_memory(0x10020, struct.pack('<b', 1))
-                    init_memory_timestamp = time.time()
+                    init_memory_server_time_us = server_timebase.get_micro()
                     state = 'read_memory'
 
                 elif state == 'read_memory':
-                    value_updated = (vfloat32.get_value_change_timestamp() > init_memory_timestamp + time_margin) and (vint64.get_value_change_timestamp() >
-                                                                                                                  init_memory_timestamp + time_margin) and (vbool.get_value_change_timestamp() > init_memory_timestamp + time_margin)
+                    value_updated = (vfloat32.get_value_change_server_time_us() > init_memory_server_time_us + time_margin) and (vint64.get_value_change_server_time_us() >
+                                                                                                                  init_memory_server_time_us + time_margin) and (vbool.get_value_change_server_time_us() > init_memory_server_time_us + time_margin)
 
                     if value_updated:
                         self.assertEqual(vfloat32.get_value(), d2f(3.1415926), 'round=%d' % round_completed)
@@ -389,20 +390,20 @@ class TestDeviceHandler(ScrutinyUnitTest):
                         self.datastore.update_target_value(vint64, 0x1122334455667788, no_callback)
                         self.datastore.update_target_value(vbool, False, no_callback)
 
-                        write_timestamp = time.time()
+                        write_timestamp_server_time_us = server_timebase.get_micro()
                         state = 'write_memory'
 
-                    elif time.time() - init_memory_timestamp > 1:
+                    elif server_timebase.get_micro() - init_memory_server_time_us > 1e6:    # 1sec
                         raise Exception('Value did not update')
 
                 elif state == 'write_memory':
                     value_updated = True
-                    value_updated = value_updated and (vfloat32.get_last_target_update_timestamp() is not None) and (
-                        vfloat32.get_last_target_update_timestamp() > write_timestamp)
-                    value_updated = value_updated and (vint64.get_last_target_update_timestamp() is not None) and (
-                        vint64.get_last_target_update_timestamp() > write_timestamp)
-                    value_updated = value_updated and (vbool.get_last_target_update_timestamp() is not None) and (
-                        vbool.get_last_target_update_timestamp() > write_timestamp)
+                    value_updated = value_updated and (vfloat32.get_last_target_update_server_time_us() is not None) and (
+                        vfloat32.get_last_target_update_server_time_us() > write_timestamp_server_time_us)
+                    value_updated = value_updated and (vint64.get_last_target_update_server_time_us() is not None) and (
+                        vint64.get_last_target_update_server_time_us() > write_timestamp_server_time_us)
+                    value_updated = value_updated and (vbool.get_last_target_update_server_time_us() is not None) and (
+                        vbool.get_last_target_update_server_time_us() > write_timestamp_server_time_us)
 
                     if value_updated:
                         self.assertEqual(vfloat32.get_value(), d2f(2.7), 'round=%d' % round_completed)
@@ -416,7 +417,7 @@ class TestDeviceHandler(ScrutinyUnitTest):
                         round_completed += 1
                         state = 'init_memory'
 
-                    elif time.monotonic() - write_timestamp > 1:
+                    elif server_timebase.get_micro() - write_timestamp_server_time_us > 1e6:    # 1 sec
                         raise Exception('Value not written')
 
             # Make sure we don't disconnect
@@ -471,7 +472,7 @@ class TestDeviceHandler(ScrutinyUnitTest):
 
                     written_values = {}
                     for entry in all_entries:
-                        previous_write_timestamp_per_entry[entry.get_id()] = entry.get_last_target_update_timestamp()
+                        previous_write_timestamp_per_entry[entry.get_id()] = entry.get_last_target_update_server_time_us()
                     time.sleep(0.05)
                     for entry in all_entries:
                         rpv = entry.get_rpv()
@@ -483,7 +484,7 @@ class TestDeviceHandler(ScrutinyUnitTest):
                 elif state == 'wait_for_update_and_validate':
                     all_updated = True
                     for entry in all_entries:
-                        last_update_timestamp = entry.get_last_target_update_timestamp()
+                        last_update_timestamp = entry.get_last_target_update_server_time_us()
                         if last_update_timestamp is None or last_update_timestamp == previous_write_timestamp_per_entry[entry.get_id()]:
                             all_updated = False
                         else:
@@ -502,7 +503,7 @@ class TestDeviceHandler(ScrutinyUnitTest):
 
                     previous_write_timestamp_per_entry = {}
                     for entry in all_entries:
-                        previous_write_timestamp_per_entry[entry.get_id()] = entry.get_value_change_timestamp()
+                        previous_write_timestamp_per_entry[entry.get_id()] = entry.get_value_change_server_time_us()
                     state = 'wait_for_update_1'
 
                 elif state == 'wait_for_update_1':
@@ -510,21 +511,21 @@ class TestDeviceHandler(ScrutinyUnitTest):
                     all_updated = True
                     for entry in all_entries:
                         rpv = entry.get_rpv()
-                        if entry.get_value_change_timestamp() == previous_write_timestamp_per_entry[entry.get_id()]:
+                        if entry.get_value_change_server_time_us() == previous_write_timestamp_per_entry[entry.get_id()]:
                             all_updated = False
 
                     if all_updated:
                         # We reload new timestamps for the enxt round robin pass.
                         previous_write_timestamp_per_entry = {}
                         for entry in all_entries:
-                            previous_write_timestamp_per_entry[entry.get_id()] = entry.get_value_change_timestamp()
+                            previous_write_timestamp_per_entry[entry.get_id()] = entry.get_value_change_server_time_us()
                         state = 'wait_for_update_2'
 
                 elif state == 'wait_for_update_2':
                     all_updated = True
                     for entry in all_entries:
                         rpv = entry.get_rpv()
-                        if entry.get_value_change_timestamp() == previous_write_timestamp_per_entry[entry.get_id()]:
+                        if entry.get_value_change_server_time_us() == previous_write_timestamp_per_entry[entry.get_id()]:
                             all_updated = False
 
                     if all_updated:

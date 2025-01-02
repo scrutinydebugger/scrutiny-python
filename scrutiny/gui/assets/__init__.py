@@ -53,8 +53,14 @@ icon_cache: Dict[str, QIcon] = {}
 pixmap_cache: Dict[str, QPixmap] = {}
 
 class Icons:
+    Download = "download-16x16.png"
     TreeFolder = "folder-16x16.png"
     TreeVar = "var-16x16.png"
     TreeRpv = "rpv-16x16.png"
     TreeAlias = "alias-16x16.png"
     RedX = "redx-16x16.png"
+    GraphAxis = "axis-16x16.png"
+    Show = "show-16x16.png"
+    Hide = "hide-16x16.png"
+    Picture = "picture-16x16.png"
+    CSV = "csv-16x16.png"

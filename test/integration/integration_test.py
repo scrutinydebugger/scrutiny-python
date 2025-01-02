@@ -70,6 +70,7 @@ class ScrutinyIntegrationTest(ScrutinyUnitTest):
             self.emulated_device.start()    # Device
             self.api_conn.open()    # Client
             cast(DummyClientHandler, self.server.api.get_client_handler()).set_connections([self.api_conn])
+            self.wait_and_load_response(cmd=API.Command.Api2Client.WELCOME)
 
             self.wait_for_device_ready(timeout=3)
 
@@ -171,10 +172,10 @@ class ScrutinyIntegrationTest(ScrutinyUnitTest):
 
     def wait_and_load_response(self, cmd=None, nbr=1, timeout=1, ignore_error=False):
         response = None
-        t1 = time.time()
+        t1 = time.monotonic()
         rcv_counter = 0
         while rcv_counter < nbr:
-            new_timeout = max(0, timeout - (time.time() - t1))
+            new_timeout = max(0, timeout - (time.monotonic() - t1))
             json_str = self.wait_for_response(timeout=new_timeout)
             self.assertIsNotNone(json_str)
             response = json.loads(json_str)
@@ -195,10 +196,10 @@ class ScrutinyIntegrationTest(ScrutinyUnitTest):
         return response
 
     def ensure_no_response_for(self, timeout=0.4):
-        t1 = time.time()
+        t1 = time.monotonic()
         self.server.process()
         while not self.api_conn.from_server_available():
-            if time.time() - t1 >= timeout:
+            if time.monotonic() - t1 >= timeout:
                 break
             self.server.process()
             time.sleep(0.01)
@@ -212,9 +213,9 @@ class ScrutinyIntegrationTest(ScrutinyUnitTest):
                 response = self.wait_and_load_response(API.Command.Api2Client.WATCHABLE_UPDATE, 1)
                 self.process_watchable_update_response(response)
         else:
-            t1 = time.time()
-            while time.time() - t1 < timeout:
-                new_timeout = max(0, timeout - (time.time() - t1))
+            t1 = time.monotonic()
+            while time.monotonic() - t1 < timeout:
+                new_timeout = max(0, timeout - (time.monotonic() - t1))
                 response = self.wait_and_load_response(API.Command.Api2Client.WATCHABLE_UPDATE, timeout=new_timeout)
                 self.process_watchable_update_response(response)
 
@@ -223,8 +224,9 @@ class ScrutinyIntegrationTest(ScrutinyUnitTest):
             self.assertIn('updates', response)
             for update in response['updates']:
                 self.assertIn('id', update)
-                self.assertIn('value', update)
-                self.client_entry_values[update['id']] = update['value']
+                self.assertIn('v', update)
+                self.assertIn('t', update)
+                self.client_entry_values[update['id']] = update['v']
 
     def assert_value_received(self, entry: DatastoreEntry, value: Any, msg=""):
         id = entry.get_id()
@@ -258,7 +260,7 @@ class ScrutinyIntegrationTest(ScrutinyUnitTest):
 
         self.assertEqual(len(expected_list), len(response['updates']))
         ids = [update['id'] for update in response['updates']]
-        value = [update['value'] for update in response['updates']]
+        value = [update['v'] for update in response['updates']]
         valdict = dict(zip(ids, value))
 
         for expected in expected_list:
@@ -275,8 +277,8 @@ class ScrutinyIntegrationTest(ScrutinyUnitTest):
         # Make sure that the emulation chain works
         self.server.process()
         self.assertEqual(self.server.device_handler.get_connection_status(), DeviceHandler.ConnectionStatus.CONNECTED_READY)
-        self.send_request({'cmd': "echo", 'payload': "hello world"})
-        response = self.wait_and_load_response()
+        self.send_request({'cmd': API.Command.Client2Api.ECHO, 'payload': "hello world"})
+        response = self.wait_and_load_response(cmd=API.Command.Api2Client.ECHO_RESPONSE)
         self.assert_no_error(response)
         self.assertIn('payload', response)
         self.assertEqual(response['payload'], "hello world")

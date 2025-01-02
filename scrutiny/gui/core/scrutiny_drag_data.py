@@ -147,9 +147,9 @@ class WatchableListDescriptor:
             data_move=data_move
         )
     
-    def to_mime(self) -> QMimeData:
+    def to_mime(self, data_move:Optional[Any] = None) -> QMimeData:
         """Converts this list of watchables to a QMimeData that encodes it in a serialized version. Used for drag&drop """
-        mime_data = self.to_drag_data().to_mime()
+        mime_data = self.to_drag_data(data_move).to_mime()
         assert mime_data is not None
         return mime_data
 

@@ -27,7 +27,9 @@ from scrutiny.server.api.tcp_client_handler import TCPClientHandler
 from scrutiny.tools.stream_datagrams import StreamMaker, StreamParser
 from scrutiny.tools.profiling import VariableRateExponentialAverager
 from scrutiny import tools
+from scrutiny.tools.timebase import RelativeTimebase
 import selectors
+from datetime import datetime
 
 import logging
 from scrutiny.core.logging import DUMPDATA_LOGLEVEL
@@ -412,6 +414,7 @@ class ScrutinyClient:
         msg_received: threading.Event
         sync_complete: threading.Event
         require_sync: threading.Event
+        welcome_received:threading.Event
 
         def __init__(self) -> None:
             self.stop_worker_thread = threading.Event()
@@ -421,6 +424,7 @@ class ScrutinyClient:
             self.server_status_updated = threading.Event()
             self.sync_complete = threading.Event()
             self.require_sync = threading.Event()
+            self.welcome_received = threading.Event()
 
     _name: Optional[str]        # Name of the client instance
     _server_state: ServerState  # State of the communication with the server. Connected/disconnected/connecting, etc
@@ -466,9 +470,10 @@ class ScrutinyClient:
     _active_batch_context: Optional[BatchWriteContext]  # The active write batch. All writes are appended to it if not None
 
     _listeners:List[listeners.BaseListener]   # List of registered listeners
-    _event_queue:"queue.Queue[Events._ANY_EVENTS]"
-    _enabled_events:int
-    _datarate_measurements:DataRateMeasurements
+    _event_queue:"queue.Queue[Events._ANY_EVENTS]"  # A queue containing all the events lsitened for
+    _enabled_events:int                             # Flags indicating what events to listen for
+    _datarate_measurements:DataRateMeasurements     # A measurement of the datarate with the server
+    _server_timebase:RelativeTimebase          # A timebase that can convert server precise timings to unix timestamp.
 
     _force_fail_request:bool     #  Flag for unit testing that will cause requests to fail prematurely 
 
@@ -545,6 +550,7 @@ class ScrutinyClient:
         self._event_queue = queue.Queue(maxsize=100)   # Not supposed to go much above 1 or 2
         self.listen_events(enabled_events)
         self._force_fail_request = False
+        self._server_timebase = RelativeTimebase()
 
     def _trigger_event(self, evt:Events._ANY_EVENTS, loglevel:int=logging.NOTSET) -> None:
         if self._enabled_events & evt._filter_flag:
@@ -651,8 +657,9 @@ class ScrutinyClient:
             else:
                 if self._logger.isEnabledFor(DUMPDATA_LOGLEVEL):   # prgama: no cover
                     self._logger.log(DUMPDATA_LOGLEVEL, f"Updating value of {update.server_id} ({watchable.name})")
-
-            watchable._update_value(update.value)
+            
+            update_dt = self._server_timebase.micro_to_dt(update.server_time_us)
+            watchable._update_value(update.value, timestamp=update_dt)
             updated_watchables.append(watchable)
         
         for listener in self._listeners:
@@ -672,9 +679,9 @@ class ScrutinyClient:
         write_request = batch_write.update_dict[completion.batch_index]
         if completion.success:
             write_request._watchable._set_last_write_datetime()
-            write_request._mark_complete(True)
+            write_request._mark_complete(True, server_time_us=completion.server_time_us)
         else:
-            write_request._mark_complete(False, "Server failed to write to the device")
+            write_request._mark_complete(False, "Server failed to write to the device", server_time_us=completion.server_time_us)
         del batch_write.update_dict[completion.batch_index]
 
     def _wt_process_msg_inform_memory_read_complete(self, msg: api_typing.S2C.ReadMemoryComplete, reqid: Optional[int]) -> None:
@@ -721,6 +728,11 @@ class ScrutinyClient:
         if content.done:
             req._mark_complete(success=True)
 
+    def _wt_process_msg_welcome(self, msg: api_typing.S2C.Welcome, reqid:Optional[int]) -> None:
+        welcome_data = api_parser.parse_welcome(msg)
+        self._server_timebase.set_zero_to(welcome_data.server_time_zero_timestamp)
+        self._threading_events.welcome_received.set()
+
     def _wt_process_next_server_status_update(self) -> None:
         if self._request_status_timer.is_timed_out() or self._require_status_update:
             self._require_status_update = False
@@ -758,11 +770,11 @@ class ScrutinyClient:
     def _check_deferred_response_timeouts(self) -> None:
         with self._main_lock:
             for kstr in list(self._memory_read_completion_dict.keys()):
-                if time.monotonic() - self._memory_read_completion_dict[kstr].monotonic_timestamp > self._MEMORY_READ_DATA_LIFETIME:
+                if time.monotonic() - self._memory_read_completion_dict[kstr].local_monotonic_timestamp > self._MEMORY_READ_DATA_LIFETIME:
                     del self._memory_read_completion_dict[kstr]
 
             for kstr in list(self._memory_write_completion_dict.keys()):
-                if time.monotonic() - self._memory_write_completion_dict[kstr].monotonic_timestamp > self._MEMORY_WRITE_DATA_LIFETIME:
+                if time.monotonic() - self._memory_write_completion_dict[kstr].local_monotonic_timestamp > self._MEMORY_WRITE_DATA_LIFETIME:
                     del self._memory_write_completion_dict[kstr]
             
             for kint in list(self._pending_watchable_download_request.keys()):
@@ -797,6 +809,8 @@ class ScrutinyClient:
                     self._wt_process_msg_datalogging_acquisition_complete(cast(api_typing.S2C.InformDataloggingAcquisitionComplete, msg), reqid)
                 elif cmd == API.Command.Api2Client.GET_WATCHABLE_LIST_RESPONSE:
                     self._wt_process_msg_get_watchable_list_response(cast(api_typing.S2C.GetWatchableList, msg), reqid)
+                elif cmd == API.Command.Api2Client.WELCOME:
+                    self._wt_process_msg_welcome(cast(api_typing.S2C.Welcome, msg), reqid)
             except sdk.exceptions.BadResponseError as e:
                 tools.log_exception(self._logger, e, "Bad message from server")
 
@@ -925,7 +939,7 @@ class ScrutinyClient:
                     self._pending_api_batch_writes[confirmation.request_token] = PendingAPIBatchWrite(
                         update_dict=batch_dict,
                         confirmation=confirmation,
-                        creation_perf_timestamp=time.perf_counter(),
+                        creation_perf_timestamp=time.perf_counter(),    # Used to prune the dict if no response after X time
                         timeout=batch_timeout
                     )
             else:
@@ -1266,6 +1280,7 @@ class ScrutinyClient:
         self.disconnect()
         self._locked_for_connect = True
         self._connection_cancel_request = False
+        self._threading_events.welcome_received.clear()
         with self._main_lock:
             self._hostname = hostname
             self._port = port
@@ -1292,9 +1307,14 @@ class ScrutinyClient:
         if connect_error is not None:
             self.disconnect()
             raise sdk.exceptions.ConnectionError(f'Failed to connect to the server at "{hostname}:{port}". Error: {connect_error}')
-        else:
-            if wait_status:
-                self.wait_server_status_update()
+
+        self._threading_events.welcome_received.wait(self._timeout)
+        if not self._threading_events.welcome_received.is_set():
+            self.disconnect()
+            raise sdk.exceptions.TimeoutException(f'Did not receive a Welcome message from the server. Timeout={self._timeout}s')
+
+        if wait_status:
+            self.wait_server_status_update()
         return self
 
     def disconnect(self) -> None:

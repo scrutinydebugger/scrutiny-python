@@ -14,6 +14,7 @@ from scrutiny.server.datastore.datastore_entry import *
 from scrutiny.server.device.submodules.memory_writer import MemoryWriter
 from scrutiny.server.device.request_dispatcher import RequestDispatcher
 from scrutiny.server.protocol import Protocol, Response
+from scrutiny.server.timebase import server_timebase
 
 from scrutiny.server.protocol.commands import *
 import scrutiny.server.protocol.typing as protocol_typing
@@ -276,7 +277,7 @@ class TestMemoryWriterBasicReadOperation(ScrutinyUnitTest):
 
         self.assertEqual(ds.get_pending_target_update_count(), len(entries))  # Make sure the write request are there
 
-        time_start = time.time()
+        time_start = server_timebase.get_micro()
 
         # Memory writer writes one entry per request. it's a choice
         for i in range(ndouble):
@@ -303,9 +304,9 @@ class TestMemoryWriterBasicReadOperation(ScrutinyUnitTest):
         # Make sure all entries has been updated. We check the update timestamp and the data itself
         self.assertFalse(ds.has_pending_target_update())
         for i in range(ndouble):
-            update_time = entries[i].get_last_target_update_timestamp()
-            self.assertIsNotNone(update_time, 'i=%d' % i)
-            self.assertGreaterEqual(update_time, time_start, 'i=%d' % i)
+            update_time_us = entries[i].get_last_target_update_server_time_us()
+            self.assertIsNotNone(update_time_us, 'i=%d' % i)
+            self.assertGreaterEqual(update_time_us, time_start, 'i=%d' % i)
 
     def test_write_burst_do_all(self):
         # This test makes write request in burst (faster than memory writer can process them) and we
@@ -337,7 +338,7 @@ class TestMemoryWriterBasicReadOperation(ScrutinyUnitTest):
         for val in vals:
             ds.update_target_value(entry, val, no_callback)
 
-        time_start = time.time()
+        time_start_us = server_timebase.get_micro()
         time.sleep(0.010)
         for val in vals:
             writer.process()
@@ -361,9 +362,9 @@ class TestMemoryWriterBasicReadOperation(ScrutinyUnitTest):
             record.complete(success=True, response=response)    # This should trigger the datastore write callback
 
             self.assertEqual(entry.get_value(), val)
-            update_time = entry.get_last_target_update_timestamp()
-            self.assertIsNotNone(update_time, 'val=%d' % val)
-            self.assertGreaterEqual(update_time, time_start, 'val=%d' % val)
+            update_time_us = entry.get_last_target_update_server_time_us()
+            self.assertIsNotNone(update_time_us, 'val=%d' % val)
+            self.assertGreaterEqual(update_time_us, time_start_us, 'val=%d' % val)
 
     # Write a single datastore entry. Make sure the request is good.
 
@@ -472,7 +473,7 @@ class TestMemoryWriterBasicReadOperation(ScrutinyUnitTest):
 
         self.assertEqual(ds.get_pending_target_update_count(), len(entries))  # Make sure the write request are there
 
-        time_start = time.time()
+        time_start_server_time_us = server_timebase.get_micro()
 
         # Memory writer writes one entry per request. it's a choice
         for i in range(ndouble):
@@ -494,9 +495,9 @@ class TestMemoryWriterBasicReadOperation(ScrutinyUnitTest):
         # Make sure all entries has been updated. We check the update timestamp and the data itself
         self.assertFalse(ds.has_pending_target_update())
         for i in range(ndouble):
-            update_time = entries[i].get_last_target_update_timestamp()
+            update_time = entries[i].get_last_target_update_server_time_us()
             self.assertIsNotNone(update_time, 'i=%d' % i)
-            self.assertGreaterEqual(update_time, time_start, 'i=%d' % i)
+            self.assertGreaterEqual(update_time, time_start_server_time_us, 'i=%d' % i)
             self.assertEqual(entries[i].get_value(), i)
 
     def test_multiple_mixed_write(self):
@@ -532,7 +533,7 @@ class TestMemoryWriterBasicReadOperation(ScrutinyUnitTest):
 
         self.assertEqual(ds.get_pending_target_update_count(), len(all_entries))  # Make sure the write request are there
 
-        time_start = time.time()
+        time_start_server_time_us = server_timebase.get_micro()
 
         # Memory writer writes one entry per request. it's a choice
         for i in range(len(all_entries)):
@@ -563,9 +564,9 @@ class TestMemoryWriterBasicReadOperation(ScrutinyUnitTest):
         # Make sure all entries has been updated. We check the update timestamp and the data itself
         self.assertFalse(ds.has_pending_target_update())
         for i in range(len(all_entries)):
-            update_time = all_entries[i].get_last_target_update_timestamp()
+            update_time = all_entries[i].get_last_target_update_server_time_us()
             self.assertIsNotNone(update_time, 'i=%d' % i)
-            self.assertGreaterEqual(update_time, time_start, 'i=%d' % i)
+            self.assertGreaterEqual(update_time, time_start_server_time_us, 'i=%d' % i)
             self.assertEqual(all_entries[i].get_value(), value_dict[all_entries[i].get_id()])
 
 
@@ -574,11 +575,13 @@ class TestRawMemoryWrite(ScrutinyUnitTest):
     class CallbackDataContainer:
         call_count: int = 0
         success: Optional[bool] = None
+        server_time_us: Optional[float] = None
         error: Optional[str] = None
 
-    def the_callback(self, request, success, error, container: CallbackDataContainer):
+    def the_callback(self, request, success, server_time_us, error, container: CallbackDataContainer):
         container.call_count += 1
         container.success = success
+        container.server_time_us = server_time_us
         container.error = error
 
     def setUp(self):
@@ -620,6 +623,7 @@ class TestRawMemoryWrite(ScrutinyUnitTest):
             else:
                 self.assertEqual(callback_data.call_count, 1)
                 self.assertTrue(callback_data.success)
+                self.assertIsInstance(callback_data.server_time_us, float)
                 self.assertIsNotNone(callback_data.error)
 
     def test_write_failure(self):
@@ -652,6 +656,7 @@ class TestRawMemoryWrite(ScrutinyUnitTest):
                 record.complete(False)
                 self.assertEqual(callback_data.call_count, 1)
                 self.assertFalse(callback_data.success)     # Failure detection
+                self.assertIsInstance(callback_data.server_time_us, float)
                 self.assertIsNotNone(callback_data.error)
                 self.assertGreater(len(callback_data.error), 0)
 
@@ -686,6 +691,7 @@ class TestRawMemoryWrite(ScrutinyUnitTest):
                 record.complete(True, response)
                 self.assertEqual(callback_data.call_count, 1)
                 self.assertFalse(callback_data.success)     # Failure detection
+                self.assertIsInstance(callback_data.server_time_us, float)
                 self.assertIsNotNone(callback_data.error)
                 self.assertGreater(len(callback_data.error), 0)
 
@@ -703,6 +709,7 @@ class TestRawMemoryWrite(ScrutinyUnitTest):
         self.writer.process()
         self.assertEqual(callback_data.call_count, 1)
         self.assertFalse(callback_data.success)     # Failure detection
+        self.assertIsInstance(callback_data.server_time_us, float)
         self.assertIsNotNone(callback_data.error)
         self.assertGreater(len(callback_data.error), 0)
 
@@ -720,6 +727,7 @@ class TestRawMemoryWrite(ScrutinyUnitTest):
         self.writer.process()
         self.assertEqual(callback_data.call_count, 1)
         self.assertFalse(callback_data.success)     # Failure detection
+        self.assertIsInstance(callback_data.server_time_us, float)
         self.assertIsNotNone(callback_data.error)
         self.assertGreater(len(callback_data.error), 0)
 
@@ -769,6 +777,7 @@ class TestRawMemoryWrite(ScrutinyUnitTest):
                 else:
                     self.assertEqual(callback_data.call_count, msg + 1)
                     self.assertTrue(callback_data.success)
+                    self.assertIsInstance(callback_data.server_time_us, float)
                     self.assertIsNotNone(callback_data.error)
 
 

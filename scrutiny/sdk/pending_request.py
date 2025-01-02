@@ -37,14 +37,14 @@ class PendingRequest:
     def _is_expired(self, timeout:float) -> bool:
         return time.monotonic() - self._monotonic_creation_timestamp > timeout
 
-    def _mark_complete(self, success: bool, failure_reason: str = "", timestamp: Optional[datetime] = None) -> None:
+    def _mark_complete(self, success: bool, failure_reason: str = "", server_time_us: Optional[float] = None) -> None:
         # Put a request in "completed" state. Expected to be called by the client worker thread
         self._success = success
         self._failure_reason = failure_reason
-        if timestamp is None:
+        if server_time_us is None:
             self._completion_datetime = datetime.now()
         else:
-            self._completion_datetime = timestamp
+            self._completion_datetime = self._client._server_timebase.micro_to_dt(server_time_us)
         self._completed = True
         self._completed_event.set()
 

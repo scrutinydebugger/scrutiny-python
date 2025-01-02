@@ -11,6 +11,7 @@
 import logging
 from scrutiny.server.datastore.datastore_entry import DatastoreRPVEntry, DatastoreVariableEntry, UpdateTargetRequest
 
+from scrutiny.server.timebase import server_timebase
 from scrutiny.server.protocol import *
 import scrutiny.server.protocol.commands as cmd
 import scrutiny.server.protocol.typing as protocol_typing
@@ -19,12 +20,11 @@ from scrutiny.server.datastore.datastore import Datastore
 from scrutiny.server.datastore.datastore_entry import DatastoreEntry
 from scrutiny.core.codecs import Codecs, Encodable
 from scrutiny.core.basic_types import MemoryRegion
-import time
 import queue
 from typing import Any, List, Optional, cast, Callable
 
 
-RawMemoryWriteRequestCompletionCallback = Callable[["RawMemoryWriteRequest", bool, str], None]
+RawMemoryWriteRequestCompletionCallback = Callable[["RawMemoryWriteRequest", bool, float, str], None]
 
 class RawMemoryWriteRequest:
     address: int
@@ -32,7 +32,7 @@ class RawMemoryWriteRequest:
     completed: bool
     success: bool
     completion_callback: Optional[RawMemoryWriteRequestCompletionCallback]
-    completion_timestamp: Optional[float]
+    completion_server_time_us: Optional[float]
 
     def __init__(self, address: int, data: bytes, callback: Optional[RawMemoryWriteRequestCompletionCallback] = None):
         self.address = address
@@ -40,14 +40,14 @@ class RawMemoryWriteRequest:
         self.completed = False
         self.success = False
         self.completion_callback = callback
-        self.completion_timestamp = None
+        self.completion_server_time_us = None
 
     def set_completed(self, success: bool, failure_reason: str = "") -> None:
         self.completed = True
         self.success = success
-        self.completion_timestamp = time.time()
+        self.completion_server_time_us = server_timebase.get_micro()
         if self.completion_callback is not None:
-            self.completion_callback(self, success, failure_reason)
+            self.completion_callback(self, success, self.completion_server_time_us, failure_reason)
 
 
 class MemoryWriter:

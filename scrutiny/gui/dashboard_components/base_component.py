@@ -56,6 +56,9 @@ class ScrutinyGUIBaseComponent(QWidget):
     def setup(self) -> None:
         pass
 
+    def ready(self) -> None:
+        pass
+
     @abstractmethod
     def teardown(self) -> None:
         pass

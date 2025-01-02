@@ -9,6 +9,7 @@
 
 import struct
 
+from scrutiny.server.timebase import server_timebase
 from scrutiny.server.api import API
 import scrutiny.server.api.typing as api_typing
 from scrutiny.core.sfd_storage import SFDStorage
@@ -86,7 +87,7 @@ class TestDataloggingIntegration(ScrutinyIntegrationTestWithTestSFD1):
         # We will create  a task that the emulated device will run in its thread. This task update some memory region with known pattern.
         class ValueUpdateTask:
             def __init__(self, testcase: ScrutinyIntegrationTestWithTestSFD1):
-                self.last_update = time.time()
+                self.last_update = time.perf_counter()
                 self.update_counter = 0
                 self.u32_addr = testcase.entry_u32.get_address()
                 self.f32_addr = testcase.entry_float32.get_address()
@@ -94,7 +95,7 @@ class TestDataloggingIntegration(ScrutinyIntegrationTestWithTestSFD1):
                 self.device = testcase.emulated_device
 
             def __call__(self):
-                t = time.time()
+                t = time.perf_counter()
                 if t - self.last_update > 0.005:
                     codec_u32 = Codecs.get(EmbeddedDataType.uint32, Endianness.Little)
                     val = codec_u32.decode(self.device.read_memory(self.u32_addr, 4))

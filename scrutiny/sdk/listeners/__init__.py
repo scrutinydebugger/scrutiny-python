@@ -32,7 +32,7 @@ class ValueUpdate:
     """Value received in the update"""
 
     update_timestamp:datetime
-    """Timestamp of the update"""
+    """Timestamp of the update. Taken by the server right after reading the device. Precise to the microsecond"""
 
 class BaseListener(abc.ABC):
 

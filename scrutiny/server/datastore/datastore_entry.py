@@ -17,18 +17,19 @@ __all__ = [
     'UserValueChangeCallback'
 ]
 
-import uuid
 import time
 import abc
 import re
 from scrutiny.core.basic_types import RuntimePublishedValue
 import queue
 
+from scrutiny.server.timebase import server_timebase
 from scrutiny.server.datastore.entry_type import EntryType
 from scrutiny.core.basic_types import EmbeddedDataType, Endianness
 from scrutiny.core.variable import Variable
 from scrutiny.core.embedded_enum import EmbeddedEnum
 from scrutiny.core.codecs import *
+from scrutiny.tools.global_counters import global_i64_counter
 
 from scrutiny.core.alias import Alias
 from typing import Any, Optional, Dict, Callable, Tuple, Union
@@ -66,18 +67,18 @@ class UpdateTargetRequest:
     Once this request is completed and successful, the datastore can be updated.
     """
     value: Any
-    request_timestamp: float
+    request_server_time_us: float
     completed: bool
     success: Optional[bool]
-    complete_timestamp: Optional[float]
+    completion_server_time_us: Optional[float]
     completion_callback: Optional[UpdateTargetRequestCallback]
     entry: 'DatastoreEntry'
 
     def __init__(self, value: Any, entry: 'DatastoreEntry', callback: Optional[UpdateTargetRequestCallback] = None):
         self.value = value
-        self.request_timestamp = time.time()
+        self.request_server_time_us = server_timebase.get_micro()
         self.completed = False
-        self.complete_timestamp = None
+        self.completion_server_time_us = None
         self.success = None
         self.completion_callback = callback
         self.entry = entry
@@ -86,12 +87,12 @@ class UpdateTargetRequest:
         """ Mark a request as completed. Success or not. Call the registered callbacks."""
         self.completed = True
         self.success = success
-        self.complete_timestamp = time.time()
+        self.completion_server_time_us = server_timebase.get_micro()
         if success:
-            self.entry.set_last_target_update_timestamp(self.complete_timestamp)
+            self.entry.set_last_target_update_server_time_us(self.completion_server_time_us)
 
         if self.completion_callback is not None:
-            self.completion_callback(success, self.entry, self.complete_timestamp)
+            self.completion_callback(success, self.entry, self.completion_server_time_us)
 
     def is_complete(self) -> bool:
         """Returns True if the request has been marked as completed (success or failure)"""
@@ -105,9 +106,9 @@ class UpdateTargetRequest:
         """Returns True if this request completed with a success. None if incomplete"""
         return self.success
 
-    def get_completion_timestamp(self) -> Optional[float]:
+    def get_completion_server_time_us(self) -> Optional[float]:
         """Returns the timestamp at which the request has been completed. None if incomplete"""
-        return self.complete_timestamp
+        return self.completion_server_time_us
 
     def get_value(self) -> Any:
         """Get the value requested"""
@@ -127,18 +128,18 @@ class DatastoreEntry(abc.ABC):
     target_update_callback: Dict[str, Callable[["DatastoreEntry"], Any]]
     display_path: str
     value: Any
-    last_target_update_timestamp: Optional[float]
+    last_target_update_server_time_us: Optional[float]
     target_update_request_queue: "queue.Queue[UpdateTargetRequest]"
-    last_value_update_timestamp: float
+    last_value_update_server_time_us: float
 
     def __init__(self, display_path: str):
         display_path = display_path.strip()
         self.value_change_callback = {}
         self.target_update_callback = {}
-        self.entry_id = uuid.uuid4().hex    # unique ID
+        self.entry_id = hex(global_i64_counter())[2:]    # unique ID. Remove 0x prefix
         self.display_path = display_path
-        self.last_target_update_timestamp = None
-        self.last_value_update_timestamp = time.time()
+        self.last_target_update_server_time_us = None
+        self.last_value_update_server_time_us = server_timebase.get_micro()
         self.target_update_request_queue = queue.Queue()
         self.value = 0
 
@@ -217,20 +218,20 @@ class DatastoreEntry(abc.ABC):
         """ Change the value in the datastore. Should be done by the device side of
          the datastore as callbacks are meant to propagate the update to the user (API side)"""
         self.value = value
-        self.last_value_update_timestamp = time.time()
+        self.last_value_update_server_time_us = server_timebase.get_micro()
         self.execute_value_change_callback()
 
-    def get_value_change_timestamp(self) -> float:
+    def get_value_change_server_time_us(self) -> float:
         """Returns the timestamp of the last value update made to this entry """
-        return self.last_value_update_timestamp
+        return self.last_value_update_server_time_us
 
-    def get_last_target_update_timestamp(self) -> Optional[float]:
+    def get_last_target_update_server_time_us(self) -> Optional[float]:
         """Returns the timestamp of the last successful completed target value update (write)"""
-        return self.last_target_update_timestamp
+        return self.last_target_update_server_time_us
 
-    def set_last_target_update_timestamp(self, val: float) -> None:
+    def set_last_target_update_server_time_us(self, val: float) -> None:
         """Sets the timestamp of the last successful completed target value update (write)"""
-        self.last_target_update_timestamp = val
+        self.last_target_update_server_time_us = val
 
 
 class DatastoreVariableEntry(DatastoreEntry):

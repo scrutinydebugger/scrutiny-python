@@ -98,6 +98,7 @@ class DummyClientHandler(AbstractClientHandler):
                  config: ClientHandlerConfig, 
                  rx_event:Optional[threading.Event]=None
                  ) -> None:
+        super().__init__(config, rx_event)
         self.rxqueue = queue.Queue()
         self.txqueue = queue.Queue()
         self.config = config
@@ -113,6 +114,7 @@ class DummyClientHandler(AbstractClientHandler):
         self.connections = connections
         for conn in self.connections:
             self.connection_map[conn.get_id()] = conn
+            self.new_conn_queue.put(conn.get_id())
 
     def validate_config(self, config: ClientHandlerConfig) -> None:
         if not isinstance(config, dict):

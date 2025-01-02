@@ -19,6 +19,7 @@ from base64 import b64encode, b64decode
 import binascii
 import threading
 
+from scrutiny.server.timebase import server_timebase
 from scrutiny.server.datalogging.datalogging_storage import DataloggingStorage
 from scrutiny.server.datalogging.datalogging_manager import DataloggingManager
 from scrutiny.server.datastore.datastore import Datastore
@@ -99,6 +100,7 @@ class API:
 
         class Api2Client:
             ECHO_RESPONSE = 'response_echo'
+            WELCOME = 'welcome'
             GET_WATCHABLE_LIST_RESPONSE = 'response_get_watchable_list'
             GET_WATCHABLE_COUNT_RESPONSE = 'response_get_watchable_count'
             SUBSCRIBE_WATCHABLE_RESPONSE = 'response_subscribe_watchable'
@@ -361,6 +363,7 @@ class API:
     def open_connection(self, conn_id: str) -> None:
         self.connections.add(conn_id)
         self.streamer.new_connection(conn_id)
+        self.send_welcome_message(conn_id)
 
     def close_connection(self, conn_id: str) -> None:
         self.datastore.stop_watching_all(conn_id)   # Removes this connection as a watcher from all entries
@@ -382,7 +385,7 @@ class API:
             msg: api_typing.S2C.WatchableUpdate = {
                 'cmd': self.Command.Api2Client.WATCHABLE_UPDATE,
                 'reqid': None,
-                'updates': [dict(id=x.get_id(), value=x.get_value()) for x in chunk]
+                'updates': [dict(id=x.get_id(), v=x.get_value(), t=x.get_value_change_server_time_us()) for x in chunk]
             }
 
             self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=msg))
@@ -401,19 +404,21 @@ class API:
     # to be called periodically
     def process(self) -> None:
         self.client_handler.process()   # Get incoming requests
+
+        while not self.client_handler.new_conn_queue.empty():
+            conn_id = self.client_handler.new_conn_queue.get()
+            if self.is_new_connection(conn_id):
+                self.logger.debug('Opening connection %s' % conn_id)
+                self.open_connection(conn_id)
+
         while self.client_handler.available():
             popped = self.client_handler.recv()
-            if popped is not None:
-                conn_id = popped.conn_id
-                obj = cast(api_typing.C2SMessage, popped.obj)
-
-                if self.is_new_connection(conn_id):
-                    self.logger.debug('Opening connection %s' % conn_id)
-                    self.open_connection(conn_id)
-
-                self.process_request(conn_id, obj)
-            else:
+            if popped is None:
                 self.logger.critical("Received an empty message, ignoring")
+                continue
+            conn_id = popped.conn_id
+            obj = cast(api_typing.C2SMessage, popped.obj)
+            self.process_request(conn_id, obj)
 
         # Close  dead connections
         conn_to_close = [conn_id for conn_id in self.connections if not self.client_handler.is_connection_active(conn_id)]
@@ -481,6 +486,15 @@ class API:
             'payload': req['payload']
         }
         self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
+
+    # === WELCOME ==== 
+    def send_welcome_message(self, conn_id:str) -> None:
+        welcome:api_typing.S2C.Welcome = {
+            'cmd' : API.Command.Api2Client.WELCOME,
+            'reqid' : None,
+            'server_time_zero_timestamp' : server_timebase.get_zero_timestamp()
+        }
+        self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=welcome))
 
     #  ===  GET_WATCHABLE_LIST     ===
     def process_get_watchable_list(self, conn_id: str, req: api_typing.C2S.GetWatchableList) -> None:
@@ -1012,7 +1026,9 @@ class API:
             raise InvalidRequestException(req, '"size" field is not valid')
 
         request_token = uuid4().hex
-        callback = functools.partial(self.read_raw_memory_callback, request_token=request_token, conn_id=conn_id)
+        closure_data = dict(request_token=request_token, conn_id=conn_id)
+        def callback(request: RawMemoryReadRequest, success: bool, completion_server_time_us:float, data: Optional[bytes], error: str) -> None:
+            self.read_raw_memory_callback(request, success, completion_server_time_us, data, error, **closure_data)
 
         self.device_handler.read_memory(req['address'], req['size'], callback=callback)
 
@@ -1049,7 +1065,9 @@ class API:
             raise InvalidRequestException(req, '"data" field is not valid')
 
         request_token = uuid4().hex
-        callback = functools.partial(self.write_raw_memory_callback, request_token=request_token, conn_id=conn_id)
+        closure_data = dict(request_token=request_token, conn_id=conn_id)
+        def callback(request: RawMemoryWriteRequest, success: bool, completion_server_time_us:float, error: str) -> None:
+            self.write_raw_memory_callback(request, success, completion_server_time_us, error, **closure_data)
 
         self.device_handler.write_memory(req['address'], data, callback=callback)
 
@@ -1098,7 +1116,15 @@ class API:
             assert error is not None
             self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=self.make_error_response(req, error)))
 
-    def read_raw_memory_callback(self, request: RawMemoryReadRequest, success: bool, data: Optional[bytes], error: str, conn_id: str, request_token: str) -> None:
+    def read_raw_memory_callback(self, 
+                                 request: RawMemoryReadRequest, 
+                                 success: bool, 
+                                 completion_server_time_us:float,
+                                 data: Optional[bytes], 
+                                 error: str, 
+                                 conn_id: str, 
+                                 request_token: str
+                                 ) -> None:
         data_out: Optional[str] = None
         if data is not None and success:
             data_out = b64encode(data).decode('ascii')
@@ -1110,16 +1136,25 @@ class API:
             'success': success,
             'data': data_out,
             'detail_msg': error if success == False else None,
+            'completion_server_time_us' : completion_server_time_us
         }
 
         self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
 
-    def write_raw_memory_callback(self, request: RawMemoryWriteRequest, success: bool, error: str, conn_id: str, request_token: str) -> None:
+    def write_raw_memory_callback(self, 
+                                  request: RawMemoryWriteRequest, 
+                                  success: bool, 
+                                  completion_server_time_us:float,
+                                  error: str, 
+                                  conn_id: str, 
+                                  request_token: str
+                                  ) -> None:
         response: api_typing.S2C.WriteMemoryComplete = {
             'cmd': self.Command.Api2Client.INFORM_MEMORY_WRITE_COMPLETE,
             'reqid': None,
             'request_token': request_token,
             'success': success,
+            'completion_server_time_us': completion_server_time_us,
             'detail_msg': error if success == False else None,
         }
 
@@ -1679,7 +1714,12 @@ class API:
         self.streamer.publish(datastore_entry, conn_id)
         self.stream_all_we_can()
 
-    def entry_target_update_callback(self, request_token: str, batch_index: int, success: bool, datastore_entry: DatastoreEntry, timestamp: float) -> None:
+    def entry_target_update_callback(self, 
+                                     request_token: str, 
+                                     batch_index: int, 
+                                     success: bool, 
+                                     datastore_entry: DatastoreEntry, 
+                                     completion_server_time_us: float) -> None:
         # This callback is given to the datastore when we make a write request (target update request)
         # It will be called once the request is completed.
         watchers = self.datastore.get_watchers(datastore_entry)
@@ -1691,7 +1731,7 @@ class API:
             'request_token': request_token,
             'batch_index': batch_index,
             'success': success,
-            'timestamp': timestamp
+            'completion_server_time_us': completion_server_time_us
         }
 
         for watcher_conn_id in watchers:

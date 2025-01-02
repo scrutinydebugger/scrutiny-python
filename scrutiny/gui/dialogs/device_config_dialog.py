@@ -407,7 +407,9 @@ class DeviceConfigDialog(QDialog):
 
         # Create an instance of the pane associated with the link type
         self._active_pane = self.CONFIG_TYPE_TO_WIDGET[link_type]() 
-        self._config_container.layout().addWidget(self._active_pane)
+        layout = self._config_container.layout()
+        assert layout is not None
+        layout.addWidget(self._active_pane)
 
         try:
             config = self._active_pane.make_config_valid(self._configs[link_type])

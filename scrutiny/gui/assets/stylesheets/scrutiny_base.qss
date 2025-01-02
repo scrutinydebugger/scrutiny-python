@@ -22,3 +22,7 @@ QLabel[feature_enable=true] {
 QLabel[feature_enable=false] {
     color:red;
 }
+
+QSplitter::handle {
+    background-color: #ccc;
+}

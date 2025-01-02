@@ -549,9 +549,6 @@
         "scrutiny/gui/dashboard_components/common/watchable_tree.py": {
             "docstring": "An enhanced QTreeView with a data model dedicated to Watchables displayed in folder structure."
         },
-        "scrutiny/gui/dashboard_components/common/watchable_line_edit.py": {
-            "docstring": "A QLineEdit that can accept textual input or drag&drop of a single watchable element"
-        },
         "scrutiny/gui/dashboard_components/watch/watch_tree_model.py": {
             "docstring": "The data model used by the Watch component treeview"
         },
@@ -579,9 +576,6 @@
         "scrutiny/gui/widgets/app_stats_display.py": {
             "docstring": "A widget to display the application stats"
         },
-        "scrutiny/gui/tools/global_counters.py": {
-            "docstring": "A file that provide some global counter atomic counter for unique ID generation"
-        },
         "scrutiny/gui/dashboard_components/metrics/metrics_component.py": {
             "docstring": "A dashboard component that shows internal metrics for debugging purpose"
         },
@@ -596,6 +590,36 @@
         },
         "scrutiny/tools/thread_enforcer.py": {
             "docstring": "A runtime checker that enforces the thread ID of function caller. Prevents race conditions from misusage of internal APIs"
+        },
+        "test/gui/manual/manual_test_graph_axis.py": {
+            "docstring": "A dummy app to test the graph axis tree widget"
+        },
+        "scrutiny/gui/dashboard_components/common/graph_signal_tree.py": {
+            "docstring": "The widget that allow the user to define a graph axis/signals using a 2 level tree. First level for axes, Second level for watchables"
+        },
+        "scrutiny/gui/dashboard_components/common/base_tree.py": {
+            "docstring": "An extension of the QT QTreeView that suits this application. Defines some helper functions and common keyboard/mouse behaviors "
+        },
+        "scrutiny/gui/dashboard_components/continuous_graph/continuous_graph_component.py": {
+            "docstring": "A component that makes a real time graphs of the values streamed by the server"
+        },
+        "scrutiny/tools/global_counters.py": {
+            "docstring": "A file that provide some global counter atomic counter for unique ID generation"
+        },
+        "scrutiny/gui/dashboard_components/common/base_chart.py": {
+            "docstring": "Some customized extensions of the QT Charts for the Scrutiny GUI"
+        },
+        "scrutiny/gui/core/preferences.py": {
+            "docstring": "An interface to the user preferences"
+        },
+        "scrutiny/gui/themes/default_theme.py": {
+            "docstring": "A color theme that serves as a base for other theme and loaded by default"
+        },
+        "scrutiny/server/timebase.py": {
+            "docstring": "The timebase used by the server"
+        },
+        "scrutiny/tools/timebase.py": {
+            "docstring": "A generic timebase object that can be used to follow relative time interval and map them to real datetime"
         }
     }
 }

@@ -12,11 +12,11 @@ import logging
 import copy
 import traceback
 import enum
-import time
 import queue
 from sortedcontainers import SortedSet  # type: ignore
 
 from scrutiny.server.protocol import *
+from scrutiny.server.timebase import server_timebase
 import scrutiny.server.protocol.commands as cmd
 import scrutiny.server.protocol.typing as protocol_typing
 from scrutiny.server.device.request_dispatcher import RequestDispatcher
@@ -27,7 +27,7 @@ from scrutiny.core.basic_types import MemoryRegion
 
 from typing import cast, Set, List, Any, Optional, Callable, Tuple, Dict
 
-RawMemoryReadRequestCompletionCallback = Callable[["RawMemoryReadRequest", bool, Optional[bytes], str], None]
+RawMemoryReadRequestCompletionCallback = Callable[["RawMemoryReadRequest", bool, float, Optional[bytes], str], None]
 
 class RawMemoryReadRequest:
     address: int
@@ -35,7 +35,7 @@ class RawMemoryReadRequest:
     completed: bool
     success: bool
     completion_callback: Optional[RawMemoryReadRequestCompletionCallback]
-    completion_timestamp: Optional[float]
+    completion_server_time_us: Optional[float]
 
     def __init__(self, address: int, size: int, callback: Optional[RawMemoryReadRequestCompletionCallback] = None) -> None:
         self.address = address
@@ -43,14 +43,14 @@ class RawMemoryReadRequest:
         self.completed = False
         self.success = False
         self.completion_callback = callback
-        self.completion_timestamp = None
+        self.completion_server_time_us = None
 
     def set_completed(self, success: bool, data: Optional[bytes], failure_reason: str = "") -> None:
         self.completed = True
         self.success = success
-        self.completion_timestamp = time.time()
+        self.completion_server_time_us = server_timebase.get_micro()
         if self.completion_callback is not None:
-            self.completion_callback(self, success, data, failure_reason)
+            self.completion_callback(self, success, self.completion_server_time_us, data, failure_reason)
 
 
 class DataStoreEntrySortableByAddress:

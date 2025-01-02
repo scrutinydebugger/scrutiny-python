@@ -374,6 +374,9 @@ class TestAPI(ScrutinyUnitTest):
         assert isinstance(client_handler, DummyClientHandler)
         client_handler.set_connections(self.connections)
         self.api.start_listening()
+        for i in range(len(self.connections)):
+            resp = self.wait_and_load_response(conn_idx=i)
+            self.assertEqual(resp['cmd'], API.Command.Api2Client.WELCOME)
 
     def tearDown(self):
         self.api.close()
@@ -384,10 +387,10 @@ class TestAPI(ScrutinyUnitTest):
         self.fake_datalogging_manager.process()
 
     def ensure_no_response_for(self, conn_idx=0, timeout=0.4):
-        t1 = time.time()
+        t1 = time.perf_counter()
         self.process_all()
         while not self.connections[conn_idx].from_server_available():
-            if time.time() - t1 >= timeout:
+            if time.perf_counter() - t1 >= timeout:
                 break
             self.process_all()
             time.sleep(0.01)
@@ -428,6 +431,15 @@ class TestAPI(ScrutinyUnitTest):
             self.assertEqual(response['cmd'], API.Command.Api2Client.ERROR_RESPONSE, msg)
         else:
             raise Exception('Missing cmd field in response')
+
+    def assert_is_response_command(self, resp, cmd):
+        self.assertIn('cmd', resp)
+        self.assertEqual(resp['cmd'], cmd)
+    
+    def wait_and_load_inform_server_status(self):
+        response = cast(api_typing.S2C.InformServerStatus, self.wait_and_load_response())
+        self.assert_is_response_command(response, API.Command.Api2Client.INFORM_SERVER_STATUS)
+        return response
 
     def make_dummy_entries(self, 
         n, 
@@ -838,7 +850,8 @@ class TestAPI(ScrutinyUnitTest):
 
         for update in msg['updates']:
             self.assertIn('id', update)
-            self.assertIn('value', update)
+            self.assertIn('v', update)
+            self.assertIn('t', update)
 
     def test_subscribe_single_var(self):
         entries = self.make_dummy_entries(10, entry_type=EntryType.Var, prefix='var')
@@ -878,7 +891,7 @@ class TestAPI(ScrutinyUnitTest):
         update = var_update_msg['updates'][0]
 
         self.assertEqual(update['id'], subscribed_entry.get_id())
-        self.assertEqual(update['value'], 1234)
+        self.assertEqual(update['v'], 1234)
 
     def test_subscribe_single_var_get_enum(self):
         subscribed_entry = self.make_dummy_entries(1, entry_type=EntryType.Var, prefix='var', enum_dict={'a':1, 'b':2, 'c':3})[0]
@@ -988,7 +1001,7 @@ class TestAPI(ScrutinyUnitTest):
         self.assertEqual(len(var_update_msg['updates']), 1)     # Only one update
 
         self.assertEqual(var_update_msg['updates'][0]['id'], subscribed_entry.get_id())
-        self.assertEqual(var_update_msg['updates'][0]['value'], 4567)   # Got latest value
+        self.assertEqual(var_update_msg['updates'][0]['v'], 4567)   # Got latest value
 
         self.assertIsNone(self.wait_for_response(0, timeout=0.1))   # No more message to send
 
@@ -1083,11 +1096,14 @@ class TestAPI(ScrutinyUnitTest):
         self.fake_device_handler.get_comm_link().initialize()   # Makes operational
         self.assertTrue(self.fake_device_handler.get_comm_link().operational())
         
+        self.wait_and_load_inform_server_status()   # ignore it. Triggered because of device status change
+
         req = {'cmd': 'get_device_info'}
         self.send_request(req, 0)
         response = cast(api_typing.S2C.GetDeviceInfo, self.wait_and_load_response())
         self.assert_no_error(response)
         
+        self.assertEqual(response['cmd'], 'response_get_device_info')
         self.assertIn('available', response)
         self.assertIn('device_info', response)
         self.assertTrue(response['available'])
@@ -1129,6 +1145,8 @@ class TestAPI(ScrutinyUnitTest):
 
     def test_get_server_status(self):
         self.fake_device_handler.set_datalogger_state(device_datalogging.DataloggerState.TRIGGERED)
+        self.wait_and_load_inform_server_status()   # Datalogger state change trigers a message
+
         
         dummy_sfd1_filename = get_artifact('test_sfd_1.sfd')
         dummy_sfd2_filename = get_artifact('test_sfd_2.sfd')
@@ -1139,8 +1157,10 @@ class TestAPI(ScrutinyUnitTest):
             self.sfd_handler.request_load_sfd(sfd2.get_firmware_id_ascii())
             self.sfd_handler.process()
             self.fake_device_handler.set_connection_status(DeviceHandler.ConnectionStatus.CONNECTED_READY)
+            self.wait_and_load_inform_server_status()   # Device state change trigers a message
             self.fake_device_handler.get_comm_link().initialize()   # Makes operational
             self.assertTrue(self.fake_device_handler.get_comm_link().operational())
+            self.wait_and_load_inform_server_status()   # comm channel availability change triggers a message
 
             req = {
                 'cmd': 'get_server_status'
@@ -1378,16 +1398,16 @@ class TestAPI(ScrutinyUnitTest):
             self.assertIn('watchable', response, 'i=%d' % i)
             self.assertIn('success', response, 'i=%d' % i)
             self.assertIn('request_token', response, 'i=%d' % i)
-            self.assertIn('timestamp', response, 'i=%d' % i)
+            self.assertIn('completion_server_time_us', response, 'i=%d' % i)
 
             if response['watchable'] == subscribed_entry1.get_id():
                 self.assertEqual(response['success'], True, 'i=%d' % i)
                 self.assertEqual(response['request_token'], request_token, 'i=%d' % i)
-                self.assertEqual(response['timestamp'], req1.get_completion_timestamp(), 'i=%d' % i)
+                self.assertEqual(response['completion_server_time_us'], req1.get_completion_server_time_us(), 'i=%d' % i)
             elif response['watchable'] == subscribed_entry2.get_id():
                 self.assertEqual(response['success'], False, 'i=%d' % i)
                 self.assertEqual(response['request_token'], request_token, 'i=%d' % i)
-                self.assertEqual(response['timestamp'], req2.get_completion_timestamp(), 'i=%d' % i)
+                self.assertEqual(response['completion_server_time_us'], req2.get_completion_server_time_us(), 'i=%d' % i)
 
     def test_subscribe_watchable_bad_ID(self):
         req = {
@@ -1558,16 +1578,18 @@ class TestAPI(ScrutinyUnitTest):
         self.assertEqual(read_request.size, read_size)
         self.assertIsNotNone(read_request.completion_callback)
         payload = bytes([random.randint(0, 255) for x in range(read_request.size)])
-        read_request.completion_callback(read_request, True, payload, "")
+        read_request.completion_callback(read_request, True, 1234.2, payload, "")
 
         response = cast(api_typing.S2C.ReadMemoryComplete, self.wait_and_load_response())
         self.assertIn('request_token', response)
         self.assertIn('data', response)
         self.assertIn('success', response)
         self.assertIn('request_token', response)
+        self.assertIn('completion_server_time_us', response)
         self.assertEqual(response['cmd'], "inform_memory_read_complete")
         self.assertEqual(response['request_token'], request_token)
         self.assertEqual(response['success'], True)
+        self.assertEqual(response['completion_server_time_us'], 1234.2)
         self.assertEqual(response['data'], b64encode(payload).decode('ascii'))
 
     def test_read_memory_failure(self):
@@ -1594,16 +1616,18 @@ class TestAPI(ScrutinyUnitTest):
         self.assertEqual(read_request.size, read_size)
         self.assertIsNotNone(read_request.completion_callback)
 
-        read_request.completion_callback(read_request, False, None, "")  # Simulate failure
+        read_request.completion_callback(read_request, False, 1234.2, None, "")  # Simulate failure
 
         response = cast(api_typing.S2C.ReadMemoryComplete, self.wait_and_load_response())
         self.assertIn('request_token', response)
         self.assertIn('data', response)
         self.assertIn('success', response)
         self.assertIn('request_token', response)
+        self.assertIn('completion_server_time_us', response)
         self.assertEqual(response['cmd'], "inform_memory_read_complete")
         self.assertEqual(response['request_token'], request_token)
         self.assertEqual(response['success'], False)
+        self.assertEqual(response['completion_server_time_us'], 1234.2)
         self.assertIsNone(response['data'])
 
     def test_read_memory_bad_values(self):
@@ -1663,15 +1687,17 @@ class TestAPI(ScrutinyUnitTest):
         self.assertEqual(write_request.address, write_address)
         self.assertEqual(write_request.data, payload)
         self.assertIsNotNone(write_request.completion_callback)
-        write_request.completion_callback(write_request, True, "")
+        write_request.completion_callback(write_request, True, 3.14159, "")
 
         response = cast(api_typing.S2C.WriteMemoryComplete, self.wait_and_load_response())
         self.assertIn('request_token', response)
         self.assertIn('success', response)
+        self.assertIn('completion_server_time_us', response)
         self.assertIn('request_token', response)
         self.assertEqual(response['cmd'], "inform_memory_write_complete")
         self.assertEqual(response['request_token'], request_token)
         self.assertEqual(response['success'], True)
+        self.assertEqual(response['completion_server_time_us'], 3.14159)
 
     def test_write_memory_failure(self):
         payload = bytes([random.randint(0, 255) for i in range(256)])
@@ -1697,15 +1723,17 @@ class TestAPI(ScrutinyUnitTest):
         self.assertEqual(write_request.data, payload)
         self.assertIsNotNone(write_request.completion_callback)
 
-        write_request.completion_callback(write_request, False, "")  # Simulate failure
+        write_request.completion_callback(write_request, False, 3.14159, "")  # Simulate failure
 
         response = cast(api_typing.S2C.WriteMemoryComplete, self.wait_and_load_response())
         self.assertIn('request_token', response)
         self.assertIn('success', response)
         self.assertIn('request_token', response)
+        self.assertIn('completion_server_time_us', response)
         self.assertEqual(response['cmd'], "inform_memory_write_complete")
         self.assertEqual(response['request_token'], request_token)
         self.assertEqual(response['success'], False)
+        self.assertEqual(response['completion_server_time_us'], 3.14159)
 
     def test_write_memory_bad_values(self):
         self.send_request({
@@ -1748,6 +1776,7 @@ class TestAPI(ScrutinyUnitTest):
     def test_get_device_info_datalogging(self):
         # Check that we can read the datalogging capabilities
         self.fake_device_handler.set_connection_status(DeviceHandler.ConnectionStatus.CONNECTED_READY)
+        self.wait_and_load_inform_server_status()
         req: api_typing.C2S.GetDeviceInfo = {
             'cmd': 'get_device_info'
         }
@@ -2016,8 +2045,8 @@ class TestAPI(ScrutinyUnitTest):
             self.send_request(req)
 
             timeout = 5
-            t = time.time()
-            while time.time() - t < timeout:
+            t = time.perf_counter()
+            while time.perf_counter() - t < timeout:
                 self.process_all()
                 if DataloggingStorage.count() != acq_count_before:
                     break
@@ -2078,9 +2107,9 @@ class TestAPI(ScrutinyUnitTest):
 
             db_init_count = DataloggingStorage.get_init_count()
             self.send_request(req)
-            t = time.time()
+            t = time.perf_counter()
             timeout = 5
-            while time.time() - t < timeout:
+            while time.perf_counter() - t < timeout:
                 self.process_all()
                 if DataloggingStorage.get_init_count() != db_init_count:
                     break
@@ -2183,6 +2212,7 @@ class TestAPI(ScrutinyUnitTest):
                 API.Command.Api2Client.INFORM_DATALOGGING_LIST_CHANGED,
                 API.Command.Api2Client.REQUEST_DATALOGGING_ACQUISITION_RESPONSE,
                 API.Command.Api2Client.INFORM_DATALOGGING_ACQUISITION_COMPLETE,
+                API.Command.Api2Client.INFORM_SERVER_STATUS,
             ])
 
             if response['cmd'] == API.Command.Api2Client.REQUEST_DATALOGGING_ACQUISITION_RESPONSE:

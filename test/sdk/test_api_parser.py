@@ -20,10 +20,12 @@ from datetime import datetime, timedelta
 import logging
 from test import ScrutinyUnitTest
 from typing import *
+import time
+from base64 import b64encode, b64decode
 
 
 class TestApiParser(ScrutinyUnitTest):
-    
+        
     def test_parse_get_watchable_list(self):
         def base():
             return {
@@ -66,6 +68,11 @@ class TestApiParser(ScrutinyUnitTest):
                     }]
                 }
             }
+
+        with self.assertRaises(Exception):
+            m = base()
+            m['cmd'] = 'asd'
+            parser.parse_get_watchable_list(m)
 
         res = parser.parse_get_watchable_list(base())
         self.assertIsInstance(res, parser.GetWatchableListResponse)
@@ -207,6 +214,11 @@ class TestApiParser(ScrutinyUnitTest):
                 }
             }
 
+        with self.assertRaises(Exception):
+            m = base()
+            m['cmd'] = 'asd'
+            parser.parse_subscribe_watchable_response(m)
+
         response = base()
         res = parser.parse_subscribe_watchable_response(response)
         self.assertIsInstance(res, dict)
@@ -266,7 +278,6 @@ class TestApiParser(ScrutinyUnitTest):
                     msg['subscribed']['/a/b/c']['type'] = val
                 parser.parse_subscribe_watchable_response(msg)
 
-
     def test_get_device_info(self):
         def base() -> api_typing.S2C.GetDeviceInfo:
             return {
@@ -313,6 +324,11 @@ class TestApiParser(ScrutinyUnitTest):
                     }
                 }
             }
+
+        with self.assertRaises(Exception):
+            m = base()
+            m['cmd'] = 'asd'
+            parser.parse_get_device_info(m)
 
         msg = base()
         device_info = parser.parse_get_device_info(msg)
@@ -441,6 +457,11 @@ class TestApiParser(ScrutinyUnitTest):
                     }
                 }
             }
+
+        with self.assertRaises(Exception):
+            m = base()
+            m['cmd'] = 'asd'
+            parser.parse_inform_server_status(m)
 
         msg = base()
         info = parser.parse_inform_server_status(msg)
@@ -613,7 +634,6 @@ class TestApiParser(ScrutinyUnitTest):
                 del msg["device_comm_link"]["link_config"][field]
                 parser.parse_inform_server_status(msg)
 
-
     def test_parse_read_datalogging_acquisition_content(self):
         now = datetime.now()
 
@@ -657,6 +677,11 @@ class TestApiParser(ScrutinyUnitTest):
                     }
                 ]
             }
+
+        with self.assertRaises(Exception):
+            m = base()
+            m['cmd'] = 'asd'
+            parser.parse_read_datalogging_acquisition_content_response(m)
 
         msg = base()
         acq = parser.parse_read_datalogging_acquisition_content_response(msg)
@@ -816,6 +841,11 @@ class TestApiParser(ScrutinyUnitTest):
                 ]
             }
 
+        with self.assertRaises(Exception):
+            m = base()
+            m['cmd'] = 'asd'
+            parser.parse_list_datalogging_acquisitions_response(m)
+
         msg = base()
         acquisitions = parser.parse_list_datalogging_acquisitions_response(msg)
 
@@ -973,6 +1003,12 @@ class TestApiParser(ScrutinyUnitTest):
                     'rpv' : 30,
                 }
             }
+
+        with self.assertRaises(Exception):
+            m = base()
+            m['cmd'] = 'asd'
+            parser.parse_get_watchable_count(m)        
+        
         msg = base()
         count = parser.parse_get_watchable_count(msg)
         self.assertEqual(count[WatchableType.Alias], 10)
@@ -1016,7 +1052,13 @@ class TestApiParser(ScrutinyUnitTest):
                     }
                 }
             }
+
+        with self.assertRaises(Exception):
+            m = base()
+            m['cmd'] = 'asd'
+            parser.parse_get_loaded_sfd(m)        
         
+
         msg = base()
         sfd = parser.parse_get_loaded_sfd(msg)
         
@@ -1053,7 +1095,6 @@ class TestApiParser(ScrutinyUnitTest):
             self.assertIsNone(sfd.metadata.generation_info.system_type)
             self.assertIsNone(sfd.metadata.generation_info.timestamp)
 
-
     def test_parse_get_server_stats(self):
         def base() : 
             return {
@@ -1072,7 +1113,12 @@ class TestApiParser(ScrutinyUnitTest):
                 'from_device_datarate_byte_per_sec' : 50.5,
                 'device_request_per_sec' : 60.6
             }
-            
+
+        with self.assertRaises(Exception):
+            m = base()
+            m['cmd'] = 'asd'
+            parser.parser_server_stats(m)   
+
         msg = base()
         stats = parser.parser_server_stats(msg)
 
@@ -1136,6 +1182,216 @@ class TestApiParser(ScrutinyUnitTest):
                 stats = parser.parser_server_stats(msg)
                 self.assertEqual(getattr(stats, field), val)
                 self.assertIsInstance(getattr(stats, field), float)
+
+    def test_parse_welcome(self):
+        tnow = time.time()
+
+        def base():
+            return {
+                "cmd": "welcome",
+                "reqid": None,
+                "server_time_zero_timestamp": tnow,
+            }
+
+        with self.assertRaises(Exception):
+            m = base()
+            m['cmd'] = 'asd'
+            parser.parse_welcome(m) 
+
+        msg = base()
+        welcome = parser.parse_welcome(msg)
+        self.assertEqual(welcome.server_time_zero_timestamp, tnow)
+
+
+    def test_parse_watchable_update(self):
+        def base():
+            return {
+                'cmd' : 'watchable_update',
+                'req_id' : None,
+                'updates' : [
+                    dict(id='aaa', v=3.14159, t=1234.5),
+                    dict(id='bbb', v=1, t=5555),
+                    dict(id='ccc', v=True, t=6666)
+                ]
+            }
+
+        with self.assertRaises(Exception):
+            m = base()
+            m['cmd'] = 'asd'
+            parser.parse_watchable_update(m) 
+
+        msg = base()
+        updates = parser.parse_watchable_update(msg) 
+        self.assertIsInstance(updates, list)
+        self.assertEqual(len(updates), 3)
+        for update in updates:
+            self.assertIsInstance(update, parser.WatchableUpdate)
+            self.assertIsInstance(update.server_id, str)
+            self.assertIsInstance(update.value, (float, int, bool))
+            self.assertIsInstance(update.server_time_us, float)
+
+        self.assertEqual(updates[0].server_id, 'aaa')
+        self.assertEqual(updates[0].value, 3.14159)
+        self.assertIsInstance(updates[0].value, float)
+        self.assertEqual(updates[0].server_time_us, 1234.5)
+
+        self.assertEqual(updates[1].server_id, 'bbb')
+        self.assertEqual(updates[1].value, 1)
+        self.assertIsInstance(updates[1].value, int)
+        self.assertEqual(updates[1].server_time_us, 5555)
+
+        self.assertEqual(updates[2].server_id, 'ccc')
+        self.assertEqual(updates[2].value, True)
+        self.assertIsInstance(updates[2].value, bool)
+        self.assertEqual(updates[2].server_time_us, 6666)
+
+
+        class Delete:
+            pass
+
+        for v in [{}, None, 1, "asd", Delete]:
+            msg = base()
+            if v is Delete:
+                del msg['updates']
+            else:
+                msg['updates'] = v
+            with self.assertRaises(sdk.exceptions.BadResponseError, msg=f"v={v}"):
+                parser.parse_watchable_update(msg) 
+
+        for v in [{}, [], None, 1, Delete]:
+            msg = base()
+            for i in range(len(msg['updates'])):
+                msg['updates'][i]['id'] = v
+                with self.assertRaises(sdk.exceptions.BadResponseError, msg=f"i={i}. v={v}"):
+                    parser.parse_watchable_update(msg) 
+
+        for v in [{}, [], None, "asd", Delete]:
+            msg = base()
+            for i in range(len(msg['updates'])):
+                msg['updates'][i]['v'] = v
+                with self.assertRaises(sdk.exceptions.BadResponseError, msg=f"i={i}. v={v}"):
+                    parser.parse_watchable_update(msg) 
+
+        for v in [{}, [], None, True, "asd", Delete]:
+            msg = base()
+            for i in range(len(msg['updates'])):
+                msg['updates'][i]['t'] = v
+                with self.assertRaises(sdk.exceptions.BadResponseError, msg=f"i={i}. v={v}"):
+                    parser.parse_watchable_update(msg)  
+
+        msg = base() 
+        msg['updates'] = []
+        updates = parser.parse_watchable_update(msg)
+        self.assertEqual(updates, [])
+
+
+    def test_parse_memory_read_completion(self):
+        def base() -> api_typing.S2C.ReadMemoryComplete:
+            return {
+                'cmd' : 'inform_memory_read_complete',
+                "reqid": None,
+                "request_token" : "aaa",
+                "success" : True,
+                "completion_server_time_us" : 1234.5,
+                "data" : b64encode(bytes([1,2,3,4])).decode('utf8'),
+                "detail_msg": None
+            }
+
+        with self.assertRaises(Exception):
+            m = base()
+            m['cmd'] = 'asd'
+            parser.parse_memory_read_completion(m) 
+
+        msg = base()
+        completion = parser.parse_memory_read_completion(msg)
+
+        self.assertEqual(completion.request_token, "aaa")
+        self.assertEqual(completion.success, True)
+        self.assertEqual(completion.data, bytes([1,2,3,4]))
+        self.assertIsInstance(completion.local_monotonic_timestamp, float)
+        self.assertEqual(completion.server_time_us, 1234.5)
+        self.assertEqual(completion.error, "")
+
+
+        msg = base()
+        msg['success'] = False
+        del msg['data']
+        completion = parser.parse_memory_read_completion(msg)
+        self.assertEqual(completion.data, None)
+        self.assertEqual(completion.success, False)
+
+
+        class Delete:
+            pass
+
+        def check_field_invalid(field, vals):
+            for val in vals:
+                msg = base()
+                if val is Delete:
+                    del msg[field]
+                else:
+                    msg[field] = val
+                
+                with self.assertRaises(sdk.exceptions.BadResponseError, msg=f"field={field}. val={val}"):
+                    parser.parse_memory_read_completion(msg)
+
+        check_field_invalid('request_token', [1, None, True, [], {}, Delete])
+        check_field_invalid('success', [1, None, 1.123, "asd", [], {}, Delete])
+        check_field_invalid('completion_server_time_us', ["asd", None, True, [], {}, Delete])
+        check_field_invalid('data', [1, "...", None, True, [], {}, Delete]) # Cannot delete if success
+        check_field_invalid('detail_msg', [1, 1.123, True, [], {}, Delete])
+
+
+    def test_parse_memory_write_completion(self):
+        def base() -> api_typing.S2C.WriteMemoryComplete:
+            return {
+                'cmd' : 'inform_memory_write_complete',
+                "reqid": None,
+                "request_token" : "aaa",
+                "success" : True,
+                "completion_server_time_us" : 1234.5,
+                "detail_msg": None
+            }
+
+        with self.assertRaises(Exception):
+            m = base()
+            m['cmd'] = 'asd'
+            parser.parse_memory_write_completion(m) 
+
+        msg = base()
+        completion = parser.parse_memory_write_completion(msg)
+
+        self.assertEqual(completion.request_token, "aaa")
+        self.assertEqual(completion.success, True)
+        self.assertIsInstance(completion.local_monotonic_timestamp, float)
+        self.assertEqual(completion.server_time_us, 1234.5)
+        self.assertEqual(completion.error, "")
+
+
+        msg = base()
+        msg['success'] = False
+        completion = parser.parse_memory_write_completion(msg)
+        self.assertEqual(completion.success, False)
+
+
+        class Delete:
+            pass
+
+        def check_field_invalid(field, vals):
+            for val in vals:
+                msg = base()
+                if val is Delete:
+                    del msg[field]
+                else:
+                    msg[field] = val
+                
+                with self.assertRaises(sdk.exceptions.BadResponseError, msg=f"field={field}. val={val}"):
+                    parser.parse_memory_write_completion(msg)
+
+        check_field_invalid('request_token', [1, None, True, [], {}, Delete])
+        check_field_invalid('success', [1, None, 1.123, "asd", [], {}, Delete])
+        check_field_invalid('completion_server_time_us', ["asd", None, True, [], {}, Delete])
+        check_field_invalid('detail_msg', [1, 1.123, True, [], {}, Delete])
 
 if __name__ == '__main__':
     unittest.main()

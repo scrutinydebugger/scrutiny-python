@@ -12,7 +12,7 @@ from scrutiny.gui.core.watchable_registry import WatchableRegistry
 from scrutiny.gui.core.server_manager import ServerConfig
 from scrutiny import sdk
 
-from typing import Optional
+from typing import Optional, Union, Callable
 
 DUMMY_DATASET_RPV = {
     '/rpv/rpv.a/rpv.a.a' : sdk.WatchableConfiguration(server_id='rpv.a.a', watchable_type=sdk.WatchableType.RuntimePublishedValue, datatype=sdk.EmbeddedDataType.float32, enum=None),
@@ -206,4 +206,7 @@ class FakeServerManager:
         )
 
         return info
+
+    def qt_write_watchable_value(self, fqn:str, value:Union[str, int, float, bool], callback:Callable[[Optional[Exception]], None]) -> None:
+        pass
         
