@@ -7,9 +7,10 @@
 #   Copyright (c) 2021 Scrutiny Debugger
 
 from abc import abstractmethod
-from typing import Dict, Optional, Union
+from typing import Dict, Optional, Union, Generator, Set
 from dataclasses import dataclass
 import threading
+import queue
 
 import scrutiny.server.api.typing as api_typing
 
@@ -23,7 +24,8 @@ class ClientHandlerMessage:
 
 
 class AbstractClientHandler:
-    
+    new_conn_queue:"queue.Queue[str]"
+
     @dataclass
     class Statistics:
         client_count:int
@@ -33,9 +35,9 @@ class AbstractClientHandler:
         msg_sent:int
 
 
-    @abstractmethod
+    
     def __init__(self, config: ClientHandlerConfig, rx_event:Optional[threading.Event]=None):
-        pass
+        self.new_conn_queue = queue.Queue(maxsize=1000)
 
     @abstractmethod
     def send(self, msg: ClientHandlerMessage) -> None:

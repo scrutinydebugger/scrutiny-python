@@ -283,6 +283,9 @@ class S2C:
         request_cmd: str
         msg: str
 
+    class Welcome(BaseS2CMessage):
+        server_time_zero_timestamp:float
+
     class GetInstalledSFD(BaseS2CMessage):
         sfd_list: Dict[str, SFDMetadata]
 
@@ -427,6 +430,7 @@ S2CMessage = Union[
     S2C.Empty,
     S2C.Echo,
     S2C.Error,
+    S2C.Welcome,
     S2C.GetInstalledSFD,
     S2C.GetLoadedSFD,
     S2C.InformServerStatus,

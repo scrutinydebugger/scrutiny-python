@@ -24,6 +24,10 @@ from typing import List, Dict, Optional, Any, cast, Literal, Type, Union, TypeVa
 
 
 @dataclass(frozen=True)
+class WelcomeData:
+    server_time_zero_timestamp:float
+
+@dataclass(frozen=True)
 class WatchableUpdate:
     server_id: str
     value: Union[bool, int, float]
@@ -723,7 +727,7 @@ def parse_memory_read_completion(response: api_typing.S2C.ReadMemoryComplete) ->
         success=success,
         data=data_bin,
         error=detail_msg if detail_msg is not None else "",
-        timestamp=time.time(),
+        timestamp=time.time(),  # TODO : SERVER TIME
         monotonic_timestamp = time.monotonic()
     )
 
@@ -742,7 +746,7 @@ def parse_memory_write_completion(response: api_typing.S2C.WriteMemoryComplete) 
         request_token=_fetch_dict_val_no_none(response, 'request_token', str, ""),
         success=_fetch_dict_val_no_none(response, 'success', bool, False),
         error=detail_msg if detail_msg is not None else "",
-        timestamp=time.time(),
+        timestamp=time.time(),  # TODO : SERVER TIME
         monotonic_timestamp=time.monotonic()
     )
 
@@ -987,3 +991,16 @@ def parser_server_stats(response:api_typing.S2C.GetServerStats) -> sdk.ServerSta
         from_device_datarate_byte_per_sec = float(response['from_device_datarate_byte_per_sec']),
         device_request_per_sec = float(response['device_request_per_sec'])
         )
+
+
+def parse_welcome(msg: api_typing.S2C.Welcome) -> WelcomeData:
+    assert isinstance(msg, dict)
+    assert 'cmd' in msg
+    cmd = msg['cmd']
+    assert cmd == API.Command.Api2Client.WELCOME
+
+    _check_response_dict(cmd, msg, 'server_time_zero_timestamp', (float, int))
+
+    return WelcomeData(
+        server_time_zero_timestamp=float(msg['server_time_zero_timestamp'])
+    )

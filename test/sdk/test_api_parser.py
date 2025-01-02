@@ -20,6 +20,7 @@ from datetime import datetime, timedelta
 import logging
 from test import ScrutinyUnitTest
 from typing import *
+import time
 
 
 class TestApiParser(ScrutinyUnitTest):
@@ -1136,6 +1137,26 @@ class TestApiParser(ScrutinyUnitTest):
                 stats = parser.parser_server_stats(msg)
                 self.assertEqual(getattr(stats, field), val)
                 self.assertIsInstance(getattr(stats, field), float)
+
+
+    def test_parse_welcome(self):
+        tnow = time.time()
+
+        def base():
+            return {
+                "cmd": "welcome",
+                "reqid": None,
+                "server_time_zero_timestamp": tnow,
+            }
+
+        msg = base()
+        welcome = parser.parse_welcome(msg)
+        self.assertEqual(welcome.server_time_zero_timestamp, tnow)
+
+        with self.assertRaises(Exception):
+            msg = base()
+            msg['cmd']= 'asd'
+            parser.parse_welcome(msg)
 
 if __name__ == '__main__':
     unittest.main()

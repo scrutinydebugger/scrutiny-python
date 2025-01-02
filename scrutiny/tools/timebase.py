@@ -8,11 +8,18 @@ class RelativeTimebase:
     _launch_dt:datetime
 
     def __init__(self) -> None:
-        self.set_zero()
+        self.set_zero_now()
 
-    def set_zero(self) -> None:
+    def set_zero_now(self) -> None:
         self._launch_ref_ns = time.perf_counter_ns()
         self._launch_dt = datetime.now()
+
+    def set_zero_to(self, timestamp:float) -> None:
+        self._launch_ref_ns = time.perf_counter_ns()
+        self._launch_dt = datetime.fromtimestamp(timestamp)
+
+    def get_zero_timestamp(self) -> float:
+        return self.milli_to_dt(0).timestamp()
 
     def get_nano(self) -> int:
         return time.perf_counter_ns() - self._launch_ref_ns

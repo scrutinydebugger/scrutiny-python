@@ -69,6 +69,7 @@ class TCPClientHandler(AbstractClientHandler):
     tx_msg_count:int
 
     def __init__(self, config: ClientHandlerConfig, rx_event:Optional[threading.Event]=None):
+        super().__init__(config, rx_event)
         if 'host' not in config:
             raise ValueError('Missing host in config')
         if 'port' not in config:
@@ -306,6 +307,11 @@ class TCPClientHandler(AbstractClientHandler):
             self.sock2id_map[sock] = conn_id
         
         self.logger.info(f"New client connected {sockaddr} (ID={conn_id}). {len(self.id2sock_map)} clients total")
+        
+        try:
+            self.new_conn_queue.put(conn_id)
+        except queue.Full:
+            self.logger.error(f"Failed to inform the API of the new connection {conn_id}. Queue full")
 
         return conn_id
     

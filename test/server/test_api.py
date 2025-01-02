@@ -374,6 +374,9 @@ class TestAPI(ScrutinyUnitTest):
         assert isinstance(client_handler, DummyClientHandler)
         client_handler.set_connections(self.connections)
         self.api.start_listening()
+        for i in range(len(self.connections)):
+            resp = self.wait_and_load_response(conn_idx=i)
+            self.assertEqual(resp['cmd'], API.Command.Api2Client.WELCOME)
 
     def tearDown(self):
         self.api.close()
@@ -384,10 +387,10 @@ class TestAPI(ScrutinyUnitTest):
         self.fake_datalogging_manager.process()
 
     def ensure_no_response_for(self, conn_idx=0, timeout=0.4):
-        t1 = time.time()
+        t1 = time.perf_counter()
         self.process_all()
         while not self.connections[conn_idx].from_server_available():
-            if time.time() - t1 >= timeout:
+            if time.perf_counter() - t1 >= timeout:
                 break
             self.process_all()
             time.sleep(0.01)
@@ -428,6 +431,15 @@ class TestAPI(ScrutinyUnitTest):
             self.assertEqual(response['cmd'], API.Command.Api2Client.ERROR_RESPONSE, msg)
         else:
             raise Exception('Missing cmd field in response')
+
+    def assert_is_response_command(self, resp, cmd):
+        self.assertIn('cmd', resp)
+        self.assertEqual(resp['cmd'], cmd)
+    
+    def wait_and_load_inform_server_status(self):
+        response = cast(api_typing.S2C.InformServerStatus, self.wait_and_load_response())
+        self.assert_is_response_command(response, API.Command.Api2Client.INFORM_SERVER_STATUS)
+        return response
 
     def make_dummy_entries(self, 
         n, 
@@ -1083,11 +1095,14 @@ class TestAPI(ScrutinyUnitTest):
         self.fake_device_handler.get_comm_link().initialize()   # Makes operational
         self.assertTrue(self.fake_device_handler.get_comm_link().operational())
         
+        self.wait_and_load_inform_server_status()   # ignore it. Triggered because of device status change
+
         req = {'cmd': 'get_device_info'}
         self.send_request(req, 0)
         response = cast(api_typing.S2C.GetDeviceInfo, self.wait_and_load_response())
         self.assert_no_error(response)
         
+        self.assertEqual(response['cmd'], 'response_get_device_info')
         self.assertIn('available', response)
         self.assertIn('device_info', response)
         self.assertTrue(response['available'])
@@ -1129,6 +1144,8 @@ class TestAPI(ScrutinyUnitTest):
 
     def test_get_server_status(self):
         self.fake_device_handler.set_datalogger_state(device_datalogging.DataloggerState.TRIGGERED)
+        self.wait_and_load_inform_server_status()   # Datalogger state change trigers a message
+
         
         dummy_sfd1_filename = get_artifact('test_sfd_1.sfd')
         dummy_sfd2_filename = get_artifact('test_sfd_2.sfd')
@@ -1139,8 +1156,10 @@ class TestAPI(ScrutinyUnitTest):
             self.sfd_handler.request_load_sfd(sfd2.get_firmware_id_ascii())
             self.sfd_handler.process()
             self.fake_device_handler.set_connection_status(DeviceHandler.ConnectionStatus.CONNECTED_READY)
+            self.wait_and_load_inform_server_status()   # Device state change trigers a message
             self.fake_device_handler.get_comm_link().initialize()   # Makes operational
             self.assertTrue(self.fake_device_handler.get_comm_link().operational())
+            self.wait_and_load_inform_server_status()   # comm channel availability change triggers a message
 
             req = {
                 'cmd': 'get_server_status'
@@ -1748,6 +1767,7 @@ class TestAPI(ScrutinyUnitTest):
     def test_get_device_info_datalogging(self):
         # Check that we can read the datalogging capabilities
         self.fake_device_handler.set_connection_status(DeviceHandler.ConnectionStatus.CONNECTED_READY)
+        self.wait_and_load_inform_server_status()
         req: api_typing.C2S.GetDeviceInfo = {
             'cmd': 'get_device_info'
         }
@@ -2016,8 +2036,8 @@ class TestAPI(ScrutinyUnitTest):
             self.send_request(req)
 
             timeout = 5
-            t = time.time()
-            while time.time() - t < timeout:
+            t = time.perf_counter()
+            while time.perf_counter() - t < timeout:
                 self.process_all()
                 if DataloggingStorage.count() != acq_count_before:
                     break
@@ -2078,9 +2098,9 @@ class TestAPI(ScrutinyUnitTest):
 
             db_init_count = DataloggingStorage.get_init_count()
             self.send_request(req)
-            t = time.time()
+            t = time.perf_counter()
             timeout = 5
-            while time.time() - t < timeout:
+            while time.perf_counter() - t < timeout:
                 self.process_all()
                 if DataloggingStorage.get_init_count() != db_init_count:
                     break
@@ -2183,6 +2203,7 @@ class TestAPI(ScrutinyUnitTest):
                 API.Command.Api2Client.INFORM_DATALOGGING_LIST_CHANGED,
                 API.Command.Api2Client.REQUEST_DATALOGGING_ACQUISITION_RESPONSE,
                 API.Command.Api2Client.INFORM_DATALOGGING_ACQUISITION_COMPLETE,
+                API.Command.Api2Client.INFORM_SERVER_STATUS,
             ])
 
             if response['cmd'] == API.Command.Api2Client.REQUEST_DATALOGGING_ACQUISITION_RESPONSE:

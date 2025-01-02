@@ -11,7 +11,7 @@ from scrutiny.server.api import typing as api_typing
 from scrutiny.core.basic_types import *
 import functools
 from typing import *
-from dataclasses import dataclass
+import time
 
 from test.integration.integration_test import ScrutinyIntegrationTestWithTestSFD1
 
@@ -72,12 +72,19 @@ class TestInterractWithDevice(ScrutinyIntegrationTestWithTestSFD1):
     def test_read_status(self):
         self.send_request({
             'cmd': API.Command.Client2Api.GET_SERVER_STATUS,
+            'reqid': 123
         })
-        response = self.wait_and_load_response(cmd=API.Command.Api2Client.INFORM_SERVER_STATUS)
-        self.assert_no_error(response)
+        timeout = 3
+        t = time.monotonic()
+        while time.monotonic()-t < timeout:
+            response = self.wait_and_load_response(cmd=API.Command.Api2Client.INFORM_SERVER_STATUS)
+            self.assert_no_error(response)
+            response = cast(api_typing.S2C.InformServerStatus, response)
+            
+            if response['reqid'] == 123:
+                break
 
-        response = cast(api_typing.S2C.InformServerStatus, response)
-
+        self.assertEqual(response['reqid'], 123)
         self.assertEqual(response['device_status'], 'connected_ready')
         self.assertEqual(response['device_session_id'], self.server.device_handler.get_comm_session_id())
 

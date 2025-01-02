@@ -359,7 +359,7 @@ class TestReadMemoryForbidden(ScrutinyIntegrationTestWithTestSFD1):
             'size': 8
         }
         self.send_request(read_cmd)
-        response = self.wait_and_load_response()
+        response = self.wait_and_load_response(cmd=API.Command.Api2Client.READ_MEMORY_RESPONSE)
         self.assert_no_error(response)
 
         request_token = response['request_token']

@@ -19,6 +19,7 @@ from base64 import b64encode, b64decode
 import binascii
 import threading
 
+from scrutiny.server.timebase import server_timebase
 from scrutiny.server.datalogging.datalogging_storage import DataloggingStorage
 from scrutiny.server.datalogging.datalogging_manager import DataloggingManager
 from scrutiny.server.datastore.datastore import Datastore
@@ -99,6 +100,7 @@ class API:
 
         class Api2Client:
             ECHO_RESPONSE = 'response_echo'
+            WELCOME = 'welcome'
             GET_WATCHABLE_LIST_RESPONSE = 'response_get_watchable_list'
             GET_WATCHABLE_COUNT_RESPONSE = 'response_get_watchable_count'
             SUBSCRIBE_WATCHABLE_RESPONSE = 'response_subscribe_watchable'
@@ -361,6 +363,7 @@ class API:
     def open_connection(self, conn_id: str) -> None:
         self.connections.add(conn_id)
         self.streamer.new_connection(conn_id)
+        self.send_welcome_message(conn_id)
 
     def close_connection(self, conn_id: str) -> None:
         self.datastore.stop_watching_all(conn_id)   # Removes this connection as a watcher from all entries
@@ -401,19 +404,21 @@ class API:
     # to be called periodically
     def process(self) -> None:
         self.client_handler.process()   # Get incoming requests
+
+        while not self.client_handler.new_conn_queue.empty():
+            conn_id = self.client_handler.new_conn_queue.get()
+            if self.is_new_connection(conn_id):
+                self.logger.debug('Opening connection %s' % conn_id)
+                self.open_connection(conn_id)
+
         while self.client_handler.available():
             popped = self.client_handler.recv()
-            if popped is not None:
-                conn_id = popped.conn_id
-                obj = cast(api_typing.C2SMessage, popped.obj)
-
-                if self.is_new_connection(conn_id):
-                    self.logger.debug('Opening connection %s' % conn_id)
-                    self.open_connection(conn_id)
-
-                self.process_request(conn_id, obj)
-            else:
+            if popped is None:
                 self.logger.critical("Received an empty message, ignoring")
+                continue
+            conn_id = popped.conn_id
+            obj = cast(api_typing.C2SMessage, popped.obj)
+            self.process_request(conn_id, obj)
 
         # Close  dead connections
         conn_to_close = [conn_id for conn_id in self.connections if not self.client_handler.is_connection_active(conn_id)]
@@ -481,6 +486,15 @@ class API:
             'payload': req['payload']
         }
         self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
+
+    # === WELCOME ==== 
+    def send_welcome_message(self, conn_id:str) -> None:
+        welcome:api_typing.S2C.Welcome = {
+            'cmd' : API.Command.Api2Client.WELCOME,
+            'reqid' : None,
+            'server_time_zero_timestamp' : server_timebase.get_zero_timestamp()
+        }
+        self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=welcome))
 
     #  ===  GET_WATCHABLE_LIST     ===
     def process_get_watchable_list(self, conn_id: str, req: api_typing.C2S.GetWatchableList) -> None:

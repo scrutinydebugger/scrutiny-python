@@ -69,9 +69,9 @@ class TestDummyConnectionHandler(ScrutinyUnitTest):
         self.handler.start()
 
     def wait_handler_recv(self, timeout=0.4):
-        t1 = time.time()
+        t1 = time.monotonic()
         while not self.handler.available():
-            if time.time() - t1 >= timeout:
+            if time.monotonic() - t1 >= timeout:
                 break
             time.sleep(0.01)
 
@@ -79,9 +79,9 @@ class TestDummyConnectionHandler(ScrutinyUnitTest):
             return self.handler.recv()
 
     def wait_conn_recv_from_server(self, conn, timeout=0.4):
-        t1 = time.time()
+        t1 = time.monotonic()
         while not conn.from_server_available():
-            if time.time() - t1 >= timeout:
+            if time.monotonic() - t1 >= timeout:
                 break
             time.sleep(0.01)
 

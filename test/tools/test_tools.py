@@ -25,15 +25,15 @@ class TestThrottler(ScrutinyUnitTest):
         throttler.enable()
 
         runtime = 5
-        tstart = time.time()
+        tstart = time.perf_counter()
         time_axis = []
         data_axis = []
         write_chunk = bitrate / 30    # Keep smaller than 60 because of thread resolution of 16ms
-        while time.time() - tstart < runtime:
+        while time.perf_counter() - tstart < runtime:
             throttler.process()
             if throttler.allowed(write_chunk):
                 throttler.consume_bandwidth(write_chunk)
-                time_axis.append(time.time())
+                time_axis.append(time.perf_counter())
                 data_axis.append(write_chunk)
             time.sleep(0.001)
 
@@ -193,7 +193,7 @@ class TestRelativeTimebase(ScrutinyUnitTest):
         self.assertLess(tb.get_sec(), 0.5)
 
         for i in range (3):
-            tb.set_zero()
+            tb.set_zero_now()
             now = datetime.now()
             self.assertLess(tb.get_nano(), 0.5e9)
             self.assertLess(tb.get_micro(), 0.5e6)
