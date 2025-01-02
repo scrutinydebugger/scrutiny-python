@@ -129,6 +129,11 @@ class DataloggingOperand(TypedDict):
     type: Literal['literal', 'watchable']
     value: Union[float, str]
 
+class WatchableUpdateRecord(TypedDict):
+    # We want compact key names to save some bandwidth
+    id:str
+    t:float
+    v:Union[bool, float, int]
 
 
 
@@ -319,7 +324,7 @@ class S2C:
         unsubscribed: List[str]
 
     class WatchableUpdate(BaseS2CMessage):
-        updates: List[Dict[str, Any]]
+        updates: List[WatchableUpdateRecord]
 
     GetPossibleLinkConfig = Dict[Any, Any]  # TODO
 
@@ -332,7 +337,7 @@ class S2C:
         watchable: str
         success: bool
         request_token: str
-        timestamp: float
+        completion_server_time_us:float
 
     class RequestDataloggingAcquisition(BaseS2CMessage):
         request_token: str
@@ -374,6 +379,7 @@ class S2C:
         request_token: str
         success: bool
         data: Optional[str]
+        completion_server_time_us:float
         detail_msg: Optional[str]
 
     class WriteMemory(BaseS2CMessage):
@@ -382,6 +388,7 @@ class S2C:
     class WriteMemoryComplete(BaseS2CMessage):
         request_token: str
         success: bool
+        completion_server_time_us:float
         detail_msg: Optional[str]
 
     class UserCommand(BaseS2CMessage):

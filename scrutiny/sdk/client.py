@@ -29,6 +29,7 @@ from scrutiny.tools.profiling import VariableRateExponentialAverager
 from scrutiny import tools
 from scrutiny.tools.timebase import RelativeTimebase
 import selectors
+from datetime import datetime
 
 import logging
 from scrutiny.core.logging import DUMPDATA_LOGLEVEL
@@ -656,8 +657,9 @@ class ScrutinyClient:
             else:
                 if self._logger.isEnabledFor(DUMPDATA_LOGLEVEL):   # prgama: no cover
                     self._logger.log(DUMPDATA_LOGLEVEL, f"Updating value of {update.server_id} ({watchable.name})")
-
-            watchable._update_value(update.value)
+            
+            update_dt = self._server_timebase.micro_to_dt(update.server_time_us)
+            watchable._update_value(update.value, timestamp=update_dt)
             updated_watchables.append(watchable)
         
         for listener in self._listeners:
@@ -677,9 +679,9 @@ class ScrutinyClient:
         write_request = batch_write.update_dict[completion.batch_index]
         if completion.success:
             write_request._watchable._set_last_write_datetime()
-            write_request._mark_complete(True)
+            write_request._mark_complete(True, server_time_us=completion.server_time_us)
         else:
-            write_request._mark_complete(False, "Server failed to write to the device")
+            write_request._mark_complete(False, "Server failed to write to the device", server_time_us=completion.server_time_us)
         del batch_write.update_dict[completion.batch_index]
 
     def _wt_process_msg_inform_memory_read_complete(self, msg: api_typing.S2C.ReadMemoryComplete, reqid: Optional[int]) -> None:
@@ -768,11 +770,11 @@ class ScrutinyClient:
     def _check_deferred_response_timeouts(self) -> None:
         with self._main_lock:
             for kstr in list(self._memory_read_completion_dict.keys()):
-                if time.monotonic() - self._memory_read_completion_dict[kstr].monotonic_timestamp > self._MEMORY_READ_DATA_LIFETIME:
+                if time.monotonic() - self._memory_read_completion_dict[kstr].local_monotonic_timestamp > self._MEMORY_READ_DATA_LIFETIME:
                     del self._memory_read_completion_dict[kstr]
 
             for kstr in list(self._memory_write_completion_dict.keys()):
-                if time.monotonic() - self._memory_write_completion_dict[kstr].monotonic_timestamp > self._MEMORY_WRITE_DATA_LIFETIME:
+                if time.monotonic() - self._memory_write_completion_dict[kstr].local_monotonic_timestamp > self._MEMORY_WRITE_DATA_LIFETIME:
                     del self._memory_write_completion_dict[kstr]
             
             for kint in list(self._pending_watchable_download_request.keys()):
@@ -937,7 +939,7 @@ class ScrutinyClient:
                     self._pending_api_batch_writes[confirmation.request_token] = PendingAPIBatchWrite(
                         update_dict=batch_dict,
                         confirmation=confirmation,
-                        creation_perf_timestamp=time.perf_counter(),
+                        creation_perf_timestamp=time.perf_counter(),    # Used to prune the dict if no response after X time
                         timeout=batch_timeout
                     )
             else:

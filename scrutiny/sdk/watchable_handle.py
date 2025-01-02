@@ -39,7 +39,7 @@ class WatchableHandle:
     _status: ValueStatus            # Status of the value. Tells if the value is valid or not and why it is invalid if not
 
     _value: Optional[ValType]       # Contain the latest value gotten by the client
-    _last_value_dt: Optional[datetime]  # Datetime of the last value update by the client
+    _last_value_dt: Optional[datetime]              # Datetime of the last value update by the client
     _last_write_dt: Optional[datetime]  # Datetime of the last completed write on this element
     _update_counter: int    # A counter that gets incremented each time the value is updated
 
@@ -74,13 +74,13 @@ class WatchableHandle:
         with self._lock:
             self._last_write_dt = dt
 
-    def _update_value(self, val: ValType) -> None:
+    def _update_value(self, val: ValType, timestamp:Optional[datetime]=None) -> None:
         with self._lock:
             if self._status != ValueStatus.ServerGone:
                 self._status = ValueStatus.Valid
                 self._value = val
-                self._last_value_dt = datetime.now()
-                self._update_counter += 1   # unbounded in size in python 3
+                self._last_value_dt = timestamp if timestamp is not None else datetime.now()
+                self._update_counter += 1   # unbound in size in python 3
             else:
                 self._value = None
 

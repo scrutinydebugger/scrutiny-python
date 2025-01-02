@@ -106,7 +106,7 @@ class UpdateTargetRequest:
         """Returns True if this request completed with a success. None if incomplete"""
         return self.success
 
-    def get_completion_timestamp(self) -> Optional[float]:
+    def get_completion_server_time_us(self) -> Optional[float]:
         """Returns the timestamp at which the request has been completed. None if incomplete"""
         return self.completion_server_time_us
 
@@ -221,7 +221,7 @@ class DatastoreEntry(abc.ABC):
         self.last_value_update_server_time_us = server_timebase.get_micro()
         self.execute_value_change_callback()
 
-    def get_value_change_timestamp(self) -> float:
+    def get_value_change_server_time_us(self) -> float:
         """Returns the timestamp of the last value update made to this entry """
         return self.last_value_update_server_time_us
 

@@ -27,7 +27,7 @@ from scrutiny.core.basic_types import MemoryRegion
 
 from typing import cast, Set, List, Any, Optional, Callable, Tuple, Dict
 
-RawMemoryReadRequestCompletionCallback = Callable[["RawMemoryReadRequest", bool, Optional[bytes], str], None]
+RawMemoryReadRequestCompletionCallback = Callable[["RawMemoryReadRequest", bool, float, Optional[bytes], str], None]
 
 class RawMemoryReadRequest:
     address: int
@@ -50,7 +50,7 @@ class RawMemoryReadRequest:
         self.success = success
         self.completion_server_time_us = server_timebase.get_micro()
         if self.completion_callback is not None:
-            self.completion_callback(self, success, data, failure_reason)
+            self.completion_callback(self, success, self.completion_server_time_us, data, failure_reason)
 
 
 class DataStoreEntrySortableByAddress:

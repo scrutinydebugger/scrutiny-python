@@ -385,7 +385,7 @@ class API:
             msg: api_typing.S2C.WatchableUpdate = {
                 'cmd': self.Command.Api2Client.WATCHABLE_UPDATE,
                 'reqid': None,
-                'updates': [dict(id=x.get_id(), value=x.get_value()) for x in chunk]
+                'updates': [dict(id=x.get_id(), v=x.get_value(), t=x.get_value_change_server_time_us()) for x in chunk]
             }
 
             self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=msg))
@@ -1026,7 +1026,9 @@ class API:
             raise InvalidRequestException(req, '"size" field is not valid')
 
         request_token = uuid4().hex
-        callback = functools.partial(self.read_raw_memory_callback, request_token=request_token, conn_id=conn_id)
+        closure_data = dict(request_token=request_token, conn_id=conn_id)
+        def callback(request: RawMemoryReadRequest, success: bool, completion_server_time_us:float, data: Optional[bytes], error: str) -> None:
+            self.read_raw_memory_callback(request, success, completion_server_time_us, data, error, **closure_data)
 
         self.device_handler.read_memory(req['address'], req['size'], callback=callback)
 
@@ -1063,7 +1065,9 @@ class API:
             raise InvalidRequestException(req, '"data" field is not valid')
 
         request_token = uuid4().hex
-        callback = functools.partial(self.write_raw_memory_callback, request_token=request_token, conn_id=conn_id)
+        closure_data = dict(request_token=request_token, conn_id=conn_id)
+        def callback(request: RawMemoryWriteRequest, success: bool, completion_server_time_us:float, error: str) -> None:
+            self.write_raw_memory_callback(request, success, completion_server_time_us, error, **closure_data)
 
         self.device_handler.write_memory(req['address'], data, callback=callback)
 
@@ -1112,7 +1116,15 @@ class API:
             assert error is not None
             self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=self.make_error_response(req, error)))
 
-    def read_raw_memory_callback(self, request: RawMemoryReadRequest, success: bool, data: Optional[bytes], error: str, conn_id: str, request_token: str) -> None:
+    def read_raw_memory_callback(self, 
+                                 request: RawMemoryReadRequest, 
+                                 success: bool, 
+                                 completion_server_time_us:float,
+                                 data: Optional[bytes], 
+                                 error: str, 
+                                 conn_id: str, 
+                                 request_token: str
+                                 ) -> None:
         data_out: Optional[str] = None
         if data is not None and success:
             data_out = b64encode(data).decode('ascii')
@@ -1124,16 +1136,25 @@ class API:
             'success': success,
             'data': data_out,
             'detail_msg': error if success == False else None,
+            'completion_server_time_us' : completion_server_time_us
         }
 
         self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
 
-    def write_raw_memory_callback(self, request: RawMemoryWriteRequest, success: bool, error: str, conn_id: str, request_token: str) -> None:
+    def write_raw_memory_callback(self, 
+                                  request: RawMemoryWriteRequest, 
+                                  success: bool, 
+                                  completion_server_time_us:float,
+                                  error: str, 
+                                  conn_id: str, 
+                                  request_token: str
+                                  ) -> None:
         response: api_typing.S2C.WriteMemoryComplete = {
             'cmd': self.Command.Api2Client.INFORM_MEMORY_WRITE_COMPLETE,
             'reqid': None,
             'request_token': request_token,
             'success': success,
+            'completion_server_time_us': completion_server_time_us,
             'detail_msg': error if success == False else None,
         }
 
@@ -1693,7 +1714,12 @@ class API:
         self.streamer.publish(datastore_entry, conn_id)
         self.stream_all_we_can()
 
-    def entry_target_update_callback(self, request_token: str, batch_index: int, success: bool, datastore_entry: DatastoreEntry, timestamp: float) -> None:
+    def entry_target_update_callback(self, 
+                                     request_token: str, 
+                                     batch_index: int, 
+                                     success: bool, 
+                                     datastore_entry: DatastoreEntry, 
+                                     completion_server_time_us: float) -> None:
         # This callback is given to the datastore when we make a write request (target update request)
         # It will be called once the request is completed.
         watchers = self.datastore.get_watchers(datastore_entry)
@@ -1705,7 +1731,7 @@ class API:
             'request_token': request_token,
             'batch_index': batch_index,
             'success': success,
-            'timestamp': timestamp
+            'completion_server_time_us': completion_server_time_us
         }
 
         for watcher_conn_id in watchers:

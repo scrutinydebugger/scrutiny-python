@@ -31,6 +31,7 @@ class WelcomeData:
 class WatchableUpdate:
     server_id: str
     value: Union[bool, int, float]
+    server_time_us:float
 
 
 @dataclass(frozen=True)
@@ -38,7 +39,7 @@ class WriteCompletion:
     request_token: str
     watchable: str
     success: bool
-    timestamp: datetime
+    server_time_us:float
     batch_index: int
 
 
@@ -54,8 +55,8 @@ class MemoryReadCompletion:
     success: bool
     data: Optional[bytes]
     error: str
-    timestamp: float
-    monotonic_timestamp: float
+    server_time_us: float
+    local_monotonic_timestamp: float
 
 
 @dataclass(frozen=True)
@@ -63,8 +64,8 @@ class MemoryWriteCompletion:
     request_token: str
     success: bool
     error: str
-    timestamp: float
-    monotonic_timestamp: float
+    server_time_us: float
+    local_monotonic_timestamp: float
 
 
 @dataclass(frozen=True)
@@ -627,10 +628,12 @@ def parse_watchable_update(response: api_typing.S2C.WatchableUpdate) -> List[Wat
 
     for element in response['updates']:
         _check_response_dict(cmd, element, 'id', str)
-        _check_response_dict(cmd, element, 'value', [float, int, bool])
+        _check_response_dict(cmd, element, 'v', (float, int, bool))
+        _check_response_dict(cmd, element, 't', (float, int))
         outlist.append(WatchableUpdate(
             server_id=element['id'],
-            value=element['value'],
+            value=element['v'],
+            server_time_us=float(element['t'])
         ))
 
     return outlist
@@ -660,14 +663,14 @@ def parse_write_completion(response: api_typing.S2C.WriteCompletion) -> WriteCom
     _check_response_dict(cmd, response, 'watchable', str)
     _check_response_dict(cmd, response, 'success', bool)
     _check_response_dict(cmd, response, 'request_token', str)
-    _check_response_dict(cmd, response, 'timestamp', float)
+    _check_response_dict(cmd, response, 'completion_server_time_us', (float, int))
     _check_response_dict(cmd, response, 'batch_index', int)
 
     return WriteCompletion(
         request_token=response['request_token'],
         watchable=response['watchable'],
         success=response['success'],
-        timestamp=datetime.fromtimestamp(response['timestamp']),
+        server_time_us=float(response['completion_server_time_us']),
         batch_index=response['batch_index']
     )
 
@@ -711,15 +714,18 @@ def parse_memory_read_completion(response: api_typing.S2C.ReadMemoryComplete) ->
 
     _check_response_dict(cmd, response, 'request_token', str)
     _check_response_dict(cmd, response, 'success', bool)
+    _check_response_dict(cmd, response, 'completion_server_time_us', (float, int))
     success = _fetch_dict_val_no_none(response, 'success', bool, False)
     data_bin: Optional[bytes] = None
     if success:
+        _check_response_dict(cmd, response, 'data', str)
         data = _fetch_dict_val_no_none(response, 'data', str, "")
         try:
             data_bin = b64decode(data, validate=True)
         except binascii.Error as e:
             raise sdk.exceptions.BadResponseError(f"Server returned a invalid base64 data block. {e}")
-
+    
+    _check_response_dict(cmd, response, 'detail_msg', (str, type(None)) )
     detail_msg = _fetch_dict_val(response, 'detail_msg', str, "")
 
     return MemoryReadCompletion(
@@ -727,8 +733,8 @@ def parse_memory_read_completion(response: api_typing.S2C.ReadMemoryComplete) ->
         success=success,
         data=data_bin,
         error=detail_msg if detail_msg is not None else "",
-        timestamp=time.time(),  # TODO : SERVER TIME
-        monotonic_timestamp = time.monotonic()
+        server_time_us=float(response['completion_server_time_us']),
+        local_monotonic_timestamp= time.monotonic()
     )
 
 
@@ -740,14 +746,16 @@ def parse_memory_write_completion(response: api_typing.S2C.WriteMemoryComplete) 
 
     _check_response_dict(cmd, response, 'request_token', str)
     _check_response_dict(cmd, response, 'success', bool)
+    _check_response_dict(cmd, response, 'completion_server_time_us', (float, int))
+    _check_response_dict(cmd, response, 'detail_msg', (str, type(None)))
     detail_msg = _fetch_dict_val(response, 'detail_msg', str, "")
 
     return MemoryWriteCompletion(
         request_token=_fetch_dict_val_no_none(response, 'request_token', str, ""),
         success=_fetch_dict_val_no_none(response, 'success', bool, False),
         error=detail_msg if detail_msg is not None else "",
-        timestamp=time.time(),  # TODO : SERVER TIME
-        monotonic_timestamp=time.monotonic()
+        server_time_us=float(response['completion_server_time_us']),
+        local_monotonic_timestamp=time.monotonic()
     )
 
 

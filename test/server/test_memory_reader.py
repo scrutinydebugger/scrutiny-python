@@ -458,12 +458,14 @@ class TestRawMemoryRead(ScrutinyUnitTest):
     class CallbackDataContainer:
         call_count: int = 0
         success: Optional[bool] = None
+        server_time_us: Optional[float] = None
         data: Optional[bytes] = None
         error: Optional[str] = None
 
-    def the_callback(self, request, success, data, error, container: CallbackDataContainer,):
+    def the_callback(self, request, success, server_time_us, data, error, container: CallbackDataContainer,):
         container.call_count += 1
         container.success = success
+        container.server_time_us = server_time_us
         container.data = data
         container.error = error
 
@@ -505,6 +507,7 @@ class TestRawMemoryRead(ScrutinyUnitTest):
             else:
                 self.assertEqual(callback_data.call_count, 1)
                 self.assertTrue(callback_data.success)
+                self.assertIsInstance(callback_data.server_time_us, float)
                 self.assertEqual(callback_data.data, payload)
                 self.assertIsNotNone(callback_data.error)
 
@@ -539,6 +542,7 @@ class TestRawMemoryRead(ScrutinyUnitTest):
                 record.complete(False)
                 self.assertEqual(callback_data.call_count, 1)
                 self.assertFalse(callback_data.success)     # Failure detection
+                self.assertIsInstance(callback_data.server_time_us, float)
                 self.assertIsNone(callback_data.data)
                 self.assertIsNotNone(callback_data.error)
                 self.assertGreater(len(callback_data.error), 0)
@@ -575,6 +579,7 @@ class TestRawMemoryRead(ScrutinyUnitTest):
                 record.complete(True, response)
                 self.assertEqual(callback_data.call_count, 1)
                 self.assertFalse(callback_data.success)     # Failure detection
+                self.assertIsInstance(callback_data.server_time_us, float)
                 self.assertIsNone(callback_data.data)
                 self.assertIsNotNone(callback_data.error)
                 self.assertGreater(len(callback_data.error), 0)
@@ -640,6 +645,7 @@ class TestRawMemoryRead(ScrutinyUnitTest):
                 else:
                     self.assertEqual(callback_data.call_count, msg + 1)
                     self.assertTrue(callback_data.success)
+                    self.assertIsInstance(callback_data.server_time_us, float)
                     self.assertEqual(callback_data.data, payload)
                     self.assertIsNotNone(callback_data.error)
 
@@ -908,12 +914,14 @@ class TestAllTypesOfReadMixed(ScrutinyUnitTest):
     class CallbackDataContainer:
         call_count: int = 0
         success: Optional[bool] = None
+        server_time_us: Optional[bool] = None
         data: Optional[bytes] = None
         error: Optional[str] = None
 
-    def raw_read_callback(self, request, success, data, error, container: CallbackDataContainer,):
+    def raw_read_callback(self, request, success, server_time_us, data, error, container: CallbackDataContainer,):
         container.call_count += 1
         container.success = success
+        container.server_time_us = server_time_us
         container.data = data
         container.error = error
 
@@ -1034,9 +1042,10 @@ class TestAllTypesOfReadMixed(ScrutinyUnitTest):
 
             self.assert_round_robin()
 
-        # Ake sure that our read has been executed in through all these requests
+        # Make sure that our read has been executed in through all these requests
         self.assertEqual(raw_read_data_container.call_count, 1)
         self.assertTrue(raw_read_data_container.success, 1)
+        self.assertIsInstance(raw_read_data_container.server_time_us, float)
         self.assertEqual(len(raw_read_data_container.data), raw_read_request_size)
 
 

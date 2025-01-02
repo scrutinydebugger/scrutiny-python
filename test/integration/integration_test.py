@@ -224,8 +224,9 @@ class ScrutinyIntegrationTest(ScrutinyUnitTest):
             self.assertIn('updates', response)
             for update in response['updates']:
                 self.assertIn('id', update)
-                self.assertIn('value', update)
-                self.client_entry_values[update['id']] = update['value']
+                self.assertIn('v', update)
+                self.assertIn('t', update)
+                self.client_entry_values[update['id']] = update['v']
 
     def assert_value_received(self, entry: DatastoreEntry, value: Any, msg=""):
         id = entry.get_id()
@@ -259,7 +260,7 @@ class ScrutinyIntegrationTest(ScrutinyUnitTest):
 
         self.assertEqual(len(expected_list), len(response['updates']))
         ids = [update['id'] for update in response['updates']]
-        value = [update['value'] for update in response['updates']]
+        value = [update['v'] for update in response['updates']]
         valdict = dict(zip(ids, value))
 
         for expected in expected_list:

@@ -575,11 +575,13 @@ class TestRawMemoryWrite(ScrutinyUnitTest):
     class CallbackDataContainer:
         call_count: int = 0
         success: Optional[bool] = None
+        server_time_us: Optional[float] = None
         error: Optional[str] = None
 
-    def the_callback(self, request, success, error, container: CallbackDataContainer):
+    def the_callback(self, request, success, server_time_us, error, container: CallbackDataContainer):
         container.call_count += 1
         container.success = success
+        container.server_time_us = server_time_us
         container.error = error
 
     def setUp(self):
@@ -621,6 +623,7 @@ class TestRawMemoryWrite(ScrutinyUnitTest):
             else:
                 self.assertEqual(callback_data.call_count, 1)
                 self.assertTrue(callback_data.success)
+                self.assertIsInstance(callback_data.server_time_us, float)
                 self.assertIsNotNone(callback_data.error)
 
     def test_write_failure(self):
@@ -653,6 +656,7 @@ class TestRawMemoryWrite(ScrutinyUnitTest):
                 record.complete(False)
                 self.assertEqual(callback_data.call_count, 1)
                 self.assertFalse(callback_data.success)     # Failure detection
+                self.assertIsInstance(callback_data.server_time_us, float)
                 self.assertIsNotNone(callback_data.error)
                 self.assertGreater(len(callback_data.error), 0)
 
@@ -687,6 +691,7 @@ class TestRawMemoryWrite(ScrutinyUnitTest):
                 record.complete(True, response)
                 self.assertEqual(callback_data.call_count, 1)
                 self.assertFalse(callback_data.success)     # Failure detection
+                self.assertIsInstance(callback_data.server_time_us, float)
                 self.assertIsNotNone(callback_data.error)
                 self.assertGreater(len(callback_data.error), 0)
 
@@ -704,6 +709,7 @@ class TestRawMemoryWrite(ScrutinyUnitTest):
         self.writer.process()
         self.assertEqual(callback_data.call_count, 1)
         self.assertFalse(callback_data.success)     # Failure detection
+        self.assertIsInstance(callback_data.server_time_us, float)
         self.assertIsNotNone(callback_data.error)
         self.assertGreater(len(callback_data.error), 0)
 
@@ -721,6 +727,7 @@ class TestRawMemoryWrite(ScrutinyUnitTest):
         self.writer.process()
         self.assertEqual(callback_data.call_count, 1)
         self.assertFalse(callback_data.success)     # Failure detection
+        self.assertIsInstance(callback_data.server_time_us, float)
         self.assertIsNotNone(callback_data.error)
         self.assertGreater(len(callback_data.error), 0)
 
@@ -770,6 +777,7 @@ class TestRawMemoryWrite(ScrutinyUnitTest):
                 else:
                     self.assertEqual(callback_data.call_count, msg + 1)
                     self.assertTrue(callback_data.success)
+                    self.assertIsInstance(callback_data.server_time_us, float)
                     self.assertIsNotNone(callback_data.error)
 
 

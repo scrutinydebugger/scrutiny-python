@@ -850,7 +850,8 @@ class TestAPI(ScrutinyUnitTest):
 
         for update in msg['updates']:
             self.assertIn('id', update)
-            self.assertIn('value', update)
+            self.assertIn('v', update)
+            self.assertIn('t', update)
 
     def test_subscribe_single_var(self):
         entries = self.make_dummy_entries(10, entry_type=EntryType.Var, prefix='var')
@@ -890,7 +891,7 @@ class TestAPI(ScrutinyUnitTest):
         update = var_update_msg['updates'][0]
 
         self.assertEqual(update['id'], subscribed_entry.get_id())
-        self.assertEqual(update['value'], 1234)
+        self.assertEqual(update['v'], 1234)
 
     def test_subscribe_single_var_get_enum(self):
         subscribed_entry = self.make_dummy_entries(1, entry_type=EntryType.Var, prefix='var', enum_dict={'a':1, 'b':2, 'c':3})[0]
@@ -1397,16 +1398,16 @@ class TestAPI(ScrutinyUnitTest):
             self.assertIn('watchable', response, 'i=%d' % i)
             self.assertIn('success', response, 'i=%d' % i)
             self.assertIn('request_token', response, 'i=%d' % i)
-            self.assertIn('timestamp', response, 'i=%d' % i)
+            self.assertIn('completion_server_time_us', response, 'i=%d' % i)
 
             if response['watchable'] == subscribed_entry1.get_id():
                 self.assertEqual(response['success'], True, 'i=%d' % i)
                 self.assertEqual(response['request_token'], request_token, 'i=%d' % i)
-                self.assertEqual(response['timestamp'], req1.get_completion_timestamp(), 'i=%d' % i)
+                self.assertEqual(response['completion_server_time_us'], req1.get_completion_server_time_us(), 'i=%d' % i)
             elif response['watchable'] == subscribed_entry2.get_id():
                 self.assertEqual(response['success'], False, 'i=%d' % i)
                 self.assertEqual(response['request_token'], request_token, 'i=%d' % i)
-                self.assertEqual(response['timestamp'], req2.get_completion_timestamp(), 'i=%d' % i)
+                self.assertEqual(response['completion_server_time_us'], req2.get_completion_server_time_us(), 'i=%d' % i)
 
     def test_subscribe_watchable_bad_ID(self):
         req = {
@@ -1577,16 +1578,18 @@ class TestAPI(ScrutinyUnitTest):
         self.assertEqual(read_request.size, read_size)
         self.assertIsNotNone(read_request.completion_callback)
         payload = bytes([random.randint(0, 255) for x in range(read_request.size)])
-        read_request.completion_callback(read_request, True, payload, "")
+        read_request.completion_callback(read_request, True, 1234.2, payload, "")
 
         response = cast(api_typing.S2C.ReadMemoryComplete, self.wait_and_load_response())
         self.assertIn('request_token', response)
         self.assertIn('data', response)
         self.assertIn('success', response)
         self.assertIn('request_token', response)
+        self.assertIn('completion_server_time_us', response)
         self.assertEqual(response['cmd'], "inform_memory_read_complete")
         self.assertEqual(response['request_token'], request_token)
         self.assertEqual(response['success'], True)
+        self.assertEqual(response['completion_server_time_us'], 1234.2)
         self.assertEqual(response['data'], b64encode(payload).decode('ascii'))
 
     def test_read_memory_failure(self):
@@ -1613,16 +1616,18 @@ class TestAPI(ScrutinyUnitTest):
         self.assertEqual(read_request.size, read_size)
         self.assertIsNotNone(read_request.completion_callback)
 
-        read_request.completion_callback(read_request, False, None, "")  # Simulate failure
+        read_request.completion_callback(read_request, False, 1234.2, None, "")  # Simulate failure
 
         response = cast(api_typing.S2C.ReadMemoryComplete, self.wait_and_load_response())
         self.assertIn('request_token', response)
         self.assertIn('data', response)
         self.assertIn('success', response)
         self.assertIn('request_token', response)
+        self.assertIn('completion_server_time_us', response)
         self.assertEqual(response['cmd'], "inform_memory_read_complete")
         self.assertEqual(response['request_token'], request_token)
         self.assertEqual(response['success'], False)
+        self.assertEqual(response['completion_server_time_us'], 1234.2)
         self.assertIsNone(response['data'])
 
     def test_read_memory_bad_values(self):
@@ -1682,15 +1687,17 @@ class TestAPI(ScrutinyUnitTest):
         self.assertEqual(write_request.address, write_address)
         self.assertEqual(write_request.data, payload)
         self.assertIsNotNone(write_request.completion_callback)
-        write_request.completion_callback(write_request, True, "")
+        write_request.completion_callback(write_request, True, 3.14159, "")
 
         response = cast(api_typing.S2C.WriteMemoryComplete, self.wait_and_load_response())
         self.assertIn('request_token', response)
         self.assertIn('success', response)
+        self.assertIn('completion_server_time_us', response)
         self.assertIn('request_token', response)
         self.assertEqual(response['cmd'], "inform_memory_write_complete")
         self.assertEqual(response['request_token'], request_token)
         self.assertEqual(response['success'], True)
+        self.assertEqual(response['completion_server_time_us'], 3.14159)
 
     def test_write_memory_failure(self):
         payload = bytes([random.randint(0, 255) for i in range(256)])
@@ -1716,15 +1723,17 @@ class TestAPI(ScrutinyUnitTest):
         self.assertEqual(write_request.data, payload)
         self.assertIsNotNone(write_request.completion_callback)
 
-        write_request.completion_callback(write_request, False, "")  # Simulate failure
+        write_request.completion_callback(write_request, False, 3.14159, "")  # Simulate failure
 
         response = cast(api_typing.S2C.WriteMemoryComplete, self.wait_and_load_response())
         self.assertIn('request_token', response)
         self.assertIn('success', response)
         self.assertIn('request_token', response)
+        self.assertIn('completion_server_time_us', response)
         self.assertEqual(response['cmd'], "inform_memory_write_complete")
         self.assertEqual(response['request_token'], request_token)
         self.assertEqual(response['success'], False)
+        self.assertEqual(response['completion_server_time_us'], 3.14159)
 
     def test_write_memory_bad_values(self):
         self.send_request({

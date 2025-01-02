@@ -24,7 +24,7 @@ import queue
 from typing import Any, List, Optional, cast, Callable
 
 
-RawMemoryWriteRequestCompletionCallback = Callable[["RawMemoryWriteRequest", bool, str], None]
+RawMemoryWriteRequestCompletionCallback = Callable[["RawMemoryWriteRequest", bool, float, str], None]
 
 class RawMemoryWriteRequest:
     address: int
@@ -47,7 +47,7 @@ class RawMemoryWriteRequest:
         self.success = success
         self.completion_server_time_us = server_timebase.get_micro()
         if self.completion_callback is not None:
-            self.completion_callback(self, success, failure_reason)
+            self.completion_callback(self, success, self.completion_server_time_us, failure_reason)
 
 
 class MemoryWriter:

@@ -351,12 +351,12 @@ class DataloggingRequest(PendingRequest):
                        success: bool, 
                        reference_id: Optional[str], 
                        failure_reason: str = "", 
-                       timestamp: Optional[datetime] = None) -> None:
+                       server_time_us: Optional[float] = None) -> None:
         # Put a request in "completed" state. Expected to be called by the client worker thread
         if success:
             assert reference_id is not None
         self._acquisition_reference_id = reference_id
-        super()._mark_complete(success, failure_reason, timestamp)
+        super()._mark_complete(success, failure_reason, server_time_us)
 
     def wait_for_completion(self, timeout: Optional[float] = None) -> None:
         """Wait for the acquisition to be triggered and extracted by the server. Once this is done, 
