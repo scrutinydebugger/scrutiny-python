@@ -131,6 +131,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         self._yaxes.clear()
         self._chart_has_content = False
         self._chartview.allow_save_img(False)
+        self._chartview.allow_save_csv(False)
         self._first_val_dt = None
     
     def stop_acquisition(self) -> None:
@@ -213,9 +214,11 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         if self._chart_has_content and not self._acquiring:
             self._btn_clear.setEnabled(True)
             self._chartview.allow_save_img(True)
+            self._chartview.allow_save_csv(True)
         else:
             self._btn_clear.setDisabled(True)
             self._chartview.allow_save_img(False)
+            self._chartview.allow_save_csv(False)
 
 
     def watcher_id(self) -> str:

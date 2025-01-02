@@ -62,3 +62,5 @@ class Icons:
     GraphAxis = "axis-16x16.png"
     Show = "show-16x16.png"
     Hide = "hide-16x16.png"
+    Picture = "picture-16x16.png"
+    CSV = "csv-16x16.png"

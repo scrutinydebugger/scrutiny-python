@@ -1,3 +1,11 @@
+#    timebase.py
+#        A generic timebase object that can be used to follow relative time interval and map
+#        them to real datetime
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021 Scrutiny Debugger
 
 import time
 from datetime import datetime, timedelta
@@ -34,15 +42,19 @@ class RelativeTimebase:
         return float(self.get_nano())/1000000000.0
 
     def sec_to_dt(self, sec:Union[float, int]) -> datetime:
+        # We lose fractions of microseconds here.
         return self._launch_dt + timedelta(seconds=float(sec))
 
     def milli_to_dt(self, milli:Union[float, int]) -> datetime:
+        # We lose fractions of microseconds here.
         return self._launch_dt + timedelta(milliseconds=float(milli))
     
     def micro_to_dt(self, micro:Union[float, int]) -> datetime:
+        # We lose fractions of microseconds here.
         return self._launch_dt + timedelta(milliseconds=float(micro)/1000.0)
     
     def nano_to_dt(self, nano:Union[float, int]) -> datetime:
+        # We lose fractions of microseconds here.
         return self._launch_dt + timedelta(milliseconds=float(nano)/1000000.0)
 
     def dt_to_nano(self, dt:datetime) -> int:

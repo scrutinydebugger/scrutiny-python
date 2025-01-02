@@ -13,15 +13,25 @@ __all__ = [
     'ScrutinyChartView'
 ]
 
-from PySide6.QtCharts import QLineSeries, QValueAxis, QChart, QChartView
-from PySide6.QtWidgets import QGraphicsItem, QStyleOptionGraphicsItem, QWidget, QMenu, QFileDialog
-from PySide6.QtCore import QObject, QPointF, QRect, QRectF, Qt
+import enum
+from pathlib import Path
+import os
+import csv
+from datetime import datetime
+
+from PySide6.QtCharts import QLineSeries, QValueAxis, QChart, QChartView, QXYSeries
+from PySide6.QtWidgets import QGraphicsItem, QStyleOptionGraphicsItem, QWidget, QMenu, QFileDialog, QMessageBox
 from PySide6.QtGui import QFont, QPainter, QFontMetrics, QColor, QContextMenuEvent
+from PySide6.QtCore import QObject, QPointF, QRect, QRectF, Qt
+
+import scrutiny
+from scrutiny import tools
+from scrutiny import sdk
+from scrutiny.gui.core.preferences import gui_preferences
 from scrutiny.gui.themes import get_theme_prop, ScrutinyThemeProperties
 from scrutiny.gui import assets
-from scrutiny import tools
-import enum
-from typing import Any, Optional
+
+from typing import Any, Optional, List, cast
 
 class ScrutinyLineSeries(QLineSeries):
     def __init__(self, parent:QObject) -> None:
@@ -155,30 +165,152 @@ class ScrutinyChartCallout(QGraphicsItem):
 class ScrutinyChartView(QChartView):
 
     _allow_save_img:bool
+    _allow_save_csv:bool
+
+    _source_firmware_id:Optional[str]               # Used for CSV logging
+    _source_firmware_sfd_metadata:Optional[sdk.SFDMetadata]     # USed for CSV logging
 
     @tools.copy_type(QChartView.__init__)
     def __init__(self, *args:Any, **kwargs:Any) -> None:
         super().__init__(*args, **kwargs)
         self._allow_save_img = False
+        self._allow_save_csv = False
+        self._source_firmware_id = None
+        self._source_firmware_sfd_metadata = None
 
     def allow_save_img(self, val:bool) -> None:
         self._allow_save_img=val
 
+    def allow_save_csv(self, val:bool) -> None:
+        self._allow_save_csv=val
+
+    def set_source_firmware(self, firmware_id:str, sfd_metadata:Optional[sdk.SFDMetadata] = None) -> None:
+        self._source_firmware_id = firmware_id
+        self._source_firmware_sfd_metadata = sfd_metadata
+
+    def clear_source_firmware(self) -> None:
+        self._source_firmware_id = None
+        self._source_firmware_sfd_metadata = None
+
     def contextMenuEvent(self, event: QContextMenuEvent) -> None:
         context_menu = QMenu(self)
 
-        save_action = context_menu.addAction(assets.load_icon(assets.Icons.Download), "Save as image")
-        save_action.triggered.connect(self.save_image_slot)
+        save_img_action = context_menu.addAction(assets.load_icon(assets.Icons.Picture), "Save as image")
+        save_img_action.triggered.connect(self.save_image_slot)
+        save_img_action.setEnabled(self._allow_save_img)
 
-        save_action.setEnabled(self._allow_save_img)
+        save_csv_action = context_menu.addAction(assets.load_icon(assets.Icons.CSV), "Save as CSV")
+        save_csv_action.triggered.connect(self.save_csv_slot)
+        save_csv_action.setEnabled(self._allow_save_img)
         context_menu.popup(self.mapToGlobal(event.pos()))
 
     def save_image_slot(self) -> None:
         if not self._allow_save_img:
             return 
-        pix = self.grab()
-        filename, _ = QFileDialog.getSaveFileName(self, "Save", "", "*.png")  # FIXME : Use last save dir.
-        if not filename.lower().endswith('.png'):
-            filename += ".png"
         
-        pix.save(filename, "png", 100)
+        try:
+            pix = self.grab()
+            save_dir = gui_preferences.default().get_last_save_dir_or_workdir()
+            filename, _ = QFileDialog.getSaveFileName(self, "Save", str(save_dir), "*.png")
+            gui_preferences.default().set_last_save_dir(Path(os.path.dirname(filename)))
+            if not filename.lower().endswith('.png'):
+                filename += ".png"
+            
+            pix.save(filename, "png", 100)
+        except Exception as e:
+            msgbox = QMessageBox(self)
+            msgbox.setStandardButtons(QMessageBox.StandardButton.Close)
+            msgbox.setWindowTitle("Failed to save")
+            msgbox.setText(f"Failed to save the graph.\n {e.__class__.__name__}:{e}")
+            msgbox.show()
+
+    def save_csv_slot(self):
+        if not self._allow_save_csv:
+            return 
+        try:
+            chart = self.chart()
+            for series in chart.series():
+                if not isinstance(series, QXYSeries):    # QLineSeries is a QXYSeries
+                    raise NotImplementedError(f"Export to CSV of data series of type {series.__class__.__name__} is not supported.")
+            
+            series_list = cast(List[QXYSeries], chart.series())
+            
+            save_dir = gui_preferences.default().get_last_save_dir_or_workdir()
+            filename, _ = QFileDialog.getSaveFileName(self, "Save", str(save_dir), "*.png")
+            gui_preferences.default().set_last_save_dir(Path(os.path.dirname(filename)))
+            if not filename.lower().endswith('.csv'):
+                filename += ".csv"
+
+            now_str = datetime.now().strftime(gui_preferences.default().long_datetime_format())
+            firmware_id = "N/A"
+            project_name = "N/A"
+
+            if self._source_firmware_id is not None:
+                firmware_id = self._source_firmware_id
+
+            if self._source_firmware_sfd_metadata is not None:
+                if self._source_firmware_sfd_metadata.project_name is not None:
+                    project_name = self._source_firmware_sfd_metadata.project_name
+                    if self._source_firmware_sfd_metadata.version is not None:
+                        project_name += " V" + self._source_firmware_sfd_metadata.version
+
+            with open(filename, 'w', encoding='utf8', newline='\n') as f:
+                writer = csv.writer(f, delimiter=',', quotechar='"', escapechar='\\')
+                writer.writerow(['Created on', now_str])
+                writer.writerow(['Created with', f"Scrutiny V{scrutiny.__version__}"])
+                writer.writerow(['Firmware ID', firmware_id])
+                writer.writerow(['Project name', project_name])
+
+                writer.writerow([])
+
+                chart = self.chart()
+                
+                done = False
+
+                series_index = [0 for i in range(len(series_list))]
+                series_points = [series.points() for series in series_list]
+                
+                # TODO : Add full signal name
+                # TODO : Add real time
+                headers = ["Time (s)"] + [series.name() for series in series_list]
+                writer.writerow(headers)
+
+                # TODO : Save in background thread
+                while True:
+                    x:Optional[float] = None 
+                    done = True
+                    for i in range(len(series_list)):
+                        if series_index[i] < len(series_points[i]):
+                            done = False
+                            point = series_points[i][series_index[i]]
+                            if x is None:
+                                x = point.x()
+                            x = min(x, point.x())
+                    if done:
+                        break
+                    assert x is not None
+
+                    row = [x]
+                    for i in range(len(series_list)):
+                        series = series_list[i]
+                        val = None
+                        if series_index[i] < len(series_points[i]):
+                            point = series_points[i][series_index[i]]
+                            if point.x() == x:
+                                val = point.y()
+                                series_index[i]+=1
+                        
+                        row.append(val)
+
+                    writer.writerow(row)
+
+
+                    
+
+
+        except Exception as e:
+            msgbox = QMessageBox(self)
+            msgbox.setStandardButtons(QMessageBox.StandardButton.Close)
+            msgbox.setWindowTitle("Failed to save")
+            msgbox.setText(f"Failed to save the graph.\n {e.__class__.__name__}:{e}")
+            msgbox.show()
