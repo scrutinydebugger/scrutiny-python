@@ -75,8 +75,8 @@ class RunTest(BaseCommand):
                     suite = loader.discover(test_root)
                 else:
                     suite = loader.loadTestsFromName(args.module)
-
-                result = unittest.TextTestRunner(verbosity=int(args.verbosity), failfast=failfast).run(suite)
+                from test.scrutiny_runner import ScrutinyRunner
+                result = ScrutinyRunner(verbosity=int(args.verbosity), failfast=failfast).run(suite)
                 success = len(result.errors) == 0 and len(result.failures) == 0
             except Exception:
                 # Exception are printed as errors, but errors are disabled in the unit test to avoid confusion on negative test
