@@ -224,7 +224,7 @@ class ScrutinyChartView(QChartView):
             msgbox.setText(f"Failed to save the graph.\n {e.__class__.__name__}:{e}")
             msgbox.show()
 
-    def save_csv_slot(self):
+    def save_csv_slot(self) -> None:
         if not self._allow_save_csv:
             return 
         try:
@@ -290,7 +290,7 @@ class ScrutinyChartView(QChartView):
                         break
                     assert x is not None
 
-                    row = [x]
+                    row:List[Optional[float]] = [x]
                     for i in range(len(series_list)):
                         series = series_list[i]
                         val = None
