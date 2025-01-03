@@ -7,8 +7,7 @@
 #   Copyright (c) 2021 Scrutiny Debugger
 
 import logging
-from time import time
-import traceback
+import time
 
 from scrutiny.server.protocol import *
 import scrutiny.server.protocol.typing as protocol_typing
@@ -95,9 +94,9 @@ class SessionInitializer:
             self.reset()
             return
 
-        if not self.connection_pending and (self.last_connect_sent is None or time() - self.last_connect_sent > self.RECONNECT_DELAY):
+        if not self.connection_pending and (self.last_connect_sent is None or time.monotonic() - self.last_connect_sent > self.RECONNECT_DELAY):
             self.success = False
-            self.last_connect_sent = time()
+            self.last_connect_sent = time.monotonic()
             if self.logger.isEnabledFor(logging.DEBUG): # pragma: no cover
                 self.logger.debug('Registering a Connect request')
             self.dispatcher.register_request(request=self.protocol.comm_connect(),
