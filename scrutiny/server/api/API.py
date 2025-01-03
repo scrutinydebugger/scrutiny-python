@@ -436,7 +436,8 @@ class API:
         # Handle an incoming request from the client handler
         try:
             self.req_count += 1
-            self.logger.debug('[Conn:%s] Processing request #%d - %s' % (conn_id, self.req_count, req))
+            if self.logger.isEnabledFor(logging.DEBUG): # pragma: no cover
+                self.logger.debug('[Conn:%s] Processing request #%d - %s' % (conn_id, self.req_count, req))
 
             if 'cmd' not in req:
                 raise InvalidRequestException(req, 'No command in request')
@@ -456,15 +457,15 @@ class API:
         except InvalidRequestException as e:
             self.invalid_request_count += 1
             # Client sent a bad request. Controlled error
-            self.logger.debug('[Conn:%s] Invalid request #%d. %s' % (conn_id, self.req_count, str(e)))
+            if self.logger.isEnabledFor(logging.DEBUG): # pragma: no cover
+                self.logger.debug('[Conn:%s] Invalid request #%d. %s' % (conn_id, self.req_count, str(e)))
             response = self.make_error_response(req, str(e))
             self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
         except Exception as e:
             # Unknown internal error
             if self.handle_unexpected_errors:
                 self.unexpected_error_count += 1
-                self.logger.error('[Conn:%s] Unexpected error while processing request #%d. %s' % (conn_id, self.req_count, str(e)))
-                self.logger.debug(traceback.format_exc())
+                tools.log_exception(self.logger, e, f'[Conn:{conn_id}] Unexpected error while processing request #{self.req_count}.')
                 response = self.make_error_response(req, 'Internal error')
                 self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
             else:

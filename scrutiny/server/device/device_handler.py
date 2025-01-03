@@ -50,7 +50,7 @@ from scrutiny.tools import Timer, update_dict_recursive
 from scrutiny.server.datastore.datastore import Datastore
 from scrutiny.server.device.links import AbstractLink, LinkConfig
 from scrutiny.core.firmware_id import PLACEHOLDER as DEFAULT_FIRMWARE_ID
-
+from scrutiny import tools
 
 from typing import TypedDict, Optional, Callable, Any, Dict, cast, List
 
@@ -814,7 +814,8 @@ class DeviceHandler:
                 self.server_session_id = uuid4().hex
                 self.logger.info('Communication with device "%s" (ID: %s) fully ready. Assigning session ID: %s' %
                                  (self.device_display_name, self.device_id, self.server_session_id))
-                self.logger.debug("Device information : %s" % self.device_info)
+                if self.logger.isEnabledFor(logging.DEBUG) : # pragma: no cover
+                    self.logger.debug("Device information : %s" % self.device_info)
 
             self.exec_ready_task(state_entry)
 
@@ -920,8 +921,7 @@ class DeviceHandler:
                             self.active_request_record.complete(success=True, response=response)
                         except Exception as e:                   # Malformed response.
                             self.comm_broken = True
-                            self.logger.error("Error in success callback. %s" % str(e))
-                            self.logger.debug(traceback.format_exc())
+                            tools.log_exception(self.logger, e, "Error in success callback.")
                             self.active_request_record.complete(success=False)
 
                 else:   # Comm handler decided to go back to Idle by itself. Most likely a valid message that was not the response of the request.

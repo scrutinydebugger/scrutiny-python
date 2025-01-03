@@ -20,6 +20,7 @@ import scrutiny.server.protocol.commands as cmd
 from scrutiny.server.device.request_dispatcher import RequestDispatcher
 from scrutiny.server.protocol import *
 import scrutiny.server.protocol.typing as protocol_typing
+from scrutiny import tools
 
 from typing import Optional, Callable, Any, cast
 
@@ -167,8 +168,7 @@ class InfoPoller:
                         self.protocol_version_callback(self.info.protocol_major, self.info.protocol_minor)
                     next_state = self.FsmState.GetCommParams
                 except Exception as e:
-                    self.logger.error('Error while processing protocol version. %s' % str(e))
-                    self.logger.debug(traceback.format_exc())
+                    tools.log_exception(self.logger, e, "Error while processing protocol version")
                     next_state = self.FsmState.Error
 
         # ======= [GetCommParams] =====
@@ -188,8 +188,7 @@ class InfoPoller:
                         self.comm_param_callback(copy.copy(self.info))
                     next_state = self.FsmState.GetSupportedFeatures
                 except Exception as e:
-                    self.logger.error('Error while processing communication params. %s' % str(e))
-                    self.logger.debug(traceback.format_exc())
+                    tools.log_exception(self.logger, e, "Error while processing communication params.")
                     next_state = self.FsmState.Error
 
         # ======= [GetSupportedFeatures] =====
@@ -367,7 +366,8 @@ class InfoPoller:
             next_state = self.FsmState.Error
 
         if next_state != self.fsm_state:
-            self.logger.debug('Moving state machine to %s' % next_state)
+            if self.logger.isEnabledFor(logging.DEBUG): # pragma: no cover
+                self.logger.debug('Moving state machine to %s' % next_state)
 
         self.last_fsm_state = self.fsm_state
         self.fsm_state = next_state
@@ -375,7 +375,8 @@ class InfoPoller:
     def success_callback(self, request: Request, response: Response, params: Any = None) -> None:
         """Called when a request completes and succeeds"""
 
-        self.logger.debug("Success callback. Request=%s. Response Code=%s, Params=%s" % (request, response.code, params))
+        if self.logger.isEnabledFor(logging.DEBUG): #pragma: no cover
+            self.logger.debug("Success callback. Request=%s. Response Code=%s, Params=%s" % (request, response.code, params))
         response_data: protocol_typing.ResponseData
 
         must_process_response = True
@@ -514,7 +515,8 @@ class InfoPoller:
 
     def failure_callback(self, request: Request, params: Any = None) -> None:
         """Callback called by the request dispatcher when a request fails to complete"""
-        self.logger.debug("Failure callback. Request=%s. Params=%s" % (request, params))
+        if self.logger.isEnabledFor(logging.DEBUG): #pragma: no cover
+            self.logger.debug("Failure callback. Request=%s. Params=%s" % (request, params))
         if not self.stop_requested:
             self.request_failed = True
 

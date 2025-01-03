@@ -14,7 +14,7 @@ import traceback
 from scrutiny.server.protocol import *
 import scrutiny.server.protocol.typing as protocol_typing
 from scrutiny.server.device.request_dispatcher import RequestDispatcher
-
+from scrutiny import tools
 from typing import Any, Optional, cast
 
 
@@ -83,7 +83,8 @@ class HeartbeatGenerator:
         # If no request is being waited and we have a session ID assigned
         if self.pending == False and self.session_id is not None:
             if self.last_heartbeat_request is None or (time.monotonic() - self.last_heartbeat_request > self.interval):
-                self.logger.debug('Registering a Heartbeat request')
+                if self.logger.isEnabledFor(logging.DEBUG): #pragma: no cover
+                    self.logger.debug('Registering a Heartbeat request')
                 self.dispatcher.register_request(
                     request=self.protocol.comm_heartbeat(session_id=self.session_id, challenge=self.challenge),
                     success_callback=self.success_callback,
@@ -95,7 +96,8 @@ class HeartbeatGenerator:
 
     def success_callback(self, request: Request, response: Response, params: Any = None) -> None:
         """ Called by the dispatcher when a request is completed and succeeded"""
-        self.logger.debug("Success callback. Request=%s. Response Code=%s, Params=%s" % (request, response.code, params))
+        if self.logger.isEnabledFor(logging.DEBUG): #pragma: no cover
+            self.logger.debug("Success callback. Request=%s. Response Code=%s, Params=%s" % (request, response.code, params))
 
         expected_challenge_response = self.protocol.heartbeat_expected_challenge_response(self.challenge)
         if self.started:
@@ -111,9 +113,8 @@ class HeartbeatGenerator:
                                               (response_data['challenge_response'], expected_challenge_response))
                     else:
                         self.logger.error('Heartbeat session ID echo not good. Got %s, expected %s' % (response_data['session_id'], self.session_id))
-                except Exception:
-                    self.logger.error('Heartbeat response data is invalid')
-                    self.logger.debug(traceback.format_exc())
+                except Exception as e:
+                    tools.log_exception(self.logger, e, 'Heartbeat response data is invalid')
             else:
                 self.logger.error('Heartbeat request got Nacked. %s' % response.code)
 
@@ -121,7 +122,8 @@ class HeartbeatGenerator:
 
     def failure_callback(self, request: Request, params: Any = None) -> None:
         """ Called by the dispatcher when a request is completed and failed to succeed"""
-        self.logger.debug("Failure callback. Request=%s. Params=%s" % (request, params))
+        if self.logger.isEnabledFor(logging.DEBUG): #pragma: no cover
+            self.logger.debug("Failure callback. Request=%s. Params=%s" % (request, params))
         self.completed()
 
     def completed(self) -> None:

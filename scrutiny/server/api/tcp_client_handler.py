@@ -277,8 +277,7 @@ class TCPClientHandler(AbstractClientHandler):
                                 try:
                                     obj = json.loads(datagram.decode('utf8'))
                                 except json.JSONDecodeError as e:
-                                    self.logger.error(f"Received malformed JSON from client {client_id}.")
-                                    self.logger.debug(traceback.format_exc())
+                                    tools.log_exception(self.logger, e, f"Received malformed JSON from client {client_id}.")
                                     continue
                                 
                                 self.rx_queue.put(ClientHandlerMessage(conn_id=client_id, obj=obj))
@@ -289,8 +288,7 @@ class TCPClientHandler(AbstractClientHandler):
                             
 
         except Exception as e:
-            self.logger.error(str(e))
-            self.logger.debug(traceback.format_exc())
+            tools.log_exception(self.logger, e, "Unexpected error in server thread")
         finally:
             for conn_id in list(self.id2sock_map.keys()):
                 self.unregister_client(conn_id)

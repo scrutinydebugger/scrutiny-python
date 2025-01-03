@@ -26,6 +26,7 @@ from scrutiny.core.embedded_enum import *
 from scrutiny.exceptions import EnvionmentNotSetUpException
 from scrutiny.core.bintools import elftools_stubs
 from scrutiny import tools
+from scrutiny.core.logging import DUMPDATA_LOGLEVEL
 
 from typing import Optional, List, Dict, Union, cast, Set, Tuple
 
@@ -176,7 +177,7 @@ class ElfDwarfVarExtractor:
         return f'{die.tag} <{die.offset:x}> "{name}"'
 
     def log_debug_process_die(self, die: "elftools_stubs.Die") -> None:
-        if self.logger.isEnabledFor(logging.DEBUG): # pragma: no cover
+        if self.logger.isEnabledFor(DUMPDATA_LOGLEVEL): # pragma: no cover
             stack_depth = len(inspect.stack()) - self.initial_stack_depth-1
             stack_depth = max(stack_depth, 1)
             funcname = inspect.stack()[1][3]
