@@ -1,13 +1,126 @@
 import logging
 import unittest
+import unittest.case
 from functools import wraps
 from datetime import datetime
+import time
 
 from scrutiny.core.datalogging import DataloggingAcquisition, DataSeries, AxisDefinition
+from scrutiny.tools import format_eng_unit
 
 __scrutiny__ = True  # we need something to know if we loaded scrutiny "test" module or something else (such as python "test" module)
 logger = logging.getLogger('unittest')
 
+
+class ScrutinyTestResult(unittest.TextTestResult):
+
+    def startTest(self, test):
+        super(unittest.TextTestResult, self).startTest(test)
+        if self.showAll:
+            self.stream.write(self.getDescription(test))
+            self.stream.write(" ... ")
+            self.stream.flush()
+            self._newline = False
+
+        setattr(test, '_scrutiny_test_start_time', time.perf_counter())
+    
+    def getDescription(self, test):
+        return str(test)
+    
+    def addSubTest(self, test, subtest, err):
+        if err is not None:
+            if self.showAll:
+                if issubclass(err[0], subtest.failureException):
+                    self._write_status(subtest, "FAIL")
+                else:
+                    self._write_status(subtest, "ERROR")
+            elif self.dots:
+                if issubclass(err[0], subtest.failureException):
+                    self.stream.write('F')
+                else:
+                    self.stream.write('E')
+                self.stream.flush()
+        super(unittest.TextTestResult, self).addSubTest(test, subtest, err)
+
+    def _write_status(self, test, status):
+        # Copied from TextTestResult and added the time thing.
+        # Super hackyfragilistic
+        is_subtest = isinstance(test, unittest.case._SubTest)
+        if is_subtest or self._newline:
+            if not self._newline:
+                self.stream.writeln()
+            if is_subtest:
+                self.stream.write("  ")
+            self.stream.write(self.getDescription(test))
+            self.stream.write(" ... ")
+        duration = None
+        if hasattr(test, '_scrutiny_test_start_time'):
+            start_time = getattr(test, '_scrutiny_test_start_time')
+            if isinstance(start_time, float):
+                duration = time.perf_counter() - start_time
+        self.stream.write(status)
+        if duration is not None:
+            if duration < 1:
+                duration_str = format_eng_unit(duration, decimal=1, unit="s", binary=False) # handle ms, us, ns
+            else:
+                duration_str = f"{duration:0.1f}s"
+            self.stream.write(f" ({duration_str})")
+        self.stream.writeln()
+        self.stream.flush()
+        self._newline = True
+
+    def addSuccess(self, test):
+        super(unittest.TextTestResult, self).addSuccess(test)
+        if self.showAll:
+            self._write_status(test, "ok")
+        elif self.dots:
+            self.stream.write('.')
+            self.stream.flush()
+
+    def addError(self, test, err):
+        super(unittest.TextTestResult, self).addError(test, err)
+        if self.showAll:
+            self._write_status(test, "ERROR")
+        elif self.dots:
+            self.stream.write('E')
+            self.stream.flush()
+
+    def addFailure(self, test, err):
+        super(unittest.TextTestResult, self).addFailure(test, err)
+        if self.showAll:
+            self._write_status(test, "FAIL")
+        elif self.dots:
+            self.stream.write('F')
+            self.stream.flush()
+
+    def addSkip(self, test, reason):
+        super(unittest.TextTestResult, self).addSkip(test, reason)
+        if self.showAll:
+            self._write_status(test, "skipped {0!r}".format(reason))
+        elif self.dots:
+            self.stream.write("s")
+            self.stream.flush()
+
+    def addExpectedFailure(self, test, err):
+        super(unittest.TextTestResult, self).addExpectedFailure(test, err)
+        if self.showAll:
+            self.stream.writeln("expected failure")
+            self.stream.flush()
+        elif self.dots:
+            self.stream.write("x")
+            self.stream.flush()
+
+    def addUnexpectedSuccess(self, test):
+        super(unittest.TextTestResult, self).addUnexpectedSuccess(test)
+        if self.showAll:
+            self.stream.writeln("unexpected success")
+            self.stream.flush()
+        elif self.dots:
+            self.stream.write("u")
+            self.stream.flush()
+
+class ScrutinyRunner(unittest.TextTestRunner):
+    resultclass = ScrutinyTestResult 
 
 class SkipOnException:
     def __init__(self, exception, msg=""):
@@ -35,6 +148,7 @@ class PrintableByteArray(bytearray):
 
 
 class ScrutinyUnitTest(unittest.TestCase):
+
     def assertEqual(self, v1, v2, *args, **kwargs):
         if isinstance(v1, bytes) and isinstance(v2, bytes):
             super().assertEqual(PrintableBytes(v1), PrintableBytes(v2), *args, **kwargs)

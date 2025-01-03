@@ -620,6 +620,9 @@
         },
         "scrutiny/tools/timebase.py": {
             "docstring": "A generic timebase object that can be used to follow relative time interval and map them to real datetime"
+        },
+        "test/scrutiny_runner.py": {
+            "docstring": "Custom unit test handlers that extends the default unittest framework "
         }
     }
 }
