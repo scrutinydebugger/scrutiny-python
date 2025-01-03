@@ -21,7 +21,7 @@ from scrutiny.core.basic_types import Endianness, RuntimePublishedValue, Embedde
 import scrutiny.server.protocol.typing as protocol_typing
 import scrutiny.server.datalogging.definitions.device as device_datalogging
 from scrutiny.server.device.device_info import ExecLoop, ExecLoopType, FixedFreqLoop, VariableFreqLoop
-
+from scrutiny import tools
 
 from typing import Union, List, Tuple, Optional, Dict, Any, cast
 
@@ -631,8 +631,7 @@ class Protocol:
                     data['session_id'], = unpack('>L', req.payload[0:4])
 
         except Exception as e:
-            self.logger.error(str(e))
-            self.logger.debug(traceback.format_exc())
+            tools.log_exception(self.logger, e, "Failed to parse the request")
             valid = False
 
         if not valid:
@@ -1127,8 +1126,7 @@ class Protocol:
                         data['session_id'], = unpack('>L', response.payload[4:8])
 
             except Exception as e:
-                self.logger.error(str(e))
-                self.logger.debug(traceback.format_exc())
+                tools.log_exception(self.logger, e, "Failed to parse the response")
                 valid = False
                 raise
 

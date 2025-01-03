@@ -24,7 +24,7 @@ from scrutiny.server.datastore.datastore import Datastore
 from scrutiny.server.device.device_handler import DeviceHandler, DeviceHandlerConfig
 from scrutiny.server.active_sfd_handler import ActiveSFDHandler
 from scrutiny.server.datalogging.datalogging_manager import DataloggingManager
-from scrutiny.tools import update_dict_recursive
+from scrutiny import tools
 
 from typing import TypedDict, Optional, Union, Dict, cast, Any
 
@@ -96,14 +96,14 @@ class ScrutinyServer:
                 with open(input_config) as f:
                     try:
                         user_cfg = json.loads(f.read())
-                        update_dict_recursive(cast(Dict[Any, Any],self.config), cast(Dict[Any, Any], user_cfg))
+                        tools.update_dict_recursive(cast(Dict[Any, Any],self.config), cast(Dict[Any, Any], user_cfg))
                     except Exception as e:
                         raise Exception("Invalid configuration JSON. %s" % e)
             elif isinstance(input_config, dict):
-                update_dict_recursive(cast(Dict[Any, Any],self.config), cast(Dict[Any, Any],input_config))
+                tools.update_dict_recursive(cast(Dict[Any, Any],self.config), cast(Dict[Any, Any],input_config))
         
         if additional_config is not None:
-            update_dict_recursive(cast(Dict[Any, Any], self.config), cast(Dict[Any, Any], additional_config))
+            tools.update_dict_recursive(cast(Dict[Any, Any], self.config), cast(Dict[Any, Any], additional_config))
 
         self.validate_config()
         self.server_name = '<Unnamed>' if 'name' not in self.config else self.config['name']
@@ -164,8 +164,7 @@ class ScrutinyServer:
         except (KeyboardInterrupt, SystemExit):
             self.close_all()
         except Exception as e:
-            self.logger.error(str(e))
-            self.logger.debug(traceback.format_exc())
+            tools.log_exception(self.logger, e, "Error in server", str_level=logging.CRITICAL)
             self.close_all()
             raise
 

@@ -24,6 +24,7 @@ from scrutiny.server.datastore.datastore import Datastore
 from scrutiny.server.datastore.datastore_entry import *
 from scrutiny.core.memory_content import MemoryContent, Cluster
 from scrutiny.core.basic_types import MemoryRegion
+from scrutiny import tools
 
 from typing import cast, Set, List, Any, Optional, Callable, Tuple, Dict
 
@@ -292,7 +293,8 @@ class MemoryReader:
             if self.actual_read_type == ReadType.Variable:
                 request, var_entries_in_request, wrapped_to_beginning = self.make_next_var_entries_request()
                 if request is not None:
-                    self.logger.debug('Registering a MemoryRead request for %d datastore entries. %s' % (len(var_entries_in_request), request))
+                    if self.logger.isEnabledFor(logging.DEBUG): # pragma: no cover
+                        self.logger.debug('Registering a MemoryRead request for %d datastore entries. %s' % (len(var_entries_in_request), request))
                     self.dispatch(request)
                     self.entries_in_pending_read_var_request = var_entries_in_request
 
@@ -303,7 +305,8 @@ class MemoryReader:
             elif self.actual_read_type == ReadType.RuntimePublishedValues:
                 request, rpv_entries_in_request, wrapped_to_beginning = self.make_next_read_rpv_request()
                 if request is not None:
-                    self.logger.debug('Registering a ReadRPV request for %d datastore entries. %s' % (len(rpv_entries_in_request), request))
+                    if self.logger.isEnabledFor(logging.DEBUG): # pragma: no cover
+                        self.logger.debug('Registering a ReadRPV request for %d datastore entries. %s' % (len(rpv_entries_in_request), request))
                     self.dispatch(request)
                     self.entries_in_pending_read_rpv_request = {}
                     for entry in rpv_entries_in_request:
@@ -315,7 +318,8 @@ class MemoryReader:
             elif self.actual_read_type == ReadType.RawMemRead:
                 request, done = self.make_next_raw_mem_read_request()
                 if request is not None:
-                    self.logger.debug('Registering a MemoryRead request. %s' % (request))
+                    if self.logger.isEnabledFor(logging.DEBUG): # pragma: no cover
+                        self.logger.debug('Registering a MemoryRead request. %s' % (request))
                     self.dispatch(request)
 
                 if done or self.pending_request is None:
@@ -478,7 +482,8 @@ class MemoryReader:
 
     def success_callback(self, request: Request, response: Response, params: Any = None) -> None:
         """Called when a request completes and succeeds"""
-        self.logger.debug("Success callback. Response=%s, Params=%s" % (response, params))
+        if self.logger.isEnabledFor(logging.DEBUG): # pragma: no cover
+            self.logger.debug("Success callback. Response=%s, Params=%s" % (response, params))
         assert request == self.pending_request
         if request.command == cmd.MemoryControl:
             subfn = cmd.MemoryControl.Subfunction(response.subfn)
@@ -512,11 +517,9 @@ class MemoryReader:
                             entry.set_value_from_data(raw_data)
                             self.entries_in_pending_read_var_request = []
                     except Exception as e:
-                        self.logger.critical('Error while writing datastore. %s' % str(e))
-                        self.logger.debug(traceback.format_exc())
-                except Exception:
-                    self.logger.error('Response for ReadMemory read request is malformed and must be discarded.')
-                    self.logger.debug(traceback.format_exc())
+                        tools.log_exception(self.logger, e, "Error while writing datastore.", str_level=logging.CRITICAL)
+                except Exception as e:
+                    tools.log_exception(self.logger, e, 'Response for ReadMemory read request is malformed and must be discarded.')
             else:
                 self.logger.warning('Response for ReadMemory has been refused with response code %s.' % response.code)
 
@@ -544,8 +547,7 @@ class MemoryReader:
                         self.active_raw_read_request.set_completed(True, self.active_raw_read_request_data)
                         self.clear_active_raw_read_request()
                 except Exception as e:
-                    self.logger.error('Response for ReadMemory read request is malformed and must be discarded. ' + str(e))
-                    self.logger.debug(traceback.format_exc())
+                    tools.log_exception(self.logger, e, 'Response for ReadMemory read request is malformed and must be discarded.')
                     self.active_raw_read_request.set_completed(False, None, failure_reason=str(e))
                     self.clear_active_raw_read_request()
 
@@ -562,11 +564,9 @@ class MemoryReader:
                             entry = self.entries_in_pending_read_rpv_request[read_rpv['id']]
                             entry.set_value(read_rpv['data'])
                 except Exception as e:
-                    self.logger.critical('Error while writing datastore. %s' % str(e))
-                    self.logger.debug(traceback.format_exc())
-            except Exception:
-                self.logger.error('Response for ReadRPV read request is malformed and must be discarded.')
-                self.logger.debug(traceback.format_exc())
+                    tools.log_exception(self.logger, e, 'Error while writing datastore.', str_level=logging.CRITICAL)
+            except Exception as e:
+                tools.log_exception(self.logger, e,'Response for ReadRPV read request is malformed and must be discarded.')
         else:
             self.logger.warning('Response for ReadRPV has been refused with response code %s.' % response.code)
 

@@ -19,6 +19,7 @@ import hashlib
 import types
 
 from scrutiny.core.datalogging import DataloggingAcquisition, DataSeries, AxisDefinition
+from scrutiny import tools
 from typing import List, Dict, Optional, Tuple, Type, Literal, Any
 
 
@@ -142,8 +143,7 @@ class DataloggingStorageManager:
             self.logger.debug('Datalogging storage ready')
         except Exception as e:
             self.actual_hash = None
-            self.logger.error('Failed to initialize datalogging storage. Resetting storage at %s. %s' % (self.get_db_filename(), str(e)))
-            self.logger.debug(traceback.format_exc())
+            tools.log_exception(self.logger, e, f'Failed to initialize datalogging storage. Resetting storage at {self.get_db_filename()}.')
             err = e
 
         if err:
@@ -151,8 +151,7 @@ class DataloggingStorageManager:
                 self.clear_all()
                 self.logger.debug('Datalogging storage cleared')
             except Exception as e:
-                self.logger.error("Failed to reset storage. Datalogging storage will not be accessible. %s" % str(e))
-                self.logger.debug(traceback.format_exc())
+                tools.log_exception(self.logger, e, "Failed to reset storage. Datalogging storage will not be accessible.")
                 return
 
             try:
@@ -162,8 +161,7 @@ class DataloggingStorageManager:
                 self.unavailable = False
                 self.logger.debug('Datalogging storage ready')
             except Exception as e:
-                self.logger.error('Failed to initialize datalogging storage a 2nd time. Datalogging storage will not be accessible. %s' % str(e))
-                self.logger.debug(traceback.format_exc())
+                tools.log_exception(self.logger, e, "Failed to initialize datalogging storage a 2nd time. Datalogging storage will not be accessible")
 
     def read_hash(self, conn: sqlite3.Connection) -> str:
         """Reads the version of the storage from the database. Used for future-proofing"""

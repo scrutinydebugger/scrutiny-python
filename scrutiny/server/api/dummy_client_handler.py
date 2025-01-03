@@ -19,6 +19,7 @@ import logging
 import json
 import uuid
 
+from scrutiny import tools
 from .abstract_client_handler import AbstractClientHandler, ClientHandlerConfig, ClientHandlerMessage
 from typing import Optional, Dict, List
 
@@ -139,7 +140,8 @@ class DummyClientHandler(AbstractClientHandler):
                         msg = conn.read_from_client()
                         if msg is not None:
                             try:
-                                self.logger.debug('Received from ID %s. "%s"' % (conn.get_id(), msg))
+                                if self.logger.isEnabledFor(logging.DEBUG): #pragma: no cover
+                                    self.logger.debug('Received from ID %s. "%s"' % (conn.get_id(), msg))
                                 obj = json.loads(msg)
                                 self.rxqueue.put(ClientHandlerMessage(conn_id=conn.get_id(), obj=obj))
                                 if self.rx_event is not None:
@@ -153,11 +155,12 @@ class DummyClientHandler(AbstractClientHandler):
                         try:
                             msg = json.dumps(container.obj)
                             conn_id = container.conn_id
-                            self.logger.debug('Writing to ID %s. "%s"' % (conn_id, msg))
+                            if self.logger.isEnabledFor(logging.DEBUG): #pragma: no cover
+                                self.logger.debug('Writing to ID %s. "%s"' % (conn_id, msg))
                             if conn_id in self.connection_map:
                                 self.connection_map[conn_id].write_to_client(msg)
                         except Exception as e:
-                            self.logger.error('Cannot send message.  %s' % str(e))
+                            tools.log_exception(self.logger, e, 'Cannot send message')
 
             except Exception as e:
                 self.logger.error(str(e))

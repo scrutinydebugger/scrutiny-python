@@ -9,7 +9,7 @@
 
 import bisect
 from scrutiny.server.protocol import Request, Response
-from time import time
+import time
 import logging
 
 from typing import List, Optional, Callable, Any
@@ -56,8 +56,8 @@ class RequestQueue:
 
         queue_size = len(self.data)
         if queue_size >= self.OVERSIZE_WARNING_LEVEL:
-            if self.last_warning_time is None or (time() - self.last_warning_time) > self.WARNING_INTERVAL:
-                self.last_warning_time = time()
+            if self.last_warning_time is None or (time.monotonic() - self.last_warning_time) > self.WARNING_INTERVAL:
+                self.last_warning_time = time.monotonic()
                 self.logger.warning("Request queue reached %d" % queue_size)
 
         if queue_size > self.OVERSIZE_ERROR_LEVEL:

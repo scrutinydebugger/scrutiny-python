@@ -21,6 +21,7 @@ from scrutiny.tools import Timer
 from scrutiny.server.protocol.crc32 import crc32
 from scrutiny.core.basic_types import RuntimePublishedValue
 from scrutiny.server.datalogging.datalogging_utilities import extract_signal_from_data
+from scrutiny import tools
 
 from typing import Optional, Any, cast, Callable, List, Dict, Tuple
 
@@ -234,8 +235,7 @@ class DataloggingPoller:
                         encoding=self.device_setup.encoding)
                     self.acquisition_request.completion_callback(True, "", deinterleaved_data, acquisition_meta)
                 except Exception as e:
-                    self.logger.error("Failed to parse data received from device datalogging acquisition. %s" % str(e))
-                    self.logger.debug(traceback.format_exc())
+                    tools.log_exception(self.logger, e, "Failed to parse data received from device datalogging acquisition.")
                     self.acquisition_request.completion_callback(False, "Data received from the device cannot be parsed", None, None)
 
             self.acquisition_request = None
@@ -502,7 +502,8 @@ class DataloggingPoller:
                             # Request another chunk
                             if not self.request_pending[DatalogSubfn.ReadAcquisition]:
                                 self.read_rolling_counter = (self.read_rolling_counter + 1) & 0xFF
-                                self.logger.debug("Increasing rolling counter: %d" % self.read_rolling_counter)
+                                if self.logger.isEnabledFor(logging.DEBUG): #pragma: no cover
+                                    self.logger.debug("Increasing rolling counter: %d" % self.read_rolling_counter)
                                 read_request = self.protocol.datalogging_read_acquisition(
                                     data_read=len(self.bytes_received),
                                     encoding=self.device_setup.encoding,
@@ -540,13 +541,13 @@ class DataloggingPoller:
             self.previous_state = self.state
             if next_state != self.state:
                 device_state_name = self.device_datalogging_state if self.device_datalogging_state is not None else "<None>"
-                self.logger.debug("Moving state from %s to %s. Last device status reading is %s" %
-                                  (self.state.name, next_state.name, device_state_name))
+                if self.logger.isEnabledFor(logging.DEBUG): #pragma: no cover
+                    self.logger.debug("Moving state from %s to %s. Last device status reading is %s" %
+                                      (self.state.name, next_state.name, device_state_name))
             self.state = next_state
         except Exception as e:
             self.error = True
-            self.logger.critical("State machine error: %s" % (str(e)))
-            self.logger.debug(traceback.format_exc())
+            tools.log_exception(self.logger, e, "State machine error", str_level=logging.CRITICAL)
 
     def dispatch(self, req: Request) -> None:
         """Sends a request to the request dispatcher and assign the corrects completion callbacks"""
@@ -565,7 +566,8 @@ class DataloggingPoller:
 
     def success_callback(self, request: Request, response: Response, params: Any = None) -> None:
         """Called when a request completes and succeeds"""
-        self.logger.debug("Success callback. Request=%s. Response Code=%s, Params=%s" % (request, response.code, params))
+        if self.logger.isEnabledFor(logging.DEBUG): #pragma: no cover
+            self.logger.debug("Success callback. Request=%s. Response Code=%s, Params=%s" % (request, response.code, params))
 
         subfunction = DatalogSubfn(response.subfn)
 
@@ -586,8 +588,7 @@ class DataloggingPoller:
 
             except Exception as e:
                 self.error = True
-                self.logger.error('Cannot process response. %s' % (str(e)))
-                self.logger.debug(traceback.format_exc())
+                tools.log_exception(self.logger, e, "Cannot process response")
         else:
             self.request_failed[subfunction] = True
             self.logger.error('Request got Nacked. %s' % response.code)
@@ -596,7 +597,8 @@ class DataloggingPoller:
 
     def failure_callback(self, request: Request, params: Any = None) -> None:
         """Callback called by the request dispatcher when a request fails to complete"""
-        self.logger.debug("Failure callback. Request=%s. Params=%s" % (request, params))
+        if self.logger.isEnabledFor(logging.DEBUG): #pragma: no cover
+            self.logger.debug("Failure callback. Request=%s. Params=%s" % (request, params))
         subfn = DatalogSubfn(request.subfn)
         self.request_failed[subfn] = True
 
@@ -615,7 +617,8 @@ class DataloggingPoller:
 
         datalogging_state_name = self.device_datalogging_state if self.device_datalogging_state is not None else "<None>"
         if self.device_datalogging_state != response_data['state']:
-            self.logger.debug("Device datalogging status changed from %s to %s" % (datalogging_state_name, response_data['state'].name))
+            if self.logger.isEnabledFor(logging.DEBUG): #pragma: no cover
+                self.logger.debug("Device datalogging status changed from %s to %s" % (datalogging_state_name, response_data['state'].name))
         self.device_datalogging_state = response_data['state']
         self.completion_ratio = None
         if response_data['byte_counter_since_trigger'] != 0 and response_data['remaining_byte_from_trigger_to_complete'] != 0:

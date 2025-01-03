@@ -14,8 +14,9 @@ from scrutiny.core.sfd_storage import SFDStorage
 from scrutiny.server.datastore.datastore_entry import EntryType
 from scrutiny.server.device.device_handler import DeviceHandler
 from scrutiny.server.datastore.datastore import Datastore
-from scrutiny.server.datastore.datastore_entry import *
+from scrutiny.server.datastore.datastore_entry import DatastoreAliasEntry, DatastoreVariableEntry
 from scrutiny.server.datastore.entry_type import EntryType
+from scrutiny import tools
 
 from typing import Optional, List, Callable
 
@@ -126,8 +127,7 @@ class ActiveSFDHandler:
                     entry_var = DatastoreVariableEntry(display_path=fullname, variable_def=vardef)
                     self.datastore.add_entry(entry_var)
                 except Exception as e:
-                    self.logger.warning('Cannot add entry "%s". %s' % (fullname, str(e)))
-                    self.logger.debug(traceback.format_exc())
+                    tools.log_exception(self.logger, e, f"Cannot add entry {fullname}", str_level=logging.WARNING)
 
             for fullname, alias in self.sfd.get_aliases_for_datastore():
                 try:
@@ -135,15 +135,13 @@ class ActiveSFDHandler:
                     entry_alias = DatastoreAliasEntry(aliasdef=alias, refentry=refentry)
                     self.datastore.add_entry(entry_alias)
                 except Exception as e:
-                    self.logger.warning('Cannot add entry "%s". %s' % (fullname, str(e)))
-                    self.logger.debug(traceback.format_exc())
+                    tools.log_exception(self.logger, e, f"Cannot add entry {fullname}", str_level=logging.WARNING)
 
             for callback in self.loaded_callbacks:
                 try:
                     callback(self.sfd)
                 except Exception as e:
-                    self.logger.critical('Error in SFD Load callback. %s' % str(e))
-                    self.logger.debug(traceback.format_exc())
+                    tools.log_exception(self.logger, e, f"Error in SFD Load callback.", str_level=logging.CRITICAL)
 
         else:
             if verbose:
@@ -167,5 +165,4 @@ class ActiveSFDHandler:
                 try:
                     callback()
                 except Exception as e:
-                    self.logger.critical('Error in SFD Unload callback. %s' % str(e))
-                    self.logger.debug(traceback.format_exc())
+                    tools.log_exception(self.logger, e, "Error in SFD Unload callback", str_level=logging.CRITICAL)

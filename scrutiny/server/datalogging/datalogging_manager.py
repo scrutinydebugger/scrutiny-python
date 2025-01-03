@@ -17,7 +17,7 @@ import enum
 
 import scrutiny.server.datalogging.definitions.api as api_datalogging
 import scrutiny.server.datalogging.definitions.device as device_datalogging
-from scrutiny.server.device.device_handler import DeviceHandler, DeviceAcquisitionRequestCompletionCallback
+from scrutiny.server.device.device_handler import DeviceHandler
 from scrutiny.server.datastore.datastore_entry import DatastoreEntry, DatastoreAliasEntry, DatastoreRPVEntry, DatastoreVariableEntry
 from scrutiny.server.datastore.datastore import Datastore
 from scrutiny.server.device.device_info import FixedFreqLoop, ExecLoopType
@@ -25,7 +25,8 @@ from scrutiny.core.basic_types import *
 from scrutiny.server.datalogging.datalogging_storage import DataloggingStorage
 from scrutiny.core.sfd_storage import SFDStorage
 from scrutiny.core.codecs import Codecs
-from scrutiny.core.datalogging import DataloggingAcquisition, DataSeries, AxisDefinition
+from scrutiny.core.datalogging import DataloggingAcquisition, DataSeries
+from scrutiny import tools
 
 from typing import Optional, List, Dict, Tuple, cast
 
@@ -213,8 +214,7 @@ class DataloggingManager:
                 self.logger.info("Failed to acquire acquisition. " + str(detail_msg))
         except Exception as e:
             acquisition = None  # Checked later to call the callback
-            self.logger.error('Error while processing datalogging acquisition: %s' % str(e))
-            self.logger.debug(traceback.format_exc())
+            tools.log_exception(self.logger, e, 'Error while processing datalogging acquisition')
 
         # Inform the API about the acquisition being processed.
         err: Optional[Exception] = None
@@ -349,7 +349,8 @@ class DataloggingManager:
             next_state = FsmState.INIT
 
         if next_state != self.state:
-            self.logger.debug("Moving FSM from %s to %s" % (self.state.name, next_state.name))
+            if self.logger.isEnabledFor(logging.DEBUG) : #pragma: no cover
+                self.logger.debug("Moving FSM from %s to %s" % (self.state.name, next_state.name))
 
         self.previous_state = self.state
         self.state = next_state

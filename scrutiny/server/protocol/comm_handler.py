@@ -23,6 +23,7 @@ import traceback
 import queue
 from dataclasses import dataclass
 from scrutiny.tools.profiling import VariableRateExponentialAverager
+from scrutiny import tools
 
 from typing import TypedDict, Optional, Any, Dict, Type, cast
 import threading
@@ -131,8 +132,7 @@ class CommHandler:
                         if self._rx_data_event is not None:
                             self._rx_data_event.set()
                 except Exception as e:
-                    self._logger.error(str(e))
-                    self._logger.debug(traceback.format_exc())
+                    tools.log_exception(self._logger, e, "Error in rx thread")
                     time.sleep(0.2)
             else:
                 time.sleep(0.2)
@@ -332,7 +332,8 @@ class CommHandler:
             self._logger.log(DUMPDATA_LOGLEVEL, 'Received : %s' % (hexlify(data).decode('ascii')))
 
         if self.response_available() or not self.waiting_response():
-            self._logger.debug('Received unwanted data: ' + hexlify(data).decode('ascii'))
+            if self._logger.isEnabledFor(logging.DEBUG): #pragma: no cover
+                self._logger.debug('Received unwanted data: ' + hexlify(data).decode('ascii'))
             return  # Purposely discard data if we are not expecting any
 
         self._rx_data.data_buffer += data    # Add data to receive buffer
@@ -351,7 +352,8 @@ class CommHandler:
                     self._received_response = Response.from_bytes(self._rx_data.data_buffer)  # CRC validation is done here
 
                     # Decoding did not raised an exception, we have a valid payload!
-                    self._logger.debug("Received Response %s" % self._received_response)
+                    if self._logger.isEnabledFor(logging.DEBUG): # pragma: no cover
+                        self._logger.debug("Received Response %s" % self._received_response)
                     self._rx_data.clear()        # Empty the receive buffer
                     self._response_timer.stop()  # Timeout timer can be stop
                     if self._active_request is not None:  # Just to please mypy
@@ -381,16 +383,16 @@ class CommHandler:
                 self._active_request = self._pending_request
                 self._pending_request = None
                 data = self._active_request.to_bytes()
-                self._logger.debug("Sending request %s" % self._active_request)
+                if self._logger.isEnabledFor(logging.DEBUG): # pragma: no cover
+                    self._logger.debug("Sending request %s" % self._active_request)
                 if self._logger.isEnabledFor(DUMPDATA_LOGLEVEL):   # pragma: no cover
                     self._logger.log(DUMPDATA_LOGLEVEL, "Sending : %s" % (hexlify(data).decode('ascii')))
                 try:
                     self._link.write(data)
                     err = None
                 except Exception as e:
+                    tools.log_exception(self._logger, e, "Cannot write to communication link")
                     err = e
-                    self._logger.error('Cannot write to communication link. %s' % str(e))
-                    self._logger.debug(traceback.format_exc())
 
                 if not err:
                     self._tx_datarate_measurement.add_data(len(data))
@@ -401,7 +403,8 @@ class CommHandler:
                 self._pending_request = None
             else:
                 if newrequest:  # Not sent right away
-                    self._logger.debug('Received request to send. Waiting because of throttling. %s' % self._pending_request)
+                    if self._logger.isEnabledFor(logging.DEBUG):    # pragma: no cover
+                        self._logger.debug('Received request to send. Waiting because of throttling. %s' % self._pending_request)
 
     def response_available(self) -> bool:
         """Return True if a response for the pending request has been received"""

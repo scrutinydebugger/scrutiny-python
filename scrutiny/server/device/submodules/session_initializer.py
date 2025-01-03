@@ -7,13 +7,12 @@
 #   Copyright (c) 2021 Scrutiny Debugger
 
 import logging
-from time import time
-import traceback
+import time
 
 from scrutiny.server.protocol import *
 import scrutiny.server.protocol.typing as protocol_typing
 from scrutiny.server.device.request_dispatcher import RequestDispatcher
-
+from scrutiny import tools
 from typing import Optional, Any, cast
 
 
@@ -95,10 +94,11 @@ class SessionInitializer:
             self.reset()
             return
 
-        if not self.connection_pending and (self.last_connect_sent is None or time() - self.last_connect_sent > self.RECONNECT_DELAY):
+        if not self.connection_pending and (self.last_connect_sent is None or time.monotonic() - self.last_connect_sent > self.RECONNECT_DELAY):
             self.success = False
-            self.last_connect_sent = time()
-            self.logger.debug('Registering a Connect request')
+            self.last_connect_sent = time.monotonic()
+            if self.logger.isEnabledFor(logging.DEBUG): # pragma: no cover
+                self.logger.debug('Registering a Connect request')
             self.dispatcher.register_request(request=self.protocol.comm_connect(),
                                              success_callback=self.success_callback,
                                              failure_callback=self.failure_callback,
@@ -113,9 +113,8 @@ class SessionInitializer:
                 self.logger.info('The connection request was accepted by the device')
                 self.session_id = response_data['session_id']
                 self.success = True
-            except Exception:
-                self.logger.warning('Connection request to the device was acknowledged by the device but response data was malformed')
-                self.logger.debug(traceback.format_exc())
+            except Exception as e:
+                tools.log_exception(self.logger, e, "Connection request to the device was acknowledged by the device but response data was malformed")
                 self.error = True
         else:
             self.logger.warning('Connection request to the device was refused by the device with response code %s' % response.code)
