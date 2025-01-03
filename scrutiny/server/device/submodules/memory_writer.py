@@ -334,7 +334,8 @@ class MemoryWriter:
 
     def success_callback(self, request: Request, response: Response, params: Any = None) -> None:
         """Called when a request completes and succeeds"""
-        self.logger.debug("Success callback. Response=%s, Params=%s" % (response, params))
+        if self.logger.isEnabledFor(logging.DEBUG): # pragma: no cover
+            self.logger.debug("Success callback. Response=%s, Params=%s" % (response, params))
         assert request == self.pending_request, "Processing a request that we are not supposed to. This should not happen"
 
         subfn = cmd.MemoryControl.Subfunction(response.subfn)

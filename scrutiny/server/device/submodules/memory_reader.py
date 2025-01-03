@@ -292,7 +292,8 @@ class MemoryReader:
             if self.actual_read_type == ReadType.Variable:
                 request, var_entries_in_request, wrapped_to_beginning = self.make_next_var_entries_request()
                 if request is not None:
-                    self.logger.debug('Registering a MemoryRead request for %d datastore entries. %s' % (len(var_entries_in_request), request))
+                    if self.logger.isEnabledFor(logging.DEBUG): # pragma: no cover
+                        self.logger.debug('Registering a MemoryRead request for %d datastore entries. %s' % (len(var_entries_in_request), request))
                     self.dispatch(request)
                     self.entries_in_pending_read_var_request = var_entries_in_request
 
@@ -303,7 +304,8 @@ class MemoryReader:
             elif self.actual_read_type == ReadType.RuntimePublishedValues:
                 request, rpv_entries_in_request, wrapped_to_beginning = self.make_next_read_rpv_request()
                 if request is not None:
-                    self.logger.debug('Registering a ReadRPV request for %d datastore entries. %s' % (len(rpv_entries_in_request), request))
+                    if self.logger.isEnabledFor(logging.DEBUG): # pragma: no cover
+                        self.logger.debug('Registering a ReadRPV request for %d datastore entries. %s' % (len(rpv_entries_in_request), request))
                     self.dispatch(request)
                     self.entries_in_pending_read_rpv_request = {}
                     for entry in rpv_entries_in_request:
@@ -315,7 +317,8 @@ class MemoryReader:
             elif self.actual_read_type == ReadType.RawMemRead:
                 request, done = self.make_next_raw_mem_read_request()
                 if request is not None:
-                    self.logger.debug('Registering a MemoryRead request. %s' % (request))
+                    if self.logger.isEnabledFor(logging.DEBUG): # pragma: no cover
+                        self.logger.debug('Registering a MemoryRead request. %s' % (request))
                     self.dispatch(request)
 
                 if done or self.pending_request is None:
@@ -478,7 +481,8 @@ class MemoryReader:
 
     def success_callback(self, request: Request, response: Response, params: Any = None) -> None:
         """Called when a request completes and succeeds"""
-        self.logger.debug("Success callback. Response=%s, Params=%s" % (response, params))
+        if self.logger.isEnabledFor(logging.DEBUG): # pragma: no cover
+            self.logger.debug("Success callback. Response=%s, Params=%s" % (response, params))
         assert request == self.pending_request
         if request.command == cmd.MemoryControl:
             subfn = cmd.MemoryControl.Subfunction(response.subfn)

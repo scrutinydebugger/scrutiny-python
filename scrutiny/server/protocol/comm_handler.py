@@ -351,7 +351,8 @@ class CommHandler:
                     self._received_response = Response.from_bytes(self._rx_data.data_buffer)  # CRC validation is done here
 
                     # Decoding did not raised an exception, we have a valid payload!
-                    self._logger.debug("Received Response %s" % self._received_response)
+                    if self._logger.isEnabledFor(logging.DEBUG): # pragma: no cover
+                        self._logger.debug("Received Response %s" % self._received_response)
                     self._rx_data.clear()        # Empty the receive buffer
                     self._response_timer.stop()  # Timeout timer can be stop
                     if self._active_request is not None:  # Just to please mypy
@@ -381,7 +382,8 @@ class CommHandler:
                 self._active_request = self._pending_request
                 self._pending_request = None
                 data = self._active_request.to_bytes()
-                self._logger.debug("Sending request %s" % self._active_request)
+                if self._logger.isEnabledFor(logging.DEBUG): # pragma: no cover
+                    self._logger.debug("Sending request %s" % self._active_request)
                 if self._logger.isEnabledFor(DUMPDATA_LOGLEVEL):   # pragma: no cover
                     self._logger.log(DUMPDATA_LOGLEVEL, "Sending : %s" % (hexlify(data).decode('ascii')))
                 try:
