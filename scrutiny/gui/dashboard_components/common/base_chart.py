@@ -48,9 +48,10 @@ class ScrutinyLineSeries(QLineSeries):
         self.setPen(pen)
 
 class ScrutinyValueAxis(QValueAxis):
-
     def __init__(self, parent:QObject) -> None:
         super().__init__(parent)
+        self._minval = None
+        self._maxval = None
 
     def emphasize(self) -> None:
         font = self.titleFont()

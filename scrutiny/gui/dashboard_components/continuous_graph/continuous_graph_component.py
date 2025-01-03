@@ -9,11 +9,16 @@
 from datetime import datetime
 import functools
 
-from PySide6.QtWidgets import QHBoxLayout, QSplitter, QWidget, QVBoxLayout, QPushButton, QLabel
+from PySide6.QtWidgets import QHBoxLayout, QSplitter, QWidget, QVBoxLayout, QPushButton, QLabel, QCheckBox, QFormLayout
 from PySide6.QtCharts import QChart
 from PySide6.QtCore import Qt, QItemSelectionModel, QPointF, QTimer
+from PySide6.QtGui import QIntValidator
+
 
 from scrutiny.gui import assets
+from scrutiny.gui.widgets.validable_line_edit import ValidableLineEdit
+from scrutiny.gui.tools.validators import NotEmptyValidator
+from scrutiny.gui.core.definitions import WidgetState
 from scrutiny.gui.dashboard_components.base_component import ScrutinyGUIBaseComponent
 from scrutiny.gui.dashboard_components.common.graph_signal_tree import GraphSignalTree, ChartSeriesWatchableStandardItem
 from scrutiny.gui.dashboard_components.common.base_chart import ScrutinyLineSeries, ScrutinyValueAxis, ScrutinyChartCallout, ScrutinyChartView
@@ -21,8 +26,33 @@ from scrutiny.gui.core.watchable_registry import WatchableRegistryNodeNotFoundEr
 from scrutiny import sdk
 from scrutiny import tools
 
-from typing import Dict, Any, Union, List, Optional, cast, Set
+from typing import Dict, Any, Union, List, Optional, cast, Set, Tuple
 
+
+class ValueAxisWithMinMax(ScrutinyValueAxis):
+    _minval:float
+    _maxval:float
+
+    def __init__(self, *args:Any, **kwargs:Any) -> None:
+        super().__init__(*args, **kwargs)
+        self._minval = 0
+        self._maxval = 0
+
+    def set_minmax_vals(self, minval:Optional[float]=None, maxval:Optional[float]=None) -> None:
+        if minval is not None:
+            self._minval = minval
+        if maxval is not None:
+            self._maxval = maxval
+    
+    def clear_minmax_vals(self) -> None:
+        self._minval = 0
+        self._maxval = 0
+
+    def minval(self) -> float:
+        return self._minval
+    
+    def maxval(self) -> float:
+        return self._maxval
 
 class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
     instance_name : str
@@ -30,11 +60,15 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
     _ICON = assets.get("graph-96x128.png")
     _NAME = "Continuous Graph"
 
+    DEFAULT_WINDOW_SIZE=30
+
     _chartview:ScrutinyChartView
     _callout:ScrutinyChartCallout
     _signal_tree:GraphSignalTree
     _btn_start_stop:QPushButton
+    _chk_autoscale:QCheckBox
     _btn_clear:QPushButton
+    _txt_time_window:ValidableLineEdit
     _message_label:QLabel
     _splitter:QSplitter
     _acquiring:bool
@@ -42,19 +76,24 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
     _serverid2sgnal_item:Dict[str, ChartSeriesWatchableStandardItem]
     _callout_hide_timer:QTimer
     _first_val_dt:Optional[datetime]
+    _autoscale_enabled:bool
+    _graph_maintenance_timer:QTimer
+    _axis_minmax_dict:Dict[int, Tuple[float, float]]
 
     _xaxis:ScrutinyValueAxis
-    _yaxes:List[ScrutinyValueAxis]
+    _yaxes:List[ValueAxisWithMinMax]
 
     def setup(self) -> None:
         self._acquiring = False
         self._chart_has_content = False
         self._serverid2sgnal_item = {}
+        self._autoscale_enabled = False
         self._xaxis = ScrutinyValueAxis(self)
         self._xaxis.setTitleText("Time [s]")
         self._xaxis.setTitleVisible(True)
         self._xaxis.deemphasize()   # Default state
         self._yaxes = []
+        self._axis_minmax_dict = {}
         self.watchable_registry.register_watcher(self.instance_name, self.val_update_callback, self.unwatch_callback)
         
         self._splitter = QSplitter(self)
@@ -85,8 +124,31 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         self._btn_start_stop.clicked.connect(self.btn_start_stop_slot)
         self._btn_clear = QPushButton("Clear")
         self._btn_clear.clicked.connect(self.btn_clear_slot)
+        
+        param_widget = QWidget()
+        param_layout = QFormLayout(param_widget)
+        
+        
+        self._chk_autoscale = QCheckBox(self)
+        self._chk_autoscale.checkStateChanged.connect(self.chk_autoscale_slot)
+        
+        self._txt_time_window = ValidableLineEdit(
+            hard_validator=QIntValidator(0, 600, self), 
+            soft_validator=NotEmptyValidator(parent=self)
+            )
+        self._txt_time_window.setText(str(self.DEFAULT_WINDOW_SIZE))
+
+        param_layout.addRow("Graph width (s)", self._txt_time_window)
+        param_layout.addRow("Autoscale", self._chk_autoscale)
+
         self._message_label = QLabel()
+        self._message_label.setWordWrap(True)
+        self._graph_maintenance_timer = QTimer()
+        self._graph_maintenance_timer.setInterval(1000)
+        self._graph_maintenance_timer.timeout.connect(self.graph_maintenance_timer_slot)
+
         right_side_layout.addWidget(self._signal_tree)
+        right_side_layout.addWidget(param_widget)
         right_side_layout.addWidget(self._btn_start_stop)
         right_side_layout.addWidget(self._btn_clear)
         right_side_layout.addWidget(self._message_label)
@@ -100,6 +162,8 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
 
         layout = QHBoxLayout(self)
         layout.addWidget(self._splitter)
+
+        self._chk_autoscale.setChecked(True)
 
         
     def ready(self) -> None:
@@ -142,6 +206,8 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
     def start_acquisition(self) -> None:
         if self._acquiring:
             return 
+        if not self._txt_time_window.validate_expect_valid():
+            return 
         try:
             self.clear_graph()
             signals = self._signal_tree.get_signals()
@@ -151,7 +217,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
             
             self._xaxis.setRange(0, 1)
             for axis in signals:
-                yaxis = ScrutinyValueAxis(self)
+                yaxis = ValueAxisWithMinMax(self)
                 yaxis.setTitleText(axis.axis_name)
                 yaxis.setTitleVisible(True)
                 self._yaxes.append(yaxis)
@@ -169,6 +235,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
                     series = ScrutinyLineSeries(self)
                     self._chartview.chart().addSeries(series)
                     signal_item.attach_series(series)
+                    signal_item.show_series()
                     self._serverid2sgnal_item[server_id] = signal_item
                     series.setName(signal_item.text())
                     series.attachAxis(self._xaxis)
@@ -180,7 +247,9 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
             self._first_val_dt = None
             self._chart_has_content = True
             self._acquiring = True
+            self.enable_autoscale()
             self.update_emphasize_state()
+            self.clear_error()
             self.update_widgets()
         except Exception as e:
             tools.log_exception(self.logger, e, "Failed to start the acquisition")
@@ -189,6 +258,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
     def btn_clear_slot(self) -> None:
         if not self._acquiring:
             self.clear_graph()
+        self.clear_error()
         
         self.update_widgets()
 
@@ -198,6 +268,19 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         else:
             self.start_acquisition()
     
+    def chk_autoscale_slot(self, state:Qt.CheckState) -> None:
+        if state == Qt.CheckState.Checked:
+            self.enable_autoscale()
+        else:
+            self.disable_autoscale()
+        self.update_widgets()
+    
+    def disable_autoscale(self) -> None:
+        self._autoscale_enabled = False
+
+    def enable_autoscale(self) -> None:
+        self._autoscale_enabled = True
+
     def update_widgets(self) -> None:
         if self._acquiring:
             self._btn_clear.setDisabled(True)
@@ -210,6 +293,11 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
             self._signal_tree.lock()
         else:
             self._signal_tree.unlock()
+
+        if self._autoscale_enabled:
+            self._chk_autoscale.setCheckState(Qt.CheckState.Checked)
+        else:
+            self._chk_autoscale.setCheckState(Qt.CheckState.Unchecked)
         
         if self._chart_has_content and not self._acquiring:
             self._btn_clear.setEnabled(True)
@@ -226,6 +314,11 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
     
     def report_error(self, msg:str) -> None:
         self._message_label.setText(msg)
+        self._message_label.setProperty('state', WidgetState.error)
+    
+    def clear_error(self) -> None:
+        self._message_label.setText("")
+        self._message_label.setProperty('state', WidgetState.default)
 
     def val_update_callback(self, watcher_id:Union[str, int], vals:List[ValueUpdate]) -> None:
         if not self._chart_has_content:
@@ -239,13 +332,18 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         def get_x(val:ValueUpdate) -> float:
             return  (val.update_timestamp-tstart).total_seconds()
 
-        self._xaxis.setRange(self._xaxis.min(), get_x(vals[-1]))
+        if self._autoscale_enabled:
+            self._xaxis.setRange(self._xaxis.min(), get_x(vals[-1]))
         try:
             for val in vals:
                 series = self._serverid2sgnal_item[val.watchable.server_id].series()
                 floatval = float(val.value)
-                yaxis = cast(ScrutinyValueAxis, self._chartview.chart().axisY(series))
-                yaxis.setRange(min(yaxis.min(), floatval), max(yaxis.max(), floatval))
+                yaxis = cast(ValueAxisWithMinMax, self._chartview.chart().axisY(series))
+                yaxis.set_minmax_vals(min(yaxis.minval(), floatval), max(yaxis.maxval(), floatval))
+                if self._autoscale_enabled:
+                    MARGIN = 0.02
+                    span = yaxis.maxval() - yaxis.minval()
+                    yaxis.setRange(yaxis.minval() - span * MARGIN, yaxis.maxval() + span * MARGIN)
                 series.append(get_x(val), floatval)
         except KeyError as e:
             tools.log_exception(self.logger, e, "Received a value update from a watchable that maps to no valid series in the chart")
@@ -284,12 +382,17 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         sel = self._signal_tree.selectionModel()
         sel.select(signal_item.index(), QItemSelectionModel.SelectionFlag.ClearAndSelect | QItemSelectionModel.SelectionFlag.Rows)
 
-    def series_hovered_slot(self, signal_item:ChartSeriesWatchableStandardItem, point:QPointF, state:bool) -> None:
-        # FIXME : If the scale changes, the data may change but not the callout.
-        # Only allow callout when the data is not moving. Fixed range or stopped
+    def graph_maintenance_timer_slot(self) -> None:
+        if not self._acquiring:
+            return
 
+    def series_hovered_slot(self, signal_item:ChartSeriesWatchableStandardItem, point:QPointF, state:bool) -> None:
         # FIXME : Snap zone is too small. QT source code says it is computed with markersize, but changing it has no effect.
-        if state :
+        must_show = state
+        if self._acquiring and self._autoscale_enabled:
+            must_show  = False
+
+        if must_show :
             series = signal_item.series()
             self._callout_hide_timer.stop()
             txt = f"{signal_item.text()}\nX: {point.x()}\nY: {point.y()}"
