@@ -45,6 +45,56 @@ class ScrutinyTestResult(unittest.TextTestResult):
         self.stream.flush()
         self._newline = True
 
+    def addSuccess(self, test):
+        super(unittest.TextTestResult, self).addSuccess(test)
+        if self.showAll:
+            self._write_status(test, "ok")
+        elif self.dots:
+            self.stream.write('.')
+            self.stream.flush()
+
+    def addError(self, test, err):
+        super(unittest.TextTestResult, self).addError(test, err)
+        if self.showAll:
+            self._write_status(test, "ERROR")
+        elif self.dots:
+            self.stream.write('E')
+            self.stream.flush()
+
+    def addFailure(self, test, err):
+        super(unittest.TextTestResult, self).addFailure(test, err)
+        if self.showAll:
+            self._write_status(test, "FAIL")
+        elif self.dots:
+            self.stream.write('F')
+            self.stream.flush()
+
+    def addSkip(self, test, reason):
+        super(unittest.TextTestResult, self).addSkip(test, reason)
+        if self.showAll:
+            self._write_status(test, "skipped {0!r}".format(reason))
+        elif self.dots:
+            self.stream.write("s")
+            self.stream.flush()
+
+    def addExpectedFailure(self, test, err):
+        super(unittest.TextTestResult, self).addExpectedFailure(test, err)
+        if self.showAll:
+            self.stream.writeln("expected failure")
+            self.stream.flush()
+        elif self.dots:
+            self.stream.write("x")
+            self.stream.flush()
+
+    def addUnexpectedSuccess(self, test):
+        super(unittest.TextTestResult, self).addUnexpectedSuccess(test)
+        if self.showAll:
+            self.stream.writeln("unexpected success")
+            self.stream.flush()
+        elif self.dots:
+            self.stream.write("u")
+            self.stream.flush()
+
 class ScrutinyRunner(unittest.TextTestRunner):
     resultclass = ScrutinyTestResult 
 
