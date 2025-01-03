@@ -37,7 +37,7 @@ class RunTest(BaseCommand):
         import scrutiny
         import os
         import sys
-        success = -1
+        success = False
 
         args = self.parser.parse_args(self.args)
         failfast = args.f
@@ -75,7 +75,7 @@ class RunTest(BaseCommand):
                     suite = loader.discover(test_root)
                 else:
                     suite = loader.loadTestsFromName(args.module)
-                from test.scrutiny_runner import ScrutinyRunner
+                from test import ScrutinyRunner
                 result = ScrutinyRunner(verbosity=int(args.verbosity), failfast=failfast).run(suite)
                 success = len(result.errors) == 0 and len(result.failures) == 0
             except Exception:

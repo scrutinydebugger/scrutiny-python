@@ -1,13 +1,52 @@
 import logging
 import unittest
+import unittest.case
 from functools import wraps
 from datetime import datetime
+import time
 
 from scrutiny.core.datalogging import DataloggingAcquisition, DataSeries, AxisDefinition
+from scrutiny.tools import format_eng_unit
 
 __scrutiny__ = True  # we need something to know if we loaded scrutiny "test" module or something else (such as python "test" module)
 logger = logging.getLogger('unittest')
 
+
+class ScrutinyTestResult(unittest.TextTestResult):
+
+    def startTest(self, test):
+        super(ScrutinyTestResult, self).startTest(test)
+        setattr(test, '_scrutiny_test_start_time', time.perf_counter())
+
+    def _write_status(self, test, status):
+        # Copied from TextTestResult and added the time thing.
+        # Super hackyfragilistic
+        is_subtest = isinstance(test, unittest.case._SubTest)
+        if is_subtest or self._newline:
+            if not self._newline:
+                self.stream.writeln()
+            if is_subtest:
+                self.stream.write("  ")
+            self.stream.write(self.getDescription(test))
+            self.stream.write(" ... ")
+        duration = None
+        if hasattr(test, '_scrutiny_test_start_time'):
+            start_time = getattr(test, '_scrutiny_test_start_time')
+            if isinstance(start_time, float):
+                duration = time.perf_counter() - start_time
+        self.stream.write(status)
+        if duration is not None:
+            if duration < 1:
+                duration_str = format_eng_unit(duration, decimal=1, unit="s", binary=False) # handle ms, us, ns
+            else:
+                duration_str = f"{duration:0.1f}s"
+            self.stream.write(f" ({duration_str})")
+        self.stream.writeln()
+        self.stream.flush()
+        self._newline = True
+
+class ScrutinyRunner(unittest.TextTestRunner):
+    resultclass = ScrutinyTestResult 
 
 class SkipOnException:
     def __init__(self, exception, msg=""):
@@ -35,6 +74,7 @@ class PrintableByteArray(bytearray):
 
 
 class ScrutinyUnitTest(unittest.TestCase):
+
     def assertEqual(self, v1, v2, *args, **kwargs):
         if isinstance(v1, bytes) and isinstance(v2, bytes):
             super().assertEqual(PrintableBytes(v1), PrintableBytes(v2), *args, **kwargs)
