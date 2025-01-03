@@ -15,8 +15,32 @@ logger = logging.getLogger('unittest')
 class ScrutinyTestResult(unittest.TextTestResult):
 
     def startTest(self, test):
-        super(ScrutinyTestResult, self).startTest(test)
+        super(unittest.TextTestResult, self).startTest(test)
+        if self.showAll:
+            self.stream.write(self.getDescription(test))
+            self.stream.write(" ... ")
+            self.stream.flush()
+            self._newline = False
+
         setattr(test, '_scrutiny_test_start_time', time.perf_counter())
+    
+    def getDescription(self, test):
+        return str(test)
+    
+    def addSubTest(self, test, subtest, err):
+        if err is not None:
+            if self.showAll:
+                if issubclass(err[0], subtest.failureException):
+                    self._write_status(subtest, "FAIL")
+                else:
+                    self._write_status(subtest, "ERROR")
+            elif self.dots:
+                if issubclass(err[0], subtest.failureException):
+                    self.stream.write('F')
+                else:
+                    self.stream.write('E')
+                self.stream.flush()
+        super(unittest.TextTestResult, self).addSubTest(test, subtest, err)
 
     def _write_status(self, test, status):
         # Copied from TextTestResult and added the time thing.
