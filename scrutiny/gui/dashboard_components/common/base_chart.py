@@ -107,6 +107,11 @@ class ScrutinyLineSeries(QLineSeries):
         for p in self.points():
             self._x_minmax.update(p.x())
             self._y_minmax.update(p.y())
+
+    def recompute_y_minmax(self) -> None:
+        self._y_minmax.clear()
+        for p in self.points():
+            self._y_minmax.update(p.y())
     
     def x_min(self) -> Optional[float]:
         return self._x_minmax.min()
@@ -115,10 +120,10 @@ class ScrutinyLineSeries(QLineSeries):
         return self._x_minmax.max()
     
     def y_min(self) -> Optional[float]:
-        return self._x_minmax.min()
+        return self._y_minmax.min()
     
     def y_max(self) -> Optional[float]:
-        return self._x_minmax.max()
+        return self._y_minmax.max()
     
     def monotonic_search_closest(self, xval:float) -> Optional[QPointF]:
         """Search for the closest point using the XAxis. Assume a monotonic X axis.

@@ -68,6 +68,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
     """A timer to periodically remove data and do some non-real time computation"""
     _graph_max_width:float
     """The maximum width of the X-Axis (max-min). Used to delete expired data"""
+    _y_minmax_recompute_index:int
 
     _xaxis:ScrutinyValueAxisWithMinMax
     """The single time X-Axis"""
@@ -84,6 +85,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         self._xaxis.setTitleVisible(True)
         self._xaxis.deemphasize()   # Default state
         self._yaxes = []
+        self._y_minmax_recompute_index=0
         self.watchable_registry.register_watcher(self.instance_name, self._val_update_callback, self._unwatch_callback)
         
         self._splitter = QSplitter(self)
@@ -245,6 +247,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
                     series.clicked.connect(functools.partial(self._series_clicked_slot, signal_item))
                     series.hovered.connect(functools.partial(self._series_hovered_slot, signal_item))
 
+            self._y_minmax_recompute_index=0
             self._first_val_dt = None
             self._chart_has_content = True
             self._acquiring = True
@@ -376,6 +379,37 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         # Should we do something? User feedback if the watcahble is not available anymore maybe?
         pass
     
+    def _round_robin_recompute_single_series_min_max(self) -> bool:
+        if not self.is_acquiring():
+            return False
+        
+        sorted_ids = sorted(list(self._serverid2sgnal_item.keys()))
+        all_series = [cast(ScrutinyLineSeries, self._serverid2sgnal_item[server_id].series()) for server_id in sorted_ids]
+        
+        if self._y_minmax_recompute_index < len(all_series):
+            series = all_series[self._y_minmax_recompute_index]
+            series.recompute_minmax()
+        
+        self._y_minmax_recompute_index+=1
+        if self._y_minmax_recompute_index > len(all_series):
+            self._y_minmax_recompute_index = 0
+            return True # Finished
+        return False
+
+    def _update_yaxes_minmax_based_on_series_minmax(self) -> None:
+        """Recompute the min/max values of an axis using the minmax values of each series. 
+        series.recompute_minmax() must be called prior to this method"""
+        allseries = [ cast(ScrutinyLineSeries, item.series()) for item in self._serverid2sgnal_item.values()]
+        for yaxis in self._yaxes:
+            yaxis.clear_minmax()
+            for series in allseries:
+                if id(yaxis) in [id(axis) for axis in series.attachedAxes()]:
+                    minv, maxv = series.y_min(), series.y_max()
+                    if minv is not None:
+                        yaxis.update_minmax(minv)
+                    if maxv is not None:
+                        yaxis.update_minmax(maxv)
+
     # endregion Internal
 
     # region SLOTS
@@ -409,6 +443,8 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         sel.select(signal_item.index(), QItemSelectionModel.SelectionFlag.ClearAndSelect | QItemSelectionModel.SelectionFlag.Rows)
 
     def _graph_maintenance_timer_slot(self) -> None:
+        """Periodic callback meant to prune the graph and recompute the rang eof the axis.
+        Done periodically to reduce the strain on the CPU"""
         if not self.is_acquiring():
             return
         
@@ -436,6 +472,9 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
                 series.removePoints(0, count)
 
         self._xaxis.set_minval(new_min_x)
+
+        self._round_robin_recompute_single_series_min_max() # Update a single series at a time to reduce the load on the CPU
+        self._update_yaxes_minmax_based_on_series_minmax()  # Recompute min/max. Only way to shrink the scale reliably.
     
     def _series_hovered_slot(self, signal_item:ChartSeriesWatchableStandardItem, point:QPointF, state:bool) -> None:
         # FIXME : Snap zone is too small. QT source code says it is computed with markersize, but changing it has no effect.
