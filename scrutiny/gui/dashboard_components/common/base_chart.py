@@ -22,8 +22,8 @@ import math
 
 from PySide6.QtCharts import QLineSeries, QValueAxis, QChart, QChartView, QXYSeries
 from PySide6.QtWidgets import QGraphicsItem, QStyleOptionGraphicsItem, QWidget, QMenu, QFileDialog, QMessageBox
-from PySide6.QtGui import QFont, QPainter, QFontMetrics, QColor, QContextMenuEvent
-from PySide6.QtCore import QObject, QPointF, QRect, QRectF, Qt
+from PySide6.QtGui import QFont, QPainter, QFontMetrics, QColor, QContextMenuEvent, QPainterPath
+from PySide6.QtCore import QObject, QPointF, QRect, QRectF, Qt, QPoint
 
 import scrutiny
 from scrutiny import tools
@@ -32,7 +32,7 @@ from scrutiny.gui.core.preferences import gui_preferences
 from scrutiny.gui.themes import get_theme_prop, ScrutinyThemeProperties
 from scrutiny.gui import assets
 
-from typing import Any, Optional, List, cast, Any, Sequence
+from typing import Any, Optional, List, cast, Any, Sequence, overload, Union
 
 class MinMax:
     low:float
@@ -94,19 +94,12 @@ class ScrutinyLineSeries(QLineSeries):
         pen.setWidth(get_theme_prop(ScrutinyThemeProperties.CHART_NORMAL_SERIES_WIDTH))
         self.setPen(pen)
 
-    def append(self, x: float, y: float):
-        super().append(x,y)
+    def add_point_with_minmax(self, x:float, y:float) -> None:
+        self.append(x,y)
         self._x_minmax.update(x)
         self._y_minmax.update(y)
-
-    def appendNp(self, x: Sequence[Any], y: Sequence[Any]) -> None:
-        super().append(x,y)
-        for v in x:
-            self._x_minmax.update(v)
-        for v in y:
-            self._y_minmax.update(v)
     
-    def recompute_minmax(self):
+    def recompute_minmax(self) -> None:
         self._x_minmax.clear()
         self._y_minmax.clear()
         for p in self.points():
