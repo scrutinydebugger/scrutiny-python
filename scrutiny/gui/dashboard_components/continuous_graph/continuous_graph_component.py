@@ -443,14 +443,16 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         if self.is_acquiring() and self.is_autoscale_enabled():
             must_show  = False
 
-        if must_show :
-            series = signal_item.series()
-            self._callout_hide_timer.stop()
-            txt = f"{signal_item.text()}\nX: {point.x()}\nY: {point.y()}"
-            pos = self._chartview.chart().mapToPosition(point, series)
-            color = series.color()
-            self._callout.set_content(pos, txt, color)
-            self._callout.show()
+        if must_show:
+            series = cast(ScrutinyLineSeries, signal_item.series())
+            closest_real_point = series.monotonic_search_closest(point.x())
+            if closest_real_point is not None:
+                self._callout_hide_timer.stop()
+                txt = f"{signal_item.text()}\nX: {closest_real_point.x()}\nY: {closest_real_point.y()}"
+                pos = self._chartview.chart().mapToPosition(closest_real_point, series)
+                color = series.color()
+                self._callout.set_content(pos, txt, color)
+                self._callout.show()
         else:
             self._callout_hide_timer.start()
 

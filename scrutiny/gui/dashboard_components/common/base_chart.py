@@ -19,6 +19,7 @@ import os
 import csv
 from datetime import datetime
 import math 
+from bisect import bisect, bisect_left, bisect_right
 
 from PySide6.QtCharts import QLineSeries, QValueAxis, QChart, QChartView, QXYSeries
 from PySide6.QtWidgets import QGraphicsItem, QStyleOptionGraphicsItem, QWidget, QMenu, QFileDialog, QMessageBox
@@ -75,6 +76,7 @@ class MinMax:
             return None
         return self.high
 
+
 class ScrutinyLineSeries(QLineSeries):
     _x_minmax:MinMax
     _y_minmax:MinMax
@@ -117,6 +119,23 @@ class ScrutinyLineSeries(QLineSeries):
     
     def y_max(self) -> Optional[float]:
         return self._x_minmax.max()
+    
+    def monotonic_search_closest(self, xval:float) -> Optional[QPointF]:
+        """Search for the closest point using the XAxis. Assume a monotonic X axis.
+        If the values are not monotonic : undefined behavior"""
+        points = self.points()
+        if len(points) == 0:
+            return None
+
+        index = bisect_left(points, xval, key=lambda p:p.x())
+        p1 = points[index]
+        if index == 0:
+            return p1
+        p2 = points[index-1]
+        if abs(p1.x()-xval) <= abs(p2.x()-xval):
+            return p1
+        else:
+            return p2
 
 class ScrutinyValueAxis(QValueAxis):
 
@@ -415,7 +434,7 @@ class ScrutinyChartView(QChartView):
                         row.append(val)
 
                     writer.writerow(row)
-                    
+
         except Exception as e:
             msgbox = QMessageBox(self)
             msgbox.setStandardButtons(QMessageBox.StandardButton.Close)
