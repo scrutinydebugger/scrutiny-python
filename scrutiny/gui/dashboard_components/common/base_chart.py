@@ -10,7 +10,8 @@ __all__ = [
     'ScrutinyLineSeries',
     'ScrutinyValueAxis', 
     'ScrutinyChartCallout',
-    'ScrutinyChartView'
+    'ScrutinyChartView',
+    'ScrutinyChart'
 ]
 
 import enum
@@ -193,6 +194,9 @@ class ScrutinyValueAxisWithMinMax(ScrutinyValueAxis):
         self.setRange(new_range_min, new_range_max)
 
 
+class ScrutinyChart(QChart):
+    pass
+
 class ScrutinyChartCallout(QGraphicsItem):
 
     CALLOUT_RECT_DIST = 10  # Distance between point marker and 
@@ -203,7 +207,7 @@ class ScrutinyChartCallout(QGraphicsItem):
         Below = enum.auto()
 
 
-    _chart:QChart
+    _chart:ScrutinyChart
     _text:str
     _point_location_on_chart:QPointF
     _font:QFont
@@ -214,7 +218,7 @@ class ScrutinyChartCallout(QGraphicsItem):
     _marker_radius : int
 
 
-    def __init__(self, chart:QChart) -> None:
+    def __init__(self, chart:ScrutinyChart) -> None:
         super().__init__(chart)
         self._chart = chart
         self._text = ''
@@ -288,7 +292,6 @@ class ScrutinyChartCallout(QGraphicsItem):
         painter.drawEllipse(anchor, self._marker_radius, self._marker_radius)
         painter.setPen(QColor(0,0,0))
         painter.drawText(self._text_rect, self._text)
-
 
 
 

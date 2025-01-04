@@ -10,7 +10,6 @@ from datetime import datetime
 import functools
 
 from PySide6.QtWidgets import QHBoxLayout, QSplitter, QWidget, QVBoxLayout, QPushButton, QCheckBox, QFormLayout, QSpinBox
-from PySide6.QtCharts import QChart
 from PySide6.QtCore import Qt, QItemSelectionModel, QPointF, QTimer
 from scrutiny.gui.widgets.feedback_label import FeedbackLabel
 
@@ -18,7 +17,7 @@ from scrutiny.gui import assets
 from scrutiny.gui.core.definitions import WidgetState
 from scrutiny.gui.dashboard_components.base_component import ScrutinyGUIBaseComponent
 from scrutiny.gui.dashboard_components.common.graph_signal_tree import GraphSignalTree, ChartSeriesWatchableStandardItem
-from scrutiny.gui.dashboard_components.common.base_chart import ScrutinyLineSeries, ScrutinyValueAxisWithMinMax, ScrutinyChartCallout, ScrutinyChartView
+from scrutiny.gui.dashboard_components.common.base_chart import ScrutinyLineSeries, ScrutinyValueAxisWithMinMax, ScrutinyChartCallout, ScrutinyChartView, ScrutinyChart
 from scrutiny.gui.core.watchable_registry import WatchableRegistryNodeNotFoundError, ValueUpdate
 from scrutiny import sdk
 from scrutiny import tools
@@ -94,7 +93,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         self._splitter.setHandleWidth(5)
         
         self._chartview = ScrutinyChartView(self)
-        chart = QChart()
+        chart = ScrutinyChart()
         chart.layout().setContentsMargins(0,0,0,0)
         chart.setAxisX(self._xaxis)
         self._chartview.setChart(chart)
