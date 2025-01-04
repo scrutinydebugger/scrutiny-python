@@ -64,3 +64,6 @@ class Icons:
     Hide = "hide-16x16.png"
     Picture = "picture-16x16.png"
     CSV = "csv-16x16.png"
+    Warning = "warning-16x16.png"
+    Error = "error-16x16.png"
+    Info = "info-16x16.png"

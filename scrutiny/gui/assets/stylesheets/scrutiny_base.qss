@@ -8,7 +8,10 @@ QLineEdit[state="success"]{
 
 QLabel[state="error"]{
     color:#ff0000;
-    background-color:#99ff99;
+}
+
+QSpinBox[state="error"]{
+    background-color:#ff9999;
 }
 
 QStatusBar{

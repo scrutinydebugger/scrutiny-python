@@ -12,7 +12,7 @@ from PySide6.QtGui import QAction
 class Actions:
     dashboard_open: QAction
     dashboard_save: QAction
-    dashboard_close: QAction
+    dashboard_clear: QAction
     
     server_launch_local: QAction
     device_configure: QAction
@@ -28,7 +28,7 @@ class MenuBar(QMenuBar):
         dashboard_menu = self.addMenu('Dashboard')
         self.buttons.dashboard_open = dashboard_menu.addAction("Open")
         self.buttons.dashboard_save = dashboard_menu.addAction("Save")
-        self.buttons.dashboard_close = dashboard_menu.addAction("Clear")
+        self.buttons.dashboard_clear = dashboard_menu.addAction("Clear")
 
         server_menu =  self.addMenu('Server')
         self.buttons.server_launch_local = server_menu.addAction("Launch local")

@@ -18,6 +18,7 @@ from pathlib import Path
 import os
 import csv
 from datetime import datetime
+import math 
 
 from PySide6.QtCharts import QLineSeries, QValueAxis, QChart, QChartView, QXYSeries
 from PySide6.QtWidgets import QGraphicsItem, QStyleOptionGraphicsItem, QWidget, QMenu, QFileDialog, QMessageBox
@@ -31,11 +32,57 @@ from scrutiny.gui.core.preferences import gui_preferences
 from scrutiny.gui.themes import get_theme_prop, ScrutinyThemeProperties
 from scrutiny.gui import assets
 
-from typing import Any, Optional, List, cast
+from typing import Any, Optional, List, cast, Any, Sequence
+
+class MinMax:
+    low:float
+    high:float
+
+    def __init__(self) -> None:
+        self.clear()
+    
+    def clear(self) -> None:
+        self.low = math.inf
+        self.high = -math.inf
+    
+    def update(self, v:float) -> None:
+        if v > self.high:
+            self.high = v
+        if v < self.low:
+            self.low = v
+
+    def update_min(self, v:float) -> None:
+        if v < self.low:
+            self.low = v
+
+    def update_max(self, v:float) -> None:
+        if v > self.high:
+            self.high = v
+
+    def set_min(self, v:float) -> None:
+        self.low = v
+
+    def set_max(self, v:float) -> None:
+        self.high = v
+        
+    def min(self) -> Optional[float]:
+        if not math.isfinite(self.low):
+            return None
+        return self.low
+    
+    def max(self) -> Optional[float]:
+        if not math.isfinite(self.high):
+            return None
+        return self.high
 
 class ScrutinyLineSeries(QLineSeries):
+    _x_minmax:MinMax
+    _y_minmax:MinMax
+
     def __init__(self, parent:QObject) -> None:
         super().__init__(parent)
+        self._x_minmax = MinMax()
+        self._y_minmax = MinMax()
 
     def emphasize(self) -> None:
         pen = self.pen()
@@ -47,11 +94,38 @@ class ScrutinyLineSeries(QLineSeries):
         pen.setWidth(get_theme_prop(ScrutinyThemeProperties.CHART_NORMAL_SERIES_WIDTH))
         self.setPen(pen)
 
+    def append(self, x: float, y: float):
+        super().append(x,y)
+        self._x_minmax.update(x)
+        self._y_minmax.update(y)
+
+    def appendNp(self, x: Sequence[Any], y: Sequence[Any]) -> None:
+        super().append(x,y)
+        for v in x:
+            self._x_minmax.update(v)
+        for v in y:
+            self._y_minmax.update(v)
+    
+    def recompute_minmax(self):
+        self._x_minmax.clear()
+        self._y_minmax.clear()
+        for p in self.points():
+            self._x_minmax.update(p.x())
+            self._y_minmax.update(p.y())
+    
+    def x_min(self) -> Optional[float]:
+        return self._x_minmax.min()
+    
+    def x_max(self) -> Optional[float]:
+        return self._x_minmax.max()
+    
+    def y_min(self) -> Optional[float]:
+        return self._x_minmax.min()
+    
+    def y_max(self) -> Optional[float]:
+        return self._x_minmax.max()
+
 class ScrutinyValueAxis(QValueAxis):
-    def __init__(self, parent:QObject) -> None:
-        super().__init__(parent)
-        self._minval = None
-        self._maxval = None
 
     def emphasize(self) -> None:
         font = self.titleFont()
@@ -62,6 +136,44 @@ class ScrutinyValueAxis(QValueAxis):
         font = self.titleFont()
         font.setBold(False)
         self.setTitleFont(font)
+
+
+class ScrutinyValueAxisWithMinMax(ScrutinyValueAxis):
+    _minmax:MinMax
+
+    @tools.copy_type(ScrutinyValueAxis.__init__)
+    def __init__(self, *args:Any, **kwargs:Any) -> None:
+        super().__init__(*args, **kwargs)
+        self._minmax = MinMax()
+
+    def update_minmax(self, v:float) ->None:
+        self._minmax.update(v)
+    
+    def clear_minmax(self) -> None:
+        self._minmax.clear()
+
+    def minval(self) -> Optional[float]:
+        return self._minmax.min()
+    
+    def maxval(self) -> Optional[float]:
+        return self._minmax.max()
+    
+    def set_minval(self, v:float) -> None:
+        self._minmax.set_min(v)
+    
+    def set_maxval(self, v:float) -> None:
+        self._minmax.set_max(v)
+    
+    def autoset_range(self, margin_ratio:float=0) -> None:
+        margin_ratio = max(min(0.2, margin_ratio), 0)
+        minv, maxv = self._minmax.min(), self._minmax.max()
+        if minv is None or maxv is None:
+            self.setRange(0,1)
+            return
+        span = maxv-minv
+        new_range_min = minv - span * margin_ratio
+        new_range_max = maxv + span * margin_ratio
+        self.setRange(new_range_min, new_range_max)
 
 
 class ScrutinyChartCallout(QGraphicsItem):
@@ -213,6 +325,8 @@ class ScrutinyChartView(QChartView):
             pix = self.grab()
             save_dir = gui_preferences.default().get_last_save_dir_or_workdir()
             filename, _ = QFileDialog.getSaveFileName(self, "Save", str(save_dir), "*.png")
+            if len(filename) == 0:
+                return # Cancelled
             gui_preferences.default().set_last_save_dir(Path(os.path.dirname(filename)))
             if not filename.lower().endswith('.png'):
                 filename += ".png"
@@ -228,6 +342,7 @@ class ScrutinyChartView(QChartView):
     def save_csv_slot(self) -> None:
         if not self._allow_save_csv:
             return 
+        
         try:
             chart = self.chart()
             for series in chart.series():
@@ -237,7 +352,11 @@ class ScrutinyChartView(QChartView):
             series_list = cast(List[QXYSeries], chart.series())
             
             save_dir = gui_preferences.default().get_last_save_dir_or_workdir()
-            filename, _ = QFileDialog.getSaveFileName(self, "Save", str(save_dir), "*.png")
+            filename, _ = QFileDialog.getSaveFileName(self, "Save", str(save_dir), "*.csv")
+            if len(filename) == 0:
+                return # Cancelled
+            
+
             gui_preferences.default().set_last_save_dir(Path(os.path.dirname(filename)))
             if not filename.lower().endswith('.csv'):
                 filename += ".csv"
