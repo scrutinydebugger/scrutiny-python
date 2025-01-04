@@ -315,11 +315,11 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
                 xval = get_x(val)
                 yval = float(val.value)
 
-                series = self._serverid2sgnal_item[val.watchable.server_id].series()
+                series = cast(ScrutinyLineSeries, self._serverid2sgnal_item[val.watchable.server_id].series())
                 yaxis = cast(ScrutinyValueAxisWithMinMax, self._chartview.chart().axisY(series))
                 self._xaxis.update_minmax(xval)
                 yaxis.update_minmax(yval)   # Can only grow
-                series.append(xval, yval)
+                series.add_point_with_minmax(xval, yval)
                 if self._autoscale_enabled:
                     yaxis.autoset_range(margin_ratio=0.02)
             
@@ -370,6 +370,8 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
             return
         
         new_min_x = self._xaxis.maxval()
+        if new_min_x is None:
+            return 
 
         for item in self._serverid2sgnal_item.values():
             series = item.series()

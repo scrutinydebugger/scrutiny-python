@@ -36,7 +36,7 @@ class FeedbackLabel(QWidget):
         self._text_label.setText(text)
         self._icon_label.setPixmap(assets.load_pixmap(assets.Icons.Error))
 
-    def set_error(self, text:str) -> None:
+    def set_warning(self, text:str) -> None:
         self._text_label.setText(text)
         self._icon_label.setPixmap(assets.load_pixmap(assets.Icons.Warning))
 
