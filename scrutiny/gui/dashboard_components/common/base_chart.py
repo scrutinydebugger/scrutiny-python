@@ -349,7 +349,6 @@ class ScrutinyChartView(QChartView):
             if len(filename) == 0:
                 return # Cancelled
             
-
             gui_preferences.default().set_last_save_dir(Path(os.path.dirname(filename)))
             if not filename.lower().endswith('.csv'):
                 filename += ".csv"
@@ -416,11 +415,7 @@ class ScrutinyChartView(QChartView):
                         row.append(val)
 
                     writer.writerow(row)
-
-
                     
-
-
         except Exception as e:
             msgbox = QMessageBox(self)
             msgbox.setStandardButtons(QMessageBox.StandardButton.Close)
