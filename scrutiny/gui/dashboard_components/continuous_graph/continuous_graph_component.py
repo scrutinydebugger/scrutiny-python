@@ -339,24 +339,30 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
     def _clear_error(self) -> None:
         self._feedback_label.clear()
 
-    def _val_update_callback(self, watcher_id:Union[str, int], vals:List[ValueUpdate]) -> None:
+    def _val_update_callback(self, watcher_id:Union[str, int], updates:List[ValueUpdate]) -> None:
         if not self._chart_has_content:
             self.logger.error("Received value updates when no graph was ready")
             return 
         
+        self._dump_value_updates_to_chart(updates)
+    
+    def _dump_value_updates_to_chart(self, value_updates:List[ValueUpdate]) -> None:
+        if len(value_updates) == 0:
+            return
+        
         if self._first_val_dt is None:
-            self._first_val_dt = vals[0].update_timestamp   # precise to the microsecond. Coming from the server
+            self._first_val_dt = value_updates[0].update_timestamp   # precise to the microsecond. Coming from the server
 
         tstart = self._first_val_dt
         def get_x(val:ValueUpdate) -> float:
             return  (val.update_timestamp-tstart).total_seconds()
         
         try:
-            for val in vals:
-                xval = get_x(val)
-                yval = float(val.value)
+            for value_update in value_updates:
+                xval = get_x(value_update)
+                yval = float(value_update.value)
 
-                series = cast(ScrutinyLineSeries, self._serverid2sgnal_item[val.watchable.server_id].series())
+                series = cast(ScrutinyLineSeries, self._serverid2sgnal_item[value_update.watchable.server_id].series())
                 yaxis = cast(ScrutinyValueAxisWithMinMax, self._chartview.chart().axisY(series))
                 self._xaxis.update_minmax(xval)
                 yaxis.update_minmax(yval)   # Can only grow
@@ -483,7 +489,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
 
         if must_show:
             series = cast(ScrutinyLineSeries, signal_item.series())
-            closest_real_point = series.monotonic_search_closest(point.x())
+            closest_real_point = series.search_closest_monotonic(point.x())
             if closest_real_point is not None:
                 self._callout_hide_timer.stop()
                 txt = f"{signal_item.text()}\nX: {closest_real_point.x()}\nY: {closest_real_point.y()}"
@@ -506,5 +512,6 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         self._graph_max_width = val
         if self.is_acquiring() and self.is_autoscale_enabled():
             self.auto_scale_xaxis()
+        self._spinbox_graph_max_width.clearFocus()
     
     #endregion
