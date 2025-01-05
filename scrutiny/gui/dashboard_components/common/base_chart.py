@@ -134,6 +134,7 @@ class ScrutinyLineSeries(QLineSeries):
             return None
 
         index = bisect_left(points, xval, key=lambda p:p.x())
+        index = min(index, len(points)-1)
         p1 = points[index]
         if index == 0:
             return p1
@@ -277,7 +278,6 @@ class ScrutinyChartCallout(QGraphicsItem):
         self._text = text
         self._color = color
         self._compute_geometry()
-       
 
     def boundingRect(self) -> QRectF:
         # Inform QT about the size we need

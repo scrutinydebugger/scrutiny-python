@@ -6,20 +6,22 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
+import sys
+import ctypes
+
 from PySide6.QtWidgets import QApplication
 from PySide6.QtGui import QIcon
+
+import scrutiny
 from scrutiny.gui.main_window import MainWindow
 from scrutiny.gui import assets
-import scrutiny
-import ctypes
-import sys
-from typing import List
 from scrutiny.tools.thread_enforcer import register_thread
 from scrutiny.gui.core.threads import QT_THREAD_NAME
 from scrutiny.gui.tools.invoker import Invoker
 from scrutiny.gui.themes import set_theme
 from scrutiny.gui.themes.default_theme import DefaultTheme
 
+from typing import List
 
 class ScrutinyQtGUI:
     debug_layout:bool

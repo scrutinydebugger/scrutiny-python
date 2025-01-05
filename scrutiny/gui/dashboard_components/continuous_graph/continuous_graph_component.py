@@ -198,6 +198,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         self._graph_maintenance_timer.stop()
         self.watchable_registry.unwatch_all(self._watcher_id())
         self._acquiring = False
+        #self._enable_opengl_drawing(False)  #  Required for callout to work
         self._update_widgets()
 
     def start_acquisition(self) -> None:
@@ -251,6 +252,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
             self._chart_has_content = True
             self._acquiring = True
             self._graph_maintenance_timer.start()
+            #self._enable_opengl_drawing(True)   # Reduce CPU usage a lot
             self.enable_autoscale()
             self.update_emphasize_state()
             self._clear_error()
@@ -303,6 +305,14 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
     #endregion Control
 
     # region Internal
+
+    def _enable_opengl_drawing(self, val:bool) -> None:
+        for item in self._serverid2sgnal_item.values():
+            item.series().setUseOpenGL(val)
+        # Force redraw.
+        self._chartview.setDisabled(True)
+        self._chartview.setDisabled(False)
+
     def _update_widgets(self) -> None:
         if self.is_acquiring():
             self._btn_clear.setDisabled(True)

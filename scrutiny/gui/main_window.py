@@ -7,7 +7,6 @@
 #   Copyright (c) 2021 Scrutiny Debugger
 
 import logging
-import traceback
 
 from PySide6.QtWidgets import  QWidget, QVBoxLayout, QHBoxLayout
 
