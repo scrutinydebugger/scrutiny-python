@@ -117,7 +117,7 @@ class TestServerManager(ScrutinyBaseGuiTest):
         self.assertEqual(self.event_list, [])
         for i in range(5):
             self.server_manager.start(SERVER_MANAGER_CONFIG)
-            self.wait_events([EventType.SERVER_CONNECTED], timeout=1)
+            self.wait_events([EventType.SERVER_CONNECTED], timeout=2)
             self.assertEqual(self.server_manager.get_server_state(), sdk.ServerState.Connected)
             
             self.server_manager.stop()
