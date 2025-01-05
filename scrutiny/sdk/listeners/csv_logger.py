@@ -158,7 +158,7 @@ class CSVLogger:
         self._watchable_handles = sorted(list(watchable_handles).copy(), key=lambda x: x.name)
 
     def start(self) -> None:       
-        if len(self._watchable_handles):
+        if len(self._watchable_handles) == 0:
             raise ValueError("No watchable handle given for logging")
 
         self._started = True
