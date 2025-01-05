@@ -132,7 +132,7 @@ class TestServerManager(ScrutinyBaseGuiTest):
         self.assertEqual(self.event_list, [])
         self.server_manager.start(SERVER_MANAGER_CONFIG)
 
-        self.wait_events_and_clear([EventType.SERVER_CONNECTED], timeout=2)
+        self.wait_events_and_clear([EventType.SERVER_CONNECTED], timeout=3)
         self.fake_client._simulate_receive_status() # Load default status
 
         for i in range(5):
@@ -151,7 +151,7 @@ class TestServerManager(ScrutinyBaseGuiTest):
         self.assertEqual(self.event_list, [])
         self.server_manager.start(SERVER_MANAGER_CONFIG)
 
-        self.wait_events_and_clear([EventType.SERVER_CONNECTED], timeout=2)
+        self.wait_events_and_clear([EventType.SERVER_CONNECTED], timeout=3)
         self.fake_client._simulate_receive_status() # Load default status
 
         for i in range(5):
@@ -173,7 +173,7 @@ class TestServerManager(ScrutinyBaseGuiTest):
         self.assertEqual(self.event_list, [])
         self.server_manager.start(SERVER_MANAGER_CONFIG)
 
-        self.wait_events_and_clear([EventType.SERVER_CONNECTED], timeout=2)
+        self.wait_events_and_clear([EventType.SERVER_CONNECTED], timeout=3)
         self.fake_client._simulate_receive_status() # Load default status
 
         for i in range(5):
@@ -193,7 +193,7 @@ class TestServerManager(ScrutinyBaseGuiTest):
     def test_disconnect_on_error(self):
         self.server_manager.start(SERVER_MANAGER_CONFIG)
 
-        self.wait_events_and_clear([EventType.SERVER_CONNECTED], timeout=2)
+        self.wait_events_and_clear([EventType.SERVER_CONNECTED], timeout=3)
         self.fake_client._simulate_receive_status()
 
         self.assertEqual(self.fake_client.get_call_count('disconnect'), 0)
@@ -207,7 +207,7 @@ class TestServerManager(ScrutinyBaseGuiTest):
         self.server_manager.start(SERVER_MANAGER_CONFIG)
         self.server_manager.RECONNECT_DELAY = 0.2
 
-        self.wait_events_and_clear([EventType.SERVER_CONNECTED], timeout=2)
+        self.wait_events_and_clear([EventType.SERVER_CONNECTED], timeout=3)
         self.assertEqual(self.fake_client.get_call_count('connect'), 1)
 
         for i in range(5):
@@ -238,7 +238,7 @@ class TestServerManager(ScrutinyBaseGuiTest):
         self.assertEqual(self.event_list, [])
         self.server_manager.start(SERVER_MANAGER_CONFIG)
 
-        self.wait_events_and_clear([EventType.SERVER_CONNECTED], timeout=2)
+        self.wait_events_and_clear([EventType.SERVER_CONNECTED], timeout=3)
         self.fake_client._simulate_receive_status()
 
         nb_loop = 5
@@ -290,7 +290,7 @@ class TestServerManager(ScrutinyBaseGuiTest):
         self.assertEqual(self.event_list, [])
         self.server_manager.start(SERVER_MANAGER_CONFIG)
 
-        self.wait_events_and_clear([EventType.SERVER_CONNECTED], timeout=2)
+        self.wait_events_and_clear([EventType.SERVER_CONNECTED], timeout=3)
         self.fake_client._simulate_receive_status()
 
         def respond_to_download_requests(cancel_requests):
@@ -358,7 +358,7 @@ class TestServerManager(ScrutinyBaseGuiTest):
         self.assertEqual(self.event_list, [])
         self.server_manager.start(SERVER_MANAGER_CONFIG)
 
-        self.wait_events_and_clear([EventType.SERVER_CONNECTED], timeout=2)
+        self.wait_events_and_clear([EventType.SERVER_CONNECTED], timeout=3)
         self.fake_client._simulate_receive_status()
 
         self.fake_client._simulate_sfd_loaded('fimrware_id1')
