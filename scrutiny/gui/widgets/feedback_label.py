@@ -1,3 +1,11 @@
+#    feedback_label.py
+#        A label that can display messages to the suer with success/warning/info/error facilities
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021 Scrutiny Debugger
+
 from PySide6.QtWidgets import QWidget, QLabel, QHBoxLayout, QSizePolicy
 from PySide6.QtCore import Qt
 

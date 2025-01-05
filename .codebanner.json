@@ -623,6 +623,15 @@
         },
         "test/scrutiny_runner.py": {
             "docstring": "Custom unit test handlers that extends the default unittest framework "
+        },
+        "scrutiny/gui/tools/subsampler.py": {
+            "docstring": ""
+        },
+        "scrutiny/gui/widgets/feedback_label.py": {
+            "docstring": "A label that can display messages to the suer with success/warning/info/error facilities"
+        },
+        "scrutiny/sdk/listeners/csv_logger.py": {
+            "docstring": "Logger that dumps the values of the watchables into either one or multiple CSV files"
         }
     }
 }
