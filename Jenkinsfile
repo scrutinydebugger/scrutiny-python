@@ -14,6 +14,16 @@ pipeline {
             stages {
                 stage('Testing'){
                     parallel{
+                        stage ('Python 3.13') {
+                            steps {
+                                sh '''
+                                rm -rf venv-3.13
+                                python3.13 -m venv venv-3.13
+                                SCRUTINY_VENV_DIR=venv-3.13 scripts/with-venv.sh scripts/check-python-version.sh 3.13
+                                SCRUTINY_VENV_DIR=venv-3.13 SCRUTINY_COVERAGE_SUFFIX=3.13 scripts/with-venv.sh scripts/runtests.sh
+                                '''
+                            }
+                        }
                         stage ('Python 3.12') {
                             steps {
                                 sh '''
@@ -44,22 +54,12 @@ pipeline {
                                 '''
                             }
                         }
-                        stage ('Python 3.9') {
-                            steps {
-                                sh '''
-                                rm -rf venv-3.9
-                                python3.9 -m venv venv-3.9
-                                SCRUTINY_VENV_DIR=venv-3.9 scripts/with-venv.sh scripts/check-python-version.sh 3.9
-                                SCRUTINY_VENV_DIR=venv-3.9 SCRUTINY_COVERAGE_SUFFIX=3.9 scripts/with-venv.sh scripts/runtests.sh
-                                '''
-                            }
-                        }
                     }
                 }
                 stage("Doc"){
                     steps {
                         sh '''
-                        SPHINXOPTS=-W SCRUTINY_VENV_DIR=venv-3.12 scripts/with-venv.sh make -C scrutiny/sdk/docs html
+                        SPHINXOPTS=-W SCRUTINY_VENV_DIR=venv-3.13 scripts/with-venv.sh make -C scrutiny/sdk/docs html
                         '''
                     }
                 }

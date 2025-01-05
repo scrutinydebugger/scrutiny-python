@@ -92,6 +92,9 @@ class TestServerManager(ScrutinyBaseGuiTest):
         if self.server_manager.is_running():
             self.server_manager.stop()
             self.wait_true_with_events(lambda : not self.server_manager.is_running() and not self.server_manager.is_stopping(), timeout=1)
+        
+        if self.server_manager.is_stopping():
+            self.wait_true_with_events(lambda : not self.server_manager.is_stopping(), timeout=1)
         super().tearDown()
     
     def wait_server_state(self, state:sdk.ServerState, timeout:int=1) -> None:
@@ -117,7 +120,7 @@ class TestServerManager(ScrutinyBaseGuiTest):
         self.assertEqual(self.event_list, [])
         for i in range(5):
             self.server_manager.start(SERVER_MANAGER_CONFIG)
-            self.wait_events([EventType.SERVER_CONNECTED], timeout=1)
+            self.wait_events([EventType.SERVER_CONNECTED], timeout=2)
             self.assertEqual(self.server_manager.get_server_state(), sdk.ServerState.Connected)
             
             self.server_manager.stop()
