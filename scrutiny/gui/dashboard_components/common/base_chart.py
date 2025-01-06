@@ -33,59 +33,12 @@ from scrutiny import sdk
 from scrutiny.gui.core.preferences import gui_preferences
 from scrutiny.gui.themes import get_theme_prop, ScrutinyThemeProperties
 from scrutiny.gui import assets
+from scrutiny.gui.tools.min_max import MinMax
 
 from typing import Any, Optional, List, cast, Any, Sequence, overload, Union
 
-class MinMax:
-    low:float
-    high:float
-
-    def __init__(self) -> None:
-        self.clear()
-    
-    def clear(self) -> None:
-        self.low = math.inf
-        self.high = -math.inf
-    
-    def update(self, v:float) -> None:
-        if v > self.high:
-            self.high = v
-        if v < self.low:
-            self.low = v
-
-    def update_min(self, v:float) -> None:
-        if v < self.low:
-            self.low = v
-
-    def update_max(self, v:float) -> None:
-        if v > self.high:
-            self.high = v
-
-    def set_min(self, v:float) -> None:
-        self.low = v
-
-    def set_max(self, v:float) -> None:
-        self.high = v
-        
-    def min(self) -> Optional[float]:
-        if not math.isfinite(self.low):
-            return None
-        return self.low
-    
-    def max(self) -> Optional[float]:
-        if not math.isfinite(self.high):
-            return None
-        return self.high
-
 
 class ScrutinyLineSeries(QLineSeries):
-    _x_minmax:MinMax
-    _y_minmax:MinMax
-
-    def __init__(self, parent:QObject) -> None:
-        super().__init__(parent)
-        self._x_minmax = MinMax()
-        self._y_minmax = MinMax()
 
     def emphasize(self) -> None:
         pen = self.pen()
@@ -97,35 +50,6 @@ class ScrutinyLineSeries(QLineSeries):
         pen.setWidth(get_theme_prop(ScrutinyThemeProperties.CHART_NORMAL_SERIES_WIDTH))
         self.setPen(pen)
 
-    def add_point_with_minmax(self, x:float, y:float) -> None:
-        self.append(x,y)
-        self._x_minmax.update(x)
-        self._y_minmax.update(y)
-    
-    def recompute_minmax(self) -> None:
-        self._x_minmax.clear()
-        self._y_minmax.clear()
-        for p in self.points():
-            self._x_minmax.update(p.x())
-            self._y_minmax.update(p.y())
-
-    def recompute_y_minmax(self) -> None:
-        self._y_minmax.clear()
-        for p in self.points():
-            self._y_minmax.update(p.y())
-    
-    def x_min(self) -> Optional[float]:
-        return self._x_minmax.min()
-    
-    def x_max(self) -> Optional[float]:
-        return self._x_minmax.max()
-    
-    def y_min(self) -> Optional[float]:
-        return self._y_minmax.min()
-    
-    def y_max(self) -> Optional[float]:
-        return self._y_minmax.max()
-    
     def search_closest_monotonic(self, xval:float) -> Optional[QPointF]:
         """Search for the closest point using the XAxis. Assume a monotonic X axis.
         If the values are not monotonic : undefined behavior"""

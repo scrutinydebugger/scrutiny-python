@@ -1,10 +1,10 @@
 from PySide6.QtCore import QPointF
 from scrutiny.core import validation
-from bisect import bisect_left, bisect_right
+from bisect import bisect_left
 import math
 from dataclasses import dataclass
 
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, Iterable
 
 class GraphYMinMaxDecimator:
 
@@ -33,7 +33,7 @@ class GraphYMinMaxDecimator:
         self._datasets.append(self.Dataset(1))
     
     def get_decimation_factor_equal_or_below(self, wanted_factor:int) -> int:
-        factors = [ds.factor for ds in self._datasets]
+        factors = self.get_possible_factors()
 
         index = bisect_left(factors, wanted_factor)
         if index > len(factors)-1:
@@ -71,7 +71,7 @@ class GraphYMinMaxDecimator:
     def add_point(self, point:QPointF) -> None:
         self.add_points((point,))
     
-    def add_points(self, points:List[QPointF]) -> None:
+    def add_points(self, points:Iterable[QPointF]) -> None:
         self._datasets[0].data.extend(points)
         
         for i in range(1, len(self._datasets)):
@@ -87,6 +87,13 @@ class GraphYMinMaxDecimator:
         if index < 0 or index > len(self._datasets)-1:
             raise KeyError(f"No dataset computed for deciamtion factor {factor}")
         return self._datasets[index].data
+    
+    def get_most_decimated(self) -> Tuple[int, List[QPointF]]:
+        last = self._datasets[-1]
+        return (last.factor, last.data)
+    
+    def get_possible_factors(self):
+        return [ds.factor for ds in self._datasets]
 
     def _compute_decimated_values(self, subdata:List[QPointF]) -> Tuple[QPointF,QPointF]:
         lo = min(subdata, key=lambda p:p.y())
@@ -104,3 +111,4 @@ class GraphYMinMaxDecimator:
             raise ValueError(f"Factor is not a power of {self._base}")
         
         return int(logval)
+    
