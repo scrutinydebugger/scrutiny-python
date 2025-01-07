@@ -8,11 +8,11 @@
 
 from datetime import datetime
 import functools
-from dataclasses import dataclass
 
 from PySide6.QtGui import QPainter, QFontMetrics, QFont, QColor
 from PySide6.QtWidgets import (QHBoxLayout, QSplitter, QWidget, QVBoxLayout, 
-                               QPushButton, QCheckBox, QFormLayout, QSpinBox, QGraphicsItem, QStyleOptionGraphicsItem)
+                               QPushButton, QCheckBox, QFormLayout, QSpinBox, QGraphicsItem, QStyleOptionGraphicsItem,
+                               QLineEdit)
 from PySide6.QtCore import Qt, QItemSelectionModel, QPointF, QTimer, QRectF, QRect
 from scrutiny.gui.widgets.feedback_label import FeedbackLabel
 
@@ -27,6 +27,7 @@ from scrutiny.gui.dashboard_components.continuous_graph.decimator import GraphMo
 from scrutiny.gui.core.watchable_registry import WatchableRegistryNodeNotFoundError, ValueUpdate
 from scrutiny import sdk
 from scrutiny import tools
+from scrutiny.gui.tools.invoker import InvokeQueued
 
 from typing import Dict, Any, Union, List, Optional, cast, Set
 
@@ -741,6 +742,13 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         self._graph_max_width = val
         if self.is_acquiring() and self.is_autoscale_enabled():
             self.auto_scale_xaxis()
-        self._spinbox_graph_max_width.clearFocus()
+        
+        # QT Selects the textbox when the value is changed. We add a clear action at the end of the event loop
+        def deselect_spinbox():
+            child = cast(Optional[QLineEdit], self._spinbox_graph_max_width.findChild(QLineEdit))
+            if child is not None:
+                child.deselect()
+            child.clearFocus()
+        InvokeQueued(deselect_spinbox)
     
     #endregion

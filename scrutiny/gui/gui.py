@@ -17,7 +17,7 @@ from scrutiny.gui.main_window import MainWindow
 from scrutiny.gui import assets
 from scrutiny.tools.thread_enforcer import register_thread
 from scrutiny.gui.core.threads import QT_THREAD_NAME
-from scrutiny.gui.tools.invoker import Invoker
+from scrutiny.gui.tools.invoker import CrossThreadInvoker
 from scrutiny.gui.themes import set_theme
 from scrutiny.gui.themes.default_theme import DefaultTheme
 
@@ -54,7 +54,7 @@ class ScrutinyQtGUI:
 
         if self.debug_layout:
             window.setStyleSheet("border:1px solid red")
-        Invoker.init()  # Internal tool to run functions in the QT Thread fromother thread
+        CrossThreadInvoker.init()  # Internal tool to run functions in the QT Thread fromother thread
         
         window.show()
         
