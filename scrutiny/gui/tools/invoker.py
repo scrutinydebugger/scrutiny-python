@@ -69,7 +69,6 @@ class QueuedInvoker(QObject):
         app =  QApplication.instance()
         if app is None:
             raise RuntimeError("A QT application must be running")
-        self._timers = []
     
     def exec(self, method: Callable[[], None]) -> None:
         timer = QTimer(self)

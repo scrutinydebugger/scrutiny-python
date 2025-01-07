@@ -744,11 +744,11 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
             self.auto_scale_xaxis()
         
         # QT Selects the textbox when the value is changed. We add a clear action at the end of the event loop
-        def deselect_spinbox():
+        def deselect_spinbox() -> None:
             child = cast(Optional[QLineEdit], self._spinbox_graph_max_width.findChild(QLineEdit))
             if child is not None:
                 child.deselect()
-            child.clearFocus()
+                child.clearFocus()
         InvokeQueued(deselect_spinbox)
     
     #endregion
