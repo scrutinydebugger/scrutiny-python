@@ -8,9 +8,12 @@
 
 from datetime import datetime
 import functools
+from dataclasses import dataclass
 
-from PySide6.QtWidgets import QHBoxLayout, QSplitter, QWidget, QVBoxLayout, QPushButton, QCheckBox, QFormLayout, QSpinBox
-from PySide6.QtCore import Qt, QItemSelectionModel, QPointF, QTimer
+from PySide6.QtGui import QPainter, QFontMetrics, QFont, QColor
+from PySide6.QtWidgets import (QHBoxLayout, QSplitter, QWidget, QVBoxLayout, 
+                               QPushButton, QCheckBox, QFormLayout, QSpinBox, QGraphicsItem, QStyleOptionGraphicsItem)
+from PySide6.QtCore import Qt, QItemSelectionModel, QPointF, QTimer, QRectF, QRect
 from scrutiny.gui.widgets.feedback_label import FeedbackLabel
 
 from scrutiny.gui import assets
@@ -18,67 +21,87 @@ from scrutiny.gui.tools.min_max import MinMax
 from scrutiny.gui.core.definitions import WidgetState
 from scrutiny.gui.dashboard_components.base_component import ScrutinyGUIBaseComponent
 from scrutiny.gui.dashboard_components.common.graph_signal_tree import GraphSignalTree, ChartSeriesWatchableStandardItem
-from scrutiny.gui.dashboard_components.common.base_chart import ScrutinyLineSeries, ScrutinyValueAxisWithMinMax, ScrutinyChartCallout, ScrutinyChartView, ScrutinyChart
-from scrutiny.gui.dashboard_components.continuous_graph.decimator import GraphYMinMaxDecimator
+from scrutiny.gui.dashboard_components.common.base_chart import (
+    ScrutinyLineSeries, ScrutinyValueAxisWithMinMax, ScrutinyChartCallout, ScrutinyChartView, ScrutinyChart)
+from scrutiny.gui.dashboard_components.continuous_graph.decimator import GraphMonotonicNonUniformMinMaxDecimator
 from scrutiny.gui.core.watchable_registry import WatchableRegistryNodeNotFoundError, ValueUpdate
 from scrutiny import sdk
 from scrutiny import tools
 
-from typing import Dict, Any, Union, List, Optional, cast, Set, Tuple
+from typing import Dict, Any, Union, List, Optional, cast, Set
 
 class DecimableScrutinyLineSeries(ScrutinyLineSeries):
-    _decimator:GraphYMinMaxDecimator
-    _selected_factor:int
+    _decimator:GraphMonotonicNonUniformMinMaxDecimator
     _x_minmax:MinMax
     _y_minmax:MinMax
 
-
     def __init__(self, *args:Any, **kwargs:Any) -> None:
         super().__init__(*args, **kwargs)
-        self._decimator = GraphYMinMaxDecimator(base=2)
-        self._selected_factor = 1
+        self._decimator = GraphMonotonicNonUniformMinMaxDecimator()
         self._x_minmax = MinMax()
         self._y_minmax = MinMax()
         
-    def set_decimation(self, factor:int) -> None:
-        changed = factor != self._selected_factor
-        self._selected_factor = factor
-        if changed:
-            print(f"Decimation changed {factor}")
+    def set_x_resolution(self, resolution:float) -> None:
+        if self._decimator.set_x_resolution(resolution):
             self.flush()
+    
+    def decimation_factor(self) -> float:
+        return self._decimator.decimation_factor()
+    
+    def count_visible_points(self) -> int:
+        return len(self._decimator.get_decimated_buffer())
 
-    def create_decimated_series(self, factors:List[int]) -> None:
-        for factor in factors:
-            if factor > 1:
-                self._decimator.create_decimated_dataset(factor)
+    def count_all_points(self) -> int:
+        return len(self._decimator.get_input_buffer())
+
+    def add_point(self, point:QPointF) -> int:
+        n = self._decimator.add_point(point)
+        if n > 0:
+            for p in self._decimator.get_decimated_buffer()[-n:]:
+                self._y_minmax.update(p.y())
+                self._x_minmax.update_max(p.x())
+        return n
+    
+    def delete_up_to_x(self, x:float) -> None:
+        self._decimator.delete_data_up_to_x(x)
+    
+    def get_last_x(self) -> Optional[float]:
+        decimated = self._decimator.get_decimated_buffer()
+        if len(decimated) == 0:
+            return None
+        return decimated[-1].x()
+
+    def get_first_x(self) -> Optional[float]:
+        decimated = self._decimator.get_decimated_buffer()
+        if len(decimated) == 0:
+            return None
+        return decimated[0].x()
 
     def flush(self) -> None:
-        self.replace(self._decimator.get_dataset(self._selected_factor))
+        self.replace(self._decimator.get_decimated_buffer())
 
-    def add_point(self, point:QPointF) -> None:
-        self._decimator.add_point(point)
+    def stop_decimator(self) -> None:
+        self._decimator.force_flush_pending()
 
     def recompute_minmax(self) -> None:
         self._x_minmax.clear()
         self._y_minmax.clear()
 
-        factor, data = self._decimator.get_most_decimated()
-
-        for p in data: 
+        for p in self._decimator.get_decimated_buffer(): 
             self._x_minmax.update(p.x())
             self._y_minmax.update(p.y())
         
-        for p in self._decimator.get_dataset(1)[-(2**factor):]:
+        for p in self._decimator.get_unprocessed_input():
             self._x_minmax.update(p.x())
             self._y_minmax.update(p.y())
 
     def recompute_y_minmax(self) -> None:
         self._y_minmax.clear()
-        factor, data = self._decimator.get_most_decimated()
 
-        for p in data: 
+        for p in self._decimator.get_decimated_buffer(): 
             self._y_minmax.update(p.y())
-        for p in self._decimator.get_dataset(1)[-(2**factor):]:
+
+        for p in self._decimator.get_unprocessed_input():
             self._y_minmax.update(p.y())
     
     def x_min(self) -> Optional[float]:
@@ -92,7 +115,72 @@ class DecimableScrutinyLineSeries(ScrutinyLineSeries):
     
     def y_max(self) -> Optional[float]:
         return self._y_minmax.max()
-    
+
+
+class GraphStatistics:
+
+    class Overlay(QGraphicsItem):
+        _stats:"GraphStatistics"
+        _bounding_box:QRectF
+        _text_rect:QRectF
+        _font:QFont
+        _text:str
+
+        def __init__(self, parent:Optional[QGraphicsItem], stats:"GraphStatistics") -> None:
+            super().__init__(parent)
+            self._stats = stats
+            self._bounding_box = QRectF()
+            self._text_rect = QRectF()
+            self._font  = QFont()
+            self._text = ""
+            self.setZValue(11)
+
+        def update_content(self) -> None:
+            self._make_text()
+            self._compute_geometry()
+
+        def _make_text(self) -> None:
+            self._text =  "Decimation: %0.1fx\nVisible points: %d/%d" % (
+                self._stats.decimation_factor,
+                self._stats.visible_points,
+                self._stats.total_points,
+            )
+
+        def _compute_geometry(self) -> None:
+            self.prepareGeometryChange()
+            metrics = QFontMetrics(self._font)
+            self._text_rect = QRectF(metrics.boundingRect(QRect(0, 0, 200, 100), Qt.AlignmentFlag.AlignLeft, self._text))
+            self._bounding_box = QRectF(self._text_rect.adjusted(0,0,0,0))
+
+        def boundingRect(self) -> QRectF:
+            return self._bounding_box
+
+        def paint(self, painter: QPainter, option: QStyleOptionGraphicsItem, widget: Optional[QWidget]=None) -> None:
+            painter.setPen(QColor(0,0,0))
+            painter.drawText(self._text_rect, self._text)
+
+
+
+    visible_points:int
+    total_points:int
+    decimation_factor:float
+    _overlay:Overlay
+
+    def __init__(self, draw_zone:Optional[QGraphicsItem] = None) -> None:
+        self._overlay = self.Overlay(draw_zone, self)
+        self.clear()
+
+    def clear(self) -> None:
+        self.visible_points = 0
+        self.total_points = 0
+        self.decimation_factor = 1
+
+    def update_overlay(self) -> None:
+        self._overlay.update_content()
+
+    def overlay(self) -> Overlay:
+        return self._overlay
+
 
 class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
     instance_name : str
@@ -138,6 +226,9 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
     """The maximum width of the X-Axis (max-min). Used to delete expired data"""
     _y_minmax_recompute_index:int
     """A persistent index used to recompute the minmax of all the Y serie sin round robin fashion. Used this index to reduce the CPU load by doing 1 series per call"""
+    _x_resolution:float
+    
+    _stats:GraphStatistics
 
     _xaxis:ScrutinyValueAxisWithMinMax
     """The single time X-Axis"""
@@ -154,6 +245,8 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         self._xaxis.setTitleVisible(True)
         self._xaxis.deemphasize()   # Default state
         self._yaxes = []
+        self._x_resolution = 0
+        
         self._y_minmax_recompute_index=0
         self.watchable_registry.register_watcher(self.instance_name, self._val_update_callback, self._unwatch_callback)
         
@@ -172,6 +265,10 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         self._callout_hide_timer.setInterval(250)
         self._callout_hide_timer.setSingleShot(True)
         self._callout_hide_timer.timeout.connect(self._callout_hide_timer_slot)
+        
+        self._stats = GraphStatistics(chart)
+        self._stats.overlay().setPos(0,0)
+        
         
         right_side = QWidget()
         right_side_layout = QVBoxLayout(right_side)
@@ -199,17 +296,6 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         self._spinbox_graph_max_width.valueChanged.connect(self._spinbox_graph_max_width_changed_slot)
         self._spinbox_graph_max_width.setKeyboardTracking(False)
 
-        spinbox_decimation = QSpinBox(self)
-        spinbox_decimation.setMaximum(32)
-        spinbox_decimation.setMinimum(1)
-        spinbox_decimation.setValue(1)
-        spinbox_decimation.setKeyboardTracking(False)
-        
-        def temp_decimation_slot(val):
-            self._change_decimation_for_all_series(val)
-
-        spinbox_decimation.valueChanged.connect(temp_decimation_slot)
-
         param_layout.addRow("Graph width (s)", self._spinbox_graph_max_width)
         param_layout.addRow("Autoscale", self._chk_autoscale)
 
@@ -224,7 +310,6 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         right_side_layout.addWidget(self._btn_start_stop)
         right_side_layout.addWidget(self._btn_clear)
         right_side_layout.addWidget(self._feedback_label)
-        right_side_layout.addWidget(spinbox_decimation)
 
         self._splitter.addWidget(self._chartview)
         self._splitter.addWidget(right_side)
@@ -273,12 +358,23 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         self._chartview.allow_save_img(False)
         self._chartview.allow_save_csv(False)
         self._first_val_dt = None
+        self._stats.overlay().hide()
+        self._stats.clear()
     
     def stop_acquisition(self) -> None:
         """Stop a an ongoing acquisition"""
         self._graph_maintenance_timer.stop()
         self.watchable_registry.unwatch_all(self._watcher_id())
         self._acquiring = False
+        
+        self._chartview.setDisabled(True)
+        self._do_graph_maintenance(full=True)
+        for item in self._serverid2sgnal_item.values():
+            series = self._get_item_series(item)
+            series.stop_decimator()
+            series.flush()
+        self._update_stats()
+        self._chartview.setEnabled(True)
         #self._enable_opengl_drawing(False)  #  Required for callout to work
         self._update_widgets()
 
@@ -324,7 +420,6 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
                     series.setName(signal_item.text())
                     series.attachAxis(self._xaxis)
                     series.attachAxis(yaxis)
-                    series.create_decimated_series([2,4,8,16,32])
 
                     series.clicked.connect(functools.partial(self._series_clicked_slot, signal_item))
                     series.hovered.connect(functools.partial(self._series_hovered_slot, signal_item))
@@ -335,8 +430,11 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
             self._acquiring = True
             self._graph_maintenance_timer.start()
             #self._enable_opengl_drawing(True)   # Reduce CPU usage a lot
-            self.enable_autoscale()
+            self._change_x_resolution(0)
             self.update_emphasize_state()
+            self.enable_autoscale()
+            self._update_stats()
+            self._stats.overlay().show()
             self._clear_error()
             self._update_widgets()
         except Exception as e:
@@ -398,13 +496,28 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         self._chartview.setDisabled(True)
         self._chartview.setDisabled(False)
 
-    def _change_decimation_for_all_series(self, factor:int) -> None:
+    def _change_x_resolution(self, resolution:float) -> None:
+        self._x_resolution = resolution
+        
         for item in self._serverid2sgnal_item.values():
-            series = self._get_item_series(item)
-            factor2 = series._decimator.get_decimation_factor_equal_or_below(factor)
-            series.set_decimation(factor2)   # fixme
-            if factor != factor2:
-                print(f"series {series.name()} has {len(series.points())} points")
+            self._get_item_series(item).set_x_resolution(resolution)
+            
+        self._update_stats()
+
+    def _update_stats(self) -> None:
+        self._stats.decimation_factor = 0
+        self._stats.visible_points = 0
+        self._stats.total_points = 0
+        nb_series = len(self._serverid2sgnal_item)
+        if nb_series > 0:
+            per_series_weight = 1/nb_series
+            for item in self._serverid2sgnal_item.values():
+                series = self._get_item_series(item)
+                self._stats.decimation_factor += series.decimation_factor() * per_series_weight
+                self._stats.visible_points+=series.count_visible_points()
+                self._stats.total_points+=series.count_all_points()
+    
+        self._stats.update_overlay()
 
     def _update_widgets(self) -> None:
         if self.is_acquiring():
@@ -462,13 +575,12 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
                 yval = float(value_update.value)
 
                 series = self._get_item_series(self._serverid2sgnal_item[value_update.watchable.server_id]) 
-                modified_series.add(id(series))
-                series.add_point(QPointF(xval, yval))
+                if series.add_point(QPointF(xval, yval)) > 0:
+                    modified_series.add(id(series))
 
                 yaxis = cast(ScrutinyValueAxisWithMinMax, self._chartview.chart().axisY(series))
                 self._xaxis.update_minmax(xval)
                 yaxis.update_minmax(yval)   # Can only grow
-                #series.add_point_with_minmax(xval, yval)
                 if self.is_autoscale_enabled():
                     yaxis.autoset_range(margin_ratio=0.02)
             
@@ -494,22 +606,24 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         # Should we do something? User feedback if the watcahble is not available anymore maybe?
         pass
     
-    def _round_robin_recompute_single_series_min_max(self) -> bool:
-        if not self.is_acquiring():
-            return False
-        
+    def _round_robin_recompute_single_series_min_max(self, full:bool) -> None:
         sorted_ids = sorted(list(self._serverid2sgnal_item.keys()))
-        all_series = [cast(DecimableScrutinyLineSeries, self._serverid2sgnal_item[server_id].series()) for server_id in sorted_ids]
+        all_series = [self._get_item_series(self._serverid2sgnal_item[server_id]) for server_id in sorted_ids]
         
-        if self._y_minmax_recompute_index < len(all_series):
-            series = all_series[self._y_minmax_recompute_index]
-            series.recompute_minmax()
-        
-        self._y_minmax_recompute_index+=1
-        if self._y_minmax_recompute_index > len(all_series):
+        if full:
             self._y_minmax_recompute_index = 0
-            return True # Finished
-        return False
+        nb_loop = len(all_series) if full else 1
+
+
+        for i in range(nb_loop):
+            if self._y_minmax_recompute_index < len(all_series):
+                series = all_series[self._y_minmax_recompute_index]
+                series.recompute_minmax()
+            
+            self._y_minmax_recompute_index+=1
+            if self._y_minmax_recompute_index >= len(all_series):
+                self._y_minmax_recompute_index = 0
+        
 
     def _update_yaxes_minmax_based_on_series_minmax(self) -> None:
         """Recompute the min/max values of an axis using the minmax values of each series. 
@@ -524,6 +638,36 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
                         yaxis.update_minmax(minv)
                     if maxv is not None:
                         yaxis.update_minmax(maxv)
+
+
+    def _do_graph_maintenance(self, full:bool) -> None:
+        w = self._chartview.chart().size().width()
+        xspan = self._xaxis.max() - self._xaxis.min()
+        sec_per_pixel = xspan/w
+        resolution = round(2*sec_per_pixel, 2)
+        self._change_x_resolution(resolution)
+
+        # X axis maintenance (span shrink)
+        new_min_x = self._xaxis.maxval()
+        if new_min_x is not None:
+            for item in self._serverid2sgnal_item.values():
+                series = self._get_item_series(item)
+                last_x = series.get_last_x()
+                if last_x is None:
+                    continue
+                min_allowed_x = last_x - self._graph_max_width
+                series.delete_up_to_x(min_allowed_x)
+                first_x = series.get_first_x()
+                if first_x is not None:
+                    new_min_x = min(new_min_x, first_x)
+
+            self._xaxis.set_minval(new_min_x)
+
+        # Y-Axis mainteance (span shrink)
+        self._round_robin_recompute_single_series_min_max(full=full) # Update a single series at a time to reduce the load on the CPU
+        self._update_yaxes_minmax_based_on_series_minmax()  # Recompute min/max. Only way to shrink the scale reliably.
+        self._update_stats()
+
 
     # endregion Internal
 
@@ -562,44 +706,9 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         Done periodically to reduce the strain on the CPU"""
         if not self.is_acquiring():
             return
+
+        self._do_graph_maintenance(full=False) 
         
-#        new_min_x = self._xaxis.maxval()
-#        if new_min_x is None:
-#            return 
-#
-#        for item in self._serverid2sgnal_item.values():
-#            series = item.series()
-#            points = series.points()
-#            if len(points) == 0:
-#                continue
-#            series_maxx = points[-1].x()
-#            min_allowed_x = series_maxx - self._graph_max_width
-#            count=0
-#            
-#            for point in points:
-#                x = point.x() 
-#                if x >= min_allowed_x:
-#                    new_min_x = min(new_min_x, x)
-#                    break
-#                count+=1
-#                
-#            if count > 0:
-#                series.removePoints(0, count)
-#
-#        self._xaxis.set_minval(new_min_x)
-
-        #w = self._chartview.chart().size().width()
-        #xpsan = self._xaxis.max() - self._xaxis.min()
-        #for item in self._serverid2sgnal_item.values():
-        #    series = self._get_item_series(item)
-        #    max_point = 500
-        #    wanted_decimation = len(series._decimator.get_dataset(1))//max_point
-        #    series.set_decimation(series._decimator.get_decimation_factor_equal_or_below(wanted_decimation))
-        #    print(f"Series {series.name()} has {len(series.points())} points")
-
-        self._round_robin_recompute_single_series_min_max() # Update a single series at a time to reduce the load on the CPU
-        self._update_yaxes_minmax_based_on_series_minmax()  # Recompute min/max. Only way to shrink the scale reliably.
-
 
     def _series_hovered_slot(self, signal_item:ChartSeriesWatchableStandardItem, point:QPointF, state:bool) -> None:
         # FIXME : Snap zone is too small. QT source code says it is computed with markersize, but changing it has no effect.
