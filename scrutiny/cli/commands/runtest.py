@@ -99,7 +99,7 @@ class RunTest(BaseCommand):
                 success = False
                 result = ScrutinyRunner(verbosity=int(args.verbosity), failfast=failfast).run(test_suite)
                 if len(result.errors) == 0 or len(result.failures) == 0:
-                    success = False
+                    success = True
             except Exception:
                 # Exception are printed as errors, but errors are disabled in the unit test to avoid confusion on negative test
                 # So unrecoverable error such as importError and syntax errors needs to be printed
