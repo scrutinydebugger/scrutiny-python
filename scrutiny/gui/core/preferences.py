@@ -37,7 +37,7 @@ class AppPreferences:
             self._last_save_dir = d
 
     def long_datetime_format(self) -> str:
-        return r'%Y-%m-%d %H:%M:%s'
+        return r'%Y-%m-%d %H:%M:%S'
 
 class PreferenceHandle:
     _preferences:Dict[str, AppPreferences]

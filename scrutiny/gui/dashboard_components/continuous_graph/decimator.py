@@ -122,7 +122,7 @@ class GraphMonotonicNonUniformMinMaxDecimator:
     def get_decimated_dataset(self) -> List[QPointF]:
         return self._output_dataset.copy()
     
-    def delete_data_up_to_x(self, xval:float) -> None:
+    def delete_data_up_to_x(self, xval:float) -> tuple[int, int]:
         input_delete_count = 0
         output_delete_count = 0
 
@@ -155,3 +155,5 @@ class GraphMonotonicNonUniformMinMaxDecimator:
             self._actual_window_start_index = max(self._actual_window_start_index - input_delete_count, 0)
             del self._input_dataset[0:input_delete_count]
             del self._output_dataset[0:output_delete_count]
+
+        return (input_delete_count, output_delete_count)
