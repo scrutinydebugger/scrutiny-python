@@ -98,15 +98,15 @@ def InvokeInQtThreadSynchronized(method: Callable[[], T], timeout:Optional[int]=
     """Runs a function in the QT thread and wait for its completion. Returns its return value. 
     If an exception is raised in the function, it will be raised in the caller thread"""
 
-    sync_var:tools.SyncVar[T] = tools.SyncVar()
+    syncer:tools.ThreadSyncer[T] = tools.ThreadSyncer()
 
-    InvokeInQtThread(sync_var.wrapper_func(method))
-    sync_var.finished.wait(timeout)
+    InvokeInQtThread(syncer.executor_func(method))
+    syncer.finished.wait(timeout)
 
-    if not sync_var.finished.is_set():
+    if not syncer.finished.is_set():
         raise TimeoutError("Could not run function in QT thread. Timed out")
     
-    if sync_var.exception is not None:
-        raise sync_var.exception
+    if syncer.exception is not None:
+        raise syncer.exception
     
-    return cast(T, sync_var.return_val)
+    return cast(T, syncer.return_val)

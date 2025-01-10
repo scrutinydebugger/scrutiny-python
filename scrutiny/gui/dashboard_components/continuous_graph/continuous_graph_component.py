@@ -17,7 +17,8 @@ from PySide6.QtWidgets import (QHBoxLayout, QSplitter, QWidget, QVBoxLayout,
 from PySide6.QtCore import Qt, QItemSelectionModel, QPointF, QTimer, QRectF, QRect
 
 from scrutiny.gui import assets
-from scrutiny.gui.tools.invoker import InvokeQueued,InvokeInQtThreadSynchronized
+from scrutiny.gui.tools.prompt import exception_msgbox
+from scrutiny.gui.tools.invoker import InvokeQueued, InvokeInQtThread
 from scrutiny.gui.tools.min_max import MinMax
 from scrutiny.gui.core.definitions import WidgetState
 from scrutiny.gui.core.watchable_registry import WatchableRegistryNodeNotFoundError, ValueUpdate
@@ -890,17 +891,11 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
 
     def _save_csv_slot(self, filename:str) -> None:
         def finished_callback(exception:Optional[Exception]) -> None:
-            #This runs in a different thread
+            # This runs in a different thread
             # Todo : Add visual "saving..." feedback ?
             if exception is not None:
                 tools.log_exception(self.logger, exception, f"Error while saving graph into {filename}" )
-                def error_msgbox() -> None:
-                    msgbox = QMessageBox(self)
-                    msgbox.setStandardButtons(QMessageBox.StandardButton.Close)
-                    msgbox.setWindowTitle("Failed to save")
-                    msgbox.setText(f"Failed to save the graph.\n {exception.__class__.__name__}:{exception}")
-                    msgbox.show()
-                InvokeInQtThreadSynchronized(error_msgbox)
+                InvokeInQtThread(lambda: exception_msgbox(self, "Failed to save", f"Failed to save the graph to {filename}", exception))
             
         if self._chart_has_content:
             export_chart_csv_threaded(filename, self._signal_tree.get_signals(), finished_callback)

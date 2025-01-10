@@ -180,7 +180,7 @@ class LogException:
             
         return False
 
-class SyncVar(Generic[T]):
+class ThreadSyncer(Generic[T]):
     finished:threading.Event
     exception:Optional[Exception]
     return_val:Optional[T]
@@ -190,7 +190,7 @@ class SyncVar(Generic[T]):
         self.exception = None
         self.return_val = None
     
-    def wrapper_func(self, fn:Callable[..., T]) -> Callable[..., None]:
+    def executor_func(self, fn:Callable[..., T]) -> Callable[..., None]:
         def wrapper() -> None:
             try:
                 self.return_val = fn()
@@ -201,7 +201,7 @@ class SyncVar(Generic[T]):
         return wrapper
 
 
-def run_in_thread(fn:Callable[..., T], sync_var:Optional[SyncVar[T]]=None) -> None:
-    fn2 = fn if sync_var is None else sync_var.wrapper_func(fn)
+def run_in_thread(fn:Callable[..., T], sync_var:Optional[ThreadSyncer[T]]=None) -> None:
+    fn2 = fn if sync_var is None else sync_var.executor_func(fn)
     thread = threading.Thread(target = fn2, daemon=True)
     thread.start()
