@@ -165,7 +165,7 @@ class WatchableRegistry:
     
     @enforce_thread(QT_THREAD_NAME)  
     def _add_watchable(self, path:str, config:sdk.WatchableConfiguration) -> None:
-        """Adds a single watchable to the tree storage without using a lock"""
+        """Adds a single watchable to the tree storage"""
         parts = self.split_path(path)
         if len(parts) == 0:
             raise WatchableRegistryError(f"Empty path : {path}") 

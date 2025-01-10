@@ -12,12 +12,13 @@ __all__ = [
     'InvokeInQtThreadSynchronized'
 ]
 
+from scrutiny import tools
 from scrutiny.gui.core.threads import QT_THREAD_NAME
 from scrutiny.tools.thread_enforcer import enforce_thread
 from typing import Callable, Optional, TypeVar
 from PySide6.QtCore import QObject, Signal, Qt, QTimer
 from PySide6.QtWidgets import QApplication
-import threading
+
 from typing import cast, List
 
 class CrossThreadInvoker(QObject):
@@ -96,26 +97,10 @@ T = TypeVar('T')
 def InvokeInQtThreadSynchronized(method: Callable[[], T], timeout:Optional[int]=None) -> T:
     """Runs a function in the QT thread and wait for its completion. Returns its return value. 
     If an exception is raised in the function, it will be raised in the caller thread"""
-    class CallbackReturn:
-        return_val:Optional[T] = None
-        exception:Optional[Exception] = None
-        finished:threading.Event
 
-        def __init__(self) -> None:
-            self.return_val = None
-            self.exception = None
-            self.finished = threading.Event()
+    sync_var:tools.SyncVar[T] = tools.SyncVar()
 
-    sync_var = CallbackReturn()
-    def wrapper_func() -> None:
-        try:
-            sync_var.return_val = method()
-        except Exception as e:
-            sync_var.exception = e
-        finally:
-            sync_var.finished.set()
-    
-    InvokeInQtThread(wrapper_func)
+    InvokeInQtThread(sync_var.wrapper_func(method))
     sync_var.finished.wait(timeout)
 
     if not sync_var.finished.is_set():

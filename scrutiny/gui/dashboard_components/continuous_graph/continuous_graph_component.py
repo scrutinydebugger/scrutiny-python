@@ -17,14 +17,14 @@ from PySide6.QtWidgets import (QHBoxLayout, QSplitter, QWidget, QVBoxLayout,
 from PySide6.QtCore import Qt, QItemSelectionModel, QPointF, QTimer, QRectF, QRect
 
 from scrutiny.gui import assets
-from scrutiny.gui.tools.invoker import InvokeQueued
+from scrutiny.gui.tools.invoker import InvokeQueued,InvokeInQtThreadSynchronized
 from scrutiny.gui.tools.min_max import MinMax
 from scrutiny.gui.core.definitions import WidgetState
 from scrutiny.gui.core.watchable_registry import WatchableRegistryNodeNotFoundError, ValueUpdate
 from scrutiny.gui.widgets.feedback_label import FeedbackLabel
 from scrutiny.gui.dashboard_components.base_component import ScrutinyGUIBaseComponent
 from scrutiny.gui.dashboard_components.common.graph_signal_tree import GraphSignalTree, ChartSeriesWatchableStandardItem
-from scrutiny.gui.dashboard_components.common.export_chart_csv import export_chart_csv
+from scrutiny.gui.dashboard_components.common.export_chart_csv import export_chart_csv_threaded
 from scrutiny.gui.dashboard_components.common.base_chart import (
     ScrutinyLineSeries, ScrutinyValueAxisWithMinMax, ScrutinyChartCallout, ScrutinyChartView, ScrutinyChart)
 from scrutiny.gui.dashboard_components.continuous_graph.decimator import GraphMonotonicNonUniformMinMaxDecimator
@@ -889,15 +889,21 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         InvokeQueued(deselect_spinbox)
 
     def _save_csv_slot(self, filename:str) -> None:
-        try:
-            if self._chart_has_content:
-                export_chart_csv(filename, self._signal_tree.get_signals())
-        except Exception as e:
-            tools.log_exception(self.logger, e, "Error while saving CSV file")
-            msgbox = QMessageBox(self)
-            msgbox.setStandardButtons(QMessageBox.StandardButton.Close)
-            msgbox.setWindowTitle("Failed to save")
-            msgbox.setText(f"Failed to save the graph.\n {e.__class__.__name__}:{e}")
-            msgbox.show()
+        def finished_callback(exception:Optional[Exception]) -> None:
+            #This runs in a different thread
+            # Todo : Add visual "saving..." feedback ?
+            if exception is not None:
+                tools.log_exception(self.logger, exception, f"Error while saving graph into {filename}" )
+                def error_msgbox() -> None:
+                    msgbox = QMessageBox(self)
+                    msgbox.setStandardButtons(QMessageBox.StandardButton.Close)
+                    msgbox.setWindowTitle("Failed to save")
+                    msgbox.setText(f"Failed to save the graph.\n {exception.__class__.__name__}:{exception}")
+                    msgbox.show()
+                InvokeInQtThreadSynchronized(error_msgbox)
+            
+        if self._chart_has_content:
+            export_chart_csv_threaded(filename, self._signal_tree.get_signals(), finished_callback)
+
     
     #endregion
