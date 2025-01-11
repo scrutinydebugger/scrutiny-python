@@ -1,3 +1,11 @@
+#    decimator.py
+#        A data decimator meant to handle real-time data stream (monotonic time axis)
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021 Scrutiny Debugger
+
 from PySide6.QtCore import QPointF
 from scrutiny.core import validation
 

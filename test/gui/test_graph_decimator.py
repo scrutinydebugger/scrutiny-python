@@ -1,4 +1,10 @@
-
+#    test_graph_decimator.py
+#        Test suite for the continuuos graph data decimator
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021 Scrutiny Debugger
 
 from test import ScrutinyUnitTest
 from scrutiny.gui.dashboard_components.continuous_graph.decimator import GraphMonotonicNonUniformMinMaxDecimator

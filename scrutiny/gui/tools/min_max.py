@@ -1,3 +1,10 @@
+#    min_max.py
+#        Helper to compute min/max on a series.
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021 Scrutiny Debugger
 
 import math 
 from typing import Optional
