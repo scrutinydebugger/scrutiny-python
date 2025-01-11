@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (QHBoxLayout, QSplitter, QWidget, QVBoxLayout,
 from PySide6.QtCore import Qt, QItemSelectionModel, QPointF, QTimer, QRectF, QRect
 
 from scrutiny.gui import assets
+from scrutiny.gui.app_settings import app_settings
 from scrutiny.gui.tools.prompt import exception_msgbox
 from scrutiny.gui.tools.invoker import InvokeQueued, InvokeInQtThread
 from scrutiny.gui.tools.min_max import MinMax
@@ -187,11 +188,13 @@ class GraphStatistics:
             self._compute_geometry()
 
         def _make_text(self) -> None:
-            self._text =  "Decimation: %0.1fx\nVisible points: %d/%d" % (
-                self._stats.decimation_factor,
-                self._stats.visible_points,
-                self._stats.total_points,
-            )
+            lines = [
+                "Decimation: %0.1fx" % self._stats.decimation_factor,
+                "Visible points: %d/%d" % (self._stats.visible_points, self._stats.total_points),
+                "OpenGL: %s" % "Enabled" if self._stats.opengl else "Disabled",
+                "Update rate: Real-Time"    # Todo. Paused, Real-time, throttled
+            ]
+            self._text =  '\n'.join(lines)
 
         def _compute_geometry(self) -> None:
             self.prepareGeometryChange()
@@ -209,6 +212,7 @@ class GraphStatistics:
     visible_points:int
     total_points:int
     decimation_factor:float
+    opengl:bool
     _overlay:Overlay
 
     def __init__(self, draw_zone:Optional[QGraphicsItem] = None) -> None:
@@ -216,6 +220,7 @@ class GraphStatistics:
         self.clear()
 
     def clear(self) -> None:
+        self.opengl = False
         self.visible_points = 0
         self.total_points = 0
         self.decimation_factor = 1
@@ -289,6 +294,9 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
     _yaxes:List[ScrutinyValueAxisWithMinMax]
     """All the Y-Axes defined by the user"""
     _paused:bool
+    """True when the graph is acquiring, but paused"""
+    _use_opengl:bool
+    """True if we are allowed to use OpenGL. Based on global app settings"""
 
     def setup(self) -> None:
         self._acquiring = False
@@ -302,6 +310,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         self._yaxes = []
         self._x_resolution = 0
         self._paused = False
+        self._use_opengl = app_settings().opengl_enabled
         
         self._y_minmax_recompute_index=0
         self.watchable_registry.register_watcher(self.instance_name, self._val_update_callback, self._unwatch_callback)
@@ -337,10 +346,10 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         self._signal_tree.setMinimumWidth(150)
         self._btn_start_stop = QPushButton("")
         self._btn_start_stop.clicked.connect(self._btn_start_stop_slot)
-        self._btn_clear = QPushButton("Clear")
-        self._btn_clear.clicked.connect(self._btn_clear_slot)
         self._btn_pause = QPushButton("Pause")
         self._btn_pause.clicked.connect(self._btn_pause_slot)
+        self._btn_clear = QPushButton("Clear")
+        self._btn_clear.clicked.connect(self._btn_clear_slot)
         
         param_widget = QWidget()
         param_layout = QFormLayout(param_widget)
@@ -363,8 +372,8 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         right_side_layout.addWidget(self._signal_tree)
         right_side_layout.addWidget(param_widget)
         right_side_layout.addWidget(self._btn_start_stop)
-        right_side_layout.addWidget(self._btn_clear)
         right_side_layout.addWidget(self._btn_pause)
+        right_side_layout.addWidget(self._btn_clear)
         right_side_layout.addWidget(self._feedback_label)
 
         self._splitter.addWidget(self._chartview)
@@ -441,7 +450,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
 
         self.update_stats(use_decimated=False)  # Display 1x decimation factor and all points
         self._chartview.setEnabled(True)
-        #self._enable_opengl_drawing(False)  #  Required for callout to work
+        self._maybe_enable_opengl_drawing(False)  #  Required for callout to work
         self._update_widgets()
 
     def start_acquisition(self) -> None:
@@ -498,7 +507,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
             self._chart_has_content = True
             self._acquiring = True
             self._paused = False
-            #self._enable_opengl_drawing(True)   # Reduce CPU usage a lot
+            self._maybe_enable_opengl_drawing(True)   # Reduce CPU usage a lot
             self._change_x_resolution(0)    # 0 mean no decimation
             self.update_emphasize_state()
             self.enable_autoscale()
@@ -520,6 +529,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
             series.pause()
         self.disable_autoscale()
         self.update_stats(use_decimated=False)
+        self._maybe_enable_opengl_drawing(False)
         self._paused = True
 
     def unpause(self) -> None:
@@ -530,9 +540,10 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         for series in self._all_series():
             series.unpause()
             series.flush_decimated()
-        self._paused=False
         self.enable_autoscale()
         self.update_stats(use_decimated=True)
+        self._maybe_enable_opengl_drawing(True)
+        self._paused=False
 
     def disable_autoscale(self) -> None:
         self._autoscale_enabled = False
@@ -595,12 +606,13 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         for item in self._serverid2sgnal_item.values():
             yield self._get_item_series(item)
 
-    def _enable_opengl_drawing(self, val:bool) -> None:
-        for series in self._all_series():
-            series.setUseOpenGL(val)
-        # Force redraw.
-        self._chartview.setDisabled(True)
-        self._chartview.setDisabled(False)
+    def _maybe_enable_opengl_drawing(self, val:bool) -> None:
+        if self._use_opengl:
+            for series in self._all_series():
+                series.setUseOpenGL(val)
+            # Forces redraw.
+            self._chartview.setDisabled(True)
+            self._chartview.setDisabled(False)
 
     def _change_x_resolution(self, resolution:float) -> None:
         self._x_resolution = resolution
@@ -611,6 +623,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
     def update_stats(self, use_decimated:Optional[bool]=None) -> None:
         if use_decimated is None:
             use_decimated = True if not self.is_paused() else False
+        self._stats.opengl = self._use_opengl
         self._stats.decimation_factor = 0
         self._stats.visible_points = 0
         self._stats.total_points = 0
