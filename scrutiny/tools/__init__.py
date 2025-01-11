@@ -15,9 +15,11 @@ from .timer import Timer
 
 import traceback
 from copy import deepcopy
-from typing import Dict, Any, Optional, TypeVar, List, Tuple, Type, cast, Union, Callable
+from typing import Dict, Any, Optional, TypeVar, List, Tuple, Type, cast, Union, Callable, Generic
 import types
 import logging
+from dataclasses import dataclass
+import threading
 
 T=TypeVar("T")
 
@@ -177,3 +179,29 @@ class LogException:
                 return True
             
         return False
+
+class ThreadSyncer(Generic[T]):
+    finished:threading.Event
+    exception:Optional[Exception]
+    return_val:Optional[T]
+
+    def __init__(self) -> None:
+        self.finished = threading.Event()
+        self.exception = None
+        self.return_val = None
+    
+    def executor_func(self, fn:Callable[..., T]) -> Callable[..., None]:
+        def wrapper() -> None:
+            try:
+                self.return_val = fn()
+            except Exception as e:
+                self.exception = e
+            finally:
+                self.finished.set()
+        return wrapper
+
+
+def run_in_thread(fn:Callable[..., T], sync_var:Optional[ThreadSyncer[T]]=None) -> None:
+    fn2 = fn if sync_var is None else sync_var.executor_func(fn)
+    thread = threading.Thread(target = fn2, daemon=True)
+    thread.start()

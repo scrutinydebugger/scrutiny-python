@@ -6,31 +6,59 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
+import sys
+import ctypes
+
 from PySide6.QtWidgets import QApplication
 from PySide6.QtGui import QIcon
+
+import scrutiny
 from scrutiny.gui.main_window import MainWindow
 from scrutiny.gui import assets
-import scrutiny
-import ctypes
-import sys
-from typing import List
 from scrutiny.tools.thread_enforcer import register_thread
 from scrutiny.gui.core.threads import QT_THREAD_NAME
-from scrutiny.gui.tools.invoker import Invoker
+from scrutiny.gui.tools.invoker import CrossThreadInvoker
 from scrutiny.gui.themes import set_theme
-from scrutiny.gui.themes.default_theme import DefaultTheme
+from scrutiny.gui.themes.default_theme import DefaultTheme 
+from dataclasses import dataclass
 
+from typing import List, Optional
 
 class ScrutinyQtGUI:
-    debug_layout:bool
-    auto_connect:bool
+
+    @dataclass(frozen=True)
+    class Settings:
+        debug_layout:bool
+        auto_connect:bool
+        opengl_enabled:bool
+
+    _instance:Optional["ScrutinyQtGUI"] = None
+    _settings:Settings
+
+    @classmethod
+    def instance(cls) -> "ScrutinyQtGUI":
+        if cls._instance is None:
+            raise RuntimeError(f"No instance of {cls.__name__} is running")
+        return cls._instance
+    
+    @property
+    def settings(self) -> Settings:
+        return self._settings
 
     def __init__(self, 
                  debug_layout:bool=False,
-                 auto_connect:bool=False
+                 auto_connect:bool=False,
+                 opengl_enabled:bool=True
                  ) -> None:
-        self.debug_layout = debug_layout
-        self.auto_connect = auto_connect
+        if self.__class__._instance is not None:
+            raise RuntimeError(f"Only a single instance of {self.__class__.__name__} can run.")
+        self.__class__._instance = self
+        self._settings = self.Settings(
+            debug_layout = debug_layout,
+            auto_connect = auto_connect,
+            opengl_enabled = opengl_enabled
+        )
+
         set_theme(DefaultTheme())
     
     def run(self, args:List[str]) -> int:
@@ -46,16 +74,11 @@ class ScrutinyQtGUI:
             ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(u'scrutiny.gui.%s' % scrutiny.__version__)
 
         window = MainWindow()
-
+        
         stylesheet = assets.load_text(['stylesheets', 'scrutiny_base.qss'])
         app.setStyleSheet(stylesheet)
 
-        if self.debug_layout:
-            window.setStyleSheet("border:1px solid red")
-        Invoker.init()  # Internal tool to run functions in the QT Thread fromother thread
-        
+        CrossThreadInvoker.init()  # Internal tool to run functions in the QT Thread fromother thread
         window.show()
         
-        if self.auto_connect:
-            window.start_server_manager()
         return app.exec()

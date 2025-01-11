@@ -10,32 +10,30 @@ __all__ = [
     'ScrutinyLineSeries',
     'ScrutinyValueAxis', 
     'ScrutinyChartCallout',
-    'ScrutinyChartView'
+    'ScrutinyChartView',
+    'ScrutinyChart'
 ]
 
 import enum
 from pathlib import Path
 import os
-import csv
-from datetime import datetime
+from bisect import bisect_left
 
 from PySide6.QtCharts import QLineSeries, QValueAxis, QChart, QChartView, QXYSeries
 from PySide6.QtWidgets import QGraphicsItem, QStyleOptionGraphicsItem, QWidget, QMenu, QFileDialog, QMessageBox
 from PySide6.QtGui import QFont, QPainter, QFontMetrics, QColor, QContextMenuEvent
-from PySide6.QtCore import QObject, QPointF, QRect, QRectF, Qt
+from PySide6.QtCore import  QPointF, QRect, QRectF, Qt, QObject, Signal
 
-import scrutiny
 from scrutiny import tools
-from scrutiny import sdk
-from scrutiny.gui.core.preferences import gui_preferences
-from scrutiny.gui.themes import get_theme_prop, ScrutinyThemeProperties
 from scrutiny.gui import assets
+from scrutiny.gui.themes import get_theme_prop, ScrutinyThemeProperties
+from scrutiny.gui.tools.min_max import MinMax
+from scrutiny.gui.core.preferences import gui_preferences
 
-from typing import Any, Optional, List, cast
+from typing import Any, Optional, List, cast, Any
+
 
 class ScrutinyLineSeries(QLineSeries):
-    def __init__(self, parent:QObject) -> None:
-        super().__init__(parent)
 
     def emphasize(self) -> None:
         pen = self.pen()
@@ -47,10 +45,25 @@ class ScrutinyLineSeries(QLineSeries):
         pen.setWidth(get_theme_prop(ScrutinyThemeProperties.CHART_NORMAL_SERIES_WIDTH))
         self.setPen(pen)
 
-class ScrutinyValueAxis(QValueAxis):
+    def search_closest_monotonic(self, xval:float) -> Optional[QPointF]:
+        """Search for the closest point using the XAxis. Assume a monotonic X axis.
+        If the values are not monotonic : undefined behavior"""
+        points = self.points()
+        if len(points) == 0:
+            return None
 
-    def __init__(self, parent:QObject) -> None:
-        super().__init__(parent)
+        index = bisect_left(points, xval, key=lambda p:p.x())
+        index = min(index, len(points)-1)
+        p1 = points[index]
+        if index == 0:
+            return p1
+        p2 = points[index-1]
+        if abs(p1.x()-xval) <= abs(p2.x()-xval):
+            return p1
+        else:
+            return p2
+
+class ScrutinyValueAxis(QValueAxis):
 
     def emphasize(self) -> None:
         font = self.titleFont()
@@ -62,6 +75,48 @@ class ScrutinyValueAxis(QValueAxis):
         font.setBold(False)
         self.setTitleFont(font)
 
+class ScrutinyValueAxisWithMinMax(ScrutinyValueAxis):
+    _minmax:MinMax
+
+    @tools.copy_type(ScrutinyValueAxis.__init__)
+    def __init__(self, *args:Any, **kwargs:Any) -> None:
+        super().__init__(*args, **kwargs)
+        self._minmax = MinMax()
+
+    def update_minmax(self, v:float) ->None:
+        self._minmax.update(v)
+    
+    def clear_minmax(self) -> None:
+        self._minmax.clear()
+
+    def minval(self) -> Optional[float]:
+        return self._minmax.min()
+    
+    def maxval(self) -> Optional[float]:
+        return self._minmax.max()
+    
+    def set_minval(self, v:float) -> None:
+        self._minmax.set_min(v)
+    
+    def set_maxval(self, v:float) -> None:
+        self._minmax.set_max(v)
+    
+    def autoset_range(self, margin_ratio:float=0) -> None:
+        margin_ratio = max(min(0.2, margin_ratio), 0)
+        minv, maxv = self._minmax.min(), self._minmax.max()
+        if minv is None or maxv is None:
+            self.setRange(0,1)
+            return
+        span = maxv-minv
+        if span == 0:
+            self.setRange(minv-1, maxv+1)
+        else:
+            new_range_min = minv - span * margin_ratio
+            new_range_max = maxv + span * margin_ratio
+            self.setRange(new_range_min, new_range_max)
+
+class ScrutinyChart(QChart):
+    pass
 
 class ScrutinyChartCallout(QGraphicsItem):
 
@@ -73,7 +128,7 @@ class ScrutinyChartCallout(QGraphicsItem):
         Below = enum.auto()
 
 
-    _chart:QChart
+    _chart:ScrutinyChart
     _text:str
     _point_location_on_chart:QPointF
     _font:QFont
@@ -84,7 +139,7 @@ class ScrutinyChartCallout(QGraphicsItem):
     _marker_radius : int
 
 
-    def __init__(self, chart:QChart) -> None:
+    def __init__(self, chart:ScrutinyChart) -> None:
         super().__init__(chart)
         self._chart = chart
         self._text = ''
@@ -143,7 +198,6 @@ class ScrutinyChartCallout(QGraphicsItem):
         self._text = text
         self._color = color
         self._compute_geometry()
-       
 
     def boundingRect(self) -> QRectF:
         # Inform QT about the size we need
@@ -159,16 +213,15 @@ class ScrutinyChartCallout(QGraphicsItem):
         painter.setPen(QColor(0,0,0))
         painter.drawText(self._text_rect, self._text)
 
-
-
-
 class ScrutinyChartView(QChartView):
+
+    class _Signals(QObject):
+        save_csv = Signal(str)
 
     _allow_save_img:bool
     _allow_save_csv:bool
-
-    _source_firmware_id:Optional[str]               # Used for CSV logging
-    _source_firmware_sfd_metadata:Optional[sdk.SFDMetadata]     # USed for CSV logging
+    
+    _signals = _Signals()
 
     @tools.copy_type(QChartView.__init__)
     def __init__(self, *args:Any, **kwargs:Any) -> None:
@@ -177,20 +230,17 @@ class ScrutinyChartView(QChartView):
         self._allow_save_csv = False
         self._source_firmware_id = None
         self._source_firmware_sfd_metadata = None
+        self._signals = self._Signals()
+    
+    @property
+    def signals(self) -> _Signals:
+        return self._signals
 
     def allow_save_img(self, val:bool) -> None:
         self._allow_save_img=val
 
     def allow_save_csv(self, val:bool) -> None:
         self._allow_save_csv=val
-
-    def set_source_firmware(self, firmware_id:str, sfd_metadata:Optional[sdk.SFDMetadata] = None) -> None:
-        self._source_firmware_id = firmware_id
-        self._source_firmware_sfd_metadata = sfd_metadata
-
-    def clear_source_firmware(self) -> None:
-        self._source_firmware_id = None
-        self._source_firmware_sfd_metadata = None
 
     def contextMenuEvent(self, event: QContextMenuEvent) -> None:
         context_menu = QMenu(self)
@@ -212,6 +262,8 @@ class ScrutinyChartView(QChartView):
             pix = self.grab()
             save_dir = gui_preferences.default().get_last_save_dir_or_workdir()
             filename, _ = QFileDialog.getSaveFileName(self, "Save", str(save_dir), "*.png")
+            if len(filename) == 0:
+                return # Cancelled
             gui_preferences.default().set_last_save_dir(Path(os.path.dirname(filename)))
             if not filename.lower().endswith('.png'):
                 filename += ".png"
@@ -227,90 +279,14 @@ class ScrutinyChartView(QChartView):
     def save_csv_slot(self) -> None:
         if not self._allow_save_csv:
             return 
-        try:
-            chart = self.chart()
-            for series in chart.series():
-                if not isinstance(series, QXYSeries):    # QLineSeries is a QXYSeries
-                    raise NotImplementedError(f"Export to CSV of data series of type {series.__class__.__name__} is not supported.")
-            
-            series_list = cast(List[QXYSeries], chart.series())
-            
-            save_dir = gui_preferences.default().get_last_save_dir_or_workdir()
-            filename, _ = QFileDialog.getSaveFileName(self, "Save", str(save_dir), "*.png")
-            gui_preferences.default().set_last_save_dir(Path(os.path.dirname(filename)))
-            if not filename.lower().endswith('.csv'):
-                filename += ".csv"
+        
+        save_dir = gui_preferences.default().get_last_save_dir_or_workdir()
+        filename, _ = QFileDialog.getSaveFileName(self, "Save", str(save_dir), "*.csv")
+        if len(filename) == 0:
+            return # Cancelled
+        
+        gui_preferences.default().set_last_save_dir(Path(os.path.dirname(filename)))
+        if not filename.lower().endswith('.csv'):
+            filename += ".csv"
 
-            now_str = datetime.now().strftime(gui_preferences.default().long_datetime_format())
-            firmware_id = "N/A"
-            project_name = "N/A"
-
-            if self._source_firmware_id is not None:
-                firmware_id = self._source_firmware_id
-
-            if self._source_firmware_sfd_metadata is not None:
-                if self._source_firmware_sfd_metadata.project_name is not None:
-                    project_name = self._source_firmware_sfd_metadata.project_name
-                    if self._source_firmware_sfd_metadata.version is not None:
-                        project_name += " V" + self._source_firmware_sfd_metadata.version
-
-            with open(filename, 'w', encoding='utf8', newline='\n') as f:
-                writer = csv.writer(f, delimiter=',', quotechar='"', escapechar='\\')
-                writer.writerow(['Created on', now_str])
-                writer.writerow(['Created with', f"Scrutiny V{scrutiny.__version__}"])
-                writer.writerow(['Firmware ID', firmware_id])
-                writer.writerow(['Project name', project_name])
-
-                writer.writerow([])
-
-                chart = self.chart()
-                
-                done = False
-
-                series_index = [0 for i in range(len(series_list))]
-                series_points = [series.points() for series in series_list]
-                
-                # TODO : Add full signal name
-                # TODO : Add real time
-                headers = ["Time (s)"] + [series.name() for series in series_list]
-                writer.writerow(headers)
-
-                # TODO : Save in background thread
-                while True:
-                    x:Optional[float] = None 
-                    done = True
-                    for i in range(len(series_list)):
-                        if series_index[i] < len(series_points[i]):
-                            done = False
-                            point = series_points[i][series_index[i]]
-                            if x is None:
-                                x = point.x()
-                            x = min(x, point.x())
-                    if done:
-                        break
-                    assert x is not None
-
-                    row:List[Optional[float]] = [x]
-                    for i in range(len(series_list)):
-                        series = series_list[i]
-                        val = None
-                        if series_index[i] < len(series_points[i]):
-                            point = series_points[i][series_index[i]]
-                            if point.x() == x:
-                                val = point.y()
-                                series_index[i]+=1
-                        
-                        row.append(val)
-
-                    writer.writerow(row)
-
-
-                    
-
-
-        except Exception as e:
-            msgbox = QMessageBox(self)
-            msgbox.setStandardButtons(QMessageBox.StandardButton.Close)
-            msgbox.setWindowTitle("Failed to save")
-            msgbox.setText(f"Failed to save the graph.\n {e.__class__.__name__}:{e}")
-            msgbox.show()
+        self._signals.save_csv.emit(filename)

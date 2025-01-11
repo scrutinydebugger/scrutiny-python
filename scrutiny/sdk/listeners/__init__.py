@@ -9,7 +9,6 @@ from datetime import datetime
 import queue
 import logging
 import threading
-import traceback
 import types
 import time
 from typing import Union, List, Set, Iterable,Optional, Type, Literal
@@ -167,8 +166,7 @@ class BaseListener(abc.ABC):
             self.setup()
         except Exception as e:
             self._setup_error=True
-            self._logger.error(f"User setup() function raise an exception. {e}")
-            self._logger.debug(traceback.format_exc())
+            tools.log_exception(self._logger, e, "User setup() function raise an exception.")
         finally:
             self._started_event.set()
 
@@ -199,8 +197,7 @@ class BaseListener(abc.ABC):
                             
         except Exception as e:
             self._receive_error = True
-            self._logger.error(f"{e}")
-            self._logger.debug(traceback.format_exc())
+            tools.log_exception(self._logger, e, "Error in listener thread")
         finally:
             self._update_rate_measurement.disable()
             self._logger.debug("Thread exiting. Calling teardown()")
@@ -208,8 +205,7 @@ class BaseListener(abc.ABC):
                 self.teardown()
             except Exception as e:
                 self._teardown_error=True
-                self._logger.error(f"User teardown() function raise an exception. {e}")
-                self._logger.debug(traceback.format_exc())
+                tools.log_exception(self._logger, e, "User teardown() function raise an exception")
         
         self._logger.debug("Thread exit")
 

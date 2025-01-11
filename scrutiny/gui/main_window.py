@@ -7,16 +7,18 @@
 #   Copyright (c) 2021 Scrutiny Debugger
 
 import logging
-import traceback
 
 from PySide6.QtWidgets import  QWidget, QVBoxLayout, QHBoxLayout
-
 from PySide6.QtGui import  QCloseEvent
 from PySide6.QtCore import Qt, QRect, QTimer
-
-from PySide6.QtWidgets import QMainWindow
+from PySide6.QtWidgets import QMainWindow 
 
 import PySide6QtAds  as QtAds   # type: ignore
+
+from scrutiny import tools
+from scrutiny.gui.app_settings import app_settings
+from scrutiny.gui.tools.invoker import InvokeQueued
+
 from scrutiny.gui.dialogs.about_dialog import AboutDialog
 from scrutiny.gui.widgets.component_sidebar import ComponentSidebar
 from scrutiny.gui.widgets.status_bar import StatusBar
@@ -33,7 +35,7 @@ from scrutiny.gui.dashboard_components.metrics.metrics_component import MetricsC
 
 from scrutiny.gui.core.server_manager import ServerManager
 from scrutiny.gui.core.watchable_registry import WatchableRegistry
-from scrutiny import tools
+
 from typing import Type, Dict
 
 
@@ -65,6 +67,15 @@ class MainWindow(QMainWindow):
 
     def __init__(self) -> None:
         super().__init__()
+        if app_settings().opengl_enabled:
+            #QTBUG-108190. PySide6.4 regression. Workaround to force OpenGL to initialize
+            from PySide6.QtOpenGLWidgets import QOpenGLWidget
+            _dummy_widget = QOpenGLWidget(self) 
+            _dummy_widget.setVisible(False)
+        
+        if app_settings().debug_layout:
+            self.setStyleSheet("border:1px solid red")
+        
         self._dashboard_components = {}
         self._logger = logging.getLogger(self.__class__.__name__)
 
@@ -84,14 +95,17 @@ class MainWindow(QMainWindow):
         self.setMenuBar(self._menu_bar)
 
         self._menu_bar.buttons.info_about.triggered.connect(self.show_about)
-        self._menu_bar.buttons.dashboard_close.triggered.connect(self.dashboard_close_click)
+        self._menu_bar.buttons.dashboard_clear.triggered.connect(self.dashboard_clear_click)
         self._menu_bar.buttons.dashboard_save.triggered.connect(self.dashboard_save_click)
         self._menu_bar.buttons.dashboard_open.triggered.connect(self.dashboard_open_click)
 
-        self._menu_bar.buttons.dashboard_close.setDisabled(True)
+        self._menu_bar.buttons.dashboard_clear.setDisabled(True)
         self._menu_bar.buttons.dashboard_open.setDisabled(True)
         self._menu_bar.buttons.dashboard_save.setDisabled(True)
         self._menu_bar.buttons.server_launch_local.setDisabled(True)
+
+        if app_settings().auto_connect:
+            InvokeQueued(self.start_server_manager)
 
 
     def centered(self, w:int, h:int) -> QRect:
@@ -207,7 +221,7 @@ class MainWindow(QMainWindow):
         self._dock_manager.deleteLater()
         super().closeEvent(event)
         
-    def dashboard_close_click(self) -> None:
+    def dashboard_clear_click(self) -> None:
         pass
 
     def dashboard_save_click(self) -> None:

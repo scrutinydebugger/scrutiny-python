@@ -10,11 +10,11 @@ from dataclasses import dataclass
 import threading
 from test.gui.base_gui_test import ScrutinyBaseGuiTest
 from typing import Optional
-from scrutiny.gui.tools.invoker import InvokeInQtThreadSynchronized, Invoker
+from scrutiny.gui.tools.invoker import InvokeInQtThreadSynchronized, CrossThreadInvoker
 
 class TestInvoker(ScrutinyBaseGuiTest):
     def test_run_in_qt_thread_synchronized(self):
-        Invoker.init()
+        CrossThreadInvoker.init()
         @dataclass
         class Container:
             thread_id:Optional[int] = None

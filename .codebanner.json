@@ -623,6 +623,30 @@
         },
         "test/scrutiny_runner.py": {
             "docstring": "Custom unit test handlers that extends the default unittest framework "
+        },
+        "scrutiny/gui/widgets/feedback_label.py": {
+            "docstring": "A label that can display messages to the suer with success/warning/info/error facilities"
+        },
+        "scrutiny/sdk/listeners/csv_logger.py": {
+            "docstring": "Logger that dumps the values of the watchables into either one or multiple CSV files"
+        },
+        "test/gui/test_graph_decimator.py": {
+            "docstring": "Test suite for the continuuos graph data decimator"
+        },
+        "scrutiny/gui/app_settings.py": {
+            "docstring": "Global settings for the GUI."
+        },
+        "scrutiny/gui/dashboard_components/common/export_chart_csv.py": {
+            "docstring": "Tools to export graphs to CSV format"
+        },
+        "scrutiny/gui/dashboard_components/continuous_graph/decimator.py": {
+            "docstring": "A data decimator meant to handle real-time data stream (monotonic time axis)"
+        },
+        "scrutiny/gui/tools/prompt.py": {
+            "docstring": "Helper to display errors in standardized fashion"
+        },
+        "scrutiny/gui/tools/min_max.py": {
+            "docstring": "Helper to compute min/max on a series."
         }
     }
 }

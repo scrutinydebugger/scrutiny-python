@@ -2177,7 +2177,6 @@ class TestClient(ScrutinyUnitTest):
         self.assertEqual(evt.session_id, device_session_id)
         self.assertFalse(self.client.has_event_pending())
 
-
         # Check that we can filter events properly
         self.client.listen_events(ScrutinyClient.Events.LISTEN_DEVICE_READY)
         self.device_handler.set_connection_status(DeviceHandler.ConnectionStatus.CONNECTED_READY)
@@ -2191,10 +2190,7 @@ class TestClient(ScrutinyUnitTest):
         evt = self.client.read_event(timeout=EVENT_READ_TIMEOUT)
         self.assertIsNone(evt)
         self.assertFalse(self.client.has_event_pending())
-
-
         self.client.listen_events(ScrutinyClient.Events.LISTEN_ALL, disabled_events=ScrutinyClient.Events.LISTEN_STATUS_UPDATE_CHANGED)
-
         self.device_handler.set_datalogger_state(device_datalogging.DataloggerState.ARMED, None)
         evt = self.client.read_event(timeout=EVENT_READ_TIMEOUT)
         self.assertIsInstance(evt, ScrutinyClient.Events.DataloggerStateChanged)

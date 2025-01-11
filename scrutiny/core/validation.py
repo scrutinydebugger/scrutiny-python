@@ -10,6 +10,7 @@ from typing import Union, Any, Type, List, Tuple, Sequence, Optional
 import math
 
 
+
 def assert_type(var: Any, name: str, types: Union[Type[Any], List[Type[Any]], Tuple[Type[Any], ...]]) -> None:
     if isinstance(types, (list, tuple)):
         typenames: List[str] = [x.__name__ for x in types]
@@ -27,6 +28,13 @@ def assert_type(var: Any, name: str, types: Union[Type[Any], List[Type[Any]], Tu
         if bad_val:
             raise TypeError(f"\"{name}\" is not of type \"{types.__name__}\". Got \"{var.__class__.__name__}\" instead")
 
+def assert_type_or_none(var: Any, name: str, types: Union[Type[Any], List[Type[Any]], Tuple[Type[Any], ...]]) -> None:
+    if isinstance(types, type):
+        types = [types]
+    else:
+        types = list(types)
+    types.append(type(None))
+    assert_type(var, name, types)
 
 def assert_val_in(var: Any, name: str, vals: Sequence[Any]) -> None:
     if var not in vals:

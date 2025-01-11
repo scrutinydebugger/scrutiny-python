@@ -10,9 +10,10 @@ import argparse
 from .base_command import BaseCommand
 import unittest
 import logging
-from typing import Optional, List
+from typing import Optional, List, Union
 import traceback
 from scrutiny.core.logging import DUMPDATA_LOGLEVEL
+import importlib
 
 
 class RunTest(BaseCommand):
@@ -27,7 +28,7 @@ class RunTest(BaseCommand):
     def __init__(self, args: List[str], requested_log_level: Optional[str] = None):
         self.args = args
         self.parser = argparse.ArgumentParser(prog=self.get_prog())
-        self.parser.add_argument('--module', default=None, help='The test module to run. All if not specified')
+        self.parser.add_argument('modules', nargs='*', help='The test modules to run. All if not specified')
         self.parser.add_argument('--verbosity', default=2, help='Verbosity level of the unittest module')
         self.parser.add_argument('--root', default=None, help='Path to the test root folder')
         self.parser.add_argument('-f', default=False, action='store_true', help='Enables failfast. Stop after first failure')
@@ -70,14 +71,35 @@ class RunTest(BaseCommand):
                 self.getLogger().critical('No unit tests available in %s' % test_root)
         else:
             try:
+                test_suite = unittest.TestSuite()
                 loader = unittest.TestLoader()
-                if args.module is None:
-                    suite = loader.discover(test_root)
+                if len(args.modules) == 0:
+                    test_suite.addTests(loader.discover(test_root))
                 else:
-                    suite = loader.loadTestsFromName(args.module)
+                    # First we handle the folder case 
+                    # no loader function discover all test in a folder based on the module path.
+                    for module_name in args.modules:
+                        loaded_from_module_folder = False
+                        try:
+
+                            module = importlib.import_module(module_name)
+                            if len(module.__path__) == 1:
+                                start_folder = module.__path__[0]
+                                if os.path.isdir(start_folder):
+                                    test_suite.addTests(loader.discover(start_folder))
+                                    loaded_from_module_folder = True
+                        except Exception:
+                            loaded_from_module_folder = False
+
+                        # If we haven't launched a discover on a folder, rely on the loader to find the test.
+                        if not loaded_from_module_folder:
+                            test_suite.addTests(loader.loadTestsFromName(module_name))
+                
                 from test import ScrutinyRunner
-                result = ScrutinyRunner(verbosity=int(args.verbosity), failfast=failfast).run(suite)
-                success = len(result.errors) == 0 and len(result.failures) == 0
+                success = False
+                result = ScrutinyRunner(verbosity=int(args.verbosity), failfast=failfast).run(test_suite)
+                if len(result.errors) == 0 or len(result.failures) == 0:
+                    success = True
             except Exception:
                 # Exception are printed as errors, but errors are disabled in the unit test to avoid confusion on negative test
                 # So unrecoverable error such as importError and syntax errors needs to be printed
