@@ -68,8 +68,9 @@ class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
         if app_settings().opengl_enabled:
+            #QTBUG-108190. PySide6.4 regression. Workaround to force OpenGL to initialize
             from PySide6.QtOpenGLWidgets import QOpenGLWidget
-            _dummy_widget = QOpenGLWidget(self) #QTBUG-108190. PySide6.4 regression. Workaround to force OpenGL to initialize
+            _dummy_widget = QOpenGLWidget(self) 
             _dummy_widget.setVisible(False)
         
         if app_settings().debug_layout:

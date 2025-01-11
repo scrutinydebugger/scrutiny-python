@@ -22,7 +22,7 @@ from scrutiny.gui.themes import set_theme
 from scrutiny.gui.themes.default_theme import DefaultTheme 
 from dataclasses import dataclass
 
-from typing import List
+from typing import List, Optional
 
 class ScrutinyQtGUI:
 
@@ -32,11 +32,13 @@ class ScrutinyQtGUI:
         auto_connect:bool
         opengl_enabled:bool
 
-    _instance:"ScrutinyQtGUI"
+    _instance:Optional["ScrutinyQtGUI"] = None
     _settings:Settings
 
     @classmethod
     def instance(cls) -> "ScrutinyQtGUI":
+        if cls._instance is None:
+            raise RuntimeError(f"No instance of {cls.__name__} is running")
         return cls._instance
     
     @property
@@ -48,6 +50,8 @@ class ScrutinyQtGUI:
                  auto_connect:bool=False,
                  opengl_enabled:bool=True
                  ) -> None:
+        if self.__class__._instance is not None:
+            raise RuntimeError(f"Only a single instance of {self.__class__.__name__} can run.")
         self.__class__._instance = self
         self._settings = self.Settings(
             debug_layout = debug_layout,
