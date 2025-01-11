@@ -108,9 +108,12 @@ class ScrutinyValueAxisWithMinMax(ScrutinyValueAxis):
             self.setRange(0,1)
             return
         span = maxv-minv
-        new_range_min = minv - span * margin_ratio
-        new_range_max = maxv + span * margin_ratio
-        self.setRange(new_range_min, new_range_max)
+        if span == 0:
+            self.setRange(minv-1, maxv+1)
+        else:
+            new_range_min = minv - span * margin_ratio
+            new_range_max = maxv + span * margin_ratio
+            self.setRange(new_range_min, new_range_max)
 
 class ScrutinyChart(QChart):
     pass

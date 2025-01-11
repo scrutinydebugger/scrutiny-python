@@ -97,7 +97,7 @@ class GraphMonotonicNonUniformMinMaxDecimator:
         lo = min(subdata, key=lambda p:p.y())
         hi = max(subdata, key=lambda p:p.y())
 
-        if subdata.index(lo) < subdata.index(hi):
+        if lo.x() <= hi.x():
             return (lo, hi)
         else:
             return (hi, lo)

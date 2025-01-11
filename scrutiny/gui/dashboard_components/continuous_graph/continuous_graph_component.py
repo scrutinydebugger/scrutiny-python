@@ -576,7 +576,10 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         if max_x is not None and min_x is not None:
             if max_x > min_x + self._graph_max_width:
                 min_x = max_x - self._graph_max_width
-            self._xaxis.setRange(min_x, max_x)
+            if max_x == min_x :
+                self._xaxis.setRange(min_x, max_x+1)
+            else:
+                self._xaxis.setRange(min_x, max_x)
     
     #endregion Control
 
@@ -660,10 +663,13 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
 
         if self._chart_has_content and not self.is_acquiring():
             self._btn_clear.setEnabled(True)
+        else:
+            self._btn_clear.setDisabled(True)
+
+        if self._chart_has_content and (not self.is_autoscale_enabled() or not self.is_acquiring()):
             self._chartview.allow_save_img(True)
             self._chartview.allow_save_csv(True)
         else:
-            self._btn_clear.setDisabled(True)
             self._chartview.allow_save_img(False)
             self._chartview.allow_save_csv(False)
 
