@@ -8,7 +8,7 @@
 
 from datetime import datetime, timedelta
 import csv
-
+from pathlib import Path
 
 from PySide6.QtCharts import QLineSeries
 
@@ -19,14 +19,14 @@ from scrutiny.gui.dashboard_components.common.graph_signal_tree import AxisConte
 from scrutiny.gui.core.preferences import gui_preferences
 from scrutiny.gui.core.watchable_registry import WatchableRegistry
 
-from typing import Optional, List, cast,Callable, Union
+from typing import Optional, List, Callable, Union
 
 def export_chart_csv_threaded(
-        filename:str, 
+        filename:Union[str, Path], 
         signals:List[AxisContent], 
         finished_callback:Callable[[Optional[Exception]],None],
-        firmware_id:Optional[str] = None,
-        sfd_metadata:Optional[sdk.SFDMetadata] = None,
+        device:Optional[sdk.DeviceInfo] = None,
+        sfd:Optional[sdk.SFDInfo] = None,
         x_axis_name:str = 'Time (s)',
         datetime_zero_sec:Optional[datetime]=None
         ) -> None:
@@ -41,15 +41,20 @@ def export_chart_csv_threaded(
         series_list.extend([item.series() for item in axis.signal_items])
     datetime_format = gui_preferences.default().long_datetime_format()
     now_str = datetime.now().strftime(datetime_format)
-    if firmware_id is None:
-        firmware_id = "N/A"
+    device_id = "N/A"
+    firmware_id = "N/A"
     project_name = "N/A"
 
-    if sfd_metadata is not None:
-        if sfd_metadata.project_name is not None:
-            project_name = sfd_metadata.project_name
-            if sfd_metadata.version is not None:
-                project_name += " V" + sfd_metadata.version
+    if device is not None:
+        device_id = device.device_id
+
+    if sfd is not None:
+        firmware_id = sfd.firmware_id
+        if sfd.metadata is not None:
+            if sfd.metadata.project_name:
+                project_name = sfd.metadata.project_name
+                if sfd.metadata.version is not None:
+                    project_name += " V" + sfd.metadata.version
 
     series_index = [0 for i in range(len(series_list))]
     series_points = [series.points() for series in series_list]
@@ -62,7 +67,8 @@ def export_chart_csv_threaded(
                 writer = csv.writer(f, delimiter=',', quotechar='"', escapechar='\\')
                 writer.writerow(['Created on', now_str])
                 writer.writerow(['Created with', f"Scrutiny V{scrutiny.__version__}"])
-                writer.writerow(['Firmware ID', firmware_id])
+                writer.writerow(['Device ID', device_id])       # ID hardcoded in the device firmware
+                writer.writerow(['Firmware ID', firmware_id])   # ID inside the SFD. Will normally match the device ID unless the user forced the server to use a different firmware
                 writer.writerow(['Project name', project_name])
 
                 writer.writerow([])            

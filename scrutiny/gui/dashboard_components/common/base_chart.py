@@ -9,9 +9,10 @@
 __all__ = [
     'ScrutinyLineSeries',
     'ScrutinyValueAxis', 
+    'ScrutinyValueAxisWithMinMax',
+    'ScrutinyChart',
     'ScrutinyChartCallout',
-    'ScrutinyChartView',
-    'ScrutinyChart'
+    'ScrutinyChartView'
 ]
 
 import enum
@@ -19,18 +20,17 @@ from pathlib import Path
 import os
 from bisect import bisect_left
 
-from PySide6.QtCharts import QLineSeries, QValueAxis, QChart, QChartView, QXYSeries
-from PySide6.QtWidgets import QGraphicsItem, QStyleOptionGraphicsItem, QWidget, QMenu, QFileDialog, QMessageBox
+from PySide6.QtCharts import QLineSeries, QValueAxis, QChart, QChartView
+from PySide6.QtWidgets import QGraphicsItem, QStyleOptionGraphicsItem, QWidget, QFileDialog, QMessageBox
 from PySide6.QtGui import QFont, QPainter, QFontMetrics, QColor, QContextMenuEvent
 from PySide6.QtCore import  QPointF, QRect, QRectF, Qt, QObject, Signal
 
 from scrutiny import tools
-from scrutiny.gui import assets
 from scrutiny.gui.themes import get_theme_prop, ScrutinyThemeProperties
 from scrutiny.gui.tools.min_max import MinMax
 from scrutiny.gui.core.preferences import gui_preferences
 
-from typing import Any, Optional, List, cast, Any
+from typing import Any, Optional, Any
 
 
 class ScrutinyLineSeries(QLineSeries):
@@ -214,79 +214,17 @@ class ScrutinyChartCallout(QGraphicsItem):
         painter.drawText(self._text_rect, self._text)
 
 class ScrutinyChartView(QChartView):
-
     class _Signals(QObject):
-        save_csv = Signal(str)
-
-    _allow_save_img:bool
-    _allow_save_csv:bool
-    
-    _signals = _Signals()
+        context_menu_event = Signal(QContextMenuEvent)
 
     @tools.copy_type(QChartView.__init__)
     def __init__(self, *args:Any, **kwargs:Any) -> None:
         super().__init__(*args, **kwargs)
-        self._allow_save_img = False
-        self._allow_save_csv = False
-        self._source_firmware_id = None
-        self._source_firmware_sfd_metadata = None
         self._signals = self._Signals()
     
     @property
     def signals(self) -> _Signals:
         return self._signals
 
-    def allow_save_img(self, val:bool) -> None:
-        self._allow_save_img=val
-
-    def allow_save_csv(self, val:bool) -> None:
-        self._allow_save_csv=val
-
     def contextMenuEvent(self, event: QContextMenuEvent) -> None:
-        context_menu = QMenu(self)
-
-        save_img_action = context_menu.addAction(assets.load_icon(assets.Icons.Picture), "Save as image")
-        save_img_action.triggered.connect(self.save_image_slot)
-        save_img_action.setEnabled(self._allow_save_img)
-
-        save_csv_action = context_menu.addAction(assets.load_icon(assets.Icons.CSV), "Save as CSV")
-        save_csv_action.triggered.connect(self.save_csv_slot)
-        save_csv_action.setEnabled(self._allow_save_img)
-        context_menu.popup(self.mapToGlobal(event.pos()))
-
-    def save_image_slot(self) -> None:
-        if not self._allow_save_img:
-            return 
-        
-        try:
-            pix = self.grab()
-            save_dir = gui_preferences.default().get_last_save_dir_or_workdir()
-            filename, _ = QFileDialog.getSaveFileName(self, "Save", str(save_dir), "*.png")
-            if len(filename) == 0:
-                return # Cancelled
-            gui_preferences.default().set_last_save_dir(Path(os.path.dirname(filename)))
-            if not filename.lower().endswith('.png'):
-                filename += ".png"
-            
-            pix.save(filename, "png", 100)
-        except Exception as e:
-            msgbox = QMessageBox(self)
-            msgbox.setStandardButtons(QMessageBox.StandardButton.Close)
-            msgbox.setWindowTitle("Failed to save")
-            msgbox.setText(f"Failed to save the graph.\n {e.__class__.__name__}:{e}")
-            msgbox.show()
-
-    def save_csv_slot(self) -> None:
-        if not self._allow_save_csv:
-            return 
-        
-        save_dir = gui_preferences.default().get_last_save_dir_or_workdir()
-        filename, _ = QFileDialog.getSaveFileName(self, "Save", str(save_dir), "*.csv")
-        if len(filename) == 0:
-            return # Cancelled
-        
-        gui_preferences.default().set_last_save_dir(Path(os.path.dirname(filename)))
-        if not filename.lower().endswith('.csv'):
-            filename += ".csv"
-
-        self._signals.save_csv.emit(filename)
+        self._signals.context_menu_event.emit(event)

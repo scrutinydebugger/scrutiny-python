@@ -9,20 +9,23 @@
 from datetime import datetime
 import functools
 import math
+from pathlib import Path
+import os
 
-from PySide6.QtGui import QPainter, QFontMetrics, QFont, QColor
-from PySide6.QtWidgets import (QHBoxLayout, QSplitter, QWidget, QVBoxLayout, 
-                               QPushButton, QMessageBox, QFormLayout, QSpinBox, QGraphicsItem, QStyleOptionGraphicsItem,
-                               QLineEdit)
+from PySide6.QtGui import QPainter, QFontMetrics, QFont, QColor, QContextMenuEvent
+from PySide6.QtWidgets import (QHBoxLayout, QSplitter, QWidget, QVBoxLayout,  QMenu,
+                               QPushButton, QFormLayout, QSpinBox, QGraphicsItem, QStyleOptionGraphicsItem,
+                               QLineEdit, QFileDialog, QMessageBox)
 from PySide6.QtCore import Qt, QItemSelectionModel, QPointF, QTimer, QRectF, QRect
 
 from scrutiny.gui import assets
 from scrutiny.gui.app_settings import app_settings
-from scrutiny.gui.tools.prompt import exception_msgbox
+from scrutiny.gui.tools.prompt import exception_msgbox, get_save_filepath_from_last_save_dir
 from scrutiny.gui.tools.invoker import InvokeQueued, InvokeInQtThread
 from scrutiny.gui.tools.min_max import MinMax
 from scrutiny.gui.core.definitions import WidgetState
 from scrutiny.gui.core.watchable_registry import WatchableRegistryNodeNotFoundError, ValueUpdate
+from scrutiny.gui.core.preferences import gui_preferences
 from scrutiny.gui.widgets.feedback_label import FeedbackLabel
 from scrutiny.gui.dashboard_components.base_component import ScrutinyGUIBaseComponent
 from scrutiny.gui.dashboard_components.common.graph_signal_tree import GraphSignalTree, ChartSeriesWatchableStandardItem
@@ -297,6 +300,14 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
     """True when the graph is acquiring, but paused"""
     _use_opengl:bool
     """True if we are allowed to use OpenGL. Based on global app settings"""
+    _graph_sfd:Optional[sdk.SFDInfo]
+    """The Scrutiny Firmware Description loaded when starting the acquisition"""
+    _graph_device_info:Optional[sdk.DeviceInfo]
+    """The details about the device when starting the acquisition"""
+    _allow_save_img:bool
+    """Flag indicating if we can export the chart to image (png)"""
+    _allow_save_csv:bool
+    """Flag indicating if we can export the chart to csv"""
 
     def setup(self) -> None:
         self._acquiring = False
@@ -310,6 +321,10 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         self._yaxes = []
         self._x_resolution = 0
         self._paused = False
+        self._graph_sfd = None
+        self._graph_device_info = None
+        self._allow_save_img = False
+        self._allow_save_csv = False
         self._use_opengl = app_settings().opengl_enabled
         
         self._y_minmax_recompute_index=0
@@ -325,7 +340,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         chart.layout().setContentsMargins(0,0,0,0)
         chart.setAxisX(self._xaxis)
         self._chartview.setChart(chart)
-        self._chartview.signals.save_csv.connect(self._save_csv_slot)
+        self._chartview.signals.context_menu_event.connect(self._chart_context_menu_slot)
         self._callout = ScrutinyChartCallout(chart)
         self._callout_hide_timer = QTimer()
         self._callout_hide_timer.setInterval(250)
@@ -420,10 +435,11 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         self._xaxis.clear_minmax()
         self._yaxes.clear()
         self._chart_has_content = False
-        self._chartview.allow_save_img(False)
-        self._chartview.allow_save_csv(False)
+        self._allow_save_img = False
+        self._allow_save_csv = False
         self._first_val_dt = None
-        
+        self._graph_sfd = None
+        self._graph_device_info = None
     
     def stop_acquisition(self) -> None:
         """Stop a an ongoing acquisition"""
@@ -503,6 +519,8 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
                     series.clicked.connect(functools.partial(self._series_clicked_slot, signal_item))
                     series.hovered.connect(functools.partial(self._series_hovered_slot, signal_item))
 
+            self._graph_sfd = self.server_manager.get_loaded_sfd()
+            self._graph_device_info = self.server_manager.get_device_info()
             self._first_val_dt = None
             self._chart_has_content = True
             self._acquiring = True
@@ -680,11 +698,11 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
             self._btn_clear.setDisabled(True)
 
         if self._chart_has_content and (not self.is_autoscale_enabled() or not self.is_acquiring()):
-            self._chartview.allow_save_img(True)
-            self._chartview.allow_save_csv(True)
+            self._allow_save_img = True
+            self._allow_save_csv = True
         else:
-            self._chartview.allow_save_img(False)
-            self._chartview.allow_save_csv(False)
+            self._allow_save_img = False
+            self._allow_save_csv = False
 
     def _watcher_id(self) -> str:
         return self.instance_name
@@ -891,6 +909,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         self._callout.hide()
 
     def _spinbox_graph_max_width_changed_slot(self, val:int) -> None:
+        """When the user changed the max width spinbox"""
         if val == 0:
             self._spinbox_graph_max_width.setProperty("state", WidgetState.error)
             return
@@ -908,16 +927,63 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
                 child.clearFocus()
         InvokeQueued(deselect_spinbox)
 
-    def _save_csv_slot(self, filename:str) -> None:
+    def _chart_context_menu_slot(self, chartview_event:QContextMenuEvent) -> None:
+        """Slot called when the user right click the chartview. Create a context menu and display it.
+        This event is forwarded by the chartview through a signal."""
+        context_menu = QMenu(self)
+
+        save_img_action = context_menu.addAction(assets.load_icon(assets.Icons.Picture), "Save as image")
+        save_img_action.triggered.connect(self._save_image_slot)
+        save_img_action.setEnabled(self._allow_save_img)
+
+        save_csv_action = context_menu.addAction(assets.load_icon(assets.Icons.CSV), "Save as CSV")
+        save_csv_action.triggered.connect(self._save_csv_slot)
+        save_csv_action.setEnabled(self._allow_save_csv)
+        context_menu.popup(self._chartview.mapToGlobal(chartview_event.pos()))
+
+
+
+    def _save_image_slot(self) -> None:
+        """When the user right-click the graph then click "Save as image" """
+        if not self._allow_save_img or not self._chart_has_content:
+            return 
+        
+        filepath:Optional[Path] = None
+        try:
+            pix = self._chartview.grab()
+            filepath = get_save_filepath_from_last_save_dir(self, ".png")
+            if filepath is None:
+                return
+            pix.save(str(filepath), 'png', 100)
+        except Exception as e:
+            logfilepath = "<noname>" if filepath is None else str(filepath)
+            tools.log_exception(self.logger, e, f"Error while saving graph into {logfilepath}")
+            exception_msgbox(self, e, "Failed to save", f"Failed to save the graph to {logfilepath}")
+
+    def _save_csv_slot(self) -> None:
+        """When the user right-click the graph then click "Save as CSV" """
+        if not self._allow_save_csv or not self._chart_has_content:
+            return
+
+        filepath = get_save_filepath_from_last_save_dir(self, ".csv")
+        if filepath is None:
+            return
+        
         def finished_callback(exception:Optional[Exception]) -> None:
             # This runs in a different thread
             # Todo : Add visual "saving..." feedback ?
             if exception is not None:
-                tools.log_exception(self.logger, exception, f"Error while saving graph into {filename}" )
-                InvokeInQtThread(lambda: exception_msgbox(self, "Failed to save", f"Failed to save the graph to {filename}", exception))
-            
-        if self._chart_has_content:
-            export_chart_csv_threaded(filename, self._signal_tree.get_signals(), finished_callback)
+                tools.log_exception(self.logger, exception, f"Error while saving graph into {filepath}" )
+                InvokeInQtThread(lambda: exception_msgbox(self, exception, "Failed to save", f"Failed to save the graph to {filepath}"))
 
-    
+        export_chart_csv_threaded(
+            datetime_zero_sec = self._first_val_dt,
+            filename = filepath, 
+            signals = self._signal_tree.get_signals(), 
+            finished_callback = finished_callback,
+            device = self._graph_device_info,
+            sfd = self._graph_sfd
+            )
+
+
     #endregion

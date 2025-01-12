@@ -78,6 +78,15 @@ class ScrutinyQtGUI:
         stylesheet = assets.load_text(['stylesheets', 'scrutiny_base.qss'])
         app.setStyleSheet(stylesheet)
 
+        if self.settings.opengl_enabled:
+            #QTBUG-108190. PySide6.4 regression. Workaround to force OpenGL to initialize
+            from PySide6.QtOpenGLWidgets import QOpenGLWidget
+            _dummy_widget = QOpenGLWidget(window) 
+            _dummy_widget.setVisible(False)
+        
+        if self.settings.debug_layout:
+            window.setStyleSheet("border:1px solid red")
+
         CrossThreadInvoker.init()  # Internal tool to run functions in the QT Thread fromother thread
         window.show()
         
