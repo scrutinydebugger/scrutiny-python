@@ -18,7 +18,6 @@ from copy import deepcopy
 from typing import Dict, Any, Optional, TypeVar, List, Tuple, Type, cast, Union, Callable, Generic
 import types
 import logging
-from dataclasses import dataclass
 import threading
 
 T=TypeVar("T")
@@ -190,7 +189,7 @@ class ThreadSyncer(Generic[T]):
         self.exception = None
         self.return_val = None
     
-    def executor_func(self, fn:Callable[..., T]) -> Callable[..., None]:
+    def executor_func(self, fn:Callable[..., T]) -> Callable[[], None]:
         def wrapper() -> None:
             try:
                 self.return_val = fn()
