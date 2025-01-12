@@ -126,7 +126,6 @@ class FakeSDKClient(tools.UnitTestStub):
                     return False
                 return self.success
         
-    
 
     class FakeWatchRequest(FakeRequest):
         requested_path:str
@@ -351,7 +350,7 @@ class FakeSDKClient(tools.UnitTestStub):
             device_comm_state=self.server_info.device_comm_state,
             device_link=self.server_info.device_link,
             device_session_id=self.server_info.device_session_id,
-            sfd_firmware_id=self.server_info.sfd_firmware_id
+            sfd_firmware_id=firmware_id
         )
 
         self.trigger_event(ScrutinyClient.Events.SFDLoadedEvent(firmware_id))
@@ -422,4 +421,50 @@ class FakeSDKClient(tools.UnitTestStub):
 
         with tools.SuppressException(KeyError):
             del self._handle_cache[path]
+    
+    def get_device_info(self) -> Optional[sdk.DeviceInfo]:
+        if self.server_info is not None:
+            if self.server_info.device_session_id is not None:
+                return sdk.DeviceInfo(
+                    device_id=self.server_info.device_session_id,
+                    display_name="fake_device",
+                    session_id= "asdasd",
+                    address_size_bits=32,
+                    datalogging_capabilities=sdk.DataloggingCapabilities(sdk.DataloggingEncoding.RAW, 4096, 0, []),
+                    forbidden_memory_regions=[],
+                    readonly_memory_regions=[],
+                    heartbeat_timeout=5,
+                    max_bitrate_bps=0,
+                    max_rx_data_size=128,
+                    max_tx_data_size=128,
+                    protocol_major=1,
+                    protocol_minor=0,
+                    rx_timeout_us=50,
+                    supported_features=sdk.SupportedFeatureMap(
+                        memory_write=True,
+                        datalogging=True,
+                        sixtyfour_bits=True,
+                        user_command=True
+                    )
+                )
+        return None
+
+    def get_loaded_sfd(self) -> Optional[sdk.SFDInfo]:
+        if self.server_info is not None:
+            if self.server_info.sfd_firmware_id is not None:
+                return sdk.SFDInfo(
+                    firmware_id=self.server_info.sfd_firmware_id,
+                    metadata=sdk.SFDMetadata(
+                        author="scrutiny",
+                        project_name="unittest",
+                        version="v1",
+                        generation_info=sdk.SFDGenerationInfo(
+                            python_version="aaa",
+                            scrutiny_version="bbb",
+                            system_type="ccc",
+                            timestamp=datetime.now().timestamp(),
+                        )
+                    )
+                )
         
+        return None

@@ -16,21 +16,21 @@ import time
 import logging
 import queue
 import enum
+from copy import copy
 from dataclasses import dataclass
 from scrutiny.tools.thread_enforcer import thread_func, enforce_thread
 from scrutiny import tools
 
 from PySide6.QtCore import Signal, QObject
-from typing import Optional, Dict, Any, Callable, List, Union, cast
+from typing import Optional, Dict, Any, Callable, List, Union, cast, Tuple
 
 from scrutiny.core.logging import DUMPDATA_LOGLEVEL
 from scrutiny.gui.core.watchable_registry import WatchableRegistry
 from scrutiny.sdk.listeners import BaseListener, ValueUpdate 
 from scrutiny.sdk.watchable_handle import WatchableHandle
 from scrutiny.tools.profiling import VariableRateExponentialAverager
-from scrutiny.tools import format_exception
 from scrutiny.gui.core.threads import QT_THREAD_NAME, SERVER_MANAGER_THREAD_NAME
-from scrutiny.gui.tools.invoker import InvokeInQtThreadSynchronized
+from scrutiny.gui.tools.invoker import InvokeInQtThreadSynchronized, InvokeQueued
 
 @dataclass
 class ServerConfig:
@@ -232,6 +232,8 @@ class ServerManager:
         sfd_unloaded = Signal()
         registry_changed = Signal()
         status_received = Signal()
+        device_info_availability_changed = Signal()
+        loaded_sfd_availability_changed = Signal()
 
     RECONNECT_DELAY = 1
     _client:ScrutinyClient 
@@ -272,6 +274,11 @@ class ServerManager:
     """For unit testing. Used for synchronization of threads"""
     _exit_in_progress:bool
     """Flag set by the main window informing that the application is exiting. Cancel callbacks"""
+
+    _device_info: Optional[sdk.DeviceInfo]
+    """Contains all the info about the actually connected device. ``None`` if not available"""
+    _loaded_sfd: Optional[sdk.SFDInfo]
+    """Contains all the info about the actually loaded Scrutiny Firmware Description. ``None`` if not available"""
 
     _partial_watchable_downloaded_data:Dict[sdk.WatchableType, Dict[str, sdk.WatchableConfiguration]]
 
@@ -339,6 +346,9 @@ class ServerManager:
         self._qt_watch_unwatch_ui_callback_call_count = 0
         self._exit_in_progress = False
 
+        self._device_info = None
+        self._loaded_sfd = None
+
         # Logging logic
         if self._logger.isEnabledFor(DUMPDATA_LOGLEVEL):    # pragma: no cover
             self._signals.server_connected.connect(lambda : self._logger.log(DUMPDATA_LOGLEVEL, "+Signal: server_connected"))
@@ -350,6 +360,16 @@ class ServerManager:
             self._signals.registry_changed.connect(lambda : self._logger.log(DUMPDATA_LOGLEVEL, "+Signal: registry_changed"))
             self._signals.datalogging_state_changed.connect(lambda : self._logger.log(DUMPDATA_LOGLEVEL, "+Signal: datalogging_state_changed"))
             self._signals.status_received.connect(lambda : self._logger.log(DUMPDATA_LOGLEVEL, "+Signal: status_received"))
+            self._signals.device_info_availability_changed.connect(lambda : self._logger.log(DUMPDATA_LOGLEVEL, "+Signal: device_info_availability_changed"))
+            self._signals.loaded_sfd_availability_changed.connect(lambda : self._logger.log(DUMPDATA_LOGLEVEL, "+Signal: loaded_sfd_availability_changed"))
+        
+        
+        # These internal slots are used to download the device info and SFD details when they are ready
+        self._signals.sfd_loaded.connect(self._sfd_loaded_callback)
+        self._signals.sfd_unloaded.connect(self._sfd_unloaded_callback)
+        self._signals.device_ready.connect(self._device_ready_callback)
+        self._signals.device_disconnected.connect(self._device_disconnected_callback)
+        self._signals.server_disconnected.connect(self._server_disconnected_callback)
 
 
     #region Private - internal thread    
@@ -371,7 +391,7 @@ class ServerManager:
 
                 server_state = self._client.server_state
                 if server_state == sdk.ServerState.Error:
-                    self.stop()      # Race conditon?   We have bigger problems than that if we reach here.
+                    InvokeInQtThreadSynchronized(self.stop)
                     break
                 self._thread_process_client_events()
                 self._thread_handle_download_watchable_logic()
@@ -755,6 +775,109 @@ class ServerManager:
         self._stop_pending = False
         self.signals.stopped.emit()
 
+    @enforce_thread(QT_THREAD_NAME)
+    def _set_loaded_sfd(self, sfd:Optional[sdk.SFDInfo]) -> None:
+        need_event = (sfd != self._loaded_sfd)
+        self._loaded_sfd = sfd
+        if need_event:
+            InvokeQueued(lambda: self._signals.loaded_sfd_availability_changed.emit())
+
+    @enforce_thread(QT_THREAD_NAME)
+    def _set_device_info(self, device_info:Optional[sdk.DeviceInfo]) -> None:
+        need_event = (device_info != self._device_info)
+        self._device_info = device_info
+        if need_event:
+            InvokeQueued(lambda: self._signals.device_info_availability_changed.emit())
+
+    @enforce_thread(QT_THREAD_NAME)
+    def _sfd_loaded_callback(self) -> None:
+        # Called in the UI thread when we emit the signal : sfd_laoded.
+        # Use to download the SFD data
+        info = self.get_server_info()
+        if info is not None:
+            if info.sfd_firmware_id is not None:
+                sfd_firmware_id = info.sfd_firmware_id
+                def func(client:ScrutinyClient) -> Tuple[str, Optional[sdk.SFDInfo]]:
+                    loaded_sfd = client.get_loaded_sfd()
+                    return sfd_firmware_id, loaded_sfd
+
+                self.schedule_client_request(func, self._receive_loaded_sfd_info)
+    
+    @enforce_thread(QT_THREAD_NAME)
+    def _sfd_unloaded_callback(self) -> None:
+        # Called when the server manager emit the signal : sfd_unloaded
+        self._set_loaded_sfd(None)
+    
+
+    @enforce_thread(QT_THREAD_NAME)
+    def _device_ready_callback(self) -> None:
+        # Called when the server manager emit the signal : device_connected
+        info = self.get_server_info()
+        if info is not None:
+            if info.device_session_id is not None:
+                session_id = info.device_session_id
+                def func(client:ScrutinyClient) -> Tuple[str, Optional[sdk.DeviceInfo]]:
+                    device_info = client.get_device_info()
+                    return session_id, device_info
+            
+                self.schedule_client_request(func, self._receive_device_info)
+
+    @enforce_thread(QT_THREAD_NAME)
+    def _device_disconnected_callback(self) -> None:
+        # Called when the server manager emit the signal : device_disconnected
+        self._set_device_info(None)
+
+    @enforce_thread(QT_THREAD_NAME)
+    def _receive_device_info(self, retval:Optional[Any], error:Optional[Exception]) -> None:
+        # Called when client.get_device_info() completes
+        valid = False
+        device_info:Optional[sdk.DeviceInfo] = None
+        if retval is not None:
+            server_info = self.get_server_info()
+            if server_info is not None:
+                if server_info.device_session_id is not None:
+                    session_id, device_info = cast(Tuple[str, sdk.DeviceInfo], retval)
+                    if server_info.device_session_id == session_id: # Is unchanged since request is initiated
+                        valid = True
+        else:
+            if error is not None:
+                self._logger.error(f"Failed to download the device information: {error}")
+
+        if valid:
+            assert device_info is not None
+            self._set_device_info(device_info)
+            self._device_info = device_info
+        else:
+            self._set_device_info(None)
+        
+        self._signals.device_info_availability_changed
+
+    @enforce_thread(QT_THREAD_NAME)
+    def _receive_loaded_sfd_info(self, retval:Optional[Any], error:Optional[Exception]) -> None:
+        # Called when client.get_loaded_sfd() completes.
+        valid = False
+        loaded_sfd:Optional[sdk.SFDInfo] = None
+        if retval is not None:  # Success
+            server_info = self.get_server_info()
+            if server_info is not None:
+                if server_info.sfd_firmware_id is not None:
+                    sfd_firmware_id, loaded_sfd = cast(Tuple[str, sdk.SFDInfo], retval)
+                    if server_info.sfd_firmware_id == sfd_firmware_id:  # Is unchanged since request is initiated
+                        valid = True
+        else:
+            if error is not None:
+                self._logger.error(f"Failed to download the SFD details: {error}")
+
+        if valid:
+            assert loaded_sfd is not None
+            self._set_loaded_sfd(loaded_sfd)
+        else:
+            self._set_loaded_sfd(None)
+
+    def _server_disconnected_callback(self) -> None:
+        self._set_device_info(None)
+        self._set_loaded_sfd(None)
+        
     #endregion
 
 
@@ -808,6 +931,13 @@ class ServerManager:
             return self._client.get_latest_server_status()
         except sdk.exceptions.ScrutinySDKException:
             return None
+    
+    def get_device_info(self) -> Optional[sdk.DeviceInfo] :
+        return copy(self._device_info)
+
+    def get_loaded_sfd(self) -> Optional[sdk.SFDInfo] :
+        return copy(self._loaded_sfd)
+    
 
     @property
     def signals(self) -> _Signals:
@@ -858,10 +988,12 @@ class ServerManager:
         self._client.reset_local_stats()
         self._status_update_received = 0
 
+    @enforce_thread(QT_THREAD_NAME)
     def exit(self)->None:
         self.stop()
         self._exit_in_progress = True
     
+    @enforce_thread(QT_THREAD_NAME)
     def start(self, config:ServerConfig) -> None:
         # Called from the QT thread
         """Makes the server manager try to connect and monitor server state changes
@@ -875,6 +1007,8 @@ class ServerManager:
             raise RuntimeError("Stop pending") # Temporary hard check for debug
         
         self._logger.debug("Starting server manager")
+        self._set_device_info(None)
+        self._set_loaded_sfd(None)
         self._client_request_store.clear()
         self.signals.starting.emit()
         self._allow_auto_reconnect = True
@@ -885,10 +1019,10 @@ class ServerManager:
         self._logger.debug("Server manager started")
         self.signals.started.emit()
     
+    @enforce_thread(QT_THREAD_NAME)
     def stop(self) -> None:
         """Stops the server manager. Will disconnect it from the server and clear all internal data"""
-        # Called from the QT thread + Server thread in case of error.
-        # Should we bother about a race condition here? Probably not.. 
+        # Called from the QT thread
         self._logger.debug("ServerManager.stop() called")
         if self._stop_pending:
             self._logger.debug("Stop already pending. Cannot stop")
@@ -900,6 +1034,8 @@ class ServerManager:
         
         self._logger.debug("Stopping server manager")
         self._stop_pending = True
+        self._set_device_info(None)
+        self._set_loaded_sfd(None)
         self.signals.stopping.emit()
 
         # Will cause the thread to exit and emit thread_exit_signal that triggers _qt_thread_join_thread_and_emit_stopped in the UI thread

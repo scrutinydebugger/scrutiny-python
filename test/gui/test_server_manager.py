@@ -13,7 +13,6 @@ from test.gui.fake_sdk_client import FakeSDKClient, StubbedWatchableHandle
 from test.gui.base_gui_test import ScrutinyBaseGuiTest, EventType
 import time
 from dataclasses import dataclass
-import threading
 from test import logger
 
 from typing import List, Optional, Any
@@ -87,6 +86,19 @@ class TestServerManager(ScrutinyBaseGuiTest):
         self.server_manager.signals.sfd_loaded.connect(lambda : self.declare_event(EventType.SFD_LOADED))
         self.server_manager.signals.sfd_unloaded.connect(lambda : self.declare_event(EventType.SFD_UNLOADED))
         self.server_manager.signals.registry_changed.connect(lambda : self.declare_event(EventType.WATCHABLE_REGISTRY_CHANGED))
+
+        
+        # These 2 events are treated differently because they run in a dedicated thread and event order cannot be guaranteed
+        self.device_info_avail_changed_count = 0
+        def increase_device_info_change_count():
+            self.device_info_avail_changed_count+=1
+
+        self.sfd_info_avail_changed_count = 0
+        def increase_sfd_info_change_count():
+            self.sfd_info_avail_changed_count+=1
+        
+        self.server_manager.signals.device_info_availability_changed.connect( increase_device_info_change_count )
+        self.server_manager.signals.loaded_sfd_availability_changed.connect( increase_sfd_info_change_count )
     
     def tearDown(self) -> None:
         if self.server_manager.is_running():
@@ -141,13 +153,18 @@ class TestServerManager(ScrutinyBaseGuiTest):
         for i in range(5):
             self.fake_client._simulate_device_connect('session_id1')
             self.wait_events_and_clear([EventType.DEVICE_READY], timeout=2)
+            self.wait_equal_with_events(lambda:self.device_info_avail_changed_count, 1, timeout=2)
             
             self.fake_client._simulate_device_disconnect()
             self.wait_events_and_clear([EventType.DEVICE_DISCONNECTED], timeout=2)
+            self.wait_equal_with_events(lambda:self.device_info_avail_changed_count, 2, timeout=2)
+            self.device_info_avail_changed_count = 0
 
         self.server_manager.stop()
         self.wait_server_state(sdk.ServerState.Disconnected)        
         self.assert_events([EventType.SERVER_DISCONNECTED])
+        self.assertEqual(self.device_info_avail_changed_count, 0)
+        self.assertEqual(self.sfd_info_avail_changed_count, 0)
     
     def test_event_device_connect_disconnect_with_sfd(self):
         # Connect the device and load the SFD at the same time. It has a special code path
@@ -161,10 +178,17 @@ class TestServerManager(ScrutinyBaseGuiTest):
             self.fake_client._simulate_device_connect('session_id1')
             self.fake_client._simulate_sfd_loaded('firmware1')
             self.wait_events_and_clear([EventType.DEVICE_READY, EventType.SFD_LOADED], timeout=2)
+            self.wait_equal_with_events(lambda: self.device_info_avail_changed_count, 1, timeout=2)
+            self.wait_equal_with_events(lambda: self.sfd_info_avail_changed_count, 1, timeout=2)
 
             self.fake_client._simulate_device_disconnect()
             self.fake_client._simulate_sfd_unloaded()
             self.wait_events_and_clear([EventType.DEVICE_DISCONNECTED, EventType.SFD_UNLOADED], timeout=2)
+            self.wait_equal_with_events(lambda: self.device_info_avail_changed_count, 2, timeout=2)
+            self.wait_equal_with_events(lambda: self.sfd_info_avail_changed_count, 2, timeout=2)
+
+            self.device_info_avail_changed_count = 0
+            self.sfd_info_avail_changed_count = 0
 
         self.fake_client.server_info = None
         self.server_manager.stop()
@@ -198,7 +222,7 @@ class TestServerManager(ScrutinyBaseGuiTest):
 
         self.wait_events_and_clear([EventType.SERVER_CONNECTED], timeout=2)
         self.fake_client._simulate_receive_status()
-
+        
         self.assertEqual(self.fake_client.get_call_count('disconnect'), 0)
         self.fake_client.server_state = sdk.ServerState.Error
 
@@ -366,8 +390,8 @@ class TestServerManager(ScrutinyBaseGuiTest):
 
         self.fake_client._simulate_sfd_loaded('fimrware_id1')
         self.fake_client._simulate_device_connect('session_id1')
-
         self.wait_events_and_clear([EventType.SFD_LOADED, EventType.DEVICE_READY], timeout=2)
+        
 
         def respond_to_download_requests():
             calls = self.fake_client.get_download_watchable_list_function_calls()
@@ -481,6 +505,49 @@ class TestServerManager(ScrutinyBaseGuiTest):
         self.assertIsInstance(data.error, Exception)
         self.assertEqual(str(data.error), "potato")
     
+
+    def test_availability_change_on_disconnect(self) -> None:
+        self.server_manager.start(SERVER_MANAGER_CONFIG)
+        self.wait_events_and_clear([EventType.SERVER_CONNECTED], timeout=2)
+        self.fake_client._simulate_receive_status()
+        
+        self.assertIsNone(self.server_manager.get_device_info())
+        self.fake_client._simulate_device_connect("aaa")
+        self.wait_equal_with_events(lambda: self.device_info_avail_changed_count, 1, timeout=2)
+        self.assertIsNotNone(self.server_manager.get_device_info())
+        
+        self.assertIsNone(self.server_manager.get_loaded_sfd())
+        self.fake_client._simulate_sfd_loaded("bbb")
+        self.wait_equal_with_events(lambda: self.sfd_info_avail_changed_count, 1, timeout=2)
+        self.assertIsNotNone(self.server_manager.get_loaded_sfd())
+
+        self.fake_client.disconnect()
+        self.wait_equal_with_events(lambda: self.sfd_info_avail_changed_count, 2, timeout=2)
+        self.wait_equal_with_events(lambda: self.device_info_avail_changed_count, 2, timeout=2)
+        self.assertIsNone(self.server_manager.get_device_info())
+        self.assertIsNone(self.server_manager.get_loaded_sfd())
+
+    def test_availability_change_on_stop(self) -> None:
+        self.server_manager.start(SERVER_MANAGER_CONFIG)
+        self.wait_events_and_clear([EventType.SERVER_CONNECTED], timeout=2)
+        self.fake_client._simulate_receive_status()
+        
+        self.assertIsNone(self.server_manager.get_device_info())
+        self.fake_client._simulate_device_connect("aaa")
+        self.wait_equal_with_events(lambda: self.device_info_avail_changed_count, 1, timeout=2)
+        self.assertIsNotNone(self.server_manager.get_device_info())
+        
+        self.assertIsNone(self.server_manager.get_loaded_sfd())
+        self.fake_client._simulate_sfd_loaded("bbb")
+        self.wait_equal_with_events(lambda: self.sfd_info_avail_changed_count, 1, timeout=2)
+        self.assertIsNotNone(self.server_manager.get_loaded_sfd())
+
+        self.server_manager.stop()
+        self.wait_equal_with_events(lambda: self.sfd_info_avail_changed_count, 2, timeout=2)
+        self.wait_equal_with_events(lambda: self.device_info_avail_changed_count, 2, timeout=2)
+        self.assertIsNone(self.server_manager.get_device_info())
+        self.assertIsNone(self.server_manager.get_loaded_sfd())
+
 
 class TestServerManagerRegistryInteraction(ScrutinyBaseGuiTest):
     # This test suite make sure that WatchableRegistry watch/unwatch calls correctly triggers
