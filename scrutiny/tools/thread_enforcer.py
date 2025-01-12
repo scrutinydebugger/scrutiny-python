@@ -60,7 +60,7 @@ P = ParamSpec('P')
 
 def enforce_thread(name:str) -> Callable[[Callable[P, T]], Callable[P, T]]:
     def decorator(function:Callable[P, T]) -> Callable[P, T]:
-        def wrapper(*args:Any, **kwargs:Any) -> T:
+        def wrapper(*args:P.args, **kwargs:P.kwargs) ->  T:
             ThreadEnforcer.assert_thread(name)
             result = function(*args, **kwargs)
             return result
@@ -69,7 +69,7 @@ def enforce_thread(name:str) -> Callable[[Callable[P, T]], Callable[P, T]]:
 
 def thread_func(name:str) -> Callable[[Callable[P, T]], Callable[P, T]]:
     def decorator(function:Callable[P, T]) -> Callable[P, T]:
-        def wrapper(*args:Any, **kwargs:Any) ->  T:
+        def wrapper(*args:P.args, **kwargs:P.kwargs) ->  T:
             ThreadEnforcer.register_thread(name, unique=True)
             try:
                 result = function(*args, **kwargs)
