@@ -120,7 +120,6 @@ class TestServerManager(ScrutinyBaseGuiTest):
 
         self.wait_equal_with_events(self.server_manager.is_running, False, 5, no_assert=True)  # Early exit if it fails
         
-        
         self.assertTrue(self.server_manager.is_running())
         self.assertEqual(self.server_manager.get_server_state(), sdk.ServerState.Connected)
         self.server_manager.stop()
@@ -151,13 +150,17 @@ class TestServerManager(ScrutinyBaseGuiTest):
         self.fake_client._simulate_receive_status() # Load default status
 
         for i in range(5):
+            self.assertIsNone(self.server_manager.get_device_info())
             self.fake_client._simulate_device_connect('session_id1')
             self.wait_events_and_clear([EventType.DEVICE_READY], timeout=2)
             self.wait_equal_with_events(lambda:self.device_info_avail_changed_count, 1, timeout=2)
             
+            self.assertIsNotNone(self.server_manager.get_device_info())
+            
             self.fake_client._simulate_device_disconnect()
             self.wait_events_and_clear([EventType.DEVICE_DISCONNECTED], timeout=2)
             self.wait_equal_with_events(lambda:self.device_info_avail_changed_count, 2, timeout=2)
+            self.assertIsNone(self.server_manager.get_device_info())
             self.device_info_avail_changed_count = 0
 
         self.server_manager.stop()
@@ -175,17 +178,24 @@ class TestServerManager(ScrutinyBaseGuiTest):
         self.fake_client._simulate_receive_status() # Load default status
 
         for i in range(5):
+            self.assertIsNone(self.server_manager.get_device_info())
+            self.assertIsNone(self.server_manager.get_loaded_sfd())
             self.fake_client._simulate_device_connect('session_id1')
             self.fake_client._simulate_sfd_loaded('firmware1')
             self.wait_events_and_clear([EventType.DEVICE_READY, EventType.SFD_LOADED], timeout=2)
             self.wait_equal_with_events(lambda: self.device_info_avail_changed_count, 1, timeout=2)
             self.wait_equal_with_events(lambda: self.sfd_info_avail_changed_count, 1, timeout=2)
 
+            self.assertIsNotNone(self.server_manager.get_device_info())
+            self.assertIsNotNone(self.server_manager.get_loaded_sfd())
+
             self.fake_client._simulate_device_disconnect()
             self.fake_client._simulate_sfd_unloaded()
             self.wait_events_and_clear([EventType.DEVICE_DISCONNECTED, EventType.SFD_UNLOADED], timeout=2)
             self.wait_equal_with_events(lambda: self.device_info_avail_changed_count, 2, timeout=2)
             self.wait_equal_with_events(lambda: self.sfd_info_avail_changed_count, 2, timeout=2)
+            self.assertIsNone(self.server_manager.get_device_info())
+            self.assertIsNone(self.server_manager.get_loaded_sfd())
 
             self.device_info_avail_changed_count = 0
             self.sfd_info_avail_changed_count = 0
@@ -243,6 +253,7 @@ class TestServerManager(ScrutinyBaseGuiTest):
             self.assertEqual(self.fake_client.get_call_count('connect'), i+2)
     
     def test_auto_retry_connect_on_connect_fail(self):
+        self.server_manager.RECONNECT_DELAY = 0.2
         RETRY_COUNT = 3
         self.fake_client.force_connect_fail()
         self.server_manager.start(SERVER_MANAGER_CONFIG)
@@ -505,7 +516,6 @@ class TestServerManager(ScrutinyBaseGuiTest):
         self.assertIsInstance(data.error, Exception)
         self.assertEqual(str(data.error), "potato")
     
-
     def test_availability_change_on_disconnect(self) -> None:
         self.server_manager.start(SERVER_MANAGER_CONFIG)
         self.wait_events_and_clear([EventType.SERVER_CONNECTED], timeout=2)
