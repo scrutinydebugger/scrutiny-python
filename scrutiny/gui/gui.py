@@ -18,6 +18,7 @@ from scrutiny.gui import assets
 from scrutiny.tools.thread_enforcer import register_thread
 from scrutiny.gui.core.threads import QT_THREAD_NAME
 from scrutiny.gui.tools.invoker import CrossThreadInvoker
+from scrutiny.gui.tools import prepare_for_opengl
 from scrutiny.gui.themes import set_theme
 from scrutiny.gui.themes.default_theme import DefaultTheme 
 from dataclasses import dataclass
@@ -79,11 +80,8 @@ class ScrutinyQtGUI:
         app.setStyleSheet(stylesheet)
 
         if self.settings.opengl_enabled:
-            #QTBUG-108190. PySide6.4 regression. Workaround to force OpenGL to initialize
-            from PySide6.QtOpenGLWidgets import QOpenGLWidget
-            _dummy_widget = QOpenGLWidget(window) 
-            _dummy_widget.setVisible(False)
-        
+            prepare_for_opengl(window)
+           
         if self.settings.debug_layout:
             window.setStyleSheet("border:1px solid red")
 
