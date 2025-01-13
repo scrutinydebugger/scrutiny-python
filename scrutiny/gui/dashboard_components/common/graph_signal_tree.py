@@ -19,12 +19,13 @@ from dataclasses import dataclass
 
 from PySide6.QtWidgets import QWidget, QMenu
 from PySide6.QtGui import ( QStandardItem, QDropEvent, QDragEnterEvent, QDragMoveEvent, QDragEnterEvent, 
-                           QDragMoveEvent, QContextMenuEvent, QAction, QKeyEvent, QPixmap
+                           QDragMoveEvent, QContextMenuEvent, QAction, QKeyEvent, QPixmap, QPalette
                            )
 from PySide6.QtCore import QMimeData, QModelIndex, Qt, QPersistentModelIndex, QPoint, QItemSelection, QObject, Signal
 from PySide6.QtCharts import QLineSeries, QAbstractSeries
 
 from scrutiny.gui import assets
+from scrutiny.gui.core.watchable_registry import WatchableRegistry
 from scrutiny.gui.core.scrutiny_drag_data import ScrutinyDragData, WatchableListDescriptor, SingleWatchableDescriptor
 from scrutiny.gui.dashboard_components.common.watchable_tree import WatchableStandardItem, get_watchable_icon
 from scrutiny.gui.dashboard_components.common.base_tree import BaseTreeModel, BaseTreeView, SerializableItemIndexDescriptor
@@ -108,14 +109,36 @@ class AxisContent:
 
 class GraphSignalModel(BaseTreeModel):
     _has_value_col:bool
+    _watchable_registry:WatchableRegistry
+    _available_palette:QPalette
+    _unavailable_palette:QPalette
 
-    def __init__(self, parent:QWidget, has_value_col:bool) -> None:
+    def __init__(self, 
+                parent:QWidget, 
+                watchable_registry:WatchableRegistry,
+                has_value_col:bool,
+                available_palette:Optional[QPalette]=None, 
+                unavailable_palette:Optional[QPalette]=None
+                ) -> None:
         super().__init__(parent, nesting_col= self.axis_col())
+        self._watchable_registry = watchable_registry
         if has_value_col:
             self.setColumnCount(2)
         else:
             self.setColumnCount(1)
         self._has_value_col = has_value_col
+
+        if available_palette is not None:
+            self._available_palette = available_palette
+        else:
+            self._available_palette = QPalette()
+            self._available_palette.setCurrentColorGroup(QPalette.ColorGroup.Active)
+
+        if unavailable_palette is not None:
+            self._unavailable_palette = unavailable_palette
+        else:
+            self._unavailable_palette = QPalette()
+            self._unavailable_palette.setCurrentColorGroup(QPalette.ColorGroup.Disabled)
     
     def has_value_col(self) -> bool:
         return self._has_value_col
@@ -283,6 +306,56 @@ class GraphSignalModel(BaseTreeModel):
                 assert isinstance(signal_item, ChartSeriesWatchableStandardItem)
                 signal_item.reload_watchable_icon()
 
+
+    def update_availability(self) -> None:
+        """Change the availability of all item based on their availibility in the registry. 
+        When the watchable refered by an element is not in the registry, becomes "unavailable" (grayed out).
+        """
+        for i in range(self.rowCount()):
+            axis = self.item(i, self.watchable_col())
+            for j in range(axis.rowCount()):
+                signal_item = axis.child(j, self.watchable_col())
+                assert isinstance(signal_item, ChartSeriesWatchableStandardItem)
+
+                if self._watchable_registry.is_watchable_fqn(signal_item.fqn):
+                    self.set_available(signal_item)
+                else:
+                    self.set_unavailable(signal_item)
+    
+    def has_unavailable_signals(self) -> bool:
+        """Return True if one signal refers to an unavailable watchable in the registry"""
+        for i in range(self.rowCount()):
+            axis = self.item(i, self.watchable_col())
+            for j in range(axis.rowCount()):
+                signal_item = axis.child(j, self.watchable_col())
+                assert isinstance(signal_item, ChartSeriesWatchableStandardItem)
+
+                print(signal_item.fqn)
+                if not self._watchable_registry.is_watchable_fqn(signal_item.fqn):
+                    return True
+        return False
+
+    def set_unavailable(self, arg_item:WatchableStandardItem) -> None:
+        """Make an item in the tree unavailable (grayed out)"""
+        background_color = self._unavailable_palette.color(QPalette.ColorRole.Base)
+        forground_color = self._unavailable_palette.color(QPalette.ColorRole.Text)
+        for i in range(self.columnCount()):
+            item = self.itemFromIndex(arg_item.index().siblingAtColumn(i))
+            if item is not None:
+                item.setBackground(background_color)
+                item.setForeground(forground_color)
+    
+    def set_available(self, arg_item:WatchableStandardItem) -> None:
+        """Make an item in the tree available (normal color)"""
+        background_color = self._available_palette.color(QPalette.ColorRole.Base)
+        forground_color = self._available_palette.color(QPalette.ColorRole.Text)
+        for i in range(self.columnCount()):
+            item = self.itemFromIndex(arg_item.index().siblingAtColumn(i))
+            if item is not None:
+                item.setBackground(background_color)
+                item.setForeground(forground_color)
+
+
 class GraphSignalTree(BaseTreeView):
     
     class _Signals(QObject):
@@ -290,16 +363,17 @@ class GraphSignalTree(BaseTreeView):
     
     _locked:bool
     _signals:_Signals
+    
 
     def model(self) -> GraphSignalModel:
         return cast(GraphSignalModel, super().model())
 
-    def __init__(self, parent:QWidget, has_value_col:bool) -> None:
+    def __init__(self, parent:QWidget, watchable_registry:WatchableRegistry, has_value_col:bool) -> None:
         super().__init__(parent)
         self._locked = False
         self._signals = self._Signals()
 
-        self.setModel(GraphSignalModel(self, has_value_col))
+        self.setModel(GraphSignalModel(self, watchable_registry, has_value_col))
         self.model().add_axis("Axis 1")
         self.setUniformRowHeights(True)   # Documentation says it helps performance
         self.setAnimated(False)
@@ -313,11 +387,18 @@ class GraphSignalTree(BaseTreeView):
     def signals(self) -> _Signals:
         return self._signals
 
+    def update_availability(self) -> None:
+        self.model().update_availability()
+    
+    def has_unavailable_signals(self) -> bool:
+        return self.model().has_unavailable_signals()
+
     def rowsInserted(self, parent:Union[QModelIndex, QPersistentModelIndex], start:int, end:int) -> None:
         if parent.isValid():
             self.expand(parent)
         super().rowsInserted(parent, start, end)
         self.resizeColumnToContents(0)
+        self.update_availability()
     
     def rowsRemoved(self, parent:Union[QModelIndex, QPersistentModelIndex], first:int, last:int) -> None:
         super().rowsRemoved(parent, first, last)

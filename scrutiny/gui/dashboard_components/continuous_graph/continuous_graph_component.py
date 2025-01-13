@@ -172,15 +172,15 @@ class GraphStatistics:
             self._compute_geometry()
 
         def _make_text(self) -> None:
-            update_rate = "N/A"
+            refresh_rate_str = "N/A"
             if self._stats.repaint_rate.is_enabled():
-                update_rate = "%0.1f/sec" % self._stats.repaint_rate.get_value()
-
+                refresh_rate_str = "%0.1f/sec" % self._stats.repaint_rate.get_value()
+            opengl_enabled_str = "Enabled" if self._stats.opengl else "Disabled"
             lines = [
                 "Decimation: %0.1fx" % self._stats.decimation_factor,
                 "Visible points: %d/%d" % (self._stats.visible_points, self._stats.total_points),
-                "OpenGL: %s" % ("Enabled" if self._stats.opengl else "Disabled"),
-                "Update rate: %s" % update_rate 
+                "OpenGL: %s" % opengl_enabled_str,
+                "Refresh rate: %s" % refresh_rate_str 
             ]
             self._text =  '\n'.join(lines)
 
@@ -297,6 +297,8 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
     _allow_save_csv:bool
     """Flag indicating if we can export the chart to csv"""
     _last_decimated_flush_paint_in_progress:bool
+    """A flag indicated that the repaint event following a data flush has not been completed yet. 
+    Used for auto-throttling of the repaint rate when the CPU is overloaded"""
 
     def setup(self) -> None:
         self._acquiring = False
@@ -348,7 +350,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
 
         # Series on continuous graph don't have their X value aligned. 
         # We can only show the value next to each point, not all together in the tree
-        self._signal_tree = GraphSignalTree(self, has_value_col=False)
+        self._signal_tree = GraphSignalTree(self, watchable_registry=self.watchable_registry, has_value_col=False)
         self._signal_tree.setMinimumWidth(150)
         self._btn_start_stop = QPushButton("")
         self._btn_start_stop.clicked.connect(self._btn_start_stop_slot)
@@ -356,6 +358,8 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         self._btn_pause.clicked.connect(self._btn_pause_slot)
         self._btn_clear = QPushButton("Clear")
         self._btn_clear.clicked.connect(self._btn_clear_slot)
+        
+        self.server_manager.signals.registry_changed.connect(self._registry_changed_slot)
         
         param_widget = QWidget()
         param_layout = QFormLayout(param_widget)
@@ -506,7 +510,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
                     try:
                         server_id = self.watchable_registry.watch_fqn(self._watcher_id(), signal_item.fqn)
                     except WatchableRegistryNodeNotFoundError as e:
-                        self._report_error(f"Signal {signal_item.text()} ({signal_item.fqn}) is not available.")
+                        self._report_error(f"Signal {signal_item.text()} is not available.")
                         self.watchable_registry.unwatch_all(self._watcher_id())
                         self.clear_graph()
                         return
@@ -620,6 +624,13 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
     #endregion Control
 
     # region Internal
+
+    def _registry_changed_slot(self) -> None:
+        self._signal_tree.update_availability()
+        if self.is_acquiring():
+            if self._signal_tree.has_unavailable_signals():
+                self.stop_acquisition()
+                self._update_widgets()
 
     def _flush_decimated_to_dirty_series(self) -> None:
         for series in self._all_series():
@@ -901,8 +912,13 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
 
         self._compute_new_decimator_resolution()
         self._recompute_xaxis_minmax_and_delete_old_data()
-        self._round_robin_recompute_single_series_min_max(full=False) # Update a single series at a time to reduce the load on the CPU
-        self._update_yaxes_minmax_based_on_series_minmax()  # Recompute min/max. Only way to shrink the scale reliably.
+        
+        all_series = list(self._all_series())
+        nb_series = len(all_series)
+        nb_loop = nb_series//6+1    # If there is lot of series, we update more at the time. Axes will reduce in max 6 second because of this
+        for i in range(nb_loop):
+            self._round_robin_recompute_single_series_min_max(full=False) # Update a single series at a time to reduce the load on the CPU
+            self._update_yaxes_minmax_based_on_series_minmax()  # Recompute min/max. Only way to shrink the scale reliably.
         self.update_stats()    # Recompute the stats and display
 
     def _series_hovered_slot(self, signal_item:ChartSeriesWatchableStandardItem, point:QPointF, state:bool) -> None:
