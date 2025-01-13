@@ -4,6 +4,7 @@ __all__ = [
     'get_not_none',
     'update_dict_recursive',
     'format_eng_unit',
+    'format_sec_to_dhms',
     'format_exception',
     'UnitTestStub',
     'SuppressException',
@@ -96,6 +97,25 @@ def format_eng_unit(val:float, decimal:int=0, unit:str="", binary:bool=False) ->
     val = round(val / base, decimal)
     return (format_string % val) + prefix + unit 
 
+def format_sec_to_dhms(sec:int) -> str:
+    if sec < 60:
+        outstr = f"{sec}s"
+    else:
+        minutes = int(sec//60)
+        sec -= minutes*60
+        if minutes < 60:
+            outstr = f"{minutes}m{sec}s"
+        else:
+            hour = int(minutes //60)
+            minutes -= hour*60
+            if hour < 24:
+                outstr = f"{hour}h{minutes}m{sec}s"
+            else:
+                days = int(hour//24)
+                hour -= days*24
+                outstr = f"{days}d {hour}h{minutes}m{sec}s"
+    
+    return outstr
 
 def format_exception(e:BaseException) -> str:
     return ''.join(traceback.format_exception(type(e), e, e.__traceback__))

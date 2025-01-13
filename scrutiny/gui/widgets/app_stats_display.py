@@ -13,7 +13,7 @@ from PySide6.QtCore import Qt
 from scrutiny import sdk
 from typing import Union, Optional
 from scrutiny.gui.core.server_manager import ServerManager
-from scrutiny.tools import format_eng_unit
+from scrutiny.tools import format_eng_unit, format_sec_to_dhms
 
 def configure_property_label(label:QLabel, has_tooltip:bool) -> None:
     if has_tooltip:
@@ -154,8 +154,8 @@ class ApplicationStatsDisplay(QWidget):
         self.registry_watcher_count_label.setText(f"{stats.watchable_registry.registered_watcher_count}")
         self.registry_watched_entries_label.setText(f"{stats.watchable_registry.watched_entries_count}")
 
-    def update_server_data(self, stats:sdk.ServerStatistics) -> None:
-        self.server_uptime_label.setText(f"{stats.uptime:0.1f} sec")
+    def update_server_data(self, stats:sdk.ServerStatistics) -> None:  
+        self.server_uptime_label.setText(format_sec_to_dhms(stats.uptime))
         self.server_invalid_request_count_label.setText(f"{stats.invalid_request_count}")
         self.server_unexpected_error_count_label.setText(f"{stats.unexpected_error_count}")
         self.server_client_count_label.setText(f"{stats.client_count}")

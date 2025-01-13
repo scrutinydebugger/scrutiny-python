@@ -10,12 +10,11 @@ from datetime import datetime
 import functools
 import math
 from pathlib import Path
-import os
 
 from PySide6.QtGui import QPainter, QFontMetrics, QFont, QColor, QContextMenuEvent
 from PySide6.QtWidgets import (QHBoxLayout, QSplitter, QWidget, QVBoxLayout,  QMenu,
                                QPushButton, QFormLayout, QSpinBox, QGraphicsItem, QStyleOptionGraphicsItem,
-                               QLineEdit, QFileDialog, QMessageBox)
+                               QLineEdit)
 from PySide6.QtCore import Qt, QItemSelectionModel, QPointF, QTimer, QRectF, QRect
 
 from scrutiny.gui import assets
@@ -25,7 +24,6 @@ from scrutiny.gui.tools.invoker import InvokeQueued, InvokeInQtThread
 from scrutiny.gui.tools.min_max import MinMax
 from scrutiny.gui.core.definitions import WidgetState
 from scrutiny.gui.core.watchable_registry import WatchableRegistryNodeNotFoundError, ValueUpdate
-from scrutiny.gui.core.preferences import gui_preferences
 from scrutiny.gui.widgets.feedback_label import FeedbackLabel
 from scrutiny.gui.dashboard_components.base_component import ScrutinyGUIBaseComponent
 from scrutiny.gui.dashboard_components.common.graph_signal_tree import GraphSignalTree, ChartSeriesWatchableStandardItem
@@ -35,6 +33,7 @@ from scrutiny.gui.dashboard_components.common.base_chart import (
 from scrutiny.gui.dashboard_components.continuous_graph.decimator import GraphMonotonicNonUniformMinMaxDecimator
 from scrutiny import sdk
 from scrutiny import tools
+from scrutiny.tools.profiling import VariableRateExponentialAverager
 
 from typing import Dict, Any, Union, List, Optional, cast, Set, Generator
 
@@ -43,7 +42,6 @@ class RealTimeScrutinyLineSeries(ScrutinyLineSeries):
     _x_minmax:MinMax
     _y_minmax:MinMax
     _dirty:bool
-    _paused:bool
 
     def __init__(self, *args:Any, **kwargs:Any) -> None:
         super().__init__(*args, **kwargs)
@@ -51,25 +49,11 @@ class RealTimeScrutinyLineSeries(ScrutinyLineSeries):
         self._x_minmax = MinMax()
         self._y_minmax = MinMax()
         self._dirty = False
-        self._paused = False
-        
-    def pause(self) -> None:
-        self._paused = True
 
-    def unpause(self) -> None:
-        self._paused = False
-        if self._dirty:
-            self.flush_decimated()
-
-    def is_paused(self) -> bool:
-        return self._paused
-        
     def set_x_resolution(self, resolution:float) -> bool:
         changed = self._decimator.set_x_resolution(resolution)
         if changed:            
             self._dirty = True
-            if not self._paused:
-                self.flush_decimated()
         return changed
     
     def decimation_factor(self) -> float:
@@ -84,7 +68,8 @@ class RealTimeScrutinyLineSeries(ScrutinyLineSeries):
     def add_point(self, point:QPointF) -> int:
         n = self._decimator.add_point(point)    # Can have 2 points out for a single in (min/max)
         if n > 0:
-            for p in self._decimator.get_decimated_buffer()[-n:]:
+            start_index = len(self._decimator.get_decimated_buffer())-n     # Avoid negative slice. Not all container supports it
+            for p in self._decimator.get_decimated_buffer()[start_index:]:
                 self._y_minmax.update(p.y())
                 self._x_minmax.update_max(p.x())
             self._dirty=True
@@ -120,13 +105,11 @@ class RealTimeScrutinyLineSeries(ScrutinyLineSeries):
         return buffer[0].x()
 
     def flush_decimated(self) -> None:
-        if not self._paused:
-            self.replace(self._decimator.get_decimated_buffer())
-            self._dirty = False
+        self.replace(self._decimator.get_decimated_buffer())
+        self._dirty = False
     
     def flush_full_dataset(self) -> None:
-        if not self._paused:
-            self.replace(self._decimator.get_input_buffer())
+        self.replace(self._decimator.get_input_buffer())
 
     def is_dirty(self) -> bool:
         return self._dirty
@@ -167,9 +150,7 @@ class RealTimeScrutinyLineSeries(ScrutinyLineSeries):
     def y_max(self) -> Optional[float]:
         return self._y_minmax.max()
 
-
 class GraphStatistics:
-
     class Overlay(QGraphicsItem):
         _stats:"GraphStatistics"
         _bounding_box:QRectF
@@ -191,11 +172,15 @@ class GraphStatistics:
             self._compute_geometry()
 
         def _make_text(self) -> None:
+            update_rate = "N/A"
+            if self._stats.repaint_rate.is_enabled():
+                update_rate = "%0.1f/sec" % self._stats.repaint_rate.get_value()
+
             lines = [
                 "Decimation: %0.1fx" % self._stats.decimation_factor,
                 "Visible points: %d/%d" % (self._stats.visible_points, self._stats.total_points),
-                "OpenGL: %s" % "Enabled" if self._stats.opengl else "Disabled",
-                "Update rate: Real-Time"    # Todo. Paused, Real-time, throttled
+                "OpenGL: %s" % ("Enabled" if self._stats.opengl else "Disabled"),
+                "Update rate: %s" % update_rate 
             ]
             self._text =  '\n'.join(lines)
 
@@ -212,14 +197,17 @@ class GraphStatistics:
             painter.setPen(QColor(0,0,0))
             painter.drawText(self._text_rect, self._text)
 
+
     visible_points:int
     total_points:int
     decimation_factor:float
     opengl:bool
+    repaint_rate:VariableRateExponentialAverager
     _overlay:Overlay
 
     def __init__(self, draw_zone:Optional[QGraphicsItem] = None) -> None:
         self._overlay = self.Overlay(draw_zone, self)
+        self.repaint_rate = VariableRateExponentialAverager(time_estimation_window=0.2, tau=1, near_zero=0.01)
         self.clear()
 
     def clear(self) -> None:
@@ -308,6 +296,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
     """Flag indicating if we can export the chart to image (png)"""
     _allow_save_csv:bool
     """Flag indicating if we can export the chart to csv"""
+    _last_decimated_flush_paint_in_progress:bool
 
     def setup(self) -> None:
         self._acquiring = False
@@ -325,6 +314,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         self._graph_device_info = None
         self._allow_save_img = False
         self._allow_save_csv = False
+        self._last_decimated_flush_paint_in_progress = False
         self._use_opengl = app_settings().opengl_enabled
         
         self._y_minmax_recompute_index=0
@@ -341,6 +331,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         chart.setAxisX(self._xaxis)
         self._chartview.setChart(chart)
         self._chartview.signals.context_menu_event.connect(self._chart_context_menu_slot)
+        self._chartview.signals.paint_finished.connect(self._paint_finished_slot)
         self._callout = ScrutinyChartCallout(chart)
         self._callout_hide_timer = QTimer()
         self._callout_hide_timer.setInterval(250)
@@ -400,6 +391,17 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
 
         layout = QHBoxLayout(self)
         layout.addWidget(self._splitter)
+
+    
+    def _paint_finished_slot(self) -> None:
+        self._stats.repaint_rate.add_data(1)
+
+        def set_paint_not_in_progress() -> None:
+            self._last_decimated_flush_paint_in_progress = False
+            if not self.is_paused():
+                self._flush_decimated_to_dirty_series()
+
+        InvokeQueued(set_paint_not_in_progress)
         
     def ready(self) -> None:
         # Make the right menu as small as possible. Only works after the widget is loaded. we need the ready() function for that
@@ -440,6 +442,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         self._first_val_dt = None
         self._graph_sfd = None
         self._graph_device_info = None
+        self._last_decimated_flush_paint_in_progress = False
     
     def stop_acquisition(self) -> None:
         """Stop a an ongoing acquisition"""
@@ -464,6 +467,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
                 yaxis = self._get_series_yaxis(series)
                 yaxis.autoset_range(margin_ratio=self.Y_AXIS_MARGIN)    # Range based on min/max computed just above
 
+        self.disable_repaint_rate_measurement()
         self.update_stats(use_decimated=False)  # Display 1x decimation factor and all points
         self._chartview.setEnabled(True)
         self._maybe_enable_opengl_drawing(False)  #  Required for callout to work
@@ -525,10 +529,12 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
             self._chart_has_content = True
             self._acquiring = True
             self._paused = False
+            self._last_decimated_flush_paint_in_progress=False
             self._maybe_enable_opengl_drawing(True)   # Reduce CPU usage a lot
             self._change_x_resolution(0)    # 0 mean no decimation
             self.update_emphasize_state()
             self.enable_autoscale()
+            self.enable_repaint_rate_measurement()
             self.update_stats(use_decimated=True)
             self.show_stats()
             self._start_periodic_graph_maintenance()
@@ -544,8 +550,8 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
             return 
         for series in self._all_series():
             series.flush_full_dataset()
-            series.pause()
         self.disable_autoscale()
+        self.disable_repaint_rate_measurement()
         self.update_stats(use_decimated=False)
         self._maybe_enable_opengl_drawing(False)
         self._paused = True
@@ -556,9 +562,10 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
             return
             
         for series in self._all_series():
-            series.unpause()
             series.flush_decimated()
+        self._last_decimated_flush_paint_in_progress = True
         self.enable_autoscale()
+        self.enable_repaint_rate_measurement()
         self.update_stats(use_decimated=True)
         self._maybe_enable_opengl_drawing(True)
         self._paused=False
@@ -614,6 +621,12 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
 
     # region Internal
 
+    def _flush_decimated_to_dirty_series(self) -> None:
+        for series in self._all_series():
+            if series.is_dirty():
+                series.flush_decimated()
+                self._last_decimated_flush_paint_in_progress = True
+
     def _get_item_series(self, item:ChartSeriesWatchableStandardItem) -> RealTimeScrutinyLineSeries:
         return cast(RealTimeScrutinyLineSeries, item.series())
     
@@ -636,11 +649,20 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         self._x_resolution = resolution
         for series in self._all_series():
             series.set_x_resolution(resolution)
+        if not self.is_paused():
+            self._flush_decimated_to_dirty_series()
         self.update_stats()
+
+    def enable_repaint_rate_measurement(self) -> None:
+        self._stats.repaint_rate.enable()
+    
+    def disable_repaint_rate_measurement(self) -> None:
+        self._stats.repaint_rate.disable()
 
     def update_stats(self, use_decimated:Optional[bool]=None) -> None:
         if use_decimated is None:
             use_decimated = True if not self.is_paused() else False
+        self._stats.repaint_rate.update()
         self._stats.opengl = self._use_opengl
         self._stats.decimation_factor = 0
         self._stats.visible_points = 0
@@ -742,11 +764,9 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
             if self.is_autoscale_enabled():
                 self.auto_scale_xaxis()
 
-            if not self.is_paused():
-                for series in self._all_series():
-                    if series.is_dirty():
-                        series.flush_decimated()
-                
+            if not self.is_paused() and not self._last_decimated_flush_paint_in_progress:
+                self._flush_decimated_to_dirty_series()
+
         except KeyError as e:
             tools.log_exception(self.logger, e, "Received a value update from a watchable that maps to no valid series in the chart")
             self.stop_acquisition()
@@ -884,7 +904,6 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         self._round_robin_recompute_single_series_min_max(full=False) # Update a single series at a time to reduce the load on the CPU
         self._update_yaxes_minmax_based_on_series_minmax()  # Recompute min/max. Only way to shrink the scale reliably.
         self.update_stats()    # Recompute the stats and display
-        
 
     def _series_hovered_slot(self, signal_item:ChartSeriesWatchableStandardItem, point:QPointF, state:bool) -> None:
         # FIXME : Snap zone is too small. QT source code says it is computed with markersize, but changing it has no effect.
@@ -940,8 +959,6 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         save_csv_action.triggered.connect(self._save_csv_slot)
         save_csv_action.setEnabled(self._allow_save_csv)
         context_menu.popup(self._chartview.mapToGlobal(chartview_event.pos()))
-
-
 
     def _save_image_slot(self) -> None:
         """When the user right-click the graph then click "Save as image" """

@@ -16,19 +16,16 @@ __all__ = [
 ]
 
 import enum
-from pathlib import Path
-import os
 from bisect import bisect_left
 
 from PySide6.QtCharts import QLineSeries, QValueAxis, QChart, QChartView
-from PySide6.QtWidgets import QGraphicsItem, QStyleOptionGraphicsItem, QWidget, QFileDialog, QMessageBox
-from PySide6.QtGui import QFont, QPainter, QFontMetrics, QColor, QContextMenuEvent
+from PySide6.QtWidgets import QGraphicsItem, QStyleOptionGraphicsItem, QWidget
+from PySide6.QtGui import QFont, QPainter, QFontMetrics, QColor, QContextMenuEvent, QPaintEvent
 from PySide6.QtCore import  QPointF, QRect, QRectF, Qt, QObject, Signal
 
 from scrutiny import tools
 from scrutiny.gui.themes import get_theme_prop, ScrutinyThemeProperties
 from scrutiny.gui.tools.min_max import MinMax
-from scrutiny.gui.core.preferences import gui_preferences
 
 from typing import Any, Optional, Any
 
@@ -216,6 +213,7 @@ class ScrutinyChartCallout(QGraphicsItem):
 class ScrutinyChartView(QChartView):
     class _Signals(QObject):
         context_menu_event = Signal(QContextMenuEvent)
+        paint_finished = Signal()
 
     @tools.copy_type(QChartView.__init__)
     def __init__(self, *args:Any, **kwargs:Any) -> None:
@@ -228,3 +226,7 @@ class ScrutinyChartView(QChartView):
 
     def contextMenuEvent(self, event: QContextMenuEvent) -> None:
         self._signals.context_menu_event.emit(event)
+
+    def paintEvent(self, event:QPaintEvent) -> None:
+        super().paintEvent(event)
+        self._signals.paint_finished.emit()

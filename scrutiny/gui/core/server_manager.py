@@ -67,6 +67,7 @@ class QtBufferedListener(BaseListener):
         self.qt_event_rate_measurement.enable()
     
     def teardown(self) -> None:
+        self.emit_allowed = False
         self.qt_event_rate_measurement.disable()
 
     def ready_for_next_update(self) -> None:
