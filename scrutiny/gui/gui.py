@@ -18,7 +18,7 @@ from scrutiny.gui import assets
 from scrutiny.tools.thread_enforcer import register_thread
 from scrutiny.gui.core.threads import QT_THREAD_NAME
 from scrutiny.gui.tools.invoker import CrossThreadInvoker
-from scrutiny.gui.tools import prepare_for_opengl
+from scrutiny.gui.tools.opengl import prepare_for_opengl
 from scrutiny.gui.themes import set_theme
 from scrutiny.gui.themes.default_theme import DefaultTheme 
 from dataclasses import dataclass
