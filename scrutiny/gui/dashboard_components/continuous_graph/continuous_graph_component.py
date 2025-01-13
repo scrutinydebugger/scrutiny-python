@@ -626,13 +626,16 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
     # region Internal
 
     def _registry_changed_slot(self) -> None:
-        self._signal_tree.update_availability()
+        """Called when the server manager has finished making a change to the registry"""
+        self._signal_tree.update_all_availabilities()
         if self.is_acquiring():
             if self._signal_tree.has_unavailable_signals():
                 self.stop_acquisition()
                 self._update_widgets()
 
     def _flush_decimated_to_dirty_series(self) -> None:
+        """Flush the decimated data buffer of all series marked as dirty. They're dirty when new data is available in 
+        the decimator decimated buffer (not the input buffer)"""
         for series in self._all_series():
             if series.is_dirty():
                 series.flush_decimated()
@@ -649,6 +652,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
             yield self._get_item_series(item)
 
     def _maybe_enable_opengl_drawing(self, val:bool) -> None:
+        """Enable OpenGL drawing for real time graph, only if the app is running with OpenGL enabled"""
         if self._use_opengl:
             for series in self._all_series():
                 series.setUseOpenGL(val)
@@ -657,6 +661,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
             self._chartview.setDisabled(False)
 
     def _change_x_resolution(self, resolution:float) -> None:
+        """Change the decimator resolution of all series, directly affecting the decimation factor."""
         self._x_resolution = resolution
         for series in self._all_series():
             series.set_x_resolution(resolution)

@@ -162,10 +162,12 @@ class GraphSignalModel(BaseTreeModel):
         watchable_item.setEditable(True)
         watchable_item.setDragEnabled(True)
 
-        value_item=QStandardItem()
-        value_item.setEditable(False)
-
-        return [watchable_item, value_item]
+        outlist:List[QStandardItem] = [watchable_item]
+        if self.has_value_col():
+            value_item=QStandardItem()
+            value_item.setEditable(False)
+            outlist.append(value_item)
+        return outlist
  
     def _validate_drag_data(self, drag_data:Optional[ScrutinyDragData], action:Qt.DropAction) -> bool:
         
@@ -275,6 +277,10 @@ class GraphSignalModel(BaseTreeModel):
                     parent_item.appendRow(row)
                 else:
                     parent_item.insertRow(row_index, row)
+                    
+                series_item = row[self.watchable_col()]
+                assert isinstance(series_item, ChartSeriesWatchableStandardItem)
+                self.update_availability(series_item)
         
         elif action == Qt.DropAction.MoveAction:
             self.handle_internal_move(parent_item.index(), row_index, cast(List[SerializableItemIndexDescriptor], drag_data.data_move))
@@ -307,20 +313,25 @@ class GraphSignalModel(BaseTreeModel):
                 signal_item.reload_watchable_icon()
 
 
-    def update_availability(self) -> None:
+    def update_availability(self, series_item:ChartSeriesWatchableStandardItem) -> None:
+        """Change the availability of an item based on its availibility in the registry. 
+        When the watchable refered by an element is not in the registry, becomes "unavailable" (grayed out).
+        """
+        if self._watchable_registry.is_watchable_fqn(series_item.fqn):
+            self.set_available(series_item)
+        else:
+            self.set_unavailable(series_item)
+
+    def update_all_availabilities(self) -> None:
         """Change the availability of all item based on their availibility in the registry. 
         When the watchable refered by an element is not in the registry, becomes "unavailable" (grayed out).
         """
         for i in range(self.rowCount()):
             axis = self.item(i, self.watchable_col())
             for j in range(axis.rowCount()):
-                signal_item = axis.child(j, self.watchable_col())
-                assert isinstance(signal_item, ChartSeriesWatchableStandardItem)
-
-                if self._watchable_registry.is_watchable_fqn(signal_item.fqn):
-                    self.set_available(signal_item)
-                else:
-                    self.set_unavailable(signal_item)
+                series_item = axis.child(j, self.watchable_col())
+                assert isinstance(series_item, ChartSeriesWatchableStandardItem)
+                self.update_availability(series_item)
     
     def has_unavailable_signals(self) -> bool:
         """Return True if one signal refers to an unavailable watchable in the registry"""
@@ -330,12 +341,11 @@ class GraphSignalModel(BaseTreeModel):
                 signal_item = axis.child(j, self.watchable_col())
                 assert isinstance(signal_item, ChartSeriesWatchableStandardItem)
 
-                print(signal_item.fqn)
                 if not self._watchable_registry.is_watchable_fqn(signal_item.fqn):
                     return True
         return False
 
-    def set_unavailable(self, arg_item:WatchableStandardItem) -> None:
+    def set_unavailable(self, arg_item:QStandardItem) -> None:
         """Make an item in the tree unavailable (grayed out)"""
         background_color = self._unavailable_palette.color(QPalette.ColorRole.Base)
         forground_color = self._unavailable_palette.color(QPalette.ColorRole.Text)
@@ -345,7 +355,7 @@ class GraphSignalModel(BaseTreeModel):
                 item.setBackground(background_color)
                 item.setForeground(forground_color)
     
-    def set_available(self, arg_item:WatchableStandardItem) -> None:
+    def set_available(self, arg_item:QStandardItem) -> None:
         """Make an item in the tree available (normal color)"""
         background_color = self._available_palette.color(QPalette.ColorRole.Base)
         forground_color = self._available_palette.color(QPalette.ColorRole.Text)
@@ -387,8 +397,8 @@ class GraphSignalTree(BaseTreeView):
     def signals(self) -> _Signals:
         return self._signals
 
-    def update_availability(self) -> None:
-        self.model().update_availability()
+    def update_all_availabilities(self) -> None:
+        self.model().update_all_availabilities()
     
     def has_unavailable_signals(self) -> bool:
         return self.model().has_unavailable_signals()
@@ -398,7 +408,6 @@ class GraphSignalTree(BaseTreeView):
             self.expand(parent)
         super().rowsInserted(parent, start, end)
         self.resizeColumnToContents(0)
-        self.update_availability()
     
     def rowsRemoved(self, parent:Union[QModelIndex, QPersistentModelIndex], first:int, last:int) -> None:
         super().rowsRemoved(parent, first, last)
