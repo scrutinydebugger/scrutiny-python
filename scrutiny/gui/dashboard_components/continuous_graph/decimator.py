@@ -8,8 +8,6 @@
 
 from PySide6.QtCore import QPointF
 from scrutiny.core import validation
-from collections import deque
-from scrutiny.tools import sliceable_deque
 
 from typing import List, Sequence
 
