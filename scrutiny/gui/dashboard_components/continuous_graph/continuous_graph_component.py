@@ -118,26 +118,20 @@ class RealTimeScrutinyLineSeries(ScrutinyLineSeries):
         self._decimator.force_flush_pending()
 
     def recompute_minmax(self) -> None:
+        decimated_buffer = self._decimator.get_decimated_buffer()
+        unprocessed_inputs = self._decimator.get_unprocessed_input()
+        
         self._x_minmax.clear()
         self._y_minmax.clear()
 
-        for p in self._decimator.get_decimated_buffer(): 
-            self._x_minmax.update(p.x())
-            self._y_minmax.update(p.y())
-        
-        for p in self._decimator.get_unprocessed_input():
-            self._x_minmax.update(p.x())
-            self._y_minmax.update(p.y())
+        # Tests have shown that it is ~2x faster to iterate twice (1 to extract the right value, second to run the min/max function) than
+        # iterate once with a a key specifier
+        self._x_minmax.update_from_many([p.x() for p in decimated_buffer])  
+        self._y_minmax.update_from_many([p.y() for p in decimated_buffer])
 
-    def recompute_y_minmax(self) -> None:
-        self._y_minmax.clear()
+        self._x_minmax.update_from_many([p.x() for p in unprocessed_inputs])
+        self._y_minmax.update_from_many([p.y() for p in unprocessed_inputs])
 
-        for p in self._decimator.get_decimated_buffer(): 
-            self._y_minmax.update(p.y())
-
-        for p in self._decimator.get_unprocessed_input():
-            self._y_minmax.update(p.y())
-    
     def x_min(self) -> Optional[float]:
         return self._x_minmax.min()
     
@@ -820,7 +814,6 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
             self._y_minmax_recompute_index+=1
             if self._y_minmax_recompute_index >= len(all_series):
                 self._y_minmax_recompute_index = 0
-        
 
     def _update_yaxes_minmax_based_on_series_minmax(self) -> None:
         """Recompute the min/max values of an axis using the minmax values of each series. 
