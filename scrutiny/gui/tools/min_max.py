@@ -7,7 +7,7 @@
 #   Copyright (c) 2021 Scrutiny Debugger
 
 import math 
-from typing import Optional, Iterable
+from typing import Optional, Sequence
 
 class MinMax:
     low:float
@@ -26,7 +26,7 @@ class MinMax:
         if v < self.low:
             self.low = v
 
-    def update_from_many(self, s:Iterable[float]) -> None:
+    def update_from_many(self, s:Sequence[float]) -> None:
         if len(s) > 0:
             self.update_max(max(s))
             self.update_min(min(s))

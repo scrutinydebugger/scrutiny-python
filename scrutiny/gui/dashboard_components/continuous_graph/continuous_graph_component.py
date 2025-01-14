@@ -125,7 +125,7 @@ class RealTimeScrutinyLineSeries(ScrutinyLineSeries):
         self._y_minmax.clear()
 
         # Tests have shown that it is ~2x faster to iterate twice (1 to extract the right value, second to run the min/max function) than
-        # iterate once with a a key specifier
+        # iterate once with a key specifier
         self._x_minmax.update_from_many([p.x() for p in decimated_buffer])  
         self._y_minmax.update_from_many([p.y() for p in decimated_buffer])
 
@@ -188,6 +188,7 @@ class GraphStatistics:
             return self._bounding_box
 
         def paint(self, painter: QPainter, option: QStyleOptionGraphicsItem, widget: Optional[QWidget]=None) -> None:
+            painter.fillRect(self._text_rect, QColor(0,0,0,50))
             painter.setPen(QColor(0,0,0))
             painter.drawText(self._text_rect, self._text)
 
@@ -198,8 +199,10 @@ class GraphStatistics:
     opengl:bool
     repaint_rate:VariableRateExponentialAverager
     _overlay:Overlay
+    _allow_show_overlay:bool
 
     def __init__(self, draw_zone:Optional[QGraphicsItem] = None) -> None:
+        self._allow_show_overlay = True
         self._overlay = self.Overlay(draw_zone, self)
         self.repaint_rate = VariableRateExponentialAverager(time_estimation_window=0.2, tau=1, near_zero=0.01)
         self.clear()
@@ -211,8 +214,9 @@ class GraphStatistics:
         self.decimation_factor = 1
 
     def show_overlay(self) -> None:
-        self._overlay.show()
-        self._overlay.update_content()
+        if self._allow_show_overlay:
+            self._overlay.show()
+            self._overlay.update_content()
 
     def hide_overlay(self) -> None:
         self._overlay.hide()
@@ -222,6 +226,17 @@ class GraphStatistics:
 
     def overlay(self) -> Overlay:
         return self._overlay
+
+    def allow_overlay(self) -> None:
+        self._allow_show_overlay = True
+        self.show_overlay()
+
+    def disallow_overlay(self) -> None:
+        self._allow_show_overlay = False
+        self.hide_overlay()
+    
+    def is_overlay_allowed(self) -> bool:
+        return self._allow_show_overlay
 
 
 class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
@@ -972,6 +987,16 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         save_csv_action = context_menu.addAction(assets.load_icon(assets.Icons.CSV), "Save as CSV")
         save_csv_action.triggered.connect(self._save_csv_slot)
         save_csv_action.setEnabled(self._allow_save_csv)
+
+        if self._stats.is_overlay_allowed():
+            show_hide_stats = context_menu.addAction(assets.load_icon(assets.Icons.Hide), "Hide stats")
+            show_hide_stats.triggered.connect(self._stats.disallow_overlay)
+        else:
+            show_hide_stats = context_menu.addAction(assets.load_icon(assets.Icons.Show), "Show stats")
+            show_hide_stats.triggered.connect(self._stats.allow_overlay)
+        
+        show_hide_stats.setEnabled(self._chart_has_content)            
+        
         context_menu.popup(self._chartview.mapToGlobal(chartview_event.pos()))
 
     def _save_image_slot(self) -> None:
