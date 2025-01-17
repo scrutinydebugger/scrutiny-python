@@ -754,12 +754,26 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         self.logger.debug("Trying to start the CSV logger")
         assert self._csv_logger is not None
         columns:List[CSVLogger.ColumnDescriptor] = []
-        for server_id, item in self._serverid2sgnal_item.items():
-            columns.append(CSVLogger.ColumnDescriptor(
-                server_id=server_id,
-                name=item.text(),
-                fullpath=item.fqn
-            ))
+
+        # Reverse lookup of the server id / item map.
+        # We do that just so the columns in the CSV file is in the same order as the right menu
+        # Right-click -> Save to CSV also follow the same ordering. We want the 2 CSV files to be identical
+        def get_server_id_from_signal_item(arg:ChartSeriesWatchableStandardItem) -> str:
+            for server_id, item in self._serverid2sgnal_item.items():
+                if item is arg:
+                    return server_id
+            raise KeyError(f"Could not find the server ID for item: {arg.text()}")
+        
+        # Crate the list of columns following the same order has the export_to_csv feature
+        signals = self._signal_tree.get_signals()
+        for axis in signals:
+            for signal_item in axis.signal_items:
+                columns.append(CSVLogger.ColumnDescriptor(
+                    server_id=get_server_id_from_signal_item(signal_item),
+                    name=signal_item.text(),
+                    fullpath=signal_item.fqn
+                ))
+
         columns.sort(key=lambda x:x.name)
         self._csv_logger.define_columns(columns)
         self._csv_logger.set_file_headers(make_csv_headers(device=self._graph_device_info, sfd=self._graph_sfd))
