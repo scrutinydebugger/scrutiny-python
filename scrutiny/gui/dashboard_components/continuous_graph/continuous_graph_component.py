@@ -10,16 +10,20 @@ from datetime import datetime
 import functools
 import math
 from pathlib import Path
+import logging
+import time
 
 from PySide6.QtGui import QPainter, QFontMetrics, QFont, QColor, QContextMenuEvent
-from PySide6.QtWidgets import (QHBoxLayout, QSplitter, QWidget, QVBoxLayout,  QMenu,
+from PySide6.QtWidgets import (QHBoxLayout, QSplitter, QWidget, QVBoxLayout,  QMenu, QSizePolicy,
                                QPushButton, QFormLayout, QSpinBox, QGraphicsItem, QStyleOptionGraphicsItem,
-                               QLineEdit)
+                               QLineEdit, QCheckBox, QGroupBox)
 from PySide6.QtCore import Qt, QItemSelectionModel, QPointF, QTimer, QRectF, QRect
 
+from scrutiny import sdk
+from scrutiny import tools
 from scrutiny.gui import assets
 from scrutiny.gui.app_settings import app_settings
-from scrutiny.gui.tools.prompt import exception_msgbox, get_save_filepath_from_last_save_dir
+from scrutiny.gui.tools import prompt
 from scrutiny.gui.tools.invoker import InvokeQueued, InvokeInQtThread
 from scrutiny.gui.tools.min_max import MinMax
 from scrutiny.gui.core.definitions import WidgetState
@@ -27,15 +31,93 @@ from scrutiny.gui.core.watchable_registry import WatchableRegistryNodeNotFoundEr
 from scrutiny.gui.widgets.feedback_label import FeedbackLabel
 from scrutiny.gui.dashboard_components.base_component import ScrutinyGUIBaseComponent
 from scrutiny.gui.dashboard_components.common.graph_signal_tree import GraphSignalTree, ChartSeriesWatchableStandardItem
-from scrutiny.gui.dashboard_components.common.export_chart_csv import export_chart_csv_threaded
+from scrutiny.gui.dashboard_components.common.export_chart_csv import export_chart_csv_threaded, make_csv_headers
 from scrutiny.gui.dashboard_components.common.base_chart import (
     ScrutinyLineSeries, ScrutinyValueAxisWithMinMax, ScrutinyChartCallout, ScrutinyChartView, ScrutinyChart)
 from scrutiny.gui.dashboard_components.continuous_graph.decimator import GraphMonotonicNonUniformMinMaxDecimator
-from scrutiny import sdk
-from scrutiny import tools
+from scrutiny.gui.core.preferences import gui_preferences
+from scrutiny.sdk.listeners.csv_logger import CSVLogger, CSVConfig
 from scrutiny.tools.profiling import VariableRateExponentialAverager
 
 from typing import Dict, Any, Union, List, Optional, cast, Set, Generator
+
+class CsvLoggingMenuWidget(QWidget):
+    _chk_enable:QCheckBox
+    _txt_folder:QLineEdit
+    _txt_filename_pattern:QLineEdit
+    _spin_max_line_per_file:QSpinBox
+    _gb_content:QGroupBox
+
+    def __init__(self, parent:QWidget):
+        super().__init__(parent)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0,0,0,0)
+
+        self._chk_enable = QCheckBox("Log to CSV", self)
+        self._gb_content = QGroupBox(self)
+        self._gb_content.setVisible(False)
+        layout.addWidget(self._chk_enable)
+        layout.addWidget(self._gb_content)
+        self._txt_folder = QLineEdit(self)
+        self._txt_filename_pattern = QLineEdit(self)
+        self._spin_max_line_per_file = QSpinBox(self)
+        self._spin_max_line_per_file.setMinimum(1000)
+        self._spin_max_line_per_file.setMaximum(1000000)
+        self._spin_max_line_per_file.setValue(10000)
+        self._btn_browse = QPushButton("...", self)
+        self._txt_folder.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+        self._btn_browse.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Preferred)
+        self._btn_browse.setMinimumWidth(20)
+        self._btn_browse.setMaximumWidth(40)
+
+        self._btn_browse.clicked.connect(self._browse_clicked_slot)
+
+        filebrowse_line = QWidget()
+        filebrowse_layout = QHBoxLayout(filebrowse_line)
+        filebrowse_layout.setContentsMargins(0,0,0,0)
+        filebrowse_layout.addWidget(self._txt_folder)
+        filebrowse_layout.addWidget(self._btn_browse)
+
+        gb_layout = QFormLayout(self._gb_content)
+
+        gb_layout.addRow("Folder", filebrowse_line)
+        gb_layout.addRow("File prefix", self._txt_filename_pattern)
+        gb_layout.addRow("Lines/file", self._spin_max_line_per_file)
+
+        self._chk_enable.checkStateChanged.connect(self._check_state_changed_slot)
+
+
+    def _check_state_changed_slot(self, state:Qt.CheckState) -> None:
+        if state == Qt.CheckState.Checked:
+            self._gb_content.setVisible(True)
+        else:
+            self._gb_content.setVisible(False)
+
+    def _browse_clicked_slot(self) -> None:
+        folder = prompt.get_save_folderpath_from_last_save_dir(self, "Select a folder")
+        if folder is not None:
+            self._txt_folder.setText(str(folder))
+    
+    def require_csv_logging(self) -> bool:
+        return self._chk_enable.isChecked()
+    
+    def make_csv_logger(self, logging_logger:Optional[logging.Logger] = None)  -> CSVLogger:
+        # Validation happens inside the constructor
+        csv_config = CSVConfig(
+            delimiter=',',
+            newline='\n'
+        )
+
+        return CSVLogger(
+            folder = self._txt_folder.text(),
+            filename = self._txt_filename_pattern.text(),
+            lines_per_file = self._spin_max_line_per_file.value(),
+            datetime_format=gui_preferences.default().long_datetime_format(),
+            csv_config=csv_config,
+            convert_bool_to_int=True,
+            logger=logging_logger,
+            file_part_0pad=4
+        )
 
 class RealTimeScrutinyLineSeries(ScrutinyLineSeries):
     _decimator:GraphMonotonicNonUniformMinMaxDecimator
@@ -263,6 +345,8 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
     """The "clear" button"""
     _spinbox_graph_max_width:QSpinBox
     """Spinbox to select the X-size of the graph in the GUI"""
+    _csv_log_menu:CsvLoggingMenuWidget
+    """The widget with all the configurations for the CSV logger"""
     _feedback_label:FeedbackLabel
     """A label to report error to the user"""
     _splitter:QSplitter
@@ -308,6 +392,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
     _last_decimated_flush_paint_in_progress:bool
     """A flag indicated that the repaint event following a data flush has not been completed yet. 
     Used for auto-throttling of the repaint rate when the CPU is overloaded"""
+    _csv_logger:Optional[CSVLogger]
 
     def setup(self) -> None:
         self._acquiring = False
@@ -326,6 +411,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         self._allow_save_img = False
         self._allow_save_csv = False
         self._last_decimated_flush_paint_in_progress = False
+        self._csv_logger = None
         self._use_opengl = app_settings().opengl_enabled
         
         self._y_minmax_recompute_index=0
@@ -387,11 +473,18 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         self._graph_maintenance_timer = QTimer()
         self._graph_maintenance_timer.setInterval(1000)
         self._graph_maintenance_timer.timeout.connect(self._graph_maintenance_timer_slot)
+        self._csv_log_menu = CsvLoggingMenuWidget(self)
+
+        start_pause_line = QWidget()
+        start_pause_line_layout = QHBoxLayout(start_pause_line)
+        start_pause_line_layout.setContentsMargins(0,0,0,0)
+        start_pause_line_layout.addWidget(self._btn_start_stop)
+        start_pause_line_layout.addWidget(self._btn_pause)
 
         right_side_layout.addWidget(self._signal_tree)
+        right_side_layout.addWidget(self._csv_log_menu)
         right_side_layout.addWidget(param_widget)
-        right_side_layout.addWidget(self._btn_start_stop)
-        right_side_layout.addWidget(self._btn_pause)
+        right_side_layout.addWidget(start_pause_line)
         right_side_layout.addWidget(self._btn_clear)
         right_side_layout.addWidget(self._feedback_label)
 
@@ -464,6 +557,13 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         self._acquiring = False     # Main acquisition flag 
         self._paused = False        # We can't be paused if we are not running. 
         
+        if self._csv_logger is not None:
+            self._csv_logger.stop()
+            self._csv_logger = None
+        
+        if not self._feedback_label.is_error():
+            self._feedback_label.clear()    # Remove CSV saving message
+
         self._chartview.setDisabled(True)       # Disable while we do lots of operations on the graph 
 
         for series in self._all_series():
@@ -523,7 +623,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
                         self.watchable_registry.unwatch_all(self._watcher_id())
                         self.clear_graph()
                         return
-            
+                    
                     series = RealTimeScrutinyLineSeries(self)
                     self._chartview.chart().addSeries(series)
                     signal_item.attach_series(series)
@@ -538,9 +638,22 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
 
             self._graph_sfd = self.server_manager.get_loaded_sfd()
             self._graph_device_info = self.server_manager.get_device_info()
+
+            self._csv_logger = None
+            if self._csv_log_menu.require_csv_logging():
+                try:
+                    self._csv_logger = self._csv_log_menu.make_csv_logger(logging_logger=self.logger)
+                    self._configure_and_start_csv_logger()
+                except Exception as e:
+                    self._csv_logger = None
+                    self._report_error(f"Cannot start CSV logging. {e}" )
+                    self.watchable_registry.unwatch_all(self._watcher_id())
+                    self.clear_graph()
+                    return
+                
+
             self._first_val_dt = None
             self._chart_has_content = True
-            self._acquiring = True
             self._paused = False
             self._last_decimated_flush_paint_in_progress=False
             self._maybe_enable_opengl_drawing(True)   # Reduce CPU usage a lot
@@ -550,8 +663,10 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
             self.enable_repaint_rate_measurement()
             self.update_stats(use_decimated=True)
             self.show_stats()
+            
+            self._acquiring = True
             self._start_periodic_graph_maintenance()
-            self._clear_error()
+            self._clear_feedback()
             self._update_widgets()
         except Exception as e:
             tools.log_exception(self.logger, e, "Failed to start the acquisition")
@@ -633,6 +748,23 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
     #endregion Control
 
     # region Internal
+
+
+    def _configure_and_start_csv_logger(self) -> None:
+        self.logger.debug("Trying to start the CSV logger")
+        assert self._csv_logger is not None
+        columns:List[CSVLogger.ColumnDescriptor] = []
+        for server_id, item in self._serverid2sgnal_item.items():
+            columns.append(CSVLogger.ColumnDescriptor(
+                server_id=server_id,
+                name=item.text(),
+                fullpath=item.fqn
+            ))
+        columns.sort(key=lambda x:x.name)
+        self._csv_logger.define_columns(columns)
+        self._csv_logger.set_file_headers(make_csv_headers(device=self._graph_device_info, sfd=self._graph_sfd))
+        self._csv_logger.start()
+
 
     def _registry_changed_slot(self) -> None:
         """Called when the server manager has finished making a change to the registry"""
@@ -756,8 +888,11 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
     
     def _report_error(self, msg:str) -> None:
         self._feedback_label.set_error(msg)
+
+    def _report_info(self, msg:str) -> None:
+        self._feedback_label.set_info(msg)
     
-    def _clear_error(self) -> None:
+    def _clear_feedback(self) -> None:
         self._feedback_label.clear()
 
     def _val_update_callback(self, watcher_id:Union[str, int], value_updates:List[ValueUpdate]) -> None:
@@ -773,6 +908,16 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         def get_x(val:ValueUpdate) -> float:    # A getter to get the relative timestamp
             return  (val.update_timestamp-tstart).total_seconds()
         
+        if self._csv_logger is not None:
+            try:
+                self._csv_logger.write(value_updates)
+            except Exception as e:
+
+                tools.log_exception(self.logger, e, "CSV logger failed to write")
+                self._report_error(f"Error while logging CSV. \n {e}")
+                self._csv_logger.stop()
+                self._csv_logger = None
+
         try:
             for value_update in value_updates:
                 xval = get_x(value_update)
@@ -889,7 +1034,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         """Slot when "clear" is clicked"""
         if not self.is_acquiring():
             self.clear_graph()
-        self._clear_error()
+        self._clear_feedback()
         self._update_widgets()
 
     def _btn_pause_slot(self) -> None:
@@ -933,6 +1078,11 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
             self._round_robin_recompute_single_series_min_max(full=False) # Update a single series at a time to reduce the load on the CPU
             self._update_yaxes_minmax_based_on_series_minmax()  # Recompute min/max. Only way to shrink the scale reliably.
         self.update_stats()    # Recompute the stats and display
+
+        if self._csv_logger is not None:
+            filepath = self._csv_logger.get_actual_filename()
+            if filepath is not None:
+                self._report_info(f"Writing: {filepath.name}")
 
     def _series_hovered_slot(self, signal_item:ChartSeriesWatchableStandardItem, point:QPointF, state:bool) -> None:
         # FIXME : Snap zone is too small. QT source code says it is computed with markersize, but changing it has no effect.
@@ -1007,21 +1157,21 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         filepath:Optional[Path] = None
         try:
             pix = self._chartview.grab()
-            filepath = get_save_filepath_from_last_save_dir(self, ".png")
+            filepath = prompt.get_save_filepath_from_last_save_dir(self, ".png")
             if filepath is None:
                 return
             pix.save(str(filepath), 'png', 100)
         except Exception as e:
             logfilepath = "<noname>" if filepath is None else str(filepath)
             tools.log_exception(self.logger, e, f"Error while saving graph into {logfilepath}")
-            exception_msgbox(self, e, "Failed to save", f"Failed to save the graph to {logfilepath}")
+            prompt.exception_msgbox(self, e, "Failed to save", f"Failed to save the graph to {logfilepath}")
 
     def _save_csv_slot(self) -> None:
         """When the user right-click the graph then click "Save as CSV" """
         if not self._allow_save_csv or not self._chart_has_content:
             return
 
-        filepath = get_save_filepath_from_last_save_dir(self, ".csv")
+        filepath = prompt.get_save_filepath_from_last_save_dir(self, ".csv")
         if filepath is None:
             return
         
@@ -1030,7 +1180,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
             # Todo : Add visual "saving..." feedback ?
             if exception is not None:
                 tools.log_exception(self.logger, exception, f"Error while saving graph into {filepath}" )
-                InvokeInQtThread(lambda: exception_msgbox(self, exception, "Failed to save", f"Failed to save the graph to {filepath}"))
+                InvokeInQtThread(lambda: prompt.exception_msgbox(self, exception, "Failed to save", f"Failed to save the graph to {filepath}"))
 
         export_chart_csv_threaded(
             datetime_zero_sec = self._first_val_dt,

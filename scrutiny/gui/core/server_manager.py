@@ -606,7 +606,7 @@ class ServerManager:
         client_handle = self._client.try_get_existing_watch_handle(server_path)
         self._qt_update_registration_from_watchable_handle(registration_status, client_handle)
         
-        # Inform the listen
+        # Inform the listener
         if (attempted_action == self.WatchableRegistrationAction.SUBSCRIBE 
             and registration_status.active_state == self.WatchableRegistrationState.SUBSCRIBED):
             assert client_handle is not None
@@ -938,7 +938,7 @@ class ServerManager:
 
     def get_loaded_sfd(self) -> Optional[sdk.SFDInfo] :
         return copy(self._loaded_sfd)
-    
+
 
     @property
     def signals(self) -> _Signals:

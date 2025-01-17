@@ -21,6 +21,38 @@ from scrutiny.gui.core.watchable_registry import WatchableRegistry
 
 from typing import Optional, List, Callable, Union
 
+def make_csv_headers(
+        device:Optional[sdk.DeviceInfo] = None, 
+        sfd:Optional[sdk.SFDInfo] = None,
+        datetime_fromat:Optional[str] = None
+        ) -> List[List[str]]:
+    
+    if datetime_fromat is None:
+        datetime_format = gui_preferences.default().long_datetime_format()
+    now_str = datetime.now().strftime(datetime_format)
+    device_id = "N/A"
+    firmware_id = "N/A"
+    project_name = "N/A"
+
+    if device is not None:
+        device_id = device.device_id
+
+    if sfd is not None:
+        firmware_id = sfd.firmware_id
+        if sfd.metadata is not None:
+            if sfd.metadata.project_name:
+                project_name = sfd.metadata.project_name
+                if sfd.metadata.version is not None:
+                    project_name += " V" + sfd.metadata.version
+    return [
+        ['Created on', now_str],
+        ['Created with', f"Scrutiny V{scrutiny.__version__}"],
+        ['Device ID', device_id],       # ID hardcoded in the device firmware
+        ['Firmware ID', firmware_id],   # ID inside the SFD. Will normally match the device ID unless the user forced the server to use a different firmware
+        ['Project name', project_name]
+    ]
+
+
 def export_chart_csv_threaded(
         filename:Union[str, Path], 
         signals:List[AxisContent], 
@@ -39,37 +71,21 @@ def export_chart_csv_threaded(
     for axis in signals:
         series_fqn.extend([item.fqn for item in axis.signal_items])
         series_list.extend([item.series() for item in axis.signal_items])
-    datetime_format = gui_preferences.default().long_datetime_format()
-    now_str = datetime.now().strftime(datetime_format)
-    device_id = "N/A"
-    firmware_id = "N/A"
-    project_name = "N/A"
+    
 
-    if device is not None:
-        device_id = device.device_id
-
-    if sfd is not None:
-        firmware_id = sfd.firmware_id
-        if sfd.metadata is not None:
-            if sfd.metadata.project_name:
-                project_name = sfd.metadata.project_name
-                if sfd.metadata.version is not None:
-                    project_name += " V" + sfd.metadata.version
-
+    file_headers = make_csv_headers(device, sfd)
     series_index = [0 for i in range(len(series_list))]
     series_points = [series.points() for series in series_list]
     actual_vals:List[Optional[float]] = [None] * len(series_list)
+    datetime_format = gui_preferences.default().long_datetime_format()
 
     def save_method() -> None:
         error:Optional[Exception] = None
         try:
             with open(filename, 'w', encoding='utf8', newline='\n') as f:
-                writer = csv.writer(f, delimiter=',', quotechar='"', escapechar='\\')
-                writer.writerow(['Created on', now_str])
-                writer.writerow(['Created with', f"Scrutiny V{scrutiny.__version__}"])
-                writer.writerow(['Device ID', device_id])       # ID hardcoded in the device firmware
-                writer.writerow(['Firmware ID', firmware_id])   # ID inside the SFD. Will normally match the device ID unless the user forced the server to use a different firmware
-                writer.writerow(['Project name', project_name])
+                writer = csv.writer(f, delimiter=',', quotechar='"', escapechar='\\', quoting=csv.QUOTE_NONNUMERIC)
+                for file_header in file_headers:
+                    writer.writerow(file_header)
 
                 writer.writerow([])            
                 done = False
@@ -80,7 +96,7 @@ def export_chart_csv_threaded(
                     headers.append(DATETIME_HEADER)
                     watchable_paths.append("")
                 headers.extend([x_axis_name] + [series.name() for series in series_list] + ["New Values"])
-                watchable_paths.extend([""] + [WatchableRegistry.FQN.parse(fqn).path for fqn in series_fqn])
+                watchable_paths.extend([""] + series_fqn)
                 
                 writer.writerow(watchable_paths)
                 writer.writerow(headers)
