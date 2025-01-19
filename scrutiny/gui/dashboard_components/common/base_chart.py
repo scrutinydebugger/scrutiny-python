@@ -19,15 +19,15 @@ import enum
 from bisect import bisect_left
 
 from PySide6.QtCharts import QLineSeries, QValueAxis, QChart, QChartView
-from PySide6.QtWidgets import QGraphicsItem, QStyleOptionGraphicsItem, QWidget
-from PySide6.QtGui import QFont, QPainter, QFontMetrics, QColor, QContextMenuEvent, QPaintEvent
-from PySide6.QtCore import  QPointF, QRect, QRectF, Qt, QObject, Signal
+from PySide6.QtWidgets import QGraphicsItem, QStyleOptionGraphicsItem, QWidget, QRubberBand
+from PySide6.QtGui import QFont, QPainter, QFontMetrics, QColor, QContextMenuEvent, QPaintEvent, QMouseEvent
+from PySide6.QtCore import  QPointF, QRect, QRectF, Qt, QObject, Signal, QSize, QPoint
 
 from scrutiny import tools
 from scrutiny.gui.themes import get_theme_prop, ScrutinyThemeProperties
 from scrutiny.gui.tools.min_max import MinMax
 
-from typing import Any, Optional, Any
+from typing import Any, Optional, Any, cast
 
 
 class ScrutinyLineSeries(QLineSeries):
@@ -211,14 +211,51 @@ class ScrutinyChartCallout(QGraphicsItem):
         painter.drawText(self._text_rect, self._text)
 
 class ScrutinyChartView(QChartView):
+
+    class InteractionMode(enum.Enum):
+        SELECT=enum.auto()
+        DRAG=enum.auto()
+        ZOOM=enum.auto()
+
+    class ZoomType(enum.Enum):
+        ZOOM_X=enum.auto()
+        ZOOM_Y=enum.auto()
+        ZOOM_XY=enum.auto()
+
     class _Signals(QObject):
         context_menu_event = Signal(QContextMenuEvent)
+        zoombox_selected = Signal(QRectF)
         paint_finished = Signal()
+
+    _rubber_band:QRubberBand
+    _rubberband_origin:QPointF
+    _rubberband_end:QPointF
+    _rubberband_valid:bool
+    _interaction_mode:InteractionMode
+    _zoom_type:ZoomType
 
     @tools.copy_type(QChartView.__init__)
     def __init__(self, *args:Any, **kwargs:Any) -> None:
         super().__init__(*args, **kwargs)
         self._signals = self._Signals()
+        self._rubber_band = QRubberBand(QRubberBand.Shape.Rectangle, self)
+        self._rubberband_origin = QPointF()
+        self._rubberband_end = QPointF()
+        self._rubberband_valid= False
+        self._interaction_mode = self.InteractionMode.SELECT
+        self._zoom_type = self.ZoomType.ZOOM_XY
+
+    def set_zoom_type(self, zoom_type:ZoomType) -> None:
+        self._zoom_type = zoom_type
+    
+    def set_interaction_mode(self, interaction_mode:InteractionMode) -> None:
+        self._interaction_mode = interaction_mode
+
+    def enable_cursor(self) -> None:
+        pass
+
+    def disable_cursor(self) -> None:
+        pass
     
     @property
     def signals(self) -> _Signals:
@@ -230,3 +267,55 @@ class ScrutinyChartView(QChartView):
     def paintEvent(self, event:QPaintEvent) -> None:
         super().paintEvent(event)
         self._signals.paint_finished.emit()
+
+    def mousePressEvent(self, event:QMouseEvent) -> None:        
+        if self._interaction_mode == self.InteractionMode.ZOOM:
+            plotarea = self.chart().plotArea()
+            plotarea_mapped_to_chartview =self.chart().mapRectToParent(plotarea)
+            event_saturated = QPointF( 
+                min(max(event.pos().x(), plotarea.left()), plotarea.right()), 
+                min(max(event.pos().y(), plotarea.top()), plotarea.bottom())
+                )
+            event_mapped_to_chart = self.chart().mapFromParent(event_saturated)
+
+            if self._zoom_type == self.ZoomType.ZOOM_XY:
+                self._rubberband_origin = event_mapped_to_chart
+            elif self._zoom_type == self.ZoomType.ZOOM_X:
+                self._rubberband_origin = QPointF(event_mapped_to_chart.x(), plotarea_mapped_to_chartview.top())
+            elif self._zoom_type == self.ZoomType.ZOOM_Y:
+                self._rubberband_origin = QPointF(plotarea_mapped_to_chartview.left(), event_mapped_to_chart.y())
+            else:
+                raise NotImplementedError("Unknown zoom type")
+            self._rubber_band.setGeometry(QRect(self._rubberband_origin.toPoint(), QSize()))
+            self._rubber_band.show()
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event:QMouseEvent) -> None:
+        if self._interaction_mode == self.InteractionMode.ZOOM:
+            if self._rubber_band.isVisible():
+                plotarea = self.chart().plotArea()
+                event_saturated = QPointF( 
+                    min(max(event.pos().x(), plotarea.left()), plotarea.right()), 
+                    min(max(event.pos().y(), plotarea.top()), plotarea.bottom())
+                    )
+                event_mapped_to_chart = self.chart().mapFromParent(event_saturated)
+                plotarea_mapped_to_chartview = self.chart().mapRectToParent(plotarea)
+                if self._zoom_type == self.ZoomType.ZOOM_XY:
+                    self._rubberband_end = event_mapped_to_chart
+                elif self._zoom_type == self.ZoomType.ZOOM_X:
+                    self._rubberband_end = QPointF(event_mapped_to_chart.x(), plotarea_mapped_to_chartview.bottom())
+                elif self._zoom_type == self.ZoomType.ZOOM_Y:
+                    self._rubberband_end = QPointF(plotarea_mapped_to_chartview.right(), event_mapped_to_chart.y())
+                else:
+                    raise NotImplementedError("Unknown zoom type")
+                self._rubberband_valid = True
+                self._rubber_band.setGeometry(QRect(self._rubberband_origin.toPoint(), self._rubberband_end.toPoint()).normalized())
+        super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event:QMouseEvent) -> None:
+        if self._interaction_mode == self.InteractionMode.ZOOM:
+            if self._rubberband_valid:
+                self._signals.zoombox_selected.emit(QRectF(self._rubberband_origin, self._rubberband_end).normalized())
+        self._rubber_band.hide()
+        self._rubberband_valid = False
+        super().mouseReleaseEvent(event)

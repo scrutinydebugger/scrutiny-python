@@ -11,12 +11,11 @@ import functools
 import math
 from pathlib import Path
 import logging
-import time
 
 from PySide6.QtGui import QPainter, QFontMetrics, QFont, QColor, QContextMenuEvent
 from PySide6.QtWidgets import (QHBoxLayout, QSplitter, QWidget, QVBoxLayout,  QMenu, QSizePolicy,
                                QPushButton, QFormLayout, QSpinBox, QGraphicsItem, QStyleOptionGraphicsItem,
-                               QLineEdit, QCheckBox, QGroupBox)
+                               QLineEdit, QCheckBox, QGroupBox, QRubberBand)
 from PySide6.QtCore import Qt, QItemSelectionModel, QPointF, QTimer, QRectF, QRect
 
 from scrutiny import sdk
@@ -393,6 +392,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
     """A flag indicated that the repaint event following a data flush has not been completed yet. 
     Used for auto-throttling of the repaint rate when the CPU is overloaded"""
     _csv_logger:Optional[CSVLogger]
+    """The CSV logger that will save value update to disk in real time. Runs in the UI thread."""
 
     def setup(self) -> None:
         self._acquiring = False
@@ -429,6 +429,8 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         self._chartview.setChart(chart)
         self._chartview.signals.context_menu_event.connect(self._chart_context_menu_slot)
         self._chartview.signals.paint_finished.connect(self._paint_finished_slot)
+        self._chartview.signals.zoombox_selected.connect(self._chartview_zoombox_selected_slot)
+        
         self._callout = ScrutinyChartCallout(chart)
         self._callout_hide_timer = QTimer()
         self._callout_hide_timer.setInterval(250)
@@ -499,7 +501,23 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         layout.addWidget(self._splitter)
 
     
+    def _chartview_zoombox_selected_slot(self, zoom_rect:QRectF) -> None:
+        if not self._chart_has_content:
+            return 
+        plotarea = self._chartview.chart().plotArea()
+        zoom_rect_0 = QRectF(zoom_rect.topLeft() - plotarea.topLeft(), zoom_rect.size())
+        xrange = self._xaxis.max() - self._xaxis.min()
+        map_to_xval = lambda x: (x/ plotarea.width()) * xrange + self._xaxis.min()
+        self._xaxis.setRange(map_to_xval(zoom_rect_0.left()), map_to_xval(zoom_rect_0.right()))
+
+    def _reset_zoom_slot(self) -> None:
+        self._xaxis.autoset_range()
+        for yaxis in self._yaxes:
+            yaxis.autoset_range(margin_ratio=self.Y_AXIS_MARGIN)
+
+
     def _paint_finished_slot(self) -> None:
+        """Used to throttle the update rate if the CPU can't follow. Prevent any chart update while repaint is in progress"""
         self._stats.repaint_rate.add_data(1)
 
         def set_paint_not_in_progress() -> None:
@@ -595,10 +613,10 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
             self._report_error("Invalid graph width")
             return 
         
-        self._graph_max_width = float(self._spinbox_graph_max_width.value())
+        self._graph_max_width = float(self._spinbox_graph_max_width.value())    # User input
         try:
             self.clear_graph()
-            signals = self._signal_tree.get_signals()
+            signals = self._signal_tree.get_signals()   # Read the tree on the right menu
             if len(signals) == 0:
                 self._report_error("No signals")
                 return
@@ -608,15 +626,16 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
                 return
             
             self._xaxis.setRange(0, 1)
-            for axis in signals:
+            for axis in signals:    # For each axes
                 yaxis = ScrutinyValueAxisWithMinMax(self)
                 yaxis.setTitleText(axis.axis_name)
                 yaxis.setTitleVisible(True)
                 self._yaxes.append(yaxis)
                 self._chartview.chart().addAxis(yaxis, Qt.AlignmentFlag.AlignRight)
                 
-                for signal_item in axis.signal_items:
+                for signal_item in axis.signal_items:   # For each watchable under that axis
                     try:
+                        # We will use that server ID to lookup the right chart series on value update broadcast by the server
                         server_id = self.watchable_registry.watch_fqn(self._watcher_id(), signal_item.fqn)
                     except WatchableRegistryNodeNotFoundError as e:
                         self._report_error(f"Signal {signal_item.text()} is not available.")
@@ -628,17 +647,20 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
                     self._chartview.chart().addSeries(series)
                     signal_item.attach_series(series)
                     signal_item.show_series()
-                    self._serverid2sgnal_item[server_id] = signal_item
+                    self._serverid2sgnal_item[server_id] = signal_item  # The main lookup
                     series.setName(signal_item.text())
                     series.attachAxis(self._xaxis)
                     series.attachAxis(yaxis)
 
+                    # Click is used to make a line bold when we click. # Hovered to display a callout (only when the graph paused/stopped)
                     series.clicked.connect(functools.partial(self._series_clicked_slot, signal_item))
                     series.hovered.connect(functools.partial(self._series_hovered_slot, signal_item))
 
+            # Latch the device details and loaded SFD so that we can write the info into CSV output, even if it disconnect during the acquisition
             self._graph_sfd = self.server_manager.get_loaded_sfd()
             self._graph_device_info = self.server_manager.get_device_info()
 
+            # Create the continuous CSV logger if required
             self._csv_logger = None
             if self._csv_log_menu.require_csv_logging():
                 try:
@@ -651,7 +673,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
                     self.clear_graph()
                     return
                 
-
+            # Everything went well. Update state variables
             self._first_val_dt = None
             self._chart_has_content = True
             self._paused = False
@@ -735,6 +757,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
                 axis.deemphasize()
 
     def auto_scale_xaxis(self) -> None:
+        """Sets the scale of the X-Axis based on the save min/max"""
         max_x = self._xaxis.maxval()
         min_x = self._xaxis.minval()
         if max_x is not None and min_x is not None:
@@ -751,6 +774,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
 
 
     def _configure_and_start_csv_logger(self) -> None:
+        """Start the CSV logger. Will accept incoming value update afterward. Expect that the CSV logger object is created beforehand"""
         self.logger.debug("Trying to start the CSV logger")
         assert self._csv_logger is not None
         columns:List[CSVLogger.ColumnDescriptor] = []
@@ -764,7 +788,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
                     return server_id
             raise KeyError(f"Could not find the server ID for item: {arg.text()}")
         
-        # Crate the list of columns following the same order has the export_to_csv feature
+        # Creates the list of columns following the same order has the export_to_csv feature
         signals = self._signal_tree.get_signals()
         for axis in signals:
             for signal_item in axis.signal_items:
@@ -1151,6 +1175,45 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         save_csv_action = context_menu.addAction(assets.load_icon(assets.Icons.CSV), "Save as CSV")
         save_csv_action.triggered.connect(self._save_csv_slot)
         save_csv_action.setEnabled(self._allow_save_csv)
+
+        def show_cursor():
+            self._chartview.enable_cursor()
+        def hide_cursor():
+            self._chartview.disable_cursor()
+
+        def zoom_x():
+            self._chartview.set_interaction_mode(ScrutinyChartView.InteractionMode.ZOOM)
+            self._chartview.set_zoom_type(ScrutinyChartView.ZoomType.ZOOM_X)
+        def zoom_y():
+            self._chartview.set_interaction_mode(ScrutinyChartView.InteractionMode.ZOOM)
+            self._chartview.set_zoom_type(ScrutinyChartView.ZoomType.ZOOM_Y)
+        def zoom_xy():
+            self._chartview.set_interaction_mode(ScrutinyChartView.InteractionMode.ZOOM)
+            self._chartview.set_zoom_type(ScrutinyChartView.ZoomType.ZOOM_XY)
+        def mode_select():
+            self._chartview.set_interaction_mode(ScrutinyChartView.InteractionMode.SELECT)
+        def mode_drag():
+            self._chartview.set_interaction_mode(ScrutinyChartView.InteractionMode.DRAG)
+
+        a = context_menu.addAction(assets.load_icon(assets.Icons.GraphCursor), "Show cursor")
+        a.triggered.connect(show_cursor)
+        a = context_menu.addAction(assets.load_icon(assets.Icons.GraphNoCursor), "Hide cursor")
+        a.triggered.connect(hide_cursor)
+        a = context_menu.addAction(assets.load_icon(assets.Icons.ZoomX), "Zoom X")
+        a.triggered.connect(zoom_x)
+        a = context_menu.addAction(assets.load_icon(assets.Icons.ZoomY), "Zoom Y")
+        a.triggered.connect(zoom_y)
+        a = context_menu.addAction(assets.load_icon(assets.Icons.ZoomXY), "Zoom XY")
+        a.triggered.connect(zoom_xy)
+
+        a = context_menu.addAction("Reset zoom")
+        a.triggered.connect(self._reset_zoom_slot)
+        a = context_menu.addAction("Select")
+        a.triggered.connect(mode_select)
+        a = context_menu.addAction("Drag")
+        a.triggered.connect(mode_drag)
+        
+
 
         if self._stats.is_overlay_allowed():
             show_hide_stats = context_menu.addAction(assets.load_icon(assets.Icons.Hide), "Hide stats")
