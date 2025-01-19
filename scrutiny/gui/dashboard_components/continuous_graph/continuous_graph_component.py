@@ -15,7 +15,7 @@ import logging
 from PySide6.QtGui import QPainter, QFontMetrics, QFont, QColor, QContextMenuEvent
 from PySide6.QtWidgets import (QHBoxLayout, QSplitter, QWidget, QVBoxLayout,  QMenu, QSizePolicy,
                                QPushButton, QFormLayout, QSpinBox, QGraphicsItem, QStyleOptionGraphicsItem,
-                               QLineEdit, QCheckBox, QGroupBox, QRubberBand)
+                               QLineEdit, QCheckBox, QGroupBox)
 from PySide6.QtCore import Qt, QItemSelectionModel, QPointF, QTimer, QRectF, QRect
 
 from scrutiny import sdk
@@ -38,7 +38,7 @@ from scrutiny.gui.core.preferences import gui_preferences
 from scrutiny.sdk.listeners.csv_logger import CSVLogger, CSVConfig
 from scrutiny.tools.profiling import VariableRateExponentialAverager
 
-from typing import Dict, Any, Union, List, Optional, cast, Set, Generator
+from typing import Dict, Any, Union, List, Optional, cast, Set, Generator, Iterable
 
 class CsvLoggingMenuWidget(QWidget):
     _chk_enable:QCheckBox
@@ -501,14 +501,18 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         layout.addWidget(self._splitter)
 
     
-    def _chartview_zoombox_selected_slot(self, zoom_rect:QRectF) -> None:
+    def _chartview_zoombox_selected_slot(self, zoombox:QRectF) -> None:
         if not self._chart_has_content:
             return 
-        plotarea = self._chartview.chart().plotArea()
-        zoom_rect_0 = QRectF(zoom_rect.topLeft() - plotarea.topLeft(), zoom_rect.size())
-        xrange = self._xaxis.max() - self._xaxis.min()
-        map_to_xval = lambda x: (x/ plotarea.width()) * xrange + self._xaxis.min()
-        self._xaxis.setRange(map_to_xval(zoom_rect_0.left()), map_to_xval(zoom_rect_0.right()))
+        
+        def map_to_axis(vals:Iterable[float], axis:ScrutinyValueAxisWithMinMax) -> None: 
+            range = axis.max()-axis.min()
+            return [v * range + axis.min() for v in vals]
+        self._xaxis.setRange(*map_to_axis( (zoombox.left(), zoombox.right()), self._xaxis))
+        
+        for yaxis in self._yaxes:
+            yaxis.setRange(*map_to_axis( (1-zoombox.bottom(), 1-zoombox.top()), yaxis))
+        
 
     def _reset_zoom_slot(self) -> None:
         self._xaxis.autoset_range()

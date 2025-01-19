@@ -315,7 +315,16 @@ class ScrutinyChartView(QChartView):
     def mouseReleaseEvent(self, event:QMouseEvent) -> None:
         if self._interaction_mode == self.InteractionMode.ZOOM:
             if self._rubberband_valid:
-                self._signals.zoombox_selected.emit(QRectF(self._rubberband_origin, self._rubberband_end).normalized())
+                plotarea_mapped_to_chartview = self.chart().mapRectToParent(self.chart().plotArea())
+                relative_origin = QPointF(
+                    (self._rubberband_origin.x() - plotarea_mapped_to_chartview.x()) / plotarea_mapped_to_chartview.width(),
+                    (self._rubberband_origin.y() - plotarea_mapped_to_chartview.y()) / plotarea_mapped_to_chartview.height()
+                )
+                relative_end = QPointF(
+                    (self._rubberband_end.x() - plotarea_mapped_to_chartview.x()) / plotarea_mapped_to_chartview.width(),
+                    (self._rubberband_end.y() - plotarea_mapped_to_chartview.y()) / plotarea_mapped_to_chartview.height()
+                )
+                self._signals.zoombox_selected.emit(QRectF(relative_origin, relative_end).normalized())
         self._rubber_band.hide()
         self._rubberband_valid = False
         super().mouseReleaseEvent(event)
