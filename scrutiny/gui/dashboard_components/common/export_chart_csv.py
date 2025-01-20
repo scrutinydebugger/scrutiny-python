@@ -24,10 +24,14 @@ from typing import Optional, List, Callable, Union
 def make_csv_headers(
         device:Optional[sdk.DeviceInfo] = None, 
         sfd:Optional[sdk.SFDInfo] = None,
-        datetime_fromat:Optional[str] = None
+        datetime_format:Optional[str] = None
         ) -> List[List[str]]:
-    
-    if datetime_fromat is None:
+    """Helper to make a graph export CSV file header. Contains metadata about the acquisition
+    :param device: Info about the device connected when the graph was acquired
+    :param sfd: The Scrutiny Firmware Description loaded when the graph was acquired
+    :param datetime_format: The datetime string format to use
+    """
+    if datetime_format is None:
         datetime_format = gui_preferences.default().long_datetime_format()
     now_str = datetime.now().strftime(datetime_format)
     device_id = "N/A"
@@ -62,6 +66,17 @@ def export_chart_csv_threaded(
         x_axis_name:str = 'Time (s)',
         datetime_zero_sec:Optional[datetime]=None
         ) -> None:
+    """Helper function that export a Scrutiny graph content to a CSV file.
+    The function works in a different thread and calls a callback when finished
+
+    :param filename: Name of the output file
+    :param signals: The list of signal handles to use for data fetching. Provided by :meth:`GraphSignalTree.get_signals<scrutiny.gui.dashboard_components.common.graph_signal_tree.GraphSignalTree.get_signals>`
+    :param finished_callback: A callback to be called when the job is finished or an error occured
+    :param device: Info about the device connected when the graph was acquired. Will be added to the CSV header
+    :param sfd: The Scrutiny Firmware Description loaded when the graph was acquired. Will be added to the CSV header
+    :param x_axis_name: Name of the X axis
+    :param datetime_zero_sec: The datetime associated with time 0. When provided, adds an absolute time column shown as datetime.
+    """
     
     DATETIME_HEADER='Datetime'
 
@@ -84,25 +99,28 @@ def export_chart_csv_threaded(
         try:
             with open(filename, 'w', encoding='utf8', newline='\n') as f:
                 writer = csv.writer(f, delimiter=',', quotechar='"', escapechar='\\', quoting=csv.QUOTE_NONNUMERIC)
+                # Handle file headers : i.e. metadata about the acquisition
                 for file_header in file_headers:
                     writer.writerow(file_header)
 
-                writer.writerow([])            
+                if len(file_headers) > 0:
+                    writer.writerow([])            
                 done = False
                 headers:List[str] = []
                 watchable_paths:List[str] = []
 
+                #Make the table headers
                 if datetime_zero_sec is not None:
                     headers.append(DATETIME_HEADER)
                     watchable_paths.append("")
                 headers.extend([x_axis_name] + [series.name() for series in series_list] + ["New Values"])
                 watchable_paths.extend([""] + series_fqn)
                 
-                writer.writerow(watchable_paths)
-                writer.writerow(headers)
-                while True:
+                writer.writerow(watchable_paths)    # Full path to the watchable
+                writer.writerow(headers)            # Nice name for the watchable
+                while True:     #  Will break when all series are dumped. they might not have the same number of points
                     x:Optional[float] = None 
-                    done = True
+                    done = True 
                     for i in range(len(series_list)):
                         if series_index[i] < len(series_points[i]):
                             done = False
