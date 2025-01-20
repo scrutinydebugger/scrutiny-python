@@ -16,7 +16,7 @@ from typing import Optional
 
 def exception_msgbox(parent:QWidget, exception:Exception, title:str, message:str) -> None:
     msgbox = QMessageBox(parent)
-    msgbox.setIconPixmap(assets.load_pixmap(assets.Icons.Error))
+    msgbox.setIconPixmap(assets.load_medium_icon_as_pixmap(assets.Icons.Error))
     msgbox.setStandardButtons(QMessageBox.StandardButton.Close)
     msgbox.setWindowTitle(title)
     msgbox.setText(f"{message}.\n {exception.__class__.__name__}: {exception}")

@@ -1171,11 +1171,11 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         This event is forwarded by the chartview through a signal."""
         context_menu = QMenu(self)
 
-        save_img_action = context_menu.addAction(assets.load_icon(assets.Icons.Picture), "Save as image")
+        save_img_action = context_menu.addAction(assets.load_tiny_icon(assets.Icons.Image), "Save as image")
         save_img_action.triggered.connect(self._save_image_slot)
         save_img_action.setEnabled(self._allow_save_img)
 
-        save_csv_action = context_menu.addAction(assets.load_icon(assets.Icons.CSV), "Save as CSV")
+        save_csv_action = context_menu.addAction(assets.load_tiny_icon(assets.Icons.CSV), "Save as CSV")
         save_csv_action.triggered.connect(self._save_csv_slot)
         save_csv_action.setEnabled(self._allow_save_csv)
 
@@ -1198,15 +1198,15 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         def mode_drag() -> None:
             self._chartview.set_interaction_mode(ScrutinyChartView.InteractionMode.DRAG)
 
-        a = context_menu.addAction(assets.load_icon(assets.Icons.GraphCursor), "Show cursor")
+        a = context_menu.addAction(assets.load_tiny_icon(assets.Icons.GraphCursor), "Show cursor")
         a.triggered.connect(show_cursor)
-        a = context_menu.addAction(assets.load_icon(assets.Icons.GraphNoCursor), "Hide cursor")
+        a = context_menu.addAction(assets.load_tiny_icon(assets.Icons.GraphNoCursor), "Hide cursor")
         a.triggered.connect(hide_cursor)
-        a = context_menu.addAction(assets.load_icon(assets.Icons.ZoomX), "Zoom X")
+        a = context_menu.addAction(assets.load_tiny_icon(assets.Icons.ZoomX), "Zoom X")
         a.triggered.connect(zoom_x)
-        a = context_menu.addAction(assets.load_icon(assets.Icons.ZoomY), "Zoom Y")
+        a = context_menu.addAction(assets.load_tiny_icon(assets.Icons.ZoomY), "Zoom Y")
         a.triggered.connect(zoom_y)
-        a = context_menu.addAction(assets.load_icon(assets.Icons.ZoomXY), "Zoom XY")
+        a = context_menu.addAction(assets.load_tiny_icon(assets.Icons.ZoomXY), "Zoom XY")
         a.triggered.connect(zoom_xy)
 
         a = context_menu.addAction("Reset zoom")
@@ -1217,10 +1217,10 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         a.triggered.connect(mode_drag)
         
         if self._stats.is_overlay_allowed():
-            show_hide_stats = context_menu.addAction(assets.load_icon(assets.Icons.Hide), "Hide stats")
+            show_hide_stats = context_menu.addAction(assets.load_tiny_icon(assets.Icons.EyeBar), "Hide stats")
             show_hide_stats.triggered.connect(self._stats.disallow_overlay)
         else:
-            show_hide_stats = context_menu.addAction(assets.load_icon(assets.Icons.Show), "Show stats")
+            show_hide_stats = context_menu.addAction(assets.load_tiny_icon(assets.Icons.Eye), "Show stats")
             show_hide_stats.triggered.connect(self._stats.allow_overlay)
         
         show_hide_stats.setEnabled(self._chart_has_content)            

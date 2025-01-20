@@ -54,17 +54,17 @@ class FeedbackLabel(QWidget):
 
     def set_error(self, text:str) -> None:
         self._text_label.setText(text)
-        self._icon_label.setPixmap(assets.load_pixmap(assets.Icons.Error))
+        self._icon_label.setPixmap(assets.load_tiny_icon_as_pixmap(assets.Icons.Error))
         self._actual_msg_type = self.MessageType.ERROR
 
     def set_warning(self, text:str) -> None:
         self._text_label.setText(text)
-        self._icon_label.setPixmap(assets.load_pixmap(assets.Icons.Warning))
+        self._icon_label.setPixmap(assets.load_tiny_icon_as_pixmap(assets.Icons.Warning))
         self._actual_msg_type = self.MessageType.WARNING
 
     def set_info(self, text:str) -> None:
         self._text_label.setText(text)
-        self._icon_label.setPixmap(assets.load_pixmap(assets.Icons.Info))
+        self._icon_label.setPixmap(assets.load_tiny_icon_as_pixmap(assets.Icons.Info))
         self._actual_msg_type = self.MessageType.INFO
 
     def set_normal(self, text:str) -> None:

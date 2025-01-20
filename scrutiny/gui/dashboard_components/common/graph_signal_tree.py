@@ -37,7 +37,7 @@ from typing import Optional, List, Union, Sequence, cast, Any, Dict
 class AxisStandardItem(QStandardItem):
     _chart_axis:Optional[QValueAxis] 
     def __init__(self, name:str):
-        axis_icon = assets.load_icon(assets.Icons.GraphAxis)
+        axis_icon = assets.load_tiny_icon(assets.Icons.GraphAxis)
         super().__init__(axis_icon, name)
         self.setDropEnabled(True)
         self.setDragEnabled(False)
@@ -460,7 +460,7 @@ class GraphSignalTree(BaseTreeView):
             for item in selected_items_no_nested:
                 self.model().removeRow(item.row(), item.index().parent())
         
-        new_axis_action = context_menu.addAction(assets.load_icon(assets.Icons.GraphAxis), "New Axis")
+        new_axis_action = context_menu.addAction(assets.load_tiny_icon(assets.Icons.GraphAxis), "New Axis")
         new_axis_action.triggered.connect(new_axis_action_slot)
 
         indexes = self.selectedIndexes()
@@ -475,19 +475,19 @@ class GraphSignalTree(BaseTreeView):
                     all_visible = False
             
             if all_visible:
-                show_hide_action = context_menu.addAction(assets.load_icon(assets.Icons.Hide), "Hide")
+                show_hide_action = context_menu.addAction(assets.load_tiny_icon(assets.Icons.EyeBar), "Hide")
                 def hide_action_slot() -> None:
                     for item in signals_with_series:
                         item.hide_series()
                 show_hide_action.triggered.connect(hide_action_slot)
             else:
-                show_hide_action = context_menu.addAction(assets.load_icon(assets.Icons.Show), "Show")
+                show_hide_action = context_menu.addAction(assets.load_tiny_icon(assets.Icons.Eye), "Show")
                 def show_action_slot() -> None:
                     for item in signals_with_series:
                         item.show_series()
                 show_hide_action.triggered.connect(show_action_slot)
         
-        remove_action = context_menu.addAction(assets.load_icon(assets.Icons.RedX), "Remove")
+        remove_action = context_menu.addAction(assets.load_tiny_icon(assets.Icons.RedX), "Remove")
         remove_action.setEnabled( len(selected_items_no_nested) > 0 )
         remove_action.triggered.connect(remove_action_slot)
 

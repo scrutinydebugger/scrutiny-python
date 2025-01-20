@@ -65,7 +65,7 @@ class ScrutinyQtGUI:
     def run(self, args:List[str]) -> int:
         register_thread(QT_THREAD_NAME)
         app = QApplication(args)
-        app.setWindowIcon(QIcon(str(assets.logo_icon())))
+        app.setWindowIcon(assets.load_medium_icon(assets.Icons.ScrutinyLogo))
         app.setApplicationDisplayName("Scrutiny Debugger")
         app.setApplicationVersion(scrutiny.__version__)
 

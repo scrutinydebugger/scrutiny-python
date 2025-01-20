@@ -36,11 +36,11 @@ from typing_extensions import Self
 def get_watchable_icon(wt:WatchableType) -> QIcon:
     """Return the proper tree icon for a given watchable type (car, alias, rpv)"""
     if wt == WatchableType.Variable:
-        return assets.load_icon(assets.Icons.TreeVar)
+        return assets.load_tiny_icon(assets.Icons.Var)
     if wt == WatchableType.Alias:
-        return assets.load_icon(assets.Icons.TreeAlias)
+        return assets.load_tiny_icon(assets.Icons.Alias)
     if wt == WatchableType.RuntimePublishedValue:
-        return assets.load_icon(assets.Icons.TreeRpv)
+        return assets.load_tiny_icon(assets.Icons.Rpv)
     raise NotImplementedError(f"Unsupported icon for {wt}")
 
 NodeSerializableType = Literal['watchable', 'folder']
@@ -102,7 +102,7 @@ class FolderStandardItem(BaseWatchableRegistryTreeStandardItem):
       # fqn is optional for folders. They might be created by the user
 
     def __init__(self, text:str, fqn:Optional[str]=None):
-        folder_icon = assets.load_icon(assets.Icons.TreeFolder)
+        folder_icon = assets.load_tiny_icon(assets.Icons.Folder)
         super().__init__(fqn, folder_icon, text)
         self.setDropEnabled(True)
     
