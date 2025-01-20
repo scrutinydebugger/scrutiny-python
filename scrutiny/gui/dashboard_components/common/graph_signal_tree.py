@@ -22,7 +22,7 @@ from PySide6.QtGui import ( QStandardItem, QDropEvent, QDragEnterEvent, QDragMov
                            QDragMoveEvent, QContextMenuEvent, QAction, QKeyEvent, QPixmap, QPalette
                            )
 from PySide6.QtCore import QMimeData, QModelIndex, Qt, QPersistentModelIndex, QPoint, QItemSelection, QObject, Signal
-from PySide6.QtCharts import QLineSeries, QAbstractSeries
+from PySide6.QtCharts import QLineSeries, QAbstractSeries, QValueAxis
 
 from scrutiny.gui import assets
 from scrutiny.gui.core.watchable_registry import WatchableRegistry
@@ -31,15 +31,28 @@ from scrutiny.gui.dashboard_components.common.watchable_tree import WatchableSta
 from scrutiny.gui.dashboard_components.common.base_tree import BaseTreeModel, BaseTreeView, SerializableItemIndexDescriptor
 from scrutiny import tools
 
-from typing import Optional, List, Union, Sequence, cast, Any
+from typing import Optional, List, Union, Sequence, cast, Any, Dict
 
 
 class AxisStandardItem(QStandardItem):
+    _chart_axis:Optional[QValueAxis] 
     def __init__(self, name:str):
         axis_icon = assets.load_icon(assets.Icons.GraphAxis)
         super().__init__(axis_icon, name)
         self.setDropEnabled(True)
         self.setDragEnabled(False)
+        self._chart_axis = None
+
+    def attach_axis(self, axis:QValueAxis) -> None:
+        self._chart_axis=axis
+    
+    def detach_axis(self) -> None:
+        self._chart_axis = None
+    
+    def axis(self) -> QValueAxis:
+        assert self._chart_axis is not None
+        return self._chart_axis
+
 
 class ChartSeriesWatchableStandardItem(WatchableStandardItem):
     _chart_series:Optional[QLineSeries] = None
@@ -105,6 +118,7 @@ class ChartSeriesWatchableStandardItem(WatchableStandardItem):
 @dataclass
 class AxisContent:
     axis_name:str
+    axis_item:AxisStandardItem
     signal_items:List[ChartSeriesWatchableStandardItem]
 
 class GraphSignalModel(BaseTreeModel):
@@ -295,7 +309,7 @@ class GraphSignalModel(BaseTreeModel):
             
             if axis_item.rowCount() == 0:
                 continue
-            axis = AxisContent(axis_name=axis_item.text(), signal_items=[])
+            axis = AxisContent(axis_name=axis_item.text(), axis_item=axis_item, signal_items=[])
 
             for i in range(axis_item.rowCount()):
                 watchable_item = axis_item.child(i, self.watchable_col())
@@ -303,7 +317,7 @@ class GraphSignalModel(BaseTreeModel):
                 axis.signal_items.append(watchable_item)
             outlist.append(axis)
         return outlist
-    
+
     def reload_original_icons(self) -> None:
         for axis_index in range(self.rowCount()):
             axis = self.item(axis_index, self.axis_col())
@@ -507,6 +521,21 @@ class GraphSignalTree(BaseTreeView):
         
     def get_signals(self) -> List[AxisContent]:
         return self.model().get_signals()
+    
+    def get_selected_axes(self, include_if_signal_is_selected:bool = True) -> List[AxisStandardItem]:
+        selected_items = [self.model().itemFromIndex(index) for index in self.selectedIndexes() if index.isValid()]
+        selected_axes:Dict[int, AxisStandardItem] = {}
+        for item in selected_items:
+            if isinstance(item, AxisStandardItem):
+                selected_axes[id(item)] = item
+            elif include_if_signal_is_selected:
+                parent = item.parent()
+                if isinstance(parent, AxisStandardItem):
+                    selected_axes[id(parent)] = parent
+        
+        return list(selected_axes.values())
+                
+        
 
     def lock(self) -> None:
         self.setDragDropMode(self.DragDropMode.NoDragDrop)

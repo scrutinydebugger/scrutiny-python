@@ -374,8 +374,8 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
     """Graph statistics displayed to the user in real time"""
     _xaxis:ScrutinyValueAxisWithMinMax
     """The single time X-Axis"""
-    _yaxes:List[ScrutinyValueAxisWithMinMax]
     """All the Y-Axes defined by the user"""
+    _yaxes:List[ScrutinyValueAxisWithMinMax]
     _paused:bool
     """True when the graph is acquiring, but paused"""
     _use_opengl:bool
@@ -505,15 +505,13 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         if not self._chart_has_content:
             return 
         
-        def map_to_axis(vals:Iterable[float], axis:ScrutinyValueAxisWithMinMax) -> None: 
-            range = axis.max()-axis.min()
-            return [v * range + axis.min() for v in vals]
-        self._xaxis.setRange(*map_to_axis( (zoombox.left(), zoombox.right()), self._xaxis))
-        
+        self._xaxis.apply_zoombox_x(zoombox)
+        selected_axis_items = self._signal_tree.get_selected_axes(include_if_signal_is_selected=True)
+        selected_axis_ids = [id(item.axis()) for item in selected_axis_items]
         for yaxis in self._yaxes:
-            yaxis.setRange(*map_to_axis( (1-zoombox.bottom(), 1-zoombox.top()), yaxis))
+            if id(yaxis) in selected_axis_ids or len(selected_axis_ids) == 0:
+                yaxis.apply_zoombox_y(zoombox, margin_ratio=self.Y_AXIS_MARGIN)
         
-
     def _reset_zoom_slot(self) -> None:
         self._xaxis.autoset_range()
         for yaxis in self._yaxes:
@@ -632,6 +630,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
             self._xaxis.setRange(0, 1)
             for axis in signals:    # For each axes
                 yaxis = ScrutinyValueAxisWithMinMax(self)
+                axis.axis_item.attach_axis(yaxis)
                 yaxis.setTitleText(axis.axis_name)
                 yaxis.setTitleVisible(True)
                 self._yaxes.append(yaxis)
@@ -1180,23 +1179,23 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         save_csv_action.triggered.connect(self._save_csv_slot)
         save_csv_action.setEnabled(self._allow_save_csv)
 
-        def show_cursor():
+        def show_cursor() -> None:
             self._chartview.enable_cursor()
-        def hide_cursor():
+        def hide_cursor() -> None:
             self._chartview.disable_cursor()
 
-        def zoom_x():
+        def zoom_x() -> None:
             self._chartview.set_interaction_mode(ScrutinyChartView.InteractionMode.ZOOM)
             self._chartview.set_zoom_type(ScrutinyChartView.ZoomType.ZOOM_X)
-        def zoom_y():
+        def zoom_y() -> None:
             self._chartview.set_interaction_mode(ScrutinyChartView.InteractionMode.ZOOM)
             self._chartview.set_zoom_type(ScrutinyChartView.ZoomType.ZOOM_Y)
-        def zoom_xy():
+        def zoom_xy() -> None:
             self._chartview.set_interaction_mode(ScrutinyChartView.InteractionMode.ZOOM)
             self._chartview.set_zoom_type(ScrutinyChartView.ZoomType.ZOOM_XY)
-        def mode_select():
+        def mode_select() -> None:
             self._chartview.set_interaction_mode(ScrutinyChartView.InteractionMode.SELECT)
-        def mode_drag():
+        def mode_drag() -> None:
             self._chartview.set_interaction_mode(ScrutinyChartView.InteractionMode.DRAG)
 
         a = context_menu.addAction(assets.load_icon(assets.Icons.GraphCursor), "Show cursor")
@@ -1217,8 +1216,6 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         a = context_menu.addAction("Drag")
         a.triggered.connect(mode_drag)
         
-
-
         if self._stats.is_overlay_allowed():
             show_hide_stats = context_menu.addAction(assets.load_icon(assets.Icons.Hide), "Hide stats")
             show_hide_stats.triggered.connect(self._stats.disallow_overlay)
