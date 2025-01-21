@@ -63,19 +63,27 @@ class ScrutinyLineSeries(QLineSeries):
             return p2
 
 class ScrutinyValueAxis(QValueAxis):
+    """An extension of the QValueAxis specific to Scrutiny"""
 
     def emphasize(self) -> None:
+        """Make the axis more visible. Expected t be triggered when a series is selected"""
         font = self.titleFont()
         font.setBold(True)
         self.setTitleFont(font)
     
     def deemphasize(self) -> None:
+        """Put back the axis in its normal state. Expected t be triggered when a series is deselected"""
         font = self.titleFont()
         font.setBold(False)
         self.setTitleFont(font)
 
 class ScrutinyValueAxisWithMinMax(ScrutinyValueAxis):
+    """An extension of the QValueAxis that contains stats about the data it is tied to.
+    Tracking the min/max value of the data can be used to autoset the range of the axis using a margin so that the line doesn't
+    touch the chart boundaries
+    """
     _minmax:MinMax
+    """The min/max stats"""
 
     @tools.copy_type(ScrutinyValueAxis.__init__)
     def __init__(self, *args:Any, **kwargs:Any) -> None:
@@ -181,24 +189,38 @@ class ScrutinyChart(QChart):
     pass
 
 class ScrutinyChartCallout(QGraphicsItem):
+    """A callout that can be displayed when the user hover a point on a graph"""
 
-    CALLOUT_RECT_DIST = 10  # Distance between point marker and 
-    PADDING = 5             # padding between text and callout border
+    CALLOUT_RECT_DIST = 10
+    """Distance between point marker and """
+    PADDING = 5
+    """padding between text and callout border"""
 
     class DisplaySide(enum.Enum):
+        """Describe if the callout should eb shown above the point, or below"""
         Above = enum.auto()
         Below = enum.auto()
 
-
     _chart:ScrutinyChart
+    """The chart on which the callout is drawn over"""
     _text:str
+    """The text displayed into the callout"""
     _point_location_on_chart:QPointF
+    """X/Y location of the point that this callout is tied to"""
     _font:QFont
+    """The text font"""
     _text_rect:QRectF
-    _rect:QRectF
+    """The rectangle that contain the text"""
+    _callout_rect:QRectF
+    """The rectangle that contains the callout filled region"""
+    _bouding_rect:QRectF
+    """The bounding box, include the callout filled region and the marker on the point"""
     _color:QColor
+    """Fill color"""
     _side:DisplaySide
+    """Above/below state kept to make an hysteresis on position change"""
     _marker_radius : int
+    """Size of the marker drawn on top of the hovered point"""
 
 
     def __init__(self, chart:ScrutinyChart) -> None:
@@ -209,7 +231,7 @@ class ScrutinyChartCallout(QGraphicsItem):
         self._font  = QFont()
         self._text_rect = QRectF()
         self._callout_rect = QRectF()
-        self._bounding_box = QRectF()
+        self._bouding_rect = QRectF()
         self._color = QColor()
         self._updown_side = self.DisplaySide.Above
         self._marker_radius = 0
@@ -217,14 +239,14 @@ class ScrutinyChartCallout(QGraphicsItem):
         self.setZValue(11)
 
     def _compute_geometry(self) -> None:
-
         self.prepareGeometryChange()
-        metrics = QFontMetrics(self._font)
+        metrics = QFontMetrics(self._font)  # Required to estimated required size
         self._text_rect = QRectF(metrics.boundingRect(QRect(0, 0, 150, 150), Qt.AlignmentFlag.AlignLeft, self._text))
-        self._text_rect.translate(self.PADDING, self.PADDING)
+        self._text_rect.translate(self.PADDING, self.PADDING)   # Add some padding around the text
         self._callout_rect = QRectF(self._text_rect.adjusted(-self.PADDING, -self.PADDING, self.PADDING, self.PADDING))
         self._marker_radius = get_theme_prop(ScrutinyThemeProperties.CHART_CALLOUT_MARKER_RADIUS)
 
+        # DEcide if we should display above or below the point
         chart_h = self._chart.size().height()
         chart_w = self._chart.size().width()
         if self._point_location_on_chart.y() <= chart_h/3:
@@ -238,10 +260,10 @@ class ScrutinyChartCallout(QGraphicsItem):
         bounding_box_vertical_offset = self._marker_radius + self.CALLOUT_RECT_DIST
         if self._updown_side == self.DisplaySide.Above:
             callout_rect_origin -= QPointF(0, self._callout_rect.height() + self.CALLOUT_RECT_DIST)
-            self._bounding_box = self._callout_rect.adjusted(0,0,0,bounding_box_vertical_offset)
+            self._bouding_rect = self._callout_rect.adjusted(0,0,0,bounding_box_vertical_offset)
         elif self._updown_side == self.DisplaySide.Below:
             callout_rect_origin += QPointF(0, self.CALLOUT_RECT_DIST)
-            self._bounding_box = self._callout_rect.adjusted(0,-bounding_box_vertical_offset,0,0)
+            self._bouding_rect = self._callout_rect.adjusted(0,-bounding_box_vertical_offset,0,0)
         
         callout_rect_origin -= QPointF(self._callout_rect.width()/2,0)  # Handle left overflow
         if callout_rect_origin.x() < 0:
@@ -250,12 +272,12 @@ class ScrutinyChartCallout(QGraphicsItem):
         rect_right_x = callout_rect_origin.x() + self._callout_rect.width() # Handle right overflow
         if rect_right_x > chart_w:
             callout_rect_origin -= QPointF(rect_right_x - chart_w, 0)
-
-
+        
         self.setPos(callout_rect_origin)
 
 
     def set_content(self, pos:QPointF, text:str, color:QColor) -> None:
+        """Define everything we need to know to display a callout. Location, color and content"""
         self._point_location_on_chart = pos
         self._text = text
         self._color = color
@@ -263,7 +285,7 @@ class ScrutinyChartCallout(QGraphicsItem):
 
     def boundingRect(self) -> QRectF:
         # Inform QT about the size we need
-        return self._bounding_box
+        return self._bouding_rect
 
     def paint(self, painter: QPainter, option: QStyleOptionGraphicsItem, widget: Optional[QWidget]=None) -> None:
         color_transparent = QColor(self._color)
@@ -278,9 +300,12 @@ class ScrutinyChartCallout(QGraphicsItem):
         painter.drawText(self._text_rect, self._text)
 
 class ScrutinyChartView(QChartView):
+    """A QChartView extended with some features specific to the Scrutiny GUI"""
 
     DEFAULT_WHEEL_ZOOM_FACTOR_PER_120DEG = 0.9
-    MIN_ZOOMBOX_SIZE_PX = 5
+    """Zooming on wheel step (common mouses) will reduces the axes range to 90% of their previous value"""
+    MIN_RUBBERBAND_SIZE_PX = 5
+    """The minimum size the rubberband to emit a zoom event. Prevent accidental zooms"""
 
     class InteractionMode(enum.Enum):
         SELECT=enum.auto()
@@ -294,9 +319,13 @@ class ScrutinyChartView(QChartView):
 
     class _Signals(QObject):
         context_menu_event = Signal(QContextMenuEvent)
+        """When the user right click the chartview"""
         zoombox_selected = Signal(QRectF)
+        """When the zoom changes (through a wheel event or a rubber band)"""
         paint_finished = Signal()
+        """When the chartview has finished repainting. USed for throttling the update rate"""
         key_pressed = Signal(QKeyEvent)
+        """Forwarding the keypress event"""
 
     _rubber_band:QRubberBand
     _rubberband_origin:QPointF
@@ -321,9 +350,11 @@ class ScrutinyChartView(QChartView):
         self._zoom_allowed = False
 
     def allow_zoom(self, val:bool) -> None:
+        """Allow/disallow zooming of the chart"""
         self._zoom_allowed = val
 
     def set_zoom_type(self, zoom_type:ZoomType) -> None:
+        """Sets the zoom type of the wheel events and rubber band if interraction mode == ZOOM"""
         self._zoom_type = zoom_type
     
     def set_interaction_mode(self, interaction_mode:InteractionMode) -> None:
@@ -340,9 +371,13 @@ class ScrutinyChartView(QChartView):
         return self._signals
 
     def contextMenuEvent(self, event: QContextMenuEvent) -> None:
+        """Let the integrator decide what goes inside that menu"""
         self._signals.context_menu_event.emit(event)
 
     def paintEvent(self, event:QPaintEvent) -> None:
+        """We inform the outside world that repainting is finished. 
+        We can use this to disable chart updates while repaint is in progress and reenable with the signal below.
+        That's a way to throttle the update rate based on CPU usage"""
         super().paintEvent(event)
         self._signals.paint_finished.emit()
     
@@ -391,10 +426,11 @@ class ScrutinyChartView(QChartView):
 
     def mousePressEvent(self, event:QMouseEvent) -> None: 
         if self._interaction_mode == self.InteractionMode.ZOOM and self._zoom_allowed:
+            # In zoom mode, we initialize a rubber band
             event.accept()
             plotarea = self.chart().plotArea()
             plotarea_mapped_to_chartview =self.chart().mapRectToParent(plotarea)
-            event_saturated = QPointF( 
+            event_saturated = QPointF(  # We saturate to the limits of the plot area so the rubber band is inside
                 min(max(event.pos().x(), plotarea.left()), plotarea.right()), 
                 min(max(event.pos().y(), plotarea.top()), plotarea.bottom())
                 )
@@ -414,10 +450,11 @@ class ScrutinyChartView(QChartView):
 
     def mouseMoveEvent(self, event:QMouseEvent) -> None:
         if self._interaction_mode == self.InteractionMode.ZOOM and self._zoom_allowed:
+            # In zoom mode, we resize the rubber band
             event.accept()
-            if self._rubber_band.isVisible():
+            if self._rubber_band.isVisible():   # There's a rubber band active (MousePress happened before)
                 plotarea = self.chart().plotArea()
-                event_saturated = QPointF( 
+                event_saturated = QPointF(  # We saturate to the limits of the plot area so the rubberband stays inside
                     min(max(event.pos().x(), plotarea.left()), plotarea.right()), 
                     min(max(event.pos().y(), plotarea.top()), plotarea.bottom())
                     )
@@ -436,13 +473,18 @@ class ScrutinyChartView(QChartView):
         super().mouseMoveEvent(event)
 
     def mouseReleaseEvent(self, event:QMouseEvent) -> None:
+        """When the mouse is released on the chartview"""
         if self._interaction_mode == self.InteractionMode.ZOOM and self._zoom_allowed:
+            # In zoom mode, we release the rubberband and compute a new zoom box that we will broadcast
             event.accept()
-            if self._rubberband_valid:
+            if self._rubberband_valid:  # Paranoid check to avoid using stalled values
                 plotarea_mapped_to_chartview = self.chart().mapRectToParent(self.chart().plotArea())
                 diffabs_x = abs(self._rubberband_end.x() - self._rubberband_origin.x())
                 diffabs_y = abs(self._rubberband_end.y() - self._rubberband_origin.y())
-                if diffabs_x > self.MIN_ZOOMBOX_SIZE_PX and diffabs_y > self.MIN_ZOOMBOX_SIZE_PX:
+                
+                # Required to have a minimal size, otherwise accidental click can do a zoom on a tiny space making everything disappear
+                # Rubberband starts from edge when the user clicked outsde the plotarea. Makes it easy to have a rebberbad of 0px or 1 px wide by mistake
+                if diffabs_x > self.MIN_RUBBERBAND_SIZE_PX and diffabs_y > self.MIN_RUBBERBAND_SIZE_PX:   
                     relative_origin = QPointF(
                         (self._rubberband_origin.x() - plotarea_mapped_to_chartview.x()) / plotarea_mapped_to_chartview.width(),
                         (self._rubberband_origin.y() - plotarea_mapped_to_chartview.y()) / plotarea_mapped_to_chartview.height()
@@ -458,22 +500,29 @@ class ScrutinyChartView(QChartView):
 
 
 class ScrutinyChartToolBar(QGraphicsItem):
+    """A toolbar designed to go at the top of a Scrutiny Chart. Can be tied to a Chartview and enable control of it"""
     class ToolbarButton(QGraphicsItem):
+        """Represent a button that goes in the toolbar"""
         class _Signals(QObject):
             clicked = Signal()
+            """Emitted on mouse release if the mouse pressed happened on the button"""
 
         _icon_id:assets.Icons
+        """The icon of the button, identified by the it's ID in the icon repo"""
         _icon_size:QSizeF
+        """Size of the icon"""
         _pixmap:QPixmap
-        _rect:QRectF
+        """The button icon as a pixmap resized for the button"""
+        _bounding_rect:QRectF
+        """The bounding box for the graphic scene"""
         _is_hovered:bool
+        """True when the mouse is above this button"""
         _is_pressed:bool
+        """True when the mouse left button is pressed on this button"""
         _is_selected:bool
+        """True when the button is set as 'selected' programatically"""
 
-        HOVERED_COLOR = QColor(0xE0, 0xf0, 0xFF)
-        HOVERED_BORDER_COLOR = QColor(0x99, 0xD0, 0xFF)
-        SELECTED_COLOR = QColor(0xC8, 0xE8, 0xFF)
-        ICON_SIZE = 20
+        ICON_SIZE = 20  # Square icons
         PADDING_X = 5
         PADDING_Y = 2
 
@@ -483,59 +532,75 @@ class ScrutinyChartToolBar(QGraphicsItem):
             self._is_hovered = False
             self._is_pressed = False
             self._is_selected = False
-            self.setAcceptHoverEvents(True)
-            self.setAcceptedMouseButtons(Qt.MouseButton.LeftButton)
+            self.setAcceptHoverEvents(True) # Required for hoverEnter and hoverLeaves
+            self.setAcceptedMouseButtons(Qt.MouseButton.LeftButton)     # No need for right button
             self.set_icon(icon)
         
         @property
         def signals(self) -> _Signals:
             return self._signals
         
-        def set_icon(self, icon:assets.Icons) -> None:
+        def set_icon(self, icon:assets.Icons, size:Optional[float] = None) -> None:
+            """Changes the icon of the button"""
             self._icon_id = icon
-            self.set_icon_size(self.ICON_SIZE)
+            if size is None:
+                self.set_icon_size(self.ICON_SIZE)
+            else:
+                self.set_icon_size(size)
             self.update()
             
         def set_icon_size(self, icon_size:float) -> None:
+            """Resize the icon """
             self.prepareGeometryChange()
             self._icon_size = QSizeF(icon_size,icon_size)
-            self._pixmap = assets.load_large_icon_as_pixmap(self._icon_id).scaled(
+            self._pixmap = assets.load_medium_icon_as_pixmap(self._icon_id).scaled(
                 self._icon_size.toSize(), 
                 Qt.AspectRatioMode.KeepAspectRatio, 
                 Qt.TransformationMode.SmoothTransformation
                 )
             
+            # Add internal padding. 2x for left/right and top/bottom
             size_padded = self._icon_size + QSizeF(2*self.PADDING_X, 2*self.PADDING_Y)
-            self._rect = QRectF(QPointF(0,0), size_padded)
+            self._bounding_rect = QRectF(QPointF(0,0), size_padded)
             self.update()
         
         def boundingRect(self) -> QRectF:
-            return self._rect 
+            """The zone where we draw"""
+            return self._bounding_rect 
         
         def select(self) -> None:
+            """Set the button as 'selected' which change the color"""
             self._is_selected = True
             self.update()
         
         def deselect(self) -> None:
+            """Set the button as 'deselected' which change the color"""
             self._is_selected = False
             self.update()
 
         def paint(self, painter: QPainter, option: QStyleOptionGraphicsItem, widget: Optional[QWidget]=None) -> None:
+            HOVERED_COLOR = get_theme_prop(ScrutinyThemeProperties.CHART_TOOLBAR_SELECTED_COLOR) 
+            HOVERED_BORDER_COLOR =get_theme_prop(ScrutinyThemeProperties.CHART_TOOLBAR_SELECTED_COLOR)  
+            SELECTED_COLOR = get_theme_prop(ScrutinyThemeProperties.CHART_TOOLBAR_SELECTED_COLOR) 
+            # If the is a focus on the button, draw a background
             if self._is_selected or self._is_pressed:
-                painter.setPen(self.SELECTED_COLOR)
-                painter.setBrush(self.SELECTED_COLOR)
-                painter.drawRect(self._rect)
+                painter.setPen(SELECTED_COLOR)
+                painter.setBrush(SELECTED_COLOR)
+                painter.drawRect(self._bounding_rect)
             elif self._is_hovered:
-                painter.setPen(self.HOVERED_BORDER_COLOR)
-                painter.setBrush(self.HOVERED_COLOR)
-                painter.drawRect(self._rect)
+                painter.setPen(HOVERED_BORDER_COLOR)   # Border is different to mimic QTreeView style
+                painter.setBrush(HOVERED_COLOR)
+                painter.drawRect(self._bounding_rect)
+            else:
+                pass # Leave blank. Just draw the icon on transparent background
             
             painter.drawPixmap(QPoint(self.PADDING_X,self.PADDING_Y), self._pixmap)
 
         
         def mousePressEvent(self, event:QGraphicsSceneMouseEvent) -> None:
+            # Used to generate click event
             event.accept()
-            self._is_pressed = True
+            self._is_pressed = True # Will make the color different
             self.update()
 
         def mouseReleaseEvent(self, event:QGraphicsSceneMouseEvent) -> None:
@@ -558,26 +623,33 @@ class ScrutinyChartToolBar(QGraphicsItem):
             
 
     BUTTON_SPACING = 0
+    """ spaces between each buttons"""
     _chart:ScrutinyChart
+    """The chart on which we draw the toolbar"""
     _chartview:Optional[ScrutinyChartView]
-    _btn_zoom_value_cursor:ToolbarButton
+    """The chartview that the toolbar controls"""
 
     _btn_zoom_xy:ToolbarButton
+    """ Zoom XY button"""
     _btn_zoom_x:ToolbarButton
+    """ Zoom X button"""
     _btn_zoom_y:ToolbarButton
-    _rect : QRectF
+    """ Zoom Y button"""
+    _bounding_rect : QRectF
+    """The zone where we draw"""
     _buttons : List[ToolbarButton]
+    """All the buttons in order from left to right"""
 
     def __init__(self, chart:ScrutinyChart) -> None:
         validation.assert_type(chart, 'chart', ScrutinyChart)
         super().__init__(chart)
         self._chart = chart
         self._chartview = None
-        #self._btn_zoom_value_cursor = self.ToolbarButton(self, assets.Icons.GraphCursor)
+        
         self._btn_zoom_xy = self.ToolbarButton(self, assets.Icons.ZoomXY)
         self._btn_zoom_x = self.ToolbarButton(self, assets.Icons.ZoomX)
         self._btn_zoom_y = self.ToolbarButton(self, assets.Icons.ZoomY)
-        self._rect = QRectF()
+        self._bounding_rect = QRectF()
 
         self._buttons = [self._btn_zoom_xy, self._btn_zoom_x, self._btn_zoom_y]
         self._chart.geometryChanged.connect(self._update_geometry)
@@ -589,13 +661,18 @@ class ScrutinyChartToolBar(QGraphicsItem):
         self._btn_zoom_xy.select()
 
     def set_chartview(self, chartview:ScrutinyChartView) -> None:
+        """Sets the chartview controlled by this toolbar"""
         self._chartview = chartview
 
     def _zoom_x(self) -> None:
+        """Called when Zoom X button is clicked"""
         if self._chartview is None:
             return
+        # Change the chartview behavior
         self._chartview.set_interaction_mode(ScrutinyChartView.InteractionMode.ZOOM)
         self._chartview.set_zoom_type(ScrutinyChartView.ZoomType.ZOOM_X)
+        
+        # Visual feedback
         self._btn_zoom_x.select()
         self._btn_zoom_xy.deselect()
         self._btn_zoom_y.deselect()
@@ -603,8 +680,11 @@ class ScrutinyChartToolBar(QGraphicsItem):
     def _zoom_y(self) -> None:
         if self._chartview is None:
             return
+        # Change the chartview behavior
         self._chartview.set_interaction_mode(ScrutinyChartView.InteractionMode.ZOOM)
         self._chartview.set_zoom_type(ScrutinyChartView.ZoomType.ZOOM_Y)
+        
+        # Visual feedback
         self._btn_zoom_y.select()
         self._btn_zoom_xy.deselect()
         self._btn_zoom_x.deselect()
@@ -612,23 +692,27 @@ class ScrutinyChartToolBar(QGraphicsItem):
     def _zoom_xy(self) -> None:
         if self._chartview is None:
             return
+        # Change the chartview behavior
         self._chartview.set_interaction_mode(ScrutinyChartView.InteractionMode.ZOOM)
         self._chartview.set_zoom_type(ScrutinyChartView.ZoomType.ZOOM_XY)
+        # Visual feedback
         self._btn_zoom_xy.select()
         self._btn_zoom_x.deselect()
         self._btn_zoom_y.deselect()
 
     def _update_geometry(self) -> None:
+        """Recompute all the internal drawing dimensions"""
         self.prepareGeometryChange()
         chart_size = self._chart.size()
         
-        width_cursor = float(0)
+        #We will scan all the buttons from left to right and decide how much space we need
+        width_cursor = float(0) 
         required_height = float(0)
         for i in range(len(self._buttons)):
             button = self._buttons[i]
             r = button.boundingRect()
-            required_height = max(required_height, r.height())
-            button.setPos(width_cursor, 0)
+            required_height = max(required_height, r.height())  # We need as much height as the tallest button (doesn't matter, they're squares.)
+            button.setPos(width_cursor, 0)  # This button new location. They draw from 0,0 internally
             width_cursor += r.width()
             if i < len(self._buttons):
                 width_cursor += self.BUTTON_SPACING
@@ -636,11 +720,10 @@ class ScrutinyChartToolBar(QGraphicsItem):
         size = QSizeF(required_width, required_height)
         origin = QPointF(chart_size.width()/2 - required_width/2, 0)
         self.setPos(origin)
-        self._rect = QRectF(QPointF(0,0), size)
+        self._bounding_rect = QRectF(QPointF(0,0), size)
     
     def paint(self, painter: QPainter, option: QStyleOptionGraphicsItem, widget: Optional[QWidget]=None) -> None:
-        pass
-
+        pass    # Nothing to do. Need to exist
 
     def boundingRect(self) -> QRectF:
-        return self._rect
+        return self._bounding_rect
