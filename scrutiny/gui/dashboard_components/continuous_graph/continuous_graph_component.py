@@ -11,6 +11,7 @@ import functools
 import math
 from pathlib import Path
 import logging
+from dataclasses import dataclass
 
 from PySide6.QtGui import QPainter, QFontMetrics, QFont, QColor, QContextMenuEvent, QKeyEvent
 from PySide6.QtWidgets import (QHBoxLayout, QSplitter, QWidget, QVBoxLayout,  QMenu, QSizePolicy,
@@ -157,7 +158,7 @@ class RealTimeScrutinyLineSeries(ScrutinyLineSeries):
             self._dirty=True
         return n
     
-    def delete_up_to_x(self, x:float) -> None:
+    def delete_up_to_x_without_flushing(self, x:float) -> None:
         in_deleted, out_deleted = self._decimator.delete_data_up_to_x(x)
         if out_deleted > 0: # That affects the visible graph
             self._dirty = True
@@ -320,6 +321,73 @@ class GraphStatistics:
     def is_overlay_allowed(self) -> bool:
         return self._allow_show_overlay
 
+@dataclass
+class ContinuousGraphState:
+    acquiring:bool
+    paused:bool
+    has_content:bool
+    use_opengl:bool
+    allow_overlay:bool
+    
+    def autoscale_enabled(self) -> bool:
+        return self.acquiring and not self.paused and self.has_content
+    
+    def has_non_moving_content(self) -> bool:
+        if not self.has_content:
+            return False
+        
+        if self.acquiring and not self.paused:
+            return False
+        
+        return True
+    
+    def has_moving_content(self) -> bool:
+        if not self.has_content:
+            return False
+        
+        return self.acquiring and not self.paused
+    
+    def should_use_decimated_data(self) -> bool:
+        return self.has_moving_content()
+
+    def allow_save_csv(self) -> bool:
+        return self.has_non_moving_content()
+
+    def allow_save_image(self) -> bool:
+        return self.has_non_moving_content()
+    
+    def allow_zoom(self) -> bool:
+        return self.has_non_moving_content()
+
+    def must_lock_signal_tree(self) -> bool:
+        return self.has_content
+    
+    def require_flush_on_resolution_change(self) -> bool:
+        return not self.paused
+    
+    def should_display_overlay(self) -> bool:
+        return self.has_content and self.allow_overlay
+    
+    def enable_clear_button(self) -> bool:
+        return self.has_content and not self.acquiring
+
+    def enable_pause_button(self) -> bool:
+        return self.acquiring
+    
+    def enable_startstop_button(self) -> bool:
+        return True
+    
+    def must_display_toolbar(self) -> bool:
+        return self.has_non_moving_content()
+
+    def allow_display_callout(self) -> bool:
+        return self.has_non_moving_content()
+    
+    def enable_reset_zoom_button(self) -> bool:
+        return self.has_content
+
+    def enable_showhide_stats_button(self) -> bool:
+        return self.has_content
 
 class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
     instance_name : str
@@ -330,7 +398,9 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
     DEFAULT_GRAPH_MAX_WIDTH=30
     MAX_SIGNALS=32
     Y_AXIS_MARGIN = 0.02
-
+    
+    _state:ContinuousGraphState
+    """The state variable used to change the behavior of the component """
     _chartview:ScrutinyChartView
     """The QT chartview"""
     _chart_toolbar:ScrutinyChartToolBar
@@ -353,18 +423,12 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
     """A label to report error to the user"""
     _splitter:QSplitter
     """The splitter between the graph and the signal/axis tree"""
-    _acquiring:bool
-    """A flag indicating if an acquisition is running"""
-    _chart_has_content:bool
-    """A flag indicating if there is data in the graph being displayed"""
     _serverid2sgnal_item:Dict[str, ChartSeriesWatchableStandardItem]
     """A dictionnary mapping server_id associated with ValueUpdates broadcast by the server to their respective signal (a tree item, which has a reference to the chart series) """
     _callout_hide_timer:QTimer
     """A timer to trigger the hiding of the graph callout. Avoid fast show/hide"""
     _first_val_dt:Optional[datetime]
     """The server timestamp of the first value gotten. Used to offset the ValueUpdates timestamps to 0"""
-    _autoscale_enabled:bool
-    """Tells if the axis range should be adjusted based on the content"""
     _graph_maintenance_timer:QTimer
     """A timer to periodically remove data and do some non-real time computation"""
     _graph_max_width:float
@@ -379,18 +443,10 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
     """The single time X-Axis"""
     _yaxes:List[ScrutinyValueAxisWithMinMax]
     """All the Y-Axes defined by the user"""
-    _paused:bool
-    """True when the graph is acquiring, but paused"""
-    _use_opengl:bool
-    """True if we are allowed to use OpenGL. Based on global app settings"""
     _graph_sfd:Optional[sdk.SFDInfo]
     """The Scrutiny Firmware Description loaded when starting the acquisition"""
     _graph_device_info:Optional[sdk.DeviceInfo]
     """The details about the device when starting the acquisition"""
-    _allow_save_img:bool
-    """Flag indicating if we can export the chart to image (png)"""
-    _allow_save_csv:bool
-    """Flag indicating if we can export the chart to csv"""
     _last_decimated_flush_paint_in_progress:bool
     """A flag indicated that the repaint event following a data flush has not been completed yet. 
     Used for auto-throttling of the repaint rate when the CPU is overloaded"""
@@ -398,26 +454,27 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
     """The CSV logger that will save value update to disk in real time. Runs in the UI thread."""
 
     def setup(self) -> None:
-        self._acquiring = False
-        self._chart_has_content = False
         self._serverid2sgnal_item = {}
-        self._autoscale_enabled = False
         self._xaxis = ScrutinyValueAxisWithMinMax(self)
         self._xaxis.setTitleText("Time [s]")
         self._xaxis.setTitleVisible(True)
         self._xaxis.deemphasize()   # Default state
         self._yaxes = []
         self._x_resolution = 0
-        self._paused = False
         self._graph_sfd = None
         self._graph_device_info = None
-        self._allow_save_img = False
-        self._allow_save_csv = False
         self._last_decimated_flush_paint_in_progress = False
         self._csv_logger = None
         self._first_val_dt = None
         self._y_minmax_recompute_index=0
-        self._use_opengl = app_settings().opengl_enabled
+
+        self._state = ContinuousGraphState(
+            acquiring=False,
+            paused=False,
+            has_content=False,
+            use_opengl=app_settings().opengl_enabled,
+            allow_overlay=True
+        )
     
         
         def make_right_side() -> QWidget:
@@ -520,13 +577,16 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         # App integration
         self.server_manager.signals.registry_changed.connect(self._registry_changed_slot)
         self.watchable_registry.register_watcher(self.instance_name, self._val_update_callback, self._unwatch_callback)
+        self._apply_internal_state()
 
     def _chartview_key_pressed_slot(self, event:QKeyEvent) -> None:
+        """Chartview Event forwarded through a signal"""
         if event.key() == Qt.Key.Key_Escape:
             self._signal_tree.clearSelection()
 
     def _chartview_zoombox_selected_slot(self, zoombox:QRectF) -> None:
-        if not self._chart_has_content:
+        """When the chartview emit a zoombox_selected signal. Coming from either a wheel event or a selection of zoom with a rubberband"""
+        if not self._state.allow_zoom():
             return 
         self._callout.hide()
         self._xaxis.apply_zoombox_x(zoombox)
@@ -537,6 +597,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
                 yaxis.apply_zoombox_y(zoombox, margin_ratio=self.Y_AXIS_MARGIN)
         
     def _reset_zoom_slot(self) -> None:
+        """Right-click -> Reset zoom"""
         self._callout.hide()
         self._xaxis.autoset_range()
         for yaxis in self._yaxes:
@@ -549,7 +610,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
 
         def set_paint_not_in_progress() -> None:
             self._last_decimated_flush_paint_in_progress = False
-            if not self.is_paused():
+            if not self._state.paused:
                 self._flush_decimated_to_dirty_series()
 
         InvokeQueued(set_paint_not_in_progress)
@@ -557,7 +618,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
     def ready(self) -> None:
         # Make the right menu as small as possible. Only works after the widget is loaded. we need the ready() function for that
         self._splitter.setSizes([self.width(), self._signal_tree.minimumWidth()])
-        self._update_states()
+        self._apply_internal_state()
 
     def teardown(self) -> None:
         self.watchable_registry.unregister_watcher(self._watcher_id())
@@ -587,9 +648,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         self._xaxis.setRange(0,1)
         self._xaxis.clear_minmax()
         self._yaxes.clear()
-        self._chart_has_content = False
-        self._allow_save_img = False
-        self._allow_save_csv = False
+        self._state.has_content = False
         self._first_val_dt = None
         self._graph_sfd = None
         self._graph_device_info = None
@@ -599,8 +658,8 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         """Stop a an ongoing acquisition"""
         self._stop_periodic_graph_maintenance()     # Not required anymore 
         self.watchable_registry.unwatch_all(self._watcher_id()) # Stops to flow of values
-        self._acquiring = False     # Main acquisition flag 
-        self._paused = False        # We can't be paused if we are not running. 
+        self._state.acquiring = False
+        self._state.paused = False
         
         if self._csv_logger is not None:
             self._csv_logger.stop()
@@ -619,22 +678,22 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         self._round_robin_recompute_single_series_min_max(full=True)        # Update a single series at a time to reduce the load on the CPU
         self._update_yaxes_minmax_based_on_series_minmax()                  # Recompute min/max. Only way to shrink the scale reliably.
 
-        if self.is_autoscale_enabled():
-            self._xaxis.autoset_range()         # Range based on min/max computed just above
-            for series in self._all_series():
-                yaxis = self._get_series_yaxis(series)
-                yaxis.autoset_range(margin_ratio=self.Y_AXIS_MARGIN)    # Range based on min/max computed just above
+        #if self.is_autoscale_enabled():
+        #    self._xaxis.autoset_range()         # Range based on min/max computed just above
+        #    for series in self._all_series():
+        #        yaxis = self._get_series_yaxis(series)
+        #        yaxis.autoset_range(margin_ratio=self.Y_AXIS_MARGIN)    # Range based on min/max computed just above
 
         self.disable_repaint_rate_measurement()
         self.update_stats(use_decimated=False)  # Display 1x decimation factor and all points
         self._chartview.setEnabled(True)
         self._maybe_enable_opengl_drawing(False)  #  Required for callout to work
-        self._update_states()
+        self._apply_internal_state()
 
     def start_acquisition(self) -> None:
         """Start a graph acquisition"""
-        if self._acquiring:
-            return 
+        if self._state.acquiring:
+            return
         
         if self._spinbox_graph_max_width.value() == 0:
             self._report_error("Invalid graph width")
@@ -702,66 +761,52 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
                     return
                 
             # Everything went well. Update state variables
+            self._state.has_content = True
+            self._state.paused = False
+            self._state.acquiring = True
+
             self._first_val_dt = None
-            self._chart_has_content = True
-            self._paused = False
             self._last_decimated_flush_paint_in_progress=False
             self._maybe_enable_opengl_drawing(True)   # Reduce CPU usage a lot
             self._change_x_resolution(0)    # 0 mean no decimation
             self.update_emphasize_state()
-            self.enable_autoscale()
             self.enable_repaint_rate_measurement()
             self.update_stats(use_decimated=True)
             self.show_stats()
             
-            self._acquiring = True
             self._start_periodic_graph_maintenance()
             self._clear_feedback()
-            self._update_states()
+            self._apply_internal_state()
         except Exception as e:
             tools.log_exception(self.logger, e, "Failed to start the acquisition")
             self.stop_acquisition()
     
     def pause(self) -> None:
         """Pause the real time graph. Flush non-decimated background data buffer to the QChart and prevent further updates."""
-        if self._paused:
+        if self._state.paused:
             return 
+        
         for series in self._all_series():
             series.flush_full_dataset()
-        self.disable_autoscale()
         self.disable_repaint_rate_measurement()
         self.update_stats(use_decimated=False)
         self._maybe_enable_opengl_drawing(False)
-        self._paused = True
+        self._state.paused=True
+        self._apply_internal_state()
 
     def unpause(self) -> None:
         """Unpause the real time graph. Flush decimated background data buffer to the QChart and update periodically"""
-        if not self._paused:
+        if not self._state.paused:
             return
             
         for series in self._all_series():
             series.flush_decimated()
         self._last_decimated_flush_paint_in_progress = True
-        self.enable_autoscale()
         self.enable_repaint_rate_measurement()
         self.update_stats(use_decimated=True)
         self._maybe_enable_opengl_drawing(True)
-        self._paused=False
-
-    def disable_autoscale(self) -> None:
-        self._autoscale_enabled = False
-
-    def enable_autoscale(self) -> None:
-        self._autoscale_enabled = True
-
-    def is_autoscale_enabled(self) -> bool:
-        return self._autoscale_enabled
-    
-    def is_acquiring(self) -> bool:
-        return self._acquiring
-
-    def is_paused(self) -> bool:
-        return self._paused
+        self._state.paused=False
+        self._apply_internal_state()
 
     def update_emphasize_state(self) -> None:
         """Read the items in the SignalTree object (right menu with axis) and update the size/boldness of the graph series
@@ -835,10 +880,9 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
     def _registry_changed_slot(self) -> None:
         """Called when the server manager has finished making a change to the registry"""
         self._signal_tree.update_all_availabilities()
-        if self.is_acquiring():
-            if self._signal_tree.has_unavailable_signals():
-                self.stop_acquisition()
-                self._update_states()
+        if self._state.acquiring and self._signal_tree.has_unavailable_signals():
+            # If a we loose a signal while acquiring, stop everything.
+            self.stop_acquisition()
 
     def _flush_decimated_to_dirty_series(self) -> None:
         """Flush the decimated data buffer of all series marked as dirty. They're dirty when new data is available in 
@@ -860,7 +904,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
 
     def _maybe_enable_opengl_drawing(self, val:bool) -> None:
         """Enable OpenGL drawing for real time graph, only if the app is running with OpenGL enabled"""
-        if self._use_opengl:
+        if self._state.use_opengl:
             for series in self._all_series():
                 series.setUseOpenGL(val)
             # Forces redraw.
@@ -872,7 +916,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         self._x_resolution = resolution
         for series in self._all_series():
             series.set_x_resolution(resolution)
-        if not self.is_paused():
+        if self._state.require_flush_on_resolution_change():
             self._flush_decimated_to_dirty_series()
         self.update_stats()
 
@@ -884,9 +928,9 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
 
     def update_stats(self, use_decimated:Optional[bool]=None) -> None:
         if use_decimated is None:
-            use_decimated = True if not self.is_paused() else False
+            use_decimated = self._state.should_use_decimated_data()
         self._stats.repaint_rate.update()
-        self._stats.opengl = self._use_opengl
+        self._stats.opengl = self._state.use_opengl
         self._stats.decimation_factor = 0
         self._stats.visible_points = 0
         self._stats.total_points = 0
@@ -907,7 +951,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
             self._stats.visible_points = total_points
             self._stats.total_points = total_points
 
-        if not self._paused:
+        if self._state.should_display_overlay():
             self._stats.update_overlay()
 
     def _clear_stats_and_hide(self)->None:
@@ -917,41 +961,32 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
     def show_stats(self) -> None:
         self._stats.show_overlay()
 
-    def _update_states(self) -> None:
-        if self.is_acquiring():
-            self._btn_clear.setDisabled(True)
+    def _apply_internal_state(self) -> None:
+        if self._state.acquiring:
             self._btn_start_stop.setText("Stop")
-            self._btn_pause.setEnabled(True)
         else:
-            self._btn_clear.setEnabled(True)
             self._btn_start_stop.setText("Start")
-            self._btn_pause.setDisabled(True)
 
-        if self._paused:
+        if self._state.paused:
             self._btn_pause.setText("Unpause")
         else:
             self._btn_pause.setText("Pause")
+        
+        self._btn_start_stop.setEnabled(self._state.enable_startstop_button())
+        self._btn_pause.setEnabled(self._state.enable_pause_button())
+        self._btn_clear.setEnabled(self._state.enable_clear_button())
+        self._chartview.allow_zoom(self._state.allow_zoom())
 
-        if self._chart_has_content:
+        if self._state.must_lock_signal_tree():
             self._signal_tree.lock()
         else:
             self._signal_tree.unlock()
 
-        if self._chart_has_content and not self.is_acquiring():
-            self._btn_clear.setEnabled(True)
-        else:
-            self._btn_clear.setDisabled(True)
-
-        if self._chart_has_content and (not self.is_autoscale_enabled() or not self.is_acquiring()):
-            self._allow_save_img = True
-            self._allow_save_csv = True
+        if self._state.must_display_toolbar():
             self._chart_toolbar.show()
-            self._chartview.allow_zoom(True)
         else:
-            self._allow_save_img = False
-            self._allow_save_csv = False
             self._chart_toolbar.hide()
-            self._chartview.allow_zoom(False)
+
 
     def _watcher_id(self) -> str:
         return self.instance_name
@@ -967,7 +1002,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
 
     def _val_update_callback(self, watcher_id:Union[str, int], value_updates:List[ValueUpdate]) -> None:
         """Invoked when we have new data available"""
-        if not self._chart_has_content:
+        if not self._state.has_content: # We don't check for acquiring just in case an extra value was in transit when we stop.
             self.logger.error("Received value updates when no graph was ready")
             return 
         
@@ -998,13 +1033,13 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
                 series.add_point(QPointF(xval, yval))
                 self._xaxis.update_minmax(xval)
                 yaxis.update_minmax(yval)   # Can only grow
-                if self.is_autoscale_enabled():
+                if self._state.autoscale_enabled():
                     yaxis.autoset_range(margin_ratio=self.Y_AXIS_MARGIN)
             
-            if self.is_autoscale_enabled():
+            if self._state.autoscale_enabled():
                 self.auto_scale_xaxis()
 
-            if not self.is_paused() and not self._last_decimated_flush_paint_in_progress:
+            if not self._state.paused and not self._last_decimated_flush_paint_in_progress:
                 self._flush_decimated_to_dirty_series()
 
         except KeyError as e:
@@ -1087,7 +1122,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         new_min_x = math.inf
         lower_x_bound_for_deletion = new_max_f - self._graph_max_width  # wanted lower bound
         for series in self._all_series():
-            series.delete_up_to_x(lower_x_bound_for_deletion)
+            series.delete_up_to_x_without_flushing(lower_x_bound_for_deletion)   # Does not affect the chart. Just the internal buffer
             first_x = series.get_first_x()
 
             if first_x is not None:
@@ -1102,26 +1137,23 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
     # region SLOTS
     def _btn_clear_slot(self) -> None:
         """Slot when "clear" is clicked"""
-        if not self.is_acquiring():
-            self.clear_graph()
+        self.clear_graph()
         self._clear_feedback()
-        self._update_states()
+        self._apply_internal_state()
 
     def _btn_pause_slot(self) -> None:
         """Slot when "pause" is clicked"""
-        if self.is_paused():           
+        if self._state.paused:           
             self.unpause()
         else:
             self.pause()
-        self._update_states()
 
     def _btn_start_stop_slot(self) -> None:
         """Slot when "start/stop" is clicked"""
-        if self.is_acquiring():           
+        if self._state.acquiring:           
             self.stop_acquisition()
         else:
             self.start_acquisition()
-        self._update_states()
     
     def _selection_changed_slot(self) -> None:
         """Whent he user selected/deselected a signal in the right menu"""
@@ -1135,7 +1167,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
     def _graph_maintenance_timer_slot(self) -> None:
         """Periodic callback meant to prune the graph and recompute the rang eof the axis.
         Done periodically to reduce the strain on the CPU"""
-        if not self.is_acquiring():
+        if not self._state.acquiring:
             return
 
         self._compute_new_decimator_resolution()
@@ -1143,7 +1175,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         
         all_series = list(self._all_series())
         nb_series = len(all_series)
-        nb_loop = nb_series//6+1    # If there is lot of series, we update more at the time. Axes will reduce in max 6 second because of this
+        nb_loop = nb_series//6+1    # If there is lot of series, we update more at the time. Axes will reduce their range in max 6 second because of this
         for i in range(nb_loop):
             self._round_robin_recompute_single_series_min_max(full=False) # Update a single series at a time to reduce the load on the CPU
             self._update_yaxes_minmax_based_on_series_minmax()  # Recompute min/max. Only way to shrink the scale reliably.
@@ -1157,7 +1189,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
     def _series_hovered_slot(self, signal_item:ChartSeriesWatchableStandardItem, point:QPointF, state:bool) -> None:
         # FIXME : Snap zone is too small. QT source code says it is computed with markersize, but changing it has no effect.
         must_show = state
-        if self.is_acquiring() and self.is_autoscale_enabled():
+        if not self._state.allow_display_callout():
             must_show  = False
 
         if must_show:
@@ -1184,7 +1216,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         self._spinbox_graph_max_width.setProperty("state", WidgetState.default)
         
         self._graph_max_width = val
-        if self.is_acquiring() and self.is_autoscale_enabled():
+        if self._state.autoscale_enabled():
             self.auto_scale_xaxis()
         
         # QT Selects the textbox when the value is changed. We add a clear action at the end of the event loop
@@ -1202,15 +1234,15 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
 
         save_img_action = context_menu.addAction(assets.load_tiny_icon(assets.Icons.Image), "Save as image")
         save_img_action.triggered.connect(self._save_image_slot)
-        save_img_action.setEnabled(self._allow_save_img)
+        save_img_action.setEnabled(self._state.allow_save_image())
 
         save_csv_action = context_menu.addAction(assets.load_tiny_icon(assets.Icons.CSV), "Save as CSV")
         save_csv_action.triggered.connect(self._save_csv_slot)
-        save_csv_action.setEnabled(self._allow_save_csv)
+        save_csv_action.setEnabled(self._state.allow_save_csv())
 
         reset_zoom_action = context_menu.addAction(assets.load_tiny_icon(assets.Icons.Zoom100), "Reset zoom")
         reset_zoom_action.triggered.connect(self._reset_zoom_slot)
-        reset_zoom_action.setEnabled(self._chart_has_content)
+        reset_zoom_action.setEnabled(self._state.enable_reset_zoom_button())
         
         if self._stats.is_overlay_allowed():
             show_hide_stats = context_menu.addAction(assets.load_tiny_icon(assets.Icons.EyeBar), "Hide stats")
@@ -1219,13 +1251,13 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
             show_hide_stats = context_menu.addAction(assets.load_tiny_icon(assets.Icons.Eye), "Show stats")
             show_hide_stats.triggered.connect(self._stats.allow_overlay)
         
-        show_hide_stats.setEnabled(self._chart_has_content)            
+        show_hide_stats.setEnabled(self._state.enable_showhide_stats_button())            
         
         context_menu.popup(self._chartview.mapToGlobal(chartview_event.pos()))
 
     def _save_image_slot(self) -> None:
         """When the user right-click the graph then click "Save as image" """
-        if not self._allow_save_img or not self._chart_has_content:
+        if not self._state.allow_save_image():
             return 
         
         filepath:Optional[Path] = None
@@ -1242,7 +1274,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
 
     def _save_csv_slot(self) -> None:
         """When the user right-click the graph then click "Save as CSV" """
-        if not self._allow_save_csv or not self._chart_has_content:
+        if not self._state.allow_save_csv():
             return
 
         filepath = prompt.get_save_filepath_from_last_save_dir(self, ".csv")
