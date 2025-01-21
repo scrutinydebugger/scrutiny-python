@@ -346,7 +346,7 @@ class ScrutinyChartView(QChartView):
         super().paintEvent(event)
         self._signals.paint_finished.emit()
     
-    def keyPressEvent(self, event:QKeyEvent):
+    def keyPressEvent(self, event:QKeyEvent) -> None:
         if event.key() == Qt.Key.Key_Escape:
             self._signals.key_pressed.emit(event)
         return super().keyPressEvent(event)
@@ -533,24 +533,24 @@ class ScrutinyChartToolBar(QGraphicsItem):
             painter.drawPixmap(QPoint(self.PADDING_X,self.PADDING_Y), self._pixmap)
 
         
-        def mousePressEvent(self, event:QGraphicsSceneMouseEvent):
+        def mousePressEvent(self, event:QGraphicsSceneMouseEvent) -> None:
             event.accept()
             self._is_pressed = True
             self.update()
 
-        def mouseReleaseEvent(self, event:QGraphicsSceneMouseEvent):
+        def mouseReleaseEvent(self, event:QGraphicsSceneMouseEvent) -> None:
             event.accept()
             if self._is_pressed:
                 self._signals.clicked.emit()
             self._is_pressed = False
             self.update()
 
-        def hoverEnterEvent(self, event:QGraphicsSceneHoverEvent):
+        def hoverEnterEvent(self, event:QGraphicsSceneHoverEvent) -> None:
             event.accept()
             self._is_hovered = True
             self.update()
         
-        def hoverLeaveEvent(self, event:QGraphicsSceneHoverEvent):
+        def hoverLeaveEvent(self, event:QGraphicsSceneHoverEvent) -> None:
             event.accept()
             self._is_hovered = False
             self._is_pressed = False
