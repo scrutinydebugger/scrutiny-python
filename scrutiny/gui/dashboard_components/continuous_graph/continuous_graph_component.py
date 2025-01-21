@@ -12,7 +12,7 @@ import math
 from pathlib import Path
 import logging
 
-from PySide6.QtGui import QPainter, QFontMetrics, QFont, QColor, QContextMenuEvent
+from PySide6.QtGui import QPainter, QFontMetrics, QFont, QColor, QContextMenuEvent, QKeyEvent
 from PySide6.QtWidgets import (QHBoxLayout, QSplitter, QWidget, QVBoxLayout,  QMenu, QSizePolicy,
                                QPushButton, QFormLayout, QSpinBox, QGraphicsItem, QStyleOptionGraphicsItem,
                                QLineEdit, QCheckBox, QGroupBox)
@@ -32,13 +32,14 @@ from scrutiny.gui.dashboard_components.base_component import ScrutinyGUIBaseComp
 from scrutiny.gui.dashboard_components.common.graph_signal_tree import GraphSignalTree, ChartSeriesWatchableStandardItem
 from scrutiny.gui.dashboard_components.common.export_chart_csv import export_chart_csv_threaded, make_csv_headers
 from scrutiny.gui.dashboard_components.common.base_chart import (
-    ScrutinyLineSeries, ScrutinyValueAxisWithMinMax, ScrutinyChartCallout, ScrutinyChartView, ScrutinyChart)
+    ScrutinyLineSeries, ScrutinyValueAxisWithMinMax, ScrutinyChartCallout, ScrutinyChartView, ScrutinyChart,
+    ScrutinyChartToolBar)
 from scrutiny.gui.dashboard_components.continuous_graph.decimator import GraphMonotonicNonUniformMinMaxDecimator
 from scrutiny.gui.core.preferences import gui_preferences
 from scrutiny.sdk.listeners.csv_logger import CSVLogger, CSVConfig
 from scrutiny.tools.profiling import VariableRateExponentialAverager
 
-from typing import Dict, Any, Union, List, Optional, cast, Set, Generator, Iterable
+from typing import Dict, Any, Union, List, Optional, cast, Set, Generator
 
 class CsvLoggingMenuWidget(QWidget):
     _chk_enable:QCheckBox
@@ -269,7 +270,7 @@ class GraphStatistics:
             return self._bounding_box
 
         def paint(self, painter: QPainter, option: QStyleOptionGraphicsItem, widget: Optional[QWidget]=None) -> None:
-            painter.fillRect(self._text_rect, QColor(0,0,0,50))
+            painter.fillRect(self._text_rect, QColor(0xC8, 0xE8, 0xFF, 50))
             painter.setPen(QColor(0,0,0))
             painter.drawText(self._text_rect, self._text)
 
@@ -332,6 +333,8 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
 
     _chartview:ScrutinyChartView
     """The QT chartview"""
+    _chart_toolbar:ScrutinyChartToolBar
+    """The toolbar that let the user control the zoom"""
     _callout:ScrutinyChartCallout
     """A callout (popup bubble) that shows the values on hover"""
     _signal_tree:GraphSignalTree
@@ -374,8 +377,8 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
     """Graph statistics displayed to the user in real time"""
     _xaxis:ScrutinyValueAxisWithMinMax
     """The single time X-Axis"""
-    """All the Y-Axes defined by the user"""
     _yaxes:List[ScrutinyValueAxisWithMinMax]
+    """All the Y-Axes defined by the user"""
     _paused:bool
     """True when the graph is acquiring, but paused"""
     _use_opengl:bool
@@ -412,99 +415,120 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         self._allow_save_csv = False
         self._last_decimated_flush_paint_in_progress = False
         self._csv_logger = None
-        self._use_opengl = app_settings().opengl_enabled
-        
+        self._first_val_dt = None
         self._y_minmax_recompute_index=0
-        self.watchable_registry.register_watcher(self.instance_name, self._val_update_callback, self._unwatch_callback)
+        self._use_opengl = app_settings().opengl_enabled
+    
         
+        def make_right_side() -> QWidget:
+            right_side = QWidget()
+            right_side_layout = QVBoxLayout(right_side)
+
+            # Series on continuous graph don't have their X value aligned. 
+            # We can only show the value next to each point, not all together in the tree
+            self._signal_tree = GraphSignalTree(self, watchable_registry=self.watchable_registry, has_value_col=False)
+            self._signal_tree.setMinimumWidth(150)
+            self._signal_tree.signals.selection_changed.connect(self._selection_changed_slot)
+
+            self._btn_start_stop = QPushButton("")
+            self._btn_start_stop.clicked.connect(self._btn_start_stop_slot)
+            self._btn_pause = QPushButton("Pause")
+            self._btn_pause.clicked.connect(self._btn_pause_slot)
+            self._btn_clear = QPushButton("Clear")
+            self._btn_clear.clicked.connect(self._btn_clear_slot)
+            
+            param_widget = QWidget()
+            param_layout = QFormLayout(param_widget)
+
+            self._spinbox_graph_max_width = QSpinBox(self)
+            self._spinbox_graph_max_width.setMaximum(600)
+            self._spinbox_graph_max_width.setMinimum(0)
+            self._spinbox_graph_max_width.setValue(self.DEFAULT_GRAPH_MAX_WIDTH)
+            self._spinbox_graph_max_width.valueChanged.connect(self._spinbox_graph_max_width_changed_slot)
+            self._spinbox_graph_max_width.setKeyboardTracking(False)
+
+            param_layout.addRow("Graph width (s)", self._spinbox_graph_max_width)
+
+            self._feedback_label = FeedbackLabel()
+            self._feedback_label.text_label().setWordWrap(True)
+            self._graph_maintenance_timer = QTimer()
+            self._graph_maintenance_timer.setInterval(1000)
+            self._graph_maintenance_timer.timeout.connect(self._graph_maintenance_timer_slot)
+            self._csv_log_menu = CsvLoggingMenuWidget(self)
+
+            start_pause_line = QWidget()
+            start_pause_line_layout = QHBoxLayout(start_pause_line)
+            start_pause_line_layout.setContentsMargins(0,0,0,0)
+            start_pause_line_layout.addWidget(self._btn_start_stop)
+            start_pause_line_layout.addWidget(self._btn_pause)
+
+            right_side_layout.addWidget(self._signal_tree)
+            right_side_layout.addWidget(self._csv_log_menu)
+            right_side_layout.addWidget(param_widget)
+            right_side_layout.addWidget(start_pause_line)
+            right_side_layout.addWidget(self._btn_clear)
+            right_side_layout.addWidget(self._feedback_label)
+
+            return right_side
+
+        def make_left_side() -> QWidget:
+            chart = ScrutinyChart()
+            chart.layout().setContentsMargins(0,0,0,0)
+            chart.setAxisX(self._xaxis)
+            self._stats = GraphStatistics(chart)
+            self._stats.overlay().setPos(0,0)
+            
+            self._chartview = ScrutinyChartView(self)
+            self._chartview.setChart(chart)
+            self._chartview.signals.context_menu_event.connect(self._chart_context_menu_slot)
+            self._chartview.signals.paint_finished.connect(self._paint_finished_slot)
+            self._chartview.signals.zoombox_selected.connect(self._chartview_zoombox_selected_slot)
+            self._chartview.signals.key_pressed.connect(self._chartview_key_pressed_slot)
+
+            self._chart_toolbar = ScrutinyChartToolBar(chart) 
+            self._chart_toolbar.set_chartview(self._chartview)       
+            
+            self._callout = ScrutinyChartCallout(chart)
+            self._callout_hide_timer = QTimer()
+            self._callout_hide_timer.setInterval(250)
+            self._callout_hide_timer.setSingleShot(True)
+            self._callout_hide_timer.timeout.connect(self._callout_hide_timer_slot)
+
+            left_side = QWidget()
+            left_side_layout = QVBoxLayout(left_side)
+            left_side_layout.setContentsMargins(0,0,0,0)
+            left_side_layout.addWidget(self._chartview)
+
+            return left_side
+        
+        
+        right_side = make_right_side()
+        left_side = make_left_side()
+
         self._splitter = QSplitter(self)
         self._splitter.setOrientation(Qt.Orientation.Horizontal)
         self._splitter.setContentsMargins(0,0,0,0)
         self._splitter.setHandleWidth(5)
-        
-        self._chartview = ScrutinyChartView(self)
-        chart = ScrutinyChart()
-        chart.layout().setContentsMargins(0,0,0,0)
-        chart.setAxisX(self._xaxis)
-        self._chartview.setChart(chart)
-        self._chartview.signals.context_menu_event.connect(self._chart_context_menu_slot)
-        self._chartview.signals.paint_finished.connect(self._paint_finished_slot)
-        self._chartview.signals.zoombox_selected.connect(self._chartview_zoombox_selected_slot)
-        
-        self._callout = ScrutinyChartCallout(chart)
-        self._callout_hide_timer = QTimer()
-        self._callout_hide_timer.setInterval(250)
-        self._callout_hide_timer.setSingleShot(True)
-        self._callout_hide_timer.timeout.connect(self._callout_hide_timer_slot)
-        
-        self._stats = GraphStatistics(chart)
-        self._stats.overlay().setPos(0,0)
-        
-        
-        right_side = QWidget()
-        right_side_layout = QVBoxLayout(right_side)
-        self._first_val_dt = None
-
-        # Series on continuous graph don't have their X value aligned. 
-        # We can only show the value next to each point, not all together in the tree
-        self._signal_tree = GraphSignalTree(self, watchable_registry=self.watchable_registry, has_value_col=False)
-        self._signal_tree.setMinimumWidth(150)
-        self._btn_start_stop = QPushButton("")
-        self._btn_start_stop.clicked.connect(self._btn_start_stop_slot)
-        self._btn_pause = QPushButton("Pause")
-        self._btn_pause.clicked.connect(self._btn_pause_slot)
-        self._btn_clear = QPushButton("Clear")
-        self._btn_clear.clicked.connect(self._btn_clear_slot)
-        
-        self.server_manager.signals.registry_changed.connect(self._registry_changed_slot)
-        
-        param_widget = QWidget()
-        param_layout = QFormLayout(param_widget)
-
-        self._spinbox_graph_max_width = QSpinBox(self)
-        self._spinbox_graph_max_width.setMaximum(600)
-        self._spinbox_graph_max_width.setMinimum(0)
-        self._spinbox_graph_max_width.setValue(self.DEFAULT_GRAPH_MAX_WIDTH)
-        self._spinbox_graph_max_width.valueChanged.connect(self._spinbox_graph_max_width_changed_slot)
-        self._spinbox_graph_max_width.setKeyboardTracking(False)
-
-        param_layout.addRow("Graph width (s)", self._spinbox_graph_max_width)
-
-        self._feedback_label = FeedbackLabel()
-        self._feedback_label.text_label().setWordWrap(True)
-        self._graph_maintenance_timer = QTimer()
-        self._graph_maintenance_timer.setInterval(1000)
-        self._graph_maintenance_timer.timeout.connect(self._graph_maintenance_timer_slot)
-        self._csv_log_menu = CsvLoggingMenuWidget(self)
-
-        start_pause_line = QWidget()
-        start_pause_line_layout = QHBoxLayout(start_pause_line)
-        start_pause_line_layout.setContentsMargins(0,0,0,0)
-        start_pause_line_layout.addWidget(self._btn_start_stop)
-        start_pause_line_layout.addWidget(self._btn_pause)
-
-        right_side_layout.addWidget(self._signal_tree)
-        right_side_layout.addWidget(self._csv_log_menu)
-        right_side_layout.addWidget(param_widget)
-        right_side_layout.addWidget(start_pause_line)
-        right_side_layout.addWidget(self._btn_clear)
-        right_side_layout.addWidget(self._feedback_label)
-
-        self._splitter.addWidget(self._chartview)
+        self._splitter.addWidget(left_side)
         self._splitter.addWidget(right_side)
-        self._splitter.setCollapsible(0, False)
-        self._splitter.setCollapsible(1, True)
-
-        self._signal_tree.signals.selection_changed.connect(self._selection_changed_slot)
+        self._splitter.setCollapsible(0, False) # Cannot collapse the graph
+        self._splitter.setCollapsible(1, True)  # Can collapse the right menu
 
         layout = QHBoxLayout(self)
         layout.addWidget(self._splitter)
 
-    
+        # App integration
+        self.server_manager.signals.registry_changed.connect(self._registry_changed_slot)
+        self.watchable_registry.register_watcher(self.instance_name, self._val_update_callback, self._unwatch_callback)
+
+    def _chartview_key_pressed_slot(self, event:QKeyEvent) -> None:
+        if event.key() == Qt.Key.Key_Escape:
+            self._signal_tree.clearSelection()
+
     def _chartview_zoombox_selected_slot(self, zoombox:QRectF) -> None:
         if not self._chart_has_content:
             return 
-        
+        self._callout.hide()
         self._xaxis.apply_zoombox_x(zoombox)
         selected_axis_items = self._signal_tree.get_selected_axes(include_if_signal_is_selected=True)
         selected_axis_ids = [id(item.axis()) for item in selected_axis_items]
@@ -513,6 +537,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
                 yaxis.apply_zoombox_y(zoombox, margin_ratio=self.Y_AXIS_MARGIN)
         
     def _reset_zoom_slot(self) -> None:
+        self._callout.hide()
         self._xaxis.autoset_range()
         for yaxis in self._yaxes:
             yaxis.autoset_range(margin_ratio=self.Y_AXIS_MARGIN)
@@ -532,7 +557,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
     def ready(self) -> None:
         # Make the right menu as small as possible. Only works after the widget is loaded. we need the ready() function for that
         self._splitter.setSizes([self.width(), self._signal_tree.minimumWidth()])
-        self._update_widgets()
+        self._update_states()
 
     def teardown(self) -> None:
         self.watchable_registry.unregister_watcher(self._watcher_id())
@@ -604,7 +629,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         self.update_stats(use_decimated=False)  # Display 1x decimation factor and all points
         self._chartview.setEnabled(True)
         self._maybe_enable_opengl_drawing(False)  #  Required for callout to work
-        self._update_widgets()
+        self._update_states()
 
     def start_acquisition(self) -> None:
         """Start a graph acquisition"""
@@ -692,7 +717,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
             self._acquiring = True
             self._start_periodic_graph_maintenance()
             self._clear_feedback()
-            self._update_widgets()
+            self._update_states()
         except Exception as e:
             tools.log_exception(self.logger, e, "Failed to start the acquisition")
             self.stop_acquisition()
@@ -813,7 +838,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         if self.is_acquiring():
             if self._signal_tree.has_unavailable_signals():
                 self.stop_acquisition()
-                self._update_widgets()
+                self._update_states()
 
     def _flush_decimated_to_dirty_series(self) -> None:
         """Flush the decimated data buffer of all series marked as dirty. They're dirty when new data is available in 
@@ -892,7 +917,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
     def show_stats(self) -> None:
         self._stats.show_overlay()
 
-    def _update_widgets(self) -> None:
+    def _update_states(self) -> None:
         if self.is_acquiring():
             self._btn_clear.setDisabled(True)
             self._btn_start_stop.setText("Stop")
@@ -920,9 +945,13 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         if self._chart_has_content and (not self.is_autoscale_enabled() or not self.is_acquiring()):
             self._allow_save_img = True
             self._allow_save_csv = True
+            self._chart_toolbar.show()
+            self._chartview.allow_zoom(True)
         else:
             self._allow_save_img = False
             self._allow_save_csv = False
+            self._chart_toolbar.hide()
+            self._chartview.allow_zoom(False)
 
     def _watcher_id(self) -> str:
         return self.instance_name
@@ -1076,7 +1105,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         if not self.is_acquiring():
             self.clear_graph()
         self._clear_feedback()
-        self._update_widgets()
+        self._update_states()
 
     def _btn_pause_slot(self) -> None:
         """Slot when "pause" is clicked"""
@@ -1084,7 +1113,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
             self.unpause()
         else:
             self.pause()
-        self._update_widgets()
+        self._update_states()
 
     def _btn_start_stop_slot(self) -> None:
         """Slot when "start/stop" is clicked"""
@@ -1092,7 +1121,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
             self.stop_acquisition()
         else:
             self.start_acquisition()
-        self._update_widgets()
+        self._update_states()
     
     def _selection_changed_slot(self) -> None:
         """Whent he user selected/deselected a signal in the right menu"""
@@ -1179,42 +1208,9 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         save_csv_action.triggered.connect(self._save_csv_slot)
         save_csv_action.setEnabled(self._allow_save_csv)
 
-        def show_cursor() -> None:
-            self._chartview.enable_cursor()
-        def hide_cursor() -> None:
-            self._chartview.disable_cursor()
-
-        def zoom_x() -> None:
-            self._chartview.set_interaction_mode(ScrutinyChartView.InteractionMode.ZOOM)
-            self._chartview.set_zoom_type(ScrutinyChartView.ZoomType.ZOOM_X)
-        def zoom_y() -> None:
-            self._chartview.set_interaction_mode(ScrutinyChartView.InteractionMode.ZOOM)
-            self._chartview.set_zoom_type(ScrutinyChartView.ZoomType.ZOOM_Y)
-        def zoom_xy() -> None:
-            self._chartview.set_interaction_mode(ScrutinyChartView.InteractionMode.ZOOM)
-            self._chartview.set_zoom_type(ScrutinyChartView.ZoomType.ZOOM_XY)
-        def mode_select() -> None:
-            self._chartview.set_interaction_mode(ScrutinyChartView.InteractionMode.SELECT)
-        def mode_drag() -> None:
-            self._chartview.set_interaction_mode(ScrutinyChartView.InteractionMode.DRAG)
-
-        a = context_menu.addAction(assets.load_tiny_icon(assets.Icons.GraphCursor), "Show cursor")
-        a.triggered.connect(show_cursor)
-        a = context_menu.addAction(assets.load_tiny_icon(assets.Icons.GraphNoCursor), "Hide cursor")
-        a.triggered.connect(hide_cursor)
-        a = context_menu.addAction(assets.load_tiny_icon(assets.Icons.ZoomX), "Zoom X")
-        a.triggered.connect(zoom_x)
-        a = context_menu.addAction(assets.load_tiny_icon(assets.Icons.ZoomY), "Zoom Y")
-        a.triggered.connect(zoom_y)
-        a = context_menu.addAction(assets.load_tiny_icon(assets.Icons.ZoomXY), "Zoom XY")
-        a.triggered.connect(zoom_xy)
-
-        a = context_menu.addAction("Reset zoom")
-        a.triggered.connect(self._reset_zoom_slot)
-        a = context_menu.addAction("Select")
-        a.triggered.connect(mode_select)
-        a = context_menu.addAction("Drag")
-        a.triggered.connect(mode_drag)
+        reset_zoom_action = context_menu.addAction(assets.load_tiny_icon(assets.Icons.Zoom100), "Reset zoom")
+        reset_zoom_action.triggered.connect(self._reset_zoom_slot)
+        reset_zoom_action.setEnabled(self._chart_has_content)
         
         if self._stats.is_overlay_allowed():
             show_hide_stats = context_menu.addAction(assets.load_tiny_icon(assets.Icons.EyeBar), "Hide stats")

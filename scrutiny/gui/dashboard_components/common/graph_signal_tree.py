@@ -507,7 +507,6 @@ class GraphSignalTree(BaseTreeView):
             at = actions[0]
         menu.popup(self.mapToGlobal(pos), at)
 
-
     def keyPressEvent(self, event: QKeyEvent) -> None:
         if event.key() == Qt.Key.Key_Delete and not self._locked:
             model = self.model()

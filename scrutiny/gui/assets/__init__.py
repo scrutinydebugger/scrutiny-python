@@ -87,6 +87,7 @@ class Icons(enum.Enum):
     ZoomX = "zoom-x"
     ZoomY = "zoom-y"
     ZoomXY = "zoom-xy"
+    Zoom100 = "zoom-100"
     SquareRed = "square-red"
     SquareYellow = "square-yellow"
     SquareGreen = "square-green"
@@ -104,8 +105,8 @@ def icon_filename(name:Icons, format:IconFormat, iconset:IconSet=IconSet.Default
             (64,48)
         ],
         IconFormat.Large : [
-            (512,512),
-            (512,384)
+            (256,256),
+            (256,192)
         ]
     }
 
