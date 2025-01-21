@@ -589,19 +589,33 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         if not self._state.allow_zoom():
             return 
         self._callout.hide()
-        self._xaxis.apply_zoombox_x(zoombox)
+
+        # When we are paused, we want the zoom to stay within the range of that was latched when pause was called.
+        # When not pause, saturate to min/max values
+        saturate_to_latched_range = True if self._state.paused else False   
+        self._xaxis.apply_zoombox_x(zoombox, saturate_to_latched_range=saturate_to_latched_range)
         selected_axis_items = self._signal_tree.get_selected_axes(include_if_signal_is_selected=True)
         selected_axis_ids = [id(item.axis()) for item in selected_axis_items]
         for yaxis in self._yaxes:
             if id(yaxis) in selected_axis_ids or len(selected_axis_ids) == 0:
-                yaxis.apply_zoombox_y(zoombox, margin_ratio=self.Y_AXIS_MARGIN)
+                yaxis.apply_zoombox_y(
+                    zoombox, 
+                    margin_ratio=self.Y_AXIS_MARGIN, 
+                    saturate_to_latched_range=saturate_to_latched_range
+                    )
         
     def _reset_zoom_slot(self) -> None:
         """Right-click -> Reset zoom"""
+        # Fixme resetting the zoom while paused auto set the range to real data
+
         self._callout.hide()
-        self._xaxis.autoset_range()
-        for yaxis in self._yaxes:
-            yaxis.autoset_range(margin_ratio=self.Y_AXIS_MARGIN)
+        if self._state.paused:
+            # Latched when paused. guaranteed to be unzoomed because zoom is not allowed when not
+            self._reload_all_latched_ranges()
+        else:
+            self._xaxis.autoset_range()
+            for yaxis in self._yaxes:
+                yaxis.autoset_range(margin_ratio=self.Y_AXIS_MARGIN)
 
 
     def _paint_finished_slot(self) -> None:
@@ -791,6 +805,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         self.disable_repaint_rate_measurement()
         self.update_stats(use_decimated=False)
         self._maybe_enable_opengl_drawing(False)
+        self._latch_all_axis_range()
         self._state.paused=True
         self._apply_internal_state()
 
@@ -845,6 +860,15 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
 
     # region Internal
 
+    def _latch_all_axis_range(self) -> None:
+        self._xaxis.latch_range()
+        for yaxis in self._yaxes:
+            yaxis.latch_range()
+    
+    def _reload_all_latched_ranges(self) -> None:
+        self._xaxis.reload_latched_range()
+        for yaxis in self._yaxes:
+            yaxis.reload_latched_range()
 
     def _configure_and_start_csv_logger(self) -> None:
         """Start the CSV logger. Will accept incoming value update afterward. Expect that the CSV logger object is created beforehand"""
