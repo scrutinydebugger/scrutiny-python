@@ -1,3 +1,11 @@
+#    opengl.py
+#        OpenGL related stuff
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021 Scrutiny Debugger
+
 from PySide6.QtWidgets import QWidget
 
 def prepare_for_opengl(widget:QWidget) -> None:

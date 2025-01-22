@@ -121,10 +121,18 @@ class CsvLoggingMenuWidget(QWidget):
         )
 
 class RealTimeScrutinyLineSeries(ScrutinyLineSeries):
+    """Extension of a LineSeries that is meant to display data in real time.
+    It has support for decimation and some fancy tricks to kep tracks of min/max
+    value with minimal CPU computation"""
+    
     _decimator:GraphMonotonicNonUniformMinMaxDecimator
+    """The decimator that keeps the whole dataset and also provides a decimated version of it"""
     _x_minmax:MinMax
+    """Min/Max trackerfor the X values"""
     _y_minmax:MinMax
+    """Min/Max trackerfor the Y values"""
     _dirty:bool
+    """Flag indicating that the output of the decimator has new data ready to be flushed to the chart"""
 
     def __init__(self, *args:Any, **kwargs:Any) -> None:
         super().__init__(*args, **kwargs)
@@ -134,23 +142,33 @@ class RealTimeScrutinyLineSeries(ScrutinyLineSeries):
         self._dirty = False
 
     def set_x_resolution(self, resolution:float) -> bool:
+        """Set the X width used by the decimator. All the points within a moving window of this size will be clustered together"""
         changed = self._decimator.set_x_resolution(resolution)
         if changed:            
             self._dirty = True
         return changed
     
     def decimation_factor(self) -> float:
+        """Provides an estimation of the decimation factor"""
         return self._decimator.decimation_factor()
     
-    def count_visible_points(self) -> int:
+    def count_decimated_points(self) -> int:
+        """Count the number of points at the output of the decimator"""
         return len(self._decimator.get_decimated_buffer())
 
     def count_all_points(self) -> int:
+        """Count the number of points at the input of the decimator (full dataset)"""
         return len(self._decimator.get_input_buffer())
 
     def add_point(self, point:QPointF) -> int:
+        """Adds a point to the decimator input. New output points may or may not be available after
+
+        :param point: The point to add
+        :return: The number of new points available at the output. May be bigger than 1
+        """
         n = self._decimator.add_point(point)    # Can have 2 points out for a single in (min/max)
         if n > 0:
+            # New data available at the output. update the min/max in real time for axis autorange
             start_index = len(self._decimator.get_decimated_buffer())-n     # Avoid negative slice. Not all container supports it
             for p in self._decimator.get_decimated_buffer()[start_index:]:
                 self._y_minmax.update(p.y())
@@ -159,50 +177,67 @@ class RealTimeScrutinyLineSeries(ScrutinyLineSeries):
         return n
     
     def delete_up_to_x_without_flushing(self, x:float) -> None:
+        """Delete both input and output data up to a value of X specified. Assumes a monotonic X axis
+        
+        :param x: The minimum X value allowed. Any points with a X value smaller than this will get deleted
+        
+        """
         in_deleted, out_deleted = self._decimator.delete_data_up_to_x(x)
         if out_deleted > 0: # That affects the visible graph
             self._dirty = True
     
     def get_last_x(self) -> Optional[float]:
+        """Return the most recent point from the input buffer"""
         buffer = self._decimator.get_input_buffer()
         if len(buffer) == 0:
             return None
         return buffer[-1].x()
 
     def get_first_x(self) -> Optional[float]:
+        """Return the oldest point from the input buffer"""
         buffer = self._decimator.get_input_buffer()
         if len(buffer) == 0:
             return None
         return buffer[0].x()
     
     def get_last_decimated_x(self) -> Optional[float]:
+        """Return the most recent point fromthe output buffer (decimated buffer)"""
         buffer = self._decimator.get_decimated_buffer()
         if len(buffer) == 0:
             return None
         return buffer[-1].x()
 
     def get_first_decimated_x(self) -> Optional[float]:
+        """Return the oldest point fromthe output buffer (decimated buffer)"""
         buffer = self._decimator.get_decimated_buffer()
         if len(buffer) == 0:
             return None
         return buffer[0].x()
 
     def flush_decimated(self) -> None:
+        """Copy the decimator output buffer (decimated) into the chart buffer for display"""
         self.replace(self._decimator.get_decimated_buffer())
         self._dirty = False
     
     def flush_full_dataset(self) -> None:
+        """Copy the decimator input buffer (full dataset) into the chart buffer for display"""
         self.replace(self._decimator.get_input_buffer())
 
     def is_dirty(self) -> bool:
         return self._dirty
 
     def stop_decimator(self) -> None:
+        """Stops the decimator, Any input pointed being held for decimation will be moved to the output"""
         self._decimator.force_flush_pending()
 
     def recompute_minmax(self) -> None:
-        decimated_buffer = self._decimator.get_decimated_buffer()
-        unprocessed_inputs = self._decimator.get_unprocessed_input()
+        """Recompute the min/max values of the whole dataset"""
+
+        # Since the decimator always keeps the min/max of a cluster, we can safely use the decimated buffer to 
+        # accurately compute the min/max of the whole dataset. We need to take in account the few points at the
+        # end of the input buffer not yet moved to the output
+        decimated_buffer = self._decimator.get_decimated_buffer()       # The output buffer
+        unprocessed_inputs = self._decimator.get_unprocessed_input()    # The few most recent points at the input buffer
         
         self._x_minmax.clear()
         self._y_minmax.clear()
@@ -216,15 +251,19 @@ class RealTimeScrutinyLineSeries(ScrutinyLineSeries):
         self._y_minmax.update_from_many([p.y() for p in unprocessed_inputs])
 
     def x_min(self) -> Optional[float]:
+        """The smallest X value in the whole dataset"""
         return self._x_minmax.min()
     
     def x_max(self) -> Optional[float]:
+        """The largest X value in the whole dataset"""
         return self._x_minmax.max()
     
     def y_min(self) -> Optional[float]:
+        """The smallest Y value in the whole dataset"""
         return self._y_minmax.min()
     
     def y_max(self) -> Optional[float]:
+        """The largest Y value in the whole dataset"""
         return self._y_minmax.max()
 
 class GraphStatistics:
@@ -277,12 +316,19 @@ class GraphStatistics:
 
 
     visible_points:int
+    """Number of points drawn on the chart"""
     total_points:int
+    """Number of points stored in memory that could go on the graph (does not include points so old that they get removed)"""
     decimation_factor:float
+    """Ratio of visible points/total points"""
     opengl:bool
+    """Says if OpenGL is activated"""
     repaint_rate:VariableRateExponentialAverager
+    """Estimated repaint rate in number of repaint/sec"""
     _overlay:Overlay
+    """The GraphicItem overlay being displayed on top of the chart"""
     _allow_show_overlay:bool
+    """A flag enabling/disabling the overlay"""
 
     def __init__(self, draw_zone:Optional[QGraphicsItem] = None) -> None:
         self._allow_show_overlay = True
@@ -324,10 +370,13 @@ class GraphStatistics:
 @dataclass
 class ContinuousGraphState:
     acquiring:bool
+    """We are subscribed to new data update. Data are being actively streamed by the server and points are logged"""
     paused:bool
+    """Values are still streamed by the server and logged in memory but are not displayed on the graph allowing the user to inspect."""
     has_content:bool
+    """Indicates that the graph is non-empty."""
     use_opengl:bool
-    allow_overlay:bool
+    """Indicates that we are using opengl. Coming from an application wide parameter"""
     
     def autoscale_enabled(self) -> bool:
         return self.acquiring and not self.paused and self.has_content
@@ -366,7 +415,7 @@ class ContinuousGraphState:
         return not self.paused
     
     def should_display_overlay(self) -> bool:
-        return self.has_content and self.allow_overlay
+        return self.has_content
     
     def enable_clear_button(self) -> bool:
         return self.has_content and not self.acquiring
@@ -472,8 +521,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
             acquiring=False,
             paused=False,
             has_content=False,
-            use_opengl=app_settings().opengl_enabled,
-            allow_overlay=True
+            use_opengl=app_settings().opengl_enabled
         )
     
         
@@ -606,8 +654,6 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         
     def _reset_zoom_slot(self) -> None:
         """Right-click -> Reset zoom"""
-        # Fixme resetting the zoom while paused auto set the range to real data
-
         self._callout.hide()
         if self._state.paused:
             # Latched when paused. guaranteed to be unzoomed because zoom is not allowed when not
@@ -630,17 +676,21 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         InvokeQueued(set_paint_not_in_progress)
         
     def ready(self) -> None:
+        """Called when the component is inside the dashboard and its dimensions are computed"""
         # Make the right menu as small as possible. Only works after the widget is loaded. we need the ready() function for that
         self._splitter.setSizes([self.width(), self._signal_tree.minimumWidth()])
         self._apply_internal_state()
 
     def teardown(self) -> None:
+        """Called when the component is removed from the dashboard"""
         self.watchable_registry.unregister_watcher(self._watcher_id())
 
     def get_state(self) -> Dict[Any, Any]:
+        """For dashboard save"""
         raise NotImplementedError("Not implemented")
 
     def load_state(self, state: Dict[Any, Any]) -> None:
+        """For dashboard reload"""
         raise NotImplementedError("Not implemented")
 
 
@@ -682,26 +732,20 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         if not self._feedback_label.is_error():
             self._feedback_label.clear()    # Remove CSV saving message
 
-        self._chartview.setDisabled(True)       # Disable while we do lots of operations on the graph 
+        self._chartview.setDisabled(True)   # Disable while we do lots of operations on the graph 
 
         for series in self._all_series():
             series.stop_decimator()         # Flush pending data to the output. Not necessary, future proofing here
             series.flush_full_dataset()     # When stopped, the user wants to see everything.CPU can handle a single draw. Require all data for CSV export.
         
-        self._recompute_xaxis_minmax_and_delete_old_data()  # Doesn't change the range, just finds the min/max
-        self._round_robin_recompute_single_series_min_max(full=True)        # Update a single series at a time to reduce the load on the CPU
-        self._update_yaxes_minmax_based_on_series_minmax()                  # Recompute min/max. Only way to shrink the scale reliably.
-
-        #if self.is_autoscale_enabled():
-        #    self._xaxis.autoset_range()         # Range based on min/max computed just above
-        #    for series in self._all_series():
-        #        yaxis = self._get_series_yaxis(series)
-        #        yaxis.autoset_range(margin_ratio=self.Y_AXIS_MARGIN)    # Range based on min/max computed just above
+        self._recompute_xaxis_minmax_and_delete_old_data()              # Doesn't change the range, just finds the min/max
+        self._round_robin_recompute_single_series_min_max(full=True)    # Update a single series at a time to reduce the load on the CPU
+        self._update_yaxes_minmax_based_on_series_minmax()              # Recompute min/max. Only way to shrink the scale reliably.
 
         self.disable_repaint_rate_measurement()
-        self.update_stats(use_decimated=False)  # Display 1x decimation factor and all points
+        self.update_stats(use_decimated=False)      # Display 1x decimation factor and all points
         self._chartview.setEnabled(True)
-        self._maybe_enable_opengl_drawing(False)  #  Required for callout to work
+        self._maybe_enable_opengl_drawing(False)    # Required for callout to work
         self._apply_internal_state()
 
     def start_acquisition(self) -> None:
@@ -917,12 +961,15 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
                 self._last_decimated_flush_paint_in_progress = True
 
     def _get_item_series(self, item:ChartSeriesWatchableStandardItem) -> RealTimeScrutinyLineSeries:
+        """Return the series tied to a Tree Item (right menu)"""
         return cast(RealTimeScrutinyLineSeries, item.series())
     
     def _get_series_yaxis(self, series:RealTimeScrutinyLineSeries) -> ScrutinyValueAxisWithMinMax:
+        """Return the Y-Axis tied to a series"""
         return cast(ScrutinyValueAxisWithMinMax, self._chartview.chart().axisY(series))
     
     def _all_series(self) -> Generator[RealTimeScrutinyLineSeries, None, None]:
+        """Return the list of all series in the graph"""
         for item in self._serverid2sgnal_item.values():
             yield self._get_item_series(item)
 
@@ -950,7 +997,11 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
     def disable_repaint_rate_measurement(self) -> None:
         self._stats.repaint_rate.disable()
 
-    def update_stats(self, use_decimated:Optional[bool]=None) -> None:
+    def update_stats(self, use_decimated:Optional[bool]=False) -> None:
+        """Update the stats displayed at the top left region of the graph
+        :param use_decimated: When ``True``, the decimated buffer is used. When ``False``
+            the full dataset is used, giving an effective decimation ratio of 1x and no points hidden.
+        """
         if use_decimated is None:
             use_decimated = self._state.should_use_decimated_data()
         self._stats.repaint_rate.update()
@@ -960,32 +1011,37 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         self._stats.total_points = 0
         all_series = list(self._all_series())
         if use_decimated:
+            # The decimator is active, we want to show stats about the decimated dataset to the user
             nb_series = len(all_series)
             if nb_series > 0:
                 per_series_weight = 1/nb_series
                 for series in all_series:
                     self._stats.decimation_factor += series.decimation_factor() * per_series_weight
-                    self._stats.visible_points+=series.count_visible_points()
+                    self._stats.visible_points+=series.count_decimated_points()
                     self._stats.total_points+=series.count_all_points()
         else:
-            self._stats.decimation_factor = 1
+            # The decimator is not active (graph paused or stopped). We're showing the full dataset
+            self._stats.decimation_factor = 1               # No points hidden
             total_points = 0
             for series in all_series:
-                total_points  += series.count_all_points()
-            self._stats.visible_points = total_points
-            self._stats.total_points = total_points
+                total_points  += series.count_all_points()  # No points hidden
+            self._stats.visible_points = total_points       # No points hidden
+            self._stats.total_points = total_points         # No points hidden
 
         if self._state.should_display_overlay():
             self._stats.update_overlay()
 
     def _clear_stats_and_hide(self)->None:
+        """Make the stats overlay go away and reset all the numbers to their default value"""
         self._stats.clear()
         self._stats.hide_overlay()
     
     def show_stats(self) -> None:
+        """Display the stats overlay"""
         self._stats.show_overlay()
 
     def _apply_internal_state(self) -> None:
+        """Update all the widgets based on our internal state variables"""
         if self._state.acquiring:
             self._btn_start_stop.setText("Stop")
         else:
@@ -1211,6 +1267,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
                 self._report_info(f"Writing: {filepath.name}")
 
     def _series_hovered_slot(self, signal_item:ChartSeriesWatchableStandardItem, point:QPointF, state:bool) -> None:
+        """Called by QtChart when the mouse is over a point of a series. state=``True`` when the mouse enter the point. ``False`` when it leaves"""
         # FIXME : Snap zone is too small. QT source code says it is computed with markersize, but changing it has no effect.
         must_show = state
         if not self._state.allow_display_callout():
