@@ -6,9 +6,14 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
+__all__ = [
+    'make_csv_headers',
+    'export_chart_csv_threaded'
+]
+
 from datetime import datetime, timedelta
 import csv
-
+from pathlib import Path
 
 from PySide6.QtCharts import QLineSeries
 
@@ -17,19 +22,65 @@ from scrutiny import sdk
 from scrutiny import tools
 from scrutiny.gui.dashboard_components.common.graph_signal_tree import AxisContent
 from scrutiny.gui.core.preferences import gui_preferences
-from scrutiny.gui.core.watchable_registry import WatchableRegistry
 
-from typing import Optional, List, cast,Callable, Union
+from typing import Optional, List, Callable, Union
+
+def make_csv_headers(
+        device:Optional[sdk.DeviceInfo] = None, 
+        sfd:Optional[sdk.SFDInfo] = None,
+        datetime_format:Optional[str] = None
+        ) -> List[List[str]]:
+    """Helper to make a graph export CSV file header. Contains metadata about the acquisition
+    :param device: Info about the device connected when the graph was acquired
+    :param sfd: The Scrutiny Firmware Description loaded when the graph was acquired
+    :param datetime_format: The datetime string format to use
+    """
+    if datetime_format is None:
+        datetime_format = gui_preferences.default().long_datetime_format()
+    now_str = datetime.now().strftime(datetime_format)
+    device_id = "N/A"
+    firmware_id = "N/A"
+    project_name = "N/A"
+
+    if device is not None:
+        device_id = device.device_id
+
+    if sfd is not None:
+        firmware_id = sfd.firmware_id
+        if sfd.metadata is not None:
+            if sfd.metadata.project_name:
+                project_name = sfd.metadata.project_name
+                if sfd.metadata.version is not None:
+                    project_name += " V" + sfd.metadata.version
+    return [
+        ['Created on', now_str],
+        ['Created with', f"Scrutiny V{scrutiny.__version__}"],
+        ['Device ID', device_id],       # ID hardcoded in the device firmware
+        ['Firmware ID', firmware_id],   # ID inside the SFD. Will normally match the device ID unless the user forced the server to use a different firmware
+        ['Project name', project_name]
+    ]
+
 
 def export_chart_csv_threaded(
-        filename:str, 
+        filename:Union[str, Path], 
         signals:List[AxisContent], 
         finished_callback:Callable[[Optional[Exception]],None],
-        firmware_id:Optional[str] = None,
-        sfd_metadata:Optional[sdk.SFDMetadata] = None,
+        device:Optional[sdk.DeviceInfo] = None,
+        sfd:Optional[sdk.SFDInfo] = None,
         x_axis_name:str = 'Time (s)',
         datetime_zero_sec:Optional[datetime]=None
         ) -> None:
+    """Helper function that export a Scrutiny graph content to a CSV file.
+    The function works in a different thread and calls a callback when finished
+
+    :param filename: Name of the output file
+    :param signals: The list of signal handles to use for data fetching. Provided by :meth:`GraphSignalTree.get_signals<scrutiny.gui.dashboard_components.common.graph_signal_tree.GraphSignalTree.get_signals>`
+    :param finished_callback: A callback to be called when the job is finished or an error occured
+    :param device: Info about the device connected when the graph was acquired. Will be added to the CSV header
+    :param sfd: The Scrutiny Firmware Description loaded when the graph was acquired. Will be added to the CSV header
+    :param x_axis_name: Name of the X axis
+    :param datetime_zero_sec: The datetime associated with time 0. When provided, adds an absolute time column shown as datetime.
+    """
     
     DATETIME_HEADER='Datetime'
 
@@ -39,48 +90,41 @@ def export_chart_csv_threaded(
     for axis in signals:
         series_fqn.extend([item.fqn for item in axis.signal_items])
         series_list.extend([item.series() for item in axis.signal_items])
-    datetime_format = gui_preferences.default().long_datetime_format()
-    now_str = datetime.now().strftime(datetime_format)
-    if firmware_id is None:
-        firmware_id = "N/A"
-    project_name = "N/A"
+    
 
-    if sfd_metadata is not None:
-        if sfd_metadata.project_name is not None:
-            project_name = sfd_metadata.project_name
-            if sfd_metadata.version is not None:
-                project_name += " V" + sfd_metadata.version
-
+    file_headers = make_csv_headers(device, sfd)
     series_index = [0 for i in range(len(series_list))]
     series_points = [series.points() for series in series_list]
     actual_vals:List[Optional[float]] = [None] * len(series_list)
+    datetime_format = gui_preferences.default().long_datetime_format()
 
     def save_method() -> None:
         error:Optional[Exception] = None
         try:
             with open(filename, 'w', encoding='utf8', newline='\n') as f:
-                writer = csv.writer(f, delimiter=',', quotechar='"', escapechar='\\')
-                writer.writerow(['Created on', now_str])
-                writer.writerow(['Created with', f"Scrutiny V{scrutiny.__version__}"])
-                writer.writerow(['Firmware ID', firmware_id])
-                writer.writerow(['Project name', project_name])
+                writer = csv.writer(f, delimiter=',', quotechar='"', escapechar='\\', quoting=csv.QUOTE_NONNUMERIC)
+                # Handle file headers : i.e. metadata about the acquisition
+                for file_header in file_headers:
+                    writer.writerow(file_header)
 
-                writer.writerow([])            
+                if len(file_headers) > 0:
+                    writer.writerow([])            
                 done = False
                 headers:List[str] = []
                 watchable_paths:List[str] = []
 
+                #Make the table headers
                 if datetime_zero_sec is not None:
                     headers.append(DATETIME_HEADER)
                     watchable_paths.append("")
                 headers.extend([x_axis_name] + [series.name() for series in series_list] + ["New Values"])
-                watchable_paths.extend([""] + [WatchableRegistry.FQN.parse(fqn).path for fqn in series_fqn])
+                watchable_paths.extend([""] + series_fqn)
                 
-                writer.writerow(watchable_paths)
-                writer.writerow(headers)
-                while True:
+                writer.writerow(watchable_paths)    # Full path to the watchable
+                writer.writerow(headers)            # Nice name for the watchable
+                while True:     #  Will break when all series are dumped. they might not have the same number of points
                     x:Optional[float] = None 
-                    done = True
+                    done = True 
                     for i in range(len(series_list)):
                         if series_index[i] < len(series_points[i]):
                             done = False

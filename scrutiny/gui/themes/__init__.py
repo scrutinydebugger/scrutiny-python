@@ -17,8 +17,11 @@ class ScrutinyThemeProperties(enum.Enum):
     CHART_EMPHASIZED_SERIES_WIDTH=enum.auto()
     CHART_CALLOUT_MARKER_RADIUS=enum.auto()
     
-    WIDGET_ERROR_BACKGROUND_COLOR=enum.auto()
+    CHART_TOOLBAR_HOVERED_BUTTON_COLOR = enum.auto()
+    CHART_TOOLBAR_HOVERED_BORDER_COLOR = enum.auto()
+    CHART_TOOLBAR_SELECTED_COLOR = enum.auto()
 
+    WIDGET_ERROR_BACKGROUND_COLOR=enum.auto()
 
 class ScrutinyTheme(abc.ABC):
     

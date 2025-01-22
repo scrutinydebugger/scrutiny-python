@@ -8,8 +8,7 @@
 #   Copyright (c) 2021 Scrutiny Debugger
 
 import threading
-from scrutiny import tools
-from typing import Optional, Dict, Set, Callable, Any, TypeVar
+from typing import Optional, Dict, Set, Callable, TypeVar, ParamSpec
 
 class ThreadValidationError(Exception):
     pass
@@ -56,19 +55,20 @@ class ThreadEnforcer:
             raise ThreadValidationError(f"Not running from thread {name}. Actual thread ID ({thread_id}) is associated with these names : {thread_name_set})")
 
 T = TypeVar('T')
+P = ParamSpec('P')
 
-def enforce_thread(name:str) -> Callable[[Callable[..., T]], Callable[..., T]]:
-    def decorator(function:Callable[..., T]) -> Callable[..., T]:
-        def wrapper(*args:Any, **kwargs:Any) -> T:
+def enforce_thread(name:str) -> Callable[[Callable[P, T]], Callable[P, T]]:
+    def decorator(function:Callable[P, T]) -> Callable[P, T]:
+        def wrapper(*args:P.args, **kwargs:P.kwargs) ->  T:
             ThreadEnforcer.assert_thread(name)
             result = function(*args, **kwargs)
             return result
         return wrapper
     return decorator
 
-def thread_func(name:str) -> Callable[[Callable[..., T]], Callable[..., T]]:
-    def decorator(function:Callable[..., T]) -> Callable[..., T]:
-        def wrapper(*args:Any, **kwargs:Any) ->  T:
+def thread_func(name:str) -> Callable[[Callable[P, T]], Callable[P, T]]:
+    def decorator(function:Callable[P, T]) -> Callable[P, T]:
+        def wrapper(*args:P.args, **kwargs:P.kwargs) ->  T:
             ThreadEnforcer.register_thread(name, unique=True)
             try:
                 result = function(*args, **kwargs)

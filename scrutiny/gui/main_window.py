@@ -18,6 +18,7 @@ import PySide6QtAds  as QtAds   # type: ignore
 from scrutiny import tools
 from scrutiny.gui.app_settings import app_settings
 from scrutiny.gui.tools.invoker import InvokeQueued
+from scrutiny.gui.tools.opengl import prepare_for_opengl
 
 from scrutiny.gui.dialogs.about_dialog import AboutDialog
 from scrutiny.gui.widgets.component_sidebar import ComponentSidebar
@@ -66,16 +67,7 @@ class MainWindow(QMainWindow):
     _status_bar:StatusBar
 
     def __init__(self) -> None:
-        super().__init__()
-        if app_settings().opengl_enabled:
-            #QTBUG-108190. PySide6.4 regression. Workaround to force OpenGL to initialize
-            from PySide6.QtOpenGLWidgets import QOpenGLWidget
-            _dummy_widget = QOpenGLWidget(self) 
-            _dummy_widget.setVisible(False)
-        
-        if app_settings().debug_layout:
-            self.setStyleSheet("border:1px solid red")
-        
+        super().__init__()       
         self._dashboard_components = {}
         self._logger = logging.getLogger(self.__class__.__name__)
 
@@ -166,6 +158,8 @@ class MainWindow(QMainWindow):
         
         try:
             widget = component_class(self, name, self._watchable_registry, self._server_manager)
+            if app_settings().opengl_enabled:
+                prepare_for_opengl(widget)  # On every widget. Flaating widget creates a new window -> Must be done on each window
         except Exception as e:
             tools.log_exception(self._logger, e, f"Failed to create a dashboard component of type {component_class.__name__}")    
             return

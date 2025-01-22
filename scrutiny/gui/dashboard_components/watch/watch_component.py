@@ -58,10 +58,10 @@ class WatchComponentTreeWidget(WatchableTreeWidget):
             for item in selected_items_no_nested:
                 self.model().removeRow(item.row(), item.index().parent())
         
-        new_folder_action = context_menu.addAction(assets.load_icon(assets.Icons.TreeFolder), "New Folder")
+        new_folder_action = context_menu.addAction(assets.load_tiny_icon(assets.Icons.Folder), "New Folder")
         new_folder_action.triggered.connect(new_folder_action_slot)
         
-        remove_action = context_menu.addAction(assets.load_icon(assets.Icons.RedX), "Remove")
+        remove_action = context_menu.addAction(assets.load_tiny_icon(assets.Icons.RedX), "Remove")
         remove_action.setEnabled( len(selected_items_no_nested) > 0 )
         remove_action.triggered.connect(remove_actionslot)
         

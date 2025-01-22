@@ -18,6 +18,7 @@ from scrutiny.gui import assets
 from scrutiny.tools.thread_enforcer import register_thread
 from scrutiny.gui.core.threads import QT_THREAD_NAME
 from scrutiny.gui.tools.invoker import CrossThreadInvoker
+from scrutiny.gui.tools.opengl import prepare_for_opengl
 from scrutiny.gui.themes import set_theme
 from scrutiny.gui.themes.default_theme import DefaultTheme 
 from dataclasses import dataclass
@@ -64,7 +65,7 @@ class ScrutinyQtGUI:
     def run(self, args:List[str]) -> int:
         register_thread(QT_THREAD_NAME)
         app = QApplication(args)
-        app.setWindowIcon(QIcon(str(assets.logo_icon())))
+        app.setWindowIcon(assets.load_medium_icon(assets.Icons.ScrutinyLogo))
         app.setApplicationDisplayName("Scrutiny Debugger")
         app.setApplicationVersion(scrutiny.__version__)
 
@@ -77,6 +78,12 @@ class ScrutinyQtGUI:
         
         stylesheet = assets.load_text(['stylesheets', 'scrutiny_base.qss'])
         app.setStyleSheet(stylesheet)
+
+        if self.settings.opengl_enabled:
+            prepare_for_opengl(window)
+           
+        if self.settings.debug_layout:
+            window.setStyleSheet("border:1px solid red")
 
         CrossThreadInvoker.init()  # Internal tool to run functions in the QT Thread fromother thread
         window.show()

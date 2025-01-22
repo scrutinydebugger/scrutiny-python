@@ -39,6 +39,9 @@ class VariableRateExponentialAverager:
         if not self.enabled:
             self.reset()
             self.enabled = True
+    
+    def is_enabled(self) -> bool:
+        return self.enabled
 
     def reset(self) -> None:
         """Clear the internal states"""

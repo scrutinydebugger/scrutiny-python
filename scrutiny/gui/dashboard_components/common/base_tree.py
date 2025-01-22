@@ -157,7 +157,7 @@ class BaseTreeModel(QStandardItemModel):
             items = [self.get_item_from_serializable_index_descriptor(descriptor) for descriptor in data]
             if dest_row_index > 0:  # If we do an insert somewhere else than first location (append = -1)
                 # Let's take note of what item was before the insert point. We will use it as a reference ton find the insert index
-                # When ther eis many items to move at once because each item will changes all the indexes
+                # When there is many items to move at once because each item will changes all the indexes
                 if dest_parent_index.isValid():
                     previous_item = self.itemFromIndex(dest_parent_index).child(dest_row_index-1, nesting_col)
                 else:

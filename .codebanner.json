@@ -647,6 +647,9 @@
         },
         "scrutiny/gui/tools/min_max.py": {
             "docstring": "Helper to compute min/max on a series."
+        },
+        "scrutiny/gui/tools/opengl.py": {
+            "docstring": "OpenGL related stuff"
         }
     }
 }

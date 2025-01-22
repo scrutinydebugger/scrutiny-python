@@ -9,7 +9,6 @@
 __all__ = ['WatchComponentTreeModel']
 
 import logging
-import functools
 import enum
 
 from PySide6.QtCore import QMimeData, QModelIndex, QPersistentModelIndex, Qt, QModelIndex
@@ -259,7 +258,7 @@ class WatchComponentTreeModel(WatchableTreeModel):
                             row_index:int,
                             data:List[NodeSerializableData]) -> bool:
         """Handle a drop coming from a varlist component. The data is a list of nodes, no nesting. Each node has a Fully qualified Name that points
-        to the watchable registry"""
+        to the watchable registry"""#
         try:
             assert isinstance(data, list)
             for node in data:
@@ -268,18 +267,29 @@ class WatchComponentTreeModel(WatchableTreeModel):
                 assert 'fqn' in node
                 assert node['fqn'] is not None  # Varlist component guarantees a FQN
                 parsed_fqn = WatchableRegistry.FQN.parse(node['fqn'])
-
+                
+                parent = self.itemFromIndex(parent_index)
                 if node['type'] == 'folder':
                     folder_row = self.make_folder_row(node['text'], fqn=None, editable=True)
                     first_col = cast(BaseWatchableRegistryTreeStandardItem, folder_row[0])
-                    self.add_row_to_parent(self.itemFromIndex(parent_index), row_index, folder_row)
+                    self.add_row_to_parent(parent, row_index, folder_row)
                     self.fill_from_index_recursive(first_col, parsed_fqn.watchable_type, parsed_fqn.path, keep_folder_fqn=False, editable=True) 
+                    for item in self.get_all_watchable_items(parent):
+                        self.update_availability(item)
                     
                 elif node['type'] == 'watchable':
                     watchable_row = self.make_watchable_row(node['text'], watchable_type=parsed_fqn.watchable_type, fqn=node['fqn'], editable=True)
-                    self.add_row_to_parent(self.itemFromIndex(parent_index), row_index, watchable_row)
+                    self.add_row_to_parent(parent, row_index, watchable_row)
+
+                    main_item = watchable_row[self.nesting_col()]
+                    assert isinstance(main_item, WatchableStandardItem)
+                    self.update_availability(main_item)
                 else:
                     pass    # Silently ignore
+
+                
+            
+            
 
         except AssertionError:
             return False
@@ -321,6 +331,8 @@ class WatchComponentTreeModel(WatchableTreeModel):
                 raise NotImplementedError("Unsupported item type")
         
             self.add_row_to_parent(parent, row_index, row)
+            if isinstance(item, WatchableStandardItem):
+                self.update_availability(item)
 
             for child in sorted(descriptor['children'], key=lambda x:x['sortkey']):
                 fill_from_tree_recursive(
@@ -370,6 +382,11 @@ class WatchComponentTreeModel(WatchableTreeModel):
             rows.append(row)
 
         self.add_multiple_rows_to_parent(dest_parent, dest_row_index, rows)
+        for row in rows:
+            main_item = row[self.nesting_col()]
+            assert isinstance(main_item, WatchableStandardItem)
+            self.update_availability(main_item)
+
         return True
 
     def get_all_watchable_items(self, parent:Optional[BaseWatchableRegistryTreeStandardItem]=None) -> Generator[WatchableStandardItem, None, None]:

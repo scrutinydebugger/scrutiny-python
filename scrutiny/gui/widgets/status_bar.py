@@ -86,9 +86,9 @@ class StatusBarLabel(QWidget):
         self._use_indicator = use_indicator
 
         self._color_image_map = {
-            self.Color.RED : assets.load_pixmap('red_square-64x64.png').scaled(self.INDICATOR_SIZE, self.INDICATOR_SIZE),
-            self.Color.YELLOW : assets.load_pixmap('yellow_square-64x64.png').scaled(self.INDICATOR_SIZE, self.INDICATOR_SIZE),
-            self.Color.GREEN : assets.load_pixmap('green_square-64x64.png').scaled(self.INDICATOR_SIZE, self.INDICATOR_SIZE)
+            self.Color.RED : assets.load_medium_icon_as_pixmap(assets.Icons.SquareRed).scaled(self.INDICATOR_SIZE, self.INDICATOR_SIZE),
+            self.Color.YELLOW : assets.load_medium_icon_as_pixmap(assets.Icons.SquareYellow).scaled(self.INDICATOR_SIZE, self.INDICATOR_SIZE),
+            self.Color.GREEN : assets.load_medium_icon_as_pixmap(assets.Icons.SquareGreen).scaled(self.INDICATOR_SIZE, self.INDICATOR_SIZE)
         }
         self.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
         self._layout = QHBoxLayout(self)

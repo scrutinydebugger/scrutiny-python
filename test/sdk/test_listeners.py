@@ -13,7 +13,7 @@ from scrutiny.core.basic_types import *
 import scrutiny.sdk
 import scrutiny.sdk.client
 sdk = scrutiny.sdk  # Workaround for vscode linter and submodule on alias
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from scrutiny.sdk.listeners import BaseListener, ValueUpdate
 from scrutiny.sdk.listeners.buffered_reader_listener import BufferedReaderListener
@@ -388,12 +388,14 @@ class TestListeners(ScrutinyUnitTest):
             with listener.start():
                 with self.assertRaises(sdk.exceptions.NotAllowedError):
                     listener.unsubscribe(self.w1)   # Not allowed in this lsitener. Column count is fixed
+                dt = datetime.now()
                 count = 10
                 for i in range(count):
-                    self.w1._update_value(i*1.1)
-                    self.w2._update_value(-2*i)
-                    self.w3._update_value(3*i)
-                    self.w5._update_value(i%2==0)
+                    new_dt = dt + timedelta(milliseconds=i)
+                    self.w1._update_value(i*1.1, new_dt)
+                    self.w2._update_value(-2*i, new_dt)
+                    self.w3._update_value(3*i, new_dt)
+                    self.w5._update_value(i%2==0, new_dt)
                     if i == 6:
                         to_update=[self.w1, self.w5, self.w2]           # Puposely out of order
                     else:
@@ -410,19 +412,20 @@ class TestListeners(ScrutinyUnitTest):
                 wait_cond(all_received, 0.5, "Not all received in time")
                  
 
-
             self.assertTrue(os.path.exists(os.path.join(tempdir, 'my_file.csv' )))
             with open(os.path.join(tempdir, 'my_file.csv' ), 'r', encoding=csv_config.encoding, newline=csv_config.newline) as f:
                 reader = csv.reader(f, delimiter=csv_config.delimiter, quotechar=csv_config.quotechar, quoting=csv_config.quoting)
                 rows = iter(reader)
+                fullpath_headers = next(rows)
                 headers = next(rows)
-                self.assertEqual(headers[0], 'datetime' )
-                self.assertEqual(headers[1], 'time (ms)' )
+                self.assertEqual(headers[0], 'Datetime' )
+                self.assertEqual(headers[1], 'Time (s)' )
                 self.assertEqual(headers[-1], 'update flags' )
                 all_watchables = sorted([self.w1, self.w2, self.w3, self.w4, self.w5], key=lambda x: x.display_path)
                 index=2
                 for watchable in all_watchables:
-                    self.assertEqual(headers[index], watchable.display_path )
+                    self.assertEqual(fullpath_headers[index], watchable.display_path )
+                    self.assertEqual(headers[index], watchable.name )
                     index+=1
                 
                 all_rows = list(rows)
@@ -463,6 +466,7 @@ class TestListeners(ScrutinyUnitTest):
     def test_csv_writer_listener_file_split(self):
         with TemporaryDirectory() as tempdir:
             csv_config = CSVConfig()
+            dt = datetime.now()
             listener = CSVFileListener(
                 folder=tempdir,
                 filename='my_file',
@@ -472,15 +476,14 @@ class TestListeners(ScrutinyUnitTest):
                 csv_config=csv_config
             )
             listener.subscribe([self.w3, self.w4, self.w5, self.w1,self.w2,])
-            
             with listener.start():
                 count = 250
                 for i in range(count):
-                    self.w1._update_value(i*1.1)
-                    self.w2._update_value(-2*i)
-                    self.w3._update_value(3*i)
-                    self.w4._update_value(i*4.4123)
-                    self.w5._update_value(i%2==0)
+                    self.w1._update_value(i*1.1, timestamp=dt + timedelta(milliseconds=i))
+                    self.w2._update_value(-2*i, timestamp=dt + timedelta(milliseconds=i))
+                    self.w3._update_value(3*i, timestamp=dt + timedelta(milliseconds=i))
+                    self.w4._update_value(i*4.4123, timestamp=dt + timedelta(milliseconds=i))
+                    self.w5._update_value(i%2==0, timestamp=dt + timedelta(milliseconds=i))
                     listener._broadcast_update([self.w5, self.w1, self.w3, self.w4,  self.w2])  # Purposely out of order
 
                 def all_received():
@@ -509,14 +512,16 @@ class TestListeners(ScrutinyUnitTest):
                     nrow=50
                 reader = csv.reader(f, delimiter=csv_config.delimiter, quotechar=csv_config.quotechar, quoting=csv_config.quoting)
                 rows = iter(reader)
+                fullpath_headers = next(rows)
                 headers = next(rows)
-                self.assertEqual(headers[0], 'datetime' )
-                self.assertEqual(headers[1], 'time (ms)' )
+                self.assertEqual(headers[0], 'Datetime' )
+                self.assertEqual(headers[1], 'Time (s)' )
                 self.assertEqual(headers[-1], 'update flags' )
                 all_watchables = sorted([self.w1, self.w2, self.w3, self.w4, self.w5], key=lambda x: x.display_path)
                 index=2
                 for watchable in all_watchables:
-                    self.assertEqual(headers[index], watchable.display_path )
+                    self.assertEqual(fullpath_headers[index], watchable.display_path )
+                    self.assertEqual(headers[index], watchable.name )
                     index+=1
                 
                 all_rows = list(rows)

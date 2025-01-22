@@ -11,6 +11,10 @@ from PySide6.QtGui import QColor
 
 from typing import Any
 
+HOVERED_COLOR = QColor(0xE0, 0xf0, 0xFF)
+HOVERED_BORDER_COLOR = QColor(0xE0, 0xf0, 0xFF)
+SELECTED_COLOR = QColor(0xE0, 0xf0, 0xFF)
+
 class DefaultTheme(ScrutinyTheme):
 
     RED_ERROR = QColor(255,0,0)
@@ -19,7 +23,13 @@ class DefaultTheme(ScrutinyTheme):
         ScrutinyThemeProperties.CHART_NORMAL_SERIES_WIDTH : 2,
         ScrutinyThemeProperties.CHART_EMPHASIZED_SERIES_WIDTH : 3,
         ScrutinyThemeProperties.CHART_CALLOUT_MARKER_RADIUS : 5,
-        ScrutinyThemeProperties.WIDGET_ERROR_BACKGROUND_COLOR : RED_ERROR,
+
+        ScrutinyThemeProperties.CHART_TOOLBAR_HOVERED_BUTTON_COLOR : HOVERED_COLOR,
+        ScrutinyThemeProperties.CHART_TOOLBAR_HOVERED_BORDER_COLOR : HOVERED_BORDER_COLOR,
+        ScrutinyThemeProperties.CHART_TOOLBAR_SELECTED_COLOR : SELECTED_COLOR,
+
+        ScrutinyThemeProperties.WIDGET_ERROR_BACKGROUND_COLOR : RED_ERROR
+
     }
 
     def get_val(self, prop:ScrutinyThemeProperties) -> Any:
