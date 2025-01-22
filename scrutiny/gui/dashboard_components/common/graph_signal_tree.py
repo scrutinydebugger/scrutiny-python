@@ -10,9 +10,9 @@
 __all__ = [
     'AxisStandardItem',
     'ChartSeriesWatchableStandardItem',
+    'AxisContent',
     'GraphSignalModel',
-    'GraphSignalTree',
-    'AxisContent'
+    'GraphSignalTree'
 ]
 
 from dataclasses import dataclass
@@ -52,8 +52,6 @@ class AxisStandardItem(QStandardItem):
     def axis(self) -> QValueAxis:
         assert self._chart_axis is not None
         return self._chart_axis
-
-
 class ChartSeriesWatchableStandardItem(WatchableStandardItem):
     _chart_series:Optional[QLineSeries] = None
 
@@ -114,7 +112,6 @@ class ChartSeriesWatchableStandardItem(WatchableStandardItem):
         series = self.series()
         return series.isVisible()
     
-
 @dataclass
 class AxisContent:
     axis_name:str
@@ -378,7 +375,6 @@ class GraphSignalModel(BaseTreeModel):
             if item is not None:
                 item.setBackground(background_color)
                 item.setForeground(forground_color)
-
 
 class GraphSignalTree(BaseTreeView):
     

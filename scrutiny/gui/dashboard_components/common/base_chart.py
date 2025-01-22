@@ -12,7 +12,8 @@ __all__ = [
     'ScrutinyValueAxisWithMinMax',
     'ScrutinyChart',
     'ScrutinyChartCallout',
-    'ScrutinyChartView'
+    'ScrutinyChartView',
+    'ScrutinyChartToolBar'
 ]
 
 import enum

@@ -50,7 +50,6 @@ class NodeSerializableData(TypedDict):
     text: str
     fqn:Optional[str]
     
-
 class WatchableItemSerializableData(NodeSerializableData):
     """A serializable dict that represent a Watchable tree node (leaf node)"""
     pass
@@ -58,7 +57,6 @@ class WatchableItemSerializableData(NodeSerializableData):
 class FolderItemSerializableData(NodeSerializableData):
     """A serializable dict that represent a Folder tree node"""
     pass
-
 
 class BaseWatchableRegistryTreeStandardItem(QStandardItem):
     """An extension of QT QStandardItem meant to represent either a folder or a watchable
@@ -89,7 +87,6 @@ class BaseWatchableRegistryTreeStandardItem(QStandardItem):
     def fqn(self) -> Optional[str]:
         """Returns the WatchableRegistry Fully Qualified Name if available"""
         return self._fqn
-
 
 class FolderStandardItem(BaseWatchableRegistryTreeStandardItem):
     """A tree model QStandardItem that represent a folder

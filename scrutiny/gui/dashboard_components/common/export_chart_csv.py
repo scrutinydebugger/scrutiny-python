@@ -6,6 +6,11 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
+__all__ = [
+    'make_csv_headers',
+    'export_chart_csv_threaded'
+]
+
 from datetime import datetime, timedelta
 import csv
 from pathlib import Path
@@ -17,7 +22,6 @@ from scrutiny import sdk
 from scrutiny import tools
 from scrutiny.gui.dashboard_components.common.graph_signal_tree import AxisContent
 from scrutiny.gui.core.preferences import gui_preferences
-from scrutiny.gui.core.watchable_registry import WatchableRegistry
 
 from typing import Optional, List, Callable, Union
 

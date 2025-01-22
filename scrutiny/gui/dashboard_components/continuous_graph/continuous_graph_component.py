@@ -124,7 +124,7 @@ class RealTimeScrutinyLineSeries(ScrutinyLineSeries):
     """Extension of a LineSeries that is meant to display data in real time.
     It has support for decimation and some fancy tricks to kep tracks of min/max
     value with minimal CPU computation"""
-    
+
     _decimator:GraphMonotonicNonUniformMinMaxDecimator
     """The decimator that keeps the whole dataset and also provides a decimated version of it"""
     _x_minmax:MinMax
