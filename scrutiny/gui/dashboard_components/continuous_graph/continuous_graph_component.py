@@ -437,6 +437,9 @@ class ContinuousGraphState:
 
     def enable_showhide_stats_button(self) -> bool:
         return self.has_content
+    
+    def enable_csv_logging_menu(self) -> bool:
+        return not self.acquiring
 
 class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
     instance_name : str
@@ -1050,7 +1053,9 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         self._btn_pause.setEnabled(self._state.enable_pause_button())
         self._btn_clear.setEnabled(self._state.enable_clear_button())
         self._chartview.allow_zoom(self._state.allow_zoom())
+        self._csv_log_menu.setEnabled(self._state.enable_csv_logging_menu())
         self.update_stats()
+
 
         if self._state.must_lock_signal_tree():
             self._signal_tree.lock()
