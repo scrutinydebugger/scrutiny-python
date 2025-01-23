@@ -630,54 +630,6 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         self.server_manager.signals.registry_changed.connect(self._registry_changed_slot)
         self.watchable_registry.register_watcher(self.instance_name, self._val_update_callback, self._unwatch_callback)
         self._apply_internal_state()
-
-    def _chartview_key_pressed_slot(self, event:QKeyEvent) -> None:
-        """Chartview Event forwarded through a signal"""
-        if event.key() == Qt.Key.Key_Escape:
-            self._signal_tree.clearSelection()
-
-    def _chartview_zoombox_selected_slot(self, zoombox:QRectF) -> None:
-        """When the chartview emit a zoombox_selected signal. Coming from either a wheel event or a selection of zoom with a rubberband"""
-        if not self._state.allow_zoom():
-            return 
-        self._callout.hide()
-
-        # When we are paused, we want the zoom to stay within the range of that was latched when pause was called.
-        # When not pause, saturate to min/max values
-        saturate_to_latched_range = True if self._state.paused else False   
-        self._xaxis.apply_zoombox_x(zoombox, saturate_to_latched_range=saturate_to_latched_range)
-        selected_axis_items = self._signal_tree.get_selected_axes(include_if_signal_is_selected=True)
-        selected_axis_ids = [id(item.axis()) for item in selected_axis_items]
-        for yaxis in self._yaxes:
-            if id(yaxis) in selected_axis_ids or len(selected_axis_ids) == 0:
-                yaxis.apply_zoombox_y(
-                    zoombox, 
-                    margin_ratio=self.Y_AXIS_MARGIN, 
-                    saturate_to_latched_range=saturate_to_latched_range
-                    )
-        
-    def _reset_zoom_slot(self) -> None:
-        """Right-click -> Reset zoom"""
-        self._callout.hide()
-        if self._state.paused:
-            # Latched when paused. guaranteed to be unzoomed because zoom is not allowed when not
-            self._reload_all_latched_ranges()
-        else:
-            self._xaxis.autoset_range()
-            for yaxis in self._yaxes:
-                yaxis.autoset_range(margin_ratio=self.Y_AXIS_MARGIN)
-
-
-    def _paint_finished_slot(self) -> None:
-        """Used to throttle the update rate if the CPU can't follow. Prevent any chart update while repaint is in progress"""
-        self._stats.repaint_rate.add_data(1)
-
-        def set_paint_not_in_progress() -> None:
-            self._last_decimated_flush_paint_in_progress = False
-            if not self._state.paused:
-                self._flush_decimated_to_dirty_series()
-
-        InvokeQueued(set_paint_not_in_progress)
         
     def ready(self) -> None:
         """Called when the component is inside the dashboard and its dimensions are computed"""
@@ -697,6 +649,10 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         """For dashboard reload"""
         raise NotImplementedError("Not implemented")
 
+    def visibilityChanged(self, visible:bool) -> None:
+        """Called when the dashboard component is either hidden or showed"""
+        self._chartview.setEnabled(visible)
+            
 
     # region Controls
     def clear_graph(self) -> None:
@@ -1216,6 +1172,54 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
     # endregion Internal
 
     # region SLOTS
+    def _chartview_key_pressed_slot(self, event:QKeyEvent) -> None:
+        """Chartview Event forwarded through a signal"""
+        if event.key() == Qt.Key.Key_Escape:
+            self._signal_tree.clearSelection()
+
+    def _chartview_zoombox_selected_slot(self, zoombox:QRectF) -> None:
+        """When the chartview emit a zoombox_selected signal. Coming from either a wheel event or a selection of zoom with a rubberband"""
+        if not self._state.allow_zoom():
+            return 
+        self._callout.hide()
+
+        # When we are paused, we want the zoom to stay within the range of that was latched when pause was called.
+        # When not pause, saturate to min/max values
+        saturate_to_latched_range = True if self._state.paused else False   
+        self._xaxis.apply_zoombox_x(zoombox, saturate_to_latched_range=saturate_to_latched_range)
+        selected_axis_items = self._signal_tree.get_selected_axes(include_if_signal_is_selected=True)
+        selected_axis_ids = [id(item.axis()) for item in selected_axis_items]
+        for yaxis in self._yaxes:
+            if id(yaxis) in selected_axis_ids or len(selected_axis_ids) == 0:
+                yaxis.apply_zoombox_y(
+                    zoombox, 
+                    margin_ratio=self.Y_AXIS_MARGIN, 
+                    saturate_to_latched_range=saturate_to_latched_range
+                    )
+        
+    def _reset_zoom_slot(self) -> None:
+        """Right-click -> Reset zoom"""
+        self._callout.hide()
+        if self._state.paused:
+            # Latched when paused. guaranteed to be unzoomed because zoom is not allowed when not
+            self._reload_all_latched_ranges()
+        else:
+            self._xaxis.autoset_range()
+            for yaxis in self._yaxes:
+                yaxis.autoset_range(margin_ratio=self.Y_AXIS_MARGIN)
+
+
+    def _paint_finished_slot(self) -> None:
+        """Used to throttle the update rate if the CPU can't follow. Prevent any chart update while repaint is in progress"""
+        self._stats.repaint_rate.add_data(1)
+
+        def set_paint_not_in_progress() -> None:
+            self._last_decimated_flush_paint_in_progress = False
+            if not self._state.paused:
+                self._flush_decimated_to_dirty_series()
+
+        InvokeQueued(set_paint_not_in_progress)
+        
     def _btn_clear_slot(self) -> None:
         """Slot when "clear" is clicked"""
         self.clear_graph()
