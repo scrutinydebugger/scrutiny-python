@@ -78,6 +78,8 @@ class GraphMonotonicNonUniformMinMaxDecimator:
 
 
     def _update_output_data_from_start_index(self) -> int:
+        if len(self._input_dataset) == 0:
+            return 0
         point_added_count = 0
         done = False
         while not done:
