@@ -166,6 +166,8 @@ class CSVLogger:
 
         self.set_file_headers(file_headers)
 
+    def get_folder(self) -> Path:
+        return Path(self._folder_abs)
 
     def set_file_headers(self, file_headers:List[List[str]]) -> None:
         """Configure the list of headers to add at the top of the file before writing the value table"""

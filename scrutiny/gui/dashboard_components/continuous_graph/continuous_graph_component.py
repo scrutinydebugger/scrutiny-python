@@ -12,6 +12,8 @@ import math
 from pathlib import Path
 import logging
 from dataclasses import dataclass
+import re
+import os
 
 from PySide6.QtGui import QPainter, QFontMetrics, QFont, QColor, QContextMenuEvent, QKeyEvent
 from PySide6.QtWidgets import (QHBoxLayout, QSplitter, QWidget, QVBoxLayout,  QMenu, QSizePolicy,
@@ -95,15 +97,43 @@ class CsvLoggingMenuWidget(QWidget):
             self._gb_content.setVisible(False)
 
     def _browse_clicked_slot(self) -> None:
-        folder = prompt.get_save_folderpath_from_last_save_dir(self, "Select a folder")
+        actual_folder:Optional[Path] = None # USe last save dir if None
+        if os.path.isdir(self._txt_folder.text()):
+            actual_folder = Path(os.path.normpath(self._txt_folder.text()))
+            actual_folder = actual_folder.absolute()
+
+        folder = prompt.get_save_folderpath_from_last_save_dir(self, "Select a folder", save_dir=actual_folder)
         if folder is not None:
             self._txt_folder.setText(str(folder))
     
     def require_csv_logging(self) -> bool:
         return self._chk_enable.isChecked()
+
+    def validate(self) -> None:
+        folder = self._txt_folder.text()
+        if len(folder) == 0:
+            raise ValueError("No folder selected")
+        filename_pattern = self._txt_filename_pattern.text()
+        if len(filename_pattern) == 0:
+            raise ValueError("No filename prefix provided")
+
+        valid_filename = re.compile(r"^[A-Za-z0-9\._\-\(\)]+$")
+        if not valid_filename.match(filename_pattern):
+            raise ValueError("Invalid characters in filename")
+        
+        folder = os.path.normpath(folder)
+        if not os.path.isabs(folder):
+            folder = os.path.normpath(os.path.abspath(folder))
+
+        if not os.path.isdir(folder):
+            raise FileNotFoundError(f"Folder {folder} does not exist")
+
+        self._txt_folder.setText(folder)
     
     def make_csv_logger(self, logging_logger:Optional[logging.Logger] = None)  -> CSVLogger:
         # Validation happens inside the constructor
+        self.validate()
+
         csv_config = CSVConfig(
             delimiter=',',
             newline='\n'
@@ -770,6 +800,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
                 try:
                     self._csv_logger = self._csv_log_menu.make_csv_logger(logging_logger=self.logger)
                     self._configure_and_start_csv_logger()
+                    gui_preferences.default().set_last_save_dir(self._csv_logger.get_folder())
                 except Exception as e:
                     self._csv_logger = None
                     self._report_error(f"Cannot start CSV logging. {e}" )
@@ -1219,7 +1250,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
                 self._flush_decimated_to_dirty_series()
 
         InvokeQueued(set_paint_not_in_progress)
-        
+
     def _btn_clear_slot(self) -> None:
         """Slot when "clear" is clicked"""
         self.clear_graph()
