@@ -592,6 +592,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
             self._chartview.signals.paint_finished.connect(self._paint_finished_slot)
             self._chartview.signals.zoombox_selected.connect(self._chartview_zoombox_selected_slot)
             self._chartview.signals.key_pressed.connect(self._chartview_key_pressed_slot)
+            self._chartview.set_interaction_mode(ScrutinyChartView.InteractionMode.SELECT_ZOOM)
 
             self._chart_toolbar = ScrutinyChartToolBar(chart) 
             self._chart_toolbar.set_chartview(self._chartview)       

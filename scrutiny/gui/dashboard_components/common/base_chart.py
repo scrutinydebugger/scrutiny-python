@@ -339,9 +339,8 @@ class ScrutinyChartView(QChartView):
     """The minimum size the rubberband to emit a zoom event. Prevent accidental zooms"""
 
     class InteractionMode(enum.Enum):
-        SELECT=enum.auto()
-        DRAG=enum.auto()
-        ZOOM=enum.auto()
+        SELECT_ZOOM=enum.auto()
+        #DRAG=enum.auto()       # todo
 
     class ZoomType(enum.Enum):
         ZOOM_X=enum.auto()
@@ -375,7 +374,7 @@ class ScrutinyChartView(QChartView):
         self._rubberband_origin = QPointF()
         self._rubberband_end = QPointF()
         self._rubberband_valid= False
-        self._interaction_mode = self.InteractionMode.SELECT
+        self._interaction_mode = self.InteractionMode.SELECT_ZOOM
         self._zoom_type = self.ZoomType.ZOOM_XY
         self._wheel_zoom_factor_per_120deg = self.DEFAULT_WHEEL_ZOOM_FACTOR_PER_120DEG
         self._zoom_allowed = False
@@ -456,7 +455,7 @@ class ScrutinyChartView(QChartView):
         super().wheelEvent(event)
 
     def mousePressEvent(self, event:QMouseEvent) -> None: 
-        if self._interaction_mode == self.InteractionMode.ZOOM and self._zoom_allowed:
+        if self._interaction_mode == self.InteractionMode.SELECT_ZOOM and self._zoom_allowed:
             # In zoom mode, we initialize a rubber band
             event.accept()
             plotarea = self.chart().plotArea()
@@ -480,7 +479,7 @@ class ScrutinyChartView(QChartView):
         super().mousePressEvent(event)
 
     def mouseMoveEvent(self, event:QMouseEvent) -> None:
-        if self._interaction_mode == self.InteractionMode.ZOOM and self._zoom_allowed:
+        if self._interaction_mode == self.InteractionMode.SELECT_ZOOM and self._zoom_allowed:
             # In zoom mode, we resize the rubber band
             event.accept()
             if self._rubber_band.isVisible():   # There's a rubber band active (MousePress happened before)
@@ -505,7 +504,7 @@ class ScrutinyChartView(QChartView):
 
     def mouseReleaseEvent(self, event:QMouseEvent) -> None:
         """When the mouse is released on the chartview"""
-        if self._interaction_mode == self.InteractionMode.ZOOM and self._zoom_allowed:
+        if self._interaction_mode == self.InteractionMode.SELECT_ZOOM and self._zoom_allowed:
             # In zoom mode, we release the rubberband and compute a new zoom box that we will broadcast
             event.accept()
             if self._rubberband_valid:  # Paranoid check to avoid using stalled values
@@ -700,7 +699,7 @@ class ScrutinyChartToolBar(QGraphicsItem):
         if self._chartview is None:
             return
         # Change the chartview behavior
-        self._chartview.set_interaction_mode(ScrutinyChartView.InteractionMode.ZOOM)
+        self._chartview.set_interaction_mode(ScrutinyChartView.InteractionMode.SELECT_ZOOM)
         self._chartview.set_zoom_type(ScrutinyChartView.ZoomType.ZOOM_X)
         
         # Visual feedback
@@ -712,7 +711,7 @@ class ScrutinyChartToolBar(QGraphicsItem):
         if self._chartview is None:
             return
         # Change the chartview behavior
-        self._chartview.set_interaction_mode(ScrutinyChartView.InteractionMode.ZOOM)
+        self._chartview.set_interaction_mode(ScrutinyChartView.InteractionMode.SELECT_ZOOM)
         self._chartview.set_zoom_type(ScrutinyChartView.ZoomType.ZOOM_Y)
         
         # Visual feedback
@@ -724,7 +723,7 @@ class ScrutinyChartToolBar(QGraphicsItem):
         if self._chartview is None:
             return
         # Change the chartview behavior
-        self._chartview.set_interaction_mode(ScrutinyChartView.InteractionMode.ZOOM)
+        self._chartview.set_interaction_mode(ScrutinyChartView.InteractionMode.SELECT_ZOOM)
         self._chartview.set_zoom_type(ScrutinyChartView.ZoomType.ZOOM_XY)
         # Visual feedback
         self._btn_zoom_xy.select()
