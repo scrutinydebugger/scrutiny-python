@@ -743,7 +743,6 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         self._update_yaxes_minmax_based_on_series_minmax()              # Recompute min/max. Only way to shrink the scale reliably.
 
         self.disable_repaint_rate_measurement()
-        self.update_stats(use_decimated=False)      # Display 1x decimation factor and all points
         self._chartview.setEnabled(True)
         self._maybe_enable_opengl_drawing(False)    # Required for callout to work
         self._apply_internal_state()
@@ -829,12 +828,11 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
             self._change_x_resolution(0)    # 0 mean no decimation
             self.update_emphasize_state()
             self.enable_repaint_rate_measurement()
-            self.update_stats(use_decimated=True)
-            self.show_stats()
             
             self._start_periodic_graph_maintenance()
             self._clear_feedback()
             self._apply_internal_state()
+            self.show_stats()
         except Exception as e:
             tools.log_exception(self.logger, e, "Failed to start the acquisition")
             self.stop_acquisition()
@@ -847,7 +845,6 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         for series in self._all_series():
             series.flush_full_dataset()
         self.disable_repaint_rate_measurement()
-        self.update_stats(use_decimated=False)
         self._maybe_enable_opengl_drawing(False)
         self._latch_all_axis_range()
         self._state.paused=True
@@ -862,7 +859,6 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
             series.flush_decimated()
         self._last_decimated_flush_paint_in_progress = True
         self.enable_repaint_rate_measurement()
-        self.update_stats(use_decimated=True)
         self._maybe_enable_opengl_drawing(True)
         self._state.paused=False
         self._apply_internal_state()
@@ -997,20 +993,18 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
     def disable_repaint_rate_measurement(self) -> None:
         self._stats.repaint_rate.disable()
 
-    def update_stats(self, use_decimated:Optional[bool]=False) -> None:
+    def update_stats(self) -> None:
         """Update the stats displayed at the top left region of the graph
         :param use_decimated: When ``True``, the decimated buffer is used. When ``False``
             the full dataset is used, giving an effective decimation ratio of 1x and no points hidden.
         """
-        if use_decimated is None:
-            use_decimated = self._state.should_use_decimated_data()
         self._stats.repaint_rate.update()
         self._stats.opengl = self._state.use_opengl
         self._stats.decimation_factor = 0
         self._stats.visible_points = 0
         self._stats.total_points = 0
         all_series = list(self._all_series())
-        if use_decimated:
+        if self._state.should_use_decimated_data():
             # The decimator is active, we want to show stats about the decimated dataset to the user
             nb_series = len(all_series)
             if nb_series > 0:
@@ -1056,6 +1050,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         self._btn_pause.setEnabled(self._state.enable_pause_button())
         self._btn_clear.setEnabled(self._state.enable_clear_button())
         self._chartview.allow_zoom(self._state.allow_zoom())
+        self.update_stats()
 
         if self._state.must_lock_signal_tree():
             self._signal_tree.lock()
