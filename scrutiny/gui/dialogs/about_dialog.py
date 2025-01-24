@@ -20,6 +20,7 @@ class AboutDialog(QDialog):
         super().__init__(parent) 
 
         self.setWindowTitle("About this software")
+        self.setModal(True)
         
         # TODO : make pretty
         layout = QFormLayout()
@@ -38,6 +39,7 @@ class AboutDialog(QDialog):
 
             for label in (property_label, value_label):
                 label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        
 
     
     
