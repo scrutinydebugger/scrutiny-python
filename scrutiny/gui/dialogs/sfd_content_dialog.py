@@ -30,6 +30,7 @@ class SFDContentDialog(QDialog):
         basic_gb.setTitle("Basic")
         project_gb.setTitle("Project")
         sfd_generation_gb.setTitle("SFD Generation")
+        self.setModal(True)
         
         def write_fields(gb:QGroupBox, fields:List[Tuple[str, Optional[str]]]) -> None:
             layout = QFormLayout(gb)

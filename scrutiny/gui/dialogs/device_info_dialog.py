@@ -161,6 +161,7 @@ class DeviceInfoDialog(QDialog):
         self.setWindowTitle("Device")
         layout = QVBoxLayout(self)
         layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+        self.setModal(True)
 
         def add_section(title:str) -> QVBoxLayout:
             gb = QGroupBox()

@@ -129,6 +129,17 @@ class MainWindow(QMainWindow):
         QtAds.CDockManager.setConfigFlag(QtAds.CDockManager.XmlCompressionEnabled, False)
         self._dock_manager = QtAds.CDockManager(self._dock_conainer)
         
+        def configure_new_window(win:QtAds.CFloatingDockContainer):
+            flags = win.windowFlags()
+            flags |= Qt.WindowMinimizeButtonHint
+            flags |= Qt.WindowCloseButtonHint
+            # Negate flags by forcing 32bits wide. Python keeps the same number of bit with operator~
+            flags &= (0xFFFFFFFF ^ Qt.WindowStaysOnTopHint) 
+            flags &= (0xFFFFFFFF ^ Qt.FramelessWindowHint) 
+            win.setWindowFlags(flags)
+
+        self._dock_manager.floatingWidgetCreated.connect(configure_new_window)
+        
         dock_vlayout = QVBoxLayout(self._dock_conainer)
         dock_vlayout.setContentsMargins(0,0,0,0)
         
