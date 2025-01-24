@@ -33,8 +33,10 @@ def get_save_filepath_from_last_save_dir(parent:QWidget, extension_with_dot:str,
         filename += extension_with_dot
     return Path(filename)
 
-def get_save_folderpath_from_last_save_dir(parent:QWidget, title:str="Save") -> Optional[Path]:
-    save_dir = gui_preferences.default().get_last_save_dir_or_workdir()
+def get_save_folderpath_from_last_save_dir(parent:QWidget, title:str="Save", save_dir:Optional[Path]=None) -> Optional[Path]:
+    if save_dir is None:
+        save_dir = gui_preferences.default().get_last_save_dir_or_workdir()
+    
     foldername = QFileDialog.getExistingDirectory(parent, title, str(save_dir))
     if len(foldername) == 0:
         return None     # Cancelled

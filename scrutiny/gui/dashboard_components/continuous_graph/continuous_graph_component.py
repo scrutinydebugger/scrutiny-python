@@ -12,6 +12,8 @@ import math
 from pathlib import Path
 import logging
 from dataclasses import dataclass
+import re
+import os
 
 from PySide6.QtGui import QPainter, QFontMetrics, QFont, QColor, QContextMenuEvent, QKeyEvent
 from PySide6.QtWidgets import (QHBoxLayout, QSplitter, QWidget, QVBoxLayout,  QMenu, QSizePolicy,
@@ -95,15 +97,43 @@ class CsvLoggingMenuWidget(QWidget):
             self._gb_content.setVisible(False)
 
     def _browse_clicked_slot(self) -> None:
-        folder = prompt.get_save_folderpath_from_last_save_dir(self, "Select a folder")
+        actual_folder:Optional[Path] = None # USe last save dir if None
+        if os.path.isdir(self._txt_folder.text()):
+            actual_folder = Path(os.path.normpath(self._txt_folder.text()))
+            actual_folder = actual_folder.absolute()
+
+        folder = prompt.get_save_folderpath_from_last_save_dir(self, "Select a folder", save_dir=actual_folder)
         if folder is not None:
             self._txt_folder.setText(str(folder))
     
     def require_csv_logging(self) -> bool:
         return self._chk_enable.isChecked()
+
+    def validate(self) -> None:
+        folder = self._txt_folder.text()
+        if len(folder) == 0:
+            raise ValueError("No folder selected")
+        filename_pattern = self._txt_filename_pattern.text()
+        if len(filename_pattern) == 0:
+            raise ValueError("No filename prefix provided")
+
+        valid_filename = re.compile(r"^[A-Za-z0-9\._\-\(\)]+$")
+        if not valid_filename.match(filename_pattern):
+            raise ValueError("Invalid characters in filename")
+        
+        folder = os.path.normpath(folder)
+        if not os.path.isabs(folder):
+            folder = os.path.normpath(os.path.abspath(folder))
+
+        if not os.path.isdir(folder):
+            raise FileNotFoundError(f"Folder {folder} does not exist")
+
+        self._txt_folder.setText(folder)
     
     def make_csv_logger(self, logging_logger:Optional[logging.Logger] = None)  -> CSVLogger:
         # Validation happens inside the constructor
+        self.validate()
+
         csv_config = CSVConfig(
             delimiter=',',
             newline='\n'
@@ -437,6 +467,9 @@ class ContinuousGraphState:
 
     def enable_showhide_stats_button(self) -> bool:
         return self.has_content
+    
+    def enable_csv_logging_menu(self) -> bool:
+        return not self.acquiring
 
 class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
     instance_name : str
@@ -589,6 +622,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
             self._chartview.signals.paint_finished.connect(self._paint_finished_slot)
             self._chartview.signals.zoombox_selected.connect(self._chartview_zoombox_selected_slot)
             self._chartview.signals.key_pressed.connect(self._chartview_key_pressed_slot)
+            self._chartview.set_interaction_mode(ScrutinyChartView.InteractionMode.SELECT_ZOOM)
 
             self._chart_toolbar = ScrutinyChartToolBar(chart) 
             self._chart_toolbar.set_chartview(self._chartview)       
@@ -626,54 +660,6 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         self.server_manager.signals.registry_changed.connect(self._registry_changed_slot)
         self.watchable_registry.register_watcher(self.instance_name, self._val_update_callback, self._unwatch_callback)
         self._apply_internal_state()
-
-    def _chartview_key_pressed_slot(self, event:QKeyEvent) -> None:
-        """Chartview Event forwarded through a signal"""
-        if event.key() == Qt.Key.Key_Escape:
-            self._signal_tree.clearSelection()
-
-    def _chartview_zoombox_selected_slot(self, zoombox:QRectF) -> None:
-        """When the chartview emit a zoombox_selected signal. Coming from either a wheel event or a selection of zoom with a rubberband"""
-        if not self._state.allow_zoom():
-            return 
-        self._callout.hide()
-
-        # When we are paused, we want the zoom to stay within the range of that was latched when pause was called.
-        # When not pause, saturate to min/max values
-        saturate_to_latched_range = True if self._state.paused else False   
-        self._xaxis.apply_zoombox_x(zoombox, saturate_to_latched_range=saturate_to_latched_range)
-        selected_axis_items = self._signal_tree.get_selected_axes(include_if_signal_is_selected=True)
-        selected_axis_ids = [id(item.axis()) for item in selected_axis_items]
-        for yaxis in self._yaxes:
-            if id(yaxis) in selected_axis_ids or len(selected_axis_ids) == 0:
-                yaxis.apply_zoombox_y(
-                    zoombox, 
-                    margin_ratio=self.Y_AXIS_MARGIN, 
-                    saturate_to_latched_range=saturate_to_latched_range
-                    )
-        
-    def _reset_zoom_slot(self) -> None:
-        """Right-click -> Reset zoom"""
-        self._callout.hide()
-        if self._state.paused:
-            # Latched when paused. guaranteed to be unzoomed because zoom is not allowed when not
-            self._reload_all_latched_ranges()
-        else:
-            self._xaxis.autoset_range()
-            for yaxis in self._yaxes:
-                yaxis.autoset_range(margin_ratio=self.Y_AXIS_MARGIN)
-
-
-    def _paint_finished_slot(self) -> None:
-        """Used to throttle the update rate if the CPU can't follow. Prevent any chart update while repaint is in progress"""
-        self._stats.repaint_rate.add_data(1)
-
-        def set_paint_not_in_progress() -> None:
-            self._last_decimated_flush_paint_in_progress = False
-            if not self._state.paused:
-                self._flush_decimated_to_dirty_series()
-
-        InvokeQueued(set_paint_not_in_progress)
         
     def ready(self) -> None:
         """Called when the component is inside the dashboard and its dimensions are computed"""
@@ -693,6 +679,10 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         """For dashboard reload"""
         raise NotImplementedError("Not implemented")
 
+    def visibilityChanged(self, visible:bool) -> None:
+        """Called when the dashboard component is either hidden or showed"""
+        self._chartview.setEnabled(visible)
+            
 
     # region Controls
     def clear_graph(self) -> None:
@@ -743,7 +733,6 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         self._update_yaxes_minmax_based_on_series_minmax()              # Recompute min/max. Only way to shrink the scale reliably.
 
         self.disable_repaint_rate_measurement()
-        self.update_stats(use_decimated=False)      # Display 1x decimation factor and all points
         self._chartview.setEnabled(True)
         self._maybe_enable_opengl_drawing(False)    # Required for callout to work
         self._apply_internal_state()
@@ -811,6 +800,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
                 try:
                     self._csv_logger = self._csv_log_menu.make_csv_logger(logging_logger=self.logger)
                     self._configure_and_start_csv_logger()
+                    gui_preferences.default().set_last_save_dir(self._csv_logger.get_folder())
                 except Exception as e:
                     self._csv_logger = None
                     self._report_error(f"Cannot start CSV logging. {e}" )
@@ -829,12 +819,11 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
             self._change_x_resolution(0)    # 0 mean no decimation
             self.update_emphasize_state()
             self.enable_repaint_rate_measurement()
-            self.update_stats(use_decimated=True)
-            self.show_stats()
             
             self._start_periodic_graph_maintenance()
             self._clear_feedback()
             self._apply_internal_state()
+            self.show_stats()
         except Exception as e:
             tools.log_exception(self.logger, e, "Failed to start the acquisition")
             self.stop_acquisition()
@@ -847,7 +836,6 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         for series in self._all_series():
             series.flush_full_dataset()
         self.disable_repaint_rate_measurement()
-        self.update_stats(use_decimated=False)
         self._maybe_enable_opengl_drawing(False)
         self._latch_all_axis_range()
         self._state.paused=True
@@ -862,7 +850,6 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
             series.flush_decimated()
         self._last_decimated_flush_paint_in_progress = True
         self.enable_repaint_rate_measurement()
-        self.update_stats(use_decimated=True)
         self._maybe_enable_opengl_drawing(True)
         self._state.paused=False
         self._apply_internal_state()
@@ -997,20 +984,18 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
     def disable_repaint_rate_measurement(self) -> None:
         self._stats.repaint_rate.disable()
 
-    def update_stats(self, use_decimated:Optional[bool]=False) -> None:
+    def update_stats(self) -> None:
         """Update the stats displayed at the top left region of the graph
         :param use_decimated: When ``True``, the decimated buffer is used. When ``False``
             the full dataset is used, giving an effective decimation ratio of 1x and no points hidden.
         """
-        if use_decimated is None:
-            use_decimated = self._state.should_use_decimated_data()
         self._stats.repaint_rate.update()
         self._stats.opengl = self._state.use_opengl
         self._stats.decimation_factor = 0
         self._stats.visible_points = 0
         self._stats.total_points = 0
         all_series = list(self._all_series())
-        if use_decimated:
+        if self._state.should_use_decimated_data():
             # The decimator is active, we want to show stats about the decimated dataset to the user
             nb_series = len(all_series)
             if nb_series > 0:
@@ -1056,6 +1041,9 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         self._btn_pause.setEnabled(self._state.enable_pause_button())
         self._btn_clear.setEnabled(self._state.enable_clear_button())
         self._chartview.allow_zoom(self._state.allow_zoom())
+        self._csv_log_menu.setEnabled(self._state.enable_csv_logging_menu())
+        self.update_stats()
+
 
         if self._state.must_lock_signal_tree():
             self._signal_tree.lock()
@@ -1215,6 +1203,54 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
     # endregion Internal
 
     # region SLOTS
+    def _chartview_key_pressed_slot(self, event:QKeyEvent) -> None:
+        """Chartview Event forwarded through a signal"""
+        if event.key() == Qt.Key.Key_Escape:
+            self._signal_tree.clearSelection()
+
+    def _chartview_zoombox_selected_slot(self, zoombox:QRectF) -> None:
+        """When the chartview emit a zoombox_selected signal. Coming from either a wheel event or a selection of zoom with a rubberband"""
+        if not self._state.allow_zoom():
+            return 
+        self._callout.hide()
+
+        # When we are paused, we want the zoom to stay within the range of that was latched when pause was called.
+        # When not pause, saturate to min/max values
+        saturate_to_latched_range = True if self._state.paused else False   
+        self._xaxis.apply_zoombox_x(zoombox, saturate_to_latched_range=saturate_to_latched_range)
+        selected_axis_items = self._signal_tree.get_selected_axes(include_if_signal_is_selected=True)
+        selected_axis_ids = [id(item.axis()) for item in selected_axis_items]
+        for yaxis in self._yaxes:
+            if id(yaxis) in selected_axis_ids or len(selected_axis_ids) == 0:
+                yaxis.apply_zoombox_y(
+                    zoombox, 
+                    margin_ratio=self.Y_AXIS_MARGIN, 
+                    saturate_to_latched_range=saturate_to_latched_range
+                    )
+        
+    def _reset_zoom_slot(self) -> None:
+        """Right-click -> Reset zoom"""
+        self._callout.hide()
+        if self._state.paused:
+            # Latched when paused. guaranteed to be unzoomed because zoom is not allowed when not
+            self._reload_all_latched_ranges()
+        else:
+            self._xaxis.autoset_range()
+            for yaxis in self._yaxes:
+                yaxis.autoset_range(margin_ratio=self.Y_AXIS_MARGIN)
+
+
+    def _paint_finished_slot(self) -> None:
+        """Used to throttle the update rate if the CPU can't follow. Prevent any chart update while repaint is in progress"""
+        self._stats.repaint_rate.add_data(1)
+
+        def set_paint_not_in_progress() -> None:
+            self._last_decimated_flush_paint_in_progress = False
+            if not self._state.paused:
+                self._flush_decimated_to_dirty_series()
+
+        InvokeQueued(set_paint_not_in_progress)
+
     def _btn_clear_slot(self) -> None:
         """Slot when "clear" is clicked"""
         self.clear_graph()

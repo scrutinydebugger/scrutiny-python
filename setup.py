@@ -24,6 +24,9 @@ dependencies = [
     'PySide6==6.8.1'
 ]
 
+if sys.version_info < (3,11):
+    dependencies.append("typing-extensions==4.12.2")
+
 doc_dependencies = []
 if (sys.version_info.major, sys.version_info.minor) >= (3, 9):
     doc_dependencies = [

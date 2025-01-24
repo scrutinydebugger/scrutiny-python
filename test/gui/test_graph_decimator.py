@@ -177,6 +177,10 @@ class TestGraphMonotonicNonUniformMinMaxDecimator(ScrutinyUnitTest):
         decimator.add_point(QPointF(2,0))
         self.assertEqual(len(decimator.get_decimated_dataset()), 2)
         decimator.add_point(QPointF(2.5,0))
+    
+    def test_flush_no_data(self):
+        decimator = GraphMonotonicNonUniformMinMaxDecimator()
+        decimator.force_flush_pending()
         
 if __name__ == '__main__':
     import unittest

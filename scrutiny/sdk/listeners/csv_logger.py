@@ -132,7 +132,7 @@ class CSVLogger:
             raise ValueError("Empty filename")
 
         if lines_per_file is not None:
-            regex_test=re.compile(f'{filename}_[0-9]+{self.EXTENSION}')
+            regex_test=re.compile(f'{re.escape(filename)}_[0-9]+{self.EXTENSION}')
             for file in os.listdir(folder):
                 if regex_test.match(file):
                     raise FileExistsError(f"File {os.path.join(folder, file)} exists and may conflict with the CSV output")
@@ -166,6 +166,8 @@ class CSVLogger:
 
         self.set_file_headers(file_headers)
 
+    def get_folder(self) -> Path:
+        return Path(self._folder_abs)
 
     def set_file_headers(self, file_headers:List[List[str]]) -> None:
         """Configure the list of headers to add at the top of the file before writing the value table"""

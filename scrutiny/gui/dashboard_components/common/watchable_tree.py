@@ -21,17 +21,17 @@ __all__ = [
 ]
 
 from scrutiny.sdk import WatchableType, WatchableConfiguration
-from PySide6.QtGui import  QMouseEvent, QStandardItem, QIcon, QKeyEvent
+from PySide6.QtGui import  QStandardItem, QIcon, QKeyEvent
 from PySide6.QtWidgets import  QWidget
 from PySide6.QtCore import  Qt
 from scrutiny.gui import assets
 from scrutiny.gui.core.watchable_registry import WatchableRegistry, WatchableRegistryNodeContent
 from scrutiny.gui.core.scrutiny_drag_data import WatchableListDescriptor, SingleWatchableDescriptor, ScrutinyDragData
 from scrutiny.gui.dashboard_components.common.base_tree import BaseTreeModel, BaseTreeView
-from scrutiny import tools
 
-from typing import Any, List, Optional, TypedDict,  cast, Literal, Set, Iterable, Type
-from typing_extensions import Self
+
+from scrutiny.tools.typing import *
+
 
 def get_watchable_icon(wt:WatchableType) -> QIcon:
     """Return the proper tree icon for a given watchable type (car, alias, rpv)"""
