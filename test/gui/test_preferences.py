@@ -10,6 +10,7 @@ from test.gui.base_gui_test import ScrutinyBaseGuiTest
 from scrutiny.gui.core.preferences import AppPreferenceManager, AppPreferenceManager
 from tempfile import TemporaryDirectory
 from pathlib import Path
+import json
 
 class TestGuiPreferences(ScrutinyBaseGuiTest):
     def test_save_load(self):
@@ -106,3 +107,14 @@ class TestGuiPreferences(ScrutinyBaseGuiTest):
             
             manager2 = AppPreferenceManager(Path(d))
             self.assertIsNone(manager2.global_namespace().get('asdasd'))
+
+    def test_clear_empty_namespaces(self):
+        with TemporaryDirectory() as d:
+            manager = AppPreferenceManager(Path(d))
+            manager.get_namespace("asd")
+            manager.save()
+
+            with open(manager.get_preferences_file(), 'r') as f:
+                raw_json = json.load(f)
+            
+            self.assertNotIn('asd', raw_json)

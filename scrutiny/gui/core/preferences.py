@@ -163,6 +163,7 @@ class AppPreferenceManager:
         self.save()
     
     def save(self) -> None:
+        """Saves the preferences to a .json file. Each namespace present a subdict in the file"""
         file = self.get_preferences_file()
         with tools.SuppressException():
             os.makedirs(file.parent, exist_ok=True)
@@ -177,7 +178,8 @@ class AppPreferenceManager:
                     except Exception as e:
                         tools.log_exception(self._logger, e, f"Invalid preferences for namespace {namespace_name}")
                         dtemp = {}  # Clear it
-                    dout[namespace_name] = dtemp
+                    if len (dtemp) > 0:
+                        dout[namespace_name] = dtemp
                 json.dump(dout, f, indent=4, sort_keys=True)
         except Exception as e:
             tools.log_exception(self._logger, e, "Could not save GUI preferences")
@@ -188,11 +190,13 @@ class AppPreferenceManager:
         return self._storage_folder / self.FILENAME
 
     def get_namespace(self, name:str) -> AppPreferences:
+        """Load or create a namespace"""
         if name not in self._namespaces:
             self._namespaces[name] = AppPreferences(name)
         return self._namespaces[name]
     
     def global_namespace(self) -> AppPreferences:
+        """Return the global namespace"""
         return self.get_namespace(GLOBAL_NAMESPACE)
 
 

@@ -467,6 +467,10 @@ class DeviceConfigDialog(QDialog):
         self._preferences.set_int(self.PersistentPreferences.SERIAL_DATABITS, serial_config.databits.to_int())
         self._preferences.set_float(self.PersistentPreferences.SERIAL_STOPBIT, serial_config.stopbits.to_float())
 
+        rtt_config = cast(sdk.RTTLinkConfig, self._configs[sdk.DeviceLinkType.RTT])
+        self._preferences.set_str(self.PersistentPreferences.RTT_TARGET_DEVICE, rtt_config.target_device)
+        self._preferences.set_str(self.PersistentPreferences.RTT_JLINK_INTERFACE, rtt_config.jlink_interface.to_str())
+
     def _get_selected_link_type(self) -> sdk.DeviceLinkType:
         return cast(sdk.DeviceLinkType, self._link_type_combo_box.currentData())
         
