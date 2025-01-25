@@ -424,7 +424,7 @@ class SerialLinkConfig(BaseLinkConfig):
             return float(self.value)
         
         @classmethod
-        def from_float(cls, v:float, default:Optional[Self]=None) -> Self:
+        def from_float(cls, v:float, default:Optional["Self"]=None) -> "Self":
             try:
                 return cls(v)
             except Exception:
@@ -447,7 +447,7 @@ class SerialLinkConfig(BaseLinkConfig):
             return int(self.value)
         
         @classmethod
-        def from_int(cls, v:int, default:Optional[Self]=None) -> Self:
+        def from_int(cls, v:int, default:Optional["Self"]=None) -> "Self":
             try:
                 return cls(v)
             except Exception:
@@ -471,7 +471,7 @@ class SerialLinkConfig(BaseLinkConfig):
             return self.value
         
         @classmethod
-        def from_str(cls, v:str, default:Optional[Self]=None) -> Self:
+        def from_str(cls, v:str, default:Optional["Self"]=None) -> "Self":
             try:
                 return cls(v)
             except Exception:
@@ -549,7 +549,7 @@ class RTTLinkConfig(BaseLinkConfig):
             return self.value
         
         @classmethod
-        def from_str(cls, v:str, default:Optional[Self]=None) -> Self:
+        def from_str(cls, v:str, default:Optional["Self"]=None) -> "Self":
             try:
                 return cls(v)
             except Exception:
