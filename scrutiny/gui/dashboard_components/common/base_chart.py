@@ -28,7 +28,7 @@ from scrutiny import tools
 from scrutiny.gui import assets
 from scrutiny.gui.themes import get_theme_prop, ScrutinyThemeProperties
 from scrutiny.gui.tools.min_max import MinMax
-from scrutiny.core import validation
+from scrutiny.tools import validation
 
 from typing import Any, Optional, Any, List, Tuple
 

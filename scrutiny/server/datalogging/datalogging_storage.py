@@ -18,6 +18,7 @@ import sqlite3
 import hashlib
 import types
 
+from scrutiny.server.globals import get_server_storage
 from scrutiny.core.datalogging import DataloggingAcquisition, DataSeries, AxisDefinition
 from scrutiny import tools
 from typing import List, Dict, Optional, Tuple, Type, Literal, Any
@@ -565,5 +566,4 @@ class DataloggingStorageManager:
             return oldest, newest
 
 
-GLOBAL_STORAGE = appdirs.user_data_dir('scrutiny')
-DataloggingStorage = DataloggingStorageManager(GLOBAL_STORAGE)
+DataloggingStorage = DataloggingStorageManager(str(get_server_storage()))

@@ -12,7 +12,7 @@ __all__ = ['Client']
 import scrutiny.sdk
 import scrutiny.sdk.datalogging
 from scrutiny.sdk.pending_request import PendingRequest
-from scrutiny.core import validation
+from scrutiny.tools import validation
 sdk = scrutiny.sdk
 from scrutiny.sdk import _api_parser as api_parser
 from scrutiny.sdk.definitions import *

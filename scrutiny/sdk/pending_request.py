@@ -6,7 +6,7 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
-from scrutiny.core import validation
+from scrutiny.tools import validation
 from scrutiny import sdk
 from datetime import datetime
 import threading

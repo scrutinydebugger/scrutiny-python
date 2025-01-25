@@ -143,7 +143,7 @@ class CsvLoggingMenuWidget(QWidget):
             folder = self._txt_folder.text(),
             filename = self._txt_filename_pattern.text(),
             lines_per_file = self._spin_max_line_per_file.value(),
-            datetime_format=gui_preferences.default().long_datetime_format(),
+            datetime_format=gui_preferences.global_namespace().long_datetime_format(),
             csv_config=csv_config,
             convert_bool_to_int=True,
             logger=logging_logger,
@@ -800,7 +800,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
                 try:
                     self._csv_logger = self._csv_log_menu.make_csv_logger(logging_logger=self.logger)
                     self._configure_and_start_csv_logger()
-                    gui_preferences.default().set_last_save_dir(self._csv_logger.get_folder())
+                    gui_preferences.global_namespace().set_last_save_dir(self._csv_logger.get_folder())
                 except Exception as e:
                     self._csv_logger = None
                     self._report_error(f"Cannot start CSV logging. {e}" )

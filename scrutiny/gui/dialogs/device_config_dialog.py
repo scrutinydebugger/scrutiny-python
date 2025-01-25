@@ -14,7 +14,8 @@ from scrutiny import sdk
 from scrutiny.gui.widgets.validable_line_edit import ValidableLineEdit
 from scrutiny.gui.tools.validators import IpPortValidator, NotEmptyValidator
 from scrutiny.gui.core import WidgetState
-from typing import Optional, Dict, Type, cast, Callable, Tuple
+from scrutiny.gui.core.preferences import gui_preferences, AppPreferences
+from typing import Optional, Dict, Type, cast, Callable, Tuple, List
 import logging
 import traceback
 
@@ -326,6 +327,28 @@ class RTTConfigPane(BaseConfigPane):
 
 class DeviceConfigDialog(QDialog):
 
+    class PersistentPreferences:
+        UDP_HOST = 'udp_hostname'
+        UDP_PORT = 'udp_port'
+        
+        TCP_HOST = 'tcp_hostname'
+        TCP_PORT = 'tcp_port'
+
+        SERIAL_PORT = 'serial_port'
+        SERIAL_BAUDRATE = 'serial_baudrate'
+        SERIAL_START_DELAY = 'serial_start_delay'
+        SERIAL_STOPBIT = 'serial_stopbit'
+        SERIAL_PARITY = 'serial_parity'
+        SERIAL_DATABITS = 'serial_databits'
+
+        RTT_TARGET_DEVICE = 'rtt_target_device'
+        RTT_JLINK_INTERFACE = 'rtt_jlink_interface'
+
+        @classmethod
+        def get_all(cls) -> List[str]:
+            return [attr for attr in dir(cls) if not callable(getattr(cls, attr)) and not attr.startswith("__")]
+        
+
     CONFIG_TYPE_TO_WIDGET:Dict[sdk.DeviceLinkType, Type[BaseConfigPane]] = {
         sdk.DeviceLinkType.NONE: NoConfigPane,
         sdk.DeviceLinkType.TCP: TCPConfigPane,
@@ -342,12 +365,14 @@ class DeviceConfigDialog(QDialog):
     _status_label:QLabel
     _btn_ok:QPushButton
     _btn_cancel:QPushButton
+    _preferences:AppPreferences
 
     def __init__(self, 
                  parent:Optional[QWidget]=None,  
                  apply_callback:Optional[Callable[["DeviceConfigDialog"], None]]=None 
                  ) -> None:
         super().__init__(parent)
+        self._preferences = gui_preferences.get_namespace(self.__class__.__name__)
         self._apply_callback = apply_callback
         self.logger = logging.getLogger(self.__class__.__name__)
         self.setMinimumWidth(250)
@@ -381,15 +406,67 @@ class DeviceConfigDialog(QDialog):
         self._configs = {}
         # Preload some default configs to avoid having a blank form
         self._configs[sdk.DeviceLinkType.NONE] = sdk.NoneLinkConfig()
-        self._configs[sdk.DeviceLinkType.UDP] = sdk.UDPLinkConfig(host="localhost", port=12345)
-        self._configs[sdk.DeviceLinkType.TCP] = sdk.TCPLinkConfig(host="localhost", port=12345)
-        self._configs[sdk.DeviceLinkType.Serial] = sdk.SerialLinkConfig(port="<port>", baudrate=115200, start_delay=0) # Rest has default values
-        self._configs[sdk.DeviceLinkType.RTT] = sdk.RTTLinkConfig(target_device="<device>", jlink_interface=sdk.RTTLinkConfig.JLinkInterface.SWD)
+        self._configs[sdk.DeviceLinkType.UDP] = sdk.UDPLinkConfig(
+            host=self._preferences.get_str(self.PersistentPreferences.UDP_HOST, 'localhost'), 
+            port=self._preferences.get_int(self.PersistentPreferences.UDP_PORT, 12345), 
+        )
+        
+        self._configs[sdk.DeviceLinkType.TCP] = sdk.TCPLinkConfig(
+            host=self._preferences.get_str(self.PersistentPreferences.TCP_HOST, 'localhost'), 
+            port=self._preferences.get_int(self.PersistentPreferences.TCP_PORT, 12345), 
+        )
+        
+        self._configs[sdk.DeviceLinkType.Serial] = sdk.SerialLinkConfig(
+            port=self._preferences.get_str(self.PersistentPreferences.SERIAL_PORT, '<port>'), 
+            baudrate=self._preferences.get_int(self.PersistentPreferences.SERIAL_BAUDRATE, 115200), 
+            start_delay=self._preferences.get_float(self.PersistentPreferences.SERIAL_START_DELAY, 0),
+            parity=sdk.SerialLinkConfig.Parity.from_str( 
+                self._preferences.get_str(self.PersistentPreferences.SERIAL_PARITY, sdk.SerialLinkConfig.Parity.NONE.to_str()) ,
+                sdk.SerialLinkConfig.Parity.NONE    # preference file could be corrupted
+            ),
+            stopbits=sdk.SerialLinkConfig.StopBits.from_float( 
+                self._preferences.get_float(self.PersistentPreferences.SERIAL_STOPBIT, sdk.SerialLinkConfig.StopBits.ONE.to_float()),
+                default=sdk.SerialLinkConfig.StopBits.ONE   # preference file could be corrupted
+            ),
+            databits=sdk.SerialLinkConfig.DataBits.from_int( 
+                self._preferences.get_int(self.PersistentPreferences.SERIAL_DATABITS, sdk.SerialLinkConfig.DataBits.EIGHT.to_int()),
+                default=sdk.SerialLinkConfig.DataBits.EIGHT   # preference file could be corrupted
+            )
+        )
+        
+        self._configs[sdk.DeviceLinkType.RTT] = sdk.RTTLinkConfig(
+            target_device=self._preferences.get_str(self.PersistentPreferences.RTT_TARGET_DEVICE, '<device>'), 
+            jlink_interface=sdk.RTTLinkConfig.JLinkInterface.from_str(
+                self._preferences.get_str(self.PersistentPreferences.RTT_JLINK_INTERFACE, sdk.RTTLinkConfig.JLinkInterface.SWD.to_str()),
+                sdk.RTTLinkConfig.JLinkInterface.SWD
+            )
+        )
+
 
         self._link_type_combo_box.currentIndexChanged.connect(self._combobox_changed)
         self._active_pane = NoConfigPane()
         self.swap_config_pane(sdk.DeviceLinkType.NONE)
-            
+        
+        self._preferences.prune(self.PersistentPreferences.get_all())    # Remove extra keys
+        self._commit_configs_to_preferences()   # Override any corrupted values
+    
+    def _commit_configs_to_preferences(self) -> None:
+        udp_config = cast(sdk.UDPLinkConfig, self._configs[sdk.DeviceLinkType.UDP])
+        self._preferences.set_str(self.PersistentPreferences.UDP_HOST, udp_config.host)
+        self._preferences.set_int(self.PersistentPreferences.UDP_PORT, udp_config.port)
+
+        tcp_config = cast(sdk.TCPLinkConfig, self._configs[sdk.DeviceLinkType.TCP])
+        self._preferences.set_str(self.PersistentPreferences.TCP_HOST, tcp_config.host)
+        self._preferences.set_int(self.PersistentPreferences.TCP_PORT, tcp_config.port)
+
+        serial_config = cast(sdk.SerialLinkConfig, self._configs[sdk.DeviceLinkType.Serial])
+        self._preferences.set_str(self.PersistentPreferences.SERIAL_PORT, serial_config.port)
+        self._preferences.set_int(self.PersistentPreferences.SERIAL_BAUDRATE, serial_config.baudrate)
+        self._preferences.set_float(self.PersistentPreferences.SERIAL_START_DELAY, serial_config.start_delay)
+        self._preferences.set_str(self.PersistentPreferences.SERIAL_PARITY, serial_config.parity.to_str())
+        self._preferences.set_int(self.PersistentPreferences.SERIAL_DATABITS, serial_config.databits.to_int())
+        self._preferences.set_float(self.PersistentPreferences.SERIAL_STOPBIT, serial_config.stopbits.to_float())
+
     def _get_selected_link_type(self) -> sdk.DeviceLinkType:
         return cast(sdk.DeviceLinkType, self._link_type_combo_box.currentData())
         
@@ -427,6 +504,7 @@ class DeviceConfigDialog(QDialog):
             self._configs[link_type] = config
             self._btn_ok.setEnabled(False)
             self._set_waiting_status()
+            self._commit_configs_to_preferences()
             if self._apply_callback is not None:
                 self._apply_callback(self)
 

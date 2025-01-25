@@ -16,6 +16,7 @@ from PySide6.QtWidgets import QMainWindow
 import PySide6QtAds  as QtAds   # type: ignore
 
 from scrutiny import tools
+from scrutiny.gui.core.preferences import gui_preferences
 from scrutiny.gui.app_settings import app_settings
 from scrutiny.gui.tools.invoker import InvokeQueued
 from scrutiny.gui.tools.opengl import prepare_for_opengl
@@ -224,6 +225,7 @@ class MainWindow(QMainWindow):
         self._server_manager.exit()
         self._watchable_registry.clear()
         self._dock_manager.deleteLater()
+        gui_preferences.save()  # Not supposed to raise
         super().closeEvent(event)
         
     def dashboard_clear_click(self) -> None:
