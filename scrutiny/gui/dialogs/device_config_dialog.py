@@ -12,6 +12,7 @@ from PySide6.QtGui import QIntValidator, QDoubleValidator
 from PySide6.QtCore import Qt
 from scrutiny import sdk
 from scrutiny.gui.widgets.validable_line_edit import ValidableLineEdit
+from scrutiny.gui.widgets.feedback_label import FeedbackLabel
 from scrutiny.gui.tools.validators import IpPortValidator, NotEmptyValidator
 from scrutiny.gui.core import WidgetState
 from scrutiny.gui.core.preferences import gui_preferences, AppPreferences
@@ -362,7 +363,7 @@ class DeviceConfigDialog(QDialog):
     _configs:Dict[sdk.DeviceLinkType, sdk.BaseLinkConfig]
     _active_pane:BaseConfigPane
     _apply_callback:Optional[Callable[["DeviceConfigDialog"], None]]
-    _status_label:QLabel
+    _feedback_label:FeedbackLabel
     _btn_ok:QPushButton
     _btn_cancel:QPushButton
     _preferences:AppPreferences
@@ -385,19 +386,19 @@ class DeviceConfigDialog(QDialog):
         self._link_type_combo_box.addItem("TCP/IP", sdk.DeviceLinkType.TCP)
         self._link_type_combo_box.addItem("JLink RTT", sdk.DeviceLinkType.RTT)
 
+        # Bottom part that changes based on combo box selection
         self._config_container = QWidget()
         self._config_container.setLayout(QVBoxLayout())
-        self._status_label = QLabel()
-        self._status_label.setWordWrap(True)
-        self._status_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-        self._status_label.setProperty("state", WidgetState.default)
+
+        # A feed
+        self._feedback_label = FeedbackLabel()
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         buttons.accepted.connect(self._btn_ok_click)
         buttons.rejected.connect(self._btn_cancel_click)
         
         vlayout.addWidget(self._link_type_combo_box)
         vlayout.addWidget(self._config_container)
-        vlayout.addWidget(self._status_label)
+        vlayout.addWidget(self._feedback_label)
         vlayout.addWidget(buttons)
 
         self._btn_ok = buttons.button(QDialogButtonBox.StandardButton.Ok)
@@ -451,6 +452,8 @@ class DeviceConfigDialog(QDialog):
         self._commit_configs_to_preferences()   # Override any corrupted values
     
     def _commit_configs_to_preferences(self) -> None:
+        """Put the actual state of the dialog inside the persistent preferences system
+        so that they get reloaded on next app startup"""
         udp_config = cast(sdk.UDPLinkConfig, self._configs[sdk.DeviceLinkType.UDP])
         self._preferences.set_str(self.PersistentPreferences.UDP_HOST, udp_config.host)
         self._preferences.set_int(self.PersistentPreferences.UDP_PORT, udp_config.port)
@@ -524,19 +527,13 @@ class DeviceConfigDialog(QDialog):
         self.close()
 
     def _clear_status(self) -> None:
-        self._status_label.setText("")
-        self._status_label.setProperty("state", WidgetState.default)
-        self._status_label.setCursor(self.cursor())
+        self._feedback_label.clear()
 
     def _set_error_status(self, error:str) -> None:
-        self._status_label.setText(error)
-        self._status_label.setProperty("state", WidgetState.error)
-        self._status_label.setCursor(Qt.CursorShape.IBeamCursor)
+        self._feedback_label.set_error(error)
     
     def _set_waiting_status(self) -> None:
-        self._status_label.setText("Waiting for the server...")
-        self._status_label.setProperty("state", WidgetState.default)
-        self._status_label.setCursor(Qt.CursorShape.IBeamCursor)
+        self._feedback_label.set_info("Waiting for the server...")
     
 
     def _btn_cancel_click(self) -> None:
@@ -545,7 +542,6 @@ class DeviceConfigDialog(QDialog):
         self._active_pane.load_config(config)   # Should not raise. This config was there before.
         self._clear_status()
         self.close()
-
 
     def set_config(self, link_type:sdk.DeviceLinkType, config:sdk.BaseLinkConfig ) -> None:
         """Set the config for a given link type. 
