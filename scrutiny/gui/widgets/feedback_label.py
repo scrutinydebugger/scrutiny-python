@@ -28,7 +28,7 @@ class FeedbackLabel(QWidget):
     _icon_label:QLabel
     _text_label:QLabel
     _actual_msg_type:MessageType
-    _normal_cursor:QCursor
+    _normal_cursor:Qt.CursorShape
 
     @tools.copy_type(QWidget.__init__)
     def __init__(self, *args:Any, **kwargs:Any) -> None:
