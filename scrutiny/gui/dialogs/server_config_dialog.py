@@ -14,11 +14,16 @@ from PySide6.QtGui import QIntValidator
 from scrutiny.gui.tools.validators import IpPortValidator, NotEmptyValidator
 from scrutiny.gui.widgets.validable_line_edit import ValidableLineEdit
 from scrutiny.gui.core.server_manager import ServerConfig
+from scrutiny.gui.core.preferences import gui_preferences, AppPreferences
 
 from typing import Callable, Optional
 
 
 class ServerConfigDialog(QDialog):
+    class PersistentPreferences:
+        HOSTNAME = 'server_hostname'
+        PORT = 'server_port'
+
     DEFAULT_HOSTNAME = "localhost"
     DEFAULT_PORT = 8765
 
@@ -27,6 +32,7 @@ class ServerConfigDialog(QDialog):
 
     _hostname_textbox:ValidableLineEdit
     _port_textbox:ValidableLineEdit
+    _preferences:AppPreferences
 
     _apply_callback:Optional[Callable[["ServerConfigDialog"], None]]
 
@@ -36,6 +42,7 @@ class ServerConfigDialog(QDialog):
         self.setModal(True)
         self.setWindowTitle("Server configuration")
         self._apply_callback = apply_callback
+        self._preferences = gui_preferences.get_namespace(self.__class__.__name__)
 
         layout = QVBoxLayout(self)
         form = QWidget()
@@ -61,8 +68,8 @@ class ServerConfigDialog(QDialog):
         buttons.accepted.connect(self._btn_ok_click)
         buttons.rejected.connect(self._btn_cancel_click)
 
-        self.set_port(self.DEFAULT_PORT)
-        self.set_hostname(self.DEFAULT_HOSTNAME)
+        self.set_hostname(self._preferences.get_str(self.PersistentPreferences.HOSTNAME, self.DEFAULT_HOSTNAME))
+        self.set_port(self._preferences.get_int(self.PersistentPreferences.PORT, self.DEFAULT_PORT))
 
     def get_port(self) -> int:
         return self._port
@@ -95,6 +102,8 @@ class ServerConfigDialog(QDialog):
         if valid_config:
             self._hostname = self._hostname_textbox.text()
             self._port = int(self._port_textbox.text()) # Validator is supposed to guarantee the validity of this
+            self._preferences.set(self.PersistentPreferences.HOSTNAME, self._hostname)
+            self._preferences.set(self.PersistentPreferences.PORT, self._port)
             self.close()
             if self._apply_callback is not None:
                 self._apply_callback(self)

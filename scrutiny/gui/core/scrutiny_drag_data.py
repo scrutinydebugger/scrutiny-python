@@ -18,7 +18,7 @@ import json
 from dataclasses import dataclass
 
 from PySide6.QtCore import QMimeData, QByteArray
-from scrutiny.core import validation
+from scrutiny.tools import validation
 from typing import Any, Optional, TypedDict, cast, List
 
 

@@ -17,7 +17,7 @@ from datetime import datetime, timedelta
 from dataclasses import dataclass
 from pathlib import Path
 
-from scrutiny.core import validation
+from scrutiny.tools import validation
 from scrutiny.core.basic_types import EmbeddedDataType
 from scrutiny.sdk.listeners import ValueUpdate
 from scrutiny.sdk.watchable_handle import WatchableHandle

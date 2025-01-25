@@ -11,11 +11,11 @@ from dataclasses import dataclass
 from datetime import datetime
 from scrutiny.core.basic_types import MemoryRegion, EmbeddedDataType
 from scrutiny.core.embedded_enum import EmbeddedEnum
-from scrutiny.core import validation
+from scrutiny.tools import validation
 import abc
 from binascii import hexlify
 
-from typing import List, Optional, Literal, Union, Dict, Any
+from scrutiny.tools.typing import *
 
 __all__ = [
     'AddressSize',
@@ -422,6 +422,18 @@ class SerialLinkConfig(BaseLinkConfig):
         def get_numerical(self) -> float:
             """Return the number of stop bits as ``float``"""
             return float(self.value)
+        
+        @classmethod
+        def from_float(cls, v:float, default:Optional["Self"]=None) -> "Self":
+            try:
+                return cls(v)
+            except Exception:
+                if default is None:
+                    raise
+                return default
+        
+        def to_float(self) -> float:
+            return float(self.value)
 
     class DataBits(enum.Enum):
         """Number of data bits as defined by RS-232"""
@@ -433,6 +445,18 @@ class SerialLinkConfig(BaseLinkConfig):
         def get_numerical(self) -> int:
             """Return the number of data bits as ``int``"""
             return int(self.value)
+        
+        @classmethod
+        def from_int(cls, v:int, default:Optional["Self"]=None) -> "Self":
+            try:
+                return cls(v)
+            except Exception:
+                if default is None:
+                    raise
+                return default
+        
+        def to_int(self) -> int:
+            return self.value
 
     class Parity(enum.Enum):
         """A serial port parity configuration"""
@@ -445,6 +469,19 @@ class SerialLinkConfig(BaseLinkConfig):
         def get_displayable_name(self) -> str:
             """Return the value as ``str``"""
             return self.value
+        
+        @classmethod
+        def from_str(cls, v:str, default:Optional["Self"]=None) -> "Self":
+            try:
+                return cls(v)
+            except Exception:
+                if default is None:
+                    raise
+                return default
+        
+        def to_str(self) -> str:
+            return self.value
+
 
     port: str
     """Port name on the machine. COMX on Windows. /dev/xxx on posix platforms"""
@@ -508,6 +545,18 @@ class RTTLinkConfig(BaseLinkConfig):
         C2 = 'c2'
         """SiLabs C2 Adapter"""
 
+        def to_str(self) -> str:
+            return self.value
+        
+        @classmethod
+        def from_str(cls, v:str, default:Optional["Self"]=None) -> "Self":
+            try:
+                return cls(v)
+            except Exception:
+                if default is None:
+                    raise
+                return default
+
     target_device: str
     """Chip name passed to pylink ``JLink.connect()`` method"""
 
@@ -523,6 +572,7 @@ class RTTLinkConfig(BaseLinkConfig):
             'target_device': self.target_device,
             'jlink_interface': self.jlink_interface.value
         }
+
 
 SupportedLinkConfig = Union[UDPLinkConfig, TCPLinkConfig, SerialLinkConfig, RTTLinkConfig, NoneLinkConfig]
 

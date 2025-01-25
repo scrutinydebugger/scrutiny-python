@@ -17,7 +17,7 @@ __all__ = [
 
 from enum import Enum
 from dataclasses import dataclass
-from scrutiny.core import validation
+from scrutiny.tools import validation
 from typing import Union
 
 @dataclass(frozen=True)

@@ -7,7 +7,7 @@
 #   Copyright (c) 2021 Scrutiny Debugger
 
 from PySide6.QtCore import QPointF
-from scrutiny.core import validation
+from scrutiny.tools import validation
 
 from typing import List, Sequence
 

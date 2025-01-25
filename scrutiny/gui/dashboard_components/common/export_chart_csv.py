@@ -36,7 +36,7 @@ def make_csv_headers(
     :param datetime_format: The datetime string format to use
     """
     if datetime_format is None:
-        datetime_format = gui_preferences.default().long_datetime_format()
+        datetime_format = gui_preferences.global_namespace().long_datetime_format()
     now_str = datetime.now().strftime(datetime_format)
     device_id = "N/A"
     firmware_id = "N/A"
@@ -96,7 +96,7 @@ def export_chart_csv_threaded(
     series_index = [0 for i in range(len(series_list))]
     series_points = [series.points() for series in series_list]
     actual_vals:List[Optional[float]] = [None] * len(series_list)
-    datetime_format = gui_preferences.default().long_datetime_format()
+    datetime_format = gui_preferences.global_namespace().long_datetime_format()
 
     def save_method() -> None:
         error:Optional[Exception] = None

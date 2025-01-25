@@ -54,6 +54,7 @@ class ScrutinyQtGUI:
         if self.__class__._instance is not None:
             raise RuntimeError(f"Only a single instance of {self.__class__.__name__} can run.")
         self.__class__._instance = self
+
         self._settings = self.Settings(
             debug_layout = debug_layout,
             auto_connect = auto_connect,

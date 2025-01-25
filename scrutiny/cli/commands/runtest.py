@@ -98,7 +98,7 @@ class RunTest(BaseCommand):
                 from test import ScrutinyRunner
                 success = False
                 result = ScrutinyRunner(verbosity=int(args.verbosity), failfast=failfast).run(test_suite)
-                if len(result.errors) == 0 or len(result.failures) == 0:
+                if len(result.errors) == 0 and len(result.failures) == 0:
                     success = True
             except Exception:
                 # Exception are printed as errors, but errors are disabled in the unit test to avoid confusion on negative test

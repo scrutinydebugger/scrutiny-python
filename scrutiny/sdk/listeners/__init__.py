@@ -14,7 +14,7 @@ import time
 from typing import Union, List, Set, Iterable,Optional, Type, Literal
 
 from scrutiny.sdk.watchable_handle import WatchableHandle
-from scrutiny.core import validation
+from scrutiny.tools import validation
 from scrutiny.core.logging import DUMPDATA_LOGLEVEL
 from scrutiny.sdk import exceptions as sdk_exceptions
 from scrutiny.tools.profiling import VariableRateExponentialAverager
