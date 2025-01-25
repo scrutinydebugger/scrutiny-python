@@ -390,9 +390,6 @@
         "scrutiny/sdk/datalogging.py": {
             "docstring": "Defines all the types used for datalogging in the SDK"
         },
-        "scrutiny/core/validation.py": {
-            "docstring": "Helper function for argument validation"
-        },
         "scrutiny/core/bintools/elftools_stubs.py": {
             "docstring": "Stubfile for pyelftools"
         },
@@ -650,6 +647,21 @@
         },
         "scrutiny/gui/tools/opengl.py": {
             "docstring": "OpenGL related stuff"
+        },
+        "test/gui/test_preferences.py": {
+            "docstring": "A test suite that tests the GUI persistent preferences mechanisms"
+        },
+        "scrutiny/gui/globals.py": {
+            "docstring": "GUI wide globals definitions"
+        },
+        "scrutiny/server/globals.py": {
+            "docstring": "Server wide globals definitions"
+        },
+        "scrutiny/tools/validation.py": {
+            "docstring": "Helpers to validate variables types and values"
+        },
+        "scrutiny/tools/typing.py": {
+            "docstring": "Some typing helpers"
         }
     }
 }

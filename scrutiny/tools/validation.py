@@ -1,5 +1,5 @@
 #    validation.py
-#        Helper function for argument validation
+#        Helpers to validate variables types and values
 #
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)

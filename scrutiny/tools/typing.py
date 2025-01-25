@@ -1,3 +1,10 @@
+#    typing.py
+#        Some typing helpers
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021 Scrutiny Debugger
 
 __all__ = ['Self', 'List', 'Set', 'Dict', 'Union', 'Optional', 'Any', 'cast', 'Iterable', 
            'Sequence', 'Callable', 'TypedDict', 'Literal',

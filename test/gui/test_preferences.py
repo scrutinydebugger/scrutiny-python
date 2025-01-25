@@ -1,5 +1,11 @@
+#    test_preferences.py
+#        A test suite that tests the GUI persistent preferences mechanisms
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021 Scrutiny Debugger
 
-from dataclasses import dataclass
 from test.gui.base_gui_test import ScrutinyBaseGuiTest
 from scrutiny.gui.core.preferences import AppPreferenceManager, AppPreferenceManager
 from tempfile import TemporaryDirectory
