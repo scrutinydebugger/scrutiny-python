@@ -18,9 +18,9 @@ class UserMessagesManager:
     """
     _instance:Optional["UserMessagesManager"] = None
     @classmethod
-    def instance(cls) -> Self:
+    def instance(cls) -> "UserMessagesManager":
         if cls._instance is None:
-            cls._instance = UserMessagesManager()
+            cls._instance = cls()
         return cls._instance
     
     class _Signals(QObject):
@@ -37,7 +37,7 @@ class UserMessagesManager:
     _signals:_Signals
     _message_active:bool
     _timer:QTimer
-    _logger = logging.Logger
+    _logger:logging.Logger
 
     def __init__(self) -> None:
         self._message_queue = []
@@ -78,7 +78,7 @@ class UserMessagesManager:
         self._update_message_queue()
     
     enforce_thread(QT_THREAD_NAME)
-    def clear_message(self, id) -> None:
+    def clear_message(self, id:str) -> None:
         i = 0
         while True:
             if i >= len(self._message_queue):
