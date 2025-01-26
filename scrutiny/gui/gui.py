@@ -42,6 +42,7 @@ class ScrutinyQtGUI:
             raise RuntimeError(f"No instance of {cls.__name__} is running")
         return cls._instance
     
+
     @property
     def settings(self) -> Settings:
         return self._settings

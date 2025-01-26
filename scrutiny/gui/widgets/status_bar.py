@@ -11,6 +11,7 @@ from PySide6.QtWidgets import QStatusBar, QWidget, QLabel, QHBoxLayout, QSizePol
 from PySide6.QtCore import Qt, QPoint
 from PySide6.QtGui import QPixmap, QAction
 from scrutiny.gui.core.server_manager import ServerManager
+from scrutiny.gui.core.user_messages_manager import UserMessagesManager
 from scrutiny.gui.dialogs.server_config_dialog import ServerConfigDialog
 from scrutiny.gui.dialogs.device_config_dialog import DeviceConfigDialog
 from scrutiny.gui.dialogs.device_info_dialog import DeviceInfoDialog
@@ -179,6 +180,8 @@ class StatusBar(QStatusBar):
     """Label where the actual server/device communication link configuration is written."""
     _sfd_status_label:StatusBarLabel
     """Label that shows the actually loaded SFD"""
+    _message_label:StatusBarLabel
+    """Label that report messages to the user"""
     _datalogger_status_label:StatusBarLabel
     """Label that shows the state of the datalogger"""
     _logger:logging.Logger
@@ -221,9 +224,10 @@ class StatusBar(QStatusBar):
         self._device_comm_link_label = StatusBarLabel(self, "", use_indicator=True, label_kind=StatusBarLabel.TextLabelKind.TOOLBAR, color=StatusBarLabel.Color.RED)
         self._device_status_label = StatusBarLabel(self, "", use_indicator=True, label_kind=StatusBarLabel.TextLabelKind.TOOLBAR, color=StatusBarLabel.Color.RED)
         self._sfd_status_label = StatusBarLabel(self, "", use_indicator=False, label_kind=StatusBarLabel.TextLabelKind.TOOLBAR)
+        self._message_label = StatusBarLabel(self, "", use_indicator=False, label_kind=StatusBarLabel.TextLabelKind.LABEL)
         self._datalogger_status_label = StatusBarLabel(self, "", use_indicator=False, label_kind=StatusBarLabel.TextLabelKind.LABEL)
         self._logger = logging.getLogger(self.__class__.__name__)
-        
+                
         self._server_status_label_menu = QMenu()
         self._server_configure_action = self._server_status_label_menu.addAction("Configure")
         self._server_connect_action = self._server_status_label_menu.addAction("Connect")
@@ -246,6 +250,7 @@ class StatusBar(QStatusBar):
         self.addWidget(self._device_comm_link_label)
         self.addWidget(self._device_status_label)
         self.addWidget(self._sfd_status_label)
+        self.addWidget(self._message_label)
         self.addPermanentWidget(self._datalogger_status_label)  # Right aligned
         
         # Allow the window to shrink horizontally. Prevented by the status bar otherwise.
@@ -272,38 +277,48 @@ class StatusBar(QStatusBar):
         self._server_manager.signals.device_info_availability_changed.connect(self.update_content)
         self._server_manager.signals.loaded_sfd_availability_changed.connect(self.update_content)
 
+        def show_msg(msg:str) -> None:
+            self._message_label.set_text(msg)
+        
+        def clear_msg() -> None:
+            self._message_label.set_text("")
+        UserMessagesManager.instance().signals.show_message.connect(show_msg)
+        UserMessagesManager.instance().signals.clear_message.connect(clear_msg)
+
         self.update_content()
 
     def _server_configure_func(self) -> None:
-        # When the user click the server status -> Configure
+        """ When the user click the server status -> Configure """
         self._server_config_dialog.show()
 
     def _server_connect_func(self) -> None:
-        # When the user click the server status -> Connect
+        """ When the user click the server status -> Connect"""
         self._server_manager.start(self._server_config_dialog.get_config())
     
     def _server_disconnect_func(self) -> None:
-        # When the user click the server status -> Disconnect
+        """ When the user click the server status -> Disconnect"""
         self._server_manager.stop()
 
     def _server_config_applied(self, dialog:ServerConfigDialog) -> None:
-        # Called When the server parameters are set and the user click OK in the dialog
+        """ Called When the server parameters are set and the user click OK in the dialog"""
         if self._server_manager.is_running():
             self._one_shot_auto_connect = True
             self._server_manager.stop()
 
         elif not self._server_manager.is_stopping():
             self._server_connect_func()
+        
+        dialog.close()
     
     def _one_shot_reconnect(self) -> None:
-        # Used for reconnecting once after the user change the server config
+        """ Used for reconnecting once after the user change the server config"""
         if self._one_shot_auto_connect:
             self._one_shot_auto_connect=False
             self._server_connect_func()
     
     def _device_link_click_func(self) -> None:
-        # Called when the suer click on the device link label in the status bar. 
-        # Opens a configuration dialog
+        """ Called when the suer click on the device link label in the status bar. 
+        Opens a configuration dialog"""
         info = self._server_manager.get_server_info()
         if info is None:
             self._device_config_dialog.swap_config_pane(DeviceLinkType.NONE)
@@ -345,7 +360,7 @@ class StatusBar(QStatusBar):
         )
     
     def _change_device_link_completed(self, return_val:Optional[Tuple[DeviceLinkType, BaseLinkConfig]], error:Optional[Exception]) -> None:
-        # Callback invoked once the server manager has a response from the server after we asked to change the device link
+        """ Callback invoked once the server manager has a response from the server after we asked to change the device link"""
         if error is None:
             assert return_val is not None
             link_type, config = return_val

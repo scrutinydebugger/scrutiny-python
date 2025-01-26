@@ -26,11 +26,14 @@ from typing import Optional, Dict, Any, Callable, List, Union, cast, Tuple
 
 from scrutiny.core.logging import DUMPDATA_LOGLEVEL
 from scrutiny.gui.core.watchable_registry import WatchableRegistry
+from scrutiny.gui.core.user_messages_manager import UserMessagesManager
 from scrutiny.sdk.listeners import BaseListener, ValueUpdate 
 from scrutiny.sdk.watchable_handle import WatchableHandle
 from scrutiny.tools.profiling import VariableRateExponentialAverager
 from scrutiny.gui.core.threads import QT_THREAD_NAME, SERVER_MANAGER_THREAD_NAME
 from scrutiny.gui.tools.invoker import InvokeInQtThreadSynchronized, InvokeQueued
+
+USER_MSG_ID_CONNECT_FAILED = "connect_failed"
 
 @dataclass
 class ServerConfig:
@@ -441,10 +444,13 @@ class ServerManager:
         if self._allow_auto_reconnect and not self._stop_pending:
             # timer to prevent going crazy on function call
             if self._thread_state.connect_timestamp_mono is None or time.monotonic() - self._thread_state.connect_timestamp_mono > self.RECONNECT_DELAY:
-                with tools.SuppressException(sdk.exceptions.ConnectionError):
+                try:
                     self._logger.debug("Connecting client")
                     self._thread_state.connect_timestamp_mono = time.monotonic()
                     self._client.connect(config.hostname, config.port, wait_status=False)
+                    UserMessagesManager.instance().clear_message_thread_safe(USER_MSG_ID_CONNECT_FAILED)
+                except sdk.exceptions.ConnectionError as e:
+                    UserMessagesManager.instance().register_message_thread_safe(USER_MSG_ID_CONNECT_FAILED, str(e), 5)
 
     def _thread_process_client_events(self) -> None:
         # Called from internal thread
