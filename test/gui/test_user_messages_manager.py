@@ -141,7 +141,7 @@ class TestUserMessagesManager(ScrutinyBaseGuiTest):
         self.assertEqual(self.msg_shown_list[2].msg.id, 'aaa')
         self.assertEqual(self.msg_shown_list[2].msg.repeat_counter, 3)
 
-        self.manager.register_message("bbb", "msg4", 0.5)
+        self.manager.register_message("bbb", "msg4", 2)
         self.wait_equal_with_events(lambda: len(self.msg_shown_list), 4, timeout=2)
         self.assertEqual(self.msg_shown_list[3].msg.id, 'bbb')
         self.assertEqual(self.msg_shown_list[3].msg.repeat_counter, 1) 
