@@ -26,11 +26,15 @@ from typing import Optional, Dict, Any, Callable, List, Union, cast, Tuple
 
 from scrutiny.core.logging import DUMPDATA_LOGLEVEL
 from scrutiny.gui.core.watchable_registry import WatchableRegistry
+from scrutiny.gui.core.user_messages_manager import UserMessagesManager
 from scrutiny.sdk.listeners import BaseListener, ValueUpdate 
 from scrutiny.sdk.watchable_handle import WatchableHandle
 from scrutiny.tools.profiling import VariableRateExponentialAverager
 from scrutiny.gui.core.threads import QT_THREAD_NAME, SERVER_MANAGER_THREAD_NAME
 from scrutiny.gui.tools.invoker import InvokeInQtThreadSynchronized, InvokeQueued
+
+USER_MSG_ID_CONNECT_FAILED = "connect_failed"
+USER_MSG_UPDATE_OVERRUN = "listener_update_dropped"
 
 @dataclass
 class ServerConfig:
@@ -54,6 +58,10 @@ class QtBufferedListener(BaseListener):
     """Minimal amount of time between two data_received signals"""
     emit_allowed:bool
     """Flag preventing overflowing the event loop if the GUI thread is overloaded"""
+    update_dropped_count:int
+    """A counter that keeps track of how many value updates were lost during this session"""
+    _last_drop_message_monotonic_time:Optional[float]
+    """A timestamp used to avoid spamming the logger/messaging system when the queue overflows"""
 
     def __init__(self, *args:Any, **kwargs:Any):
         BaseListener.__init__(self, *args, **kwargs)
@@ -62,8 +70,11 @@ class QtBufferedListener(BaseListener):
         self.last_signal_perf_cnt_ns  = time.perf_counter_ns()
         self.emit_allowed = True
         self.qt_event_rate_measurement = VariableRateExponentialAverager(time_estimation_window=0.1, tau=0.5, near_zero=0.1)
+        self.update_dropped_count = 0
+        self._last_drop_message_monotonic_time = None
     
     def setup(self) -> None:
+        self.update_dropped_count = 0
         self.qt_event_rate_measurement.enable()
     
     def teardown(self) -> None:
@@ -87,7 +98,12 @@ class QtBufferedListener(BaseListener):
         try:
             self.to_gui_thread_queue.put(updates.copy(), block=False)
         except queue.Full:
-            self._logger.error("Dropping an update")
+            self.update_dropped_count += 1
+            if self._last_drop_message_monotonic_time is None or time.monotonic() - self._last_drop_message_monotonic_time > 1:
+                msg = f"Value update overrun. Total lost: {self.update_dropped_count} updates"
+                self._logger.error(msg)
+                UserMessagesManager.instance().register_message_thread_safe(USER_MSG_UPDATE_OVERRUN, msg , 3)
+                self._last_drop_message_monotonic_time = time.monotonic()
 
         self._emit_signal_if_possible()
     
@@ -441,10 +457,14 @@ class ServerManager:
         if self._allow_auto_reconnect and not self._stop_pending:
             # timer to prevent going crazy on function call
             if self._thread_state.connect_timestamp_mono is None or time.monotonic() - self._thread_state.connect_timestamp_mono > self.RECONNECT_DELAY:
-                with tools.SuppressException(sdk.exceptions.ConnectionError):
+                try:
                     self._logger.debug("Connecting client")
                     self._thread_state.connect_timestamp_mono = time.monotonic()
                     self._client.connect(config.hostname, config.port, wait_status=False)
+                    UserMessagesManager.instance().clear_message_thread_safe(USER_MSG_ID_CONNECT_FAILED)
+                except sdk.exceptions.ConnectionError as e:
+                    if not self.is_stopping():
+                        UserMessagesManager.instance().register_message_thread_safe(USER_MSG_ID_CONNECT_FAILED, str(e), 5)
 
     def _thread_process_client_events(self) -> None:
         # Called from internal thread
@@ -1034,6 +1054,7 @@ class ServerManager:
             return 
         
         self._logger.debug("Stopping server manager")
+        UserMessagesManager.instance().clear_message(USER_MSG_ID_CONNECT_FAILED)
         self._stop_pending = True
         self._set_device_info(None)
         self._set_loaded_sfd(None)

@@ -16,7 +16,7 @@ from scrutiny.gui.widgets.validable_line_edit import ValidableLineEdit
 from scrutiny.gui.core.server_manager import ServerConfig
 from scrutiny.gui.core.preferences import gui_preferences, AppPreferences
 
-from typing import Callable, Optional
+from typing import Callable
 
 
 class ServerConfigDialog(QDialog):
@@ -34,9 +34,9 @@ class ServerConfigDialog(QDialog):
     _port_textbox:ValidableLineEdit
     _preferences:AppPreferences
 
-    _apply_callback:Optional[Callable[["ServerConfigDialog"], None]]
+    _apply_callback:Callable[["ServerConfigDialog"], None]
 
-    def __init__(self, parent:QWidget, apply_callback:Optional[Callable[["ServerConfigDialog"], None]]=None) -> None:
+    def __init__(self, parent:QWidget, apply_callback:Callable[["ServerConfigDialog"], None]) -> None:
         super().__init__(parent)
         self.setWindowFlags(Qt.WindowType.WindowCloseButtonHint | Qt.WindowType.WindowTitleHint | Qt.WindowType.Dialog)
         self.setModal(True)
@@ -104,9 +104,8 @@ class ServerConfigDialog(QDialog):
             self._port = int(self._port_textbox.text()) # Validator is supposed to guarantee the validity of this
             self._preferences.set(self.PersistentPreferences.HOSTNAME, self._hostname)
             self._preferences.set(self.PersistentPreferences.PORT, self._port)
+            self._apply_callback(self)
             self.close()
-            if self._apply_callback is not None:
-                self._apply_callback(self)
 
     def _btn_cancel_click(self) -> None:
         self.reset()
