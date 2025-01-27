@@ -1,5 +1,10 @@
-
-
+#    test_user_messages_manager.py
+#        A test suite for the User Message service
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021 Scrutiny Debugger
 
 from test.gui.base_gui_test import ScrutinyBaseGuiTest
 from scrutiny.gui.core.user_messages_manager import UserMessagesManager, UserMessage
