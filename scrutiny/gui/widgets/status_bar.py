@@ -8,10 +8,10 @@
 #   Copyright (c) 2021 Scrutiny Debugger
 
 from PySide6.QtWidgets import QStatusBar, QWidget, QLabel, QHBoxLayout, QSizePolicy, QPushButton, QToolBar, QMenu
-from PySide6.QtCore import Qt, QPoint
+from PySide6.QtCore import Qt, QPoint, QSize
 from PySide6.QtGui import QPixmap, QAction
 from scrutiny.gui.core.server_manager import ServerManager
-from scrutiny.gui.core.user_messages_manager import UserMessagesManager
+from scrutiny.gui.core.user_messages_manager import UserMessagesManager, UserMessage
 from scrutiny.gui.dialogs.server_config_dialog import ServerConfigDialog
 from scrutiny.gui.dialogs.device_config_dialog import DeviceConfigDialog
 from scrutiny.gui.dialogs.device_info_dialog import DeviceInfoDialog
@@ -141,6 +141,7 @@ class StatusBarLabel(QWidget):
     def set_text(self, text:str) -> None:
         """Set the text on the text label"""
         self._text_label.setText(text)   # Uses public property to have uniform api
+        self._text_label.setToolTip(text)
     
     def get_text(self) -> str:
         """Get the text of the text label"""
@@ -215,6 +216,7 @@ class StatusBar(QStatusBar):
     
     def __init__(self, parent:QWidget, server_manager:ServerManager) -> None:
         super().__init__(parent)
+
         self._server_manager=server_manager
         self._server_config_dialog = ServerConfigDialog(self, apply_callback=self._server_config_applied)
         self._device_config_dialog = DeviceConfigDialog(self, apply_callback=self._device_config_applied)
@@ -227,6 +229,9 @@ class StatusBar(QStatusBar):
         self._message_label = StatusBarLabel(self, "", use_indicator=False, label_kind=StatusBarLabel.TextLabelKind.LABEL)
         self._datalogger_status_label = StatusBarLabel(self, "", use_indicator=False, label_kind=StatusBarLabel.TextLabelKind.LABEL)
         self._logger = logging.getLogger(self.__class__.__name__)
+        msg_layout = self._message_label.layout()
+        assert msg_layout is not None
+        msg_layout.setAlignment(Qt.AlignmentFlag.AlignRight)
                 
         self._server_status_label_menu = QMenu()
         self._server_configure_action = self._server_status_label_menu.addAction("Configure")
@@ -244,14 +249,15 @@ class StatusBar(QStatusBar):
 
         self._device_comm_link_label.set_click_action(self._device_link_click_func)
         self._sfd_status_label.set_click_action(self._loaded_sfd_click_func)
-
+        
         self.setContentsMargins(5,0,5,0)    
         self.addWidget(self._server_status_label)
         self.addWidget(self._device_comm_link_label)
         self.addWidget(self._device_status_label)
         self.addWidget(self._sfd_status_label)
-        self.addWidget(self._message_label)
-        self.addPermanentWidget(self._datalogger_status_label)  # Right aligned
+        self.addWidget(self._datalogger_status_label)  # Right aligned
+        self.addWidget(self._datalogger_status_label)  # Right aligned
+        self.addPermanentWidget(self._message_label, 1)
         
         # Allow the window to shrink horizontally. Prevented by the status bar otherwise.
         self._server_status_label.setMinimumWidth(1)    
@@ -259,6 +265,7 @@ class StatusBar(QStatusBar):
         self._device_comm_link_label.setMinimumWidth(1)    
         self._sfd_status_label.setMinimumWidth(1)   
         self._datalogger_status_label.setMinimumWidth(1)
+        self._message_label.setMinimumWidth(1)
 
         # We catch everything!
         self._server_manager.signals.starting.connect(self.update_content)
@@ -277,11 +284,17 @@ class StatusBar(QStatusBar):
         self._server_manager.signals.device_info_availability_changed.connect(self.update_content)
         self._server_manager.signals.loaded_sfd_availability_changed.connect(self.update_content)
 
-        def show_msg(msg:str) -> None:
-            self._message_label.set_text(msg)
+        def show_msg(msg:UserMessage) -> None:
+            text = msg.text
+            if msg.repeat_counter > 1:
+                text = f"({msg.repeat_counter}) {text}"
+            self._message_label.set_text(text)
+            self._message_label.setToolTip(text)
+            self._message_label.setToolTipDuration(0)
         
         def clear_msg() -> None:
             self._message_label.set_text("")
+            self._message_label.setToolTip("")
         UserMessagesManager.instance().signals.show_message.connect(show_msg)
         UserMessagesManager.instance().signals.clear_message.connect(clear_msg)
 
@@ -378,10 +391,10 @@ class StatusBar(QStatusBar):
             self._server_status_label.set_text(f"{prefix} Disconnected")
         elif value == ServerLabelValue.Disconnecting :
             self._server_status_label.set_color(StatusBarLabel.Color.YELLOW)
-            self._server_status_label.set_text(f"{prefix} Stopping...")
+            self._server_status_label.set_text(f"{prefix} Stopping")
         elif value == ServerLabelValue.Waiting:
             self._server_status_label.set_color(StatusBarLabel.Color.YELLOW)
-            self._server_status_label.set_text(f"{prefix} Waiting...")
+            self._server_status_label.set_text(f"{prefix} Trying")
         elif value == ServerLabelValue.Connected:
             self._server_status_label.set_color(StatusBarLabel.Color.GREEN)
             self._server_status_label.set_text(f"{prefix} Connected")
@@ -479,6 +492,8 @@ class StatusBar(QStatusBar):
             self._device_details_action.setEnabled(False)
             self._device_comm_link_label.setEnabled(False)
             self._device_status_label.setEnabled(False)
+            self._sfd_status_label.setEnabled(False)
+            self._datalogger_status_label.setEnabled(False)
 
             if self._server_manager.is_stopping():
                 self._server_disconnect_action.setEnabled(False)
@@ -511,10 +526,12 @@ class StatusBar(QStatusBar):
             if server_info is None:
                 self._device_status_label.setEnabled(False)
                 self._device_details_action.setEnabled(False)
+                self._datalogger_status_label.setEnabled(False)
                 self.set_device_label(DeviceCommState.NA)
                 self.set_device_comm_link_label(DeviceLinkType.NONE, False, sdk.NoneLinkConfig())
                 self.set_sfd_label(value=None)
                 self.set_datalogging_label(DataloggingInfo(state=DataloggerState.NA, completion_ratio=None))
+                self._sfd_status_label.setEnabled(False)
             else:
                 # Do some maintenance on some state variable
                 loaded_sfd = self._server_manager.get_loaded_sfd()
@@ -526,7 +543,12 @@ class StatusBar(QStatusBar):
                 
                 self._device_status_label.setEnabled(server_info.device_link.operational and server_info.device_comm_state != DeviceCommState.NA)
                 self._device_details_action.setEnabled(device_info is not None)
-                self._sfd_status_label.setEnabled(server_info.device_comm_state == DeviceCommState.ConnectedReady)
+                if server_info.device_comm_state == DeviceCommState.ConnectedReady:
+                    self._sfd_status_label.setEnabled(True)
+                    self._datalogger_status_label.setEnabled(True)
+                else:
+                    self._sfd_status_label.setEnabled(False)
+                    self._datalogger_status_label.setEnabled(False)
 
     
 

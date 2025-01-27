@@ -2,7 +2,7 @@
 
 
 from test.gui.base_gui_test import ScrutinyBaseGuiTest
-from scrutiny.gui.core.user_messages_manager import UserMessagesManager
+from scrutiny.gui.core.user_messages_manager import UserMessagesManager, UserMessage
 from scrutiny.tools.typing import *
 from dataclasses import dataclass
 import time
@@ -11,7 +11,7 @@ class TestUserMessagesManager(ScrutinyBaseGuiTest):
     @dataclass
     class MessageShow:
         t:float
-        msg:str
+        msg:UserMessage
 
     @dataclass
     class MessageClear:
@@ -21,7 +21,7 @@ class TestUserMessagesManager(ScrutinyBaseGuiTest):
     def setUp(self):
         self.msg_clear_list:List[TestUserMessagesManager.MessageClear] = []
         self.msg_shown_list:List[TestUserMessagesManager.MessageShow] = []
-        def show_callbacks(msg:str) -> None:
+        def show_callbacks(msg:UserMessage) -> None:
             self.msg_shown_list.append(self.MessageShow(t=time.perf_counter(), msg=msg))
 
         def clear_callback() -> None:
@@ -44,9 +44,12 @@ class TestUserMessagesManager(ScrutinyBaseGuiTest):
         self.assertEqual( len(self.msg_shown_list), 3)
         self.assertEqual( len(self.msg_clear_list), 3)
 
-        self.assertEqual(self.msg_shown_list[0].msg, "hello1")
-        self.assertEqual(self.msg_shown_list[1].msg, "hello2")
-        self.assertEqual(self.msg_shown_list[2].msg, "hello3")
+        self.assertEqual(self.msg_shown_list[0].msg.id, "aaa")
+        self.assertEqual(self.msg_shown_list[0].msg.text, "hello1")
+        self.assertEqual(self.msg_shown_list[1].msg.id, "bbb")
+        self.assertEqual(self.msg_shown_list[1].msg.text, "hello2")
+        self.assertEqual(self.msg_shown_list[2].msg.id, "ccc")
+        self.assertEqual(self.msg_shown_list[2].msg.text, "hello3")
 
         def assertWithin(val, target, margin):
             self.assertLessEqual(val, target+margin)
@@ -82,8 +85,8 @@ class TestUserMessagesManager(ScrutinyBaseGuiTest):
         self.assertEqual(len(self.msg_clear_list), 2)
         self.assertEqual(len(self.msg_shown_list), 2)
 
-        self.assertEqual(self.msg_shown_list[0].msg, 'msg1')
-        self.assertEqual(self.msg_shown_list[1].msg, 'msg4')
+        self.assertEqual(self.msg_shown_list[0].msg.text, 'msg1')
+        self.assertEqual(self.msg_shown_list[1].msg.text, 'msg4')
 
     def test_same_id_override_previous_cancel_if_first(self):
         self.manager.register_message("aaa", "msg1", 1)
@@ -97,8 +100,8 @@ class TestUserMessagesManager(ScrutinyBaseGuiTest):
         self.assertEqual(len(self.msg_clear_list), 2)
         self.assertEqual(len(self.msg_shown_list), 2)
 
-        self.assertEqual(self.msg_shown_list[0].msg, 'msg1')
-        self.assertEqual(self.msg_shown_list[1].msg, 'msg2')
+        self.assertEqual(self.msg_shown_list[0].msg.text, 'msg1')
+        self.assertEqual(self.msg_shown_list[1].msg.text, 'msg2')
         
         self.assertLess(self.msg_clear_list[0].t - self.msg_shown_list[0].t, 0.4)
         
@@ -113,6 +116,27 @@ class TestUserMessagesManager(ScrutinyBaseGuiTest):
         self.assertEqual(len(self.msg_clear_list), 2)
         self.assertEqual(len(self.msg_shown_list), 2)
 
-        self.assertEqual(self.msg_shown_list[0].msg, 'msg1')
-        self.assertEqual(self.msg_shown_list[1].msg, 'msg3')
+        self.assertEqual(self.msg_shown_list[0].msg.text, 'msg1')
+        self.assertEqual(self.msg_shown_list[1].msg.text, 'msg3')
         
+
+    def test_repeat_counter(self):
+        self.manager.register_message("aaa", "msg1", 0.5)
+        self.wait_equal_with_events(lambda: len(self.msg_shown_list), 1, timeout=2)
+        self.manager.register_message("aaa", "msg2", 0.5)
+        self.wait_equal_with_events(lambda: len(self.msg_shown_list), 2, timeout=2)
+        self.manager.register_message("aaa", "msg3", 0.5)
+        self.wait_equal_with_events(lambda: len(self.msg_shown_list), 3, timeout=2)
+
+        
+        self.assertEqual(self.msg_shown_list[0].msg.id, 'aaa')
+        self.assertEqual(self.msg_shown_list[0].msg.repeat_counter, 1)
+        self.assertEqual(self.msg_shown_list[1].msg.id, 'aaa')
+        self.assertEqual(self.msg_shown_list[1].msg.repeat_counter, 2)
+        self.assertEqual(self.msg_shown_list[2].msg.id, 'aaa')
+        self.assertEqual(self.msg_shown_list[2].msg.repeat_counter, 3)
+
+        self.manager.register_message("bbb", "msg4", 0.5)
+        self.wait_equal_with_events(lambda: len(self.msg_shown_list), 4, timeout=2)
+        self.assertEqual(self.msg_shown_list[3].msg.id, 'bbb')
+        self.assertEqual(self.msg_shown_list[3].msg.repeat_counter, 1) 
