@@ -18,7 +18,7 @@ import os
 from PySide6.QtGui import QPainter, QFontMetrics, QFont, QColor, QContextMenuEvent, QKeyEvent
 from PySide6.QtWidgets import (QHBoxLayout, QSplitter, QWidget, QVBoxLayout,  QMenu, QSizePolicy,
                                QPushButton, QFormLayout, QSpinBox, QGraphicsItem, QStyleOptionGraphicsItem,
-                               QLineEdit, QCheckBox, QGroupBox)
+                               QLineEdit, QCheckBox, QGroupBox, QMessageBox)
 from PySide6.QtCore import Qt, QItemSelectionModel, QPointF, QTimer, QRectF, QRect
 
 from scrutiny import sdk
@@ -129,6 +129,43 @@ class CsvLoggingMenuWidget(QWidget):
             raise FileNotFoundError(f"Folder {folder} does not exist")
 
         self._txt_folder.setText(folder)
+    
+    def check_conflicts(self) -> bool:
+        self.validate()
+        
+        folder = Path(self._txt_folder.text())
+        filename = self._txt_filename_pattern.text()
+
+        conflicting_files = list(CSVLogger.get_conflicting_files(folder, filename))
+        if len(conflicting_files) == 0:
+            return True
+        
+        MAX_NAME_DISPLAY = 3
+        msgbox_text = f"There are {len(conflicting_files)} existing files that may conflict with the given folder/name combination.\n"
+        msgbox_text += '\n'.join([f"  - {file.name}" for file in conflicting_files[:MAX_NAME_DISPLAY] ]) + '\n'
+        if len(conflicting_files) > MAX_NAME_DISPLAY:
+            diff = len(conflicting_files) - MAX_NAME_DISPLAY
+            msgbox_text += f'  - And {diff} others\n'
+
+        msgbox_text += '\n Do you want to delete them?'
+        msgbox = QMessageBox(self)
+        msgbox.setIcon(QMessageBox.Icon.Warning)
+        msgbox.setWindowTitle("Filename conflict")
+        msgbox.setText(msgbox_text)
+        msgbox.setStandardButtons(QMessageBox.StandardButton.No | QMessageBox.StandardButton.Yes)
+        msgbox.setDefaultButton(QMessageBox.StandardButton.No)
+
+        msgbox.setModal(True)
+        reply = msgbox.exec()
+
+        if reply == QMessageBox.StandardButton.Yes:
+            for file in conflicting_files:
+                os.unlink(file)
+            return True
+        elif reply == QMessageBox.StandardButton.No:
+            return False
+        else:
+            raise NotImplementedError("Unsupported response")
     
     def make_csv_logger(self, logging_logger:Optional[logging.Logger] = None)  -> CSVLogger:
         # Validation happens inside the constructor
@@ -748,6 +785,10 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         
         self._graph_max_width = float(self._spinbox_graph_max_width.value())    # User input
         try:
+            if self._csv_log_menu.require_csv_logging():
+                if not self._csv_log_menu.check_conflicts():
+                    return
+        
             self.clear_graph()
             signals = self._signal_tree.get_signals()   # Read the tree on the right menu
             if len(signals) == 0:
@@ -826,6 +867,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
             self.show_stats()
         except Exception as e:
             tools.log_exception(self.logger, e, "Failed to start the acquisition")
+            self._report_error(str(e))
             self.stop_acquisition()
     
     def pause(self) -> None:
