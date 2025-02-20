@@ -870,11 +870,9 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         selected_axis_ids = [id(item.axis()) for item in selected_axis_items]
         for yaxis in self._yaxes:
             if id(yaxis) in selected_axis_ids or len(selected_axis_ids) == 0:
-                yaxis.apply_zoombox_y(
-                    zoombox, 
-                    margin_ratio=self.Y_AXIS_MARGIN, 
-                    saturate_to_latched_range=saturate_to_latched_range
-                    )
+                # Y-axis is not bound by the value. we leave the freedom to the user to unzoom like crazy
+                # We rely on the capacity to reset the zoom to come back to something reasonable if the user gets lost
+                yaxis.apply_zoombox_y(zoombox)  
         
     def _reset_zoom_slot(self) -> None:
         """Right-click -> Reset zoom"""
