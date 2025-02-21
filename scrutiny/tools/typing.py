@@ -8,7 +8,7 @@
 
 __all__ = ['Self', 'List', 'Set', 'Dict', 'Union', 'Optional', 'Any', 'cast', 'Iterable', 
            'Sequence', 'Callable', 'TypedDict', 'Literal',
-           'TypeVar', 'ParamSpec', 'TYPE_CHECKING', 'Generator']
+           'TypeVar', 'ParamSpec', 'TYPE_CHECKING', 'Generator', 'Tuple']
 
 import sys
 
@@ -38,5 +38,6 @@ from typing import (
     TypeVar,
     ParamSpec,
     TYPE_CHECKING,
-    Generator
+    Generator,
+    Tuple
     )

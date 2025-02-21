@@ -200,7 +200,6 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
             use_opengl=app_settings().opengl_enabled
         )
     
-        
         def make_right_side() -> QWidget:
             right_side = QWidget()
             right_side_layout = QVBoxLayout(right_side)
@@ -267,8 +266,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
             self._chartview.signals.key_pressed.connect(self._chartview_key_pressed_slot)
             self._chartview.set_interaction_mode(ScrutinyChartView.InteractionMode.SELECT_ZOOM)
 
-            self._chart_toolbar = ScrutinyChartToolBar(chart) 
-            self._chart_toolbar.set_chartview(self._chartview)       
+            self._chart_toolbar = ScrutinyChartToolBar(self._chartview) 
             
             self._callout = ScrutinyChartCallout(chart)
             self._callout_hide_timer = QTimer()
@@ -282,7 +280,6 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
             left_side_layout.addWidget(self._chartview)
 
             return left_side
-        
         
         right_side = make_right_side()
         left_side = make_left_side()
@@ -466,6 +463,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
             self._change_x_resolution(0)    # 0 mean no decimation
             self.update_emphasize_state()
             self.enable_repaint_rate_measurement()
+            self._chart_toolbar.disable_chart_cursor()
             
             self._start_periodic_graph_maintenance()
             self._clear_feedback()
