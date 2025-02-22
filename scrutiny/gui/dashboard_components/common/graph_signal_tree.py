@@ -31,7 +31,7 @@ from scrutiny.gui.dashboard_components.common.watchable_tree import WatchableSta
 from scrutiny.gui.dashboard_components.common.base_tree import BaseTreeModel, BaseTreeView, SerializableItemIndexDescriptor
 from scrutiny import tools
 
-from typing import Optional, List, Union, Sequence, cast, Any, Dict
+from scrutiny.tools.typing import *
 
 
 class AxisStandardItem(QStandardItem):
@@ -315,6 +315,19 @@ class GraphSignalModel(BaseTreeModel):
             outlist.append(axis)
         return outlist
 
+    def get_value_item_by_attached_series(self) -> List[Tuple[QLineSeries, QStandardItem]]:
+        assert self.has_value_col()
+        
+        outlist:List[Tuple[QLineSeries, QStandardItem]] = []
+        for i in range(self.rowCount()):
+            axis_item = self.item(i, self.axis_col())
+            for i in range(axis_item.rowCount()):
+                watchable_item = axis_item.child(i, self.watchable_col())
+                value_item = axis_item.child(i, self.value_col())
+                assert isinstance(watchable_item, ChartSeriesWatchableStandardItem)
+                outlist.append( (watchable_item.series(), value_item) )
+        return outlist
+
     def reload_original_icons(self) -> None:
         for axis_index in range(self.rowCount()):
             axis = self.item(axis_index, self.axis_col())
@@ -322,7 +335,6 @@ class GraphSignalModel(BaseTreeModel):
                 signal_item = axis.child(signal_index, self.watchable_col())
                 assert isinstance(signal_item, ChartSeriesWatchableStandardItem)
                 signal_item.reload_watchable_icon()
-
 
     def update_availability(self, series_item:ChartSeriesWatchableStandardItem) -> None:
         """Change the availability of an item based on its availibility in the registry. 
@@ -549,3 +561,6 @@ class GraphSignalTree(BaseTreeView):
 
     def has_value_col(self) -> bool:
         return self.model()._has_value_col
+
+    def get_value_item_by_attached_series(self) -> List[Tuple[QLineSeries, QStandardItem]]:
+        return self.model().get_value_item_by_attached_series()

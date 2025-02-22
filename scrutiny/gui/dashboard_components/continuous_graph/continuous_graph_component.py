@@ -206,7 +206,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
 
             # Series on continuous graph don't have their X value aligned. 
             # We can only show the value next to each point, not all together in the tree
-            self._signal_tree = GraphSignalTree(self, watchable_registry=self.watchable_registry, has_value_col=False)
+            self._signal_tree = GraphSignalTree(self, watchable_registry=self.watchable_registry, has_value_col=True)
             self._signal_tree.setMinimumWidth(150)
             self._signal_tree.signals.selection_changed.connect(self._selection_changed_slot)
 
@@ -295,6 +295,8 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
 
         layout = QHBoxLayout(self)
         layout.addWidget(self._splitter)
+
+        self._chartview.tie_cursor_to_signal_tree(self._signal_tree)
 
         # App integration
         self.server_manager.signals.registry_changed.connect(self._registry_changed_slot)
@@ -871,6 +873,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
                 # Y-axis is not bound by the value. we leave the freedom to the user to unzoom like crazy
                 # We rely on the capacity to reset the zoom to come back to something reasonable if the user gets lost
                 yaxis.apply_zoombox_y(zoombox)  
+        self._chartview.update()
         
     def _reset_zoom_slot(self) -> None:
         """Right-click -> Reset zoom"""
@@ -882,6 +885,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
             self._xaxis.autoset_range()
             for yaxis in self._yaxes:
                 yaxis.autoset_range(margin_ratio=self.Y_AXIS_MARGIN)
+        self._chartview.update()
 
 
     def _paint_finished_slot(self) -> None:
@@ -955,7 +959,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
 
         if must_show:
             series = cast(ScrutinyLineSeries, signal_item.series())
-            closest_real_point = series.search_closest_monotonic(point.x())
+            closest_real_point = series.search_closest_monotonic(point.x(), self._xaxis.min(), self._xaxis.max())
             if closest_real_point is not None:
                 self._callout_hide_timer.stop()
                 txt = f"{signal_item.text()}\nX: {closest_real_point.x()}\nY: {closest_real_point.y()}"
