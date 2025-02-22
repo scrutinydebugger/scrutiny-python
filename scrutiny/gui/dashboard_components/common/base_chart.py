@@ -61,11 +61,11 @@ class ScrutinyLineSeries(QLineSeries):
         
         max_x_index = len(points)-1
         if max_x is not None:
-            max_x_index = bisect_left(points, max_x,  key=lambda p:p.x())-1
+            max_x_index = bisect_right(points, max_x,  key=lambda p:p.x())-1
 
         min_x_index = 0
         if min_x is not None:
-           min_x_index = bisect_right(points,min_x,  key=lambda p:p.x())
+           min_x_index = bisect_left(points, min_x,  key=lambda p:p.x())
 
         if max_x_index < min_x_index:
             return None # Range is too small. Between 2 points
@@ -73,13 +73,11 @@ class ScrutinyLineSeries(QLineSeries):
         index = bisect_left(points, xval, key=lambda p:p.x())
         index = max(min(index, max_x_index), min_x_index)
         p_after = points[index]
-        # exactly on it
+        
+        # exactly on it or right after the minimum
         if index == min_x_index:    
             return p_after
         p_before = points[index-1]  # Guaranteed to be possible. min_x_index is 0 or more, so length is > 0 here
-
-        if min_x is not None and p_before.x() < min_x:
-            return p_after
         
         # We are between 2 points inside the range. Take the closest
         dist_to_p_after = abs(p_after.x()-xval)
