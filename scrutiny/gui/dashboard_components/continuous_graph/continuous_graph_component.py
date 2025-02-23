@@ -30,7 +30,7 @@ from scrutiny.gui.dashboard_components.base_component import ScrutinyGUIBaseComp
 from scrutiny.gui.dashboard_components.common.graph_signal_tree import GraphSignalTree, ChartSeriesWatchableStandardItem
 from scrutiny.gui.dashboard_components.common.export_chart_csv import export_chart_csv_threaded, make_csv_headers
 from scrutiny.gui.dashboard_components.common.base_chart import (
-    ScrutinyLineSeries, ScrutinyValueAxisWithMinMax, ScrutinyChartCallout, ScrutinyChartView, ScrutinyChart,
+    ScrutinyLineSeries, ScrutinyValueAxisWithMinMax, ScrutinyChartView, ScrutinyChart,
     ScrutinyChartToolBar)
 from scrutiny.gui.dashboard_components.continuous_graph.csv_logging_menu import CsvLoggingMenuWidget
 from scrutiny.gui.dashboard_components.continuous_graph.realtime_line_series import RealTimeScrutinyLineSeries
@@ -130,8 +130,6 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
     """The QT chartview"""
     _chart_toolbar:ScrutinyChartToolBar
     """The toolbar that let the user control the zoom"""
-    _callout:ScrutinyChartCallout
-    """A callout (popup bubble) that shows the values on hover"""
     _signal_tree:GraphSignalTree
     """The right menu with axis and signal"""
     _btn_start_stop:QPushButton
@@ -150,8 +148,6 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
     """The splitter between the graph and the signal/axis tree"""
     _serverid2sgnal_item:Dict[str, ChartSeriesWatchableStandardItem]
     """A dictionnary mapping server_id associated with ValueUpdates broadcast by the server to their respective signal (a tree item, which has a reference to the chart series) """
-    _callout_hide_timer:QTimer
-    """A timer to trigger the hiding of the graph callout. Avoid fast show/hide"""
     _first_val_dt:Optional[datetime]
     """The server timestamp of the first value gotten. Used to offset the ValueUpdates timestamps to 0"""
     _graph_maintenance_timer:QTimer
@@ -267,12 +263,6 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
             self._chartview.set_interaction_mode(ScrutinyChartView.InteractionMode.SELECT_ZOOM)
 
             self._chart_toolbar = ScrutinyChartToolBar(self._chartview) 
-            
-            self._callout = ScrutinyChartCallout(chart)
-            self._callout_hide_timer = QTimer()
-            self._callout_hide_timer.setInterval(250)
-            self._callout_hide_timer.setSingleShot(True)
-            self._callout_hide_timer.timeout.connect(self._callout_hide_timer_slot)
 
             left_side = QWidget()
             left_side_layout = QVBoxLayout(left_side)
@@ -329,8 +319,8 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
     # region Controls
     def clear_graph(self) -> None:
         """Delete the graph content and reset the state to of the component to a vanilla state"""
+        self._chartview.chart().hide_mouse_callout()
         self._chartview.chart().removeAllSeries()
-        self._callout.hide()
         self._clear_stats_and_hide()
         
         for yaxis in self._yaxes:
@@ -860,7 +850,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         """When the chartview emit a zoombox_selected signal. Coming from either a wheel event or a selection of zoom with a rubberband"""
         if not self._state.allow_zoom():
             return 
-        self._callout.hide()
+        self._chartview.chart().hide_mouse_callout()
 
         # When we are paused, we want the zoom to stay within the range of that was latched when pause was called.
         # When not pause, saturate to min/max values
@@ -877,7 +867,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         
     def _reset_zoom_slot(self) -> None:
         """Right-click -> Reset zoom"""
-        self._callout.hide()
+        self._chartview.chart().hide_mouse_callout()
         if self._state.paused:
             # Latched when paused. guaranteed to be unzoomed because zoom is not allowed when not
             self._reload_all_latched_ranges()
@@ -952,27 +942,13 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
 
     def _series_hovered_slot(self, signal_item:ChartSeriesWatchableStandardItem, point:QPointF, state:bool) -> None:
         """Called by QtChart when the mouse is over a point of a series. state=``True`` when the mouse enter the point. ``False`` when it leaves"""
-        # FIXME : Snap zone is too small. QT source code says it is computed with markersize, but changing it has no effect.
-        must_show = state
-        if not self._state.allow_display_callout():
-            must_show  = False
-
-        if must_show:
-            series = cast(ScrutinyLineSeries, signal_item.series())
-            closest_real_point = series.search_closest_monotonic(point.x(), self._xaxis.min(), self._xaxis.max())
-            if closest_real_point is not None:
-                self._callout_hide_timer.stop()
-                txt = f"{signal_item.text()}\nX: {closest_real_point.x()}\nY: {closest_real_point.y()}"
-                pos = self._chartview.chart().mapToPosition(closest_real_point, series)
-                color = series.color()
-                self._callout.set_content(pos, txt, color)
-                self._callout.show()
-        else:
-            self._callout_hide_timer.start()
-
-    def _callout_hide_timer_slot(self)-> None:
-        self._callout.hide()
-
+        self._chartview.chart().update_mouse_callout_state(
+            series = cast(ScrutinyLineSeries, signal_item.series()), 
+            visible = state and self._state.allow_display_callout(),
+            val_point = point, 
+            signal_name=signal_item.text()
+            )
+        
     def _spinbox_graph_max_width_changed_slot(self, val:int) -> None:
         """When the user changed the max width spinbox"""
         if val == 0:

@@ -22,7 +22,7 @@ from dataclasses import dataclass
 from PySide6.QtCharts import QLineSeries, QValueAxis, QChart, QChartView, QAbstractSeries, QAbstractAxis
 from PySide6.QtWidgets import QGraphicsItem, QStyleOptionGraphicsItem, QWidget, QRubberBand, QGraphicsSceneMouseEvent, QGraphicsSceneHoverEvent
 from PySide6.QtGui import  (QFont, QPainter, QFontMetrics, QColor, QContextMenuEvent, QPaintEvent, QMouseEvent, QWheelEvent, QPixmap, QKeyEvent, QResizeEvent, QStandardItem)
-from PySide6.QtCore import  QPointF, QRect, QRectF, Qt, QObject, Signal, QSize, QPoint, QSizeF
+from PySide6.QtCore import  QPointF, QRect, QRectF, Qt, QObject, Signal, QSize, QPoint, QSizeF, QTimer
 
 from scrutiny import tools
 from scrutiny.gui import assets
@@ -229,6 +229,40 @@ class ScrutinyValueAxisWithMinMax(ScrutinyValueAxis):
             self.setRange( new_low, new_high )
 
 class ScrutinyChart(QChart):
+
+    _mouse_callout:"ScrutinyChartCallout"
+    """A callout (popup bubble) that shows the values on hover"""
+    _mouse_callout_hide_timer:QTimer
+    """A timer to trigger the hiding of the graph callout. Avoid fast show/hide"""
+
+    @tools.copy_type(QChart.__init__)
+    def __init__(self, *args:Any, **kwargs:Any) -> None:
+        super().__init__(*args, **kwargs)
+        self._mouse_callout = ScrutinyChartCallout(self)
+        self._mouse_callout_hide_timer = QTimer()
+        self._mouse_callout_hide_timer.setInterval(250)
+        self._mouse_callout_hide_timer.setSingleShot(True)
+        self._mouse_callout_hide_timer.timeout.connect(self._callout_hide_timer_slot)
+    
+    def _callout_hide_timer_slot(self)-> None:
+        self.hide_mouse_callout()
+
+    def hide_mouse_callout(self) -> None:
+        self._mouse_callout.hide()
+
+    def update_mouse_callout_state(self, series:ScrutinyLineSeries, visible:bool, val_point:QPointF, signal_name:str) -> None:
+        xaxis = self.axisX()
+        if visible:
+            closest_real_point = series.search_closest_monotonic(val_point.x(), xaxis.min(), xaxis.max())
+            if closest_real_point is not None:
+                self._mouse_callout_hide_timer.stop()
+                txt = f"{signal_name}\nX: {closest_real_point.x()}\nY: {closest_real_point.y()}"
+                pos = self.mapToPosition(closest_real_point, series)
+                color = series.color()
+                self._mouse_callout.set_content(pos, txt, color)
+                self._mouse_callout.show()
+        else:
+            self._mouse_callout_hide_timer.start()
 
     def series(self) -> List[ScrutinyLineSeries]:   # type: ignore
         return [cast(ScrutinyLineSeries, s) for s in super().series()]
@@ -454,7 +488,7 @@ class ScrutinyChartCallout(QGraphicsItem):
 
 
 @dataclass
-class ChartCursorMoved:
+class ChartCursorMovedData:
     xval:float
     series:List[ScrutinyLineSeries]
 
@@ -567,7 +601,7 @@ class ScrutinyChartView(QChartView):
         """Forwarding the keypress event"""
         resized = Signal()
         """Emitted when the chartview is resized"""
-        chart_cursor_moved = Signal(ChartCursorMoved)
+        chart_cursor_moved = Signal(ChartCursorMovedData)
         """Emitted when the chart cursor is moved and snapped to new series"""
 
     _rubber_band:QRubberBand
