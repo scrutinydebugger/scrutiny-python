@@ -677,6 +677,9 @@
         },
         "scrutiny/gui/dashboard_components/continuous_graph/graph_statistics.py": {
             "docstring": "A statistic overlay that can be displayed on the top of a graph"
+        },
+        "test/gui/test_graph_features.py": {
+            "docstring": "A test suite for common graph features"
         }
     }
 }

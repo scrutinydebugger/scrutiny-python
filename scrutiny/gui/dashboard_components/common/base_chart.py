@@ -583,7 +583,7 @@ class ScrutinyChartView(QChartView):
 
     class InteractionMode(enum.Enum):
         SELECT_ZOOM=enum.auto()
-        #DRAG=enum.auto()       # todo
+        DRAG=enum.auto()       # todo
 
     class ZoomType(enum.Enum):
         ZOOM_X=enum.auto()
@@ -666,8 +666,14 @@ class ScrutinyChartView(QChartView):
         """Sets the zoom type of the wheel events and rubber band if interraction mode == ZOOM"""
         self._zoom_type = zoom_type
     
+    def get_zoom_type(self) -> ZoomType:
+        return self._zoom_type
+        
     def set_interaction_mode(self, interaction_mode:InteractionMode) -> None:
         self._interaction_mode = interaction_mode
+
+    def get_interaction_mode(self) -> InteractionMode:
+        return self._interaction_mode
 
     def cursor_enabled(self) -> bool:
         return self._chart_cursor.is_enabled()
@@ -948,6 +954,11 @@ class ScrutinyChartView(QChartView):
 
 class ScrutinyChartToolBar(QGraphicsItem):
     """A toolbar designed to go at the top of a Scrutiny Chart. Can be tied to a Chartview and enable control of it"""
+
+    TOOLBAR_HEIGHT = 24
+    ICON_SIZE = 20  # Square icons
+    PADDING_Y = (TOOLBAR_HEIGHT - ICON_SIZE)/2
+
     class ToolbarButton(QGraphicsItem):
         """Represent a button that goes in the toolbar"""
         class _Signals(QObject):
@@ -969,9 +980,7 @@ class ScrutinyChartToolBar(QGraphicsItem):
         _is_selected:bool
         """True when the button is set as 'selected' programatically"""
 
-        ICON_SIZE = 20  # Square icons
         PADDING_X = 5
-        PADDING_Y = 2
 
         def __init__(self, toolbar:"ScrutinyChartToolBar", icon:assets.Icons) -> None:
             super().__init__(toolbar)
@@ -991,7 +1000,7 @@ class ScrutinyChartToolBar(QGraphicsItem):
             """Changes the icon of the button"""
             self._icon_id = icon
             if size is None:
-                self.set_icon_size(self.ICON_SIZE)
+                self.set_icon_size(ScrutinyChartToolBar.ICON_SIZE)
             else:
                 self.set_icon_size(size)
             self.update()
@@ -1007,7 +1016,7 @@ class ScrutinyChartToolBar(QGraphicsItem):
                 )
             
             # Add internal padding. 2x for left/right and top/bottom
-            size_padded = self._icon_size + QSizeF(2*self.PADDING_X, 2*self.PADDING_Y)
+            size_padded = self._icon_size + QSizeF(2*self.PADDING_X, 2*ScrutinyChartToolBar.PADDING_Y)
             self._bounding_rect = QRectF(QPointF(0,0), size_padded)
             self.update()
         
@@ -1048,7 +1057,7 @@ class ScrutinyChartToolBar(QGraphicsItem):
                         painter.setBrush(HOVERED_COLOR)
                 painter.drawRect(self._bounding_rect)
 
-            painter.drawPixmap(QPoint(self.PADDING_X,self.PADDING_Y), self._pixmap)
+            painter.drawPixmap(QPoint(self.PADDING_X, ScrutinyChartToolBar.PADDING_Y), self._pixmap)
 
         
         def mousePressEvent(self, event:QGraphicsSceneMouseEvent) -> None:
@@ -1074,7 +1083,40 @@ class ScrutinyChartToolBar(QGraphicsItem):
             self._is_hovered = False
             self._is_pressed = False
             self.update()
-            
+
+    class ToolbarSpacer(QGraphicsItem):
+        _width : int
+
+        def __init__(self, toolbar:"ScrutinyChartToolBar" ,width:int) -> None:
+            super().__init__(toolbar)
+            self._width = width
+        
+        def boundingRect(self):
+            return QRect(QPoint(0,0), QPoint(self._width, ScrutinyChartToolBar.TOOLBAR_HEIGHT))
+        
+        def paint(self, painter: QPainter, option: QStyleOptionGraphicsItem, widget: Optional[QWidget]=None) -> None:
+            pass    # Nothing to do. Need to exist
+
+    class ToolbarDivision(QGraphicsItem):
+        LINE_WIDTH = 1
+        LINE_COLOR = QColor(226,226,226)
+        PADDING_X = 6
+        _line_y1:int
+        _line_y2:int
+
+        def __init__(self, toolbar:"ScrutinyChartToolBar") -> None:
+            super().__init__(toolbar)
+            self._line_y1 = ScrutinyChartToolBar.PADDING_Y
+            self._line_y2 = ScrutinyChartToolBar.TOOLBAR_HEIGHT - ScrutinyChartToolBar.PADDING_Y
+        
+        def boundingRect(self):
+            return QRect(QPoint(0,self._line_y1), QPoint(2*self.PADDING_X, self._line_y2))
+        
+        def paint(self, painter: QPainter, option: QStyleOptionGraphicsItem, widget: Optional[QWidget]=None) -> None:
+            painter.setPen(self.LINE_COLOR)
+            p1 = QPoint(self.PADDING_X, self._line_y1)
+            p2 = QPoint(self.PADDING_X, self._line_y2)
+            painter.drawLine(p1, p2)
 
     BUTTON_SPACING = 0
     """ Spaces between each buttons"""
@@ -1082,6 +1124,10 @@ class ScrutinyChartToolBar(QGraphicsItem):
     """The chart on which we draw the toolbar"""
     _chartview:ScrutinyChartView
     """The chartview that the toolbar controls"""
+    _btn_mode_select_zoom:ToolbarButton
+
+    _btn_mode_drag:ToolbarButton
+
     _btn_enable_cursor:ToolbarButton
     """ Enable/disable the graph cursor"""
     _btn_zoom_xy:ToolbarButton
@@ -1092,7 +1138,7 @@ class ScrutinyChartToolBar(QGraphicsItem):
     """ Zoom Y button"""
     _bounding_rect : QRectF
     """The zone where we draw"""
-    _buttons : List[ToolbarButton]
+    _buttons : List[QGraphicsItem]
     """All the buttons in order from left to right"""
 
     def __init__(self, chartview:ScrutinyChartView) -> None:
@@ -1102,29 +1148,42 @@ class ScrutinyChartToolBar(QGraphicsItem):
         self._chartview = chartview
         
         self._btn_enable_cursor = self.ToolbarButton(self, assets.Icons.GraphCursor)
+        self._btn_mode_select_zoom = self.ToolbarButton(self, assets.Icons.CursorArrow)
+        self._btn_mode_drag = self.ToolbarButton(self, assets.Icons.CursorHandDrag)
         self._btn_zoom_xy = self.ToolbarButton(self, assets.Icons.ZoomXY)
         self._btn_zoom_x = self.ToolbarButton(self, assets.Icons.ZoomX)
         self._btn_zoom_y = self.ToolbarButton(self, assets.Icons.ZoomY)
         self._bounding_rect = QRectF()
 
-        self._buttons = [self._btn_enable_cursor, self._btn_zoom_xy, self._btn_zoom_x, self._btn_zoom_y]
+        self._buttons = [
+            self._btn_enable_cursor, 
+            self.ToolbarDivision(self),
+            self._btn_mode_select_zoom, 
+            self._btn_mode_drag, 
+            self.ToolbarDivision(self),
+            self._btn_zoom_xy, 
+            self._btn_zoom_x, 
+            self._btn_zoom_y
+            ]
         self._chart.geometryChanged.connect(self._update_geometry)
         
-        self._btn_enable_cursor.signals.clicked.connect(self._enable_disable_cursor)
-        self._btn_zoom_xy.signals.clicked.connect(self._zoom_xy)
-        self._btn_zoom_x.signals.clicked.connect(self._zoom_x)
-        self._btn_zoom_y.signals.clicked.connect(self._zoom_y)
+        self._btn_enable_cursor.signals.clicked.connect(self._slot_btn_enable_disable_cursor)
+        self._btn_zoom_xy.signals.clicked.connect(self._slot_btn_zoom_xy)
+        self._btn_zoom_x.signals.clicked.connect(self._slot_btn_zoom_x)
+        self._btn_zoom_y.signals.clicked.connect(self._slot_btn_zoom_y)
+        self._btn_mode_select_zoom.signals.clicked.connect(self._slot_btn_mode_select_zoom)
+        self._btn_mode_drag.signals.clicked.connect(self._slot_btn_mode_drag)
 
-        self._btn_zoom_xy.select()
+        self.update_buttons_from_state()
 
 
     def disable_chart_cursor(self) -> None:
         self._chartview.disable_cursor()
-        self._btn_enable_cursor.deselect()
+        self.update_buttons_from_state()
 
     def enable_chart_cursor(self) -> None:
         self._chartview.enable_cursor()
-        self._btn_enable_cursor.select()
+        self.update_buttons_from_state()
 
     def toggle_chart_cursor(self) -> None:
         if self._chartview.cursor_enabled():
@@ -1132,44 +1191,56 @@ class ScrutinyChartToolBar(QGraphicsItem):
         else:
             self.enable_chart_cursor()
 
-    def _enable_disable_cursor(self) -> None:
+    def _slot_btn_enable_disable_cursor(self) -> None:
+        self.toggle_chart_cursor()
+
+    def _slot_btn_zoom_x(self) -> None:
+        """Called when Zoom X button is clicked"""
+        # Change the chartview behavior
+        self._chartview.set_zoom_type(ScrutinyChartView.ZoomType.ZOOM_X)
+        self.update_buttons_from_state()
+    
+    def _slot_btn_zoom_y(self) -> None:
+        # Change the chartview behavior
+        self._chartview.set_zoom_type(ScrutinyChartView.ZoomType.ZOOM_Y)
+        self.update_buttons_from_state()
+    
+    def _slot_btn_zoom_xy(self) -> None:
+        # Change the chartview behavior
+        self._chartview.set_zoom_type(ScrutinyChartView.ZoomType.ZOOM_XY)
+        self.update_buttons_from_state()
+
+    def _slot_btn_mode_select_zoom(self) -> None:
+        self._chartview.set_interaction_mode(ScrutinyChartView.InteractionMode.SELECT_ZOOM)
+        self.update_buttons_from_state()
+
+    def _slot_btn_mode_drag(self) -> None:
+        self._chartview.set_interaction_mode(ScrutinyChartView.InteractionMode.DRAG)
+        self.update_buttons_from_state()
+
+    def update_buttons_from_state(self) -> None:
+        self._btn_zoom_xy.deselect()
+        self._btn_zoom_x.deselect()
+        self._btn_zoom_y.deselect()
+        self._btn_mode_select_zoom.deselect()
+        self._btn_mode_drag.deselect()
+        self._btn_enable_cursor.deselect()
+
+        if self._chartview.get_zoom_type() == ScrutinyChartView.ZoomType.ZOOM_XY:
+            self._btn_zoom_xy.select()
+        elif self._chartview.get_zoom_type() == ScrutinyChartView.ZoomType.ZOOM_X:
+            self._btn_zoom_x.select()
+        elif self._chartview.get_zoom_type() == ScrutinyChartView.ZoomType.ZOOM_Y:
+            self._btn_zoom_y.select()
+
+        if self._chartview.get_interaction_mode() == ScrutinyChartView.InteractionMode.SELECT_ZOOM:
+            self._btn_mode_select_zoom.select()
+        elif self._chartview.get_interaction_mode() == ScrutinyChartView.InteractionMode.DRAG:
+            self._btn_mode_drag.select()
+
         if self._chartview.cursor_enabled():
-            self._chartview.disable_cursor()
-            self._btn_enable_cursor.deselect()
-        else:
-            self._chartview.enable_cursor()
             self._btn_enable_cursor.select()
 
-    def _zoom_x(self) -> None:
-        """Called when Zoom X button is clicked"""
-
-        # Change the chartview behavior
-        self._chartview.set_interaction_mode(ScrutinyChartView.InteractionMode.SELECT_ZOOM)
-        self._chartview.set_zoom_type(ScrutinyChartView.ZoomType.ZOOM_X)
-        
-        # Visual feedback
-        self._btn_zoom_x.select()
-        self._btn_zoom_xy.deselect()
-        self._btn_zoom_y.deselect()
-    
-    def _zoom_y(self) -> None:
-        # Change the chartview behavior
-        self._chartview.set_interaction_mode(ScrutinyChartView.InteractionMode.SELECT_ZOOM)
-        self._chartview.set_zoom_type(ScrutinyChartView.ZoomType.ZOOM_Y)
-        
-        # Visual feedback
-        self._btn_zoom_y.select()
-        self._btn_zoom_xy.deselect()
-        self._btn_zoom_x.deselect()
-    
-    def _zoom_xy(self) -> None:
-        # Change the chartview behavior
-        self._chartview.set_interaction_mode(ScrutinyChartView.InteractionMode.SELECT_ZOOM)
-        self._chartview.set_zoom_type(ScrutinyChartView.ZoomType.ZOOM_XY)
-        # Visual feedback
-        self._btn_zoom_xy.select()
-        self._btn_zoom_x.deselect()
-        self._btn_zoom_y.deselect()
 
     def _update_geometry(self) -> None:
         """Recompute all the internal drawing dimensions"""

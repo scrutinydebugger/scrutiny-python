@@ -1,3 +1,11 @@
+#    test_graph_features.py
+#        A test suite for common graph features
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021 Scrutiny Debugger
+
 from PySide6.QtCore import QPointF
 from test.gui.base_gui_test import ScrutinyBaseGuiTest
 
