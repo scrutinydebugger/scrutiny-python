@@ -23,7 +23,9 @@ class DefaultTheme(ScrutinyTheme):
     prop_dict = {
         ScrutinyThemeProperties.CHART_NORMAL_SERIES_WIDTH : 2,
         ScrutinyThemeProperties.CHART_EMPHASIZED_SERIES_WIDTH : 3,
-        ScrutinyThemeProperties.CHART_CALLOUT_MARKER_RADIUS : 5,
+        ScrutinyThemeProperties.CHART_CALLOUT_MARKER_RADIUS : 4,
+        ScrutinyThemeProperties.CHART_CURSOR_MARKER_RADIUS : 4,
+        ScrutinyThemeProperties.CHART_CURSOR_COLOR : QColor(255,0,0),
 
         ScrutinyThemeProperties.CHART_TOOLBAR_HOVERED_BUTTON_COLOR : HOVERED_COLOR,
         ScrutinyThemeProperties.CHART_TOOLBAR_HOVERED_SELECTED_BORDER_COLOR : SELECTED_HOVERED_BORDER_COLOR,
