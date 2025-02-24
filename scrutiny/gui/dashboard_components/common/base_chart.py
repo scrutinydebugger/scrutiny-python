@@ -1037,7 +1037,7 @@ class ScrutinyChartToolBar(QGraphicsItem):
 
     TOOLBAR_HEIGHT = 24
     ICON_SIZE = 20  # Square icons
-    PADDING_Y = (TOOLBAR_HEIGHT - ICON_SIZE)/2
+    PADDING_Y = int((TOOLBAR_HEIGHT - ICON_SIZE)/2)
 
     class ToolbarButton(QGraphicsItem):
         """Represent a button that goes in the toolbar"""
@@ -1174,8 +1174,8 @@ class ScrutinyChartToolBar(QGraphicsItem):
             super().__init__(toolbar)
             self._width = width
         
-        def boundingRect(self):
-            return QRect(QPoint(0,0), QPoint(self._width, ScrutinyChartToolBar.TOOLBAR_HEIGHT))
+        def boundingRect(self)-> QRectF:
+            return QRectF(QPoint(0,0), QPoint(self._width, ScrutinyChartToolBar.TOOLBAR_HEIGHT))
         
         def paint(self, painter: QPainter, option: QStyleOptionGraphicsItem, widget: Optional[QWidget]=None) -> None:
             pass    # Nothing to do. Need to exist
@@ -1192,8 +1192,8 @@ class ScrutinyChartToolBar(QGraphicsItem):
             self._line_y1 = ScrutinyChartToolBar.PADDING_Y
             self._line_y2 = ScrutinyChartToolBar.TOOLBAR_HEIGHT - ScrutinyChartToolBar.PADDING_Y
         
-        def boundingRect(self):
-            return QRect(QPoint(0,self._line_y1), QPoint(2*self.PADDING_X, self._line_y2))
+        def boundingRect(self) -> QRectF:
+            return QRectF(QPoint(0,self._line_y1), QPoint(2*self.PADDING_X, self._line_y2))
         
         def paint(self, painter: QPainter, option: QStyleOptionGraphicsItem, widget: Optional[QWidget]=None) -> None:
             painter.setPen(self.LINE_COLOR)
