@@ -50,6 +50,7 @@ class ContinuousGraphState:
     """Indicates that the graph is non-empty."""
     use_opengl:bool
     """Indicates that we are using opengl. Coming from an application wide parameter"""
+    chart_toolbar_wanted:bool
     
     def autoscale_enabled(self) -> bool:
         return self.acquiring and not self.paused and self.has_content
@@ -102,8 +103,17 @@ class ContinuousGraphState:
     def enable_startstop_button(self) -> bool:
         return True
     
-    def must_display_toolbar(self) -> bool:
+    def can_display_toolbar(self) -> bool:
         return self.has_non_moving_content()
+    
+    def hide_chart_toolbar(self) -> None:
+        self.chart_toolbar_wanted = False
+    
+    def allow_chart_toolbar(self) -> None:
+        self.chart_toolbar_wanted = True
+
+    def must_display_toolbar(self) -> bool:
+        return self.can_display_toolbar() and self.chart_toolbar_wanted
 
     def allow_display_callout(self) -> bool:
         return self.has_non_moving_content()
@@ -198,7 +208,8 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
             acquiring=False,
             paused=False,
             has_content=False,
-            use_opengl=app_settings().opengl_enabled
+            use_opengl=app_settings().opengl_enabled,
+            chart_toolbar_wanted=True
         )
     
         def make_right_side() -> QWidget:
@@ -297,7 +308,6 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         def update_xval(val:float, enabled:bool) -> None:
             self._xval_label.setText(f"Time (s) : {val}")
             self._xval_label.setVisible(enabled)
-
 
         self._chartview.configure_chart_cursor(self._signal_tree, update_xval)
 
@@ -468,6 +478,9 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
             self._change_x_resolution(0)    # 0 mean no decimation
             self.update_emphasize_state()
             self.enable_repaint_rate_measurement()
+            
+            # Put toolbar in default state
+            self._state.allow_chart_toolbar()
             self._chart_toolbar.disable_chart_cursor()
             
             self._start_periodic_graph_maintenance()
@@ -706,7 +719,6 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
             self._chart_toolbar.show()
         else:
             self._chart_toolbar.hide()
-
 
     def _watcher_id(self) -> str:
         return self.instance_name
@@ -987,18 +999,22 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         This event is forwarded by the chartview through a signal."""
         context_menu = QMenu(self)
 
+        # Save image
         save_img_action = context_menu.addAction(assets.load_tiny_icon(assets.Icons.Image), "Save as image")
         save_img_action.triggered.connect(self._save_image_slot)
         save_img_action.setEnabled(self._state.allow_save_image())
 
+        # Save CSV
         save_csv_action = context_menu.addAction(assets.load_tiny_icon(assets.Icons.CSV), "Save as CSV")
         save_csv_action.triggered.connect(self._save_csv_slot)
         save_csv_action.setEnabled(self._state.allow_save_csv())
 
+        # Reset zoom
         reset_zoom_action = context_menu.addAction(assets.load_tiny_icon(assets.Icons.Zoom100), "Reset zoom")
         reset_zoom_action.triggered.connect(self._reset_zoom_slot)
         reset_zoom_action.setEnabled(self._state.enable_reset_zoom_button())
         
+        # Chart stats overlay
         if self._stats.is_overlay_allowed():
             show_hide_stats = context_menu.addAction(assets.load_tiny_icon(assets.Icons.EyeBar), "Hide stats")
             show_hide_stats.triggered.connect(self._stats.disallow_overlay)
@@ -1006,8 +1022,23 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
             show_hide_stats = context_menu.addAction(assets.load_tiny_icon(assets.Icons.Eye), "Show stats")
             show_hide_stats.triggered.connect(self._stats.allow_overlay)
         
-        show_hide_stats.setEnabled(self._state.enable_showhide_stats_button())            
-        
+        show_hide_stats.setEnabled(self._state.enable_showhide_stats_button())
+
+        # Chart toolbar
+        if self._chart_toolbar.isVisible():
+            def hide_chart_toolbar() -> None:
+                self._state.hide_chart_toolbar()
+                self._apply_internal_state()
+            show_hide_toolbar = context_menu.addAction(assets.load_tiny_icon(assets.Icons.EyeBar), "Hide toolbar")
+            show_hide_toolbar.triggered.connect(hide_chart_toolbar)
+        else:
+            def allow_chart_toolbar() -> None:
+                self._state.allow_chart_toolbar()
+                self._apply_internal_state()
+            show_hide_toolbar = context_menu.addAction(assets.load_tiny_icon(assets.Icons.Eye), "Show toolbar")
+            show_hide_toolbar.triggered.connect(allow_chart_toolbar)
+        show_hide_toolbar.setEnabled(self._state.can_display_toolbar())
+
         context_menu.popup(self._chartview.mapToGlobal(chartview_event.pos()))
 
     def _save_image_slot(self) -> None:
