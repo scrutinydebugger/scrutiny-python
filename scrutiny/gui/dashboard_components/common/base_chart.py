@@ -21,8 +21,11 @@ import enum
 from bisect import bisect_left, bisect_right
 from dataclasses import dataclass
 from PySide6.QtCharts import QLineSeries, QValueAxis, QChart, QChartView, QAbstractSeries, QAbstractAxis
-from PySide6.QtWidgets import QGraphicsItem, QStyleOptionGraphicsItem, QWidget, QRubberBand, QGraphicsSceneMouseEvent, QGraphicsSceneHoverEvent
-from PySide6.QtGui import  (QFont, QPainter, QFontMetrics, QColor, QContextMenuEvent, QPaintEvent, QMouseEvent, QWheelEvent, QPixmap, QKeyEvent, QResizeEvent, QStandardItem)
+from PySide6.QtWidgets import (QGraphicsItem, QStyleOptionGraphicsItem, QWidget, QRubberBand, 
+                                QGraphicsSceneMouseEvent, QGraphicsSceneHoverEvent)
+from PySide6.QtGui import  (QFont, QPainter, QFontMetrics, QColor, QContextMenuEvent, 
+                            QPaintEvent, QMouseEvent, QWheelEvent, QPixmap, QKeyEvent, 
+                            QResizeEvent, QStandardItem)
 from PySide6.QtCore import  QPointF, QRect, QRectF, Qt, QObject, Signal, QSize, QPoint, QSizeF, QTimer
 
 from scrutiny import tools
@@ -667,6 +670,8 @@ class ScrutinyChartView(QChartView):
     """When the cursor is positionned, contains all the value points of each series"""
     _last_mouse_pos:QPoint
     """Last mouse position recorded onmousemove event in order to compute drag delta"""
+    _chart_cursor_broadcast_xval_func:Optional[Callable[[float, bool], None]]
+    
 
     @tools.copy_type(QChartView.__init__)
     def __init__(self, *args:Any, **kwargs:Any) -> None:
@@ -687,6 +692,7 @@ class ScrutinyChartView(QChartView):
         self._series_to_signal_tree_value_item = {}
         self._cursor_markers_vals=[]
         self._last_mouse_pos = QPoint()
+        self._chart_cursor_broadcast_xval_func = None
 
     def resizeEvent(self, event:QResizeEvent) -> None:
         super().resizeEvent(event)
@@ -983,7 +989,7 @@ class ScrutinyChartView(QChartView):
         return chart.mapToParent(chart.plotArea()).containsPoint(p, Qt.FillRule.OddEvenFill)
 
     def _get_closest_x_to_snap_to(self, xval:float) -> Tuple[Optional[float], List[SeriesPointPair]]:
-        """Scan every visible series to find the closest X value  we can put the chart cursor on from a given X val."""
+        """Scan every visible series to find the closest X value so we can put the chart cursor on from a given X val."""
         chart = self.chart()
         xaxis = chart.axisX()
         candidates:List[ScrutinyChartView.SeriesPointPair] = []
@@ -1000,7 +1006,7 @@ class ScrutinyChartView(QChartView):
         closest_xval = candidates[0].point.x()  # First one is the closest, we snap on it
         return closest_xval, candidates
 
-    def _update_signal_tree_values(self ) -> None:
+    def _update_signal_tree_with_cursor_values(self ) -> None:
         """Update the textual Y value that appears next to a signal in a treeview dedicated to show the graph series."""
         if self._signal_tree is None:
             return
@@ -1021,15 +1027,18 @@ class ScrutinyChartView(QChartView):
             for series, value_item in self._signal_tree.get_value_item_by_attached_series():
                 value_item.setText("")
 
-    def tie_cursor_to_signal_tree(self, signal_tree:GraphSignalTree) -> None:
+    def configure_chart_cursor(self, signal_tree:GraphSignalTree, xval_func:Optional[Callable[[float, bool], None]]) -> None:
         if not signal_tree.has_value_col():
             raise RuntimeError("Cannot tie the chart cursor to a signal tree with no value column")
         self._signal_tree = signal_tree
+        self._chart_cursor_broadcast_xval_func = xval_func
 
     @tools.copy_type(QChartView.update)
     def update(self, *args:Any, **kwargs:Any) -> None:
         self._chart_cursor.update()
-        self._update_signal_tree_values()
+        self._update_signal_tree_with_cursor_values()
+        if self._chart_cursor_broadcast_xval_func is not None:
+            self._chart_cursor_broadcast_xval_func(self._chart_cursor.xval(), self._chart_cursor.is_enabled())
         super().update(*args, **kwargs)
 
 class ScrutinyChartToolBar(QGraphicsItem):

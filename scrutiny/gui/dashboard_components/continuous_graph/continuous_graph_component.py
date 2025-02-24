@@ -14,7 +14,7 @@ from dataclasses import dataclass
 
 from PySide6.QtGui import QContextMenuEvent, QKeyEvent
 from PySide6.QtWidgets import (QHBoxLayout, QSplitter, QWidget, QVBoxLayout,  QMenu,
-                               QPushButton, QFormLayout, QSpinBox, QLineEdit)
+                               QPushButton, QFormLayout, QSpinBox, QLineEdit, QLabel)
 from PySide6.QtCore import Qt, QItemSelectionModel, QPointF, QTimer, QRectF
 
 from scrutiny import sdk
@@ -133,6 +133,8 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
     """The QT chartview"""
     _chart_toolbar:ScrutinyChartToolBar
     """The toolbar that let the user control the zoom"""
+    _xval_label:QLabel
+    """The label above the signal tree that shows the X value when moving the chart curosor"""
     _signal_tree:GraphSignalTree
     """The right menu with axis and signal"""
     _btn_start_stop:QPushButton
@@ -203,6 +205,8 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
             right_side = QWidget()
             right_side_layout = QVBoxLayout(right_side)
 
+            self._xval_label = QLabel()
+
             # Series on continuous graph don't have their X value aligned. 
             # We can only show the value next to each point, not all together in the tree
             self._signal_tree = GraphSignalTree(self, watchable_registry=self.watchable_registry, has_value_col=True)
@@ -241,6 +245,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
             start_pause_line_layout.addWidget(self._btn_start_stop)
             start_pause_line_layout.addWidget(self._btn_pause)
 
+            right_side_layout.addWidget(self._xval_label)
             right_side_layout.addWidget(self._signal_tree)
             right_side_layout.addWidget(self._csv_log_menu)
             right_side_layout.addWidget(param_widget)
@@ -289,7 +294,12 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         layout = QHBoxLayout(self)
         layout.addWidget(self._splitter)
 
-        self._chartview.tie_cursor_to_signal_tree(self._signal_tree)
+        def update_xval(val:float, enabled:bool) -> None:
+            self._xval_label.setText(f"Time (s) : {val}")
+            self._xval_label.setVisible(enabled)
+
+
+        self._chartview.configure_chart_cursor(self._signal_tree, update_xval)
 
         # App integration
         self.server_manager.signals.registry_changed.connect(self._registry_changed_slot)
