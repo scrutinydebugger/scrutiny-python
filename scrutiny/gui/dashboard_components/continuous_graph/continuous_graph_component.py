@@ -81,6 +81,9 @@ class ContinuousGraphState:
     def allow_zoom(self) -> bool:
         return self.has_non_moving_content()
 
+    def allow_drag(self) -> bool:
+        return self.has_non_moving_content()
+
     def must_lock_signal_tree(self) -> bool:
         return self.has_content
     
@@ -679,6 +682,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         self._btn_pause.setEnabled(self._state.enable_pause_button())
         self._btn_clear.setEnabled(self._state.enable_clear_button())
         self._chartview.allow_zoom(self._state.allow_zoom())
+        self._chartview.allow_drag(self._state.allow_drag())
         self._csv_log_menu.setEnabled(self._state.enable_csv_logging_menu())
         self.update_stats()
 

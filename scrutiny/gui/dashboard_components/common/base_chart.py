@@ -13,7 +13,8 @@ __all__ = [
     'ScrutinyChart',
     'ScrutinyChartCallout',
     'ScrutinyChartView',
-    'ScrutinyChartToolBar'
+    'ScrutinyChartToolBar',
+    'ChartCursorMovedData'
 ]
 
 import enum
@@ -55,6 +56,8 @@ class ScrutinyLineSeries(QLineSeries):
         :param min_x: Lowest allowed x value
         :param max_x: Highest allowed x value
         """
+
+        # This function is fully unit tested.
         points = self.points()
         if len(points) == 0:
             return None
@@ -251,6 +254,7 @@ class ScrutinyChart(QChart):
         self._mouse_callout.hide()
 
     def update_mouse_callout_state(self, series:ScrutinyLineSeries, visible:bool, val_point:QPointF, signal_name:str) -> None:
+        """Show or hide the callout with the X/Y value triggered by mouse move"""
         xaxis = self.axisX()
         if visible:
             closest_real_point = series.search_closest_monotonic(val_point.x(), xaxis.min(), xaxis.max())
@@ -363,7 +367,6 @@ class ScrutinyChart(QChart):
             ypos = plotarea.y() + plotarea_height - (val.y() - yaxis.min()) * plotarea_height / (yaxis.max() - yaxis.min())
         return QPointF(xpos, ypos)
 
-
     def xval_to_xpos(self, xval:float, clip_if_outside:bool = False) -> Optional[float]:
         """Convert a  graph X axis value into a screen X position relative to the chart origin"""
         xaxis = self.axisX()
@@ -374,6 +377,33 @@ class ScrutinyChart(QChart):
         if xval > xaxis.max():
             return plotarea.x() + plotarea_width if clip_if_outside else None
         return (xval - xaxis.min()) * plotarea_width / (xaxis.max() - xaxis.min()) + plotarea.x()
+
+    def dx_to_dvalx(self, dx:float) -> float:
+        """Compute a pixel delta along the X axis into a change in X-Axis value"""
+        xaxis = self.axisX()
+        plotarea_width = self.plotArea().width()
+        if plotarea_width == 0:
+            return 0
+        return dx/plotarea_width * (xaxis.max() - xaxis.min())
+
+    def dy_to_dvaly(self, dy:float, yaxis:ScrutinyValueAxis) -> float:
+        """Compute a pixel delta along the Y axis into a change in Y-Axis value"""
+        plotarea_height = self.plotArea().height()
+        if plotarea_height == 0:
+            return 0
+        return -dy/plotarea_height * (yaxis.max() - yaxis.min())
+
+    def apply_drag(self, dx:int, dy:int) -> None:
+        # Apply X-Axis
+        dvalx = self.dx_to_dvalx(dx)
+        xaxis = self.axisX()
+        xaxis.setRange(xaxis.min() - dvalx, xaxis.max() - dvalx)
+
+        # Apply all Y-Axes
+        yaxis_set = set([self.axisY(series) for series in self.series()])   # remove duplicate
+        for yaxis in yaxis_set:
+            dvaly = self.dy_to_dvaly(dy, yaxis)
+            yaxis.setRange(yaxis.min() - dvaly, yaxis.max() - dvaly)
 
 class ScrutinyChartCallout(QGraphicsItem):
     """A callout that can be displayed when the user hover a point on a graph"""
@@ -486,7 +516,6 @@ class ScrutinyChartCallout(QGraphicsItem):
         painter.setPen(QColor(0,0,0))
         painter.drawText(self._text_rect, self._text)
 
-
 @dataclass
 class ChartCursorMovedData:
     xval:float
@@ -583,7 +612,9 @@ class ScrutinyChartView(QChartView):
 
     class InteractionMode(enum.Enum):
         SELECT_ZOOM=enum.auto()
-        DRAG=enum.auto()       # todo
+        """Select/zoom, the user can draw a zoombox (rubberband) with his mouse to zoom the graph """
+        DRAG=enum.auto()
+        """Drag mode, the user can move the graph with its mouse in X/Y direction (cursor is a hand)"""
 
     class ZoomType(enum.Enum):
         ZOOM_X=enum.auto()
@@ -603,6 +634,8 @@ class ScrutinyChartView(QChartView):
         """Emitted when the chartview is resized"""
         chart_cursor_moved = Signal(ChartCursorMovedData)
         """Emitted when the chart cursor is moved and snapped to new series"""
+        graph_dragged = Signal(int, int)
+        """Emitted when the user drag the graph with the drag tool"""
 
     _rubber_band:QRubberBand
     """The rubber band (zoom box) dragged by the user"""
@@ -620,6 +653,10 @@ class ScrutinyChartView(QChartView):
     """Zoom ratio for a standrd mouse wheel step"""
     _zoom_allowed:bool
     """Tells if the user is allowed to zoom"""
+    _drag_allowed:bool
+    """Tells if the user is allowed to drag the graph"""
+    _is_dragging:bool
+    """Tells if the user is presently dragging the graph"""
     _chart_cursor:ChartCursor
     """The vertical value cursor (red line)"""
     _signal_tree:Optional[GraphSignalTree]
@@ -628,6 +665,8 @@ class ScrutinyChartView(QChartView):
     """A map that let us find the where to write a Y-value when moving the cursor using the QValueSeries as the key"""
     _cursor_markers_vals:List[SeriesPointPair]
     """When the cursor is positionned, contains all the value points of each series"""
+    _last_mouse_pos:QPoint
+    """Last mouse position recorded onmousemove event in order to compute drag delta"""
 
     @tools.copy_type(QChartView.__init__)
     def __init__(self, *args:Any, **kwargs:Any) -> None:
@@ -641,10 +680,13 @@ class ScrutinyChartView(QChartView):
         self._zoom_type = self.ZoomType.ZOOM_XY
         self._wheel_zoom_factor_per_120deg = self.DEFAULT_WHEEL_ZOOM_FACTOR_PER_120DEG
         self._zoom_allowed = False
+        self._drag_allowed = False
+        self._is_dragging = False
         self._chart_cursor = self.ChartCursor(self)
         self._signal_tree = None
         self._series_to_signal_tree_value_item = {}
         self._cursor_markers_vals=[]
+        self._last_mouse_pos = QPoint()
 
     def resizeEvent(self, event:QResizeEvent) -> None:
         super().resizeEvent(event)
@@ -654,6 +696,7 @@ class ScrutinyChartView(QChartView):
     def setChart(self, chart:QChart) -> None:
         assert isinstance(chart, ScrutinyChart)
         super().setChart(chart)
+        self._signals.graph_dragged.connect(chart.apply_drag)
         
     def chart(self) -> ScrutinyChart:
         return cast(ScrutinyChart, super().chart())
@@ -662,20 +705,30 @@ class ScrutinyChartView(QChartView):
         """Allow/disallow zooming of the chart"""
         self._zoom_allowed = val
 
+    def allow_drag(self, val:bool) -> None:
+        """Allow/disallow dragging the chart"""
+        self._drag_allowed = val
+
     def set_zoom_type(self, zoom_type:ZoomType) -> None:
         """Sets the zoom type of the wheel events and rubber band if interraction mode == ZOOM"""
         self._zoom_type = zoom_type
     
     def get_zoom_type(self) -> ZoomType:
+        """Return the actual zoom type (X,Y,XY)"""
         return self._zoom_type
         
     def set_interaction_mode(self, interaction_mode:InteractionMode) -> None:
+        """Set the chartview user interaction mode. Being select/zoom or drag"""
         self._interaction_mode = interaction_mode
+        if interaction_mode != self.InteractionMode.DRAG:
+            self._is_dragging = False
 
     def get_interaction_mode(self) -> InteractionMode:
+        """Return the actual user graph interaciton mode"""
         return self._interaction_mode
 
     def cursor_enabled(self) -> bool:
+        """Tells if the chart cursor is enabled"""
         return self._chart_cursor.is_enabled()
 
     def enable_cursor(self) -> None:
@@ -789,12 +842,19 @@ class ScrutinyChartView(QChartView):
                 raise NotImplementedError("Unknown zoom type")
             self._rubber_band.setGeometry(QRect(self._rubberband_origin.toPoint(), QSize()))
             self._rubber_band.show()
+        elif self._interaction_mode == self.InteractionMode.DRAG and self._drag_allowed:
+            if self._is_in_plotarea(event.pos()):
+                event.accept()
+                self._is_dragging = True
+                self.setCursor( Qt.CursorShape.ClosedHandCursor )
+        
+        self._last_mouse_pos = event.pos()
         super().mousePressEvent(event)
 
     def mouseMoveEvent(self, event:QMouseEvent) -> None:
         mouse_cursor = Qt.CursorShape.ArrowCursor
+        chart = self.chart()
         if self._chart_cursor.is_dragging():    # The user is dragging the chart cursor (red vertical line)
-            chart = self.chart()
             mouse_cursor = Qt.CursorShape.SizeHorCursor
             eventpos_mapped_to_chart = chart.mapFromParent(event.pos())
             xval = chart.xpos_to_xval(eventpos_mapped_to_chart.x(), clip_if_outside=True)
@@ -809,6 +869,11 @@ class ScrutinyChartView(QChartView):
 
         elif self._chart_cursor.is_in_drag_zone(event.pos().toPointF()):
             mouse_cursor = Qt.CursorShape.SizeHorCursor
+        elif self._interaction_mode == self.InteractionMode.DRAG and self._drag_allowed:
+            if self._is_dragging:
+                mouse_cursor = Qt.CursorShape.ClosedHandCursor
+            elif self._is_in_plotarea(event.pos()):
+                mouse_cursor = Qt.CursorShape.OpenHandCursor
 
         self.viewport().setCursor(mouse_cursor)
 
@@ -833,6 +898,13 @@ class ScrutinyChartView(QChartView):
                     raise NotImplementedError("Unknown zoom type")
                 self._rubberband_valid = True
                 self._rubber_band.setGeometry(QRect(self._rubberband_origin.toPoint(), self._rubberband_end.toPoint()).normalized())
+        # In drag mode, we simply emit the delta drag and let the chart adjust its axes
+        elif self._interaction_mode == self.InteractionMode.DRAG and self._drag_allowed:
+            if self._is_dragging:
+                delta = event.pos() - self._last_mouse_pos
+                self._signals.graph_dragged.emit(delta.x(), delta.y())
+        
+        self._last_mouse_pos = event.pos()
         super().mouseMoveEvent(event)
 
     def mouseReleaseEvent(self, event:QMouseEvent) -> None:
@@ -861,8 +933,13 @@ class ScrutinyChartView(QChartView):
                         (self._rubberband_end.y() - plotarea_mapped_to_chartview.y()) / plotarea_mapped_to_chartview.height()
                     )
                     self._signals.zoombox_selected.emit(QRectF(relative_origin, relative_end).normalized())
+        elif self._interaction_mode == self.InteractionMode.DRAG and self._drag_allowed:
+            pass    # Nothing to do. _is_dragging is always set to False
+        
+        self._is_dragging = False
         self._rubber_band.hide()
         self._rubberband_valid = False
+        self._last_mouse_pos = event.pos()
         super().mouseReleaseEvent(event)
 
     def drawForeground(self, painter:QPainter, rect:Union[QRectF, QRect]) -> None:
@@ -901,6 +978,9 @@ class ScrutinyChartView(QChartView):
                         painter.setBrush(pair.series.color())
                         painter.drawEllipse(chart.mapToParent(pos), MARKER_RADIUS, MARKER_RADIUS)
 
+    def _is_in_plotarea(self, p:Union[QPointF, QPoint]) -> bool:
+        chart = self.chart()
+        return chart.mapToParent(chart.plotArea()).containsPoint(p, Qt.FillRule.OddEvenFill)
 
     def _get_closest_x_to_snap_to(self, xval:float) -> Tuple[Optional[float], List[SeriesPointPair]]:
         """Scan every visible series to find the closest X value  we can put the chart cursor on from a given X val."""
@@ -1026,12 +1106,15 @@ class ScrutinyChartToolBar(QGraphicsItem):
         
         def select(self) -> None:
             """Set the button as 'selected' which change the color"""
-            self._is_selected = True
-            self.update()
+            self.set_selected(True)
         
         def deselect(self) -> None:
             """Set the button as 'deselected' which change the color"""
-            self._is_selected = False
+            self.set_selected(False)
+
+        def set_selected(self, val:bool) -> None:
+            """Set the button as 'selected' or 'deselected' which change the color"""
+            self._is_selected = val
             self.update()
 
         def paint(self, painter: QPainter, option: QStyleOptionGraphicsItem, widget: Optional[QWidget]=None) -> None:
@@ -1219,28 +1302,14 @@ class ScrutinyChartToolBar(QGraphicsItem):
         self.update_buttons_from_state()
 
     def update_buttons_from_state(self) -> None:
-        self._btn_zoom_xy.deselect()
-        self._btn_zoom_x.deselect()
-        self._btn_zoom_y.deselect()
-        self._btn_mode_select_zoom.deselect()
-        self._btn_mode_drag.deselect()
-        self._btn_enable_cursor.deselect()
-
-        if self._chartview.get_zoom_type() == ScrutinyChartView.ZoomType.ZOOM_XY:
-            self._btn_zoom_xy.select()
-        elif self._chartview.get_zoom_type() == ScrutinyChartView.ZoomType.ZOOM_X:
-            self._btn_zoom_x.select()
-        elif self._chartview.get_zoom_type() == ScrutinyChartView.ZoomType.ZOOM_Y:
-            self._btn_zoom_y.select()
-
-        if self._chartview.get_interaction_mode() == ScrutinyChartView.InteractionMode.SELECT_ZOOM:
-            self._btn_mode_select_zoom.select()
-        elif self._chartview.get_interaction_mode() == ScrutinyChartView.InteractionMode.DRAG:
-            self._btn_mode_drag.select()
-
-        if self._chartview.cursor_enabled():
-            self._btn_enable_cursor.select()
-
+        self._btn_enable_cursor.set_selected(self._chartview.cursor_enabled())
+        
+        self._btn_mode_select_zoom.set_selected(self._chartview.get_interaction_mode() == ScrutinyChartView.InteractionMode.SELECT_ZOOM)
+        self._btn_mode_drag.set_selected(self._chartview.get_interaction_mode() == ScrutinyChartView.InteractionMode.DRAG)
+        
+        self._btn_zoom_xy.set_selected(self._chartview.get_zoom_type() == ScrutinyChartView.ZoomType.ZOOM_XY)
+        self._btn_zoom_x.set_selected(self._chartview.get_zoom_type() == ScrutinyChartView.ZoomType.ZOOM_X)
+        self._btn_zoom_y.set_selected(self._chartview.get_zoom_type() == ScrutinyChartView.ZoomType.ZOOM_Y)
 
     def _update_geometry(self) -> None:
         """Recompute all the internal drawing dimensions"""
