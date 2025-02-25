@@ -51,7 +51,7 @@ class CSVLogger:
     EXTENSION='.csv'
  
     DATETIME_HEADER='Datetime'
-    RELTIME_HEADER='Time (s)'
+    RELTIME_HEADER='Time [s]'
     UPDATE_FLAG_HEADER='update flags'
     WATCHABLE_FIRST_COL=2
 

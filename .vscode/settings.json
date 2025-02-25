@@ -4,6 +4,7 @@
     "editor.detectIndentation": false,
     "editor.tabSize": 4,
     "editor.insertSpaces": true,
+    "git.blame.editorDecoration.enabled" : false,
     "python.analysis.autoImportCompletions": false,
     "python.defaultInterpreterPath" : "venv/bin/python3",
     "[python]": {

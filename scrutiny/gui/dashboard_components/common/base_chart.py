@@ -22,16 +22,20 @@ from bisect import bisect_left, bisect_right
 from dataclasses import dataclass
 from PySide6.QtCharts import QLineSeries, QValueAxis, QChart, QChartView, QAbstractSeries, QAbstractAxis
 from PySide6.QtWidgets import (QGraphicsItem, QStyleOptionGraphicsItem, QWidget, QRubberBand, 
-                                QGraphicsSceneMouseEvent, QGraphicsSceneHoverEvent)
+                                QGraphicsSceneMouseEvent, QGraphicsSceneHoverEvent, QHBoxLayout, QLabel,
+                                QDialogButtonBox)
 from PySide6.QtGui import  (QFont, QPainter, QFontMetrics, QColor, QContextMenuEvent, 
                             QPaintEvent, QMouseEvent, QWheelEvent, QPixmap, QKeyEvent, 
-                            QResizeEvent, QStandardItem)
+                            QResizeEvent, QStandardItem, QWindow, QDoubleValidator)
 from PySide6.QtCore import  QPointF, QRect, QRectF, Qt, QObject, Signal, QSize, QPoint, QSizeF, QTimer
 
 from scrutiny import tools
 from scrutiny.gui import assets
+from scrutiny.gui.core.definitions import WidgetState
 from scrutiny.gui.themes import get_theme_prop, ScrutinyThemeProperties
 from scrutiny.gui.tools.min_max import MinMax
+from scrutiny.gui.widgets.validable_line_edit import ValidableLineEdit
+
 from scrutiny.tools import validation
 from scrutiny.gui.dashboard_components.common.graph_signal_tree import GraphSignalTree
 
@@ -397,6 +401,8 @@ class ScrutinyChart(QChart):
         return -dy/plotarea_height * (yaxis.max() - yaxis.min())
 
     def apply_drag(self, dx:int, dy:int) -> None:
+        """Move the chart by adjusting the axes range.
+        Triggered by a chartview chart_dragged signal."""
         # Apply X-Axis
         dvalx = self.dx_to_dvalx(dx)
         xaxis = self.axisX()
@@ -909,6 +915,7 @@ class ScrutinyChartView(QChartView):
             if self._is_dragging:
                 delta = event.pos() - self._last_mouse_pos
                 self._signals.graph_dragged.emit(delta.x(), delta.y())
+                self.update()
         
         self._last_mouse_pos = event.pos()
         super().mouseMoveEvent(event)
@@ -1347,3 +1354,74 @@ class ScrutinyChartToolBar(QGraphicsItem):
 
     def boundingRect(self) -> QRectF:
         return self._bounding_rect
+
+class EditRangeDialog(QWindow):
+
+    class MinMaxEdit(QWidget):
+
+        _min_line_edit:ValidableLineEdit
+        _max_line_edit:ValidableLineEdit
+
+        def __init__(self, parent:QWidget) -> None:
+            super().__init__(parent)
+
+            layout = QHBoxLayout(self)
+            self._min_line_edit = ValidableLineEdit(
+                hard_validator=QDoubleValidator(),
+                soft_validator=QDoubleValidator()
+            )
+
+            self._max_line_edit = ValidableLineEdit(
+                hard_validator=QDoubleValidator(),
+                soft_validator=QDoubleValidator()
+            )
+
+            layout.addWidget(QLabel("Min:"))
+            layout.addWidget(self._min_line_edit)
+            layout.addWidget(QLabel("Max:"))
+            layout.addWidget(self._max_line_edit)
+
+        def validate(self) -> bool:
+            valid = True
+            if not self._max_line_edit.validate_expect_valid():
+                valid = False
+            if not self._min_line_edit.validate_expect_valid():
+                valid = False
+            
+            minval = float(self._min_line_edit.text())
+            maxval = float(self._max_line_edit.text())
+
+            if minval >= maxval:
+                self._min_line_edit.set_style_state(WidgetState.error)
+                self._max_line_edit.set_style_state(WidgetState.error)
+                valid = False
+
+            if valid:
+                self._min_line_edit.set_style_state(WidgetState.default)
+                self._max_line_edit.set_style_state(WidgetState.default)
+
+            return valid
+        
+
+
+    @tools.copy_type(QWindow.__init__)
+    def __init__(self, *args:Any, **kwargs:Any) -> None:
+        super().__init__(*args, **kwargs)
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        buttons.accepted.connect(self._btn_ok_click)
+        buttons.rejected.connect(self._btn_cancel_click)
+
+    def _btn_ok_click(self) -> None:
+        pass
+        #valid_config = self._validate()
+        #if valid_config:
+        #    pass
+    
+    def _btn_cancel_click(self) -> None:
+        pass
+        #self.reset()
+        #self._validate()
+        #self.close()
+
+    def fill_from_chart(self, chart:ScrutinyChart) -> None:
+        pass

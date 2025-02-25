@@ -120,6 +120,9 @@ class ContinuousGraphState:
     
     def enable_reset_zoom_button(self) -> bool:
         return self.has_content
+    
+    def enable_edit_range_menu(self) -> bool:
+        return self.has_non_moving_content()
 
     def enable_showhide_stats_button(self) -> bool:
         return self.has_content
@@ -306,7 +309,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         layout.addWidget(self._splitter)
 
         def update_xval(val:float, enabled:bool) -> None:
-            self._xval_label.setText(f"Time (s) : {val}")
+            self._xval_label.setText(f"Time [s] : {val}")
             self._xval_label.setVisible(enabled)
 
         self._chartview.configure_chart_cursor(self._signal_tree, update_xval)
@@ -890,7 +893,10 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
                 # We rely on the capacity to reset the zoom to come back to something reasonable if the user gets lost
                 yaxis.apply_zoombox_y(zoombox)  
         self._chartview.update()
-        
+    
+    def _edit_range_slot(self) -> None:
+        pass
+
     def _reset_zoom_slot(self) -> None:
         """Right-click -> Reset zoom"""
         self._chartview.chart().hide_mouse_callout()
@@ -999,21 +1005,20 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         This event is forwarded by the chartview through a signal."""
         context_menu = QMenu(self)
 
-        # Save image
-        save_img_action = context_menu.addAction(assets.load_tiny_icon(assets.Icons.Image), "Save as image")
-        save_img_action.triggered.connect(self._save_image_slot)
-        save_img_action.setEnabled(self._state.allow_save_image())
 
-        # Save CSV
-        save_csv_action = context_menu.addAction(assets.load_tiny_icon(assets.Icons.CSV), "Save as CSV")
-        save_csv_action.triggered.connect(self._save_csv_slot)
-        save_csv_action.setEnabled(self._state.allow_save_csv())
+        context_menu.addSection("Zoom")
 
         # Reset zoom
         reset_zoom_action = context_menu.addAction(assets.load_tiny_icon(assets.Icons.Zoom100), "Reset zoom")
         reset_zoom_action.triggered.connect(self._reset_zoom_slot)
         reset_zoom_action.setEnabled(self._state.enable_reset_zoom_button())
+
+        edit_ranges_action = context_menu.addAction(assets.load_tiny_icon(assets.Icons.ZoomXY), "Edit ranges")
+        edit_ranges_action.triggered.connect(self._edit_range_slot)
+        edit_ranges_action.setEnabled(self._state.enable_edit_range_menu())
         
+
+        context_menu.addSection("Visibility")
         # Chart stats overlay
         if self._stats.is_overlay_allowed():
             show_hide_stats = context_menu.addAction(assets.load_tiny_icon(assets.Icons.EyeBar), "Hide stats")
@@ -1039,6 +1044,18 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
             show_hide_toolbar.triggered.connect(allow_chart_toolbar)
         show_hide_toolbar.setEnabled(self._state.can_display_toolbar())
 
+
+        context_menu.addSection("Export")
+        # Save image
+        save_img_action = context_menu.addAction(assets.load_tiny_icon(assets.Icons.Image), "Save as image")
+        save_img_action.triggered.connect(self._save_image_slot)
+        save_img_action.setEnabled(self._state.allow_save_image())
+
+        # Save CSV
+        save_csv_action = context_menu.addAction(assets.load_tiny_icon(assets.Icons.CSV), "Save as CSV")
+        save_csv_action.triggered.connect(self._save_csv_slot)
+        save_csv_action.setEnabled(self._state.allow_save_csv())
+
         context_menu.popup(self._chartview.mapToGlobal(chartview_event.pos()))
 
     def _save_image_slot(self) -> None:
@@ -1047,8 +1064,24 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
             return 
         
         filepath:Optional[Path] = None
+        overlay_allowed = self._stats.is_overlay_allowed()
+        toolbar_wanted = self._state.chart_toolbar_wanted
+
         try:
+            # Hide toolbar and stats overlay, take the snapshot and put them back if needed
+            self._stats.disallow_overlay()
+            self._state.chart_toolbar_wanted = False
+            self._apply_internal_state()
+            self._chartview.update()
+
             pix = self._chartview.grab()
+
+            if overlay_allowed:
+                self._stats.allow_overlay()
+            self._state.chart_toolbar_wanted = toolbar_wanted
+            self._apply_internal_state()
+            self._chartview.update()
+
             filepath = prompt.get_save_filepath_from_last_save_dir(self, ".png")
             if filepath is None:
                 return
@@ -1069,11 +1102,11 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         
         def finished_callback(exception:Optional[Exception]) -> None:
             # This runs in a different thread
-            # Todo : Add visual "saving..." feedback ?
             if exception is not None:
                 tools.log_exception(self.logger, exception, f"Error while saving graph into {filepath}" )
                 InvokeInQtThread(lambda: prompt.exception_msgbox(self, exception, "Failed to save", f"Failed to save the graph to {filepath}"))
-
+        
+        # Todo : Add visual "saving..." feedback ?
         export_chart_csv_threaded(
             datetime_zero_sec = self._first_val_dt,
             filename = filepath, 

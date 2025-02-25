@@ -419,7 +419,7 @@ class TestListeners(ScrutinyUnitTest):
                 fullpath_headers = next(rows)
                 headers = next(rows)
                 self.assertEqual(headers[0], 'Datetime' )
-                self.assertEqual(headers[1], 'Time (s)' )
+                self.assertEqual(headers[1], 'Time [s]' )
                 self.assertEqual(headers[-1], 'update flags' )
                 all_watchables = sorted([self.w1, self.w2, self.w3, self.w4, self.w5], key=lambda x: x.display_path)
                 index=2
@@ -514,7 +514,7 @@ class TestListeners(ScrutinyUnitTest):
                 fullpath_headers = next(rows)
                 headers = next(rows)
                 self.assertEqual(headers[0], 'Datetime' )
-                self.assertEqual(headers[1], 'Time (s)' )
+                self.assertEqual(headers[1], 'Time [s]' )
                 self.assertEqual(headers[-1], 'update flags' )
                 all_watchables = sorted([self.w1, self.w2, self.w3, self.w4, self.w5], key=lambda x: x.display_path)
                 index=2
