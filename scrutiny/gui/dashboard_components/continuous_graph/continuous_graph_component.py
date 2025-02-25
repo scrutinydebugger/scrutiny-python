@@ -1013,11 +1013,6 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         reset_zoom_action.triggered.connect(self._reset_zoom_slot)
         reset_zoom_action.setEnabled(self._state.enable_reset_zoom_button())
 
-        edit_ranges_action = context_menu.addAction(assets.load_tiny_icon(assets.Icons.ZoomXY), "Edit ranges")
-        edit_ranges_action.triggered.connect(self._edit_range_slot)
-        edit_ranges_action.setEnabled(self._state.enable_edit_range_menu())
-        
-
         context_menu.addSection("Visibility")
         # Chart stats overlay
         if self._stats.is_overlay_allowed():
