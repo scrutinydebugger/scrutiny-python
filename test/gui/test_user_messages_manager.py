@@ -1,5 +1,10 @@
-
-
+#    test_user_messages_manager.py
+#        A test suite for the User Message service
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021 Scrutiny Debugger
 
 from test.gui.base_gui_test import ScrutinyBaseGuiTest
 from scrutiny.gui.core.user_messages_manager import UserMessagesManager, UserMessage
@@ -136,7 +141,7 @@ class TestUserMessagesManager(ScrutinyBaseGuiTest):
         self.assertEqual(self.msg_shown_list[2].msg.id, 'aaa')
         self.assertEqual(self.msg_shown_list[2].msg.repeat_counter, 3)
 
-        self.manager.register_message("bbb", "msg4", 0.5)
+        self.manager.register_message("bbb", "msg4", 2)
         self.wait_equal_with_events(lambda: len(self.msg_shown_list), 4, timeout=2)
         self.assertEqual(self.msg_shown_list[3].msg.id, 'bbb')
         self.assertEqual(self.msg_shown_list[3].msg.repeat_counter, 1) 

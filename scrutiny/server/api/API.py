@@ -816,7 +816,6 @@ class API:
     #  ===  SET_LINK_CONFIG ===
     def process_set_link_config(self, conn_id: str, req: api_typing.C2S.SetLinkConfig) -> None:
         # With this request, the user can change the device connection through an API call
-        #import ipdb; ipdb.set_trace()
         if 'link_type' not in req or not isinstance(req['link_type'], str):
             raise InvalidRequestException(req, 'Invalid link_type')
 

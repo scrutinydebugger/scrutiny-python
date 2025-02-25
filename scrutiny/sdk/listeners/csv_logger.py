@@ -21,7 +21,8 @@ from scrutiny.tools import validation
 from scrutiny.core.basic_types import EmbeddedDataType
 from scrutiny.sdk.listeners import ValueUpdate
 from scrutiny.sdk.watchable_handle import WatchableHandle
-from typing import Optional, TextIO, Dict, Union, List, Iterable, cast
+from scrutiny.tools.typing import *
+from typing import TextIO
 
 PossibleVal = Optional[Union[str, float, int, bool]]
 @dataclass(frozen=True)
@@ -50,7 +51,7 @@ class CSVLogger:
     EXTENSION='.csv'
  
     DATETIME_HEADER='Datetime'
-    RELTIME_HEADER='Time (s)'
+    RELTIME_HEADER='Time [s]'
     UPDATE_FLAG_HEADER='update flags'
     WATCHABLE_FIRST_COL=2
 
@@ -132,10 +133,8 @@ class CSVLogger:
             raise ValueError("Empty filename")
 
         if lines_per_file is not None:
-            regex_test=re.compile(f'{re.escape(filename)}_[0-9]+{self.EXTENSION}')
-            for file in os.listdir(folder):
-                if regex_test.match(file):
-                    raise FileExistsError(f"File {os.path.join(folder, file)} exists and may conflict with the CSV output")
+            for file in self.get_conflicting_files(Path(folder), filename):
+                raise FileExistsError(f"File {os.path.join(folder, file)} exists and may conflict with the CSV output")
 
         validation.assert_type_or_none(logger, 'logger', logging.Logger)
         if logger is None:
@@ -168,6 +167,19 @@ class CSVLogger:
 
     def get_folder(self) -> Path:
         return Path(self._folder_abs)
+    
+    @classmethod
+    def get_conflicting_files(cls, folder:Path, filename:str) -> Generator[Path, None, None]:
+        """Makes the inventory of all the files that already exist with a name pattern that may collide with the given folder and filename
+        
+        :param folder: The output folder
+        :param filename: The file basename where all files are named <basename>_nnnn.csv 
+        
+        """
+        regex_test = re.compile(f'{re.escape(filename)}_[0-9]+{cls.EXTENSION}')
+        for file in os.listdir(folder):
+            if regex_test.match(file):
+                yield folder / file
 
     def set_file_headers(self, file_headers:List[List[str]]) -> None:
         """Configure the list of headers to add at the top of the file before writing the value table"""

@@ -10,16 +10,12 @@ from datetime import datetime
 import functools
 import math
 from pathlib import Path
-import logging
 from dataclasses import dataclass
-import re
-import os
 
-from PySide6.QtGui import QPainter, QFontMetrics, QFont, QColor, QContextMenuEvent, QKeyEvent
-from PySide6.QtWidgets import (QHBoxLayout, QSplitter, QWidget, QVBoxLayout,  QMenu, QSizePolicy,
-                               QPushButton, QFormLayout, QSpinBox, QGraphicsItem, QStyleOptionGraphicsItem,
-                               QLineEdit, QCheckBox, QGroupBox)
-from PySide6.QtCore import Qt, QItemSelectionModel, QPointF, QTimer, QRectF, QRect
+from PySide6.QtGui import QContextMenuEvent, QKeyEvent
+from PySide6.QtWidgets import (QHBoxLayout, QSplitter, QWidget, QVBoxLayout,  QMenu,
+                               QPushButton, QFormLayout, QSpinBox, QLineEdit, QLabel)
+from PySide6.QtCore import Qt, QItemSelectionModel, QPointF, QTimer, QRectF
 
 from scrutiny import sdk
 from scrutiny import tools
@@ -27,7 +23,6 @@ from scrutiny.gui import assets
 from scrutiny.gui.app_settings import app_settings
 from scrutiny.gui.tools import prompt
 from scrutiny.gui.tools.invoker import InvokeQueued, InvokeInQtThread
-from scrutiny.gui.tools.min_max import MinMax
 from scrutiny.gui.core.definitions import WidgetState
 from scrutiny.gui.core.watchable_registry import WatchableRegistryNodeNotFoundError, ValueUpdate
 from scrutiny.gui.widgets.feedback_label import FeedbackLabel
@@ -35,367 +30,15 @@ from scrutiny.gui.dashboard_components.base_component import ScrutinyGUIBaseComp
 from scrutiny.gui.dashboard_components.common.graph_signal_tree import GraphSignalTree, ChartSeriesWatchableStandardItem
 from scrutiny.gui.dashboard_components.common.export_chart_csv import export_chart_csv_threaded, make_csv_headers
 from scrutiny.gui.dashboard_components.common.base_chart import (
-    ScrutinyLineSeries, ScrutinyValueAxisWithMinMax, ScrutinyChartCallout, ScrutinyChartView, ScrutinyChart,
+    ScrutinyLineSeries, ScrutinyValueAxisWithMinMax, ScrutinyChartView, ScrutinyChart,
     ScrutinyChartToolBar)
-from scrutiny.gui.dashboard_components.continuous_graph.decimator import GraphMonotonicNonUniformMinMaxDecimator
+from scrutiny.gui.dashboard_components.continuous_graph.csv_logging_menu import CsvLoggingMenuWidget
+from scrutiny.gui.dashboard_components.continuous_graph.realtime_line_series import RealTimeScrutinyLineSeries
+from scrutiny.gui.dashboard_components.continuous_graph.graph_statistics import GraphStatistics
 from scrutiny.gui.core.preferences import gui_preferences
-from scrutiny.sdk.listeners.csv_logger import CSVLogger, CSVConfig
-from scrutiny.tools.profiling import VariableRateExponentialAverager
+from scrutiny.sdk.listeners.csv_logger import CSVLogger
 
-from typing import Dict, Any, Union, List, Optional, cast, Set, Generator
-
-class CsvLoggingMenuWidget(QWidget):
-    _chk_enable:QCheckBox
-    _txt_folder:QLineEdit
-    _txt_filename_pattern:QLineEdit
-    _spin_max_line_per_file:QSpinBox
-    _gb_content:QGroupBox
-
-    def __init__(self, parent:QWidget):
-        super().__init__(parent)
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(0,0,0,0)
-
-        self._chk_enable = QCheckBox("Log to CSV", self)
-        self._gb_content = QGroupBox(self)
-        self._gb_content.setVisible(False)
-        layout.addWidget(self._chk_enable)
-        layout.addWidget(self._gb_content)
-        self._txt_folder = QLineEdit(self)
-        self._txt_filename_pattern = QLineEdit(self)
-        self._spin_max_line_per_file = QSpinBox(self)
-        self._spin_max_line_per_file.setMinimum(1000)
-        self._spin_max_line_per_file.setMaximum(1000000)
-        self._spin_max_line_per_file.setValue(10000)
-        self._btn_browse = QPushButton("...", self)
-        self._txt_folder.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
-        self._btn_browse.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Preferred)
-        self._btn_browse.setMinimumWidth(20)
-        self._btn_browse.setMaximumWidth(40)
-
-        self._btn_browse.clicked.connect(self._browse_clicked_slot)
-
-        filebrowse_line = QWidget()
-        filebrowse_layout = QHBoxLayout(filebrowse_line)
-        filebrowse_layout.setContentsMargins(0,0,0,0)
-        filebrowse_layout.addWidget(self._txt_folder)
-        filebrowse_layout.addWidget(self._btn_browse)
-
-        gb_layout = QFormLayout(self._gb_content)
-
-        gb_layout.addRow("Folder", filebrowse_line)
-        gb_layout.addRow("File prefix", self._txt_filename_pattern)
-        gb_layout.addRow("Lines/file", self._spin_max_line_per_file)
-
-        self._chk_enable.checkStateChanged.connect(self._check_state_changed_slot)
-
-
-    def _check_state_changed_slot(self, state:Qt.CheckState) -> None:
-        if state == Qt.CheckState.Checked:
-            self._gb_content.setVisible(True)
-        else:
-            self._gb_content.setVisible(False)
-
-    def _browse_clicked_slot(self) -> None:
-        actual_folder:Optional[Path] = None # USe last save dir if None
-        if os.path.isdir(self._txt_folder.text()):
-            actual_folder = Path(os.path.normpath(self._txt_folder.text()))
-            actual_folder = actual_folder.absolute()
-
-        folder = prompt.get_save_folderpath_from_last_save_dir(self, "Select a folder", save_dir=actual_folder)
-        if folder is not None:
-            self._txt_folder.setText(str(folder))
-    
-    def require_csv_logging(self) -> bool:
-        return self._chk_enable.isChecked()
-
-    def validate(self) -> None:
-        folder = self._txt_folder.text()
-        if len(folder) == 0:
-            raise ValueError("No folder selected")
-        filename_pattern = self._txt_filename_pattern.text()
-        if len(filename_pattern) == 0:
-            raise ValueError("No filename prefix provided")
-
-        valid_filename = re.compile(r"^[A-Za-z0-9\._\-\(\)]+$")
-        if not valid_filename.match(filename_pattern):
-            raise ValueError("Invalid characters in filename")
-        
-        folder = os.path.normpath(folder)
-        if not os.path.isabs(folder):
-            folder = os.path.normpath(os.path.abspath(folder))
-
-        if not os.path.isdir(folder):
-            raise FileNotFoundError(f"Folder {folder} does not exist")
-
-        self._txt_folder.setText(folder)
-    
-    def make_csv_logger(self, logging_logger:Optional[logging.Logger] = None)  -> CSVLogger:
-        # Validation happens inside the constructor
-        self.validate()
-
-        csv_config = CSVConfig(
-            delimiter=',',
-            newline='\n'
-        )
-
-        return CSVLogger(
-            folder = self._txt_folder.text(),
-            filename = self._txt_filename_pattern.text(),
-            lines_per_file = self._spin_max_line_per_file.value(),
-            datetime_format=gui_preferences.global_namespace().long_datetime_format(),
-            csv_config=csv_config,
-            convert_bool_to_int=True,
-            logger=logging_logger,
-            file_part_0pad=4
-        )
-
-class RealTimeScrutinyLineSeries(ScrutinyLineSeries):
-    """Extension of a LineSeries that is meant to display data in real time.
-    It has support for decimation and some fancy tricks to kep tracks of min/max
-    value with minimal CPU computation"""
-
-    _decimator:GraphMonotonicNonUniformMinMaxDecimator
-    """The decimator that keeps the whole dataset and also provides a decimated version of it"""
-    _x_minmax:MinMax
-    """Min/Max trackerfor the X values"""
-    _y_minmax:MinMax
-    """Min/Max trackerfor the Y values"""
-    _dirty:bool
-    """Flag indicating that the output of the decimator has new data ready to be flushed to the chart"""
-
-    def __init__(self, *args:Any, **kwargs:Any) -> None:
-        super().__init__(*args, **kwargs)
-        self._decimator = GraphMonotonicNonUniformMinMaxDecimator()
-        self._x_minmax = MinMax()
-        self._y_minmax = MinMax()
-        self._dirty = False
-
-    def set_x_resolution(self, resolution:float) -> bool:
-        """Set the X width used by the decimator. All the points within a moving window of this size will be clustered together"""
-        changed = self._decimator.set_x_resolution(resolution)
-        if changed:            
-            self._dirty = True
-        return changed
-    
-    def decimation_factor(self) -> float:
-        """Provides an estimation of the decimation factor"""
-        return self._decimator.decimation_factor()
-    
-    def count_decimated_points(self) -> int:
-        """Count the number of points at the output of the decimator"""
-        return len(self._decimator.get_decimated_buffer())
-
-    def count_all_points(self) -> int:
-        """Count the number of points at the input of the decimator (full dataset)"""
-        return len(self._decimator.get_input_buffer())
-
-    def add_point(self, point:QPointF) -> int:
-        """Adds a point to the decimator input. New output points may or may not be available after
-
-        :param point: The point to add
-        :return: The number of new points available at the output. May be bigger than 1
-        """
-        n = self._decimator.add_point(point)    # Can have 2 points out for a single in (min/max)
-        if n > 0:
-            # New data available at the output. update the min/max in real time for axis autorange
-            start_index = len(self._decimator.get_decimated_buffer())-n     # Avoid negative slice. Not all container supports it
-            for p in self._decimator.get_decimated_buffer()[start_index:]:
-                self._y_minmax.update(p.y())
-                self._x_minmax.update_max(p.x())
-            self._dirty=True
-        return n
-    
-    def delete_up_to_x_without_flushing(self, x:float) -> None:
-        """Delete both input and output data up to a value of X specified. Assumes a monotonic X axis
-        
-        :param x: The minimum X value allowed. Any points with a X value smaller than this will get deleted
-        
-        """
-        in_deleted, out_deleted = self._decimator.delete_data_up_to_x(x)
-        if out_deleted > 0: # That affects the visible graph
-            self._dirty = True
-    
-    def get_last_x(self) -> Optional[float]:
-        """Return the most recent point from the input buffer"""
-        buffer = self._decimator.get_input_buffer()
-        if len(buffer) == 0:
-            return None
-        return buffer[-1].x()
-
-    def get_first_x(self) -> Optional[float]:
-        """Return the oldest point from the input buffer"""
-        buffer = self._decimator.get_input_buffer()
-        if len(buffer) == 0:
-            return None
-        return buffer[0].x()
-    
-    def get_last_decimated_x(self) -> Optional[float]:
-        """Return the most recent point fromthe output buffer (decimated buffer)"""
-        buffer = self._decimator.get_decimated_buffer()
-        if len(buffer) == 0:
-            return None
-        return buffer[-1].x()
-
-    def get_first_decimated_x(self) -> Optional[float]:
-        """Return the oldest point fromthe output buffer (decimated buffer)"""
-        buffer = self._decimator.get_decimated_buffer()
-        if len(buffer) == 0:
-            return None
-        return buffer[0].x()
-
-    def flush_decimated(self) -> None:
-        """Copy the decimator output buffer (decimated) into the chart buffer for display"""
-        self.replace(self._decimator.get_decimated_buffer())
-        self._dirty = False
-    
-    def flush_full_dataset(self) -> None:
-        """Copy the decimator input buffer (full dataset) into the chart buffer for display"""
-        self.replace(self._decimator.get_input_buffer())
-
-    def is_dirty(self) -> bool:
-        return self._dirty
-
-    def stop_decimator(self) -> None:
-        """Stops the decimator, Any input pointed being held for decimation will be moved to the output"""
-        self._decimator.force_flush_pending()
-
-    def recompute_minmax(self) -> None:
-        """Recompute the min/max values of the whole dataset"""
-
-        # Since the decimator always keeps the min/max of a cluster, we can safely use the decimated buffer to 
-        # accurately compute the min/max of the whole dataset. We need to take in account the few points at the
-        # end of the input buffer not yet moved to the output
-        decimated_buffer = self._decimator.get_decimated_buffer()       # The output buffer
-        unprocessed_inputs = self._decimator.get_unprocessed_input()    # The few most recent points at the input buffer
-        
-        self._x_minmax.clear()
-        self._y_minmax.clear()
-
-        # Tests have shown that it is ~2x faster to iterate twice (1 to extract the right value, second to run the min/max function) than
-        # iterate once with a key specifier
-        self._x_minmax.update_from_many([p.x() for p in decimated_buffer])  
-        self._y_minmax.update_from_many([p.y() for p in decimated_buffer])
-
-        self._x_minmax.update_from_many([p.x() for p in unprocessed_inputs])
-        self._y_minmax.update_from_many([p.y() for p in unprocessed_inputs])
-
-    def x_min(self) -> Optional[float]:
-        """The smallest X value in the whole dataset"""
-        return self._x_minmax.min()
-    
-    def x_max(self) -> Optional[float]:
-        """The largest X value in the whole dataset"""
-        return self._x_minmax.max()
-    
-    def y_min(self) -> Optional[float]:
-        """The smallest Y value in the whole dataset"""
-        return self._y_minmax.min()
-    
-    def y_max(self) -> Optional[float]:
-        """The largest Y value in the whole dataset"""
-        return self._y_minmax.max()
-
-class GraphStatistics:
-    class Overlay(QGraphicsItem):
-        _stats:"GraphStatistics"
-        _bounding_box:QRectF
-        _text_rect:QRectF
-        _font:QFont
-        _text:str
-
-        def __init__(self, parent:Optional[QGraphicsItem], stats:"GraphStatistics") -> None:
-            super().__init__(parent)
-            self._stats = stats
-            self._bounding_box = QRectF()
-            self._text_rect = QRectF()
-            self._font  = QFont()
-            self._text = ""
-            self.setZValue(11)
-
-        def update_content(self) -> None:
-            self._make_text()
-            self._compute_geometry()
-
-        def _make_text(self) -> None:
-            refresh_rate_str = "N/A"
-            if self._stats.repaint_rate.is_enabled():
-                refresh_rate_str = "%0.1f/sec" % self._stats.repaint_rate.get_value()
-            opengl_enabled_str = "Enabled" if self._stats.opengl else "Disabled"
-            lines = [
-                "Decimation: %0.1fx" % self._stats.decimation_factor,
-                "Visible points: %d/%d" % (self._stats.visible_points, self._stats.total_points),
-                "OpenGL: %s" % opengl_enabled_str,
-                "Refresh rate: %s" % refresh_rate_str 
-            ]
-            self._text =  '\n'.join(lines)
-
-        def _compute_geometry(self) -> None:
-            self.prepareGeometryChange()
-            metrics = QFontMetrics(self._font)
-            self._text_rect = QRectF(metrics.boundingRect(QRect(0, 0, 200, 100), Qt.AlignmentFlag.AlignLeft, self._text))
-            self._bounding_box = QRectF(self._text_rect.adjusted(0,0,0,0))
-
-        def boundingRect(self) -> QRectF:
-            return self._bounding_box
-
-        def paint(self, painter: QPainter, option: QStyleOptionGraphicsItem, widget: Optional[QWidget]=None) -> None:
-            painter.fillRect(self._text_rect, QColor(0xC8, 0xE8, 0xFF, 50))
-            painter.setPen(QColor(0,0,0))
-            painter.drawText(self._text_rect, self._text)
-
-
-    visible_points:int
-    """Number of points drawn on the chart"""
-    total_points:int
-    """Number of points stored in memory that could go on the graph (does not include points so old that they get removed)"""
-    decimation_factor:float
-    """Ratio of visible points/total points"""
-    opengl:bool
-    """Says if OpenGL is activated"""
-    repaint_rate:VariableRateExponentialAverager
-    """Estimated repaint rate in number of repaint/sec"""
-    _overlay:Overlay
-    """The GraphicItem overlay being displayed on top of the chart"""
-    _allow_show_overlay:bool
-    """A flag enabling/disabling the overlay"""
-
-    def __init__(self, draw_zone:Optional[QGraphicsItem] = None) -> None:
-        self._allow_show_overlay = True
-        self._overlay = self.Overlay(draw_zone, self)
-        self.repaint_rate = VariableRateExponentialAverager(time_estimation_window=0.2, tau=1, near_zero=0.01)
-        self.clear()
-
-    def clear(self) -> None:
-        self.opengl = False
-        self.visible_points = 0
-        self.total_points = 0
-        self.decimation_factor = 1
-
-    def show_overlay(self) -> None:
-        if self._allow_show_overlay:
-            self._overlay.show()
-            self._overlay.update_content()
-
-    def hide_overlay(self) -> None:
-        self._overlay.hide()
-
-    def update_overlay(self) -> None:
-        self._overlay.update_content()
-
-    def overlay(self) -> Overlay:
-        return self._overlay
-
-    def allow_overlay(self) -> None:
-        self._allow_show_overlay = True
-        self.show_overlay()
-
-    def disallow_overlay(self) -> None:
-        self._allow_show_overlay = False
-        self.hide_overlay()
-    
-    def is_overlay_allowed(self) -> bool:
-        return self._allow_show_overlay
+from scrutiny.tools.typing import *
 
 @dataclass
 class ContinuousGraphState:
@@ -407,6 +50,7 @@ class ContinuousGraphState:
     """Indicates that the graph is non-empty."""
     use_opengl:bool
     """Indicates that we are using opengl. Coming from an application wide parameter"""
+    chart_toolbar_wanted:bool
     
     def autoscale_enabled(self) -> bool:
         return self.acquiring and not self.paused and self.has_content
@@ -438,6 +82,9 @@ class ContinuousGraphState:
     def allow_zoom(self) -> bool:
         return self.has_non_moving_content()
 
+    def allow_drag(self) -> bool:
+        return self.has_non_moving_content()
+
     def must_lock_signal_tree(self) -> bool:
         return self.has_content
     
@@ -456,14 +103,26 @@ class ContinuousGraphState:
     def enable_startstop_button(self) -> bool:
         return True
     
-    def must_display_toolbar(self) -> bool:
+    def can_display_toolbar(self) -> bool:
         return self.has_non_moving_content()
+    
+    def hide_chart_toolbar(self) -> None:
+        self.chart_toolbar_wanted = False
+    
+    def allow_chart_toolbar(self) -> None:
+        self.chart_toolbar_wanted = True
+
+    def must_display_toolbar(self) -> bool:
+        return self.can_display_toolbar() and self.chart_toolbar_wanted
 
     def allow_display_callout(self) -> bool:
         return self.has_non_moving_content()
     
     def enable_reset_zoom_button(self) -> bool:
         return self.has_content
+    
+    def enable_edit_range_menu(self) -> bool:
+        return self.has_non_moving_content()
 
     def enable_showhide_stats_button(self) -> bool:
         return self.has_content
@@ -487,8 +146,8 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
     """The QT chartview"""
     _chart_toolbar:ScrutinyChartToolBar
     """The toolbar that let the user control the zoom"""
-    _callout:ScrutinyChartCallout
-    """A callout (popup bubble) that shows the values on hover"""
+    _xval_label:QLabel
+    """The label above the signal tree that shows the X value when moving the chart curosor"""
     _signal_tree:GraphSignalTree
     """The right menu with axis and signal"""
     _btn_start_stop:QPushButton
@@ -507,8 +166,6 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
     """The splitter between the graph and the signal/axis tree"""
     _serverid2sgnal_item:Dict[str, ChartSeriesWatchableStandardItem]
     """A dictionnary mapping server_id associated with ValueUpdates broadcast by the server to their respective signal (a tree item, which has a reference to the chart series) """
-    _callout_hide_timer:QTimer
-    """A timer to trigger the hiding of the graph callout. Avoid fast show/hide"""
     _first_val_dt:Optional[datetime]
     """The server timestamp of the first value gotten. Used to offset the ValueUpdates timestamps to 0"""
     _graph_maintenance_timer:QTimer
@@ -554,18 +211,20 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
             acquiring=False,
             paused=False,
             has_content=False,
-            use_opengl=app_settings().opengl_enabled
+            use_opengl=app_settings().opengl_enabled,
+            chart_toolbar_wanted=True
         )
     
-        
         def make_right_side() -> QWidget:
             right_side = QWidget()
             right_side_layout = QVBoxLayout(right_side)
 
+            self._xval_label = QLabel()
+
             # Series on continuous graph don't have their X value aligned. 
             # We can only show the value next to each point, not all together in the tree
-            self._signal_tree = GraphSignalTree(self, watchable_registry=self.watchable_registry, has_value_col=False)
-            self._signal_tree.setMinimumWidth(150)
+            self._signal_tree = GraphSignalTree(self, watchable_registry=self.watchable_registry, has_value_col=True)
+            self._signal_tree.setMinimumWidth(200)
             self._signal_tree.signals.selection_changed.connect(self._selection_changed_slot)
 
             self._btn_start_stop = QPushButton("")
@@ -600,6 +259,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
             start_pause_line_layout.addWidget(self._btn_start_stop)
             start_pause_line_layout.addWidget(self._btn_pause)
 
+            right_side_layout.addWidget(self._xval_label)
             right_side_layout.addWidget(self._signal_tree)
             right_side_layout.addWidget(self._csv_log_menu)
             right_side_layout.addWidget(param_widget)
@@ -624,14 +284,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
             self._chartview.signals.key_pressed.connect(self._chartview_key_pressed_slot)
             self._chartview.set_interaction_mode(ScrutinyChartView.InteractionMode.SELECT_ZOOM)
 
-            self._chart_toolbar = ScrutinyChartToolBar(chart) 
-            self._chart_toolbar.set_chartview(self._chartview)       
-            
-            self._callout = ScrutinyChartCallout(chart)
-            self._callout_hide_timer = QTimer()
-            self._callout_hide_timer.setInterval(250)
-            self._callout_hide_timer.setSingleShot(True)
-            self._callout_hide_timer.timeout.connect(self._callout_hide_timer_slot)
+            self._chart_toolbar = ScrutinyChartToolBar(self._chartview) 
 
             left_side = QWidget()
             left_side_layout = QVBoxLayout(left_side)
@@ -639,7 +292,6 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
             left_side_layout.addWidget(self._chartview)
 
             return left_side
-        
         
         right_side = make_right_side()
         left_side = make_left_side()
@@ -655,6 +307,12 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
 
         layout = QHBoxLayout(self)
         layout.addWidget(self._splitter)
+
+        def update_xval(val:float, enabled:bool) -> None:
+            self._xval_label.setText(f"Time [s] : {val}")
+            self._xval_label.setVisible(enabled)
+
+        self._chartview.configure_chart_cursor(self._signal_tree, update_xval)
 
         # App integration
         self.server_manager.signals.registry_changed.connect(self._registry_changed_slot)
@@ -687,8 +345,8 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
     # region Controls
     def clear_graph(self) -> None:
         """Delete the graph content and reset the state to of the component to a vanilla state"""
+        self._chartview.chart().hide_mouse_callout()
         self._chartview.chart().removeAllSeries()
-        self._callout.hide()
         self._clear_stats_and_hide()
         
         for yaxis in self._yaxes:
@@ -748,6 +406,10 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         
         self._graph_max_width = float(self._spinbox_graph_max_width.value())    # User input
         try:
+            if self._csv_log_menu.require_csv_logging():
+                if not self._csv_log_menu.check_conflicts():
+                    return
+        
             self.clear_graph()
             signals = self._signal_tree.get_signals()   # Read the tree on the right menu
             if len(signals) == 0:
@@ -820,12 +482,17 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
             self.update_emphasize_state()
             self.enable_repaint_rate_measurement()
             
+            # Put toolbar in default state
+            self._state.allow_chart_toolbar()
+            self._chart_toolbar.disable_chart_cursor()
+            
             self._start_periodic_graph_maintenance()
             self._clear_feedback()
             self._apply_internal_state()
             self.show_stats()
         except Exception as e:
             tools.log_exception(self.logger, e, "Failed to start the acquisition")
+            self._report_error(str(e))
             self.stop_acquisition()
     
     def pause(self) -> None:
@@ -1041,6 +708,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         self._btn_pause.setEnabled(self._state.enable_pause_button())
         self._btn_clear.setEnabled(self._state.enable_clear_button())
         self._chartview.allow_zoom(self._state.allow_zoom())
+        self._chartview.allow_drag(self._state.allow_drag())
         self._csv_log_menu.setEnabled(self._state.enable_csv_logging_menu())
         self.update_stats()
 
@@ -1054,7 +722,6 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
             self._chart_toolbar.show()
         else:
             self._chart_toolbar.hide()
-
 
     def _watcher_id(self) -> str:
         return self.instance_name
@@ -1212,7 +879,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         """When the chartview emit a zoombox_selected signal. Coming from either a wheel event or a selection of zoom with a rubberband"""
         if not self._state.allow_zoom():
             return 
-        self._callout.hide()
+        self._chartview.chart().hide_mouse_callout()
 
         # When we are paused, we want the zoom to stay within the range of that was latched when pause was called.
         # When not pause, saturate to min/max values
@@ -1222,15 +889,17 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         selected_axis_ids = [id(item.axis()) for item in selected_axis_items]
         for yaxis in self._yaxes:
             if id(yaxis) in selected_axis_ids or len(selected_axis_ids) == 0:
-                yaxis.apply_zoombox_y(
-                    zoombox, 
-                    margin_ratio=self.Y_AXIS_MARGIN, 
-                    saturate_to_latched_range=saturate_to_latched_range
-                    )
-        
+                # Y-axis is not bound by the value. we leave the freedom to the user to unzoom like crazy
+                # We rely on the capacity to reset the zoom to come back to something reasonable if the user gets lost
+                yaxis.apply_zoombox_y(zoombox)  
+        self._chartview.update()
+    
+    def _edit_range_slot(self) -> None:
+        pass
+
     def _reset_zoom_slot(self) -> None:
         """Right-click -> Reset zoom"""
-        self._callout.hide()
+        self._chartview.chart().hide_mouse_callout()
         if self._state.paused:
             # Latched when paused. guaranteed to be unzoomed because zoom is not allowed when not
             self._reload_all_latched_ranges()
@@ -1238,6 +907,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
             self._xaxis.autoset_range()
             for yaxis in self._yaxes:
                 yaxis.autoset_range(margin_ratio=self.Y_AXIS_MARGIN)
+        self._chartview.update()
 
 
     def _paint_finished_slot(self) -> None:
@@ -1304,27 +974,13 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
 
     def _series_hovered_slot(self, signal_item:ChartSeriesWatchableStandardItem, point:QPointF, state:bool) -> None:
         """Called by QtChart when the mouse is over a point of a series. state=``True`` when the mouse enter the point. ``False`` when it leaves"""
-        # FIXME : Snap zone is too small. QT source code says it is computed with markersize, but changing it has no effect.
-        must_show = state
-        if not self._state.allow_display_callout():
-            must_show  = False
-
-        if must_show:
-            series = cast(ScrutinyLineSeries, signal_item.series())
-            closest_real_point = series.search_closest_monotonic(point.x())
-            if closest_real_point is not None:
-                self._callout_hide_timer.stop()
-                txt = f"{signal_item.text()}\nX: {closest_real_point.x()}\nY: {closest_real_point.y()}"
-                pos = self._chartview.chart().mapToPosition(closest_real_point, series)
-                color = series.color()
-                self._callout.set_content(pos, txt, color)
-                self._callout.show()
-        else:
-            self._callout_hide_timer.start()
-
-    def _callout_hide_timer_slot(self)-> None:
-        self._callout.hide()
-
+        self._chartview.chart().update_mouse_callout_state(
+            series = cast(ScrutinyLineSeries, signal_item.series()), 
+            visible = state and self._state.allow_display_callout(),
+            val_point = point, 
+            signal_name=signal_item.text()
+            )
+        
     def _spinbox_graph_max_width_changed_slot(self, val:int) -> None:
         """When the user changed the max width spinbox"""
         if val == 0:
@@ -1349,18 +1005,16 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         This event is forwarded by the chartview through a signal."""
         context_menu = QMenu(self)
 
-        save_img_action = context_menu.addAction(assets.load_tiny_icon(assets.Icons.Image), "Save as image")
-        save_img_action.triggered.connect(self._save_image_slot)
-        save_img_action.setEnabled(self._state.allow_save_image())
 
-        save_csv_action = context_menu.addAction(assets.load_tiny_icon(assets.Icons.CSV), "Save as CSV")
-        save_csv_action.triggered.connect(self._save_csv_slot)
-        save_csv_action.setEnabled(self._state.allow_save_csv())
+        context_menu.addSection("Zoom")
 
+        # Reset zoom
         reset_zoom_action = context_menu.addAction(assets.load_tiny_icon(assets.Icons.Zoom100), "Reset zoom")
         reset_zoom_action.triggered.connect(self._reset_zoom_slot)
         reset_zoom_action.setEnabled(self._state.enable_reset_zoom_button())
-        
+
+        context_menu.addSection("Visibility")
+        # Chart stats overlay
         if self._stats.is_overlay_allowed():
             show_hide_stats = context_menu.addAction(assets.load_tiny_icon(assets.Icons.EyeBar), "Hide stats")
             show_hide_stats.triggered.connect(self._stats.disallow_overlay)
@@ -1368,8 +1022,35 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
             show_hide_stats = context_menu.addAction(assets.load_tiny_icon(assets.Icons.Eye), "Show stats")
             show_hide_stats.triggered.connect(self._stats.allow_overlay)
         
-        show_hide_stats.setEnabled(self._state.enable_showhide_stats_button())            
-        
+        show_hide_stats.setEnabled(self._state.enable_showhide_stats_button())
+
+        # Chart toolbar
+        if self._chart_toolbar.isVisible():
+            def hide_chart_toolbar() -> None:
+                self._state.hide_chart_toolbar()
+                self._apply_internal_state()
+            show_hide_toolbar = context_menu.addAction(assets.load_tiny_icon(assets.Icons.EyeBar), "Hide toolbar")
+            show_hide_toolbar.triggered.connect(hide_chart_toolbar)
+        else:
+            def allow_chart_toolbar() -> None:
+                self._state.allow_chart_toolbar()
+                self._apply_internal_state()
+            show_hide_toolbar = context_menu.addAction(assets.load_tiny_icon(assets.Icons.Eye), "Show toolbar")
+            show_hide_toolbar.triggered.connect(allow_chart_toolbar)
+        show_hide_toolbar.setEnabled(self._state.can_display_toolbar())
+
+
+        context_menu.addSection("Export")
+        # Save image
+        save_img_action = context_menu.addAction(assets.load_tiny_icon(assets.Icons.Image), "Save as image")
+        save_img_action.triggered.connect(self._save_image_slot)
+        save_img_action.setEnabled(self._state.allow_save_image())
+
+        # Save CSV
+        save_csv_action = context_menu.addAction(assets.load_tiny_icon(assets.Icons.CSV), "Save as CSV")
+        save_csv_action.triggered.connect(self._save_csv_slot)
+        save_csv_action.setEnabled(self._state.allow_save_csv())
+
         context_menu.popup(self._chartview.mapToGlobal(chartview_event.pos()))
 
     def _save_image_slot(self) -> None:
@@ -1378,8 +1059,24 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
             return 
         
         filepath:Optional[Path] = None
+        overlay_allowed = self._stats.is_overlay_allowed()
+        toolbar_wanted = self._state.chart_toolbar_wanted
+
         try:
+            # Hide toolbar and stats overlay, take the snapshot and put them back if needed
+            self._stats.disallow_overlay()
+            self._state.chart_toolbar_wanted = False
+            self._apply_internal_state()
+            self._chartview.update()
+
             pix = self._chartview.grab()
+
+            if overlay_allowed:
+                self._stats.allow_overlay()
+            self._state.chart_toolbar_wanted = toolbar_wanted
+            self._apply_internal_state()
+            self._chartview.update()
+
             filepath = prompt.get_save_filepath_from_last_save_dir(self, ".png")
             if filepath is None:
                 return
@@ -1400,11 +1097,11 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
         
         def finished_callback(exception:Optional[Exception]) -> None:
             # This runs in a different thread
-            # Todo : Add visual "saving..." feedback ?
             if exception is not None:
                 tools.log_exception(self.logger, exception, f"Error while saving graph into {filepath}" )
                 InvokeInQtThread(lambda: prompt.exception_msgbox(self, exception, "Failed to save", f"Failed to save the graph to {filepath}"))
-
+        
+        # Todo : Add visual "saving..." feedback ?
         export_chart_csv_threaded(
             datetime_zero_sec = self._first_val_dt,
             filename = filepath, 

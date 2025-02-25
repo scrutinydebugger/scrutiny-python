@@ -662,6 +662,24 @@
         },
         "scrutiny/tools/typing.py": {
             "docstring": "Some typing helpers"
+        },
+        "test/gui/test_user_messages_manager.py": {
+            "docstring": "A test suite for the User Message service"
+        },
+        "scrutiny/gui/core/user_messages_manager.py": {
+            "docstring": "A manager that handles many toast-like messages with a duration but only shows one at the time. \nMeant to be connected to the status bar and exposed to the app as a service"
+        },
+        "scrutiny/gui/dashboard_components/continuous_graph/csv_logging_menu.py": {
+            "docstring": "A widget used to configure the continuous CSV logger"
+        },
+        "scrutiny/gui/dashboard_components/continuous_graph/realtime_line_series.py": {
+            "docstring": "A extension of the QLineSeries meants for real-time graph. It includes a decimator and some inline stats computation"
+        },
+        "scrutiny/gui/dashboard_components/continuous_graph/graph_statistics.py": {
+            "docstring": "A statistic overlay that can be displayed on the top of a graph"
+        },
+        "test/gui/test_graph_features.py": {
+            "docstring": "A test suite for common graph features"
         }
     }
 }

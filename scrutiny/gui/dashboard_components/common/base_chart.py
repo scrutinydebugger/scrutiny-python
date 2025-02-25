@@ -13,56 +13,87 @@ __all__ = [
     'ScrutinyChart',
     'ScrutinyChartCallout',
     'ScrutinyChartView',
-    'ScrutinyChartToolBar'
+    'ScrutinyChartToolBar',
+    'ChartCursorMovedData'
 ]
 
 import enum
-from bisect import bisect_left
-
-from PySide6.QtCharts import QLineSeries, QValueAxis, QChart, QChartView
-from PySide6.QtWidgets import QGraphicsItem, QStyleOptionGraphicsItem, QWidget, QRubberBand, QGraphicsSceneMouseEvent, QGraphicsSceneHoverEvent
-from PySide6.QtGui import  (QFont, QPainter, QFontMetrics, QColor, QContextMenuEvent, QPaintEvent, QMouseEvent, QWheelEvent, QPixmap, QKeyEvent)
-from PySide6.QtCore import  QPointF, QRect, QRectF, Qt, QObject, Signal, QSize, QPoint, QSizeF
+from bisect import bisect_left, bisect_right
+from dataclasses import dataclass
+from PySide6.QtCharts import QLineSeries, QValueAxis, QChart, QChartView, QAbstractSeries, QAbstractAxis
+from PySide6.QtWidgets import (QGraphicsItem, QStyleOptionGraphicsItem, QWidget, QRubberBand, 
+                                QGraphicsSceneMouseEvent, QGraphicsSceneHoverEvent, QHBoxLayout, QLabel,
+                                QDialogButtonBox)
+from PySide6.QtGui import  (QFont, QPainter, QFontMetrics, QColor, QContextMenuEvent, 
+                            QPaintEvent, QMouseEvent, QWheelEvent, QPixmap, QKeyEvent, 
+                            QResizeEvent, QStandardItem, QWindow, QDoubleValidator)
+from PySide6.QtCore import  QPointF, QRect, QRectF, Qt, QObject, Signal, QSize, QPoint, QSizeF, QTimer
 
 from scrutiny import tools
 from scrutiny.gui import assets
+from scrutiny.gui.core.definitions import WidgetState
 from scrutiny.gui.themes import get_theme_prop, ScrutinyThemeProperties
 from scrutiny.gui.tools.min_max import MinMax
+from scrutiny.gui.widgets.validable_line_edit import ValidableLineEdit
+
 from scrutiny.tools import validation
+from scrutiny.gui.dashboard_components.common.graph_signal_tree import GraphSignalTree
 
-from typing import Any, Optional, Any, List, Tuple
-
+from scrutiny.tools.typing import *
 
 class ScrutinyLineSeries(QLineSeries):
 
     def emphasize(self) -> None:
+        """Emphasize the line serie sby making it bolder"""
         pen = self.pen()
         pen.setWidth(get_theme_prop(ScrutinyThemeProperties.CHART_EMPHASIZED_SERIES_WIDTH))
         self.setPen(pen)
     
     def deemphasize(self) -> None:
+        """Remove the emphasis and put back the line to its normal size"""
         pen = self.pen()
         pen.setWidth(get_theme_prop(ScrutinyThemeProperties.CHART_NORMAL_SERIES_WIDTH))
         self.setPen(pen)
 
-    def search_closest_monotonic(self, xval:float) -> Optional[QPointF]:
+    def search_closest_monotonic(self, xval:float, min_x:Optional[float]=None, max_x:Optional[float]=None) -> Optional[QPointF]:
         """Search for the closest point using the XAxis. Assume a monotonic X axis.
-        If the values are not monotonic : undefined behavior"""
+        If the values are not monotonic : undefined behavior
+        
+        :param xval: Target point
+        :param min_x: Lowest allowed x value
+        :param max_x: Highest allowed x value
+        """
+
+        # This function is fully unit tested.
         points = self.points()
         if len(points) == 0:
             return None
+        
+        max_x_index = len(points)-1
+        if max_x is not None:
+            max_x_index = bisect_right(points, max_x,  key=lambda p:p.x())-1
+
+        min_x_index = 0
+        if min_x is not None:
+           min_x_index = bisect_left(points, min_x,  key=lambda p:p.x())
+
+        if max_x_index < min_x_index:
+            return None # Range is too small. Between 2 points
 
         index = bisect_left(points, xval, key=lambda p:p.x())
-        index = min(index, len(points)-1)
-        p1 = points[index]
-        if index == 0:
-            return p1
-        p2 = points[index-1]
-        if abs(p1.x()-xval) <= abs(p2.x()-xval):
-            return p1
-        else:
-            return p2
-
+        index = max(min(index, max_x_index), min_x_index)
+        p_after = points[index]
+        
+        # exactly on it or right after the minimum
+        if index == min_x_index:    
+            return p_after
+        p_before = points[index-1]  # Guaranteed to be possible. min_x_index is 0 or more, so length is > 0 here
+        
+        # We are between 2 points inside the range. Take the closest
+        dist_to_p_after = abs(p_after.x()-xval)
+        dist_to_p_before = abs(p_before.x()-xval)
+        return p_after if dist_to_p_after <= dist_to_p_before else p_before            
+    
 class ScrutinyValueAxis(QValueAxis):
     """An extension of the QValueAxis specific to Scrutiny"""
 
@@ -191,8 +222,8 @@ class ScrutinyValueAxisWithMinMax(ScrutinyValueAxis):
             self.setRange(new_low-1, new_high+1)
         else:
             self.setRange( new_low, new_high )
-    
-    def apply_zoombox_y(self, zoombox:QRectF, margin_ratio:float=0, saturate_to_latched_range:bool=False) -> None:
+            
+    def apply_zoombox_y(self, zoombox:QRectF) -> None:
         """
         Apply a zoom rectangle generated by a ScrutinyChartview. It's a rectangle where the top/bottom bounds represent the 
         Y limits of the new zoom. Value sare normalized to p.u.
@@ -200,24 +231,188 @@ class ScrutinyValueAxisWithMinMax(ScrutinyValueAxis):
         A rectangle with y1=-0.1, y2=1.3 will zoom out and offset a little to the right. 10% more on the left, 30% more on the right.
         """
         range = self.max() - self.min()
-        minval = self.minval_with_margin(margin_ratio)
-        maxval = self.maxval_with_margin(margin_ratio)
-
-        if minval is None or maxval is None:
-            return
-        limit_low, limit_high = minval, maxval
-        if saturate_to_latched_range:
-            limit_low, limit_high = self.get_latched_range()
-
-        new_low = max((1-zoombox.bottom()) * range + self.min(), limit_low)
-        new_high = min((1-zoombox.top()) * range + self.min(), limit_high)
+        new_low = (1-zoombox.bottom()) * range + self.min()
+        new_high = (1-zoombox.top()) * range + self.min()
         if new_low==new_high:
             self.setRange(new_low-1, new_high+1)
         else:
             self.setRange( new_low, new_high )
 
 class ScrutinyChart(QChart):
-    pass
+
+    _mouse_callout:"ScrutinyChartCallout"
+    """A callout (popup bubble) that shows the values on hover"""
+    _mouse_callout_hide_timer:QTimer
+    """A timer to trigger the hiding of the graph callout. Avoid fast show/hide"""
+
+    @tools.copy_type(QChart.__init__)
+    def __init__(self, *args:Any, **kwargs:Any) -> None:
+        super().__init__(*args, **kwargs)
+        self._mouse_callout = ScrutinyChartCallout(self)
+        self._mouse_callout_hide_timer = QTimer()
+        self._mouse_callout_hide_timer.setInterval(250)
+        self._mouse_callout_hide_timer.setSingleShot(True)
+        self._mouse_callout_hide_timer.timeout.connect(self._callout_hide_timer_slot)
+    
+    def _callout_hide_timer_slot(self)-> None:
+        self.hide_mouse_callout()
+
+    def hide_mouse_callout(self) -> None:
+        self._mouse_callout.hide()
+
+    def update_mouse_callout_state(self, series:ScrutinyLineSeries, visible:bool, val_point:QPointF, signal_name:str) -> None:
+        """Show or hide the callout with the X/Y value triggered by mouse move"""
+        xaxis = self.axisX()
+        if visible:
+            closest_real_point = series.search_closest_monotonic(val_point.x(), xaxis.min(), xaxis.max())
+            if closest_real_point is not None:
+                self._mouse_callout_hide_timer.stop()
+                txt = f"{signal_name}\nX: {closest_real_point.x()}\nY: {closest_real_point.y()}"
+                pos = self.mapToPosition(closest_real_point, series)
+                color = series.color()
+                self._mouse_callout.set_content(pos, txt, color)
+                self._mouse_callout.show()
+        else:
+            self._mouse_callout_hide_timer.start()
+
+    def series(self) -> List[ScrutinyLineSeries]:   # type: ignore
+        return [cast(ScrutinyLineSeries, s) for s in super().series()]
+    
+    def axisX(self, series:Optional[QAbstractSeries]=None) -> ScrutinyValueAxis:
+        assert series is None
+        return cast(ScrutinyValueAxis, super().axisX())
+    
+    def axisY(self, series:Optional[QAbstractSeries]=None ) -> ScrutinyValueAxis:
+        return cast(ScrutinyValueAxis, super().axisY(series))
+    
+    def setAxisX(self, axis:QAbstractAxis, series:Optional[QAbstractSeries]=None) -> None:
+        assert series is None
+        assert isinstance(axis, ScrutinyValueAxis)
+        return super().setAxisX(axis)
+    
+    def setAxisY(self, axis:QAbstractAxis, series:Optional[QAbstractSeries]=None) -> None:
+        assert isinstance(axis, ScrutinyValueAxis)
+        return super().setAxisX(axis, series)
+    
+    def pos_to_val(self, pos:QPointF, yaxis:ScrutinyValueAxis, clip_if_outside:bool = False) -> Optional[QPointF]:
+        """Convert a screen X/Y position relative to the chart origin into a graph value point"""
+        xaxis = self.axisX()
+        plotarea = self.plotArea()
+
+        plotarea_width = plotarea.width()
+        plotarea_height = plotarea.height()
+        if plotarea_width == 0 or plotarea_height == 0:
+            return None
+
+        xval:Optional[float] = None
+        yval:Optional[float] = None
+        if pos.x() < plotarea.x():
+            xval = xaxis.min()
+        
+        if pos.x() > plotarea.x() + plotarea_width:
+            xval = xaxis.max() 
+        
+        # Y-Axis is reversed
+        if pos.y() < plotarea.y():
+            yval = yaxis.max()
+       
+        if pos.y() > plotarea.y() + plotarea_height:
+            yval = yaxis.min()
+        
+        if (xval is not None or yval is not None) and not clip_if_outside:
+            return None
+        
+        if xval is None:
+            xval = (pos.x() - plotarea.x()) * (xaxis.max() - xaxis.min()) / plotarea_width + xaxis.min()
+        if yval is None:
+            yval = (plotarea.y() + plotarea_height - pos.y()) * (yaxis.max() - yaxis.min()) / plotarea_height + yaxis.min()
+        return QPointF(xval, yval)
+
+    def xpos_to_xval(self, xpos:float, clip_if_outside:bool = False) -> Optional[float]:
+        """Convert a screen X position relative to the chart origin into a graph X axis value"""
+        xaxis = self.axisX()
+        plotarea = self.plotArea()
+        plotarea_width = max(plotarea.width(), 1)
+        if xpos < plotarea.x():
+            return xaxis.min() if clip_if_outside else None
+        
+        if xpos > plotarea.x() + plotarea_width:
+            return xaxis.max() if clip_if_outside else None
+        
+        return (xpos - plotarea.x()) * (xaxis.max() - xaxis.min()) / plotarea_width + xaxis.min()
+    
+    def val_to_pos(self, val:QPointF, yaxis:ScrutinyValueAxis, clip_if_outside:bool = False) -> Optional[QPointF]:
+        """Convert a graph value point into a screen X/Y position relative to the chart origin"""
+        xaxis = self.axisX()
+        plotarea = self.plotArea()
+
+        plotarea_width = plotarea.width()
+        plotarea_height = plotarea.height()
+        if plotarea_width == 0 or plotarea_height == 0:
+            return None
+        xpos:Optional[float] = None
+        ypos:Optional[float] = None
+
+        if val.x() < xaxis.min() :
+            xpos = plotarea.x()
+
+        if val.x() > xaxis.max():
+            xpos = plotarea.x() + plotarea_width
+
+        if val.y() < yaxis.min() :
+            ypos = plotarea.y() + plotarea_height
+
+        if val.y() > yaxis.max():
+            ypos = plotarea.y()
+
+        if (xpos is not None or ypos is not None) and not clip_if_outside:
+            return None
+        
+        if xpos is None:    # Not outside
+            xpos = (val.x() - xaxis.min()) * plotarea_width / (xaxis.max() - xaxis.min()) + plotarea.x()
+        if ypos is None:    # Not outside
+            ypos = plotarea.y() + plotarea_height - (val.y() - yaxis.min()) * plotarea_height / (yaxis.max() - yaxis.min())
+        return QPointF(xpos, ypos)
+
+    def xval_to_xpos(self, xval:float, clip_if_outside:bool = False) -> Optional[float]:
+        """Convert a  graph X axis value into a screen X position relative to the chart origin"""
+        xaxis = self.axisX()
+        plotarea = self.plotArea()
+        plotarea_width = max(plotarea.width(), 1)
+        if xval < xaxis.min() :
+            return plotarea.x() if clip_if_outside else None
+        if xval > xaxis.max():
+            return plotarea.x() + plotarea_width if clip_if_outside else None
+        return (xval - xaxis.min()) * plotarea_width / (xaxis.max() - xaxis.min()) + plotarea.x()
+
+    def dx_to_dvalx(self, dx:float) -> float:
+        """Compute a pixel delta along the X axis into a change in X-Axis value"""
+        xaxis = self.axisX()
+        plotarea_width = self.plotArea().width()
+        if plotarea_width == 0:
+            return 0
+        return dx/plotarea_width * (xaxis.max() - xaxis.min())
+
+    def dy_to_dvaly(self, dy:float, yaxis:ScrutinyValueAxis) -> float:
+        """Compute a pixel delta along the Y axis into a change in Y-Axis value"""
+        plotarea_height = self.plotArea().height()
+        if plotarea_height == 0:
+            return 0
+        return -dy/plotarea_height * (yaxis.max() - yaxis.min())
+
+    def apply_drag(self, dx:int, dy:int) -> None:
+        """Move the chart by adjusting the axes range.
+        Triggered by a chartview chart_dragged signal."""
+        # Apply X-Axis
+        dvalx = self.dx_to_dvalx(dx)
+        xaxis = self.axisX()
+        xaxis.setRange(xaxis.min() - dvalx, xaxis.max() - dvalx)
+
+        # Apply all Y-Axes
+        yaxis_set = set([self.axisY(series) for series in self.series()])   # remove duplicate
+        for yaxis in yaxis_set:
+            dvaly = self.dy_to_dvaly(dy, yaxis)
+            yaxis.setRange(yaxis.min() - dvaly, yaxis.max() - dvaly)
 
 class ScrutinyChartCallout(QGraphicsItem):
     """A callout that can be displayed when the user hover a point on a graph"""
@@ -330,6 +525,11 @@ class ScrutinyChartCallout(QGraphicsItem):
         painter.setPen(QColor(0,0,0))
         painter.drawText(self._text_rect, self._text)
 
+@dataclass
+class ChartCursorMovedData:
+    xval:float
+    series:List[ScrutinyLineSeries]
+
 class ScrutinyChartView(QChartView):
     """A QChartView extended with some features specific to the Scrutiny GUI"""
 
@@ -338,9 +538,92 @@ class ScrutinyChartView(QChartView):
     MIN_RUBBERBAND_SIZE_PX = 5
     """The minimum size the rubberband to emit a zoom event. Prevent accidental zooms"""
 
+    @dataclass
+    class SeriesPointPair:
+        series:ScrutinyLineSeries
+        point:QPointF
+
+    @dataclass
+    class PointColorPair:
+        point:QPointF
+        color:QColor
+
+    class ChartCursor:
+        """A vertical line that the user can drag to inspect the graph data of all series at once"""
+        MOVE_MARGIN = 4
+
+        _enabled:bool
+        """Enable flag"""
+        _chartview:"ScrutinyChartView"
+        """A reference to the owning Chartview"""
+        _x:Optional[float]
+        """The graphical X position. Computed from graph X value"""
+        _xval:float
+        """The graph x value pointed by the cursor"""
+        _dragging:bool
+        """``True`` When the user is moving the cursor"""
+
+        def __init__(self, chartview:"ScrutinyChartView") -> None:
+            self._enabled = False
+            self._chartview = chartview
+            self._x = None
+            self._xval = 0
+            self._dragging = False
+        
+        def is_in_drag_zone(self, p:QPointF) -> bool:
+            """Tells if a point (the cursor position) is in the dragging zone of the chart cursor. 
+            Used to set the screen cursot to a drag arrow"""
+            if not self._enabled or self._x is None:
+                return False
+            chart = self._chartview.chart()
+            plotarea_mapped_to_chartview = chart.mapRectToParent(chart.plotArea())
+            xcheck = (self._x-self.MOVE_MARGIN) < p.x() < (self._x+self.MOVE_MARGIN)
+            ycheck = plotarea_mapped_to_chartview.top() < p.y() <  plotarea_mapped_to_chartview.bottom()
+
+            return  xcheck and ycheck
+        
+        def enable(self) -> None:
+            self._enabled = True
+        
+        def disable(self) -> None:
+            self._enabled = False
+            self._dragging = False
+            self._x = None
+
+        def is_enabled(self) -> bool:
+            return self._enabled
+        
+        def set_xval(self, xval:float) -> None:
+            self._xval = xval
+            self.update()
+    
+        def xval(self) -> float:
+            return self._xval
+        
+        def xpos(self) -> Optional[float]:
+            return self._x
+        
+        def start_drag(self) -> None:
+            if self._enabled:
+                self._dragging = True
+        
+        def stop_drag(self) -> None:
+            self._dragging = False
+        
+        def is_dragging(self) -> bool:
+            return self._dragging
+        
+        def update(self) -> None:
+            if self._enabled:
+                self._x = self._chartview.chart().xval_to_xpos(self._xval)
+            else:
+                self._x = None
+
     class InteractionMode(enum.Enum):
         SELECT_ZOOM=enum.auto()
-        #DRAG=enum.auto()       # todo
+        """Select/zoom, the user can draw a zoombox (rubberband) with his mouse to zoom the graph """
+        DRAG=enum.auto()
+        """Drag mode, the user can move the graph with its mouse in X/Y direction (cursor is a hand)"""
 
     class ZoomType(enum.Enum):
         ZOOM_X=enum.auto()
@@ -356,15 +639,45 @@ class ScrutinyChartView(QChartView):
         """When the chartview has finished repainting. USed for throttling the update rate"""
         key_pressed = Signal(QKeyEvent)
         """Forwarding the keypress event"""
+        resized = Signal()
+        """Emitted when the chartview is resized"""
+        chart_cursor_moved = Signal(ChartCursorMovedData)
+        """Emitted when the chart cursor is moved and snapped to new series"""
+        graph_dragged = Signal(int, int)
+        """Emitted when the user drag the graph with the drag tool"""
 
     _rubber_band:QRubberBand
+    """The rubber band (zoom box) dragged by the user"""
     _rubberband_origin:QPointF
+    """Wher ethe user clicked to start to draw a rubber band"""
     _rubberband_end:QPointF
+    """Where the user stopped dragging the rubber band"""
     _rubberband_valid:bool
+    """Tells if the origin/end values of the rubberband can be used to display it"""
     _interaction_mode:InteractionMode
+    """How the chartiew behave under the user click action"""
     _zoom_type:ZoomType
+    """Type of zoomn: X, Y, XY"""
     _wheel_zoom_factor_per_120deg:float
+    """Zoom ratio for a standrd mouse wheel step"""
     _zoom_allowed:bool
+    """Tells if the user is allowed to zoom"""
+    _drag_allowed:bool
+    """Tells if the user is allowed to drag the graph"""
+    _is_dragging:bool
+    """Tells if the user is presently dragging the graph"""
+    _chart_cursor:ChartCursor
+    """The vertical value cursor (red line)"""
+    _signal_tree:Optional[GraphSignalTree]
+    """An optional Singal tree (TreeView that displays the curves color/name/values) tied to the chart cursor"""
+    _series_to_signal_tree_value_item:Dict[int, QStandardItem]
+    """A map that let us find the where to write a Y-value when moving the cursor using the QValueSeries as the key"""
+    _cursor_markers_vals:List[SeriesPointPair]
+    """When the cursor is positionned, contains all the value points of each series"""
+    _last_mouse_pos:QPoint
+    """Last mouse position recorded onmousemove event in order to compute drag delta"""
+    _chart_cursor_broadcast_xval_func:Optional[Callable[[float, bool], None]]
+    
 
     @tools.copy_type(QChartView.__init__)
     def __init__(self, *args:Any, **kwargs:Any) -> None:
@@ -378,23 +691,85 @@ class ScrutinyChartView(QChartView):
         self._zoom_type = self.ZoomType.ZOOM_XY
         self._wheel_zoom_factor_per_120deg = self.DEFAULT_WHEEL_ZOOM_FACTOR_PER_120DEG
         self._zoom_allowed = False
+        self._drag_allowed = False
+        self._is_dragging = False
+        self._chart_cursor = self.ChartCursor(self)
+        self._signal_tree = None
+        self._series_to_signal_tree_value_item = {}
+        self._cursor_markers_vals=[]
+        self._last_mouse_pos = QPoint()
+        self._chart_cursor_broadcast_xval_func = None
+
+    def resizeEvent(self, event:QResizeEvent) -> None:
+        super().resizeEvent(event)
+        self.update()
+        self._signals.resized.emit()
+
+    def setChart(self, chart:QChart) -> None:
+        assert isinstance(chart, ScrutinyChart)
+        super().setChart(chart)
+        self._signals.graph_dragged.connect(chart.apply_drag)
+        
+    def chart(self) -> ScrutinyChart:
+        return cast(ScrutinyChart, super().chart())
 
     def allow_zoom(self, val:bool) -> None:
         """Allow/disallow zooming of the chart"""
         self._zoom_allowed = val
 
+    def allow_drag(self, val:bool) -> None:
+        """Allow/disallow dragging the chart"""
+        self._drag_allowed = val
+
     def set_zoom_type(self, zoom_type:ZoomType) -> None:
         """Sets the zoom type of the wheel events and rubber band if interraction mode == ZOOM"""
         self._zoom_type = zoom_type
     
+    def get_zoom_type(self) -> ZoomType:
+        """Return the actual zoom type (X,Y,XY)"""
+        return self._zoom_type
+        
     def set_interaction_mode(self, interaction_mode:InteractionMode) -> None:
+        """Set the chartview user interaction mode. Being select/zoom or drag"""
         self._interaction_mode = interaction_mode
+        if interaction_mode != self.InteractionMode.DRAG:
+            self._is_dragging = False
+
+    def get_interaction_mode(self) -> InteractionMode:
+        """Return the actual user graph interaciton mode"""
+        return self._interaction_mode
+
+    def cursor_enabled(self) -> bool:
+        """Tells if the chart cursor is enabled"""
+        return self._chart_cursor.is_enabled()
 
     def enable_cursor(self) -> None:
-        pass
+        """Enable the chart cursor (red vertical line) to inspect the data"""
+        xaxis = self.chart().axisX()
+        range = xaxis.max() - xaxis.min()
+        self._chart_cursor.enable()
+        self._chart_cursor.set_xval(xaxis.min() + range/2)
+        self.update()
+        
+        # Here we build a lookup between series and the signal tree element that this series refer to
+        # Will be used for mapping quickly a value referenced by the chart cursor to a textbox
+        self._series_to_signal_tree_value_item.clear()
+        if self._signal_tree is not None:
+            for series, value_item in self._signal_tree.get_value_item_by_attached_series():
+                self._series_to_signal_tree_value_item[id(series)] = value_item
+
+        # The cursor is set at a value that is not snapped to a real point (range/2). 
+        # Don't show text value to avoid giving false information. Values will be updated on first drag
+        self._clear_signal_tree_values()
+        self._cursor_markers_vals.clear()
 
     def disable_cursor(self) -> None:
-        pass
+        """Disable the chart cursor (red vertical line) to inspect the data"""
+        self._chart_cursor.disable()
+        self.update()
+        self._clear_signal_tree_values()
+        self._cursor_markers_vals.clear()
+    
     
     @property
     def signals(self) -> _Signals:
@@ -451,18 +826,21 @@ class ScrutinyChartView(QChartView):
             else:
                 raise NotImplementedError("Unsupported zoom type")
             
-            self._signals.zoombox_selected.emit(new_rect)    
+            self._signals.zoombox_selected.emit(new_rect)
         super().wheelEvent(event)
 
     def mousePressEvent(self, event:QMouseEvent) -> None: 
-        if self._interaction_mode == self.InteractionMode.SELECT_ZOOM and self._zoom_allowed:
+        if self._chart_cursor.is_in_drag_zone(event.pos().toPointF()):
+            event.accept()
+            self._chart_cursor.start_drag()
+        elif self._interaction_mode == self.InteractionMode.SELECT_ZOOM and self._zoom_allowed:
             # In zoom mode, we initialize a rubber band
             event.accept()
             plotarea = self.chart().plotArea()
             plotarea_mapped_to_chartview =self.chart().mapRectToParent(plotarea)
             event_saturated = QPointF(  # We saturate to the limits of the plot area so the rubber band is inside
-                min(max(event.pos().x(), plotarea.left()), plotarea.right()), 
-                min(max(event.pos().y(), plotarea.top()), plotarea.bottom())
+                min(max(event.pos().x(), plotarea_mapped_to_chartview.left()), plotarea_mapped_to_chartview.right()), 
+                min(max(event.pos().y(), plotarea_mapped_to_chartview.top()), plotarea_mapped_to_chartview.bottom())
                 )
             event_mapped_to_chart = self.chart().mapFromParent(event_saturated)
 
@@ -476,20 +854,52 @@ class ScrutinyChartView(QChartView):
                 raise NotImplementedError("Unknown zoom type")
             self._rubber_band.setGeometry(QRect(self._rubberband_origin.toPoint(), QSize()))
             self._rubber_band.show()
+        elif self._interaction_mode == self.InteractionMode.DRAG and self._drag_allowed:
+            if self._is_in_plotarea(event.pos()):
+                event.accept()
+                self._is_dragging = True
+                self.setCursor( Qt.CursorShape.ClosedHandCursor )
+        
+        self._last_mouse_pos = event.pos()
         super().mousePressEvent(event)
 
     def mouseMoveEvent(self, event:QMouseEvent) -> None:
+        mouse_cursor = Qt.CursorShape.ArrowCursor
+        chart = self.chart()
+        if self._chart_cursor.is_dragging():    # The user is dragging the chart cursor (red vertical line)
+            mouse_cursor = Qt.CursorShape.SizeHorCursor
+            eventpos_mapped_to_chart = chart.mapFromParent(event.pos())
+            xval = chart.xpos_to_xval(eventpos_mapped_to_chart.x(), clip_if_outside=True)
+            self._cursor_markers_vals.clear()
+            if xval is not None:
+                snap_xval, point_series_pairs = self._get_closest_x_to_snap_to(xval)
+                if snap_xval is not None:
+                    self._chart_cursor.set_xval(snap_xval)
+                    self._cursor_markers_vals = point_series_pairs
+
+            self.update()
+
+        elif self._chart_cursor.is_in_drag_zone(event.pos().toPointF()):
+            mouse_cursor = Qt.CursorShape.SizeHorCursor
+        elif self._interaction_mode == self.InteractionMode.DRAG and self._drag_allowed:
+            if self._is_dragging:
+                mouse_cursor = Qt.CursorShape.ClosedHandCursor
+            elif self._is_in_plotarea(event.pos()):
+                mouse_cursor = Qt.CursorShape.OpenHandCursor
+
+        self.viewport().setCursor(mouse_cursor)
+
         if self._interaction_mode == self.InteractionMode.SELECT_ZOOM and self._zoom_allowed:
             # In zoom mode, we resize the rubber band
             event.accept()
             if self._rubber_band.isVisible():   # There's a rubber band active (MousePress happened before)
                 plotarea = self.chart().plotArea()
-                event_saturated = QPointF(  # We saturate to the limits of the plot area so the rubberband stays inside
-                    min(max(event.pos().x(), plotarea.left()), plotarea.right()), 
-                    min(max(event.pos().y(), plotarea.top()), plotarea.bottom())
-                    )
-                event_mapped_to_chart = self.chart().mapFromParent(event_saturated)
                 plotarea_mapped_to_chartview = self.chart().mapRectToParent(plotarea)
+                event_saturated = QPointF(  # We saturate to the limits of the plot area so the rubberband stays inside
+                    min(max(event.pos().x(), plotarea_mapped_to_chartview.left()), plotarea_mapped_to_chartview.right()), 
+                    min(max(event.pos().y(), plotarea_mapped_to_chartview.top()), plotarea_mapped_to_chartview.bottom())
+                )
+                event_mapped_to_chart = self.chart().mapFromParent(event_saturated)
                 if self._zoom_type == self.ZoomType.ZOOM_XY:
                     self._rubberband_end = event_mapped_to_chart
                 elif self._zoom_type == self.ZoomType.ZOOM_X:
@@ -500,10 +910,22 @@ class ScrutinyChartView(QChartView):
                     raise NotImplementedError("Unknown zoom type")
                 self._rubberband_valid = True
                 self._rubber_band.setGeometry(QRect(self._rubberband_origin.toPoint(), self._rubberband_end.toPoint()).normalized())
+        # In drag mode, we simply emit the delta drag and let the chart adjust its axes
+        elif self._interaction_mode == self.InteractionMode.DRAG and self._drag_allowed:
+            if self._is_dragging:
+                delta = event.pos() - self._last_mouse_pos
+                self._signals.graph_dragged.emit(delta.x(), delta.y())
+                self.update()
+        
+        self._last_mouse_pos = event.pos()
         super().mouseMoveEvent(event)
 
     def mouseReleaseEvent(self, event:QMouseEvent) -> None:
         """When the mouse is released on the chartview"""
+
+        if self._chart_cursor.is_dragging():
+            self._chart_cursor.stop_drag()
+
         if self._interaction_mode == self.InteractionMode.SELECT_ZOOM and self._zoom_allowed:
             # In zoom mode, we release the rubberband and compute a new zoom box that we will broadcast
             event.accept()
@@ -524,13 +946,115 @@ class ScrutinyChartView(QChartView):
                         (self._rubberband_end.y() - plotarea_mapped_to_chartview.y()) / plotarea_mapped_to_chartview.height()
                     )
                     self._signals.zoombox_selected.emit(QRectF(relative_origin, relative_end).normalized())
+        elif self._interaction_mode == self.InteractionMode.DRAG and self._drag_allowed:
+            pass    # Nothing to do. _is_dragging is always set to False
+        
+        self._is_dragging = False
         self._rubber_band.hide()
         self._rubberband_valid = False
+        self._last_mouse_pos = event.pos()
         super().mouseReleaseEvent(event)
 
+    def drawForeground(self, painter:QPainter, rect:Union[QRectF, QRect]) -> None:
+        """Draw the forground of the chartview. We use it to draw a vertical cursor overlay"""
+        super().drawForeground(painter, rect)
+
+        MARKER_RADIUS = get_theme_prop(ScrutinyThemeProperties.CHART_CURSOR_MARKER_RADIUS)
+        CHART_CURSOR_COLOR = get_theme_prop(ScrutinyThemeProperties.CHART_CURSOR_COLOR)
+
+        chart = self.chart()
+        plotarea_mapped_to_chartview = chart.mapRectToParent(chart.plotArea())
+        if self._chart_cursor.is_enabled():
+            cursor_xpos_mapped_to_chart = chart.xval_to_xpos(self._chart_cursor.xval())
+            if cursor_xpos_mapped_to_chart:
+                cursor_xpos = chart.mapToParent(cursor_xpos_mapped_to_chart, 0).x() # Map it to this chartview
+                y1 = plotarea_mapped_to_chartview.y()
+                y2 = plotarea_mapped_to_chartview.y() + plotarea_mapped_to_chartview.height()
+                painter.setPen(QColor(0,0,0))
+                painter.setBrush(QColor(0,0,0))
+                painter.drawPolygon([QPointF(cursor_xpos,y1), QPointF(cursor_xpos-3,y1-4), QPointF(cursor_xpos+3,y1-4)])
+                painter.setPen(CHART_CURSOR_COLOR)
+                painter.drawLine(QPointF(cursor_xpos, y1), QPointF(cursor_xpos,y2))
+            
+            xaxis = self.chart().axisX()
+            plotarea_width = self.chart().plotArea().width()
+            cursor_val_width = (xaxis.max()-xaxis.min()) / plotarea_width
+            cursor_xval = self._chart_cursor.xval()
+            painter.setPen(QColor(0,0,0))
+            
+            for pair in self._cursor_markers_vals:
+                snap = abs(pair.point.x() - cursor_xval) <= cursor_val_width
+                if snap:
+                    val = QPointF(cursor_xval, pair.point.y())
+                    pos = chart.val_to_pos(val, chart.axisY(pair.series), clip_if_outside= False)
+                    if pos is not None:
+                        painter.setBrush(pair.series.color())
+                        painter.drawEllipse(chart.mapToParent(pos), MARKER_RADIUS, MARKER_RADIUS)
+
+    def _is_in_plotarea(self, p:Union[QPointF, QPoint]) -> bool:
+        chart = self.chart()
+        return chart.mapToParent(chart.plotArea()).containsPoint(p, Qt.FillRule.OddEvenFill)
+
+    def _get_closest_x_to_snap_to(self, xval:float) -> Tuple[Optional[float], List[SeriesPointPair]]:
+        """Scan every visible series to find the closest X value so we can put the chart cursor on from a given X val."""
+        chart = self.chart()
+        xaxis = chart.axisX()
+        candidates:List[ScrutinyChartView.SeriesPointPair] = []
+        for series in chart.series():
+            if series.isVisible():
+                point = series.search_closest_monotonic(xval, min_x=xaxis.min(), max_x=xaxis.max())
+                if point is not None:
+                    candidates.append( self.SeriesPointPair(series, point) )
+
+        if len(candidates) == 0:
+            return (None, [])
+        
+        candidates.sort( key=lambda x: abs(x.point.x() - xval) ) # Sort by distance
+        closest_xval = candidates[0].point.x()  # First one is the closest, we snap on it
+        return closest_xval, candidates
+
+    def _update_signal_tree_with_cursor_values(self ) -> None:
+        """Update the textual Y value that appears next to a signal in a treeview dedicated to show the graph series."""
+        if self._signal_tree is None:
+            return
+
+        self._clear_signal_tree_values()
+
+        for pair in self._cursor_markers_vals:
+            try:
+                value_item = self._series_to_signal_tree_value_item[id(pair.series)]
+            except KeyError:
+                continue
+
+            value_item.setText(str(pair.point.y()))
+
+    def _clear_signal_tree_values(self) -> None:
+        """Clear the value box in the signal tree"""
+        if self._signal_tree is not None:
+            for series, value_item in self._signal_tree.get_value_item_by_attached_series():
+                value_item.setText("")
+
+    def configure_chart_cursor(self, signal_tree:GraphSignalTree, xval_func:Optional[Callable[[float, bool], None]]) -> None:
+        if not signal_tree.has_value_col():
+            raise RuntimeError("Cannot tie the chart cursor to a signal tree with no value column")
+        self._signal_tree = signal_tree
+        self._chart_cursor_broadcast_xval_func = xval_func
+
+    @tools.copy_type(QChartView.update)
+    def update(self, *args:Any, **kwargs:Any) -> None:
+        self._chart_cursor.update()
+        self._update_signal_tree_with_cursor_values()
+        if self._chart_cursor_broadcast_xval_func is not None:
+            self._chart_cursor_broadcast_xval_func(self._chart_cursor.xval(), self._chart_cursor.is_enabled())
+        super().update(*args, **kwargs)
 
 class ScrutinyChartToolBar(QGraphicsItem):
     """A toolbar designed to go at the top of a Scrutiny Chart. Can be tied to a Chartview and enable control of it"""
+
+    TOOLBAR_HEIGHT = 24
+    ICON_SIZE = 20  # Square icons
+    PADDING_Y = int((TOOLBAR_HEIGHT - ICON_SIZE)/2)
+
     class ToolbarButton(QGraphicsItem):
         """Represent a button that goes in the toolbar"""
         class _Signals(QObject):
@@ -552,9 +1076,7 @@ class ScrutinyChartToolBar(QGraphicsItem):
         _is_selected:bool
         """True when the button is set as 'selected' programatically"""
 
-        ICON_SIZE = 20  # Square icons
         PADDING_X = 5
-        PADDING_Y = 2
 
         def __init__(self, toolbar:"ScrutinyChartToolBar", icon:assets.Icons) -> None:
             super().__init__(toolbar)
@@ -574,7 +1096,7 @@ class ScrutinyChartToolBar(QGraphicsItem):
             """Changes the icon of the button"""
             self._icon_id = icon
             if size is None:
-                self.set_icon_size(self.ICON_SIZE)
+                self.set_icon_size(ScrutinyChartToolBar.ICON_SIZE)
             else:
                 self.set_icon_size(size)
             self.update()
@@ -590,7 +1112,7 @@ class ScrutinyChartToolBar(QGraphicsItem):
                 )
             
             # Add internal padding. 2x for left/right and top/bottom
-            size_padded = self._icon_size + QSizeF(2*self.PADDING_X, 2*self.PADDING_Y)
+            size_padded = self._icon_size + QSizeF(2*self.PADDING_X, 2*ScrutinyChartToolBar.PADDING_Y)
             self._bounding_rect = QRectF(QPointF(0,0), size_padded)
             self.update()
         
@@ -600,31 +1122,41 @@ class ScrutinyChartToolBar(QGraphicsItem):
         
         def select(self) -> None:
             """Set the button as 'selected' which change the color"""
-            self._is_selected = True
-            self.update()
+            self.set_selected(True)
         
         def deselect(self) -> None:
             """Set the button as 'deselected' which change the color"""
-            self._is_selected = False
+            self.set_selected(False)
+
+        def set_selected(self, val:bool) -> None:
+            """Set the button as 'selected' or 'deselected' which change the color"""
+            self._is_selected = val
             self.update()
 
         def paint(self, painter: QPainter, option: QStyleOptionGraphicsItem, widget: Optional[QWidget]=None) -> None:
-            HOVERED_COLOR = get_theme_prop(ScrutinyThemeProperties.CHART_TOOLBAR_SELECTED_COLOR) 
-            HOVERED_BORDER_COLOR =get_theme_prop(ScrutinyThemeProperties.CHART_TOOLBAR_SELECTED_COLOR)  
+            HOVERED_COLOR = get_theme_prop(ScrutinyThemeProperties.CHART_TOOLBAR_HOVERED_BUTTON_COLOR) 
+            HOVERED_SELECTED_BORDER_COLOR = get_theme_prop(ScrutinyThemeProperties.CHART_TOOLBAR_HOVERED_SELECTED_BORDER_COLOR)  
             SELECTED_COLOR = get_theme_prop(ScrutinyThemeProperties.CHART_TOOLBAR_SELECTED_COLOR) 
+            PRESSED_COLOR = get_theme_prop(ScrutinyThemeProperties.CHART_TOOLBAR_PRESSED_COLOR) 
             # If the is a focus on the button, draw a background
-            if self._is_selected or self._is_pressed:
-                painter.setPen(SELECTED_COLOR)
-                painter.setBrush(SELECTED_COLOR)
+            if self._is_pressed or self._is_selected or self._is_hovered:
+                
+                if self._is_pressed:
+                    painter.setPen(PRESSED_COLOR)
+                    painter.setBrush(PRESSED_COLOR)
+                else:
+                    if self._is_selected:
+                        if self._is_hovered:
+                            painter.setPen(HOVERED_SELECTED_BORDER_COLOR)
+                        else:
+                            painter.setPen(SELECTED_COLOR)
+                        painter.setBrush(SELECTED_COLOR)
+                    elif self._is_hovered:
+                        painter.setPen(HOVERED_COLOR)
+                        painter.setBrush(HOVERED_COLOR)
                 painter.drawRect(self._bounding_rect)
-            elif self._is_hovered:
-                painter.setPen(HOVERED_BORDER_COLOR)   # Border is different to mimic QTreeView style
-                painter.setBrush(HOVERED_COLOR)
-                painter.drawRect(self._bounding_rect)
-            else:
-                pass # Leave blank. Just draw the icon on transparent background
-            
-            painter.drawPixmap(QPoint(self.PADDING_X,self.PADDING_Y), self._pixmap)
+
+            painter.drawPixmap(QPoint(self.PADDING_X, ScrutinyChartToolBar.PADDING_Y), self._pixmap)
 
         
         def mousePressEvent(self, event:QGraphicsSceneMouseEvent) -> None:
@@ -650,15 +1182,53 @@ class ScrutinyChartToolBar(QGraphicsItem):
             self._is_hovered = False
             self._is_pressed = False
             self.update()
-            
+
+    class ToolbarSpacer(QGraphicsItem):
+        _width : int
+
+        def __init__(self, toolbar:"ScrutinyChartToolBar" ,width:int) -> None:
+            super().__init__(toolbar)
+            self._width = width
+        
+        def boundingRect(self)-> QRectF:
+            return QRectF(QPoint(0,0), QPoint(self._width, ScrutinyChartToolBar.TOOLBAR_HEIGHT))
+        
+        def paint(self, painter: QPainter, option: QStyleOptionGraphicsItem, widget: Optional[QWidget]=None) -> None:
+            pass    # Nothing to do. Need to exist
+
+    class ToolbarDivision(QGraphicsItem):
+        LINE_WIDTH = 1
+        LINE_COLOR = QColor(226,226,226)
+        PADDING_X = 6
+        _line_y1:int
+        _line_y2:int
+
+        def __init__(self, toolbar:"ScrutinyChartToolBar") -> None:
+            super().__init__(toolbar)
+            self._line_y1 = ScrutinyChartToolBar.PADDING_Y
+            self._line_y2 = ScrutinyChartToolBar.TOOLBAR_HEIGHT - ScrutinyChartToolBar.PADDING_Y
+        
+        def boundingRect(self) -> QRectF:
+            return QRectF(QPoint(0,self._line_y1), QPoint(2*self.PADDING_X, self._line_y2))
+        
+        def paint(self, painter: QPainter, option: QStyleOptionGraphicsItem, widget: Optional[QWidget]=None) -> None:
+            painter.setPen(self.LINE_COLOR)
+            p1 = QPoint(self.PADDING_X, self._line_y1)
+            p2 = QPoint(self.PADDING_X, self._line_y2)
+            painter.drawLine(p1, p2)
 
     BUTTON_SPACING = 0
-    """ spaces between each buttons"""
+    """ Spaces between each buttons"""
     _chart:ScrutinyChart
     """The chart on which we draw the toolbar"""
-    _chartview:Optional[ScrutinyChartView]
+    _chartview:ScrutinyChartView
     """The chartview that the toolbar controls"""
+    _btn_mode_select_zoom:ToolbarButton
 
+    _btn_mode_drag:ToolbarButton
+
+    _btn_enable_cursor:ToolbarButton
+    """ Enable/disable the graph cursor"""
     _btn_zoom_xy:ToolbarButton
     """ Zoom XY button"""
     _btn_zoom_x:ToolbarButton
@@ -667,68 +1237,95 @@ class ScrutinyChartToolBar(QGraphicsItem):
     """ Zoom Y button"""
     _bounding_rect : QRectF
     """The zone where we draw"""
-    _buttons : List[ToolbarButton]
+    _buttons : List[QGraphicsItem]
     """All the buttons in order from left to right"""
 
-    def __init__(self, chart:ScrutinyChart) -> None:
-        validation.assert_type(chart, 'chart', ScrutinyChart)
-        super().__init__(chart)
-        self._chart = chart
-        self._chartview = None
+    def __init__(self, chartview:ScrutinyChartView) -> None:
+        validation.assert_type(chartview, 'chartview', ScrutinyChartView)
+        super().__init__(chartview.chart())
+        self._chart = chartview.chart()
+        self._chartview = chartview
         
+        self._btn_enable_cursor = self.ToolbarButton(self, assets.Icons.GraphCursor)
+        self._btn_mode_select_zoom = self.ToolbarButton(self, assets.Icons.CursorArrow)
+        self._btn_mode_drag = self.ToolbarButton(self, assets.Icons.CursorHandDrag)
         self._btn_zoom_xy = self.ToolbarButton(self, assets.Icons.ZoomXY)
         self._btn_zoom_x = self.ToolbarButton(self, assets.Icons.ZoomX)
         self._btn_zoom_y = self.ToolbarButton(self, assets.Icons.ZoomY)
         self._bounding_rect = QRectF()
 
-        self._buttons = [self._btn_zoom_xy, self._btn_zoom_x, self._btn_zoom_y]
+        self._buttons = [
+            self._btn_enable_cursor, 
+            self.ToolbarDivision(self),
+            self._btn_mode_select_zoom, 
+            self._btn_mode_drag, 
+            self.ToolbarDivision(self),
+            self._btn_zoom_xy, 
+            self._btn_zoom_x, 
+            self._btn_zoom_y
+            ]
         self._chart.geometryChanged.connect(self._update_geometry)
         
-        self._btn_zoom_xy.signals.clicked.connect(self._zoom_xy)
-        self._btn_zoom_x.signals.clicked.connect(self._zoom_x)
-        self._btn_zoom_y.signals.clicked.connect(self._zoom_y)
+        self._btn_enable_cursor.signals.clicked.connect(self._slot_btn_enable_disable_cursor)
+        self._btn_zoom_xy.signals.clicked.connect(self._slot_btn_zoom_xy)
+        self._btn_zoom_x.signals.clicked.connect(self._slot_btn_zoom_x)
+        self._btn_zoom_y.signals.clicked.connect(self._slot_btn_zoom_y)
+        self._btn_mode_select_zoom.signals.clicked.connect(self._slot_btn_mode_select_zoom)
+        self._btn_mode_drag.signals.clicked.connect(self._slot_btn_mode_drag)
 
-        self._btn_zoom_xy.select()
+        self.update_buttons_from_state()
 
-    def set_chartview(self, chartview:ScrutinyChartView) -> None:
-        """Sets the chartview controlled by this toolbar"""
-        self._chartview = chartview
 
-    def _zoom_x(self) -> None:
+    def disable_chart_cursor(self) -> None:
+        self._chartview.disable_cursor()
+        self.update_buttons_from_state()
+
+    def enable_chart_cursor(self) -> None:
+        self._chartview.enable_cursor()
+        self.update_buttons_from_state()
+
+    def toggle_chart_cursor(self) -> None:
+        if self._chartview.cursor_enabled():
+            self.disable_chart_cursor()
+        else:
+            self.enable_chart_cursor()
+
+    def _slot_btn_enable_disable_cursor(self) -> None:
+        self.toggle_chart_cursor()
+
+    def _slot_btn_zoom_x(self) -> None:
         """Called when Zoom X button is clicked"""
-        if self._chartview is None:
-            return
         # Change the chartview behavior
-        self._chartview.set_interaction_mode(ScrutinyChartView.InteractionMode.SELECT_ZOOM)
         self._chartview.set_zoom_type(ScrutinyChartView.ZoomType.ZOOM_X)
-        
-        # Visual feedback
-        self._btn_zoom_x.select()
-        self._btn_zoom_xy.deselect()
-        self._btn_zoom_y.deselect()
+        self.update_buttons_from_state()
     
-    def _zoom_y(self) -> None:
-        if self._chartview is None:
-            return
+    def _slot_btn_zoom_y(self) -> None:
         # Change the chartview behavior
-        self._chartview.set_interaction_mode(ScrutinyChartView.InteractionMode.SELECT_ZOOM)
         self._chartview.set_zoom_type(ScrutinyChartView.ZoomType.ZOOM_Y)
-        
-        # Visual feedback
-        self._btn_zoom_y.select()
-        self._btn_zoom_xy.deselect()
-        self._btn_zoom_x.deselect()
+        self.update_buttons_from_state()
     
-    def _zoom_xy(self) -> None:
-        if self._chartview is None:
-            return
+    def _slot_btn_zoom_xy(self) -> None:
         # Change the chartview behavior
-        self._chartview.set_interaction_mode(ScrutinyChartView.InteractionMode.SELECT_ZOOM)
         self._chartview.set_zoom_type(ScrutinyChartView.ZoomType.ZOOM_XY)
-        # Visual feedback
-        self._btn_zoom_xy.select()
-        self._btn_zoom_x.deselect()
-        self._btn_zoom_y.deselect()
+        self.update_buttons_from_state()
+
+    def _slot_btn_mode_select_zoom(self) -> None:
+        self._chartview.set_interaction_mode(ScrutinyChartView.InteractionMode.SELECT_ZOOM)
+        self.update_buttons_from_state()
+
+    def _slot_btn_mode_drag(self) -> None:
+        self._chartview.set_interaction_mode(ScrutinyChartView.InteractionMode.DRAG)
+        self.update_buttons_from_state()
+
+    def update_buttons_from_state(self) -> None:
+        self._btn_enable_cursor.set_selected(self._chartview.cursor_enabled())
+        
+        self._btn_mode_select_zoom.set_selected(self._chartview.get_interaction_mode() == ScrutinyChartView.InteractionMode.SELECT_ZOOM)
+        self._btn_mode_drag.set_selected(self._chartview.get_interaction_mode() == ScrutinyChartView.InteractionMode.DRAG)
+        
+        self._btn_zoom_xy.set_selected(self._chartview.get_zoom_type() == ScrutinyChartView.ZoomType.ZOOM_XY)
+        self._btn_zoom_x.set_selected(self._chartview.get_zoom_type() == ScrutinyChartView.ZoomType.ZOOM_X)
+        self._btn_zoom_y.set_selected(self._chartview.get_zoom_type() == ScrutinyChartView.ZoomType.ZOOM_Y)
 
     def _update_geometry(self) -> None:
         """Recompute all the internal drawing dimensions"""

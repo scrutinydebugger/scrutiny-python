@@ -419,7 +419,7 @@ class TestListeners(ScrutinyUnitTest):
                 fullpath_headers = next(rows)
                 headers = next(rows)
                 self.assertEqual(headers[0], 'Datetime' )
-                self.assertEqual(headers[1], 'Time (s)' )
+                self.assertEqual(headers[1], 'Time [s]' )
                 self.assertEqual(headers[-1], 'update flags' )
                 all_watchables = sorted([self.w1, self.w2, self.w3, self.w4, self.w5], key=lambda x: x.display_path)
                 index=2
@@ -497,7 +497,6 @@ class TestListeners(ScrutinyUnitTest):
             self.assertTrue(os.path.exists(os.path.join(tempdir, 'my_file_0002.csv' )))
             self.assertFalse(os.path.exists(os.path.join(tempdir, 'my_file_0003.csv' )))
 
-            #import ipdb; ipdb.set_trace()
             f1 = open(os.path.join(tempdir, 'my_file_0000.csv' ), 'r', encoding=csv_config.encoding, newline=csv_config.newline)
             f2 = open(os.path.join(tempdir, 'my_file_0001.csv' ), 'r', encoding=csv_config.encoding, newline=csv_config.newline)
             f3 = open(os.path.join(tempdir, 'my_file_0002.csv' ), 'r', encoding=csv_config.encoding, newline=csv_config.newline)
@@ -515,7 +514,7 @@ class TestListeners(ScrutinyUnitTest):
                 fullpath_headers = next(rows)
                 headers = next(rows)
                 self.assertEqual(headers[0], 'Datetime' )
-                self.assertEqual(headers[1], 'Time (s)' )
+                self.assertEqual(headers[1], 'Time [s]' )
                 self.assertEqual(headers[-1], 'update flags' )
                 all_watchables = sorted([self.w1, self.w2, self.w3, self.w4, self.w5], key=lambda x: x.display_path)
                 index=2

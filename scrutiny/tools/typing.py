@@ -8,7 +8,7 @@
 
 __all__ = ['Self', 'List', 'Set', 'Dict', 'Union', 'Optional', 'Any', 'cast', 'Iterable', 
            'Sequence', 'Callable', 'TypedDict', 'Literal',
-           'TypeVar', 'ParamSpec', 'TYPE_CHECKING']
+           'TypeVar', 'ParamSpec', 'TYPE_CHECKING', 'Generator', 'Tuple']
 
 import sys
 
@@ -22,4 +22,22 @@ else:
         class Self: # type: ignore
             pass
 
-from typing import List, Set, Dict, Union, Optional, Any, cast, Iterable, Sequence, Callable, TypedDict, Literal, TypeVar, ParamSpec, TYPE_CHECKING
+from typing import (
+    List,
+    Set,
+    Dict,
+    Union,
+    Optional,
+    Any,
+    cast,
+    Iterable,
+    Sequence,
+    Callable,
+    TypedDict,
+    Literal,
+    TypeVar,
+    ParamSpec,
+    TYPE_CHECKING,
+    Generator,
+    Tuple
+    )

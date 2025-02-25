@@ -93,6 +93,8 @@ class Icons(enum.Enum):
     SquareGreen = "square-green"
     ScrutinyLogo = "scrutiny-logo"
     Download = "download"
+    CursorArrow = "cursor-arrow"
+    CursorHandDrag = "cursor-hand-drag"
 
 def icon_filename(name:Icons, format:IconFormat, iconset:IconSet=IconSet.Default) -> Path:
     possible_formats = {

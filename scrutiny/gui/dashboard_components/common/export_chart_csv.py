@@ -67,7 +67,7 @@ def export_chart_csv_threaded(
         finished_callback:Callable[[Optional[Exception]],None],
         device:Optional[sdk.DeviceInfo] = None,
         sfd:Optional[sdk.SFDInfo] = None,
-        x_axis_name:str = 'Time (s)',
+        x_axis_name:str = 'Time [s]',
         datetime_zero_sec:Optional[datetime]=None
         ) -> None:
     """Helper function that export a Scrutiny graph content to a CSV file.

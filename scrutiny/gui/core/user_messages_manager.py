@@ -1,3 +1,12 @@
+#    user_messages_manager.py
+#        A manager that handles many toast-like messages with a duration but only shows one
+#        at the time.
+#        Meant to be connected to the status bar and exposed to the app as a service
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021 Scrutiny Debugger
 
 __all__ = ['UserMessagesManager']
 
