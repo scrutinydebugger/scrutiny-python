@@ -62,7 +62,7 @@ class ChartSeriesWatchableStandardItem(WatchableStandardItem):
 
     def _assert_series_set(self) -> None:
         if self._chart_series is None:
-            raise RuntimeError("A serie smust be attached first")
+            raise RuntimeError("A series must be attached first")
 
     def attach_series(self, series:QLineSeries) -> None:
         if not isinstance(series, QAbstractSeries):
@@ -388,6 +388,16 @@ class GraphSignalModel(BaseTreeModel):
                 item.setBackground(background_color)
                 item.setForeground(forground_color)
 
+    def get_all_value_items(self) -> List[QStandardItem]:
+        assert self.has_value_col()
+        
+        outlist:List[QStandardItem] = []
+        for i in range(self.rowCount()):
+            axis_item = self.item(i, self.axis_col())
+            for i in range(axis_item.rowCount()):
+                outlist.append( axis_item.child(i, self.value_col()) )
+        return outlist
+
 class GraphSignalTree(BaseTreeView):
     
     class _Signals(QObject):
@@ -564,3 +574,6 @@ class GraphSignalTree(BaseTreeView):
 
     def get_value_item_by_attached_series(self) -> List[Tuple[QLineSeries, QStandardItem]]:
         return self.model().get_value_item_by_attached_series()
+    
+    def get_all_value_items(self) -> List[QStandardItem]:
+        return self.model().get_all_value_items()

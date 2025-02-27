@@ -1031,7 +1031,7 @@ class ScrutinyChartView(QChartView):
     def _clear_signal_tree_values(self) -> None:
         """Clear the value box in the signal tree"""
         if self._signal_tree is not None:
-            for series, value_item in self._signal_tree.get_value_item_by_attached_series():
+            for value_item in self._signal_tree.get_all_value_items():
                 value_item.setText("")
 
     def configure_chart_cursor(self, signal_tree:GraphSignalTree, xval_func:Optional[Callable[[float, bool], None]]) -> None:

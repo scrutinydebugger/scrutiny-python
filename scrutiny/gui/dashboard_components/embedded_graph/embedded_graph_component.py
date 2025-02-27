@@ -9,13 +9,19 @@
 from scrutiny.gui.dashboard_components.base_component import ScrutinyGUIBaseComponent
 from typing import Dict, Any
 
-from PySide6.QtWidgets import QVBoxLayout, QLabel, QWidget, QSplitter,  QPushButton
+from PySide6.QtWidgets import QVBoxLayout, QLabel, QWidget, QSplitter, QPushButton, QScrollArea, QHBoxLayout
 from PySide6.QtCore import Qt
 
+from scrutiny.sdk import EmbeddedDataType
+
 from scrutiny.gui import assets
-from scrutiny.gui.dashboard_components.embedded_graph.graph_config import GraphConfigWidget
-from scrutiny.gui.dashboard_components.common.base_chart import GraphSignalTree, ScrutinyChart, ScrutinyChartView, ScrutinyChartToolBar
+from scrutiny.gui.dashboard_components.embedded_graph.graph_config_widget import GraphConfigWidget
+from scrutiny.gui.dashboard_components.common.base_chart import ScrutinyChart, ScrutinyChartView, ScrutinyChartToolBar
+from scrutiny.gui.dashboard_components.common.graph_signal_tree import GraphSignalTree
 from scrutiny.gui.widgets.feedback_label import FeedbackLabel
+from scrutiny.gui.core.watchable_registry import WatchableRegistryError
+
+from scrutiny.tools.typing import *
 
 class EmbeddedGraph(ScrutinyGUIBaseComponent):
     instance_name : str
@@ -23,7 +29,8 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
     _ICON = assets.get("scope-96x128.png")
     _NAME = "Embedded Graph"
 
-
+    _graph_config_widget:GraphConfigWidget
+    _splitter:QSplitter
     _xval_label:QLabel
     _signal_tree:GraphSignalTree
     _btn_start_stop:QPushButton
@@ -32,11 +39,55 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
     _chartview:ScrutinyChartView
     _chart_toolbar:ScrutinyChartToolBar
 
+    _left_pane:QWidget
+    _center_pane:QWidget
+    _right_pane:QWidget
+
     def setup(self) -> None:
         layout = QVBoxLayout(self)
         
-        
-        def make_left_side() -> QWidget:
+
+        def make_right_pane() -> QWidget:
+            right_pane = QWidget()
+            right_pane_layout = QVBoxLayout(right_pane)
+
+            self._xval_label = QLabel()
+
+            # Series on continuous graph don't have their X value aligned. 
+            # We can only show the value next to each point, not all together in the tree
+            self._signal_tree = GraphSignalTree(self, watchable_registry=self.watchable_registry, has_value_col=True)
+            #self._signal_tree.signals.selection_changed.connect(self._selection_changed_slot)
+
+            start_pause_line = QWidget()
+            start_pause_line_layout = QHBoxLayout(start_pause_line)
+            self._btn_start_stop = QPushButton("Start")
+           # self._btn_start_stop.clicked.connect(self._btn_start_stop_slot)
+            self._btn_clear = QPushButton("Clear")
+           # self._btn_clear.clicked.connect(self._btn_clear_slot)
+
+            start_pause_line_layout.addWidget(self._btn_start_stop)
+            start_pause_line_layout.addWidget(self._btn_clear)
+            
+
+            self._feedback_label = FeedbackLabel()
+            self._feedback_label.text_label().setWordWrap(True)
+
+            self._xval_label.setVisible(False)
+            right_pane_layout.addWidget(self._xval_label)
+            right_pane_layout.addWidget(self._signal_tree)
+            right_pane_layout.addWidget(start_pause_line)
+            right_pane_layout.addWidget(self._feedback_label)
+
+            right_pane_scroll = QScrollArea(self)
+            right_pane_scroll.setWidget(right_pane)
+            right_pane_scroll.setWidgetResizable(True)
+            right_pane_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+            right_pane_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+            right_pane_scroll.setMinimumWidth(right_pane_scroll.sizeHint().width())
+
+            return right_pane_scroll
+
+        def make_center_pane() -> QWidget:
             chart = ScrutinyChart()
             chart.layout().setContentsMargins(0,0,0,0)
             
@@ -46,66 +97,52 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
             #self._chartview.signals.zoombox_selected.connect(self._chartview_zoombox_selected_slot)
             #self._chartview.signals.key_pressed.connect(self._chartview_key_pressed_slot)
             self._chartview.set_interaction_mode(ScrutinyChartView.InteractionMode.SELECT_ZOOM)
+            self._chart_toolbar = ScrutinyChartToolBar(self._chartview)
+            self._chart_toolbar.hide()
 
-            self._chart_toolbar = ScrutinyChartToolBar(self._chartview) 
+            return self._chartview
 
-            left_side = QWidget()
-            left_side_layout = QVBoxLayout(left_side)
-            left_side_layout.setContentsMargins(0,0,0,0)
-            left_side_layout.addWidget(self._chartview)
-            return left_side
 
-        def make_right_side() -> QWidget:
-            right_side = QWidget()
-            right_side_layout = QVBoxLayout(right_side)
+        def make_left_pane() -> QWidget:
+            self._graph_config_widget = GraphConfigWidget(self, self._get_signal_size_list)
+            self._update_datalogging_capabilities()
 
-            self._xval_label = QLabel()
+            left_pane_scroll = QScrollArea(self)
+            left_pane_scroll.setWidget(self._graph_config_widget)
+            left_pane_scroll.setWidgetResizable(True)
+            left_pane_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+            left_pane_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+            left_pane_scroll.setMinimumWidth(left_pane_scroll.sizeHint().width())
 
-            # Series on continuous graph don't have their X value aligned. 
-            # We can only show the value next to each point, not all together in the tree
-            self._signal_tree = GraphSignalTree(self, watchable_registry=self.watchable_registry, has_value_col=True)
-            self._signal_tree.setMinimumWidth(200)
-            #self._signal_tree.signals.selection_changed.connect(self._selection_changed_slot)
-
-            self._btn_start_stop = QPushButton("")
-           # self._btn_start_stop.clicked.connect(self._btn_start_stop_slot)
-            self._btn_clear = QPushButton("Clear")
-           # self._btn_clear.clicked.connect(self._btn_clear_slot)
-            
-
-            self._feedback_label = FeedbackLabel()
-            self._feedback_label.text_label().setWordWrap(True)
-
-            self._xval_label.setVisible(False)
-            right_side_layout.addWidget(self._xval_label)
-            right_side_layout.addWidget(self._signal_tree)
-            right_side_layout.addWidget(self._btn_start_stop)
-            right_side_layout.addWidget(self._btn_clear)
-            right_side_layout.addWidget(self._feedback_label)
-
-            return right_side
-
+            return left_pane_scroll
         
-        left_side = make_left_side()
-        right_side = make_right_side()
-        
-        splitter = QSplitter(Qt.Orientation.Horizontal)
-        splitter.setContentsMargins(0,0,0,0)
-        splitter.setHandleWidth(5)
-        splitter.addWidget(left_side)
-        splitter.addWidget(GraphConfigWidget(self))
-        splitter.addWidget(right_side)
-        splitter.setCollapsible(0, False) # Cannot collapse the graph
-        splitter.setCollapsible(1, True)  # Can collapse the right menu
+        self._left_pane = make_left_pane()
+        self._center_pane = make_center_pane()
+        self._right_pane = make_right_pane()
 
+        self._splitter = QSplitter(Qt.Orientation.Horizontal)
+        self._splitter.setContentsMargins(0,0,0,0)
+        self._splitter.setHandleWidth(5)
+        self._splitter.addWidget(self._left_pane)
+        self._splitter.addWidget(self._center_pane)
+        self._splitter.addWidget(self._right_pane)
+        self._splitter.setCollapsible(0, True)
+        self._splitter.setCollapsible(1, False)
+        self._splitter.setCollapsible(2, True)
 
-        layout.addWidget(splitter)
+        layout.addWidget(self._splitter)
+
+        self.server_manager.signals.device_info_availability_changed.connect(self._update_datalogging_capabilities)
+        self.server_manager.signals.device_disconnected.connect(self._update_datalogging_capabilities)
+        self.server_manager.signals.device_ready.connect(self._update_datalogging_capabilities)
+        self._btn_start_stop.clicked.connect(self._graph_config_widget.validate)
+
         
     def ready(self) -> None:
         """Called when the component is inside the dashboard and its dimensions are computed"""
         # Make the right menu as small as possible. Only works after the widget is loaded. we need the ready() function for that
-       # self._splitter.setSizes([self.width(), self._signal_tree.minimumWidth()])
-        pass
+        self._splitter.setSizes([self._left_pane.minimumWidth(), self.width(), self._right_pane.minimumWidth()])
+        
 
     def teardown(self) -> None:
         pass
@@ -115,3 +152,20 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
 
     def load_state(self, state: Dict[Any, Any]) -> None:
         raise NotImplementedError()
+
+    def _update_datalogging_capabilities(self) -> None:
+        self._graph_config_widget.configure_from_device_info(self.server_manager.get_device_info())
+
+    def _get_signal_size_list(self) -> List[EmbeddedDataType]:
+        outlist:List[EmbeddedDataType] = []
+        axes = self._signal_tree.get_signals()
+        for axis in axes:
+            for item in axis.signal_items:
+                try:
+                    watchable = self.watchable_registry.get_watchable_fqn(item.fqn)  # Might be unavailable
+                    outlist.append(watchable.datatype)
+                except WatchableRegistryError:
+                    return []
+        
+        return outlist
+            
