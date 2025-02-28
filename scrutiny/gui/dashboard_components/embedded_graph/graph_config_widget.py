@@ -28,6 +28,7 @@ class GraphConfigWidget(QWidget):
     _cmb_trigger_condition:QComboBox
     _txt_hold_time_ms:ValidableLineEdit
     _lbl_estimated_duration:QLabel
+    _cmb_xaxis_type:QComboBox
 
     _device_info:Optional[DeviceInfo]
 
@@ -83,6 +84,7 @@ class GraphConfigWidget(QWidget):
         self._cmb_trigger_condition.addItem("Change More Than", TriggerCondition.ChangeMoreThan)
         self._cmb_trigger_condition.addItem("Is Within", TriggerCondition.IsWithin)
 
+        self._cmb_xaxis_type.addItem("None", XAxisType.Indexed)
         self._cmb_xaxis_type.addItem("Ideal Time", XAxisType.IdealTime)
         self._cmb_xaxis_type.addItem("Measured Time", XAxisType.MeasuredTime)
         self._cmb_xaxis_type.addItem("Signal", XAxisType.Signal)
@@ -118,7 +120,7 @@ class GraphConfigWidget(QWidget):
     def _decimation_changed_slot(self) -> None:
         self.update_content()
 
-    def _get_selected_sampling_rate(self) -> Optional[SamplingRate]:
+    def get_selected_sampling_rate(self) -> Optional[SamplingRate]:
         if self._device_info is None:
             return None
         
@@ -133,8 +135,8 @@ class GraphConfigWidget(QWidget):
 
         return None
     
-    def _get_selected_sampling_rate_hz(self) -> Optional[float]:
-        sampling_rate = self._get_selected_sampling_rate()
+    def get_selected_sampling_rate_hz(self) -> Optional[float]:
+        sampling_rate = self.get_selected_sampling_rate()
         
         if sampling_rate is None:
             return None
@@ -154,7 +156,7 @@ class GraphConfigWidget(QWidget):
         if self._get_signal_dtype_fn is None:
             return None
         
-        sampling_rate_hz = self._get_selected_sampling_rate_hz()
+        sampling_rate_hz = self.get_selected_sampling_rate_hz()
         if sampling_rate_hz is None:
             return None
         
@@ -196,7 +198,7 @@ class GraphConfigWidget(QWidget):
         if self._device_info is None:
             self._cmb_sampling_rate.clear()
         else:
-            sampling_rate = self._get_selected_sampling_rate()
+            sampling_rate = self.get_selected_sampling_rate()
             if sampling_rate is not None:
                 cmb_xaxis_type_model = self._cmb_xaxis_type.model()
                 assert isinstance(cmb_xaxis_type_model, QStandardItemModel)
@@ -209,7 +211,7 @@ class GraphConfigWidget(QWidget):
                         self._cmb_xaxis_type.setCurrentIndex(self._cmb_xaxis_type.findData(XAxisType.MeasuredTime))
                 
 
-            sampling_rate_hz = self._get_selected_sampling_rate_hz()
+            sampling_rate_hz = self.get_selected_sampling_rate_hz()
             if sampling_rate_hz is not None:
                 decimation = self._spin_decimation.value()
                 effective_rate = sampling_rate_hz / decimation
@@ -257,3 +259,46 @@ class GraphConfigWidget(QWidget):
             valid = False
 
         return valid
+
+
+    def get_hold_time_sec(self) -> Optional[float]:
+        if not self._txt_hold_time_ms.validate_expect_valid():
+            return None
+        val = float(self._txt_hold_time_ms.text())/1000
+        return val
+    
+    def get_acquisition_timeout_sec(self) -> Optional[float]:
+        if not self._txt_acquisition_timeout.validate_expect_valid():
+            return None
+        val = float(self._txt_acquisition_timeout.text())
+        return val
+
+    def get_txt_acquisition_name(self) -> ValidableLineEdit:
+        return self._txt_acquisition_name
+
+    def get_cmb_sampling_rate(self) -> QComboBox:
+        return self._cmb_sampling_rate
+
+    def get_spin_decimation(self) -> QSpinBox:
+        return self._spin_decimation
+
+    def get_lbl_effective_sampling_rate(self) -> QLabel:
+        return self._lbl_effective_sampling_rate
+
+    def get_spin_trigger_position(self) -> QSpinBox:
+        return self._spin_trigger_position
+
+    def get_txt_acquisition_timeout(self) -> ValidableLineEdit:
+        return self._txt_acquisition_timeout
+
+    def get_cmb_trigger_condition(self) -> QComboBox:
+        return self._cmb_trigger_condition
+
+    def get_txt_hold_time_ms(self) -> ValidableLineEdit:
+        return self._txt_hold_time_ms
+
+    def get_lbl_estimated_duration(self) -> QLabel:
+        return self._lbl_estimated_duration
+    
+    def get_cmb_xaxis_type(self) -> QComboBox:
+        return self._cmb_xaxis_type
