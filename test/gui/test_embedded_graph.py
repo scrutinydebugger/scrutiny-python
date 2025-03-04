@@ -188,3 +188,31 @@ class TestEmbeddedGraph(ScrutinyBaseGuiTest):
         self.assertFalse(self.widget.validate())
         self.assertIsNone(self.widget.get_acquisition_timeout_sec())
         self.widget.get_txt_acquisition_timeout().setText("0")
+
+
+        trigger_condition = self.widget.get_cmb_trigger_condition()
+        operand1 = self.widget.get_txtw_trigger_operand1()
+        operand2 = self.widget.get_txtw_trigger_operand2()
+        operand3 = self.widget.get_txtw_trigger_operand3()
+
+        visiblity_map = {
+            TriggerCondition.AlwaysTrue : [False, False, False],
+            TriggerCondition.Equal : [True, True, False],
+            TriggerCondition.NotEqual : [True, True, False],
+            TriggerCondition.LessThan : [True, True, False],
+            TriggerCondition.LessOrEqualThan : [True, True, False],
+            TriggerCondition.GreaterThan : [True, True, False],
+            TriggerCondition.GreaterOrEqualThan : [True, True, False],
+            TriggerCondition.ChangeMoreThan : [True, True, False],
+            TriggerCondition.IsWithin : [True, True, True],
+        }
+
+        for condition, visiblity_array in visiblity_map.items():
+            trigger_condition.setCurrentIndex(trigger_condition.findData(condition))
+            self.widget.update_content()
+            self.widget.update()
+            self.process_events()
+            self.assertEqual(visiblity_array, [operand1.isVisibleTo(self.widget), operand2.isVisibleTo(self.widget), operand3.isVisibleTo(self.widget)], f"condition={condition}")
+        
+        
+        

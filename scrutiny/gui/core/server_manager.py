@@ -747,7 +747,7 @@ class ServerManager:
         """Called when a gui component register a watcher on the registry"""
         # Runs from QT thread
         watcher_count = self._registry.node_watcher_count(watchable_config.watchable_type, server_path)
-        if watcher_count > 0:
+        if watcher_count is not None and watcher_count > 0:
             self._qt_maybe_request_watch(watchable_config.watchable_type, server_path)
 
     @enforce_thread(QT_THREAD_NAME)
@@ -755,7 +755,7 @@ class ServerManager:
         """Called when a gui component unregister a watcher on the registry"""
         # Runs from QT thread
         watcher_count = self._registry.node_watcher_count(watchable_config.watchable_type, server_path)
-        if watcher_count == 0:
+        if watcher_count is not None and watcher_count == 0:
             self._qt_maybe_request_unwatch(watchable_config.watchable_type, server_path)
 
     def _qt_value_update_received(self) -> None:
@@ -978,6 +978,8 @@ class ServerManager:
 
         """
         watchable_config = self._registry.get_watchable_fqn(fqn)
+        if watchable_config is None:
+            raise Exception(f"Item {fqn} is not in the registry. Cannot write its value")
         def threaded_func(client:ScrutinyClient) -> None:
             handle = client.try_get_existing_watch_handle_by_server_id(watchable_config.server_id)
             if handle is None:

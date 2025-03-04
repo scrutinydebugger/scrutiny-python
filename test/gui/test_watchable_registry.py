@@ -140,8 +140,7 @@ class TestWatchableRegistry(ScrutinyUnitTest):
 
         o1 = self.registry.read(sdk.WatchableType.Alias, '/a/b/c')
         self.assertIs(o1, obj1)
-        with self.assertRaises(WatchableRegistryError):
-            self.registry.read(sdk.WatchableType.Variable, '/a/b/c')
+        self.assertIsNone(self.registry.read(sdk.WatchableType.Variable, '/a/b/c'))
         
         o2 = self.registry.read_fqn('var:/a/b/d/e')
         self.assertIs(obj2, o2)
@@ -541,8 +540,8 @@ class TestWatchableRegistry(ScrutinyUnitTest):
     def test_bad_values(self):
         self.registry.write_content(All_DUMMY_DATA)
 
-        with self.assertRaises(WatchableRegistryError):
-            self.registry.node_watcher_count_fqn('var:/var/xxx')
+        
+        self.assertIsNone(self.registry.node_watcher_count_fqn('var:/var/xxx'))
         
         with self.assertRaises(WatcherNotFoundError):
             self.registry.unwatch_fqn('watcher_xxx', 'var:/var/xxx')

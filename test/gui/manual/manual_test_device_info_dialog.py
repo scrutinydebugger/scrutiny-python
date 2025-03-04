@@ -10,19 +10,16 @@ if __name__ != '__main__' :
     raise RuntimeError("This script is expected to run from the command line")
 
 import sys, os
-os.environ['SCRUTINY_MANUAL_TEST'] = '1'
-project_root = os.path.realpath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
-sys.path.insert(0, project_root)
+sys.path.insert(0, os.path.dirname(__file__))
+from manual_test_base import make_manual_test_app
+app = make_manual_test_app()
 
-import logging
-from PySide6.QtWidgets import QApplication, QMainWindow, QPushButton, QWidget, QVBoxLayout
+from PySide6.QtWidgets import QMainWindow, QPushButton, QWidget, QVBoxLayout
 from scrutiny.gui.dialogs.device_info_dialog import DeviceInfoDialog
-from scrutiny.gui import assets
 from scrutiny.sdk import *
 from dataclasses import dataclass
 
 from typing import Optional, List
-logging.basicConfig(level=logging.DEBUG)
 
 @dataclass
 class Config:
@@ -80,8 +77,6 @@ def make_device_info(config:Config) -> DeviceInfo:
     )
 
 dialogs = []
-app = QApplication([])
-app.setStyleSheet(assets.load_text(["stylesheets", "scrutiny_base.qss"]))
 
 window = QMainWindow()
 central_widget = QWidget()

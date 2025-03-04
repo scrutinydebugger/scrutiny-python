@@ -369,7 +369,7 @@ class WatchableRegistry:
             return 0
         return entry.watcher_count
 
-    def node_watcher_count_fqn(self, fqn:str) -> int:
+    def node_watcher_count_fqn(self, fqn:str) -> Optional[int]:
         """Return the number of watcher on a node
         
         :param fqn: The watchable fully qualified name
@@ -378,7 +378,7 @@ class WatchableRegistry:
         parsed = self.FQN.parse(fqn)
         return self.node_watcher_count(parsed.watchable_type, parsed.path)
        
-    def node_watcher_count(self, watchable_type:sdk.WatchableType, path:str) -> int:
+    def node_watcher_count(self, watchable_type:sdk.WatchableType, path:str) -> Optional[int]:
         """Return the number of watcher on a node
         
         :param watchable_type: The watchable type
@@ -387,7 +387,8 @@ class WatchableRegistry:
         """
         node = self._get_node(watchable_type, path)
         if not isinstance(node, WatchableRegistryEntryNode):
-            raise WatchableRegistryError("Cannot get the watcher count of something that is not a Watchable")
+            self._logger.debug("Cannot get the watcher count of something that is not a Watchable")
+            return None
         return node.watcher_count
     
     def watched_entries_count(self) -> int:
@@ -395,7 +396,7 @@ class WatchableRegistry:
         return len(self._watched_entries)
 
     @enforce_thread(QT_THREAD_NAME)
-    def read(self, watchable_type:sdk.WatchableType, path:str) -> Union[WatchableRegistryNodeContent, sdk.WatchableConfiguration]:
+    def read(self, watchable_type:sdk.WatchableType, path:str) -> Optional[Union[WatchableRegistryNodeContent, sdk.WatchableConfiguration]]:
         """Read a node inside the registry.
         
         :watchable_type: The type of node to read
@@ -403,12 +404,16 @@ class WatchableRegistry:
 
         :return: The node content. Either a watchable or a description of the subnodes
         """
-        node = self._get_node(watchable_type, path)
-        if isinstance(node, WatchableRegistryEntryNode):
-            return node.configuration
+        try:
+            node = self._get_node(watchable_type, path)
+            if isinstance(node, WatchableRegistryEntryNode):
+                return node.configuration
+        except WatchableRegistryError as e:
+            tools.log_exception(self._logger, e)
+            return None
         return node
 
-    def read_fqn(self, fqn:str) -> Union[WatchableRegistryNodeContent, sdk.WatchableConfiguration]:
+    def read_fqn(self, fqn:str) -> Optional[Union[WatchableRegistryNodeContent, sdk.WatchableConfiguration]]:
         """Read a node inside the registry using a fully qualified name.
         
         :param fqn: The fully qualified name created using ``make_fqn()``
@@ -418,10 +423,10 @@ class WatchableRegistry:
         parsed = self.FQN.parse(fqn)
         return self.read(parsed.watchable_type, parsed.path)
 
-    def get_watchable_fqn(self, fqn:str) -> sdk.WatchableConfiguration:
+    def get_watchable_fqn(self, fqn:str) -> Optional[sdk.WatchableConfiguration]:
         node = self.read_fqn(fqn)
         if not isinstance(node, sdk.WatchableConfiguration):
-            raise WatchableRegistryNodeNotFoundError(f"No watchable entry for {fqn}")
+            return None
         return node
 
     def is_watchable_fqn(self, fqn:str) -> bool:
@@ -431,11 +436,9 @@ class WatchableRegistry:
 
         :return: ``True`` if exists and is a watchable
         """   
-        try:
-            node = self.read_fqn(fqn)
-            return isinstance(node, sdk.WatchableConfiguration)
-        except WatchableRegistryError:
-            return False
+        node = self.read_fqn(fqn)
+        return isinstance(node, sdk.WatchableConfiguration)
+
 
     @enforce_thread(QT_THREAD_NAME)  
     def write_content(self, data:Dict[sdk.WatchableType, Dict[str, sdk.WatchableConfiguration]]) -> None:

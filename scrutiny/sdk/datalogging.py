@@ -80,6 +80,22 @@ class TriggerCondition(enum.Enum):
     """`|Operand1 - Operand2|` < `|Operand3|` """
 
 
+    def required_operands(self) -> int:
+        operand_map = {
+            TriggerCondition.AlwaysTrue: 0,
+            TriggerCondition.Equal: 2,
+            TriggerCondition.NotEqual: 2,
+            TriggerCondition.LessThan: 2,
+            TriggerCondition.LessOrEqualThan: 2,
+            TriggerCondition.GreaterThan: 2,
+            TriggerCondition.GreaterOrEqualThan: 2,
+            TriggerCondition.ChangeMoreThan: 2,
+            TriggerCondition.IsWithin: 3
+        }
+
+        return operand_map[self]
+
+
 @dataclass
 class _Signal:
     name: Optional[str]
@@ -241,22 +257,10 @@ class DataloggingConfig:
         :raise ValueError: Bad parameter value
         :raise TypeError: Given parameter not of the expected type
         """
-        if condition in [TriggerCondition.AlwaysTrue]:
-            nb_operands = 0
-        elif condition in [TriggerCondition.Equal,
-                           TriggerCondition.NotEqual,
-                           TriggerCondition.GreaterThan,
-                           TriggerCondition.GreaterOrEqualThan,
-                           TriggerCondition.LessThan,
-                           TriggerCondition.LessOrEqualThan,
-                           TriggerCondition.ChangeMoreThan]:
-            nb_operands = 2
-        elif condition in [TriggerCondition.IsWithin]:
-            nb_operands = 3
-        else:
-            raise ValueError(f"Unsupported trigger condition {condition}")
-
+        validation.assert_type(condition, 'condition', TriggerCondition)
         validation.assert_type(operands, 'operands', (list, type(None)))
+        
+        nb_operands = condition.required_operands()
 
         if operands is None:
             operands = []

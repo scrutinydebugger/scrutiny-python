@@ -31,6 +31,9 @@ class DefaultTheme(ScrutinyTheme):
         ScrutinyThemeProperties.CHART_TOOLBAR_HOVERED_SELECTED_BORDER_COLOR : SELECTED_HOVERED_BORDER_COLOR,
         ScrutinyThemeProperties.CHART_TOOLBAR_PRESSED_COLOR : PRESSED_COLOR,
         ScrutinyThemeProperties.CHART_TOOLBAR_SELECTED_COLOR : SELECTED_COLOR,
+        
+        ScrutinyThemeProperties.WATCHABLE_LINE_EDIT_CLEAR_BTN_HOVER_COLOR : SELECTED_COLOR,
+        ScrutinyThemeProperties.WATCHABLE_LINE_EDIT_CLEAR_BTN_PRESSED_COLOR : PRESSED_COLOR,
 
         ScrutinyThemeProperties.WIDGET_ERROR_BACKGROUND_COLOR : RED_ERROR
 

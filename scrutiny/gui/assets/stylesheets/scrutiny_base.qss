@@ -29,3 +29,7 @@ QLabel[feature_enable=false] {
 QSplitter::handle {
     background-color: #ccc;
 }
+
+QLineEditIconButton:hover {
+     background: grey;
+}

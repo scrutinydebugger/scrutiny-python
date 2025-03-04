@@ -1,15 +1,17 @@
 
 
-__all__ = ['GraphConfigWidget', 'GetSignalDatatypeFn']
+__all__ = ['GraphConfigWidget', 'GetSignalDatatypeFn', 'ValidationResult']
 
 import math
-
-from PySide6.QtWidgets import QWidget, QFormLayout, QComboBox, QSpinBox, QLabel, QLineEdit
+from dataclasses import dataclass
+from PySide6.QtWidgets import QWidget, QFormLayout, QComboBox, QSpinBox, QLabel, QLineEdit, QVBoxLayout, QGroupBox,QTextEdit 
 from PySide6.QtGui import QDoubleValidator, QStandardItemModel
+from PySide6.QtCore import Qt
 from scrutiny.gui.widgets.validable_line_edit import ValidableLineEdit
-from scrutiny.gui.tools.validators import NotEmptyValidator
-from scrutiny.sdk.datalogging import ( TriggerCondition, DataloggingCapabilities, 
-                                      SamplingRate, FixedFreqSamplingRate, DataloggingEncoding, XAxisType, VariableFreqSamplingRate)
+from scrutiny.gui.widgets.watchable_line_edit import WatchableLineEdit
+from scrutiny.gui.core.watchable_registry import WatchableRegistry
+from scrutiny.sdk.datalogging import ( TriggerCondition,  SamplingRate, FixedFreqSamplingRate, DataloggingEncoding, XAxisType, 
+                                      VariableFreqSamplingRate, DataloggingConfig)
 from scrutiny.sdk import EmbeddedDataType, DeviceInfo
 
 from scrutiny.tools.typing import *
@@ -17,8 +19,48 @@ from scrutiny import tools
 
 GetSignalDatatypeFn = Callable[[], List[EmbeddedDataType]]
 
+@dataclass
+class ValidationResult:
+    config:Optional[DataloggingConfig]
+    valid:bool
+    error:Optional[str]
+
+class HelpStrings:
+    ACQUISITION_NAME = r"A name used to identify the acquisition in the server database"
+    ACQUISITION_TIMEOUT = r"Maximum length of the acquisition in seconds. 0 means no limit"
+    ESTIMATED_DURATION = r"Estimation of the length of the acquisition based on the actual configuration. \n Only available with fixed frequency sampling rates"
+    SAMPLING_RATE = r"The sampling rate used for datalogging. Maps directly to an embedded loop/task"
+    DECIMATION = r"A decimation factor to reduce the effective sampling rate. A factor of N will take 1 sample every N loop iteration"
+    EFFECTIVE_SAMPLING_RATE = r"Effective sampling rate. (Sampling rate divided by decimation factor)"
+    XAXIS_TYPE = r"""The type of X-Axis.
+
+None: X-Axis will be a incremental index from 0 to N
+Ideal Time: A time axis deduced using the effective sampling rate, takes no buffer space
+Measured time: A time axis measured by the device, require space in the datalogging buffer (reduce the duration)
+Signal: An arbitrary watchable will be used, allow making scatter X-Y plots
+"""
+    XAXIS_SIGNAL = r"The watchable element to use as a X-Axis. Must be Dragged & dropped from other widgets"
+    TRIGGER_POSITIION = r"The position of the trigger event in the acquisition buffer. 0% is leftmost, 50% centers the event. 100% puts the trigger event at the far right"
+    HOLD_TIME = r"For how long must the trigger condition evaluates to true to fire the trigger event. Accepts decimal values (resolution 100ns)"
+    TRIGGER_CONDITION = r"""The condition that must evaluate to true in order to fire the trigger event
+Always True: Evaluates to true at the very first sample. Useful to take an instant graph.
+
+Equal: x1 = x2
+NotEqual: x1 != x2
+GreaterThan: x1 > x2
+GreaterOrEqualThan: x1 >= x2
+LessThan: x1 < x2
+LessOrEqualThan: x1 <= x2
+ChangeMoreThan: |dx1| > |x2| & sign(dx1)=sign(x2)
+IsWithin: |x1-x2| < |x3|    
+"""
+    OPERAND1 = r"Operand x1 for trigger condition. Can be a literal or a watchable dragged & dropped from other widgets"
+    OPERAND2 = r"Operand x2 for trigger condition. Can be a literal or a watchable dragged & dropped from other widgets"
+    OPERAND3 = r"Operand x3 for trigger condition. Can be a literal or a watchable dragged & dropped from other widgets"
+
 class GraphConfigWidget(QWidget):
     _get_signal_dtype_fn:Optional[GetSignalDatatypeFn]
+    _watchable_registry : WatchableRegistry
     _txt_acquisition_name:QLineEdit
     _cmb_sampling_rate:QComboBox
     _spin_decimation:QSpinBox
@@ -26,22 +68,48 @@ class GraphConfigWidget(QWidget):
     _spin_trigger_position:QSpinBox
     _txt_acquisition_timeout:ValidableLineEdit
     _cmb_trigger_condition:QComboBox
+    _txtw_trigger_operand1:WatchableLineEdit
+    _txtw_trigger_operand2:WatchableLineEdit
+    _txtw_trigger_operand3:WatchableLineEdit
     _txt_hold_time_ms:ValidableLineEdit
     _lbl_estimated_duration:QLabel
     _cmb_xaxis_type:QComboBox
+    _txtw_xaxis_signal:WatchableLineEdit
+
+    _acquisition_layout:QFormLayout
+    _trigger_layout:QFormLayout
+    _xaxis_layout:QFormLayout
+    _sampling_rate_layout:QFormLayout
 
     _device_info:Optional[DeviceInfo]
 
 
-    def __init__(self, parent:QWidget, get_signal_dtype_fn:Optional[GetSignalDatatypeFn]) -> None:
+    def __init__(self, parent:QWidget, watchable_registry:WatchableRegistry, get_signal_dtype_fn:Optional[GetSignalDatatypeFn]) -> None:
         super().__init__(parent)
         MAX_HOLD_TIME_MS = math.floor((2**32 - 1) * 1e-7) * 1e3     # 32bits, increment of 100ns
         MAX_TIMEOUT_SEC = math.floor((2**32 - 1) * 1e-7)            # 32bits, increment of 100ns
 
-        layout = QFormLayout(self)
+        layout = QVBoxLayout(self)
+        layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+        acquisition_container = QGroupBox("Acquisition")
+        sampling_rate_container = QGroupBox("Sampling rate")
+        xaxis_container = QGroupBox("X-Axis")
+        trigger_container = QGroupBox("Trigger")
+        layout.addWidget(acquisition_container)
+        layout.addWidget(sampling_rate_container)
+        layout.addWidget(xaxis_container)
+        layout.addWidget(trigger_container)
+
+        self._acquisition_layout = QFormLayout(acquisition_container)
+        self._sampling_rate_layout = QFormLayout(sampling_rate_container)
+        self._xaxis_layout = QFormLayout(xaxis_container)
+        self._trigger_layout = QFormLayout(trigger_container)
         self._device_info = None
         self._get_signal_dtype_fn = get_signal_dtype_fn
+        self._watchable_registry = watchable_registry
 
+
+        # Widgets
         self._txt_acquisition_name = QLineEdit(self)
         self._cmb_sampling_rate = QComboBox(self)
         self._spin_decimation = QSpinBox(self)
@@ -52,7 +120,15 @@ class GraphConfigWidget(QWidget):
             parent=self
         )
         self._cmb_trigger_condition = QComboBox(self)
+        self._txtw_trigger_operand1 = WatchableLineEdit("", self)
+        self._txtw_trigger_operand1.setValidator(QDoubleValidator())
+        self._txtw_trigger_operand2 = WatchableLineEdit("", self)
+        self._txtw_trigger_operand2.setValidator(QDoubleValidator())
+        self._txtw_trigger_operand3 = WatchableLineEdit("", self)
+        self._txtw_trigger_operand3.setValidator(QDoubleValidator())
         self._cmb_xaxis_type = QComboBox(self)
+        self._txtw_xaxis_signal = WatchableLineEdit("", self)
+        self._txtw_xaxis_signal.set_text_mode_enabled(False)    # No literal allowed, just watchables
         
         self._txt_hold_time_ms = ValidableLineEdit(
             hard_validator=QDoubleValidator(0, MAX_HOLD_TIME_MS, 4),
@@ -79,8 +155,8 @@ class GraphConfigWidget(QWidget):
         self._cmb_trigger_condition.addItem("Not Equal (!=)", TriggerCondition.NotEqual)
         self._cmb_trigger_condition.addItem("Greater Than (>)", TriggerCondition.GreaterThan)
         self._cmb_trigger_condition.addItem("Greater or Equal (>=)", TriggerCondition.GreaterOrEqualThan)
-        self._cmb_trigger_condition.addItem("Less Than (<)", TriggerCondition.GreaterThan)
-        self._cmb_trigger_condition.addItem("Less or Equal (<=)", TriggerCondition.GreaterOrEqualThan)
+        self._cmb_trigger_condition.addItem("Less Than (<)", TriggerCondition.LessThan)
+        self._cmb_trigger_condition.addItem("Less or Equal (<=)", TriggerCondition.LessOrEqualThan)
         self._cmb_trigger_condition.addItem("Change More Than", TriggerCondition.ChangeMoreThan)
         self._cmb_trigger_condition.addItem("Is Within", TriggerCondition.IsWithin)
 
@@ -89,22 +165,45 @@ class GraphConfigWidget(QWidget):
         self._cmb_xaxis_type.addItem("Measured Time", XAxisType.MeasuredTime)
         self._cmb_xaxis_type.addItem("Signal", XAxisType.Signal)
 
+        
+
         self._cmb_trigger_condition.setCurrentIndex(self._cmb_trigger_condition.findData(TriggerCondition.AlwaysTrue))
         self._cmb_trigger_condition.currentIndexChanged.connect(self._trigger_condition_changed_slot)
         self._cmb_sampling_rate.currentIndexChanged.connect(self._sampling_rate_changed_slot)
         self._cmb_xaxis_type.currentIndexChanged.connect(self._xaxis_type_changed)
         self._spin_decimation.valueChanged.connect(self._decimation_changed_slot)
 
-        layout.addRow("Acquisition name", self._txt_acquisition_name)
-        layout.addRow("Sampling Rate", self._cmb_sampling_rate)
-        layout.addRow("Decimation", self._spin_decimation)
-        layout.addRow("Effective sampling rate", self._lbl_effective_sampling_rate)
-        layout.addRow("Trigger position (%)", self._spin_trigger_position)
-        layout.addRow("Acquisition timeout (s)", self._txt_acquisition_timeout)
-        layout.addRow("X-Axis type", self._cmb_xaxis_type)
-        layout.addRow("Trigger condition", self._cmb_trigger_condition)
-        layout.addRow("Hold Time (ms)", self._txt_hold_time_ms)
-        layout.addRow("Estimated duration ", self._lbl_estimated_duration)
+        self._acquisition_layout.setLabelAlignment(Qt.AlignmentFlag.AlignLeft)
+        self._trigger_layout.setLabelAlignment(Qt.AlignmentFlag.AlignLeft)
+        self._xaxis_layout.setLabelAlignment(Qt.AlignmentFlag.AlignLeft)
+        self._sampling_rate_layout.setLabelAlignment(Qt.AlignmentFlag.AlignLeft)
+        
+
+        def add_row(layout:QFormLayout, txt:str, widget:QWidget, tooltip:Optional[str]=None) -> None:
+            label = QLabel(txt)
+            if tooltip is not None:
+                label.setToolTip(tooltip)
+                label.setCursor(Qt.CursorShape.WhatsThisCursor)
+            layout.addRow(label, widget)
+
+        # Layouts
+        add_row(self._acquisition_layout, "Acquisition name", self._txt_acquisition_name, HelpStrings.ACQUISITION_NAME)
+        add_row(self._acquisition_layout, "Acquisition timeout (s)", self._txt_acquisition_timeout, HelpStrings.ACQUISITION_TIMEOUT)
+        add_row(self._acquisition_layout, "Estimated duration ", self._lbl_estimated_duration, HelpStrings.ESTIMATED_DURATION)
+        
+        add_row(self._sampling_rate_layout, "Sampling Rate", self._cmb_sampling_rate, HelpStrings.SAMPLING_RATE)
+        add_row(self._sampling_rate_layout, "Decimation", self._spin_decimation, HelpStrings.DECIMATION)
+        add_row(self._sampling_rate_layout, "Effective sampling rate", self._lbl_effective_sampling_rate, HelpStrings.EFFECTIVE_SAMPLING_RATE)
+        
+        add_row(self._xaxis_layout, "X-Axis type", self._cmb_xaxis_type, HelpStrings.XAXIS_TYPE)
+        add_row(self._xaxis_layout, "X watchable", self._txtw_xaxis_signal, HelpStrings.XAXIS_SIGNAL)
+        
+        add_row(self._trigger_layout, "Trigger position (%)", self._spin_trigger_position, HelpStrings.TRIGGER_POSITIION)
+        add_row(self._trigger_layout, "Hold Time (ms)", self._txt_hold_time_ms, HelpStrings.HOLD_TIME)
+        add_row(self._trigger_layout, "Trigger condition", self._cmb_trigger_condition, HelpStrings.TRIGGER_CONDITION)
+        add_row(self._trigger_layout, "  - Operand 1 (x1)", self._txtw_trigger_operand1, HelpStrings.OPERAND1)
+        add_row(self._trigger_layout, "  - Operand 2 (x2)", self._txtw_trigger_operand2, HelpStrings.OPERAND2)
+        add_row(self._trigger_layout, "  - Operand 3 (x3)", self._txtw_trigger_operand3, HelpStrings.OPERAND3)
 
         self.update_content()
 
@@ -127,7 +226,7 @@ class GraphConfigWidget(QWidget):
         if self._device_info.datalogging_capabilities is None:
             return None
         
-        selected_identifier = self._cmb_sampling_rate.currentData()
+        selected_identifier = cast(Optional[int], self._cmb_sampling_rate.currentData())
         
         for rate in self._device_info.datalogging_capabilities.sampling_rates:
             if rate.identifier == selected_identifier:
@@ -165,14 +264,20 @@ class GraphConfigWidget(QWidget):
         signal_datatypes = self._get_signal_dtype_fn()
         encoding = self._device_info.datalogging_capabilities.encoding
         buffer_size = self._device_info.datalogging_capabilities.buffer_size
-        xaxis_type = self._cmb_xaxis_type.currentData()
+        xaxis_type = cast(Optional[XAxisType], self._cmb_xaxis_type.currentData())
         
         if encoding == DataloggingEncoding.RAW:
             sample_size = sum([dtype.get_size_byte() for dtype in signal_datatypes])
             if xaxis_type == XAxisType.MeasuredTime:
-                sample_size += 4    # unit32
+                sample_size += 4    # uint32
             elif xaxis_type == XAxisType.Signal:
-                pass        # TODO
+                fqn_and_name = self._txtw_xaxis_signal.get_watchable()
+                if fqn_and_name is None:
+                    return None
+                watchable = self._watchable_registry.get_watchable_fqn(fqn_and_name.fqn)
+                if watchable is None:
+                    return None
+                sample_size += watchable.datatype.get_size_byte()
             
             if sample_size == 0:
                 return None
@@ -225,6 +330,22 @@ class GraphConfigWidget(QWidget):
         self._lbl_effective_sampling_rate.setText(effective_sampling_rate_label_txt)
         self._lbl_estimated_duration.setText(estimated_duration_label_txt)
 
+        condition = cast(Optional[TriggerCondition], self._cmb_trigger_condition.currentData())
+        if condition is None:
+            nb_operand = 0
+        else:
+            nb_operand = condition.required_operands()
+        
+        operands = (self._txtw_trigger_operand1, self._txtw_trigger_operand2, self._txtw_trigger_operand3)
+        for i in range(len(operands)):
+            visible = i <= nb_operand-1
+            self._trigger_layout.setRowVisible(operands[i], visible)
+
+        if cast(Optional[XAxisType], self._cmb_xaxis_type.currentData()) == XAxisType.Signal:
+            self._xaxis_layout.setRowVisible(self._txtw_xaxis_signal, True)
+        else:
+            self._xaxis_layout.setRowVisible(self._txtw_xaxis_signal, False)
+
     def configure_from_device_info(self, device_info:Optional[DeviceInfo]) -> None:
         self._device_info = device_info
         self._cmb_sampling_rate.clear()
@@ -246,19 +367,114 @@ class GraphConfigWidget(QWidget):
 
         self.update()
 
-    def validate(self) -> bool:
-        valid = True
-        if len(self._txt_acquisition_timeout.text()) == 0:
-            self._txt_acquisition_timeout.setText("0")
-        if not self._txt_acquisition_timeout.validate_expect_valid():
-            valid = False
-        
-        if len(self._txt_hold_time_ms.text()) == 0:
-            self._txt_hold_time_ms.setText("0")
-        if not self._txt_hold_time_ms.validate_expect_valid():
-            valid = False
+    def validate_and_get_config(self) -> ValidationResult:
+        output = ValidationResult(config=None, valid=True, error=None)
 
-        return valid
+        current_sampling_rate = self._cmb_sampling_rate.currentData()
+        if current_sampling_rate is None:
+            output.valid = False
+            output.error = "Invalid sampling rate"
+            return output
+        
+        acquisition_name = self._txt_acquisition_name.text().strip()
+        if len(acquisition_name) == 0:
+            acquisition_name = "<unnamed>"
+
+        acquisition_timeout_sec = self.get_acquisition_timeout_sec()
+        if acquisition_timeout_sec is None:
+            output.valid = False
+            output.error = "Invalid timeout"
+            return output
+        
+        config = DataloggingConfig(
+            sampling_rate=current_sampling_rate,
+            decimation=self._spin_decimation.value(),
+            name=acquisition_name,
+            timeout=float(self._txt_acquisition_timeout.text())
+        )
+
+        trigger_condition = cast(Optional[TriggerCondition], self._cmb_trigger_condition.currentData())
+        if trigger_condition is None:
+            output.valid = False
+            output.error = "Invalid trigger condition"
+            return output
+
+        nb_operand = trigger_condition.required_operands()
+        txtw_operands = [self._txtw_trigger_operand1,self._txtw_trigger_operand2,self._txtw_trigger_operand3]
+        operands:Optional[List[Union[float, str]]] = None
+        if nb_operand > 0:
+            operands = []
+        for i in range(nb_operand):
+            assert operands is not None
+            txtw_operand = txtw_operands[i]
+            if txtw_operand.is_text_mode():
+                try:
+                    value = float(txtw_operand.text())
+                    operands.append(value)
+                except Exception:
+                    output.valid = False
+                    output.error = f"Invalid trigger condition operand #{i+1}"
+                    return output
+                
+            elif txtw_operand.is_watchable_mode():
+                fqn_and_name = txtw_operand.get_watchable()
+                if fqn_and_name is None:
+                    output.valid = False
+                    output.error = f"Invalid trigger condition operand #{i+1}"
+                    return output
+
+                if not self._watchable_registry.is_watchable_fqn(fqn_and_name.fqn):
+                    output.error = f"Watchable in trigger condition operand #{i+1} is not available"
+                    output.valid = False
+                    return output
+
+                operands.append(WatchableRegistry.FQN.parse(fqn_and_name.fqn).path)
+            else:
+                raise NotImplementedError("Unknown mode")
+
+            if not output.valid:
+                return output
+
+        hold_time_sec = self.get_hold_time_sec()
+        if hold_time_sec is None:
+            output.valid = False
+            output.error = "Invalid hold time"
+            return output
+
+        trigger_position_pu = min(max( (self._spin_trigger_position.value())/100, 0), 1)
+        config.configure_trigger(
+            condition=trigger_condition,
+            hold_time=hold_time_sec,
+            operands=operands,
+            position=trigger_position_pu
+        )
+
+        xaxis_type = cast(Optional[XAxisType], self._cmb_xaxis_type.currentData())
+        
+        if  xaxis_type == XAxisType.Signal:
+            fqn_and_name = self._txtw_xaxis_signal.get_watchable()
+            if fqn_and_name is None:
+                output.valid = False
+                output.error = "Invalid X-Axis signal"
+                return output
+
+            if not self._watchable_registry.is_watchable_fqn(fqn_and_name.fqn):
+                output.valid = False
+                output.error = "X-Axis signal is not available"
+                return output
+            
+            config.configure_xaxis(xaxis_type, signal=self._watchable_registry.FQN.parse(fqn_and_name.fqn).path, name=fqn_and_name.name)
+        elif  xaxis_type == XAxisType.Indexed:
+            config.configure_xaxis(xaxis_type, name="X-Axis")
+        elif  xaxis_type == XAxisType.IdealTime:
+            config.configure_xaxis(xaxis_type, name="Time (ideal) [s]")
+        elif  xaxis_type == XAxisType.MeasuredTime:
+            config.configure_xaxis(xaxis_type, name="Time (measured) [s]")
+        else:
+            raise NotImplementedError("Unsupported X-Axis type")
+        
+        output.config = config
+        return output
 
 
     def get_hold_time_sec(self) -> Optional[float]:
@@ -273,7 +489,7 @@ class GraphConfigWidget(QWidget):
         val = float(self._txt_acquisition_timeout.text())
         return val
 
-    def get_txt_acquisition_name(self) -> ValidableLineEdit:
+    def get_txt_acquisition_name(self) -> QLineEdit:
         return self._txt_acquisition_name
 
     def get_cmb_sampling_rate(self) -> QComboBox:
@@ -293,6 +509,15 @@ class GraphConfigWidget(QWidget):
 
     def get_cmb_trigger_condition(self) -> QComboBox:
         return self._cmb_trigger_condition
+
+    def get_txtw_trigger_operand1(self) -> WatchableLineEdit:
+        return self._txtw_trigger_operand1
+    
+    def get_txtw_trigger_operand2(self) -> WatchableLineEdit:
+        return self._txtw_trigger_operand2
+    
+    def get_txtw_trigger_operand3(self) -> WatchableLineEdit:
+        return self._txtw_trigger_operand3
 
     def get_txt_hold_time_ms(self) -> ValidableLineEdit:
         return self._txt_hold_time_ms

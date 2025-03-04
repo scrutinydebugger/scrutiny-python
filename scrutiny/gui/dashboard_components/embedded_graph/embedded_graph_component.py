@@ -19,7 +19,6 @@ from scrutiny.gui.dashboard_components.embedded_graph.graph_config_widget import
 from scrutiny.gui.dashboard_components.common.base_chart import ScrutinyChart, ScrutinyChartView, ScrutinyChartToolBar
 from scrutiny.gui.dashboard_components.common.graph_signal_tree import GraphSignalTree
 from scrutiny.gui.widgets.feedback_label import FeedbackLabel
-from scrutiny.gui.core.watchable_registry import WatchableRegistryError
 
 from scrutiny.tools.typing import *
 
@@ -104,7 +103,9 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
 
 
         def make_left_pane() -> QWidget:
-            self._graph_config_widget = GraphConfigWidget(self, self._get_signal_size_list)
+            self._graph_config_widget = GraphConfigWidget(self, 
+                                                        watchable_registry=self.watchable_registry,
+                                                        get_signal_dtype_fn=self._get_signal_size_list)
             self._update_datalogging_capabilities()
 
             left_pane_scroll = QScrollArea(self)
@@ -135,7 +136,7 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
         self.server_manager.signals.device_info_availability_changed.connect(self._update_datalogging_capabilities)
         self.server_manager.signals.device_disconnected.connect(self._update_datalogging_capabilities)
         self.server_manager.signals.device_ready.connect(self._update_datalogging_capabilities)
-        self._btn_start_stop.clicked.connect(self._graph_config_widget.validate)
+        self._btn_start_stop.clicked.connect(self._btn_start_stop_clicked_slot)
 
         
     def ready(self) -> None:
@@ -156,16 +157,24 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
     def _update_datalogging_capabilities(self) -> None:
         self._graph_config_widget.configure_from_device_info(self.server_manager.get_device_info())
 
+    def _btn_start_stop_clicked_slot(self) -> None:
+        result = self._graph_config_widget.validate_and_get_config()
+        if not result.valid:
+            assert result.error is not None
+            self._feedback_label.set_error(result.error)
+        else:
+            self._feedback_label.clear()
+
     def _get_signal_size_list(self) -> List[EmbeddedDataType]:
         outlist:List[EmbeddedDataType] = []
         axes = self._signal_tree.get_signals()
         for axis in axes:
             for item in axis.signal_items:
-                try:
-                    watchable = self.watchable_registry.get_watchable_fqn(item.fqn)  # Might be unavailable
-                    outlist.append(watchable.datatype)
-                except WatchableRegistryError:
+                watchable = self.watchable_registry.get_watchable_fqn(item.fqn)  # Might be unavailable
+                if watchable is None:
                     return []
+                outlist.append(watchable.datatype)
+
         
         return outlist
             
