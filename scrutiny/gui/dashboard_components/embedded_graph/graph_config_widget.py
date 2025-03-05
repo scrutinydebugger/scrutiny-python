@@ -1,4 +1,11 @@
-
+#    graph_config_widget.py
+#        A widget that let a user configure a datalogging configuration (except the list of
+#        signals). Meant to be used  in the EmbeddedGraph component
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021 Scrutiny Debugger
 
 __all__ = ['GraphConfigWidget', 'GetSignalDatatypeFn', 'ValidationResult']
 
@@ -13,6 +20,7 @@ from scrutiny.gui.core.watchable_registry import WatchableRegistry
 from scrutiny.sdk.datalogging import ( TriggerCondition,  SamplingRate, FixedFreqSamplingRate, DataloggingEncoding, XAxisType, 
                                       VariableFreqSamplingRate, DataloggingConfig)
 from scrutiny.sdk import EmbeddedDataType, DeviceInfo
+from scrutiny.sdk.watchable_handle import WatchableHandle
 
 from scrutiny.tools.typing import *
 from scrutiny import tools
@@ -60,21 +68,37 @@ IsWithin: |x1-x2| < |x3|
 
 class GraphConfigWidget(QWidget):
     _get_signal_dtype_fn:Optional[GetSignalDatatypeFn]
+    """A function that returns the list of signal size. USed to compute the duration estimate"""
     _watchable_registry : WatchableRegistry
+    """A reference to the global watchable registry for validation"""
     _txt_acquisition_name:QLineEdit
+    """LineEdit for the acquisition name"""
     _cmb_sampling_rate:QComboBox
+    """ComboBox : List of sampling rates"""
     _spin_decimation:QSpinBox
+    """Spinbox : Decimation factor"""
     _lbl_effective_sampling_rate:QLabel
+    """A label that shows the effective sampling rate (sampling_rate/decimation)"""
     _spin_trigger_position:QSpinBox
+    """Spingbox : Trigger position from 0 to 100"""
     _txt_acquisition_timeout:ValidableLineEdit
+    """LineEdit: Acquisition timeout"""
     _cmb_trigger_condition:QComboBox
+    """ComboxBox: The type of trigger condition"""
     _txtw_trigger_operand1:WatchableLineEdit
+    """Trigger operand 1"""
     _txtw_trigger_operand2:WatchableLineEdit
+    """Trigger operand 2"""
     _txtw_trigger_operand3:WatchableLineEdit
+    """Trigger operand 3"""
     _txt_hold_time_ms:ValidableLineEdit
+    """The acquisition hold time (in ms)"""
     _lbl_estimated_duration:QLabel
+    """Label: Estimated duration based on the signals, the x axis, buffer size and effective sampling rate"""
     _cmb_xaxis_type:QComboBox
+    """Type of X-Axis"""
     _txtw_xaxis_signal:WatchableLineEdit
+    """A watchable for X-Axis when X-Axis type = Signal"""
 
     _acquisition_layout:QFormLayout
     _trigger_layout:QFormLayout
@@ -82,6 +106,7 @@ class GraphConfigWidget(QWidget):
     _sampling_rate_layout:QFormLayout
 
     _device_info:Optional[DeviceInfo]
+    """The DeviceInfo struct of the actually connected device. None means no device available"""
 
 
     def __init__(self, parent:QWidget, watchable_registry:WatchableRegistry, get_signal_dtype_fn:Optional[GetSignalDatatypeFn]) -> None:
@@ -165,8 +190,6 @@ class GraphConfigWidget(QWidget):
         self._cmb_xaxis_type.addItem("Measured Time", XAxisType.MeasuredTime)
         self._cmb_xaxis_type.addItem("Signal", XAxisType.Signal)
 
-        
-
         self._cmb_trigger_condition.setCurrentIndex(self._cmb_trigger_condition.findData(TriggerCondition.AlwaysTrue))
         self._cmb_trigger_condition.currentIndexChanged.connect(self._trigger_condition_changed_slot)
         self._cmb_sampling_rate.currentIndexChanged.connect(self._sampling_rate_changed_slot)
@@ -220,6 +243,7 @@ class GraphConfigWidget(QWidget):
         self.update_content()
 
     def get_selected_sampling_rate(self) -> Optional[SamplingRate]:
+        """Return the selected sampling rate. None if none is available"""
         if self._device_info is None:
             return None
         
@@ -235,6 +259,7 @@ class GraphConfigWidget(QWidget):
         return None
     
     def get_selected_sampling_rate_hz(self) -> Optional[float]:
+        """Return the selected sampling rate frequency in Hz. Return None if no sampling rate is available or if the selected rate has variable frequency"""
         sampling_rate = self.get_selected_sampling_rate()
         
         if sampling_rate is None:
@@ -246,6 +271,15 @@ class GraphConfigWidget(QWidget):
         return sampling_rate.frequency
 
     def _compute_estimated_duration(self) -> Optional[float]:
+        """Compute how long the acquisition will be considering:
+         - Buffer size
+         - Sampling rate
+         - Decimation
+         - Signals to log
+         - X-Axis type
+         
+         Return a value in seconds. None if the value cannot be computed (value invalid or variable frequency sampling rate)
+         """
         if self._device_info is None:
             return None
 
@@ -297,25 +331,26 @@ class GraphConfigWidget(QWidget):
 
 
     def update_content(self) -> None:
+        """Update the widget based on its content. Show/hide widgets depending on user choice and loaded device capabilities"""
         effective_sampling_rate_label_txt = "N/A"
         estimated_duration_label_txt = "N/A"
 
-        if self._device_info is None:
+        if self._device_info is None:   # No device available
             self._cmb_sampling_rate.clear()
-        else:
-            sampling_rate = self.get_selected_sampling_rate()
-            if sampling_rate is not None:
+        else:   
+            sampling_rate = self.get_selected_sampling_rate()   # Combo box is filled when configure_from_device_info is called
+            if sampling_rate is not None:                       # Paranoid check
                 cmb_xaxis_type_model = self._cmb_xaxis_type.model()
                 assert isinstance(cmb_xaxis_type_model, QStandardItemModel)
                 ideal_time_item = cmb_xaxis_type_model.item(self._cmb_xaxis_type.findData(XAxisType.IdealTime))
                 if isinstance(sampling_rate, FixedFreqSamplingRate):
-                    ideal_time_item.setEnabled(True)
+                    ideal_time_item.setEnabled(True)    # Ideal time is only possible with a Fixed Freq sampling rate.
                 else:
                     ideal_time_item.setEnabled(False)
                     if self._cmb_xaxis_type.currentData() == XAxisType.IdealTime:
                         self._cmb_xaxis_type.setCurrentIndex(self._cmb_xaxis_type.findData(XAxisType.MeasuredTime))
                 
-
+            # Compute effective sampling rate and estimated duration
             sampling_rate_hz = self.get_selected_sampling_rate_hz()
             if sampling_rate_hz is not None:
                 decimation = self._spin_decimation.value()
@@ -329,24 +364,28 @@ class GraphConfigWidget(QWidget):
 
         self._lbl_effective_sampling_rate.setText(effective_sampling_rate_label_txt)
         self._lbl_estimated_duration.setText(estimated_duration_label_txt)
-
+        
+        #  Trigger conditon
         condition = cast(Optional[TriggerCondition], self._cmb_trigger_condition.currentData())
-        if condition is None:
+        if condition is None:   # Paranoid check
             nb_operand = 0
         else:
-            nb_operand = condition.required_operands()
+            nb_operand = condition.required_operands()  # Will show the textboxes baed on that number
         
+        # Makes the operand visible based on the number of operands
         operands = (self._txtw_trigger_operand1, self._txtw_trigger_operand2, self._txtw_trigger_operand3)
         for i in range(len(operands)):
             visible = i <= nb_operand-1
             self._trigger_layout.setRowVisible(operands[i], visible)
 
+        # X-Axis. We want the "Signal" textbox only when type=Signal
         if cast(Optional[XAxisType], self._cmb_xaxis_type.currentData()) == XAxisType.Signal:
             self._xaxis_layout.setRowVisible(self._txtw_xaxis_signal, True)
         else:
             self._xaxis_layout.setRowVisible(self._txtw_xaxis_signal, False)
 
     def configure_from_device_info(self, device_info:Optional[DeviceInfo]) -> None:
+        """Configure the widget for a certain device. None means there is no device avaialble."""
         self._device_info = device_info
         self._cmb_sampling_rate.clear()
         if self._device_info is not None:
@@ -368,6 +407,7 @@ class GraphConfigWidget(QWidget):
         self.update()
 
     def validate_and_get_config(self) -> ValidationResult:
+        """Validate the user input and return a DataloggingConfiguration is it is valid."""
         output = ValidationResult(config=None, valid=True, error=None)
 
         current_sampling_rate = self._cmb_sampling_rate.currentData()
@@ -401,7 +441,9 @@ class GraphConfigWidget(QWidget):
 
         nb_operand = trigger_condition.required_operands()
         txtw_operands = [self._txtw_trigger_operand1,self._txtw_trigger_operand2,self._txtw_trigger_operand3]
-        operands:Optional[List[Union[float, str]]] = None
+        # We don't need WatchableHandle here. need it to please static analysis becuse list of union can't detect overlaps with other list of union
+
+        operands:Optional[List[Union[float, str, WatchableHandle]]] = None      
         if nb_operand > 0:
             operands = []
         for i in range(nb_operand):
@@ -476,6 +518,9 @@ class GraphConfigWidget(QWidget):
         output.config = config
         return output
 
+    def validate(self) -> bool:
+        result = self.validate_and_get_config()
+        return result.valid
 
     def get_hold_time_sec(self) -> Optional[float]:
         if not self._txt_hold_time_ms.validate_expect_valid():

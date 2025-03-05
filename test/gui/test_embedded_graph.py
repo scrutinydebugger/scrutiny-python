@@ -1,6 +1,15 @@
+#    test_embedded_graph.py
+#        A test suite for the embedded graph component
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021 Scrutiny Debugger
+
 from PySide6.QtGui import QStandardItemModel
 from test.gui.base_gui_test import ScrutinyBaseGuiTest
 from scrutiny.gui.dashboard_components.embedded_graph.graph_config_widget import GraphConfigWidget
+from scrutiny.gui.core.watchable_registry import WatchableRegistry
 from scrutiny.sdk import *
 from scrutiny.sdk.datalogging import *
 
@@ -56,8 +65,21 @@ class TestEmbeddedGraph(ScrutinyBaseGuiTest):
             datalogging_capabilities=None
         )
 
+        self.registry = WatchableRegistry()
+        self.registry.write_content({
+            WatchableType.Alias : {
+                '/my_var' : WatchableConfiguration('my_var', WatchableType.Variable, EmbeddedDataType.float32, enum=None)
+            },
+            WatchableType.RuntimePublishedValue : {
+                '/my_rpva' : WatchableConfiguration('my_rpv', WatchableType.RuntimePublishedValue, EmbeddedDataType.float32, enum=None)
+            },
+            WatchableType.Variable : {
+                '/my_alias' : WatchableConfiguration('my_alias', WatchableType.Alias, EmbeddedDataType.float32, enum=None),
+            },
+        })
+
         self.signal_types:List[EmbeddedDataType] = []
-        self.widget = GraphConfigWidget(parent=None, get_signal_dtype_fn=lambda : self.signal_types)
+        self.widget = GraphConfigWidget(parent=None, watchable_registry=self.registry, get_signal_dtype_fn=lambda : self.signal_types)
 
 
     def test_graph_config_widget_dynamic_behavior(self) -> None:
@@ -146,6 +168,7 @@ class TestEmbeddedGraph(ScrutinyBaseGuiTest):
 
         
     def test_graph_config_widget_limit_values(self):
+        self.widget.configure_from_device_info(self.device_with_datalogging)
         self.assertTrue(self.widget.validate())
 
         self.widget.get_spin_decimation().setValue(0)

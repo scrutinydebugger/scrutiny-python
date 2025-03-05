@@ -487,7 +487,7 @@
             "docstring": "A component used to develop the GUI"
         },
         "scrutiny/gui/dashboard_components/embedded_graph/embedded_graph_component.py": {
-            "docstring": "A componenbt to configure, trigger, view and browse embedded datalogging."
+            "docstring": "A component to configure, trigger, view and browse embedded datalogging."
         },
         "scrutiny/gui/dashboard_components/varlist/varlist_component.py": {
             "docstring": "A component that shows the content of the watchable registry, a copy og what's available on the server"
@@ -680,6 +680,21 @@
         },
         "test/gui/test_graph_features.py": {
             "docstring": "A test suite for common graph features"
+        },
+        "test/gui/test_embedded_graph.py": {
+            "docstring": "A test suite for the embedded graph component"
+        },
+        "test/gui/manual/manual_test_watchable_line_edit.py": {
+            "docstring": "A test suite for the WatchableLineEdit widget. A textbox that can receive watchables through drag&drop"
+        },
+        "test/gui/manual/manual_test_base.py": {
+            "docstring": "Common setup for all manual test files that launches a standalone apps for testing GUI elements"
+        },
+        "scrutiny/gui/dashboard_components/embedded_graph/graph_config_widget.py": {
+            "docstring": "A widget that let a user configure a datalogging configuration (except the list of signals). Meant to be used  in the EmbeddedGraph component"
+        },
+        "scrutiny/gui/widgets/watchable_line_edit.py": {
+            "docstring": "A textbox that can be manually edited or filled with a watchable element by drag&drop"
         }
     }
 }

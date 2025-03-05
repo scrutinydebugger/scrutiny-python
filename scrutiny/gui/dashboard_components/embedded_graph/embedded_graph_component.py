@@ -1,5 +1,5 @@
 #    embedded_graph_component.py
-#        A componenbt to configure, trigger, view and browse embedded datalogging.
+#        A component to configure, trigger, view and browse embedded datalogging.
 #
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
@@ -13,6 +13,8 @@ from PySide6.QtWidgets import QVBoxLayout, QLabel, QWidget, QSplitter, QPushButt
 from PySide6.QtCore import Qt
 
 from scrutiny.sdk import EmbeddedDataType
+from scrutiny.sdk.datalogging import DataloggingConfig, DataloggingRequest
+from scrutiny.sdk.client import ScrutinyClient
 
 from scrutiny.gui import assets
 from scrutiny.gui.dashboard_components.embedded_graph.graph_config_widget import GraphConfigWidget
@@ -60,7 +62,7 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
             start_pause_line = QWidget()
             start_pause_line_layout = QHBoxLayout(start_pause_line)
             self._btn_start_stop = QPushButton("Start")
-           # self._btn_start_stop.clicked.connect(self._btn_start_stop_slot)
+            self._btn_start_stop.clicked.connect(self._btn_start_stop_slot)
             self._btn_clear = QPushButton("Clear")
            # self._btn_clear.clicked.connect(self._btn_clear_slot)
 
@@ -136,7 +138,6 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
         self.server_manager.signals.device_info_availability_changed.connect(self._update_datalogging_capabilities)
         self.server_manager.signals.device_disconnected.connect(self._update_datalogging_capabilities)
         self.server_manager.signals.device_ready.connect(self._update_datalogging_capabilities)
-        self._btn_start_stop.clicked.connect(self._btn_start_stop_clicked_slot)
 
         
     def ready(self) -> None:
@@ -157,13 +158,54 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
     def _update_datalogging_capabilities(self) -> None:
         self._graph_config_widget.configure_from_device_info(self.server_manager.get_device_info())
 
-    def _btn_start_stop_clicked_slot(self) -> None:
+    def _btn_start_stop_slot(self) -> None:
         result = self._graph_config_widget.validate_and_get_config()
         if not result.valid:
             assert result.error is not None
             self._feedback_label.set_error(result.error)
-        else:
-            self._feedback_label.clear()
+            return 
+        assert result.config is not None
+        
+        self._feedback_label.clear()
+        axes_signal = self._signal_tree.get_signals()
+        if len(axes_signal) == 0:
+            self._feedback_label.set_error("No signals to acquire")
+            return
+
+        nb_signals = 0
+        for axis in axes_signal:
+            if len(axis.signal_items) == 0:
+                continue
+            nb_signals += len(axis.signal_items)
+            sdk_axis = result.config.add_axis(axis.axis_name)
+            for signal_item in axis.signal_items:
+                result.config.add_signal(
+                    axis=sdk_axis,
+                    name=signal_item.text(),
+                    signal=self.watchable_registry.FQN.parse(signal_item.fqn).path
+                )
+
+        if nb_signals == 0:
+            self._feedback_label.set_error("No signals to acquire")
+            return
+        
+        self._acquire(result.config)
+        
+    
+    def _acquire(self, config:DataloggingConfig) -> None:
+        
+        def ephemerous_thread_start_datalog(client:ScrutinyClient) -> DataloggingRequest:
+            return client.start_datalog(config)
+
+        def qt_thread_datalog_started(request:Optional[DataloggingRequest], error:Optional[Exception]) -> None:
+            print(request)
+            print(error)
+
+        self.server_manager.schedule_client_request(
+            user_func=ephemerous_thread_start_datalog,
+            ui_thread_callback=qt_thread_datalog_started
+        )
+
 
     def _get_signal_size_list(self) -> List[EmbeddedDataType]:
         outlist:List[EmbeddedDataType] = []
@@ -175,6 +217,5 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
                     return []
                 outlist.append(watchable.datatype)
 
-        
         return outlist
             

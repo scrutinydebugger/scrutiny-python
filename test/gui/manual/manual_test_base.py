@@ -1,4 +1,11 @@
-
+#    manual_test_base.py
+#        Common setup for all manual test files that launches a standalone apps for testing
+#        GUI elements
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021 Scrutiny Debugger
 
 import sys, os
 import logging

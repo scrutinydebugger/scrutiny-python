@@ -364,8 +364,10 @@ class ScrutinyClient:
             """The state of the datalogger and the completion ratio"""
 
             def msg(self) -> str:
-                percent = "N/A" if self.details.completion_ratio is None else f"{round(self.details.completion_ratio*100)}%"
-                return f"Datalogger state changed: {self.details.state.name} ({percent})"
+                msg = f"Datalogger state changed: {self.details.state.name}"
+                if self.details.completion_ratio is not None:
+                    msg +=f" ({round(self.details.completion_ratio*100)}%)"
+                return msg
         
         @dataclass(frozen=True)
         class StatusUpdateEvent:

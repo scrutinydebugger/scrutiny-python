@@ -330,6 +330,8 @@ class DataloggingConfig:
                 out_list.append({"type": 'literal', "value": float(operand)})
             elif isinstance(operand, WatchableHandle):
                 out_list.append({"type": 'watchable', "value": operand.display_path})
+            elif isinstance(operand, str):
+                out_list.append({"type": 'watchable', "value": operand})
             else:
                 raise RuntimeError(f'Unsupported operand type {operand.__class__.__name__}')
         return out_list

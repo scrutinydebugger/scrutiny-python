@@ -1,3 +1,10 @@
+#    watchable_line_edit.py
+#        A textbox that can be manually edited or filled with a watchable element by drag&drop
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021 Scrutiny Debugger
 
 import enum
 from dataclasses import dataclass
@@ -48,6 +55,7 @@ class WatchableLineEdit(QLineEdit):
         self._text_mode_enabled = True
         self._loaded_watchable = None
         self.setAcceptDrops(True)
+        self._update_cursor()
 
     
     def set_text_mode_enabled(self, val:bool) -> None:
@@ -55,11 +63,7 @@ class WatchableLineEdit(QLineEdit):
         if self._mode == self.Mode.TEXT:
             readonly = not self._text_mode_enabled
             self.setReadOnly(readonly)
-
-    def _update(self) -> None:
-        if self._mode == self.Mode.TEXT:
-            if not self._text_mode_enabled:
-                self.setReadOnly(True)
+            self._update_cursor()
 
     def _clear_button_geometry(self) -> Tuple[QRect, QRect]:
         zone_size = QSize(self.height() - 2*self.CLEAR_ZONE_MARGIN, self.height() - 2*self.CLEAR_ZONE_MARGIN)
@@ -83,10 +87,10 @@ class WatchableLineEdit(QLineEdit):
             if len(watchables.data) == 1:
                 watchable = watchables.data[0]
                 parsed_fqn = WatchableRegistry.FQN.parse(watchable.fqn)
-                self.set_watchable(watchable_type=parsed_fqn.watchable_type, path=parsed_fqn.path, name=watchable.text)
+                self.set_watchable_mode(watchable_type=parsed_fqn.watchable_type, path=parsed_fqn.path, name=watchable.text)
         super().dropEvent(event)
 
-    def set_watchable(self, watchable_type:WatchableType, path:str, name:str) -> None:
+    def set_watchable_mode(self, watchable_type:WatchableType, path:str, name:str) -> None:
         watchable_icon = assets.load_tiny_icon(watchabletype_2_icon(watchable_type))
         self._watchable_icon_action = self.addAction(watchable_icon, QLineEdit.ActionPosition.LeadingPosition)
         self.setText(name)
@@ -100,9 +104,21 @@ class WatchableLineEdit(QLineEdit):
         self._loaded_watchable = WatchableFQNAndName(
             fqn=WatchableRegistry.FQN.make(watchable_type, path), 
             name=name)
+        self._update_cursor()
     
+    def _update_cursor(self) -> None:
+        if self._mode == self.Mode.WATCHABLE:
+            if self._mouse_over_clear_button:
+                self.setCursor(Qt.CursorShape.PointingHandCursor)
+            else:
+                self.setCursor(Qt.CursorShape.ArrowCursor)
+        elif self._mode == self.Mode.TEXT:
+            if self._text_mode_enabled:
+                self.setCursor(Qt.CursorShape.IBeamCursor)
+            else:
+                self.setCursor(Qt.CursorShape.ArrowCursor)
     
-    def clear_watchable(self) -> None:
+    def set_text_mode(self) -> None:
         if self._mode == self.Mode.WATCHABLE:
             assert self._watchable_icon_action is not None
             self.removeAction(self._watchable_icon_action)
@@ -116,11 +132,13 @@ class WatchableLineEdit(QLineEdit):
             self._mouse_over_clear_button = False
             self._clear_being_clicked = False
             self._loaded_watchable = None
+            self._update_cursor()
+        
 
     def keyPressEvent(self, event:QKeyEvent) -> None:
         if self._mode == self.Mode.WATCHABLE:
             if event.key() == Qt.Key.Key_Delete or event.key() == Qt.Key.Key_Backspace:
-                self.clear_watchable()
+                self.set_text_mode()
         super().keyPressEvent(event)
 
     def paintEvent(self, event:QPaintEvent) -> None:
@@ -156,14 +174,8 @@ class WatchableLineEdit(QLineEdit):
         if self._mode == self.Mode.WATCHABLE:
             click_rect, icon_rect = self._clear_button_geometry()
             self._mouse_over_clear_button = click_rect.contains(event.pos())
-        
-            if self._mouse_over_clear_button:
-                self.setCursor(Qt.CursorShape.PointingHandCursor)
-            else:
-                self.setCursor(Qt.CursorShape.ArrowCursor)
-        else:
-            self.setCursor(Qt.CursorShape.IBeamCursor)
 
+        self._update_cursor()
         self.update()
         super().mouseMoveEvent(event)
 
@@ -180,7 +192,7 @@ class WatchableLineEdit(QLineEdit):
         if self._mode == self.Mode.WATCHABLE and self._clear_being_clicked:
             click_rect, icon_rect = self._clear_button_geometry()
             if click_rect.contains(event.pos()):
-                self.clear_watchable()
+                self.set_text_mode()
         
         self._clear_being_clicked = False
         self.update()

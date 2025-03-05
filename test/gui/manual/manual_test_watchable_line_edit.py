@@ -1,3 +1,11 @@
+#    manual_test_watchable_line_edit.py
+#        A test suite for the WatchableLineEdit widget. A textbox that can receive watchables
+#        through drag&drop
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021 Scrutiny Debugger
 
 if __name__ != '__main__' : 
     raise RuntimeError("This script is expected to run from the command line")
@@ -44,12 +52,14 @@ registry.write_content({
 })
 varlist.reload_model([WatchableType.Alias, WatchableType.RuntimePublishedValue, WatchableType.Variable])
 
-chk_text_mode = QCheckBox("Text mode enabled")
+chk_text_mode = QCheckBox("Text mode enabled (both)")
 def state_changed(state:Qt.CheckState):
     if state == Qt.CheckState.Checked:
         line_edit.set_text_mode_enabled(True)
+        line_edit_double_validator.set_text_mode_enabled(True)
     else:
         line_edit.set_text_mode_enabled(False)
+        line_edit_double_validator.set_text_mode_enabled(False)
         
 chk_text_mode.checkStateChanged.connect(state_changed)
 chk_text_mode.setCheckState(Qt.CheckState.Checked)
