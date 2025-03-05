@@ -27,7 +27,7 @@ class UninstallSFD(BaseCommand):
         self.parser.add_argument('--quiet', action="store_true", help='Do not report error if not installed')
 
     def run(self) -> Optional[int]:
-        from scrutiny.core.sfd_storage import SFDStorage
+        from scrutiny.server.sfd_storage import SFDStorage
         args = self.parser.parse_args(self.args)
         is_installed = SFDStorage.is_installed(args.firmwareid)
         if is_installed:

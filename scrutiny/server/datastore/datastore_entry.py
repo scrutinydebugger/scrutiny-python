@@ -133,15 +133,20 @@ class DatastoreEntry(abc.ABC):
     last_value_update_server_time_us: float
 
     def __init__(self, display_path: str):
-        display_path = display_path.strip()
         self.value_change_callback = {}
         self.target_update_callback = {}
         self.entry_id = hex(global_i64_counter())[2:]    # unique ID. Remove 0x prefix
-        self.display_path = display_path
+        self.display_path = self.clean_display_path(display_path)
         self.last_target_update_server_time_us = None
         self.last_value_update_server_time_us = server_timebase.get_micro()
         self.target_update_request_queue = queue.Queue()
         self.value = 0
+
+    @classmethod
+    def clean_display_path(cls, display_path:str) -> str:
+        display_path = display_path.strip()
+        display_path = display_path.strip('/')
+        return display_path
 
     @abc.abstractmethod
     def get_data_type(self) -> EmbeddedDataType:

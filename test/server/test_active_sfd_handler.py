@@ -10,7 +10,7 @@ from scrutiny.server.datastore.entry_type import EntryType
 from scrutiny.server.device.device_handler import DeviceHandler
 from scrutiny.server.active_sfd_handler import ActiveSFDHandler
 from scrutiny.server.datastore.datastore import Datastore
-from scrutiny.core.sfd_storage import SFDStorage
+from scrutiny.server.sfd_storage import SFDStorage
 from test.artifacts import get_artifact
 from test import ScrutinyUnitTest
 

@@ -10,19 +10,22 @@ from scrutiny.gui.dashboard_components.base_component import ScrutinyGUIBaseComp
 from typing import Dict, Any
 
 from PySide6.QtWidgets import QVBoxLayout, QLabel, QWidget, QSplitter, QPushButton, QScrollArea, QHBoxLayout
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QPointF
 
 from scrutiny.sdk import EmbeddedDataType
-from scrutiny.sdk.datalogging import DataloggingConfig, DataloggingRequest
+from scrutiny.sdk.datalogging import DataloggingConfig, DataloggingRequest, DataloggingAcquisition
 from scrutiny.sdk.client import ScrutinyClient
 
 from scrutiny.gui import assets
 from scrutiny.gui.dashboard_components.embedded_graph.graph_config_widget import GraphConfigWidget
-from scrutiny.gui.dashboard_components.common.base_chart import ScrutinyChart, ScrutinyChartView, ScrutinyChartToolBar
+from scrutiny.gui.dashboard_components.common.base_chart import (
+    ScrutinyChart, ScrutinyChartView, ScrutinyChartToolBar, ScrutinyValueAxis, ScrutinyLineSeries, ScrutinyValueAxisWithMinMax
+    )
 from scrutiny.gui.dashboard_components.common.graph_signal_tree import GraphSignalTree
 from scrutiny.gui.widgets.feedback_label import FeedbackLabel
 
 from scrutiny.tools.typing import *
+from scrutiny import tools
 
 class EmbeddedGraph(ScrutinyGUIBaseComponent):
     instance_name : str
@@ -193,16 +196,48 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
         
     
     def _acquire(self, config:DataloggingConfig) -> None:
-        
+        # We chain 2 background request. 1 for the initial request, 2 to wait for completion.
+        # Promises could be nice here, we don't have that.
+
         def ephemerous_thread_start_datalog(client:ScrutinyClient) -> DataloggingRequest:
             return client.start_datalog(config)
 
         def qt_thread_datalog_started(request:Optional[DataloggingRequest], error:Optional[Exception]) -> None:
-            print(request)
-            print(error)
+            # Callbak #1. The request is received and aknowledged by the server
+            if error is not None:
+                self._callback_request_failed(request=None, error=error)
+                return
+            assert request is not None
+
+            # We have a pending request. Launch a background task to wait for completion.
+            def ephemerous_thread_wait_for_completion(client:ScrutinyClient) -> None:
+                request.wait_for_completion()
+            
+            def qt_thread_request_completed(_:None, error:Optional[Exception]) -> None:
+                # Callback #2. The acquisition is completed (success or failed)
+
+                if error is not None:   # Exception while waiting
+                    self._callback_request_failed(request, error)
+                    return
+
+                if not request.completed:   # Should not happen. Happens only when there is a timeout on wait_for_completion (we don't have one)
+                    self._callback_request_failed(request, "Failed to complete")
+                    return
+
+                if not request.is_success:  # Didn't complete. The device or the server might be gone while waiting
+                    self._callback_request_failed(request, request.failure_reason)
+                    return
+                
+                self._callback_request_succeeded(request)   # SUCCESS!
+            
+            self.server_manager.schedule_client_request(
+                user_func=ephemerous_thread_wait_for_completion,
+                ui_thread_callback=qt_thread_request_completed
+            )
+        
 
         self.server_manager.schedule_client_request(
-            user_func=ephemerous_thread_start_datalog,
+            user_func= ephemerous_thread_start_datalog,
             ui_thread_callback=qt_thread_datalog_started
         )
 
@@ -219,3 +254,84 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
 
         return outlist
             
+
+    def _callback_request_failed(self, request:Optional[DataloggingRequest], error:Optional[Exception], msg:str="Request failed") -> None:
+        if error:
+            tools.log_exception(self.logger, error, msg)
+        elif len(msg) > 0:
+            self.logger.error(msg)
+
+        feedback_str = msg
+        if error:
+            feedback_str += f" {error}"
+        # TODO : Dsiplay the error in the GUI
+
+    def _callback_request_succeeded(self, request:DataloggingRequest) -> None:
+        assert request.completed and request.is_success
+        assert request.acquisition_reference_id is not None
+
+
+        def ephemerous_thread_download_data(client:ScrutinyClient) -> DataloggingAcquisition:
+            return client.read_datalogging_acquisition(reference_id=request.acquisition_reference_id)
+        
+        def qt_thread_receive_acquisition_data(acquisition:Optional[ephemerous_thread_download_data], error:Optional[Exception]) -> None:
+            if error is not None:
+                self._callback_request_failed(request, error,  f"The acquisition succeeded, but downloading its data failed. The content is still available in the server database.\n Error {error}")
+                return 
+
+            assert acquisition is not None
+            self._display_acquisition(acquisition)
+
+        self.server_manager.schedule_client_request(
+            user_func=ephemerous_thread_download_data, 
+            ui_thread_callback=qt_thread_receive_acquisition_data
+            )
+
+
+    def _display_acquisition(self, acquisition:DataloggingAcquisition) -> None:
+        
+        chart = ScrutinyChart()
+        chart.layout().setContentsMargins(0,0,0,0)
+        
+        xaxis = ScrutinyValueAxisWithMinMax(chart)        
+        xaxis.setTitleText(acquisition.xdata.name)
+        xaxis.setTitleVisible(True)
+        chart.setAxisX(xaxis)
+
+        sdk_yaxes = acquisition.get_unique_yaxis_list()
+        qt_yaxes:Dict[int, ScrutinyValueAxisWithMinMax] = {}
+        for sdk_yaxis in sdk_yaxes:
+            qt_axis = ScrutinyValueAxisWithMinMax(chart)
+            qt_axis.setTitleText(sdk_yaxis.name)
+            qt_axis.setTitleVisible(True)
+            chart.addAxis(qt_axis, Qt.AlignmentFlag.AlignRight)
+
+            qt_yaxes[sdk_yaxis.axis_id] = qt_axis
+
+        
+        xseries_data = acquisition.xdata.get_data()
+        for ydata in acquisition.ydata:
+            qt_yaxis = qt_yaxes[ydata.axis.axis_id]
+            series = ScrutinyLineSeries(chart)
+            chart.addSeries(series)
+            yseries_data = ydata.series.get_data()
+            assert len(xseries_data) == len(yseries_data)
+            
+            qt_pointf_data = [QPointF(xseries_data[i], yseries_data[i]) for i in range(len(xseries_data))]
+            series.replace(qt_pointf_data)
+            series.attachAxis(xaxis)
+            series.attachAxis(qt_yaxis)
+            series.setName(ydata.series.name)
+            
+            qt_yaxis.update_minmax(min(yseries_data))
+            qt_yaxis.update_minmax(max(yseries_data))
+        
+
+        xaxis.set_minval(min(xseries_data))
+        xaxis.set_maxval(max(xseries_data))
+
+        xaxis.autoset_range()
+        for yaxis in qt_yaxes.values():
+            yaxis.autoset_range()
+
+        self._chartview.setChart(chart)

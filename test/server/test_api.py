@@ -22,7 +22,7 @@ from scrutiny.server.api.API import API
 from scrutiny.server.datastore.datastore import Datastore
 from scrutiny.server.datastore.datastore_entry import *
 from scrutiny.server.datastore.entry_type import EntryType
-from scrutiny.core.sfd_storage import SFDStorage
+from scrutiny.server.sfd_storage import SFDStorage
 from scrutiny.core.basic_types import EmbeddedDataType, Endianness
 from scrutiny.server.api.dummy_client_handler import DummyConnection, DummyClientHandler, AbstractClientHandler
 from scrutiny.server.device.device_handler import DeviceHandler, DeviceStateChangedCallback, RawMemoryReadRequest, \

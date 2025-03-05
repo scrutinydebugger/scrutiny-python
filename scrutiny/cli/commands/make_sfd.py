@@ -35,7 +35,7 @@ class MakeSFD(BaseCommand):
         self.getLogger().info(f"SFD File {args.output} written")
 
         if args.install:
-            from scrutiny.core.sfd_storage import SFDStorage
+            from scrutiny.server.sfd_storage import SFDStorage
             SFDStorage.install(args.output)
             self.getLogger().info(f"{args.output} installed")
 

@@ -60,7 +60,7 @@ class ListSFD(BaseCommand):
 
     def run(self) -> Optional[int]:
         from scrutiny.core.firmware_description import FirmwareDescription
-        from scrutiny.core.sfd_storage import SFDStorage
+        from scrutiny.server.sfd_storage import SFDStorage
 
         sfd_list: List[PrintableSFDEntry] = []
         args = self.parser.parse_args(self.args)

@@ -41,7 +41,7 @@ class AddAlias(BaseCommand):
     def run(self) -> Optional[int]:
         from scrutiny.core.firmware_description import FirmwareDescription
         from scrutiny.core.alias import Alias
-        from scrutiny.core.sfd_storage import SFDStorage
+        from scrutiny.server.sfd_storage import SFDStorage
 
         args = self.parser.parse_args(self.args)
 

@@ -12,7 +12,7 @@ import struct
 from scrutiny.server.timebase import server_timebase
 from scrutiny.server.api import API
 import scrutiny.server.api.typing as api_typing
-from scrutiny.core.sfd_storage import SFDStorage
+from scrutiny.server.sfd_storage import SFDStorage
 from scrutiny.server.datastore.datastore_entry import *
 from scrutiny.server.device.device_handler import DeviceHandler
 from scrutiny.core.basic_types import *

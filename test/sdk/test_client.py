@@ -23,7 +23,7 @@ from scrutiny.core.variable import Variable as core_Variable
 from scrutiny.core.alias import Alias as core_Alias
 from scrutiny.core.codecs import Codecs
 from scrutiny.core.embedded_enum import EmbeddedEnum
-from scrutiny.core.sfd_storage import SFDStorage
+from scrutiny.server.sfd_storage import SFDStorage
 from scrutiny.core.memory_content import MemoryContent
 from scrutiny.server.datalogging.datalogging_storage import DataloggingStorage
 

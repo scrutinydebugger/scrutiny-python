@@ -113,6 +113,7 @@ class Datastore:
     def get_entry_by_display_path(self, display_path: str) -> DatastoreEntry:
         """ Find an entry by its display path, which is supposed to be unique"""
         for entry_type in EntryType.all():
+            display_path = DatastoreEntry.clean_display_path(display_path)
             if display_path in self.displaypath2idmap[entry_type]:
                 entry_id = self.displaypath2idmap[entry_type][display_path]
                 if entry_id in self.entries[entry_type]:

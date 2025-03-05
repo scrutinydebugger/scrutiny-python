@@ -10,7 +10,7 @@ import logging
 import traceback
 
 from scrutiny.core.firmware_description import FirmwareDescription
-from scrutiny.core.sfd_storage import SFDStorage
+from scrutiny.server.sfd_storage import SFDStorage
 from scrutiny.server.datastore.datastore_entry import EntryType
 from scrutiny.server.device.device_handler import DeviceHandler
 from scrutiny.server.datastore.datastore import Datastore

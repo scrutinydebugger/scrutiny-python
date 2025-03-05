@@ -28,7 +28,7 @@ from scrutiny.server.device.device_handler import DeviceHandler, DeviceStateChan
     RawMemoryReadRequest, RawMemoryWriteRequestCompletionCallback, RawMemoryWriteRequest, UserCommandCallback
 from scrutiny.server.active_sfd_handler import ActiveSFDHandler, SFDLoadedCallback, SFDUnloadedCallback
 from scrutiny.server.device.links import LinkConfig
-from scrutiny.core.sfd_storage import SFDStorage
+from scrutiny.server.sfd_storage import SFDStorage
 from scrutiny.core.basic_types import EmbeddedDataType
 from scrutiny.core.firmware_description import FirmwareDescription
 import scrutiny.server.datalogging.definitions.api as api_datalogging

@@ -23,7 +23,7 @@ from scrutiny.server.datastore.datastore import Datastore
 from scrutiny.server.device.device_info import FixedFreqLoop, ExecLoopType
 from scrutiny.core.basic_types import *
 from scrutiny.server.datalogging.datalogging_storage import DataloggingStorage
-from scrutiny.core.sfd_storage import SFDStorage
+from scrutiny.server.sfd_storage import SFDStorage
 from scrutiny.core.codecs import Codecs
 from scrutiny.core.datalogging import DataloggingAcquisition, DataSeries
 from scrutiny import tools

@@ -18,7 +18,7 @@ from io import StringIO
 import sys
 from scrutiny.core.varmap import VarMap
 from scrutiny.core.firmware_description import FirmwareDescription
-from scrutiny.core.sfd_storage import SFDStorage
+from scrutiny.server.sfd_storage import SFDStorage
 from scrutiny.server.datalogging.datalogging_storage import DataloggingStorage
 from scrutiny.core.datalogging import *
 from test.artifacts import get_artifact

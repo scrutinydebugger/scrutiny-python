@@ -58,7 +58,7 @@ class ListDatalog(BaseCommand):
 
     def run(self) -> Optional[int]:
         from scrutiny.server.datalogging.datalogging_storage import DataloggingStorage
-        from scrutiny.core.sfd_storage import SFDStorage
+        from scrutiny.server.sfd_storage import SFDStorage
 
         self.parsed_args = self.parser.parse_args(self.args)
         DataloggingStorage.initialize()
