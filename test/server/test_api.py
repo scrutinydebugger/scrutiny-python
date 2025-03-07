@@ -1931,13 +1931,16 @@ class TestAPI(ScrutinyUnitTest):
     def test_update_datalogging_acquisition(self):
         # Rename an acquisition in datalogging storage through API
         with DataloggingStorage.use_temp_storage():
+            watchable1 = core_datalogging.LoggedWatchable(path='/a/b/c', type=WatchableType.Variable)
+            watchable2 = core_datalogging.LoggedWatchable(path='/a/b/d', type=WatchableType.Alias)
+            watchable3 = core_datalogging.LoggedWatchable(path='/a/b/e', type=WatchableType.RuntimePublishedValue)
             axis1 = core_datalogging.AxisDefinition('Axis1', 0)
             axis2 = core_datalogging.AxisDefinition('Axis2', 1)
             acq1 = core_datalogging.DataloggingAcquisition(firmware_id='some_firmware_id', reference_id="refid1", name="foo")
             acq1.set_xdata(core_datalogging.DataSeries())
-            acq1.add_data(core_datalogging.DataSeries(name="ds1"), axis1)
-            acq1.add_data(core_datalogging.DataSeries(name="ds2"), axis1)
-            acq1.add_data(core_datalogging.DataSeries(name="ds3"), axis2)
+            acq1.add_data(core_datalogging.DataSeries(name="ds1", logged_watchable=watchable1), axis1)
+            acq1.add_data(core_datalogging.DataSeries(name="ds2", logged_watchable=watchable2), axis1)
+            acq1.add_data(core_datalogging.DataSeries(name="ds3", logged_watchable=watchable3), axis2)
             acq2 = core_datalogging.DataloggingAcquisition(firmware_id='some_firmware_id', reference_id="refid2", name="bar")
             acq2.set_xdata(core_datalogging.DataSeries(name="ds4"))
             acq3 = core_datalogging.DataloggingAcquisition(firmware_id='some_firmware_id', reference_id="refid3", name="baz")

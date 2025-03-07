@@ -815,7 +815,7 @@ def parse_read_datalogging_acquisition_content_response(response: api_typing.S2C
 
     for sig in response['signals']:
         _check_response_dict(cmd, sig, 'axis_id', int)
-        _check_response_dict(cmd, sig, 'watchable', (dict, type(None)))
+        _check_response_dict(cmd, sig, 'watchable', dict)   # None is not allowed for Y-Data
         _check_response_dict(cmd, sig, 'name', str)
         _check_response_dict(cmd, sig, 'data', list)
 

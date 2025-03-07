@@ -438,8 +438,15 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
             # Find the axis tied to that dataset
             qt_yaxis = sdk2qt_axes[ydata.axis.axis_id]
             axis_item = sdk2tree_axes[ydata.axis.axis_id]
-            #ydata.series.logged_element
-            #series_item = ChartSeriesWatchableStandardItem()
+            
+            assert ydata.series.logged_watchable is not None
+            wpath = ydata.series.logged_watchable.path
+            wtype = ydata.series.logged_watchable.type
+            series_item = ChartSeriesWatchableStandardItem(
+                fqn=self.watchable_registry.FQN.make(watchable_type=wtype, path=wpath),
+                watchable_type=wtype,
+                text=ydata.series.name
+            )
 
             series = ScrutinyLineSeries(chart)
             chart.addSeries(series)

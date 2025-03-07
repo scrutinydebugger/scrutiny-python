@@ -171,6 +171,9 @@ class DataloggingAcquisition:
             raise TypeError('dataseries must be a Dataseries instance')
         if not isinstance(axis, AxisDefinition):
             raise TypeError('axis must be a AxisDefinition instance')
+        
+        if dataseries.logged_watchable is None:
+            raise ValueError("Y data must be tied to a watchable")
 
         for data in self.ydata:
             if data.axis.axis_id == axis.axis_id and data.axis is not axis:

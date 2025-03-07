@@ -754,6 +754,11 @@ class TestApiParser(ScrutinyUnitTest):
             del msg['xdata'][field]
             with self.assertRaises(sdk.exceptions.BadResponseError, msg=f"Field : {field}"):
                 parser.parse_read_datalogging_acquisition_content_response(msg)
+        
+        msg = base()
+        msg['xdata']['watchable'] = None
+        response = parser.parse_read_datalogging_acquisition_content_response(msg)
+        self.assertIsNone(response.xdata.logged_watchable)
 
         for field in ['axis_id', 'name', 'watchable', 'data']:
             msg = base()
@@ -794,9 +799,9 @@ class TestApiParser(ScrutinyUnitTest):
                     parser.parse_read_datalogging_acquisition_content_response(msg)
             
             msg = base()
-            msg['signals'][i]["watchable"] = None
-            response = parser.parse_read_datalogging_acquisition_content_response(msg)
-            self.assertIsNone(response.ydata[i].series.logged_watchable)
+            msg['signals'][i]["watchable"] = None   # Not allowed for Y data
+            with self.assertRaises(sdk.exceptions.BadResponseError, msg=f"val={val}"):
+                parser.parse_read_datalogging_acquisition_content_response(msg)
 
             for val in [3, None, {}, []]:
                 msg = base()

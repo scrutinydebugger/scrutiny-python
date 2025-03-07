@@ -196,7 +196,7 @@ class RuntimePublishedValue:
         return "<%s: 0x%x (%s) at 0x%016x>" % (self.__class__.__name__, self.id, self.datatype.name, id(self))
 
 
-class WatchableType(StrEnum):
+class WatchableType(str, Enum):
     """(Enum) Type of watchable available on the server"""
 
     Variable = 'var'
@@ -210,4 +210,7 @@ class WatchableType(StrEnum):
     def all(cls) -> List["WatchableType"]:
         """Return the list of valid Watchable types. Mainly for unit testing"""
         return [cls.Variable, cls.RuntimePublishedValue, cls.Alias]
+    
+    def __str__(self) -> str:
+        return self.value
     
