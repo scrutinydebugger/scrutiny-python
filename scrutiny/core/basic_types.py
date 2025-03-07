@@ -16,7 +16,7 @@ __all__ = [
     'WatchableType'
 ]
 
-from enum import Enum, StrEnum
+from enum import Enum
 from dataclasses import dataclass
 from scrutiny.tools import validation
 from typing import Union, List
