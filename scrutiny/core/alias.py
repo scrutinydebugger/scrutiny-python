@@ -9,7 +9,7 @@
 import json
 import math
 
-from scrutiny.server.datastore.entry_type import EntryType
+from scrutiny.core.basic_types import WatchableType
 from scrutiny.core.embedded_enum import EmbeddedEnum
 
 from typing import Dict, Optional, Any, Union
@@ -26,7 +26,7 @@ class Alias:
     target: str
     """Path to the pointed element (variable or RPV)"""
 
-    target_type: Optional[EntryType]
+    target_type: Optional[WatchableType]
     """Type of watchable pointed (RPV or Variable)"""
 
     gain: Optional[float]
@@ -65,7 +65,7 @@ class Alias:
     def __init__(self, 
             fullpath: str, 
             target: str, 
-            target_type: Optional[EntryType] = None, 
+            target_type: Optional[WatchableType] = None, 
             gain: Optional[float] = None, 
             offset: Optional[float] = None, 
             min: Optional[float] = None, 
@@ -75,10 +75,10 @@ class Alias:
         self.fullpath = fullpath
         # Target type can be set later on.
         if target_type is not None:
-            target_type = EntryType(target_type)
-            if target_type == EntryType.Alias:
+            target_type = WatchableType(target_type)
+            if target_type == WatchableType.Alias:
                 raise ValueError("Cannot make an alias over another alias.")
-            self.target_type = EntryType(target_type)
+            self.target_type = WatchableType(target_type)
         else:
             self.target_type = None
         self.target = target
@@ -95,7 +95,7 @@ class Alias:
             raise ValueError('fullpath is not valid')
 
         if self.target_type is not None:
-            EntryType(self.target_type)  # Make sure conversion is possible
+            WatchableType(self.target_type)  # Make sure conversion is possible
 
         if not self.target or not isinstance(self.target, str):
             raise ValueError('Alias (%s) target is not valid' % self.fullpath)
@@ -153,13 +153,13 @@ class Alias:
     def get_target(self) -> str:
         return self.target
 
-    def get_target_type(self) -> EntryType:
+    def get_target_type(self) -> WatchableType:
         if self.target_type is None:
             raise RuntimeError('Target type for alias %s is not set' % self.get_fullpath())
         return self.target_type
 
-    def set_target_type(self, target_type: EntryType) -> None:
-        if self.target_type == EntryType.Alias:
+    def set_target_type(self, target_type: WatchableType) -> None:
+        if self.target_type == WatchableType.Alias:
             raise ValueError('Alias %s point onto another alias (%s)' % (self.get_fullpath(), self.get_target()))
         self.target_type = target_type
 

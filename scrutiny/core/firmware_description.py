@@ -17,7 +17,7 @@ import scrutiny.core.firmware_id as firmware_id
 from scrutiny.core.varmap import VarMap
 from scrutiny.core.variable import Variable
 from scrutiny.server.datastore.datastore import Datastore
-from scrutiny.server.datastore.entry_type import EntryType
+from scrutiny.core.basic_types import WatchableType
 from scrutiny.core.alias import Alias
 from scrutiny.core.basic_types import *
 
@@ -154,12 +154,12 @@ class FirmwareDescription:
         return aliases
 
     @classmethod
-    def get_alias_target_type(cls, alias: Alias, varmap: VarMap) -> EntryType:
+    def get_alias_target_type(cls, alias: Alias, varmap: VarMap) -> WatchableType:
         """ Finds the referred entry and gives this datatype. Alias do not have a datatype by themselves """
         if varmap.has_var(alias.get_target()):
-            return EntryType.Var
+            return WatchableType.Variable
         elif Datastore.is_rpv_path(alias.get_target()):
-            return EntryType.RuntimePublishedValue
+            return WatchableType.RuntimePublishedValue
         else:
             raise Exception('Alias %s is referencing %s which is not a valid Variable or Runtime Published Value' %
                             (alias.get_fullpath(), alias.get_target()))
@@ -249,7 +249,7 @@ class FirmwareDescription:
         for fullname, vardef in self.varmap.iterate_vars():
             yield (fullname, vardef)
 
-    def get_aliases_for_datastore(self, entry_type: Optional[EntryType] = None) -> Generator[Tuple[str, Alias], None, None]:
+    def get_aliases_for_datastore(self, entry_type: Optional[WatchableType] = None) -> Generator[Tuple[str, Alias], None, None]:
         """Returns all alias in this SFD with a Generator to avoid consuming memory."""
         for k in self.aliases:
             if entry_type is None or self.aliases[k].get_target_type() == entry_type:

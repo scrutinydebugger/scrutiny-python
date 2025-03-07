@@ -6,11 +6,12 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
+from dataclasses import dataclass
 from scrutiny.gui.dashboard_components.base_component import ScrutinyGUIBaseComponent
 from typing import Dict, Any
 
 from PySide6.QtWidgets import QVBoxLayout, QLabel, QWidget, QSplitter, QPushButton, QScrollArea, QHBoxLayout
-from PySide6.QtCore import Qt, QPointF
+from PySide6.QtCore import Qt, QPointF, QRectF
 
 from scrutiny.sdk import EmbeddedDataType
 from scrutiny.sdk.datalogging import DataloggingConfig, DataloggingRequest, DataloggingAcquisition
@@ -21,11 +22,48 @@ from scrutiny.gui.dashboard_components.embedded_graph.graph_config_widget import
 from scrutiny.gui.dashboard_components.common.base_chart import (
     ScrutinyChart, ScrutinyChartView, ScrutinyChartToolBar, ScrutinyValueAxis, ScrutinyLineSeries, ScrutinyValueAxisWithMinMax
     )
-from scrutiny.gui.dashboard_components.common.graph_signal_tree import GraphSignalTree
+from scrutiny.gui.dashboard_components.common.graph_signal_tree import GraphSignalTree, ChartSeriesWatchableStandardItem, AxisStandardItem
 from scrutiny.gui.widgets.feedback_label import FeedbackLabel
 
 from scrutiny.tools.typing import *
 from scrutiny import tools
+
+@dataclass
+class EmbeddedGraphState:
+    has_content:bool
+    waiting_on_graph:bool
+    chart_toolbar_wanted:bool
+
+    def allow_save_csv(self) -> bool:
+        return self.has_content
+
+    def allow_save_image(self) -> bool:
+        return self.has_content
+
+    def allow_zoom(self) -> bool:
+        return self.has_content
+
+    def allow_drag(self) -> bool:
+        return self.has_content
+
+    def must_lock_signal_tree(self) -> bool:
+        return self.has_content or self.waiting_on_graph
+
+    def enable_clear_button(self) -> bool:
+        return self.has_content
+
+    def enable_startstop_button(self) -> bool:
+        return True
+
+    def can_display_toolbar(self) -> bool:
+        return self.has_content
+    
+    def enable_reset_zoom_button(self) -> bool:
+        return self.has_content
+    
+    def must_display_toolbar(self) -> bool:
+        return self.can_display_toolbar() and self.chart_toolbar_wanted
+
 
 class EmbeddedGraph(ScrutinyGUIBaseComponent):
     instance_name : str
@@ -37,18 +75,27 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
     _splitter:QSplitter
     _xval_label:QLabel
     _signal_tree:GraphSignalTree
-    _btn_start_stop:QPushButton
+    _btn_acquire:QPushButton
     _btn_clear:QPushButton
     _feedback_label:FeedbackLabel
     _chartview:ScrutinyChartView
     _chart_toolbar:ScrutinyChartToolBar
+    _xaxis:Optional[ScrutinyValueAxisWithMinMax]
+    _yaxes:List[ScrutinyValueAxisWithMinMax]
 
     _left_pane:QWidget
     _center_pane:QWidget
     _right_pane:QWidget
 
+    _state:EmbeddedGraphState
+
     def setup(self) -> None:
         layout = QVBoxLayout(self)
+        self._state = EmbeddedGraphState(
+            has_content=False,
+            waiting_on_graph=False,
+            chart_toolbar_wanted=True
+        )
         
 
         def make_right_pane() -> QWidget:
@@ -64,12 +111,12 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
 
             start_pause_line = QWidget()
             start_pause_line_layout = QHBoxLayout(start_pause_line)
-            self._btn_start_stop = QPushButton("Start")
-            self._btn_start_stop.clicked.connect(self._btn_start_stop_slot)
+            self._btn_acquire = QPushButton("Acquire")
+            self._btn_acquire.clicked.connect(self._btn_acquire_slot)
             self._btn_clear = QPushButton("Clear")
-           # self._btn_clear.clicked.connect(self._btn_clear_slot)
+            self._btn_clear.clicked.connect(self._btn_clear_slot)
 
-            start_pause_line_layout.addWidget(self._btn_start_stop)
+            start_pause_line_layout.addWidget(self._btn_acquire)
             start_pause_line_layout.addWidget(self._btn_clear)
             
 
@@ -97,15 +144,16 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
             
             self._chartview = ScrutinyChartView(self)
             self._chartview.setChart(chart)
+            self._xaxis = None
+            self._yaxes = []
             #self._chartview.signals.context_menu_event.connect(self._chart_context_menu_slot)
-            #self._chartview.signals.zoombox_selected.connect(self._chartview_zoombox_selected_slot)
+            self._chartview.signals.zoombox_selected.connect(self._chartview_zoombox_selected_slot)
             #self._chartview.signals.key_pressed.connect(self._chartview_key_pressed_slot)
             self._chartview.set_interaction_mode(ScrutinyChartView.InteractionMode.SELECT_ZOOM)
             self._chart_toolbar = ScrutinyChartToolBar(self._chartview)
             self._chart_toolbar.hide()
 
             return self._chartview
-
 
         def make_left_pane() -> QWidget:
             self._graph_config_widget = GraphConfigWidget(self, 
@@ -142,6 +190,8 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
         self.server_manager.signals.device_disconnected.connect(self._update_datalogging_capabilities)
         self.server_manager.signals.device_ready.connect(self._update_datalogging_capabilities)
 
+        self._apply_internal_state()
+
         
     def ready(self) -> None:
         """Called when the component is inside the dashboard and its dimensions are computed"""
@@ -157,11 +207,31 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
 
     def load_state(self, state: Dict[Any, Any]) -> None:
         raise NotImplementedError()
+    
+    def _apply_internal_state(self) -> None:
+        """Update all the widgets based on our internal state variables"""
+        self._btn_acquire.setEnabled(self._state.enable_startstop_button())
+        self._btn_clear.setEnabled(self._state.enable_clear_button())
+        self._chartview.allow_zoom(self._state.allow_zoom())
+        self._chartview.allow_drag(self._state.allow_drag())
+
+        if self._state.must_lock_signal_tree():
+            self._signal_tree.lock()
+        else:
+            self._signal_tree.unlock()
+
+        if self._state.must_display_toolbar():
+            self._chart_toolbar.show()
+        else:
+            self._chart_toolbar.hide()
 
     def _update_datalogging_capabilities(self) -> None:
         self._graph_config_widget.configure_from_device_info(self.server_manager.get_device_info())
 
-    def _btn_start_stop_slot(self) -> None:
+    def _btn_acquire_slot(self) -> None:
+        """When the user pressed "Acquire" """
+        # Get the config from the config widget. 
+        # Then add the signals from the signal tree and send that to the server if all valid
         result = self._graph_config_widget.validate_and_get_config()
         if not result.valid:
             assert result.error is not None
@@ -191,15 +261,20 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
         if nb_signals == 0:
             self._feedback_label.set_error("No signals to acquire")
             return
-        
-        self._acquire(result.config)
+
+        # Config is good. 
+        self._feedback_label.clear()
+        self._clear_graph()
+        self._state.waiting_on_graph = True
+        self._apply_internal_state()
+        self._acquire(result.config)    # Request the server for that acquisition
         
     
     def _acquire(self, config:DataloggingConfig) -> None:
         # We chain 2 background request. 1 for the initial request, 2 to wait for completion.
         # Promises could be nice here, we don't have that.
 
-        def ephemerous_thread_start_datalog(client:ScrutinyClient) -> DataloggingRequest:
+        def bg_thread_start_datalog(client:ScrutinyClient) -> DataloggingRequest:
             return client.start_datalog(config)
 
         def qt_thread_datalog_started(request:Optional[DataloggingRequest], error:Optional[Exception]) -> None:
@@ -210,7 +285,7 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
             assert request is not None
 
             # We have a pending request. Launch a background task to wait for completion.
-            def ephemerous_thread_wait_for_completion(client:ScrutinyClient) -> None:
+            def bg_thread_wait_for_completion(client:ScrutinyClient) -> None:
                 request.wait_for_completion()
             
             def qt_thread_request_completed(_:None, error:Optional[Exception]) -> None:
@@ -221,25 +296,28 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
                     return
 
                 if not request.completed:   # Should not happen. Happens only when there is a timeout on wait_for_completion (we don't have one)
-                    self._callback_request_failed(request, "Failed to complete")
+                    self._callback_request_failed(request, None, "Failed to complete")
                     return
 
                 if not request.is_success:  # Didn't complete. The device or the server might be gone while waiting
-                    self._callback_request_failed(request, request.failure_reason)
+                    self._callback_request_failed(request, None, request.failure_reason)
                     return
                 
                 self._callback_request_succeeded(request)   # SUCCESS!
             
             self.server_manager.schedule_client_request(
-                user_func=ephemerous_thread_wait_for_completion,
+                user_func=bg_thread_wait_for_completion,
                 ui_thread_callback=qt_thread_request_completed
             )
-        
 
+            self._feedback_label.set_info("Wating for trigger")
+        
         self.server_manager.schedule_client_request(
-            user_func= ephemerous_thread_start_datalog,
+            user_func= bg_thread_start_datalog,
             ui_thread_callback=qt_thread_datalog_started
         )
+
+        self._feedback_label.set_info("Acquisition requested")
 
 
     def _get_signal_size_list(self) -> List[EmbeddedDataType]:
@@ -256,6 +334,9 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
             
 
     def _callback_request_failed(self, request:Optional[DataloggingRequest], error:Optional[Exception], msg:str="Request failed") -> None:
+        self._state.waiting_on_graph = False
+        self._feedback_label.clear()
+
         if error:
             tools.log_exception(self.logger, error, msg)
         elif len(msg) > 0:
@@ -264,54 +345,102 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
         feedback_str = msg
         if error:
             feedback_str += f" {error}"
-        # TODO : Dsiplay the error in the GUI
+
+        self._display_graph_error(feedback_str)
+        self._apply_internal_state()
 
     def _callback_request_succeeded(self, request:DataloggingRequest) -> None:
         assert request.completed and request.is_success
         assert request.acquisition_reference_id is not None
+        self._feedback_label.clear()
 
+        self._apply_internal_state()
 
         def ephemerous_thread_download_data(client:ScrutinyClient) -> DataloggingAcquisition:
+            assert request.acquisition_reference_id is not None
             return client.read_datalogging_acquisition(reference_id=request.acquisition_reference_id)
         
-        def qt_thread_receive_acquisition_data(acquisition:Optional[ephemerous_thread_download_data], error:Optional[Exception]) -> None:
+        def qt_thread_receive_acquisition_data(acquisition:Optional[DataloggingAcquisition], error:Optional[Exception]) -> None:
             if error is not None:
                 self._callback_request_failed(request, error,  f"The acquisition succeeded, but downloading its data failed. The content is still available in the server database.\n Error {error}")
                 return 
 
             assert acquisition is not None
             self._display_acquisition(acquisition)
+            self._state.waiting_on_graph = False
+            self._state.has_content = True
+            self._apply_internal_state()
 
         self.server_manager.schedule_client_request(
             user_func=ephemerous_thread_download_data, 
             ui_thread_callback=qt_thread_receive_acquisition_data
             )
 
+    def _btn_clear_slot(self) -> None:
+        self._clear_graph()
+        self._feedback_label.clear()
+
+
+    def _clear_graph(self) -> None:
+        self._chart_toolbar.hide()
+        chart = self._chartview.chart()
+        chart.removeAllSeries()
+        if self._xaxis is not None:
+            chart.removeAxis(self._xaxis)
+        for yaxis in self._yaxes:
+            chart.removeAxis(yaxis)
+        
+        self._xaxis=None
+        self._yaxes.clear()
+        
+        self._state.has_content = False
+        self._apply_internal_state()
+
+    def _display_graph_error(self, message:str) -> None:
+        # TODO : Big sad face and a message
+        self._clear_graph()
 
     def _display_acquisition(self, acquisition:DataloggingAcquisition) -> None:
+        self._clear_graph()
+        signal_tree_model = self._signal_tree.model()
+        signal_tree_model.clear()
+
+        chart = self._chartview.chart()
+        self._chart_toolbar.show()
         
-        chart = ScrutinyChart()
-        chart.layout().setContentsMargins(0,0,0,0)
-        
-        xaxis = ScrutinyValueAxisWithMinMax(chart)        
-        xaxis.setTitleText(acquisition.xdata.name)
-        xaxis.setTitleVisible(True)
-        chart.setAxisX(xaxis)
+        self._xaxis = ScrutinyValueAxisWithMinMax(chart)        
+        self._xaxis.setTitleText(acquisition.xdata.name)
+        self._xaxis.setTitleVisible(True)
+        chart.setAxisX(self._xaxis)
 
         sdk_yaxes = acquisition.get_unique_yaxis_list()
-        qt_yaxes:Dict[int, ScrutinyValueAxisWithMinMax] = {}
+        sdk2qt_axes:Dict[int, ScrutinyValueAxisWithMinMax] = {}
+        sdk2tree_axes:Dict[int, AxisStandardItem] = {}
         for sdk_yaxis in sdk_yaxes:
+            # Create the axis in the signal tree (right menu)
+            axis_item = signal_tree_model.add_axis(sdk_yaxis.name)
+            sdk2tree_axes[sdk_yaxis.axis_id] = axis_item
+            # Create the axis in the graph
             qt_axis = ScrutinyValueAxisWithMinMax(chart)
             qt_axis.setTitleText(sdk_yaxis.name)
             qt_axis.setTitleVisible(True)
+            sdk2qt_axes[sdk_yaxis.axis_id] = qt_axis
             chart.addAxis(qt_axis, Qt.AlignmentFlag.AlignRight)
-
-            qt_yaxes[sdk_yaxis.axis_id] = qt_axis
+            
+            # Bind the graph axis with the signal tree axis.
+            axis_item.attach_axis(qt_axis)
+            self._yaxes.append(qt_axis) # Keeps all the references in a lsit for convenience.
+    
 
         
         xseries_data = acquisition.xdata.get_data()
-        for ydata in acquisition.ydata:
-            qt_yaxis = qt_yaxes[ydata.axis.axis_id]
+        for ydata in acquisition.ydata:     # For each dataset
+            # Find the axis tied to that dataset
+            qt_yaxis = sdk2qt_axes[ydata.axis.axis_id]
+            axis_item = sdk2tree_axes[ydata.axis.axis_id]
+            #ydata.series.logged_element
+            #series_item = ChartSeriesWatchableStandardItem()
+
             series = ScrutinyLineSeries(chart)
             chart.addSeries(series)
             yseries_data = ydata.series.get_data()
@@ -319,19 +448,35 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
             
             qt_pointf_data = [QPointF(xseries_data[i], yseries_data[i]) for i in range(len(xseries_data))]
             series.replace(qt_pointf_data)
-            series.attachAxis(xaxis)
+            series.attachAxis(self._xaxis)
             series.attachAxis(qt_yaxis)
             series.setName(ydata.series.name)
             
             qt_yaxis.update_minmax(min(yseries_data))
             qt_yaxis.update_minmax(max(yseries_data))
         
+        self._xaxis.set_minval(min(xseries_data))
+        self._xaxis.set_maxval(max(xseries_data))
 
-        xaxis.set_minval(min(xseries_data))
-        xaxis.set_maxval(max(xseries_data))
-
-        xaxis.autoset_range()
-        for yaxis in qt_yaxes.values():
+        self._xaxis.autoset_range()
+        for yaxis in self._yaxes:
             yaxis.autoset_range()
 
-        self._chartview.setChart(chart)
+
+    def _chartview_zoombox_selected_slot(self, zoombox:QRectF) -> None:
+        if not self._state.allow_zoom():
+            return 
+        #self._chartview.chart().hide_mouse_callout()
+
+        # When we are paused, we want the zoom to stay within the range of that was latched when pause was called.
+        # When not pause, saturate to min/max values
+        assert self._xaxis is not None
+        self._xaxis.apply_zoombox_x(zoombox)
+        selected_axis_items = self._signal_tree.get_selected_axes(include_if_signal_is_selected=True)
+        selected_axis_ids = [id(item.axis()) for item in selected_axis_items]
+        for yaxis in self._yaxes:
+            if id(yaxis) in selected_axis_ids or len(selected_axis_ids) == 0:
+                # Y-axis is not bound by the value. we leave the freedom to the user to unzoom like crazy
+                # We rely on the capacity to reset the zoom to come back to something reasonable if the user gets lost
+                yaxis.apply_zoombox_y(zoombox)  
+        self._chartview.update()

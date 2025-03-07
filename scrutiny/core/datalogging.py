@@ -14,7 +14,9 @@ from dataclasses import dataclass
 from datetime import datetime
 import csv
 import logging
-from scrutiny.core.firmware_description import MetadataType
+from scrutiny.core.basic_types import WatchableType
+
+from scrutiny.tools import validation
 
 from typing import List, Optional, TYPE_CHECKING
 if TYPE_CHECKING:
@@ -24,7 +26,8 @@ __all__ = [
     'AxisDefinition',
     'DataSeries',
     'DataSeriesWithAxis',
-    'DataloggingAcquisition'
+    'DataloggingAcquisition',
+    'LoggedWatchable'
 ]
 
 
@@ -37,21 +40,41 @@ class AxisDefinition:
     axis_id: int
     """A unique ID used to identify the axis"""
 
+    def __post_init__(self) -> None:
+        validation.assert_type(self.name, 'name', str)
+        validation.assert_type(self.axis_id, 'axis_id', int)
+
+@dataclass(frozen=True)
+class LoggedWatchable:
+    """(Immutable struct) A structure that identifies a watchable element"""
+    path:str
+    """The server path of the watchable monitored"""
+    type:WatchableType
+    """The type of watchable"""
+
+    def __post_init__(self) -> None:
+        validation.assert_type(self.path, 'path', str)
+        validation.assert_type(self.type, 'type', WatchableType)
+
 
 class DataSeries:
     """A data series is a series of measurement represented by a series of 64 bits floating point value """
 
     name: str
     """The name of the data series. Used for display"""
-    logged_element: str
-    """The server element that was the source of the data. Path to a variable, alias or RPV (Runtime Published Value)"""
+    logged_watchable: Optional[LoggedWatchable]
+    """The server element that was the source of the data. Can be variable, alias or RPV (Runtime Published Value)"""
     data: List[float]
     """The data stored as a list of 64 bits float"""
 
-    def __init__(self, data: List[float] = [], name: str = "unnamed", logged_element: str = ""):
+    def __init__(self, data: List[float] = [], name:str = "unnamed", logged_watchable:Optional[LoggedWatchable]=None):
         self.name = name
-        self.logged_element = logged_element
+        self.logged_watchable = logged_watchable
         self.data = data
+
+        validation.assert_type(data, 'data', list)
+        validation.assert_type(name, 'name', str)
+        validation.assert_type(logged_watchable, 'logged_watchable', (LoggedWatchable, type(None)))
 
     def set_data(self, data: List[float]) -> None:
         self.data = data
@@ -72,7 +95,7 @@ class DataSeries:
     def get_data_binary(self) -> bytes:
         data = struct.pack('>' + 'd' * len(self.data), *self.data)
         return zlib.compress(data)
-
+    
     def __len__(self) -> int:
         return len(self.data)
 
@@ -86,6 +109,10 @@ class DataSeriesWithAxis:
 
     axis: AxisDefinition
     """The Y-Axis to which the dataseries is bound to"""
+
+    def __post_init__(self) -> None:
+        validation.assert_type(self.series, 'series', DataSeries)
+        validation.assert_type(self.axis, 'axis', AxisDefinition)
 
 
 class DataloggingAcquisition:

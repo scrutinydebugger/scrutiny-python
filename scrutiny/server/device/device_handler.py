@@ -31,7 +31,7 @@ import math
 import threading
 from dataclasses import dataclass
 
-from scrutiny.server.datastore.datastore_entry import DatastoreRPVEntry, EntryType
+from scrutiny.server.datastore.datastore_entry import DatastoreRPVEntry
 import scrutiny.server.datalogging.definitions.device as device_datalogging
 from scrutiny.server.protocol import *
 import scrutiny.server.protocol.typing as protocol_typing
@@ -50,6 +50,7 @@ from scrutiny.tools import Timer, update_dict_recursive
 from scrutiny.server.datastore.datastore import Datastore
 from scrutiny.server.device.links import AbstractLink, LinkConfig
 from scrutiny.core.firmware_id import PLACEHOLDER as DEFAULT_FIRMWARE_ID
+from scrutiny.core.basic_types import WatchableType
 from scrutiny import tools
 
 from typing import TypedDict, Optional, Callable, Any, Dict, cast, List
@@ -532,7 +533,7 @@ class DeviceHandler:
         self.dispatcher.set_size_limits(max_request_payload_size=max_request_payload_size, max_response_payload_size=max_response_payload_size)
         self.datalogging_poller.set_max_response_payload_size(max_response_payload_size)
 
-        self.datastore.clear(entry_type=EntryType.RuntimePublishedValue)    # Device handler own RPVs
+        self.datastore.clear(entry_type=WatchableType.RuntimePublishedValue)    # Device handler own RPVs
         self.protocol.configure_rpvs([])    # Empty list
 
     # Open communication channel based on config

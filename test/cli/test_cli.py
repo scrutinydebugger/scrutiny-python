@@ -16,16 +16,16 @@ import datetime
 import shutil
 from io import StringIO
 import sys
+from scrutiny.core.basic_types import WatchableType
 from scrutiny.core.varmap import VarMap
 from scrutiny.core.firmware_description import FirmwareDescription
+from scrutiny.core.datalogging import *
 from scrutiny.server.sfd_storage import SFDStorage
 from scrutiny.server.datalogging.datalogging_storage import DataloggingStorage
-from scrutiny.core.datalogging import *
 from test.artifacts import get_artifact
 from test import SkipOnException
 from scrutiny.cli import CLI
 from scrutiny.exceptions import EnvionmentNotSetUpException
-from scrutiny.server.datastore.entry_type import EntryType
 from test import ScrutinyUnitTest
 import random
 import re
@@ -274,7 +274,7 @@ class TestCLI(ScrutinyUnitTest):
             alias = aliases['/alias/command_line_added']
             self.assertEqual(alias.get_fullpath(), '/alias/command_line_added')
             self.assertEqual(alias.get_target(), '/path1/path2/some_int32')
-            self.assertEqual(alias.get_target_type(), EntryType.Var)
+            self.assertEqual(alias.get_target_type(), WatchableType.Variable)
             self.assertEqual(alias.get_gain(), 5.2)
             self.assertEqual(alias.get_offset(), 2.5)
             self.assertEqual(alias.get_min(), 0.0)
@@ -302,7 +302,7 @@ class TestCLI(ScrutinyUnitTest):
             alias = aliases['/alias/command_line_added']
             self.assertEqual(alias.get_fullpath(), '/alias/command_line_added')
             self.assertEqual(alias.get_target(), '/rpv/x123')
-            self.assertEqual(alias.get_target_type(), EntryType.RuntimePublishedValue)
+            self.assertEqual(alias.get_target_type(), WatchableType.RuntimePublishedValue)
             self.assertEqual(alias.get_gain(), 5.2)
             self.assertEqual(alias.get_offset(), 2.5)
             self.assertEqual(alias.get_min(), 0.0)

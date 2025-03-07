@@ -329,10 +329,14 @@ class TestDataloggingIntegration(ScrutinyIntegrationTestWithTestSFD1):
                     self.assertEqual(response['signals'][idx_rpv1000]['name'], 'rpv1000')
                     self.assertEqual(response['signals'][idx_u8]['name'], 'u8')
 
-                    self.assertEqual(response['signals'][idx_u32]['logged_element'], self.entry_u32.get_display_path())
-                    self.assertEqual(response['signals'][idx_f32]['logged_element'], self.entry_float32.get_display_path())
-                    self.assertEqual(response['signals'][idx_rpv1000]['logged_element'], self.entry_alias_rpv1000.get_display_path())
-                    self.assertEqual(response['signals'][idx_u8]['logged_element'], self.entry_alias_uint8.get_display_path())
+                    self.assertEqual(response['signals'][idx_u32]['watchable']['path'], self.entry_u32.get_display_path())
+                    self.assertEqual(response['signals'][idx_u32]['watchable']['type'], 'var')
+                    self.assertEqual(response['signals'][idx_f32]['watchable']['path'], self.entry_float32.get_display_path())
+                    self.assertEqual(response['signals'][idx_f32]['watchable']['type'], 'var')
+                    self.assertEqual(response['signals'][idx_rpv1000]['watchable']['path'], self.entry_alias_rpv1000.get_display_path())
+                    self.assertEqual(response['signals'][idx_rpv1000]['watchable']['type'], 'alias')
+                    self.assertEqual(response['signals'][idx_u8]['watchable']['path'], self.entry_alias_uint8.get_display_path())
+                    self.assertEqual(response['signals'][idx_u8]['watchable']['type'], 'alias')
 
                     self.assertEqual(response['signals'][idx_u32]['axis_id'], 100)
                     self.assertEqual(response['signals'][idx_f32]['axis_id'], 100)

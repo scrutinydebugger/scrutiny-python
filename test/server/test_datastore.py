@@ -7,7 +7,6 @@
 #   Copyright (c) 2021 Scrutiny Debugger
 
 from scrutiny.server.datastore.datastore import Datastore
-from scrutiny.server.datastore.entry_type import EntryType
 from scrutiny.server.datastore.datastore_entry import *
 from scrutiny.core.alias import Alias
 from scrutiny.core.variable import *
@@ -24,7 +23,7 @@ class TestDataStore(ScrutinyUnitTest):
         self.value_change_callback_call_history = {}
         self.target_update_callback_call_history = {}
 
-    def make_dummy_entries(self, n: int, entry_type: EntryType, prefix='path'):
+    def make_dummy_entries(self, n: int, entry_type: WatchableType, prefix='path'):
         dummy_var = Variable('dummy', 
             vartype=EmbeddedDataType.float32, 
             path_segments=['a', 'b', 'c'], 
@@ -35,9 +34,9 @@ class TestDataStore(ScrutinyUnitTest):
         for i in range(n):
             name = '%s_%d' % (prefix, i)
             entry: DatastoreEntry
-            if entry_type == EntryType.Var:
+            if entry_type == WatchableType.Variable:
                 entry = DatastoreVariableEntry(name, variable_def=dummy_var)
-            elif entry_type == EntryType.Alias:
+            elif entry_type == WatchableType.Alias:
                 entry_temp = DatastoreVariableEntry(name, variable_def=dummy_var)
                 entry = DatastoreAliasEntry(Alias(name, target='none'), refentry=entry_temp)
             else:
@@ -92,47 +91,47 @@ class TestDataStore(ScrutinyUnitTest):
     def test_add_get(self):
         ds = Datastore()
         entries = []
-        entries += list(self.make_dummy_entries(4, EntryType.Var))
+        entries += list(self.make_dummy_entries(4, WatchableType.Variable))
         entries += [DatastoreAliasEntry(Alias('alias_1', target='none'), refentry=entries[0]),
                     DatastoreAliasEntry(Alias('alias_2', target='none'), refentry=entries[1])]
-        entries += list(self.make_dummy_entries(5, EntryType.RuntimePublishedValue))
+        entries += list(self.make_dummy_entries(5, WatchableType.RuntimePublishedValue))
 
         for entry in entries:
             ds.add_entry(entry)
 
         self.assertEqual(ds.get_entries_count(), 4 + 2 + 5)
-        self.assertEqual(ds.get_entries_count(EntryType.Var), 4)
-        self.assertEqual(ds.get_entries_count(EntryType.Alias), 2)
-        self.assertEqual(ds.get_entries_count(EntryType.RuntimePublishedValue), 5)
+        self.assertEqual(ds.get_entries_count(WatchableType.Variable), 4)
+        self.assertEqual(ds.get_entries_count(WatchableType.Alias), 2)
+        self.assertEqual(ds.get_entries_count(WatchableType.RuntimePublishedValue), 5)
 
         ds_entries = list(ds.get_all_entries())
         self.assertEqual(len(ds_entries), 4 + 2 + 5)
         for entry in ds_entries:
             self.assertIn(entry, entries)
 
-        ds_entries = list(ds.get_all_entries(EntryType.Var))
+        ds_entries = list(ds.get_all_entries(WatchableType.Variable))
         self.assertEqual(len(ds_entries), 4)
         for entry in ds_entries:
-            self.assertEqual(entry.get_type(), EntryType.Var)
+            self.assertEqual(entry.get_type(), WatchableType.Variable)
             self.assertIn(entry, entries)
 
-        ds_entries = list(ds.get_all_entries(EntryType.Alias))
+        ds_entries = list(ds.get_all_entries(WatchableType.Alias))
         self.assertEqual(len(ds_entries), 2)
         for entry in ds_entries:
-            self.assertEqual(entry.get_type(), EntryType.Alias)
+            self.assertEqual(entry.get_type(), WatchableType.Alias)
             self.assertIn(entry, entries)
 
-        ds_entries = list(ds.get_all_entries(EntryType.RuntimePublishedValue))
+        ds_entries = list(ds.get_all_entries(WatchableType.RuntimePublishedValue))
         self.assertEqual(len(ds_entries), 5)
         for entry in ds_entries:
-            self.assertEqual(entry.get_type(), EntryType.RuntimePublishedValue)
+            self.assertEqual(entry.get_type(), WatchableType.RuntimePublishedValue)
             self.assertIn(entry, entries)
 
     def test_entry_no_duplicate_id(self):
         n = 10000
-        entries = list(self.make_dummy_entries(n, EntryType.Var))
-        entries += list(self.make_dummy_entries(n, EntryType.Alias))
-        entries += list(self.make_dummy_entries(n, EntryType.RuntimePublishedValue
+        entries = list(self.make_dummy_entries(n, WatchableType.Variable))
+        entries += list(self.make_dummy_entries(n, WatchableType.Alias))
+        entries += list(self.make_dummy_entries(n, WatchableType.RuntimePublishedValue
                                                 ))
         entry_ids = set()
         for entry in entries:
@@ -142,7 +141,7 @@ class TestDataStore(ScrutinyUnitTest):
     # Make sure all callbacks are called when entry gets dirty
     def test_callback_on_value_change(self):
 
-        for entry_type in [EntryType.Var, EntryType.RuntimePublishedValue]:
+        for entry_type in [WatchableType.Variable, WatchableType.RuntimePublishedValue]:
             entries = list(self.make_dummy_entries(5, entry_type))
 
             ds = Datastore()
@@ -156,50 +155,50 @@ class TestDataStore(ScrutinyUnitTest):
                 self.assertValueChangeCallbackCalled(entry, owner, 0)
 
             entries[0].set_value(0)
-            self.assertValueChangeCallbackCalled(entries[0], owner, 1, "EntryType=%s" % entry_type)
-            self.assertValueChangeCallbackCalled(entries[1], owner, 0, "EntryType=%s" % entry_type)
-            self.assertValueChangeCallbackCalled(entries[2], owner, 0, "EntryType=%s" % entry_type)
-            self.assertValueChangeCallbackCalled(entries[3], owner, 0, "EntryType=%s" % entry_type)
-            self.assertValueChangeCallbackCalled(entries[4], owner, 0, "EntryType=%s" % entry_type)
+            self.assertValueChangeCallbackCalled(entries[0], owner, 1, "WatchableType=%s" % entry_type)
+            self.assertValueChangeCallbackCalled(entries[1], owner, 0, "WatchableType=%s" % entry_type)
+            self.assertValueChangeCallbackCalled(entries[2], owner, 0, "WatchableType=%s" % entry_type)
+            self.assertValueChangeCallbackCalled(entries[3], owner, 0, "WatchableType=%s" % entry_type)
+            self.assertValueChangeCallbackCalled(entries[4], owner, 0, "WatchableType=%s" % entry_type)
 
             entries[0].set_value(1)
-            self.assertValueChangeCallbackCalled(entries[0], owner, 2, "EntryType=%s" % entry_type)
-            self.assertValueChangeCallbackCalled(entries[1], owner, 0, "EntryType=%s" % entry_type)
-            self.assertValueChangeCallbackCalled(entries[2], owner, 0, "EntryType=%s" % entry_type)
-            self.assertValueChangeCallbackCalled(entries[3], owner, 0, "EntryType=%s" % entry_type)
-            self.assertValueChangeCallbackCalled(entries[4], owner, 0, "EntryType=%s" % entry_type)
+            self.assertValueChangeCallbackCalled(entries[0], owner, 2, "WatchableType=%s" % entry_type)
+            self.assertValueChangeCallbackCalled(entries[1], owner, 0, "WatchableType=%s" % entry_type)
+            self.assertValueChangeCallbackCalled(entries[2], owner, 0, "WatchableType=%s" % entry_type)
+            self.assertValueChangeCallbackCalled(entries[3], owner, 0, "WatchableType=%s" % entry_type)
+            self.assertValueChangeCallbackCalled(entries[4], owner, 0, "WatchableType=%s" % entry_type)
 
             entries[2].set_value(2)
-            self.assertValueChangeCallbackCalled(entries[0], owner, 2, "EntryType=%s" % entry_type)
-            self.assertValueChangeCallbackCalled(entries[1], owner, 0, "EntryType=%s" % entry_type)
-            self.assertValueChangeCallbackCalled(entries[2], owner, 1, "EntryType=%s" % entry_type)
-            self.assertValueChangeCallbackCalled(entries[3], owner, 0, "EntryType=%s" % entry_type)
-            self.assertValueChangeCallbackCalled(entries[4], owner, 0, "EntryType=%s" % entry_type)
+            self.assertValueChangeCallbackCalled(entries[0], owner, 2, "WatchableType=%s" % entry_type)
+            self.assertValueChangeCallbackCalled(entries[1], owner, 0, "WatchableType=%s" % entry_type)
+            self.assertValueChangeCallbackCalled(entries[2], owner, 1, "WatchableType=%s" % entry_type)
+            self.assertValueChangeCallbackCalled(entries[3], owner, 0, "WatchableType=%s" % entry_type)
+            self.assertValueChangeCallbackCalled(entries[4], owner, 0, "WatchableType=%s" % entry_type)
 
             # Add a second callback on entry 3 with same owner. Should make 1 call on dirty, not 2
             ds.start_watching(entries[3].get_id(), watcher=owner, value_change_callback=self.value_change_callback)
             entries[3].set_value(3)
-            self.assertValueChangeCallbackCalled(entries[0], owner, 2, "EntryType=%s" % entry_type)
-            self.assertValueChangeCallbackCalled(entries[1], owner, 0, "EntryType=%s" % entry_type)
-            self.assertValueChangeCallbackCalled(entries[2], owner, 1, "EntryType=%s" % entry_type)
-            self.assertValueChangeCallbackCalled(entries[3], owner, 1, "EntryType=%s" % entry_type)
-            self.assertValueChangeCallbackCalled(entries[4], owner, 0, "EntryType=%s" % entry_type)
+            self.assertValueChangeCallbackCalled(entries[0], owner, 2, "WatchableType=%s" % entry_type)
+            self.assertValueChangeCallbackCalled(entries[1], owner, 0, "WatchableType=%s" % entry_type)
+            self.assertValueChangeCallbackCalled(entries[2], owner, 1, "WatchableType=%s" % entry_type)
+            self.assertValueChangeCallbackCalled(entries[3], owner, 1, "WatchableType=%s" % entry_type)
+            self.assertValueChangeCallbackCalled(entries[4], owner, 0, "WatchableType=%s" % entry_type)
 
             # Add a 2 callbacks with different owner. Should make 2 calls
             ds.start_watching(entries[4].get_id(), watcher=owner, value_change_callback=self.value_change_callback)
             ds.start_watching(entries[4].get_id(), watcher=owner2,
                               value_change_callback=self.value_change_callback)
             entries[4].set_value(4)
-            self.assertValueChangeCallbackCalled(entries[0], owner, 2, "EntryType=%s" % entry_type)
-            self.assertValueChangeCallbackCalled(entries[1], owner, 0, "EntryType=%s" % entry_type)
-            self.assertValueChangeCallbackCalled(entries[2], owner, 1, "EntryType=%s" % entry_type)
-            self.assertValueChangeCallbackCalled(entries[3], owner, 1, "EntryType=%s" % entry_type)
-            self.assertValueChangeCallbackCalled(entries[4], owner, 1, "EntryType=%s" % entry_type)
-            self.assertValueChangeCallbackCalled(entries[4], owner2, 1, "EntryType=%s" % entry_type)
+            self.assertValueChangeCallbackCalled(entries[0], owner, 2, "WatchableType=%s" % entry_type)
+            self.assertValueChangeCallbackCalled(entries[1], owner, 0, "WatchableType=%s" % entry_type)
+            self.assertValueChangeCallbackCalled(entries[2], owner, 1, "WatchableType=%s" % entry_type)
+            self.assertValueChangeCallbackCalled(entries[3], owner, 1, "WatchableType=%s" % entry_type)
+            self.assertValueChangeCallbackCalled(entries[4], owner, 1, "WatchableType=%s" % entry_type)
+            self.assertValueChangeCallbackCalled(entries[4], owner2, 1, "WatchableType=%s" % entry_type)
 
     # Make sure all callbacks are called when entry gets dirty
     def test_callback_on_target_update(self):
-        for entry_type in [EntryType.RuntimePublishedValue, EntryType.Var]:
+        for entry_type in [WatchableType.RuntimePublishedValue, WatchableType.Variable]:
             entries = list(self.make_dummy_entries(5, entry_type))
 
             ds = Datastore()
@@ -219,53 +218,53 @@ class TestDataStore(ScrutinyUnitTest):
             self.assertIsNotNone(update_request)
             update_request.complete(success=True)
 
-            self.assertTargetUpdateCallbackCalled(entries[0], 1, "EntryType=%s" % entry_type)
-            self.assertTargetUpdateCallbackCalled(entries[1], 0, "EntryType=%s" % entry_type)
-            self.assertTargetUpdateCallbackCalled(entries[2], 0, "EntryType=%s" % entry_type)
-            self.assertTargetUpdateCallbackCalled(entries[3], 0, "EntryType=%s" % entry_type)
-            self.assertTargetUpdateCallbackCalled(entries[4], 0, "EntryType=%s" % entry_type)
+            self.assertTargetUpdateCallbackCalled(entries[0], 1, "WatchableType=%s" % entry_type)
+            self.assertTargetUpdateCallbackCalled(entries[1], 0, "WatchableType=%s" % entry_type)
+            self.assertTargetUpdateCallbackCalled(entries[2], 0, "WatchableType=%s" % entry_type)
+            self.assertTargetUpdateCallbackCalled(entries[3], 0, "WatchableType=%s" % entry_type)
+            self.assertTargetUpdateCallbackCalled(entries[4], 0, "WatchableType=%s" % entry_type)
 
             ds.update_target_value(entries[0], 1, callback=self.target_update_callback)
             ds.pop_target_update_request().complete(success=True)
-            self.assertTargetUpdateCallbackCalled(entries[0], 2, "EntryType=%s" % entry_type)
-            self.assertTargetUpdateCallbackCalled(entries[1], 0, "EntryType=%s" % entry_type)
-            self.assertTargetUpdateCallbackCalled(entries[2], 0, "EntryType=%s" % entry_type)
-            self.assertTargetUpdateCallbackCalled(entries[3], 0, "EntryType=%s" % entry_type)
-            self.assertTargetUpdateCallbackCalled(entries[4], 0, "EntryType=%s" % entry_type)
+            self.assertTargetUpdateCallbackCalled(entries[0], 2, "WatchableType=%s" % entry_type)
+            self.assertTargetUpdateCallbackCalled(entries[1], 0, "WatchableType=%s" % entry_type)
+            self.assertTargetUpdateCallbackCalled(entries[2], 0, "WatchableType=%s" % entry_type)
+            self.assertTargetUpdateCallbackCalled(entries[3], 0, "WatchableType=%s" % entry_type)
+            self.assertTargetUpdateCallbackCalled(entries[4], 0, "WatchableType=%s" % entry_type)
 
             ds.update_target_value(entries[2], 2, callback=self.target_update_callback)
             ds.pop_target_update_request().complete(success=True)
-            self.assertTargetUpdateCallbackCalled(entries[0], 2, "EntryType=%s" % entry_type)
-            self.assertTargetUpdateCallbackCalled(entries[1], 0, "EntryType=%s" % entry_type)
-            self.assertTargetUpdateCallbackCalled(entries[2], 1, "EntryType=%s" % entry_type)
-            self.assertTargetUpdateCallbackCalled(entries[3], 0, "EntryType=%s" % entry_type)
-            self.assertTargetUpdateCallbackCalled(entries[4], 0, "EntryType=%s" % entry_type)
+            self.assertTargetUpdateCallbackCalled(entries[0], 2, "WatchableType=%s" % entry_type)
+            self.assertTargetUpdateCallbackCalled(entries[1], 0, "WatchableType=%s" % entry_type)
+            self.assertTargetUpdateCallbackCalled(entries[2], 1, "WatchableType=%s" % entry_type)
+            self.assertTargetUpdateCallbackCalled(entries[3], 0, "WatchableType=%s" % entry_type)
+            self.assertTargetUpdateCallbackCalled(entries[4], 0, "WatchableType=%s" % entry_type)
 
             # Add a second callback on entry 3 with same owner. Should make 1 call on dirty, not 2
             ds.start_watching(entries[3].get_id(), watcher=owner)
             ds.update_target_value(entries[3], 3, callback=self.target_update_callback)
             ds.pop_target_update_request().complete(success=True)
-            self.assertTargetUpdateCallbackCalled(entries[0], 2, "EntryType=%s" % entry_type)
-            self.assertTargetUpdateCallbackCalled(entries[1], 0, "EntryType=%s" % entry_type)
-            self.assertTargetUpdateCallbackCalled(entries[2], 1, "EntryType=%s" % entry_type)
-            self.assertTargetUpdateCallbackCalled(entries[3], 1, "EntryType=%s" % entry_type)
-            self.assertTargetUpdateCallbackCalled(entries[4], 0, "EntryType=%s" % entry_type)
+            self.assertTargetUpdateCallbackCalled(entries[0], 2, "WatchableType=%s" % entry_type)
+            self.assertTargetUpdateCallbackCalled(entries[1], 0, "WatchableType=%s" % entry_type)
+            self.assertTargetUpdateCallbackCalled(entries[2], 1, "WatchableType=%s" % entry_type)
+            self.assertTargetUpdateCallbackCalled(entries[3], 1, "WatchableType=%s" % entry_type)
+            self.assertTargetUpdateCallbackCalled(entries[4], 0, "WatchableType=%s" % entry_type)
 
             # Add a 2 callbacks with different owner. Should make 2 calls
             ds.start_watching(entries[4].get_id(), watcher=owner, target_update_callback=self.target_update_callback)
             ds.start_watching(entries[4].get_id(), watcher=owner2, target_update_callback=self.target_update_callback)
             ds.update_target_value(entries[4], 4, callback=self.target_update_callback)
             ds.pop_target_update_request().complete(success=False)
-            self.assertTargetUpdateCallbackCalled(entries[0], 2, "EntryType=%s" % entry_type)
-            self.assertTargetUpdateCallbackCalled(entries[1], 0, "EntryType=%s" % entry_type)
-            self.assertTargetUpdateCallbackCalled(entries[2], 1, "EntryType=%s" % entry_type)
-            self.assertTargetUpdateCallbackCalled(entries[3], 1, "EntryType=%s" % entry_type)
-            self.assertTargetUpdateCallbackCalled(entries[4], 1, "EntryType=%s" % entry_type)
-            self.assertTargetUpdateCallbackCalled(entries[4], 1, "EntryType=%s" % entry_type)
+            self.assertTargetUpdateCallbackCalled(entries[0], 2, "WatchableType=%s" % entry_type)
+            self.assertTargetUpdateCallbackCalled(entries[1], 0, "WatchableType=%s" % entry_type)
+            self.assertTargetUpdateCallbackCalled(entries[2], 1, "WatchableType=%s" % entry_type)
+            self.assertTargetUpdateCallbackCalled(entries[3], 1, "WatchableType=%s" % entry_type)
+            self.assertTargetUpdateCallbackCalled(entries[4], 1, "WatchableType=%s" % entry_type)
+            self.assertTargetUpdateCallbackCalled(entries[4], 1, "WatchableType=%s" % entry_type)
 
     # Make sure we manage correctly multiple watchers
     def test_watch_behavior(self):
-        for entry_type in [EntryType.Var, EntryType.RuntimePublishedValue]:
+        for entry_type in [WatchableType.Variable, WatchableType.RuntimePublishedValue]:
             entries = list(self.make_dummy_entries(4, entry_type))
             ds = Datastore()
             ds.add_entries(entries)
@@ -329,8 +328,8 @@ class TestDataStore(ScrutinyUnitTest):
                 self.assertFalse(ds.is_watching(entry, 'watcher2'))
 
     def test_alias_behavior(self):
-        var_entries = list(self.make_dummy_entries(4, EntryType.Var))
-        rpv_entries = list(self.make_dummy_entries(4, EntryType.RuntimePublishedValue))
+        var_entries = list(self.make_dummy_entries(4, WatchableType.Variable))
+        rpv_entries = list(self.make_dummy_entries(4, WatchableType.RuntimePublishedValue))
 
         alias_var_2 = DatastoreAliasEntry(Alias('alias_var_2', target='none'), refentry=var_entries[2])
         alias_var_2_2 = DatastoreAliasEntry(Alias('alias_var_2', target='none'), refentry=var_entries[2])
@@ -454,4 +453,3 @@ class TestDataStore(ScrutinyUnitTest):
 if __name__ == '__main__':
     import unittest
     unittest.main()
-

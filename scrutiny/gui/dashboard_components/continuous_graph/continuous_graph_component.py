@@ -120,9 +120,6 @@ class ContinuousGraphState:
     
     def enable_reset_zoom_button(self) -> bool:
         return self.has_content
-    
-    def enable_edit_range_menu(self) -> bool:
-        return self.has_non_moving_content()
 
     def enable_showhide_stats_button(self) -> bool:
         return self.has_content
@@ -893,9 +890,6 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
                 # We rely on the capacity to reset the zoom to come back to something reasonable if the user gets lost
                 yaxis.apply_zoombox_y(zoombox)  
         self._chartview.update()
-    
-    def _edit_range_slot(self) -> None:
-        pass
 
     def _reset_zoom_slot(self) -> None:
         """Right-click -> Reset zoom"""

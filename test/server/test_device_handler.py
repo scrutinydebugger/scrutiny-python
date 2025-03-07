@@ -8,7 +8,7 @@
 
 import time
 from scrutiny.core.codecs import Encodable
-from scrutiny.server.datastore.datastore_entry import DatastoreRPVEntry, EntryType, UpdateTargetRequestCallback
+from scrutiny.server.datastore.datastore_entry import DatastoreRPVEntry, UpdateTargetRequestCallback
 from test import logger
 import signal  # For ctrl+c handling
 import struct
@@ -22,7 +22,7 @@ from scrutiny.server.device.device_handler import DeviceHandler
 from scrutiny.server.device.links.dummy_link import DummyLink
 from scrutiny.server.datastore.datastore import Datastore
 from scrutiny.server.datastore.datastore_entry import *
-from scrutiny.server.datastore.entry_type import EntryType
+from scrutiny.core.basic_types import WatchableType
 from scrutiny.core.variable import Variable
 from scrutiny.core.codecs import Codecs
 from scrutiny.core.basic_types import *
@@ -454,11 +454,11 @@ class TestDeviceHandler(ScrutinyUnitTest):
                 if state == 'wait_for_connection':
                     timeout = hold_timeout
 
-                    self.assertEqual(self.datastore.get_entries_count(EntryType.Var), 0)
-                    self.assertEqual(self.datastore.get_entries_count(EntryType.Alias), 0)
-                    self.assertEqual(self.datastore.get_entries_count(EntryType.RuntimePublishedValue), len(self.emulated_device.rpvs))
+                    self.assertEqual(self.datastore.get_entries_count(WatchableType.Variable), 0)
+                    self.assertEqual(self.datastore.get_entries_count(WatchableType.Alias), 0)
+                    self.assertEqual(self.datastore.get_entries_count(WatchableType.RuntimePublishedValue), len(self.emulated_device.rpvs))
 
-                    all_entries = cast(List[DatastoreRPVEntry], list(self.datastore.get_all_entries(EntryType.RuntimePublishedValue)))
+                    all_entries = cast(List[DatastoreRPVEntry], list(self.datastore.get_all_entries(WatchableType.RuntimePublishedValue)))
 
                     for entry in all_entries:
                         assert isinstance(entry, DatastoreRPVEntry)

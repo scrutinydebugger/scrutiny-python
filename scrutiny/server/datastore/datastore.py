@@ -10,8 +10,8 @@
 
 import logging
 import functools
+from scrutiny.core.basic_types import WatchableType
 from scrutiny.server.datastore.datastore_entry import *
-from scrutiny.server.datastore.entry_type import EntryType
 from scrutiny import tools
 
 from typing import Callable, List, Dict, Generator, Set, List, Optional, Union, Any
@@ -32,9 +32,9 @@ class Datastore:
     """
 
     logger: logging.Logger
-    entries: Dict[EntryType, Dict[str, DatastoreEntry]]
-    displaypath2idmap: Dict[EntryType, Dict[str, str]]
-    watcher_map: Dict[EntryType, Dict[str, Set[str]]]
+    entries: Dict[WatchableType, Dict[str, DatastoreEntry]]
+    displaypath2idmap: Dict[WatchableType, Dict[str, str]]
+    watcher_map: Dict[WatchableType, Dict[str, Set[str]]]
     global_watch_callbacks: List[WatchCallback]
     global_unwatch_callbacks: List[WatchCallback]
     target_update_request_queue: "List[UpdateTargetRequest]"
@@ -50,15 +50,15 @@ class Datastore:
         self.watcher_map = {}
         self.displaypath2idmap = {}
         self.target_update_request_queue = []
-        for entry_type in EntryType.all():
+        for entry_type in WatchableType.all():
             self.entries[entry_type] = {}
             self.watcher_map[entry_type] = {}
             self.displaypath2idmap[entry_type] = {}
 
-    def clear(self, entry_type: Optional[EntryType] = None) -> None:
+    def clear(self, entry_type: Optional[WatchableType] = None) -> None:
         """ Deletes all entries of a given type. All types if None"""
         if entry_type is None:
-            type_to_clear_list = EntryType.all()
+            type_to_clear_list = WatchableType.all()
         else:
             type_to_clear_list = [entry_type]
 
@@ -87,7 +87,7 @@ class Datastore:
     def add_entry(self, entry: DatastoreEntry) -> None:
         """ Add a single entry to the datastore."""
         entry_id = entry.get_id()
-        for entry_type in EntryType.all():
+        for entry_type in WatchableType.all():
             if entry_id in self.entries[entry_type]:
                 raise ValueError('Duplicate datastore entry')
 
@@ -105,14 +105,14 @@ class Datastore:
 
     def get_entry(self, entry_id: str) -> DatastoreEntry:
         """ Fetch a datastore entry by its ID"""
-        for entry_type in EntryType.all():
+        for entry_type in WatchableType.all():
             if entry_id in self.entries[entry_type]:
                 return self.entries[entry_type][entry_id]
         raise KeyError('Entry with ID %s not found in datastore' % entry_id)
 
     def get_entry_by_display_path(self, display_path: str) -> DatastoreEntry:
         """ Find an entry by its display path, which is supposed to be unique"""
-        for entry_type in EntryType.all():
+        for entry_type in WatchableType.all():
             display_path = DatastoreEntry.clean_display_path(display_path)
             if display_path in self.displaypath2idmap[entry_type]:
                 entry_id = self.displaypath2idmap[entry_type][display_path]
@@ -203,14 +203,14 @@ class Datastore:
             callback(entry_id)  # Mainly used by the device handler to know it can stop polling that entry
 
     def stop_watching_all(self, watcher: str) -> None:
-        for entry_type in EntryType.all():
+        for entry_type in WatchableType.all():
             watched_entries_id = self.get_watched_entries_id(entry_type)    # Make a copy of the list
             for entry_id in watched_entries_id:
                 self.stop_watching(entry_id, watcher)
 
-    def get_all_entries(self, entry_type: Optional[EntryType] = None) -> Generator[DatastoreEntry, None, None]:
+    def get_all_entries(self, entry_type: Optional[WatchableType] = None) -> Generator[DatastoreEntry, None, None]:
         """ Fetch all entries of a given type. All types if None"""
-        entry_types = EntryType.all() if entry_type is None else [entry_type]
+        entry_types = WatchableType.all() if entry_type is None else [entry_type]
         for entry_type in entry_types:
             for entry_id in self.entries[entry_type]:
                 yield self.entries[entry_type][entry_id]
@@ -222,10 +222,10 @@ class Datastore:
         else:
             return entry_id
 
-    def get_entries_count(self, entry_type: Optional[EntryType] = None) -> int:
+    def get_entries_count(self, entry_type: Optional[WatchableType] = None) -> int:
         """ Returns the number of entries of a given type. All types if None"""
         val = 0
-        typelist = [entry_type] if entry_type is not None else EntryType.all()
+        typelist = [entry_type] if entry_type is not None else WatchableType.all()
         for thetype in typelist:
             val += len(self.entries[thetype])
 
@@ -282,7 +282,7 @@ class Datastore:
     def get_pending_target_update_count(self) -> int:
         return len(self.target_update_request_queue)
 
-    def get_watched_entries_id(self, entry_type: EntryType) -> List[str]:
+    def get_watched_entries_id(self, entry_type: WatchableType) -> List[str]:
         """ Get a list of all watched entries ID of a given type."""
         return list(self.watcher_map[entry_type].keys())
 

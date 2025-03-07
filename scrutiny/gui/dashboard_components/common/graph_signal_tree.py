@@ -52,6 +52,7 @@ class AxisStandardItem(QStandardItem):
     def axis(self) -> QValueAxis:
         assert self._chart_axis is not None
         return self._chart_axis
+    
 class ChartSeriesWatchableStandardItem(WatchableStandardItem):
     _chart_series:Optional[QLineSeries] = None
 
@@ -168,8 +169,7 @@ class GraphSignalModel(BaseTreeModel):
         assert self._has_value_col
         return 1
     
-    def get_watchable_row_from_dragged_watchable_desc(self, watchable_desc:SingleWatchableDescriptor) -> List[QStandardItem]:
-        watchable_item = ChartSeriesWatchableStandardItem.from_drag_watchable_descriptor(watchable_desc)
+    def make_watchable_item_row(self, watchable_item:ChartSeriesWatchableStandardItem) -> List[QStandardItem]:
         watchable_item.setEditable(True)
         watchable_item.setDragEnabled(True)
 
@@ -179,6 +179,11 @@ class GraphSignalModel(BaseTreeModel):
             value_item.setEditable(False)
             outlist.append(value_item)
         return outlist
+
+
+    def get_watchable_row_from_dragged_watchable_desc(self, watchable_desc:SingleWatchableDescriptor) -> List[QStandardItem]:
+        watchable_item = ChartSeriesWatchableStandardItem.from_drag_watchable_descriptor(watchable_desc)
+        return self.make_watchable_item_row(watchable_item)
  
     def _validate_drag_data(self, drag_data:Optional[ScrutinyDragData], action:Qt.DropAction) -> bool:
         
@@ -209,8 +214,10 @@ class GraphSignalModel(BaseTreeModel):
         assert isinstance(axis_item, AxisStandardItem)
         return axis_item
     
-    def add_axis(self, name:str) -> None:
-        self.appendRow(self.make_axis_row(name))
+    def add_axis(self, name:str) -> AxisStandardItem:
+        row = self.make_axis_row(name)
+        self.appendRow(row)
+        return row[0]
 
     def mimeData(self, indexes:Sequence[QModelIndex]) -> QMimeData:
         item_list:List[WatchableStandardItem] = []

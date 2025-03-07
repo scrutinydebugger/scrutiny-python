@@ -6,11 +6,11 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
-from scrutiny.server.datastore.entry_type import EntryType
 from scrutiny.server.device.device_handler import DeviceHandler
 from scrutiny.server.active_sfd_handler import ActiveSFDHandler
 from scrutiny.server.datastore.datastore import Datastore
 from scrutiny.server.sfd_storage import SFDStorage
+from scrutiny.core.basic_types import WatchableType
 from test.artifacts import get_artifact
 from test import ScrutinyUnitTest
 
@@ -58,12 +58,12 @@ class TestActiveSFDHandler(ScrutinyUnitTest):
         sfd = self.sfd_handler.get_loaded_sfd()
         all_vars = list(sfd.get_vars_for_datastore())
 
-        self.assertGreater(self.datastore.get_entries_count(EntryType.Var), 0)
-        self.assertEqual(self.datastore.get_entries_count(EntryType.Var), len(all_vars))
+        self.assertGreater(self.datastore.get_entries_count(WatchableType.Variable), 0)
+        self.assertEqual(self.datastore.get_entries_count(WatchableType.Variable), len(all_vars))
 
         self.device_handler.connection_status = DeviceHandler.ConnectionStatus.DISCONNECTED
         self.sfd_handler.process()
-        self.assertEqual(self.datastore.get_entries_count(EntryType.Var), 0)
+        self.assertEqual(self.datastore.get_entries_count(WatchableType.Variable), 0)
         self.assertIsNone(self.sfd_handler.get_loaded_sfd())
 
     # Make sure the SFD is correctly loaded when requested (through API normally)
@@ -85,12 +85,12 @@ class TestActiveSFDHandler(ScrutinyUnitTest):
         all_vars = list(sfd.get_vars_for_datastore())
 
         self.assertGreater(self.datastore.get_entries_count(), 0)
-        self.assertEqual(self.datastore.get_entries_count(EntryType.Var), len(all_vars))
+        self.assertEqual(self.datastore.get_entries_count(WatchableType.Variable), len(all_vars))
 
         self.device_handler.connection_status = DeviceHandler.ConnectionStatus.DISCONNECTED
         self.sfd_handler.process()
-        self.assertGreater(self.datastore.get_entries_count(EntryType.Var), 0)
-        self.assertEqual(self.datastore.get_entries_count(EntryType.Var), len(all_vars))
+        self.assertGreater(self.datastore.get_entries_count(WatchableType.Variable), 0)
+        self.assertEqual(self.datastore.get_entries_count(WatchableType.Variable), len(all_vars))
 
 
 if __name__ == '__main__':

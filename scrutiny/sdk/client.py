@@ -194,7 +194,7 @@ class WatchableListDownloadRequest(PendingRequest):
             self._new_data_callback(data, done)
         else:
             # User has no callback to process it. Let's buffer the response for him
-            for watchable_type in WatchableType.get_valids():
+            for watchable_type in WatchableType.all():
                 if watchable_type in data:
                     self._watchable_list[watchable_type].update(data[watchable_type])
     
@@ -2175,8 +2175,8 @@ class ScrutinyClient:
         validation.assert_type(types, 'types', list)
         for type in types:
             validation.assert_type(type, 'types', WatchableType)
-            if type == WatchableType.NA:
-                raise ValueError("WatchableType.NA is not a valid type to download")
+            if type not in WatchableType.all():
+                raise ValueError(f"Watchable type {type} is not a valid type to download")
         
         validation.assert_type(name_patterns, 'name_patterns', list)
         for name_pattern in name_patterns:

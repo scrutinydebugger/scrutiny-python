@@ -775,7 +775,7 @@ def parse_read_datalogging_acquisition_content_response(response: api_typing.S2C
     _check_response_dict(cmd, response, 'signals', list)
     _check_response_dict(cmd, response, 'xdata.name', str)
     _check_response_dict(cmd, response, 'xdata.data', list)
-    _check_response_dict(cmd, response, 'xdata.logged_element', str)
+    _check_response_dict(cmd, response, 'xdata.watchable', (dict, type(None)))
 
     acquisition = sdk.datalogging.DataloggingAcquisition(
         firmware_id=response['firmware_id'],
@@ -799,9 +799,23 @@ def parse_read_datalogging_acquisition_content_response(response: api_typing.S2C
 
     assert xaxis_data is not None
 
+    def response2watchable_desc(d:Optional[api_typing.LoggedWatchable]) -> Optional[sdk.datalogging.LoggedWatchable]:
+        if d is None:
+            return None
+
+        _check_response_dict(cmd, d, 'path', str)
+        _check_response_dict(cmd, d, 'type', str)
+        
+        if d['type'] not in WatchableType.all():
+            raise sdk.exceptions.BadResponseError(f"Invalid wachable type {d['type']}")
+        return scrutiny.sdk.datalogging.LoggedWatchable(
+                path = d['path'],
+                type = WatchableType(d['type'])
+            )
+
     for sig in response['signals']:
         _check_response_dict(cmd, sig, 'axis_id', int)
-        _check_response_dict(cmd, sig, 'logged_element', str)
+        _check_response_dict(cmd, sig, 'watchable', (dict, type(None)))
         _check_response_dict(cmd, sig, 'name', str)
         _check_response_dict(cmd, sig, 'data', list)
 
@@ -817,7 +831,7 @@ def parse_read_datalogging_acquisition_content_response(response: api_typing.S2C
         ds = sdk.datalogging.DataSeries(
             data=yaxis_data,
             name=sig['name'],
-            logged_element=sig['logged_element']
+            logged_watchable=response2watchable_desc(sig['watchable'])
         )
         acquisition.add_data(ds, axis=axis_map[sig['axis_id']])
 
@@ -827,9 +841,9 @@ def parse_read_datalogging_acquisition_content_response(response: api_typing.S2C
         raise sdk.exceptions.BadResponseError(f'X-Axis Dataseries data is not all numerical')
 
     xdata = sdk.datalogging.DataSeries(
-        data=xaxis_data,
-        name=response['xdata']['name'],
-        logged_element=response['xdata']['logged_element']
+        data = xaxis_data,
+        name = response['xdata']['name'],
+        logged_watchable = response2watchable_desc(response['xdata']['watchable'])
     )
 
     acquisition.set_xdata(xdata)

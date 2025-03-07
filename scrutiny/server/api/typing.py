@@ -167,11 +167,14 @@ class DataloggingAcquisitionMetadata(TypedDict):
     firmware_id: str
     firmware_metadata: Optional[SFDMetadata]
 
+class LoggedWatchable(TypedDict):
+    path:str
+    type:str
 
 class DataloggingSignalData(TypedDict):
     name: str
     data: List[Union[float,str]]
-    logged_element: str
+    watchable : Optional[LoggedWatchable]
 
 
 class DataloggingSignalDataWithAxis(DataloggingSignalData):

@@ -23,13 +23,13 @@ from scrutiny.server.timebase import server_timebase
 from scrutiny.server.datalogging.datalogging_storage import DataloggingStorage
 from scrutiny.server.datalogging.datalogging_manager import DataloggingManager
 from scrutiny.server.datastore.datastore import Datastore
-from scrutiny.server.datastore.datastore_entry import EntryType, DatastoreEntry, UpdateTargetRequestCallback
+from scrutiny.server.datastore.datastore_entry import DatastoreEntry, UpdateTargetRequestCallback
 from scrutiny.server.device.device_handler import DeviceHandler, DeviceStateChangedCallback, RawMemoryReadRequestCompletionCallback, \
     RawMemoryReadRequest, RawMemoryWriteRequestCompletionCallback, RawMemoryWriteRequest, UserCommandCallback
 from scrutiny.server.active_sfd_handler import ActiveSFDHandler, SFDLoadedCallback, SFDUnloadedCallback
 from scrutiny.server.device.links import LinkConfig
 from scrutiny.server.sfd_storage import SFDStorage
-from scrutiny.core.basic_types import EmbeddedDataType
+from scrutiny.core.basic_types import EmbeddedDataType, WatchableType
 from scrutiny.core.firmware_description import FirmwareDescription
 import scrutiny.server.datalogging.definitions.api as api_datalogging
 import scrutiny.server.datalogging.definitions.device as device_datalogging
@@ -225,13 +225,13 @@ class API:
         'within': DataloggingSupportedTriggerCondition(condition_id=api_datalogging.TriggerConditionID.IsWithin, nb_operands=3)
     }
 
-    APISTR_2_ENTRY_TYPE: Dict[api_typing.WatchableType, EntryType] = {
-        'var': EntryType.Var,
-        'alias': EntryType.Alias,
-        'rpv': EntryType.RuntimePublishedValue
+    APISTR_2_WATCHABLE_TYPE: Dict[api_typing.WatchableType, WatchableType] = {
+        'var': WatchableType.Variable,
+        'alias': WatchableType.Alias,
+        'rpv': WatchableType.RuntimePublishedValue
     }
 
-    ENTRY_TYPE_2_APISTR: Dict[EntryType, api_typing.WatchableType] = {v: k for k, v in APISTR_2_ENTRY_TYPE.items()}
+    WATCHABLE_TYPE_2_APISTR: Dict[WatchableType, api_typing.WatchableType] = {v: k for k, v in APISTR_2_WATCHABLE_TYPE.items()}
 
     APISTR_2_DATALOGGING_ENCONDING: Dict[api_typing.DataloggingEncoding, device_datalogging.Encoding] = {
         'raw': device_datalogging.Encoding.RAW
@@ -510,15 +510,15 @@ class API:
             max_per_response = req['max_per_response'] if req['max_per_response'] is not None else default_max_per_response
 
         name_filters: Optional[List[str]] = None
-        type_to_include: List[EntryType] = []
+        type_to_include: List[WatchableType] = []
         if self.is_dict_with_key(cast(Dict[str, Any], req), 'filter'):
             if self.is_dict_with_key(cast(Dict[str, Any], req['filter']), 'type'):
                 if isinstance(req['filter']['type'], list):
                     for t in req['filter']['type']:
-                        if t not in self.APISTR_2_ENTRY_TYPE:
+                        if t not in self.APISTR_2_WATCHABLE_TYPE:
                             raise InvalidRequestException(req, 'Unsupported type filter :"%s"' % (t))
 
-                        type_to_include.append(self.APISTR_2_ENTRY_TYPE[t])
+                        type_to_include.append(self.APISTR_2_WATCHABLE_TYPE[t])
 
             if 'name' in req['filter']:
                 if isinstance(req['filter']['name'], list):
@@ -532,11 +532,11 @@ class API:
                      raise InvalidRequestException(req, "Invalid name filter")
 
         if len(type_to_include) == 0:
-            type_to_include = [EntryType.Var, EntryType.Alias, EntryType.RuntimePublishedValue]
+            type_to_include = [WatchableType.Variable, WatchableType.Alias, WatchableType.RuntimePublishedValue]
 
         # Sends RPV first, variable last
-        priority = [EntryType.RuntimePublishedValue, EntryType.Alias, EntryType.Var]
-        entries_generator: Dict[EntryType, Generator[DatastoreEntry, None, None]] = {}
+        priority = [WatchableType.RuntimePublishedValue, WatchableType.Alias, WatchableType.Variable]
+        entries_generator: Dict[WatchableType, Generator[DatastoreEntry, None, None]] = {}
 
         def filtered_generator(gen: Generator[DatastoreEntry, None, None]) -> Generator[DatastoreEntry, None, None]:
             if name_filters is None:
@@ -556,19 +556,19 @@ class API:
             entries_generator[entry_type] = filtered_generator(gen)
 
         done = False
-        batch_content: Dict[EntryType, List[DatastoreEntry]]
-        remainders: Dict[EntryType, List[DatastoreEntry]] = {
-            EntryType.RuntimePublishedValue: [],
-            EntryType.Alias: [],
-            EntryType.Var: []
+        batch_content: Dict[WatchableType, List[DatastoreEntry]]
+        remainders: Dict[WatchableType, List[DatastoreEntry]] = {
+            WatchableType.RuntimePublishedValue: [],
+            WatchableType.Alias: [],
+            WatchableType.Variable: []
         }
 
         while not done:
             batch_count = 0
             batch_content = {
-                EntryType.RuntimePublishedValue: [],
-                EntryType.Alias: [],
-                EntryType.Var: []
+                WatchableType.RuntimePublishedValue: [],
+                WatchableType.Alias: [],
+                WatchableType.Variable: []
             }
 
             stopiter_count = 0
@@ -597,14 +597,14 @@ class API:
                 'cmd': self.Command.Api2Client.GET_WATCHABLE_LIST_RESPONSE,
                 'reqid': self.get_req_id(req),
                 'qty': {
-                    'var': len(batch_content[EntryType.Var]),
-                    'alias': len(batch_content[EntryType.Alias]),
-                    'rpv': len(batch_content[EntryType.RuntimePublishedValue])
+                    'var': len(batch_content[WatchableType.Variable]),
+                    'alias': len(batch_content[WatchableType.Alias]),
+                    'rpv': len(batch_content[WatchableType.RuntimePublishedValue])
                 },
                 'content': {
-                    'var': [self.make_datastore_entry_definition_no_type(x) for x in batch_content[EntryType.Var]],
-                    'alias': [self.make_datastore_entry_definition_no_type(x) for x in batch_content[EntryType.Alias]],
-                    'rpv': [self.make_datastore_entry_definition_no_type(x) for x in batch_content[EntryType.RuntimePublishedValue]]
+                    'var': [self.make_datastore_entry_definition_no_type(x) for x in batch_content[WatchableType.Variable]],
+                    'alias': [self.make_datastore_entry_definition_no_type(x) for x in batch_content[WatchableType.Alias]],
+                    'rpv': [self.make_datastore_entry_definition_no_type(x) for x in batch_content[WatchableType.RuntimePublishedValue]]
                 },
                 'done': done
             }
@@ -618,9 +618,9 @@ class API:
             'cmd': self.Command.Api2Client.GET_WATCHABLE_COUNT_RESPONSE,
             'reqid': self.get_req_id(req),
             'qty': {
-                'var': self.datastore.get_entries_count(EntryType.Var),
-                'alias': self.datastore.get_entries_count(EntryType.Alias),
-                'rpv': self.datastore.get_entries_count(EntryType.RuntimePublishedValue),
+                'var': self.datastore.get_entries_count(WatchableType.Variable),
+                'alias': self.datastore.get_entries_count(WatchableType.Alias),
+                'rpv': self.datastore.get_entries_count(WatchableType.RuntimePublishedValue),
             }
         }
 
@@ -639,7 +639,7 @@ class API:
             try:
                 entry = self.datastore.get_entry_by_display_path(path)  # Will raise an exception if not existent
                 subscribed[path] = {
-                    'type': self.ENTRY_TYPE_2_APISTR[entry.get_type()],
+                    'type': self.WATCHABLE_TYPE_2_APISTR[entry.get_type()],
                     'datatype': self.DATATYPE_2_APISTR[entry.get_data_type()],
                     'id': entry.get_id()
                 }
@@ -1599,9 +1599,15 @@ class API:
             raise InvalidRequestException(req, "Failed to read acquisition. %s" % (str(err)))
 
         def dataseries_to_api_signal_data(ds: core_datalogging.DataSeries) -> api_typing.DataloggingSignalData:
+            logged_watchable:Optional[api_typing.LoggedWatchable] = None
+            if ds.logged_watchable is not None:
+                logged_watchable = {
+                    'path' : ds.logged_watchable.path,
+                    'type' : ds.logged_watchable.type.value
+                }
             signal: api_typing.DataloggingSignalData = {
                 'name': ds.name,
-                'logged_element': ds.logged_element,
+                'watchable': logged_watchable,
                 'data': [f if math.isfinite(f) else str(f) for f in ds.get_data()]
             }
             return signal

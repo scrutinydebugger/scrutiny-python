@@ -25,7 +25,7 @@ from scrutiny.core.basic_types import *
 from scrutiny.server.datalogging.datalogging_storage import DataloggingStorage
 from scrutiny.server.sfd_storage import SFDStorage
 from scrutiny.core.codecs import Codecs
-from scrutiny.core.datalogging import DataloggingAcquisition, DataSeries
+from scrutiny.core.datalogging import DataloggingAcquisition, DataSeries, LoggedWatchable
 from scrutiny import tools
 
 from typing import Optional, List, Dict, Tuple, cast
@@ -155,7 +155,10 @@ class DataloggingManager:
                     parsed_data = self.read_active_request_data_from_raw_data(signal, data)  # Parse binary data
                     ds = DataSeries(
                         data=parsed_data,
-                        logged_element=signal.entry.display_path
+                        logged_watchable=LoggedWatchable(
+                            path=signal.entry.get_display_path(),
+                            type=signal.entry.get_type()
+                        ) 
                     )
                     if signal.name:
                         ds.name = signal.name
@@ -166,7 +169,7 @@ class DataloggingManager:
                 if self.active_request.api_request.x_axis_type == api_datalogging.XAxisType.Indexed:
                     xaxis.set_data([i for i in range(nb_points)])
                     xaxis.name = 'Index'
-                    xaxis.logged_element = 'Index'
+                    xaxis.logged_watchable = None
                 elif self.active_request.api_request.x_axis_type == api_datalogging.XAxisType.IdealTime:
                     # Ideal time : Generate a time X-Axis based on the sampling rate. Assume the device is running the loop at a reliable fixed rate
                     sampling_rate = self.get_sampling_rate(self.active_request.api_request.rate_identifier)
@@ -176,7 +179,7 @@ class DataloggingManager:
                     timestep *= self.active_request.api_request.decimation
                     xaxis.set_data([round(i * timestep, self.TIME_PRECISION_DIGIT) for i in range(nb_points)])
                     xaxis.name = 'Time (ideal)'
-                    xaxis.logged_element = 'Time (ideal)'
+                    xaxis.logged_watchable = None
                 elif self.active_request.api_request.x_axis_type == api_datalogging.XAxisType.MeasuredTime:
                     # Measured time is appended at the end of the signal list. See make_device_config_from_request
                     time_data = data[-1]
@@ -186,7 +189,7 @@ class DataloggingManager:
                     first_sample = time_codec.decode(time_data[0])
                     xaxis.set_data([(time_codec.decode(sample) - first_sample) * 1e-7 for sample in time_data])
                     xaxis.name = 'Time (measured)'
-                    xaxis.logged_element = 'Time (measured)'
+                    xaxis.logged_watchable = None
                 elif self.active_request.api_request.x_axis_type == api_datalogging.XAxisType.Signal:
                     # Any other signal. Use the data as is.
                     xaxis_signal = self.active_request.api_request.x_axis_signal
@@ -197,7 +200,10 @@ class DataloggingManager:
                     parsed_data = self.read_active_request_data_from_raw_data(xaxis_signal, data)
                     xaxis.set_data(parsed_data)
                     xaxis.name = xaxis_signal.name
-                    xaxis.logged_element = xaxis_signal.entry.get_display_path()
+                    xaxis.logged_watchable = LoggedWatchable(
+                        path = xaxis_signal.entry.get_display_path(),
+                        type = xaxis_signal.entry.get_type()
+                    )
                 else:
                     raise ValueError('Impossible X-Axis type')
 

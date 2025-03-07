@@ -8,9 +8,9 @@
 
 from scrutiny.core.firmware_description import FirmwareDescription
 from scrutiny.core.alias import Alias
-from scrutiny.server.datastore.datastore_entry import *
-from scrutiny.server.datastore.entry_type import EntryType
 from scrutiny.core.variable import *
+from scrutiny.core.basic_types import WatchableType
+from scrutiny.server.datastore.datastore_entry import *
 from test.artifacts import get_artifact
 from binascii import unhexlify
 from test import ScrutinyUnitTest
@@ -79,11 +79,11 @@ class TestSFD(ScrutinyUnitTest):
         self.assertFalse(var_as_dict["/path1/path2/some_float64"].has_enum())
         self.assertIsNone(var_as_dict["/path1/path2/some_float64"].get_enum())
 
-        for fullpath, alias in sfd.get_aliases_for_datastore(EntryType.Var):
-            self.assertEqual(alias.get_target_type(), EntryType.Var)
+        for fullpath, alias in sfd.get_aliases_for_datastore(WatchableType.Variable):
+            self.assertEqual(alias.get_target_type(), WatchableType.Variable)
 
-        for fullpath, alias in sfd.get_aliases_for_datastore(EntryType.RuntimePublishedValue):
-            self.assertEqual(alias.get_target_type(), EntryType.RuntimePublishedValue)
+        for fullpath, alias in sfd.get_aliases_for_datastore(WatchableType.RuntimePublishedValue):
+            self.assertEqual(alias.get_target_type(), WatchableType.RuntimePublishedValue)
 
         aliases_as_dict: Dict[str, Alias] = {}
         for fullpath, alias in sfd.get_aliases_for_datastore():

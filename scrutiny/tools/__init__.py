@@ -27,6 +27,11 @@ def get_not_none(v:Optional[T]) -> T:
     assert v is not None
     return v
 
+def get_default_val(v:Optional[T], default:T) -> T:
+    if v is None:
+        return default
+    return v
+
 def copy_type(f: T) -> Callable[[Any], T]:
     return lambda x: x
 

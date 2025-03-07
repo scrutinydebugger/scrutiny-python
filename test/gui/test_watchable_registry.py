@@ -96,7 +96,7 @@ class TestWatchableRegistry(ScrutinyUnitTest):
         self.assertFalse(self.registry.has_data(sdk.WatchableType.Variable))
     
     def test_fqn(self):
-        for wt in sdk.WatchableType.get_valids():
+        for wt in sdk.WatchableType.all():
             fqn = WatchableRegistry.FQN.make(wt, '/a/b/c')
             o = WatchableRegistry.FQN.parse(fqn)
             self.assertEqual(o.watchable_type, wt)

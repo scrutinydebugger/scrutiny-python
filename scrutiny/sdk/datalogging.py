@@ -29,7 +29,14 @@ __all__ = [
     'TriggerCondition',
     'DataloggingConfig',
     'DataloggingRequest',
-    'DataloggingStorageEntry'
+    'DataloggingStorageEntry',
+
+    # Forwarded from core
+    'AxisDefinition',
+    'DataSeries',
+    'DataSeriesWithAxis',
+    'DataloggingAcquisition',
+    'LoggedWatchable'
 ]
 
 

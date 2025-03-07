@@ -12,18 +12,19 @@ __all__ = [
     'DataTypeSize',
     'EmbeddedDataType',
     'RuntimePublishedValue',
-    'MemoryRegion'
+    'MemoryRegion',
+    'WatchableType'
 ]
 
-from enum import Enum
+from enum import Enum, StrEnum
 from dataclasses import dataclass
 from scrutiny.tools import validation
-from typing import Union
+from typing import Union, List
 
 @dataclass(frozen=True)
 class MemoryRegion:
     """(Immutable struct) 
-    Represent a memory region spanning from ``start`` to ``start+size-1``"""
+    Represent a memory region spanning from ``start`` to ``start+size-1`` inclusively"""
 
     start: int
     """Start address of the region"""
@@ -193,3 +194,20 @@ class RuntimePublishedValue:
 
     def __repr__(self) -> str:
         return "<%s: 0x%x (%s) at 0x%016x>" % (self.__class__.__name__, self.id, self.datatype.name, id(self))
+
+
+class WatchableType(StrEnum):
+    """(Enum) Type of watchable available on the server"""
+
+    Variable = 'var'
+    """A variable found in the device firmware debug symbols"""
+    RuntimePublishedValue = 'rpv'
+    """A readable/writable element identified by a 16bits ID. Explicitly defined in the device firmware source code"""
+    Alias = 'alias'
+    """A symbolic link watchable that can refers to a :attr:`Variable` or a :attr:`RuntimePublishedValue`"""
+
+    @classmethod
+    def all(cls) -> List["WatchableType"]:
+        """Return the list of valid Watchable types. Mainly for unit testing"""
+        return [cls.Variable, cls.RuntimePublishedValue, cls.Alias]
+    

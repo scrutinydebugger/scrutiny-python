@@ -9,7 +9,7 @@
 import enum
 from dataclasses import dataclass
 from datetime import datetime
-from scrutiny.core.basic_types import MemoryRegion, EmbeddedDataType
+from scrutiny.core.basic_types import MemoryRegion, EmbeddedDataType, WatchableType
 from scrutiny.core.embedded_enum import EmbeddedEnum
 from scrutiny.tools import validation
 import abc
@@ -75,23 +75,6 @@ class DeviceCommState(enum.Enum):
     """Handshake in progress between the server and the device"""
     ConnectedReady = 3
     """A device is connected and ready to respond to queries."""
-
-
-class WatchableType(enum.Enum):
-    """(Enum) Type of watchable available on the server"""
-
-    NA = 0
-    Variable = 1
-    """A variable found in the device firmware debug symbols"""
-    RuntimePublishedValue = 2
-    """A readable/writable element identified by a 16bits ID. Explicitly defined in the device firmware source code"""
-    Alias = 3
-    """A symbolic link watchable that can refers to a :attr:`Variable` or a :attr:`RuntimePublishedValue`"""
-
-    @classmethod
-    def get_valids(cls) -> List["WatchableType"]:
-        """Return the list of valid Watchable types. Mainly for unit testing"""
-        return [cls.Variable, cls.RuntimePublishedValue, cls.Alias]
 
 
 class ValueStatus(enum.Enum):

@@ -11,7 +11,8 @@ from uuid import uuid4
 import random
 from test import ScrutinyUnitTest
 from scrutiny.server.datalogging.datalogging_storage import DataloggingStorage
-from scrutiny.core.datalogging import DataloggingAcquisition, DataSeries, AxisDefinition
+from scrutiny.core.datalogging import DataloggingAcquisition, DataSeries, AxisDefinition, LoggedWatchable
+from scrutiny.core.basic_types import WatchableType
 from datetime import datetime, timedelta
 import time
 
@@ -19,7 +20,7 @@ import time
 class TestDataloggingStorage(ScrutinyUnitTest):
 
     def make_dummy_data(self, datalen: int) -> DataSeries:
-        series = DataSeries(name=uuid4().hex, logged_element=uuid4().hex)
+        series = DataSeries(name=uuid4().hex, logged_watchable=LoggedWatchable(uuid4().hex, WatchableType.Variable))
         series.set_data([random.random() for i in range(datalen)])
         return series
 
