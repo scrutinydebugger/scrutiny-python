@@ -49,6 +49,9 @@ class AxisStandardItem(QStandardItem):
     def detach_axis(self) -> None:
         self._chart_axis = None
     
+    def axis_attached(self) -> bool:
+        return self._chart_axis is not None
+    
     def axis(self) -> QValueAxis:
         assert self._chart_axis is not None
         return self._chart_axis
@@ -124,6 +127,7 @@ class GraphSignalModel(BaseTreeModel):
     _watchable_registry:WatchableRegistry
     _available_palette:QPalette
     _unavailable_palette:QPalette
+    _globally_uneditable:bool
 
     def __init__(self, 
                 parent:QWidget, 
@@ -134,6 +138,7 @@ class GraphSignalModel(BaseTreeModel):
                 ) -> None:
         super().__init__(parent, nesting_col= self.axis_col())
         self._watchable_registry = watchable_registry
+        self._globally_uneditable = False
         if has_value_col:
             self.setColumnCount(2)
         else:
@@ -157,6 +162,10 @@ class GraphSignalModel(BaseTreeModel):
 
     def make_axis_row(self, axis_name:str) -> List[AxisStandardItem]:
         axis_item = AxisStandardItem(axis_name)
+        axis_item.setEditable(True)
+        if self._globally_uneditable:
+            axis_item.setEditable(False)
+        
         return [axis_item]
 
     def axis_col(self) -> int:
@@ -171,6 +180,8 @@ class GraphSignalModel(BaseTreeModel):
     
     def make_watchable_item_row(self, watchable_item:ChartSeriesWatchableStandardItem) -> List[QStandardItem]:
         watchable_item.setEditable(True)
+        if self._globally_uneditable:
+            watchable_item.setEditable(False)
         watchable_item.setDragEnabled(True)
 
         outlist:List[QStandardItem] = [watchable_item]
@@ -179,7 +190,6 @@ class GraphSignalModel(BaseTreeModel):
             value_item.setEditable(False)
             outlist.append(value_item)
         return outlist
-
 
     def get_watchable_row_from_dragged_watchable_desc(self, watchable_desc:SingleWatchableDescriptor) -> List[QStandardItem]:
         watchable_item = ChartSeriesWatchableStandardItem.from_drag_watchable_descriptor(watchable_desc)
@@ -206,7 +216,7 @@ class GraphSignalModel(BaseTreeModel):
             
         return True
             
-    def _get_last_axisor_create(self) -> AxisStandardItem:
+    def _get_last_axis_or_create(self) -> AxisStandardItem:
         if self.rowCount() == 0:
             self.add_axis("Axis 1")
 
@@ -275,7 +285,7 @@ class GraphSignalModel(BaseTreeModel):
         
         parent_item = self.itemFromIndex(parent)
         del parent
-        last_axis = self._get_last_axisor_create()
+        last_axis = self._get_last_axis_or_create()
 
         if parent_item is None:
             parent_item = last_axis
@@ -363,6 +373,14 @@ class GraphSignalModel(BaseTreeModel):
                 assert isinstance(series_item, ChartSeriesWatchableStandardItem)
                 self.update_availability(series_item)
     
+    def set_all_available(self) -> None:
+        for i in range(self.rowCount()):
+            axis = self.item(i, self.watchable_col())
+            for j in range(axis.rowCount()):
+                series_item = axis.child(j, self.watchable_col())
+                assert isinstance(series_item, ChartSeriesWatchableStandardItem)
+                self.set_available(series_item)
+
     def has_unavailable_signals(self) -> bool:
         """Return True if one signal refers to an unavailable watchable in the registry"""
         for i in range(self.rowCount()):
@@ -405,6 +423,25 @@ class GraphSignalModel(BaseTreeModel):
                 outlist.append( axis_item.child(i, self.value_col()) )
         return outlist
 
+    def _update_editable_field(self) -> None:
+        editable = not self._globally_uneditable
+        for i in range(self.rowCount()):
+            axis_item = self.item(i, self.axis_col())
+            axis_item.setEditable(editable)
+            for i in range(axis_item.rowCount()):
+                axis_item.child(i, self.watchable_col()).setEditable(editable)
+                if self.has_value_col():
+                    axis_item.child(i, self.value_col()).setEditable(False)
+
+
+    def disallow_item_edition(self) -> None:
+        self._globally_uneditable = True
+        self._update_editable_field()
+
+    def allow_item_edition(self) -> None:
+        self._globally_uneditable = False
+        self._update_editable_field()
+
 class GraphSignalTree(BaseTreeView):
     
     class _Signals(QObject):
@@ -439,6 +476,9 @@ class GraphSignalTree(BaseTreeView):
     def update_all_availabilities(self) -> None:
         self.model().update_all_availabilities()
     
+    def set_all_available(self) -> None:
+        self.model().set_all_available()
+
     def has_unavailable_signals(self) -> bool:
         return self.model().has_unavailable_signals()
 
@@ -559,15 +599,17 @@ class GraphSignalTree(BaseTreeView):
         
         return list(selected_axes.values())
                 
-        
 
     def lock(self) -> None:
-        self.setDragDropMode(self.DragDropMode.NoDragDrop)
+        self.setDragDropMode(self.DragDropMode.DragOnly)
         self._locked = True
+        self.model().disallow_item_edition()
+
     
     def unlock(self) -> None:
         self.setDragDropMode(self.DragDropMode.DragDrop)
         self._locked = False
+        self.model().allow_item_edition()
 
     def reload_original_icons(self) -> None:
         self.model().reload_original_icons()

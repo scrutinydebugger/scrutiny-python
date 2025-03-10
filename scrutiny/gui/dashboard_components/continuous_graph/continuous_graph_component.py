@@ -343,6 +343,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
     def clear_graph(self) -> None:
         """Delete the graph content and reset the state to of the component to a vanilla state"""
         self._chartview.chart().hide_mouse_callout()
+        self._chart_toolbar.disable_chart_cursor()
         self._chartview.chart().removeAllSeries()
         self._clear_stats_and_hide()
         

@@ -408,6 +408,8 @@ class WatchableRegistry:
             node = self._get_node(watchable_type, path)
             if isinstance(node, WatchableRegistryEntryNode):
                 return node.configuration
+        except WatchableRegistryNodeNotFoundError:
+            return None
         except WatchableRegistryError as e:
             tools.log_exception(self._logger, e)
             return None
