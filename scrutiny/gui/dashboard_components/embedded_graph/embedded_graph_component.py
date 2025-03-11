@@ -24,7 +24,7 @@ from scrutiny.sdk.client import ScrutinyClient
 from scrutiny.gui import assets
 from scrutiny.gui.tools import prompt
 from scrutiny.gui.dashboard_components.embedded_graph.graph_config_widget import GraphConfigWidget
-from scrutiny.gui.dashboard_components.embedded_graph.chart_center_message_icon import ChartCenterMessageIcon
+from scrutiny.gui.dashboard_components.embedded_graph.chart_status_overlay import ChartStatusOverlay
 from scrutiny.gui.dashboard_components.common.base_chart import (
     ScrutinyChart, ScrutinyChartView, ScrutinyChartToolBar,  ScrutinyLineSeries, ScrutinyValueAxisWithMinMax
     )
@@ -104,7 +104,7 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
     _xaxis:Optional[ScrutinyValueAxisWithMinMax]
     _yaxes:List[ScrutinyValueAxisWithMinMax]
     _displayed_acquisition:Optional[DataloggingAcquisition]
-    _chart_center_message:ChartCenterMessageIcon
+    _chart_status_overlay:ChartStatusOverlay
 
     _left_pane:QWidget
     _center_pane:QWidget
@@ -161,8 +161,8 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
             self._chart_toolbar = ScrutinyChartToolBar(self._chartview)
             self._chart_toolbar.hide()
 
-            self._chart_center_message = ChartCenterMessageIcon(chart)
-            self._chart_center_message.setVisible(False)
+            self._chart_status_overlay = ChartStatusOverlay(chart)
+            self._chart_status_overlay.setVisible(False)
 
             return self._chartview
 
@@ -314,7 +314,7 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
         # We chain 2 background request. 1 for the initial request, 2 to wait for completion.
         # Promises could be nice here, we don't have that.
         
-        self._chart_center_message.set(assets.Icons.Eye, "Waiting...")
+        self._chart_status_overlay.set(assets.Icons.Eye, "Waiting...")
 
         def bg_thread_start_datalog(client:ScrutinyClient) -> DataloggingRequest:
             return client.start_datalog(config)

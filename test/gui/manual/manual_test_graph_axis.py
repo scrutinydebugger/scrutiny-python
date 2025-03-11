@@ -24,8 +24,6 @@ from scrutiny.gui.dashboard_components.common.graph_signal_tree import GraphSign
 
 from test.gui.fake_server_manager import FakeServerManager, ServerConfig
 
-app.setStyleSheet(assets.load_text(["stylesheets", "scrutiny_base.qss"]))
-
 window = QMainWindow()
 central_widget = QWidget()
 window.setCentralWidget(central_widget)
