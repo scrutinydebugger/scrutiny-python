@@ -98,6 +98,7 @@ class Icons(enum.Enum):
     TestSquare="test-square"
     TestVRect="test-vrect"
     TestHRect="test-hrect"
+    Trigger="trigger"
 
 def icon_filename(name:Icons, format:IconFormat, iconset:IconSet=IconSet.Default) -> Path:
     possible_formats = {

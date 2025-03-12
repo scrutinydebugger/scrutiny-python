@@ -50,13 +50,13 @@ class ChartStatusOverlay(QGraphicsItem):
         assert parent is not None
         parent_rect = parent.boundingRect()
         
+        # Compute icon and text rect relative to the parent
         max_w = float(max(parent_rect.width() - 2*self.MARGIN, 0))
         max_h = float(max(parent_rect.height() - 2*self.MARGIN, 0))
         metrics = QFontMetrics(self._font)
         text_h = float(metrics.height())
         icon_max_h = max(max_h - text_h, 0)
 
-        # Compute icon and text rect relative to the parent
         self._icon_rect = None
         self._icon_resized = None
         if self._icon is not None:
@@ -114,4 +114,4 @@ class ChartStatusOverlay(QGraphicsItem):
         painter.setPen(QColor(0,0,0))
         painter.setFont(self._font)
         painter.drawText(self._text_rect, self._text)
-        pass
+        

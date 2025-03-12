@@ -123,6 +123,8 @@ class AxisContent:
     signal_items:List[ChartSeriesWatchableStandardItem]
 
 class GraphSignalModel(BaseTreeModel):
+
+
     _has_value_col:bool
     _watchable_registry:WatchableRegistry
     _available_palette:QPalette
@@ -446,10 +448,10 @@ class GraphSignalTree(BaseTreeView):
     
     class _Signals(QObject):
         selection_changed = Signal()
+        content_changed = Signal()
     
     _locked:bool
     _signals:_Signals
-    
 
     def model(self) -> GraphSignalModel:
         return cast(GraphSignalModel, super().model())
@@ -487,10 +489,12 @@ class GraphSignalTree(BaseTreeView):
             self.expand(parent)
         super().rowsInserted(parent, start, end)
         self.resizeColumnToContents(0)
+        self._signals.content_changed.emit()
     
     def rowsRemoved(self, parent:Union[QModelIndex, QPersistentModelIndex], first:int, last:int) -> None:
         super().rowsRemoved(parent, first, last)
         self.resizeColumnToContents(0)
+        self._signals.content_changed.emit()
     
     def _set_drag_and_drop_action(self, event:Union[QDragEnterEvent, QDragMoveEvent, QDropEvent]) -> None:
         if event.source() is self:

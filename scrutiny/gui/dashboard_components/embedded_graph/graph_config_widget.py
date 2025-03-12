@@ -11,7 +11,7 @@ __all__ = ['GraphConfigWidget', 'GetSignalDatatypeFn', 'ValidationResult']
 
 import math
 from dataclasses import dataclass
-from PySide6.QtWidgets import QWidget, QFormLayout, QComboBox, QSpinBox, QLabel, QLineEdit, QVBoxLayout, QGroupBox,QTextEdit 
+from PySide6.QtWidgets import QWidget, QFormLayout, QComboBox, QSpinBox, QLabel, QLineEdit, QVBoxLayout, QGroupBox, QSizePolicy 
 from PySide6.QtGui import QDoubleValidator, QStandardItemModel
 from PySide6.QtCore import Qt
 from scrutiny.gui.widgets.validable_line_edit import ValidableLineEdit
@@ -115,6 +115,7 @@ class GraphConfigWidget(QWidget):
         MAX_TIMEOUT_SEC = math.floor((2**32 - 1) * 1e-7)            # 32bits, increment of 100ns
 
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(2,0,2,0)
         layout.setAlignment(Qt.AlignmentFlag.AlignTop)
         acquisition_container = QGroupBox("Acquisition")
         sampling_rate_container = QGroupBox("Sampling rate")
@@ -137,6 +138,7 @@ class GraphConfigWidget(QWidget):
         # Widgets
         self._txt_acquisition_name = QLineEdit(self)
         self._cmb_sampling_rate = QComboBox(self)
+        self._cmb_sampling_rate.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Preferred)
         self._spin_decimation = QSpinBox(self)
         self._lbl_effective_sampling_rate = QLabel(self)
         self._spin_trigger_position = QSpinBox(self)
@@ -210,20 +212,20 @@ class GraphConfigWidget(QWidget):
             layout.addRow(label, widget)
 
         # Layouts
-        add_row(self._acquisition_layout, "Acquisition name", self._txt_acquisition_name, HelpStrings.ACQUISITION_NAME)
-        add_row(self._acquisition_layout, "Acquisition timeout (s)", self._txt_acquisition_timeout, HelpStrings.ACQUISITION_TIMEOUT)
-        add_row(self._acquisition_layout, "Estimated duration ", self._lbl_estimated_duration, HelpStrings.ESTIMATED_DURATION)
+        add_row(self._acquisition_layout, "Name", self._txt_acquisition_name, HelpStrings.ACQUISITION_NAME)
+        add_row(self._acquisition_layout, "Timeout (s)", self._txt_acquisition_timeout, HelpStrings.ACQUISITION_TIMEOUT)
+        add_row(self._acquisition_layout, "Duration ", self._lbl_estimated_duration, HelpStrings.ESTIMATED_DURATION)
         
-        add_row(self._sampling_rate_layout, "Sampling Rate", self._cmb_sampling_rate, HelpStrings.SAMPLING_RATE)
+        add_row(self._sampling_rate_layout, "Rate", self._cmb_sampling_rate, HelpStrings.SAMPLING_RATE)
         add_row(self._sampling_rate_layout, "Decimation", self._spin_decimation, HelpStrings.DECIMATION)
-        add_row(self._sampling_rate_layout, "Effective sampling rate", self._lbl_effective_sampling_rate, HelpStrings.EFFECTIVE_SAMPLING_RATE)
+        add_row(self._sampling_rate_layout, "Effective rate", self._lbl_effective_sampling_rate, HelpStrings.EFFECTIVE_SAMPLING_RATE)
         
         add_row(self._xaxis_layout, "X-Axis type", self._cmb_xaxis_type, HelpStrings.XAXIS_TYPE)
         add_row(self._xaxis_layout, "X watchable", self._txtw_xaxis_signal, HelpStrings.XAXIS_SIGNAL)
         
-        add_row(self._trigger_layout, "Trigger position (%)", self._spin_trigger_position, HelpStrings.TRIGGER_POSITIION)
+        add_row(self._trigger_layout, "Position (%)", self._spin_trigger_position, HelpStrings.TRIGGER_POSITIION)
         add_row(self._trigger_layout, "Hold Time (ms)", self._txt_hold_time_ms, HelpStrings.HOLD_TIME)
-        add_row(self._trigger_layout, "Trigger condition", self._cmb_trigger_condition, HelpStrings.TRIGGER_CONDITION)
+        add_row(self._trigger_layout, "Condition", self._cmb_trigger_condition, HelpStrings.TRIGGER_CONDITION)
         add_row(self._trigger_layout, "  - Operand 1 (x1)", self._txtw_trigger_operand1, HelpStrings.OPERAND1)
         add_row(self._trigger_layout, "  - Operand 2 (x2)", self._txtw_trigger_operand2, HelpStrings.OPERAND2)
         add_row(self._trigger_layout, "  - Operand 3 (x3)", self._txtw_trigger_operand3, HelpStrings.OPERAND3)
@@ -360,7 +362,7 @@ class GraphConfigWidget(QWidget):
                 if self._get_signal_dtype_fn is not None:
                     estimated_duration_sec = self._compute_estimated_duration()
                     if estimated_duration_sec is not None:
-                        estimated_duration_label_txt = tools.format_eng_unit(estimated_duration_sec, decimal=1, unit="s")
+                        estimated_duration_label_txt = "~"+tools.format_eng_unit(estimated_duration_sec, decimal=1, unit="s")
 
         self._lbl_effective_sampling_rate.setText(effective_sampling_rate_label_txt)
         self._lbl_estimated_duration.setText(estimated_duration_label_txt)

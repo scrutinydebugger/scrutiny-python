@@ -244,7 +244,6 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
             param_layout.addRow("Graph width (s)", self._spinbox_graph_max_width)
 
             self._feedback_label = FeedbackLabel()
-            self._feedback_label.text_label().setWordWrap(True)
             self._graph_maintenance_timer = QTimer()
             self._graph_maintenance_timer.setInterval(1000)
             self._graph_maintenance_timer.timeout.connect(self._graph_maintenance_timer_slot)

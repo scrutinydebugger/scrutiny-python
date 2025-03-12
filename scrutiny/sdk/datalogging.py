@@ -424,6 +424,11 @@ class DataloggingRequest(PendingRequest):
     def acquisition_reference_id(self) -> Optional[str]:
         """The unique ID used to fetch the acquisition data from the server. Value is set only if request is completed and succeeded. ``None`` otherwise"""
         return self._acquisition_reference_id
+    
+    @property
+    def request_token(self) -> str:
+        """A unique token assigned to this request by the server"""
+        return self._request_token
 
 
 @dataclass(frozen=True)
