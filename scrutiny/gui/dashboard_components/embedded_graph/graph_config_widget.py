@@ -99,6 +99,8 @@ class GraphConfigWidget(QWidget):
     """Type of X-Axis"""
     _txtw_xaxis_signal:WatchableLineEdit
     """A watchable for X-Axis when X-Axis type = Signal"""
+    _user_changed_xaxis:bool
+    """A flag that latches to True when the user changes the value of the X-Axis type combo box"""
 
     _acquisition_layout:QFormLayout
     _trigger_layout:QFormLayout
@@ -113,6 +115,7 @@ class GraphConfigWidget(QWidget):
         super().__init__(parent)
         MAX_HOLD_TIME_MS = math.floor((2**32 - 1) * 1e-7) * 1e3     # 32bits, increment of 100ns
         MAX_TIMEOUT_SEC = math.floor((2**32 - 1) * 1e-7)            # 32bits, increment of 100ns
+        self._user_changed_xaxis = False
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(2,0,2,0)
@@ -133,7 +136,6 @@ class GraphConfigWidget(QWidget):
         self._device_info = None
         self._get_signal_dtype_fn = get_signal_dtype_fn
         self._watchable_registry = watchable_registry
-
 
         # Widgets
         self._txt_acquisition_name = QLineEdit(self)
@@ -195,7 +197,8 @@ class GraphConfigWidget(QWidget):
         self._cmb_trigger_condition.setCurrentIndex(self._cmb_trigger_condition.findData(TriggerCondition.AlwaysTrue))
         self._cmb_trigger_condition.currentIndexChanged.connect(self._trigger_condition_changed_slot)
         self._cmb_sampling_rate.currentIndexChanged.connect(self._sampling_rate_changed_slot)
-        self._cmb_xaxis_type.currentIndexChanged.connect(self._xaxis_type_changed)
+        self._cmb_xaxis_type.currentIndexChanged.connect(self._xaxis_type_changed_slot)
+        self._cmb_xaxis_type.activated.connect(self._xaxis_type_activated_slot)
         self._spin_decimation.valueChanged.connect(self._decimation_changed_slot)
 
         self._acquisition_layout.setLabelAlignment(Qt.AlignmentFlag.AlignLeft)
@@ -237,10 +240,20 @@ class GraphConfigWidget(QWidget):
 
     def _sampling_rate_changed_slot(self) -> None:
         self.update_content()
+
+        if self._user_changed_xaxis == False:
+            rate = self.get_selected_sampling_rate()
+            if isinstance(rate, FixedFreqSamplingRate):
+                self.set_axis_type(XAxisType.IdealTime)
+            elif isinstance(rate, VariableFreqSamplingRate):
+                self.set_axis_type(XAxisType.MeasuredTime)
     
-    def _xaxis_type_changed(self) -> None:
+    def _xaxis_type_changed_slot(self) -> None:
         self.update_content()
     
+    def _xaxis_type_activated_slot(self) -> None:
+        self._user_changed_xaxis = True
+
     def _decimation_changed_slot(self) -> None:
         self.update_content()
 
@@ -535,6 +548,14 @@ class GraphConfigWidget(QWidget):
             return None
         val = float(self._txt_acquisition_timeout.text())
         return val
+    
+
+    def set_axis_type(self, axis_type:XAxisType) -> None:
+        selected_sampling_rate = self.get_selected_sampling_rate()
+        if axis_type == XAxisType.IdealTime and (selected_sampling_rate is None or not isinstance(selected_sampling_rate, FixedFreqSamplingRate)):
+            raise ValueError("Cannot set X Axis type = IdealTime when the selected sampling rate is not a fixed frequency rate")
+        self._cmb_xaxis_type.setCurrentIndex(self._cmb_xaxis_type.findData(axis_type))
+        self.update_content()
 
     def get_txt_acquisition_name(self) -> QLineEdit:
         return self._txt_acquisition_name

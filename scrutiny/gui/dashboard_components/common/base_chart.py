@@ -653,7 +653,7 @@ class ScrutinyChartView(QChartView):
         """When the chartview has finished repainting. USed for throttling the update rate"""
         key_pressed = Signal(QKeyEvent)
         """Forwarding the keypress event"""
-        resized = Signal()
+        resized = Signal(QResizeEvent)
         """Emitted when the chartview is resized"""
         chart_cursor_moved = Signal(ChartCursorMovedData)
         """Emitted when the chart cursor is moved and snapped to new series"""
@@ -717,7 +717,7 @@ class ScrutinyChartView(QChartView):
     def resizeEvent(self, event:QResizeEvent) -> None:
         super().resizeEvent(event)
         self.update()
-        self._signals.resized.emit()
+        self._signals.resized.emit(event)
 
     def setChart(self, chart:QChart) -> None:
         assert isinstance(chart, ScrutinyChart)

@@ -13,12 +13,12 @@ from typing import Dict, Any
 
 from PySide6.QtWidgets import QVBoxLayout, QLabel, QWidget, QSplitter, QPushButton, QScrollArea, QHBoxLayout, QMenu
 from PySide6.QtCore import Qt, QPointF, QRectF
-from PySide6.QtGui import QContextMenuEvent, QKeyEvent
+from PySide6.QtGui import QContextMenuEvent, QKeyEvent, QResizeEvent
 
 
 from scrutiny import sdk
 from scrutiny.sdk import EmbeddedDataType
-from scrutiny.sdk.datalogging import DataloggingConfig, DataloggingRequest, DataloggingAcquisition
+from scrutiny.sdk.datalogging import DataloggingConfig, DataloggingRequest, DataloggingAcquisition, XAxisType, FixedFreqSamplingRate, DataloggerState
 from scrutiny.sdk.client import ScrutinyClient
 
 from scrutiny.gui import assets
@@ -61,6 +61,9 @@ class EmbeddedGraphState:
     
     def must_force_signal_tree_element_available(self) -> bool:
         return self.has_content
+    
+    def must_show_overlay(self) -> bool:
+        return self.waiting_on_graph or self.has_failure_message
 
     def enable_clear_button(self) -> bool:
         return self.has_content or self.has_failure_message
@@ -115,6 +118,10 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
 
     def setup(self) -> None:
         layout = QVBoxLayout(self)
+        margins = layout.contentsMargins()
+        margins.setLeft(0)
+        margins.setRight(0)
+        layout.setContentsMargins(margins)
         self._state = EmbeddedGraphState(
             has_content=False,
             waiting_on_graph=False,
@@ -122,6 +129,7 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
             has_failure_message=False
         )
 
+        self._teared_down = False
         self._displayed_acquisition = None
         self._pending_request = None
         self._request_to_ignore_completions = {}
@@ -163,13 +171,13 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
             self._chartview.signals.context_menu_event.connect(self._chart_context_menu_slot)
             self._chartview.signals.zoombox_selected.connect(self._chartview_zoombox_selected_slot)
             self._chartview.signals.key_pressed.connect(self._chartview_key_pressed_slot)
-            self._chartview.signals.resized.connect(lambda:self._chartview.update())
+            self._chartview.signals.resized.connect(self._chartview_resized_slot)
             self._chartview.set_interaction_mode(ScrutinyChartView.InteractionMode.SELECT_ZOOM)
             self._chart_toolbar = ScrutinyChartToolBar(self._chartview)
             self._chart_toolbar.hide()
 
             self._chart_status_overlay = ChartStatusOverlay(chart)
-            self._chart_status_overlay.setVisible(False)
+            self._chart_status_overlay.hide()
 
             return self._chartview
 
@@ -229,7 +237,13 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
         self.server_manager.signals.device_disconnected.connect(self._update_datalogging_capabilities)
         self.server_manager.signals.device_ready.connect(self._update_datalogging_capabilities)
         self.server_manager.signals.registry_changed.connect(self._registry_changed_slot)
+        self.server_manager.signals.datalogging_state_changed.connect(self._datalogging_state_changed_slot)
         self._update_datalogging_capabilities()
+
+        self._graph_config_widget.set_axis_type(XAxisType.MeasuredTime)
+        rate = self._graph_config_widget.get_selected_sampling_rate()
+        if rate is not None and isinstance(rate, FixedFreqSamplingRate):
+            self._graph_config_widget.set_axis_type(XAxisType.IdealTime)
 
         self._apply_internal_state()
 
@@ -241,7 +255,7 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
         
 
     def teardown(self) -> None:
-        pass
+        self._teared_down = True
 
     def get_state(self) -> Dict[Any, Any]:
         raise NotImplementedError()
@@ -270,6 +284,8 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
             self._signal_tree.set_all_available()
         else:
             self._signal_tree.update_all_availabilities()
+        
+        self._chart_status_overlay.setVisible(self._state.must_show_overlay())
 
     def _update_datalogging_capabilities(self) -> None:
         self._graph_config_widget.configure_from_device_info(self.server_manager.get_device_info())
@@ -310,14 +326,16 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
 
         # Config is good. 
         self._feedback_label.clear()
-        self._clear_graph()
-        self._state.waiting_on_graph = True
-        self._apply_internal_state()
+        self._clear_graph()        
         self._acquire(result.config)    # Request the server for that acquisition
         
     def _acquire(self, config:DataloggingConfig) -> None:
         # We chain 2 background request. 1 for the initial request, 2 to wait for completion.
         # Promises could be nice here, we don't have that.
+
+        self._state.waiting_on_graph = True
+        self._chart_status_overlay.set(assets.Icons.Trigger, "Configuring")
+        self._apply_internal_state()
 
         self.logger.debug(f"Requesting datalog for config {config}")
 
@@ -326,6 +344,10 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
 
         def qt_thread_datalog_started(request:Optional[DataloggingRequest], error:Optional[Exception]) -> None:
             # Callbak #1. The request is received and aknowledged by the server
+
+            if self._teared_down:
+                return  # Silent exit
+
             if error is not None:
                 self._callback_request_failed(request=None, error=error, msg="")
                 return
@@ -339,12 +361,17 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
             else:
                 self._request_to_ignore_completions.clear()
 
+            self._chart_status_overlay.set(assets.Icons.Trigger, "Waiting for trigger...")
+
             # We have a pending request. Launch a background task to wait for completion.
             def bg_thread_wait_for_completion(client:ScrutinyClient) -> None:
                 request.wait_for_completion()
             
             def qt_thread_request_completed(_:None, error:Optional[Exception]) -> None:
                 # Callback #2. The acquisition is completed (success or failed)
+
+                if self._teared_down:
+                    return # Silent exit
                 
                 self.logger.debug(f"Request {request.request_token} completed")
                 if id(request) in self._request_to_ignore_completions:
@@ -374,8 +401,8 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
                 ui_thread_callback=qt_thread_request_completed
             )
 
-            self._feedback_label.set_info("Wating for trigger...")
-            self._chart_status_overlay.set(assets.Icons.Trigger, "Waiting for trigger...")
+            self._feedback_label.clear()
+            self._apply_internal_state()
         
         self.server_manager.schedule_client_request(
             user_func= bg_thread_start_datalog,
@@ -400,6 +427,26 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
         """Called when the server manager has finished making a change to the registry"""
         if not self._state.has_content: # We are not inspecting data.
             self._signal_tree.update_all_availabilities()
+
+    def _datalogging_state_changed_slot(self) -> None:
+        self._update_acquiring_overlay()
+
+    def _update_acquiring_overlay(self) -> None:
+        info = self.server_manager.get_server_info()
+        if info is None:
+            return 
+        if self._state.waiting_on_graph:
+            if info.datalogging.state == DataloggerState.Standby:
+                self._chart_status_overlay.set(None, "")
+            elif info.datalogging.state == DataloggerState.WaitForTrigger:
+                self._chart_status_overlay.set(assets.Icons.Trigger, "Waiting for trigger...")
+            elif info.datalogging.state == DataloggerState.Acquiring:
+                s = "Acquiring"
+                ratio = info.datalogging.completion_ratio
+                if ratio is not None:
+                    percent = int(round(max(min(ratio, 1), 0) * 100)) 
+                    s += f" ({int(percent)}%)"
+                self._chart_status_overlay.set(assets.Icons.Trigger, s)
 
     def _callback_request_failed(self, 
                                  request:Optional[DataloggingRequest], 
@@ -439,9 +486,6 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
 
             assert acquisition is not None
             self._display_acquisition(acquisition)
-            self._state.waiting_on_graph = False
-            self._state.has_content = True
-            self._apply_internal_state()
 
         self.server_manager.schedule_client_request(
             user_func=ephemerous_thread_download_data, 
@@ -488,15 +532,21 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
         self._clear_graph()
         self._chart_status_overlay.set(assets.Icons.Error, message)
         self._state.has_failure_message = True
+        self._apply_internal_state()
 
     def _clear_graph_error(self) -> None:
         self._chart_status_overlay.set(None, "")
-        self._chart_status_overlay.hide()
         self._state.has_failure_message = False
+        self._apply_internal_state()
 
     def _display_acquisition(self, acquisition:DataloggingAcquisition) -> None:
         self._clear_graph()
+        self._chart_status_overlay.set(None, "")
         self._chart_status_overlay.hide()
+        self._state.has_failure_message = False
+        self._state.waiting_on_graph = False
+        self._state.has_content = True
+        
 
         # Todo, we could reload a SFD when downloading an acquisiton from a different SFD
         self._displayed_acquisition = acquisition
@@ -580,6 +630,8 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
             self._xval_label.setText(f"{acquisition.xdata.name} : {val}")
             self._xval_label.setVisible(enabled)
         self._chartview.configure_chart_cursor(self._signal_tree, update_xval)
+
+        self._apply_internal_state()
 
 
     def _chartview_zoombox_selected_slot(self, zoombox:QRectF) -> None:
@@ -751,7 +803,6 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
             else:
                 axis.deemphasize()
 
-
     def _get_item_series(self, item:ChartSeriesWatchableStandardItem) -> ScrutinyLineSeries:
         """Return the series tied to a Tree Item (right menu)"""
         return cast(ScrutinyLineSeries, item.series())
@@ -764,3 +815,7 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
         """Chartview Event forwarded through a signal"""
         if event.key() == Qt.Key.Key_Escape:
             self._signal_tree.clearSelection()
+
+    def _chartview_resized_slot(self, event:QResizeEvent) -> None:
+        """Chartview Event forwarded through a signal"""
+        self._chart_status_overlay.adjust_sizes()

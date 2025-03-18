@@ -32,6 +32,7 @@ class ChartStatusOverlay(QGraphicsItem):
         self.setZValue(11)
     
     def set_font_size(self, pixel_size:int) -> None:
+        self.prepareGeometryChange()
         self._font.setPixelSize(pixel_size)
 
     def set(self, icon:Optional[assets.Icons], text:str) -> None:
@@ -42,7 +43,6 @@ class ChartStatusOverlay(QGraphicsItem):
             self._icon = None
         self._text = text
         self._compute_geometry()
-        self.show()
 
     def _compute_geometry(self) -> None:
         self.prepareGeometryChange()
@@ -115,3 +115,6 @@ class ChartStatusOverlay(QGraphicsItem):
         painter.setFont(self._font)
         painter.drawText(self._text_rect, self._text)
         
+    def adjust_sizes(self) -> None:
+        """Recompute the position of the overlay elements and update the content"""
+        self._compute_geometry()
