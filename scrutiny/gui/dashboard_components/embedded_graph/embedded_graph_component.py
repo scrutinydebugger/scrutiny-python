@@ -608,6 +608,14 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
             assert len(xseries_data) == len(yseries_data)
             
             qt_pointf_data = [QPointF(xseries_data[i], yseries_data[i]) for i in range(len(xseries_data))]
+            
+            # if this is not none, the x-axis was a watchable.
+            # We sort according to the X-Value so that the x-axis is monotonic.
+            # Moving graph cursor expect monotonic data. 
+            # It's also faster to search and avoid left right lines in the graph
+            if acquisition.xdata.logged_watchable is not None:
+                qt_pointf_data.sort(key=lambda p: p.x())
+
             series.replace(qt_pointf_data)
             series.attachAxis(self._xaxis)
             series.attachAxis(qt_yaxis)
