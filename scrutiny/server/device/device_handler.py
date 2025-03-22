@@ -561,19 +561,20 @@ class DeviceHandler:
 
     def process(self) -> None:
         """To be called periodically"""
+        previous_datalogging_data = self.datalogging_poller.get_state_and_completion_ratio()
 
         self.device_searcher.process()
         self.heartbeat_generator.process()
         self.info_poller.process()
-        previous_datalogging_data = self.datalogging_poller.get_state_and_completion_ratio()
         self.datalogging_poller.process()
-        new_datalogging_data = self.datalogging_poller.get_state_and_completion_ratio()
         self.session_initializer.process()
         self.memory_reader.process()
         self.memory_writer.process()
         self.dispatcher.process()
 
         self.process_comm()      # Make sure request and response are being exchanged with the device
+        # datalogging data changes after process_comm. process_comm receive responses and calls the callbacks that update the states.
+        new_datalogging_data = self.datalogging_poller.get_state_and_completion_ratio()
 
         previous_status = self.get_connection_status()
         self.do_state_machine()
@@ -586,7 +587,6 @@ class DeviceHandler:
         if previous_datalogging_data != new_datalogging_data:
             for callback2 in self.datalogger_state_changed_callbacks:
                 callback2(new_datalogging_data[0], new_datalogging_data[1])
-
 
     def reset_bitrate_monitor(self) -> None:
         """Reset internal bitrate counter"""
