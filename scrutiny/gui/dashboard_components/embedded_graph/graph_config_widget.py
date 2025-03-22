@@ -206,7 +206,6 @@ class GraphConfigWidget(QWidget):
         self._xaxis_layout.setLabelAlignment(Qt.AlignmentFlag.AlignLeft)
         self._sampling_rate_layout.setLabelAlignment(Qt.AlignmentFlag.AlignLeft)
         
-
         def add_row(layout:QFormLayout, txt:str, widget:QWidget, tooltip:Optional[str]=None) -> None:
             label = QLabel(txt)
             if tooltip is not None:

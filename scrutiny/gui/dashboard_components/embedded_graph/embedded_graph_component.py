@@ -191,20 +191,20 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
             container_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
             container_layout.setContentsMargins(0,0,0,0)
             
-            start_pause_line = QWidget()
-            start_pause_line_layout = QHBoxLayout(start_pause_line)
+            clear_acquire_line = QWidget()
+            clear_acquire_line_layout = QHBoxLayout(clear_acquire_line)
             self._btn_acquire = QPushButton("Acquire")
             self._btn_acquire.clicked.connect(self._btn_acquire_slot)
             self._btn_clear = QPushButton("Clear")
             self._btn_clear.clicked.connect(self._btn_clear_slot)
 
-            start_pause_line_layout.addWidget(self._btn_clear)
-            start_pause_line_layout.addWidget(self._btn_acquire)
+            clear_acquire_line_layout.addWidget(self._btn_clear)
+            clear_acquire_line_layout.addWidget(self._btn_acquire)
 
             self._feedback_label = FeedbackLabel()
 
             container_layout.addWidget(self._graph_config_widget)
-            container_layout.addWidget(start_pause_line)
+            container_layout.addWidget(clear_acquire_line)
             container_layout.addWidget(self._feedback_label)
             
             left_pane_scroll = QScrollArea(self)
