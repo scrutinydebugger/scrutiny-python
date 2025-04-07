@@ -232,6 +232,7 @@ class GraphConfigWidget(QWidget):
         add_row(self._trigger_layout, "  - Operand 2 (x2)", self._txtw_trigger_operand2, HelpStrings.OPERAND2)
         add_row(self._trigger_layout, "  - Operand 3 (x3)", self._txtw_trigger_operand3, HelpStrings.OPERAND3)
 
+
         self.update_content()
 
     def _trigger_condition_changed_slot(self) -> None:

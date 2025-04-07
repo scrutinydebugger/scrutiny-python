@@ -11,19 +11,22 @@ from pathlib import Path
 from scrutiny.gui.dashboard_components.base_component import ScrutinyGUIBaseComponent
 from typing import Dict, Any
 
-from PySide6.QtWidgets import QVBoxLayout, QLabel, QWidget, QSplitter, QPushButton, QScrollArea, QHBoxLayout, QMenu
+from PySide6.QtWidgets import QVBoxLayout, QLabel, QWidget, QSplitter, QPushButton, QScrollArea, QHBoxLayout, QMenu, QTabWidget
 from PySide6.QtCore import Qt, QPointF, QRectF
 from PySide6.QtGui import QContextMenuEvent, QKeyEvent, QResizeEvent
 
 
 from scrutiny import sdk
 from scrutiny.sdk import EmbeddedDataType
-from scrutiny.sdk.datalogging import DataloggingConfig, DataloggingRequest, DataloggingAcquisition, XAxisType, FixedFreqSamplingRate, DataloggerState
+from scrutiny.sdk.datalogging import (
+    DataloggingConfig, DataloggingRequest, DataloggingAcquisition, XAxisType, FixedFreqSamplingRate, DataloggerState, DataloggingStorageEntry
+)
 from scrutiny.sdk.client import ScrutinyClient
 
 from scrutiny.gui import assets
 from scrutiny.gui.tools import prompt
 from scrutiny.gui.dashboard_components.embedded_graph.graph_config_widget import GraphConfigWidget
+from scrutiny.gui.dashboard_components.embedded_graph.graph_browse_widget import GraphBrowseWidget
 from scrutiny.gui.dashboard_components.embedded_graph.chart_status_overlay import ChartStatusOverlay
 from scrutiny.gui.dashboard_components.common.base_chart import (
     ScrutinyChart, ScrutinyChartView, ScrutinyChartToolBar,  ScrutinyLineSeries, ScrutinyValueAxisWithMinMax
@@ -95,6 +98,7 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
     Y_AXIS_MARGIN = 0.02
 
     _graph_config_widget:GraphConfigWidget
+    _graph_browse_widget:GraphBrowseWidget
     _splitter:QSplitter
     _xval_label:QLabel
     _signal_tree:GraphSignalTree
@@ -181,16 +185,16 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
 
             return self._chartview
 
-        def make_left_pane() -> QWidget:
+
+        def make_acquire_left_pane() -> QWidget:
             self._graph_config_widget = GraphConfigWidget(self, 
                                                         watchable_registry=self.watchable_registry,
                                                         get_signal_dtype_fn=self._get_signal_size_list)
-
             container = QWidget()
             container_layout = QVBoxLayout(container)
             container_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
             container_layout.setContentsMargins(0,0,0,0)
-            
+
             clear_acquire_line = QWidget()
             clear_acquire_line_layout = QHBoxLayout(clear_acquire_line)
             self._btn_acquire = QPushButton("Acquire")
@@ -206,14 +210,42 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
             container_layout.addWidget(self._graph_config_widget)
             container_layout.addWidget(clear_acquire_line)
             container_layout.addWidget(self._feedback_label)
+
+            return container
+
+        def make_browse_left_pane() -> QWidget:
+            self._graph_browse_widget = GraphBrowseWidget(self)
+
+            def temp_load_fn(client:ScrutinyClient) -> List[DataloggingStorageEntry]:
+                self._graph_browse_widget.clear()
+                return client.list_stored_datalogging_acquisitions()
+            
+            def load_fn_syncback(result:Optional[List[DataloggingStorageEntry]], error:Optional[Exception]) -> None:
+                if result is not None:
+                    self._graph_browse_widget.add_storage_entries(result)
+
+            self.server_manager.schedule_client_request(temp_load_fn, load_fn_syncback)
+
+            #self._graph_browse_widget.signals.delete.connect(x)
+            self._graph_browse_widget.signals.show.connect(self._browse_show_acquisition_slot)
+
+            return self._graph_browse_widget
+
+        def make_left_pane() -> QWidget:
+
+            acquire_tab_content = make_acquire_left_pane()
+            browse_tab_content = make_browse_left_pane()
+
+            tab = QTabWidget(self)
+            tab.addTab(acquire_tab_content, "Acquire")
+            tab.addTab(browse_tab_content, "Browse")
             
             left_pane_scroll = QScrollArea(self)
-            left_pane_scroll.setWidget(container)
+            left_pane_scroll.setWidget(tab)
             left_pane_scroll.setWidgetResizable(True)
             left_pane_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
             left_pane_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
             left_pane_scroll.setMinimumWidth(left_pane_scroll.sizeHint().width())
-
 
             return left_pane_scroll
         
@@ -827,3 +859,15 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
     def _chartview_resized_slot(self, event:QResizeEvent) -> None:
         """Chartview Event forwarded through a signal"""
         self._chart_status_overlay.adjust_sizes()
+
+    def _browse_show_acquisition_slot(self, reference_id:str) -> None:
+        def bg_thread_download(client:ScrutinyClient) -> DataloggingAcquisition:
+            return client.read_datalogging_acquisition(reference_id)
+
+        def qt_thread_show(acq:Optional[DataloggingAcquisition], error:Optional[Exception]) -> None:
+            if acq is not None and error is None:
+                self._display_acquisition(acq)
+            else:
+                self._display_graph_error("Cannot show graph: " + str(error))
+        
+        self.server_manager.schedule_client_request(bg_thread_download, qt_thread_show )
