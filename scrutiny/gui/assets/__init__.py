@@ -99,6 +99,7 @@ class Icons(enum.Enum):
     TestVRect="test-vrect"
     TestHRect="test-hrect"
     Trigger="trigger"
+    TextEdit="text-edit"
 
 def icon_filename(name:Icons, format:IconFormat, iconset:IconSet=IconSet.Default) -> Path:
     possible_formats = {

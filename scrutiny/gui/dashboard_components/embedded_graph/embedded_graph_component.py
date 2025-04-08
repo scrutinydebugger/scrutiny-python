@@ -226,8 +226,13 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
 
             self.server_manager.schedule_client_request(temp_load_fn, load_fn_syncback)
 
-            #self._graph_browse_widget.signals.delete.connect(x)
-            self._graph_browse_widget.signals.show.connect(self._browse_show_acquisition_slot)
+            def x(to_delete):
+                print(f"Expected to delete {len(to_delete)} acquisitions: {to_delete}")
+            def y():
+                print(f"Request to delete all!")
+            self._graph_browse_widget.signals.delete_all.connect(y)
+            self._graph_browse_widget.signals.delete.connect(x)
+            self._graph_browse_widget.signals.display.connect(self._browse_show_acquisition_slot)
 
             return self._graph_browse_widget
 
