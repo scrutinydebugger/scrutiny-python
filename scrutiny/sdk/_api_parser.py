@@ -80,7 +80,10 @@ class GetWatchableListResponse:
     done:bool
     data:Dict[sdk.WatchableType, Dict[str, sdk.WatchableConfiguration]]
 
-
+@dataclass
+class DataloggingListChangeResponse:
+    action:sdk.DataloggingListChangeType
+    reference_id:Optional[str]
 
 T = TypeVar('T', str, int, float, bool)
 WATCHABLE_TYPE_KEY = Literal['rpv', 'alias', 'var']
@@ -887,6 +890,39 @@ def parse_datalogging_acquisition_complete(response: api_typing.S2C.InformDatalo
         detail_msg=response['detail_msg'],
         success=response['success'],
     )
+
+
+def parse_datalogging_list_changed(response: api_typing.S2C.InformDataloggingListChanged) -> DataloggingListChangeResponse:
+    assert isinstance(response, dict)
+    assert 'cmd' in response
+    cmd = response['cmd']
+    assert cmd == API.Command.Api2Client.INFORM_DATALOGGING_LIST_CHANGED
+
+    _check_response_dict(cmd, response, 'action', str)
+    _check_response_dict(cmd, response, 'reference_id', (str, type(None)))
+
+    server_action = response['action']
+    if server_action == 'new':
+        change_type = sdk.DataloggingListChangeType.NEW
+    elif server_action == 'delete':
+        change_type = sdk.DataloggingListChangeType.DELETE
+    elif server_action == 'update':
+        change_type = sdk.DataloggingListChangeType.UPDATE
+    elif server_action == 'delete_all':
+        change_type = sdk.DataloggingListChangeType.DELETE_ALL
+    else:
+        raise sdk.exceptions.BadResponseError("Unknown change type")
+
+    if change_type != sdk.DataloggingListChangeType.DELETE_ALL and response['reference_id'] is None:
+        raise sdk.exceptions.BadResponseError(f"Missing reference_id for action : {server_action}")
+
+    if change_type == sdk.DataloggingListChangeType.DELETE_ALL and response['reference_id'] is not None:
+        raise sdk.exceptions.BadResponseError(f"Received a reference_id for action : {server_action}")
+
+    return DataloggingListChangeResponse(
+        action=change_type,
+        reference_id=response['reference_id']
+    )     
 
 
 def parse_list_datalogging_acquisitions_response(response: api_typing.S2C.ListDataloggingAcquisition) -> List[sdk.datalogging.DataloggingStorageEntry]:

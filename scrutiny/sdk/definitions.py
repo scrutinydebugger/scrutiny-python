@@ -25,6 +25,7 @@ __all__ = [
     'DeviceCommState',
     'DataloggerState',
     'DeviceLinkType',
+    'DataloggingListChangeType',
     'SupportedFeatureMap',
     'DataloggingInfo',
     'DeviceInfo',
@@ -152,6 +153,17 @@ class DeviceLinkType(enum.Enum):
     # CAN = 5 # Todo
     # SPI = 6 # Todo
 
+class DataloggingListChangeType(enum.Enum):
+    """(Enum) The type of change that was performed on the server datalogging storage """
+
+    DELETE = 0
+    """An acquisition was deleted"""
+    NEW = 1
+    """A new acquisition is available"""
+    UPDATE = 2
+    """An acquisition was modified"""
+    DELETE_ALL = 3
+    """The server datalogging storage has been cleared completely"""
 
 @dataclass(frozen=True)
 class SupportedFeatureMap:

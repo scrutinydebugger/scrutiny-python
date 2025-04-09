@@ -1431,5 +1431,72 @@ class TestApiParser(ScrutinyUnitTest):
         check_field_invalid('completion_server_time_us', ["asd", None, True, [], {}, Delete])
         check_field_invalid('detail_msg', [1, 1.123, True, [], {}, Delete])
 
+
+    def test_parse_inform_datalogging_list_changed(self):
+        def base() -> api_typing.S2C.InformDataloggingListChanged:
+            return {
+                'cmd' : 'inform_datalogging_list_changed',
+                "reqid": None,
+                "action" : "new",
+                "reference_id" : "123456",
+            }
+
+        msg = base()
+        parsed = parser.parse_datalogging_list_changed(msg)
+        self.assertEqual(parsed.action, sdk.DataloggingListChangeType.NEW)
+        self.assertEqual(parsed.reference_id, "123456")
+
+        msg = base()
+        msg['action'] = 'update'
+        parsed = parser.parse_datalogging_list_changed(msg)
+        self.assertEqual(parsed.action, sdk.DataloggingListChangeType.UPDATE)
+        self.assertEqual(parsed.reference_id, "123456")
+
+        msg = base()
+        msg['action'] = 'delete'
+        parsed = parser.parse_datalogging_list_changed(msg)
+        self.assertEqual(parsed.action, sdk.DataloggingListChangeType.DELETE)
+        self.assertEqual(parsed.reference_id, "123456")
+
+        msg = base()
+        msg['action'] = 'delete_all'
+        msg['reference_id'] = None
+        parsed = parser.parse_datalogging_list_changed(msg)
+        self.assertEqual(parsed.action, sdk.DataloggingListChangeType.DELETE_ALL)
+        self.assertIsNone(parsed.reference_id)
+
+        class Delete:
+            pass
+
+        for v in ['unknown_val', 1, 2.2, None, [], {}, Delete]:
+            with self.assertRaises(Exception):
+                msg = base()
+                if v == Delete:
+                    del msg["action"]
+                else:
+                    msg["action"] = v
+                parser.parse_datalogging_list_changed(msg)
+
+        for v in [1, 2.2, [], {}, Delete]:
+            with self.assertRaises(Exception):
+                msg = base()
+                if v == Delete:
+                    del msg["reference_id"]
+                else:
+                    msg["reference_id"] = v
+                parser.parse_datalogging_list_changed(msg)
+        
+        with self.assertRaises(Exception):
+            msg = base()
+            msg["action"] = 'new'
+            msg["reference_id"] = None
+            parser.parse_datalogging_list_changed(msg)
+
+        with self.assertRaises(Exception):
+            msg = base()
+            msg["action"] = 'delete_all'
+            msg["reference_id"] = 'asd'
+            parser.parse_datalogging_list_changed(msg)
+
 if __name__ == '__main__':
     unittest.main()

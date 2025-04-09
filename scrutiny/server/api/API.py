@@ -1428,9 +1428,29 @@ class API:
             if not isinstance(req['firmware_id'], str) and req['firmware_id'] is not None:
                 raise InvalidRequestException(req, 'Invalid firmware ID')
             firmware_id = req['firmware_id']
+        
+        start = 0
+        if 'start' in req and req['start'] is not None:
+            if not isinstance(req['start'], int):
+                raise InvalidRequestException(req, 'Invalid start field')
+            if req['start'] < 0:
+                raise InvalidRequestException(req, 'Invalid start value')
+            start = req['start']
+       
+        if 'count' not in req:
+            raise InvalidRequestException(req, 'Missing count field')
+
+        if not isinstance(req['count'], int):
+            raise InvalidRequestException(req, 'Invalid count field')
+        
+        MAX_COUNT = 10000
+        if req['count'] < 1 or req['count'] > MAX_COUNT:
+            raise InvalidRequestException(req, f'Invalid count value. Value must be between 1 and {MAX_COUNT}')
+
         acquisitions: List[api_typing.DataloggingAcquisitionMetadata] = []
 
-        reference_id_list = DataloggingStorage.list(firmware_id=firmware_id)
+        total_count = DataloggingStorage.count(firmware_id=firmware_id)
+        reference_id_list = DataloggingStorage.list(firmware_id=firmware_id, start=start, count=req['count'])
 
         for reference_id in reference_id_list:
             acq = DataloggingStorage.read(reference_id)
@@ -1448,7 +1468,8 @@ class API:
         response: api_typing.S2C.ListDataloggingAcquisition = {
             'cmd': API.Command.Api2Client.LIST_DATALOGGING_ACQUISITION_RESPONSE,
             'reqid': self.get_req_id(req),
-            'acquisitions': acquisitions
+            'acquisitions': acquisitions,
+            'total' : total_count
         }
 
         self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))

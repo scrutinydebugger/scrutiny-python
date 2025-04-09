@@ -379,17 +379,36 @@ class DataloggingStorageManager:
 
         return nout
 
-    def list(self, firmware_id: Optional[str] = None) -> List[str]:
+    def list(self, firmware_id: Optional[str] = None, start:Optional[int]=None, count:Optional[int]=None ) -> List[str]:
         """Return the list of acquisitions available in the storage"""
+
+        if start is not None:
+            assert isinstance(start, int)
+            if start<0:
+                raise ValueError("Invalid start")
+        
+        if count is not None:
+            assert isinstance(count, int)
+            if count<1:
+                raise ValueError("Invalid count")
+
+        limit_statement = ''
+        if start is not None and count is not None:
+            limit_statement = f'LIMIT {start},{count}'
+        elif start is None and count is not None:
+            limit_statement = f'LIMIT {count}'
+        elif start is not None and count is None:
+            raise ValueError("Cannot specify start without count")
+
         with self.get_session() as conn:
             cursor = conn.cursor()
             listout: List[str]
             if firmware_id is None:
-                sql = "SELECT `reference_id` FROM `acquisitions`"
+                sql = f"SELECT `reference_id` FROM `acquisitions` ORDER BY `timestamp` DESC {limit_statement}"
                 cursor.execute(sql)
                 listout = [row[0] for row in cursor.fetchall()]
             else:
-                sql = "SELECT `reference_id` FROM `acquisitions` WHERE `firmware_id`=?"
+                sql = f"SELECT `reference_id` FROM `acquisitions` WHERE `firmware_id`=? ORDER BY `timestamp` DESC {limit_statement}"
                 cursor.execute(sql, (firmware_id,))
                 listout = [row[0] for row in cursor.fetchall()]
 

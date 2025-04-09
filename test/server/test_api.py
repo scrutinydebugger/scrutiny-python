@@ -1832,14 +1832,20 @@ class TestAPI(ScrutinyUnitTest):
             sfd1 = SFDStorage.install(get_artifact('test_sfd_1.sfd'), ignore_exist=True)
             sfd2 = SFDStorage.install(get_artifact('test_sfd_2.sfd'), ignore_exist=True)
 
+            dtnow = datetime.now()
             with DataloggingStorage.use_temp_storage():
                 acq1 = core_datalogging.DataloggingAcquisition(firmware_id=sfd1.get_firmware_id_ascii(),
-                                                               reference_id="refid1", name="foo")
+                                                               reference_id="refid1", name="foo",
+                                                               acq_time=datetime.fromtimestamp(dtnow.timestamp() + 4))  # Newest
                 acq2 = core_datalogging.DataloggingAcquisition(firmware_id=sfd1.get_firmware_id_ascii(),
-                                                               reference_id="refid2", name="bar")
+                                                               reference_id="refid2", name="bar",
+                                                               acq_time=datetime.fromtimestamp(dtnow.timestamp() + 3))
                 acq3 = core_datalogging.DataloggingAcquisition(firmware_id=sfd2.get_firmware_id_ascii(),
-                                                               reference_id="refid3", name="baz")
-                acq4 = core_datalogging.DataloggingAcquisition(firmware_id="unknown_sfd", reference_id="refid4", name="meow")
+                                                               reference_id="refid3", name="baz",
+                                                               acq_time=datetime.fromtimestamp(dtnow.timestamp() + 2))
+                acq4 = core_datalogging.DataloggingAcquisition(firmware_id="unknown_sfd", 
+                                                               reference_id="refid4", name="meow",
+                                                               acq_time=datetime.fromtimestamp(dtnow.timestamp() + 1))  # Oldest
                 acq1.set_xdata(core_datalogging.DataSeries())
                 acq2.set_xdata(core_datalogging.DataSeries())
                 acq3.set_xdata(core_datalogging.DataSeries())
@@ -1852,12 +1858,15 @@ class TestAPI(ScrutinyUnitTest):
 
                 req: api_typing.C2S.ListDataloggingAcquisitions = {
                     'cmd': 'list_datalogging_acquisitions',
+                    'start' : 0,
+                    'count' : 100
                 }
 
                 self.send_request(req)
                 response = cast(api_typing.S2C.ListDataloggingAcquisition, self.wait_and_load_response())
                 self.assert_no_error(response)
                 self.assertEqual(response['cmd'], 'response_list_datalogging_acquisitions')
+                self.assertEqual(response['total'], 4)
                 self.assertEqual(len(response['acquisitions']), 4)
                 self.assertEqual(response['acquisitions'][0]['firmware_id'], sfd1.get_firmware_id_ascii())
                 self.assertEqual(response['acquisitions'][0]['reference_id'], 'refid1')
@@ -1883,9 +1892,45 @@ class TestAPI(ScrutinyUnitTest):
                 self.assertEqual(response['acquisitions'][3]['name'], 'meow')
                 self.assertEqual(response['acquisitions'][3]['firmware_metadata'], None)
 
+
+
                 req: api_typing.C2S.ListDataloggingAcquisitions = {
                     'cmd': 'list_datalogging_acquisitions',
-                    'firmware_id': sfd1.get_firmware_id_ascii()
+                    'start' : 0,
+                    'count' : 2
+                }
+
+                self.send_request(req)
+                response = cast(api_typing.S2C.ListDataloggingAcquisition, self.wait_and_load_response())
+                self.assert_no_error(response)
+                
+                self.assertEqual(response['total'], 4)
+                self.assertEqual(len(response['acquisitions']), 2)
+                self.assertEqual(response['acquisitions'][0]['reference_id'], 'refid1')
+                self.assertEqual(response['acquisitions'][1]['reference_id'], 'refid2')
+
+
+                req: api_typing.C2S.ListDataloggingAcquisitions = {
+                    'cmd': 'list_datalogging_acquisitions',
+                    'start' : 2,
+                    'count' : 2
+                }
+
+                self.send_request(req)
+                response = cast(api_typing.S2C.ListDataloggingAcquisition, self.wait_and_load_response())
+                self.assert_no_error(response)
+                
+                self.assertEqual(response['total'], 4)
+                self.assertEqual(len(response['acquisitions']), 2)
+                self.assertEqual(response['acquisitions'][0]['reference_id'], 'refid3')
+                self.assertEqual(response['acquisitions'][1]['reference_id'], 'refid4')
+                
+
+                req: api_typing.C2S.ListDataloggingAcquisitions = {
+                    'cmd': 'list_datalogging_acquisitions',
+                    'firmware_id': sfd1.get_firmware_id_ascii(),
+                    'start' : 0,
+                    'count' : 100
                 }
 
                 self.send_request(req)
@@ -1893,6 +1938,7 @@ class TestAPI(ScrutinyUnitTest):
                 self.assert_no_error(response)
                 self.assertEqual(response['cmd'], 'response_list_datalogging_acquisitions')
                 self.assertIn('acquisitions', response)
+                self.assertEqual(response['total'], 2)
                 self.assertEqual(len(response['acquisitions']), 2)
                 self.assertEqual(response['acquisitions'][0]['firmware_id'], sfd1.get_firmware_id_ascii())
                 self.assertEqual(response['acquisitions'][0]['reference_id'], 'refid1')
@@ -1908,25 +1954,80 @@ class TestAPI(ScrutinyUnitTest):
 
                 req: api_typing.C2S.ListDataloggingAcquisitions = {
                     'cmd': 'list_datalogging_acquisitions',
-                    'firmware_id': None
+                    'firmware_id': None,
+                    'start' : 0,
+                    'count' : 100
                 }
 
                 self.send_request(req)
                 response = cast(api_typing.S2C.ListDataloggingAcquisition, self.wait_and_load_response())
                 self.assert_no_error(response)
                 self.assertEqual(response['cmd'], 'response_list_datalogging_acquisitions')
+                self.assertEqual(response['total'], 4)
                 self.assertEqual(len(response['acquisitions']), 4)
 
                 req: api_typing.C2S.ListDataloggingAcquisitions = {
                     'cmd': 'list_datalogging_acquisitions',
-                    'firmware_id': 'inexistant_id'
+                    'firmware_id': 'inexistant_id',
+                    'start' : 0,
+                    'count' : 100
                 }
 
                 self.send_request(req)
                 response = cast(api_typing.S2C.ListDataloggingAcquisition, self.wait_and_load_response())
                 self.assert_no_error(response)
                 self.assertEqual(response['cmd'], 'response_list_datalogging_acquisitions')
+                self.assertEqual(response['total'], 0)
                 self.assertEqual(len(response['acquisitions']), 0)
+
+                # Missing count - bad
+                req: api_typing.C2S.ListDataloggingAcquisitions = {
+                    'cmd': 'list_datalogging_acquisitions',
+                    'firmware_id': 'inexistant_id',
+                    'start' : 0                
+                }
+                self.send_request(req)
+                self.assert_is_error(self.wait_and_load_response())
+
+                # Missing start - ok
+                req: api_typing.C2S.ListDataloggingAcquisitions = {
+                    'cmd': 'list_datalogging_acquisitions',
+                    'firmware_id': 'inexistant_id',
+                    'count' : 100
+                }
+                self.send_request(req)
+                self.assert_no_error(self.wait_and_load_response())
+
+                # Bad start
+                req: api_typing.C2S.ListDataloggingAcquisitions = {
+                    'cmd': 'list_datalogging_acquisitions',
+                    'firmware_id': 'inexistant_id',
+                    'start' : -1,
+                    'count' : 100
+                }
+                self.send_request(req)
+                self.assert_is_error(self.wait_and_load_response())
+
+                # Bad count
+                req: api_typing.C2S.ListDataloggingAcquisitions = {
+                    'cmd': 'list_datalogging_acquisitions',
+                    'firmware_id': 'inexistant_id',
+                    'start' : 0,
+                    'count' : 0
+                }
+                self.send_request(req)
+                self.assert_is_error(self.wait_and_load_response())  
+
+                # Start None = no Start. OK
+                req: api_typing.C2S.ListDataloggingAcquisitions = {
+                    'cmd': 'list_datalogging_acquisitions',
+                    'firmware_id': 'inexistant_id',
+                    'start' : None,
+                    'count' : 100
+                }
+                self.send_request(req)
+                self.assert_no_error(self.wait_and_load_response())                
+
 
     def test_update_datalogging_acquisition(self):
         # Rename an acquisition in datalogging storage through API
@@ -2027,7 +2128,6 @@ class TestAPI(ScrutinyUnitTest):
             self.assert_is_error(self.wait_and_load_response())
 
     def test_delete_datalogging_acquisition(self):
-        # Rename an acquisition in datalogging storage through API
         with DataloggingStorage.use_temp_storage():
             acq1 = core_datalogging.DataloggingAcquisition(firmware_id='some_firmware_id', reference_id="refid1", name="foo")
             acq1.set_xdata(core_datalogging.DataSeries())
@@ -2091,7 +2191,6 @@ class TestAPI(ScrutinyUnitTest):
             self.assert_is_error(self.wait_and_load_response())
 
     def test_delete_all_datalogging_acquisition(self):
-        # Rename an acquisition in datalogging storage through API
         with DataloggingStorage.use_temp_storage():
             acq1 = core_datalogging.DataloggingAcquisition(firmware_id='some_firmware_id', reference_id="refid1", name="foo")
             acq1.set_xdata(core_datalogging.DataSeries())

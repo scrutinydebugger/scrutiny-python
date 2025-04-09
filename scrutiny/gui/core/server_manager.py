@@ -251,6 +251,7 @@ class ServerManager:
         status_received = Signal()
         device_info_availability_changed = Signal()
         loaded_sfd_availability_changed = Signal()
+        datalogging_storage_updated = Signal(sdk.DataloggingListChangeType, str)  # type, refernece_id
 
     RECONNECT_DELAY = 1
     _client:ScrutinyClient 
@@ -379,6 +380,7 @@ class ServerManager:
             self._signals.status_received.connect(lambda : self._logger.log(DUMPDATA_LOGLEVEL, "+Signal: status_received"))
             self._signals.device_info_availability_changed.connect(lambda : self._logger.log(DUMPDATA_LOGLEVEL, "+Signal: device_info_availability_changed"))
             self._signals.loaded_sfd_availability_changed.connect(lambda : self._logger.log(DUMPDATA_LOGLEVEL, "+Signal: loaded_sfd_availability_changed"))
+            self._signals.datalogging_storage_updated.connect(lambda : self._logger.log(DUMPDATA_LOGLEVEL, "+Signal: datalogging_storage_updated"))
         
         
         # These internal slots are used to download the device info and SFD details when they are ready
@@ -498,6 +500,8 @@ class ServerManager:
                 self._signals.datalogging_state_changed.emit()
             elif isinstance(event, ScrutinyClient.Events.StatusUpdateEvent):
                 self._signals.status_received.emit()
+            elif isinstance(event, ScrutinyClient.Events.DataloggingListChanged):
+                self._signals.datalogging_storage_updated.emit(event.change_type, event.acquisition_reference_id)
             else:
                 self._logger.error(f"Unsupported event type : {event.__class__.__name__}")    
 

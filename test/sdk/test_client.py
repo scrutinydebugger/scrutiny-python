@@ -2255,7 +2255,6 @@ class TestClient(ScrutinyUnitTest):
         self.assertEqual(evt.details.state, sdk.DataloggerState.Acquiring)
         self.assertEqual(evt.details.completion_ratio, 0.75)
 
-
         self.sfd_handler.unload()
         evt = self.client.read_event(timeout=EVENT_READ_TIMEOUT)
         self.assertIsInstance(evt, ScrutinyClient.Events.SFDUnLoadedEvent)
@@ -2286,7 +2285,99 @@ class TestClient(ScrutinyUnitTest):
         self.assertEqual(received_stats.from_device_datarate_byte_per_sec, stats.device.comm_handler.rx_datarate_byte_per_sec)
         self.assertEqual(received_stats.device_request_per_sec, stats.device.comm_handler.request_per_sec)
 
+    def test_clear_datalogging_storage(self):
+        self.client.listen_events(ScrutinyClient.Events.LISTEN_DATALOGGING_LIST_CHANGED)
+        self.client.clear_event_queue()
 
+        with DataloggingStorage.use_temp_storage():
+            acq1 = DataloggingAcquisition(firmware_id="firmwareid1", name="Acquisition #1", acq_time=datetime.now())
+            axis1 = AxisDefinition("Axis-1", 111)
+            acq1.set_xdata(DataSeries([random.random() for x in range(10)]))
+            acq1.add_data(DataSeries([random.random() for x in range(10)], logged_watchable=LoggedWatchable("/a/b", WatchableType.Variable)), axis1)
+            acq2 = DataloggingAcquisition(firmware_id="firmwareid1", name="Acquisition #2",
+                                          acq_time=datetime.now() - timedelta(seconds=30))
+            acq2.set_xdata(DataSeries([random.random() for x in range(10)]))
+            acq2.add_data(DataSeries([random.random() for x in range(10)], logged_watchable=LoggedWatchable("/a/b", WatchableType.Variable)), axis1)
+
+            DataloggingStorage.save(acq1)
+            DataloggingStorage.save(acq2)
+
+            self.assertEqual(DataloggingStorage.count(), 2)
+            self.assertFalse(self.client.has_event_pending())
+
+            self.client.clear_datalogging_storage()
+
+            self.assertEqual(DataloggingStorage.count(), 0)
+            event = self.client.read_event(2)
+
+            self.assertIsNotNone(event)
+            self.assertEqual(event.change_type, sdk.DataloggingListChangeType.DELETE_ALL)
+            self.assertIsNone(event.acquisition_reference_id)
+
+    def test_delete_datalogging_acquisition(self):
+        self.client.listen_events(ScrutinyClient.Events.LISTEN_DATALOGGING_LIST_CHANGED)
+        self.client.clear_event_queue()
+
+        with DataloggingStorage.use_temp_storage():
+            acq1 = DataloggingAcquisition(reference_id='acq1', firmware_id="firmwareid1", name="Acquisition #1", acq_time=datetime.now())
+            axis1 = AxisDefinition("Axis-1", 111)
+            acq1.set_xdata(DataSeries([random.random() for x in range(10)]))
+            acq1.add_data(DataSeries([random.random() for x in range(10)], logged_watchable=LoggedWatchable("/a/b", WatchableType.Variable)), axis1)
+            acq2 = DataloggingAcquisition(reference_id='acq2', firmware_id="firmwareid1", name="Acquisition #2",
+                                          acq_time=datetime.now() - timedelta(seconds=30))
+            acq2.set_xdata(DataSeries([random.random() for x in range(10)]))
+            acq2.add_data(DataSeries([random.random() for x in range(10)], logged_watchable=LoggedWatchable("/a/b", WatchableType.Variable)), axis1)
+
+            DataloggingStorage.save(acq1)
+            DataloggingStorage.save(acq2)
+
+            self.assertEqual(DataloggingStorage.count(), 2)
+            self.assertFalse(self.client.has_event_pending())
+
+            self.client.delete_datalogging_acquisition('acq1')
+
+            self.assertEqual(DataloggingStorage.count(), 1)
+            event = self.client.read_event(2)
+
+            self.assertIsNotNone(event)
+            self.assertEqual(event.change_type, sdk.DataloggingListChangeType.DELETE)
+            self.assertEqual(event.acquisition_reference_id, 'acq1')
+
+            DataloggingStorage.read('acq2')
+
+    def test_update_datalogging_acquisition(self):
+        self.client.listen_events(ScrutinyClient.Events.LISTEN_DATALOGGING_LIST_CHANGED)
+        self.client.clear_event_queue()
+
+        with DataloggingStorage.use_temp_storage():
+            acq1 = DataloggingAcquisition(reference_id='acq1', firmware_id="firmwareid1", name="Acquisition #1", acq_time=datetime.now())
+            axis1 = AxisDefinition("Axis-1", 111)
+            acq1.set_xdata(DataSeries([random.random() for x in range(10)]))
+            acq1.add_data(DataSeries([random.random() for x in range(10)], logged_watchable=LoggedWatchable("/a/b", WatchableType.Variable)), axis1)
+            acq2 = DataloggingAcquisition(reference_id='acq2', firmware_id="firmwareid1", name="Acquisition #2",
+                                          acq_time=datetime.now() - timedelta(seconds=30))
+            acq2.set_xdata(DataSeries([random.random() for x in range(10)]))
+            acq2.add_data(DataSeries([random.random() for x in range(10)], logged_watchable=LoggedWatchable("/a/b", WatchableType.Variable)), axis1)
+
+            DataloggingStorage.save(acq1)
+            DataloggingStorage.save(acq2)
+
+            self.assertEqual(DataloggingStorage.count(), 2)
+            self.assertFalse(self.client.has_event_pending())
+
+            self.client.update_datalogging_acquisition('acq1', name="potato")
+
+            self.assertEqual(DataloggingStorage.count(), 2)
+            event = self.client.read_event(2)
+
+            self.assertIsNotNone(event)
+            self.assertEqual(event.change_type, sdk.DataloggingListChangeType.UPDATE)
+            self.assertEqual(event.acquisition_reference_id, 'acq1')
+
+            acq1 = DataloggingStorage.read('acq1')
+            self.assertEqual(acq1.name, 'potato')
+            DataloggingStorage.read('acq2')
+            
         
 
 if __name__ == '__main__':

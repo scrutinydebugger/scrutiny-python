@@ -185,7 +185,6 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
 
             return self._chartview
 
-
         def make_acquire_left_pane() -> QWidget:
             self._graph_config_widget = GraphConfigWidget(self, 
                                                         watchable_registry=self.watchable_registry,
@@ -226,12 +225,10 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
 
             self.server_manager.schedule_client_request(temp_load_fn, load_fn_syncback)
 
-            def x(to_delete):
-                print(f"Expected to delete {len(to_delete)} acquisitions: {to_delete}")
-            def y():
-                print(f"Request to delete all!")
-            self._graph_browse_widget.signals.delete_all.connect(y)
-            self._graph_browse_widget.signals.delete.connect(x)
+            #def x(to_delete):
+            #    print(f"Expected to delete {len(to_delete)} acquisitions: {to_delete}")
+            self._graph_browse_widget.signals.delete_all.connect(self._request_delete_all_slot)
+            #self._graph_browse_widget.signals.delete.connect(x)
             self._graph_browse_widget.signals.display.connect(self._browse_show_acquisition_slot)
 
             return self._graph_browse_widget
@@ -275,6 +272,7 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
         self.server_manager.signals.device_ready.connect(self._update_datalogging_capabilities)
         self.server_manager.signals.registry_changed.connect(self._registry_changed_slot)
         self.server_manager.signals.datalogging_state_changed.connect(self._datalogging_state_changed_slot)
+        self.server_manager.signals.datalogging_storage_updated.connect(self._datalogging_storage_updated_slot)
         self._update_datalogging_capabilities()
 
         self._graph_config_widget.set_axis_type(XAxisType.MeasuredTime)
@@ -467,6 +465,11 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
 
     def _datalogging_state_changed_slot(self) -> None:
         self._update_acquiring_overlay()
+
+    def _datalogging_storage_updated_slot(self, change_type:sdk.DataloggingListChangeType, reference_id:Optional[str]) -> None:
+        # TODO
+        print(f"_datalogging_storage_updated_slot. change_type={change_type}.  reference_id={reference_id}")
+        pass
 
     def _update_acquiring_overlay(self) -> None:
         info = self.server_manager.get_server_info()
@@ -876,3 +879,6 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
                 self._display_graph_error("Cannot show graph: " + str(error))
         
         self.server_manager.schedule_client_request(bg_thread_download, qt_thread_show )
+
+    def _request_delete_all_slot(self) -> None:
+        pass

@@ -379,6 +379,20 @@ class ScrutinyClient:
 
             def msg(self) -> str:
                 return f"New server status update received"
+            
+        @dataclass(frozen=True)
+        class DataloggingListChanged:
+            """Triggered when the list of datalogging acquisition changed on the server (new, removed or updated)"""
+
+            _filter_flag = 0x100
+            
+            change_type:DataloggingListChangeType
+            """The action performed on the datalogging list. Useful to correctly update the client side list"""
+            acquisition_reference_id:Optional[str]
+            """The targeted acquisition. Will have a value for NEW, DELETE, UPDATE.  ``None`` for DELETE_ALL"""
+
+            def msg(self) -> str:
+                return f"List of datalogging acquisition has changed"            
 
 
 
@@ -399,13 +413,16 @@ class ScrutinyClient:
         LISTEN_DATALOGGER_STATE_CHANGED = DataloggerStateChanged._filter_flag
         """Listen for events of type :class:`DataloggerStateChanged<scrutiny.sdk.client.ScrutinyClient.Events.DataloggerStateChanged>`"""
         LISTEN_STATUS_UPDATE_CHANGED = StatusUpdateEvent._filter_flag
-        """Listen for events of type :class:`DataloggerStateChanged<scrutiny.sdk.client.ScrutinyClient.Events.StatusUpdateEvent>`"""
+        """Listen for events of type :class:`StatusUpdateEvent<scrutiny.sdk.client.ScrutinyClient.Events.StatusUpdateEvent>`"""
+        LISTEN_DATALOGGING_LIST_CHANGED = DataloggingListChanged._filter_flag
+        """Listen for events of type :class:`DataloggingListChanged<scrutiny.sdk.client.ScrutinyClient.Events.DataloggingListChanged>`"""
         LISTEN_ALL = 0xFFFFFFFF
         """Listen to all events"""
         
         _ANY_EVENTS = Union[
             ConnectedEvent, DisconnectedEvent, DeviceReadyEvent, DeviceGoneEvent, 
-            SFDLoadedEvent, SFDUnLoadedEvent, DataloggerStateChanged, StatusUpdateEvent
+            SFDLoadedEvent, SFDUnLoadedEvent, DataloggerStateChanged, StatusUpdateEvent,
+            DataloggingListChanged
             ]
 
     @dataclass
@@ -712,6 +729,13 @@ class ScrutinyClient:
         request._mark_complete_specialized(completion.success, completion.reference_id, completion.detail_msg)
         del self._pending_datalogging_requests[completion.request_token]
 
+    def _wt_process_msg_datalogging_list_changed(self, msg: api_typing.S2C.InformDataloggingListChanged, reqid: Optional[int]) -> None:
+        parsed = api_parser.parse_datalogging_list_changed(msg)
+        self._trigger_event(
+            self.Events.DataloggingListChanged(acquisition_reference_id=parsed.reference_id, change_type=parsed.action),
+            loglevel=logging.DEBUG
+            )
+
     def _wt_process_msg_get_watchable_list_response(self, msg: api_typing.S2C.GetWatchableList, reqid:Optional[int]) -> None:
         if reqid is None:
             self._logger.warning('Received a watchable list message, but the request ID was not available.')
@@ -809,6 +833,8 @@ class ScrutinyClient:
                     self._wt_process_msg_inform_memory_write_complete(cast(api_typing.S2C.WriteMemoryComplete, msg), reqid)
                 elif cmd == API.Command.Api2Client.INFORM_DATALOGGING_ACQUISITION_COMPLETE:
                     self._wt_process_msg_datalogging_acquisition_complete(cast(api_typing.S2C.InformDataloggingAcquisitionComplete, msg), reqid)
+                elif cmd == API.Command.Api2Client.INFORM_DATALOGGING_LIST_CHANGED:
+                    self._wt_process_msg_datalogging_list_changed(cast(api_typing.S2C.InformDataloggingListChanged, msg), reqid)                    
                 elif cmd == API.Command.Api2Client.GET_WATCHABLE_LIST_RESPONSE:
                     self._wt_process_msg_get_watchable_list_response(cast(api_typing.S2C.GetWatchableList, msg), reqid)
                 elif cmd == API.Command.Api2Client.WELCOME:
@@ -2101,7 +2127,6 @@ class ScrutinyClient:
 
         return cb_data.obj
 
-
     def register_listener(self, listener:listeners.BaseListener) -> None:
         """Register a new listener. The client will notify it each time a new value update is received from the server
         
@@ -2210,6 +2235,73 @@ class ScrutinyClient:
 
         return request_handle
 
+    def clear_datalogging_storage(self) -> None:
+        """Delete all datalogging acquisition stored on the server.
+        This action is irreversible
+
+        :raise OperationFailure: If the request to the server fails
+        """
+        req = self._make_request(API.Command.Client2Api.DELETE_ALL_DATALOGGING_ACQUISITION)
+        
+        def callback(state: CallbackState, response: Optional[api_typing.S2CMessage]) -> None:
+            pass
+        future = self._send(req, callback)
+        assert future is not None
+        future.wait()
+        
+        if future.state != CallbackState.OK:
+            raise sdk.exceptions.OperationFailure(f"Failed to clear the datalogging storage. {future.error_str}")
+
+    def delete_datalogging_acquisition(self, reference_id:str) -> None:
+        """Delete a single datalogging acquisition stored on the server.
+        This action is irreversible
+
+        :param reference_id: The unique ``reference_id`` of the acquisition to delete.
+
+        :raise OperationFailure: If the request to the server fails
+        :raise TypeError: Given parameter not of the expected type
+        """
+        validation.assert_type(reference_id, 'reference_id', str)
+
+        req = self._make_request(API.Command.Client2Api.DELETE_DATALOGGING_ACQUISITION, {
+            'reference_id' : reference_id
+        })
+        
+        def callback(state: CallbackState, response: Optional[api_typing.S2CMessage]) -> None:
+            pass
+        future = self._send(req, callback)
+        assert future is not None
+        future.wait()
+        
+        if future.state != CallbackState.OK:
+            raise sdk.exceptions.OperationFailure(f"Failed to delete the datalogging acquisition with reference ID: {reference_id}. {future.error_str}")
+
+    def update_datalogging_acquisition(self, reference_id:str, name:str) -> None:
+        """Update a single datalogging acquisition stored on the server.
+
+        :param reference_id: The unique ``reference_id`` of the acquisition to delete.
+        :param name: New name for the acquisition. 
+
+        :raise OperationFailure: If the request to the server fails
+        :raise TypeError: Given parameter not of the expected type
+        """
+        validation.assert_type(reference_id, 'reference_id', str)
+        validation.assert_type(name, 'name', str)
+
+        req = self._make_request(API.Command.Client2Api.UPDATE_DATALOGGING_ACQUISITION, {
+            'reference_id' : reference_id,
+            'name' : name
+        })
+        
+        def callback(state: CallbackState, response: Optional[api_typing.S2CMessage]) -> None:
+            pass
+        future = self._send(req, callback)
+        assert future is not None
+        future.wait()
+        
+        if future.state != CallbackState.OK:
+            raise sdk.exceptions.OperationFailure(f"Failed to update the datalogging acquisition with reference ID: {reference_id}. {future.error_str}")
+
     def has_event_pending(self) -> bool:
         return not self._event_queue.empty()
     
@@ -2227,6 +2319,14 @@ class ScrutinyClient:
         except queue.Empty:
             return None
 
+    def clear_event_queue(self) -> None:
+        """Delete all pending events inside the event queue"""
+        while not self._event_queue.empty():
+            try:
+                self._event_queue.get_nowait()
+            except queue.Empty:
+                break
+
     def get_local_stats(self) -> Statistics:
         """Return internal performance metrics"""
 
@@ -2240,7 +2340,6 @@ class ScrutinyClient:
     def reset_local_stats(self) -> None:
         """Reset all performance metrics that are resettable (have an internal state)"""
         self._datarate_measurements.reset()
-
 
     def get_server_stats(self, timeout: Optional[float] = None) -> sdk.ServerStatistics:
         if timeout is None:
@@ -2270,6 +2369,7 @@ class ScrutinyClient:
         stats = cb_data.obj
         return stats
     
+
     @property
     def logger(self) -> logging.Logger:
         """The python logger used by the Client"""
