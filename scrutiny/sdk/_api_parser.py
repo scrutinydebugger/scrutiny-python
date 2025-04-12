@@ -85,6 +85,18 @@ class DataloggingListChangeResponse:
     action:sdk.DataloggingListChangeType
     reference_id:Optional[str]
 
+
+@dataclass
+class ListDataloggingAcquisitionsResponse:
+    """The response given by the server when we request to list the datalogging acquisition.
+    It's a structure containing the downloaded acquisitions metadata and the total number of entries for the given ``firmware_id`` parameter"""
+    
+    acquisitions:List[sdk.datalogging.DataloggingStorageEntry]
+    """List of datalogging database entries, each one representing an acquisition in with ``reference_id`` as its unique identifier"""
+    
+    total:int
+    """The total number fo acquisition available in the database for a given ``firmware_id`` parameter"""
+
 T = TypeVar('T', str, int, float, bool)
 WATCHABLE_TYPE_KEY = Literal['rpv', 'alias', 'var']
 
@@ -108,7 +120,7 @@ def _check_response_dict(cmd: str, d: Any, name: str, types: Union[Type[Any], It
     next_parts = parts[1:]
 
     if key not in d:
-        raise sdk.exceptions.BadResponseError(f'Missing field {part_name} in message "{cmd}"')
+        raise sdk.exceptions.BadResponseError(f'Missing field "{part_name}" in message "{cmd}"')
 
     if len(next_parts) > 0:
         if not isinstance(d, dict):
@@ -925,14 +937,18 @@ def parse_datalogging_list_changed(response: api_typing.S2C.InformDataloggingLis
     )     
 
 
-def parse_list_datalogging_acquisitions_response(response: api_typing.S2C.ListDataloggingAcquisition) -> List[sdk.datalogging.DataloggingStorageEntry]:
+def parse_list_datalogging_acquisitions_response(response: api_typing.S2C.ListDataloggingAcquisition) -> ListDataloggingAcquisitionsResponse:
     assert isinstance(response, dict)
     assert 'cmd' in response
     cmd = response['cmd']
     assert cmd == API.Command.Api2Client.LIST_DATALOGGING_ACQUISITION_RESPONSE
 
     _check_response_dict(cmd, response, 'acquisitions', list)
-    dataout: List[sdk.datalogging.DataloggingStorageEntry] = []
+    _check_response_dict(cmd, response, 'total', int)
+    dataout = ListDataloggingAcquisitionsResponse(
+        acquisitions=[],
+        total=response['total']
+    )
     for acq in response['acquisitions']:
         _check_response_dict(cmd, acq, 'firmware_id', str)
         _check_response_dict(cmd, acq, 'name', str)
@@ -947,7 +963,7 @@ def parse_list_datalogging_acquisitions_response(response: api_typing.S2C.ListDa
             reference_id=acq['reference_id'],
             firmware_metadata=_read_sfd_metadata_from_incomplete_dict(acq['firmware_metadata'])
         )
-        dataout.append(entry)
+        dataout.acquisitions.append(entry)
 
     return dataout
 

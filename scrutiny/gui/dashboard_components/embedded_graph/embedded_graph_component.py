@@ -8,13 +8,11 @@
 
 from dataclasses import dataclass
 from pathlib import Path
-from scrutiny.gui.dashboard_components.base_component import ScrutinyGUIBaseComponent
-from typing import Dict, Any
+import functools
 
 from PySide6.QtWidgets import QVBoxLayout, QLabel, QWidget, QSplitter, QPushButton, QScrollArea, QHBoxLayout, QMenu, QTabWidget
 from PySide6.QtCore import Qt, QPointF, QRectF
 from PySide6.QtGui import QContextMenuEvent, QKeyEvent, QResizeEvent
-
 
 from scrutiny import sdk
 from scrutiny.sdk import EmbeddedDataType
@@ -25,6 +23,7 @@ from scrutiny.sdk.client import ScrutinyClient
 
 from scrutiny.gui import assets
 from scrutiny.gui.tools import prompt
+from scrutiny.gui.dashboard_components.base_component import ScrutinyGUIBaseComponent
 from scrutiny.gui.dashboard_components.embedded_graph.graph_config_widget import GraphConfigWidget
 from scrutiny.gui.dashboard_components.embedded_graph.graph_browse_widget import GraphBrowseWidget
 from scrutiny.gui.dashboard_components.embedded_graph.chart_status_overlay import ChartStatusOverlay
@@ -104,7 +103,8 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
     _signal_tree:GraphSignalTree
     _btn_acquire:QPushButton
     _btn_clear:QPushButton
-    _feedback_label:FeedbackLabel
+    _acquire_feedback_label:FeedbackLabel
+    _browse_feedback_label:FeedbackLabel
     _chartview:ScrutinyChartView
     _chart_toolbar:ScrutinyChartToolBar
     _xaxis:Optional[ScrutinyValueAxisWithMinMax]
@@ -204,34 +204,31 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
             clear_acquire_line_layout.addWidget(self._btn_clear)
             clear_acquire_line_layout.addWidget(self._btn_acquire)
 
-            self._feedback_label = FeedbackLabel()
+            self._acquire_feedback_label = FeedbackLabel()
 
             container_layout.addWidget(self._graph_config_widget)
             container_layout.addWidget(clear_acquire_line)
-            container_layout.addWidget(self._feedback_label)
+            container_layout.addWidget(self._acquire_feedback_label)
 
             return container
 
         def make_browse_left_pane() -> QWidget:
+            container = QWidget()
+            container_layout = QVBoxLayout(container)
+            container_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+            container_layout.setContentsMargins(0,0,0,0)
+
             self._graph_browse_widget = GraphBrowseWidget(self)
+            self._browse_feedback_label = FeedbackLabel()
 
-            def temp_load_fn(client:ScrutinyClient) -> List[DataloggingStorageEntry]:
-                self._graph_browse_widget.clear()
-                return client.list_stored_datalogging_acquisitions()
-            
-            def load_fn_syncback(result:Optional[List[DataloggingStorageEntry]], error:Optional[Exception]) -> None:
-                if result is not None:
-                    self._graph_browse_widget.add_storage_entries(result)
-
-            self.server_manager.schedule_client_request(temp_load_fn, load_fn_syncback)
-
-            #def x(to_delete):
-            #    print(f"Expected to delete {len(to_delete)} acquisitions: {to_delete}")
             self._graph_browse_widget.signals.delete_all.connect(self._request_delete_all_slot)
-            #self._graph_browse_widget.signals.delete.connect(x)
+            self._graph_browse_widget.signals.delete.connect(self._request_delete_single_slot)
             self._graph_browse_widget.signals.display.connect(self._browse_show_acquisition_slot)
 
-            return self._graph_browse_widget
+            container_layout.addWidget(self._graph_browse_widget)
+            container_layout.addWidget(self._browse_feedback_label)
+
+            return container
 
         def make_left_pane() -> QWidget:
 
@@ -241,6 +238,14 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
             tab = QTabWidget(self)
             tab.addTab(acquire_tab_content, "Acquire")
             tab.addTab(browse_tab_content, "Browse")
+
+            def current_changed_slot(index:int) -> None:
+                if index == 0:
+                    self._acquire_tab_visible_slot()
+                elif index == 1:
+                    self._browse_tab_visible_slot()
+
+            tab.currentChanged.connect(current_changed_slot)
             
             left_pane_scroll = QScrollArea(self)
             left_pane_scroll.setWidget(tab)
@@ -332,14 +337,14 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
         result = self._graph_config_widget.validate_and_get_config()
         if not result.valid:
             assert result.error is not None
-            self._feedback_label.set_error(result.error)
+            self._acquire_feedback_label.set_error(result.error)
             return 
         assert result.config is not None
         
-        self._feedback_label.clear()
+        self._acquire_feedback_label.clear()
         axes_signal = self._signal_tree.get_signals()
         if len(axes_signal) == 0:
-            self._feedback_label.set_error("No signals to acquire")
+            self._acquire_feedback_label.set_error("No signals to acquire")
             return
 
         nb_signals = 0
@@ -356,11 +361,11 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
                 )
 
         if nb_signals == 0:
-            self._feedback_label.set_error("No signals to acquire")
+            self._acquire_feedback_label.set_error("No signals to acquire")
             return
 
         # Config is good. 
-        self._feedback_label.clear()
+        self._acquire_feedback_label.clear()
         self._clear_graph()        
         self._acquire(result.config)    # Request the server for that acquisition
         
@@ -436,7 +441,7 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
                 ui_thread_callback=qt_thread_request_completed
             )
 
-            self._feedback_label.clear()
+            self._acquire_feedback_label.clear()
             self._apply_internal_state()
         
         self.server_manager.schedule_client_request(
@@ -444,7 +449,7 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
             ui_thread_callback=qt_thread_datalog_started
         )
 
-        self._feedback_label.set_info("Acquisition requested")
+        self._acquire_feedback_label.set_info("Acquisition requested")
 
     def _get_signal_size_list(self) -> List[EmbeddedDataType]:
         outlist:List[EmbeddedDataType] = []
@@ -467,8 +472,14 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
         self._update_acquiring_overlay()
 
     def _datalogging_storage_updated_slot(self, change_type:sdk.DataloggingListChangeType, reference_id:Optional[str]) -> None:
-        # TODO
+        
         print(f"_datalogging_storage_updated_slot. change_type={change_type}.  reference_id={reference_id}")
+        if change_type == sdk.DataloggingListChangeType.DELETE_ALL:
+            self._do_initial_data_download()
+        elif change_type == sdk.DataloggingListChangeType.DELETE:
+            if reference_id is not None:
+                self._graph_browse_widget.remove_by_reference_id(reference_id)
+            
         pass
 
     def _update_acquiring_overlay(self) -> None:
@@ -493,7 +504,7 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
                                  error:Optional[Exception], 
                                  msg:str="Request failed") -> None:
         self._state.waiting_on_graph = False
-        self._feedback_label.clear()
+        self._acquire_feedback_label.clear()
 
         if error:
             tools.log_exception(self.logger, error, msg)
@@ -511,7 +522,7 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
     def _callback_request_succeeded(self, request:DataloggingRequest) -> None:
         assert request.completed and request.is_success
         assert request.acquisition_reference_id is not None
-        self._feedback_label.clear()
+        self._acquire_feedback_label.clear()
 
         self._apply_internal_state()
 
@@ -534,7 +545,7 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
 
     def _btn_clear_slot(self) -> None:
         self._clear_graph()
-        self._feedback_label.clear()
+        self._acquire_feedback_label.clear()
 
 
     def _clear_graph(self) -> None:
@@ -880,5 +891,57 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
         
         self.server_manager.schedule_client_request(bg_thread_download, qt_thread_show )
 
+    def _request_delete_single_slot(self, reference_ids:List[str]) -> None:
+        self._browse_feedback_label.set_info("Deleting...")
+
+        def bg_thread_delete(reference_id:str, client:ScrutinyClient) -> None:    
+            client.delete_datalogging_acquisition(reference_id)
+        
+        def qt_thread_complete(_:None, error:Optional[Exception]) -> None:
+            if error is not None:
+                self._browse_feedback_label.set_error(f"Failed to delete. {error}")
+            else:
+                self._browse_feedback_label.clear()
+        
+        for reference_id in reference_ids:
+            partial = functools.partial(bg_thread_delete, reference_id)
+            self.server_manager.schedule_client_request(partial, qt_thread_complete)
+
     def _request_delete_all_slot(self) -> None:
+        self._browse_feedback_label.set_info("Clearing storage...")
+        def bg_thread_clear(client:ScrutinyClient) -> None:    
+            client.clear_datalogging_storage()
+        
+        def qt_thread_complete(_:None, error:Optional[Exception]) -> None:
+            if error is not None:
+                msg = f"Failed to clear the datalogging storage. {error}"
+                self._browse_feedback_label.set_error(msg)
+            else:
+                self._browse_feedback_label.clear()
+        
+        self.server_manager.schedule_client_request(bg_thread_clear, qt_thread_complete)
+
+    def _acquire_tab_visible_slot(self) -> None:
         pass
+
+    def _browse_tab_visible_slot(self) -> None:
+        self._do_initial_data_download()
+    
+    def _do_initial_data_download(self) -> None:
+        self._graph_browse_widget.clear()
+        self._browse_feedback_label.set_info("Downloading...")
+
+        def bg_thread_download(client:ScrutinyClient) -> ScrutinyClient.ListDataloggingAcquisitionsResponse:    
+            return client.list_stored_datalogging_acquisitions()
+        
+        def qt_thread_receive(result:Optional[ScrutinyClient.ListDataloggingAcquisitionsResponse], error:Optional[Exception]) -> None:
+            if result is not None:
+                self._graph_browse_widget.add_storage_entries(result.acquisitions)
+                self._browse_feedback_label.clear()
+            else:
+                msg = "Failed to download the datalogging data."
+                if error is not None:
+                    msg += f" {error}"
+                self._browse_feedback_label.set_error(msg)
+
+        self.server_manager.schedule_client_request(bg_thread_download, qt_thread_receive)

@@ -1734,8 +1734,8 @@ class TestClient(ScrutinyUnitTest):
 
         with DataloggingStorage.use_temp_storage():
             with SFDStorage.use_temp_folder():
-                acquisitions = self.client.list_stored_datalogging_acquisitions()
-                self.assertEqual(len(acquisitions), 0)
+                response = self.client.list_stored_datalogging_acquisitions()
+                self.assertEqual(len(response.acquisitions), 0)
 
                 sfd1_filename = get_artifact('test_sfd_1.sfd')
                 sfd2_filename = get_artifact('test_sfd_2.sfd')
@@ -1793,15 +1793,16 @@ class TestClient(ScrutinyUnitTest):
                 DataloggingStorage.save(acquisition)
                 DataloggingStorage.save(acquisition2)
 
-                acquisitions = self.client.list_stored_datalogging_acquisitions()
-                self.assertEqual(len(acquisitions), 2)
+                response = self.client.list_stored_datalogging_acquisitions()
+                self.assertEqual(len(response.acquisitions), 2)
+                self.assertEqual(response.total, 2)
 
                 expected_data = [
                     dict(firmware_id=sfd1.get_firmware_id_ascii(), reference_id='refid1'),
                     dict(firmware_id=sfd2.get_firmware_id_ascii(), reference_id='refid2')
                 ]
 
-                received_data = [dict(firmware_id=x.firmware_id, reference_id=x.reference_id) for x in acquisitions]
+                received_data = [dict(firmware_id=x.firmware_id, reference_id=x.reference_id) for x in response.acquisitions]
 
                 self.assertCountEqual(expected_data, received_data)
 
@@ -2314,7 +2315,7 @@ class TestClient(ScrutinyUnitTest):
             self.assertEqual(event.change_type, sdk.DataloggingListChangeType.DELETE_ALL)
             self.assertIsNone(event.acquisition_reference_id)
 
-    def test_delete_datalogging_acquisition(self):
+    def test_delete_datalogging_acquisitions(self):
         self.client.listen_events(ScrutinyClient.Events.LISTEN_DATALOGGING_LIST_CHANGED)
         self.client.clear_event_queue()
 

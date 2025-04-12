@@ -29,7 +29,6 @@ from scrutiny.tools.profiling import VariableRateExponentialAverager
 from scrutiny import tools
 from scrutiny.tools.timebase import RelativeTimebase
 import selectors
-from datetime import datetime
 
 import logging
 from scrutiny.core.logging import DUMPDATA_LOGLEVEL
@@ -44,8 +43,7 @@ from base64 import b64encode
 import queue
 import types
 
-from typing import List, Dict, Optional, Callable, cast, Union, TypeVar, Tuple, Type, Any, Literal, Generator
-
+from scrutiny.tools.typing import *
 
 class CallbackState(enum.Enum):
     Pending = enum.auto()
@@ -274,6 +272,7 @@ class ScrutinyClient:
     _MEMORY_WRITE_DATA_LIFETIME = 30
     _DOWNLOAD_WATCHABLE_LIST_LIFETIME = 30
 
+    ListDataloggingAcquisitionsResponse:TypeAlias = api_parser.ListDataloggingAcquisitionsResponse
     @dataclass(frozen=True)
     class Statistics:
         """Performance metrics given by the client useful for diagnostic and debugging"""
@@ -1921,25 +1920,42 @@ class ScrutinyClient:
         assert cb_data.request is not None
         return cb_data.request
 
-    def list_stored_datalogging_acquisitions(self, timeout: Optional[float] = None) -> List[sdk.datalogging.DataloggingStorageEntry]:
-        """Gets the list of datalogging acquisition stored in the server database
+    def list_stored_datalogging_acquisitions(self, 
+                                             firmware_id:Optional[str]=None, 
+                                             start:int=0, 
+                                             count:int=500, 
+                                             timeout: Optional[float] = None) -> ListDataloggingAcquisitionsResponse:
+        """Gets the list of datalogging acquisition stored in the server database. 
+        
+        Works with a paging mechanism where 250 acquisitions could be fetched
+        with 3 downloads of a maximum size of 100 (start=0, count=100 / start=100, count=100 / start=200, count=50)
 
+        :param firmware_id: When not ``None``, searches for acquisitions takend with this firmware ID
+        :param start: The index of the first acquisition to fetch. Used for paging
+        :param count: Maximum number of acquisition to fetch. Maximum size is 10000
         :param timeout: The request timeout value. The default client timeout will be used if set to ``None`` Defaults to ``None``
 
         :raise OperationFailure: If fetching the list fails
 
-        :return: A list of database entries, each one representing an acquisition in the database with `reference_id` as its unique identifier
+        :return: A list of database entries representing an acquisitionsand the total number of entries that can be downloaded for the given ``firmware_id`` parameter.
         """
+        validation.assert_type(firmware_id, 'firmware_id', (str, type(None)))
         timeout = validation.assert_float_range_if_not_none(timeout, 'timeout', minval=0)
+        start = validation.assert_int_range(start, 'start', minval=0)
+        count = validation.assert_int_range(count, 'count', minval=0, maxval=10000)
 
         if timeout is None:
             timeout = self._timeout
 
-        req = self._make_request(API.Command.Client2Api.LIST_DATALOGGING_ACQUISITION)
+        req = self._make_request(API.Command.Client2Api.LIST_DATALOGGING_ACQUISITION, {
+            'firmware_id' : firmware_id,
+            'start' : start,
+            'count' : count
+        })
 
         @dataclass
         class Container:
-            obj: Optional[List[sdk.datalogging.DataloggingStorageEntry]]
+            obj: Optional[ScrutinyClient.ListDataloggingAcquisitionsResponse]
         cb_data: Container = Container(obj=None)  # Force pass by ref
 
         def callback(state: CallbackState, response: Optional[api_typing.S2CMessage]) -> None:

@@ -73,6 +73,16 @@ class AcquisitionStorageEntryTreeModel(BaseTreeModel):
         
         return cast(Optional[str], item.data(self.REFERENCE_ID_ROLE))
 
+    def remove_by_reference_id(self, reference_id:str) -> None:
+        items_to_remove:List[QStandardItem] = []
+        for i in range(self.rowCount()):
+            item = self.item(i, 0)
+            if self.get_reference_id_from_index(item.index()) == reference_id:
+                items_to_remove.append(item)
+        
+        for item in items_to_remove:
+            self.removeRow(item.row(), QModelIndex())
+
 class AcquisitionStorageEntryTreeView(BaseTreeView):
     class _Signals(QObject):
         display = Signal()
@@ -167,14 +177,11 @@ class GraphBrowseWidget(QWidget):
         super().__init__(parent)
         self._signals = self._Signals()
         self._treeview = AcquisitionStorageEntryTreeView(self)
-        self._btn_display = QPushButton("Display")
-        self._btn_delete_all = QPushButton("Delete All")
-        self._btn_display.clicked.connect(self._emit_display_signal_if_possible)
+        self._btn_delete_all = QPushButton(assets.load_tiny_icon(assets.Icons.RedX), " Delete All", self)
         self._btn_delete_all.clicked.connect(self._btn_delete_all_clicked_slot)
 
         layout = QVBoxLayout(self)
         layout.addWidget(self._treeview)
-        layout.addWidget(self._btn_display)
         layout.addWidget(self._btn_delete_all)
 
         self._treeview.signals.display.connect(self._emit_display_signal_if_possible)
@@ -204,8 +211,6 @@ class GraphBrowseWidget(QWidget):
         if reply == QMessageBox.StandardButton.Yes:
             self._signals.delete_all.emit()
             
-        
-
     def _emit_display_signal_if_possible(self) -> None:
         selected_indexes = self._treeview.selectedIndexes()
         selected_indexes_one_per_row = [index for index in selected_indexes if index.column() == 0]
@@ -227,4 +232,6 @@ class GraphBrowseWidget(QWidget):
                     to_delete.append(reference_id)
             if len(to_delete) > 0:
                 self._signals.delete.emit(to_delete)
-            
+    
+    def remove_by_reference_id(self, reference_id:str) -> None:
+        self._treeview.model().remove_by_reference_id(reference_id)

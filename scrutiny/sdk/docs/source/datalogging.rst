@@ -177,6 +177,8 @@ and once the :attr:`reference_id<scrutiny.core.datalogging.DataloggingAcquisitio
 
 .. automethod:: scrutiny.sdk.client.ScrutinyClient.list_stored_datalogging_acquisitions 
 
+.. autoclass:: scrutiny.sdk.client.ScrutinyClient.ListDataloggingAcquisitionsResponse
+
 -----
 
 .. automethod:: scrutiny.sdk.client.ScrutinyClient.read_datalogging_acquisition 
@@ -214,7 +216,7 @@ Manipulating the storage
 
 -----
 
-.. automethod:: scrutiny.sdk.client.ScrutinyClient.delete_datalogging_acquisition
+.. automethod:: scrutiny.sdk.client.ScrutinyClient.delete_datalogging_acquisitions
 
 -----
 
