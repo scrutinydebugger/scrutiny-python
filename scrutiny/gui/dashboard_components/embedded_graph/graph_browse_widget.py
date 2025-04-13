@@ -1,3 +1,12 @@
+#    graph_browse_widget.py
+#        A widget that let the user browse the available acquisition on the server. Communicate
+#        with the Embedded Graph widget through signals
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021 Scrutiny Debugger
+
 from PySide6.QtWidgets import  QWidget, QVBoxLayout, QPushButton, QMenu, QAbstractItemDelegate, QMessageBox, QLineEdit
 from PySide6.QtGui import  QStandardItem, QContextMenuEvent, QKeyEvent, QMouseEvent
 from PySide6.QtCore import Signal, QObject, Qt, QModelIndex

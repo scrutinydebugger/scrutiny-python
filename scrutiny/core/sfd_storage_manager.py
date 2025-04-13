@@ -1,5 +1,5 @@
 #    sfd_storage_manager.py
-#        Manipulate the Scrutiny storage for .sfd files
+#        A class that manipulates the Scrutiny storage for .sfd files. Does not instantiate
 #
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)

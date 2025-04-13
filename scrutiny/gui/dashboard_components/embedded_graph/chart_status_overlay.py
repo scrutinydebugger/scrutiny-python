@@ -1,3 +1,11 @@
+#    chart_status_overlay.py
+#        An overlay that can be applied on a chart to display a message with an icon. USed
+#        to display errors and loading messages
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021 Scrutiny Debugger
 
 __all__ = ['ChartStatusOverlay']
 

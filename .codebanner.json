@@ -285,9 +285,6 @@
         "scrutiny/core/alias.py": {
             "docstring": "Class that contains the definition of an alias."
         },
-        "scrutiny/server/datastore/entry_type.py": {
-            "docstring": "Type of datastore entry."
-        },
         "test/core/test_firmware_parser.py": {
             "docstring": "Test basic capacities to parse a firmware a generate a valid firmware ID"
         },
@@ -695,6 +692,18 @@
         },
         "scrutiny/gui/widgets/watchable_line_edit.py": {
             "docstring": "A textbox that can be manually edited or filled with a watchable element by drag&drop"
+        },
+        "test/gui/manual/manual_test_embedded_graph_status_overlay.py": {
+            "docstring": "A manual test suite that validates how the embedded graph status overlay behaves with resizes"
+        },
+        "scrutiny/gui/dashboard_components/embedded_graph/chart_status_overlay.py": {
+            "docstring": "An overlay that can be applied on a chart to display a message with an icon. USed to display errors and loading messages"
+        },
+        "scrutiny/gui/dashboard_components/embedded_graph/graph_browse_widget.py": {
+            "docstring": "A widget that let the user browse the available acquisition on the server. Communicate with the Embedded Graph widget through signals"
+        },
+        "scrutiny/server/sfd_storage.py": {
+            "docstring": "Declaration of the server-wide SFD storage"
         }
     }
 }

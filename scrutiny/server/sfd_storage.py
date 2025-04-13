@@ -1,3 +1,10 @@
+#    sfd_storage.py
+#        Declaration of the server-wide SFD storage
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021 Scrutiny Debugger
 
 __all__ = ['SFDStorage']
 
