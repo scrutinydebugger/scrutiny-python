@@ -7,9 +7,9 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
-from PySide6.QtWidgets import  QWidget, QVBoxLayout, QPushButton, QMenu, QAbstractItemDelegate, QMessageBox, QLineEdit
-from PySide6.QtGui import  QStandardItem, QContextMenuEvent, QKeyEvent, QMouseEvent
-from PySide6.QtCore import Signal, QObject, Qt, QModelIndex
+from PySide6.QtWidgets import  QWidget, QVBoxLayout,  QMenu, QAbstractItemDelegate, QLineEdit
+from PySide6.QtGui import  QStandardItem, QContextMenuEvent, QKeyEvent, QMouseEvent, QAction
+from PySide6.QtCore import Signal, QObject, Qt, QModelIndex, QPoint
 
 from scrutiny.sdk import datalogging
 from scrutiny.gui.core.preferences import gui_preferences
@@ -149,7 +149,16 @@ class AcquisitionStorageEntryTreeView(BaseTreeView):
         action_delete.triggered.connect(self._signals.delete)
         action_rename.triggered.connect(self._rename_selected_acquisition)
 
-        context_menu.popup(self.mapToGlobal(event.pos()))
+        self.display_context_menu(context_menu, event.pos())
+
+    def display_context_menu(self, menu:QMenu, pos:QPoint) -> None:
+        """Display a menu at given relative position, and make sure it goes below the cursor to mimic what most people are used to"""
+        actions = menu.actions()
+        at: Optional[QAction] = None
+        if len(actions) > 0:
+            pos += QPoint(0, menu.actionGeometry(actions[0]).height())
+            at = actions[0]
+        menu.popup(self.mapToGlobal(pos), at)   
     
     def _rename_selected_acquisition(self) -> None:
         selected_indexes = self.selectedIndexes()
@@ -175,15 +184,17 @@ class AcquisitionStorageEntryTreeView(BaseTreeView):
     
     def closeEditor(self, editor:QWidget, hint:QAbstractItemDelegate.EndEditHint) -> None:
         if self._item_being_edited is not None:
+            
             item_written = self._item_being_edited
             
             reference_id = self.model().get_reference_id_from_index(item_written.index())
             new_name = item_written.text()
 
-            must_update = True
+            must_update = (hint == QAbstractItemDelegate.EndEditHint.SubmitModelCache)
             if len(new_name) == 0:
                 item_written.setText(self._previous_name)
                 must_update = False
+            
             
             if must_update:
                 self._signals.rename.emit(reference_id, new_name)
@@ -202,7 +213,7 @@ class AcquisitionStorageEntryTreeView(BaseTreeView):
         self._signals.display.emit()
         return super().mouseDoubleClickEvent(event)
 
-class GraphBrowseWidget(QWidget):
+class GraphBrowseTreeWidget(QWidget):
 
     class _Signals(QObject):
         display = Signal(str)
@@ -221,12 +232,10 @@ class GraphBrowseWidget(QWidget):
         super().__init__(parent)
         self._signals = self._Signals()
         self._treeview = AcquisitionStorageEntryTreeView(self)
-        self._btn_delete_all = QPushButton(assets.load_tiny_icon(assets.Icons.RedX), " Delete All", self)
-        self._btn_delete_all.clicked.connect(self._btn_delete_all_clicked_slot)
 
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(0,0,0,0)
         layout.addWidget(self._treeview)
-        layout.addWidget(self._btn_delete_all)
 
         self._treeview.signals.display.connect(self._emit_display_signal_if_possible)
         self._treeview.signals.delete.connect(self._emit_delete_signal_if_possible)
@@ -241,25 +250,14 @@ class GraphBrowseWidget(QWidget):
             self._treeview.model().append_storage_entry(entry)
         self._treeview.setSortingEnabled(True)
 
+    def autosize_columns(self) -> None:
+        for i in range(self._treeview.model().columnCount()):
+            self._treeview.resizeColumnToContents(i)
+
     def update_storage_entry(self, entry:datalogging.DataloggingStorageEntry) -> None:
         self._treeview.setSortingEnabled(False)
         self._treeview.model().update_storage_entry(entry)
         self._treeview.setSortingEnabled(True)
-
-    
-    def _btn_delete_all_clicked_slot(self) -> None:
-        msgbox = QMessageBox(self)
-        msgbox.setIcon(QMessageBox.Icon.Warning)
-        msgbox.setWindowTitle("Are you sure?")
-        msgbox.setText("You are about to delete all datalogging acquisition on the server.\nProceed?")
-        msgbox.setStandardButtons(QMessageBox.StandardButton.No | QMessageBox.StandardButton.Yes)
-        msgbox.setDefaultButton(QMessageBox.StandardButton.No)
-
-        msgbox.setModal(True)
-        reply = msgbox.exec()
-
-        if reply == QMessageBox.StandardButton.Yes:
-            self._signals.delete_all.emit()
             
     def _emit_display_signal_if_possible(self) -> None:
         selected_indexes = self._treeview.selectedIndexes()

@@ -200,7 +200,7 @@ class WatchComponentTreeWidget(WatchableTreeWidget):
                 recurse(model.item(i, nesting_col), True)
     
     def closeEditor(self, editor:QWidget, hint:QAbstractItemDelegate.EndEditHint) -> None:
-        """Called when the user finishes editing a value. Press enter or blur foxus"""
+        """Called when the user finishes editing a value. Press enter or blur focus"""
         item_written = self._model.itemFromIndex(self.currentIndex())
         model = self.model()
         nesting_col = model.nesting_col()

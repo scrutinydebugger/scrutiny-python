@@ -9,8 +9,9 @@
 from dataclasses import dataclass
 from pathlib import Path
 import functools
+from datetime import datetime
 
-from PySide6.QtWidgets import QVBoxLayout, QLabel, QWidget, QSplitter, QPushButton, QScrollArea, QHBoxLayout, QMenu, QTabWidget
+from PySide6.QtWidgets import QVBoxLayout, QLabel, QWidget, QSplitter, QPushButton, QScrollArea, QHBoxLayout, QMenu, QTabWidget, QCheckBox, QMessageBox
 from PySide6.QtCore import Qt, QPointF, QRectF
 from PySide6.QtGui import QContextMenuEvent, QKeyEvent, QResizeEvent
 
@@ -25,7 +26,7 @@ from scrutiny.gui import assets
 from scrutiny.gui.tools import prompt
 from scrutiny.gui.dashboard_components.base_component import ScrutinyGUIBaseComponent
 from scrutiny.gui.dashboard_components.embedded_graph.graph_config_widget import GraphConfigWidget
-from scrutiny.gui.dashboard_components.embedded_graph.graph_browse_widget import GraphBrowseWidget
+from scrutiny.gui.dashboard_components.embedded_graph.graph_browse_tree_widget import GraphBrowseTreeWidget
 from scrutiny.gui.dashboard_components.embedded_graph.chart_status_overlay import ChartStatusOverlay
 from scrutiny.gui.dashboard_components.common.base_chart import (
     ScrutinyChart, ScrutinyChartView, ScrutinyChartToolBar,  ScrutinyLineSeries, ScrutinyValueAxisWithMinMax
@@ -45,6 +46,7 @@ class EmbeddedGraphState:
     waiting_on_graph:bool
     chart_toolbar_wanted:bool
     has_failure_message:bool
+    may_have_more_to_load:bool
 
     def allow_save_csv(self) -> bool:
         return self.has_content
@@ -88,6 +90,15 @@ class EmbeddedGraphState:
     def allow_chart_toolbar(self) -> None:
         self.chart_toolbar_wanted = True
 
+    def can_load_more_acquisitions(self) -> bool:
+        return self.may_have_more_to_load 
+
+    def enable_load_more_button(self) -> bool:
+        return self.can_load_more_acquisitions()
+
+@dataclass
+class InitialGraphListDownloadConditions:
+    firmware_id:Optional[str]
 class EmbeddedGraph(ScrutinyGUIBaseComponent):
     instance_name : str
 
@@ -95,28 +106,39 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
     _NAME = "Embedded Graph"
 
     Y_AXIS_MARGIN = 0.02
+    DOWNLOAD_ACQ_LIST_CHUNK_SIZE = 100
 
-    _graph_config_widget:GraphConfigWidget
-    _graph_browse_widget:GraphBrowseWidget
+    # Chart common stuff 
+    _left_pane:QWidget
+    _center_pane:QWidget
+    _right_pane:QWidget
+
     _splitter:QSplitter
     _xval_label:QLabel
     _signal_tree:GraphSignalTree
-    _btn_acquire:QPushButton
-    _btn_clear:QPushButton
-    _acquire_feedback_label:FeedbackLabel
-    _browse_feedback_label:FeedbackLabel
     _chartview:ScrutinyChartView
     _chart_toolbar:ScrutinyChartToolBar
     _xaxis:Optional[ScrutinyValueAxisWithMinMax]
     _yaxes:List[ScrutinyValueAxisWithMinMax]
     _displayed_acquisition:Optional[DataloggingAcquisition]
     _chart_status_overlay:ChartStatusOverlay
+    
+    # Acquire stuff
+    _graph_config_widget:GraphConfigWidget
+    _btn_acquire:QPushButton
+    _btn_clear:QPushButton
+    _acquire_feedback_label:FeedbackLabel
     _pending_request:Optional[DataloggingRequest]
     _request_to_ignore_completions:Dict[int, DataloggingRequest]
 
-    _left_pane:QWidget
-    _center_pane:QWidget
-    _right_pane:QWidget
+    # Browse stuff
+    _graph_browse_widget:GraphBrowseTreeWidget
+    _chk_browse_loaded_sfd_only:QCheckBox
+    _browse_feedback_label:FeedbackLabel
+    _btn_delete_all:QPushButton
+    _btn_load_more:QPushButton
+    _oldest_acquisition_downloaded:Optional[datetime]
+
 
     _state:EmbeddedGraphState
 
@@ -130,13 +152,15 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
             has_content=False,
             waiting_on_graph=False,
             chart_toolbar_wanted=True,
-            has_failure_message=False
+            has_failure_message=False,
+            may_have_more_to_load = True
         )
 
         self._teared_down = False
         self._displayed_acquisition = None
         self._pending_request = None
         self._request_to_ignore_completions = {}
+        self._oldest_acquisition_downloaded = None
 
         def make_right_pane() -> QWidget:
             right_pane = QWidget()
@@ -216,17 +240,33 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
             container = QWidget()
             container_layout = QVBoxLayout(container)
             container_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
-            container_layout.setContentsMargins(0,0,0,0)
+            
 
-            self._graph_browse_widget = GraphBrowseWidget(self)
+            self._chk_browse_loaded_sfd_only = QCheckBox("Loaded firmware only")
+            self._chk_browse_loaded_sfd_only.setToolTip("Load acquisition taken with the same firmware that the device you're conencted to is using.")
+            self._chk_browse_loaded_sfd_only.checkStateChanged.connect(self._checkbox_filter_sfd_checkstate_change_slot)
+            if self.server_manager.get_loaded_sfd() is None:
+                self._chk_browse_loaded_sfd_only.setDisabled(1)
+                
+            self._graph_browse_widget = GraphBrowseTreeWidget(self)
+            self._btn_delete_all = QPushButton(assets.load_tiny_icon(assets.Icons.RedX), " Delete All", self)
+            self._btn_load_more = QPushButton("Load more", self)
             self._browse_feedback_label = FeedbackLabel()
 
-            self._graph_browse_widget.signals.delete_all.connect(self._request_delete_all_slot)
+            btn_line = QWidget(self)
+            btn_line_layout = QHBoxLayout(btn_line)
+            btn_line_layout.addWidget(self._btn_load_more)
+            btn_line_layout.addWidget(self._btn_delete_all)
+
             self._graph_browse_widget.signals.delete.connect(self._request_delete_single_slot)
             self._graph_browse_widget.signals.rename.connect(self._request_rename_slot)
             self._graph_browse_widget.signals.display.connect(self._browse_display_acquisition_slot)
+            self._btn_delete_all.clicked.connect(self._btn_delete_all_clicked_slot)
+            self._btn_load_more.clicked.connect(self._btn_load_more_clicked_slot)
 
+            container_layout.addWidget(self._chk_browse_loaded_sfd_only)
             container_layout.addWidget(self._graph_browse_widget)
+            container_layout.addWidget(btn_line)
             container_layout.addWidget(self._browse_feedback_label)
 
             return container
@@ -279,6 +319,8 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
         self.server_manager.signals.registry_changed.connect(self._registry_changed_slot)
         self.server_manager.signals.datalogging_state_changed.connect(self._datalogging_state_changed_slot)
         self.server_manager.signals.datalogging_storage_updated.connect(self._datalogging_storage_updated_slot)
+        self.server_manager.signals.sfd_loaded.connect(self._sfd_loaded_slot)
+        self.server_manager.signals.sfd_unloaded.connect(self._sfd_unloaded_slot)
         self._update_datalogging_capabilities()
 
         self._graph_config_widget.set_axis_type(XAxisType.MeasuredTime)
@@ -287,14 +329,12 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
             self._graph_config_widget.set_axis_type(XAxisType.IdealTime)
 
         self._apply_internal_state()
-
         
     def ready(self) -> None:
         """Called when the component is inside the dashboard and its dimensions are computed"""
         # Make the right menu as small as possible. Only works after the widget is loaded. we need the ready() function for that
         self._splitter.setSizes([self._left_pane.minimumWidth(), self.width(), self._right_pane.minimumWidth()])
         
-
     def teardown(self) -> None:
         self._teared_down = True
 
@@ -326,245 +366,32 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
         else:
             self._signal_tree.update_all_availabilities()
         
+        self._btn_load_more.setEnabled(self._state.enable_load_more_button())
+        
         self._chart_status_overlay.setVisible(self._state.must_show_overlay())
 
     def _update_datalogging_capabilities(self) -> None:
         self._graph_config_widget.configure_from_device_info(self.server_manager.get_device_info())
 
-    def _btn_acquire_slot(self) -> None:
-        """When the user pressed "Acquire" """
-        # Get the config from the config widget. 
-        # Then add the signals from the signal tree and send that to the server if all valid
-        result = self._graph_config_widget.validate_and_get_config()
-        if not result.valid:
-            assert result.error is not None
-            self._acquire_feedback_label.set_error(result.error)
-            return 
-        assert result.config is not None
-        
-        self._acquire_feedback_label.clear()
-        axes_signal = self._signal_tree.get_signals()
-        if len(axes_signal) == 0:
-            self._acquire_feedback_label.set_error("No signals to acquire")
-            return
-
-        nb_signals = 0
-        for axis in axes_signal:
-            if len(axis.signal_items) == 0:
-                continue
-            nb_signals += len(axis.signal_items)
-            sdk_axis = result.config.add_axis(axis.axis_name)
-            for signal_item in axis.signal_items:
-                result.config.add_signal(
-                    axis=sdk_axis,
-                    name=signal_item.text(),
-                    signal=self.watchable_registry.FQN.parse(signal_item.fqn).path
-                )
-
-        if nb_signals == 0:
-            self._acquire_feedback_label.set_error("No signals to acquire")
-            return
-
-        # Config is good. 
-        self._acquire_feedback_label.clear()
-        self._clear_graph()        
-        self._acquire(result.config)    # Request the server for that acquisition
-        
-    def _acquire(self, config:DataloggingConfig) -> None:
-        # We chain 2 background request. 1 for the initial request, 2 to wait for completion.
-        # Promises could be nice here, we don't have that.
-
-        self._state.waiting_on_graph = True
-        self._chart_status_overlay.set(assets.Icons.Trigger, "Configuring")
-        self._apply_internal_state()
-
-        self.logger.debug(f"Requesting datalog for config {config}")
-
-        def bg_thread_start_datalog(client:ScrutinyClient) -> DataloggingRequest:
-            return client.start_datalog(config)
-
-        def qt_thread_datalog_started(request:Optional[DataloggingRequest], error:Optional[Exception]) -> None:
-            # Callbak #1. The request is received and aknowledged by the server
-
-            if self._teared_down:
-                return  # Silent exit
-
-            if error is not None:
-                self._callback_request_failed(request=None, error=error, msg="")
-                return
-            assert request is not None
-
-            self.logger.debug(f"Datalog accepted. Request {request.request_token}")
-
-            if self._pending_request is not None:
-                # We use a dict instead of a set of id to keep a reference to the object so it's kept alive and ther eis no id reuse issue.
-                self._request_to_ignore_completions[id(self._pending_request)] = self._pending_request
-            else:
-                self._request_to_ignore_completions.clear()
-
-            self._chart_status_overlay.set(assets.Icons.Trigger, "Waiting for trigger...")
-
-            # We have a pending request. Launch a background task to wait for completion.
-            def bg_thread_wait_for_completion(client:ScrutinyClient) -> None:
-                request.wait_for_completion()
-            
-            def qt_thread_request_completed(_:None, error:Optional[Exception]) -> None:
-                # Callback #2. The acquisition is completed (success or failed)
-
-                if self._teared_down:
-                    return # Silent exit
-                
-                self.logger.debug(f"Request {request.request_token} completed")
-                if id(request) in self._request_to_ignore_completions:
-                    del self._request_to_ignore_completions[id(request)]
-                    self.logger.debug(f"Ignoring completion of {request.request_token}")
-                    return 
-                
-                self._pending_request = None
-                if error is not None:   # Exception while waiting
-                    self._callback_request_failed(request, error, msg="")   # The message will be the exception
-                    return
-
-                if not request.completed:   # Should not happen. Happens only when there is a timeout on wait_for_completion (we don't have one)
-                    self._callback_request_failed(request, None, "Failed to complete")
-                    return
-
-                if not request.is_success:  # Didn't complete. The device or the server might be gone while waiting
-                    self._callback_request_failed(request, None, request.failure_reason)
-                    return
-                
-                self._callback_request_succeeded(request)   # SUCCESS!
-            
-            self._pending_request = request
-            
-            self.server_manager.schedule_client_request(
-                user_func=bg_thread_wait_for_completion,
-                ui_thread_callback=qt_thread_request_completed
-            )
-
-            self._acquire_feedback_label.clear()
-            self._apply_internal_state()
-        
-        self.server_manager.schedule_client_request(
-            user_func= bg_thread_start_datalog,
-            ui_thread_callback=qt_thread_datalog_started
-        )
-
-        self._acquire_feedback_label.set_info("Acquisition requested")
-
-    def _get_signal_size_list(self) -> List[EmbeddedDataType]:
-        outlist:List[EmbeddedDataType] = []
-        axes = self._signal_tree.get_signals()
-        for axis in axes:
-            for item in axis.signal_items:
-                watchable = self.watchable_registry.get_watchable_fqn(item.fqn)  # Might be unavailable
-                if watchable is None:
-                    return []
-                outlist.append(watchable.datatype)
-
-        return outlist
-            
     def _registry_changed_slot(self) -> None:
         """Called when the server manager has finished making a change to the registry"""
         if not self._state.has_content: # We are not inspecting data.
             self._signal_tree.update_all_availabilities()
 
     def _datalogging_state_changed_slot(self) -> None:
+        """When the server tells us that the datalogger has changed state"""
         self._update_acquiring_overlay()
 
-    def _datalogging_storage_updated_slot(self, change_type:sdk.DataloggingListChangeType, reference_id:Optional[str]) -> None:
-        
-        if change_type == sdk.DataloggingListChangeType.DELETE_ALL:
-            self._do_initial_data_download()
-        elif change_type == sdk.DataloggingListChangeType.DELETE:
-            if reference_id is not None:
-                self._graph_browse_widget.remove_by_reference_id(reference_id)
-        elif change_type == sdk.DataloggingListChangeType.UPDATE:
-            if reference_id is not None:
-                def bg_thread_update(client:ScrutinyClient) -> Optional[DataloggingStorageEntry]:
-                    return client.read_datalogging_acquisitions_metadata(reference_id)
-                def qt_thread_update(entry:Optional[DataloggingStorageEntry], error:Optional[Exception]) -> None:
-                    if entry is not None:
-                        self._graph_browse_widget.update_storage_entry(entry)
-                
-                self.server_manager.schedule_client_request(bg_thread_update, qt_thread_update)
-        elif change_type == sdk.DataloggingListChangeType.NEW:
-            if reference_id is not None:
-                def bg_thread_new(client:ScrutinyClient) -> Optional[DataloggingStorageEntry]:
-                    return client.read_datalogging_acquisitions_metadata(reference_id)
-                def qt_thread_new(entry:Optional[DataloggingStorageEntry], error:Optional[Exception]) -> None:
-                    if entry is not None:
-                        self._graph_browse_widget.add_storage_entries([entry])
-                
-                self.server_manager.schedule_client_request(bg_thread_new, qt_thread_new)
+    def _sfd_loaded_slot(self) -> None:
+        """Called when the server loads a SFD"""
+        self._enable_sfd_filter()   # In browse tab
+
+    def _sfd_unloaded_slot(self) -> None:
+        """Called when the server unloads a SFD"""
+        self._disable_sfd_filter()  # In browse tab
 
 
-    def _update_acquiring_overlay(self) -> None:
-        info = self.server_manager.get_server_info()
-        if info is None:
-            return 
-        if self._state.waiting_on_graph:
-            if info.datalogging.state == DataloggerState.Standby:
-                self._chart_status_overlay.set(None, "")
-            elif info.datalogging.state == DataloggerState.WaitForTrigger:
-                self._chart_status_overlay.set(assets.Icons.Trigger, "Waiting for trigger...")
-            elif info.datalogging.state == DataloggerState.Acquiring:
-                s = "Acquiring"
-                ratio = info.datalogging.completion_ratio
-                if ratio is not None:
-                    percent = int(round(max(min(ratio, 1), 0) * 100)) 
-                    s += f" ({int(percent)}%)"
-                self._chart_status_overlay.set(assets.Icons.Trigger, s)
-
-    def _callback_request_failed(self, 
-                                 request:Optional[DataloggingRequest], 
-                                 error:Optional[Exception], 
-                                 msg:str="Request failed") -> None:
-        self._state.waiting_on_graph = False
-        self._acquire_feedback_label.clear()
-
-        if error:
-            tools.log_exception(self.logger, error, msg)
-        elif len(msg) > 0:
-            self.logger.error(msg)
-
-        feedback_str = msg
-        if error:
-            feedback_str += f"\n{error}"
-        feedback_str = feedback_str.strip()
-
-        self._display_graph_error(feedback_str)
-        self._apply_internal_state()
-
-    def _callback_request_succeeded(self, request:DataloggingRequest) -> None:
-        assert request.completed and request.is_success
-        assert request.acquisition_reference_id is not None
-        self._acquire_feedback_label.clear()
-        self._graph_config_widget.update_autoname()
-        
-        self._apply_internal_state()
-
-        def ephemerous_thread_download_data(client:ScrutinyClient) -> DataloggingAcquisition:
-            assert request.acquisition_reference_id is not None
-            return client.read_datalogging_acquisition(reference_id=request.acquisition_reference_id)
-        
-        def qt_thread_receive_acquisition_data(acquisition:Optional[DataloggingAcquisition], error:Optional[Exception]) -> None:
-            if error is not None:
-                self._callback_request_failed(request, error,  f"The acquisition succeeded, but downloading its data failed. The content is still available in the server database.\n Error {error}")
-                return 
-
-            assert acquisition is not None
-            self._display_acquisition(acquisition)
-
-        self.server_manager.schedule_client_request(
-            user_func=ephemerous_thread_download_data, 
-            ui_thread_callback=qt_thread_receive_acquisition_data
-            )
-
-    def _btn_clear_slot(self) -> None:
-        self._clear_graph()
-        self._acquire_feedback_label.clear()
-
+# region Chart handling
 
     def _clear_graph(self) -> None:
         self._clear_graph_error()
@@ -586,7 +413,6 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
             chart.removeAxis(self._xaxis)
         for yaxis in self._yaxes:
             chart.removeAxis(yaxis)
-
 
         # Update internal variables
         self._xaxis=None
@@ -770,7 +596,13 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
         save_csv_action.triggered.connect(self._save_csv_slot)
         save_csv_action.setEnabled(self._state.allow_save_csv())
 
-        context_menu.popup(self._chartview.mapToGlobal(chartview_event.pos()))
+        context_menu.addSection("Content")
+        #Clear
+        clear_chart_action = context_menu.addAction(assets.load_tiny_icon(assets.Icons.RedX), "Clear")
+        clear_chart_action.triggered.connect(self._clear_graph)
+        clear_chart_action.setEnabled(self._state.enable_clear_button())
+
+        context_menu.popup(self._chartview.mapToGlobal(chartview_event.pos()))     
 
 
     def _reset_zoom_slot(self) -> None:
@@ -897,6 +729,254 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
         """Chartview Event forwarded through a signal"""
         self._chart_status_overlay.adjust_sizes()
 
+# endregion 
+
+# region Acquire Tab
+
+    def _get_signal_size_list(self) -> List[EmbeddedDataType]:
+        """This function provide all the embedded data type of the signals presently in the signal tree.
+        Used to estimate the duration of the acquisition."""
+
+        outlist:List[EmbeddedDataType] = []
+        axes = self._signal_tree.get_signals()
+        for axis in axes:
+            for item in axis.signal_items:
+                watchable = self.watchable_registry.get_watchable_fqn(item.fqn)  # Might be unavailable
+                if watchable is None:
+                    return []
+                outlist.append(watchable.datatype)
+
+        return outlist
+            
+    def _acquire_tab_visible_slot(self) -> None:
+        pass
+
+    def _btn_acquire_slot(self) -> None:
+        """When the user pressed "Acquire" """
+        # Get the config from the config widget. 
+        # Then add the signals from the signal tree and send that to the server if all valid
+        result = self._graph_config_widget.validate_and_get_config()
+        if not result.valid:
+            assert result.error is not None
+            self._acquire_feedback_label.set_error(result.error)
+            return 
+        assert result.config is not None
+        
+        self._acquire_feedback_label.clear()
+        axes_signal = self._signal_tree.get_signals()
+        if len(axes_signal) == 0:
+            self._acquire_feedback_label.set_error("No signals to acquire")
+            return
+
+        nb_signals = 0
+        for axis in axes_signal:
+            if len(axis.signal_items) == 0:
+                continue
+            nb_signals += len(axis.signal_items)
+            sdk_axis = result.config.add_axis(axis.axis_name)
+            for signal_item in axis.signal_items:
+                result.config.add_signal(
+                    axis=sdk_axis,
+                    name=signal_item.text(),
+                    signal=self.watchable_registry.FQN.parse(signal_item.fqn).path
+                )
+
+        if nb_signals == 0:
+            self._acquire_feedback_label.set_error("No signals to acquire")
+            return
+
+        # Config is good. 
+        self._acquire_feedback_label.clear()
+        self._clear_graph()        
+        self._acquire(result.config)    # Request the server for that acquisition
+        
+    def _acquire(self, config:DataloggingConfig) -> None:
+        """Request the server to make a datalogging acquisition"""
+        # We chain 2 background request. 1 for the initial request, 2 to wait for completion.
+        # Promises could be nice here, we don't have that.
+
+        self._state.waiting_on_graph = True
+        self._chart_status_overlay.set(assets.Icons.Trigger, "Configuring")
+        self._apply_internal_state()
+
+        self.logger.debug(f"Requesting datalog for config {config}")
+
+        def bg_thread_start_datalog(client:ScrutinyClient) -> DataloggingRequest:
+            return client.start_datalog(config)
+
+        def qt_thread_datalog_started(request:Optional[DataloggingRequest], error:Optional[Exception]) -> None:
+            # Callbak #1. The request is received and aknowledged by the server
+
+            if self._teared_down:
+                return  # Silent exit
+
+            if error is not None:
+                self._callback_acquire_request_failed(request=None, error=error, msg="")
+                return
+            assert request is not None
+
+            self.logger.debug(f"Datalog accepted. Request {request.request_token}")
+
+            if self._pending_request is not None:
+                # We use a dict instead of a set of id to keep a reference to the object so it's kept alive and ther eis no id reuse issue.
+                self._request_to_ignore_completions[id(self._pending_request)] = self._pending_request
+            else:
+                self._request_to_ignore_completions.clear()
+
+            self._chart_status_overlay.set(assets.Icons.Trigger, "Waiting for trigger...")
+
+            # We have a pending request. Launch a background task to wait for completion.
+            def bg_thread_wait_for_completion(client:ScrutinyClient) -> None:
+                request.wait_for_completion()
+            
+            def qt_thread_request_completed(_:None, error:Optional[Exception]) -> None:
+                # Callback #2. The acquisition is completed (success or failed)
+
+                if self._teared_down:
+                    return # Silent exit
+                
+                self.logger.debug(f"Request {request.request_token} completed")
+                if id(request) in self._request_to_ignore_completions:
+                    del self._request_to_ignore_completions[id(request)]
+                    self.logger.debug(f"Ignoring completion of {request.request_token}")
+                    return 
+                
+                self._pending_request = None
+                if error is not None:   # Exception while waiting
+                    self._callback_acquire_request_failed(request, error, msg="")   # The message will be the exception
+                    return
+
+                if not request.completed:   # Should not happen. Happens only when there is a timeout on wait_for_completion (we don't have one)
+                    self._callback_acquire_request_failed(request, None, "Failed to complete")
+                    return
+
+                if not request.is_success:  # Didn't complete. The device or the server might be gone while waiting
+                    self._callback_acquire_request_failed(request, None, request.failure_reason)
+                    return
+                
+                self._callback_acquire_request_succeeded(request)   # SUCCESS!
+            
+            self._pending_request = request
+            
+            self.server_manager.schedule_client_request(
+                user_func=bg_thread_wait_for_completion,
+                ui_thread_callback=qt_thread_request_completed
+            )
+
+            self._acquire_feedback_label.clear()
+            self._apply_internal_state()
+        
+        self.server_manager.schedule_client_request(
+            user_func= bg_thread_start_datalog,
+            ui_thread_callback=qt_thread_datalog_started
+        )
+
+        self._acquire_feedback_label.set_info("Acquisition requested")
+
+
+    def _update_acquiring_overlay(self) -> None:
+        info = self.server_manager.get_server_info()
+        if info is None:
+            return 
+        if self._state.waiting_on_graph:
+            if info.datalogging.state == DataloggerState.Standby:
+                self._chart_status_overlay.set(None, "")
+            elif info.datalogging.state == DataloggerState.WaitForTrigger:
+                self._chart_status_overlay.set(assets.Icons.Trigger, "Waiting for trigger...")
+            elif info.datalogging.state == DataloggerState.Acquiring:
+                s = "Acquiring"
+                ratio = info.datalogging.completion_ratio
+                if ratio is not None:
+                    percent = int(round(max(min(ratio, 1), 0) * 100)) 
+                    s += f" ({int(percent)}%)"
+                self._chart_status_overlay.set(assets.Icons.Trigger, s)
+
+    def _callback_acquire_request_failed(self, 
+                                 request:Optional[DataloggingRequest], 
+                                 error:Optional[Exception], 
+                                 msg:str="Request failed") -> None:
+        self._state.waiting_on_graph = False
+        self._acquire_feedback_label.clear()
+
+        if error:
+            tools.log_exception(self.logger, error, msg)
+        elif len(msg) > 0:
+            self.logger.error(msg)
+
+        feedback_str = msg
+        if error:
+            feedback_str += f"\n{error}"
+        feedback_str = feedback_str.strip()
+
+        self._display_graph_error(feedback_str)
+        self._apply_internal_state()
+
+    def _callback_acquire_request_succeeded(self, request:DataloggingRequest) -> None:
+        assert request.completed and request.is_success
+        assert request.acquisition_reference_id is not None
+        self._acquire_feedback_label.clear()
+        self._graph_config_widget.update_autoname()
+
+        self._apply_internal_state()
+
+        def ephemerous_thread_download_data(client:ScrutinyClient) -> DataloggingAcquisition:
+            assert request.acquisition_reference_id is not None
+            return client.read_datalogging_acquisition(reference_id=request.acquisition_reference_id)
+        
+        def qt_thread_receive_acquisition_data(acquisition:Optional[DataloggingAcquisition], error:Optional[Exception]) -> None:
+            if error is not None:
+                self._callback_acquire_request_failed(request, error,  f"The acquisition succeeded, but downloading its data failed. The content is still available in the server database.\n Error {error}")
+                return 
+
+            assert acquisition is not None
+            self._display_acquisition(acquisition)
+
+        self.server_manager.schedule_client_request(
+            user_func=ephemerous_thread_download_data, 
+            ui_thread_callback=qt_thread_receive_acquisition_data
+            )
+
+    def _btn_clear_slot(self) -> None:
+        self._clear_graph()
+        self._acquire_feedback_label.clear()
+
+# endregion
+
+# region Browse Tab
+    def _datalogging_storage_updated_slot(self, change_type:sdk.DataloggingListChangeType, reference_id:Optional[str]) -> None:
+        """"""
+        if change_type == sdk.DataloggingListChangeType.DELETE_ALL:
+            self._do_initial_graph_list_download()
+        elif change_type == sdk.DataloggingListChangeType.DELETE:
+            if reference_id is not None:
+                self._graph_browse_widget.remove_by_reference_id(reference_id)
+        elif change_type == sdk.DataloggingListChangeType.UPDATE:
+            if reference_id is not None:
+                def bg_thread_update(client:ScrutinyClient) -> Optional[DataloggingStorageEntry]:
+                    return client.read_datalogging_acquisitions_metadata(reference_id)
+                def qt_thread_update(entry:Optional[DataloggingStorageEntry], error:Optional[Exception]) -> None:
+                    if entry is not None:
+                        self._graph_browse_widget.update_storage_entry(entry)
+                
+                self.server_manager.schedule_client_request(bg_thread_update, qt_thread_update)
+        elif change_type == sdk.DataloggingListChangeType.NEW:
+            if reference_id is not None:
+                def bg_thread_new(client:ScrutinyClient) -> Optional[DataloggingStorageEntry]:
+                    return client.read_datalogging_acquisitions_metadata(reference_id)
+                def qt_thread_new(entry:Optional[DataloggingStorageEntry], error:Optional[Exception]) -> None:
+                    if entry is not None:
+                        self._graph_browse_widget.add_storage_entries([entry])
+                
+                self.server_manager.schedule_client_request(bg_thread_new, qt_thread_new)
+
+    def _enable_sfd_filter(self) -> None:
+        self._chk_browse_loaded_sfd_only.setEnabled(True)
+        self._chk_browse_loaded_sfd_only.setCheckState(Qt.CheckState.Unchecked)
+
+    def _disable_sfd_filter(self) -> None:
+        self._chk_browse_loaded_sfd_only.setDisabled(True)
+        self._chk_browse_loaded_sfd_only.setCheckState(Qt.CheckState.Unchecked)
+
     def _browse_display_acquisition_slot(self, reference_id:str) -> None:
         """When the user request to load an acquisition and display it in the graph viewer"""
         def bg_thread_download(client:ScrutinyClient) -> DataloggingAcquisition:
@@ -942,7 +1022,63 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
             partial = functools.partial(bg_thread_delete, reference_id)
             self.server_manager.schedule_client_request(partial, qt_thread_complete)
 
-    def _request_delete_all_slot(self) -> None:
+    def _browse_tab_visible_slot(self) -> None:
+        self._do_initial_graph_list_download()
+    
+    def _do_initial_graph_list_download(self) -> None:
+        """Reset the content of the available acquisitions and downloads the first page of data"""
+        self._oldest_acquisition_downloaded = None
+        self._state.may_have_more_to_load = True
+        self._graph_browse_widget.clear()
+        self._browse_feedback_label.set_info("Downloading...")
+
+        firmware_id:Optional[str] = None
+        loaded_sfd = self.server_manager.get_loaded_sfd() 
+        if loaded_sfd is not None and self._chk_browse_loaded_sfd_only.checkState() == Qt.CheckState.Checked:
+            firmware_id = loaded_sfd.firmware_id
+        
+        self._initial_graph_list_download_conditions = InitialGraphListDownloadConditions(
+            firmware_id = firmware_id
+        )
+
+        def bg_thread_download(client:ScrutinyClient) -> List[DataloggingStorageEntry]:    
+            return client.list_stored_datalogging_acquisitions(
+                firmware_id=self._initial_graph_list_download_conditions.firmware_id, 
+                count=self.DOWNLOAD_ACQ_LIST_CHUNK_SIZE
+                )
+        
+        def qt_thread_receive(result:Optional[List[DataloggingStorageEntry]], error:Optional[Exception]) -> None:
+            if result is not None:
+                self._receive_acquisition_list(result)
+                self._browse_feedback_label.clear()
+                self._graph_browse_widget.autosize_columns()
+            else:
+                msg = "Failed to download the datalogging data."
+                if error is not None:
+                    msg += f" {error}"
+                self._browse_feedback_label.set_error(msg)
+            self._apply_internal_state()
+
+        self.server_manager.schedule_client_request(bg_thread_download, qt_thread_receive)
+
+    def _checkbox_filter_sfd_checkstate_change_slot(self, checkstate:Qt.CheckState) -> None:
+        self._do_initial_graph_list_download()
+
+    def _btn_delete_all_clicked_slot(self) -> None:
+        msgbox = QMessageBox(self)
+        msgbox.setIcon(QMessageBox.Icon.Warning)
+        msgbox.setWindowTitle("Are you sure?")
+        msgbox.setText("You are about to delete all datalogging acquisition on the server.\nProceed?")
+        msgbox.setStandardButtons(QMessageBox.StandardButton.No | QMessageBox.StandardButton.Yes)
+        msgbox.setDefaultButton(QMessageBox.StandardButton.No)
+
+        msgbox.setModal(True)
+        reply = msgbox.exec()
+
+        if reply == QMessageBox.StandardButton.Yes:
+            self._request_delete_all()
+
+    def _request_delete_all(self) -> None:
         """Called when the user request to delete all the acquisitions in the server storage"""
         self._browse_feedback_label.set_info("Clearing storage...")
         def bg_thread_clear(client:ScrutinyClient) -> None:    
@@ -957,28 +1093,36 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
         
         self.server_manager.schedule_client_request(bg_thread_clear, qt_thread_complete)
 
-    def _acquire_tab_visible_slot(self) -> None:
-        pass
-
-    def _browse_tab_visible_slot(self) -> None:
-        self._do_initial_data_download()
-    
-    def _do_initial_data_download(self) -> None:
-        """Reset the content of the available acquisitions and downloads the first page of data"""
-        self._graph_browse_widget.clear()
+    def _btn_load_more_clicked_slot(self) -> None:
+        if not self._state.can_load_more_acquisitions():
+            return
+        assert self._oldest_acquisition_downloaded is not None
+        
         self._browse_feedback_label.set_info("Downloading...")
-
         def bg_thread_download(client:ScrutinyClient) -> List[DataloggingStorageEntry]:    
-            return client.list_stored_datalogging_acquisitions()
+            return client.list_stored_datalogging_acquisitions(
+                firmware_id=self._initial_graph_list_download_conditions.firmware_id, 
+                count=self.DOWNLOAD_ACQ_LIST_CHUNK_SIZE,
+                before_datetime=self._oldest_acquisition_downloaded
+                )
         
         def qt_thread_receive(result:Optional[List[DataloggingStorageEntry]], error:Optional[Exception]) -> None:
             if result is not None:
-                self._graph_browse_widget.add_storage_entries(result)
+                self._receive_acquisition_list(result)
                 self._browse_feedback_label.clear()
             else:
                 msg = "Failed to download the datalogging data."
                 if error is not None:
                     msg += f" {error}"
                 self._browse_feedback_label.set_error(msg)
+            self._apply_internal_state()
 
         self.server_manager.schedule_client_request(bg_thread_download, qt_thread_receive)
+
+    def _receive_acquisition_list(self, result:List[DataloggingStorageEntry]) -> None:
+        if len(result) < self.DOWNLOAD_ACQ_LIST_CHUNK_SIZE:
+            self._state.may_have_more_to_load = False
+        if len(result) > 0:
+            self._graph_browse_widget.add_storage_entries(result)
+            self._oldest_acquisition_downloaded = min([x.timestamp for x in result])
+#endregion
