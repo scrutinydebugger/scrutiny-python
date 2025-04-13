@@ -10,6 +10,8 @@
 __all__ = ['GraphConfigWidget', 'GetSignalDatatypeFn', 'ValidationResult']
 
 import math
+import re
+
 from dataclasses import dataclass
 from PySide6.QtWidgets import QWidget, QFormLayout, QComboBox, QSpinBox, QLabel, QLineEdit, QVBoxLayout, QGroupBox, QSizePolicy 
 from PySide6.QtGui import QDoubleValidator, QStandardItemModel
@@ -109,13 +111,15 @@ class GraphConfigWidget(QWidget):
 
     _device_info:Optional[DeviceInfo]
     """The DeviceInfo struct of the actually connected device. None means no device available"""
-
+    
+    AUTONAME_PREFIX = r"Acquisition #"
 
     def __init__(self, parent:QWidget, watchable_registry:WatchableRegistry, get_signal_dtype_fn:Optional[GetSignalDatatypeFn]) -> None:
         super().__init__(parent)
         MAX_HOLD_TIME_MS = math.floor((2**32 - 1) * 1e-7) * 1e3     # 32bits, increment of 100ns
         MAX_TIMEOUT_SEC = math.floor((2**32 - 1) * 1e-7)            # 32bits, increment of 100ns
         self._user_changed_xaxis = False
+        self._user_changed_name_once = False
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(2,0,2,0)
@@ -165,7 +169,8 @@ class GraphConfigWidget(QWidget):
         )
         self._lbl_estimated_duration = QLabel(self)
 
-        self._txt_acquisition_name.setText("Acquisition")
+        self._txt_acquisition_name.setText(self.AUTONAME_PREFIX + "1")
+        self._txt_acquisition_name.textEdited.connect(self._acquisition_name_edited_slot)
 
         self._spin_decimation.setMinimum(1)
         self._spin_decimation.setValue(1)
@@ -256,6 +261,9 @@ class GraphConfigWidget(QWidget):
 
     def _decimation_changed_slot(self) -> None:
         self.update_content()
+
+    def _acquisition_name_edited_slot(self):
+        self._user_changed_name_once = True
 
     def get_selected_sampling_rate(self) -> Optional[SamplingRate]:
         """Return the selected sampling rate. None if none is available"""
@@ -556,6 +564,20 @@ class GraphConfigWidget(QWidget):
             raise ValueError("Cannot set X Axis type = IdealTime when the selected sampling rate is not a fixed frequency rate")
         self._cmb_xaxis_type.setCurrentIndex(self._cmb_xaxis_type.findData(axis_type))
         self.update_content()
+
+    def update_autoname(self) -> None:
+        if self._user_changed_name_once:
+            return
+        
+        m = re.match(self.AUTONAME_PREFIX + r'(\d+)', self._txt_acquisition_name.text())
+        if not m:
+            return
+        try:
+            num = int(m.group(1))
+        except ValueError:
+            return
+        
+        self._txt_acquisition_name.setText(self.AUTONAME_PREFIX + str(num+1))
 
     def get_txt_acquisition_name(self) -> QLineEdit:
         return self._txt_acquisition_name

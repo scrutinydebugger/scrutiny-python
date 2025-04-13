@@ -1836,16 +1836,16 @@ class TestAPI(ScrutinyUnitTest):
             with DataloggingStorage.use_temp_storage():
                 acq1 = core_datalogging.DataloggingAcquisition(firmware_id=sfd1.get_firmware_id_ascii(),
                                                                reference_id="refid1", name="foo",
-                                                               acq_time=datetime.fromtimestamp(dtnow.timestamp() + 4))  # Newest
+                                                               acq_time=datetime.fromtimestamp(dtnow.timestamp() + 4000))  # Newest
                 acq2 = core_datalogging.DataloggingAcquisition(firmware_id=sfd1.get_firmware_id_ascii(),
                                                                reference_id="refid2", name="bar",
-                                                               acq_time=datetime.fromtimestamp(dtnow.timestamp() + 3))
+                                                               acq_time=datetime.fromtimestamp(dtnow.timestamp() + 3000))
                 acq3 = core_datalogging.DataloggingAcquisition(firmware_id=sfd2.get_firmware_id_ascii(),
                                                                reference_id="refid3", name="baz",
-                                                               acq_time=datetime.fromtimestamp(dtnow.timestamp() + 2))
+                                                               acq_time=datetime.fromtimestamp(dtnow.timestamp() + 2000))
                 acq4 = core_datalogging.DataloggingAcquisition(firmware_id="unknown_sfd", 
                                                                reference_id="refid4", name="meow",
-                                                               acq_time=datetime.fromtimestamp(dtnow.timestamp() + 1))  # Oldest
+                                                               acq_time=datetime.fromtimestamp(dtnow.timestamp() + 1000))  # Oldest
                 acq1.set_xdata(core_datalogging.DataSeries())
                 acq2.set_xdata(core_datalogging.DataSeries())
                 acq3.set_xdata(core_datalogging.DataSeries())
@@ -1858,7 +1858,6 @@ class TestAPI(ScrutinyUnitTest):
 
                 req: api_typing.C2S.ListDataloggingAcquisitions = {
                     'cmd': 'list_datalogging_acquisitions',
-                    'start' : 0,
                     'count' : 100
                 }
 
@@ -1866,7 +1865,6 @@ class TestAPI(ScrutinyUnitTest):
                 response = cast(api_typing.S2C.ListDataloggingAcquisition, self.wait_and_load_response())
                 self.assert_no_error(response)
                 self.assertEqual(response['cmd'], 'response_list_datalogging_acquisitions')
-                self.assertEqual(response['total'], 4)
                 self.assertEqual(len(response['acquisitions']), 4)
                 self.assertEqual(response['acquisitions'][0]['firmware_id'], sfd1.get_firmware_id_ascii())
                 self.assertEqual(response['acquisitions'][0]['reference_id'], 'refid1')
@@ -1892,11 +1890,8 @@ class TestAPI(ScrutinyUnitTest):
                 self.assertEqual(response['acquisitions'][3]['name'], 'meow')
                 self.assertEqual(response['acquisitions'][3]['firmware_metadata'], None)
 
-
-
                 req: api_typing.C2S.ListDataloggingAcquisitions = {
                     'cmd': 'list_datalogging_acquisitions',
-                    'start' : 0,
                     'count' : 2
                 }
 
@@ -1904,7 +1899,6 @@ class TestAPI(ScrutinyUnitTest):
                 response = cast(api_typing.S2C.ListDataloggingAcquisition, self.wait_and_load_response())
                 self.assert_no_error(response)
                 
-                self.assertEqual(response['total'], 4)
                 self.assertEqual(len(response['acquisitions']), 2)
                 self.assertEqual(response['acquisitions'][0]['reference_id'], 'refid1')
                 self.assertEqual(response['acquisitions'][1]['reference_id'], 'refid2')
@@ -1912,15 +1906,14 @@ class TestAPI(ScrutinyUnitTest):
 
                 req: api_typing.C2S.ListDataloggingAcquisitions = {
                     'cmd': 'list_datalogging_acquisitions',
-                    'start' : 2,
-                    'count' : 2
+                    'before_timestamp' : int(dtnow.timestamp() + 2001),
+                    'count' : 100
                 }
 
                 self.send_request(req)
                 response = cast(api_typing.S2C.ListDataloggingAcquisition, self.wait_and_load_response())
                 self.assert_no_error(response)
                 
-                self.assertEqual(response['total'], 4)
                 self.assertEqual(len(response['acquisitions']), 2)
                 self.assertEqual(response['acquisitions'][0]['reference_id'], 'refid3')
                 self.assertEqual(response['acquisitions'][1]['reference_id'], 'refid4')
@@ -1929,7 +1922,6 @@ class TestAPI(ScrutinyUnitTest):
                 req: api_typing.C2S.ListDataloggingAcquisitions = {
                     'cmd': 'list_datalogging_acquisitions',
                     'firmware_id': sfd1.get_firmware_id_ascii(),
-                    'start' : 0,
                     'count' : 100
                 }
 
@@ -1938,7 +1930,6 @@ class TestAPI(ScrutinyUnitTest):
                 self.assert_no_error(response)
                 self.assertEqual(response['cmd'], 'response_list_datalogging_acquisitions')
                 self.assertIn('acquisitions', response)
-                self.assertEqual(response['total'], 2)
                 self.assertEqual(len(response['acquisitions']), 2)
                 self.assertEqual(response['acquisitions'][0]['firmware_id'], sfd1.get_firmware_id_ascii())
                 self.assertEqual(response['acquisitions'][0]['reference_id'], 'refid1')
@@ -1955,7 +1946,6 @@ class TestAPI(ScrutinyUnitTest):
                 req: api_typing.C2S.ListDataloggingAcquisitions = {
                     'cmd': 'list_datalogging_acquisitions',
                     'firmware_id': None,
-                    'start' : 0,
                     'count' : 100
                 }
 
@@ -1963,13 +1953,11 @@ class TestAPI(ScrutinyUnitTest):
                 response = cast(api_typing.S2C.ListDataloggingAcquisition, self.wait_and_load_response())
                 self.assert_no_error(response)
                 self.assertEqual(response['cmd'], 'response_list_datalogging_acquisitions')
-                self.assertEqual(response['total'], 4)
                 self.assertEqual(len(response['acquisitions']), 4)
 
                 req: api_typing.C2S.ListDataloggingAcquisitions = {
                     'cmd': 'list_datalogging_acquisitions',
                     'firmware_id': 'inexistant_id',
-                    'start' : 0,
                     'count' : 100
                 }
 
@@ -1977,32 +1965,21 @@ class TestAPI(ScrutinyUnitTest):
                 response = cast(api_typing.S2C.ListDataloggingAcquisition, self.wait_and_load_response())
                 self.assert_no_error(response)
                 self.assertEqual(response['cmd'], 'response_list_datalogging_acquisitions')
-                self.assertEqual(response['total'], 0)
                 self.assertEqual(len(response['acquisitions']), 0)
 
                 # Missing count - bad
                 req: api_typing.C2S.ListDataloggingAcquisitions = {
                     'cmd': 'list_datalogging_acquisitions',
-                    'firmware_id': 'inexistant_id',
-                    'start' : 0                
+                    'firmware_id': 'inexistant_id'             
                 }
                 self.send_request(req)
                 self.assert_is_error(self.wait_and_load_response())
 
-                # Missing start - ok
+                # Bad timestamp
                 req: api_typing.C2S.ListDataloggingAcquisitions = {
                     'cmd': 'list_datalogging_acquisitions',
                     'firmware_id': 'inexistant_id',
-                    'count' : 100
-                }
-                self.send_request(req)
-                self.assert_no_error(self.wait_and_load_response())
-
-                # Bad start
-                req: api_typing.C2S.ListDataloggingAcquisitions = {
-                    'cmd': 'list_datalogging_acquisitions',
-                    'firmware_id': 'inexistant_id',
-                    'start' : -1,
+                    'before_timestamp' : -1,
                     'count' : 100
                 }
                 self.send_request(req)
@@ -2012,21 +1989,46 @@ class TestAPI(ScrutinyUnitTest):
                 req: api_typing.C2S.ListDataloggingAcquisitions = {
                     'cmd': 'list_datalogging_acquisitions',
                     'firmware_id': 'inexistant_id',
-                    'start' : 0,
-                    'count' : 0
+                    'count' : -1
                 }
                 self.send_request(req)
                 self.assert_is_error(self.wait_and_load_response())  
 
-                # Start None = no Start. OK
+                # timestamp None = no timestamp. OK
                 req: api_typing.C2S.ListDataloggingAcquisitions = {
                     'cmd': 'list_datalogging_acquisitions',
                     'firmware_id': 'inexistant_id',
-                    'start' : None,
+                    'before_timestamp' : None,
                     'count' : 100
                 }
                 self.send_request(req)
-                self.assert_no_error(self.wait_and_load_response())                
+                self.assert_no_error(self.wait_and_load_response())       
+
+
+                req: api_typing.C2S.ListDataloggingAcquisitions = {
+                    'cmd': 'list_datalogging_acquisitions',
+                    'reference_id': 'inexistant_id'
+                }  
+                self.send_request(req)
+                response = self.wait_and_load_response()
+                self.assert_no_error(response)
+                self.assertEqual(len(response['acquisitions']), 0)
+
+                
+                req: api_typing.C2S.ListDataloggingAcquisitions = {
+                    'cmd': 'list_datalogging_acquisitions',
+                    'reference_id': 'refid2'
+                }  
+                self.send_request(req)
+                response = self.wait_and_load_response()
+                self.assert_no_error(response)
+                self.assertEqual(len(response['acquisitions']), 1)
+                
+                self.assertEqual(response['acquisitions'][0]['firmware_id'], sfd1.get_firmware_id_ascii())
+                self.assertEqual(response['acquisitions'][0]['reference_id'], 'refid2')
+                self.assertEqual(response['acquisitions'][0]['timestamp'], int(acq2.acq_time.timestamp()))
+                self.assertEqual(response['acquisitions'][0]['name'], 'bar')
+                self.assertEqual(response['acquisitions'][0]['firmware_metadata'], sfd1.get_metadata())
 
 
     def test_update_datalogging_acquisition(self):

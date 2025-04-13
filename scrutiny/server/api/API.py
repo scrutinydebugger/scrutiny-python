@@ -18,6 +18,7 @@ import itertools
 from base64 import b64encode, b64decode
 import binascii
 import threading
+from datetime import datetime
 
 from scrutiny.server.timebase import server_timebase
 from scrutiny.server.datalogging.datalogging_storage import DataloggingStorage
@@ -1421,37 +1422,54 @@ class API:
                 self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=broadcast_msg))
 
     # === LIST_DATALOGGING_ACQUISITION ===
-    def process_list_datalogging_acquisition(self, conn_id: str, req: api_typing.C2S.ListDataloggingAcquisitions) -> None:
+    def process_list_datalogging_acquisition(self, conn_id: str, req: api_typing.C2S.ListDataloggingAcquisitions) -> None:        
+        reference_id: Optional[str] = None
+        if 'reference_id' in req:
+            if not isinstance(req['reference_id'], str) and req['reference_id'] is not None:
+                raise InvalidRequestException(req, 'Invalid reference ID')
+            reference_id = req['reference_id']
 
-        firmware_id: Optional[str] = None
-        if 'firmware_id' in req:
-            if not isinstance(req['firmware_id'], str) and req['firmware_id'] is not None:
-                raise InvalidRequestException(req, 'Invalid firmware ID')
-            firmware_id = req['firmware_id']
+        if reference_id is None:    # Search all acquisition with given criterias
+            firmware_id: Optional[str] = None
+            if 'firmware_id' in req:
+                if not isinstance(req['firmware_id'], str) and req['firmware_id'] is not None:
+                    raise InvalidRequestException(req, 'Invalid firmware ID')
+                firmware_id = req['firmware_id']
+
+            before_datetime:Optional[datetime] = None
+            if 'before_timestamp' in req and req['before_timestamp'] is not None:
+                if not isinstance(req['before_timestamp'], (int, float)):
+                    raise InvalidRequestException(req, 'Invalid before_timestamp field')
+                
+                if req['before_timestamp'] < 0:
+                    raise InvalidRequestException(req, 'Invalid before_timestamp value')
+                try:
+                    before_datetime = datetime.fromtimestamp(req['before_timestamp'])
+                except Exception:
+                    raise InvalidRequestException(req, 'Invalid before_timestamp value')
+                    
         
-        start = 0
-        if 'start' in req and req['start'] is not None:
-            if not isinstance(req['start'], int):
-                raise InvalidRequestException(req, 'Invalid start field')
-            if req['start'] < 0:
-                raise InvalidRequestException(req, 'Invalid start value')
-            start = req['start']
-       
-        if 'count' not in req:
-            raise InvalidRequestException(req, 'Missing count field')
+            if 'count' not in req:
+                raise InvalidRequestException(req, 'Missing count field')
 
-        if not isinstance(req['count'], int):
-            raise InvalidRequestException(req, 'Invalid count field')
+            if not isinstance(req['count'], int):
+                raise InvalidRequestException(req, 'Invalid count field')
         
-        MAX_COUNT = 10000
-        if req['count'] < 1 or req['count'] > MAX_COUNT:
-            raise InvalidRequestException(req, f'Invalid count value. Value must be between 1 and {MAX_COUNT}')
+            MAX_COUNT = 10000
+            if req['count'] < 0 or req['count'] > MAX_COUNT:
+                raise InvalidRequestException(req, f'Invalid count value. Value must be between 0 and {MAX_COUNT}')
 
+            reference_id_list = DataloggingStorage.list(firmware_id=firmware_id, before_datetime=before_datetime, count=req['count'])
+
+        else:   # Search a single acquisition
+            try:
+                DataloggingStorage.read(reference_id)
+                reference_id_list = [reference_id]
+            except LookupError:
+                reference_id_list = []
+
+        # Common logic to the 2 type of search
         acquisitions: List[api_typing.DataloggingAcquisitionMetadata] = []
-
-        total_count = DataloggingStorage.count(firmware_id=firmware_id)
-        reference_id_list = DataloggingStorage.list(firmware_id=firmware_id, start=start, count=req['count'])
-
         for reference_id in reference_id_list:
             acq = DataloggingStorage.read(reference_id)
             firmware_metadata: Optional[api_typing.SFDMetadata] = None
@@ -1468,8 +1486,7 @@ class API:
         response: api_typing.S2C.ListDataloggingAcquisition = {
             'cmd': API.Command.Api2Client.LIST_DATALOGGING_ACQUISITION_RESPONSE,
             'reqid': self.get_req_id(req),
-            'acquisitions': acquisitions,
-            'total' : total_count
+            'acquisitions': acquisitions
         }
 
         self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))

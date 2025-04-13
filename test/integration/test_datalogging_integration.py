@@ -129,7 +129,8 @@ class TestDataloggingIntegration(ScrutinyIntegrationTestWithTestSFD1):
                     # First make sure there is no acquisition in storage
                     self.send_request({
                         'cmd': API.Command.Client2Api.LIST_DATALOGGING_ACQUISITION,
-                        'firmware_id': self.emulated_device.get_firmware_id_ascii()
+                        'firmware_id': self.emulated_device.get_firmware_id_ascii(),
+                        'count' : 100
                     })
                     response = self.wait_and_load_response(API.Command.Api2Client.LIST_DATALOGGING_ACQUISITION_RESPONSE)
                     self.assert_no_error(response)
@@ -198,8 +199,8 @@ class TestDataloggingIntegration(ScrutinyIntegrationTestWithTestSFD1):
                         return config_id_before != self.emulated_device.datalogger.config_id
                     self.wait_true(config_id_changed, timeout=2)
                     self.assertNotEqual(self.emulated_device.datalogger.config_id, config_id_before)
-                    self.assertFalse(self.emulated_device.datalogger.triggered())
                     self.assertFalse(self.api_conn.from_server_available())
+                    self.assertFalse(self.emulated_device.datalogger.triggered())
                     # This line should trigger the acquisition
                     self.emulated_device.write_memory(self.entry_u16.get_address(), Codecs.get(
                         EmbeddedDataType.uint16, Endianness.Little).encode(0x1234))
@@ -250,7 +251,8 @@ class TestDataloggingIntegration(ScrutinyIntegrationTestWithTestSFD1):
                     # We got notified by the server. Now let's poll the datalogging database and see what's in there. We expect a new recording
                     self.send_request({
                         'cmd': API.Command.Client2Api.LIST_DATALOGGING_ACQUISITION,
-                        'firmware_id': self.emulated_device.get_firmware_id_ascii()
+                        'firmware_id': self.emulated_device.get_firmware_id_ascii(),
+                        'count' : 100
                     })
 
                     response = self.wait_and_load_response(cmd=API.Command.Api2Client.LIST_DATALOGGING_ACQUISITION_RESPONSE)

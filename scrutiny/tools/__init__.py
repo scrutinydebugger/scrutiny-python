@@ -8,7 +8,14 @@ __all__ = [
     'format_exception',
     'UnitTestStub',
     'SuppressException',
-    'log_exception'
+    'log_exception',
+    'MutableInt',
+    'MutableFloat',
+    'MutableBool',
+    'MutableNullableInt',
+    'MutableNullableFloat',
+    'MutableNullableBool',
+    'NullableMutable',
 ]
 
 from .throttler import Throttler
@@ -20,6 +27,7 @@ from typing import Dict, Any, Optional, TypeVar, List, Tuple, Type, cast, Union,
 import types
 import logging
 import threading
+from dataclasses import dataclass
 
 T=TypeVar("T")
 
@@ -229,3 +237,39 @@ def run_in_thread(fn:Callable[..., T], sync_var:Optional[ThreadSyncer[T]]=None) 
     fn2 = fn if sync_var is None else sync_var.executor_func(fn)
     thread = threading.Thread(target = fn2, daemon=True)
     thread.start()
+
+@dataclass
+class MutableInt:
+    """Helper to pass a int by reference"""
+    val:int
+
+@dataclass
+class MutableNullableInt:
+    """Helper to pass an Optional[int] by reference"""
+    val:Optional[int]
+
+@dataclass
+class MutableFloat:
+    """Helper to pass a float by reference"""
+    val:float
+
+@dataclass
+class MutableNullableFloat:
+    """Helper to pass an Optional[float] by reference"""
+    val:Optional[float]
+
+@dataclass
+class MutableBool:
+    """Helper to pass a bool by reference"""
+    val:bool
+
+@dataclass
+class MutableNullableBool:
+    """Helper to pass an Optional[bool] by reference"""
+    val:Optional[bool]
+
+class NullableMutable(Generic[T]):
+    val:Optional[T]
+    def __init__(self, val:Optional[T]) -> None:
+        self.val = val
+    

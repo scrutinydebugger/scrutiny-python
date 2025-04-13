@@ -42,6 +42,7 @@ from dataclasses import dataclass
 from base64 import b64encode
 import queue
 import types
+from datetime import datetime
 
 from scrutiny.tools.typing import *
 
@@ -272,7 +273,6 @@ class ScrutinyClient:
     _MEMORY_WRITE_DATA_LIFETIME = 30
     _DOWNLOAD_WATCHABLE_LIST_LIFETIME = 30
 
-    ListDataloggingAcquisitionsResponse:TypeAlias = api_parser.ListDataloggingAcquisitionsResponse
     @dataclass(frozen=True)
     class Statistics:
         """Performance metrics given by the client useful for diagnostic and debugging"""
@@ -381,7 +381,9 @@ class ScrutinyClient:
             
         @dataclass(frozen=True)
         class DataloggingListChanged:
-            """Triggered when the list of datalogging acquisition changed on the server (new, removed or updated)"""
+            """Triggered when the list of datalogging acquisition changed on the server (new, removed or updated). 
+            A call to :meth:`read_datalogging_acquisitions_metadata<ScrutinyClient.read_datalogging_acquisitions_metadata>` 
+            can be used to fetch the details"""
 
             _filter_flag = 0x100
             
@@ -1654,7 +1656,7 @@ class ScrutinyClient:
         @dataclass
         class Container:
             obj: Optional[Dict[str, sdk.SFDInfo]]
-
+        
         cb_data: Container = Container(obj=None)  # Force pass by ref
 
         def callback(state: CallbackState, response: Optional[api_typing.S2CMessage]) -> None:
@@ -1919,43 +1921,94 @@ class ScrutinyClient:
                 f"Failed to request the datalogging acquisition'. {future.error_str}")
         assert cb_data.request is not None
         return cb_data.request
-
-    def list_stored_datalogging_acquisitions(self, 
-                                             firmware_id:Optional[str]=None, 
-                                             start:int=0, 
-                                             count:int=500, 
-                                             timeout: Optional[float] = None) -> ListDataloggingAcquisitionsResponse:
-        """Gets the list of datalogging acquisition stored in the server database. 
+    
+    def read_datalogging_acquisitions_metadata(self, reference_id:str,timeout: Optional[float] = None) -> Optional[sdk.datalogging.DataloggingStorageEntry]:
+        """Get the acquisition metadata from the server datalogging storage. 
+        Returns a result similar to :meth:`list_stored_datalogging_acquisitions<list_stored_datalogging_acquisitions>`
+        but with a single storage entry.
         
-        Works with a paging mechanism where 250 acquisitions could be fetched
-        with 3 downloads of a maximum size of 100 (start=0, count=100 / start=100, count=100 / start=200, count=50)
-
-        :param firmware_id: When not ``None``, searches for acquisitions takend with this firmware ID
-        :param start: The index of the first acquisition to fetch. Used for paging
-        :param count: Maximum number of acquisition to fetch. Maximum size is 10000
+        :param reference_id: The acquisition refence_id (unique ID)
         :param timeout: The request timeout value. The default client timeout will be used if set to ``None`` Defaults to ``None``
 
-        :raise OperationFailure: If fetching the list fails
+        :raise OperationFailure: If fetching the metadata fails
 
-        :return: A list of database entries representing an acquisitionsand the total number of entries that can be downloaded for the given ``firmware_id`` parameter.
+        :return: The storage entry with its metadata or ``None`` if the given ID is not present in the storage
         """
-        validation.assert_type(firmware_id, 'firmware_id', (str, type(None)))
+        validation.assert_type(reference_id, 'reference_id', str)
         timeout = validation.assert_float_range_if_not_none(timeout, 'timeout', minval=0)
-        start = validation.assert_int_range(start, 'start', minval=0)
-        count = validation.assert_int_range(count, 'count', minval=0, maxval=10000)
 
         if timeout is None:
             timeout = self._timeout
 
         req = self._make_request(API.Command.Client2Api.LIST_DATALOGGING_ACQUISITION, {
-            'firmware_id' : firmware_id,
-            'start' : start,
-            'count' : count
+            'reference_id' : reference_id
         })
 
         @dataclass
         class Container:
-            obj: Optional[ScrutinyClient.ListDataloggingAcquisitionsResponse]
+            obj: Optional[List[sdk.datalogging.DataloggingStorageEntry]]
+        cb_data: Container = Container(obj=None)  # Force pass by ref
+
+        def callback(state: CallbackState, response: Optional[api_typing.S2CMessage]) -> None:
+            if response is not None and state == CallbackState.OK:
+                cb_data.obj = api_parser.parse_list_datalogging_acquisitions_response(
+                    cast(api_typing.S2C.ListDataloggingAcquisition, response)
+                )
+        future = self._send(req, callback)
+        assert future is not None
+        future.wait(timeout)
+
+        if future.state != CallbackState.OK:
+            raise sdk.exceptions.OperationFailure(
+                f"Failed to read the datalogging acquisition list from the server database. {future.error_str}")
+
+        assert cb_data.obj is not None
+        
+        if len(cb_data.obj) == 1:
+            return cb_data.obj[0]
+        else:
+            return None
+
+    def list_stored_datalogging_acquisitions(self, 
+                                             firmware_id:Optional[str]=None, 
+                                             before_datetime:Optional[datetime]=None, 
+                                             count:int=500, 
+                                             timeout: Optional[float] = None) -> List[sdk.datalogging.DataloggingStorageEntry]:
+        """Gets the list of datalogging acquisition stored in the server database. 
+        Acquisitions are returned ordered by acquisition time, from newest to oldest.
+        
+        :param firmware_id: When not ``None``, searches for acquisitions takend with this firmware ID
+        :param before_datetime: An optional upper limit for the acquisition time. Will download acquisition taken before this datetime. Meant ot be used for UI lazy-loading
+        :param count: Maximum number of acquisition to fetch. Upper limit is 10000
+        :param timeout: The request timeout value. The default client timeout will be used if set to ``None`` Defaults to ``None``
+
+        :raise OperationFailure: If fetching the list fails
+
+        :return: A list of datalogging storage entries with acquisition metadata in them.
+        """
+        validation.assert_type(firmware_id, 'firmware_id', (str, type(None)))
+        timeout = validation.assert_float_range_if_not_none(timeout, 'timeout', minval=0)
+        if before_datetime is not None:
+            validation.assert_type(before_datetime, 'before_datetime', datetime)
+            
+        count = validation.assert_int_range(count, 'count', minval=0, maxval=10000)
+
+        if timeout is None:
+            timeout = self._timeout
+
+        data:Dict[str, Any] = {
+            'firmware_id' : firmware_id,
+            'count' : count,
+            'before_timestamp':None
+        }
+        if before_datetime is not None:
+            data['before_timestamp'] = before_datetime.timestamp()
+
+        req = self._make_request(API.Command.Client2Api.LIST_DATALOGGING_ACQUISITION, data)
+
+        @dataclass
+        class Container:
+            obj: Optional[List[sdk.datalogging.DataloggingStorageEntry]]
         cb_data: Container = Container(obj=None)  # Force pass by ref
 
         def callback(state: CallbackState, response: Optional[api_typing.S2CMessage]) -> None:

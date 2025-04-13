@@ -1734,8 +1734,8 @@ class TestClient(ScrutinyUnitTest):
 
         with DataloggingStorage.use_temp_storage():
             with SFDStorage.use_temp_folder():
-                response = self.client.list_stored_datalogging_acquisitions()
-                self.assertEqual(len(response.acquisitions), 0)
+                acquisitions = self.client.list_stored_datalogging_acquisitions()
+                self.assertEqual(len(acquisitions), 0)
 
                 sfd1_filename = get_artifact('test_sfd_1.sfd')
                 sfd2_filename = get_artifact('test_sfd_2.sfd')
@@ -1793,18 +1793,25 @@ class TestClient(ScrutinyUnitTest):
                 DataloggingStorage.save(acquisition)
                 DataloggingStorage.save(acquisition2)
 
-                response = self.client.list_stored_datalogging_acquisitions()
-                self.assertEqual(len(response.acquisitions), 2)
-                self.assertEqual(response.total, 2)
+                acquisitions = self.client.list_stored_datalogging_acquisitions()
+                self.assertEqual(len(acquisitions), 2)
 
                 expected_data = [
                     dict(firmware_id=sfd1.get_firmware_id_ascii(), reference_id='refid1'),
                     dict(firmware_id=sfd2.get_firmware_id_ascii(), reference_id='refid2')
                 ]
 
-                received_data = [dict(firmware_id=x.firmware_id, reference_id=x.reference_id) for x in response.acquisitions]
+                received_data = [dict(firmware_id=x.firmware_id, reference_id=x.reference_id) for x in acquisitions]
 
                 self.assertCountEqual(expected_data, received_data)
+
+                data = self.client.read_datalogging_acquisitions_metadata('refid1')
+                self.assertIsNotNone(data)
+                self.assertEqual(data.reference_id, 'refid1')
+
+                data = self.client.read_datalogging_acquisitions_metadata('idontexist')
+                self.assertIsNone(data)
+
 
     def test_datalog_fails_on_server_disconnect(self):
         var1 = self.client.watch('/a/b/var1')

@@ -251,8 +251,9 @@ class C2S:
         reference_id: str
 
     class ListDataloggingAcquisitions(BaseC2SMessage):
+        reference_id: Optional[str]
         firmware_id: Optional[str]
-        start: Optional[int]
+        before_timestamp: Optional[int]
         count: int
 
     class UpdateDataloggingAcquisition(BaseC2SMessage):
@@ -359,7 +360,6 @@ class S2C:
 
     class ListDataloggingAcquisition(BaseS2CMessage):
         acquisitions: List[DataloggingAcquisitionMetadata]
-        total:int
 
     class ReadDataloggingAcquisitionContent(BaseS2CMessage):
         reference_id: str

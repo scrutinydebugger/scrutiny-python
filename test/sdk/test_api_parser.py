@@ -886,50 +886,49 @@ class TestApiParser(ScrutinyUnitTest):
             parser.parse_list_datalogging_acquisitions_response(m)
 
         msg = base()
-        response = parser.parse_list_datalogging_acquisitions_response(msg)
+        acquisitions = parser.parse_list_datalogging_acquisitions_response(msg)
         
-        self.assertEqual(response.total, 5)
-        self.assertIsInstance(response.acquisitions, list)
-        self.assertEqual(len(response.acquisitions), 2)
+        self.assertIsInstance(acquisitions, list)
+        self.assertEqual(len(acquisitions), 2)
 
 
-        self.assertEqual(response.acquisitions[0].firmware_id, "firmware 1")
-        self.assertEqual(response.acquisitions[0].name, "hello")
-        self.assertLess(abs(response.acquisitions[0].timestamp - now), timedelta(seconds=1))
-        self.assertEqual(response.acquisitions[0].reference_id, "refid1")
-        self.assertEqual(response.acquisitions[0].firmware_metadata.project_name, "Some project")
-        self.assertEqual(response.acquisitions[0].firmware_metadata.version, "1.2.3")
-        self.assertEqual(response.acquisitions[0].firmware_metadata.author, "unit test")
-        self.assertEqual(response.acquisitions[0].firmware_metadata.generation_info.timestamp, datetime.fromtimestamp(1688431050))
-        self.assertEqual(response.acquisitions[0].firmware_metadata.generation_info.python_version, "3.10.5")
-        self.assertEqual(response.acquisitions[0].firmware_metadata.generation_info.scrutiny_version, "0.0.1")
-        self.assertEqual(response.acquisitions[0].firmware_metadata.generation_info.system_type, "Linux")
+        self.assertEqual(acquisitions[0].firmware_id, "firmware 1")
+        self.assertEqual(acquisitions[0].name, "hello")
+        self.assertLess(abs(acquisitions[0].timestamp - now), timedelta(seconds=1))
+        self.assertEqual(acquisitions[0].reference_id, "refid1")
+        self.assertEqual(acquisitions[0].firmware_metadata.project_name, "Some project")
+        self.assertEqual(acquisitions[0].firmware_metadata.version, "1.2.3")
+        self.assertEqual(acquisitions[0].firmware_metadata.author, "unit test")
+        self.assertEqual(acquisitions[0].firmware_metadata.generation_info.timestamp, datetime.fromtimestamp(1688431050))
+        self.assertEqual(acquisitions[0].firmware_metadata.generation_info.python_version, "3.10.5")
+        self.assertEqual(acquisitions[0].firmware_metadata.generation_info.scrutiny_version, "0.0.1")
+        self.assertEqual(acquisitions[0].firmware_metadata.generation_info.system_type, "Linux")
 
-        self.assertEqual(response.acquisitions[1].firmware_id, "firmware 2")
-        self.assertEqual(response.acquisitions[1].name, "hello2")
-        self.assertLess(abs(response.acquisitions[1].timestamp - (now + timedelta(seconds=5))), timedelta(seconds=1))
-        self.assertEqual(response.acquisitions[1].reference_id, "refid2")
-        self.assertEqual(response.acquisitions[1].firmware_metadata.project_name, "Some project 2")
-        self.assertEqual(response.acquisitions[1].firmware_metadata.version, "1.2.4")
-        self.assertEqual(response.acquisitions[1].firmware_metadata.author, "unit test 2")
-        self.assertEqual(response.acquisitions[1].firmware_metadata.generation_info.timestamp, datetime.fromtimestamp(1688431050))
-        self.assertEqual(response.acquisitions[1].firmware_metadata.generation_info.python_version, "3.10.6")
-        self.assertEqual(response.acquisitions[1].firmware_metadata.generation_info.scrutiny_version, "0.0.2")
-        self.assertEqual(response.acquisitions[1].firmware_metadata.generation_info.system_type, "Windows")
+        self.assertEqual(acquisitions[1].firmware_id, "firmware 2")
+        self.assertEqual(acquisitions[1].name, "hello2")
+        self.assertLess(abs(acquisitions[1].timestamp - (now + timedelta(seconds=5))), timedelta(seconds=1))
+        self.assertEqual(acquisitions[1].reference_id, "refid2")
+        self.assertEqual(acquisitions[1].firmware_metadata.project_name, "Some project 2")
+        self.assertEqual(acquisitions[1].firmware_metadata.version, "1.2.4")
+        self.assertEqual(acquisitions[1].firmware_metadata.author, "unit test 2")
+        self.assertEqual(acquisitions[1].firmware_metadata.generation_info.timestamp, datetime.fromtimestamp(1688431050))
+        self.assertEqual(acquisitions[1].firmware_metadata.generation_info.python_version, "3.10.6")
+        self.assertEqual(acquisitions[1].firmware_metadata.generation_info.scrutiny_version, "0.0.2")
+        self.assertEqual(acquisitions[1].firmware_metadata.generation_info.system_type, "Windows")
 
         msg = base()
         msg["acquisitions"][0]["firmware_metadata"] = None
-        response = parser.parse_list_datalogging_acquisitions_response(msg)
-        self.assertIsNone(response.acquisitions[0].firmware_metadata)
+        acquisitions = parser.parse_list_datalogging_acquisitions_response(msg)
+        self.assertIsNone(acquisitions[0].firmware_metadata)
 
         for field in ['author', 'project_name', 'version', 'generation_info']:
             msg = base()
             msg["acquisitions"][0]["firmware_metadata"][field] = None
-            response = parser.parse_list_datalogging_acquisitions_response(msg)
+            acquisitions = parser.parse_list_datalogging_acquisitions_response(msg)
             if field != 'generation_info':
-                self.assertIsNone(getattr(response.acquisitions[0].firmware_metadata, field))
+                self.assertIsNone(getattr(acquisitions[0].firmware_metadata, field))
             else:
-                attr = cast(sdk.SFDGenerationInfo, getattr(response.acquisitions[0].firmware_metadata, field))
+                attr = cast(sdk.SFDGenerationInfo, getattr(acquisitions[0].firmware_metadata, field))
                 self.assertIsInstance(attr, sdk.SFDGenerationInfo)
                 self.assertIsNone(attr.python_version)
                 self.assertIsNone(attr.scrutiny_version)
@@ -938,11 +937,11 @@ class TestApiParser(ScrutinyUnitTest):
 
             msg = base()
             del msg["acquisitions"][0]["firmware_metadata"][field]
-            response = parser.parse_list_datalogging_acquisitions_response(msg)
+            acquisitions = parser.parse_list_datalogging_acquisitions_response(msg)
             if field != 'generation_info':
-                self.assertIsNone(getattr(response.acquisitions[0].firmware_metadata, field))
+                self.assertIsNone(getattr(acquisitions[0].firmware_metadata, field))
             else:
-                attr = cast(sdk.SFDGenerationInfo, getattr(response.acquisitions[0].firmware_metadata, field))
+                attr = cast(sdk.SFDGenerationInfo, getattr(acquisitions[0].firmware_metadata, field))
                 self.assertIsInstance(attr, sdk.SFDGenerationInfo)
                 self.assertIsNone(attr.python_version)
                 self.assertIsNone(attr.scrutiny_version)
@@ -952,15 +951,6 @@ class TestApiParser(ScrutinyUnitTest):
         class Delete:
             pass
         delete = Delete()
-
-        for val in [None, 1.1, [], {}, True, delete]:
-            with self.assertRaises(sdk.exceptions.BadResponseError, msg=f"val={val}"):
-                msg = base()
-                if val is delete:
-                    del msg["total"]
-                else:
-                    msg["total"] = val
-                parser.parse_list_datalogging_acquisitions_response(msg)
 
         for val in [None, 1, [], {}, True, delete]:
             with self.assertRaises(sdk.exceptions.BadResponseError, msg=f"val={val}"):

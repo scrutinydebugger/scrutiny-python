@@ -1,5 +1,5 @@
-from PySide6.QtWidgets import  QWidget, QVBoxLayout, QPushButton, QMenu, QAbstractItemDelegate, QMessageBox
-from PySide6.QtGui import  QStandardItem, QContextMenuEvent
+from PySide6.QtWidgets import  QWidget, QVBoxLayout, QPushButton, QMenu, QAbstractItemDelegate, QMessageBox, QLineEdit
+from PySide6.QtGui import  QStandardItem, QContextMenuEvent, QKeyEvent, QMouseEvent
 from PySide6.QtCore import Signal, QObject, Qt, QModelIndex
 
 from scrutiny.sdk import datalogging
@@ -9,6 +9,7 @@ from scrutiny.gui import assets
 
 from scrutiny.tools.typing import *
 from scrutiny.tools import get_default_val
+from scrutiny.gui.tools.invoker import InvokeQueued
 
 class AcquisitionStorageEntryTreeModel(BaseTreeModel):
     REFERENCE_ID_ROLE = Qt.ItemDataRole.UserRole + 100
@@ -63,6 +64,19 @@ class AcquisitionStorageEntryTreeModel(BaseTreeModel):
     def append_storage_entry(self, entry:datalogging.DataloggingStorageEntry) -> None:
         self.appendRow(self.row_from_storage_entry(entry))
     
+
+    
+    def update_storage_entry(self, entry:datalogging.DataloggingStorageEntry) -> None:
+        for i in range(self.rowCount()):
+            reference_id = self.get_reference_id_from_index(self.index(i,0,QModelIndex()))
+            if reference_id == entry.reference_id:
+                new_row = self.row_from_storage_entry(entry)
+                
+                for j in range(len(new_row)):
+                    self.takeItem(i,j)
+                    self.setItem(i,j, new_row[j])
+                
+
     def get_reference_id_from_index(self, index:QModelIndex) -> Optional[str]:
         if not index.isValid():
             return None
@@ -90,11 +104,13 @@ class AcquisitionStorageEntryTreeView(BaseTreeView):
         rename = Signal(str,str)
 
     _signals:_Signals
+    _item_being_edited:Optional[QStandardItem]
     _previous_name:str
 
     def __init__(self, parent:QWidget) -> None:
         super().__init__(parent)
         self._signals = self._Signals()
+        self._item_being_edited = None
         self._previous_name = ""
         self.setModel(AcquisitionStorageEntryTreeModel(self))
         self.setSortingEnabled(True)
@@ -122,11 +138,11 @@ class AcquisitionStorageEntryTreeView(BaseTreeView):
         
         action_display.triggered.connect(self._signals.display)
         action_delete.triggered.connect(self._signals.delete)
-        action_rename.triggered.connect(self._rename_acquisition)
+        action_rename.triggered.connect(self._rename_selected_acquisition)
 
         context_menu.popup(self.mapToGlobal(event.pos()))
     
-    def _rename_acquisition(self) -> None:
+    def _rename_selected_acquisition(self) -> None:
         selected_indexes = self.selectedIndexes()
         selected_indexes_first_col = [index for index in selected_indexes if index.column() == 0]
         if len(selected_indexes_first_col) != 1:
@@ -136,27 +152,46 @@ class AcquisitionStorageEntryTreeView(BaseTreeView):
         if item_name is None:
             return
         
+        self._item_being_edited = item_name
         self._previous_name = item_name.text()
         item_name.setEditable(True)
         self.edit(item_name.index())
         item_name.setEditable(False)
+
+        def select_text() -> None:
+            line_edits = cast(List[QLineEdit], self.findChildren(QLineEdit))
+            if line_edits is not None and len(line_edits) == 1:
+                line_edits[0].selectAll()
+        InvokeQueued(select_text)
     
     def closeEditor(self, editor:QWidget, hint:QAbstractItemDelegate.EndEditHint) -> None:
-        item_written = self.model().itemFromIndex(self.currentIndex())
-        
-        reference_id = self.model().get_reference_id_from_index(item_written.index())
-        new_name = item_written.text()
+        if self._item_being_edited is not None:
+            item_written = self._item_being_edited
+            
+            reference_id = self.model().get_reference_id_from_index(item_written.index())
+            new_name = item_written.text()
 
-        must_update = True
-        if len(new_name) == 0:
-            item_written.setText(self._previous_name)
-            must_update = False
+            must_update = True
+            if len(new_name) == 0:
+                item_written.setText(self._previous_name)
+                must_update = False
+            
+            if must_update:
+                self._signals.rename.emit(reference_id, new_name)
         
-        if must_update:
-            self._signals.rename.emit(reference_id, new_name)
-        
+        self._item_being_edited = None
+        self._previous_name = ""
         return super().closeEditor(editor, hint)
         
+    def keyPressEvent(self, event:QKeyEvent):
+        if event.key() == Qt.Key.Key_F2:
+            self._rename_selected_acquisition()
+        else:
+            return super().keyPressEvent(event)
+    
+    def mouseDoubleClickEvent(self, event:QMouseEvent):
+        self._signals.display.emit()
+        return super().mouseDoubleClickEvent(event)
 
 class GraphBrowseWidget(QWidget):
 
@@ -196,6 +231,12 @@ class GraphBrowseWidget(QWidget):
         for entry in entries:
             self._treeview.model().append_storage_entry(entry)
         self._treeview.setSortingEnabled(True)
+
+    def update_storage_entry(self, entry:datalogging.DataloggingStorageEntry) -> None:
+        self._treeview.setSortingEnabled(False)
+        self._treeview.model().update_storage_entry(entry)
+        self._treeview.setSortingEnabled(True)
+
     
     def _btn_delete_all_clicked_slot(self) -> None:
         msgbox = QMessageBox(self)

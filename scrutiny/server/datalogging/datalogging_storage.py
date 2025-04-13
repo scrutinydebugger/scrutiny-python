@@ -8,10 +8,8 @@
 #   Copyright (c) 2021 Scrutiny Debugger
 
 import os
-import appdirs  # type: ignore
 import tempfile
 import logging
-import traceback
 from pathlib import Path
 from datetime import datetime
 import sqlite3
@@ -379,36 +377,35 @@ class DataloggingStorageManager:
 
         return nout
 
-    def list(self, firmware_id: Optional[str] = None, start:Optional[int]=None, count:Optional[int]=None ) -> List[str]:
+    def list(self, 
+             firmware_id: Optional[str] = None, 
+             before_datetime:Optional[datetime]=None, 
+             count:Optional[int]=None ) -> List[str]:
         """Return the list of acquisitions available in the storage"""
-
-        if start is not None:
-            assert isinstance(start, int)
-            if start<0:
-                raise ValueError("Invalid start")
         
         if count is not None:
             assert isinstance(count, int)
-            if count<1:
+            if count<0:
                 raise ValueError("Invalid count")
 
         limit_statement = ''
-        if start is not None and count is not None:
-            limit_statement = f'LIMIT {start},{count}'
-        elif start is None and count is not None:
+        if count is not None:
             limit_statement = f'LIMIT {count}'
-        elif start is not None and count is None:
-            raise ValueError("Cannot specify start without count")
+        
+        date_statement="(1=1)"
+        if before_datetime is not None:
+            date_statement = "`timestamp` < %d" % before_datetime.timestamp()   # sqlite seems to use floored integer
+
 
         with self.get_session() as conn:
             cursor = conn.cursor()
             listout: List[str]
             if firmware_id is None:
-                sql = f"SELECT `reference_id` FROM `acquisitions` ORDER BY `timestamp` DESC {limit_statement}"
+                sql = f"SELECT `reference_id` FROM `acquisitions` WHERE {date_statement} ORDER BY `timestamp` DESC {limit_statement}"
                 cursor.execute(sql)
                 listout = [row[0] for row in cursor.fetchall()]
             else:
-                sql = f"SELECT `reference_id` FROM `acquisitions` WHERE `firmware_id`=? ORDER BY `timestamp` DESC {limit_statement}"
+                sql = f"SELECT `reference_id` FROM `acquisitions` WHERE {date_statement} AND `firmware_id`=? ORDER BY `timestamp` DESC {limit_statement}"
                 cursor.execute(sql, (firmware_id,))
                 listout = [row[0] for row in cursor.fetchall()]
 

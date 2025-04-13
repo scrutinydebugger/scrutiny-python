@@ -11,17 +11,14 @@ import threading
 from test.gui.base_gui_test import ScrutinyBaseGuiTest
 from typing import Optional
 from scrutiny.gui.tools.invoker import InvokeInQtThreadSynchronized, CrossThreadInvoker
+from scrutiny import tools
 
 class TestInvoker(ScrutinyBaseGuiTest):
     def test_run_in_qt_thread_synchronized(self):
         CrossThreadInvoker.init()
-        @dataclass
-        class Container:
-            thread_id:Optional[int] = None
-
-        obj = Container()
+        thread_id = tools.MutableNullableInt(None)
         def func():
-            obj.thread_id = threading.get_ident()
+            thread_id.val = threading.get_ident()
 
         finished = threading.Event()
         def thread_func():
@@ -32,4 +29,4 @@ class TestInvoker(ScrutinyBaseGuiTest):
         thread.start()
         self.wait_true_with_events(finished.is_set, 1)
         self.assertTrue(finished.is_set())
-        self.assertEqual(obj.thread_id, threading.get_ident())
+        self.assertEqual(thread_id.val, threading.get_ident())

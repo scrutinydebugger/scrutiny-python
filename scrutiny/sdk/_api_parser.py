@@ -86,17 +86,6 @@ class DataloggingListChangeResponse:
     reference_id:Optional[str]
 
 
-@dataclass
-class ListDataloggingAcquisitionsResponse:
-    """The response given by the server when we request to list the datalogging acquisition.
-    It's a structure containing the downloaded acquisitions metadata and the total number of entries for the given ``firmware_id`` parameter"""
-    
-    acquisitions:List[sdk.datalogging.DataloggingStorageEntry]
-    """List of datalogging database entries, each one representing an acquisition in with ``reference_id`` as its unique identifier"""
-    
-    total:int
-    """The total number fo acquisition available in the database for a given ``firmware_id`` parameter"""
-
 T = TypeVar('T', str, int, float, bool)
 WATCHABLE_TYPE_KEY = Literal['rpv', 'alias', 'var']
 
@@ -937,18 +926,15 @@ def parse_datalogging_list_changed(response: api_typing.S2C.InformDataloggingLis
     )     
 
 
-def parse_list_datalogging_acquisitions_response(response: api_typing.S2C.ListDataloggingAcquisition) -> ListDataloggingAcquisitionsResponse:
+def parse_list_datalogging_acquisitions_response(response: api_typing.S2C.ListDataloggingAcquisition) -> List[sdk.datalogging.DataloggingStorageEntry]:
     assert isinstance(response, dict)
     assert 'cmd' in response
     cmd = response['cmd']
     assert cmd == API.Command.Api2Client.LIST_DATALOGGING_ACQUISITION_RESPONSE
 
     _check_response_dict(cmd, response, 'acquisitions', list)
-    _check_response_dict(cmd, response, 'total', int)
-    dataout = ListDataloggingAcquisitionsResponse(
-        acquisitions=[],
-        total=response['total']
-    )
+    dataout:List[sdk.datalogging.DataloggingStorageEntry] = []
+
     for acq in response['acquisitions']:
         _check_response_dict(cmd, acq, 'firmware_id', str)
         _check_response_dict(cmd, acq, 'name', str)
@@ -963,7 +949,7 @@ def parse_list_datalogging_acquisitions_response(response: api_typing.S2C.ListDa
             reference_id=acq['reference_id'],
             firmware_metadata=_read_sfd_metadata_from_incomplete_dict(acq['firmware_metadata'])
         )
-        dataout.acquisitions.append(entry)
+        dataout.append(entry)
 
     return dataout
 

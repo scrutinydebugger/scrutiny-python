@@ -223,7 +223,8 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
 
             self._graph_browse_widget.signals.delete_all.connect(self._request_delete_all_slot)
             self._graph_browse_widget.signals.delete.connect(self._request_delete_single_slot)
-            self._graph_browse_widget.signals.display.connect(self._browse_show_acquisition_slot)
+            self._graph_browse_widget.signals.rename.connect(self._request_rename_slot)
+            self._graph_browse_widget.signals.display.connect(self._browse_display_acquisition_slot)
 
             container_layout.addWidget(self._graph_browse_widget)
             container_layout.addWidget(self._browse_feedback_label)
@@ -473,14 +474,30 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
 
     def _datalogging_storage_updated_slot(self, change_type:sdk.DataloggingListChangeType, reference_id:Optional[str]) -> None:
         
-        print(f"_datalogging_storage_updated_slot. change_type={change_type}.  reference_id={reference_id}")
         if change_type == sdk.DataloggingListChangeType.DELETE_ALL:
             self._do_initial_data_download()
         elif change_type == sdk.DataloggingListChangeType.DELETE:
             if reference_id is not None:
                 self._graph_browse_widget.remove_by_reference_id(reference_id)
-            
-        pass
+        elif change_type == sdk.DataloggingListChangeType.UPDATE:
+            if reference_id is not None:
+                def bg_thread_update(client:ScrutinyClient) -> Optional[DataloggingStorageEntry]:
+                    return client.read_datalogging_acquisitions_metadata(reference_id)
+                def qt_thread_update(entry:Optional[DataloggingStorageEntry], error:Optional[Exception]) -> None:
+                    if entry is not None:
+                        self._graph_browse_widget.update_storage_entry(entry)
+                
+                self.server_manager.schedule_client_request(bg_thread_update, qt_thread_update)
+        elif change_type == sdk.DataloggingListChangeType.NEW:
+            if reference_id is not None:
+                def bg_thread_new(client:ScrutinyClient) -> Optional[DataloggingStorageEntry]:
+                    return client.read_datalogging_acquisitions_metadata(reference_id)
+                def qt_thread_new(entry:Optional[DataloggingStorageEntry], error:Optional[Exception]) -> None:
+                    if entry is not None:
+                        self._graph_browse_widget.add_storage_entries([entry])
+                
+                self.server_manager.schedule_client_request(bg_thread_new, qt_thread_new)
+
 
     def _update_acquiring_overlay(self) -> None:
         info = self.server_manager.get_server_info()
@@ -523,7 +540,8 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
         assert request.completed and request.is_success
         assert request.acquisition_reference_id is not None
         self._acquire_feedback_label.clear()
-
+        self._graph_config_widget.update_autoname()
+        
         self._apply_internal_state()
 
         def ephemerous_thread_download_data(client:ScrutinyClient) -> DataloggingAcquisition:
@@ -879,7 +897,8 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
         """Chartview Event forwarded through a signal"""
         self._chart_status_overlay.adjust_sizes()
 
-    def _browse_show_acquisition_slot(self, reference_id:str) -> None:
+    def _browse_display_acquisition_slot(self, reference_id:str) -> None:
+        """When the user request to load an acquisition and display it in the graph viewer"""
         def bg_thread_download(client:ScrutinyClient) -> DataloggingAcquisition:
             return client.read_datalogging_acquisition(reference_id)
 
@@ -891,8 +910,22 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
         
         self.server_manager.schedule_client_request(bg_thread_download, qt_thread_show )
 
+    def _request_rename_slot(self, reference_id:str, new_name:str) -> None:
+        def bg_thread_rename(client:ScrutinyClient) -> None: 
+            client.update_datalogging_acquisition(reference_id, name=new_name)
+        
+        def qt_thread_complete(_:None, error:Optional[Exception]) -> None:
+            if error is not None:
+                self._browse_feedback_label.set_error(f'Failed to rename acquisition to "{new_name}". {error}')
+            else:
+                self._browse_feedback_label.clear()
+        
+        self.server_manager.schedule_client_request(bg_thread_rename, qt_thread_complete)
+
     def _request_delete_single_slot(self, reference_ids:List[str]) -> None:
+        """Called when the user requests to delete a single acquisition from the server storage"""
         self._browse_feedback_label.set_info("Deleting...")
+        success_count = tools.MutableInt(0)
 
         def bg_thread_delete(reference_id:str, client:ScrutinyClient) -> None:    
             client.delete_datalogging_acquisition(reference_id)
@@ -901,13 +934,16 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
             if error is not None:
                 self._browse_feedback_label.set_error(f"Failed to delete. {error}")
             else:
-                self._browse_feedback_label.clear()
+                success_count.val += 1
+                if len(reference_ids) == success_count.val: 
+                    self._browse_feedback_label.clear()
         
         for reference_id in reference_ids:
             partial = functools.partial(bg_thread_delete, reference_id)
             self.server_manager.schedule_client_request(partial, qt_thread_complete)
 
     def _request_delete_all_slot(self) -> None:
+        """Called when the user request to delete all the acquisitions in the server storage"""
         self._browse_feedback_label.set_info("Clearing storage...")
         def bg_thread_clear(client:ScrutinyClient) -> None:    
             client.clear_datalogging_storage()
@@ -928,15 +964,16 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
         self._do_initial_data_download()
     
     def _do_initial_data_download(self) -> None:
+        """Reset the content of the available acquisitions and downloads the first page of data"""
         self._graph_browse_widget.clear()
         self._browse_feedback_label.set_info("Downloading...")
 
-        def bg_thread_download(client:ScrutinyClient) -> ScrutinyClient.ListDataloggingAcquisitionsResponse:    
+        def bg_thread_download(client:ScrutinyClient) -> List[DataloggingStorageEntry]:    
             return client.list_stored_datalogging_acquisitions()
         
-        def qt_thread_receive(result:Optional[ScrutinyClient.ListDataloggingAcquisitionsResponse], error:Optional[Exception]) -> None:
+        def qt_thread_receive(result:Optional[List[DataloggingStorageEntry]], error:Optional[Exception]) -> None:
             if result is not None:
-                self._graph_browse_widget.add_storage_entries(result.acquisitions)
+                self._graph_browse_widget.add_storage_entries(result)
                 self._browse_feedback_label.clear()
             else:
                 msg = "Failed to download the datalogging data."
