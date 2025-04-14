@@ -262,7 +262,7 @@ class GraphConfigWidget(QWidget):
     def _decimation_changed_slot(self) -> None:
         self.update_content()
 
-    def _acquisition_name_edited_slot(self):
+    def _acquisition_name_edited_slot(self) -> None:
         self._user_changed_name_once = True
 
     def get_selected_sampling_rate(self) -> Optional[SamplingRate]:

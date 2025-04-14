@@ -205,13 +205,13 @@ class AcquisitionStorageEntryTreeView(BaseTreeView):
         self._previous_name = ""
         return super().closeEditor(editor, hint)
         
-    def keyPressEvent(self, event:QKeyEvent):
+    def keyPressEvent(self, event:QKeyEvent) -> None:
         if event.key() == Qt.Key.Key_F2:
             self._rename_selected_acquisition()
         else:
             return super().keyPressEvent(event)
     
-    def mouseDoubleClickEvent(self, event:QMouseEvent):
+    def mouseDoubleClickEvent(self, event:QMouseEvent) -> None:
         self._signals.display.emit()
         return super().mouseDoubleClickEvent(event)
     

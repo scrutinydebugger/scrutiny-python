@@ -270,7 +270,7 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
             self._chk_browse_loaded_sfd_only.setToolTip("Load acquisition taken with the same firmware that the device you're conencted to is using.")
             self._chk_browse_loaded_sfd_only.checkStateChanged.connect(self._checkbox_filter_sfd_checkstate_change_slot)
             if self.server_manager.get_loaded_sfd() is None:
-                self._chk_browse_loaded_sfd_only.setDisabled(1)
+                self._chk_browse_loaded_sfd_only.setDisabled(True)
                 
             self._graph_browse_list_widget = GraphBrowseListWidget(self)
             self._btn_delete_all = QPushButton(assets.load_tiny_icon(assets.Icons.RedX), " Delete All", self)
