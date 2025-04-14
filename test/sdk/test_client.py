@@ -2322,7 +2322,7 @@ class TestClient(ScrutinyUnitTest):
             self.assertEqual(event.change_type, sdk.DataloggingListChangeType.DELETE_ALL)
             self.assertIsNone(event.acquisition_reference_id)
 
-    def test_delete_datalogging_acquisitions(self):
+    def test_delete_datalogging_acquisition(self):
         self.client.listen_events(ScrutinyClient.Events.LISTEN_DATALOGGING_LIST_CHANGED)
         self.client.clear_event_queue()
 

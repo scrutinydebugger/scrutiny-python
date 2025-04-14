@@ -214,7 +214,7 @@ Manipulating the storage
 
 -----
 
-.. automethod:: scrutiny.sdk.client.ScrutinyClient.delete_datalogging_acquisitions
+.. automethod:: scrutiny.sdk.client.ScrutinyClient.delete_datalogging_acquisition
 
 -----
 
