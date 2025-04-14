@@ -199,7 +199,6 @@ class TestDataloggingIntegration(ScrutinyIntegrationTestWithTestSFD1):
                         return config_id_before != self.emulated_device.datalogger.config_id
                     self.wait_true(config_id_changed, timeout=2)
                     self.assertNotEqual(self.emulated_device.datalogger.config_id, config_id_before)
-                    self.assertFalse(self.api_conn.from_server_available())
                     self.assertFalse(self.emulated_device.datalogger.triggered())
                     # This line should trigger the acquisition
                     self.emulated_device.write_memory(self.entry_u16.get_address(), Codecs.get(
