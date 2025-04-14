@@ -31,7 +31,7 @@ import math
 import threading
 from dataclasses import dataclass
 
-from scrutiny.server.datastore.datastore_entry import DatastoreRPVEntry, EntryType
+from scrutiny.server.datastore.datastore_entry import DatastoreRPVEntry
 import scrutiny.server.datalogging.definitions.device as device_datalogging
 from scrutiny.server.protocol import *
 import scrutiny.server.protocol.typing as protocol_typing
@@ -50,6 +50,7 @@ from scrutiny.tools import Timer, update_dict_recursive
 from scrutiny.server.datastore.datastore import Datastore
 from scrutiny.server.device.links import AbstractLink, LinkConfig
 from scrutiny.core.firmware_id import PLACEHOLDER as DEFAULT_FIRMWARE_ID
+from scrutiny.core.basic_types import WatchableType
 from scrutiny import tools
 
 from typing import TypedDict, Optional, Callable, Any, Dict, cast, List
@@ -532,7 +533,7 @@ class DeviceHandler:
         self.dispatcher.set_size_limits(max_request_payload_size=max_request_payload_size, max_response_payload_size=max_response_payload_size)
         self.datalogging_poller.set_max_response_payload_size(max_response_payload_size)
 
-        self.datastore.clear(entry_type=EntryType.RuntimePublishedValue)    # Device handler own RPVs
+        self.datastore.clear(entry_type=WatchableType.RuntimePublishedValue)    # Device handler own RPVs
         self.protocol.configure_rpvs([])    # Empty list
 
     # Open communication channel based on config
@@ -560,19 +561,20 @@ class DeviceHandler:
 
     def process(self) -> None:
         """To be called periodically"""
+        previous_datalogging_data = self.datalogging_poller.get_state_and_completion_ratio()
 
         self.device_searcher.process()
         self.heartbeat_generator.process()
         self.info_poller.process()
-        previous_datalogging_data = self.datalogging_poller.get_state_and_completion_ratio()
         self.datalogging_poller.process()
-        new_datalogging_data = self.datalogging_poller.get_state_and_completion_ratio()
         self.session_initializer.process()
         self.memory_reader.process()
         self.memory_writer.process()
         self.dispatcher.process()
 
         self.process_comm()      # Make sure request and response are being exchanged with the device
+        # datalogging data changes after process_comm. process_comm receive responses and calls the callbacks that update the states.
+        new_datalogging_data = self.datalogging_poller.get_state_and_completion_ratio()
 
         previous_status = self.get_connection_status()
         self.do_state_machine()
@@ -585,7 +587,6 @@ class DeviceHandler:
         if previous_datalogging_data != new_datalogging_data:
             for callback2 in self.datalogger_state_changed_callbacks:
                 callback2(new_datalogging_data[0], new_datalogging_data[1])
-
 
     def reset_bitrate_monitor(self) -> None:
         """Reset internal bitrate counter"""

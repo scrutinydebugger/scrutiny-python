@@ -8,7 +8,7 @@
 
 from scrutiny.core.alias import Alias
 from scrutiny.core.embedded_enum import EmbeddedEnum
-from scrutiny.server.datastore.entry_type import EntryType
+from scrutiny.core.basic_types import WatchableType
 from test import ScrutinyUnitTest
 
 
@@ -24,23 +24,23 @@ class TestAlias(ScrutinyUnitTest):
             Alias(fullpath='asd')     # missing target
 
         with self.assertRaises(Exception):
-            Alias(fullpath='asd', target='ssss', target_type=EntryType.Alias)
+            Alias(fullpath='asd', target='ssss', target_type=WatchableType.Alias)
 
         x = Alias(fullpath='aaa', target='asd')
-        x.set_target_type(EntryType.Var)
+        x.set_target_type(WatchableType.Variable)
         self.assertEqual(x.get_fullpath(), 'aaa')
         self.assertEqual(x.get_target(), 'asd')
-        self.assertEqual(x.get_target_type(), EntryType.Var)
+        self.assertEqual(x.get_target_type(), WatchableType.Variable)
         self.assertEqual(x.get_min(), float('-inf'))
         self.assertEqual(x.get_max(), float('inf'))
         self.assertEqual(x.get_gain(), 1.0)
         self.assertEqual(x.get_offset(), 0.0)
         self.assertIsNone(x.enum)
 
-        x = Alias.from_dict('aaa', {'target': 'asd', 'target_type': EntryType.RuntimePublishedValue})
+        x = Alias.from_dict('aaa', {'target': 'asd', 'target_type': WatchableType.RuntimePublishedValue})
         self.assertEqual(x.get_fullpath(), 'aaa')
         self.assertEqual(x.get_target(), 'asd')
-        self.assertEqual(x.get_target_type(), EntryType.RuntimePublishedValue)
+        self.assertEqual(x.get_target_type(), WatchableType.RuntimePublishedValue)
         self.assertEqual(x.get_min(), float('-inf'))
         self.assertEqual(x.get_max(), float('inf'))
         self.assertEqual(x.get_gain(), 1.0)
@@ -49,7 +49,7 @@ class TestAlias(ScrutinyUnitTest):
 
         x = Alias.from_dict('aaa', {
             'target': 'asd', 
-            'target_type': EntryType.RuntimePublishedValue,
+            'target_type': WatchableType.RuntimePublishedValue,
             'enum' : {
                 'name' : 'some_enum',
                 'values' : {
@@ -61,7 +61,7 @@ class TestAlias(ScrutinyUnitTest):
         })
         self.assertEqual(x.get_fullpath(), 'aaa')
         self.assertEqual(x.get_target(), 'asd')
-        self.assertEqual(x.get_target_type(), EntryType.RuntimePublishedValue)
+        self.assertEqual(x.get_target_type(), WatchableType.RuntimePublishedValue)
         self.assertEqual(x.get_min(), float('-inf'))
         self.assertEqual(x.get_max(), float('inf'))
         self.assertEqual(x.get_gain(), 1.0)
@@ -74,7 +74,7 @@ class TestAlias(ScrutinyUnitTest):
 
         d = x.to_dict()
         self.assertEqual(d['target'], 'asd')
-        self.assertEqual(d['target_type'], EntryType.RuntimePublishedValue)
+        self.assertEqual(d['target_type'], WatchableType.RuntimePublishedValue)
         self.assertNotIn('min', d)  # Remove because of default value
         self.assertNotIn('max', d)
         self.assertNotIn('gain', d)

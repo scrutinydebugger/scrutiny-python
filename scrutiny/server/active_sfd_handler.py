@@ -10,12 +10,11 @@ import logging
 import traceback
 
 from scrutiny.core.firmware_description import FirmwareDescription
-from scrutiny.core.sfd_storage import SFDStorage
-from scrutiny.server.datastore.datastore_entry import EntryType
+from scrutiny.server.sfd_storage import SFDStorage
+from scrutiny.core.basic_types import WatchableType
 from scrutiny.server.device.device_handler import DeviceHandler
 from scrutiny.server.datastore.datastore import Datastore
 from scrutiny.server.datastore.datastore_entry import DatastoreAliasEntry, DatastoreVariableEntry
-from scrutiny.server.datastore.entry_type import EntryType
 from scrutiny import tools
 
 from typing import Optional, List, Callable
@@ -114,8 +113,8 @@ class ActiveSFDHandler:
         """Loads a Scrutiny Firmware Description"""
         self.sfd = None
         # We only clear the entry types coming from the SFD.
-        self.datastore.clear(EntryType.Var)
-        self.datastore.clear(EntryType.Alias)
+        self.datastore.clear(WatchableType.Variable)
+        self.datastore.clear(WatchableType.Alias)
 
         if SFDStorage.is_installed(firmware_id):
             self.logger.info('Loading firmware description file (SFD) for firmware ID %s' % firmware_id)
@@ -157,8 +156,8 @@ class ActiveSFDHandler:
 
         self.sfd = None
         # We only clear the entry types coming from the SFD. (i.e. no RPV)
-        self.datastore.clear(EntryType.Alias)
-        self.datastore.clear(EntryType.Var)
+        self.datastore.clear(WatchableType.Alias)
+        self.datastore.clear(WatchableType.Variable)
         if must_call_callback:
             self.logger.debug('Triggering SFD Unload callback')
             for callback in self.unloaded_callbacks:

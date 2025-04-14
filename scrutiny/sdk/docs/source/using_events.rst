@@ -29,10 +29,11 @@ Methods
 
 .. automethod:: scrutiny.sdk.client.ScrutinyClient.listen_events
 .. automethod:: scrutiny.sdk.client.ScrutinyClient.read_event
+.. automethod:: scrutiny.sdk.client.ScrutinyClient.clear_event_queue
 
 
 .. autoclass:: scrutiny.sdk.client.ScrutinyClient.Events
-    :exclude-members: __new__, __init__, ConnectedEvent,DisconnectedEvent,DeviceReadyEvent,DeviceGoneEvent,SFDLoadedEvent,SFDUnLoadedEvent,DataloggerStateChanged,StatusUpdateEvent
+    :exclude-members: __new__, __init__, ConnectedEvent,DisconnectedEvent,DeviceReadyEvent,DeviceGoneEvent,SFDLoadedEvent,SFDUnLoadedEvent,DataloggerStateChanged,StatusUpdateEvent,DataloggingListChanged
     :members:
     :member-order: bysource
 
@@ -66,5 +67,9 @@ Events
     :members:
 
 .. autoclass:: scrutiny.sdk.client.ScrutinyClient.Events.DataloggerStateChanged
+    :exclude-members: __new__, __init__
+    :members:
+
+.. autoclass:: scrutiny.sdk.client.ScrutinyClient.Events.DataloggingListChanged
     :exclude-members: __new__, __init__
     :members:

@@ -7,7 +7,6 @@
 #   Copyright (c) 2021 Scrutiny Debugger
 
 __all__ = [
-    'EntryType',
     'DatastoreEntry',
     'DatastoreVariableEntry',
     'DatastoreAliasEntry',
@@ -17,15 +16,13 @@ __all__ = [
     'UserValueChangeCallback'
 ]
 
-import time
 import abc
 import re
 from scrutiny.core.basic_types import RuntimePublishedValue
 import queue
 
 from scrutiny.server.timebase import server_timebase
-from scrutiny.server.datastore.entry_type import EntryType
-from scrutiny.core.basic_types import EmbeddedDataType, Endianness
+from scrutiny.core.basic_types import EmbeddedDataType, Endianness, WatchableType
 from scrutiny.core.variable import Variable
 from scrutiny.core.embedded_enum import EmbeddedEnum
 from scrutiny.core.codecs import *
@@ -133,15 +130,20 @@ class DatastoreEntry(abc.ABC):
     last_value_update_server_time_us: float
 
     def __init__(self, display_path: str):
-        display_path = display_path.strip()
         self.value_change_callback = {}
         self.target_update_callback = {}
         self.entry_id = hex(global_i64_counter())[2:]    # unique ID. Remove 0x prefix
-        self.display_path = display_path
+        self.display_path = self.clean_display_path(display_path)
         self.last_target_update_server_time_us = None
         self.last_value_update_server_time_us = server_timebase.get_micro()
         self.target_update_request_queue = queue.Queue()
         self.value = 0
+
+    @classmethod
+    def clean_display_path(cls, display_path:str) -> str:
+        display_path = display_path.strip()
+        display_path = display_path.strip('/')
+        return '/'+display_path
 
     @abc.abstractmethod
     def get_data_type(self) -> EmbeddedDataType:
@@ -149,7 +151,7 @@ class DatastoreEntry(abc.ABC):
         raise NotImplementedError("Abstract method")
 
     @abc.abstractmethod
-    def get_type(self) -> EntryType:
+    def get_type(self) -> WatchableType:
         """Return the datastore entry type"""
         raise NotImplementedError("Abstract method")
 
@@ -247,9 +249,9 @@ class DatastoreVariableEntry(DatastoreEntry):
         self.variable_def = variable_def
         self.codec = Codecs.get(self.variable_def.get_type(), self.variable_def.endianness)
 
-    def get_type(self) -> EntryType:
+    def get_type(self) -> WatchableType:
         """Returns the device data type"""
-        return EntryType.Var    # Datastore entry type
+        return WatchableType.Variable    # Datastore entry type
 
     def get_data_type(self) -> EmbeddedDataType:
         """Return the datastore entry type"""
@@ -326,9 +328,9 @@ class DatastoreAliasEntry(DatastoreEntry):
         assert obj is not None
         return obj
 
-    def get_type(self) -> EntryType:
+    def get_type(self) -> WatchableType:
         """Returns the device data type"""
-        return EntryType.Alias  # Datastore entry type
+        return WatchableType.Alias  # Datastore entry type
 
     def get_data_type(self) -> EmbeddedDataType:
         """Return the datastore entry type"""
@@ -400,9 +402,9 @@ class DatastoreRPVEntry(DatastoreEntry):
         self.rpv = rpv
         self.codec = Codecs.get(rpv.datatype, Endianness.Big)    # Default protocol encoding is big endian
 
-    def get_type(self) -> EntryType:
+    def get_type(self) -> WatchableType:
         """Returns the device data type"""
-        return EntryType.RuntimePublishedValue
+        return WatchableType.RuntimePublishedValue
 
     def get_data_type(self) -> EmbeddedDataType:
         """Return the datastore entry type"""

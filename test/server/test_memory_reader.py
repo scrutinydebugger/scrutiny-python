@@ -13,7 +13,6 @@ from sortedcontainers import SortedSet  # type: ignore
 
 from scrutiny.server.datastore.datastore import Datastore
 from scrutiny.server.datastore.datastore_entry import *
-from scrutiny.server.datastore.entry_type import EntryType
 from scrutiny.server.device.submodules.memory_reader import MemoryReader, DataStoreEntrySortableByAddress, DataStoreEntrySortableByRpvId
 from scrutiny.server.device.request_dispatcher import RequestDispatcher
 from scrutiny.server.protocol import Protocol, Request, Response
@@ -929,22 +928,22 @@ class TestAllTypesOfReadMixed(ScrutinyUnitTest):
         super().__init__(*args, **kwargs)
         self.datastore = Datastore()
         self.protocol = Protocol(1, 0)
-        self.callback_counter_per_type: Dict[EntryType, Dict[str, int]] = {}
-        self.callback_counter_per_type[EntryType.Var] = {}
-        self.callback_counter_per_type[EntryType.RuntimePublishedValue] = {}
+        self.callback_counter_per_type: Dict[WatchableType, Dict[str, int]] = {}
+        self.callback_counter_per_type[WatchableType.Variable] = {}
+        self.callback_counter_per_type[WatchableType.RuntimePublishedValue] = {}
 
     def assert_round_robin(self):
         var_minval = 999
         var_maxval = 0
-        for entry_id in self.callback_counter_per_type[EntryType.Var]:
-            var_maxval = max(var_maxval, self.callback_counter_per_type[EntryType.Var][entry_id])
-            var_minval = min(var_minval, self.callback_counter_per_type[EntryType.Var][entry_id])
+        for entry_id in self.callback_counter_per_type[WatchableType.Variable]:
+            var_maxval = max(var_maxval, self.callback_counter_per_type[WatchableType.Variable][entry_id])
+            var_minval = min(var_minval, self.callback_counter_per_type[WatchableType.Variable][entry_id])
 
         rpv_minval = 999
         rpv_maxval = 0
-        for entry_id in self.callback_counter_per_type[EntryType.RuntimePublishedValue]:
-            rpv_maxval = max(rpv_maxval, self.callback_counter_per_type[EntryType.RuntimePublishedValue][entry_id])
-            rpv_minval = min(rpv_minval, self.callback_counter_per_type[EntryType.RuntimePublishedValue][entry_id])
+        for entry_id in self.callback_counter_per_type[WatchableType.RuntimePublishedValue]:
+            rpv_maxval = max(rpv_maxval, self.callback_counter_per_type[WatchableType.RuntimePublishedValue][entry_id])
+            rpv_minval = min(rpv_minval, self.callback_counter_per_type[WatchableType.RuntimePublishedValue][entry_id])
 
         # Round robin within groups
         self.assertLessEqual(var_maxval - var_minval, 1)
@@ -1032,12 +1031,12 @@ class TestAllTypesOfReadMixed(ScrutinyUnitTest):
 
             if debug:
                 # Can be pasted
-                for entry_id in self.callback_counter_per_type[EntryType.Var]:
-                    n = self.callback_counter_per_type[EntryType.Var][entry_id]
+                for entry_id in self.callback_counter_per_type[WatchableType.Variable]:
+                    n = self.callback_counter_per_type[WatchableType.Variable][entry_id]
                     print("Mem: 0x%04x - %d" % (self.datastore.get_entry(entry_id).get_address(), n))
 
-                for entry_id in self.callback_counter_per_type[EntryType.RuntimePublishedValue]:
-                    n = self.callback_counter_per_type[EntryType.RuntimePublishedValue][entry_id]
+                for entry_id in self.callback_counter_per_type[WatchableType.RuntimePublishedValue]:
+                    n = self.callback_counter_per_type[WatchableType.RuntimePublishedValue][entry_id]
                     print("RPV: 0x%04x - %d" % (self.datastore.get_entry(entry_id).get_rpv().id, n))
 
             self.assert_round_robin()

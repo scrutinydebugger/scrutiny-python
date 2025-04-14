@@ -49,9 +49,13 @@ class AxisStandardItem(QStandardItem):
     def detach_axis(self) -> None:
         self._chart_axis = None
     
+    def axis_attached(self) -> bool:
+        return self._chart_axis is not None
+    
     def axis(self) -> QValueAxis:
         assert self._chart_axis is not None
         return self._chart_axis
+    
 class ChartSeriesWatchableStandardItem(WatchableStandardItem):
     _chart_series:Optional[QLineSeries] = None
 
@@ -62,7 +66,7 @@ class ChartSeriesWatchableStandardItem(WatchableStandardItem):
 
     def _assert_series_set(self) -> None:
         if self._chart_series is None:
-            raise RuntimeError("A serie smust be attached first")
+            raise RuntimeError("A series must be attached first")
 
     def attach_series(self, series:QLineSeries) -> None:
         if not isinstance(series, QAbstractSeries):
@@ -119,10 +123,13 @@ class AxisContent:
     signal_items:List[ChartSeriesWatchableStandardItem]
 
 class GraphSignalModel(BaseTreeModel):
+
+
     _has_value_col:bool
     _watchable_registry:WatchableRegistry
     _available_palette:QPalette
     _unavailable_palette:QPalette
+    _globally_uneditable:bool
 
     def __init__(self, 
                 parent:QWidget, 
@@ -133,6 +140,7 @@ class GraphSignalModel(BaseTreeModel):
                 ) -> None:
         super().__init__(parent, nesting_col= self.axis_col())
         self._watchable_registry = watchable_registry
+        self._globally_uneditable = False
         if has_value_col:
             self.setColumnCount(2)
         else:
@@ -156,6 +164,10 @@ class GraphSignalModel(BaseTreeModel):
 
     def make_axis_row(self, axis_name:str) -> List[AxisStandardItem]:
         axis_item = AxisStandardItem(axis_name)
+        axis_item.setEditable(True)
+        if self._globally_uneditable:
+            axis_item.setEditable(False)
+        
         return [axis_item]
 
     def axis_col(self) -> int:
@@ -168,9 +180,10 @@ class GraphSignalModel(BaseTreeModel):
         assert self._has_value_col
         return 1
     
-    def get_watchable_row_from_dragged_watchable_desc(self, watchable_desc:SingleWatchableDescriptor) -> List[QStandardItem]:
-        watchable_item = ChartSeriesWatchableStandardItem.from_drag_watchable_descriptor(watchable_desc)
+    def make_watchable_item_row(self, watchable_item:ChartSeriesWatchableStandardItem) -> List[QStandardItem]:
         watchable_item.setEditable(True)
+        if self._globally_uneditable:
+            watchable_item.setEditable(False)
         watchable_item.setDragEnabled(True)
 
         outlist:List[QStandardItem] = [watchable_item]
@@ -179,6 +192,10 @@ class GraphSignalModel(BaseTreeModel):
             value_item.setEditable(False)
             outlist.append(value_item)
         return outlist
+
+    def get_watchable_row_from_dragged_watchable_desc(self, watchable_desc:SingleWatchableDescriptor) -> List[QStandardItem]:
+        watchable_item = ChartSeriesWatchableStandardItem.from_drag_watchable_descriptor(watchable_desc)
+        return self.make_watchable_item_row(watchable_item)
  
     def _validate_drag_data(self, drag_data:Optional[ScrutinyDragData], action:Qt.DropAction) -> bool:
         
@@ -201,7 +218,7 @@ class GraphSignalModel(BaseTreeModel):
             
         return True
             
-    def _get_last_axisor_create(self) -> AxisStandardItem:
+    def _get_last_axis_or_create(self) -> AxisStandardItem:
         if self.rowCount() == 0:
             self.add_axis("Axis 1")
 
@@ -209,8 +226,10 @@ class GraphSignalModel(BaseTreeModel):
         assert isinstance(axis_item, AxisStandardItem)
         return axis_item
     
-    def add_axis(self, name:str) -> None:
-        self.appendRow(self.make_axis_row(name))
+    def add_axis(self, name:str) -> AxisStandardItem:
+        row = self.make_axis_row(name)
+        self.appendRow(row)
+        return row[0]
 
     def mimeData(self, indexes:Sequence[QModelIndex]) -> QMimeData:
         item_list:List[WatchableStandardItem] = []
@@ -268,7 +287,7 @@ class GraphSignalModel(BaseTreeModel):
         
         parent_item = self.itemFromIndex(parent)
         del parent
-        last_axis = self._get_last_axisor_create()
+        last_axis = self._get_last_axis_or_create()
 
         if parent_item is None:
             parent_item = last_axis
@@ -356,6 +375,14 @@ class GraphSignalModel(BaseTreeModel):
                 assert isinstance(series_item, ChartSeriesWatchableStandardItem)
                 self.update_availability(series_item)
     
+    def set_all_available(self) -> None:
+        for i in range(self.rowCount()):
+            axis = self.item(i, self.watchable_col())
+            for j in range(axis.rowCount()):
+                series_item = axis.child(j, self.watchable_col())
+                assert isinstance(series_item, ChartSeriesWatchableStandardItem)
+                self.set_available(series_item)
+
     def has_unavailable_signals(self) -> bool:
         """Return True if one signal refers to an unavailable watchable in the registry"""
         for i in range(self.rowCount()):
@@ -388,14 +415,43 @@ class GraphSignalModel(BaseTreeModel):
                 item.setBackground(background_color)
                 item.setForeground(forground_color)
 
+    def get_all_value_items(self) -> List[QStandardItem]:
+        assert self.has_value_col()
+        
+        outlist:List[QStandardItem] = []
+        for i in range(self.rowCount()):
+            axis_item = self.item(i, self.axis_col())
+            for i in range(axis_item.rowCount()):
+                outlist.append( axis_item.child(i, self.value_col()) )
+        return outlist
+
+    def _update_editable_field(self) -> None:
+        editable = not self._globally_uneditable
+        for i in range(self.rowCount()):
+            axis_item = self.item(i, self.axis_col())
+            axis_item.setEditable(editable)
+            for i in range(axis_item.rowCount()):
+                axis_item.child(i, self.watchable_col()).setEditable(editable)
+                if self.has_value_col():
+                    axis_item.child(i, self.value_col()).setEditable(False)
+
+
+    def disallow_item_edition(self) -> None:
+        self._globally_uneditable = True
+        self._update_editable_field()
+
+    def allow_item_edition(self) -> None:
+        self._globally_uneditable = False
+        self._update_editable_field()
+
 class GraphSignalTree(BaseTreeView):
     
     class _Signals(QObject):
         selection_changed = Signal()
+        content_changed = Signal()
     
     _locked:bool
     _signals:_Signals
-    
 
     def model(self) -> GraphSignalModel:
         return cast(GraphSignalModel, super().model())
@@ -422,6 +478,9 @@ class GraphSignalTree(BaseTreeView):
     def update_all_availabilities(self) -> None:
         self.model().update_all_availabilities()
     
+    def set_all_available(self) -> None:
+        self.model().set_all_available()
+
     def has_unavailable_signals(self) -> bool:
         return self.model().has_unavailable_signals()
 
@@ -430,10 +489,12 @@ class GraphSignalTree(BaseTreeView):
             self.expand(parent)
         super().rowsInserted(parent, start, end)
         self.resizeColumnToContents(0)
+        self._signals.content_changed.emit()
     
     def rowsRemoved(self, parent:Union[QModelIndex, QPersistentModelIndex], first:int, last:int) -> None:
         super().rowsRemoved(parent, first, last)
         self.resizeColumnToContents(0)
+        self._signals.content_changed.emit()
     
     def _set_drag_and_drop_action(self, event:Union[QDragEnterEvent, QDragMoveEvent, QDropEvent]) -> None:
         if event.source() is self:
@@ -542,15 +603,17 @@ class GraphSignalTree(BaseTreeView):
         
         return list(selected_axes.values())
                 
-        
 
     def lock(self) -> None:
-        self.setDragDropMode(self.DragDropMode.NoDragDrop)
+        self.setDragDropMode(self.DragDropMode.DragOnly)
         self._locked = True
+        self.model().disallow_item_edition()
+
     
     def unlock(self) -> None:
         self.setDragDropMode(self.DragDropMode.DragDrop)
         self._locked = False
+        self.model().allow_item_edition()
 
     def reload_original_icons(self) -> None:
         self.model().reload_original_icons()
@@ -564,3 +627,6 @@ class GraphSignalTree(BaseTreeView):
 
     def get_value_item_by_attached_series(self) -> List[Tuple[QLineSeries, QStandardItem]]:
         return self.model().get_value_item_by_attached_series()
+    
+    def get_all_value_items(self) -> List[QStandardItem]:
+        return self.model().get_all_value_items()

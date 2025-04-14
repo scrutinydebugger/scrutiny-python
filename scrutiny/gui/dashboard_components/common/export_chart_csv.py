@@ -118,7 +118,7 @@ def export_chart_csv_threaded(
                     headers.append(DATETIME_HEADER)
                     watchable_paths.append("")
                 headers.extend([x_axis_name] + [series.name() for series in series_list] + ["New Values"])
-                watchable_paths.extend([""] + series_fqn)
+                watchable_paths.extend([""] + series_fqn + [""])
                 
                 writer.writerow(watchable_paths)    # Full path to the watchable
                 writer.writerow(headers)            # Nice name for the watchable

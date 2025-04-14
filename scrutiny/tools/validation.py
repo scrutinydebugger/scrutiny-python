@@ -41,7 +41,7 @@ def assert_val_in(var: Any, name: str, vals: Sequence[Any]) -> None:
         raise ValueError(f"\"{name}\" has an invalid value. Expected one of {vals}")
 
 
-def assert_int_range(val: int, name: str, minval: Optional[int] = None, maxval: Optional[int] = None) -> None:
+def assert_int_range(val: int, name: str, minval: Optional[int] = None, maxval: Optional[int] = None) -> int:
     assert_type(val, name, int)
     if minval is not None:
         if val < minval:
@@ -50,12 +50,13 @@ def assert_int_range(val: int, name: str, minval: Optional[int] = None, maxval: 
     if maxval is not None:
         if val > maxval:
             raise ValueError(f"{name} must be less than {maxval}. Got {val}")
+    return val
 
 
-def assert_int_range_if_not_none(val: Optional[int], name: str, minval: Optional[int] = None, maxval: Optional[int] = None) -> None:
+def assert_int_range_if_not_none(val: Optional[int], name: str, minval: Optional[int] = None, maxval: Optional[int] = None) -> Optional[int]:
     if val is None:
-        return
-    assert_int_range(val, name, minval, maxval)
+        return None
+    return assert_int_range(val, name, minval, maxval)
 
 
 def assert_float_range(val: Union[int, float], name: str, minval: Optional[float] = None, maxval: Optional[float] = None) -> float:

@@ -203,3 +203,19 @@ Example
         acquisition = client.read_datalogging_acquisition(entries[0].reference_id)   # Read the first one
         print(f"Acquisition {acquisition.name} [{acquisition.reference_id}] downloaded and has {len(acquisition.ydata)} signals on the Y-Axis. ")
         acquisition.to_csv("myfile.csv")
+
+
+-----
+
+Manipulating the storage
+------------------------
+
+.. automethod:: scrutiny.sdk.client.ScrutinyClient.clear_datalogging_storage
+
+-----
+
+.. automethod:: scrutiny.sdk.client.ScrutinyClient.delete_datalogging_acquisition
+
+-----
+
+.. automethod:: scrutiny.sdk.client.ScrutinyClient.update_datalogging_acquisition

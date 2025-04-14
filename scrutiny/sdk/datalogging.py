@@ -29,7 +29,14 @@ __all__ = [
     'TriggerCondition',
     'DataloggingConfig',
     'DataloggingRequest',
-    'DataloggingStorageEntry'
+    'DataloggingStorageEntry',
+
+    # Forwarded from core
+    'AxisDefinition',
+    'DataSeries',
+    'DataSeriesWithAxis',
+    'DataloggingAcquisition',
+    'LoggedWatchable'
 ]
 
 
@@ -78,6 +85,22 @@ class TriggerCondition(enum.Enum):
 
     IsWithin = "within"
     """`|Operand1 - Operand2|` < `|Operand3|` """
+
+
+    def required_operands(self) -> int:
+        operand_map = {
+            TriggerCondition.AlwaysTrue: 0,
+            TriggerCondition.Equal: 2,
+            TriggerCondition.NotEqual: 2,
+            TriggerCondition.LessThan: 2,
+            TriggerCondition.LessOrEqualThan: 2,
+            TriggerCondition.GreaterThan: 2,
+            TriggerCondition.GreaterOrEqualThan: 2,
+            TriggerCondition.ChangeMoreThan: 2,
+            TriggerCondition.IsWithin: 3
+        }
+
+        return operand_map[self]
 
 
 @dataclass
@@ -241,22 +264,10 @@ class DataloggingConfig:
         :raise ValueError: Bad parameter value
         :raise TypeError: Given parameter not of the expected type
         """
-        if condition in [TriggerCondition.AlwaysTrue]:
-            nb_operands = 0
-        elif condition in [TriggerCondition.Equal,
-                           TriggerCondition.NotEqual,
-                           TriggerCondition.GreaterThan,
-                           TriggerCondition.GreaterOrEqualThan,
-                           TriggerCondition.LessThan,
-                           TriggerCondition.LessOrEqualThan,
-                           TriggerCondition.ChangeMoreThan]:
-            nb_operands = 2
-        elif condition in [TriggerCondition.IsWithin]:
-            nb_operands = 3
-        else:
-            raise ValueError(f"Unsupported trigger condition {condition}")
-
+        validation.assert_type(condition, 'condition', TriggerCondition)
         validation.assert_type(operands, 'operands', (list, type(None)))
+        
+        nb_operands = condition.required_operands()
 
         if operands is None:
             operands = []
@@ -326,6 +337,8 @@ class DataloggingConfig:
                 out_list.append({"type": 'literal', "value": float(operand)})
             elif isinstance(operand, WatchableHandle):
                 out_list.append({"type": 'watchable', "value": operand.display_path})
+            elif isinstance(operand, str):
+                out_list.append({"type": 'watchable', "value": operand})
             else:
                 raise RuntimeError(f'Unsupported operand type {operand.__class__.__name__}')
         return out_list
@@ -411,6 +424,11 @@ class DataloggingRequest(PendingRequest):
     def acquisition_reference_id(self) -> Optional[str]:
         """The unique ID used to fetch the acquisition data from the server. Value is set only if request is completed and succeeded. ``None`` otherwise"""
         return self._acquisition_reference_id
+    
+    @property
+    def request_token(self) -> str:
+        """A unique token assigned to this request by the server"""
+        return self._request_token
 
 
 @dataclass(frozen=True)

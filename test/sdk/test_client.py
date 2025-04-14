@@ -9,24 +9,27 @@
 import unittest
 
 from scrutiny.core.basic_types import *
-from scrutiny.sdk.watchable_handle import WatchableHandle
-import scrutiny.sdk
-import scrutiny.sdk.client
-from scrutiny.sdk import listeners
-import scrutiny.sdk.datalogging
-import scrutiny.sdk._api_parser
-sdk = scrutiny.sdk
-from scrutiny.sdk.client import ScrutinyClient
-import scrutiny.server.datalogging.definitions.device as device_datalogging
-import scrutiny.server.datalogging.definitions.api as api_datalogging
+from scrutiny.core.datalogging import *
 from scrutiny.core.variable import Variable as core_Variable
 from scrutiny.core.alias import Alias as core_Alias
 from scrutiny.core.codecs import Codecs
 from scrutiny.core.embedded_enum import EmbeddedEnum
-from scrutiny.core.sfd_storage import SFDStorage
 from scrutiny.core.memory_content import MemoryContent
-from scrutiny.server.datalogging.datalogging_storage import DataloggingStorage
+from scrutiny.core.firmware_description import FirmwareDescription
 
+import scrutiny.sdk
+sdk = scrutiny.sdk
+import scrutiny.sdk.client
+import scrutiny.sdk.datalogging
+import scrutiny.sdk._api_parser
+from scrutiny.sdk import listeners
+from scrutiny.sdk.watchable_handle import WatchableHandle
+from scrutiny.sdk.client import ScrutinyClient
+
+import scrutiny.server.datalogging.definitions.device as device_datalogging
+import scrutiny.server.datalogging.definitions.api as api_datalogging
+from scrutiny.server.sfd_storage import SFDStorage
+from scrutiny.server.datalogging.datalogging_storage import DataloggingStorage
 from scrutiny.server.server import ScrutinyServer
 from scrutiny.server.api import API, APIConfig
 from scrutiny.server.api.abstract_client_handler import AbstractClientHandler
@@ -34,20 +37,20 @@ from scrutiny.server.protocol.comm_handler import CommHandler
 import scrutiny.server.datastore.datastore as datastore
 from scrutiny.server.api.tcp_client_handler import TCPClientHandler
 from scrutiny.server.device.device_handler import (
-    DeviceHandler, DeviceStateChangedCallback,  RawMemoryReadRequest, RawMemoryWriteRequest, UserCommandCallback, DataloggerStateChangedCallback
+    DeviceHandler, DeviceStateChangedCallback,  RawMemoryReadRequest, 
+    RawMemoryWriteRequest, UserCommandCallback, DataloggerStateChangedCallback
     )
 from scrutiny.server.device.submodules.memory_writer import RawMemoryWriteRequestCompletionCallback
 from scrutiny.server.device.submodules.memory_reader import RawMemoryReadRequestCompletionCallback
-
-from scrutiny.core.firmware_description import FirmwareDescription
 from scrutiny.server.device.links.udp_link import UdpLink
 from scrutiny.server.device.links.abstract_link import AbstractLink
 import scrutiny.server.device.device_info as server_device
+
 from test.artifacts import get_artifact
 from test import ScrutinyUnitTest
+
 import random
 import copy
-
 import threading
 import time
 import queue
@@ -58,7 +61,6 @@ import logging
 import traceback
 import struct
 from datetime import datetime, timedelta
-import signal 
 
 from typing import *
 
@@ -1518,10 +1520,26 @@ class TestClient(ScrutinyUnitTest):
             axis1 = sdk.datalogging.AxisDefinition("Axis1", 0)
             axis2 = sdk.datalogging.AxisDefinition("Axis2", 1)
 
-            xdata = sdk.datalogging.DataSeries([0, 10, 20, 30, 40, 50], "x-axis", "my/xaxis")
-            ds1 = sdk.datalogging.DataSeries([-1, -0.5, 0, 0.5, 1], "data1", "path/to/data1")
-            ds2 = sdk.datalogging.DataSeries([-10, -5, 0, 5, 10], "data2", "path/to/data2")
-            ds3 = sdk.datalogging.DataSeries([0.1, 0.2, 0.3, 0.1, 0.2], "data3", "path/to/data3")
+            xdata = sdk.datalogging.DataSeries(
+                data=[0, 10, 20, 30, 40, 50], 
+                name="x-axis", 
+                logged_watchable=LoggedWatchable("my/xaxis", WatchableType.Variable)
+                )
+            ds1 = sdk.datalogging.DataSeries(
+                data=[-1, -0.5, 0, 0.5, 1], 
+                name="data1", 
+                logged_watchable=LoggedWatchable("path/to/data1", WatchableType.Variable)
+                )
+            ds2 = sdk.datalogging.DataSeries(
+                data=[-10, -5, 0, 5, 10], 
+                name="data2", 
+                logged_watchable=LoggedWatchable("path/to/data2", WatchableType.Variable)
+                )
+            ds3 = sdk.datalogging.DataSeries(
+                data=[0.1, 0.2, 0.3, 0.1, 0.2], 
+                name="data3", 
+                logged_watchable=LoggedWatchable("path/to/data3", WatchableType.Variable)
+                )
             acq.set_xdata(xdata)
             acq.add_data(ds1, axis1)
             acq.add_data(ds2, axis1)
@@ -1540,9 +1558,8 @@ class TestClient(ScrutinyUnitTest):
             self.assertEqual(acq2.trigger_index, acq.trigger_index)
             self.assertLessEqual(abs(acq2.acq_time - acq.acq_time), timedelta(seconds=1))
 
-            self.assertEqual(acq2.xdata.name, acq.xdata.name)
-            self.assertEqual(acq2.xdata.logged_element, acq.xdata.logged_element)
-            self.assertEqual(acq2.xdata.get_data(), acq.xdata.get_data())
+            self.assert_dataseries_identical(acq2.xdata, acq.xdata)
+
 
             data2 = acq2.get_data()
             data1 = acq.get_data()
@@ -1556,9 +1573,8 @@ class TestClient(ScrutinyUnitTest):
                 self.assertEqual(data1[i].axis.name, data2[i].axis.name)
                 self.assertEqual(data1[i].axis.axis_id, data2[i].axis.axis_id)
 
-                self.assertEqual(data1[i].series.name, data2[i].series.name)
-                self.assertEqual(data1[i].series.logged_element, data2[i].series.logged_element)
-                self.assertEqual(data1[i].series.get_data(), data2[i].series.get_data())
+                self.assert_dataseries_identical(data1[i].series, data2[i].series)
+
 
     def test_request_datalogging_acquisition(self):
         var1 = self.client.watch('/a/b/var1')
@@ -1636,23 +1652,32 @@ class TestClient(ScrutinyUnitTest):
             ds1 = sdk.datalogging.DataSeries(
                 data=[random.random() for x in range(10)],
                 name=server_request.signals[0].name,
-                logged_element=server_request.signals[0].entry.get_display_path()
+                logged_watchable=sdk.datalogging.LoggedWatchable(
+                    path = server_request.signals[0].entry.get_display_path(),
+                    type = server_request.signals[0].entry.get_type()
+                    )
             )
             ds2 = sdk.datalogging.DataSeries(
                 data=[random.random() for x in range(10)],
                 name=server_request.signals[1].name,
-                logged_element=server_request.signals[1].entry.get_display_path()
+                logged_watchable=sdk.datalogging.LoggedWatchable(
+                    path = server_request.signals[1].entry.get_display_path(),
+                    type = server_request.signals[1].entry.get_type()
+                    )
             )
             ds3 = sdk.datalogging.DataSeries(
                 data=[random.random() for x in range(10)],
                 name=server_request.signals[2].name,
-                logged_element=server_request.signals[2].entry.get_display_path()
+                logged_watchable=sdk.datalogging.LoggedWatchable(
+                    path = server_request.signals[2].entry.get_display_path(),
+                    type = server_request.signals[2].entry.get_type()
+                    )
             )
             acquisition.add_data(ds1, axis1)
             acquisition.add_data(ds2, axis1)
             acquisition.add_data(ds3, axis2)
 
-            acquisition.set_xdata(sdk.datalogging.DataSeries([x for x in range(10)], name="time", logged_element='measured time'))
+            acquisition.set_xdata(sdk.datalogging.DataSeries([x for x in range(10)], name="time", logged_watchable=None))
             acquisition.set_trigger_index(4)
             return acquisition
 
@@ -1726,10 +1751,21 @@ class TestClient(ScrutinyUnitTest):
                 ds1 = sdk.datalogging.DataSeries(
                     data=[random.random() for x in range(10)],
                     name='ds1_name',
-                    logged_element='ds1_element'
+                    logged_watchable=scrutiny.sdk.datalogging.LoggedWatchable(
+                        path='/a/b/c',
+                        type=WatchableType.Variable
+                        )
                 )
                 acquisition.add_data(ds1, axis1)
-                acquisition.set_xdata(sdk.datalogging.DataSeries([x for x in range(10)], name="time", logged_element='measured time'))
+                acquisition.set_xdata(sdk.datalogging.DataSeries(
+                    [x for x in range(10)], 
+                    name="time", 
+                    logged_watchable=scrutiny.sdk.datalogging.LoggedWatchable(
+                            path='/d/e/f',
+                            type=WatchableType.Alias
+                        )
+                    )
+                )
                 acquisition.set_trigger_index(4)
 
                 acquisition2 = sdk.datalogging.DataloggingAcquisition(
@@ -1741,10 +1777,17 @@ class TestClient(ScrutinyUnitTest):
                 ds1 = sdk.datalogging.DataSeries(
                     data=[random.random() for x in range(10)],
                     name='ds1_name',
-                    logged_element='ds1_element'
+                    logged_watchable=scrutiny.sdk.datalogging.LoggedWatchable(
+                        path='/a/b/c',
+                        type=WatchableType.Variable
+                        )
                 )
                 acquisition2.add_data(ds1, axis1)
-                acquisition2.set_xdata(sdk.datalogging.DataSeries([x for x in range(10)], name="time", logged_element='measured time'))
+                acquisition2.set_xdata(sdk.datalogging.DataSeries(
+                    [x for x in range(10)], 
+                    name="time", 
+                    logged_watchable=None
+                ))
                 acquisition2.set_trigger_index(4)
 
                 DataloggingStorage.save(acquisition)
@@ -1761,6 +1804,14 @@ class TestClient(ScrutinyUnitTest):
                 received_data = [dict(firmware_id=x.firmware_id, reference_id=x.reference_id) for x in acquisitions]
 
                 self.assertCountEqual(expected_data, received_data)
+
+                data = self.client.read_datalogging_acquisitions_metadata('refid1')
+                self.assertIsNotNone(data)
+                self.assertEqual(data.reference_id, 'refid1')
+
+                data = self.client.read_datalogging_acquisitions_metadata('idontexist')
+                self.assertIsNone(data)
+
 
     def test_datalog_fails_on_server_disconnect(self):
         var1 = self.client.watch('/a/b/var1')
@@ -2212,7 +2263,6 @@ class TestClient(ScrutinyUnitTest):
         self.assertEqual(evt.details.state, sdk.DataloggerState.Acquiring)
         self.assertEqual(evt.details.completion_ratio, 0.75)
 
-
         self.sfd_handler.unload()
         evt = self.client.read_event(timeout=EVENT_READ_TIMEOUT)
         self.assertIsInstance(evt, ScrutinyClient.Events.SFDUnLoadedEvent)
@@ -2243,7 +2293,99 @@ class TestClient(ScrutinyUnitTest):
         self.assertEqual(received_stats.from_device_datarate_byte_per_sec, stats.device.comm_handler.rx_datarate_byte_per_sec)
         self.assertEqual(received_stats.device_request_per_sec, stats.device.comm_handler.request_per_sec)
 
+    def test_clear_datalogging_storage(self):
+        self.client.listen_events(ScrutinyClient.Events.LISTEN_DATALOGGING_LIST_CHANGED)
+        self.client.clear_event_queue()
 
+        with DataloggingStorage.use_temp_storage():
+            acq1 = DataloggingAcquisition(firmware_id="firmwareid1", name="Acquisition #1", acq_time=datetime.now())
+            axis1 = AxisDefinition("Axis-1", 111)
+            acq1.set_xdata(DataSeries([random.random() for x in range(10)]))
+            acq1.add_data(DataSeries([random.random() for x in range(10)], logged_watchable=LoggedWatchable("/a/b", WatchableType.Variable)), axis1)
+            acq2 = DataloggingAcquisition(firmware_id="firmwareid1", name="Acquisition #2",
+                                          acq_time=datetime.now() - timedelta(seconds=30))
+            acq2.set_xdata(DataSeries([random.random() for x in range(10)]))
+            acq2.add_data(DataSeries([random.random() for x in range(10)], logged_watchable=LoggedWatchable("/a/b", WatchableType.Variable)), axis1)
+
+            DataloggingStorage.save(acq1)
+            DataloggingStorage.save(acq2)
+
+            self.assertEqual(DataloggingStorage.count(), 2)
+            self.assertFalse(self.client.has_event_pending())
+
+            self.client.clear_datalogging_storage()
+
+            self.assertEqual(DataloggingStorage.count(), 0)
+            event = self.client.read_event(2)
+
+            self.assertIsNotNone(event)
+            self.assertEqual(event.change_type, sdk.DataloggingListChangeType.DELETE_ALL)
+            self.assertIsNone(event.acquisition_reference_id)
+
+    def test_delete_datalogging_acquisition(self):
+        self.client.listen_events(ScrutinyClient.Events.LISTEN_DATALOGGING_LIST_CHANGED)
+        self.client.clear_event_queue()
+
+        with DataloggingStorage.use_temp_storage():
+            acq1 = DataloggingAcquisition(reference_id='acq1', firmware_id="firmwareid1", name="Acquisition #1", acq_time=datetime.now())
+            axis1 = AxisDefinition("Axis-1", 111)
+            acq1.set_xdata(DataSeries([random.random() for x in range(10)]))
+            acq1.add_data(DataSeries([random.random() for x in range(10)], logged_watchable=LoggedWatchable("/a/b", WatchableType.Variable)), axis1)
+            acq2 = DataloggingAcquisition(reference_id='acq2', firmware_id="firmwareid1", name="Acquisition #2",
+                                          acq_time=datetime.now() - timedelta(seconds=30))
+            acq2.set_xdata(DataSeries([random.random() for x in range(10)]))
+            acq2.add_data(DataSeries([random.random() for x in range(10)], logged_watchable=LoggedWatchable("/a/b", WatchableType.Variable)), axis1)
+
+            DataloggingStorage.save(acq1)
+            DataloggingStorage.save(acq2)
+
+            self.assertEqual(DataloggingStorage.count(), 2)
+            self.assertFalse(self.client.has_event_pending())
+
+            self.client.delete_datalogging_acquisition('acq1')
+
+            self.assertEqual(DataloggingStorage.count(), 1)
+            event = self.client.read_event(2)
+
+            self.assertIsNotNone(event)
+            self.assertEqual(event.change_type, sdk.DataloggingListChangeType.DELETE)
+            self.assertEqual(event.acquisition_reference_id, 'acq1')
+
+            DataloggingStorage.read('acq2')
+
+    def test_update_datalogging_acquisition(self):
+        self.client.listen_events(ScrutinyClient.Events.LISTEN_DATALOGGING_LIST_CHANGED)
+        self.client.clear_event_queue()
+
+        with DataloggingStorage.use_temp_storage():
+            acq1 = DataloggingAcquisition(reference_id='acq1', firmware_id="firmwareid1", name="Acquisition #1", acq_time=datetime.now())
+            axis1 = AxisDefinition("Axis-1", 111)
+            acq1.set_xdata(DataSeries([random.random() for x in range(10)]))
+            acq1.add_data(DataSeries([random.random() for x in range(10)], logged_watchable=LoggedWatchable("/a/b", WatchableType.Variable)), axis1)
+            acq2 = DataloggingAcquisition(reference_id='acq2', firmware_id="firmwareid1", name="Acquisition #2",
+                                          acq_time=datetime.now() - timedelta(seconds=30))
+            acq2.set_xdata(DataSeries([random.random() for x in range(10)]))
+            acq2.add_data(DataSeries([random.random() for x in range(10)], logged_watchable=LoggedWatchable("/a/b", WatchableType.Variable)), axis1)
+
+            DataloggingStorage.save(acq1)
+            DataloggingStorage.save(acq2)
+
+            self.assertEqual(DataloggingStorage.count(), 2)
+            self.assertFalse(self.client.has_event_pending())
+
+            self.client.update_datalogging_acquisition('acq1', name="potato")
+
+            self.assertEqual(DataloggingStorage.count(), 2)
+            event = self.client.read_event(2)
+
+            self.assertIsNotNone(event)
+            self.assertEqual(event.change_type, sdk.DataloggingListChangeType.UPDATE)
+            self.assertEqual(event.acquisition_reference_id, 'acq1')
+
+            acq1 = DataloggingStorage.read('acq1')
+            self.assertEqual(acq1.name, 'potato')
+            DataloggingStorage.read('acq2')
+            
         
 
 if __name__ == '__main__':

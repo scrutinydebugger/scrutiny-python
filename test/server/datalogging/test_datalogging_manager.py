@@ -48,7 +48,7 @@ class TestDataloggingManager(ScrutinyUnitTest):
             Alias(
                 fullpath='/alias/alias_var1_u32',
                 target='/var/abc/var1_u32',
-                target_type=EntryType.Var,
+                target_type=WatchableType.Variable,
                 gain=2.0,
                 offset=50,
                 max=100000,
@@ -59,7 +59,7 @@ class TestDataloggingManager(ScrutinyUnitTest):
             Alias(
                 fullpath='/alias/alias_rpv2000_f32',
                 target='/rpv/abc/rpv2000_f32',
-                target_type=EntryType.RuntimePublishedValue,
+                target_type=WatchableType.RuntimePublishedValue,
                 gain=2.0,
                 offset=100,
                 max=100000,
@@ -70,7 +70,7 @@ class TestDataloggingManager(ScrutinyUnitTest):
             Alias(
                 fullpath='/alias/alias_var4_s16',
                 target='/var/abc/var4_s16',
-                target_type=EntryType.Var,
+                target_type=WatchableType.Variable,
                 gain=2.0,
                 offset=100,
                 max=100000,

@@ -120,9 +120,6 @@ class ContinuousGraphState:
     
     def enable_reset_zoom_button(self) -> bool:
         return self.has_content
-    
-    def enable_edit_range_menu(self) -> bool:
-        return self.has_non_moving_content()
 
     def enable_showhide_stats_button(self) -> bool:
         return self.has_content
@@ -224,7 +221,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
             # Series on continuous graph don't have their X value aligned. 
             # We can only show the value next to each point, not all together in the tree
             self._signal_tree = GraphSignalTree(self, watchable_registry=self.watchable_registry, has_value_col=True)
-            self._signal_tree.setMinimumWidth(200)
+            self._signal_tree.setMinimumWidth(self._signal_tree.sizeHint().width())
             self._signal_tree.signals.selection_changed.connect(self._selection_changed_slot)
 
             self._btn_start_stop = QPushButton("")
@@ -247,7 +244,6 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
             param_layout.addRow("Graph width (s)", self._spinbox_graph_max_width)
 
             self._feedback_label = FeedbackLabel()
-            self._feedback_label.text_label().setWordWrap(True)
             self._graph_maintenance_timer = QTimer()
             self._graph_maintenance_timer.setInterval(1000)
             self._graph_maintenance_timer.timeout.connect(self._graph_maintenance_timer_slot)
@@ -346,6 +342,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
     def clear_graph(self) -> None:
         """Delete the graph content and reset the state to of the component to a vanilla state"""
         self._chartview.chart().hide_mouse_callout()
+        self._chart_toolbar.disable_chart_cursor()
         self._chartview.chart().removeAllSeries()
         self._clear_stats_and_hide()
         
@@ -893,9 +890,6 @@ class ContinuousGraphComponent(ScrutinyGUIBaseComponent):
                 # We rely on the capacity to reset the zoom to come back to something reasonable if the user gets lost
                 yaxis.apply_zoombox_y(zoombox)  
         self._chartview.update()
-    
-    def _edit_range_slot(self) -> None:
-        pass
 
     def _reset_zoom_slot(self) -> None:
         """Right-click -> Reset zoom"""

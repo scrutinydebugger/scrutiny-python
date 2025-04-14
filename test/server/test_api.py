@@ -21,12 +21,12 @@ from scrutiny.server.server import ScrutinyServer
 from scrutiny.server.api.API import API
 from scrutiny.server.datastore.datastore import Datastore
 from scrutiny.server.datastore.datastore_entry import *
-from scrutiny.server.datastore.entry_type import EntryType
-from scrutiny.core.sfd_storage import SFDStorage
-from scrutiny.core.basic_types import EmbeddedDataType, Endianness
+from scrutiny.server.sfd_storage import SFDStorage
+from scrutiny.core.basic_types import EmbeddedDataType, Endianness, WatchableType
 from scrutiny.server.api.dummy_client_handler import DummyConnection, DummyClientHandler, AbstractClientHandler
-from scrutiny.server.device.device_handler import DeviceHandler, DeviceStateChangedCallback, RawMemoryReadRequest, \
-    RawMemoryWriteRequest, RawMemoryReadRequestCompletionCallback, RawMemoryWriteRequestCompletionCallback, UserCommandCallback, DataloggerStateChangedCallback
+from scrutiny.server.device.device_handler import ( DeviceHandler, DeviceStateChangedCallback, RawMemoryReadRequest,
+    RawMemoryWriteRequest, RawMemoryReadRequestCompletionCallback, RawMemoryWriteRequestCompletionCallback, 
+    UserCommandCallback, DataloggerStateChangedCallback)
 from scrutiny.server.device.device_info import DeviceInfo, FixedFreqLoop, VariableFreqLoop
 from scrutiny.server.protocol.comm_handler import CommHandler
 from scrutiny.server.active_sfd_handler import ActiveSFDHandler
@@ -443,20 +443,20 @@ class TestAPI(ScrutinyUnitTest):
 
     def make_dummy_entries(self, 
         n, 
-        entry_type=EntryType.Var, 
+        entry_type=WatchableType.Variable, 
         prefix='path',
         alias_bucket: List[DatastoreEntry] = [],
         enum_dict:Optional[Dict[str, int]] = None
     ) -> List[DatastoreEntry]:
         entries = []
-        if entry_type == EntryType.Alias:
+        if entry_type == WatchableType.Alias:
             assert len(alias_bucket) >= n
             for entry in alias_bucket:
                 assert not isinstance(entry, DatastoreAliasEntry)
 
         for i in range(n):
             name = '%s_%d' % (prefix, i)
-            if entry_type == EntryType.Var:
+            if entry_type == WatchableType.Variable:
                 enum:Optional[EmbeddedEnum] = None
                 if enum_dict is not None:
                     enum = EmbeddedEnum('some_enum')
@@ -465,7 +465,7 @@ class TestAPI(ScrutinyUnitTest):
                 dummy_var = Variable('dummy', vartype=EmbeddedDataType.float32, path_segments=[
                     'a', 'b', 'c'], location=0x12345678, endianness=Endianness.Little, enum=enum)
                 entry = DatastoreVariableEntry(name, variable_def=dummy_var)
-            elif entry_type == EntryType.Alias:
+            elif entry_type == WatchableType.Alias:
                 entry = DatastoreAliasEntry(Alias(name, target='none'), refentry=alias_bucket[i])
             else:
                 dummy_rpv = RuntimePublishedValue(id=i, datatype=EmbeddedDataType.float32)
@@ -492,9 +492,9 @@ class TestAPI(ScrutinyUnitTest):
 
     # Fetch count of var/alias. Ensure response is well formatted and accurate
     def test_get_watchable_count(self):
-        var_entries = self.make_dummy_entries(5, entry_type=EntryType.Var, prefix='var')
-        alias_entries = self.make_dummy_entries(3, entry_type=EntryType.Alias, prefix='alias', alias_bucket=var_entries)
-        rpv_entries = self.make_dummy_entries(8, entry_type=EntryType.RuntimePublishedValue, prefix='rpv')
+        var_entries = self.make_dummy_entries(5, entry_type=WatchableType.Variable, prefix='var')
+        alias_entries = self.make_dummy_entries(3, entry_type=WatchableType.Alias, prefix='alias', alias_bucket=var_entries)
+        rpv_entries = self.make_dummy_entries(8, entry_type=WatchableType.RuntimePublishedValue, prefix='rpv')
 
         # Add entries in the datastore that we will reread through the API
         self.datastore.add_entries(var_entries)
@@ -535,9 +535,9 @@ class TestAPI(ScrutinyUnitTest):
 
     # Fetch list of var/alias. Ensure response is well formatted, accurate, complete, no duplicates
     def test_get_watchable_list_basic(self):
-        var_entries = self.make_dummy_entries(5, entry_type=EntryType.Var, prefix='var')
-        alias_entries = self.make_dummy_entries(2, entry_type=EntryType.Alias, prefix='alias', alias_bucket=var_entries)
-        rpv_entries = self.make_dummy_entries(8, entry_type=EntryType.RuntimePublishedValue, prefix='rpv')
+        var_entries = self.make_dummy_entries(5, entry_type=WatchableType.Variable, prefix='var')
+        alias_entries = self.make_dummy_entries(2, entry_type=WatchableType.Alias, prefix='alias', alias_bucket=var_entries)
+        rpv_entries = self.make_dummy_entries(8, entry_type=WatchableType.RuntimePublishedValue, prefix='rpv')
 
         expected_entries_in_response = {}
         for entry in var_entries:
@@ -570,9 +570,9 @@ class TestAPI(ScrutinyUnitTest):
 
         # Put all entries in a single list, paired with the name of the parent key.
         all_entries_same_level = []
-        all_entries_same_level += [(EntryType.Var, entry) for entry in response['content']['var']]
-        all_entries_same_level += [(EntryType.Alias, entry) for entry in response['content']['alias']]
-        all_entries_same_level += [(EntryType.RuntimePublishedValue, entry) for entry in response['content']['rpv']]
+        all_entries_same_level += [(WatchableType.Variable, entry) for entry in response['content']['var']]
+        all_entries_same_level += [(WatchableType.Alias, entry) for entry in response['content']['alias']]
+        all_entries_same_level += [(WatchableType.RuntimePublishedValue, entry) for entry in response['content']['rpv']]
 
         # We make sure that the list is exact.
         for item in all_entries_same_level:
@@ -595,9 +595,9 @@ class TestAPI(ScrutinyUnitTest):
         self.assertEqual(len(expected_entries_in_response), 0)
 
     def test_get_watchable_list_with_name_filter(self):
-        var_entries = self.make_dummy_entries(5, entry_type=EntryType.Var, prefix='includeme_var')
-        alias_entries = self.make_dummy_entries(2, entry_type=EntryType.Alias, prefix='includeme_alias', alias_bucket=var_entries)
-        rpv_entries = self.make_dummy_entries(8, entry_type=EntryType.RuntimePublishedValue, prefix='includeme_rpv')
+        var_entries = self.make_dummy_entries(5, entry_type=WatchableType.Variable, prefix='/includeme_var')
+        alias_entries = self.make_dummy_entries(2, entry_type=WatchableType.Alias, prefix='/includeme_alias', alias_bucket=var_entries)
+        rpv_entries = self.make_dummy_entries(8, entry_type=WatchableType.RuntimePublishedValue, prefix='/includeme_rpv')
 
         expected_entries_in_response = {}
         for entry in var_entries:
@@ -611,14 +611,14 @@ class TestAPI(ScrutinyUnitTest):
         self.datastore.add_entries(alias_entries)
         self.datastore.add_entries(rpv_entries)
 
-        self.datastore.add_entries(self.make_dummy_entries(5, entry_type=EntryType.Var, prefix='excludeme_var'))
-        self.datastore.add_entries(self.make_dummy_entries(5, entry_type=EntryType.Alias, prefix='excludeme_alias', alias_bucket=var_entries))
-        self.datastore.add_entries(self.make_dummy_entries(5, entry_type=EntryType.RuntimePublishedValue, prefix='excludeme_rpv'))
+        self.datastore.add_entries(self.make_dummy_entries(5, entry_type=WatchableType.Variable, prefix='/excludeme_var'))
+        self.datastore.add_entries(self.make_dummy_entries(5, entry_type=WatchableType.Alias, prefix='/excludeme_alias', alias_bucket=var_entries))
+        self.datastore.add_entries(self.make_dummy_entries(5, entry_type=WatchableType.RuntimePublishedValue, prefix='/excludeme_rpv'))
 
         req = {
             'cmd': 'get_watchable_list',
             'filter': {
-                'name': 'includeme*'
+                'name': '/includeme*'
             }
         }
         self.send_request(req)
@@ -637,9 +637,9 @@ class TestAPI(ScrutinyUnitTest):
 
         # Put all entries in a single list, paired with the name of the parent key.
         all_entries_same_level = []
-        all_entries_same_level += [(EntryType.Var, entry) for entry in response['content']['var']]
-        all_entries_same_level += [(EntryType.Alias, entry) for entry in response['content']['alias']]
-        all_entries_same_level += [(EntryType.RuntimePublishedValue, entry) for entry in response['content']['rpv']]
+        all_entries_same_level += [(WatchableType.Variable, entry) for entry in response['content']['var']]
+        all_entries_same_level += [(WatchableType.Alias, entry) for entry in response['content']['alias']]
+        all_entries_same_level += [(WatchableType.RuntimePublishedValue, entry) for entry in response['content']['rpv']]
 
         # We make sure that the list is exact.
         for item in all_entries_same_level:
@@ -677,9 +677,9 @@ class TestAPI(ScrutinyUnitTest):
     # Fetch list of var/alias and sets a type filter.
     def do_test_get_watchable_list_with_type_filter(self, type_filter):
         self.datastore.clear()
-        var_entries = self.make_dummy_entries(5, entry_type=EntryType.Var, prefix='var')
-        alias_entries = self.make_dummy_entries(3, entry_type=EntryType.Alias, prefix='alias', alias_bucket=var_entries)
-        rpv_entries = self.make_dummy_entries(8, entry_type=EntryType.RuntimePublishedValue, prefix='rpv')
+        var_entries = self.make_dummy_entries(5, entry_type=WatchableType.Variable, prefix='var')
+        alias_entries = self.make_dummy_entries(3, entry_type=WatchableType.Alias, prefix='alias', alias_bucket=var_entries)
+        rpv_entries = self.make_dummy_entries(8, entry_type=WatchableType.RuntimePublishedValue, prefix='rpv')
 
         no_filter = True if type_filter is None or type_filter == '' or isinstance(type_filter, list) and len(type_filter) == 0 else False
 
@@ -729,9 +729,9 @@ class TestAPI(ScrutinyUnitTest):
 
         # Put all entries in a single list, paired with the name of the parent key.
         all_entries_same_level = []
-        all_entries_same_level += [(EntryType.Var, entry) for entry in response['content']['var']]
-        all_entries_same_level += [(EntryType.Alias, entry) for entry in response['content']['alias']]
-        all_entries_same_level += [(EntryType.RuntimePublishedValue, entry) for entry in response['content']['rpv']]
+        all_entries_same_level += [(WatchableType.Variable, entry) for entry in response['content']['var']]
+        all_entries_same_level += [(WatchableType.Alias, entry) for entry in response['content']['alias']]
+        all_entries_same_level += [(WatchableType.RuntimePublishedValue, entry) for entry in response['content']['rpv']]
 
         for item in all_entries_same_level:
             entrytype = item[0]
@@ -759,9 +759,9 @@ class TestAPI(ScrutinyUnitTest):
         nAlias = 17
         nRpv = 21
         max_per_response = 10
-        var_entries = self.make_dummy_entries(nVar, entry_type=EntryType.Var, prefix='var')
-        alias_entries = self.make_dummy_entries(nAlias, entry_type=EntryType.Alias, prefix='alias', alias_bucket=var_entries)
-        rpv_entries = self.make_dummy_entries(nRpv, entry_type=EntryType.RuntimePublishedValue, prefix='rpv')
+        var_entries = self.make_dummy_entries(nVar, entry_type=WatchableType.Variable, prefix='var')
+        alias_entries = self.make_dummy_entries(nAlias, entry_type=WatchableType.Alias, prefix='alias', alias_bucket=var_entries)
+        rpv_entries = self.make_dummy_entries(nRpv, entry_type=WatchableType.RuntimePublishedValue, prefix='rpv')
 
         expected_entries_in_response = {}
 
@@ -817,9 +817,9 @@ class TestAPI(ScrutinyUnitTest):
 
             # Put all entries in a single list, paired with the name of the parent key.
             all_entries_same_level = []
-            all_entries_same_level += [(EntryType.Var, entry) for entry in response['content']['var']]
-            all_entries_same_level += [(EntryType.Alias, entry) for entry in response['content']['alias']]
-            all_entries_same_level += [(EntryType.RuntimePublishedValue, entry) for entry in response['content']['rpv']]
+            all_entries_same_level += [(WatchableType.Variable, entry) for entry in response['content']['var']]
+            all_entries_same_level += [(WatchableType.Alias, entry) for entry in response['content']['alias']]
+            all_entries_same_level += [(WatchableType.RuntimePublishedValue, entry) for entry in response['content']['rpv']]
 
             for item in all_entries_same_level:
 
@@ -854,7 +854,7 @@ class TestAPI(ScrutinyUnitTest):
             self.assertIn('t', update)
 
     def test_subscribe_single_var(self):
-        entries = self.make_dummy_entries(10, entry_type=EntryType.Var, prefix='var')
+        entries = self.make_dummy_entries(10, entry_type=WatchableType.Variable, prefix='var')
         self.datastore.add_entries(entries)
 
         subscribed_entry = entries[2]
@@ -894,7 +894,7 @@ class TestAPI(ScrutinyUnitTest):
         self.assertEqual(update['v'], 1234)
 
     def test_subscribe_single_var_get_enum(self):
-        subscribed_entry = self.make_dummy_entries(1, entry_type=EntryType.Var, prefix='var', enum_dict={'a':1, 'b':2, 'c':3})[0]
+        subscribed_entry = self.make_dummy_entries(1, entry_type=WatchableType.Variable, prefix='var', enum_dict={'a':1, 'b':2, 'c':3})[0]
         self.datastore.add_entry(subscribed_entry)
 
         req = {
@@ -924,7 +924,7 @@ class TestAPI(ScrutinyUnitTest):
         self.assertEqual(obj1['enum']['values'], {'a':1, 'b':2, 'c':3})
 
     def test_stop_watching_on_disconnect(self):
-        entries = self.make_dummy_entries(2, entry_type=EntryType.Var, prefix='var')
+        entries = self.make_dummy_entries(2, entry_type=WatchableType.Variable, prefix='var')
         self.datastore.add_entries(entries)
 
         req = {
@@ -951,7 +951,7 @@ class TestAPI(ScrutinyUnitTest):
     # Make sure that we can unsubscribe correctly to a variable and value update stops
 
     def test_subscribe_unsubscribe(self):
-        entries = self.make_dummy_entries(10, entry_type=EntryType.Var, prefix='var')
+        entries = self.make_dummy_entries(10, entry_type=WatchableType.Variable, prefix='var')
         self.datastore.add_entries(entries)
         subscribed_entry = entries[2]
         subscribe_cmd = {
@@ -978,7 +978,7 @@ class TestAPI(ScrutinyUnitTest):
 
     # Make sure that the streamer send the value update once if many update happens before the value is outputted to the client.
     def test_do_not_send_duplicate_changes(self):
-        entries = self.make_dummy_entries(10, entry_type=EntryType.Var, prefix='var')
+        entries = self.make_dummy_entries(10, entry_type=WatchableType.Variable, prefix='var')
         self.datastore.add_entries(entries)
 
         subscribed_entry = entries[2]
@@ -1333,7 +1333,7 @@ class TestAPI(ScrutinyUnitTest):
         self.assert_is_error(response)
 
     def test_write_watchable(self):
-        entries = self.make_dummy_entries(10, entry_type=EntryType.Var, prefix='var')
+        entries = self.make_dummy_entries(10, entry_type=WatchableType.Variable, prefix='var')
         self.datastore.add_entries(entries)
 
         subscribed_entry1 = entries[2]
@@ -1440,7 +1440,7 @@ class TestAPI(ScrutinyUnitTest):
         self.assertEqual(response['reqid'], 555)
 
     def test_write_watchable_not_subscribed(self):
-        entries = self.make_dummy_entries(1, entry_type=EntryType.Var, prefix='var')
+        entries = self.make_dummy_entries(1, entry_type=WatchableType.Variable, prefix='var')
         self.datastore.add_entries(entries)
 
         req = {
@@ -1475,10 +1475,10 @@ class TestAPI(ScrutinyUnitTest):
         entryu32 = DatastoreVariableEntry(varu32.name, variable_def=varu32)
         entrybool = DatastoreVariableEntry(varbool.name, variable_def=varbool)
 
-        alias_f32 = Alias("alias_f32", target="xxx", target_type=EntryType.Var, gain=2.0, offset=-10, min=-100, max=100)
-        alias_u32 = Alias("alias_u32", target="xxx", target_type=EntryType.Var, gain=2.0,
+        alias_f32 = Alias("alias_f32", target="xxx", target_type=WatchableType.Variable, gain=2.0, offset=-10, min=-100, max=100)
+        alias_u32 = Alias("alias_u32", target="xxx", target_type=WatchableType.Variable, gain=2.0,
                           offset=-10, min=-100, max=100)  # Notice the min that can go oob
-        alias_s32 = Alias("alias_s32", target="xxx", target_type=EntryType.Var, gain=2.0, offset=-10, min=-100, max=100)
+        alias_s32 = Alias("alias_s32", target="xxx", target_type=WatchableType.Variable, gain=2.0, offset=-10, min=-100, max=100)
         entry_alias_f32 = DatastoreAliasEntry(alias_f32, entryf32)
         entry_alias_u32 = DatastoreAliasEntry(alias_u32, entryu32)
         entry_alias_s32 = DatastoreAliasEntry(alias_s32, entrys32)
@@ -1832,14 +1832,20 @@ class TestAPI(ScrutinyUnitTest):
             sfd1 = SFDStorage.install(get_artifact('test_sfd_1.sfd'), ignore_exist=True)
             sfd2 = SFDStorage.install(get_artifact('test_sfd_2.sfd'), ignore_exist=True)
 
+            dtnow = datetime.now()
             with DataloggingStorage.use_temp_storage():
                 acq1 = core_datalogging.DataloggingAcquisition(firmware_id=sfd1.get_firmware_id_ascii(),
-                                                               reference_id="refid1", name="foo")
+                                                               reference_id="refid1", name="foo",
+                                                               acq_time=datetime.fromtimestamp(dtnow.timestamp() + 4000))  # Newest
                 acq2 = core_datalogging.DataloggingAcquisition(firmware_id=sfd1.get_firmware_id_ascii(),
-                                                               reference_id="refid2", name="bar")
+                                                               reference_id="refid2", name="bar",
+                                                               acq_time=datetime.fromtimestamp(dtnow.timestamp() + 3000))
                 acq3 = core_datalogging.DataloggingAcquisition(firmware_id=sfd2.get_firmware_id_ascii(),
-                                                               reference_id="refid3", name="baz")
-                acq4 = core_datalogging.DataloggingAcquisition(firmware_id="unknown_sfd", reference_id="refid4", name="meow")
+                                                               reference_id="refid3", name="baz",
+                                                               acq_time=datetime.fromtimestamp(dtnow.timestamp() + 2000))
+                acq4 = core_datalogging.DataloggingAcquisition(firmware_id="unknown_sfd", 
+                                                               reference_id="refid4", name="meow",
+                                                               acq_time=datetime.fromtimestamp(dtnow.timestamp() + 1000))  # Oldest
                 acq1.set_xdata(core_datalogging.DataSeries())
                 acq2.set_xdata(core_datalogging.DataSeries())
                 acq3.set_xdata(core_datalogging.DataSeries())
@@ -1852,6 +1858,7 @@ class TestAPI(ScrutinyUnitTest):
 
                 req: api_typing.C2S.ListDataloggingAcquisitions = {
                     'cmd': 'list_datalogging_acquisitions',
+                    'count' : 100
                 }
 
                 self.send_request(req)
@@ -1885,7 +1892,37 @@ class TestAPI(ScrutinyUnitTest):
 
                 req: api_typing.C2S.ListDataloggingAcquisitions = {
                     'cmd': 'list_datalogging_acquisitions',
-                    'firmware_id': sfd1.get_firmware_id_ascii()
+                    'count' : 2
+                }
+
+                self.send_request(req)
+                response = cast(api_typing.S2C.ListDataloggingAcquisition, self.wait_and_load_response())
+                self.assert_no_error(response)
+                
+                self.assertEqual(len(response['acquisitions']), 2)
+                self.assertEqual(response['acquisitions'][0]['reference_id'], 'refid1')
+                self.assertEqual(response['acquisitions'][1]['reference_id'], 'refid2')
+
+
+                req: api_typing.C2S.ListDataloggingAcquisitions = {
+                    'cmd': 'list_datalogging_acquisitions',
+                    'before_timestamp' : int(dtnow.timestamp() + 2001),
+                    'count' : 100
+                }
+
+                self.send_request(req)
+                response = cast(api_typing.S2C.ListDataloggingAcquisition, self.wait_and_load_response())
+                self.assert_no_error(response)
+                
+                self.assertEqual(len(response['acquisitions']), 2)
+                self.assertEqual(response['acquisitions'][0]['reference_id'], 'refid3')
+                self.assertEqual(response['acquisitions'][1]['reference_id'], 'refid4')
+                
+
+                req: api_typing.C2S.ListDataloggingAcquisitions = {
+                    'cmd': 'list_datalogging_acquisitions',
+                    'firmware_id': sfd1.get_firmware_id_ascii(),
+                    'count' : 100
                 }
 
                 self.send_request(req)
@@ -1908,7 +1945,8 @@ class TestAPI(ScrutinyUnitTest):
 
                 req: api_typing.C2S.ListDataloggingAcquisitions = {
                     'cmd': 'list_datalogging_acquisitions',
-                    'firmware_id': None
+                    'firmware_id': None,
+                    'count' : 100
                 }
 
                 self.send_request(req)
@@ -1919,7 +1957,8 @@ class TestAPI(ScrutinyUnitTest):
 
                 req: api_typing.C2S.ListDataloggingAcquisitions = {
                     'cmd': 'list_datalogging_acquisitions',
-                    'firmware_id': 'inexistant_id'
+                    'firmware_id': 'inexistant_id',
+                    'count' : 100
                 }
 
                 self.send_request(req)
@@ -1928,16 +1967,83 @@ class TestAPI(ScrutinyUnitTest):
                 self.assertEqual(response['cmd'], 'response_list_datalogging_acquisitions')
                 self.assertEqual(len(response['acquisitions']), 0)
 
+                # Missing count - bad
+                req: api_typing.C2S.ListDataloggingAcquisitions = {
+                    'cmd': 'list_datalogging_acquisitions',
+                    'firmware_id': 'inexistant_id'             
+                }
+                self.send_request(req)
+                self.assert_is_error(self.wait_and_load_response())
+
+                # Bad timestamp
+                req: api_typing.C2S.ListDataloggingAcquisitions = {
+                    'cmd': 'list_datalogging_acquisitions',
+                    'firmware_id': 'inexistant_id',
+                    'before_timestamp' : -1,
+                    'count' : 100
+                }
+                self.send_request(req)
+                self.assert_is_error(self.wait_and_load_response())
+
+                # Bad count
+                req: api_typing.C2S.ListDataloggingAcquisitions = {
+                    'cmd': 'list_datalogging_acquisitions',
+                    'firmware_id': 'inexistant_id',
+                    'count' : -1
+                }
+                self.send_request(req)
+                self.assert_is_error(self.wait_and_load_response())  
+
+                # timestamp None = no timestamp. OK
+                req: api_typing.C2S.ListDataloggingAcquisitions = {
+                    'cmd': 'list_datalogging_acquisitions',
+                    'firmware_id': 'inexistant_id',
+                    'before_timestamp' : None,
+                    'count' : 100
+                }
+                self.send_request(req)
+                self.assert_no_error(self.wait_and_load_response())       
+
+
+                req: api_typing.C2S.ListDataloggingAcquisitions = {
+                    'cmd': 'list_datalogging_acquisitions',
+                    'reference_id': 'inexistant_id'
+                }  
+                self.send_request(req)
+                response = self.wait_and_load_response()
+                self.assert_no_error(response)
+                self.assertEqual(len(response['acquisitions']), 0)
+
+                
+                req: api_typing.C2S.ListDataloggingAcquisitions = {
+                    'cmd': 'list_datalogging_acquisitions',
+                    'reference_id': 'refid2'
+                }  
+                self.send_request(req)
+                response = self.wait_and_load_response()
+                self.assert_no_error(response)
+                self.assertEqual(len(response['acquisitions']), 1)
+                
+                self.assertEqual(response['acquisitions'][0]['firmware_id'], sfd1.get_firmware_id_ascii())
+                self.assertEqual(response['acquisitions'][0]['reference_id'], 'refid2')
+                self.assertEqual(response['acquisitions'][0]['timestamp'], int(acq2.acq_time.timestamp()))
+                self.assertEqual(response['acquisitions'][0]['name'], 'bar')
+                self.assertEqual(response['acquisitions'][0]['firmware_metadata'], sfd1.get_metadata())
+
+
     def test_update_datalogging_acquisition(self):
         # Rename an acquisition in datalogging storage through API
         with DataloggingStorage.use_temp_storage():
+            watchable1 = core_datalogging.LoggedWatchable(path='/a/b/c', type=WatchableType.Variable)
+            watchable2 = core_datalogging.LoggedWatchable(path='/a/b/d', type=WatchableType.Alias)
+            watchable3 = core_datalogging.LoggedWatchable(path='/a/b/e', type=WatchableType.RuntimePublishedValue)
             axis1 = core_datalogging.AxisDefinition('Axis1', 0)
             axis2 = core_datalogging.AxisDefinition('Axis2', 1)
             acq1 = core_datalogging.DataloggingAcquisition(firmware_id='some_firmware_id', reference_id="refid1", name="foo")
             acq1.set_xdata(core_datalogging.DataSeries())
-            acq1.add_data(core_datalogging.DataSeries(name="ds1"), axis1)
-            acq1.add_data(core_datalogging.DataSeries(name="ds2"), axis1)
-            acq1.add_data(core_datalogging.DataSeries(name="ds3"), axis2)
+            acq1.add_data(core_datalogging.DataSeries(name="ds1", logged_watchable=watchable1), axis1)
+            acq1.add_data(core_datalogging.DataSeries(name="ds2", logged_watchable=watchable2), axis1)
+            acq1.add_data(core_datalogging.DataSeries(name="ds3", logged_watchable=watchable3), axis2)
             acq2 = core_datalogging.DataloggingAcquisition(firmware_id='some_firmware_id', reference_id="refid2", name="bar")
             acq2.set_xdata(core_datalogging.DataSeries(name="ds4"))
             acq3 = core_datalogging.DataloggingAcquisition(firmware_id='some_firmware_id', reference_id="refid3", name="baz")
@@ -2024,7 +2130,6 @@ class TestAPI(ScrutinyUnitTest):
             self.assert_is_error(self.wait_and_load_response())
 
     def test_delete_datalogging_acquisition(self):
-        # Rename an acquisition in datalogging storage through API
         with DataloggingStorage.use_temp_storage():
             acq1 = core_datalogging.DataloggingAcquisition(firmware_id='some_firmware_id', reference_id="refid1", name="foo")
             acq1.set_xdata(core_datalogging.DataSeries())
@@ -2088,7 +2193,6 @@ class TestAPI(ScrutinyUnitTest):
             self.assert_is_error(self.wait_and_load_response())
 
     def test_delete_all_datalogging_acquisition(self):
-        # Rename an acquisition in datalogging storage through API
         with DataloggingStorage.use_temp_storage():
             acq1 = core_datalogging.DataloggingAcquisition(firmware_id='some_firmware_id', reference_id="refid1", name="foo")
             acq1.set_xdata(core_datalogging.DataSeries())
@@ -2148,10 +2252,28 @@ class TestAPI(ScrutinyUnitTest):
                 acq = core_datalogging.DataloggingAcquisition(firmware_id=sfd1.get_firmware_id_ascii(),
                                                               reference_id="refid1", name="foo", firmware_name="bar")
 
-                acq.set_xdata(core_datalogging.DataSeries([0, 1, 2, 3, 4, 5, 6, 7, 8, 9], name='the x-axis', logged_element='/var/xaxis'))
-                acq.add_data(core_datalogging.DataSeries([10, 20, 30, 40, 50, 60, 70, 80, 90], name='series 1', logged_element='/var/data1'), axis1)
-                acq.add_data(core_datalogging.DataSeries([100, 200, 300, 400, 500, 600, 700,
-                                                          800, 900], name='series 2', logged_element='/var/data2'), axis2)
+                acq.set_xdata(core_datalogging.DataSeries(
+                    [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], 
+                    name='the x-axis', 
+                    logged_watchable=core_datalogging.LoggedWatchable(
+                        path = '/var/xaxis',
+                        type=WatchableType.Variable)
+                    ))
+                acq.add_data(core_datalogging.DataSeries(
+                    [10, 20, 30, 40, 50, 60, 70, 80, 90], 
+                    name='series 1', 
+                    logged_watchable=core_datalogging.LoggedWatchable(
+                        path = '/var/data1',
+                        type=WatchableType.Alias)
+                    ),
+                    axis1)
+                acq.add_data(core_datalogging.DataSeries(
+                    [100, 200, 300, 400, 500, 600, 700, 800, 900], 
+                    name='series 2', 
+                    logged_watchable=core_datalogging.LoggedWatchable(
+                        path = '/var/data2',
+                        type=WatchableType.RuntimePublishedValue)
+                    ), axis2)
                 acq.set_trigger_index(3)
                 DataloggingStorage.save(acq)
 
@@ -2173,7 +2295,7 @@ class TestAPI(ScrutinyUnitTest):
 
                 self.assertEqual(response['xdata']['name'], 'the x-axis')
                 self.assertEqual(response['xdata']['data'], [0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
-                self.assertEqual(response['xdata']['logged_element'], '/var/xaxis')
+                self.assertEqual(response['xdata']['watchable'], dict(path='/var/xaxis', type='var'))
 
                 self.assertEqual(response['trigger_index'], 3)
 
@@ -2185,12 +2307,12 @@ class TestAPI(ScrutinyUnitTest):
 
                 self.assertEqual(response['signals'][idx_series1]['name'], 'series 1')
                 self.assertEqual(response['signals'][idx_series1]['data'], [10, 20, 30, 40, 50, 60, 70, 80, 90])
-                self.assertEqual(response['signals'][idx_series1]['logged_element'], '/var/data1')
+                self.assertEqual(response['signals'][idx_series1]['watchable'],  dict(path='/var/data1', type='alias'))
                 self.assertEqual(response['signals'][idx_series1]['axis_id'], 0)
 
                 self.assertEqual(response['signals'][idx_series2]['name'], 'series 2')
                 self.assertEqual(response['signals'][idx_series2]['data'], [100, 200, 300, 400, 500, 600, 700, 800, 900])
-                self.assertEqual(response['signals'][idx_series2]['logged_element'], '/var/data2')
+                self.assertEqual(response['signals'][idx_series2]['watchable'],  dict(path='/var/data2', type='rpv'))
                 self.assertEqual(response['signals'][idx_series2]['axis_id'], 1)
 
                 req: api_typing.C2S.ReadDataloggingAcquisitionContent = {
@@ -2237,12 +2359,12 @@ class TestAPI(ScrutinyUnitTest):
         self.fake_device_handler.set_connection_status(DeviceHandler.ConnectionStatus.CONNECTED_READY)
         with DataloggingStorage.use_temp_storage():
 
-            var_entries: List[DatastoreVariableEntry] = self.make_dummy_entries(5, entry_type=EntryType.Var, prefix='var')
-            rpv_entries: List[DatastoreRPVEntry] = self.make_dummy_entries(5, entry_type=EntryType.RuntimePublishedValue, prefix='rpv')
+            var_entries: List[DatastoreVariableEntry] = self.make_dummy_entries(5, entry_type=WatchableType.Variable, prefix='var')
+            rpv_entries: List[DatastoreRPVEntry] = self.make_dummy_entries(5, entry_type=WatchableType.RuntimePublishedValue, prefix='rpv')
             alias_entries_var: List[DatastoreAliasEntry] = self.make_dummy_entries(
-                2, entry_type=EntryType.Alias, prefix='alias_var_', alias_bucket=var_entries)
+                2, entry_type=WatchableType.Alias, prefix='alias_var_', alias_bucket=var_entries)
             alias_entries_rpv: List[DatastoreAliasEntry] = self.make_dummy_entries(
-                3, entry_type=EntryType.Alias, prefix='alias_rpv_', alias_bucket=rpv_entries)
+                3, entry_type=WatchableType.Alias, prefix='alias_rpv_', alias_bucket=rpv_entries)
 
             # Add entries in the datastore that we will reread through the API
             self.datastore.add_entries(var_entries)

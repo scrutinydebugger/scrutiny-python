@@ -57,8 +57,8 @@
         "scrutiny/core/firmware_description.py": {
             "docstring": "Contains the class that represent a Scrutiny Firmware Description file. \nA .sfd is a file that holds all the data related to a firmware and is identified by a unique ID."
         },
-        "scrutiny/core/sfd_storage.py": {
-            "docstring": "Manipulate the Scrutiny storage for .sfd files"
+        "scrutiny/core/sfd_storage_manager.py": {
+            "docstring": "A class that manipulates the Scrutiny storage for .sfd files. Does not instantiate"
         },
         "scrutiny/core/variable.py": {
             "docstring": "Variable class represent a variable, will be included in VarMap"
@@ -285,9 +285,6 @@
         "scrutiny/core/alias.py": {
             "docstring": "Class that contains the definition of an alias."
         },
-        "scrutiny/server/datastore/entry_type.py": {
-            "docstring": "Type of datastore entry."
-        },
         "test/core/test_firmware_parser.py": {
             "docstring": "Test basic capacities to parse a firmware a generate a valid firmware ID"
         },
@@ -487,7 +484,7 @@
             "docstring": "A component used to develop the GUI"
         },
         "scrutiny/gui/dashboard_components/embedded_graph/embedded_graph_component.py": {
-            "docstring": "A componenbt to configure, trigger, view and browse embedded datalogging."
+            "docstring": "A component to configure, trigger, view and browse embedded datalogging."
         },
         "scrutiny/gui/dashboard_components/varlist/varlist_component.py": {
             "docstring": "A component that shows the content of the watchable registry, a copy og what's available on the server"
@@ -680,6 +677,33 @@
         },
         "test/gui/test_graph_features.py": {
             "docstring": "A test suite for common graph features"
+        },
+        "test/gui/test_embedded_graph.py": {
+            "docstring": "A test suite for the embedded graph component"
+        },
+        "test/gui/manual/manual_test_watchable_line_edit.py": {
+            "docstring": "A test suite for the WatchableLineEdit widget. A textbox that can receive watchables through drag&drop"
+        },
+        "test/gui/manual/manual_test_base.py": {
+            "docstring": "Common setup for all manual test files that launches a standalone apps for testing GUI elements"
+        },
+        "scrutiny/gui/dashboard_components/embedded_graph/graph_config_widget.py": {
+            "docstring": "A widget that let a user configure a datalogging configuration (except the list of signals). Meant to be used  in the EmbeddedGraph component"
+        },
+        "scrutiny/gui/widgets/watchable_line_edit.py": {
+            "docstring": "A textbox that can be manually edited or filled with a watchable element by drag&drop"
+        },
+        "test/gui/manual/manual_test_embedded_graph_status_overlay.py": {
+            "docstring": "A manual test suite that validates how the embedded graph status overlay behaves with resizes"
+        },
+        "scrutiny/gui/dashboard_components/embedded_graph/chart_status_overlay.py": {
+            "docstring": "An overlay that can be applied on a chart to display a message with an icon. USed to display errors and loading messages"
+        },
+        "scrutiny/gui/dashboard_components/embedded_graph/graph_browse_list_widget.py": {
+            "docstring": "A widget that show to the user a list of acquisitions available on the server. Communicate with the Embedded Graph widget through signals"
+        },
+        "scrutiny/server/sfd_storage.py": {
+            "docstring": "Declaration of the server-wide SFD storage"
         }
     }
 }

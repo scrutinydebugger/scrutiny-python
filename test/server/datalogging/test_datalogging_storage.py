@@ -11,7 +11,8 @@ from uuid import uuid4
 import random
 from test import ScrutinyUnitTest
 from scrutiny.server.datalogging.datalogging_storage import DataloggingStorage
-from scrutiny.core.datalogging import DataloggingAcquisition, DataSeries, AxisDefinition
+from scrutiny.core.datalogging import DataloggingAcquisition, DataSeries, AxisDefinition, LoggedWatchable
+from scrutiny.core.basic_types import WatchableType
 from datetime import datetime, timedelta
 import time
 
@@ -19,14 +20,18 @@ import time
 class TestDataloggingStorage(ScrutinyUnitTest):
 
     def make_dummy_data(self, datalen: int) -> DataSeries:
-        series = DataSeries(name=uuid4().hex, logged_element=uuid4().hex)
+        series = DataSeries(name=uuid4().hex, logged_watchable=LoggedWatchable(uuid4().hex, WatchableType.Variable))
         series.set_data([random.random() for i in range(datalen)])
         return series
 
     def test_read_write(self):
-        acq1 = DataloggingAcquisition(firmware_id="firmwareid1", name="Acquisition #1", firmware_name="foo V1.2.3")
-        acq2 = DataloggingAcquisition(firmware_id="firmwareid1")
-        acq3 = DataloggingAcquisition(firmware_id="firmwareid2")
+        dt1 = datetime.now()
+        dt2 = datetime.fromtimestamp(dt1.timestamp() - 1000)
+        dt3 = datetime.fromtimestamp(dt1.timestamp() - 2000)
+
+        acq1 = DataloggingAcquisition(firmware_id="firmwareid1", name="Acquisition #1", firmware_name="foo V1.2.3", acq_time=dt1)
+        acq2 = DataloggingAcquisition(firmware_id="firmwareid1", acq_time=dt2)
+        acq3 = DataloggingAcquisition(firmware_id="firmwareid2", acq_time=dt3)
 
         axis1 = AxisDefinition("Axis-1", 111)
         axis2 = AxisDefinition("Axis-2", 222)
@@ -56,6 +61,7 @@ class TestDataloggingStorage(ScrutinyUnitTest):
             self.assertEqual(DataloggingStorage.count(), 2)
             DataloggingStorage.save(acq3)
             self.assertEqual(DataloggingStorage.count(), 3)
+            
             acq_list = DataloggingStorage.list()
             self.assertEqual(len(acq_list), 3)
             self.assertIn(acq1.reference_id, acq_list)
@@ -65,6 +71,18 @@ class TestDataloggingStorage(ScrutinyUnitTest):
             self.assertEqual(DataloggingStorage.count(firmware_id="firmwareid1"), 2)
             self.assertEqual(DataloggingStorage.count(firmware_id="firmwareid2"), 1)
 
+
+            # Test list filters
+            acq_list = DataloggingStorage.list(count=2)
+            self.assertEqual(len(acq_list), 2)
+
+            acq_list = DataloggingStorage.list(before_datetime=dt1)
+            acq1_fetched = DataloggingStorage.read(acq1.reference_id)
+            self.assertEqual(len(acq_list), 2)
+            self.assertIn(acq2.reference_id, acq_list)  # acq1 is too recent
+            self.assertIn(acq3.reference_id, acq_list)
+
+            # Test read
             acq1_fetched = DataloggingStorage.read(acq1.reference_id)
             acq2_fetched = DataloggingStorage.read(acq2.reference_id)
             acq3_fetched = DataloggingStorage.read(acq3.reference_id)

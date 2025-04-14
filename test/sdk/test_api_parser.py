@@ -649,7 +649,10 @@ class TestApiParser(ScrutinyUnitTest):
                 "timestamp": now.timestamp(),
                 "xdata": {
                     "name": "Xaxis",
-                    "logged_element": "path/to/xaxis/item",
+                    "watchable": {
+                        'path' : "path/to/xaxis/item",
+                        'type' : "var"
+                    },
                     "data": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
                 },
                 "yaxes": [
@@ -660,19 +663,28 @@ class TestApiParser(ScrutinyUnitTest):
                     {
                         "axis_id": 0,
                         "name": "signal1",
-                        "logged_element": "/path/to/signal1",
+                        "watchable": {
+                            'path' : "/path/to/signal1",
+                            'type' : 'var'
+                        },
                         "data": [0, 10, 20, 30, 40, 50, 60, 70, 80, 90]
                     },
                     {
                         "axis_id": 0,
                         "name": "signal2",
-                        "logged_element": "/path/to/signal2",
+                        "watchable": {
+                            'path' : "/path/to/signal2",
+                            'type' : 'alias'
+                        },
                         "data": [0, -10, -20, -30, -40, -50, -60, -70, -80, -90]
                     },
                     {
                         "axis_id": 1,
                         "name": "signal3",
-                        "logged_element": "/path/to/signal3",
+                        "watchable": {
+                            'path' : "/path/to/signal3",
+                            'type' : 'rpv'
+                        },
                         "data": [-4.5, -3.5, -2.5, -1.5, -0.5, 0.5, 1.5, 2.5, 3.5, 4.5]
                     }
                 ]
@@ -694,7 +706,8 @@ class TestApiParser(ScrutinyUnitTest):
         self.assertLessEqual(abs(acq.acq_time - now), timedelta(seconds=1))
 
         self.assertEqual(acq.xdata.name, "Xaxis")
-        self.assertEqual(acq.xdata.logged_element, "path/to/xaxis/item")
+        self.assertEqual(acq.xdata.logged_watchable.path, "path/to/xaxis/item")
+        self.assertEqual(acq.xdata.logged_watchable.type, WatchableType.Variable)
         self.assertEqual(acq.xdata.get_data(), [0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0])
 
         yaxes = acq.get_unique_yaxis_list()
@@ -715,17 +728,20 @@ class TestApiParser(ScrutinyUnitTest):
         self.assertIn(data[0].axis.axis_id, yaxes_map)
         self.assertEqual(yaxes_map[data[0].axis.axis_id].name, "Y-Axis1")
         self.assertEqual(data[0].series.name, "signal1")
-        self.assertEqual(data[0].series.logged_element, "/path/to/signal1")
+        self.assertEqual(data[0].series.logged_watchable.path, "/path/to/signal1")
+        self.assertEqual(data[0].series.logged_watchable.type, WatchableType.Variable)
 
         self.assertIn(data[1].axis.axis_id, yaxes_map)
         self.assertEqual(yaxes_map[data[1].axis.axis_id].name, "Y-Axis1")
         self.assertEqual(data[1].series.name, "signal2")
-        self.assertEqual(data[1].series.logged_element, "/path/to/signal2")
+        self.assertEqual(data[1].series.logged_watchable.path, "/path/to/signal2")
+        self.assertEqual(data[1].series.logged_watchable.type, WatchableType.Alias)
 
         self.assertIn(data[2].axis.axis_id, yaxes_map)
         self.assertEqual(yaxes_map[data[2].axis.axis_id].name, "Y-Axis2")
         self.assertEqual(data[2].series.name, "signal3")
-        self.assertEqual(data[2].series.logged_element, "/path/to/signal3")
+        self.assertEqual(data[2].series.logged_watchable.path, "/path/to/signal3")
+        self.assertEqual(data[2].series.logged_watchable.type, WatchableType.RuntimePublishedValue)
 
         for field in ['firmware_id', 'firmware_name', 'name', 'reference_id', 'trigger_index', 'timestamp', 'xdata', 'yaxes', 'signals']:
             msg = base()
@@ -733,13 +749,18 @@ class TestApiParser(ScrutinyUnitTest):
             with self.assertRaises(sdk.exceptions.BadResponseError, msg=f"Field : {field}"):
                 parser.parse_read_datalogging_acquisition_content_response(msg)
 
-        for field in ['name', 'logged_element', 'data']:
+        for field in ['name', 'watchable', 'data']:
             msg = base()
             del msg['xdata'][field]
             with self.assertRaises(sdk.exceptions.BadResponseError, msg=f"Field : {field}"):
                 parser.parse_read_datalogging_acquisition_content_response(msg)
+        
+        msg = base()
+        msg['xdata']['watchable'] = None
+        response = parser.parse_read_datalogging_acquisition_content_response(msg)
+        self.assertIsNone(response.xdata.logged_watchable)
 
-        for field in ['axis_id', 'name', 'logged_element', 'data']:
+        for field in ['axis_id', 'name', 'watchable', 'data']:
             msg = base()
             for i in range(len(msg['signals'])):
                 del msg['signals'][i][field]
@@ -759,11 +780,28 @@ class TestApiParser(ScrutinyUnitTest):
                 with self.assertRaises(sdk.exceptions.BadResponseError, msg=f"val={val}"):
                     parser.parse_read_datalogging_acquisition_content_response(msg)
 
-            for val in [3, None, {}, []]:
+            for val in [3, []]:
                 msg = base()
-                msg['signals'][i]["logged_element"] = val
+                msg['signals'][i]["watchable"] = val
                 with self.assertRaises(sdk.exceptions.BadResponseError, msg=f"val={val}"):
                     parser.parse_read_datalogging_acquisition_content_response(msg)
+
+            for val in [None, 3, {}, True]:
+                msg = base()
+                msg['signals'][i]["watchable"]['path'] = val
+                with self.assertRaises(sdk.exceptions.BadResponseError, msg=f"val={val}"):
+                    parser.parse_read_datalogging_acquisition_content_response(msg)
+
+            for val in [None, 3, {}, True, 'asdasdasd']:
+                msg = base()
+                msg['signals'][i]["watchable"]['type'] = val
+                with self.assertRaises(sdk.exceptions.BadResponseError, msg=f"val={val}"):
+                    parser.parse_read_datalogging_acquisition_content_response(msg)
+            
+            msg = base()
+            msg['signals'][i]["watchable"] = None   # Not allowed for Y data
+            with self.assertRaises(sdk.exceptions.BadResponseError, msg=f"val={val}"):
+                parser.parse_read_datalogging_acquisition_content_response(msg)
 
             for val in [3, None, {}, []]:
                 msg = base()
@@ -803,6 +841,7 @@ class TestApiParser(ScrutinyUnitTest):
             return {
                 "cmd": "response_list_datalogging_acquisitions",
                 "reqid": None,
+                "total" : 5,
                 "acquisitions": [
                     {
                         'firmware_id': "firmware 1",
@@ -848,9 +887,10 @@ class TestApiParser(ScrutinyUnitTest):
 
         msg = base()
         acquisitions = parser.parse_list_datalogging_acquisitions_response(msg)
-
+        
         self.assertIsInstance(acquisitions, list)
         self.assertEqual(len(acquisitions), 2)
+
 
         self.assertEqual(acquisitions[0].firmware_id, "firmware 1")
         self.assertEqual(acquisitions[0].name, "hello")
@@ -1392,6 +1432,73 @@ class TestApiParser(ScrutinyUnitTest):
         check_field_invalid('success', [1, None, 1.123, "asd", [], {}, Delete])
         check_field_invalid('completion_server_time_us', ["asd", None, True, [], {}, Delete])
         check_field_invalid('detail_msg', [1, 1.123, True, [], {}, Delete])
+
+
+    def test_parse_inform_datalogging_list_changed(self):
+        def base() -> api_typing.S2C.InformDataloggingListChanged:
+            return {
+                'cmd' : 'inform_datalogging_list_changed',
+                "reqid": None,
+                "action" : "new",
+                "reference_id" : "123456",
+            }
+
+        msg = base()
+        parsed = parser.parse_datalogging_list_changed(msg)
+        self.assertEqual(parsed.action, sdk.DataloggingListChangeType.NEW)
+        self.assertEqual(parsed.reference_id, "123456")
+
+        msg = base()
+        msg['action'] = 'update'
+        parsed = parser.parse_datalogging_list_changed(msg)
+        self.assertEqual(parsed.action, sdk.DataloggingListChangeType.UPDATE)
+        self.assertEqual(parsed.reference_id, "123456")
+
+        msg = base()
+        msg['action'] = 'delete'
+        parsed = parser.parse_datalogging_list_changed(msg)
+        self.assertEqual(parsed.action, sdk.DataloggingListChangeType.DELETE)
+        self.assertEqual(parsed.reference_id, "123456")
+
+        msg = base()
+        msg['action'] = 'delete_all'
+        msg['reference_id'] = None
+        parsed = parser.parse_datalogging_list_changed(msg)
+        self.assertEqual(parsed.action, sdk.DataloggingListChangeType.DELETE_ALL)
+        self.assertIsNone(parsed.reference_id)
+
+        class Delete:
+            pass
+
+        for v in ['unknown_val', 1, 2.2, None, [], {}, Delete]:
+            with self.assertRaises(Exception):
+                msg = base()
+                if v == Delete:
+                    del msg["action"]
+                else:
+                    msg["action"] = v
+                parser.parse_datalogging_list_changed(msg)
+
+        for v in [1, 2.2, [], {}, Delete]:
+            with self.assertRaises(Exception):
+                msg = base()
+                if v == Delete:
+                    del msg["reference_id"]
+                else:
+                    msg["reference_id"] = v
+                parser.parse_datalogging_list_changed(msg)
+        
+        with self.assertRaises(Exception):
+            msg = base()
+            msg["action"] = 'new'
+            msg["reference_id"] = None
+            parser.parse_datalogging_list_changed(msg)
+
+        with self.assertRaises(Exception):
+            msg = base()
+            msg["action"] = 'delete_all'
+            msg["reference_id"] = 'asd'
+            parser.parse_datalogging_list_changed(msg)
 
 if __name__ == '__main__':
     unittest.main()

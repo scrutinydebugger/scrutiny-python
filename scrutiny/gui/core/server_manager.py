@@ -251,6 +251,7 @@ class ServerManager:
         status_received = Signal()
         device_info_availability_changed = Signal()
         loaded_sfd_availability_changed = Signal()
+        datalogging_storage_updated = Signal(sdk.DataloggingListChangeType, str)  # type, refernece_id
 
     RECONNECT_DELAY = 1
     _client:ScrutinyClient 
@@ -379,6 +380,7 @@ class ServerManager:
             self._signals.status_received.connect(lambda : self._logger.log(DUMPDATA_LOGLEVEL, "+Signal: status_received"))
             self._signals.device_info_availability_changed.connect(lambda : self._logger.log(DUMPDATA_LOGLEVEL, "+Signal: device_info_availability_changed"))
             self._signals.loaded_sfd_availability_changed.connect(lambda : self._logger.log(DUMPDATA_LOGLEVEL, "+Signal: loaded_sfd_availability_changed"))
+            self._signals.datalogging_storage_updated.connect(lambda : self._logger.log(DUMPDATA_LOGLEVEL, "+Signal: datalogging_storage_updated"))
         
         
         # These internal slots are used to download the device info and SFD details when they are ready
@@ -498,6 +500,8 @@ class ServerManager:
                 self._signals.datalogging_state_changed.emit()
             elif isinstance(event, ScrutinyClient.Events.StatusUpdateEvent):
                 self._signals.status_received.emit()
+            elif isinstance(event, ScrutinyClient.Events.DataloggingListChanged):
+                self._signals.datalogging_storage_updated.emit(event.change_type, event.acquisition_reference_id)
             else:
                 self._logger.error(f"Unsupported event type : {event.__class__.__name__}")    
 
@@ -747,7 +751,7 @@ class ServerManager:
         """Called when a gui component register a watcher on the registry"""
         # Runs from QT thread
         watcher_count = self._registry.node_watcher_count(watchable_config.watchable_type, server_path)
-        if watcher_count > 0:
+        if watcher_count is not None and watcher_count > 0:
             self._qt_maybe_request_watch(watchable_config.watchable_type, server_path)
 
     @enforce_thread(QT_THREAD_NAME)
@@ -755,7 +759,7 @@ class ServerManager:
         """Called when a gui component unregister a watcher on the registry"""
         # Runs from QT thread
         watcher_count = self._registry.node_watcher_count(watchable_config.watchable_type, server_path)
-        if watcher_count == 0:
+        if watcher_count is not None and watcher_count == 0:
             self._qt_maybe_request_unwatch(watchable_config.watchable_type, server_path)
 
     def _qt_value_update_received(self) -> None:
@@ -978,6 +982,8 @@ class ServerManager:
 
         """
         watchable_config = self._registry.get_watchable_fqn(fqn)
+        if watchable_config is None:
+            raise Exception(f"Item {fqn} is not in the registry. Cannot write its value")
         def threaded_func(client:ScrutinyClient) -> None:
             handle = client.try_get_existing_watch_handle_by_server_id(watchable_config.server_id)
             if handle is None:

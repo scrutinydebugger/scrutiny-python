@@ -14,6 +14,7 @@ from test.gui.base_gui_test import ScrutinyBaseGuiTest, EventType
 import time
 from dataclasses import dataclass
 from test import logger
+from scrutiny import tools
 
 from typing import List, Optional, Any
 
@@ -576,15 +577,12 @@ class TestServerManagerRegistryInteraction(ScrutinyBaseGuiTest):
             )
         self.server_manager._unit_test = True
         self.server_manager.start(SERVER_MANAGER_CONFIG)
-    
-        @dataclass
-        class Container:
-            ready:bool=False
-        obj = Container()
-        def ready():
-            obj.ready = True
-        self.server_manager.signals.server_connected.connect(ready)
-        self.wait_true_with_events(lambda: obj.ready, timeout=1)
+
+        ready = tools.MutableBool(False)
+        def ready_slot():
+            ready.val = True
+        self.server_manager.signals.server_connected.connect(ready_slot)
+        self.wait_true_with_events(lambda: ready.val, timeout=1)
 
     def tearDown(self):
         self.server_manager.stop()

@@ -95,20 +95,28 @@ class Icons(enum.Enum):
     Download = "download"
     CursorArrow = "cursor-arrow"
     CursorHandDrag = "cursor-hand-drag"
+    TestSquare="test-square"
+    TestVRect="test-vrect"
+    TestHRect="test-hrect"
+    Trigger="trigger"
+    TextEdit="text-edit"
 
 def icon_filename(name:Icons, format:IconFormat, iconset:IconSet=IconSet.Default) -> Path:
     possible_formats = {
         IconFormat.Tiny : [
             (16,16),
-            (16,12)
+            (16,12),
+            (12,16)
         ],
         IconFormat.Medium : [
             (64,64),
-            (64,48)
+            (64,48),
+            (48,64)
         ],
         IconFormat.Large : [
             (256,256),
-            (256,192)
+            (256,192),
+            (192,256)
         ]
     }
 

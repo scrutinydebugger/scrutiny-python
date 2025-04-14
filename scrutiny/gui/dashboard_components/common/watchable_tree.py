@@ -27,6 +27,7 @@ from PySide6.QtCore import  Qt
 from scrutiny.gui import assets
 from scrutiny.gui.core.watchable_registry import WatchableRegistry, WatchableRegistryNodeContent
 from scrutiny.gui.core.scrutiny_drag_data import WatchableListDescriptor, SingleWatchableDescriptor, ScrutinyDragData
+from scrutiny.gui.tools import watchabletype_2_icon
 from scrutiny.gui.dashboard_components.common.base_tree import BaseTreeModel, BaseTreeView
 
 
@@ -34,14 +35,8 @@ from scrutiny.tools.typing import *
 
 
 def get_watchable_icon(wt:WatchableType) -> QIcon:
-    """Return the proper tree icon for a given watchable type (car, alias, rpv)"""
-    if wt == WatchableType.Variable:
-        return assets.load_tiny_icon(assets.Icons.Var)
-    if wt == WatchableType.Alias:
-        return assets.load_tiny_icon(assets.Icons.Alias)
-    if wt == WatchableType.RuntimePublishedValue:
-        return assets.load_tiny_icon(assets.Icons.Rpv)
-    raise NotImplementedError(f"Unsupported icon for {wt}")
+    """Return the proper tree icon for a given watchable type (var, alias, rpv)"""
+    return assets.load_tiny_icon(watchabletype_2_icon(wt))
 
 NodeSerializableType = Literal['watchable', 'folder']
 class NodeSerializableData(TypedDict):

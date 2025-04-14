@@ -1,12 +1,13 @@
-#    sfd_storage.py
-#        Manipulate the Scrutiny storage for .sfd files
+#    sfd_storage_manager.py
+#        A class that manipulates the Scrutiny storage for .sfd files. Does not instantiate
 #
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
-import appdirs  # type: ignore
+__all__ = ['SFDStorageManager']
+
 import os
 from scrutiny.core.firmware_description import FirmwareDescription, MetadataType
 import logging
@@ -160,7 +161,3 @@ class SFDStorageManager:
             retval = True
 
         return retval
-
-
-GLOBAL_STORAGE = os.path.join(appdirs.user_data_dir('scrutiny'), 'sfd_storage')
-SFDStorage = SFDStorageManager(GLOBAL_STORAGE)

@@ -18,7 +18,7 @@ from scrutiny.server.api.dummy_client_handler import DummyConnection, DummyClien
 from scrutiny.server.api import API
 from scrutiny.server.device.device_handler import DeviceHandler
 from scrutiny.core.firmware_description import FirmwareDescription
-from scrutiny.core.sfd_storage import SFDStorage
+from scrutiny.server.sfd_storage import SFDStorage
 from scrutiny.server.datastore.datastore_entry import *
 from scrutiny.core.basic_types import *
 from scrutiny.core.codecs import *

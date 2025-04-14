@@ -29,7 +29,6 @@ from scrutiny.tools.profiling import VariableRateExponentialAverager
 from scrutiny import tools
 from scrutiny.tools.timebase import RelativeTimebase
 import selectors
-from datetime import datetime
 
 import logging
 from scrutiny.core.logging import DUMPDATA_LOGLEVEL
@@ -43,9 +42,9 @@ from dataclasses import dataclass
 from base64 import b64encode
 import queue
 import types
+from datetime import datetime
 
-from typing import List, Dict, Optional, Callable, cast, Union, TypeVar, Tuple, Type, Any, Literal, Generator
-
+from scrutiny.tools.typing import *
 
 class CallbackState(enum.Enum):
     Pending = enum.auto()
@@ -194,7 +193,7 @@ class WatchableListDownloadRequest(PendingRequest):
             self._new_data_callback(data, done)
         else:
             # User has no callback to process it. Let's buffer the response for him
-            for watchable_type in WatchableType.get_valids():
+            for watchable_type in WatchableType.all():
                 if watchable_type in data:
                     self._watchable_list[watchable_type].update(data[watchable_type])
     
@@ -364,8 +363,10 @@ class ScrutinyClient:
             """The state of the datalogger and the completion ratio"""
 
             def msg(self) -> str:
-                percent = "N/A" if self.details.completion_ratio is None else f"{round(self.details.completion_ratio*100)}%"
-                return f"Datalogger state changed: {self.details.state.name} ({percent})"
+                msg = f"Datalogger state changed: {self.details.state.name}"
+                if self.details.completion_ratio is not None:
+                    msg +=f" ({round(self.details.completion_ratio*100)}%)"
+                return msg
         
         @dataclass(frozen=True)
         class StatusUpdateEvent:
@@ -377,6 +378,22 @@ class ScrutinyClient:
 
             def msg(self) -> str:
                 return f"New server status update received"
+            
+        @dataclass(frozen=True)
+        class DataloggingListChanged:
+            """Triggered when the list of datalogging acquisition changed on the server (new, removed or updated). 
+            A call to :meth:`read_datalogging_acquisitions_metadata<ScrutinyClient.read_datalogging_acquisitions_metadata>` 
+            can be used to fetch the details"""
+
+            _filter_flag = 0x100
+            
+            change_type:DataloggingListChangeType
+            """The action performed on the datalogging list. Useful to correctly update the client side list"""
+            acquisition_reference_id:Optional[str]
+            """The targeted acquisition. Will have a value for NEW, DELETE, UPDATE.  ``None`` for DELETE_ALL"""
+
+            def msg(self) -> str:
+                return f"List of datalogging acquisition has changed"            
 
 
 
@@ -397,13 +414,16 @@ class ScrutinyClient:
         LISTEN_DATALOGGER_STATE_CHANGED = DataloggerStateChanged._filter_flag
         """Listen for events of type :class:`DataloggerStateChanged<scrutiny.sdk.client.ScrutinyClient.Events.DataloggerStateChanged>`"""
         LISTEN_STATUS_UPDATE_CHANGED = StatusUpdateEvent._filter_flag
-        """Listen for events of type :class:`DataloggerStateChanged<scrutiny.sdk.client.ScrutinyClient.Events.StatusUpdateEvent>`"""
+        """Listen for events of type :class:`StatusUpdateEvent<scrutiny.sdk.client.ScrutinyClient.Events.StatusUpdateEvent>`"""
+        LISTEN_DATALOGGING_LIST_CHANGED = DataloggingListChanged._filter_flag
+        """Listen for events of type :class:`DataloggingListChanged<scrutiny.sdk.client.ScrutinyClient.Events.DataloggingListChanged>`"""
         LISTEN_ALL = 0xFFFFFFFF
         """Listen to all events"""
         
         _ANY_EVENTS = Union[
             ConnectedEvent, DisconnectedEvent, DeviceReadyEvent, DeviceGoneEvent, 
-            SFDLoadedEvent, SFDUnLoadedEvent, DataloggerStateChanged, StatusUpdateEvent
+            SFDLoadedEvent, SFDUnLoadedEvent, DataloggerStateChanged, StatusUpdateEvent,
+            DataloggingListChanged
             ]
 
     @dataclass
@@ -710,6 +730,13 @@ class ScrutinyClient:
         request._mark_complete_specialized(completion.success, completion.reference_id, completion.detail_msg)
         del self._pending_datalogging_requests[completion.request_token]
 
+    def _wt_process_msg_datalogging_list_changed(self, msg: api_typing.S2C.InformDataloggingListChanged, reqid: Optional[int]) -> None:
+        parsed = api_parser.parse_datalogging_list_changed(msg)
+        self._trigger_event(
+            self.Events.DataloggingListChanged(acquisition_reference_id=parsed.reference_id, change_type=parsed.action),
+            loglevel=logging.DEBUG
+            )
+
     def _wt_process_msg_get_watchable_list_response(self, msg: api_typing.S2C.GetWatchableList, reqid:Optional[int]) -> None:
         if reqid is None:
             self._logger.warning('Received a watchable list message, but the request ID was not available.')
@@ -807,6 +834,8 @@ class ScrutinyClient:
                     self._wt_process_msg_inform_memory_write_complete(cast(api_typing.S2C.WriteMemoryComplete, msg), reqid)
                 elif cmd == API.Command.Api2Client.INFORM_DATALOGGING_ACQUISITION_COMPLETE:
                     self._wt_process_msg_datalogging_acquisition_complete(cast(api_typing.S2C.InformDataloggingAcquisitionComplete, msg), reqid)
+                elif cmd == API.Command.Api2Client.INFORM_DATALOGGING_LIST_CHANGED:
+                    self._wt_process_msg_datalogging_list_changed(cast(api_typing.S2C.InformDataloggingListChanged, msg), reqid)                    
                 elif cmd == API.Command.Api2Client.GET_WATCHABLE_LIST_RESPONSE:
                     self._wt_process_msg_get_watchable_list_response(cast(api_typing.S2C.GetWatchableList, msg), reqid)
                 elif cmd == API.Command.Api2Client.WELCOME:
@@ -1627,7 +1656,7 @@ class ScrutinyClient:
         @dataclass
         class Container:
             obj: Optional[Dict[str, sdk.SFDInfo]]
-
+        
         cb_data: Container = Container(obj=None)  # Force pass by ref
 
         def callback(state: CallbackState, response: Optional[api_typing.S2CMessage]) -> None:
@@ -1892,22 +1921,90 @@ class ScrutinyClient:
                 f"Failed to request the datalogging acquisition'. {future.error_str}")
         assert cb_data.request is not None
         return cb_data.request
-
-    def list_stored_datalogging_acquisitions(self, timeout: Optional[float] = None) -> List[sdk.datalogging.DataloggingStorageEntry]:
-        """Gets the list of datalogging acquisition stored in the server database
-
+    
+    def read_datalogging_acquisitions_metadata(self, reference_id:str,timeout: Optional[float] = None) -> Optional[sdk.datalogging.DataloggingStorageEntry]:
+        """Get the acquisition metadata from the server datalogging storage. 
+        Returns a result similar to :meth:`list_stored_datalogging_acquisitions<list_stored_datalogging_acquisitions>`
+        but with a single storage entry.
+        
+        :param reference_id: The acquisition refence_id (unique ID)
         :param timeout: The request timeout value. The default client timeout will be used if set to ``None`` Defaults to ``None``
 
-        :raise OperationFailure: If fetching the list fails
+        :raise OperationFailure: If fetching the metadata fails
 
-        :return: A list of database entries, each one representing an acquisition in the database with `reference_id` as its unique identifier
+        :return: The storage entry with its metadata or ``None`` if the given ID is not present in the storage
         """
+        validation.assert_type(reference_id, 'reference_id', str)
         timeout = validation.assert_float_range_if_not_none(timeout, 'timeout', minval=0)
 
         if timeout is None:
             timeout = self._timeout
 
-        req = self._make_request(API.Command.Client2Api.LIST_DATALOGGING_ACQUISITION)
+        req = self._make_request(API.Command.Client2Api.LIST_DATALOGGING_ACQUISITION, {
+            'reference_id' : reference_id
+        })
+
+        @dataclass
+        class Container:
+            obj: Optional[List[sdk.datalogging.DataloggingStorageEntry]]
+        cb_data: Container = Container(obj=None)  # Force pass by ref
+
+        def callback(state: CallbackState, response: Optional[api_typing.S2CMessage]) -> None:
+            if response is not None and state == CallbackState.OK:
+                cb_data.obj = api_parser.parse_list_datalogging_acquisitions_response(
+                    cast(api_typing.S2C.ListDataloggingAcquisition, response)
+                )
+        future = self._send(req, callback)
+        assert future is not None
+        future.wait(timeout)
+
+        if future.state != CallbackState.OK:
+            raise sdk.exceptions.OperationFailure(
+                f"Failed to read the datalogging acquisition list from the server database. {future.error_str}")
+
+        assert cb_data.obj is not None
+        
+        if len(cb_data.obj) == 1:
+            return cb_data.obj[0]
+        else:
+            return None
+
+    def list_stored_datalogging_acquisitions(self, 
+                                             firmware_id:Optional[str]=None, 
+                                             before_datetime:Optional[datetime]=None, 
+                                             count:int=500, 
+                                             timeout: Optional[float] = None) -> List[sdk.datalogging.DataloggingStorageEntry]:
+        """Gets the list of datalogging acquisition stored in the server database. 
+        Acquisitions are returned ordered by acquisition time, from newest to oldest.
+        
+        :param firmware_id: When not ``None``, searches for acquisitions takend with this firmware ID
+        :param before_datetime: An optional upper limit for the acquisition time. Will download acquisition taken before this datetime. Meant ot be used for UI lazy-loading
+        :param count: Maximum number of acquisition to fetch. Upper limit is 10000
+        :param timeout: The request timeout value. The default client timeout will be used if set to ``None`` Defaults to ``None``
+
+        :raise OperationFailure: If fetching the list fails
+
+        :return: A list of datalogging storage entries with acquisition metadata in them.
+        """
+        validation.assert_type(firmware_id, 'firmware_id', (str, type(None)))
+        timeout = validation.assert_float_range_if_not_none(timeout, 'timeout', minval=0)
+        if before_datetime is not None:
+            validation.assert_type(before_datetime, 'before_datetime', datetime)
+            
+        count = validation.assert_int_range(count, 'count', minval=0, maxval=10000)
+
+        if timeout is None:
+            timeout = self._timeout
+
+        data:Dict[str, Any] = {
+            'firmware_id' : firmware_id,
+            'count' : count,
+            'before_timestamp':None
+        }
+        if before_datetime is not None:
+            data['before_timestamp'] = before_datetime.timestamp()
+
+        req = self._make_request(API.Command.Client2Api.LIST_DATALOGGING_ACQUISITION, data)
 
         @dataclass
         class Container:
@@ -2099,7 +2196,6 @@ class ScrutinyClient:
 
         return cb_data.obj
 
-
     def register_listener(self, listener:listeners.BaseListener) -> None:
         """Register a new listener. The client will notify it each time a new value update is received from the server
         
@@ -2173,8 +2269,8 @@ class ScrutinyClient:
         validation.assert_type(types, 'types', list)
         for type in types:
             validation.assert_type(type, 'types', WatchableType)
-            if type == WatchableType.NA:
-                raise ValueError("WatchableType.NA is not a valid type to download")
+            if type not in WatchableType.all():
+                raise ValueError(f"Watchable type {type} is not a valid type to download")
         
         validation.assert_type(name_patterns, 'name_patterns', list)
         for name_pattern in name_patterns:
@@ -2208,6 +2304,73 @@ class ScrutinyClient:
 
         return request_handle
 
+    def clear_datalogging_storage(self) -> None:
+        """Delete all datalogging acquisition stored on the server.
+        This action is irreversible
+
+        :raise OperationFailure: If the request to the server fails
+        """
+        req = self._make_request(API.Command.Client2Api.DELETE_ALL_DATALOGGING_ACQUISITION)
+        
+        def callback(state: CallbackState, response: Optional[api_typing.S2CMessage]) -> None:
+            pass
+        future = self._send(req, callback)
+        assert future is not None
+        future.wait()
+        
+        if future.state != CallbackState.OK:
+            raise sdk.exceptions.OperationFailure(f"Failed to clear the datalogging storage. {future.error_str}")
+
+    def delete_datalogging_acquisition(self, reference_id:str) -> None:
+        """Delete a single datalogging acquisition stored on the server.
+        This action is irreversible
+
+        :param reference_id: The unique ``reference_id`` of the acquisition to delete.
+
+        :raise OperationFailure: If the request to the server fails
+        :raise TypeError: Given parameter not of the expected type
+        """
+        validation.assert_type(reference_id, 'reference_id', str)
+
+        req = self._make_request(API.Command.Client2Api.DELETE_DATALOGGING_ACQUISITION, {
+            'reference_id' : reference_id
+        })
+        
+        def callback(state: CallbackState, response: Optional[api_typing.S2CMessage]) -> None:
+            pass
+        future = self._send(req, callback)
+        assert future is not None
+        future.wait()
+        
+        if future.state != CallbackState.OK:
+            raise sdk.exceptions.OperationFailure(f"Failed to delete the datalogging acquisition with reference ID: {reference_id}. {future.error_str}")
+
+    def update_datalogging_acquisition(self, reference_id:str, name:str) -> None:
+        """Update a single datalogging acquisition stored on the server.
+
+        :param reference_id: The unique ``reference_id`` of the acquisition to delete.
+        :param name: New name for the acquisition. 
+
+        :raise OperationFailure: If the request to the server fails
+        :raise TypeError: Given parameter not of the expected type
+        """
+        validation.assert_type(reference_id, 'reference_id', str)
+        validation.assert_type(name, 'name', str)
+
+        req = self._make_request(API.Command.Client2Api.UPDATE_DATALOGGING_ACQUISITION, {
+            'reference_id' : reference_id,
+            'name' : name
+        })
+        
+        def callback(state: CallbackState, response: Optional[api_typing.S2CMessage]) -> None:
+            pass
+        future = self._send(req, callback)
+        assert future is not None
+        future.wait()
+        
+        if future.state != CallbackState.OK:
+            raise sdk.exceptions.OperationFailure(f"Failed to update the datalogging acquisition with reference ID: {reference_id}. {future.error_str}")
+
     def has_event_pending(self) -> bool:
         return not self._event_queue.empty()
     
@@ -2225,6 +2388,14 @@ class ScrutinyClient:
         except queue.Empty:
             return None
 
+    def clear_event_queue(self) -> None:
+        """Delete all pending events inside the event queue"""
+        while not self._event_queue.empty():
+            try:
+                self._event_queue.get_nowait()
+            except queue.Empty:
+                break
+
     def get_local_stats(self) -> Statistics:
         """Return internal performance metrics"""
 
@@ -2238,7 +2409,6 @@ class ScrutinyClient:
     def reset_local_stats(self) -> None:
         """Reset all performance metrics that are resettable (have an internal state)"""
         self._datarate_measurements.reset()
-
 
     def get_server_stats(self, timeout: Optional[float] = None) -> sdk.ServerStatistics:
         if timeout is None:
@@ -2268,6 +2438,7 @@ class ScrutinyClient:
         stats = cb_data.obj
         return stats
     
+
     @property
     def logger(self) -> logging.Logger:
         """The python logger used by the Client"""

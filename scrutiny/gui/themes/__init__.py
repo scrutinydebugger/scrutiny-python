@@ -24,6 +24,9 @@ class ScrutinyThemeProperties(enum.Enum):
     CHART_TOOLBAR_SELECTED_COLOR = enum.auto()
     CHART_TOOLBAR_PRESSED_COLOR = enum.auto()
 
+    WATCHABLE_LINE_EDIT_CLEAR_BTN_HOVER_COLOR = enum.auto()
+    WATCHABLE_LINE_EDIT_CLEAR_BTN_PRESSED_COLOR = enum.auto()
+
     WIDGET_ERROR_BACKGROUND_COLOR=enum.auto()
 
 class ScrutinyTheme(abc.ABC):

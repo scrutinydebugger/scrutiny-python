@@ -8,10 +8,8 @@
 #   Copyright (c) 2021 Scrutiny Debugger
 
 import os
-import appdirs  # type: ignore
 import tempfile
 import logging
-import traceback
 from pathlib import Path
 from datetime import datetime
 import sqlite3
@@ -19,10 +17,12 @@ import hashlib
 import types
 
 from scrutiny.server.globals import get_server_storage
-from scrutiny.core.datalogging import DataloggingAcquisition, DataSeries, AxisDefinition
+from scrutiny.core.datalogging import DataloggingAcquisition, DataSeries, AxisDefinition, LoggedWatchable
+from scrutiny.core.basic_types import WatchableType
 from scrutiny import tools
 from typing import List, Dict, Optional, Tuple, Type, Literal, Any
 
+from scrutiny import tools
 
 class BadVersionError(Exception):
     hash: str
@@ -243,7 +243,8 @@ class DataloggingStorageManager:
             CREATE TABLE IF NOT EXISTS `dataseries` (
             `id` INTEGER PRIMARY KEY AUTOINCREMENT,
             `name` VARCHAR(255),
-            `logged_element` TEXT,
+            `logged_watchable` TEXT NULL,
+            `logged_watchable_type` TEXT,
             `axis_id` INTEGER NULL,
             `position` INTEGER NOT NULL,
             `data` BLOB  NOT NULL
@@ -332,23 +333,27 @@ class DataloggingStorageManager:
 
             data_series_sql = """
                 INSERT INTO `dataseries`
-                    (`name`, `logged_element`, `axis_id`, `data`, `position`)
-                VALUES (?,?,?,?, ?)
+                    (`name`, `logged_watchable`, `logged_watchable_type`, `axis_id`, `data`, `position`)
+                VALUES (?,?,?,?,?,?)
             """
             position = 0
             for data in acquisition.get_data():
+                watchable = data.series.logged_watchable
                 cursor.execute(data_series_sql, (
                     data.series.name,
-                    data.series.logged_element,
+                    watchable.path if watchable is not None else None,
+                    watchable.type if watchable is not None else None,
                     axis_to_id_map[data.axis],
                     data.series.get_data_binary(),
                     position)
                 )
                 position += 1
 
+            watchable = acquisition.xdata.logged_watchable
             cursor.execute(data_series_sql, (
                 acquisition.xdata.name,
-                acquisition.xdata.logged_element,
+                watchable.path if watchable is not None else None,
+                watchable.type if watchable is not None else None,
                 x_axis_db_id,
                 acquisition.xdata.get_data_binary(),
                 position)
@@ -372,17 +377,35 @@ class DataloggingStorageManager:
 
         return nout
 
-    def list(self, firmware_id: Optional[str] = None) -> List[str]:
+    def list(self, 
+             firmware_id: Optional[str] = None, 
+             before_datetime:Optional[datetime]=None, 
+             count:Optional[int]=None ) -> List[str]:
         """Return the list of acquisitions available in the storage"""
+        
+        if count is not None:
+            assert isinstance(count, int)
+            if count<0:
+                raise ValueError("Invalid count")
+
+        limit_statement = ''
+        if count is not None:
+            limit_statement = f'LIMIT {count}'
+        
+        date_statement="(1=1)"
+        if before_datetime is not None:
+            date_statement = "`timestamp` < %d" % before_datetime.timestamp()   # sqlite seems to use floored integer
+
+
         with self.get_session() as conn:
             cursor = conn.cursor()
             listout: List[str]
             if firmware_id is None:
-                sql = "SELECT `reference_id` FROM `acquisitions`"
+                sql = f"SELECT `reference_id` FROM `acquisitions` WHERE {date_statement} ORDER BY `timestamp` DESC {limit_statement}"
                 cursor.execute(sql)
                 listout = [row[0] for row in cursor.fetchall()]
             else:
-                sql = "SELECT `reference_id` FROM `acquisitions` WHERE `firmware_id`=?"
+                sql = f"SELECT `reference_id` FROM `acquisitions` WHERE {date_statement} AND `firmware_id`=? ORDER BY `timestamp` DESC {limit_statement}"
                 cursor.execute(sql, (firmware_id,))
                 listout = [row[0] for row in cursor.fetchall()]
 
@@ -404,7 +427,8 @@ class DataloggingStorageManager:
                     `axis`.`is_xaxis` AS `is_xaxis`,
                     `ds`.`axis_id` AS `axis_id`,
                     `ds`.`name` AS `dataseries_name`,
-                    `ds`.`logged_element` AS `logged_element`,
+                    `ds`.`logged_watchable` AS `logged_watchable`,
+                    `ds`.`logged_watchable_type` AS `logged_watchable_type`,
                     `ds`.`data` AS `data`
                 FROM `acquisitions` AS `acq`
                 LEFT JOIN `axis` AS `axis` ON `axis`.`acquisition_id`=`acq`.`id`
@@ -425,7 +449,8 @@ class DataloggingStorageManager:
                 'is_xaxis',
                 'axis_id',
                 'dataseries_name',
-                'logged_element',
+                'logged_watchable',
+                'logged_watchable_type',
                 'data'
             ]
             colmap: Dict[str, int] = {}
@@ -451,14 +476,22 @@ class DataloggingStorageManager:
         yaxis_id_to_def_map: Dict[int, AxisDefinition] = {}
 
         for row in rows:
+            logged_watchable:Optional[LoggedWatchable] = None
+            if row[colmap['logged_watchable']] is not None and row[colmap['logged_watchable_type']] is not None:
+                logged_watchable = LoggedWatchable(
+                    path=row[colmap['logged_watchable']],
+                    type=WatchableType(row[colmap['logged_watchable_type']])
+                )
+
+
             name = row[colmap['dataseries_name']]
-            logged_element = row[colmap['logged_element']]
+            logged_watchable = logged_watchable
             data = row[colmap['data']]
 
-            if name is None or logged_element is None or data is None:
+            if name is None or data is None:
                 raise LookupError('Incomplete data in database')
 
-            dataseries = DataSeries(name=name, logged_element=logged_element)
+            dataseries = DataSeries(name=name, logged_watchable=logged_watchable)
             dataseries.set_data_binary(data)
 
             if row[colmap['axis_id']] is not None:

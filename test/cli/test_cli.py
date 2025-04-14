@@ -16,16 +16,16 @@ import datetime
 import shutil
 from io import StringIO
 import sys
+from scrutiny.core.basic_types import WatchableType
 from scrutiny.core.varmap import VarMap
 from scrutiny.core.firmware_description import FirmwareDescription
-from scrutiny.core.sfd_storage import SFDStorage
-from scrutiny.server.datalogging.datalogging_storage import DataloggingStorage
 from scrutiny.core.datalogging import *
+from scrutiny.server.sfd_storage import SFDStorage
+from scrutiny.server.datalogging.datalogging_storage import DataloggingStorage
 from test.artifacts import get_artifact
 from test import SkipOnException
 from scrutiny.cli import CLI
 from scrutiny.exceptions import EnvionmentNotSetUpException
-from scrutiny.server.datastore.entry_type import EntryType
 from test import ScrutinyUnitTest
 import random
 import re
@@ -274,7 +274,7 @@ class TestCLI(ScrutinyUnitTest):
             alias = aliases['/alias/command_line_added']
             self.assertEqual(alias.get_fullpath(), '/alias/command_line_added')
             self.assertEqual(alias.get_target(), '/path1/path2/some_int32')
-            self.assertEqual(alias.get_target_type(), EntryType.Var)
+            self.assertEqual(alias.get_target_type(), WatchableType.Variable)
             self.assertEqual(alias.get_gain(), 5.2)
             self.assertEqual(alias.get_offset(), 2.5)
             self.assertEqual(alias.get_min(), 0.0)
@@ -302,7 +302,7 @@ class TestCLI(ScrutinyUnitTest):
             alias = aliases['/alias/command_line_added']
             self.assertEqual(alias.get_fullpath(), '/alias/command_line_added')
             self.assertEqual(alias.get_target(), '/rpv/x123')
-            self.assertEqual(alias.get_target_type(), EntryType.RuntimePublishedValue)
+            self.assertEqual(alias.get_target_type(), WatchableType.RuntimePublishedValue)
             self.assertEqual(alias.get_gain(), 5.2)
             self.assertEqual(alias.get_offset(), 2.5)
             self.assertEqual(alias.get_min(), 0.0)
@@ -313,11 +313,11 @@ class TestCLI(ScrutinyUnitTest):
             acq1 = DataloggingAcquisition(firmware_id="firmwareid1", name="Acquisition #1", acq_time=datetime.datetime.now())
             axis1 = AxisDefinition("Axis-1", 111)
             acq1.set_xdata(DataSeries([random.random() for x in range(10)]))
-            acq1.add_data(DataSeries([random.random() for x in range(10)]), axis1)
+            acq1.add_data(DataSeries([random.random() for x in range(10)], logged_watchable=LoggedWatchable("/a/b", WatchableType.Variable)), axis1)
             acq2 = DataloggingAcquisition(firmware_id="firmwareid1", name="Acquisition #2",
                                           acq_time=datetime.datetime.now() - datetime.timedelta(seconds=30))
             acq2.set_xdata(DataSeries([random.random() for x in range(10)]))
-            acq2.add_data(DataSeries([random.random() for x in range(10)]), axis1)
+            acq2.add_data(DataSeries([random.random() for x in range(10)], logged_watchable=LoggedWatchable("/a/b", WatchableType.Variable)), axis1)
 
             DataloggingStorage.save(acq1)
             DataloggingStorage.save(acq2)
@@ -351,11 +351,11 @@ class TestCLI(ScrutinyUnitTest):
             acq1 = DataloggingAcquisition(firmware_id="firmwareid1", name="Acquisition #1", acq_time=datetime.datetime.now(), firmware_name="foo.bar")
             axis1 = AxisDefinition("Axis-1", 111)
             acq1.set_xdata(DataSeries([random.random() for x in range(10)]))
-            acq1.add_data(DataSeries([random.random() for x in range(10)]), axis1)
+            acq1.add_data(DataSeries([random.random() for x in range(10)], logged_watchable=LoggedWatchable("/a/b", WatchableType.Variable)), axis1)
             acq2 = DataloggingAcquisition(firmware_id="firmwareid1", name="Acquisition #2",
                                           acq_time=datetime.datetime.now() - datetime.timedelta(seconds=30))
             acq2.set_xdata(DataSeries([random.random() for x in range(10)]))
-            acq2.add_data(DataSeries([random.random() for x in range(10)]), axis1)
+            acq2.add_data(DataSeries([random.random() for x in range(10)], logged_watchable=LoggedWatchable("/a/b", WatchableType.Variable)), axis1)
 
             DataloggingStorage.save(acq1)
             DataloggingStorage.save(acq2)
@@ -398,11 +398,11 @@ class TestCLI(ScrutinyUnitTest):
             acq1 = DataloggingAcquisition(firmware_id="firmwareid1", name="Acquisition #1", acq_time=datetime.datetime.now())
             axis1 = AxisDefinition("Axis-1", 111)
             acq1.set_xdata(DataSeries([random.random() for x in range(10)]))
-            acq1.add_data(DataSeries([random.random() for x in range(10)]), axis1)
+            acq1.add_data(DataSeries([random.random() for x in range(10)], logged_watchable=LoggedWatchable("/a/b", WatchableType.Variable)), axis1)
             acq2 = DataloggingAcquisition(firmware_id="firmwareid1", name="Acquisition #2",
                                           acq_time=datetime.datetime.now() - datetime.timedelta(seconds=30))
             acq2.set_xdata(DataSeries([random.random() for x in range(10)]))
-            acq2.add_data(DataSeries([random.random() for x in range(10)]), axis1)
+            acq2.add_data(DataSeries([random.random() for x in range(10)], logged_watchable=LoggedWatchable("/a/b", WatchableType.Variable)), axis1)
 
             DataloggingStorage.save(acq1)
             DataloggingStorage.save(acq2)
@@ -426,11 +426,11 @@ class TestCLI(ScrutinyUnitTest):
             acq1 = DataloggingAcquisition(firmware_id="firmwareid1", name="Acquisition #1", acq_time=datetime.datetime.now())
             axis1 = AxisDefinition("Axis-1", 111)
             acq1.set_xdata(DataSeries([random.random() for x in range(10)]))
-            acq1.add_data(DataSeries([random.random() for x in range(10)]), axis1)
+            acq1.add_data(DataSeries([random.random() for x in range(10)], logged_watchable=LoggedWatchable("/a/b", WatchableType.Variable)), axis1)
             acq2 = DataloggingAcquisition(firmware_id="firmwareid1", name="Acquisition #2",
                                           acq_time=datetime.datetime.now() - datetime.timedelta(seconds=30))
             acq2.set_xdata(DataSeries([random.random() for x in range(10)]))
-            acq2.add_data(DataSeries([random.random() for x in range(10)]), axis1)
+            acq2.add_data(DataSeries([random.random() for x in range(10)], logged_watchable=LoggedWatchable("/a/b", WatchableType.Variable)), axis1)
 
             DataloggingStorage.save(acq1)
             DataloggingStorage.save(acq2)
