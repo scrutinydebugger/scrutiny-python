@@ -26,7 +26,7 @@ from scrutiny.gui import assets
 from scrutiny.gui.tools import prompt
 from scrutiny.gui.dashboard_components.base_component import ScrutinyGUIBaseComponent
 from scrutiny.gui.dashboard_components.embedded_graph.graph_config_widget import GraphConfigWidget
-from scrutiny.gui.dashboard_components.embedded_graph.graph_browse_tree_widget import GraphBrowseTreeWidget
+from scrutiny.gui.dashboard_components.embedded_graph.graph_browse_list_widget import GraphBrowseListWidget
 from scrutiny.gui.dashboard_components.embedded_graph.chart_status_overlay import ChartStatusOverlay
 from scrutiny.gui.dashboard_components.common.base_chart import (
     ScrutinyChart, ScrutinyChartView, ScrutinyChartToolBar,  ScrutinyLineSeries, ScrutinyValueAxisWithMinMax
@@ -106,7 +106,9 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
     _NAME = "Embedded Graph"
 
     Y_AXIS_MARGIN = 0.02
+    """Margin used to autoset the Y-Axis based on the Y-data"""
     DOWNLOAD_ACQ_LIST_CHUNK_SIZE = 100
+    """When browsing the existing acquisition, how many entries to fetch per call to the server"""
 
     # Chart common stuff 
     _left_pane:QWidget
@@ -114,33 +116,56 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
     _right_pane:QWidget
 
     _splitter:QSplitter
+    """3 section splitter separating left / center / right"""
     _xval_label:QLabel
+    """The label used to display the X-Value when moving the graph cursor (red vertical line)"""
     _signal_tree:GraphSignalTree
+    """The right side signal tree. contains the watchable we want to log / those present in the displayed graph"""
     _chartview:ScrutinyChartView
+    """The QT element showing the chart"""
     _chart_toolbar:ScrutinyChartToolBar
+    """Custom toolbar at the top of the graph selecting the zoom mode and cursor mode"""
     _xaxis:Optional[ScrutinyValueAxisWithMinMax]
+    """The single X-Axis"""
     _yaxes:List[ScrutinyValueAxisWithMinMax]
+    """The several Y-Axes"""
     _displayed_acquisition:Optional[DataloggingAcquisition]
+    """The acquisition presently displayed by the chartview"""
     _chart_status_overlay:ChartStatusOverlay
+    """An overlay we can put over the chart area to display a status message."""
     
     # Acquire stuff
     _graph_config_widget:GraphConfigWidget
+    """The left pane widget that allow the user to configure its acquisition"""
     _btn_acquire:QPushButton
+    """The Acquire button"""
     _btn_clear:QPushButton
+    """The graph Clear button"""
     _acquire_feedback_label:FeedbackLabel
-    _pending_request:Optional[DataloggingRequest]
+    """A label to display messages visible only in the "Acquire" tab """
+    _pending_datalogging_request:Optional[DataloggingRequest]
+    """The datalogging request presently being processed by the server. Is not None between a call to _acquire and a completion of the acquisition"""
     _request_to_ignore_completions:Dict[int, DataloggingRequest]
+    """A map that list the datalogging request to ignore the failure from. It's a trick to avoid displaying a failure when the same user interrupt an 
+    active acquisition with a new one. When that happen, the server will report that the previous acquisition failed with "Interrupted by new request" error. 
+    We tell the user only if we are not the author of the new request"""
 
     # Browse stuff
-    _graph_browse_widget:GraphBrowseTreeWidget
+    _graph_browse_list_widget:GraphBrowseListWidget
+    """The list displaying the available acquisitions on the server"""
     _chk_browse_loaded_sfd_only:QCheckBox
+    """A checkbox that filters the content of the acquisition list by keeping only those taken by the firmware presnetly loaded"""
     _browse_feedback_label:FeedbackLabel
+    """A label to display messages visible only in the "Browse" tab"""
     _btn_delete_all:QPushButton
+    """A button to delete all the acquisitions stored by the server"""
     _btn_load_more:QPushButton
+    """A button to load more acquisitions from the server"""
     _oldest_acquisition_downloaded:Optional[datetime]
-
+    """The oldest acquisition loaded. Used to download a new chunk of data when the user clicks "Load more" """
 
     _state:EmbeddedGraphState
+    """Some state variables used to keep the UI consistent"""
 
     def setup(self) -> None:
         layout = QVBoxLayout(self)
@@ -158,7 +183,7 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
 
         self._teared_down = False
         self._displayed_acquisition = None
-        self._pending_request = None
+        self._pending_datalogging_request = None
         self._request_to_ignore_completions = {}
         self._oldest_acquisition_downloaded = None
 
@@ -241,14 +266,13 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
             container_layout = QVBoxLayout(container)
             container_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
             
-
             self._chk_browse_loaded_sfd_only = QCheckBox("Loaded firmware only")
             self._chk_browse_loaded_sfd_only.setToolTip("Load acquisition taken with the same firmware that the device you're conencted to is using.")
             self._chk_browse_loaded_sfd_only.checkStateChanged.connect(self._checkbox_filter_sfd_checkstate_change_slot)
             if self.server_manager.get_loaded_sfd() is None:
                 self._chk_browse_loaded_sfd_only.setDisabled(1)
                 
-            self._graph_browse_widget = GraphBrowseTreeWidget(self)
+            self._graph_browse_list_widget = GraphBrowseListWidget(self)
             self._btn_delete_all = QPushButton(assets.load_tiny_icon(assets.Icons.RedX), " Delete All", self)
             self._btn_load_more = QPushButton("Load more", self)
             self._browse_feedback_label = FeedbackLabel()
@@ -258,14 +282,14 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
             btn_line_layout.addWidget(self._btn_load_more)
             btn_line_layout.addWidget(self._btn_delete_all)
 
-            self._graph_browse_widget.signals.delete.connect(self._request_delete_single_slot)
-            self._graph_browse_widget.signals.rename.connect(self._request_rename_slot)
-            self._graph_browse_widget.signals.display.connect(self._browse_display_acquisition_slot)
+            self._graph_browse_list_widget.signals.delete.connect(self._request_delete_single_slot)
+            self._graph_browse_list_widget.signals.rename.connect(self._request_rename_slot)
+            self._graph_browse_list_widget.signals.display.connect(self._browse_display_acquisition_slot)
             self._btn_delete_all.clicked.connect(self._btn_delete_all_clicked_slot)
             self._btn_load_more.clicked.connect(self._btn_load_more_clicked_slot)
 
             container_layout.addWidget(self._chk_browse_loaded_sfd_only)
-            container_layout.addWidget(self._graph_browse_widget)
+            container_layout.addWidget(self._graph_browse_list_widget)
             container_layout.addWidget(btn_line)
             container_layout.addWidget(self._browse_feedback_label)
 
@@ -339,9 +363,11 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
         self._teared_down = True
 
     def get_state(self) -> Dict[Any, Any]:
+        """Virtual func. For dashboard export"""
         raise NotImplementedError()
 
     def load_state(self, state: Dict[Any, Any]) -> None:
+        """Virtual func. For dashboard reload"""
         raise NotImplementedError()
     
     def _apply_internal_state(self) -> None:
@@ -371,6 +397,7 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
         self._chart_status_overlay.setVisible(self._state.must_show_overlay())
 
     def _update_datalogging_capabilities(self) -> None:
+        """Update the UI with new datalogging capabilities broadcast by the server"""
         self._graph_config_widget.configure_from_device_info(self.server_manager.get_device_info())
 
     def _registry_changed_slot(self) -> None:
@@ -394,6 +421,7 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
 # region Chart handling
 
     def _clear_graph(self) -> None:
+        """Remove the acquisition presently displayed in the chartview"""
         self._clear_graph_error()
         self._chart_toolbar.disable_chart_cursor()
         chart = self._chartview.chart()
@@ -424,42 +452,52 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
         self._apply_internal_state()
 
     def _display_graph_error(self, message:str) -> None:
+        """Display a big error message in the chart area"""
         self._clear_graph()
         self._chart_status_overlay.set(assets.Icons.Error, message)
         self._state.has_failure_message = True
         self._apply_internal_state()
 
     def _clear_graph_error(self) -> None:
+        """Remove the big error message in the chart area"""
         self._chart_status_overlay.set(None, "")
         self._state.has_failure_message = False
         self._apply_internal_state()
 
     def _display_acquisition(self, acquisition:DataloggingAcquisition) -> None:
+        """Display a datalogging acquisition in the chartview"""
+        # Empty the chart area
         self._clear_graph()
         self._chart_status_overlay.set(None, "")
         self._chart_status_overlay.hide()
+        
+        # Update state variables
         self._state.has_failure_message = False
         self._state.waiting_on_graph = False
         self._state.has_content = True
-        
 
         # Todo, we could reload a SFD when downloading an acquisiton from a different SFD
         self._displayed_acquisition = acquisition
 
+        # Since we put a graph, the signal tree (on the right) needs to be in sync with the graph content.
+        # We start by clearing the signal tree and refill it with the signals from the acquisition
         signal_tree_model = self._signal_tree.model()
         signal_tree_model.removeRows(0, signal_tree_model.rowCount())
 
         chart = self._chartview.chart()
         self._chart_toolbar.show()
         
+        # Sets the X-Axis
         self._xaxis = ScrutinyValueAxisWithMinMax(chart)        
         self._xaxis.setTitleText(acquisition.xdata.name)
         self._xaxis.setTitleVisible(True)
         chart.setAxisX(self._xaxis)
 
-        sdk_yaxes = acquisition.get_unique_yaxis_list()
-        sdk2qt_axes:Dict[int, ScrutinyValueAxisWithMinMax] = {}
-        sdk2tree_axes:Dict[int, AxisStandardItem] = {}
+        sdk_yaxes = acquisition.get_unique_yaxis_list()         # The axes as defined by the acquisition object
+        sdk2qt_axes:Dict[int, ScrutinyValueAxisWithMinMax] = {} # A mapping between the acquisition axes and the QT Chart axes
+        sdk2tree_axes:Dict[int, AxisStandardItem] = {}          # A mapping between the acquisition axes and the axes displayed in the signal tree
+        
+        # Create the axes (Chart + Signal tree)
         for sdk_yaxis in sdk_yaxes:
             # Create the axis in the signal tree (right menu)
             axis_item = signal_tree_model.add_axis(sdk_yaxis.name)
@@ -473,8 +511,9 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
             
             # Bind the graph axis with the signal tree axis.
             axis_item.attach_axis(qt_axis)
-            self._yaxes.append(qt_axis) # Keeps all the references in a lsit for convenience.
-    
+            self._yaxes.append(qt_axis) # Keeps all the references in a list for convenience.
+
+        # Fill the axes with data
         xseries_data = acquisition.xdata.get_data()
         for ydata in acquisition.ydata:     # For each dataset
             # Find the axis tied to that dataset
@@ -516,9 +555,11 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
             series.attachAxis(qt_yaxis)
             series.setName(ydata.series.name)
             
+            # Update, do not set. Axes are shared by many datasets
             qt_yaxis.update_minmax(min(yseries_data))
             qt_yaxis.update_minmax(max(yseries_data))
         
+        # Set min/max. Only 1 dataset for the X-Axis
         self._xaxis.set_minval(min(xseries_data))
         self._xaxis.set_maxval(max(xseries_data))
 
@@ -526,21 +567,25 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
         for yaxis in self._yaxes:
             yaxis.autoset_range(margin_ratio=self.Y_AXIS_MARGIN)
 
+        # Put the chart toolbar in a correct state
         self._state.allow_chart_toolbar()
         self._chart_toolbar.disable_chart_cursor()
         
+        # Enable the chart cursor so it can display values in the signal tree
         def update_xval(val:float, enabled:bool) -> None:
             self._xval_label.setText(f"{acquisition.xdata.name} : {val}")
             self._xval_label.setVisible(enabled)
         self._chartview.configure_chart_cursor(self._signal_tree, update_xval)
 
-        self._apply_internal_state()
+        self._apply_internal_state()    # UI update based on the state variables
 
 
     def _chartview_zoombox_selected_slot(self, zoombox:QRectF) -> None:
+        """When the user changes the zoom with its mouse. Either a rectangle drawn (rubberband) or a wheel event.
+        This signals comes from the Scrutiny extended Chartview"""
+
         if not self._state.allow_zoom():
             return 
-        #self._chartview.chart().hide_mouse_callout()
 
         # When we are paused, we want the zoom to stay within the range of that was latched when pause was called.
         # When not pause, saturate to min/max values
@@ -642,7 +687,6 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
             tools.log_exception(self.logger, e, f"Error while saving graph into {logfilepath}")
             prompt.exception_msgbox(self, e, "Failed to save", f"Failed to save the graph to {logfilepath}")
 
-
     def _save_csv_slot(self) -> None:
         """When the user right-click the graph then click "Save as CSV" """
         if not self._state.allow_save_csv():
@@ -681,12 +725,12 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
             sfd = graph_sfd
             )
 
-
     def _signal_tree_selection_changed_slot(self) -> None:
         """Whent he user selected/deselected a signal in the right menu"""
         self.update_emphasize_state()
 
     def _signal_tree_content_changed_slot(self) -> None:
+        """A watchable has been added/remove from the watchable tree"""
         self._graph_config_widget.update_content()
 
     def update_emphasize_state(self) -> None:
@@ -749,10 +793,11 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
         return outlist
             
     def _acquire_tab_visible_slot(self) -> None:
-        pass
+        """When the "Acquire" tab become visible"""
+        pass    # Nothing to do
 
     def _btn_acquire_slot(self) -> None:
-        """When the user pressed "Acquire" """
+        """When the user presses the "Acquire" button """
         # Get the config from the config widget. 
         # Then add the signals from the signal tree and send that to the server if all valid
         result = self._graph_config_widget.validate_and_get_config()
@@ -762,14 +807,15 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
             return 
         assert result.config is not None
         
+        # Check that we have watchables in the signal tree
         self._acquire_feedback_label.clear()
         axes_signal = self._signal_tree.get_signals()
-        if len(axes_signal) == 0:
+        if len(axes_signal) == 0:   # check for axes
             self._acquire_feedback_label.set_error("No signals to acquire")
             return
-
+        
         nb_signals = 0
-        for axis in axes_signal:
+        for axis in axes_signal:    # Check for axes content
             if len(axis.signal_items) == 0:
                 continue
             nb_signals += len(axis.signal_items)
@@ -785,7 +831,7 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
             self._acquire_feedback_label.set_error("No signals to acquire")
             return
 
-        # Config is good. 
+        # Starting form here,  the config given by the user is valid. We need to request the server now
         self._acquire_feedback_label.clear()
         self._clear_graph()        
         self._acquire(result.config)    # Request the server for that acquisition
@@ -817,9 +863,9 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
 
             self.logger.debug(f"Datalog accepted. Request {request.request_token}")
 
-            if self._pending_request is not None:
+            if self._pending_datalogging_request is not None:
                 # We use a dict instead of a set of id to keep a reference to the object so it's kept alive and ther eis no id reuse issue.
-                self._request_to_ignore_completions[id(self._pending_request)] = self._pending_request
+                self._request_to_ignore_completions[id(self._pending_datalogging_request)] = self._pending_datalogging_request
             else:
                 self._request_to_ignore_completions.clear()
 
@@ -841,7 +887,7 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
                     self.logger.debug(f"Ignoring completion of {request.request_token}")
                     return 
                 
-                self._pending_request = None
+                self._pending_datalogging_request = None
                 if error is not None:   # Exception while waiting
                     self._callback_acquire_request_failed(request, error, msg="")   # The message will be the exception
                     return
@@ -856,7 +902,7 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
                 
                 self._callback_acquire_request_succeeded(request)   # SUCCESS!
             
-            self._pending_request = request
+            self._pending_datalogging_request = request
             
             self.server_manager.schedule_client_request(
                 user_func=bg_thread_wait_for_completion,
@@ -875,6 +921,9 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
 
 
     def _update_acquiring_overlay(self) -> None:
+        """When an acquisition is in progress, an overlay on the chart display the progress. This method updates the message
+        when the server informs the UI that the datalogger state changed"""
+
         info = self.server_manager.get_server_info()
         if info is None:
             return 
@@ -895,6 +944,7 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
                                  request:Optional[DataloggingRequest], 
                                  error:Optional[Exception], 
                                  msg:str="Request failed") -> None:
+        """Our acquisition failed. Tell the user why"""
         self._state.waiting_on_graph = False
         self._acquire_feedback_label.clear()
 
@@ -912,14 +962,15 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
         self._apply_internal_state()
 
     def _callback_acquire_request_succeeded(self, request:DataloggingRequest) -> None:
+        """Our acquisition succeeded. Download and display the content right away"""
         assert request.completed and request.is_success
         assert request.acquisition_reference_id is not None
         self._acquire_feedback_label.clear()
         self._graph_config_widget.update_autoname()
 
-        self._apply_internal_state()
+        self._apply_internal_state()    # Update the UI
 
-        def ephemerous_thread_download_data(client:ScrutinyClient) -> DataloggingAcquisition:
+        def bg_thread_download_data(client:ScrutinyClient) -> DataloggingAcquisition:
             assert request.acquisition_reference_id is not None
             return client.read_datalogging_acquisition(reference_id=request.acquisition_reference_id)
         
@@ -932,31 +983,39 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
             self._display_acquisition(acquisition)
 
         self.server_manager.schedule_client_request(
-            user_func=ephemerous_thread_download_data, 
+            user_func=bg_thread_download_data, 
             ui_thread_callback=qt_thread_receive_acquisition_data
             )
 
     def _btn_clear_slot(self) -> None:
+        """When the "Clear" button is pressed """
         self._clear_graph()
         self._acquire_feedback_label.clear()
 
 # endregion
 
 # region Browse Tab
+    def _browse_tab_visible_slot(self) -> None:
+        """When the user make "Browse" tab visible"""
+        # We initiate the downlaod of a first chunk of acquisition list
+        self._do_initial_graph_list_download()
+
     def _datalogging_storage_updated_slot(self, change_type:sdk.DataloggingListChangeType, reference_id:Optional[str]) -> None:
-        """"""
+        """The server informs us that a change was made to the datalogging storage. We use ths to update our list, even if this GUI 
+        is the initiator of the change."""
+
         if change_type == sdk.DataloggingListChangeType.DELETE_ALL:
             self._do_initial_graph_list_download()
         elif change_type == sdk.DataloggingListChangeType.DELETE:
             if reference_id is not None:
-                self._graph_browse_widget.remove_by_reference_id(reference_id)
+                self._graph_browse_list_widget.remove_by_reference_id(reference_id)
         elif change_type == sdk.DataloggingListChangeType.UPDATE:
             if reference_id is not None:
                 def bg_thread_update(client:ScrutinyClient) -> Optional[DataloggingStorageEntry]:
                     return client.read_datalogging_acquisitions_metadata(reference_id)
                 def qt_thread_update(entry:Optional[DataloggingStorageEntry], error:Optional[Exception]) -> None:
                     if entry is not None:
-                        self._graph_browse_widget.update_storage_entry(entry)
+                        self._graph_browse_list_widget.update_storage_entry(entry)
                 
                 self.server_manager.schedule_client_request(bg_thread_update, qt_thread_update)
         elif change_type == sdk.DataloggingListChangeType.NEW:
@@ -965,15 +1024,19 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
                     return client.read_datalogging_acquisitions_metadata(reference_id)
                 def qt_thread_new(entry:Optional[DataloggingStorageEntry], error:Optional[Exception]) -> None:
                     if entry is not None:
-                        self._graph_browse_widget.add_storage_entries([entry])
+                        self._graph_browse_list_widget.add_storage_entries([entry])
                 
                 self.server_manager.schedule_client_request(bg_thread_new, qt_thread_new)
+        else:
+            self.logger.warning(f"Unsupported change type {change_type}")
 
     def _enable_sfd_filter(self) -> None:
+        """Make the checkbox to filter per firmware ID available"""
         self._chk_browse_loaded_sfd_only.setEnabled(True)
         self._chk_browse_loaded_sfd_only.setCheckState(Qt.CheckState.Unchecked)
 
     def _disable_sfd_filter(self) -> None:
+        """Make the checkbox to filter per firmware ID unavailable"""
         self._chk_browse_loaded_sfd_only.setDisabled(True)
         self._chk_browse_loaded_sfd_only.setCheckState(Qt.CheckState.Unchecked)
 
@@ -991,6 +1054,8 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
         self.server_manager.schedule_client_request(bg_thread_download, qt_thread_show )
 
     def _request_rename_slot(self, reference_id:str, new_name:str) -> None:
+        """The user wants to rename an acquisition. Signal comes from the list widget"""
+
         def bg_thread_rename(client:ScrutinyClient) -> None: 
             client.update_datalogging_acquisition(reference_id, name=new_name)
         
@@ -1022,16 +1087,15 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
             partial = functools.partial(bg_thread_delete, reference_id)
             self.server_manager.schedule_client_request(partial, qt_thread_complete)
 
-    def _browse_tab_visible_slot(self) -> None:
-        self._do_initial_graph_list_download()
     
     def _do_initial_graph_list_download(self) -> None:
         """Reset the content of the available acquisitions and downloads the first page of data"""
         self._oldest_acquisition_downloaded = None
         self._state.may_have_more_to_load = True
-        self._graph_browse_widget.clear()
+        self._graph_browse_list_widget.clear()
         self._browse_feedback_label.set_info("Downloading...")
 
+        # If there is a firmware loaded and the user wants to filter by it.
         firmware_id:Optional[str] = None
         loaded_sfd = self.server_manager.get_loaded_sfd() 
         if loaded_sfd is not None and self._chk_browse_loaded_sfd_only.checkState() == Qt.CheckState.Checked:
@@ -1041,9 +1105,10 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
             firmware_id = firmware_id
         )
 
+        # Launch download
         def bg_thread_download(client:ScrutinyClient) -> List[DataloggingStorageEntry]:    
             return client.list_stored_datalogging_acquisitions(
-                firmware_id=self._initial_graph_list_download_conditions.firmware_id, 
+                firmware_id=self._initial_graph_list_download_conditions.firmware_id,   # Can be None
                 count=self.DOWNLOAD_ACQ_LIST_CHUNK_SIZE
                 )
         
@@ -1051,7 +1116,7 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
             if result is not None:
                 self._receive_acquisition_list(result)
                 self._browse_feedback_label.clear()
-                self._graph_browse_widget.autosize_columns()
+                self._graph_browse_list_widget.autosize_columns()
             else:
                 msg = "Failed to download the datalogging data."
                 if error is not None:
@@ -1062,9 +1127,11 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
         self.server_manager.schedule_client_request(bg_thread_download, qt_thread_receive)
 
     def _checkbox_filter_sfd_checkstate_change_slot(self, checkstate:Qt.CheckState) -> None:
-        self._do_initial_graph_list_download()
+        """When the checkbox to filter by firmware ID is checked/unchecked """
+        self._do_initial_graph_list_download()  # Just relaunch a new download from scratch. The checkbox is checked inside
 
     def _btn_delete_all_clicked_slot(self) -> None:
+        """ The "Delete All" button has been pressed """
         msgbox = QMessageBox(self)
         msgbox.setIcon(QMessageBox.Icon.Warning)
         msgbox.setWindowTitle("Are you sure?")
@@ -1073,7 +1140,7 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
         msgbox.setDefaultButton(QMessageBox.StandardButton.No)
 
         msgbox.setModal(True)
-        reply = msgbox.exec()
+        reply = msgbox.exec()   # Ask the user to confirm
 
         if reply == QMessageBox.StandardButton.Yes:
             self._request_delete_all()
@@ -1094,6 +1161,7 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
         self.server_manager.schedule_client_request(bg_thread_clear, qt_thread_complete)
 
     def _btn_load_more_clicked_slot(self) -> None:
+        """ When the "Load more" button has been clicked"""
         if not self._state.can_load_more_acquisitions():
             return
         assert self._oldest_acquisition_downloaded is not None
@@ -1101,9 +1169,9 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
         self._browse_feedback_label.set_info("Downloading...")
         def bg_thread_download(client:ScrutinyClient) -> List[DataloggingStorageEntry]:    
             return client.list_stored_datalogging_acquisitions(
-                firmware_id=self._initial_graph_list_download_conditions.firmware_id, 
+                firmware_id=self._initial_graph_list_download_conditions.firmware_id,   # Can be None. Repeat what we did in the initial download
                 count=self.DOWNLOAD_ACQ_LIST_CHUNK_SIZE,
-                before_datetime=self._oldest_acquisition_downloaded
+                before_datetime=self._oldest_acquisition_downloaded # This is a subsequent download. Start from the last one received
                 )
         
         def qt_thread_receive(result:Optional[List[DataloggingStorageEntry]], error:Optional[Exception]) -> None:
@@ -1120,9 +1188,10 @@ class EmbeddedGraph(ScrutinyGUIBaseComponent):
         self.server_manager.schedule_client_request(bg_thread_download, qt_thread_receive)
 
     def _receive_acquisition_list(self, result:List[DataloggingStorageEntry]) -> None:
+        """When we receive a chunk of acquisition metadata entries. We add the data to the actual list"""
         if len(result) < self.DOWNLOAD_ACQ_LIST_CHUNK_SIZE:
             self._state.may_have_more_to_load = False
         if len(result) > 0:
-            self._graph_browse_widget.add_storage_entries(result)
+            self._graph_browse_list_widget.add_storage_entries(result)
             self._oldest_acquisition_downloaded = min([x.timestamp for x in result])
-#endregion
+# endregion

@@ -73,7 +73,8 @@ window.show()
 
 def handle_resize():
     container.prepareGeometryChange()
-    container.setRect(QRect(QPoint(0,0), view.size()/1.2))
+    container.setRect(QRect(QPoint(0,0), view.size()*0.8))
+    container.update()
 
 handle_resize()
 window.signals.resized.connect(handle_resize)

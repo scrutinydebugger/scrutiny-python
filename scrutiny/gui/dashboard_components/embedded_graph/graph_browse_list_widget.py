@@ -1,5 +1,5 @@
-#    graph_browse_widget.py
-#        A widget that let the user browse the available acquisition on the server. Communicate
+#    graph_browse_list_widget.py
+#        A widget that show to the user a list of acquisitions available on the server. Communicate
 #        with the Embedded Graph widget through signals
 #
 #   - License : MIT - See LICENSE file.
@@ -21,6 +21,8 @@ from scrutiny.tools import get_default_val
 from scrutiny.gui.tools.invoker import InvokeQueued
 
 class AcquisitionStorageEntryTreeModel(BaseTreeModel):
+    """The model used for the acquisition list treeview"""
+
     REFERENCE_ID_ROLE = Qt.ItemDataRole.UserRole + 100
 
     class Columns:
@@ -73,9 +75,8 @@ class AcquisitionStorageEntryTreeModel(BaseTreeModel):
     def append_storage_entry(self, entry:datalogging.DataloggingStorageEntry) -> None:
         self.appendRow(self.row_from_storage_entry(entry))
     
-
-    
     def update_storage_entry(self, entry:datalogging.DataloggingStorageEntry) -> None:
+        """Replace every items in the rows that display the same acquisition (matched by ``reference_id``) """
         for i in range(self.rowCount()):
             reference_id = self.get_reference_id_from_index(self.index(i,0,QModelIndex()))
             if reference_id == entry.reference_id:
@@ -107,6 +108,7 @@ class AcquisitionStorageEntryTreeModel(BaseTreeModel):
             self.removeRow(item.row(), QModelIndex())
 
 class AcquisitionStorageEntryTreeView(BaseTreeView):
+    """The treeview extension used for display. No nesting done, just a plain 1-level list"""
     class _Signals(QObject):
         display = Signal()
         delete = Signal()
@@ -161,6 +163,7 @@ class AcquisitionStorageEntryTreeView(BaseTreeView):
         menu.popup(self.mapToGlobal(pos), at)   
     
     def _rename_selected_acquisition(self) -> None:
+        """Makes an item in the treeview editable by the user"""
         selected_indexes = self.selectedIndexes()
         selected_indexes_first_col = [index for index in selected_indexes if index.column() == 0]
         if len(selected_indexes_first_col) != 1:
@@ -176,26 +179,25 @@ class AcquisitionStorageEntryTreeView(BaseTreeView):
         self.edit(item_name.index())
         item_name.setEditable(False)
 
-        def select_text() -> None:
+        def select_text() -> None:  # Little trick to highlight the text so the user can type right away
             line_edits = cast(List[QLineEdit], self.findChildren(QLineEdit))
             if line_edits is not None and len(line_edits) == 1:
                 line_edits[0].selectAll()
         InvokeQueued(select_text)
     
     def closeEditor(self, editor:QWidget, hint:QAbstractItemDelegate.EndEditHint) -> None:
-        if self._item_being_edited is not None:
-            
+        """Called when the user finishes editing an item"""
+        if self._item_being_edited is not None: # We were really editing something. Paranoid check
             item_written = self._item_being_edited
             
             reference_id = self.model().get_reference_id_from_index(item_written.index())
             new_name = item_written.text()
 
-            must_update = (hint == QAbstractItemDelegate.EndEditHint.SubmitModelCache)
-            if len(new_name) == 0:
+            must_update = (hint == QAbstractItemDelegate.EndEditHint.SubmitModelCache)  # User pressed Enter, not Escape
+            if len(new_name) == 0:  # Name is not acceptable
                 item_written.setText(self._previous_name)
                 must_update = False
-            
-            
+
             if must_update:
                 self._signals.rename.emit(reference_id, new_name)
         
@@ -212,8 +214,12 @@ class AcquisitionStorageEntryTreeView(BaseTreeView):
     def mouseDoubleClickEvent(self, event:QMouseEvent):
         self._signals.display.emit()
         return super().mouseDoubleClickEvent(event)
+    
+    def update_storage_entry(self, entry:datalogging.DataloggingStorageEntry) -> None:
+        self.model().update_storage_entry(entry)
 
-class GraphBrowseTreeWidget(QWidget):
+class GraphBrowseListWidget(QWidget):
+    """A continer widget that is the public API. Wraps the treeview"""
 
     class _Signals(QObject):
         display = Signal(str)
@@ -242,9 +248,11 @@ class GraphBrowseTreeWidget(QWidget):
         self._treeview.signals.rename.connect(self._signals.rename) # Bubble up the signal
     
     def clear(self) -> None:
+        """Remove every acquisition from the list"""
         self._treeview.model().removeRows(0, self._treeview.model().rowCount())
     
     def add_storage_entries(self, entries:Sequence[datalogging.DataloggingStorageEntry]) -> None:
+        """Add some entries to the list"""
         self._treeview.setSortingEnabled(False)
         for entry in entries:
             self._treeview.model().append_storage_entry(entry)
@@ -255,11 +263,13 @@ class GraphBrowseTreeWidget(QWidget):
             self._treeview.resizeColumnToContents(i)
 
     def update_storage_entry(self, entry:datalogging.DataloggingStorageEntry) -> None:
+        """Request a change to an entry. Teh ``reference_id`` field is used to find the update target"""
         self._treeview.setSortingEnabled(False)
-        self._treeview.model().update_storage_entry(entry)
+        self._treeview.update_storage_entry(entry)
         self._treeview.setSortingEnabled(True)
             
     def _emit_display_signal_if_possible(self) -> None:
+        """Request a display of the selected acquisition in the list"""
         selected_indexes = self._treeview.selectedIndexes()
         selected_indexes_one_per_row = [index for index in selected_indexes if index.column() == 0]
         model = self._treeview.model()
@@ -269,6 +279,7 @@ class GraphBrowseTreeWidget(QWidget):
                 self._signals.display.emit(reference_id)
 
     def _emit_delete_signal_if_possible(self) -> None:
+        """Request a delete for the selected acquisition in the list"""
         selected_indexes = self._treeview.selectedIndexes()
         selected_indexes_one_per_row = [index for index in selected_indexes if index.column() == 0]
         model = self._treeview.model()
@@ -282,4 +293,5 @@ class GraphBrowseTreeWidget(QWidget):
                 self._signals.delete.emit(to_delete)
     
     def remove_by_reference_id(self, reference_id:str) -> None:
+        """Remove an acquisition from the list. Acquisition identified by its unique ``reference_id`` field"""
         self._treeview.model().remove_by_reference_id(reference_id)

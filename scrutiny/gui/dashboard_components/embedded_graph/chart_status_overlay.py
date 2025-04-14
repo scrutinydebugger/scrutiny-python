@@ -11,12 +11,13 @@ __all__ = ['ChartStatusOverlay']
 
 from PySide6.QtGui import QPainter, QFontMetrics, QFont, QColor, QPixmap
 from PySide6.QtWidgets import ( QWidget, QGraphicsItem, QStyleOptionGraphicsItem)
-from PySide6.QtCore import Qt, QRectF, QRect, QPointF
+from PySide6.QtCore import Qt, QRectF, QRect, QPointF, QSize
 from scrutiny.tools.typing import *
 from scrutiny.gui import assets
 
 class ChartStatusOverlay(QGraphicsItem):
     MARGIN=20
+    ICON_MAX_SIZE = QSize(128,128)
 
     _bounding_box:QRectF
     _text_rect:QRectF
@@ -62,17 +63,17 @@ class ChartStatusOverlay(QGraphicsItem):
         max_w = float(max(parent_rect.width() - 2*self.MARGIN, 0))
         max_h = float(max(parent_rect.height() - 2*self.MARGIN, 0))
         metrics = QFontMetrics(self._font)
-        text_h = float(metrics.height())
+        text_h = float(metrics.height() * 3)    # Allow 3 lines max
         icon_max_h = max(max_h - text_h, 0)
 
         self._icon_rect = None
         self._icon_resized = None
         if self._icon is not None:
-            max_size = self._icon.size()
+            max_size = self.ICON_MAX_SIZE
             max_size_ratio = max_size.width()/max_size.height()
 
             icon_h = min(max_size.height(), icon_max_h)
-            icon_w = min(max_size.width(), max_w)
+            icon_w = min(max_size.width(), max_w) 
             if icon_h > 0 and icon_w > 0:
                 icon_ratio = icon_w/icon_h
 
@@ -86,7 +87,11 @@ class ChartStatusOverlay(QGraphicsItem):
                 self._icon_rect = QRectF(icon_x, icon_y, icon_w, icon_h)
                 self._icon_resized = self._icon.scaled(self._icon_rect.size().toSize())
 
-        self._text_rect = QRectF(metrics.boundingRect(QRect(0, 0, int(max_w), int(text_h)), Qt.AlignmentFlag.AlignCenter, self._text))
+        self._text_rect = QRectF(metrics.boundingRect(
+            QRect(0, 0, int(max_w), int(text_h)), 
+            Qt.AlignmentFlag.AlignCenter | Qt.TextFlag.TextWordWrap, 
+            self._text)
+            )
         if self._icon_rect is not None:
             text_y = self._icon_rect.bottom()
         else:

@@ -699,8 +699,8 @@
         "scrutiny/gui/dashboard_components/embedded_graph/chart_status_overlay.py": {
             "docstring": "An overlay that can be applied on a chart to display a message with an icon. USed to display errors and loading messages"
         },
-        "scrutiny/gui/dashboard_components/embedded_graph/graph_browse_widget.py": {
-            "docstring": "A widget that let the user browse the available acquisition on the server. Communicate with the Embedded Graph widget through signals"
+        "scrutiny/gui/dashboard_components/embedded_graph/graph_browse_list_widget.py": {
+            "docstring": "A widget that show to the user a list of acquisitions available on the server. Communicate with the Embedded Graph widget through signals"
         },
         "scrutiny/server/sfd_storage.py": {
             "docstring": "Declaration of the server-wide SFD storage"
